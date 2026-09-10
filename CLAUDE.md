@@ -49,6 +49,12 @@ See [PLAN.md](PLAN.md) for the build roadmap and current phase.
 
 ## Working conventions
 
-- No tech stack has been locked in yet — that's a Phase 0 decision in PLAN.md, not an assumption to make silently. Whoever picks it up should record the decision (and why) in this file once made.
+- **Tech stack (decided in Phase 0):**
+  - **TypeScript everywhere**, strict mode (`tsconfig.base.json`). *Why:* hundreds of card-defined effects need a type system that catches shape errors in ability definitions at compile time; one language across engine/content/client avoids serializing game state across a language boundary.
+  - **pnpm workspaces monorepo** with three packages: `@mc/engine` (headless rules engine — no rendering, no I/O), `@mc/content` (card schema + structured card data, no art), `@mc/client` (the tabletop-style UI). *Why:* the engine/client/content boundary is load-bearing — `game-rules-architect` and `game-client-engineer` should never need to touch each other's internals. Dependency direction is strictly `client → engine → content`; the engine must never import from the client.
+  - **Vitest** for tests, colocated as `src/**/*.test.ts`. *Why:* the engine is validated primarily through scenario/ruling tests (PLAN.md Phase 6), so the runner is a day-one dependency, and Vitest runs TS directly with no build step.
+  - **Presentation:** a 2D tabletop-style card game in the mold of *Sentinels of the Multiverse* (digital edition), built as a single cross-platform client — web-first, packageable to desktop/mobile later (Tauri/Capacitor or similar; the specific wrapper is a Phase 8 packaging choice, not a Phase 0 one). Not a 3D Tabletop-Simulator sim. The client framework itself is chosen when Phase 4 starts; the client package is a placeholder until then.
+  - **Persistence:** local-only save/resume via serialized engine state until Phase 5; the engine's state is plain serializable data specifically so a backend can be added later without redesign.
+  - Run `pnpm test` / `pnpm typecheck` from the root to exercise every package.
 - Favor explicit, inspectable game state over cleverness — this is the kind of system where a bug means a card behaves wrong in a way a real player will notice ("why didn't Toughness stop that damage?"), so state and effect resolution should be easy to log and step through.
 - When implementing a card or keyword, cite the RRG section or FAQ ruling being followed in code comments only when the behavior is non-obvious from the card text alone (e.g. an interaction order that isn't intuitive).

@@ -1,0 +1,21 @@
+{
+  "name": "@mc/engine",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headless Marvel Champions rules engine: game state, turn structure, effect/trigger stack, keywords. No rendering, no I/O.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@mc/content": "workspace:*"
+  }
+}

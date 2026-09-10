@@ -1,0 +1,52 @@
+import type { CardText, ScalingValue, Trait } from "../common.js";
+import type { KeywordInstance } from "../keywords.js";
+import type { AbilityReference } from "../abilities.js";
+import type { EncounterSetId } from "../ids.js";
+import type { BaseCard } from "./base.js";
+
+/**
+ * Icons printed in a scheme's threat box. Crisis blocks thwarting other
+ * schemes; Hazard adds an encounter card per villain phase; Acceleration adds
+ * to the main scheme's acceleration while the scheme is in play.
+ */
+export type SchemeIcon = "crisis" | "hazard" | "acceleration";
+
+export interface MainSchemeStage {
+  readonly stageNumber: number;
+  /** Branching stages (e.g. "2a"/"2b") share a `stageNumber` and differ by letter. */
+  readonly stageLetter?: string;
+  /** Threat placed on this stage when it becomes active. */
+  readonly startingThreat: ScalingValue;
+  /** Threat at which this stage completes (advance, or players lose on the last stage). */
+  readonly targetThreat: ScalingValue;
+  /** Threat added during each villain phase's "place threat" step. */
+  readonly acceleration: ScalingValue;
+  readonly icons: readonly SchemeIcon[];
+  readonly text: CardText;
+  readonly traits: readonly Trait[];
+  readonly keywords: readonly KeywordInstance[];
+  readonly abilities: readonly AbilityReference[];
+}
+
+export interface MainSchemeCard extends BaseCard {
+  readonly type: "main_scheme";
+  readonly encounterSetIds: readonly EncounterSetId[];
+  readonly stages: readonly [MainSchemeStage, ...MainSchemeStage[]];
+}
+
+/**
+ * Side schemes have no target: they enter with `startingThreat` and are
+ * defeated when thwarted to 0.
+ */
+export interface SideSchemeCard extends BaseCard {
+  readonly type: "side_scheme";
+  readonly encounterSetIds: readonly EncounterSetId[];
+  readonly startingThreat: ScalingValue;
+  readonly icons: readonly SchemeIcon[];
+  readonly boostIcons: number;
+  readonly traits: readonly Trait[];
+  readonly keywords: readonly KeywordInstance[];
+  readonly text: CardText;
+  readonly flavor?: string;
+  readonly abilities: readonly AbilityReference[];
+}

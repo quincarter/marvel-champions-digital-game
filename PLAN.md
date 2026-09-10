@@ -1,6 +1,6 @@
 # PLAN: Marvel Champions Digital Edition
 
-Status: **Phase 0 — not started.** Nothing has been built yet; this document is the roadmap. Update the Status line and check off phases as work lands.
+Status: **Phase 0 complete; Phase 1 (core rules engine) is next.** Stack recorded in CLAUDE.md; monorepo scaffolded (`packages/engine`, `packages/content`, `packages/client`); card schema landed in `@mc/content` (see its README for the rules-shape decisions); `pnpm test` / `pnpm typecheck` green. Update the Status line and check off phases as work lands.
 
 This plan is intentionally sequenced rules-engine-first: a correct, headless simulation of a small card pool (the Core Set) before any UI polish, AI sophistication, or content breadth. A beautiful board that plays the game wrong is worse than an ugly board that plays it right.
 
@@ -8,13 +8,13 @@ This plan is intentionally sequenced rules-engine-first: a correct, headless sim
 
 Owner: whoever kicks off the project (architectural decisions, not yet delegated to a single agent).
 
-- [ ] Pick the tech stack. Considerations to weigh explicitly, not just default to whatever's familiar:
-  - Target platform(s): web, desktop, mobile, or Tabletop-Simulator-style 3D? (Recommendation: web client + a platform-agnostic core engine package, so the rules engine isn't tied to a rendering framework.)
-  - Language for the rules engine (needs strong typing for a system with hundreds of card-defined effects — TypeScript is a reasonable default given a web target).
-  - Persistence approach for game state (local-only save/resume vs. a backend for multiplayer).
-- [ ] Scaffold the repo: separate the **engine** (rules/state machine, no rendering, no I/O) from the **client** (UI) from **content** (card data). This boundary is load-bearing — `game-rules-architect` and `game-client-engineer` should never need to touch each other's internals to do their jobs.
-- [ ] Set up whatever this stack needs for tests-as-first-class (the engine is going to be validated primarily through scenario tests, per Phase 6 — pick a test runner now, not later).
-- [ ] Define the card data schema (delegate to `card-data-pipeline`): fields needed to represent every card type — Hero, Alter-Ego, Ally, Event, Support, Upgrade, Resource, Villain (front/back), Minion, Attachment, Main Scheme, Side Scheme, Treachery, Obligation, Environment, Boost/Player-side-scheme where relevant — including keywords, traits, cost, stats (ATK/THW/DEF/HP as applicable), and a slot for the ability-script reference used by `ability-scripting-engineer`.
+- [x] Presentation style: **decided.** This plays like the *Sentinels of the Multiverse* digital game — a 2D tabletop-style card game (flat board, zones, cards as first-class rendered objects, hand fanned at the bottom, drag/tap to play), not a 3D Tabletop-Simulator-style physical sim and not a card-browser/wiki-with-images website. It should feel like sitting at the table: cards, tokens, and zones you can inspect and manipulate directly, with clean digital-native UI chrome (phase tracker, action log, threat/damage counters) layered around that tabletop, the way Sentinels' digital client does. This is a rendering/interaction style decision, owned by `game-client-engineer` once Phase 4 starts — it doesn't change the engine architecture below.
+- [x] Pick the tech stack — **decided, see "Tech stack" in CLAUDE.md.** TypeScript (strict) + pnpm workspaces + Vitest; single cross-platform client (web-first, packaged to desktop/mobile later) over a platform-agnostic engine package; local-only persistence until Phase 5.
+  - Target platform(s): **playable on any platform** (the point of reference is Sentinels of the Multiverse's digital edition, which ships to web/desktop/mobile from one client).
+  - Client framework (React/Solid/etc.) and the desktop/mobile wrapper (Tauri/Capacitor/etc.) are deliberately deferred to Phase 4 and Phase 8 respectively — nothing in Phases 1–3 depends on them.
+- [x] Scaffold the repo: `packages/engine` (`@mc/engine`), `packages/content` (`@mc/content`), `packages/client` (`@mc/client`), dependency direction strictly `client → engine → content`.
+- [x] Tests-as-first-class: Vitest wired into every package, `pnpm test` / `pnpm typecheck` run from the root.
+- [x] Define the card data schema — landed in `packages/content/src/schema/` (`AnyCard` union, structured keywords, `ScalingValue` for per-player numbers, printed-vs-current text for errata, `AbilityReference` slots for `ability-scripting-engineer`, `ArtRef` keys only for art). Open item carried into Phase 2: the `discount` keyword is a stub — its semantics weren't on the Hall of Heroes keyword page yet and must be confirmed against the RRG/card text before any card uses it.
 
 ## Phase 1 — Core rules engine (headless, no content yet)
 
@@ -48,6 +48,7 @@ Owner: `encounter-ai-designer`.
 
 Owner: `game-client-engineer`.
 
+- [ ] Reference point: *Sentinels of the Multiverse* (digital edition) — a 2D tabletop-style card game, not a 3D physical simulator, playable cross-platform. Board/zones/cards are the primary UI; chrome (log, phase tracker, counters) supports it rather than replacing the tabletop feel.
 - [ ] Board layout: player area(s), villain area, main scheme, side schemes, encounter deck/discard, each player's identity/hand/deck/discard/play area — legible at a glance the way the physical table is.
 - [ ] Card rendering (using licensed-for-personal-use art per the IP boundary in CLAUDE.md), zoom/inspect, legal-move highlighting, drag-and-drop or tap-to-target interaction for choosing targets/attachments/assignments.
 - [ ] Animations/feedback for damage, threat, defeat, phase transitions — enough to make state changes readable, not spectacle for its own sake.

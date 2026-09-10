@@ -1,0 +1,9 @@
+node_modules/
+dist/
+coverage/
+.history/
+.DS_Store
+*.tsbuildinfo
+
+# Licensed card art lives locally only — never committed (see CLAUDE.md)
+assets/card-art/

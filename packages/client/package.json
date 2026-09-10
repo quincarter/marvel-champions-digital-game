@@ -1,0 +1,15 @@
+{
+  "name": "@mc/client",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Cross-platform tabletop-style game client (Sentinels of the Multiverse-style 2D board). Presents engine state and captures input; owns no rules.",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@mc/engine": "workspace:*"
+  }
+}
