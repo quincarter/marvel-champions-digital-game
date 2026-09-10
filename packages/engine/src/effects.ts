@@ -1,0 +1,191 @@
+import type { InstanceId, PlayerId } from "./ids.js";
+import { emit, moveCard, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
+import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
+import { mustInstance, mustPlayer } from "./query.js";
+import { shuffle } from "./rng.js";
+import type { StatusName } from "./spec.js";
+import type { GameOutcome, ZoneId } from "./state.js";
+
+/**
+ * Low-level state mutators. Nothing in this file opens a timing window or
+ * pushes a stack frame — everything that abilities can react to lives in
+ * `resolve.ts` so the ordering rules stay in one place.
+ */
+
+export function endGame(ctx: Ctx, outcome: GameOutcome): void {
+  if (ctx.state.outcome) return;
+  ctx.state = { ...ctx.state, outcome, pendingChoice: null, stack: [] };
+  setStep(ctx, { phase: "gameOver", kind: "gameOver" });
+  emit(ctx, { type: "gameEnded", outcome });
+}
+
+export function shuffleZone(ctx: Ctx, zone: ZoneId, ids: readonly InstanceId[]): readonly InstanceId[] {
+  const [order, rng] = shuffle(ids, ctx.state.rng);
+  ctx.state = { ...ctx.state, rng };
+  emit(ctx, { type: "deckShuffled", zone, order });
+  return order;
+}
+
+export function exhaustCard(ctx: Ctx, id: InstanceId): void {
+  updateInstance(ctx, id, (i) => ({ ...i, exhausted: true }));
+  emit(ctx, { type: "cardExhausted", instanceId: id });
+}
+
+export function readyCard(ctx: Ctx, id: InstanceId): void {
+  const instance = mustInstance(ctx.state, id);
+  if (!instance.exhausted) return;
+  updateInstance(ctx, id, (i) => ({ ...i, exhausted: false }));
+  emit(ctx, { type: "cardReadied", instanceId: id });
+}
+
+export function healDamage(ctx: Ctx, targetId: InstanceId, amount: number): void {
+  const target = mustInstance(ctx.state, targetId);
+  const healed = Math.min(amount, target.damage);
+  if (healed <= 0) return;
+  updateInstance(ctx, targetId, (i) => ({ ...i, damage: i.damage - healed }));
+  emit(ctx, { type: "damageHealed", targetInstanceId: targetId, amount: healed });
+}
+
+/** RRG "Status Cards": one of each type, two for steady, none for stalwart. */
+export function giveStatus(ctx: Ctx, id: InstanceId, status: StatusName): void {
+  const instance = mustInstance(ctx.state, id);
+  const capacity = statusCapacity(ctx.state, id, status);
+  if (instance.statuses[status] >= capacity) return;
+  const held = instance.statuses[status] + 1;
+  updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: held } }));
+  emit(ctx, { type: "statusGiven", instanceId: id, status });
+}
+
+export function removeStatus(ctx: Ctx, id: InstanceId, status: StatusName): void {
+  const instance = mustInstance(ctx.state, id);
+  if (instance.statuses[status] <= 0) return;
+  updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: 0 } }));
+  emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: "effect" });
+}
+
+/** RRG "Piercing": tough is discarded before the attack deals damage, so it prevents nothing. */
+export function pierceTough(ctx: Ctx, id: InstanceId): void {
+  const instance = mustInstance(ctx.state, id);
+  if (instance.statuses.tough <= 0) return;
+  updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, tough: 0 } }));
+  emit(ctx, { type: "statusRemoved", instanceId: id, status: "tough", reason: "piercing" });
+}
+
+export function addCounters(ctx: Ctx, id: InstanceId, counterType: string, amount: number): void {
+  if (amount <= 0) return;
+  updateInstance(ctx, id, (i) => ({
+    ...i,
+    counters: { ...i.counters, [counterType]: (i.counters[counterType] ?? 0) + amount },
+  }));
+  emit(ctx, { type: "counterAdded", instanceId: id, counterType, amount });
+}
+
+export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, amount: number): number {
+  const instance = mustInstance(ctx.state, id);
+  const removed = Math.min(amount, instance.counters[counterType] ?? 0);
+  if (removed <= 0) return 0;
+  updateInstance(ctx, id, (i) => ({
+    ...i,
+    counters: { ...i.counters, [counterType]: (i.counters[counterType] ?? 0) - removed },
+  }));
+  emit(ctx, { type: "counterRemoved", instanceId: id, counterType, amount: removed });
+  // RRG "Uses (X 'type')": when the last counter is removed from the card, discard it.
+  const uses = usesKeyword(ctx.state, id);
+  if (uses && uses.counterType === counterType) {
+    const left = mustInstance(ctx.state, id).counters[counterType] ?? 0;
+    if (left <= 0) discardFromPlay(ctx, id);
+  }
+  return removed;
+}
+
+/** RRG "Encounter Deck": resetting an empty encounter deck adds an acceleration token. */
+export function drawEncounterCard(ctx: Ctx): InstanceId | null {
+  if (ctx.state.encounterDeck.length === 0) {
+    if (ctx.state.encounterDiscard.length === 0) return null;
+    const order = shuffleZone(ctx, { kind: "encounterDeck" }, ctx.state.encounterDiscard);
+    ctx.state = { ...ctx.state, encounterDeck: order, encounterDiscard: [] };
+    addAccelerationToken(ctx);
+  }
+  return ctx.state.encounterDeck[0] ?? null;
+}
+
+export function addAccelerationToken(ctx: Ctx): void {
+  ctx.state = {
+    ...ctx.state,
+    mainScheme: {
+      ...ctx.state.mainScheme,
+      accelerationTokens: ctx.state.mainScheme.accelerationTokens + 1,
+    },
+  };
+  emit(ctx, { type: "accelerationTokenAdded", total: ctx.state.mainScheme.accelerationTokens });
+}
+
+export function removeAccelerationToken(ctx: Ctx): void {
+  // RRG "Acceleration Token": tokens on the main scheme cannot be removed from play.
+  if (ctx.state.mainScheme.accelerationTokens <= 0) return;
+  ctx.state = {
+    ...ctx.state,
+    mainScheme: {
+      ...ctx.state.mainScheme,
+      accelerationTokens: ctx.state.mainScheme.accelerationTokens - 1,
+    },
+  };
+  emit(ctx, { type: "accelerationTokenAdded", total: ctx.state.mainScheme.accelerationTokens });
+}
+
+export function dealEncounterCardTo(ctx: Ctx, playerId: PlayerId): InstanceId | null {
+  const id = drawEncounterCard(ctx);
+  if (!id) return null;
+  updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+  moveCard(ctx, id, { kind: "dealtEncounter", playerId });
+  return id;
+}
+
+/** RRG "Player Deck": an emptied deck reshuffles and costs that player a facedown encounter card. */
+function resetPlayerDeck(ctx: Ctx, playerId: PlayerId): boolean {
+  const player = mustPlayer(ctx.state, playerId);
+  if (player.discard.length === 0) return false;
+  const order = shuffleZone(ctx, { kind: "deck", playerId }, player.discard);
+  updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order, discard: [] }));
+  dealEncounterCardTo(ctx, playerId);
+  return true;
+}
+
+export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
+  for (let i = 0; i < count; i++) {
+    let player = mustPlayer(ctx.state, playerId);
+    if (player.deck.length === 0 && !resetPlayerDeck(ctx, playerId)) return;
+    player = mustPlayer(ctx.state, playerId);
+    const top = player.deck[0];
+    if (!top) return;
+    moveCard(ctx, top, { kind: "hand", playerId });
+    emit(ctx, { type: "cardDrawn", playerId, instanceId: top });
+  }
+}
+
+export function discardFromHand(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
+  moveCard(ctx, id, { kind: "discard", playerId }, "top");
+  emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
+}
+
+/** Sends a card in play to its owner's discard (encounter discard for encounter cards). */
+export function discardFromPlay(ctx: Ctx, id: InstanceId): void {
+  // RRG "Permanent": a permanent card cannot be defeated or leave play.
+  if (hasKeyword(ctx.state, id, "permanent")) return;
+  const instance = mustInstance(ctx.state, id);
+  const to: ZoneId = instance.ownerId
+    ? { kind: "discard", playerId: instance.ownerId }
+    : { kind: "encounterDiscard" };
+  emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
+  for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
+  moveCard(ctx, id, to, "top");
+  updateInstance(ctx, id, (i) => ({
+    ...i,
+    damage: 0,
+    threat: 0,
+    counters: {},
+    statuses: { stunned: 0, confused: 0, tough: 0 },
+    exhausted: false,
+    engagedWith: null,
+  }));
+}

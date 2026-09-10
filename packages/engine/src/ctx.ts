@@ -1,0 +1,253 @@
+import type { GameEvent } from "./events.js";
+import { EngineInvariantError } from "./errors.js";
+import { choiceId, frameId as makeFrameId, instanceId, type ChoiceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
+import { hasKeyword } from "./keywords.js";
+import { locateCard, mustInstance, mustPlayer, zoneContents as zoneOf } from "./query.js";
+import type { ChoiceOption, ChoicePrompt, PendingChoice } from "./choices.js";
+import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./state.js";
+import { describeFrame, type StackFrame } from "./stack.js";
+import type { EngineDeps } from "./abilities.js";
+
+/**
+ * Working context for one command. `state` is replaced (never mutated) by each
+ * helper; `events` accumulates the ordered log of what happened.
+ */
+export interface Ctx {
+  state: GameState;
+  readonly events: GameEvent[];
+  readonly deps: EngineDeps;
+}
+
+export const createCtx = (state: GameState, deps: EngineDeps): Ctx => ({ state, events: [], deps });
+
+export function emit(ctx: Ctx, event: GameEvent): void {
+  ctx.events.push(event);
+}
+
+export function updateInstance(
+  ctx: Ctx,
+  id: InstanceId,
+  update: (instance: CardInstance) => CardInstance,
+): void {
+  const current = mustInstance(ctx.state, id);
+  ctx.state = {
+    ...ctx.state,
+    instances: { ...ctx.state.instances, [id]: update(current) },
+  };
+}
+
+export function updatePlayer(
+  ctx: Ctx,
+  id: PlayerId,
+  update: (player: PlayerState) => PlayerState,
+): void {
+  const players = ctx.state.players.map((p) => (p.playerId === id ? update(p) : p));
+  ctx.state = { ...ctx.state, players };
+}
+
+function setZone(state: GameState, zone: ZoneId, ids: readonly InstanceId[]): GameState {
+  switch (zone.kind) {
+    case "hand":
+      return withPlayer(state, zone.playerId, (p) => ({ ...p, hand: ids }));
+    case "deck":
+      return withPlayer(state, zone.playerId, (p) => ({ ...p, deck: ids }));
+    case "discard":
+      return withPlayer(state, zone.playerId, (p) => ({ ...p, discard: ids }));
+    case "playArea":
+      return withPlayer(state, zone.playerId, (p) => ({ ...p, playArea: ids }));
+    case "dealtEncounter":
+      return withPlayer(state, zone.playerId, (p) => ({ ...p, dealtEncounter: ids }));
+    case "encounterDeck":
+      return { ...state, encounterDeck: ids };
+    case "encounterDiscard":
+      return { ...state, encounterDiscard: ids };
+    case "villainArea":
+      return { ...state, villainArea: ids };
+    case "victoryDisplay":
+      return { ...state, victoryDisplay: ids };
+    case "removedFromGame":
+      return { ...state, removedFromGame: ids };
+    case "attachment": {
+      const host = mustInstance(state, zone.hostInstanceId);
+      return {
+        ...state,
+        instances: { ...state.instances, [host.instanceId]: { ...host, attachments: ids } },
+      };
+    }
+    case "boost": {
+      const host = mustInstance(state, zone.hostInstanceId);
+      return {
+        ...state,
+        instances: { ...state.instances, [host.instanceId]: { ...host, boostCards: ids } },
+      };
+    }
+    case "identity":
+      throw new EngineInvariantError("identity cards cannot leave their slot");
+  }
+}
+
+function withPlayer(
+  state: GameState,
+  id: PlayerId,
+  update: (player: PlayerState) => PlayerState,
+): GameState {
+  mustPlayer(state, id);
+  return { ...state, players: state.players.map((p) => (p.playerId === id ? update(p) : p)) };
+}
+
+export type ZonePosition = "top" | "bottom";
+
+/**
+ * The single way a card changes zones. Emits `cardMoved` so the log always
+ * explains how a card got where it is.
+ */
+export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePosition = "bottom"): void {
+  const from = locateCard(ctx.state, id);
+  if (from) {
+    const remaining = zoneOf(ctx.state, from).filter((x) => x !== id);
+    ctx.state = setZone(ctx.state, from, remaining);
+  }
+  const target = zoneOf(ctx.state, to);
+  ctx.state = setZone(ctx.state, to, position === "top" ? [id, ...target] : [...target, id]);
+
+  const instance = mustInstance(ctx.state, id);
+  const attachedTo = to.kind === "attachment" ? to.hostInstanceId : null;
+  if (instance.attachedTo !== attachedTo) {
+    ctx.state = {
+      ...ctx.state,
+      instances: { ...ctx.state.instances, [id]: { ...instance, attachedTo } },
+    };
+  }
+  emit(ctx, {
+    type: "cardMoved",
+    instanceId: id,
+    cardId: instance.cardId,
+    from: from ?? { kind: "removedFromGame" },
+    to,
+  });
+}
+
+export function setStep(ctx: Ctx, to: GameStep): void {
+  const from = ctx.state.step;
+  if (from.phase === to.phase && from.kind === to.kind && JSON.stringify(from) === JSON.stringify(to)) {
+    return;
+  }
+  ctx.state = { ...ctx.state, step: to };
+  emit(ctx, { type: "stepChanged", from, to });
+}
+
+export function nextInstanceId(ctx: Ctx): InstanceId {
+  const id = instanceId(`i${ctx.state.nextInstanceSeq}`);
+  ctx.state = { ...ctx.state, nextInstanceSeq: ctx.state.nextInstanceSeq + 1 };
+  return id;
+}
+
+export function nextChoiceId(ctx: Ctx): ChoiceId {
+  const id = choiceId(`c${ctx.state.nextChoiceSeq}`);
+  ctx.state = { ...ctx.state, nextChoiceSeq: ctx.state.nextChoiceSeq + 1 };
+  return id;
+}
+
+export function nextFrameId(ctx: Ctx): FrameId {
+  const id = makeFrameId(`f${ctx.state.nextFrameSeq}`);
+  ctx.state = { ...ctx.state, nextFrameSeq: ctx.state.nextFrameSeq + 1 };
+  return id;
+}
+
+/** The card a frame is resolving, if it has one — used to spot a peril card on the stack. */
+function frameCardId(frame: StackFrame): InstanceId | null {
+  switch (frame.kind) {
+    case "reveal":
+    case "playCard":
+    case "ability":
+      return frame.instanceId;
+    case "effects":
+      return frame.selfInstanceId;
+    default:
+      return null;
+  }
+}
+
+const perilOnStack = (state: GameState): boolean =>
+  state.stack.some((frame) => {
+    const id = frameCardId(frame);
+    return id !== null && hasKeyword(state, id, "peril");
+  });
+
+export function requestChoice(
+  ctx: Ctx,
+  spec: {
+    readonly playerId: PlayerId;
+    readonly prompt: ChoicePrompt;
+    readonly options: readonly ChoiceOption[];
+    readonly minSelections: number;
+    readonly maxSelections: number;
+    readonly frameId?: FrameId | null;
+    readonly ordered?: boolean;
+  },
+): void {
+  const choice: PendingChoice = {
+    choiceId: nextChoiceId(ctx),
+    playerId: spec.playerId,
+    prompt: spec.prompt,
+    options: spec.options,
+    minSelections: spec.minSelections,
+    maxSelections: spec.maxSelections,
+    frameId: spec.frameId ?? null,
+    ordered: spec.ordered ?? false,
+    soleDecider: perilOnStack(ctx.state),
+  };
+  ctx.state = { ...ctx.state, pendingChoice: choice };
+  emit(ctx, { type: "choiceRequested", choice });
+}
+
+export function clearChoice(ctx: Ctx): void {
+  ctx.state = { ...ctx.state, pendingChoice: null };
+}
+
+/** Puts frames on top of the stack, in order: `frames[0]` resolves first. */
+export function pushFrames(ctx: Ctx, frames: readonly StackFrame[]): void {
+  if (frames.length === 0) return;
+  ctx.state = { ...ctx.state, stack: [...frames, ...ctx.state.stack] };
+  for (const frame of frames) {
+    emit(ctx, {
+      type: "framePushed",
+      frameId: frame.frameId,
+      frame: frame.kind,
+      description: describeFrame(frame),
+    });
+  }
+}
+
+export function popFrame(ctx: Ctx): void {
+  const [top, ...rest] = ctx.state.stack;
+  if (!top) throw new EngineInvariantError("popFrame with an empty stack");
+  ctx.state = { ...ctx.state, stack: rest };
+  emit(ctx, { type: "framePopped", frameId: top.frameId, frame: top.kind });
+}
+
+/**
+ * Rewrites a frame in place (cursor advance, stage change, answer clear).
+ * Addressed by id rather than by position, so a handler that pushes child
+ * frames first cannot accidentally overwrite one of them.
+ */
+export function setFrame(ctx: Ctx, frame: StackFrame): void {
+  ctx.state = {
+    ...ctx.state,
+    stack: ctx.state.stack.map((existing) => (existing.frameId === frame.frameId ? frame : existing)),
+  };
+}
+
+export function updateFrame(
+  ctx: Ctx,
+  id: FrameId,
+  update: (frame: StackFrame) => StackFrame,
+): void {
+  ctx.state = {
+    ...ctx.state,
+    stack: ctx.state.stack.map((frame) => (frame.frameId === id ? update(frame) : frame)),
+  };
+}
+
+export const findFrame = (state: GameState, id: FrameId): StackFrame | undefined =>
+  state.stack.find((frame) => frame.frameId === id);

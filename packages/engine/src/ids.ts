@@ -1,0 +1,20 @@
+type Brand<T, B extends string> = T & { readonly __brand: B };
+
+/** Identifies a seat, not a human: "p1".."p4", assigned at setup and stable for the game. */
+export type PlayerId = Brand<string, "PlayerId">;
+
+/**
+ * Identifies one physical card in this game. Distinct from `CardId` (which
+ * identifies the printed card) because two copies of the same card coexist.
+ */
+export type InstanceId = Brand<string, "InstanceId">;
+
+export type ChoiceId = Brand<string, "ChoiceId">;
+
+/** Identifies one frame on the resolution stack, so a choice can be routed back to it. */
+export type FrameId = Brand<string, "FrameId">;
+
+export const playerId = (value: string): PlayerId => value as PlayerId;
+export const instanceId = (value: string): InstanceId => value as InstanceId;
+export const choiceId = (value: string): ChoiceId => value as ChoiceId;
+export const frameId = (value: string): FrameId => value as FrameId;
