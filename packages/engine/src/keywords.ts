@@ -10,7 +10,7 @@ import type { GameState } from "./state.js";
  * Keyword semantics are engine behaviour keyed off the `KeywordInstance` list on
  * the `@mc/content` card — never a per-card special case. This module is the
  * single lookup layer; the rules themselves live where the relevant game action
- * is resolved (attacks in `select.ts`/`actions.ts`, damage in `resolve.ts`,
+ * is resolved (attacks in `select.ts`/`actions.ts`, damage in `resolve/event.ts`,
  * statuses and counters in `effects.ts`).
  *
  * `deps` lets keywords *gained* from constant abilities ("Klaw gains retaliate

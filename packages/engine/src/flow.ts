@@ -19,7 +19,7 @@ import {
   playerOrder,
   scale,
 } from "./query.js";
-import { announce, clearAbilityUses, executeFrame, pushEffects, pushEvent, pushRevealFrame } from "./resolve.js";
+import { announce, clearAbilityUses, executeFrame, pushEffects, pushEvent, pushRevealFrame } from "./resolve/index.js";
 import { describeFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
 
@@ -224,12 +224,25 @@ function executeEndPhaseReady(ctx: Ctx): void {
 }
 
 // RRG "Villain Phase" step 1: acceleration field + acceleration icons + acceleration tokens.
+// The step stays current while that threat (and its interrupts/responses) resolves, so
+// "after placing threat here during step one of the villain phase" can see it.
 function executePlaceThreat(ctx: Ctx): void {
-  const stage = mainSchemeStage(ctx.state);
-  const amount =
-    scale(stage.acceleration, ctx.state.startingPlayerCount) +
-    ctx.state.mainScheme.accelerationTokens +
-    countSchemeIcons(ctx.state, "acceleration");
+  const step = ctx.state.step;
+  if (step.kind === "placeThreat" && !step.placed) {
+    const stage = mainSchemeStage(ctx.state);
+    const amount =
+      scale(stage.acceleration, ctx.state.startingPlayerCount) +
+      ctx.state.mainScheme.accelerationTokens +
+      countSchemeIcons(ctx.state, "acceleration");
+    setStep(ctx, { phase: "villain", kind: "placeThreat", placed: true });
+    pushEvent(ctx, {
+      kind: "placeThreat",
+      schemeInstanceId: ctx.state.mainScheme.instanceId,
+      amount,
+      sourceInstanceId: null,
+    });
+    return;
+  }
   setStep(ctx, {
     phase: "villain",
     kind: "enemyActivations",
@@ -237,12 +250,6 @@ function executePlaceThreat(ctx: Ctx): void {
     remainingPlayerIds: playerOrder(ctx.state).map((p) => p.playerId),
     villainActivated: false,
     activatedMinionIds: [],
-  });
-  pushEvent(ctx, {
-    kind: "placeThreat",
-    schemeInstanceId: ctx.state.mainScheme.instanceId,
-    amount,
-    sourceInstanceId: null,
   });
 }
 

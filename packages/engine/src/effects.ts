@@ -10,7 +10,7 @@ import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lastin
 /**
  * Low-level state mutators. Nothing in this file opens a timing window or
  * pushes a stack frame — everything that abilities can react to lives in
- * `resolve.ts` so the ordering rules stay in one place.
+ * `resolve/` so the ordering rules stay in one place.
  */
 
 /**

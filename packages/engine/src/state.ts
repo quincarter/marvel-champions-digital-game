@@ -138,7 +138,8 @@ export type GameStep =
   | { readonly phase: "player"; readonly kind: "endPhaseDiscard"; readonly remainingPlayerIds: readonly PlayerId[] }
   | { readonly phase: "player"; readonly kind: "endPhaseDraw" }
   | { readonly phase: "player"; readonly kind: "endPhaseReady" }
-  | { readonly phase: "villain"; readonly kind: "placeThreat" }
+  /** `placed`: step one's threat has been pushed; the step stays current until it (and its responses) resolve. */
+  | { readonly phase: "villain"; readonly kind: "placeThreat"; readonly placed?: boolean }
   | {
       readonly phase: "villain";
       readonly kind: "enemyActivations";

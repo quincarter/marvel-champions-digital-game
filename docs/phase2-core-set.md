@@ -177,7 +177,22 @@ The Phase 1 `EffectSpec` vocabulary can't express most Core Set cards yet. Group
 ### 3.10 Already covered by Phase 1 (verify, don't rebuild)
 Guard, Toughness, Surge (keyword), Retaliate, Quickstrike, Overkill (keyword), Uses X, Setup keyword, Peril (none in Core), Restricted (none in Core), statuses, deck-out reshuffle + encounter card (`effects.ts`), ally limit 3, consequential damage, boost card dealing/flipping.
 
+### ✅ 3.11 Added during scripting (small, general; tests in `packages/engine/src/scripting-primitives.test.ts`)
+- `TargetQuery.excludeSlots` — "remove 2 threat from a *different* scheme" (Crisis Interdiction).
+- `TargetQuery.controlledBy: PlayerRef` / `TargetQuery.engagedWithPlayer: PlayerRef` — "each character *that player* controls" (Lead from the Front, which keeps working inside the lasting effect because lasting scopes keep bindings), "each enemy engaged with *that player*" (Energy Daggers).
+- `PlayerRef { kind: "engagedWith", of }` — "the engaged player" on a minion's own triggered ability (Advanced Ultron Drone; `actingPlayerOf` has no player for `characterDefeated`).
+- `Predicate { kind: "refMatches", ref, query }` — the ref names an in-play card matching the query: "if this activation deals damage *to you*" (Sonic Boom boost) and the in-play guard for "stun that character" after it may have been defeated (Stampede, Sonic Converter, Superhuman Strength, Sweeping Swoop). `giveStatus` itself has no in-play check.
+- `Predicate { kind: "gameStep", phase, step? }` — "during step one of the villain phase" (Assault on NORAD). To make it truthful, `flow.ts` now keeps the `placeThreat` step current (`placed: true`) until step one's threat and its interrupts/responses have resolved; previously the step marker had already advanced to `enemyActivations` while they resolved.
+- `EventPattern.on` accepts a list of kinds — "after Madame Hydra schemes or attacks".
+- `characterDefeated.defeatedByPlayerId` (set from the controller of the defeating damage's source, and the event's player subject) — "after *you* defeat a minion" (Interrogation Room), including non-attack damage.
+- `EffectSpec { kind: "spendResources", player, resources, bind }` + `ChoicePrompt { kind: "spendResources", requirement }` — "either spend [E][M][P] resources or …" (Sonic Boom, Android Efficiency boosts). Paying ≥ the requirement spends it and sets `<bind>.made`; paying nothing/too little declines.
+
 ## 4. Ability DSL (owner: `ability-scripting-engineer`, after §1 and most of §3 land)
+
+> Status: landed. `packages/cards` (`@mc/cards`): the DSL in `src/dsl/` (values/refs/predicates, effects, ability/cost/pattern/constant builders, `defineAbilities` + `validateDefinition`), one module per hero kit / aspect / scenario / modular set in `src/core/`, `CORE_ABILITIES` / `CORE_DEPS`, and `coreScenario()` / `starterDeckSetup()`. All 233 Core ability refs are registered (`src/core/coverage.test.ts`, `PENDING` empty). Per-card tests run on real Core data (`src/core/**/*.test.ts`); `src/e2e.test.ts` plays Rhino (standard solo, expert solo), Klaw (2 players) and Ultron (4 players) to an outcome with the greedy driver in `src/testing/driver.ts` and replays each log to a deep-equal state.
+>
+> **§4 primitive requests:** none open. Data follow-up for `card-data-pipeline`: Hulk's four result lines were ingested as separate refs `01050.hulk-constant`, `-2`, `-3`, `-4` (registered as `partOf("01050.hulk-forced-response")` no-ops), and `01163.genetically-enhanced-constant` is the reveal-time surge clause (registered as a When Revealed). Both work, but the slugs misdescribe the text.
+
 
 - A TypeScript builder layer in `@mc/cards` that reads close to the printed card and compiles to plain-data `AbilityDefinition`s, e.g. `heroInterrupt(when.villainAttacks(you), draw(1))`. The engine vocabulary stays plain JSON; the DSL is authoring sugar plus validation, not an interpreter of its own.
 - Every `AbilityReference` id emitted by ingestion must have a registry entry; a test enforces 100% coverage for the Core pack (and lists the missing ids when it fails).

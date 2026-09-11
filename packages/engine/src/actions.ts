@@ -30,7 +30,7 @@ import {
   mustInstance,
   mustPlayer,
 } from "./query.js";
-import { attachmentHostCandidates, pushActionAbility, pushEvent, pushPlayCardFrame, recordAbilityUse } from "./resolve.js";
+import { attachmentHostCandidates, pushActionAbility, pushEvent, pushPlayCardFrame, recordAbilityUse } from "./resolve/index.js";
 import {
   addPools,
   combineRequirements,

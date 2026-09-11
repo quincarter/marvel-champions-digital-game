@@ -13,7 +13,7 @@ import {
   applyEnterPlayKeywords,
   enterPlayOnReveal,
   gameAbilityFrames,
-} from "./resolve.js";
+} from "./resolve/index.js";
 import { NO_STATUSES, type CardInstance, type GameState, type PlayerState } from "./state.js";
 import type { GameEvent } from "./events.js";
 
