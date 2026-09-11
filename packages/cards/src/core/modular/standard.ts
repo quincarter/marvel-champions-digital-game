@@ -9,6 +9,7 @@ import {
   enemyScheme,
   exhaust,
   exists,
+  firstPlayer,
   ifThen,
   moveCards,
   not,
@@ -38,8 +39,13 @@ export const STANDARD_SET = defineAbilities({
   "01187.when-revealed-alter-ego": whenRevealedAlterEgo(surge()),
   "01187.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you })),
   // Caught Off Guard — When Revealed: Discard an upgrade or support you control. If no cards were discarded this way, this card gains surge.
+  // No "choose": the card targets, so with several eligible cards the first player selects (RRG "First Player").
   "01188.when-revealed": whenRevealed(
-    ifThen(exists(YOUR_UPGRADES_AND_SUPPORTS), [chooseTarget("card", YOUR_UPGRADES_AND_SUPPORTS), discard(chosen("card"))], surge()),
+    ifThen(
+      exists(YOUR_UPGRADES_AND_SUPPORTS),
+      [chooseTarget("card", YOUR_UPGRADES_AND_SUPPORTS, { chooser: firstPlayer }), discard(chosen("card"))],
+      surge(),
+    ),
   ),
   // Gang-Up — When Revealed (Alter-Ego): This card gains surge. / When Revealed (Hero): The villain and each minion engaged with you attacks you.
   "01189.when-revealed-alter-ego": whenRevealedAlterEgo(surge()),

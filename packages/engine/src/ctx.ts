@@ -3,7 +3,7 @@ import { EngineInvariantError } from "./errors.js";
 import { choiceId, frameId as makeFrameId, instanceId, type ChoiceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import { locateCard, mustInstance, mustPlayer, zoneContents as zoneOf } from "./query.js";
-import type { ChoiceOption, ChoicePrompt, PendingChoice } from "./choices.js";
+import type { ChoiceOption, ChoicePrompt, DecisionAuthority, PendingChoice } from "./choices.js";
 import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./state.js";
 import { describeFrame, type StackFrame } from "./stack.js";
 import type { EngineDeps } from "./abilities.js";
@@ -192,6 +192,7 @@ export function requestChoice(
     readonly maxSelections: number;
     readonly frameId?: FrameId | null;
     readonly ordered?: boolean;
+    readonly authority?: DecisionAuthority;
   },
 ): void {
   const choice: PendingChoice = {
@@ -204,6 +205,7 @@ export function requestChoice(
     frameId: spec.frameId ?? null,
     ordered: spec.ordered ?? false,
     soleDecider: perilOnStack(ctx.state),
+    authority: spec.authority ?? "player",
   };
   ctx.state = { ...ctx.state, pendingChoice: choice };
   emit(ctx, { type: "choiceRequested", choice });

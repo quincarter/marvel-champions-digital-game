@@ -21,6 +21,7 @@ import { combineRequirements, poolTotal, requirementTotal, satisfies } from "../
 import type { TriggerCandidate, Vars, WindowTiming } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
+import { simultaneousOrderer } from "../villain/authority.js";
 import { abilityFrame, base, type Frame } from "./frames.js";
 import { pushPlayCardFrame } from "./play-card.js";
 import { candidatesFor } from "./triggers.js";
@@ -87,7 +88,8 @@ export function executeWindowFrame(ctx: Ctx, frame: Frame<"window">): void {
     // RRG "Forced"/"Simultaneous Resolution": the first player orders simultaneous effects.
     setFrame(ctx, { ...advanced, awaiting: "order" });
     requestChoice(ctx, {
-      playerId: ctx.state.firstPlayerId,
+      playerId: simultaneousOrderer(ctx.state),
+      authority: "firstPlayerOrders",
       prompt: { kind: "orderTriggers", event: frame.event, timing: frame.timing },
       options: candidates.map(candidateOption(ctx.state)),
       minSelections: candidates.length,

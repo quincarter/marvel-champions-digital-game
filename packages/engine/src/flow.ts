@@ -1,27 +1,20 @@
 import type { ChoiceOption } from "./choices.js";
-import { emit, requestChoice, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
-import { dealEncounterCardTo, drawCards, endLastingEffect, expireLastingEffects, readyCard } from "./effects.js";
+import { emit, requestChoice, setStep, updatePlayer, type Ctx } from "./ctx.js";
+import { drawCards, endLastingEffect, expireLastingEffects, readyCard } from "./effects.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
-import type { InstanceId, PlayerId } from "./ids.js";
-import { statusActive } from "./keywords.js";
-import {
-  cardOf,
-  characterProfile,
-  isMinion,
-  countSchemeIcons,
-  getPlayer,
-  handSize,
-  mainSchemeStage,
-  mustCardOf,
-  mustPlayer,
-  nextClockwisePlayer,
-  playerOrder,
-  scale,
-} from "./query.js";
-import { announce, clearAbilityUses, executeFrame, pushEffects, pushEvent, pushRevealFrame } from "./resolve/index.js";
+import type { PlayerId } from "./ids.js";
+import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder } from "./query.js";
+import { announce, clearAbilityUses, executeFrame, pushEffects } from "./resolve/index.js";
 import { describeFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
+import {
+  executeDealEncounterCards,
+  executeEnemyActivations,
+  executePassFirstPlayer,
+  executePlaceThreat,
+  executeRevealEncounterCards,
+} from "./villain/phase.js";
 
 const MAX_STEPS_PER_COMMAND = 5000;
 
@@ -64,6 +57,7 @@ function executeStep(ctx: Ctx): void {
       return executeEndPhaseDraw(ctx);
     case "endPhaseReady":
       return executeEndPhaseReady(ctx);
+    // Villain phase steps one to five live in villain/phase.ts.
     case "placeThreat":
       return executePlaceThreat(ctx);
     case "enemyActivations":
@@ -221,168 +215,6 @@ function executeEndPhaseReady(ctx: Ctx): void {
   clearAbilityUses(ctx, "phase");
   expireLastingEffects(ctx, "endOfPhase");
   announce(ctx, { kind: "playerPhaseEnded" });
-}
-
-// RRG "Villain Phase" step 1: acceleration field + acceleration icons + acceleration tokens.
-// The step stays current while that threat (and its interrupts/responses) resolves, so
-// "after placing threat here during step one of the villain phase" can see it.
-function executePlaceThreat(ctx: Ctx): void {
-  const step = ctx.state.step;
-  if (step.kind === "placeThreat" && !step.placed) {
-    const stage = mainSchemeStage(ctx.state);
-    const amount =
-      scale(stage.acceleration, ctx.state.startingPlayerCount) +
-      ctx.state.mainScheme.accelerationTokens +
-      countSchemeIcons(ctx.state, "acceleration");
-    setStep(ctx, { phase: "villain", kind: "placeThreat", placed: true });
-    pushEvent(ctx, {
-      kind: "placeThreat",
-      schemeInstanceId: ctx.state.mainScheme.instanceId,
-      amount,
-      sourceInstanceId: null,
-    });
-    return;
-  }
-  setStep(ctx, {
-    phase: "villain",
-    kind: "enemyActivations",
-    currentPlayerId: null,
-    remainingPlayerIds: playerOrder(ctx.state).map((p) => p.playerId),
-    villainActivated: false,
-    activatedMinionIds: [],
-  });
-}
-
-function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind: "enemyActivations" }>): void {
-  const { currentPlayerId, remainingPlayerIds, villainActivated, activatedMinionIds } = step;
-  const current = currentPlayerId ? getPlayer(ctx.state, currentPlayerId) : undefined;
-  if (!current || current.eliminated) {
-    const [next, ...rest] = livePlayers(ctx.state, remainingPlayerIds);
-    if (!next) {
-      setStep(ctx, { phase: "villain", kind: "dealEncounterCards" });
-      return;
-    }
-    setStep(ctx, {
-      phase: "villain",
-      kind: "enemyActivations",
-      currentPlayerId: next,
-      remainingPlayerIds: rest,
-      villainActivated: false,
-      activatedMinionIds: [],
-    });
-    return;
-  }
-  if (!villainActivated) {
-    // Mark before resolving: the attack suspends on the defend choice and resumes here.
-    setStep(ctx, { ...step, villainActivated: true });
-    activateEnemy(ctx, ctx.state.villain.instanceId, current.playerId);
-    return;
-  }
-  const minions = current.playArea.filter((id) => isMinion(ctx.state, id) && !activatedMinionIds.includes(id));
-  const [only] = minions;
-  if (minions.length === 1 && only) {
-    setStep(ctx, { ...step, activatedMinionIds: [...activatedMinionIds, only] });
-    activateEnemy(ctx, only, current.playerId);
-    return;
-  }
-  if (minions.length > 1) {
-    // RRG "Activation": the engaged player chooses the order their minions activate in.
-    requestChoice(ctx, {
-      playerId: current.playerId,
-      prompt: { kind: "chooseMinionToActivate" },
-      options: minions.map((id) => ({
-        optionId: id,
-        label: mustCardOf(ctx.state, id).name,
-        ref: { kind: "card", instanceId: id } as const,
-      })),
-      minSelections: 1,
-      maxSelections: 1,
-    });
-    return;
-  }
-  setStep(ctx, { ...step, currentPlayerId: null });
-}
-
-/** Applies the answer to a `chooseMinionToActivate` choice. */
-export function activateChosenMinion(ctx: Ctx, minionId: InstanceId): void {
-  const step = ctx.state.step;
-  if (step.kind !== "enemyActivations" || !step.currentPlayerId) return;
-  setStep(ctx, { ...step, activatedMinionIds: [...step.activatedMinionIds, minionId] });
-  activateEnemy(ctx, minionId, step.currentPlayerId);
-}
-
-// RRG "Activation": attack a player in hero form, scheme against a player in alter-ego form.
-export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId): void {
-  const player = mustPlayer(ctx.state, playerId);
-  const missing = characterProfile(ctx.state, enemyId, ctx.deps)?.missing ?? [];
-  if (player.identity.form === "hero") {
-    emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation: "attack", playerId });
-    // A printed "—" ATK: this enemy cannot attack, so the activation does nothing.
-    if (missing.includes("atk")) return;
-    if (statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
-      // RRG "Stun": a stunned enemy discards the status instead of attacking.
-      updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
-      emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "stunned", reason: "cancelledAttack" });
-      return;
-    }
-    pushEvent(ctx, {
-      kind: "enemyAttack",
-      enemyInstanceId: enemyId,
-      attackedPlayerId: playerId,
-      targetPlayerId: playerId,
-      targetInstanceId: player.identity.instanceId,
-    });
-    return;
-  }
-  emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation: "scheme", playerId });
-  if (missing.includes("sch")) return;
-  if (statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
-    // RRG "Confuse": a confused enemy discards the status instead of scheming.
-    updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));
-    emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "confused", reason: "cancelledSchemeOrThwart" });
-    return;
-  }
-  pushEvent(ctx, { kind: "enemyScheme", enemyInstanceId: enemyId, playerId });
-}
-
-// RRG "Villain Phase" step 3 + "Hazard Icon": one card each, then one per hazard icon in player order.
-function executeDealEncounterCards(ctx: Ctx): void {
-  const order = playerOrder(ctx.state);
-  for (const player of order) dealEncounterCardTo(ctx, player.playerId);
-  const hazards = countSchemeIcons(ctx.state, "hazard");
-  for (let i = 0; i < hazards; i++) {
-    const player = order[i % order.length];
-    if (player) dealEncounterCardTo(ctx, player.playerId);
-  }
-  setStep(ctx, {
-    phase: "villain",
-    kind: "revealEncounterCards",
-    remainingPlayerIds: order.map((p) => p.playerId),
-  });
-}
-
-function executeRevealEncounterCards(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): void {
-  const remaining = livePlayers(ctx.state, remainingPlayerIds);
-  const [current, ...rest] = remaining;
-  if (!current) {
-    setStep(ctx, { phase: "villain", kind: "passFirstPlayer" });
-    return;
-  }
-  const next = mustPlayer(ctx.state, current).dealtEncounter[0];
-  if (!next) {
-    setStep(ctx, { phase: "villain", kind: "revealEncounterCards", remainingPlayerIds: rest });
-    return;
-  }
-  pushRevealFrame(ctx, current, next);
-}
-
-function executePassFirstPlayer(ctx: Ctx): void {
-  const next = nextClockwisePlayer(ctx.state, ctx.state.firstPlayerId);
-  if (next) {
-    ctx.state = { ...ctx.state, firstPlayerId: next.playerId };
-    emit(ctx, { type: "firstPlayerChanged", playerId: next.playerId });
-  }
-  setStep(ctx, { phase: "villain", kind: "endOfRound" });
 }
 
 /**

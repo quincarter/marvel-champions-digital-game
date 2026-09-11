@@ -21,6 +21,11 @@ export type ChoicePrompt =
   | { readonly kind: "mulligan"; readonly handSize: number }
   /** RRG "Activation": the engaged player chooses which of their minions activates next. */
   | { readonly kind: "chooseMinionToActivate" }
+  /**
+   * "Each Masters of Evil minion attacks …": one effect makes several enemies
+   * attack or scheme, one at a time; the first player orders them (RRG "First Player").
+   */
+  | { readonly kind: "orderEnemies"; readonly activation: "attack" | "scheme" }
   /** RRG "Simultaneous Resolution": the first player orders same-trigger effects. */
   | { readonly kind: "orderTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
   /** Optional interrupts/responses: a controller picks which of theirs to use, in order. */
@@ -72,6 +77,21 @@ export interface ChoiceOption {
 }
 
 /**
+ * Why this player is the one deciding. There is no villain player: the
+ * encounter side's procedure is forced, and every decision it leaves open
+ * belongs to a player by rule (docs/phase3-encounter-ai.md).
+ *
+ * - `player`: the player's own decision — their cards, their defense, their
+ *   payments, a "choose" on an ability they are resolving (RRG "Choose").
+ * - `firstPlayerTargets`: an encounter card targets a player or card and several
+ *   are eligible, so the first player selects on the encounter card's behalf
+ *   (RRG "First Player").
+ * - `firstPlayerOrders`: effects that would resolve simultaneously; the first
+ *   player orders them (RRG "First Player", "Simultaneous Resolution").
+ */
+export type DecisionAuthority = "player" | "firstPlayerTargets" | "firstPlayerOrders";
+
+/**
  * The engine never calls back into a client. When the rules need input it
  * parks a fully described choice here and waits for a `resolveChoice` command.
  * `frameId` names the stack frame the answer belongs to, or null for a choice
@@ -94,4 +114,6 @@ export interface PendingChoice {
    * enforce the social half.
    */
   readonly soleDecider: boolean;
+  /** Whose decision this is by rule; anything but `player` is made on the encounter side's behalf. */
+  readonly authority: DecisionAuthority;
 }

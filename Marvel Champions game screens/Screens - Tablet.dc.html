@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Public+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400&display=swap" rel="stylesheet" />
+<style>
+html,body{margin:0;padding:0;background:#0E0C0A;}
+a{color:#C8102E;text-decoration:none;}
+a:hover{color:#8E0B20;}
+@keyframes tgtt{0%,100%{box-shadow:0 0 0 3px #C8102E}50%{box-shadow:0 0 0 3px #C8102E,0 0 0 10px rgba(200,16,46,.3)}}
+</style>
+<script src="./image-slot.js"></script>
+</helmet>
+
+<div style="background:#0E0C0A;font-family:'Public Sans',system-ui,sans-serif;padding:40px;display:flex;flex-direction:column;gap:44px;width:max-content">
+
+  <div style="display:flex;align-items:flex-end;gap:18px;color:#F4EFE3;max-width:1100px">
+    <div style="font-family:Bangers,cursive;font-size:46px;letter-spacing:1.5px;line-height:.9">SCREEN SET — TABLET</div>
+    <div style="font-size:12px;font-weight:700;line-height:1.5;opacity:.6;padding-bottom:4px">Landscape 1024 × 768 keeps a persistent side rail instead of phone tabs; portrait 768 × 1024 stacks the zones and grows the hand. Siblings: <a href="./Screens - Phone.dc.html">Phone</a> · <a href="./Screens - Desktop.dc.html">Desktop</a>.</div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">L01</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">LANDSCAPE TABLE</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">1024 × 768 · rail + table + hand</span>
+    </div>
+    <div data-screen-label="T01 Landscape table" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
+      <div style="flex:none;height:46px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px">
+        <span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px;background:#C8102E;padding:3px 9px;line-height:1.1">ROUND 3</span>
+        <span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;padding:2px 9px;background:#F4EFE3;color:#14110E">PLAYER PHASE</span>
+        <span style="width:14px;height:2px;background:#F4EFE3;opacity:.35"></span>
+        <span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;opacity:.45">VILLAIN PHASE</span>
+        <span style="flex:1"></span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;opacity:.6">Klaw · Standard II · 4 heroes</span>
+        <span style="width:12px;height:12px;border-radius:50%;background:#F2B01E"></span>
+        <span style="font-size:11px;font-weight:800;padding:4px 9px;border:2px solid #F4EFE3">≡</span>
+      </div>
+
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="width:212px;flex:none;box-sizing:border-box;background:#EAE3D3;border-right:3px solid #14110E;display:flex;flex-direction:column;overflow:hidden">
+          <div style="flex:none;padding:9px 11px;border-bottom:3px solid #14110E;display:flex;align-items:center;gap:7px">
+            <span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px">TEAM</span>
+            <span style="flex:1"></span>
+            <span style="font-size:8px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.55">3 acted</span>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;scrollbar-width:none">
+            <div style="border:3px solid #14110E;background:#F4EFE3;box-shadow:0 0 0 3px #1F7A4C;display:flex;align-items:stretch">
+              <div style="width:44px;flex:none;border-right:2.5px solid #14110E"><image-slot id="t1-s1" shape="rect" placeholder="•"></image-slot></div>
+              <div style="flex:1;min-width:0;padding:5px 7px">
+                <div style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#C8102E">Seat 1 · you</div>
+                <div style="font-family:Bangers,cursive;font-size:14px;line-height:1;overflow-wrap:anywhere">CAPTAIN MARVEL</div>
+                <div style="display:flex;align-items:center;gap:5px;margin-top:4px"><div style="flex:1;height:8px;border:2px solid #14110E;background:#fff;display:flex"><div style="width:42%;background:#C8102E"></div></div><span style="font-size:8px;font-weight:800">5/12</span></div>
+              </div>
+            </div>
+            <div style="border:2.5px solid #14110E;background:#F4EFE3;display:flex;align-items:stretch;opacity:.72">
+              <div style="width:44px;flex:none;border-right:2.5px solid #14110E"><image-slot id="t1-s2" shape="rect" placeholder="•"></image-slot></div>
+              <div style="flex:1;min-width:0;padding:5px 7px">
+                <div style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.55">Seat 2 · done</div>
+                <div style="font-family:Bangers,cursive;font-size:14px;line-height:1">SHE-HULK</div>
+                <div style="display:flex;align-items:center;gap:5px;margin-top:4px"><div style="flex:1;height:8px;border:2px solid #14110E;background:#fff;display:flex"><div style="width:83%;background:#1F7A4C"></div></div><span style="font-size:8px;font-weight:800">10/12</span></div>
+              </div>
+            </div>
+            <div style="border:2.5px solid #14110E;background:#F4EFE3;display:flex;align-items:stretch;box-shadow:0 0 0 3px #F2B01E">
+              <div style="width:44px;flex:none;border-right:2.5px solid #14110E"><image-slot id="t1-s3" shape="rect" placeholder="•"></image-slot></div>
+              <div style="flex:1;min-width:0;padding:5px 7px">
+                <div style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.55">Seat 3 · 1 minion</div>
+                <div style="font-family:Bangers,cursive;font-size:14px;line-height:1;overflow-wrap:anywhere">BLACK PANTHER</div>
+                <div style="display:flex;align-items:center;gap:5px;margin-top:4px"><div style="flex:1;height:8px;border:2px solid #14110E;background:#fff;display:flex"><div style="width:27%;background:#C8102E"></div></div><span style="font-size:8px;font-weight:800">3/11</span></div>
+              </div>
+            </div>
+            <div style="border:2.5px solid #14110E;background:#F4EFE3;display:flex;align-items:stretch;opacity:.72">
+              <div style="width:44px;flex:none;border-right:2.5px solid #14110E"><image-slot id="t1-s4" shape="rect" placeholder="•"></image-slot></div>
+              <div style="flex:1;min-width:0;padding:5px 7px">
+                <div style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.55">Seat 4 · done</div>
+                <div style="font-family:Bangers,cursive;font-size:14px;line-height:1">SPIDER-MAN</div>
+                <div style="display:flex;align-items:center;gap:5px;margin-top:4px"><div style="flex:1;height:8px;border:2px solid #14110E;background:#fff;display:flex"><div style="width:70%;background:#1F5FA8"></div></div><span style="font-size:8px;font-weight:800">7/10</span></div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:none;border-top:3px solid #14110E;background:#14110E;color:#F4EFE3;padding:9px 11px;display:flex;flex-direction:column;gap:6px;max-height:172px;overflow:hidden">
+            <div style="display:flex;align-items:center;gap:7px"><span style="font-family:Bangers,cursive;font-size:15px;letter-spacing:.6px">LOG</span><span style="flex:1"></span><span style="font-size:8px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.55">Round 3</span></div>
+            <div style="display:flex;gap:7px"><span style="font-size:8px;font-weight:800;opacity:.5;width:26px;flex:none">3.11</span><span style="flex:1;font-size:9.5px;line-height:1.35">Spider-Man thwarts 3. Threat <b>10 → 7</b>.</span></div>
+            <div style="display:flex;gap:7px"><span style="font-size:8px;font-weight:800;opacity:.5;width:26px;flex:none">3.09</span><span style="flex:1;font-size:9.5px;line-height:1.35">She-Hulk flips to alter-ego, recovers 6.</span></div>
+            <div style="display:flex;gap:7px"><span style="font-size:8px;font-weight:800;opacity:.5;width:26px;flex:none">3.07</span><span style="flex:1;font-size:9.5px;line-height:1.35">Panther defeats Vibranium Thief.</span></div>
+            <div style="font-size:8px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;padding:4px 0 0;opacity:.55">Open full log</div>
+          </div>
+        </div>
+
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+          <div style="flex:1;min-height:0;position:relative;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:11px;scrollbar-width:none">
+            <div style="position:absolute;inset:0;background-image:radial-gradient(rgba(20,17,14,.1) 1px,transparent 1.1px);background-size:6px 6px;pointer-events:none"></div>
+
+            <div style="position:relative;display:flex;gap:11px;align-items:stretch">
+              <div style="flex:1;min-width:0;border:3px solid #14110E;background:#F4EFE3;display:flex;align-items:stretch">
+                <div style="width:124px;flex:none;border-right:3px solid #14110E"><image-slot id="t1-scheme" shape="rect" placeholder="Scheme"></image-slot></div>
+                <div style="flex:1;min-width:0;padding:9px 12px;display:flex;flex-direction:column;gap:7px">
+                  <div>
+                    <div style="font-family:Bangers,cursive;font-size:23px;line-height:.98;letter-spacing:.4px">UNDERGROUND DISTRIBUTION</div>
+                    <div style="font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55;margin-top:3px">Main scheme 1B · Accel ×1</div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:9px">
+                    <div style="flex:1;height:18px;border:3px solid #14110E;background:#fff;display:flex"><div style="width:58%;background:#C8102E"></div></div>
+                    <div style="font-family:Bangers,cursive;font-size:21px;line-height:1;white-space:nowrap">7/12</div>
+                  </div>
+                  <div style="font-size:10px;line-height:1.4">Villain phase adds <b>5 threat</b>. Two rounds of grace.</div>
+                </div>
+              </div>
+              <div style="width:196px;flex:none;box-sizing:border-box;display:flex;flex-direction:column;gap:8px">
+                <div style="flex:1;border:2.5px solid #14110E;background:#F4EFE3;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:3px">
+                  <div style="font-size:8px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.55">Side scheme</div>
+                  <div style="display:flex;align-items:center;gap:7px"><span style="flex:1;min-width:0;font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"Immortal" Klaw</span><span style="font-family:Bangers,cursive;font-size:16px;background:#14110E;color:#F4EFE3;padding:0 6px">3</span></div>
+                </div>
+                <div style="flex:1;border:2.5px solid #14110E;background:#F4EFE3;padding:6px 8px;display:flex;flex-direction:column;justify-content:center;gap:3px">
+                  <div style="font-size:8px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.55">Side scheme</div>
+                  <div style="display:flex;align-items:center;gap:7px"><span style="flex:1;min-width:0;font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Defense Network</span><span style="font-family:Bangers,cursive;font-size:16px;background:#14110E;color:#F4EFE3;padding:0 6px">4</span></div>
+                </div>
+              </div>
+            </div>
+
+            <div style="position:relative;display:flex;gap:11px;align-items:stretch">
+              <div style="width:184px;flex:none;box-sizing:border-box;background:#F4EFE3;border:3px solid #14110E;animation:tgtt 1.8s ease-in-out infinite">
+                <div style="display:flex;border-bottom:2.5px solid #14110E">
+                  <div style="width:26px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:15px">I</div>
+                  <div style="flex:1;padding:4px 8px"><div style="font-family:Bangers,cursive;font-size:19px;line-height:1">KLAW</div><div style="font-size:7px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Villain stage I</div></div>
+                </div>
+                <div style="height:96px;border-bottom:2.5px solid #14110E;position:relative"><image-slot id="t1-klaw" shape="rect" placeholder="Klaw"></image-slot><span style="position:absolute;top:4px;left:4px;background:#6E9B2F;border:2px solid #14110E;color:#14110E;font-family:Bangers,cursive;font-size:11px;letter-spacing:.4px;padding:0 5px;line-height:1.35">STUNNED</span></div>
+                <div style="display:flex;border-bottom:2.5px solid #14110E;font-size:7px;font-weight:800;text-align:center">
+                  <div style="flex:1;padding:3px 0;border-right:1px solid #14110E;background:repeating-linear-gradient(45deg,rgba(110,155,47,.3) 0 5px,transparent 5px 10px);opacity:.6"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1">✕</div>ATK</div>
+                  <div style="flex:1;padding:3px 0;border-right:1px solid #14110E"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1">2</div>SCH</div>
+                  <div style="flex:1;padding:3px 0;background:#C8102E;color:#F4EFE3"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1">14</div>HP</div>
+                </div>
+                <div style="padding:6px 8px;display:flex;align-items:center;gap:6px"><div style="flex:1;height:11px;border:2.5px solid #14110E;background:#fff;display:flex"><div style="width:64%;background:#C8102E"></div></div><span style="font-size:9px;font-weight:800">14/22</span></div>
+              </div>
+
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px">ENGAGED WITH YOU</span>
+                  <span style="flex:1;height:3px;background:#14110E"></span>
+                  <span style="font-size:8px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;background:#2B241C;color:#F4EFE3;padding:3px 6px">Boost ×2</span>
+                </div>
+                <div style="display:flex;gap:9px">
+                  <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#F4EFE3;position:relative">
+                    <div style="height:64px;border-bottom:2.5px solid #14110E"><image-slot id="t1-m2" shape="rect" placeholder="Art"></image-slot></div>
+                    <span style="position:absolute;top:4px;right:4px;font-size:7px;font-weight:800;letter-spacing:.6px;background:#F2B01E;border:2px solid #14110E;padding:0 4px">GUARD</span>
+                    <div style="padding:5px 7px"><div style="font-family:Bangers,cursive;font-size:14px;line-height:1;overflow-wrap:anywhere">SONIC ENFORCER</div><div style="font-size:8px;font-weight:800;opacity:.6;margin-top:2px">1 ATK · 0 SCH · 3 HP</div></div>
+                  </div>
+                  <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#F4EFE3">
+                    <div style="height:64px;border-bottom:2.5px solid #14110E;position:relative"><image-slot id="t1-m1" shape="rect" placeholder="Art"></image-slot><span style="position:absolute;top:4px;left:4px;background:#8E5AA0;border:2px solid #14110E;color:#F4EFE3;font-family:Bangers,cursive;font-size:10px;letter-spacing:.4px;padding:0 4px;line-height:1.35">CONFUSED</span></div>
+                    <div style="padding:5px 7px"><div style="font-family:Bangers,cursive;font-size:14px;line-height:1;overflow-wrap:anywhere">WEAPONS RUNNER</div><div style="font-size:8px;font-weight:800;opacity:.6;margin-top:2px">1 ATK · 1 SCH · 2 HP</div></div>
+                  </div>
+                  <div style="flex:1;min-width:0;box-sizing:border-box;border:2.5px dashed rgba(20,17,14,.4);display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;color:rgba(20,17,14,.5)">Panther holds<br />1 minion</div>
+                </div>
+              </div>
+            </div>
+
+            <div style="position:relative;display:flex;gap:11px;align-items:stretch">
+              <div style="width:184px;flex:none;box-sizing:border-box;background:#F4EFE3;border:3px solid #14110E">
+                <div style="background:#1F7A4C;color:#F4EFE3;padding:4px 8px;border-bottom:2.5px solid #14110E"><div style="font-family:Bangers,cursive;font-size:17px;line-height:1">CAPTAIN MARVEL</div><div style="font-size:7px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.9">Hero · Protection</div></div>
+                <div style="height:80px;border-bottom:2.5px solid #14110E"><image-slot id="t1-hero" shape="rect" placeholder="Hero"></image-slot></div>
+                <div style="display:flex;border-bottom:2.5px solid #14110E;font-size:6.5px;font-weight:800;text-align:center">
+                  <div style="flex:1;padding:3px 0;border-right:1px solid #14110E"><div style="font-family:Bangers,cursive;font-size:14px;line-height:1">2</div>THW</div>
+                  <div style="flex:1;padding:3px 0;border-right:1px solid #14110E"><div style="font-family:Bangers,cursive;font-size:14px;line-height:1">2</div>ATK</div>
+                  <div style="flex:1;padding:3px 0;border-right:1px solid #14110E"><div style="font-family:Bangers,cursive;font-size:14px;line-height:1">1</div>DEF</div>
+                  <div style="flex:1;padding:3px 0;background:#14110E;color:#F4EFE3"><div style="font-family:Bangers,cursive;font-size:14px;line-height:1">5</div>HP</div>
+                </div>
+                <div style="padding:6px 8px;display:flex;align-items:center;gap:6px"><div style="flex:1;height:11px;border:2.5px solid #14110E;background:#fff;display:flex"><div style="width:42%;background:#C8102E"></div></div><span style="font-size:9px;font-weight:800">5/12</span></div>
+              </div>
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+                <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px">YOUR PLAY AREA</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+                <div style="display:flex;gap:9px">
+                  <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#F4EFE3">
+                    <div style="height:62px;border-bottom:2.5px solid #14110E"><image-slot id="t1-ally" shape="rect" placeholder="Art"></image-slot></div>
+                    <div style="padding:5px 7px"><div style="font-family:Bangers,cursive;font-size:14px;line-height:1;overflow-wrap:anywhere">SPIDER-WOMAN</div><div style="font-size:8px;font-weight:800;opacity:.6;margin-top:2px">ALLY · 2/2/2</div></div>
+                  </div>
+                  <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#F4EFE3">
+                    <div style="height:62px;border-bottom:2.5px solid #14110E"><image-slot id="t1-up1" shape="rect" placeholder="Art"></image-slot></div>
+                    <div style="padding:5px 7px"><div style="font-family:Bangers,cursive;font-size:14px;line-height:1;overflow-wrap:anywhere">ENERGY CHANNEL</div><div style="font-size:8px;font-weight:800;opacity:.6;margin-top:2px">UPGRADE · +1 DEF</div></div>
+                  </div>
+                  <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#F4EFE3;opacity:.5">
+                    <div style="height:62px;border-bottom:2.5px solid #14110E"><image-slot id="t1-up2" shape="rect" placeholder="Art"></image-slot></div>
+                    <div style="padding:5px 7px"><div style="font-family:Bangers,cursive;font-size:14px;line-height:1;overflow-wrap:anywhere">ARMORED VEST</div><div style="font-size:8px;font-weight:800;opacity:.6;margin-top:2px">EXHAUSTED</div></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="flex:none;height:240px;box-sizing:border-box;border-top:3px solid #14110E;background:#EAE3D3;display:flex">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+              <div style="flex:none;display:flex;align-items:center;gap:9px;padding:8px 14px 0">
+                <span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.7px">HAND 5</span>
+                <span style="flex:1"></span>
+                <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Deck 28 · Discard 12</span>
+                <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:4px 7px;border:2px solid #14110E">Spines</span>
+              </div>
+              <div style="flex:1;min-height:0;display:flex;gap:9px;padding:9px 14px 12px;overflow-x:auto;align-items:flex-start;scrollbar-width:none">
+                <div style="flex:none;width:118px;height:158px;background:#F4EFE3;border:3px solid #14110E">
+                  <div style="display:flex;border-bottom:2px solid #14110E">
+                    <div style="width:21px;background:#C8102E;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">3</div>
+                    <div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">PHOTON BLAST</div><div style="font-size:6.5px;font-weight:800;opacity:.6">EVENT · ATTACK</div></div>
+                  </div>
+                  <div style="height:56px;border-bottom:2px solid #14110E"><image-slot id="t1-h1" shape="rect" placeholder="Art"></image-slot></div>
+                  <div style="padding:5px;font-size:8.5px;line-height:1.3">Deal 5 damage to an enemy. <b>Hero action.</b></div>
+                </div>
+                <div style="flex:none;width:118px;height:158px;background:#F4EFE3;border:3px solid #14110E">
+                  <div style="display:flex;border-bottom:2px solid #14110E">
+                    <div style="width:21px;background:#1F5FA8;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">1</div>
+                    <div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">ENERGY</div><div style="font-size:6.5px;font-weight:800;opacity:.6">RESOURCE</div></div>
+                  </div>
+                  <div style="height:56px;border-bottom:2px solid #14110E"><image-slot id="t1-h2" shape="rect" placeholder="Art"></image-slot></div>
+                  <div style="padding:5px;font-size:8.5px;line-height:1.3">Generates 1 energy resource.</div>
+                </div>
+                <div style="flex:none;width:118px;height:158px;background:#F4EFE3;border:3px solid #14110E">
+                  <div style="display:flex;border-bottom:2px solid #14110E">
+                    <div style="width:21px;background:#1F7A4C;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">2</div>
+                    <div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">ENERGY BARRIER</div><div style="font-size:6.5px;font-weight:800;opacity:.6">EVENT · DEFENSE</div></div>
+                  </div>
+                  <div style="height:56px;border-bottom:2px solid #14110E"><image-slot id="t1-h3" shape="rect" placeholder="Art"></image-slot></div>
+                  <div style="padding:5px;font-size:8.5px;line-height:1.3"><b>Interrupt:</b> reduce damage to 0.</div>
+                </div>
+                <div style="flex:none;width:118px;height:158px;background:#F4EFE3;border:3px solid #14110E;opacity:.45">
+                  <div style="display:flex;border-bottom:2px solid #14110E">
+                    <div style="width:21px;background:#2B241C;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">1</div>
+                    <div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">DOWNTIME</div><div style="font-size:6.5px;font-weight:800;opacity:.6">ALTER-EGO ONLY</div></div>
+                  </div>
+                  <div style="height:56px;border-bottom:2px solid #14110E"><image-slot id="t1-h4" shape="rect" placeholder="Art"></image-slot></div>
+                  <div style="padding:5px;font-size:8.5px;line-height:1.3">Not playable in hero form.</div>
+                </div>
+                <div style="flex:none;width:118px;height:158px;background:#F4EFE3;border:3px solid #14110E">
+                  <div style="display:flex;border-bottom:2px solid #14110E">
+                    <div style="width:21px;background:#1F7A4C;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">2</div>
+                    <div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">MOCKINGBIRD</div><div style="font-size:6.5px;font-weight:800;opacity:.6">ALLY · 2/1/3</div></div>
+                  </div>
+                  <div style="height:56px;border-bottom:2px solid #14110E"><image-slot id="t1-h5" shape="rect" placeholder="Art"></image-slot></div>
+                  <div style="padding:5px;font-size:8.5px;line-height:1.3">Enters play ready. <b>Thwart 1.</b></div>
+                </div>
+                <div style="flex:none;width:14px;height:158px"></div>
+              </div>
+            </div>
+            <div style="width:196px;flex:none;box-sizing:border-box;background:#14110E;color:#F4EFE3;padding:10px 12px;display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;gap:7px">
+                <div style="flex:1;height:46px;box-sizing:border-box;border:2.5px solid #F4EFE3;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1"><span style="font-family:Bangers,cursive;font-size:17px">2</span><span style="font-size:8.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Attack</span></div>
+                <div style="flex:1;height:46px;box-sizing:border-box;border:2.5px solid #F4EFE3;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1"><span style="font-family:Bangers,cursive;font-size:17px">2</span><span style="font-size:8.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Thwart</span></div>
+                <div style="flex:1;height:46px;box-sizing:border-box;border:2.5px solid rgba(244,239,227,.4);color:rgba(244,239,227,.45);display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Defend</div>
+              </div>
+              <div style="height:44px;border:2.5px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">Flip to Carol Danvers</div>
+              <div style="flex:1;min-height:0;box-sizing:border-box;border:2.5px solid rgba(244,239,227,.35);padding:6px 9px;font-size:9.5px;line-height:1.35;opacity:.8;overflow:hidden">Side schemes block the main scheme clear.</div>
+              <div style="flex:none;height:50px;background:#C8102E;border:2.5px solid #C8102E;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:19px;letter-spacing:1px">END TURN</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">L02</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">LANDSCAPE · VILLAIN PHASE</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">Rail stays legible behind the interrupt</span>
+    </div>
+    <div data-screen-label="T02 Landscape villain phase" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column;position:relative">
+      <div style="flex:none;height:46px;background:#C8102E;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:3px solid #F4EFE3">
+        <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1.2px">VILLAIN PHASE</span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase">Round 3 · step 2 of 4</span>
+        <span style="flex:1"></span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;opacity:.85">Auto-advance paused for your interrupt</span>
+      </div>
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="flex:1;min-width:0;padding:18px;display:flex;gap:16px;background-image:radial-gradient(rgba(244,239,227,.08) 1px,transparent 1.1px);background-size:7px 7px">
+          <div style="width:290px;flex:none;box-sizing:border-box;border:3px solid #F4EFE3;background:#1A1612;display:flex;flex-direction:column">
+            <div style="flex:none;height:200px;border-bottom:3px solid #F4EFE3"><image-slot id="t2-card" shape="rect" placeholder="Sonic Boom art"></image-slot></div>
+            <div style="flex:1;padding:13px 15px;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:baseline;gap:9px"><span style="font-family:Bangers,cursive;font-size:26px;line-height:1">SONIC BOOM</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;background:#F4EFE3;color:#14110E;padding:2px 6px">Treachery</span></div>
+              <div style="font-size:12px;line-height:1.5">Klaw attacks the hero with the lowest hit points. That attack cannot be defended by allies.</div>
+              <div style="margin-top:auto;border:2.5px solid #F2B01E;padding:8px 10px;font-size:10px;font-weight:700;line-height:1.4;color:#F2B01E">Target: Black Panther · 3 HP · would be defeated</div>
+            </div>
+          </div>
+          <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:11px">
+            <div style="display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:center;gap:9px;border:2.5px solid rgba(244,239,227,.4);padding:10px 13px;opacity:.55">
+                <span style="font-family:Bangers,cursive;font-size:18px;width:22px">1</span>
+                <span style="flex:1;font-size:12px;font-weight:700">Threat added — <b>7 → 12</b> of 12</span>
+                <span style="font-size:15px">✓</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px;border:3px solid #F4EFE3;background:#C8102E;padding:10px 13px">
+                <span style="font-family:Bangers,cursive;font-size:18px;width:22px">2</span>
+                <span style="flex:1;font-size:12px;font-weight:700">Klaw activates — <b>Sonic Boom</b> against Black Panther</span>
+                <span style="font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Resolving</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px;border:2.5px solid rgba(244,239,227,.4);padding:10px 13px;opacity:.55">
+                <span style="font-family:Bangers,cursive;font-size:18px;width:22px">3</span>
+                <span style="flex:1;font-size:12px;font-weight:700">Minions activate — Sonic Enforcer, Weapons Runner</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:9px;border:2.5px solid rgba(244,239,227,.4);padding:10px 13px;opacity:.55">
+                <span style="font-family:Bangers,cursive;font-size:18px;width:22px">4</span>
+                <span style="flex:1;font-size:12px;font-weight:700">Deal encounter cards · ready everything</span>
+              </div>
+            </div>
+            <div style="flex:1;min-height:0;border:3px solid #F2B01E;padding:13px 15px;display:flex;flex-direction:column;gap:10px">
+              <div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:#F2B01E">Your interrupt window</div>
+              <div style="font-size:12px;line-height:1.5">You hold <b>Energy Barrier</b> (cost 2). Played now it reduces this attack to 0 and keeps Panther alive with the guard minion still engaged.</div>
+              <div style="display:flex;gap:10px;align-items:stretch">
+                <div style="width:118px;height:158px;flex:none;background:#F4EFE3;color:#14110E;border:3px solid #14110E;box-shadow:0 0 0 3px #F2B01E">
+                  <div style="display:flex;border-bottom:2px solid #14110E">
+                    <div style="width:21px;background:#1F7A4C;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">2</div>
+                    <div style="flex:1;padding:3px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">ENERGY BARRIER</div><div style="font-size:6.5px;font-weight:800;opacity:.6">EVENT · DEFENSE</div></div>
+                  </div>
+                  <div style="height:56px;border-bottom:2px solid #14110E"><image-slot id="t2-barrier" shape="rect" placeholder="Art"></image-slot></div>
+                  <div style="padding:5px;font-size:8.5px;line-height:1.3"><b>Interrupt:</b> reduce damage from an attack to 0.</div>
+                </div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px;justify-content:center">
+                  <div style="height:52px;background:#F2B01E;color:#14110E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px">PLAY ENERGY BARRIER</div>
+                  <div style="height:46px;border:2.5px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Let it resolve ▸</div>
+                  <div style="font-size:10px;line-height:1.4;opacity:.65">Paying 2 will leave you with three cards for the next turn.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="width:212px;flex:none;box-sizing:border-box;border-left:3px solid #F4EFE3;background:#1A1612;display:flex;flex-direction:column">
+          <div style="flex:none;padding:9px 11px;border-bottom:3px solid #F4EFE3;font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px">TEAM STATUS</div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;scrollbar-width:none">
+            <div style="border:2.5px solid rgba(244,239,227,.45);padding:7px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.55">Seat 1 · you</div><div style="font-family:Bangers,cursive;font-size:15px;line-height:1;overflow-wrap:anywhere">CAPTAIN MARVEL</div><div style="display:flex;align-items:center;gap:5px;margin-top:5px"><div style="flex:1;height:8px;border:2px solid #F4EFE3;display:flex"><div style="width:42%;background:#C8102E"></div></div><span style="font-size:8px;font-weight:800">5/12</span></div></div>
+            <div style="border:2.5px solid rgba(244,239,227,.45);padding:7px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.55">Seat 2</div><div style="font-family:Bangers,cursive;font-size:15px;line-height:1">SHE-HULK</div><div style="display:flex;align-items:center;gap:5px;margin-top:5px"><div style="flex:1;height:8px;border:2px solid #F4EFE3;display:flex"><div style="width:83%;background:#1F7A4C"></div></div><span style="font-size:8px;font-weight:800">10/12</span></div></div>
+            <div style="border:3px solid #C8102E;padding:7px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#C8102E">Seat 3 · targeted</div><div style="font-family:Bangers,cursive;font-size:15px;line-height:1;overflow-wrap:anywhere">BLACK PANTHER</div><div style="display:flex;align-items:center;gap:5px;margin-top:5px"><div style="flex:1;height:8px;border:2px solid #F4EFE3;display:flex"><div style="width:27%;background:#C8102E"></div></div><span style="font-size:8px;font-weight:800">3/11</span></div></div>
+            <div style="border:2.5px solid rgba(244,239,227,.45);padding:7px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.55">Seat 4</div><div style="font-family:Bangers,cursive;font-size:15px;line-height:1">SPIDER-MAN</div><div style="display:flex;align-items:center;gap:5px;margin-top:5px"><div style="flex:1;height:8px;border:2px solid #F4EFE3;display:flex"><div style="width:70%;background:#1F5FA8"></div></div><span style="font-size:8px;font-weight:800">7/10</span></div></div>
+          </div>
+          <div style="flex:none;border-top:3px solid #F4EFE3;padding:10px 11px;display:flex;flex-direction:column;gap:6px">
+            <div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Main scheme</div>
+            <div style="display:flex;align-items:center;gap:7px"><div style="flex:1;height:14px;border:2.5px solid #F4EFE3;display:flex"><div style="width:100%;background:#C8102E"></div></div><span style="font-family:Bangers,cursive;font-size:16px">12/12</span></div>
+            <div style="font-size:9.5px;line-height:1.35;color:#F2B01E;font-weight:700">Threshold reached — the scheme resolves at the end of this phase unless thwarted.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">P01</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">PORTRAIT TABLE</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">768 × 1024 · stacked zones, taller hand</span>
+    </div>
+    <div style="display:flex;gap:24px">
+      <div data-screen-label="T03 Portrait table" style="width:768px;height:1024px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
+        <div style="flex:none;height:46px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:12px;padding:0 14px">
+          <span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px;background:#C8102E;padding:3px 9px;line-height:1.1">ROUND 3</span>
+          <span style="font-family:Bangers,cursive;font-size:15px;letter-spacing:.6px;padding:2px 8px;background:#F4EFE3;color:#14110E">PLAYER PHASE</span>
+          <span style="flex:1"></span>
+          <span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.6">Klaw · Standard II</span>
+          <span style="width:12px;height:12px;border-radius:50%;background:#F2B01E"></span>
+          <span style="font-size:11px;font-weight:800;padding:4px 9px;border:2px solid #F4EFE3">≡</span>
+        </div>
+
+        <div style="flex:none;display:flex;gap:0;border-bottom:3px solid #14110E;background:#EAE3D3">
+          <div style="flex:1;min-width:0;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 12px;border-right:3px solid #14110E">
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55;white-space:nowrap">Seat 1 you</span>
+            <span style="font-family:Bangers,cursive;font-size:14px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">C. MARVEL</span>
+            <span style="font-size:9px;font-weight:800;margin-left:auto">5/12</span>
+          </div>
+          <div style="flex:1;min-width:0;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 12px;border-right:3px solid #14110E;opacity:.62">
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Seat 2</span>
+            <span style="font-family:Bangers,cursive;font-size:14px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SHE-HULK</span>
+            <span style="font-size:9px;font-weight:800;margin-left:auto">10/12</span>
+          </div>
+          <div style="flex:1;min-width:0;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 12px;border-right:3px solid #14110E;background:#F2B01E">
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Seat 3</span>
+            <span style="font-family:Bangers,cursive;font-size:14px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">PANTHER</span>
+            <span style="font-size:9px;font-weight:800;margin-left:auto">3/11</span>
+          </div>
+          <div style="flex:1;min-width:0;box-sizing:border-box;display:flex;align-items:center;gap:8px;padding:8px 12px;opacity:.62">
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Seat 4</span>
+            <span style="font-family:Bangers,cursive;font-size:14px;line-height:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">SPIDER-MAN</span>
+            <span style="font-size:9px;font-weight:800;margin-left:auto">7/10</span>
+          </div>
+        </div>
+
+        <div style="flex:1;min-height:0;overflow-y:auto;position:relative;padding:13px;display:flex;flex-direction:column;gap:12px;scrollbar-width:none">
+          <div style="position:absolute;inset:0;background-image:radial-gradient(rgba(20,17,14,.1) 1px,transparent 1.1px);background-size:6px 6px;pointer-events:none"></div>
+
+          <div style="position:relative;border:3px solid #14110E;background:#F4EFE3;display:flex;align-items:stretch">
+            <div style="width:150px;flex:none;border-right:3px solid #14110E"><image-slot id="t3-scheme" shape="rect" placeholder="Scheme"></image-slot></div>
+            <div style="flex:1;min-width:0;padding:11px 14px;display:flex;flex-direction:column;gap:9px">
+              <div>
+                <div style="font-family:Bangers,cursive;font-size:27px;line-height:.96;letter-spacing:.5px">UNDERGROUND DISTRIBUTION</div>
+                <div style="font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55;margin-top:4px">Main scheme 1B · Accel ×1</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px">
+                <div style="flex:1;height:20px;border:3px solid #14110E;background:#fff;display:flex"><div style="width:58%;background:#C8102E"></div></div>
+                <div style="font-family:Bangers,cursive;font-size:24px;line-height:1;white-space:nowrap">7/12</div>
+              </div>
+              <div style="display:flex;gap:9px">
+                <div style="flex:1;border:2.5px solid #14110E;padding:5px 8px;display:flex;align-items:center;gap:7px"><span style="flex:1;min-width:0;font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">"Immortal" Klaw</span><span style="font-family:Bangers,cursive;font-size:16px;background:#14110E;color:#F4EFE3;padding:0 6px">3</span></div>
+                <div style="flex:1;border:2.5px solid #14110E;padding:5px 8px;display:flex;align-items:center;gap:7px"><span style="flex:1;min-width:0;font-size:11px;font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Defense Network</span><span style="font-family:Bangers,cursive;font-size:16px;background:#14110E;color:#F4EFE3;padding:0 6px">4</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div style="position:relative;display:flex;gap:12px;align-items:stretch">
+            <div style="width:196px;flex:none;box-sizing:border-box;background:#F4EFE3;border:3px solid #14110E;animation:tgtt 1.8s ease-in-out infinite">
+              <div style="display:flex;border-bottom:2.5px solid #14110E">
+                <div style="width:26px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:15px">I</div>
+                <div style="flex:1;padding:4px 8px"><div style="font-family:Bangers,cursive;font-size:20px;line-height:1">KLAW</div><div style="font-size:7px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Villain stage I</div></div>
+              </div>
+              <div style="height:110px;border-bottom:2.5px solid #14110E;position:relative"><image-slot id="t3-klaw" shape="rect" placeholder="Klaw"></image-slot><span style="position:absolute;top:5px;left:5px;background:#6E9B2F;border:2px solid #14110E;color:#14110E;font-family:Bangers,cursive;font-size:12px;letter-spacing:.4px;padding:0 5px;line-height:1.35">STUNNED</span></div>
+              <div style="display:flex;border-bottom:2.5px solid #14110E;font-size:7px;font-weight:800;text-align:center">
+                <div style="flex:1;padding:3px 0;border-right:1px solid #14110E;background:repeating-linear-gradient(45deg,rgba(110,155,47,.3) 0 5px,transparent 5px 10px);opacity:.6"><div style="font-family:Bangers,cursive;font-size:16px;line-height:1">✕</div>ATK</div>
+                <div style="flex:1;padding:3px 0;border-right:1px solid #14110E"><div style="font-family:Bangers,cursive;font-size:16px;line-height:1">2</div>SCH</div>
+                <div style="flex:1;padding:3px 0;background:#C8102E;color:#F4EFE3"><div style="font-family:Bangers,cursive;font-size:16px;line-height:1">14</div>HP</div>
+              </div>
+              <div style="padding:6px 8px;display:flex;align-items:center;gap:6px"><div style="flex:1;height:12px;border:2.5px solid #14110E;background:#fff;display:flex"><div style="width:64%;background:#C8102E"></div></div><span style="font-size:9px;font-weight:800">14/22</span></div>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:Bangers,cursive;font-size:17px;letter-spacing:.6px">ENGAGED WITH YOU</span>
+                <span style="flex:1;height:3px;background:#14110E"></span>
+                <span style="font-size:8px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;background:#2B241C;color:#F4EFE3;padding:3px 6px">Boost ×2</span>
+              </div>
+              <div style="border:3px solid #14110E;background:#F4EFE3;display:flex;align-items:stretch;box-shadow:0 0 0 3px #C8102E">
+                <div style="width:78px;flex:none;border-right:2.5px solid #14110E;position:relative">
+                  <image-slot id="t3-m2" shape="rect" placeholder="Art"></image-slot>
+                  <span style="position:absolute;top:4px;left:4px;font-size:7px;font-weight:800;letter-spacing:.6px;background:#F2B01E;border:2px solid #14110E;padding:0 4px">GUARD</span>
+                </div>
+                <div style="flex:1;min-width:0;padding:8px 11px;display:flex;flex-direction:column;justify-content:center;gap:4px">
+                  <div style="font-family:Bangers,cursive;font-size:18px;line-height:1">SONIC ENFORCER</div>
+                  <div style="font-size:9px;font-weight:800;opacity:.6">1 ATK · 0 SCH · 3 HP</div>
+                  <div style="font-size:10.5px;line-height:1.35">Must be defeated before the villain can be thwarted.</div>
+                </div>
+              </div>
+              <div style="border:3px solid #14110E;background:#F4EFE3;display:flex;align-items:stretch">
+                <div style="width:78px;flex:none;border-right:2.5px solid #14110E;position:relative"><image-slot id="t3-m1" shape="rect" placeholder="Art"></image-slot><span style="position:absolute;top:4px;left:4px;background:#8E5AA0;border:2px solid #14110E;color:#F4EFE3;font-family:Bangers,cursive;font-size:11px;letter-spacing:.4px;padding:0 5px;line-height:1.35">CONFUSED</span></div>
+                <div style="flex:1;min-width:0;padding:8px 11px;display:flex;flex-direction:column;justify-content:center;gap:4px">
+                  <div style="font-family:Bangers,cursive;font-size:18px;line-height:1">WEAPONS RUNNER</div>
+                  <div style="font-size:9px;font-weight:800;opacity:.6">1 ATK · <span style="text-decoration:line-through;opacity:.55">1 SCH</span> · 2 HP</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="position:relative;display:flex;gap:12px;align-items:stretch">
+            <div style="width:196px;flex:none;box-sizing:border-box;background:#F4EFE3;border:3px solid #14110E">
+              <div style="background:#1F7A4C;color:#F4EFE3;padding:5px 8px;border-bottom:2.5px solid #14110E"><div style="font-family:Bangers,cursive;font-size:18px;line-height:1">CAPTAIN MARVEL</div><div style="font-size:7px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.9">Hero · Protection</div></div>
+              <div style="height:96px;border-bottom:2.5px solid #14110E"><image-slot id="t3-hero" shape="rect" placeholder="Hero"></image-slot></div>
+              <div style="display:flex;border-bottom:2.5px solid #14110E;font-size:6.5px;font-weight:800;text-align:center">
+                <div style="flex:1;padding:3px 0;border-right:1px solid #14110E"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1">2</div>THW</div>
+                <div style="flex:1;padding:3px 0;border-right:1px solid #14110E"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1">2</div>ATK</div>
+                <div style="flex:1;padding:3px 0;border-right:1px solid #14110E"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1">1</div>DEF</div>
+                <div style="flex:1;padding:3px 0;background:#14110E;color:#F4EFE3"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1">5</div>HP</div>
+              </div>
+              <div style="padding:6px 8px;display:flex;align-items:center;gap:6px"><div style="flex:1;height:12px;border:2.5px solid #14110E;background:#fff;display:flex"><div style="width:42%;background:#C8102E"></div></div><span style="font-size:9px;font-weight:800">5/12</span></div>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:9px">
+              <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:17px;letter-spacing:.6px">YOUR PLAY AREA</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+              <div style="flex:1;display:flex;gap:9px">
+                <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#F4EFE3;display:flex;flex-direction:column">
+                  <div style="flex:1;min-height:70px;border-bottom:2.5px solid #14110E"><image-slot id="t3-ally" shape="rect" placeholder="Art"></image-slot></div>
+                  <div style="padding:6px 8px"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1;overflow-wrap:anywhere">SPIDER-WOMAN</div><div style="font-size:8px;font-weight:800;opacity:.6;margin-top:2px">ALLY · 2/2/2</div></div>
+                </div>
+                <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#F4EFE3;display:flex;flex-direction:column">
+                  <div style="flex:1;min-height:70px;border-bottom:2.5px solid #14110E"><image-slot id="t3-up1" shape="rect" placeholder="Art"></image-slot></div>
+                  <div style="padding:6px 8px"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1;overflow-wrap:anywhere">ENERGY CHANNEL</div><div style="font-size:8px;font-weight:800;opacity:.6;margin-top:2px">UPGRADE · +1 DEF</div></div>
+                </div>
+                <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#F4EFE3;display:flex;flex-direction:column;opacity:.5">
+                  <div style="flex:1;min-height:70px;border-bottom:2.5px solid #14110E"><image-slot id="t3-up2" shape="rect" placeholder="Art"></image-slot></div>
+                  <div style="padding:6px 8px"><div style="font-family:Bangers,cursive;font-size:15px;line-height:1;overflow-wrap:anywhere">ARMORED VEST</div><div style="font-size:8px;font-weight:800;opacity:.6;margin-top:2px">EXHAUSTED</div></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:none;height:236px;box-sizing:border-box;border-top:3px solid #14110E;background:#EAE3D3;display:flex;flex-direction:column">
+          <div style="flex:none;display:flex;align-items:center;gap:9px;padding:9px 14px 0">
+            <span style="font-family:Bangers,cursive;font-size:17px;letter-spacing:.7px">HAND 5</span>
+            <span style="flex:1"></span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Deck 28 · Discard 12</span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:4px 7px;border:2px solid #14110E">Spines</span>
+          </div>
+          <div style="flex:1;min-height:0;display:flex;gap:9px;padding:9px 14px 12px;overflow-x:auto;align-items:flex-start;scrollbar-width:none">
+            <div style="flex:none;width:122px;height:172px;background:#F4EFE3;border:3px solid #14110E">
+              <div style="display:flex;border-bottom:2px solid #14110E">
+                <div style="width:22px;background:#C8102E;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">3</div>
+                <div style="flex:1;padding:4px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">PHOTON BLAST</div><div style="font-size:6.5px;font-weight:800;opacity:.6">EVENT · ATTACK</div></div>
+              </div>
+              <div style="height:66px;border-bottom:2px solid #14110E"><image-slot id="t3-h1" shape="rect" placeholder="Art"></image-slot></div>
+              <div style="padding:5px;font-size:8.5px;line-height:1.3">Deal 5 damage to an enemy. <b>Hero action.</b></div>
+            </div>
+            <div style="flex:none;width:122px;height:172px;background:#F4EFE3;border:3px solid #14110E">
+              <div style="display:flex;border-bottom:2px solid #14110E">
+                <div style="width:22px;background:#1F5FA8;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">1</div>
+                <div style="flex:1;padding:4px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">ENERGY</div><div style="font-size:6.5px;font-weight:800;opacity:.6">RESOURCE</div></div>
+              </div>
+              <div style="height:66px;border-bottom:2px solid #14110E"><image-slot id="t3-h2" shape="rect" placeholder="Art"></image-slot></div>
+              <div style="padding:5px;font-size:8.5px;line-height:1.3">Generates 1 energy resource.</div>
+            </div>
+            <div style="flex:none;width:122px;height:172px;background:#F4EFE3;border:3px solid #14110E">
+              <div style="display:flex;border-bottom:2px solid #14110E">
+                <div style="width:22px;background:#1F7A4C;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">2</div>
+                <div style="flex:1;padding:4px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">ENERGY BARRIER</div><div style="font-size:6.5px;font-weight:800;opacity:.6">EVENT · DEFENSE</div></div>
+              </div>
+              <div style="height:66px;border-bottom:2px solid #14110E"><image-slot id="t3-h3" shape="rect" placeholder="Art"></image-slot></div>
+              <div style="padding:5px;font-size:8.5px;line-height:1.3"><b>Interrupt:</b> reduce damage to 0.</div>
+            </div>
+            <div style="flex:none;width:44px;height:172px;background:#F4EFE3;border:3px solid #14110E;opacity:.45;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative">
+              <span style="position:absolute;top:5px;left:5px;font-size:7px;font-weight:800">1</span>
+              <span style="font-family:Bangers,cursive;font-size:13px;letter-spacing:.5px;writing-mode:vertical-rl;max-height:144px;overflow:hidden">DOWNTIME</span>
+            </div>
+            <div style="flex:none;width:122px;height:172px;background:#F4EFE3;border:3px solid #14110E">
+              <div style="display:flex;border-bottom:2px solid #14110E">
+                <div style="width:22px;background:#1F7A4C;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">2</div>
+                <div style="flex:1;padding:4px 5px"><div style="font-family:Bangers,cursive;font-size:12px;line-height:1">MOCKINGBIRD</div><div style="font-size:6.5px;font-weight:800;opacity:.6">ALLY · 2/1/3</div></div>
+              </div>
+              <div style="height:66px;border-bottom:2px solid #14110E"><image-slot id="t3-h4" shape="rect" placeholder="Art"></image-slot></div>
+              <div style="padding:5px;font-size:8.5px;line-height:1.3">Enters play ready. <b>Thwart 1.</b></div>
+            </div>
+            <div style="flex:none;width:14px;height:172px"></div>
+          </div>
+        </div>
+
+        <div style="flex:none;background:#14110E;color:#F4EFE3;display:flex;gap:8px;padding:10px 14px 14px">
+          <div style="flex:1;min-width:0;box-sizing:border-box;height:52px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;border:3px solid #F4EFE3;background:#F4EFE3;color:#14110E">Attack <span style="font-family:Bangers,cursive;font-size:18px">2</span></div>
+          <div style="flex:1;min-width:0;box-sizing:border-box;height:52px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;border:3px solid #F4EFE3;background:#F4EFE3;color:#14110E">Thwart <span style="font-family:Bangers,cursive;font-size:18px">2</span></div>
+          <div style="flex:1;min-width:0;box-sizing:border-box;height:52px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;border:3px solid rgba(244,239,227,.4);color:rgba(244,239,227,.45)">Recover</div>
+          <div style="flex:1;min-width:0;box-sizing:border-box;height:52px;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;border:3px solid #F4EFE3">Flip</div>
+          <div style="flex:1.3;min-width:0;box-sizing:border-box;height:52px;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:19px;letter-spacing:1px;background:#C8102E;border:3px solid #C8102E">END TURN</div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+          <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">P02</span>
+          <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">PORTRAIT SETUP</span>
+        </div>
+        <div data-screen-label="T04 Portrait hero select" style="width:768px;height:1024px;box-sizing:border-box;overflow:hidden;background:#F4EFE3;color:#14110E;display:flex;flex-direction:column">
+          <div style="flex:none;height:46px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px">
+            <span style="font-family:Bangers,cursive;font-size:17px;letter-spacing:.8px;padding:3px 10px;border:2px solid #F4EFE3">◂ KLAW</span>
+            <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1.2px">TAKE YOUR SEATS</span>
+            <span style="flex:1"></span>
+            <span style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;opacity:.6">Step 2 of 4 · 3 seats filled</span>
+          </div>
+          <div style="flex:none;display:flex;gap:9px;padding:13px;background:#EAE3D3;border-bottom:3px solid #14110E">
+            <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#C8102E;color:#F4EFE3;display:flex;align-items:stretch">
+              <div style="width:52px;flex:none;border-right:2.5px solid #14110E"><image-slot id="t4-s1" shape="rect" placeholder="•"></image-slot></div>
+              <div style="flex:1;min-width:0;padding:6px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Seat 1 · you</div><div style="font-family:Bangers,cursive;font-size:16px;line-height:1;overflow-wrap:anywhere">CAPTAIN MARVEL</div><div style="font-size:9px;font-weight:700;opacity:.85;margin-top:2px">Protection · 12 HP</div></div>
+            </div>
+            <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#fff;display:flex;align-items:stretch">
+              <div style="width:52px;flex:none;border-right:2.5px solid #14110E"><image-slot id="t4-s2" shape="rect" placeholder="•"></image-slot></div>
+              <div style="flex:1;min-width:0;padding:6px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Seat 2 · AI</div><div style="font-family:Bangers,cursive;font-size:16px;line-height:1">SHE-HULK</div><div style="font-size:9px;font-weight:700;opacity:.6;margin-top:2px">Aggression · 12 HP</div></div>
+            </div>
+            <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#fff;display:flex;align-items:stretch">
+              <div style="width:52px;flex:none;border-right:2.5px solid #14110E"><image-slot id="t4-s3" shape="rect" placeholder="•"></image-slot></div>
+              <div style="flex:1;min-width:0;padding:6px 9px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Seat 3 · AI</div><div style="font-family:Bangers,cursive;font-size:16px;line-height:1;overflow-wrap:anywhere">BLACK PANTHER</div><div style="font-size:9px;font-weight:700;opacity:.6;margin-top:2px">Justice · 11 HP</div></div>
+            </div>
+            <div style="flex:1;min-width:0;box-sizing:border-box;border:3px dashed rgba(20,17,14,.45);display:flex;align-items:center;justify-content:center;color:rgba(20,17,14,.45);font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px">SEAT 4 · EMPTY</div>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:13px;display:flex;flex-direction:column;gap:11px;scrollbar-width:none">
+            <div style="display:flex;align-items:center;gap:9px">
+              <span style="font-size:9px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;opacity:.6">Choose a hero for seat 4</span>
+              <span style="flex:1;height:3px;background:#14110E"></span>
+              <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;padding:4px 8px;border:2.5px solid #14110E">All aspects</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px">
+              <div style="border:3px solid #14110E;background:#fff;box-shadow:0 0 0 3px #C8102E;display:flex;flex-direction:column">
+                <div style="height:150px;border-bottom:3px solid #14110E"><image-slot id="t4-spidey" shape="rect" placeholder="Art"></image-slot></div>
+                <div style="padding:9px 11px;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-family:Bangers,cursive;font-size:20px;line-height:1">SPIDER-MAN</div>
+                  <div style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.6">Justice · 10 HP · hand 6</div>
+                  <div style="font-size:10.5px;line-height:1.4">Spider-sense punishes the villain for attacking you.</div>
+                </div>
+              </div>
+              <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column">
+                <div style="height:150px;border-bottom:3px solid #14110E"><image-slot id="t4-ironman" shape="rect" placeholder="Art"></image-slot></div>
+                <div style="padding:9px 11px;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-family:Bangers,cursive;font-size:20px;line-height:1">IRON MAN</div>
+                  <div style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.6">Aggression · 9 HP · hand 6</div>
+                  <div style="font-size:10.5px;line-height:1.4">Slow start, overwhelming once the suit is built.</div>
+                </div>
+              </div>
+              <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column">
+                <div style="height:150px;border-bottom:3px solid #14110E"><image-slot id="t4-thor" shape="rect" placeholder="Art"></image-slot></div>
+                <div style="padding:9px 11px;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-family:Bangers,cursive;font-size:20px;line-height:1">THOR</div>
+                  <div style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.6">Aggression · 11 HP · hand 6</div>
+                  <div style="font-size:10.5px;line-height:1.4">Mjolnir thins the deck but hits like a truck.</div>
+                </div>
+              </div>
+              <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column">
+                <div style="height:150px;border-bottom:3px solid #14110E"><image-slot id="t4-widow" shape="rect" placeholder="Art"></image-slot></div>
+                <div style="padding:9px 11px;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-family:Bangers,cursive;font-size:20px;line-height:1">BLACK WIDOW</div>
+                  <div style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.6">Justice · 9 HP · hand 5</div>
+                  <div style="font-size:10.5px;line-height:1.4">Preparation cards stall the encounter deck.</div>
+                </div>
+              </div>
+              <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column;opacity:.42">
+                <div style="height:150px;border-bottom:3px solid #14110E"><image-slot id="t4-shehulk" shape="rect" placeholder="Art"></image-slot></div>
+                <div style="padding:9px 11px;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-family:Bangers,cursive;font-size:20px;line-height:1">SHE-HULK</div>
+                  <div style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.6">Seated · seat 2</div>
+                </div>
+              </div>
+              <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column">
+                <div style="height:150px;border-bottom:3px solid #14110E"><image-slot id="t4-captain" shape="rect" placeholder="Art"></image-slot></div>
+                <div style="padding:9px 11px;display:flex;flex-direction:column;gap:4px">
+                  <div style="font-family:Bangers,cursive;font-size:20px;line-height:1">CAPTAIN AMERICA</div>
+                  <div style="font-size:9px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.6">Leadership · 11 HP · hand 6</div>
+                  <div style="font-size:10.5px;line-height:1.4">Keeps the whole table standing with ally support.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div style="flex:none;background:#14110E;color:#F4EFE3;display:flex;gap:10px;padding:12px 14px 16px;align-items:center">
+            <div style="flex:1;font-size:10.5px;line-height:1.4;opacity:.7">Spider-Man rounds the table out with a second Justice deck — helpful against ×1 acceleration.</div>
+            <div style="flex:none;width:150px;height:52px;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Play 3 heroes</div>
+            <div style="flex:none;width:230px;height:52px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.2px">DECK CHECK ▸</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">L05</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">SETUP &amp; MULLIGAN</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">All four seats mulligan on one screen</span>
+    </div>
+    <div data-screen-label="T05 Setup mulligan" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#F4EFE3;color:#14110E">
+      <div style="flex:none;height:46px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px">
+        <span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px;background:#C8102E;padding:3px 9px;line-height:1.1">SETUP</span>
+        <span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;padding:2px 9px;background:#F4EFE3;color:#14110E">MULLIGAN</span>
+        <span style="flex:1"></span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55">Klaw · Standard II · 4 heroes</span>
+        <span style="font-family:Bangers,cursive;font-size:16px;padding:2px 9px;border:2px solid #F4EFE3">≡</span>
+      </div>
+      <div style="flex:none;display:flex;align-items:center;gap:16px;padding:11px 16px;border-bottom:3px solid #14110E;background:#EAE3D3">
+        <div style="flex:1;font-size:11px;line-height:1.45">Obligations shuffled in · setup cards placed · Klaw stage I in play · threat <b>0/12</b>. Each seat may swap any number of cards <b>once</b>.</div>
+        <div style="flex:none;font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55">Seed K-8421</div>
+      </div>
+      <div style="flex:1;min-height:0;display:flex;gap:12px;padding:14px 16px">
+        <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#fff;display:flex;flex-direction:column;box-shadow:0 0 0 3px #C8102E;">
+            <div style="flex:none;display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:3px solid #14110E;background:#14110E;color:#F4EFE3">
+              <div style="width:26px;height:26px;flex:none;border:2px solid currentColor"><image-slot id="t05-Seat 1" shape="rect" placeholder="·"></image-slot></div>
+              <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:800;line-height:1.1">Captain Marvel</div><div style="font-size:9px;font-weight:700;opacity:.65">Seat 1</div></div>
+              <span style="font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Deciding</span>
+            </div>
+            <div style="flex:1;min-height:0;padding:9px;display:flex;flex-direction:column;gap:7px">
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#F4EFE3;display:flex;align-items:center;gap:8px;padding:0 8px;box-shadow:0 0 0 2.5px #C8102E;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">3</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Photon Blast</span><span style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#C8102E">Swap</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#F4EFE3;display:flex;align-items:center;gap:8px;padding:0 8px;box-shadow:0 0 0 2.5px #C8102E;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">4</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Crisis Interdiction</span><span style="font-size:8px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;color:#C8102E">Swap</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">1</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Energy Channel</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">2</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Enhanced Reflexes</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">0</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Spider-Tracer</span></div>
+            </div>
+          </div>
+        <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#EAE3D3;display:flex;flex-direction:column;">
+            <div style="flex:none;display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:3px solid #14110E;background:transparent;color:#14110E">
+              <div style="width:26px;height:26px;flex:none;border:2px solid currentColor"><image-slot id="t05-Seat 2" shape="rect" placeholder="·"></image-slot></div>
+              <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:800;line-height:1.1">She-Hulk</div><div style="font-size:9px;font-weight:700;opacity:.65">Seat 2</div></div>
+              <span style="font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Kept</span>
+            </div>
+            <div style="flex:1;min-height:0;padding:9px;display:flex;flex-direction:column;gap:7px">
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">5</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Gamma Slam</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">1</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Split Personality</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">2</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Superhuman Strength</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">0</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Legal Practice</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">2</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Team-Building</span></div>
+            </div>
+          </div>
+        <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#EAE3D3;display:flex;flex-direction:column;">
+            <div style="flex:none;display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:3px solid #14110E;background:transparent;color:#14110E">
+              <div style="width:26px;height:26px;flex:none;border:2px solid currentColor"><image-slot id="t05-Seat 3" shape="rect" placeholder="·"></image-slot></div>
+              <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:800;line-height:1.1">Black Panther</div><div style="font-size:9px;font-weight:700;opacity:.65">Seat 3</div></div>
+              <span style="font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Kept</span>
+            </div>
+            <div style="flex:1;min-height:0;padding:9px;display:flex;flex-direction:column;gap:7px">
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">3</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Vibranium Suit</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">4</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Wakanda Forever</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">1</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Tactical Genius</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">1</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Endurance</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">3</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Plan B</span></div>
+            </div>
+          </div>
+        <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#EAE3D3;display:flex;flex-direction:column;">
+            <div style="flex:none;display:flex;align-items:center;gap:8px;padding:8px 10px;border-bottom:3px solid #14110E;background:transparent;color:#14110E">
+              <div style="width:26px;height:26px;flex:none;border:2px solid currentColor"><image-slot id="t05-Seat 4" shape="rect" placeholder="·"></image-slot></div>
+              <div style="flex:1;min-width:0"><div style="font-size:11px;font-weight:800;line-height:1.1">Spider-Man</div><div style="font-size:9px;font-weight:700;opacity:.65">Seat 4</div></div>
+              <span style="font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Kept</span>
+            </div>
+            <div style="flex:1;min-height:0;padding:9px;display:flex;flex-direction:column;gap:7px">
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">1</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Web-Shooter</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">0</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Backflip</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">1</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Enhanced Spider-Sense</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">2</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Clear the Area</span></div>
+              <div style="flex:1;min-height:0;border:2.5px solid #14110E;background:#fff;display:flex;align-items:center;gap:8px;padding:0 8px;"><span style="font-family:Bangers,cursive;font-size:15px;width:18px;flex:none">2</span><span style="flex:1;min-width:0;font-size:10.5px;font-weight:700;line-height:1.2">Multitasking</span></div>
+            </div>
+          </div>
+      </div>
+      <div style="flex:none;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:12px;padding:12px 16px 16px">
+        <div style="flex:1;font-size:10.5px;line-height:1.4;opacity:.7">Three seats have kept. Captain Marvel is swapping two four-cost cards — round 1 only affords five resources.</div>
+        <div style="flex:none;width:170px;height:52px;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Keep all six</div>
+        <div style="flex:none;width:240px;height:52px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.2px">START ROUND 1 ▸</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">L06</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">INSPECT &amp; TARGET</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">Inspector rail replaces the phone sheet</span>
+    </div>
+    <div data-screen-label="T06 Inspect and target" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#F4EFE3;color:#14110E">
+      <div style="flex:none;height:46px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px">
+        <span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px;background:#C8102E;padding:3px 9px;line-height:1.1">ROUND 3</span>
+        <span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;padding:2px 9px;background:#F4EFE3;color:#14110E">PLAYER PHASE</span>
+        <span style="flex:1"></span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55">Klaw · Standard II · 4 heroes</span>
+        <span style="font-family:Bangers,cursive;font-size:16px;padding:2px 9px;border:2px solid #F4EFE3">≡</span>
+      </div>
+      <div style="flex:1;min-height:0;display:flex">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:12px;padding:14px;position:relative;background-image:radial-gradient(rgba(20,17,14,.1) 1px,transparent 1.1px);background-size:6px 6px">
+          <div style="flex:none;display:flex;align-items:center;gap:9px"><span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px">CHOOSE A TARGET</span><span style="font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;background:#C8102E;color:#F4EFE3;padding:3px 7px">Photon Blast · 6 dmg</span><span style="flex:1;height:3px;background:#14110E"></span><span style="font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.5">Esc to cancel</span></div>
+          <div style="flex:1;min-height:0;display:flex;gap:12px">
+            <div style="flex:1.2;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#fff;display:flex;flex-direction:column;animation:tgtt 1.4s infinite">
+              <div style="flex:1;min-height:0;border-bottom:3px solid #14110E"><image-slot id="t06-klaw" shape="rect" placeholder="Klaw stage II"></image-slot></div>
+              <div style="flex:none;padding:9px 11px"><div style="font-family:Bangers,cursive;font-size:22px;line-height:1">KLAW II</div><div style="font-size:10px;font-weight:700;opacity:.65;margin-top:2px">14/22 HP · DEF 2 · legal target</div></div>
+            </div>
+            <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid #14110E;background:#fff;display:flex;flex-direction:column;animation:tgtt 1.4s infinite">
+              <div style="flex:1;min-height:0;border-bottom:3px solid #14110E"><image-slot id="t06-min1" shape="rect" placeholder="Vibranium Thief"></image-slot></div>
+              <div style="flex:none;padding:9px 11px"><div style="font-family:Bangers,cursive;font-size:19px;line-height:1">THIEF</div><div style="font-size:10px;font-weight:700;opacity:.65;margin-top:2px">3/3 HP · engaged with you</div></div>
+            </div>
+            <div style="flex:1;min-width:0;box-sizing:border-box;border:3px solid rgba(20,17,14,.3);background:#EAE3D3;color:rgba(20,17,14,.45);display:flex;flex-direction:column">
+              <div style="flex:1;min-height:0;border-bottom:3px solid rgba(20,17,14,.3)"><image-slot id="t06-side" shape="rect" placeholder="Side scheme"></image-slot></div>
+              <div style="flex:none;padding:9px 11px"><div style="font-family:Bangers,cursive;font-size:19px;line-height:1">DEFENSE NETWORK</div><div style="font-size:10px;font-weight:700;margin-top:2px">Not a valid target for damage</div></div>
+            </div>
+          </div>
+          <div style="flex:none;border:3px solid #14110E;background:#EAE3D3;padding:10px 12px;font-size:11px;line-height:1.45">Ranged ignores the thief's retaliate. Hitting Klaw now leaves him at 8 — inside Gamma Slam range next turn.</div>
+        </div>
+        <div style="width:330px;flex:none;box-sizing:border-box;border-left:3px solid #14110E;background:#14110E;color:#F4EFE3;display:flex;flex-direction:column">
+          <div style="flex:none;display:flex;align-items:center;gap:9px;padding:11px 13px;border-bottom:3px solid #F4EFE3"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:.8px">INSPECTOR</span><span style="flex:1"></span><span style="font-family:Bangers,cursive;font-size:15px;padding:1px 7px;border:2px solid #F4EFE3">✕</span></div>
+          <div style="flex:1;min-height:0;overflow-y:auto;padding:13px;display:flex;flex-direction:column;gap:11px;scrollbar-width:none">
+            <div style="height:250px;flex:none;border:3px solid #F4EFE3"><image-slot id="t06-card" shape="rect" placeholder="Photon Blast"></image-slot></div>
+            <div><div style="font-family:Bangers,cursive;font-size:24px;line-height:1">PHOTON BLAST</div><div style="font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.6;margin-top:3px">Event · Aggression · Cost 3</div></div>
+            <div style="font-size:11px;line-height:1.45">Deal 6 damage to an enemy. If that enemy is a minion, deal 2 damage to another enemy.</div>
+            <div style="border:2.5px solid #F4EFE3;padding:9px 10px;font-size:10.5px;line-height:1.45"><b>Ranged</b> — playable against enemies engaged with another player; does not trigger retaliate.</div>
+            <div style="display:flex;flex-direction:column;gap:5px">
+              <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55">This game</div>
+              <div style="display:flex;gap:8px;border-left:3px solid #F4EFE3;padding:3px 0 3px 9px"><span style="font-size:9px;font-weight:800;opacity:.5;width:30px;flex:none">2.04</span><span style="flex:1;font-size:10.5px;line-height:1.4">Defeated Vibranium Thief.</span></div>
+            </div>
+          </div>
+          <div style="flex:none;display:flex;gap:7px;padding:11px 13px 15px;border-top:3px solid #F4EFE3">
+            <div style="flex:1;height:48px;border:2.5px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Cancel</div>
+            <div style="flex:1.4;height:48px;background:#C8102E;border:2.5px solid #C8102E;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">HIT KLAW</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">L07</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">PAUSE &amp; RULES</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">Modal over a frozen table</span>
+    </div>
+    <div data-screen-label="T07 Pause" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#F4EFE3;color:#14110E;position:relative">
+      <div style="flex:none;height:46px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:14px;padding:0 16px">
+        <span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:.8px;background:#C8102E;padding:3px 9px;line-height:1.1">ROUND 3</span>
+        <span style="font-family:Bangers,cursive;font-size:16px;letter-spacing:.6px;padding:2px 9px;background:#F4EFE3;color:#14110E">PLAYER PHASE</span>
+        <span style="flex:1"></span>
+        <span style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55">Klaw · Standard II · 4 heroes</span>
+        <span style="font-family:Bangers,cursive;font-size:16px;padding:2px 9px;border:2px solid #F4EFE3">≡</span>
+      </div>
+      <div style="flex:1;min-height:0;position:relative;padding:14px;display:flex;gap:12px;opacity:.35">
+        <div style="flex:1;border:3px solid #14110E"></div>
+        <div style="width:260px;flex:none;border:3px solid #14110E"></div>
+      </div>
+      <div style="position:absolute;inset:0;background:rgba(14,12,10,.76);display:flex;align-items:center;justify-content:center">
+        <div style="width:720px;box-sizing:border-box;background:#14110E;color:#F4EFE3;border:3px solid #F4EFE3;display:flex;flex-direction:column">
+          <div style="flex:none;display:flex;align-items:flex-end;gap:14px;padding:16px 18px 14px;border-bottom:3px solid #F4EFE3">
+            <div style="flex:1"><div style="font-family:Bangers,cursive;font-size:36px;line-height:.9;letter-spacing:1.2px">PAUSED</div><div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;opacity:.55;margin-top:4px">Klaw · Standard II · Round 3 · Player phase · Seat 1</div></div>
+            <span style="font-family:Bangers,cursive;font-size:17px;padding:2px 9px;border:2px solid #F4EFE3">✕</span>
+          </div>
+          <div style="flex:none;display:flex;gap:14px;padding:16px 18px">
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55">Rules reference</div>
+              <div style="border:2.5px solid #F4EFE3;background:#F4EFE3;color:#14110E;display:flex;align-items:center;gap:9px;padding:9px 11px"><span style="font-size:13px;font-weight:800;opacity:.5">⌕</span><span style="flex:1;font-size:11px;font-weight:700;opacity:.55">Search — "retaliate", "confused"…</span></div>
+              <div style="border:2.5px solid #F4EFE3;padding:9px 11px;display:flex;align-items:center;gap:9px"><span style="flex:1;font-size:11px;font-weight:800">Villain phase order</span><span style="font-family:Bangers,cursive;font-size:16px">▸</span></div>
+              <div style="border:2.5px solid #F4EFE3;padding:9px 11px;display:flex;align-items:center;gap:9px"><span style="flex:1;font-size:11px;font-weight:800">Keyword glossary · 36 terms</span><span style="font-family:Bangers,cursive;font-size:16px">▸</span></div>
+              <div style="border:2.5px solid #F4EFE3;padding:9px 11px;display:flex;align-items:center;gap:9px"><span style="flex:1;font-size:11px;font-weight:800">Scenario card list</span><span style="font-family:Bangers,cursive;font-size:16px">▸</span></div>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:8px">
+              <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55">Table</div>
+              <div style="border:2.5px solid #F4EFE3;padding:9px 11px;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:11px;font-weight:800">Sound</span><span style="width:44px;height:24px;flex:none;border:2.5px solid #F4EFE3;background:#F4EFE3;display:flex;align-items:center;justify-content:flex-end;padding:0 2px"><span style="width:16px;height:16px;background:#14110E"></span></span></div>
+              <div style="border:2.5px solid #F4EFE3;padding:9px 11px;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:11px;font-weight:800">Large card text</span><span style="width:44px;height:24px;flex:none;border:2.5px solid #F4EFE3;display:flex;align-items:center;padding:0 2px"><span style="width:16px;height:16px;background:#F4EFE3"></span></span></div>
+              <div style="border:2.5px solid #F4EFE3;padding:9px 11px;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:11px;font-weight:800">Jump into the log</span><span style="font-size:10px;font-weight:700;opacity:.6">Undo to 3.09</span></div>
+              <div style="border:2.5px solid #F4EFE3;padding:9px 11px;display:flex;align-items:center;gap:10px"><span style="flex:1;font-size:11px;font-weight:800">Hand off device</span><span style="font-size:10px;font-weight:700;opacity:.6">Seat 2 next</span></div>
+            </div>
+          </div>
+          <div style="flex:none;display:flex;gap:9px;padding:0 18px 18px">
+            <div style="flex:1;height:52px;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Save &amp; quit</div>
+            <div style="flex:1;height:52px;border:3px solid rgba(244,239,227,.45);color:rgba(244,239,227,.6);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Concede</div>
+            <div style="flex:1.6;height:52px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.2px">RESUME</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">L08</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">VICTORY</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">Game over, winning half</span>
+    </div>
+    <div data-screen-label="T08 Victory" style="width:1024px;height:768px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column;background:#14110E;color:#F4EFE3;flex-direction:row">
+      <div style="width:420px;flex:none;position:relative;border-right:3px solid #F2B01E"><image-slot id="t08-art" shape="rect" placeholder="Victory art"></image-slot></div>
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;padding:26px 28px;gap:16px;background-image:radial-gradient(rgba(242,176,30,.12) 1px,transparent 1.1px);background-size:7px 7px">
+        <div>
+          <div style="font-size:10px;font-weight:800;letter-spacing:1.6px;text-transform:uppercase;color:#F2B01E">Stage III cleared · round 8</div>
+          <div style="font-family:Bangers,cursive;font-size:58px;line-height:.85;letter-spacing:1.5px;margin-top:6px">KLAW GOES DOWN</div>
+        </div>
+        <div style="font-size:12px;line-height:1.5;opacity:.82;text-wrap:pretty;max-width:480px">Threat closed at 9/12 with Defense Network still standing. She-Hulk landed the last 7 after Spider-Man double-thwarted to buy the round.</div>
+        <div style="display:flex;gap:9px">
+          <div style="flex:1;border:2.5px solid #F2B01E;padding:10px 11px"><div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Rounds</div><div style="font-family:Bangers,cursive;font-size:30px;line-height:1.1">8</div></div>
+          <div style="flex:1;border:2.5px solid #F2B01E;padding:10px 11px"><div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Damage</div><div style="font-family:Bangers,cursive;font-size:30px;line-height:1.1">61</div></div>
+          <div style="flex:1;border:2.5px solid #F2B01E;padding:10px 11px"><div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Thwart</div><div style="font-family:Bangers,cursive;font-size:30px;line-height:1.1">44</div></div>
+          <div style="flex:1;border:2.5px solid #F2B01E;padding:10px 11px"><div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Hero KOs</div><div style="font-family:Bangers,cursive;font-size:30px;line-height:1.1">0</div></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55">Per seat</div>
+          <div style="display:flex;gap:9px">
+            <div style="flex:1;border:2.5px solid #F4EFE3;padding:9px 10px"><div style="font-size:11px;font-weight:800">She-Hulk ★</div><div style="font-size:10px;font-weight:700;opacity:.6;margin-top:2px">28 dmg · 6 thwart</div></div>
+            <div style="flex:1;border:2.5px solid #F4EFE3;padding:9px 10px"><div style="font-size:11px;font-weight:800">Captain Marvel</div><div style="font-size:10px;font-weight:700;opacity:.6;margin-top:2px">19 dmg · 9 thwart</div></div>
+            <div style="flex:1;border:2.5px solid #F4EFE3;padding:9px 10px"><div style="font-size:11px;font-weight:800">Black Panther</div><div style="font-size:10px;font-weight:700;opacity:.6;margin-top:2px">14 dmg · 11 thwart</div></div>
+            <div style="flex:1;border:2.5px solid #F4EFE3;padding:9px 10px"><div style="font-size:11px;font-weight:800">Spider-Man</div><div style="font-size:10px;font-weight:700;opacity:.6;margin-top:2px">0 dmg · 18 thwart</div></div>
+          </div>
+        </div>
+        <div style="margin-top:auto;display:flex;gap:9px">
+          <div style="flex:1;height:56px;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Read the log</div>
+          <div style="flex:1;height:56px;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase">Same table again</div>
+          <div style="flex:1.5;height:56px;background:#C8102E;border:3px solid #F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:22px;letter-spacing:1.2px">NEXT: ULTRON ▸</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+</body>
+</html>

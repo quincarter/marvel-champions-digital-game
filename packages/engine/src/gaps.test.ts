@@ -126,7 +126,8 @@ test("a player-side attachment with no legal target is discarded on reveal", () 
   expect(mustInstance(state, revealed[0] as InstanceId).attachedTo).toBeNull();
 });
 
-test("a player-side attachment asks the revealing player to choose its host", () => {
+// RRG "First Player": with several legal hosts, the first player picks (here also the revealing player).
+test("a player-side attachment asks the first player to choose its host", () => {
   const attachment = stubAttachment({ id: "shackles", attachesTo: { kind: "anyCharacter" } });
   const start = newGame({
     players: 2,

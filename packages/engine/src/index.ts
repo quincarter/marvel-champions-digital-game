@@ -22,7 +22,11 @@ export type {
 } from "./state.js";
 export { NO_STATUSES } from "./state.js";
 
-export type { AttackInProgress, ChoiceOption, ChoicePrompt, ChoiceRef, PendingChoice } from "./choices.js";
+export type { AttackInProgress, ChoiceOption, ChoicePrompt, ChoiceRef, DecisionAuthority, PendingChoice } from "./choices.js";
+
+export { effectChoiceAuthority, encounterTargetSelector, isEncounterSide, simultaneousOrderer } from "./villain/authority.js";
+export type { AuditViolation, VillainActivationRecord, VillainAudit, VillainDecisionRecord, VillainPhaseRecord } from "./villain/audit.js";
+export { auditVillainPhases } from "./villain/audit.js";
 export type { Command, CommandType, Payment } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode } from "./errors.js";

@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="" />
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Public+Sans:ital,wght@0,400;0,600;0,700;0,800;1,400&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet" />
+<style>
+html,body{margin:0;padding:0;background:#0E0C0A;}
+a{color:#C8102E;text-decoration:none;}
+a:hover{color:#8E0B20;}
+@keyframes tgtc{0%,100%{box-shadow:0 0 0 3px #C8102E}50%{box-shadow:0 0 0 3px #C8102E,0 0 0 10px rgba(200,16,46,.3)}}
+</style>
+<script src="./image-slot.js"></script>
+</helmet>
+
+<div style="background:#0E0C0A;font-family:'Public Sans',system-ui,sans-serif;padding:40px;display:flex;flex-direction:column;gap:40px;width:max-content">
+
+  <div style="display:flex;align-items:flex-end;gap:20px;color:#F4EFE3;max-width:1400px">
+    <div style="font-family:Bangers,cursive;font-size:46px;letter-spacing:1.5px;line-height:.9">COMPONENTS &amp; DECISIONS</div>
+    <div style="font-size:12px;font-weight:700;line-height:1.5;opacity:.6;padding-bottom:4px">The kit behind the screen sets: palette, type, parts, states, and the rules that decide which one to use. Screens: <a href="./Screens - Desktop.dc.html">Desktop</a> · <a href="./Screens - Tablet.dc.html">Tablet</a> · <a href="./Screens - Phone.dc.html">Phone</a>. Boards: <a href="./Board - Long Table.dc.html">Long table</a> · <a href="./Board - Phone.dc.html">Phone</a>.</div>
+  </div>
+
+  <!-- ============ PALETTE ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">01</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">PALETTE</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">Four surfaces, one accent, four signal colors</span>
+    </div>
+
+    <div style="width:1400px;box-sizing:border-box;background:#F4EFE3;border:3px solid #14110E;padding:26px 28px;display:flex;flex-direction:column;gap:22px;color:#14110E">
+
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SURFACES</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+        <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px">
+          <div style="border:3px solid #14110E;background:#fff">
+            <div style="height:92px;background:#0E0C0A"></div>
+            <div style="padding:9px 11px;border-top:3px solid #14110E">
+              <div style="font-family:Bangers,cursive;font-size:17px;line-height:1">VOID</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:2px">#0E0C0A</div>
+              <div style="font-size:10px;line-height:1.35;opacity:.7;margin-top:4px">Canvas behind screens. Never inside a screen.</div>
+            </div>
+          </div>
+          <div style="border:3px solid #14110E;background:#fff">
+            <div style="height:92px;background:#14110E"></div>
+            <div style="padding:9px 11px;border-top:3px solid #14110E">
+              <div style="font-family:Bangers,cursive;font-size:17px;line-height:1">INK</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:2px">#14110E</div>
+              <div style="font-size:10px;line-height:1.35;opacity:.7;margin-top:4px">All text, all borders, chrome bars, action bar.</div>
+            </div>
+          </div>
+          <div style="border:3px solid #14110E;background:#fff">
+            <div style="height:92px;background:#F4EFE3"></div>
+            <div style="padding:9px 11px;border-top:3px solid #14110E">
+              <div style="font-family:Bangers,cursive;font-size:17px;line-height:1">PAPER</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:2px">#F4EFE3</div>
+              <div style="font-size:10px;line-height:1.35;opacity:.7;margin-top:4px">Default screen ground; ink-on-dark text color.</div>
+            </div>
+          </div>
+          <div style="border:3px solid #14110E;background:#fff">
+            <div style="height:92px;background:#EAE3D3"></div>
+            <div style="padding:9px 11px;border-top:3px solid #14110E">
+              <div style="font-family:Bangers,cursive;font-size:17px;line-height:1">PARCHMENT</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:2px">#EAE3D3</div>
+              <div style="font-size:10px;line-height:1.35;opacity:.7;margin-top:4px">Recessed strips: tab rails, seat rows, settings groups.</div>
+            </div>
+          </div>
+          <div style="border:3px solid #14110E;background:#fff">
+            <div style="height:92px;background:#ffffff;box-shadow:inset 0 0 0 1px rgba(20,17,14,.12)"></div>
+            <div style="padding:9px 11px;border-top:3px solid #14110E">
+              <div style="font-family:Bangers,cursive;font-size:17px;line-height:1">CARD</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:2px">#FFFFFF</div>
+              <div style="font-size:10px;line-height:1.35;opacity:.7;margin-top:4px">Anything liftable off the paper: cards, rows, stat tiles.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;align-items:stretch">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:1px;color:#C8102E">ACCENT — HERO RED</span><span style="flex:1;height:3px;background:#C8102E"></span></div>
+          <div style="display:flex;gap:12px">
+            <div style="flex:1;border:3px solid #14110E;background:#C8102E;color:#F4EFE3;padding:14px 14px 12px;min-height:132px;display:flex;flex-direction:column">
+              <div style="font-family:Bangers,cursive;font-size:22px;line-height:1">HERO RED</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:3px">#C8102E</div>
+              <div style="font-size:10px;font-weight:700;line-height:1.4;margin-top:auto">One job: the single forward action, plus the live round marker. If two reds are visible in a screen, one is wrong.</div>
+            </div>
+            <div style="flex:1;border:3px solid #14110E;background:#8E0B20;color:#F4EFE3;padding:14px 14px 12px;display:flex;flex-direction:column">
+              <div style="font-family:Bangers,cursive;font-size:22px;line-height:1">RED DEEP</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:3px">#8E0B20</div>
+              <div style="font-size:10px;font-weight:700;line-height:1.4;margin-top:auto">Hover and pressed only. Also link hover.</div>
+            </div>
+            <div style="flex:1;border:3px solid #14110E;background:#F4EFE3;padding:14px 14px 12px;display:flex;flex-direction:column">
+              <div style="font-family:Bangers,cursive;font-size:22px;line-height:1">RED GLOW</div>
+              <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:3px">rgba(200,16,46,.3)</div>
+              <div style="font-size:10px;font-weight:700;line-height:1.4;margin-top:auto">Outer ring of the targeting pulse. Never a fill.</div>
+            </div>
+          </div>
+        </div>
+        <div style="width:520px;flex:none;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">SIGNALS</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px">
+            <div style="border:3px solid #14110E;background:#fff;display:flex;align-items:stretch;min-height:58px">
+              <div style="width:58px;flex:none;background:#1F5FA8;border-right:3px solid #14110E"></div>
+              <div style="padding:7px 9px"><div style="font-size:11px;font-weight:800;letter-spacing:.4px">COST / ENERGY</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;opacity:.7">#1F5FA8</div><div style="font-size:10px;opacity:.7;line-height:1.3">Resource pips, cost chips, low curve bars.</div></div>
+            </div>
+            <div style="border:3px solid #14110E;background:#fff;display:flex;align-items:stretch;min-height:58px">
+              <div style="width:58px;flex:none;background:#1F7A4C;border-right:3px solid #14110E"></div>
+              <div style="padding:7px 9px"><div style="font-size:11px;font-weight:800;letter-spacing:.4px">HEAL / SAFE</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;opacity:.7">#1F7A4C</div><div style="font-size:10px;opacity:.7;line-height:1.3">Recover, HP gain, deck legal, win state.</div></div>
+            </div>
+            <div style="border:3px solid #14110E;background:#fff;display:flex;align-items:stretch;min-height:58px">
+              <div style="width:58px;flex:none;background:#F2B01E;border-right:3px solid #14110E"></div>
+              <div style="padding:7px 9px"><div style="font-size:11px;font-weight:800;letter-spacing:.4px">CAUTION</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;opacity:.7">#F2B01E</div><div style="font-size:10px;opacity:.7;line-height:1.3">Advisory banners, pending choice, status dot. Ink text on it.</div></div>
+            </div>
+            <div style="border:3px solid #14110E;background:#fff;display:flex;align-items:stretch;min-height:58px">
+              <div style="width:58px;flex:none;background:#2B241C;border-right:3px solid #14110E"></div>
+              <div style="padding:7px 9px"><div style="font-size:11px;font-weight:800;letter-spacing:.4px">SPENT / NEUTRAL</div><div style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;opacity:.7">#2B241C</div><div style="font-size:10px;opacity:.7;line-height:1.3">Exhausted, discarded, 4+ cost bucket.</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:12px;border-top:3px solid #14110E;padding-top:16px">
+        <div style="flex:1;font-size:11px;font-weight:700;line-height:1.45"><b style="font-family:Bangers,cursive;font-size:15px;letter-spacing:.5px;display:block">INK OPACITY LADDER</b>Body 1.0 · secondary .75 · label .6 · meta .5 · disabled .4. Opacity carries hierarchy so the palette stays at five values.</div>
+        <div style="flex:1;font-size:11px;font-weight:700;line-height:1.45"><b style="font-family:Bangers,cursive;font-size:15px;letter-spacing:.5px;display:block">DOT GRID</b><code style="font-family:'IBM Plex Mono',monospace;font-size:10px">radial-gradient(rgba(20,17,14,.1) 1px,transparent 1.1px)</code> at 6px on paper, 8px and .13 alpha on ink. Marks the table felt — nothing else.</div>
+        <div style="flex:1;font-size:11px;font-weight:700;line-height:1.45"><b style="font-family:Bangers,cursive;font-size:15px;letter-spacing:.5px;display:block">NO GRADIENTS, NO SHADOWS</b>Depth comes from border weight and ground swaps. The only <code style="font-family:'IBM Plex Mono',monospace;font-size:10px">box-shadow</code> in the system is the red selection ring.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TYPE ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">02</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">TYPE</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">Bangers shouts, Public Sans explains</span>
+    </div>
+    <div style="width:1400px;box-sizing:border-box;background:#F4EFE3;border:3px solid #14110E;padding:26px 28px;display:flex;gap:26px;color:#14110E">
+      <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px">
+        <div style="display:flex;align-items:flex-end;gap:14px;border-bottom:3px solid #14110E;padding-bottom:12px">
+          <div style="font-family:Bangers,cursive;font-size:64px;line-height:.85;letter-spacing:2px">MARVEL CHAMPIONS</div>
+          <div style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55;padding-bottom:8px;white-space:nowrap">Bangers 92/64 · ls 2px · lh .82–.9<br />Screen titles, hero names</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:14px;border-bottom:2.5px solid rgba(20,17,14,.25);padding-bottom:10px">
+          <div style="font-family:Bangers,cursive;font-size:26px;line-height:1;letter-spacing:1px">CHOOSE A SCENARIO</div>
+          <div style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55;padding-bottom:3px;white-space:nowrap">Bangers 20–26 · bar titles, CTA labels, section rules</div>
+        </div>
+        <div style="display:flex;align-items:flex-end;gap:14px;border-bottom:2.5px solid rgba(20,17,14,.25);padding-bottom:10px">
+          <div style="font-family:Bangers,cursive;font-size:20px;line-height:1.1">7/12</div>
+          <div style="font-size:10px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.55;padding-bottom:2px;white-space:nowrap">Bangers 17–22 · every number the player reads at a glance</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:7px">
+          <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.6">Label · 9/800/1.2px tracking, uppercase</div>
+          <div style="font-size:11px;font-weight:800;letter-spacing:.4px">Strong row title · 11/800</div>
+          <div style="font-size:11px;line-height:1.45;max-width:520px;text-wrap:pretty">Body · 10–11/1.45. Rules text, card effects, and advisory copy. Two sentences maximum in any one block; anything longer goes into an inspect overlay rather than onto the table.</div>
+          <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600">IBM Plex Mono 11 · specs, tokens, version stamps only</div>
+        </div>
+      </div>
+      <div style="width:400px;flex:none;border-left:3px solid #14110E;padding-left:22px;display:flex;flex-direction:column;gap:12px">
+        <div style="font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">RULES OF USE</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.5">Bangers is never set below 12px and never used for a sentence — it is a sign painter, not a narrator.</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.5">Public Sans carries every weight of meaning at 800 (labels), 700 (emphasis), 400 (body). No 500/600 in product UI.</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.5">Numbers that change during play are Bangers so they read across a table; numbers in specs are Mono.</div>
+        <div style="margin-top:auto;background:#14110E;color:#F4EFE3;padding:11px 13px">
+          <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.6">Minimum sizes</div>
+          <div style="font-size:11px;font-weight:700;line-height:1.45;margin-top:4px">Phone body 10 · phone label 8 · desktop body 11. Touch target 44px on phone, 52px for the primary CTA.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ BUTTONS & STATES ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">03</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">ACTIONS &amp; STATES</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">Hover the live row</span>
+    </div>
+    <div style="width:1400px;box-sizing:border-box;background:#F4EFE3;border:3px solid #14110E;padding:26px 28px;display:flex;flex-direction:column;gap:20px;color:#14110E">
+
+      <div style="display:flex;gap:16px;align-items:stretch">
+        <div style="flex:1;min-width:0;background:#14110E;padding:18px;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px;color:#F4EFE3"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">ON INK — ACTION BAR</span><span style="flex:1;height:3px;background:#F4EFE3"></span></div>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1;min-width:0;box-sizing:border-box;height:52px;background:#C8102E;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:21px;letter-spacing:1.1px;cursor:pointer" style-hover="background:#8E0B20">PRIMARY ▸</div>
+            <div style="flex:1;min-width:0;box-sizing:border-box;height:52px;border:3px solid #F4EFE3;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;cursor:pointer" style-hover="background:#F4EFE3;color:#14110E">Secondary</div>
+            <div style="flex:1;min-width:0;box-sizing:border-box;height:52px;border:3px solid rgba(244,239,227,.4);color:rgba(244,239,227,.45);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">Disabled</div>
+          </div>
+          <div style="display:flex;gap:10px">
+            <div style="flex:1;min-width:0;box-sizing:border-box;height:44px;border:2.5px solid #F4EFE3;background:#F4EFE3;color:#14110E;display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;cursor:pointer" style-hover="background:#C8102E;color:#F4EFE3;border-color:#C8102E">Attack <span style="font-family:Bangers,cursive;font-size:15px">2</span></div>
+            <div style="flex:1;min-width:0;box-sizing:border-box;height:44px;border:2.5px solid #F4EFE3;background:#F4EFE3;color:#14110E;display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;cursor:pointer" style-hover="background:#C8102E;color:#F4EFE3;border-color:#C8102E">Thwart <span style="font-family:Bangers,cursive;font-size:15px">2</span></div>
+            <div style="flex:1;min-width:0;box-sizing:border-box;height:44px;border:2.5px solid rgba(244,239,227,.4);color:rgba(244,239,227,.45);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.7px;text-transform:uppercase">Recover</div>
+          </div>
+          <div style="font-size:10px;font-weight:700;line-height:1.4;color:rgba(244,239,227,.7)">Ability buttons invert to red on hover to preview the target-select mode they enter. <b>End turn</b> is the only red fill in the bar — it is the forward action of the table.</div>
+        </div>
+
+        <div style="width:600px;flex:none;display:flex;flex-direction:column;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">ON PAPER — STATE MATRIX</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+          <div style="display:grid;grid-template-columns:82px repeat(3,minmax(0,1fr));gap:8px;align-items:center">
+            <span></span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6;text-align:center">Rest</span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6;text-align:center">Hover / press</span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6;text-align:center">Selected / done</span>
+
+            <span style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase">Primary</span>
+            <div style="height:46px;background:#C8102E;border:3px solid #14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.8px">START</div>
+            <div style="height:46px;background:#8E0B20;border:3px solid #14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.8px">START</div>
+            <div style="height:46px;background:#C8102E;border:3px solid #14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:17px;letter-spacing:.8px;box-shadow:0 0 0 3px #C8102E">START</div>
+
+            <span style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase">Secondary</span>
+            <div style="height:46px;border:3px solid #14110E;background:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">Edit deck</div>
+            <div style="height:46px;border:3px solid #14110E;background:#14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">Edit deck</div>
+            <div style="height:46px;border:3px solid #14110E;background:#EAE3D3;display:flex;align-items:center;justify-content:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">Edited <span style="font-family:Bangers,cursive;font-size:15px">✓</span></div>
+
+            <span style="font-size:10px;font-weight:800;letter-spacing:.6px;text-transform:uppercase">Quiet</span>
+            <div style="height:46px;border:2.5px solid rgba(20,17,14,.35);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.9px;text-transform:uppercase;opacity:.7">Skip</div>
+            <div style="height:46px;border:2.5px solid #14110E;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">Skip</div>
+            <div style="height:46px;border:2.5px dashed rgba(20,17,14,.45);color:rgba(20,17,14,.45);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;letter-spacing:.9px;text-transform:uppercase">Unavailable</div>
+          </div>
+          <div style="font-size:10px;font-weight:700;line-height:1.4;opacity:.75">Hover never moves or scales an element — it swaps ground and ink. Solid border = available, dashed = not yet real (empty seat, locked mode), 40% ink = present but illegal this instant.</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:14px;border-top:3px solid #14110E;padding-top:18px">
+        <div style="flex:1;display:flex;flex-direction:column;gap:9px">
+          <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.6">Selection ring</div>
+          <div style="display:flex;gap:12px">
+            <div style="width:120px;height:76px;border:3px solid #14110E;background:#fff;box-shadow:0 0 0 3px #C8102E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Selected</div>
+            <div style="width:120px;height:76px;border:3px solid #14110E;background:#fff;animation:tgtc 1.4s ease-in-out infinite;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;text-align:center">Valid<br />target</div>
+            <div style="width:120px;height:76px;border:3px solid #14110E;background:#fff;opacity:.35;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;text-align:center">Out of<br />scope</div>
+          </div>
+          <div style="font-size:10px;font-weight:700;line-height:1.4;opacity:.75">Static ring = committed choice. Pulsing ring = awaiting your tap. Everything not targetable drops to 35% rather than being hidden, so the board never reflows mid-decision.</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:9px">
+          <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.6">Badges &amp; counters</div>
+          <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;background:#C8102E;color:#F4EFE3;padding:3px 7px">Selected</span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;background:#14110E;color:#F4EFE3;padding:3px 7px">Crisis</span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;background:#F2B01E;color:#14110E;padding:3px 7px">Choice pending</span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;border:2px solid #14110E;padding:2px 6px">Aggression</span>
+            <span style="font-family:Bangers,cursive;font-size:17px;background:#14110E;color:#F4EFE3;padding:1px 8px;line-height:1.2">3</span>
+            <span style="width:26px;height:26px;background:#1F5FA8;color:#F4EFE3;font-family:Bangers,cursive;font-size:15px;display:flex;align-items:center;justify-content:center">1</span>
+            <span style="width:26px;height:26px;background:#1F7A4C;color:#F4EFE3;font-family:Bangers,cursive;font-size:15px;display:flex;align-items:center;justify-content:center">2</span>
+            <span style="width:26px;height:26px;background:#C8102E;color:#F4EFE3;font-family:Bangers,cursive;font-size:15px;display:flex;align-items:center;justify-content:center">3</span>
+            <span style="display:flex;align-items:center;gap:5px;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase"><span style="width:11px;height:11px;border-radius:50%;background:#F2B01E"></span>Attention</span>
+          </div>
+          <div style="font-size:10px;font-weight:700;line-height:1.4;opacity:.75">Square corners everywhere except the status dot — the one circle in the system means "look here, non-blocking".</div>
+        </div>
+        <div style="flex:1;display:flex;flex-direction:column;gap:9px">
+          <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.6">Threat meter</div>
+          <div style="display:flex;align-items:center;gap:9px">
+            <div style="flex:1;height:18px;border:3px solid #14110E;background:#fff;display:flex"><div style="width:58%;background:#C8102E"></div></div>
+            <div style="font-family:Bangers,cursive;font-size:20px;line-height:1;white-space:nowrap">7/12</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:9px">
+            <div style="flex:1;height:18px;border:3px solid #14110E;background:#fff;display:flex"><div style="width:92%;background:#C8102E"></div><div style="width:8%;background:repeating-linear-gradient(45deg,#14110E 0 4px,#C8102E 4px 8px)"></div></div>
+            <div style="font-family:Bangers,cursive;font-size:20px;line-height:1;white-space:nowrap">11/12</div>
+          </div>
+          <div style="font-size:10px;font-weight:700;line-height:1.4;opacity:.75">Fill is always Hero Red — threat is the clock you lose to. The hatched tail previews next phase's gain, so the player sees the loss coming one round early.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ PARTS ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">04</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">PARTS FOR REUSE</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">Each one appears in two or more screens</span>
+    </div>
+
+    <div style="display:flex;gap:16px;align-items:flex-start;width:1400px;flex-wrap:wrap">
+
+      <div style="width:452px;flex:none;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:#F4EFE3;opacity:.6">Chrome bar · every in-game screen</div>
+        <div style="border:3px solid #14110E">
+          <div style="height:30px;background:#14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:space-between;padding:0 14px;font-size:11px;font-weight:800"><span>9:41</span><span style="display:flex;gap:5px;align-items:center"><span style="width:15px;height:8px;border:1.5px solid #F4EFE3"></span><span style="width:16px;height:8px;background:#F4EFE3"></span></span></div>
+          <div style="display:flex;align-items:stretch;background:#14110E;color:#F4EFE3">
+            <div style="display:flex;align-items:center;padding:0 10px;background:#C8102E"><span style="font-family:Bangers,cursive;font-size:17px;letter-spacing:.8px;line-height:1">RD 3</span></div>
+            <div style="flex:1;display:flex;align-items:center;gap:3px;padding:0 9px;min-width:0">
+              <span style="font-family:Bangers,cursive;font-size:13px;letter-spacing:.6px;padding:3px 7px;background:#F4EFE3;color:#14110E">PLAYER</span>
+              <span style="width:10px;height:2px;background:#F4EFE3;opacity:.35"></span>
+              <span style="font-family:Bangers,cursive;font-size:13px;letter-spacing:.6px;opacity:.45">VILLAIN</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;padding:0 11px;font-size:9px;font-weight:800"><span style="width:11px;height:11px;border-radius:50%;background:#F2B01E"></span><span style="padding:3px 6px;border:2px solid #F4EFE3">≡</span></div>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:9px 13px 11px;background:#14110E;color:#F4EFE3;border-top:2px solid rgba(244,239,227,.2)">
+            <span style="font-family:Bangers,cursive;font-size:16px;padding:3px 8px;border:2px solid #F4EFE3">◂</span>
+            <span style="font-family:Bangers,cursive;font-size:21px;letter-spacing:1px">SETUP TITLE</span>
+            <span style="flex:1"></span>
+            <span style="font-size:9px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;opacity:.55">2/4</span>
+          </div>
+        </div>
+        <div style="font-size:10px;font-weight:700;line-height:1.4;color:#F4EFE3;opacity:.6">Round chip red, phase toggle as a two-state Bangers pair, hamburger boxed. Setup screens swap the phase toggle for a back arrow + step count.</div>
+      </div>
+
+      <div style="width:452px;flex:none;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:#F4EFE3;opacity:.6">Zone tabs · phone table</div>
+        <div style="display:flex;gap:2px;padding:8px 10px 0;background:#EAE3D3;border:3px solid #14110E;border-bottom-width:3px">
+          <div style="flex:1;font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;text-align:center;padding:8px 0;background:#14110E;color:#F4EFE3">Threat</div>
+          <div style="flex:1;font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;text-align:center;padding:8px 0;opacity:.5">Enemies <span style="background:#C8102E;color:#F4EFE3;padding:0 4px">3</span></div>
+          <div style="flex:1;font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;text-align:center;padding:8px 0;opacity:.5">Me</div>
+          <div style="flex:1;font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;text-align:center;padding:8px 0;opacity:.5">Team</div>
+          <div style="flex:1;font-size:9px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;text-align:center;padding:8px 0;opacity:.5">Log</div>
+        </div>
+        <div style="display:flex;border:3px solid #14110E;background:#EAE3D3">
+          <div style="flex:1;text-align:center;padding:11px 0;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;background:#14110E;color:#F4EFE3">Curve</div>
+          <div style="flex:1;text-align:center;padding:11px 0;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.55">Cards</div>
+          <div style="flex:1;text-align:center;padding:11px 0;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.55">Aspect</div>
+        </div>
+        <div style="font-size:10px;font-weight:700;line-height:1.4;color:#F4EFE3;opacity:.6">Active tab = ink fill, not an underline. Counts ride in a red chip; only urgent zones carry one. Zone tabs sit on parchment, content tabs sit flush.</div>
+      </div>
+
+      <div style="width:452px;flex:none;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:#F4EFE3;opacity:.6">Entity card · scenario, hero, scheme</div>
+        <div style="border:3px solid #14110E;background:#fff;box-shadow:0 0 0 3px #C8102E">
+          <div style="height:130px;border-bottom:3px solid #14110E"><image-slot id="cmp-card" shape="rect" placeholder="Entity art 16:7"></image-slot></div>
+          <div style="padding:11px 13px;display:flex;flex-direction:column;gap:8px;color:#14110E">
+            <div style="display:flex;align-items:center;gap:8px"><span style="font-family:Bangers,cursive;font-size:26px;line-height:1">ENTITY NAME</span><span style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;background:#C8102E;color:#F4EFE3;padding:2px 6px">Selected</span></div>
+            <div style="font-size:11px;line-height:1.45;text-wrap:pretty">One or two lines of consequence — what this thing does to your turn, never flavour text for its own sake.</div>
+            <div style="display:flex;gap:7px">
+              <div style="flex:1;border:2px solid #14110E;padding:5px 7px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Stat</div><div style="font-family:Bangers,cursive;font-size:17px;line-height:1.1">3</div></div>
+              <div style="flex:1;border:2px solid #14110E;padding:5px 7px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Stat</div><div style="font-family:Bangers,cursive;font-size:17px;line-height:1.1">11</div></div>
+              <div style="flex:1;border:2px solid #14110E;padding:5px 7px"><div style="font-size:8px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.55">Stat</div><div style="font-family:Bangers,cursive;font-size:17px;line-height:1.1">2</div></div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:10px;font-weight:700;line-height:1.4;color:#F4EFE3;opacity:.6">Art band, then name + status, then consequence, then a stat triplet in 2px inner boxes. Compact variant drops the body and halves the art.</div>
+      </div>
+
+      <div style="width:452px;flex:none;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:#F4EFE3;opacity:.6">List row · heroes, cards, log</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="border:3px solid #14110E;background:#fff;display:flex;align-items:stretch;min-height:78px;color:#14110E">
+            <div style="width:72px;flex:none;border-right:3px solid #14110E"><image-slot id="cmp-row" shape="rect" placeholder="Art"></image-slot></div>
+            <div style="flex:1;min-width:0;padding:8px 10px;display:flex;flex-direction:column;justify-content:center;gap:3px">
+              <div style="font-family:Bangers,cursive;font-size:19px;line-height:1">ROW TITLE</div>
+              <div style="font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.6">Aspect · 10 HP · hand 6</div>
+              <div style="font-size:10px;line-height:1.35;opacity:.8">Why you would pick this one.</div>
+            </div>
+            <div style="width:44px;flex:none;background:#14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:20px">+</div>
+          </div>
+          <div style="border:3px solid #14110E;background:#fff;display:flex;align-items:stretch;min-height:58px;opacity:.42;color:#14110E">
+            <div style="width:72px;flex:none;border-right:3px solid #14110E;background:#EAE3D3"></div>
+            <div style="flex:1;padding:8px 10px;display:flex;flex-direction:column;justify-content:center"><div style="font-family:Bangers,cursive;font-size:19px;line-height:1">TAKEN</div><div style="font-size:9px;font-weight:800;letter-spacing:.8px;text-transform:uppercase;opacity:.6">Already seated · seat 2</div></div>
+            <div style="width:44px;flex:none;border-left:3px solid #14110E;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:18px">✓</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;border:2.5px solid #14110E;background:#fff;padding:8px 9px;color:#14110E">
+            <span style="width:22px;height:22px;flex:none;background:#1F5FA8;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;display:flex;align-items:center;justify-content:center">1</span>
+            <span style="flex:1;min-width:0;font-size:11px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Dense row — cost, name, count</span>
+            <span style="font-size:9px;font-weight:800;opacity:.55">×6</span>
+          </div>
+        </div>
+        <div style="font-size:10px;font-weight:700;line-height:1.4;color:#F4EFE3;opacity:.6">Rows end in a 44px action cap: ink+glyph when actionable, outlined when already resolved. Dense variant drops art and uses a 2.5px border.</div>
+      </div>
+
+      <div style="width:452px;flex:none;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:#F4EFE3;opacity:.6">Advisory banner · deck check, villain phase</div>
+        <div style="border:3px solid #14110E;background:#F2B01E;padding:11px 13px;display:flex;gap:10px;align-items:flex-start;color:#14110E">
+          <span style="font-family:Bangers,cursive;font-size:20px;line-height:1">!</span>
+          <div style="font-size:10px;font-weight:700;line-height:1.4">Light on thwart for a scheme with ×1 acceleration. Consider swapping two attack events for <b>Clear the Area</b>.</div>
+        </div>
+        <div style="border:3px solid #14110E;background:#fff;padding:11px 13px;display:flex;gap:10px;align-items:flex-start;color:#14110E">
+          <span style="font-family:Bangers,cursive;font-size:20px;line-height:1;color:#1F7A4C">✓</span>
+          <div style="font-size:10px;font-weight:700;line-height:1.4">Deck is legal: 40 cards, one aspect, no over-limit duplicates.</div>
+        </div>
+        <div style="font-size:10px;font-weight:700;line-height:1.4;color:#F4EFE3;opacity:.6">Caution yellow for "you can proceed but should think". Never red — red is reserved for the action, not for alarm.</div>
+      </div>
+
+      <div style="width:452px;flex:none;display:flex;flex-direction:column;gap:8px">
+        <div style="font-size:10px;font-weight:800;letter-spacing:1.3px;text-transform:uppercase;color:#F4EFE3;opacity:.6">Overlay sheet · inspect, pause, game over</div>
+        <div style="border:3px solid #14110E;background:#F4EFE3;color:#14110E">
+          <div style="background:#14110E;color:#F4EFE3;display:flex;align-items:center;gap:10px;padding:9px 12px">
+            <span style="font-family:Bangers,cursive;font-size:19px;letter-spacing:1px">INSPECT</span>
+            <span style="flex:1"></span>
+            <span style="font-family:Bangers,cursive;font-size:16px;padding:2px 8px;border:2px solid #F4EFE3">✕</span>
+          </div>
+          <div style="padding:13px;display:flex;gap:11px">
+            <div style="width:96px;height:134px;flex:none;border:3px solid #14110E"><image-slot id="cmp-ins" shape="rect" placeholder="Card"></image-slot></div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:7px">
+              <div style="font-family:Bangers,cursive;font-size:22px;line-height:1">PHOTON BLAST</div>
+              <div style="font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.6">Event · cost 3 · Basic</div>
+              <div style="font-size:10px;line-height:1.4">Full rules text lives here, at full length, because the overlay is the only place with room for it.</div>
+              <div style="margin-top:auto;display:flex;gap:7px">
+                <div style="flex:1;height:40px;background:#C8102E;border:3px solid #14110E;color:#F4EFE3;display:flex;align-items:center;justify-content:center;font-family:Bangers,cursive;font-size:16px;letter-spacing:.8px">PLAY</div>
+                <div style="flex:none;width:96px;height:40px;border:3px solid #14110E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:.8px;text-transform:uppercase">Resource</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="font-size:10px;font-weight:700;line-height:1.4;color:#F4EFE3;opacity:.6">Overlays keep an ink title bar with a boxed ✕, sit on a 70%-ink scrim, and always end in one red commit plus quiet alternatives.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============ STATUS TOKENS ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">05</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">STATUS TOKENS</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">Stunned · confused · tough · condition markers</span>
+    </div>
+
+    <div style="width:1400px;box-sizing:border-box;background:#F4EFE3;border:3px solid #14110E;padding:26px 28px;display:flex;flex-direction:column;gap:22px;color:#14110E">
+
+      <div style="display:flex;gap:16px;align-items:stretch">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">TOKEN COLORS</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px">
+            <div style="border:3px solid #14110E;background:#6E9B2F">
+              <div style="padding:14px 14px 12px;color:#14110E;min-height:150px;display:flex;flex-direction:column">
+                <div style="font-family:Bangers,cursive;font-size:30px;line-height:.95;letter-spacing:1px;color:#F6E27A;text-shadow:2px 2px 0 #14110E">STUNNED</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:6px">#6E9B2F</div>
+                <div style="font-size:10px;font-weight:700;line-height:1.4;margin-top:auto">Cancels the next attack. Sits on the attacker; greys that character's Attack button.</div>
+              </div>
+            </div>
+            <div style="border:3px solid #14110E;background:#8E5AA0">
+              <div style="padding:14px 14px 12px;color:#F4EFE3;min-height:150px;display:flex;flex-direction:column">
+                <div style="font-family:Bangers,cursive;font-size:30px;line-height:.95;letter-spacing:1px;color:#EBC4EE;text-shadow:2px 2px 0 #14110E">CONFUSED</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:6px">#8E5AA0</div>
+                <div style="font-size:10px;font-weight:700;line-height:1.4;margin-top:auto">Cancels the next thwart or scheme. Greys Thwart, and mutes the threat meter's preview tail.</div>
+              </div>
+            </div>
+            <div style="border:3px solid #14110E;background:#D9741F">
+              <div style="padding:14px 14px 12px;color:#14110E;min-height:150px;display:flex;flex-direction:column">
+                <div style="font-family:Bangers,cursive;font-size:30px;line-height:.95;letter-spacing:1px;color:#FFF0C9;text-shadow:2px 2px 0 #14110E">TOUGH</div>
+                <div style="font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;margin-top:6px">#D9741F</div>
+                <div style="font-size:10px;font-weight:700;line-height:1.4;margin-top:auto">Absorbs the next damage entirely. Shown over the HP bar, not beside it — it is armour, not a wound.</div>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:10px;font-weight:700;line-height:1.45;opacity:.75">Three hues that exist nowhere else in the system, so a status can never be mistaken for a cost, a warning, or an action. All three keep the 3px ink border and Bangers lettering with a 2px ink offset — they read as stamped-on markers rather than UI chrome.</div>
+        </div>
+
+        <div style="width:452px;flex:none;display:flex;flex-direction:column;gap:10px">
+          <div style="display:flex;align-items:center;gap:10px"><span style="font-family:Bangers,cursive;font-size:18px;letter-spacing:1px">THREE SIZES</span><span style="flex:1;height:3px;background:#14110E"></span></div>
+          <div style="display:flex;flex-direction:column;gap:12px">
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="display:flex;gap:6px">
+                <span style="width:26px;height:26px;flex:none;background:#6E9B2F;border:2.5px solid #14110E;color:#14110E;font-family:Bangers,cursive;font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1">S</span>
+                <span style="width:26px;height:26px;flex:none;background:#8E5AA0;border:2.5px solid #14110E;color:#F4EFE3;font-family:Bangers,cursive;font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1">C</span>
+                <span style="width:26px;height:26px;flex:none;background:#D9741F;border:2.5px solid #14110E;color:#14110E;font-family:Bangers,cursive;font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1">T</span>
+              </div>
+              <div style="font-size:10px;font-weight:700;line-height:1.35;flex:1">26px <b>pip</b> — initial only. Corner of a card, seat tile, enemy row. Tooltip/inspect carries the wording.</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="display:flex;flex-direction:column;gap:5px">
+                <span style="background:#6E9B2F;border:2.5px solid #14110E;color:#14110E;font-family:Bangers,cursive;font-size:14px;letter-spacing:.6px;padding:2px 8px;line-height:1.3">STUNNED</span>
+                <span style="background:#8E5AA0;border:2.5px solid #14110E;color:#F4EFE3;font-family:Bangers,cursive;font-size:14px;letter-spacing:.6px;padding:2px 8px;line-height:1.3">CONFUSED</span>
+                <span style="background:#D9741F;border:2.5px solid #14110E;color:#14110E;font-family:Bangers,cursive;font-size:14px;letter-spacing:.6px;padding:2px 8px;line-height:1.3">TOUGH</span>
+              </div>
+              <div style="font-size:10px;font-weight:700;line-height:1.35;flex:1">Named <b>tag</b> — the default. Used wherever there is horizontal room: character panels, log entries, targeting sheets.</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px">
+              <div style="width:150px;flex:none;border:3px solid #14110E;background:#6E9B2F">
+                <div style="padding:9px 10px;color:#14110E">
+                  <div style="font-family:Bangers,cursive;font-size:20px;line-height:1;letter-spacing:.8px;color:#F6E27A;text-shadow:2px 2px 0 #14110E">STUNNED</div>
+                  <div style="font-size:9px;font-weight:700;line-height:1.35;margin-top:5px">Next attack by this character is cancelled instead.</div>
+                </div>
+              </div>
+              <div style="font-size:10px;font-weight:700;line-height:1.35;flex:1">Full <b>card</b> — only when the status is being applied or discarded, as the animated beat in the log and villain-phase walkthrough.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:16px;border-top:3px solid #14110E;padding-top:18px;align-items:stretch">
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.6">In place — character panel</div>
+          <div style="border:3px solid #14110E;background:#fff;display:flex;align-items:stretch">
+            <div style="width:96px;flex:none;border-right:3px solid #14110E;position:relative"><image-slot id="cmp-st-hero" shape="rect" placeholder="Hero"></image-slot>
+              <span style="position:absolute;top:5px;left:5px;width:26px;height:26px;background:#D9741F;border:2.5px solid #14110E;color:#14110E;font-family:Bangers,cursive;font-size:15px;display:flex;align-items:center;justify-content:center;line-height:1">T</span>
+            </div>
+            <div style="flex:1;min-width:0;padding:10px 12px;display:flex;flex-direction:column;gap:7px">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="font-family:Bangers,cursive;font-size:21px;line-height:1">CAPTAIN MARVEL</span>
+                <span style="background:#8E5AA0;border:2px solid #14110E;color:#F4EFE3;font-family:Bangers,cursive;font-size:12px;letter-spacing:.5px;padding:1px 6px;line-height:1.3">CONFUSED</span>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <div style="flex:1;height:16px;border:2.5px solid #14110E;background:#fff;display:flex;position:relative"><div style="width:64%;background:#1F7A4C"></div>
+                  <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,rgba(217,116,31,.95) 0 5px,rgba(20,17,14,.9) 5px 10px);opacity:.9;width:22%"></div>
+                </div>
+                <span style="font-family:Bangers,cursive;font-size:17px;line-height:1;white-space:nowrap">7/11</span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <div style="flex:1;height:36px;border:2.5px solid #14110E;display:flex;align-items:center;justify-content:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase">Attack <span style="font-family:Bangers,cursive;font-size:14px">3</span></div>
+                <div style="flex:1;height:36px;border:2.5px solid rgba(20,17,14,.35);color:rgba(20,17,14,.4);display:flex;align-items:center;justify-content:center;gap:5px;font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase;background:repeating-linear-gradient(45deg,rgba(142,90,160,.14) 0 6px,transparent 6px 12px)">Thwart ✕</div>
+                <div style="flex:1;height:36px;border:2.5px solid #14110E;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:.7px;text-transform:uppercase">Recover</div>
+              </div>
+            </div>
+          </div>
+          <div style="font-size:10px;font-weight:700;line-height:1.4;opacity:.75">A status never just decorates — it disables the exact button it cancels, hatched in the status hue so the player can see <i>why</i> the action is gone. Tough overlays the HP bar as hatched armour.</div>
+        </div>
+
+        <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:10px">
+          <div style="font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase;opacity:.6">In place — enemy row &amp; log</div>
+          <div style="border:3px solid #14110E;background:#fff;display:flex;align-items:center;gap:9px;padding:9px 11px">
+            <div style="width:40px;height:40px;flex:none;border:2.5px solid #14110E"><image-slot id="cmp-st-enemy" shape="rect" placeholder="•"></image-slot></div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:11px;font-weight:800;letter-spacing:.3px">Klaw</div>
+              <div style="font-size:9px;font-weight:700;opacity:.6">Villain II · SCH 2 · ATK 3</div>
+            </div>
+            <span style="background:#6E9B2F;border:2px solid #14110E;color:#14110E;font-family:Bangers,cursive;font-size:12px;letter-spacing:.5px;padding:1px 6px;line-height:1.3">STUNNED</span>
+            <span style="font-family:Bangers,cursive;font-size:17px;background:#14110E;color:#F4EFE3;padding:1px 7px">14</span>
+          </div>
+          <div style="border:3px solid #14110E;background:#fff;display:flex;flex-direction:column">
+            <div style="display:flex;gap:8px;align-items:baseline;padding:8px 11px;border-bottom:2px solid rgba(20,17,14,.15)">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;opacity:.55">R3.2</span>
+              <span style="flex:1;font-size:10px;font-weight:700;line-height:1.4">You played <b>Stun</b> → <span style="background:#6E9B2F;border:1.5px solid #14110E;font-family:Bangers,cursive;font-size:11px;padding:0 4px;line-height:1.3">STUNNED</span> attached to Klaw.</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:baseline;padding:8px 11px;border-bottom:2px solid rgba(20,17,14,.15)">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;opacity:.55">R3.5</span>
+              <span style="flex:1;font-size:10px;font-weight:700;line-height:1.4">Klaw's attack cancelled — <span style="text-decoration:line-through;opacity:.6">STUNNED</span> discarded.</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:baseline;padding:8px 11px">
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:600;opacity:.55">R3.5</span>
+              <span style="flex:1;font-size:10px;font-weight:700;line-height:1.4">She-Hulk took 0 damage — <span style="background:#D9741F;border:1.5px solid #14110E;font-family:Bangers,cursive;font-size:11px;padding:0 4px;line-height:1.3">TOUGH</span> spent.</span>
+            </div>
+          </div>
+          <div style="font-size:10px;font-weight:700;line-height:1.4;opacity:.75">Spending a status is a log event with the tag struck through, so a cancelled attack never looks like a bug. Multiple statuses stack left-to-right, newest last, capped at three tags before collapsing to pips.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ DECISIONS ============ -->
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <div style="display:flex;align-items:baseline;gap:12px;color:#F4EFE3">
+      <span style="font-family:Bangers,cursive;font-size:26px;letter-spacing:1px;color:#C8102E">06</span>
+      <span style="font-family:Bangers,cursive;font-size:24px;letter-spacing:1px">DESIGN DECISIONS</span>
+      <span style="font-size:11px;font-weight:800;letter-spacing:1.4px;text-transform:uppercase;opacity:.45">The rules that settle arguments</span>
+    </div>
+    <div style="width:1400px;box-sizing:border-box;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px">
+
+      <div style="border:3px solid #14110E;background:#F4EFE3;padding:18px 20px;display:flex;flex-direction:column;gap:8px;color:#14110E">
+        <div style="font-family:Bangers,cursive;font-size:21px;line-height:1;letter-spacing:.6px">ONE RED PER SCREEN</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.5">Hero Red marks the single thing that moves the session forward — <i>Continue</i>, <i>Choose heroes</i>, <i>Start game</i>, <i>End turn</i>. The live round chip is the one exception, because it answers "whose clock is running".</div>
+        <div style="margin-top:auto;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#C8102E">Consequence: alarm is yellow, not red</div>
+      </div>
+
+      <div style="border:3px solid #14110E;background:#F4EFE3;padding:18px 20px;display:flex;flex-direction:column;gap:8px;color:#14110E">
+        <div style="font-family:Bangers,cursive;font-size:21px;line-height:1;letter-spacing:.6px">BORDERS, NOT SHADOWS</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.5">3px ink = a real object (screen, card, CTA). 2.5px = a control inside one. 2px = a detail box inside that. Dashed = a slot that isn't filled. This is the entire depth model.</div>
+        <div style="margin-top:auto;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.5">Consequence: no elevation tokens</div>
+      </div>
+
+      <div style="border:3px solid #14110E;background:#F4EFE3;padding:18px 20px;display:flex;flex-direction:column;gap:8px;color:#14110E">
+        <div style="font-family:Bangers,cursive;font-size:21px;line-height:1;letter-spacing:.6px">DIM, DON'T HIDE</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.5">Illegal choices stay in place at 35–42% opacity. The board must never reflow while the player is deciding, because their hand is already moving toward a card.</div>
+        <div style="margin-top:auto;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.5">Consequence: no empty-state shuffles</div>
+      </div>
+
+      <div style="border:3px solid #14110E;background:#14110E;padding:18px 20px;display:flex;flex-direction:column;gap:8px;color:#F4EFE3">
+        <div style="font-family:Bangers,cursive;font-size:21px;line-height:1;letter-spacing:.6px">STATUS OWNS A BUTTON</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.5">Every status token has one concrete UI consequence: Stunned greys Attack, Confused greys Thwart, Tough hatches the HP bar. If a new status can't name the control it changes, it isn't a status — it's a modifier and belongs in the inspect sheet.</div>
+        <div style="margin-top:auto;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:#F2B01E">Consequence: statuses never stack silently</div>
+      </div>
+
+      <div style="border:3px solid #14110E;background:#F4EFE3;padding:18px 20px;display:flex;flex-direction:column;gap:8px;color:#14110E">
+        <div style="font-family:Bangers,cursive;font-size:21px;line-height:1;letter-spacing:.6px">THUMB PARKS THE ACTION</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.5">On phone the action bar is fixed to the bottom on an ink ground: abilities row (44px) above, commit row (52px) below. Content scrolls under it; the bar never scrolls away, and its contents never reorder between screens.</div>
+        <div style="margin-top:auto;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.5">Consequence: zone tabs, not a long table</div>
+      </div>
+
+      <div style="border:3px solid #14110E;background:#F4EFE3;padding:18px 20px;display:flex;flex-direction:column;gap:8px;color:#14110E">
+        <div style="font-family:Bangers,cursive;font-size:21px;line-height:1;letter-spacing:.6px">NUMBERS BEFORE PROSE</div>
+        <div style="font-size:11px;font-weight:700;line-height:1.5">Anything the player recalculates each round is a Bangers numeral at 17px+. Rules text is capped at two lines on the table; full wording is one tap away in inspect. The table is a dashboard, not a rulebook.</div>
+        <div style="margin-top:auto;font-size:10px;font-weight:800;letter-spacing:1px;text-transform:uppercase;opacity:.5">Consequence: inspect overlay is mandatory</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1480,&quot;height&quot;:900}}"></script>
+</body>
+</html>

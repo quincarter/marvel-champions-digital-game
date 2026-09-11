@@ -1,6 +1,6 @@
 # PLAN: Marvel Champions Digital Edition
 
-Status: **Phase 0 and Phase 1 complete; Phase 2 in progress. The §1 schema follow-ups, Core Set ingestion, and every §3 engine primitive (typed resources, lasting/constant effects, labeled attacks/thwarts, replacement/cancel, enemy actions, scenario flow, facedown drones, player-card mechanics) have landed, and so have the `@mc/cards` ability DSL, all 233 Core ability scripts, `coreScenario()` builders, and real-content e2e games (Rhino/Klaw/Ultron, 1/2/4 players) that play to an outcome and replay identically (§4). Working spec: [docs/phase2-core-set.md](docs/phase2-core-set.md).** Stack recorded in CLAUDE.md; monorepo scaffolded (`packages/engine`, `packages/content`, `packages/client`); card schema landed in `@mc/content` (see its README for the rules-shape decisions); the headless engine runs full games from setup to win/loss against stub content; `pnpm test` / `pnpm typecheck` green. Update the Status line and check off phases as work lands.
+Status: **Phases 0–3 complete; Phase 4 (client) is next.** Phase 2: Core Set ingestion, the §3 engine primitives, the `@mc/cards` ability DSL, all 233 Core ability scripts, `coreScenario()` builders, and real-content e2e games (spec: [docs/phase2-core-set.md](docs/phase2-core-set.md)). **Phase 3: the villain phase lives in `packages/engine/src/villain/`. Every decision the villain side leaves open is routed to the player the RRG names, and tagged with a `PendingChoice.authority`. `auditVillainPhases` independently re-checks each villain phase of a recorded game. 48 scripted games plus 3 passive-table games play to an outcome with clean audits (spec: [docs/phase3-encounter-ai.md](docs/phase3-encounter-ai.md)).** Stack recorded in CLAUDE.md; monorepo scaffolded (`packages/engine`, `packages/content`, `packages/client`); card schema landed in `@mc/content` (see its README for the rules-shape decisions); the headless engine runs full games from setup to win/loss against stub content; `pnpm test` / `pnpm typecheck` green. Update the Status line and check off phases as work lands.
 
 This plan is intentionally sequenced rules-engine-first: a correct, headless simulation of a small card pool (the Core Set) before any UI polish, AI sophistication, or content breadth. A beautiful board that plays the game wrong is worse than an ugly board that plays it right.
 
@@ -69,9 +69,20 @@ Owner: `card-data-pipeline` for ingestion/schema, `ability-scripting-engineer` f
 
 Owner: `encounter-ai-designer`.
 
-- [ ] Villain AI decision logic for scheme/attack selection, minion activation order, and any villain-specific "choose the worst option for the players" rules text.
-- [ ] Encounter deck draw/resolution flow, boost deck mechanics (boost icons on villain cards), modular set behavior.
-- [ ] Exit criteria: the AI opposition plays a legal, rules-correct game against scripted player input with no human needed to operate the villain side.
+- [x] Villain AI decision logic — `packages/engine/src/villain/` (docs/phase3-encounter-ai.md):
+  - The villain never chooses. Attack vs scheme follows the player's form. The villain activates once per player in player order, then that player's minions activate.
+  - Open decisions go to the player the RRG names: "choose" → the resolving player; several eligible targets for an encounter card → the first player; simultaneous effects → the first player orders them. No Core card has "the worst option for the players" text.
+  - `PendingChoice.authority` (`player` / `firstPlayerTargets` / `firstPlayerOrders`) records which rule applied.
+  - New `orderEnemies` choice for effects where "each X attacks/schemes".
+  - Attachment host ties and Caught Off Guard / Masters of Mayhem now go to the first player.
+- [x] Encounter deck draw/resolution flow, boost deck mechanics, modular set behavior. The engine mechanics landed in Phases 1–2. Phase 3 moved villain phase steps 1–5 into `villain/phase.ts` and added `auditVillainPhases`, which re-checks them from a game log on its own terms: step order, acceleration, activations per player/form, boost recipients and flips, cards dealt per hazard icon, reveal order, the first player token, decision authority.
+- [x] Exit criteria: `packages/cards/src/villain-ai.test.ts`.
+  - 48 games (Rhino/Klaw/Ultron × standard/expert × 1–4 players × 2 seeds) played by scripted players to an outcome, each with a clean villain-phase audit and an identical replay.
+  - A passive table (end turn, take the minimum) loses to each scenario with no villain-side input.
+- Readings carried forward (docs/phase3-encounter-ai.md "Readings"):
+  - **Minion activation order** is the engaged player's choice; the RRG is silent on it.
+  - **Caught Off Guard** is read literally under RRG "First Player", so the first player picks which of the revealing player's upgrades/supports is discarded.
+  - **Identical enemies** (facedown Drones) are still offered for ordering.
 
 ## Phase 4 — Client UI/UX
 

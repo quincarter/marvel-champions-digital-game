@@ -142,11 +142,11 @@ export const MASTERS_OF_EVIL_SET = defineAbilities({
   "01132.boost": boost(exhaust(each(query("ally", { controller: "you" })))),
   // Masters of Mayhem — When Revealed: Each Masters of Evil minion attacks the hero it is engaged with. If no attacks were made
   // this way, search the encounter deck and discard pile for a Masters of Evil minion and put it into play engaged with you,
-  // then shuffle the encounter deck.
+  // then shuffle the encounter deck. The first player orders the attacks and picks among eligible minions (RRG "First Player").
   "01133.when-revealed": whenRevealed(
     enemyAttack(each(MASTERS_OF_EVIL_MINION), { bind: "mayhem" }),
     ifThen(not(made("mayhem")), [
-      chooseCards("minion", encounterCards(["deck", "discard"], MASTERS_OF_EVIL_MINION), { min: 1, max: 1 }),
+      chooseCards("minion", encounterCards(["deck", "discard"], MASTERS_OF_EVIL_MINION), { min: 1, max: 1, chooser: firstPlayer }),
       putIntoPlay(chosen("minion"), you),
       shuffleEncounterDeck(),
     ]),

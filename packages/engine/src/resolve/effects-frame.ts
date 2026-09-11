@@ -10,15 +10,19 @@ import { cardOf, getPlayer, mustCardOf, playerOrder } from "../query.js";
 import { combineRequirements, satisfies } from "../resources.js";
 import {
   activeAbilityRefs,
+  cardsInPlay,
+  categoriesOf,
   controllerOf,
   type EffectContext,
   evaluate,
   resolvePlayers,
+  resolveRef,
   resolveValue,
   selectTargets,
 } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import type { TriggerCandidate } from "../stack.js";
+import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
 import { applyEffect } from "./apply-effect.js";
 import { selectCards } from "./cards.js";
 import { abilityFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
@@ -89,8 +93,49 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     return;
   }
 
+  if ((effect.kind === "enemyAttack" || effect.kind === "enemyScheme") && orderEnemies(ctx, frame, effect, context)) return;
+
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
+}
+
+const ENEMY_ORDER_SLOT = "_enemyOrder";
+
+/**
+ * "Each Masters of Evil minion attacks the hero it is engaged with": one effect
+ * makes several enemies attack (or scheme), one at a time. The attacks would
+ * resolve simultaneously, so the first player orders them (RRG "First Player").
+ * Returns true when it handled the effect (asked for the order, or applied it).
+ */
+function orderEnemies(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "enemyAttack" | "enemyScheme" }>,
+  context: EffectContext,
+): boolean {
+  if (frame.answer !== null) {
+    const bindings = { ...frame.bindings, [ENEMY_ORDER_SLOT]: frame.answer.map((id) => asInstanceId(id)) };
+    const next: Frame<"effects"> = { ...frame, answer: null, cursor: frame.cursor + 1, bindings };
+    setFrame(ctx, next);
+    applyEffect(ctx, { ...effect, enemies: { kind: "slot", slot: ENEMY_ORDER_SLOT } }, { ...context, bindings }, next);
+    return true;
+  }
+  const inPlay = cardsInPlay(ctx.state);
+  const enemies = [...new Set(resolveRef(ctx.state, effect.enemies, context))].filter(
+    (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"),
+  );
+  if (enemies.length < 2) return false;
+  requestChoice(ctx, {
+    playerId: simultaneousOrderer(ctx.state),
+    authority: "firstPlayerOrders",
+    prompt: { kind: "orderEnemies", activation: effect.kind === "enemyAttack" ? "attack" : "scheme" },
+    options: cardOptions(ctx, enemies),
+    minSelections: enemies.length,
+    maxSelections: enemies.length,
+    frameId: frame.frameId,
+    ordered: true,
+  });
+  return true;
 }
 
 const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] =>
@@ -126,6 +171,7 @@ function executeChooseCards(
   }
   requestChoice(ctx, {
     playerId: chooser,
+    authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
     prompt: { kind: "chooseCards", slot: effect.slot },
     // "Different cards" by name: the offered ids are one per name, so any selection is legal.
     options: cardOptions(ctx, candidates),
@@ -199,6 +245,7 @@ function executeChoosePlayer(
   }
   requestChoice(ctx, {
     playerId: chooser,
+    authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
     prompt: { kind: "choosePlayer", slot: effect.slot },
     options: players.map((p) => ({ optionId: p.playerId, label: p.playerId, ref: { kind: "player", playerId: p.playerId } as const })),
     minSelections: 1,
@@ -267,6 +314,7 @@ function executeAssignDamage(
     setFrame(ctx, { ...frame, answer: null, vars });
     requestChoice(ctx, {
       playerId: chooser,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
       prompt: { kind: "chooseTarget", slot: "assignDamage", abilityId: null },
       options: cardOptions(ctx, legal),
       minSelections: 1,
@@ -346,6 +394,7 @@ function requestTargetChoice(
   const count = Math.min(effect.count ?? 1, legal.length);
   requestChoice(ctx, {
     playerId: chooser,
+    authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
     prompt: { kind: "chooseTarget", slot: effect.slot, abilityId: null },
     options: legal.map((id) => ({
       optionId: id,

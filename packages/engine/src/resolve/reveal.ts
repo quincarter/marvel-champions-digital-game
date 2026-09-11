@@ -11,6 +11,7 @@ import type { TargetQuery } from "../spec.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
+import { encounterTargetSelector } from "../villain/authority.js";
 import { enterPlay, quickstrikeAttack } from "./enter-play.js";
 import { base, eventFrame, type Frame, gameAbilityFrames, pushEvent } from "./frames.js";
 
@@ -46,7 +47,7 @@ const printedHpOf = (state: GameState, id: InstanceId): number => {
 /**
  * Every legal host for an attachment right now, in stable order. For
  * `minionWithHighestPrintedHp` this is the set of minions tied for highest
- * printed HP (the revealing player breaks ties).
+ * printed HP (the first player breaks ties, RRG "First Player").
  */
 export function attachmentHostCandidates(
   state: GameState,
@@ -262,8 +263,11 @@ function resolveAttachmentTarget(ctx: Ctx, frame: Frame<"reveal">, attachesTo: A
     enterPlay(ctx, frame.instanceId, frame.playerId);
     return true;
   }
+  // RRG "First Player": an encounter card with several eligible targets — the
+  // first player selects (not the revealing player).
   requestChoice(ctx, {
-    playerId: frame.playerId,
+    playerId: encounterTargetSelector(ctx.state),
+    authority: "firstPlayerTargets",
     prompt: { kind: "chooseAttachmentTarget", instanceId: frame.instanceId },
     options: legal.map((id) => ({
       optionId: id,
