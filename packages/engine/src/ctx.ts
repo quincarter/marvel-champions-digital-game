@@ -57,6 +57,14 @@ function setZone(state: GameState, zone: ZoneId, ids: readonly InstanceId[]): Ga
       return withPlayer(state, zone.playerId, (p) => ({ ...p, playArea: ids }));
     case "dealtEncounter":
       return withPlayer(state, zone.playerId, (p) => ({ ...p, dealtEncounter: ids }));
+    case "resolving":
+      return withPlayer(state, zone.playerId, (p) => ({ ...p, resolving: ids }));
+    case "setAside":
+      return withPlayer(state, zone.playerId, (p) => ({ ...p, setAside: ids }));
+    case "tucked": {
+      const host = mustInstance(state, zone.hostInstanceId);
+      return { ...state, instances: { ...state.instances, [host.instanceId]: { ...host, tucked: ids } } };
+    }
     case "encounterDeck":
       return { ...state, encounterDeck: ids };
     case "encounterDiscard":

@@ -117,7 +117,8 @@ function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): 
       afterMulliganChoice(ctx, choice.playerId);
       return null;
     }
-    // RRG "Restricted": the controller discards from play down to two.
+    // RRG "Restricted" / "Ally Limit": the controller discards from play down to the limit.
+    case "discardOverAllyLimit":
     case "discardRestricted": {
       for (const optionId of selected) discardFromPlay(ctx, instanceId(optionId));
       return null;

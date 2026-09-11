@@ -7,3 +7,4 @@ export const CONTENT_VERSION = "0.0.0";
 export const SCHEMA_VERSION = "0.1.0";
 
 export * from "./schema/index.js";
+export * from "./data/index.js";

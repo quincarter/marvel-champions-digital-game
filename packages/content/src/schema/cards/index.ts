@@ -8,17 +8,19 @@ export type {
   ResourceCard,
   PlayerSideSchemeCard,
 } from "./player-cards.js";
+export type { PlayRestrictions } from "./player-cards.js";
 export type { HeroIdentityCard, HeroFace, AlterEgoFace } from "./identity.js";
 export type {
   EncounterCard,
   MinionCard,
   AttachmentCard,
-  AttachmentTarget,
   TreacheryCard,
   ObligationCard,
   EnvironmentCard,
 } from "./encounter-cards.js";
-export type { MainSchemeCard, MainSchemeStage, SideSchemeCard, SchemeIcon } from "./schemes.js";
+export type { AttachmentHost, AttachmentHostKind, PrintedStatModifiers } from "./attachment-host.js";
+export { ATTACHMENT_HOST_KINDS } from "./attachment-host.js";
+export type { MainSchemeCard, MainSchemeStage, MainSchemeASide, SideSchemeCard, SchemeIcon } from "./schemes.js";
 export type { VillainCard, VillainSide, VillainStage } from "./villain.js";
 
 import type { PlayerCard } from "./player-cards.js";

@@ -1,24 +1,59 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, type EffectContext } from "./select.js";
+import { cardOf } from "./query.js";
+import {
+  activeAbilityRefs,
+  cardsInPlay,
+  controllerOf,
+  evaluate,
+  lastingContext,
+  lastingReaches,
+  matchesQuery,
+  resolveValue,
+  type EffectContext,
+} from "./select.js";
 import type { StatName } from "./spec.js";
 import type { GameState } from "./state.js";
 
 export type ModifiedStat = StatName | "hp" | "handSize";
 
 export interface ActiveModifier {
-  readonly sourceInstanceId: InstanceId;
+  /** The card whose printed stat box, constant ability, or lasting effect produced this. */
+  readonly sourceInstanceId: InstanceId | null;
   readonly stat: ModifiedStat;
   readonly amount: number;
+  readonly origin: "attachment" | "constant" | "lasting";
+  /** Replaces the printed base value instead of adding to it ("has a base ATK of 1"). */
+  readonly setBase?: boolean;
 }
 
 /**
- * Constant abilities are never "applied" to state — they are recomputed on
- * every read (RRG "Modifiers": the game recalculates a modified quantity from
- * the base value and all active modifiers each time it is checked).
+ * Constant abilities and lasting effects are never "applied" to state — they
+ * are recomputed on every read (RRG "Modifiers": the game recalculates a
+ * modified quantity from the base value and all active modifiers each time it
+ * is checked). Passing `stat` evaluates only that stat's modifiers, which also
+ * keeps a value like "ATK = remaining hit points" from recursing into itself.
  */
-export function modifiersFor(state: GameState, deps: EngineDeps, targetId: InstanceId): readonly ActiveModifier[] {
+export function modifiersFor(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  stat?: ModifiedStat,
+): readonly ActiveModifier[] {
   const found: ActiveModifier[] = [];
+  const wanted = (s: ModifiedStat) => stat === undefined || stat === s;
+
+  // Printed stat boxes on an attachment modify its host while attached (Charge +3 ATK).
+  for (const attachmentId of state.instances[targetId]?.attachments ?? []) {
+    const card = cardOf(state, attachmentId);
+    if (card?.type !== "attachment" || !card.statModifiers) continue;
+    for (const [s, amount] of Object.entries(card.statModifiers)) {
+      if (typeof amount === "number" && amount !== 0 && wanted(s as ModifiedStat)) {
+        found.push({ sourceInstanceId: attachmentId, stat: s as ModifiedStat, amount, origin: "attachment" });
+      }
+    }
+  }
+
   for (const sourceId of cardsInPlay(state)) {
     for (const ref of activeAbilityRefs(state, sourceId)) {
       const definition = deps.abilities[ref.id];
@@ -28,13 +63,23 @@ export function modifiersFor(state: GameState, deps: EngineDeps, targetId: Insta
         controllerId: controllerOf(state, sourceId),
         event: null,
         bindings: {},
+        deps,
       };
-      for (const modifier of definition.trigger.modifiers) {
+      for (const modifier of definition.trigger.modifiers ?? []) {
+        if (!wanted(modifier.stat)) continue;
         if (modifier.while && !evaluate(state, modifier.while, context)) continue;
         if (!matchesQuery(state, targetId, modifier.target, context)) continue;
-        found.push({ sourceInstanceId: sourceId, stat: modifier.stat, amount: modifier.amount });
+        const amount = typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, context, deps);
+        found.push({ sourceInstanceId: sourceId, stat: modifier.stat, amount, origin: "constant", ...(modifier.setBase ? { setBase: true } : {}) });
       }
     }
+  }
+
+  for (const effect of state.lastingEffects) {
+    if (effect.kind !== "statModifier" || !wanted(effect.stat)) continue;
+    if (!lastingReaches(state, effect, targetId, deps)) continue;
+    const amount = resolveValue(state, effect.amount, lastingContext(effect.scope, deps), deps);
+    found.push({ sourceInstanceId: effect.scope.selfInstanceId, stat: effect.stat, amount, origin: "lasting" });
   }
   return found;
 }
@@ -45,7 +90,13 @@ export function statBonus(
   targetId: InstanceId,
   stat: ModifiedStat,
 ): number {
-  return modifiersFor(state, deps, targetId)
-    .filter((modifier) => modifier.stat === stat)
+  return modifiersFor(state, deps, targetId, stat)
+    .filter((modifier) => !modifier.setBase)
     .reduce((sum, modifier) => sum + modifier.amount, 0);
+}
+
+/** The base value set by a "has a base X of N" ability, if any (the last one in play order wins). */
+export function baseOverride(state: GameState, deps: EngineDeps, targetId: InstanceId, stat: ModifiedStat): number | undefined {
+  const bases = modifiersFor(state, deps, targetId, stat).filter((modifier) => modifier.setBase);
+  return bases.length > 0 ? bases[bases.length - 1]?.amount : undefined;
 }

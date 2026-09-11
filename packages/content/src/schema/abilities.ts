@@ -1,31 +1,20 @@
 import type { AbilityId } from "./ids.js";
 
 /**
- * Trigger classification lets the engine index/register an ability's timing
- * window before the ability-scripting-engineer has written the executable
- * definition behind it. This schema never encodes *behavior* — only enough
- * metadata for the engine to know an ability exists and when it can fire.
- */
-export type AbilityTrigger =
-  | "action"
-  | "response"
-  | "interrupt"
-  | "forced_response"
-  | "forced_interrupt"
-  | "when_revealed"
-  | "constant"
-  | "setup"
-  | "boost_effect";
-
-/**
- * An opaque handle into the (not-yet-written) ability script registry, plus
- * enough context for a human or the ability-scripting-engineer to find and
- * implement it later. `notesForScripting` is the "describe what the ability
- * needs to do in plain terms" handoff called for in this agent's brief — it
- * is documentation, not a game-logic encoding.
+ * An opaque handle into the engine-side ability registry (`@mc/cards` builds
+ * it, the engine receives it through `EngineDeps`). Content data never encodes
+ * *behavior* or timing — the registry entry for `id` is authoritative for when
+ * and how the ability fires (Phase 2 decision: the old `trigger` field was
+ * dropped because it could not express resource / when-defeated / forced vs
+ * optional and would have drifted from the registry).
+ *
+ * `id` convention (stable, never renumbered): `<cardCode>.<slug>`, e.g.
+ * `01001a.spider-sense`, `01099.boost`, `01097a.setup`.
  */
 export interface AbilityReference {
   readonly id: AbilityId;
-  readonly trigger: AbilityTrigger;
+  /** Printed ability name, when the card names it (e.g. "Spider-Sense", "Rechannel"). */
+  readonly label?: string;
+  /** Plain-language handoff for the ability-scripting stage. Documentation only. */
   readonly notesForScripting?: string;
 }

@@ -1,8 +1,9 @@
-import type { AnyCard, CardId } from "@mc/content";
+import type { AnyCard, CardId, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { RngState } from "./rng.js";
 import type { StackFrame } from "./stack.js";
+import type { LastingEffect } from "./lasting.js";
 
 export type Form = "hero" | "alterEgo";
 
@@ -26,6 +27,12 @@ export type ZoneId =
   | { readonly kind: "discard"; readonly playerId: PlayerId }
   | { readonly kind: "playArea"; readonly playerId: PlayerId }
   | { readonly kind: "dealtEncounter"; readonly playerId: PlayerId }
+  /** Event cards being played: out of play while they resolve (RRG "Event"), then discarded. */
+  | { readonly kind: "resolving"; readonly playerId: PlayerId }
+  /** A player's set-aside nemesis encounter set (RRG "Nemesis Encounter Set"): out of play. */
+  | { readonly kind: "setAside"; readonly playerId: PlayerId }
+  /** Cards tucked under another card (RRG "Tuck"): out of play, discarded when the host leaves play. */
+  | { readonly kind: "tucked"; readonly hostInstanceId: InstanceId }
   | { readonly kind: "identity"; readonly playerId: PlayerId }
   | { readonly kind: "encounterDeck" }
   | { readonly kind: "encounterDiscard" }
@@ -34,6 +41,17 @@ export type ZoneId =
   | { readonly kind: "boost"; readonly hostInstanceId: InstanceId }
   | { readonly kind: "victoryDisplay" }
   | { readonly kind: "removedFromGame" };
+
+/**
+ * What a facedown card in play is treated as ("put the top card of your deck
+ * into play facedown, engaged with you as a Drone minion"): a minion with only
+ * these traits, no name, no keywords and no abilities of its own, and printed
+ * base stats of 0 (card abilities can set its base stats).
+ */
+export interface FacedownRole {
+  readonly kind: "minion";
+  readonly traits: readonly Trait[];
+}
 
 export interface CardInstance {
   readonly instanceId: InstanceId;
@@ -51,6 +69,10 @@ export interface CardInstance {
   readonly attachments: readonly InstanceId[];
   /** Facedown boost cards given to this enemy for an activation (RRG "Boost"). */
   readonly boostCards: readonly InstanceId[];
+  /** Cards tucked under this card (RRG "Tuck"; Highway Robbery's facedown cards). Not in play. */
+  readonly tucked: readonly InstanceId[];
+  /** Set while this card is in play facedown as something else (a facedown Drone minion). */
+  readonly facedownAs: FacedownRole | null;
   readonly engagedWith: PlayerId | null;
 }
 
@@ -73,6 +95,10 @@ export interface PlayerState {
   readonly playArea: readonly InstanceId[];
   /** Facedown encounter cards dealt in villain phase step 3, revealed in step 4. */
   readonly dealtEncounter: readonly InstanceId[];
+  /** Event cards this player is playing right now (out of play until discarded). */
+  readonly resolving: readonly InstanceId[];
+  /** This player's set-aside nemesis set (Shadow of the Past brings it in). */
+  readonly setAside: readonly InstanceId[];
   readonly eliminated: boolean;
 }
 
@@ -81,6 +107,8 @@ export interface VillainState {
   readonly cardId: CardId;
   readonly side: "A" | "B";
   readonly stageIndex: number;
+  /** The last stage used this game (standard I–II, expert II–III): defeating it wins. */
+  readonly lastStageIndex: number;
   readonly defeated: boolean;
 }
 
@@ -123,7 +151,8 @@ export type GameStep =
   | { readonly phase: "villain"; readonly kind: "dealEncounterCards" }
   | { readonly phase: "villain"; readonly kind: "revealEncounterCards"; readonly remainingPlayerIds: readonly PlayerId[] }
   | { readonly phase: "villain"; readonly kind: "passFirstPlayer" }
-  | { readonly phase: "villain"; readonly kind: "endOfRound" }
+  /** `delayedResolved`: "at the end of the round" delayed effects have been fired (RRG "Lasting Effects"). */
+  | { readonly phase: "villain"; readonly kind: "endOfRound"; readonly delayedResolved?: boolean }
   | { readonly phase: "gameOver"; readonly kind: "gameOver" };
 
 export type GameOutcome =
@@ -152,10 +181,13 @@ export interface GameState {
   readonly stack: readonly StackFrame[];
   /** `instanceId:abilityId` → times used, for "Limit X per phase/round" (RRG "Limit"). */
   readonly abilityUses: Readonly<Record<string, number>>;
+  /** Effects that outlive the ability that created them (RRG "Lasting Effects"). */
+  readonly lastingEffects: readonly LastingEffect[];
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;
   readonly nextInstanceSeq: number;
   readonly nextChoiceSeq: number;
   readonly nextFrameSeq: number;
+  readonly nextLastingSeq: number;
 }

@@ -8,11 +8,17 @@ import {
   flat,
   heroAspect,
   perPlayerOnly,
+  scaling,
+  scenarioId,
   setCode,
+  starterDeckId,
   trait,
   unerrataedText,
   validateAllyCard,
+  validateAttachmentCard,
   validateCard,
+  validateScenario,
+  validateStarterDeck,
   validateHeroIdentityCard,
   validateMainSchemeCard,
   validateMinionCard,
@@ -32,7 +38,9 @@ import type {
   ObligationCard,
   PlayerSideSchemeCard,
   ResourceCard,
+  Scenario,
   SideSchemeCard,
+  StarterDeck,
   SupportCard,
   TreacheryCard,
   UpgradeCard,
@@ -59,25 +67,28 @@ const spiderMan: HeroIdentityCard = {
   quantityInSet: 1,
   unique: true,
   hp: 10,
-  keywords: [],
+  obligationCardId: cardId("core-14-eviction-notice"),
+  nemesisEncounterSetId: encounterSetId("spider-man-nemesis"),
   hero: {
     faceName: "Spider-Man",
+    keywords: [],
     traits: [trait("Avenger")],
     atk: 2,
     thw: 1,
     def: 3,
     handSize: 5,
     text: unerrataedText("Spider-Sense — Interrupt: When the villain initiates an attack against you, draw 1 card."),
-    abilities: [{ id: abilityId("spider-man-spider-sense"), trigger: "interrupt" }],
+    abilities: [{ id: abilityId("spider-man-spider-sense") }],
     art: artRef("core/01a-spider-man"),
   },
   alterEgo: {
     faceName: "Peter Parker",
+    keywords: [],
     traits: [trait("Genius")],
     rec: 3,
     handSize: 6,
     text: unerrataedText("Scientist — Resource: Generate a [mental] resource. (Limit once per round.)"),
-    abilities: [{ id: abilityId("peter-parker-scientist"), trigger: "action" }],
+    abilities: [{ id: abilityId("peter-parker-scientist") }],
     art: artRef("core/01b-peter-parker"),
   },
 };
@@ -92,6 +103,7 @@ const blackCat: AllyCard = {
   quantityInSet: 1,
   unique: true,
   aspect: heroAspect(spiderManId),
+  deckLimit: 3,
   traits: [trait("Hero for Hire")],
   keywords: [],
   cost: 2,
@@ -101,7 +113,7 @@ const blackCat: AllyCard = {
   hp: 2,
   consequentialDamage: { attack: 1, thwart: 1 },
   text: unerrataedText("Response: After Black Cat enters play, draw 1 card."),
-  abilities: [{ id: abilityId("black-cat-response"), trigger: "response" }],
+  abilities: [{ id: abilityId("black-cat-response") }],
 };
 
 const backflip: EventCard = {
@@ -114,12 +126,13 @@ const backflip: EventCard = {
   quantityInSet: 3,
   unique: false,
   aspect: heroAspect(spiderManId),
+  deckLimit: 3,
   traits: [trait("Defense")],
   keywords: [],
   cost: 0,
   resourceIcons: { energy: 1 },
   text: unerrataedText("Interrupt: When Spider-Man is attacked, prevent all damage from that attack."),
-  abilities: [{ id: abilityId("backflip-interrupt"), trigger: "interrupt" }],
+  abilities: [{ id: abilityId("backflip-interrupt") }],
 };
 
 const webShooters: UpgradeCard = {
@@ -132,6 +145,7 @@ const webShooters: UpgradeCard = {
   quantityInSet: 1,
   unique: false,
   aspect: heroAspect(spiderManId),
+  deckLimit: 3,
   traits: [trait("Item"), trait("Tech")],
   keywords: [{ name: "uses", count: 4, counterType: "web" }],
   cost: 1,
@@ -139,7 +153,7 @@ const webShooters: UpgradeCard = {
   text: unerrataedText(
     "Uses (4 web counters). Action: Exhaust Web-Shooters and remove 1 web counter from it → give a hero +1 THW or +1 ATK until the end of the phase.",
   ),
-  abilities: [{ id: abilityId("web-shooters-action"), trigger: "action" }],
+  abilities: [{ id: abilityId("web-shooters-action") }],
 };
 
 const helicarrier: SupportCard = {
@@ -152,12 +166,13 @@ const helicarrier: SupportCard = {
   quantityInSet: 1,
   unique: false,
   aspect: "basic",
+  deckLimit: 3,
   traits: [trait("Location"), trait("S.H.I.E.L.D.")],
   keywords: [],
   cost: 3,
   resourceIcons: { mental: 1 },
   text: unerrataedText("Action: Exhaust Helicarrier → reduce the cost of the next card you play this phase by 1."),
-  abilities: [{ id: abilityId("helicarrier-action"), trigger: "action" }],
+  abilities: [{ id: abilityId("helicarrier-action") }],
 };
 
 const strength: ResourceCard = {
@@ -170,6 +185,7 @@ const strength: ResourceCard = {
   quantityInSet: 1,
   unique: false,
   aspect: "basic",
+  deckLimit: 3,
   traits: [],
   keywords: [],
   producesIcons: { physical: 2 },
@@ -187,13 +203,14 @@ const mutantEducation: PlayerSideSchemeCard = {
   quantityInSet: 1,
   unique: true,
   aspect: "justice",
+  deckLimit: 3,
   traits: [trait("X-Men")],
   keywords: [],
   cost: 2,
   resourceIcons: { mental: 1 },
   startingThreat: perPlayerOnly(2),
   text: unerrataedText("When Defeated: Each player draws 1 card."),
-  abilities: [{ id: abilityId("mutant-education-when-defeated"), trigger: "forced_response" }],
+  abilities: [{ id: abilityId("mutant-education-when-defeated") }],
 };
 
 const rhino: VillainCard = {
@@ -219,7 +236,7 @@ const rhino: VillainCard = {
           text: unerrataedText("Rhino gets +1 ATK while Charge is attached to him."),
           traits: [trait("Brute"), trait("Criminal")],
           keywords: [],
-          abilities: [{ id: abilityId("rhino-i-charge-bonus"), trigger: "constant" }],
+          abilities: [{ id: abilityId("rhino-i-charge-bonus") }],
         },
         {
           stageNumber: 2,
@@ -229,7 +246,7 @@ const rhino: VillainCard = {
           text: unerrataedText("Rhino gets +1 ATK while Charge is attached to him."),
           traits: [trait("Brute"), trait("Criminal")],
           keywords: [],
-          abilities: [{ id: abilityId("rhino-ii-charge-bonus"), trigger: "constant" }],
+          abilities: [{ id: abilityId("rhino-ii-charge-bonus") }],
         },
       ],
     },
@@ -255,8 +272,12 @@ const theBreakIn: MainSchemeCard = {
       icons: [],
       text: unerrataedText("Setup: Attach Charge to Rhino. When Completed: Advance to 2A."),
       traits: [],
-      keywords: [{ name: "setup" }],
-      abilities: [{ id: abilityId("break-in-1a-setup"), trigger: "setup" }],
+      keywords: [],
+      abilities: [],
+      aSide: {
+        text: unerrataedText("Setup: Advance to stage 1B."),
+        abilities: [{ id: abilityId("01097a.setup"), label: "Setup" }],
+      },
     },
     {
       stageNumber: 2,
@@ -268,7 +289,11 @@ const theBreakIn: MainSchemeCard = {
       text: unerrataedText("Forced Response: When this stage completes, the players lose."),
       traits: [],
       keywords: [],
-      abilities: [{ id: abilityId("break-in-2a-complete"), trigger: "forced_response" }],
+      abilities: [{ id: abilityId("break-in-2a-complete") }],
+      aSide: {
+        text: unerrataedText("When Revealed: Advance to stage 2B."),
+        abilities: [],
+      },
     },
   ],
 };
@@ -287,7 +312,7 @@ const underSiege: TreacheryCard = {
   traits: [],
   keywords: [{ name: "surge" }],
   text: unerrataedText("Surge. When Revealed: Place 1 threat on each side scheme in play."),
-  abilities: [{ id: abilityId("under-siege-when-revealed"), trigger: "when_revealed" }],
+  abilities: [{ id: abilityId("under-siege-when-revealed") }],
 };
 
 const hydraMercenary: MinionCard = {
@@ -326,7 +351,7 @@ const breakinAndTakin: SideSchemeCard = {
   traits: [trait("Crime")],
   keywords: [],
   text: unerrataedText("Crisis. When Revealed: Each player must discard 1 card."),
-  abilities: [{ id: abilityId("breakin-takin-when-revealed"), trigger: "when_revealed" }],
+  abilities: [{ id: abilityId("breakin-takin-when-revealed") }],
 };
 
 const charge: AttachmentCard = {
@@ -340,11 +365,12 @@ const charge: AttachmentCard = {
   unique: false,
   encounterSetIds: [RHINO_SET],
   boostIcons: 0,
-  attachesTo: "villain",
+  attachesTo: { kind: "villain" },
+  statModifiers: { atk: 3 },
   traits: [],
   keywords: [],
   text: unerrataedText("Attach to Rhino. Forced Response: After Rhino attacks, discard Charge."),
-  abilities: [{ id: abilityId("charge-forced-response"), trigger: "forced_response" }],
+  abilities: [{ id: abilityId("charge-forced-response") }],
 };
 
 const evictionNotice: ObligationCard = {
@@ -361,7 +387,7 @@ const evictionNotice: ObligationCard = {
   traits: [],
   keywords: [],
   text: unerrataedText("When Revealed: Spider-Man's player must either flip to alter-ego or discard 2 cards."),
-  abilities: [{ id: abilityId("eviction-notice-when-revealed"), trigger: "when_revealed" }],
+  abilities: [{ id: abilityId("eviction-notice-when-revealed") }],
 };
 
 const shieldedBunker: EnvironmentCard = {
@@ -379,8 +405,8 @@ const shieldedBunker: EnvironmentCard = {
   keywords: [],
   text: unerrataedText("Villain minions get +1 HP. Boost: Deal 1 damage to the defending hero."),
   abilities: [
-    { id: abilityId("shielded-bunker-passive"), trigger: "constant" },
-    { id: abilityId("shielded-bunker-boost"), trigger: "boost_effect" },
+    { id: abilityId("shielded-bunker-passive") },
+    { id: abilityId("shielded-bunker-boost") },
   ],
 };
 
@@ -448,9 +474,13 @@ describe("schema fixtures: malformed cards are rejected", () => {
     expect(validateMainSchemeCard(malformed).valid).toBe(false);
   });
 
-  it("rejects a side scheme missing rules text", () => {
-    const result = validateSideSchemeCard({ ...breakinAndTakin, text: { printed: "", current: "" } });
+  it("rejects a side scheme whose text is not a CardText (blank strings are allowed; see Phase 2 notes)", () => {
+    const result = validateSideSchemeCard({ ...breakinAndTakin, text: undefined as unknown as SideSchemeCard["text"] });
     expect(result.valid).toBe(false);
+  });
+
+  it("rejects an obligation missing rules text", () => {
+    expect(validateCard({ ...evictionNotice, text: { printed: "", current: "" } }).valid).toBe(false);
   });
 
   it("rejects a treachery with Surge but no abilities referenced", () => {
@@ -459,5 +489,147 @@ describe("schema fixtures: malformed cards are rejected", () => {
 
   it("rejects an encounter card with more than 3 boost icons", () => {
     expect(validateMinionCard({ ...hydraMercenary, boostIcons: 4 }).valid).toBe(false);
+  });
+});
+
+describe("Phase 2 schema follow-ups", () => {
+  it("scaling(base, perPlayer) builds a ScalingValue", () => {
+    expect(scaling(2, 1)).toEqual({ base: 2, perPlayer: 1 });
+  });
+
+  it("rejects an ability reference that still carries the dropped trigger field", () => {
+    const stale = { ...blackCat, abilities: [{ id: abilityId("x"), trigger: "response" }] } as unknown as AllyCard;
+    expect(validateAllyCard(stale).valid).toBe(false);
+  });
+
+  it("accepts a printed ability label", () => {
+    const labelled: HeroIdentityCard = {
+      ...spiderMan,
+      hero: { ...spiderMan.hero, abilities: [{ id: abilityId("01001a.spider-sense"), label: "Spider-Sense" }] },
+    };
+    expect(validateCard(labelled).valid).toBe(true);
+  });
+
+  it("puts identity keywords on faces, not on the card", () => {
+    const retaliateHeroOnly: HeroIdentityCard = {
+      ...spiderMan,
+      hero: { ...spiderMan.hero, keywords: [{ name: "retaliate", value: 1 }] },
+    };
+    expect(validateCard(retaliateHeroOnly).valid).toBe(true);
+    const legacy = { ...spiderMan, keywords: [] } as unknown as HeroIdentityCard;
+    expect(validateHeroIdentityCard(legacy).valid).toBe(false);
+  });
+
+  it("requires an identity's obligation and nemesis links", () => {
+    const missing = { ...spiderMan, obligationCardId: "" } as unknown as HeroIdentityCard;
+    expect(validateHeroIdentityCard(missing).valid).toBe(false);
+  });
+
+  it.each([
+    [{ kind: "namedCard", name: "Ultron Drones" }, true],
+    [{ kind: "minionWithHighestPrintedHp" }, true],
+    [{ kind: "minionWithHighestPrintedHp", withoutAttachmentNamed: "Biomechanical Upgrades" }, true],
+    [{ kind: "namedCard" }, false],
+    [{ kind: "any_character" }, false],
+    ["villain", false],
+  ] as const)("attachment host %j valid=%s", (host, valid) => {
+    const card = { ...charge, attachesTo: host } as unknown as AttachmentCard;
+    expect(validateAttachmentCard(card).valid).toBe(valid);
+  });
+
+  it("rejects non-stat keys in attachment statModifiers", () => {
+    const card = { ...charge, statModifiers: { def: 1 } } as unknown as AttachmentCard;
+    expect(validateAttachmentCard(card).valid).toBe(false);
+  });
+
+  it("accepts an upgrade that attaches to a minion with a per-host limit", () => {
+    const tracer: UpgradeCard = {
+      ...webShooters,
+      keywords: [],
+      attachesTo: { kind: "minion" },
+      playRestrictions: { maxPerHost: 1, form: "hero" },
+    };
+    expect(validateCard(tracer).valid).toBe(true);
+  });
+
+  it("requires a positive integer deckLimit on player cards", () => {
+    expect(validateCard({ ...strength, deckLimit: 0 }).valid).toBe(false);
+    expect(validateCard({ ...helicarrier, deckLimit: 1 }).valid).toBe(true);
+  });
+
+  it("rejects malformed play restrictions", () => {
+    const bad = { ...backflip, playRestrictions: { form: "villain" } } as unknown as EventCard;
+    expect(validateCard(bad).valid).toBe(false);
+  });
+
+  it("requires an A side on every main scheme stage", () => {
+    const [first, second] = theBreakIn.stages as unknown as [MainSchemeCard["stages"][0], MainSchemeCard["stages"][0]];
+    const { aSide: _dropped, ...noASide } = first;
+    const malformed = { ...theBreakIn, stages: [noASide, second] } as unknown as MainSchemeCard;
+    expect(validateMainSchemeCard(malformed).valid).toBe(false);
+  });
+
+  const rhinoScenario: Scenario = {
+    id: scenarioId("rhino"),
+    name: "Rhino",
+    packCode: CORE,
+    villainCardId: rhino.id,
+    mainSchemeCardId: theBreakIn.id,
+    encounterSetIds: [RHINO_SET],
+    recommendedModularSetIds: [encounterSetId("bomb_scare")],
+    standardEncounterSetIds: [encounterSetId("standard")],
+    expertEncounterSetIds: [encounterSetId("expert")],
+    villainStages: { standard: [1, 2], expert: [2, 3] },
+  };
+
+  it("validates a scenario with difficulty sets and villain stage ranges", () => {
+    expect(validateScenario(rhinoScenario).errors).toEqual([]);
+    const inverted = { ...rhinoScenario, villainStages: { standard: [2, 1], expert: [2, 3] } } as unknown as Scenario;
+    expect(validateScenario(inverted).valid).toBe(false);
+  });
+
+  const spiderManPrecon: StarterDeck = {
+    id: starterDeckId("core-spider-man"),
+    name: "Spider-Man (Core Set precon)",
+    packCode: CORE,
+    identityCardId: spiderMan.id,
+    aspects: ["justice"],
+    cards: [
+      { cardId: blackCat.id, quantity: 1 },
+      { cardId: backflip.id, quantity: 2 },
+    ],
+    provenance: { verified: false, sources: [], note: "fixture only" },
+  };
+
+  it("validates a starter deck and its provenance", () => {
+    expect(validateStarterDeck(spiderManPrecon).errors).toEqual([]);
+    const verifiedWithoutSource = { ...spiderManPrecon, provenance: { verified: true, sources: [] } };
+    expect(validateStarterDeck(verifiedWithoutSource).valid).toBe(false);
+    const duplicate = { ...spiderManPrecon, cards: [...spiderManPrecon.cards, { cardId: blackCat.id, quantity: 1 }] };
+    expect(validateStarterDeck(duplicate).valid).toBe(false);
+  });
+});
+
+describe("printed dashes, X stats, blank text, stage names", () => {
+  it("accepts a printed '—' (null) and 'X' stat, rejects other strings", () => {
+    expect(validateCard({ ...blackCat, thw: null }).valid).toBe(true);
+    expect(validateCard({ ...hydraMercenary, atk: "X" }).valid).toBe(true);
+    expect(validateCard({ ...hydraMercenary, atk: "Y" as unknown as number }).valid).toBe(false);
+  });
+
+  it("allows blank text on resource cards, villain stages and side schemes only", () => {
+    const blank = { printed: "", current: "" };
+    expect(validateCard({ ...strength, text: blank }).valid).toBe(true);
+    expect(validateCard({ ...breakinAndTakin, text: blank }).valid).toBe(true);
+    const [stage1, stage2] = rhino.sides[0].stages as unknown as [VillainCard["sides"][0]["stages"][0], VillainCard["sides"][0]["stages"][0]];
+    expect(validateCard({ ...rhino, sides: [{ side: "A", name: "Rhino", stages: [{ ...stage1, text: blank }, stage2] }] }).valid).toBe(true);
+    expect(validateCard({ ...blackCat, text: blank }).valid).toBe(false);
+    expect(validateCard({ ...underSiege, text: blank }).valid).toBe(false);
+  });
+
+  it("accepts an optional main scheme stage name", () => {
+    const [first, second] = theBreakIn.stages as unknown as [MainSchemeCard["stages"][0], MainSchemeCard["stages"][0]];
+    expect(validateCard({ ...theBreakIn, stages: [first, { ...second, name: "Secret Rendezvous" }] }).valid).toBe(true);
+    expect(validateCard({ ...theBreakIn, stages: [first, { ...second, name: " " }] }).valid).toBe(false);
   });
 });

@@ -1,4 +1,5 @@
 import type { AbilityReference, AnyCard, Trait } from "@mc/content";
+import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import {
@@ -6,11 +7,17 @@ import {
   characterProfile,
   getInstance,
   getPlayer,
+  handSize,
+  isMinion,
   mainSchemeStage,
+  maxHitPoints,
   playerOrder,
+  printedHandSize,
   villainStage,
 } from "./query.js";
-import type { Bindings } from "./stack.js";
+import { printedResources } from "./resources.js";
+import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
+import type { LastingReach, LastingScope } from "./lasting.js";
 import type { PlayerRef, Predicate, TargetCategory, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -22,12 +29,35 @@ export interface EffectContext {
   readonly controllerId: PlayerId | null;
   readonly event: TriggerEvent | null;
   readonly bindings: Bindings;
+  /** Numbers bound by the ability's cost and earlier effects (see `ValueSpec` `var`). */
+  readonly vars?: Vars;
+  /** The ability registry, so granted keywords/traits and modified stats are seen. */
+  readonly deps?: EngineDeps;
+  /** "That player" inside `forEachPlayer`. */
+  readonly scopedPlayerId?: PlayerId | null;
+}
+
+/** The context a lasting effect evaluates in: the ability that created it. */
+export const lastingContext = (scope: LastingScope, deps: EngineDeps): EffectContext => ({
+  selfInstanceId: scope.selfInstanceId,
+  controllerId: scope.controllerId,
+  event: null,
+  bindings: scope.bindings,
+  vars: scope.vars,
+  deps,
+});
+
+/** Whether a lasting effect touches this card right now (fixed targets, or a live query). */
+export function lastingReaches(state: GameState, effect: LastingReach & { readonly scope: LastingScope }, id: InstanceId, deps: EngineDeps): boolean {
+  if (effect.targets) return effect.targets.includes(id);
+  return effect.affects ? matchesQuery(state, id, effect.affects, lastingContext(effect.scope, deps)) : false;
 }
 
 export function categoriesOf(state: GameState, id: InstanceId): readonly TargetCategory[] {
   const instance = getInstance(state, id);
   const card = cardOf(state, id);
   if (!instance || !card) return [];
+  if (instance.facedownAs?.kind === "minion") return ["minion", "enemy", "character"];
   const player = state.players.find((p) => p.identity.instanceId === id);
   if (card.type === "hero_identity" && player) {
     return player.identity.form === "hero"
@@ -52,14 +82,26 @@ export function categoriesOf(state: GameState, id: InstanceId): readonly TargetC
       return ["support"];
     case "attachment":
       return ["attachment"];
+    case "event":
+      return ["event"];
+    case "resource":
+      return ["resource"];
+    case "treachery":
+      return ["treachery"];
+    case "obligation":
+      return ["obligation"];
+    case "environment":
+      return ["environment"];
     default:
       return [];
   }
 }
 
-function traitsOf(state: GameState, id: InstanceId): readonly Trait[] {
+function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   const card = cardOf(state, id);
   if (!card) return [];
+  const facedown = getInstance(state, id)?.facedownAs;
+  if (facedown) return facedown.traits;
   if (card.type === "hero_identity") {
     const player = state.players.find((p) => p.identity.instanceId === id);
     if (!player) return [];
@@ -68,6 +110,32 @@ function traitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   if (card.type === "villain") return villainStage(state).traits;
   if (card.type === "main_scheme") return mainSchemeStage(state).traits;
   return "traits" in card ? card.traits : [];
+}
+
+/** Printed traits plus traits gained from constant abilities and lasting effects (RRG "Gains"). */
+export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly Trait[] {
+  const traits = [...printedTraitsOf(state, id)];
+  for (const effect of state.lastingEffects) {
+    if (effect.kind === "traitGrant" && lastingReaches(state, effect, id, deps)) traits.push(effect.trait);
+  }
+  if (Object.keys(deps.abilities).length > 0) {
+    for (const sourceId of cardsInPlay(state)) {
+      for (const ref of activeAbilityRefs(state, sourceId)) {
+        const definition = deps.abilities[ref.id];
+        if (definition?.trigger.kind !== "constant" || !definition.trigger.traitGrants) continue;
+        const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
+        for (const grant of definition.trigger.traitGrants) {
+          if (grant.while && !evaluate(state, grant.while, context)) continue;
+          // Trait grants can't depend on traits being granted: a `trait` filter here only sees printed traits.
+          const { trait: requiredTrait, ...rest } = grant.target;
+          if (matchesQuery(state, id, rest, context) && (!requiredTrait || printedTraitsOf(state, id).includes(requiredTrait))) {
+            traits.push(grant.trait);
+          }
+        }
+      }
+    }
+  }
+  return traits;
 }
 
 /** Every card instance that is in play, in a stable order (RRG "In Play and Out of Play"). */
@@ -117,7 +185,23 @@ export function matchesQuery(
   }
   if (query.engagedWith === "you" && instance.engagedWith !== context.controllerId) return false;
   if (query.engagedWith === "any" && instance.engagedWith === null) return false;
-  if (query.trait && !traitsOf(state, id).includes(query.trait)) return false;
+  if (query.trait && !traitsOf(state, id, context.deps).includes(query.trait)) return false;
+  // A facedown card has no name.
+  if (query.name !== undefined && (instance.facedownAs !== null || cardOf(state, id)?.name !== query.name)) return false;
+  if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return false;
+  if (query.hostOfSelf !== undefined) {
+    const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
+    if ((host === id) !== query.hostOfSelf) return false;
+  }
+  if (query.owner === "you" && instance.ownerId !== context.controllerId) return false;
+  if (query.printedResource !== undefined) {
+    const card = cardOf(state, id);
+    if (!card || printedResources(card)[query.printedResource] <= 0) return false;
+  }
+  if (query.aspect !== undefined) {
+    const card = cardOf(state, id);
+    if (!card || !("aspect" in card) || card.aspect !== query.aspect) return false;
+  }
   if (query.exhausted !== undefined && instance.exhausted !== query.exhausted) return false;
   if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat) return false;
   if (query.damaged !== undefined && instance.damage > 0 !== query.damaged) return false;
@@ -129,17 +213,25 @@ export function matchesQuery(
   }
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
-    if (!attacker || !canAttack(state, attacker, id)) return false;
+    if (!attacker || !canAttack(state, attacker, id, context.deps)) return false;
+  }
+  if (query.excludeSlots?.some((slot) => (context.bindings[slot] ?? []).includes(id))) return false;
+  if (query.controlledBy) {
+    const controller = controllerOf(state, id);
+    if (controller === null || !resolvePlayers(state, query.controlledBy, context).includes(controller)) return false;
+  }
+  if (query.engagedWithPlayer) {
+    if (instance.engagedWith === null || !resolvePlayers(state, query.engagedWithPlayer, context).includes(instance.engagedWith)) return false;
   }
   return true;
 }
 
-const guardEngagedWith = (state: GameState, playerId: PlayerId): boolean =>
+const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps): boolean =>
   cardsInPlay(state).some(
     (id) =>
-      cardOf(state, id)?.type === "minion" &&
+      isMinion(state, id) &&
       getInstance(state, id)?.engagedWith === playerId &&
-      hasKeyword(state, id, "guard"),
+      hasKeyword(state, id, "guard", deps),
   );
 
 /**
@@ -149,12 +241,12 @@ const guardEngagedWith = (state: GameState, playerId: PlayerId): boolean =>
  * only ever protects villains — other minions stay attackable. Ranged does not
  * bypass guard (RRG "Ranged" only ignores retaliate).
  */
-export function canAttack(state: GameState, attackerId: InstanceId, targetId: InstanceId): boolean {
+export function canAttack(state: GameState, attackerId: InstanceId, targetId: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean {
   const controller = controllerOf(state, attackerId);
   if (controller === null) return true;
   if (targetId !== state.villain.instanceId) return true;
-  if (hasKeyword(state, targetId, "guard")) return true;
-  return !guardEngagedWith(state, controller);
+  if (hasKeyword(state, targetId, "guard", deps)) return true;
+  return !guardEngagedWith(state, controller, deps);
 }
 
 /** A minion's controller is null (it belongs to the encounter side) even while engaged. */
@@ -190,6 +282,32 @@ export function resolvePlayers(
       return playerOrder(state).map((p) => p.playerId);
     case "id":
       return getPlayer(state, ref.playerId) ? [ref.playerId] : [];
+    case "slot": {
+      const ids = context.bindings[ref.slot] ?? [];
+      return playerOrder(state)
+        .filter((p) => ids.includes(p.identity.instanceId))
+        .map((p) => p.playerId);
+    }
+    case "scoped":
+      return context.scopedPlayerId ? [context.scopedPlayerId] : [];
+    case "others": {
+      const excluded = resolvePlayers(state, ref.of, context);
+      return playerOrder(state)
+        .map((p) => p.playerId)
+        .filter((id) => !excluded.includes(id));
+    }
+    case "ownerOf": {
+      const owners = resolveRef(state, ref.target, context)
+        .map((id) => getInstance(state, id)?.ownerId ?? null)
+        .filter((id): id is PlayerId => id !== null);
+      return [...new Set(owners)];
+    }
+    case "engagedWith": {
+      const engaged = resolveRef(state, ref.of, context)
+        .map((id) => getInstance(state, id)?.engagedWith ?? null)
+        .filter((id): id is PlayerId => id !== null);
+      return [...new Set(engaged)];
+    }
   }
 }
 
@@ -201,6 +319,16 @@ export function resolveRef(
   switch (ref.kind) {
     case "self":
       return context.selfInstanceId ? [context.selfInstanceId] : [];
+    case "host": {
+      const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
+      return host ? [host] : [];
+    }
+    case "each":
+      return selectTargets(state, ref.query, context);
+    case "named": {
+      const found = cardsInPlay(state).find((id) => !getInstance(state, id)?.facedownAs && cardOf(state, id)?.name === ref.name);
+      return found ? [found] : [];
+    }
     case "slot":
       return context.bindings[ref.slot] ?? [];
     case "eventSource":
@@ -220,10 +348,16 @@ export function resolveRef(
 
 function eventAmount(event: TriggerEvent | null): number {
   if (!event) return 0;
-  return "amount" in event ? event.amount : 0;
+  return "amount" in event ? (event.amount ?? 0) : 0;
 }
 
-export function resolveValue(state: GameState, value: ValueSpec, context: EffectContext): number {
+/** `deps` lets stat reads include constant and lasting modifiers ("damage equal to your hero's ATK" reads the modified ATK). */
+export function resolveValue(
+  state: GameState,
+  value: ValueSpec,
+  context: EffectContext,
+  deps: EngineDeps = context.deps ?? DEFAULT_DEPS,
+): number {
   switch (value.kind) {
     case "const":
       return value.value;
@@ -232,7 +366,7 @@ export function resolveValue(state: GameState, value: ValueSpec, context: Effect
     case "stat": {
       const [id] = resolveRef(state, value.of, context);
       if (!id) return 0;
-      const profile = characterProfile(state, id);
+      const profile = characterProfile(state, id, deps);
       return profile ? profile[value.stat] : 0;
     }
     case "counters": {
@@ -242,6 +376,57 @@ export function resolveValue(state: GameState, value: ValueSpec, context: Effect
     }
     case "eventAmount":
       return eventAmount(context.event);
+    case "var":
+      return context.vars?.[value.name] ?? 0;
+    case "eventResult":
+      return context.event?.results?.[value.key] ?? 0;
+    case "scaled": {
+      const scaled = resolveValue(state, value.value, context, deps) * (value.times ?? 1) + (value.plus ?? 0);
+      return value.max === undefined ? scaled : Math.min(value.max, scaled);
+    }
+    case "count":
+      return selectTargets(state, value.query, { ...context, deps }).length;
+    case "remainingHp": {
+      const [id] = resolveRef(state, value.of, context);
+      const max = id ? maxHitPoints(state, id, deps) : undefined;
+      return id && max !== undefined ? Math.max(0, max - (getInstance(state, id)?.damage ?? 0)) : 0;
+    }
+    case "conditional":
+      return evaluate(state, value.if, { ...context, deps })
+        ? resolveValue(state, value.then, context, deps)
+        : resolveValue(state, value.else, context, deps);
+    case "damage": {
+      const [id] = resolveRef(state, value.of, context);
+      return id ? (getInstance(state, id)?.damage ?? 0) : 0;
+    }
+    case "threat": {
+      const [id] = resolveRef(state, value.of, context);
+      return id ? (getInstance(state, id)?.threat ?? 0) : 0;
+    }
+    case "boostIcons": {
+      const [id] = resolveRef(state, value.of, context);
+      const card = id ? cardOf(state, id) : undefined;
+      return card && "boostIcons" in card ? card.boostIcons : 0;
+    }
+    case "handSize": {
+      const [playerId] = resolvePlayers(state, value.player, context);
+      if (!playerId) return 0;
+      return value.printed ? printedHandSize(state, playerId) : handSize(state, playerId, deps);
+    }
+    case "resourceTypes": {
+      const seen = new Set<string>();
+      for (const id of resolveRef(state, value.cards, context)) {
+        const card = cardOf(state, id);
+        if (!card) continue;
+        const pool = printedResources(card);
+        for (const type of ["physical", "mental", "energy", "wild"] as const) if (pool[type] > 0) seen.add(type);
+      }
+      return seen.size;
+    }
+    case "handCount": {
+      const [playerId] = resolvePlayers(state, value.player, context);
+      return playerId ? (getPlayer(state, playerId)?.hand.length ?? 0) : 0;
+    }
   }
 }
 
@@ -269,6 +454,31 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "not":
       return !evaluate(state, predicate.of, context);
+    case "paidWith":
+      return (context.vars?.[`paid.${predicate.resource}`] ?? 0) > 0 || (context.vars?.["paid.wild"] ?? 0) > 0;
+    case "varAtLeast":
+      return (context.vars?.[predicate.name] ?? 0) >= predicate.amount;
+    case "and":
+      return predicate.of.every((p) => evaluate(state, p, context));
+    case "or":
+      return predicate.of.some((p) => evaluate(state, p, context));
+    case "eventResultAtLeast":
+      return (context.event?.results?.[predicate.key] ?? 0) >= predicate.amount;
+    case "hasTrait": {
+      const [id] = resolveRef(state, predicate.of, context);
+      return id ? traitsOf(state, id, context.deps).includes(predicate.trait) : false;
+    }
+    case "currentAttack": {
+      const id = currentActivationFrameId(state.stack);
+      const frame = id ? state.stack.find((f) => f.frameId === id) : undefined;
+      return frame?.kind === "event" && (frame.vars[predicate.key] ?? 0) >= predicate.atLeast;
+    }
+    case "refMatches": {
+      const inPlay = cardsInPlay(state);
+      return resolveRef(state, predicate.ref, context).some((id) => inPlay.includes(id) && matchesQuery(state, id, predicate.query, context));
+    }
+    case "gameStep":
+      return state.step.phase === predicate.phase && (predicate.step === undefined || state.step.kind === predicate.step);
   }
 }
 
@@ -276,6 +486,8 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
 export function activeAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
+  // A facedown card's own text is blank while it is facedown.
+  if (getInstance(state, id)?.facedownAs) return [];
   if (card.type === "hero_identity") {
     const player = state.players.find((p) => p.identity.instanceId === id);
     if (!player) return [];
@@ -294,12 +506,19 @@ export function activeAbilityRefs(state: GameState, id: InstanceId): readonly Ab
 export function printedAbilityRefs(card: AnyCard): readonly AbilityReference[] {
   if (card.type === "hero_identity") return [...card.hero.abilities, ...card.alterEgo.abilities];
   if (card.type === "villain") return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities));
-  if (card.type === "main_scheme") return card.stages.flatMap((stage) => stage.abilities);
+  if (card.type === "main_scheme") {
+    return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities]);
+  }
   return "abilities" in card ? card.abilities : [];
 }
 
+/** The A-side abilities of the main scheme's current stage (1A setup / NA When Revealed). */
+export function mainSchemeASideRefs(state: GameState): readonly AbilityReference[] {
+  return mainSchemeStage(state).aSide.abilities;
+}
+
 /** RRG "Restricted": the limit is two per *player*, across every card they control. */
-export const restrictedCardsOf = (state: GameState, playerId: PlayerId): readonly InstanceId[] =>
+export const restrictedCardsOf = (state: GameState, playerId: PlayerId, deps: EngineDeps = DEFAULT_DEPS): readonly InstanceId[] =>
   cardsInPlay(state).filter(
-    (id) => controllerOf(state, id) === playerId && hasKeyword(state, id, "restricted"),
+    (id) => controllerOf(state, id) === playerId && hasKeyword(state, id, "restricted", deps),
   );

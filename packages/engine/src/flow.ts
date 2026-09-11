@@ -1,11 +1,14 @@
 import type { ChoiceOption } from "./choices.js";
 import { emit, requestChoice, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
-import { dealEncounterCardTo, drawCards, readyCard } from "./effects.js";
+import { dealEncounterCardTo, drawCards, endLastingEffect, expireLastingEffects, readyCard } from "./effects.js";
+import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { statusActive } from "./keywords.js";
 import {
   cardOf,
+  characterProfile,
+  isMinion,
   countSchemeIcons,
   getPlayer,
   handSize,
@@ -16,7 +19,7 @@ import {
   playerOrder,
   scale,
 } from "./query.js";
-import { announce, clearAbilityUses, executeFrame, pushEvent, pushRevealFrame } from "./resolve.js";
+import { announce, clearAbilityUses, executeFrame, pushEffects, pushEvent, pushRevealFrame } from "./resolve.js";
 import { describeFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
 
@@ -72,7 +75,7 @@ function executeStep(ctx: Ctx): void {
     case "passFirstPlayer":
       return executePassFirstPlayer(ctx);
     case "endOfRound":
-      return executeEndOfRound(ctx);
+      return executeEndOfRound(ctx, step);
     case "gameOver":
       return;
   }
@@ -216,6 +219,7 @@ function executeEndPhaseReady(ctx: Ctx): void {
   readyCard(ctx, ctx.state.villain.instanceId);
   setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
+  expireLastingEffects(ctx, "endOfPhase");
   announce(ctx, { kind: "playerPhaseEnded" });
 }
 
@@ -267,9 +271,7 @@ function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind: "enem
     activateEnemy(ctx, ctx.state.villain.instanceId, current.playerId);
     return;
   }
-  const minions = current.playArea.filter(
-    (id) => cardOf(ctx.state, id)?.type === "minion" && !activatedMinionIds.includes(id),
-  );
+  const minions = current.playArea.filter((id) => isMinion(ctx.state, id) && !activatedMinionIds.includes(id));
   const [only] = minions;
   if (minions.length === 1 && only) {
     setStep(ctx, { ...step, activatedMinionIds: [...activatedMinionIds, only] });
@@ -305,9 +307,12 @@ export function activateChosenMinion(ctx: Ctx, minionId: InstanceId): void {
 // RRG "Activation": attack a player in hero form, scheme against a player in alter-ego form.
 export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
+  const missing = characterProfile(ctx.state, enemyId, ctx.deps)?.missing ?? [];
   if (player.identity.form === "hero") {
     emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation: "attack", playerId });
-    if (statusActive(ctx.state, enemyId, "stunned")) {
+    // A printed "—" ATK: this enemy cannot attack, so the activation does nothing.
+    if (missing.includes("atk")) return;
+    if (statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
       // RRG "Stun": a stunned enemy discards the status instead of attacking.
       updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
       emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "stunned", reason: "cancelledAttack" });
@@ -323,7 +328,8 @@ export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId)
     return;
   }
   emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation: "scheme", playerId });
-  if (statusActive(ctx.state, enemyId, "confused")) {
+  if (missing.includes("sch")) return;
+  if (statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
     // RRG "Confuse": a confused enemy discards the status instead of scheming.
     updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));
     emit(ctx, { type: "statusRemoved", instanceId: enemyId, status: "confused", reason: "cancelledSchemeOrThwart" });
@@ -372,7 +378,27 @@ function executePassFirstPlayer(ctx: Ctx): void {
   setStep(ctx, { phase: "villain", kind: "endOfRound" });
 }
 
-function executeEndOfRound(ctx: Ctx): void {
+/**
+ * RRG "Lasting Effects": "until the end of the round" effects expire just
+ * before "at the end of the round" delayed effects initiate. The delayed
+ * effects resolve through the stack, then the round actually ends.
+ */
+function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound" }>): void {
+  if (!step.delayedResolved) {
+    const delayed = ctx.state.lastingEffects.filter(
+      (effect): effect is Extract<LastingEffect, { kind: "delayedEffects" }> =>
+        effect.kind === "delayedEffects" && effect.duration.kind === "endOfRound",
+    );
+    // The villain phase and the round end together.
+    expireLastingEffects(ctx, "endOfPhase");
+    expireLastingEffects(ctx, "endOfRound");
+    for (const effect of delayed) endLastingEffect(ctx, effect.id, "fired");
+    setStep(ctx, { phase: "villain", kind: "endOfRound", delayedResolved: true });
+    for (const effect of [...delayed].reverse()) {
+      pushEffects(ctx, { effects: effect.effects, ...effect.scope });
+    }
+    return;
+  }
   for (const player of ctx.state.players) {
     updatePlayer(ctx, player.playerId, (p) => ({
       ...p,

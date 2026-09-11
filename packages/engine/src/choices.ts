@@ -1,5 +1,6 @@
 import type { AbilityId } from "@mc/content";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { ResourceRequirement } from "./resources.js";
 import type { WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 
@@ -26,6 +27,13 @@ export type ChoicePrompt =
   | { readonly kind: "chooseTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
   | { readonly kind: "chooseTarget"; readonly slot: string; readonly abilityId: AbilityId | null }
   | { readonly kind: "chooseAttachmentTarget"; readonly instanceId: InstanceId }
+  /** Cards outside play (a look at the top of a deck, a search, a discard pile). */
+  | { readonly kind: "chooseCards"; readonly slot: string }
+  /** "Choose one" among labeled options; option ids are the option indexes. */
+  | { readonly kind: "chooseOption" }
+  | { readonly kind: "choosePlayer"; readonly slot: string }
+  /** Order the Special abilities of a sequence (Wakanda Forever!). */
+  | { readonly kind: "orderSpecials" }
   /** Paying for an interrupt/response event played from hand inside a timing window. */
   | {
       readonly kind: "payForCard";
@@ -33,6 +41,21 @@ export type ChoicePrompt =
       readonly abilityId: AbilityId;
       readonly cost: number;
     }
+  /**
+   * An optional in-play interrupt/response whose cost includes resources
+   * (Black Widow: "exhaust Black Widow and spend a [mental] resource →").
+   * Selecting nothing (or too little) declines to trigger it.
+   */
+  | {
+      readonly kind: "payForAbility";
+      readonly instanceId: InstanceId;
+      readonly abilityId: AbilityId;
+      readonly cost: number;
+    }
+  /** An effect asks for a payment ("either spend [E][M][P] resources or …"). Selecting nothing (or too little) declines. */
+  | { readonly kind: "spendResources"; readonly requirement: ResourceRequirement }
+  /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
+  | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
   /** RRG "Restricted": the controller discards down to two restricted cards. */
   | { readonly kind: "discardRestricted"; readonly limit: number };
 

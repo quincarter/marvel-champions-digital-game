@@ -51,7 +51,11 @@ test("the attacked player may defend with another player's hero or ally", () => 
 
   // RRG p.9: a defender controlled by another player becomes the target of the attack.
   const defended = resolvePending(atDefense, [allyForP2]);
-  expect(mustInstance(defended, allyForP2).damage).toBeGreaterThan(0);
+  // The ally took the attack: it is either still in play with damage or was defeated by it
+  // (a defeated card is discarded and its damage cleared, RRG "Defeat").
+  const allyHit =
+    mustInstance(defended, allyForP2).damage > 0 || mustPlayer(defended, p2).discard.includes(allyForP2);
+  expect(allyHit).toBe(true);
   expect(mustInstance(defended, mustPlayer(defended, p1).identity.instanceId).damage).toBe(0);
 });
 
@@ -108,7 +112,7 @@ test("keeping the opening hand costs nothing and starts round 1", () => {
 
 // RRG "Attach To": an attachment with no legal target is discarded.
 test("a player-side attachment with no legal target is discarded on reveal", () => {
-  const attachment = stubAttachment({ id: "shackles", attachesTo: "ally" });
+  const attachment = stubAttachment({ id: "shackles", attachesTo: { kind: "ally" } });
   const start = newGame({
     villain: VILLAIN,
     mainScheme: SCHEME,
@@ -123,7 +127,7 @@ test("a player-side attachment with no legal target is discarded on reveal", () 
 });
 
 test("a player-side attachment asks the revealing player to choose its host", () => {
-  const attachment = stubAttachment({ id: "shackles", attachesTo: "any_character" });
+  const attachment = stubAttachment({ id: "shackles", attachesTo: { kind: "anyCharacter" } });
   const start = newGame({
     players: 2,
     villain: VILLAIN,

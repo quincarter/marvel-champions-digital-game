@@ -14,6 +14,7 @@ export type ScenarioId = Brand<string, "ScenarioId">;
 export type CampaignId = Brand<string, "CampaignId">;
 export type AbilityId = Brand<string, "AbilityId">;
 export type ArtRef = Brand<string, "ArtRef">;
+export type StarterDeckId = Brand<string, "StarterDeckId">;
 
 export const cardId = (value: string): CardId => value as CardId;
 export const setCode = (value: string): SetCode => value as SetCode;
@@ -22,6 +23,7 @@ export const encounterSetId = (value: string): EncounterSetId => value as Encoun
 export const scenarioId = (value: string): ScenarioId => value as ScenarioId;
 export const campaignId = (value: string): CampaignId => value as CampaignId;
 export const abilityId = (value: string): AbilityId => value as AbilityId;
+export const starterDeckId = (value: string): StarterDeckId => value as StarterDeckId;
 
 /**
  * An art reference is a local lookup key (e.g. a content-hash or a path key

@@ -14,6 +14,19 @@ export interface ScalingValue {
 
 export const flat = (base: number): ScalingValue => ({ base, perPlayer: 0 });
 export const perPlayerOnly = (perPlayer: number): ScalingValue => ({ base: 0, perPlayer });
+/** A fixed part plus a per-player part, e.g. "2 + 1 per player" → `scaling(2, 1)`. */
+export const scaling = (base: number, perPlayer: number): ScalingValue => ({ base, perPlayer });
+
+/**
+ * A printed stat that can be a dash or an X:
+ * - a number is the printed value;
+ * - `"X"` is defined by the card's own ability (the engine treats the base as 0
+ *   and the card's constant ability supplies the value — Titania: "X is equal
+ *   to Titania's remaining hit points");
+ * - `null` is a printed "—": the character has no such stat and cannot use that
+ *   power at all (Hulk's THW), which is not the same as a 0.
+ */
+export type PrintedStat = number | "X" | null;
 
 export type ResourceIconType = "physical" | "mental" | "energy" | "wild";
 

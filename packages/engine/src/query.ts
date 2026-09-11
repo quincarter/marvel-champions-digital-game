@@ -2,6 +2,7 @@ import type {
   AnyCard,
   CardId,
   MainSchemeStage,
+  PrintedStat,
   ScalingValue,
   SchemeIcon,
   VillainStage,
@@ -9,7 +10,7 @@ import type {
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import { EngineInvariantError } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { statBonus } from "./modifiers.js";
+import { baseOverride, statBonus } from "./modifiers.js";
 import type { CardInstance, GameState, PlayerState, ZoneId } from "./state.js";
 
 export const scale = (value: ScalingValue, playerCount: number): number =>
@@ -105,10 +106,23 @@ export function mainSchemeStageCount(state: GameState): number {
   return card.type === "main_scheme" ? card.stages.length : 0;
 }
 
+/** A minion in play: a minion card, or a card facedown as a minion (a facedown Drone). */
+export function isMinion(state: GameState, id: InstanceId): boolean {
+  const instance = state.instances[id];
+  if (!instance) return false;
+  if (instance.facedownAs?.kind === "minion") return true;
+  return state.cardPool[instance.cardId]?.type === "minion";
+}
+
 export type CharacterKind = "identity" | "ally" | "minion" | "villain";
 
 export interface CharacterProfile {
   readonly kind: CharacterKind;
+  /**
+   * Stats printed as "—": the character cannot use that power at all (RRG — a
+   * dash is not a 0). A missing ATK can't attack, THW can't thwart, SCH can't scheme.
+   */
+  readonly missing: readonly ("atk" | "thw" | "sch")[];
   readonly atk: number;
   readonly thw: number;
   readonly def: number;
@@ -128,24 +142,35 @@ export function characterProfile(
 ): CharacterProfile | undefined {
   const printed = printedProfile(state, id);
   if (!printed) return undefined;
+  // A base override ("has a base ATK of 1") replaces the printed value before modifiers apply.
   const bump = (stat: "atk" | "thw" | "def" | "rec" | "sch", value: number): number =>
-    Math.max(0, value + statBonus(state, deps, id, stat));
+    Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
   return {
     kind: printed.kind,
+    missing: printed.missing,
     atk: bump("atk", printed.atk),
     thw: bump("thw", printed.thw),
     def: bump("def", printed.def),
     rec: bump("rec", printed.rec),
     sch: bump("sch", printed.sch),
-    maxHp: Math.max(0, printed.maxHp + statBonus(state, deps, id, "hp")),
+    maxHp: Math.max(0, (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp")),
   };
 }
+
+/** "X" is defined by the card's own ability (base 0 here); "—" is 0 plus a `missing` entry. */
+const statValue = (value: PrintedStat): number => (typeof value === "number" ? value : 0);
+const dashes = (stats: Readonly<Record<"atk" | "thw" | "sch", PrintedStat | undefined>>): ("atk" | "thw" | "sch")[] =>
+  (["atk", "thw", "sch"] as const).filter((stat) => stats[stat] === null);
 
 export function printedProfile(state: GameState, id: InstanceId): CharacterProfile | undefined {
   const instance = getInstance(state, id);
   if (!instance) return undefined;
   const card = getCard(state, instance.cardId);
   if (!card) return undefined;
+  // A facedown minion has no printed stats of its own (card abilities set its base values).
+  if (instance.facedownAs?.kind === "minion") {
+    return { kind: "minion", missing: [], atk: 0, thw: 0, def: 0, rec: 0, sch: 0, maxHp: 0 };
+  }
 
   if (card.type === "hero_identity") {
     const player = state.players.find((p) => p.identity.instanceId === id);
@@ -153,19 +178,38 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
     const hero = card.hero;
     const alterEgo = card.alterEgo;
     return player.identity.form === "hero"
-      ? { kind: "identity", atk: hero.atk, thw: hero.thw, def: hero.def, rec: 0, sch: 0, maxHp: card.hp }
-      : { kind: "identity", atk: 0, thw: 0, def: 0, rec: alterEgo.rec, sch: 0, maxHp: card.hp };
+      ? { kind: "identity", missing: [], atk: hero.atk, thw: hero.thw, def: hero.def, rec: 0, sch: 0, maxHp: card.hp }
+      : { kind: "identity", missing: [], atk: 0, thw: 0, def: 0, rec: alterEgo.rec, sch: 0, maxHp: card.hp };
   }
   if (card.type === "ally") {
-    return { kind: "ally", atk: card.atk, thw: card.thw, def: 0, rec: 0, sch: 0, maxHp: card.hp };
+    return {
+      kind: "ally",
+      missing: dashes({ atk: card.atk, thw: card.thw, sch: 0 }),
+      atk: statValue(card.atk),
+      thw: statValue(card.thw),
+      def: 0,
+      rec: 0,
+      sch: 0,
+      maxHp: card.hp,
+    };
   }
   if (card.type === "minion") {
-    return { kind: "minion", atk: card.atk, thw: 0, def: 0, rec: 0, sch: card.sch, maxHp: card.hp };
+    return {
+      kind: "minion",
+      missing: dashes({ atk: card.atk, thw: 0, sch: card.sch }),
+      atk: statValue(card.atk),
+      thw: 0,
+      def: 0,
+      rec: 0,
+      sch: statValue(card.sch),
+      maxHp: card.hp,
+    };
   }
   if (card.type === "villain" && id === state.villain.instanceId) {
     const stage = villainStage(state);
     return {
       kind: "villain",
+      missing: [],
       atk: stage.atk,
       thw: 0,
       def: 0,
@@ -177,15 +221,30 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
   return undefined;
 }
 
+/** Max hit points only (printed + HP modifiers) — reading it never evaluates ATK/THW/SCH modifiers. */
+export function maxHitPoints(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): number | undefined {
+  const printed = printedProfile(state, id);
+  if (!printed) return undefined;
+  return Math.max(0, (baseOverride(state, deps, id, "hp") ?? printed.maxHp) + statBonus(state, deps, id, "hp"));
+}
+
 export function remainingHitPoints(
   state: GameState,
   id: InstanceId,
   deps: EngineDeps = DEFAULT_DEPS,
 ): number | undefined {
-  const profile = characterProfile(state, id, deps);
+  const max = maxHitPoints(state, id, deps);
   const instance = getInstance(state, id);
-  if (!profile || !instance) return undefined;
-  return profile.maxHp - instance.damage;
+  if (max === undefined || !instance) return undefined;
+  return max - instance.damage;
+}
+
+/** The hand size printed on the player's current face, without modifiers. */
+export function printedHandSize(state: GameState, playerId: PlayerId): number {
+  const player = mustPlayer(state, playerId);
+  const card = mustCard(state, player.identity.cardId);
+  if (card.type !== "hero_identity") throw new EngineInvariantError("identity card is not an identity");
+  return player.identity.form === "hero" ? card.hero.handSize : card.alterEgo.handSize;
 }
 
 export function handSize(
@@ -222,7 +281,7 @@ export function countSchemeIcons(state: GameState, icon: SchemeIcon): number {
 export function minionsEngagedWith(state: GameState, playerId: PlayerId): readonly InstanceId[] {
   const player = getPlayer(state, playerId);
   if (!player) return [];
-  return player.playArea.filter((id) => cardOf(state, id)?.type === "minion");
+  return player.playArea.filter((id) => isMinion(state, id));
 }
 
 export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceId[] {
@@ -237,6 +296,12 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
       return mustPlayer(state, zone.playerId).playArea;
     case "dealtEncounter":
       return mustPlayer(state, zone.playerId).dealtEncounter;
+    case "resolving":
+      return mustPlayer(state, zone.playerId).resolving;
+    case "setAside":
+      return mustPlayer(state, zone.playerId).setAside;
+    case "tucked":
+      return mustInstance(state, zone.hostInstanceId).tucked;
     case "identity":
       return [mustPlayer(state, zone.playerId).identity.instanceId];
     case "encounterDeck":
@@ -265,6 +330,8 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
     if (player.discard.includes(id)) return { kind: "discard", playerId: player.playerId };
     if (player.playArea.includes(id)) return { kind: "playArea", playerId: player.playerId };
     if (player.dealtEncounter.includes(id)) return { kind: "dealtEncounter", playerId: player.playerId };
+    if (player.resolving.includes(id)) return { kind: "resolving", playerId: player.playerId };
+    if (player.setAside.includes(id)) return { kind: "setAside", playerId: player.playerId };
   }
   if (state.encounterDeck.includes(id)) return { kind: "encounterDeck" };
   if (state.encounterDiscard.includes(id)) return { kind: "encounterDiscard" };
@@ -275,6 +342,7 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
   if (instance?.attachedTo) return { kind: "attachment", hostInstanceId: instance.attachedTo };
   for (const host of Object.values(state.instances)) {
     if (host.boostCards.includes(id)) return { kind: "boost", hostInstanceId: host.instanceId };
+    if (host.tucked.includes(id)) return { kind: "tucked", hostInstanceId: host.instanceId };
   }
   return null;
 }

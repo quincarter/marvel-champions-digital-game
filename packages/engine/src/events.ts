@@ -4,6 +4,8 @@ import type { PendingChoice } from "./choices.js";
 import type { Form, GameOutcome, GameStep, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
+import type { LastingEffect } from "./lasting.js";
+import type { ResourcePool } from "./resources.js";
 
 export type GameEvent =
   | { readonly type: "gameCreated"; readonly playerIds: readonly PlayerId[]; readonly firstPlayerId: PlayerId; readonly seed: number }
@@ -15,12 +17,15 @@ export type GameEvent =
   | { readonly type: "cardMoved"; readonly instanceId: InstanceId; readonly cardId: CardId; readonly from: ZoneId; readonly to: ZoneId }
   | { readonly type: "cardDrawn"; readonly playerId: PlayerId; readonly instanceId: InstanceId }
   | { readonly type: "cardDiscardedFromHand"; readonly playerId: PlayerId; readonly instanceId: InstanceId }
-  | { readonly type: "cardPlayed"; readonly playerId: PlayerId; readonly instanceId: InstanceId; readonly cardId: CardId; readonly resourcesPaid: number }
+  | { readonly type: "cardPlayed"; readonly playerId: PlayerId; readonly instanceId: InstanceId; readonly cardId: CardId; readonly resourcesPaid: number; readonly paid: ResourcePool }
   | { readonly type: "cardExhausted"; readonly instanceId: InstanceId }
   | { readonly type: "cardReadied"; readonly instanceId: InstanceId }
-  | { readonly type: "formChanged"; readonly playerId: PlayerId; readonly to: Form }
+  | { readonly type: "formChanged"; readonly playerId: PlayerId; readonly to: Form; readonly byEffect?: boolean }
   | { readonly type: "damageDealt"; readonly targetInstanceId: InstanceId; readonly amount: number; readonly sourceInstanceId: InstanceId | null }
-  | { readonly type: "damagePrevented"; readonly targetInstanceId: InstanceId; readonly amount: number; readonly reason: "tough" | "cancelled" }
+  | { readonly type: "damagePrevented"; readonly targetInstanceId: InstanceId; readonly amount: number; readonly reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage" }
+  | { readonly type: "threatPrevented"; readonly schemeInstanceId: InstanceId; readonly amount: number }
+  | { readonly type: "damagePlaced"; readonly targetInstanceId: InstanceId; readonly amount: number; readonly sourceInstanceId: InstanceId | null }
+  | { readonly type: "revealCancelled"; readonly instanceId: InstanceId; readonly scope: "whenRevealed" | "allEffects" }
   | { readonly type: "damageHealed"; readonly targetInstanceId: InstanceId; readonly amount: number }
   | { readonly type: "statusRemoved"; readonly instanceId: InstanceId; readonly status: "stunned" | "confused" | "tough"; readonly reason: "cancelledAttack" | "cancelledSchemeOrThwart" | "preventedDamage" | "piercing" | "effect" }
   | { readonly type: "threatPlaced"; readonly schemeInstanceId: InstanceId; readonly amount: number; readonly sourceInstanceId: InstanceId | null }
@@ -59,13 +64,18 @@ export type GameEvent =
     }
   | { readonly type: "abilityUseRecorded"; readonly instanceId: InstanceId; readonly abilityId: AbilityId; readonly uses: number }
   | { readonly type: "targetChosen"; readonly slot: string; readonly instanceIds: readonly InstanceId[] }
-  | { readonly type: "resourcesGenerated"; readonly playerId: PlayerId; readonly instanceId: InstanceId; readonly abilityId: AbilityId; readonly amount: number }
+  | { readonly type: "resourcesGenerated"; readonly playerId: PlayerId; readonly instanceId: InstanceId; readonly abilityId: AbilityId; readonly amount: number; readonly pool: ResourcePool }
   | { readonly type: "counterAdded"; readonly instanceId: InstanceId; readonly counterType: string; readonly amount: number }
   | { readonly type: "counterRemoved"; readonly instanceId: InstanceId; readonly counterType: string; readonly amount: number }
   | { readonly type: "statusGiven"; readonly instanceId: InstanceId; readonly status: "stunned" | "confused" | "tough" }
   | { readonly type: "cardDiscardedFromPlay"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "overkillSpilled"; readonly fromInstanceId: InstanceId; readonly toInstanceId: InstanceId; readonly amount: number }
   | { readonly type: "surgeTriggered"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  | { readonly type: "optionChosen"; readonly label: string; readonly index: number }
+  | { readonly type: "cardPutIntoPlayFacedown"; readonly instanceId: InstanceId; readonly playerId: PlayerId; readonly as: "minion" }
+  | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
+  | { readonly type: "lastingEffectEnded"; readonly id: string; readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" }
+  | { readonly type: "threatRemovalBlocked"; readonly schemeInstanceId: InstanceId; readonly reason: "crisis" | "rule" }
   | { readonly type: "gameEnded"; readonly outcome: GameOutcome };
 
 export type GameEventType = GameEvent["type"];

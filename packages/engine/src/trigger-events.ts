@@ -1,4 +1,5 @@
-import type { InstanceId, PlayerId } from "./ids.js";
+import type { FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { Vars } from "./stack.js";
 
 /**
  * Something that happens in the game and that abilities can hook. Every one of
@@ -6,14 +7,20 @@ import type { InstanceId, PlayerId } from "./ids.js";
  * when it resolves through the stack (RRG "Ability: Simultaneous Timing
  * Priority").
  */
-export type TriggerEvent =
+export type TriggerEventBody =
   | {
       readonly kind: "dealDamage";
       readonly targetInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
-      /** Damage from an attack; defense, retaliate and overkill (slice 3) key off this. */
+      /** Damage from an attack; defense, retaliate and overkill key off this. */
       readonly fromAttack: boolean;
+      /** The attack/activation event frame this damage belongs to; damage/defeat results are reported there. */
+      readonly parentFrameId?: FrameId | null;
+      /** This attack has overkill even if its source lacks the keyword (Relentless Assault, Charge). */
+      readonly overkill?: boolean;
+      /** The card whose ability produced this damage when that isn't the source ("damage from Black Panther upgrades"). */
+      readonly viaInstanceId?: InstanceId | null;
     }
   | { readonly kind: "healDamage"; readonly targetInstanceId: InstanceId; readonly amount: number }
   | {
@@ -21,24 +28,44 @@ export type TriggerEvent =
       readonly schemeInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
+      readonly parentFrameId?: FrameId | null;
     }
   | {
       readonly kind: "removeThreat";
       readonly schemeInstanceId: InstanceId;
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
+      readonly parentFrameId?: FrameId | null;
     }
   | {
       readonly kind: "attack";
       readonly attackerInstanceId: InstanceId;
       readonly targetInstanceId: InstanceId;
       readonly playerId: PlayerId;
+      /** Damage for an "(attack)" ability; absent/null = the attacker's ATK (a basic attack). */
+      readonly amount?: number | null;
+      readonly basic?: boolean;
+      readonly overkill?: boolean;
+      /** The card whose ability made this attack (the event card for "Hero Action (attack)"). */
+      readonly sourceInstanceId?: InstanceId | null;
     }
   | {
       readonly kind: "thwart";
       readonly thwarterInstanceId: InstanceId;
       readonly schemeInstanceId: InstanceId;
       readonly playerId: PlayerId;
+      /** Threat removed by a "(thwart)" ability; absent/null = the thwarter's THW (a basic thwart). */
+      readonly amount?: number | null;
+      readonly basic?: boolean;
+      readonly sourceInstanceId?: InstanceId | null;
+    }
+  /** A defender was declared (basic defense) or a "(defense)" ability made the identity the defender. */
+  | {
+      readonly kind: "defended";
+      readonly defenderInstanceId: InstanceId;
+      readonly enemyInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly basic: boolean;
     }
   | {
       readonly kind: "enemyAttack";
@@ -48,6 +75,8 @@ export type TriggerEvent =
       /** The player who ends up targeted — changes if another player defends. */
       readonly targetPlayerId: PlayerId;
       readonly targetInstanceId: InstanceId;
+      /** The same attack resolved against another player (Whirlwind): the attacker's "when it attacks" abilities don't re-trigger. */
+      readonly additionalResolution?: boolean;
     }
   | { readonly kind: "enemyScheme"; readonly enemyInstanceId: InstanceId; readonly playerId: PlayerId }
   /**
@@ -65,13 +94,41 @@ export type TriggerEvent =
   | { readonly kind: "cardEntersPlay"; readonly instanceId: InstanceId; readonly playerId: PlayerId | null }
   | { readonly kind: "cardPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly kind: "cardRevealed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
-  | { readonly kind: "characterDefeated"; readonly instanceId: InstanceId }
+  /**
+   * An ally or minion at 0 hit points is being defeated. Interruptible ("when
+   * attached minion would be defeated … instead", "when attached minion is
+   * defeated"); the card leaves play when it applies. `overkill` carries excess
+   * damage from an overkill attack, dealt only if the defeat happens.
+   */
+  | {
+      readonly kind: "characterDefeated";
+      readonly instanceId: InstanceId;
+      readonly parentFrameId?: FrameId | null;
+      readonly overkill?: { readonly amount: number; readonly toInstanceId: InstanceId; readonly sourceInstanceId: InstanceId | null };
+      /**
+       * The player whose card dealt the defeating damage ("after *you* defeat a
+       * minion"), when the defeat came from a damage event with a player-controlled
+       * source. It is the event's player subject, so `playerIs: "controller"` matches it.
+       */
+      readonly defeatedByPlayerId?: PlayerId | null;
+    }
+  /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
+  | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly kind: "schemeDefeated"; readonly instanceId: InstanceId }
   | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number }
   | { readonly kind: "mainSchemeAdvanced"; readonly stageIndex: number }
   | { readonly kind: "turnStarted"; readonly playerId: PlayerId }
+  /** A player changed form (by the once-per-round flip or a card effect): "after you change to this form". */
+  | { readonly kind: "formChanged"; readonly playerId: PlayerId; readonly to: "hero" | "alterEgo" }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" };
+
+/**
+ * `results` is attached when the event's response window opens: what the event
+ * actually did (`amount`, and for attacks/activations `damage`, `damaged`,
+ * `defeated`, `undefended`, `threatPlaced`, `threatRemoved`).
+ */
+export type TriggerEvent = TriggerEventBody & { readonly results?: Vars };
 
 export type TriggerEventKind = TriggerEvent["kind"];
 
@@ -91,6 +148,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "enemyAttack":
     case "enemyScheme":
     case "characterAttacked":
+    case "characterDefeated":
+    case "encounterCardRevealing":
       return false;
     default:
       return true;
@@ -137,14 +196,19 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.enemyInstanceId], [], [event.playerId]);
     case "characterAttacked":
       return of([event.attackerInstanceId], [event.targetInstanceId], [event.playerId]);
+    case "defended":
+      return of([event.enemyInstanceId], [event.defenderInstanceId], [event.playerId]);
     case "cardEntersPlay":
     case "cardPlayed":
     case "cardRevealed":
+    case "encounterCardRevealing":
       return of([event.instanceId], [event.instanceId], [event.playerId]);
     case "characterDefeated":
+      return of([], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "schemeDefeated":
       return of([], [event.instanceId], []);
     case "turnStarted":
+    case "formChanged":
       return of([], [], [event.playerId]);
     default:
       return of([], [], []);

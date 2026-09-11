@@ -35,6 +35,24 @@ export const candidateOf = (source: AbilitySource, forced: boolean): TriggerCand
 /** Slot bindings produced by `chooseTarget`, carried through an effect program. */
 export type Bindings = Readonly<Record<string, readonly InstanceId[]>>;
 
+/** Named numbers bound while an ability resolves (cost results, "X", paid resources, effect results). */
+export type Vars = Readonly<Record<string, number>>;
+
+/** Where an event frame reports its results when it finishes: `<prefix>.<key>` is added to that frame's vars. */
+export interface ReportTarget {
+  readonly frameId: FrameId;
+  readonly prefix: string;
+}
+
+/** Effects waiting for a timing point ("at the end of this attack"), with the context that created them. */
+export interface DeferredEffects {
+  readonly effects: readonly EffectSpec[];
+  readonly selfInstanceId: InstanceId | null;
+  readonly controllerId: PlayerId | null;
+  readonly bindings: Bindings;
+  readonly vars: Vars;
+}
+
 interface FrameBase {
   readonly frameId: FrameId;
   /** Selections fed back by `resolveChoice`; the frame reads and clears it. */
@@ -48,6 +66,13 @@ export type StackFrame =
       readonly event: TriggerEvent;
       readonly stage: "interrupts" | "apply" | "responses" | "done";
       readonly cancelled: boolean;
+      /** Results accumulated while the event resolves (see `TriggerEvent.results`). */
+      readonly vars: Vars;
+      /** Cards the event's results name (`damaged`, `target`), reported as slots like `vars`. */
+      readonly slots: Bindings;
+      readonly reportTo: ReportTarget | null;
+      /** "At the end of this attack" effects, run after the response window. */
+      readonly endEffects: readonly DeferredEffects[];
     })
   /** Gathers, orders, and runs the triggered abilities for one timing window. */
   | (FrameBase & {
@@ -73,6 +98,9 @@ export type StackFrame =
       readonly controllerId: PlayerId | null;
       readonly event: TriggerEvent | null;
       readonly eventFrameId: FrameId | null;
+      /** What paying the ability's cost bound (chosen cards, X, paid resources). */
+      readonly bindings: Bindings;
+      readonly vars: Vars;
     })
   /** Runs an `EffectSpec` program with a cursor and slot bindings. */
   | (FrameBase & {
@@ -80,6 +108,9 @@ export type StackFrame =
       readonly effects: readonly EffectSpec[];
       readonly cursor: number;
       readonly bindings: Bindings;
+      readonly vars: Vars;
+      /** "That player" inside `forEachPlayer`. */
+      readonly scopedPlayerId: PlayerId | null;
       readonly selfInstanceId: InstanceId | null;
       readonly controllerId: PlayerId | null;
       readonly event: TriggerEvent | null;
@@ -93,8 +124,12 @@ export type StackFrame =
       readonly targetPlayerId: PlayerId;
       readonly targetInstanceId: InstanceId;
       readonly defenderInstanceId: InstanceId | null;
+      /** A defender declared in the Declare Defender step (DEF reduces damage); false for a "(defense)" ability. */
+      readonly basicDefense: boolean;
       readonly boostIcons: number;
       readonly stage: "giveBoost" | "declareDefender" | "flipBoosts" | "dealDamage" | "done";
+      /** The `enemyAttack` event frame this procedure belongs to. */
+      readonly eventFrameId: FrameId | null;
     })
   /** RRG "Scheme (Enemy Activation)". */
   | (FrameBase & {
@@ -103,12 +138,19 @@ export type StackFrame =
       readonly playerId: PlayerId;
       readonly boostIcons: number;
       readonly stage: "giveBoost" | "flipBoosts" | "placeThreat" | "done";
+      readonly eventFrameId: FrameId | null;
     })
   /** RRG "Reveal" steps 1–4. */
   | (FrameBase & {
       readonly kind: "reveal";
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
+      /** "Cancel its When Revealed effects" (incite and surge are When Revealed effects too). */
+      readonly whenRevealedCancelled: boolean;
+      /** "Cancel the effects of that card and discard it": it is still revealed, nothing else happens. */
+      readonly effectsCancelled: boolean;
+      /** "This card gains surge" resolved while it was being revealed. */
+      readonly surgeGained: boolean;
       readonly stage: "faceup" | "enterPlay" | "whenRevealed" | "finish" | "done";
     })
   /** RRG "Initiating Abilities" steps 6–7, after costs are paid. */
@@ -116,15 +158,34 @@ export type StackFrame =
       readonly kind: "playCard";
       readonly instanceId: InstanceId;
       readonly playerId: PlayerId;
+      /** Who controls the card once it's in play ("Play under any player's control"); usually `playerId`. */
+      readonly controllerId: PlayerId;
       readonly attachToInstanceId: InstanceId | null;
       readonly stage: "enterPlay" | "effects" | "discardEvent" | "done";
       /** Set when an event was played inside a timing window: only this ability resolves. */
       readonly triggeredAbilityId: AbilityId | null;
       readonly event: TriggerEvent | null;
       readonly eventFrameId: FrameId | null;
+      /** Cost results handed to the card's abilities (`paid.<type>`, discarded cards, …). */
+      readonly bindings: Bindings;
+      readonly vars: Vars;
     });
 
 export type StackFrameKind = StackFrame["kind"];
+
+/**
+ * The event frame of the attack or activation currently resolving ("this
+ * attack", "this activation"): the topmost `attack` / `enemyAttack` /
+ * `enemyScheme` event on the stack.
+ */
+export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId | null {
+  for (const frame of stack) {
+    if (frame.kind !== "event") continue;
+    const kind = frame.event.kind;
+    if (kind === "attack" || kind === "enemyAttack" || kind === "enemyScheme" || kind === "thwart") return frame.frameId;
+  }
+  return null;
+}
 
 /** A client-facing summary of what is resolving and what is queued. */
 export interface StackView {

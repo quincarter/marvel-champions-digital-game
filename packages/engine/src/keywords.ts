@@ -1,6 +1,8 @@
 import type { KeywordInstance, KeywordName } from "@mc/content";
+import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
 import { cardOf, mainSchemeStage, villainStage } from "./query.js";
+import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
 import type { GameState } from "./state.js";
 
@@ -10,30 +12,65 @@ import type { GameState } from "./state.js";
  * single lookup layer; the rules themselves live where the relevant game action
  * is resolved (attacks in `select.ts`/`actions.ts`, damage in `resolve.ts`,
  * statuses and counters in `effects.ts`).
+ *
+ * `deps` lets keywords *gained* from constant abilities ("Klaw gains retaliate
+ * 1") count; without it only printed keywords are seen.
  */
-export function keywordsOf(state: GameState, id: InstanceId): readonly KeywordInstance[] {
+export function printedKeywordsOf(state: GameState, id: InstanceId): readonly KeywordInstance[] {
   const card = cardOf(state, id);
   if (!card) return [];
+  if (state.instances[id]?.facedownAs) return [];
   if (card.type === "villain") {
     return id === state.villain.instanceId ? villainStage(state).keywords : [];
   }
   if (card.type === "main_scheme") {
     return id === state.mainScheme.instanceId ? mainSchemeStage(state).keywords : [];
   }
+  if (card.type === "hero_identity") {
+    // Keywords are per face: read the face the identity is currently showing.
+    const player = state.players.find((p) => p.identity.instanceId === id);
+    if (!player) return [];
+    return player.identity.form === "hero" ? card.hero.keywords : card.alterEgo.keywords;
+  }
   return "keywords" in card ? card.keywords : [];
 }
 
-export const hasKeyword = (state: GameState, id: InstanceId, name: KeywordName): boolean =>
-  keywordsOf(state, id).some((keyword) => keyword.name === name);
+/** Keywords granted by constant abilities in play ("X gains retaliate 1"); RRG "Gains": not printed. */
+function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): readonly KeywordInstance[] {
+  if (Object.keys(deps.abilities).length === 0) return [];
+  const granted: KeywordInstance[] = [];
+  for (const sourceId of cardsInPlay(state)) {
+    for (const ref of activeAbilityRefs(state, sourceId)) {
+      const definition = deps.abilities[ref.id];
+      if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
+      const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
+      for (const grant of definition.trigger.keywordGrants) {
+        if (grant.while && !evaluate(state, grant.while, context)) continue;
+        if (matchesQuery(state, id, grant.target, context)) granted.push(grant.keyword);
+      }
+    }
+  }
+  return granted;
+}
+
+export function keywordsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly KeywordInstance[] {
+  const printed = printedKeywordsOf(state, id);
+  const granted = grantedKeywords(state, deps, id);
+  return granted.length === 0 ? printed : [...printed, ...granted];
+}
+
+export const hasKeyword = (state: GameState, id: InstanceId, name: KeywordName, deps: EngineDeps = DEFAULT_DEPS): boolean =>
+  keywordsOf(state, id, deps).some((keyword) => keyword.name === name);
 
 /** RRG "Keywords": repeated instances of a numbered keyword add their values together. */
 export function keywordTotal(
   state: GameState,
   id: InstanceId,
   name: "retaliate" | "incite" | "hinder" | "victory",
+  deps: EngineDeps = DEFAULT_DEPS,
 ): number {
   let total = 0;
-  for (const keyword of keywordsOf(state, id)) {
+  for (const keyword of keywordsOf(state, id, deps)) {
     if (keyword.name === name) total += keyword.value;
   }
   return total;
@@ -42,8 +79,9 @@ export function keywordTotal(
 export const usesKeyword = (
   state: GameState,
   id: InstanceId,
+  deps: EngineDeps = DEFAULT_DEPS,
 ): Extract<KeywordInstance, { name: "uses" }> | undefined =>
-  keywordsOf(state, id).find(
+  keywordsOf(state, id, deps).find(
     (keyword): keyword is Extract<KeywordInstance, { name: "uses" }> => keyword.name === "uses",
   );
 
@@ -51,17 +89,16 @@ export const usesKeyword = (
  * RRG "Status Cards": one of each type per character. Steady allows a second
  * stunned and a second confused; stalwart allows neither.
  */
-export function statusCapacity(state: GameState, id: InstanceId, status: StatusName): number {
+export function statusCapacity(state: GameState, id: InstanceId, status: StatusName, deps: EngineDeps = DEFAULT_DEPS): number {
   if (status === "tough") return 1;
-  if (hasKeyword(state, id, "stalwart")) return 0;
-  return hasKeyword(state, id, "steady") ? 2 : 1;
+  if (hasKeyword(state, id, "stalwart", deps)) return 0;
+  return hasKeyword(state, id, "steady", deps) ? 2 : 1;
 }
 
 /** RRG "Steady": a steady character is not stunned/confused until it holds two of that card. */
-export function statusActive(state: GameState, id: InstanceId, status: StatusName): boolean {
+export function statusActive(state: GameState, id: InstanceId, status: StatusName, deps: EngineDeps = DEFAULT_DEPS): boolean {
   const instance = state.instances[id];
   if (!instance) return false;
-  const needed = status === "tough" ? 1 : hasKeyword(state, id, "steady") ? 2 : 1;
+  const needed = status === "tough" ? 1 : hasKeyword(state, id, "steady", deps) ? 2 : 1;
   return instance.statuses[status] >= needed;
 }
-

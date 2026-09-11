@@ -11,8 +11,25 @@ import type { BaseCard } from "./base.js";
  */
 export type SchemeIcon = "crisis" | "hazard" | "acceleration";
 
+/**
+ * The A side of a main scheme stage: stage 1A carries the scenario's `Setup:`
+ * text, later A sides carry `When Revealed:` text that resolves when the main
+ * scheme advances to that stage. "Advance to stage NB" is implicit — the
+ * engine always continues onto the B side of the same stage.
+ */
+export interface MainSchemeASide {
+  readonly text: CardText;
+  readonly abilities: readonly AbilityReference[];
+}
+
+/**
+ * One main scheme stage (an A/B card pair). The top-level fields describe the
+ * B side (threat values, B-side text and abilities); `aSide` is the A side.
+ */
 export interface MainSchemeStage {
   readonly stageNumber: number;
+  /** The stage's own title when it differs from the card's (Klaw's stage 2 is "Secret Rendezvous"). */
+  readonly name?: string;
   /** Branching stages (e.g. "2a"/"2b") share a `stageNumber` and differ by letter. */
   readonly stageLetter?: string;
   /** Threat placed on this stage when it becomes active. */
@@ -26,6 +43,7 @@ export interface MainSchemeStage {
   readonly traits: readonly Trait[];
   readonly keywords: readonly KeywordInstance[];
   readonly abilities: readonly AbilityReference[];
+  readonly aSide: MainSchemeASide;
 }
 
 export interface MainSchemeCard extends BaseCard {

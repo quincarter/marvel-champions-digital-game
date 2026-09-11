@@ -155,10 +155,10 @@ const TOUGH_MINION = stubMinion({
 });
 const SURGE_TREACHERY = stubTreachery({ id: "pressure", boostIcons: 0, keywords: [{ name: "surge" }] });
 const FILLER = stubTreachery({ id: "filler", boostIcons: 0 });
-const SHACKLES = stubAttachment({ id: "shackles", attachesTo: "hero", boostIcons: 0 });
+const SHACKLES = stubAttachment({ id: "shackles", attachesTo: { kind: "hero" }, boostIcons: 0 });
 const HIDE = stubAttachment({
   id: "hide",
-  attachesTo: "villain",
+  attachesTo: { kind: "villain" },
   boostIcons: 0,
   keywords: [{ name: "setup" }],
   abilities: [REINFORCED_HIDE.ref],

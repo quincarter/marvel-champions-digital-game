@@ -200,3 +200,50 @@ export function defaultPick(state: GameState): readonly string[] {
   if (choice.prompt.kind === "declareDefender") return ["decline"];
   return choice.options.slice(0, choice.minSelections).map((o) => o.optionId);
 }
+
+/**
+ * Moves the first copy of `card` from `player`'s deck (or discard) into their
+ * hand. Test-only state surgery so a test doesn't depend on the shuffle.
+ */
+export function giveCard(
+  state: GameState,
+  player: PlayerId,
+  card: string,
+  exclude: readonly InstanceId[] = [],
+): { state: GameState; id: InstanceId } {
+  const wanted = cardId(card);
+  const owner = mustPlayer(state, player);
+  const matches = (i: InstanceId) => state.instances[i]?.cardId === wanted && !exclude.includes(i);
+  // A copy already in the opening hand counts, as long as it wasn't handed out already.
+  const inHand = owner.hand.find(matches);
+  if (inHand) return { state, id: inHand };
+  const id = owner.deck.find(matches) ?? owner.discard.find(matches);
+  if (!id) throw new Error(`${player} has no ${card} in hand, deck or discard`);
+  return {
+    id,
+    state: {
+      ...state,
+      players: state.players.map((p) =>
+        p.playerId === player
+          ? { ...p, deck: p.deck.filter((i) => i !== id), discard: p.discard.filter((i) => i !== id), hand: [...p.hand, id] }
+          : p,
+      ),
+    },
+  };
+}
+
+/** `giveCard` for several cards; returns the new state and the ids in order. */
+export function giveCards(
+  state: GameState,
+  player: PlayerId,
+  ...cards: readonly string[]
+): { state: GameState; ids: readonly InstanceId[] } {
+  let current = state;
+  const ids: InstanceId[] = [];
+  for (const card of cards) {
+    const given = giveCard(current, player, card, ids);
+    current = given.state;
+    ids.push(given.id);
+  }
+  return { state: current, ids };
+}

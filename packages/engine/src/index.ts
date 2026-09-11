@@ -8,6 +8,7 @@ export { createRng, nextInt, nextUint32, shuffle } from "./rng.js";
 
 export type {
   CardInstance,
+  FacedownRole,
   Form,
   GameOutcome,
   GameState,
@@ -30,18 +31,49 @@ export { EngineInvariantError } from "./errors.js";
 export type {
   AbilityCost,
   AbilityDefinition,
+  AbilityLabel,
   AbilityLimit,
   AbilityRegistry,
   AbilitySource,
   AbilityTriggerSpec,
+  CardZoneQuery,
   EngineDeps,
   EventPattern,
+  KeywordGrantSpec,
+  ResourceGeneration,
+  RuleSpec,
   StatModifierSpec,
+  TraitGrantSpec,
 } from "./abilities.js";
+
+export type { ResourcePool, ResourceRequirement, ResourceType, TypedResource } from "./resources.js";
+export {
+  addPools,
+  combineRequirements,
+  countUsableAs,
+  EMPTY_POOL,
+  paidWith,
+  poolOf,
+  poolTotal,
+  RESOURCE_TYPES,
+  satisfies,
+  TYPED_RESOURCES,
+} from "./resources.js";
+
+export type { LastingDuration, LastingEffect, LastingEffectBody, LastingReach, LastingScope } from "./lasting.js";
+export { allyLimitFor, cannotTakeDamage, mustDefendWithAlly, threatCannotBeRemoved } from "./rules.js";
+export { hasKeyword, keywordsOf, printedKeywordsOf } from "./keywords.js";
+export { printedResources } from "./resources.js";
+export type { CostChoices } from "./commands.js";
+export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
+export { currentActivationFrameId } from "./stack.js";
 export { abilityUseKey, DEFAULT_DEPS, NO_ABILITIES } from "./abilities.js";
 
 export type {
+  CardDestination,
+  CardSelector,
   EffectSpec,
+  LastingUntil,
   PlayerRef,
   Predicate,
   StatName,
@@ -62,7 +94,7 @@ export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
 export { modifiersFor, statBonus } from "./modifiers.js";
 
 export type { EffectContext } from "./select.js";
-export { cardsInPlay, categoriesOf, controllerOf, selectTargets } from "./select.js";
+export { canAttack, cardsInPlay, categoriesOf, controllerOf, matchesQuery, resolveValue, selectTargets, traitsOf } from "./select.js";
 
 export type { GameSetupConfig, PlayerSetup, SetupResult } from "./setup.js";
 export { createGame } from "./setup.js";
@@ -87,7 +119,10 @@ export {
   getInstance,
   getPlayer,
   handSize,
+  isMinion,
   isTerminal,
+  maxHitPoints,
+  printedHandSize,
   locateCard,
   mainSchemeStage,
   minionsEngagedWith,

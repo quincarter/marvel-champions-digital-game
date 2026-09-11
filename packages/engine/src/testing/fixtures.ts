@@ -1,13 +1,17 @@
 import {
   cardId,
   cycleId,
+  encounterSetId,
   flat,
   setCode,
   unerrataedText,
   type AbilityReference,
   type AllyCard,
+  type Aspect,
+  type ResourceIconCounts,
   type AttachmentCard,
-  type AttachmentTarget,
+  type AttachmentHost,
+  type PrintedStatModifiers,
   type SupportCard,
   type EventCard,
   type HeroIdentityCard,
@@ -15,6 +19,7 @@ import {
   type MainSchemeCard,
   type MainSchemeStage,
   type MinionCard,
+  type ObligationCard,
   type ResourceCard,
   type ScalingValue,
   type SchemeIcon,
@@ -23,6 +28,7 @@ import {
   type UpgradeCard,
   type VillainCard,
   type VillainStage,
+  type Trait,
 } from "@mc/content";
 
 const base = (id: string, name: string) => ({
@@ -49,13 +55,18 @@ export function stubIdentity(spec: {
   readonly alterEgoHandSize: number;
   readonly heroAbilities?: readonly AbilityReference[];
   readonly alterEgoAbilities?: readonly AbilityReference[];
+  readonly heroKeywords?: readonly KeywordInstance[];
+  readonly alterEgoKeywords?: readonly KeywordInstance[];
+  readonly heroTraits?: readonly Trait[];
 }): HeroIdentityCard {
   return {
     ...base(spec.id, spec.name ?? spec.id),
     type: "hero_identity",
     hp: spec.hp,
-    keywords: [],
+    obligationCardId: cardId(`${spec.id}-obligation`),
+    nemesisEncounterSetId: encounterSetId(`${spec.id}-nemesis`),
     hero: {
+      keywords: spec.heroKeywords ?? [],
       faceName: `${spec.name ?? spec.id} (hero)`,
       atk: spec.atk,
       thw: spec.thw,
@@ -63,10 +74,11 @@ export function stubIdentity(spec: {
       handSize: spec.heroHandSize,
       text,
       abilities: spec.heroAbilities ?? [],
-      traits: [],
+      traits: spec.heroTraits ?? [],
     },
     alterEgo: {
       faceName: `${spec.name ?? spec.id} (alter-ego)`,
+      keywords: spec.alterEgoKeywords ?? [],
       rec: spec.rec,
       handSize: spec.alterEgoHandSize,
       text,
@@ -78,26 +90,30 @@ export function stubIdentity(spec: {
 
 export function stubAlly(spec: {
   readonly id: string;
+  readonly traits?: readonly Trait[];
   readonly cost: number;
-  readonly atk: number;
-  readonly thw: number;
+  readonly atk: number | null;
+  readonly thw: number | null;
   readonly hp: number;
   readonly resources?: number;
   readonly consequentialAttack?: number;
   readonly consequentialThwart?: number;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
+  readonly resourceIcons?: ResourceIconCounts;
+  readonly aspect?: Aspect;
 }): AllyCard {
   return {
     ...base(spec.id, spec.id),
     type: "ally",
-    aspect: "basic",
-    traits: [],
+    aspect: spec.aspect ?? "basic",
+    deckLimit: 3,
+    traits: spec.traits ?? [],
     keywords: spec.keywords ?? [],
     text,
     abilities: spec.abilities ?? [],
     cost: spec.cost,
-    resourceIcons: { wild: spec.resources ?? 0 },
+    resourceIcons: spec.resourceIcons ?? { wild: spec.resources ?? 0 },
     atk: spec.atk,
     thw: spec.thw,
     hp: spec.hp,
@@ -110,6 +126,7 @@ export function stubAlly(spec: {
 
 export function stubUpgrade(spec: {
   readonly id: string;
+  readonly traits?: readonly Trait[];
   readonly cost: number;
   readonly resources?: number;
   readonly abilities?: readonly AbilityReference[];
@@ -120,7 +137,8 @@ export function stubUpgrade(spec: {
     ...base(spec.id, spec.id),
     type: "upgrade",
     aspect: "basic",
-    traits: [],
+    deckLimit: 3,
+    traits: spec.traits ?? [],
     keywords: spec.keywords ?? [],
     text,
     abilities: spec.abilities ?? [],
@@ -133,32 +151,42 @@ export function stubEvent(spec: {
   readonly id: string;
   readonly cost: number;
   readonly resources?: number;
+  readonly resourceIcons?: ResourceIconCounts;
+  readonly aspect?: Aspect;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
 }): EventCard {
   return {
     ...base(spec.id, spec.id),
     type: "event",
-    aspect: "basic",
+    aspect: spec.aspect ?? "basic",
+    deckLimit: 3,
     traits: [],
     keywords: spec.keywords ?? [],
     text,
     abilities: spec.abilities ?? [],
     cost: spec.cost,
-    resourceIcons: { wild: spec.resources ?? 0 },
+    resourceIcons: spec.resourceIcons ?? { wild: spec.resources ?? 0 },
   };
 }
 
-export function stubResource(spec: { readonly id: string; readonly icons: number }): ResourceCard {
+export function stubResource(spec: {
+  readonly id: string;
+  readonly icons: number;
+  /** Typed printed resources; overrides `icons` (which are wild). */
+  readonly produces?: ResourceIconCounts;
+  readonly abilities?: readonly AbilityReference[];
+}): ResourceCard {
   return {
     ...base(spec.id, spec.id),
     type: "resource",
     aspect: "basic",
+    deckLimit: 3,
     traits: [],
     keywords: [],
     text,
-    abilities: [],
-    producesIcons: { wild: spec.icons },
+    abilities: spec.abilities ?? [],
+    producesIcons: spec.produces ?? { wild: spec.icons },
   };
 }
 
@@ -203,6 +231,8 @@ export function stubMainScheme(spec: {
     readonly icons?: readonly SchemeIcon[];
     readonly keywords?: readonly KeywordInstance[];
     readonly abilities?: readonly AbilityReference[];
+    /** A-side abilities: stage 1's `Setup:` text, later stages' `When Revealed:` text. */
+    readonly aSideAbilities?: readonly AbilityReference[];
   }[];
 }): MainSchemeCard {
   const stages = spec.stages.map(
@@ -216,6 +246,7 @@ export function stubMainScheme(spec: {
       traits: [],
       keywords: stage.keywords ?? [],
       abilities: stage.abilities ?? [],
+      aSide: { text, abilities: stage.aSideAbilities ?? [] },
     }),
   );
   const [first, ...rest] = stages;
@@ -230,8 +261,11 @@ export function stubMainScheme(spec: {
 
 export function stubMinion(spec: {
   readonly id: string;
-  readonly atk: number;
-  readonly sch: number;
+  /** Encounter sets the card belongs to (a nemesis set, for setup tests). */
+  readonly encounterSetIds?: readonly string[];
+  readonly traits?: readonly Trait[];
+  readonly atk: number | "X" | null;
+  readonly sch: number | "X" | null;
   readonly hp: number;
   readonly boostIcons?: number;
   readonly keywords?: readonly KeywordInstance[];
@@ -240,9 +274,9 @@ export function stubMinion(spec: {
   return {
     ...base(spec.id, spec.id),
     type: "minion",
-    encounterSetIds: [],
+    encounterSetIds: (spec.encounterSetIds ?? []).map((id) => encounterSetId(id)),
     boostIcons: spec.boostIcons ?? 1,
-    traits: [],
+    traits: spec.traits ?? [],
     keywords: spec.keywords ?? [],
     text,
     abilities: spec.abilities ?? [],
@@ -254,6 +288,8 @@ export function stubMinion(spec: {
 
 export function stubTreachery(spec: {
   readonly id: string;
+  /** Encounter sets the card belongs to (a nemesis set, for setup tests). */
+  readonly encounterSetIds?: readonly string[];
   readonly boostIcons?: number;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
@@ -261,7 +297,7 @@ export function stubTreachery(spec: {
   return {
     ...base(spec.id, spec.id),
     type: "treachery",
-    encounterSetIds: [],
+    encounterSetIds: (spec.encounterSetIds ?? []).map((id) => encounterSetId(id)),
     boostIcons: spec.boostIcons ?? 1,
     traits: [],
     keywords: spec.keywords ?? [],
@@ -272,6 +308,8 @@ export function stubTreachery(spec: {
 
 export function stubSideScheme(spec: {
   readonly id: string;
+  /** Encounter sets the card belongs to (a nemesis set, for setup tests). */
+  readonly encounterSetIds?: readonly string[];
   readonly startingThreat: number;
   readonly icons?: readonly SchemeIcon[];
   readonly boostIcons?: number;
@@ -281,7 +319,7 @@ export function stubSideScheme(spec: {
   return {
     ...base(spec.id, spec.id),
     type: "side_scheme",
-    encounterSetIds: [],
+    encounterSetIds: (spec.encounterSetIds ?? []).map((id) => encounterSetId(id)),
     startingThreat: flat(spec.startingThreat),
     icons: spec.icons ?? [],
     boostIcons: spec.boostIcons ?? 1,
@@ -294,8 +332,10 @@ export function stubSideScheme(spec: {
 
 export function stubSupport(spec: {
   readonly id: string;
+  readonly traits?: readonly Trait[];
   readonly cost: number;
   readonly resources?: number;
+  readonly resourceIcons?: ResourceIconCounts;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
 }): SupportCard {
@@ -303,24 +343,27 @@ export function stubSupport(spec: {
     ...base(spec.id, spec.id),
     type: "support",
     aspect: "basic",
-    traits: [],
+    deckLimit: 3,
+    traits: spec.traits ?? [],
     keywords: spec.keywords ?? [],
     text,
     abilities: spec.abilities ?? [],
     cost: spec.cost,
-    resourceIcons: { wild: spec.resources ?? 0 },
+    resourceIcons: spec.resourceIcons ?? { wild: spec.resources ?? 0 },
   };
 }
 
 export function stubAttachment(spec: {
   readonly id: string;
-  readonly attachesTo: AttachmentTarget;
+  readonly attachesTo: AttachmentHost;
+  readonly name?: string;
+  readonly statModifiers?: PrintedStatModifiers;
   readonly boostIcons?: number;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
 }): AttachmentCard {
   return {
-    ...base(spec.id, spec.id),
+    ...base(spec.id, spec.name ?? spec.id),
     type: "attachment",
     encounterSetIds: [],
     boostIcons: spec.boostIcons ?? 0,
@@ -329,5 +372,24 @@ export function stubAttachment(spec: {
     text,
     abilities: spec.abilities ?? [],
     attachesTo: spec.attachesTo,
+    ...(spec.statModifiers ? { statModifiers: spec.statModifiers } : {}),
+  };
+}
+
+export function stubObligation(spec: {
+  readonly id: string;
+  readonly boostIcons?: number;
+  readonly abilities?: readonly AbilityReference[];
+}): ObligationCard {
+  return {
+    ...base(spec.id, spec.id),
+    type: "obligation",
+    // Obligations reach the encounter deck through `HeroIdentityCard.obligationCardId`.
+    encounterSetIds: [],
+    boostIcons: spec.boostIcons ?? 2,
+    traits: [],
+    keywords: [],
+    text,
+    abilities: spec.abilities ?? [],
   };
 }
