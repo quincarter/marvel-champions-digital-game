@@ -1,6 +1,6 @@
 # PLAN: Marvel Champions Digital Edition
 
-Status: **Phases 0–3 complete; Phase 4 (client) is next.** Phase 2: Core Set ingestion, the §3 engine primitives, the `@mc/cards` ability DSL, all 233 Core ability scripts, `coreScenario()` builders, and real-content e2e games (spec: [docs/phase2-core-set.md](docs/phase2-core-set.md)). **Phase 3: the villain phase lives in `packages/engine/src/villain/`. Every decision the villain side leaves open is routed to the player the RRG names, and tagged with a `PendingChoice.authority`. `auditVillainPhases` independently re-checks each villain phase of a recorded game. 48 scripted games plus 3 passive-table games play to an outcome with clean audits (spec: [docs/phase3-encounter-ai.md](docs/phase3-encounter-ai.md)).** Stack recorded in CLAUDE.md; monorepo scaffolded (`packages/engine`, `packages/content`, `packages/client`); card schema landed in `@mc/content` (see its README for the rules-shape decisions); the headless engine runs full games from setup to win/loss against stub content; `pnpm test` / `pnpm typecheck` green. Update the Status line and check off phases as work lands.
+Status: **Phases 0–3 complete; Phase 4 (client) is next. Client stack decided: pure Phaser 4 with rexUI, no DOM UI framework (see Phase 4).** Phase 2: Core Set ingestion, the §3 engine primitives, the `@mc/cards` ability DSL, all 233 Core ability scripts, `coreScenario()` builders, and real-content e2e games (spec: [docs/phase2-core-set.md](docs/phase2-core-set.md)). **Phase 3: the villain phase lives in `packages/engine/src/villain/`. Every decision the villain side leaves open is routed to the player the RRG names, and tagged with a `PendingChoice.authority`. `auditVillainPhases` independently re-checks each villain phase of a recorded game. 48 scripted games plus 3 passive-table games play to an outcome with clean audits (spec: [docs/phase3-encounter-ai.md](docs/phase3-encounter-ai.md)).** Stack recorded in CLAUDE.md; monorepo scaffolded (`packages/engine`, `packages/content`, `packages/client`); card schema landed in `@mc/content` (see its README for the rules-shape decisions); the headless engine runs full games from setup to win/loss against stub content; `pnpm test` / `pnpm typecheck` green. Update the Status line and check off phases as work lands.
 
 This plan is intentionally sequenced rules-engine-first: a correct, headless simulation of a small card pool (the Core Set) before any UI polish, AI sophistication, or content breadth. A beautiful board that plays the game wrong is worse than an ugly board that plays it right.
 
@@ -11,7 +11,7 @@ Owner: whoever kicks off the project (architectural decisions, not yet delegated
 - [x] Presentation style: **decided.** This plays like the *Sentinels of the Multiverse* digital game — a 2D tabletop-style card game (flat board, zones, cards as first-class rendered objects, hand fanned at the bottom, drag/tap to play), not a 3D Tabletop-Simulator-style physical sim and not a card-browser/wiki-with-images website. It should feel like sitting at the table: cards, tokens, and zones you can inspect and manipulate directly, with clean digital-native UI chrome (phase tracker, action log, threat/damage counters) layered around that tabletop, the way Sentinels' digital client does. This is a rendering/interaction style decision, owned by `game-client-engineer` once Phase 4 starts — it doesn't change the engine architecture below.
 - [x] Pick the tech stack — **decided, see "Tech stack" in CLAUDE.md.** TypeScript (strict) + pnpm workspaces + Vitest; single cross-platform client (web-first, packaged to desktop/mobile later) over a platform-agnostic engine package; local-only persistence until Phase 5.
   - Target platform(s): **playable on any platform** (the point of reference is Sentinels of the Multiverse's digital edition, which ships to web/desktop/mobile from one client).
-  - Client framework (React/Solid/etc.) and the desktop/mobile wrapper (Tauri/Capacitor/etc.) are deliberately deferred to Phase 4 and Phase 8 respectively — nothing in Phases 1–3 depends on them.
+  - Client framework and the desktop/mobile wrapper (Tauri/Capacitor/etc.) were deliberately deferred to Phase 4 and Phase 8 respectively — nothing in Phases 1–3 depends on them. **Client framework decided at the start of Phase 4: pure Phaser 4 + rexUI** (see Phase 4). The wrapper is still a Phase 8 choice.
 - [x] Scaffold the repo: `packages/engine` (`@mc/engine`), `packages/content` (`@mc/content`), `packages/client` (`@mc/client`), dependency direction strictly `client → engine → content`.
 - [x] Tests-as-first-class: Vitest wired into every package, `pnpm test` / `pnpm typecheck` run from the root.
 - [x] Define the card data schema — landed in `packages/content/src/schema/` (`AnyCard` union, structured keywords, `ScalingValue` for per-player numbers, printed-vs-current text for errata, `AbilityReference` slots for `ability-scripting-engineer`, `ArtRef` keys only for art). Open item carried into Phase 2: the `discount` keyword is a stub — its semantics weren't on the Hall of Heroes keyword page yet and must be confirmed against the RRG/card text before any card uses it.
@@ -88,12 +88,139 @@ Owner: `encounter-ai-designer`.
 
 Owner: `game-client-engineer`.
 
+### Stack decision: pure Phaser 4 + rexUI
+
+Decided 2026-09-11. It was first decided as a Phaser table inside a Lit app, then revised the same day. `@mc/client` is a Vite + TypeScript app built on **Phaser 4** (released 2026-04-10; start on the 4.1.x line). Its UI toolkit is **rexUI**, via the `phaser4-rex-plugins` package. Phaser draws every screen, the table and every overlay; there is no DOM UI framework.
+
+- **Why.** A unified game feel was prioritized over DOM convenience:
+  - one rendering model;
+  - drag and tweens that work anywhere on screen;
+  - screen transitions that feel like the table itself;
+  - native keyboard and gamepad input.
+
+  This is the closest match to the *Sentinels of the Multiverse* reference, whose UI is drawn by its game engine.
+- **Not chosen for performance.** The game is turn-based with a few dozen cards on screen, so any of the options runs comfortably. The DOM would actually render the text-heavy screens (game log, inspect overlay, deck builder) a little more cheaply.
+- **Accepted costs:** text-heavy UI, scrolling lists, text input and responsive layout are all built by hand in Phaser.
+- **Considered and set aside:**
+  - Phaser table + Lit DOM chrome: better for text and development speed, but has a canvas/DOM seam.
+  - Pixi: a leaner renderer, but no built-in loader, tweens, input or scene lifecycle.
+  - PhaserJSX (UI toolkit): React-like, TypeScript-first, flexbox layout — a good model, but brand new (July 2026, still gathering feedback). A candidate to swap in later behind the widget layer.
+  - Phaser PixUI (UI toolkit): built around integer scaling for pixel art, which is the wrong fit for card scans.
+  - Phaser 3-era UI plugins: no Phaser 4 support.
+
+**Architecture rules**
+
+- **Phaser is a view, never an authority.** No game rules, legality checks or game state live in Phaser scenes. The engine's `GameState` is the only truth.
+- **Scenes are navigation.**
+  - Screens: Boot/Preload, Title, Scenario, Seats, Deck, Board, Game Over.
+  - Overlays run in parallel over Board (`scene.launch`), so the board stays alive underneath: Inspect, Pending Choice, Payment, Pause, and the villain-phase walkthrough.
+  - Don't use Phaser physics.
+- **One store, one dispatch.**
+  - A plain TypeScript session store with no Phaser imports holds the latest read-only copy of the game (from the engine host, below). Scenes subscribe to the store.
+  - Every command goes through a single `dispatch` to the engine host, which applies it with `applyCommand` and keeps the session log replayable.
+  - The Board scene reconciles from state, keeping a map from each card's instance id to its game object. It uses the engine's `GameEvent`s to decide what to animate (damage dealt, threat placed, card moved) with Phaser tweens.
+- **The engine runs in a Web Worker, behind an async `EngineHost` (decided 2026-09-11).**
+  - **Why:** `legalActions` is too slow for the main thread. In the 4-player Ultron game it took 184 ms at the 95th percentile (194 ms worst), about 11 frames at 60 fps. `applyCommand` is usually fast (4.4 ms at the 95th percentile) but peaks at 21 ms. Copying the state to a worker is cheap: 205 KB, about 1 ms; without the card pool, 68 KB and about 0.4 ms.
+  - **The interface:** `EngineHost` offers async `dispatch(command)` and `legalActions(playerId)`, plus a subscription for updates. The store, view models and scenes only ever talk to it.
+  - **Two implementations:** a worker host for the game (a Vite module worker; Comlink optional for the calls between threads), and an in-thread host for Vitest and debugging.
+  - **The worker holds the game.** It keeps the `GameSession` and log and applies commands. It sends the Core card pool once at startup; each update then carries the new state without `cardPool`, that command's `GameEvent`s, and a version number (the command count). The client discards any result for an older version.
+  - **Legal moves are computed ahead of time.** After every state change, the worker computes `legalActions` for the player who must act (the active player, or the player a choice is addressed to) and sends it with the update, so highlighting is ready before the player looks.
+  - **Board input is locked while a command is in flight.** The game is turn-based, so this is invisible, and tweens keep running because the main thread stays free.
+  - **Phase 5:** the same async interface is what a host- or server-authoritative multiplayer setup needs, so the worker acts as a local server and a network host can replace it without changing the client.
+  - Web workers run inside Tauri and Capacitor, so the Phase 8 packaging choice isn't affected.
+- **Thin scenes, plain-TS view models.** Logic lives in plain TypeScript that Vitest can test without a canvas: what's highlighted, what a zone holds, log lines built from events, zone layout rectangles. Scenes only draw it.
+- **UI toolkit: rexUI behind our own widget layer.**
+  - Install `phaser4-rex-plugins` and register `RexUIPlugin` (`phaser4-rex-plugins/templates/ui/ui-plugin.js`) as a scene plugin. Type declarations come from `phaser4-rex-plugins/templates/ui/ui-components`.
+  - Scenes never call rexUI directly. A thin widget layer (`McButton`, `McPanel`, `McScrollList`, `McTabs`, `McDialog`, `McTextInput`) wraps it and implements the `Components.dc.html` state matrix: rest / hover / selected / unavailable, solid border = available vs dashed = not yet real, 40% ink = illegal right now, the red selection ring. Keeping scenes on the wrappers leaves the toolkit swappable.
+  - What rexUI covers:
+    - **sizers** (sizer, grid sizer, fix-width, overlap) for the three form-factor layouts;
+    - a **grid table** for the virtualized game log and deck lists;
+    - a **scrollable panel** and **text area** for long rules text in Inspect;
+    - **tabs** for the phone board's zone tabs;
+    - **dialogs** for pending-choice, payment and pause;
+    - **buttons**, menus and grid buttons;
+    - **text input**.
+  - rexUI's API is configuration-heavy JavaScript, so styling it to the design tokens is manual work; the wrappers are where that lives.
+- **Text.**
+  - Set text resolution to the device pixel ratio so it stays sharp.
+  - Use bitmap text for fast-changing numbers (HP, threat, counters).
+  - Load Bangers, Public Sans and IBM Plex Mono before any text is drawn.
+  - Virtualize the game log (only on-screen lines exist as objects).
+  - Rules text longer than two sentences goes to the Inspect overlay, never onto the table (a rule in the design sheet).
+- **Text input** (seed, deck names) uses rexUI's input components through `McTextInput`. Its DOM-backed input is the only DOM in the app.
+- **Layout per form factor.**
+  - The scale manager runs in resize mode. A layout module computes zone rectangles for phone (390×844), tablet (1024×768 landscape, 768×1024 portrait) and desktop, as pure, testable functions.
+  - **Phone board (decided 2026-09-11): one Board scene with a container per zone.**
+    - The tab bar (Threat · Enemies · Me · Team · Log) is `McTabs`. Picking a tab shows that zone's container and lays it out full-width.
+    - The hand and action bar stay fixed at the thumb on every tab.
+    - Reconciliation stays in the single Board scene, the same as tablet and desktop.
+    - A card moving to a zone on a hidden tab flies into that tab's button, and the button shows a change badge, so off-screen changes still read.
+    - Set aside: panning a camera over one large virtual table (doesn't match the list-style phone mocks, and needs two cameras) and one scene per tab (duplicate reconciliation, no animation between zones).
+- **Accessibility.**
+  - Covered:
+    - colorblind-safe indicators (icon plus text, never color alone);
+    - the design sheet's minimum type sizes and touch targets;
+    - full keyboard and gamepad navigation with a visible focus ring;
+    - reduced motion (an in-game setting, defaulting from `prefers-reduced-motion`).
+  - **Screen readers are not supported,** because a canvas is invisible to them. Adding support later would mean a hidden HTML mirror of the board.
+- **One set of design tokens.** The palette and type rules from `Components.dc.html` live in a single TypeScript token module as hex numbers and font specs.
+- **Card art.** Scans come from the gitignored `assets/card-art/` folder, found through each card's `ArtRef` key.
+  - Load them per scenario, downscaled to table size.
+  - A missing scan falls back to a generated frame, matching the designs' art slots.
+  - Scans are for personal, non-commercial use and never committed (CLAUDE.md).
+- **Performance guardrails.**
+  - Pack UI chrome into texture atlases.
+  - Cap live text objects (virtualized lists, cached wrapped text).
+  - Use the WebGL renderer.
+- **Packaging.** WebGL runs fine in both Tauri and Capacitor, so this choice doesn't constrain the Phase 8 wrapper.
+
+### Design source
+
+`Marvel Champions game screens/`, a set of Claude Design canvases:
+- **`Components.dc.html`** — the design system: 5 surfaces, 1 accent, 4 signal colors, an ink opacity ladder, Bangers/Public Sans/IBM Plex Mono type rules, state matrix, selection ring. It also sets rules such as "no gradients, no shadows" and "hover never moves or scales".
+- **`Board - Long Table` / `Board - Phone`** — the board.
+- **`Screens - Desktop` / `Tablet` / `Phone`** — the full session flow: title → scenario → heroes → deck → table → setup deal → board → villain phase → overlays → game over.
+
+The mocks' card text is placeholder. The client must render every name, stat and rules text from `@mc/content`. Several mocks don't match the Core Set: Ms. Marvel and Thor aren't Core heroes, Sonic Boom's text is invented, Klaw's "SCH 14" is wrong, and so is Defense Network's "+1 DEF".
+
+### Engine and scope work the designs call for (settle before or early in Phase 4)
+
+- [x] **Legal-moves query in `@mc/engine`** (`game-rules-architect`; decided and landed 2026-09-11 in `packages/engine/src/legal.ts`, exported as `legalActions`).
+  - **How it decides:** it probes each candidate command through the pure `applyCommand`, so the engine's own handlers decide legality and nothing restates a rule. Every reason code and "Why illegal?" message is the engine's own.
+  - Each legal entry carries an `example` command the engine accepts, with the smallest working payment found (resource abilities first, then hand cards by resources, resource cards first on ties), and a `needsPayment` flag.
+  - Outside the player's turn it returns `choice` (with the open `PendingChoice`), `notYourTurn` or `gameOver` instead.
+  - **Rules fix found while building it:** `playCard` accepted an interrupt- or response-only event as an action, paying its cost for no effect. It is now rejected with `card_type_not_playable` (RRG "Event"). Events with an action ability, and ability-less stub events in tests, are unchanged.
+  - **Timing:** 5–8 ms per call in the Rhino and Klaw games; in the 4-player Ultron game, 184 ms at the 95th percentile and 194 ms worst. It runs in the engine worker, computed ahead of time after each state change (see "The engine runs in a Web Worker" above), so the main thread never waits on it. A cheaper affordability check than a full probe per payment prefix is a nice-to-have, not a blocker.
+  - A new `legalActions(state, deps, playerId)` query returns:
+    - **plays:** cards in hand that can be played now, with their legal attachment hosts and whether the player can afford them;
+    - **abilities:** action and resource abilities usable now;
+    - **basic actions:** attack or thwart (with legal targets), recover, change form, end turn;
+    - **illegal actions:** every candidate that is illegal, with the engine's `EngineErrorCode` (`wrong_form`, `already_exhausted`, `already_changed_form`, `insufficient_resources` for "can't afford", `limit_reached`, `card_type_not_playable`, `no_valid_target` — the last covering guard, crisis, restricted and max-copies, which the message tells apart) and the engine's message.
+    - **blocked targets:** targets that exist but are illegal right now, with their reason, e.g. the villain behind a guard minion.
+  - It feeds "Legal now: 3 plays · 2 abilities", "Why illegal?" and legal-move highlighting.
+  - **Payments are not enumerated.** The query only answers "affordable?"; the Payment overlay has the player pick the actual cards and resource abilities, and `applyCommand` stays the final judge.
+  - **Pending choices need nothing new:** `PendingChoice.options` already lists every legal answer.
+  - **Rules stay out of the client** ("Phaser is a view"). Today only the test driver finds legal moves, by trying commands against `applyCommand`; the client must not copy that.
+  - **Tests:**
+    - `packages/engine/src/legal.test.ts` (stub cards): turn and choice reporting, wrong form, can't afford, guard-blocked targets, exhausted hero, response events.
+    - `packages/cards/src/legal-actions.test.ts` (real Core games: Rhino solo, Klaw 2 players, Ultron 4 players): at every player-turn state, the command the independent greedy driver actually issued is listed as legal with its target, and every listed example is accepted.
+- [ ] **Villain phase as a walkthrough.** The engine runs a whole villain phase inside one command. The designs' five-step, auto-advancing villain-phase screen ("auto-advance paused for your interrupt") has to be replayed from that command's `GameEvent` stream. It pauses at each `PendingChoice` and labels encounter-side decisions using `PendingChoice.authority`. The events and the authority tag already exist; this is client work.
+- [ ] **Hero seats: one human plays every seat** (decided 2026-09-11).
+  - Phase 4 supports multi-handed solo: one human controls 1–4 heroes, much as many people play the paper game solo.
+  - **The board's perspective follows whoever must act:** the active player (`step.activePlayerId`) during turns, or the player a pending choice is addressed to (`pendingChoice.playerId`) while one is open.
+  - Every `resolveChoice` is still issued as the player the engine names, so the command log stays identical to a real multiplayer game and Phase 5 needs no rework.
+  - **The mocks' "Seat · AI" becomes "Seat · you".**
+  - **Hero AI is not in Phase 4** (backlog item under Phase 8). Phase 3's villain side is procedure, not AI, and the greedy test driver isn't good enough to be a player-facing opponent.
+- [ ] **Out-of-scope screens in the mocks.** Collection/deckbuilding beyond the preconstructed decks, and Campaign (marked locked in the mocks), stay out of Phase 4 unless re-scoped.
+
+### Checklist
+
 - [ ] Reference point: *Sentinels of the Multiverse* (digital edition) — a 2D tabletop-style card game, not a 3D physical simulator, playable cross-platform. Board/zones/cards are the primary UI; chrome (log, phase tracker, counters) supports it rather than replacing the tabletop feel.
 - [ ] Board layout: player area(s), villain area, main scheme, side schemes, encounter deck/discard, each player's identity/hand/deck/discard/play area — legible at a glance the way the physical table is.
 - [ ] Card rendering (using licensed-for-personal-use art per the IP boundary in CLAUDE.md), zoom/inspect, legal-move highlighting, drag-and-drop or tap-to-target interaction for choosing targets/attachments/assignments.
 - [ ] Animations/feedback for damage, threat, defeat, phase transitions — enough to make state changes readable, not spectacle for its own sake.
-- [ ] Accessibility pass: colorblind-safe indicators (damage/threat/keywords shouldn't rely on color alone), readable type sizes, keyboard/controller navigation if platform requires it.
-- [ ] Exit criteria: a solo human player can play a full Core Set scenario against the AI villain from the Phase 3 engine, entirely through the UI, with no engine internals exposed.
+- [ ] Accessibility pass: colorblind-safe indicators (damage/threat/keywords shouldn't rely on color alone), readable type sizes, keyboard/controller navigation if platform requires it. Scope per the stack decision above: keyboard and gamepad focus navigation, colorblind-safe indicators, minimum sizes and reduced motion. Screen readers are out of scope for the canvas client.
+- [ ] Exit criteria: a solo human player can play a full Core Set scenario against the AI villain from the Phase 3 engine, entirely through the UI, with no engine internals exposed. That covers one hero, or 1–4 heroes played multi-handed.
 
 ## Phase 5 — Multiplayer
 
@@ -126,6 +253,7 @@ Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-
 - [ ] Tutorial/onboarding flow for players unfamiliar with the paper game.
 - [ ] Save/resume, settings, difficulty (standard/expert per the paper game's modes).
 - [ ] Audio/feedback pass, performance pass, platform packaging as decided in Phase 0.
+- [ ] Backlog, moved out of Phase 4 on 2026-09-11: **hero AI** to fill seats with computer-controlled heroes. It needs real planning, not the greedy test driver in `packages/cards/src/testing/driver.ts`. It should issue ordinary commands, so a seat can switch between human, AI and (Phase 5) a remote player.
 
 ## Non-goals (for now)
 

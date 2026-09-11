@@ -518,6 +518,18 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     return engineError("card_type_not_playable", `${card.type} cannot be played from hand`, command);
   }
   const ability = eventActionAbility(ctx, card);
+  // RRG "Event": an event's own ability says when it is played. An interrupt or
+  // response event is played only from the window its trigger opens, never as an action.
+  const windowOnly =
+    card.type === "event" &&
+    !ability &&
+    printedAbilityRefs(card).some((ref) => {
+      const kind = ctx.deps.abilities[ref.id]?.trigger.kind;
+      return kind === "interrupt" || kind === "response";
+    });
+  if (windowOnly) {
+    return engineError("card_type_not_playable", "this event can only be played when its interrupt or response triggers", command);
+  }
   if (card.type === "event" && ability?.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form) {
     return engineError("wrong_form", `this event requires ${ability.trigger.form} form`, command);
   }
