@@ -4,7 +4,7 @@
 
 A digital implementation of **Marvel Champions: The Card Game** (Fantasy Flight Games / Marvel), built to be a genuinely playable, rules-accurate video game — not a card browser, not a wiki, not a website with card images on it. Every design and engineering decision should be made with the question: *"does this hold up as a real game, running a real rules engine, the way a professional game studio would build one?"*
 
-This is a fan-made, non-commercial project. Marvel Champions, its card text, artwork, and characters are the intellectual property of Fantasy Flight Games and Marvel. Treat all card art and Marvel-owned imagery as licensed assets that must not be redistributed publicly outside of personal/non-commercial use — see [Content & IP boundaries](#content--ip-boundaries) below.
+This is a fan-made, non-commercial project. Marvel Champions, its card text, artwork, and characters are the intellectual property of Fantasy Flight Games and Marvel.
 
 ## Source of truth for rules
 
@@ -17,12 +17,6 @@ Useful anchor pages inside that index:
 - `Marvel Champions LCG card database` (`/browse/`) — cycle-by-cycle navigation for every released product.
 - `Latest FFG Rulings` (pre/post RRG 1.5–1.8) and `Marvel Champions LCG Unofficial Taboo list` — the FAQ/errata trail.
 - Per-hero and per-box pages (e.g. `Core Set`, `Sinister Motives`, `The Rise of Red Skull`) — release dates, card counts, insert/campaign log links, starter decklists.
-
-## Content & IP boundaries
-
-- Never commit copyrighted card scans/art into the repo. Card art belongs in a gitignored local asset folder or is loaded from a user-supplied source at runtime.
-- It's fine to store card **text, stats, and metadata** (name, cost, traits, keywords, printed rules text) as structured data for engine purposes — this is standard practice for community tools (MarvelCDB does the same) — but keep it separated from redistributable art assets.
-- Treat this as a personal-use / non-commercial fan project unless the user explicitly says otherwise. Flag it if a task starts to look like "package this for public/commercial distribution."
 
 ## How this repo should think about the problem
 

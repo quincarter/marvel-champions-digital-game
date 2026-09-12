@@ -1,14 +1,7 @@
 {
   "source": "https://marvelcdb.com/api/public/cards/core",
-  "fetchedAt": "2026-09-11",
+  "fetchedAt": "2026-09-12",
   "pack": "core",
-  "strippedFields": [
-    "imagesrc",
-    "backimagesrc",
-    "meta",
-    "octgn_id",
-    "url"
-  ],
   "cards": [
     {
       "pack_code": "core",
@@ -48,11 +41,21 @@
       "deck_limit": 1,
       "traits": "Avenger.",
       "real_traits": "Avenger.",
+      "meta": {
+        "colors": [
+          "#982828",
+          "#2b3681",
+          "#010101",
+          "#fffffd"
+        ],
+        "offset": "-43px -34px"
+      },
       "flavor": "\"Just your friendly neighborhood Spider-Man!\"",
       "is_unique": true,
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "18ae183c-de26-4369-8a41-424d58f01631",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -62,6 +65,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01001a",
+      "imagesrc": "/bundles/cards/01001a.png",
       "linked_card": {
         "pack_code": "core",
         "pack_name": "Core Set",
@@ -123,6 +128,7 @@
         "stage": null,
         "traits": "Genius.",
         "real_traits": "Genius.",
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -135,6 +141,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "18ae183c-de26-4369-8a41-424d58f01631",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -144,7 +151,10 @@
         "boost_star": false,
         "threat_star": false,
         "escalation_threat_star": false,
-        "errata": null
+        "errata": null,
+        "url": "https://marvelcdb.com/card/01001b",
+        "imagesrc": "/bundles/cards/01001b.png",
+        "backimagesrc": null
       }
     },
     {
@@ -191,6 +201,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "471e5531-48c9-4b6c-8417-7158b81f4287",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -199,7 +210,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01002",
+      "imagesrc": "/bundles/cards/01002.png"
     },
     {
       "pack_code": "core",
@@ -240,6 +253,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "942a87e3-0ab3-4544-85ff-473cfdf622ba",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -248,7 +262,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01003",
+      "imagesrc": "/bundles/cards/01003.png"
     },
     {
       "pack_code": "core",
@@ -289,6 +305,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "816c6c4a-0745-4610-81f5-29dc97865873",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -297,7 +314,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01004",
+      "imagesrc": "/bundles/cards/01004.png"
     },
     {
       "pack_code": "core",
@@ -338,6 +357,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "933069ad-ebd7-4813-a058-4729d1db1ca7",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -346,7 +366,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01005",
+      "imagesrc": "/bundles/cards/01005.png"
     },
     {
       "pack_code": "core",
@@ -387,6 +409,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "880a92cd-9a2b-4ed6-b283-6f7d98ca6fc7",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -395,7 +418,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01006",
+      "imagesrc": "/bundles/cards/01006.png"
     },
     {
       "pack_code": "core",
@@ -435,6 +460,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "feead700-3e37-4ecb-9f14-15a17a6f0d70",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -443,7 +469,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01007",
+      "imagesrc": "/bundles/cards/01007.png"
     },
     {
       "pack_code": "core",
@@ -483,6 +511,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "ab2d0f0d-5df7-4269-876d-99fe1f1d25d4",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -491,7 +520,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01008",
+      "imagesrc": "/bundles/cards/01008.png"
     },
     {
       "pack_code": "core",
@@ -531,6 +562,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "6bd78cc3-bc7f-4382-b063-5d69a70a0cdc",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -539,7 +571,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01009",
+      "imagesrc": "/bundles/cards/01009.png"
     },
     {
       "pack_code": "core",
@@ -579,11 +613,20 @@
       "deck_limit": 1,
       "traits": "Avenger. Soldier.",
       "real_traits": "Avenger. Soldier.",
+      "meta": {
+        "colors": [
+          "#2a377b",
+          "#902b26",
+          "#f3ee25",
+          "#fffffd"
+        ]
+      },
       "flavor": "\"I never quit.\"",
       "is_unique": true,
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "78343f41-6bfd-456d-965a-d6456a01a581",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -593,6 +636,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01010a",
+      "imagesrc": "/bundles/cards/01010a.png",
       "linked_card": {
         "pack_code": "core",
         "pack_name": "Core Set",
@@ -654,6 +699,7 @@
         "stage": null,
         "traits": "S.H.I.E.L.D. Soldier.",
         "real_traits": "S.H.I.E.L.D. Soldier.",
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -666,6 +712,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "78343f41-6bfd-456d-965a-d6456a01a581",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -675,7 +722,10 @@
         "boost_star": false,
         "threat_star": false,
         "escalation_threat_star": false,
-        "errata": null
+        "errata": null,
+        "url": "https://marvelcdb.com/card/01010b",
+        "imagesrc": "/bundles/cards/01010b.png",
+        "backimagesrc": null
       }
     },
     {
@@ -723,6 +773,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "66c3024c-28aa-4803-b772-b21c5397fa64",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -731,7 +782,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01011",
+      "imagesrc": "/bundles/cards/01011.png"
     },
     {
       "pack_code": "core",
@@ -772,6 +825,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "dd9fbd85-7a49-4bb5-bcb2-7ef92333ce33",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -780,7 +834,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01012",
+      "imagesrc": "/bundles/cards/01012.png"
     },
     {
       "pack_code": "core",
@@ -820,6 +876,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "9843b01c-f11d-4a3f-9bc0-f20a9bbc48cd",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -828,7 +885,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01013",
+      "imagesrc": "/bundles/cards/01013.png"
     },
     {
       "pack_code": "core",
@@ -864,6 +923,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "5fd7d61f-d44e-43cc-b5a2-982d0e68c3aa",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -872,7 +932,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01014",
+      "imagesrc": "/bundles/cards/01014.png"
     },
     {
       "pack_code": "core",
@@ -913,6 +975,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "fa6f18d7-8d43-4a69-9eaf-a9b5b6577fce",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -921,7 +984,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01015",
+      "imagesrc": "/bundles/cards/01015.png"
     },
     {
       "pack_code": "core",
@@ -962,6 +1027,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "4a0711af-292a-4fb5-8e1c-23c726465354",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -970,7 +1036,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01016",
+      "imagesrc": "/bundles/cards/01016.png"
     },
     {
       "pack_code": "core",
@@ -1010,6 +1078,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "5b294403-a4c7-4786-867e-cc8bced674f6",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1018,7 +1087,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01017",
+      "imagesrc": "/bundles/cards/01017.png"
     },
     {
       "pack_code": "core",
@@ -1058,6 +1129,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "88a66ea4-d071-463e-8c43-24f53350ea4c",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1066,7 +1138,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01018",
+      "imagesrc": "/bundles/cards/01018.png"
     },
     {
       "pack_code": "core",
@@ -1106,11 +1180,20 @@
       "deck_limit": 1,
       "traits": "Avenger. Gamma.",
       "real_traits": "Avenger. Gamma.",
+      "meta": {
+        "colors": [
+          "#572d79",
+          "#1b8b45",
+          "#fefaf8",
+          "#fffffd"
+        ]
+      },
       "flavor": "\"I'm six foot seven and bright green! People are gonna stare no matter how I dress.\"",
       "is_unique": true,
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "d46d5e03-c8b7-4ff5-8633-3941c0561812",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1120,6 +1203,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01019a",
+      "imagesrc": "/bundles/cards/01019a.png",
       "linked_card": {
         "pack_code": "core",
         "pack_name": "Core Set",
@@ -1181,6 +1266,7 @@
         "stage": null,
         "traits": "Attorney. Gamma.",
         "real_traits": "Attorney. Gamma.",
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -1193,6 +1279,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "d46d5e03-c8b7-4ff5-8633-3941c0561812",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -1202,7 +1289,10 @@
         "boost_star": false,
         "threat_star": false,
         "escalation_threat_star": false,
-        "errata": null
+        "errata": null,
+        "url": "https://marvelcdb.com/card/01019b",
+        "imagesrc": "/bundles/cards/01019b.png",
+        "backimagesrc": null
       }
     },
     {
@@ -1250,6 +1340,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "c7bff565-c40b-4ed7-a46f-a8c28ce6c589",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1258,7 +1349,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01020",
+      "imagesrc": "/bundles/cards/01020.png"
     },
     {
       "pack_code": "core",
@@ -1299,6 +1392,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "c7be5de7-441e-4077-a21a-211b8552bcb2",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1307,7 +1401,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01021",
+      "imagesrc": "/bundles/cards/01021.png"
     },
     {
       "pack_code": "core",
@@ -1348,6 +1444,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "2546232b-5f39-43d5-8427-69bd1fbb9da8",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1356,7 +1453,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01022",
+      "imagesrc": "/bundles/cards/01022.png"
     },
     {
       "pack_code": "core",
@@ -1397,6 +1496,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "2d07f30d-9abe-49a3-8e8e-09a7fa925a41",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1405,7 +1505,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01023",
+      "imagesrc": "/bundles/cards/01023.png"
     },
     {
       "pack_code": "core",
@@ -1446,6 +1548,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "14b62a1f-56a2-4115-9717-9c7ca0c706ac",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1454,7 +1557,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01024",
+      "imagesrc": "/bundles/cards/01024.png"
     },
     {
       "pack_code": "core",
@@ -1493,6 +1598,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "4d711d6f-e5f3-4e22-b1d4-e3f8e2f82b88",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1501,7 +1607,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01025",
+      "imagesrc": "/bundles/cards/01025.png"
     },
     {
       "pack_code": "core",
@@ -1542,6 +1650,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "316e8579-6ef0-476a-b449-eda0d05ecdd2",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1551,7 +1660,9 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
-      "errata": "Removed “(thwart)” label. (RRG 1.5)"
+      "errata": "Removed “(thwart)” label. (RRG 1.5)",
+      "url": "https://marvelcdb.com/card/01026",
+      "imagesrc": "/bundles/cards/01026.png"
     },
     {
       "pack_code": "core",
@@ -1591,6 +1702,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "b37aeafa-227b-4edf-8b00-7326ae1b45db",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1599,7 +1711,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01027",
+      "imagesrc": "/bundles/cards/01027.png"
     },
     {
       "pack_code": "core",
@@ -1639,6 +1753,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "562fbca4-2d38-4b65-96ba-4e933b0cea2f",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1647,7 +1762,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01028",
+      "imagesrc": "/bundles/cards/01028.png"
     },
     {
       "pack_code": "core",
@@ -1687,11 +1804,20 @@
       "deck_limit": 1,
       "traits": "Avenger.",
       "real_traits": "Avenger.",
+      "meta": {
+        "colors": [
+          "#8f2928",
+          "#8c2d23",
+          "#f5eb29",
+          "#fffffd"
+        ]
+      },
       "flavor": "\"I am Iron Man.\"",
       "is_unique": true,
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "9780ba79-44e4-4530-b865-5983a60372b0",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1701,6 +1827,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01029a",
+      "imagesrc": "/bundles/cards/01029a.png",
       "linked_card": {
         "pack_code": "core",
         "pack_name": "Core Set",
@@ -1762,6 +1890,7 @@
         "stage": null,
         "traits": "Genius.",
         "real_traits": "Genius.",
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -1774,6 +1903,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "9780ba79-44e4-4530-b865-5983a60372b0",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -1783,7 +1913,10 @@
         "boost_star": false,
         "threat_star": false,
         "escalation_threat_star": false,
-        "errata": null
+        "errata": null,
+        "url": "https://marvelcdb.com/card/01029b",
+        "imagesrc": "/bundles/cards/01029b.png",
+        "backimagesrc": null
       }
     },
     {
@@ -1831,6 +1964,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "091b226f-5285-40f1-9aa0-a4b7a9449a7c",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1839,7 +1973,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01030",
+      "imagesrc": "/bundles/cards/01030.png"
     },
     {
       "pack_code": "core",
@@ -1879,6 +2015,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "08234002-9dd8-4a63-b012-7a9647b49b8a",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1887,7 +2024,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01031",
+      "imagesrc": "/bundles/cards/01031.png"
     },
     {
       "pack_code": "core",
@@ -1928,6 +2067,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "98a1d5d7-e576-4da3-8d13-82fbb2042bfc",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1936,7 +2076,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01032",
+      "imagesrc": "/bundles/cards/01032.png"
     },
     {
       "pack_code": "core",
@@ -1977,6 +2119,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "e7e08f4c-7505-46fa-be88-9e9e71c2470a",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -1985,7 +2128,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01033",
+      "imagesrc": "/bundles/cards/01033.png"
     },
     {
       "pack_code": "core",
@@ -2026,6 +2171,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "a880a5d8-3030-4b78-b924-31a6911730cc",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2034,7 +2180,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01034",
+      "imagesrc": "/bundles/cards/01034.png"
     },
     {
       "pack_code": "core",
@@ -2075,6 +2223,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "2b05d67a-9741-4636-a7d7-1b8e130ba380",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2083,7 +2232,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01035",
+      "imagesrc": "/bundles/cards/01035.png"
     },
     {
       "pack_code": "core",
@@ -2124,6 +2275,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "43b510f4-1d90-42d4-b414-c7e27ff8e824",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2132,7 +2284,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01036",
+      "imagesrc": "/bundles/cards/01036.png"
     },
     {
       "pack_code": "core",
@@ -2173,6 +2327,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "2cd0b387-5223-484f-8cfe-2d8d7a7cc7e8",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2181,7 +2336,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01037",
+      "imagesrc": "/bundles/cards/01037.png"
     },
     {
       "pack_code": "core",
@@ -2222,6 +2379,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "13e64917-d277-44e7-a649-90e69df67ba9",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2230,7 +2388,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01038",
+      "imagesrc": "/bundles/cards/01038.png"
     },
     {
       "pack_code": "core",
@@ -2270,6 +2430,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "fd37efd8-d1fd-49c1-9ded-9ef3ebb763b2",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2278,7 +2439,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01039",
+      "imagesrc": "/bundles/cards/01039.png"
     },
     {
       "pack_code": "core",
@@ -2318,11 +2481,20 @@
       "deck_limit": 1,
       "traits": "Avenger. Wakanda.",
       "real_traits": "Avenger. Wakanda.",
+      "meta": {
+        "colors": [
+          "#492b5f",
+          "#492b5f",
+          "#f1f017",
+          "#fffffd"
+        ]
+      },
       "flavor": "\"To attack me is to attack Wakanda.\"",
       "is_unique": true,
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "ced52353-61f7-4ed1-8469-01d396904d61",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2332,6 +2504,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01040a",
+      "imagesrc": "/bundles/cards/01040a.png",
       "linked_card": {
         "pack_code": "core",
         "pack_name": "Core Set",
@@ -2393,6 +2567,7 @@
         "stage": null,
         "traits": "King. Wakanda.",
         "real_traits": "King. Wakanda.",
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -2405,6 +2580,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "ced52353-61f7-4ed1-8469-01d396904d61",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -2414,7 +2590,10 @@
         "boost_star": false,
         "threat_star": false,
         "escalation_threat_star": false,
-        "errata": null
+        "errata": null,
+        "url": "https://marvelcdb.com/card/01040b",
+        "imagesrc": "/bundles/cards/01040b.png",
+        "backimagesrc": null
       }
     },
     {
@@ -2461,6 +2640,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "b089edac-1010-4dcb-a679-dab7ba75b041",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2469,7 +2649,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01041",
+      "imagesrc": "/bundles/cards/01041.png"
     },
     {
       "pack_code": "core",
@@ -2508,6 +2690,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "d0b8108c-26a7-45bc-a529-3244768f474d",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2516,7 +2699,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01042",
+      "imagesrc": "/bundles/cards/01042.png"
     },
     {
       "pack_code": "core",
@@ -2556,6 +2741,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "9e348b42-e067-4bae-acf3-46d2d742e9ff",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2564,7 +2750,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01043a",
+      "imagesrc": "/bundles/cards/01043a.png"
     },
     {
       "pack_code": "core",
@@ -2604,6 +2792,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "9129d847-2443-4cb2-9f5f-6542c7c01718",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2612,7 +2801,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01043b",
+      "imagesrc": "/bundles/cards/01043b.png"
     },
     {
       "pack_code": "core",
@@ -2652,6 +2843,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "4b88f8df-9eeb-43ba-9114-40b76b55cb6f",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2660,7 +2852,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01043c",
+      "imagesrc": "/bundles/cards/01043c.png"
     },
     {
       "pack_code": "core",
@@ -2700,6 +2894,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "20def532-1101-43f3-b27b-2d57335664d0",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2708,7 +2903,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01043d",
+      "imagesrc": "/bundles/cards/01043d.png"
     },
     {
       "pack_code": "core",
@@ -2744,6 +2941,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "04138154-763e-449d-b53e-ef3b1f053bb3",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2752,7 +2950,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01044",
+      "imagesrc": "/bundles/cards/01044.png"
     },
     {
       "pack_code": "core",
@@ -2793,6 +2993,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "f0d47c90-7349-4440-b6e8-78a04293621c",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2801,7 +3002,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01045",
+      "imagesrc": "/bundles/cards/01045.png"
     },
     {
       "pack_code": "core",
@@ -2841,6 +3044,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "cfbadb2e-90cc-4898-b760-0fa7f971fcfe",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2849,7 +3053,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01046",
+      "imagesrc": "/bundles/cards/01046.png"
     },
     {
       "pack_code": "core",
@@ -2889,6 +3095,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "576fa771-26be-497f-b5b2-ff86edb09bfa",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2897,7 +3104,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01047",
+      "imagesrc": "/bundles/cards/01047.png"
     },
     {
       "pack_code": "core",
@@ -2937,6 +3146,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "6f0c70e1-1b39-4ec8-89f5-62dcd9b406a7",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2945,7 +3155,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01048",
+      "imagesrc": "/bundles/cards/01048.png"
     },
     {
       "pack_code": "core",
@@ -2985,6 +3197,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "a9469ef7-c792-4b2b-a2ed-d46684cf67a5",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -2993,7 +3206,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01049",
+      "imagesrc": "/bundles/cards/01049.png"
     },
     {
       "pack_code": "core",
@@ -3033,6 +3248,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "a690f1b8-7ffc-4330-b715-298e76851f71",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3041,7 +3257,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01050",
+      "imagesrc": "/bundles/cards/01050.png"
     },
     {
       "pack_code": "core",
@@ -3084,6 +3302,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "ce90e714-7f44-4343-9d2e-a67ff71c119c",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3092,7 +3311,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01051",
+      "imagesrc": "/bundles/cards/01051.png"
     },
     {
       "pack_code": "core",
@@ -3129,6 +3350,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "2e4ddba3-8b3f-479b-bf64-c2c25b5b6fef",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3138,6 +3360,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01052",
+      "imagesrc": "/bundles/cards/01052.png",
       "duplicated_by": [
         "28011",
         "06013",
@@ -3178,6 +3402,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "540a11a4-a630-4a18-b59b-d11f60191b92",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3187,6 +3412,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01053",
+      "imagesrc": "/bundles/cards/01053.png",
       "duplicated_by": [
         "16044"
       ]
@@ -3226,6 +3453,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "30d53042-f68d-4607-afad-257f33099788",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3235,6 +3463,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01054",
+      "imagesrc": "/bundles/cards/01054.png",
       "duplicated_by": [
         "21044",
         "18014"
@@ -3271,6 +3501,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "e81c8970-6e8f-4dff-ac6b-b2a913329e8e",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3280,6 +3511,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01055",
+      "imagesrc": "/bundles/cards/01055.png",
       "duplicated_by": [
         "45047",
         "28015",
@@ -3323,6 +3556,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "8c19e625-e6b4-4b77-ae79-2ef6e946511d",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3332,6 +3566,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01056",
+      "imagesrc": "/bundles/cards/01056.png",
       "duplicated_by": [
         "04042"
       ]
@@ -3371,6 +3607,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "55102c6c-0197-41af-999d-47df7f8ce521",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3380,6 +3617,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01057",
+      "imagesrc": "/bundles/cards/01057.png",
       "duplicated_by": [
         "04041",
         "25017",
@@ -3428,6 +3667,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "9db3e447-9429-4641-8dfd-2f34e3ca64cc",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3436,7 +3676,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01058",
+      "imagesrc": "/bundles/cards/01058.png"
     },
     {
       "pack_code": "core",
@@ -3478,6 +3720,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "0edd43ce-a861-4352-aea7-8a53a100f6cd",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3486,7 +3729,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01059",
+      "imagesrc": "/bundles/cards/01059.png"
     },
     {
       "pack_code": "core",
@@ -3523,6 +3768,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "8c071923-f2b1-44e9-a579-db84bb823cc0",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3532,6 +3778,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01060",
+      "imagesrc": "/bundles/cards/01060.png",
       "duplicated_by": [
         "21049"
       ]
@@ -3568,6 +3816,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "48acb22e-8bb3-4e0c-ae62-696bbf5830ac",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3577,6 +3826,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01061",
+      "imagesrc": "/bundles/cards/01061.png",
       "duplicated_by": [
         "30015"
       ]
@@ -3612,6 +3863,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "e026becd-b30b-42de-b699-dfc9041c3e87",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3621,6 +3873,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01062",
+      "imagesrc": "/bundles/cards/01062.png",
       "duplicated_by": [
         "47017",
         "22017",
@@ -3664,6 +3918,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "4ba26dae-aba7-49ad-b32f-ac8f7082dd65",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3673,6 +3928,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01063",
+      "imagesrc": "/bundles/cards/01063.png",
       "duplicated_by": [
         "04048",
         "08015"
@@ -3712,6 +3969,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "32d2a72b-c11b-4269-99c8-83bf6ec3633a",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3721,6 +3979,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01064",
+      "imagesrc": "/bundles/cards/01064.png",
       "duplicated_by": [
         "27045",
         "08016"
@@ -3760,6 +4020,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "c7bb3cde-ddd6-415d-a999-29fc98c841d8",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3769,6 +4030,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01065",
+      "imagesrc": "/bundles/cards/01065.png",
       "duplicated_by": [
         "04046",
         "22019",
@@ -3816,6 +4079,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "132a6e25-8d70-416a-aede-2e9cc243de66",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3825,6 +4089,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01066",
+      "imagesrc": "/bundles/cards/01066.png",
       "duplicated_by": [
         "03012"
       ]
@@ -3869,6 +4135,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "ae2b89a1-2c67-4207-9281-21bdae5c176b",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3877,7 +4144,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01067",
+      "imagesrc": "/bundles/cards/01067.png"
     },
     {
       "pack_code": "core",
@@ -3919,6 +4188,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "a19ba47a-07f7-4521-9d50-5367e375cb01",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3927,7 +4197,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01068",
+      "imagesrc": "/bundles/cards/01068.png"
     },
     {
       "pack_code": "core",
@@ -3962,6 +4234,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "6d82a251-a132-4b20-a941-fc04b1cf10ef",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -3971,6 +4244,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01069",
+      "imagesrc": "/bundles/cards/01069.png",
       "duplicated_by": [
         "17016"
       ]
@@ -4010,6 +4285,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "1447eda1-bb33-4abd-b78b-b278a87f1631",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4019,6 +4295,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01070",
+      "imagesrc": "/bundles/cards/01070.png",
       "duplicated_by": [
         "45018",
         "04018"
@@ -4057,6 +4335,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "23d1d2d0-88ea-410c-84a8-da63872db6b9",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4066,6 +4345,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01071",
+      "imagesrc": "/bundles/cards/01071.png",
       "duplicated_by": [
         "23020",
         "21056",
@@ -4103,6 +4384,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "ba5d2c1f-2fb8-4e92-9c77-c50222bc1a9c",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4112,6 +4394,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01072",
+      "imagesrc": "/bundles/cards/01072.png",
       "duplicated_by": [
         "62017",
         "45019",
@@ -4156,6 +4440,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "f8d06472-2828-4a79-8ffc-4234025efd14",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4165,6 +4450,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01073",
+      "imagesrc": "/bundles/cards/01073.png",
       "duplicated_by": [
         "53022"
       ]
@@ -4204,6 +4491,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "9c6681b7-42bf-4ae8-a123-8ca9a8a28ac3",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4213,6 +4501,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01074",
+      "imagesrc": "/bundles/cards/01074.png",
       "duplicated_by": [
         "21057"
       ]
@@ -4257,6 +4547,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "5a7fee35-ad78-4763-ae4a-8455f8872289",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4265,7 +4556,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01075",
+      "imagesrc": "/bundles/cards/01075.png"
     },
     {
       "pack_code": "core",
@@ -4307,6 +4600,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "03db5a4b-3bdf-4a8e-8569-d9641ee4565f",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4315,7 +4609,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01076",
+      "imagesrc": "/bundles/cards/01076.png"
     },
     {
       "pack_code": "core",
@@ -4352,6 +4648,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "d9099ad2-c654-411f-8e9b-080bee245ef4",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4361,6 +4658,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01077",
+      "imagesrc": "/bundles/cards/01077.png",
       "duplicated_by": [
         "21062",
         "19014"
@@ -4399,6 +4698,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "67148069-a6e4-4f69-856c-a08c8c4ae5e1",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4408,6 +4708,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01078",
+      "imagesrc": "/bundles/cards/01078.png",
       "duplicated_by": [
         "26020",
         "05013"
@@ -4444,6 +4746,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "a0390985-df47-494a-85fc-f92a83518e34",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4453,6 +4756,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01079",
+      "imagesrc": "/bundles/cards/01079.png",
       "duplicated_by": [
         "48019",
         "09017",
@@ -4494,6 +4799,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "b7c500ec-9b58-43cb-9310-0ac806a102c8",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4503,6 +4809,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01080",
+      "imagesrc": "/bundles/cards/01080.png",
       "duplicated_by": [
         "09018"
       ]
@@ -4542,6 +4850,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "2bd1068a-73f7-4c58-a212-55cde44e09b1",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4551,6 +4860,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01081",
+      "imagesrc": "/bundles/cards/01081.png",
       "duplicated_by": [
         "21063",
         "14016"
@@ -4591,6 +4902,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "0b68b17c-bf82-446c-933a-e6fafbca360e",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4600,6 +4912,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01082",
+      "imagesrc": "/bundles/cards/01082.png",
       "duplicated_by": [
         "26017",
         "19019",
@@ -4646,6 +4960,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "07bcfd3b-b6a0-4d70-8f6e-b5f152adf98d",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4655,6 +4970,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01083",
+      "imagesrc": "/bundles/cards/01083.png",
       "duplicated_by": [
         "23022",
         "03020"
@@ -4699,6 +5016,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "81144a13-02ef-4873-b0b8-bb8544d62c10",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4708,6 +5026,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01084",
+      "imagesrc": "/bundles/cards/01084.png",
       "duplicated_by": [
         "08019"
       ]
@@ -4747,6 +5067,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "cef2d14c-8e58-48e3-9330-5342b583f532",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4755,7 +5076,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01085",
+      "imagesrc": "/bundles/cards/01085.png"
     },
     {
       "pack_code": "core",
@@ -4790,6 +5113,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "559ea4da-8bb7-4021-b4ed-ebb7c8d9bc2c",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4799,6 +5123,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01086",
+      "imagesrc": "/bundles/cards/01086.png",
       "duplicated_by": [
         "22023",
         "12019"
@@ -4839,6 +5165,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "270f6e5d-6331-4211-a3a1-d0bdcc9fa4e2",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4847,7 +5174,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01087",
+      "imagesrc": "/bundles/cards/01087.png"
     },
     {
       "pack_code": "core",
@@ -4880,6 +5209,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "dd796868-b224-4ec0-be8f-46507c86cbef",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4889,6 +5219,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01088",
+      "imagesrc": "/bundles/cards/01088.png",
       "duplicated_by": [
         "62025",
         "60057",
@@ -4970,6 +5302,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "ec9d5930-031c-493c-920b-32d980409567",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -4979,6 +5312,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01089",
+      "imagesrc": "/bundles/cards/01089.png",
       "duplicated_by": [
         "62026",
         "60058",
@@ -5059,6 +5394,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "a3fcb7fc-5fbf-4566-b29f-4abdd841e2cc",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5068,6 +5404,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01090",
+      "imagesrc": "/bundles/cards/01090.png",
       "duplicated_by": [
         "62027",
         "60059",
@@ -5152,6 +5490,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "f5ab3190-a2d1-4f1f-be25-de0085706eff",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5161,6 +5500,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01091",
+      "imagesrc": "/bundles/cards/01091.png",
       "duplicated_by": [
         "26023",
         "21021",
@@ -5205,6 +5546,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "1350f98c-921d-4594-9189-c1f852526870",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5214,6 +5556,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01092",
+      "imagesrc": "/bundles/cards/01092.png",
       "duplicated_by": [
         "59033",
         "29026",
@@ -5254,6 +5598,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "c5cfd294-2e88-4ec8-a2e8-b51309f94bb6",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5262,7 +5607,9 @@
       "scheme_star": false,
       "boost_star": false,
       "threat_star": false,
-      "escalation_threat_star": false
+      "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01093",
+      "imagesrc": "/bundles/cards/01093.png"
     },
     {
       "pack_code": "core",
@@ -5302,6 +5649,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "fce46ea8-8d92-4ddc-8ef0-9c923fcf6afd",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5311,6 +5659,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01094",
+      "imagesrc": "/bundles/cards/01094.png",
       "spoiler": 1
     },
     {
@@ -5353,6 +5703,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "d02475f1-4bfb-476a-a76d-b69dbd33e47a",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5362,6 +5713,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01095",
+      "imagesrc": "/bundles/cards/01095.png",
       "spoiler": 1
     },
     {
@@ -5404,6 +5757,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "bb54b9af-cada-43e0-8602-258169423892",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5413,6 +5767,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01096",
+      "imagesrc": "/bundles/cards/01096.png",
       "spoiler": 1
     },
     {
@@ -5455,6 +5811,7 @@
       "double_sided": true,
       "back_text": "<b>Contents</b>: Rhino (I) and Rhino (II). (Rhino (II) and Rhino (III) instead for expert mode.) Rhino and Standard encounter sets. One modular encounter set <i>(recommended: Bomb Scare)</i>.\n<b>Setup</b>: Advance to stage 1B.",
       "back_flavor": "Rhino is attacking a S.H.I.E.L.D. facility!",
+      "octgn_id": "1687b8a9-9630-4800-b297-03c5001e8ee9",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5464,7 +5821,10 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
-      "spoiler": 1
+      "url": "https://marvelcdb.com/card/01097",
+      "imagesrc": "/bundles/cards/01097.png",
+      "spoiler": 1,
+      "backimagesrc": "/bundles/cards/01097b.png"
     },
     {
       "pack_code": "core",
@@ -5503,6 +5863,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "1687b8a9-9630-4800-b297-03c5001e8ee9",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5512,6 +5873,7 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01097a",
       "spoiler": 1,
       "linked_card": {
         "pack_code": "core",
@@ -5574,6 +5936,7 @@
         "stage": "1B",
         "traits": null,
         "real_traits": null,
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -5586,6 +5949,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "1687b8a9-9630-4800-b297-03c5001e8ee9",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -5596,7 +5960,10 @@
         "threat_star": false,
         "escalation_threat_star": false,
         "errata": null,
-        "spoiler": 1
+        "url": "https://marvelcdb.com/card/01097b",
+        "imagesrc": "/bundles/cards/01097b.png",
+        "spoiler": 1,
+        "backimagesrc": null
       }
     },
     {
@@ -5634,6 +6001,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "71ec987b-57ea-441f-8329-2979d4f452a3",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5643,6 +6011,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01098",
+      "imagesrc": "/bundles/cards/01098.png",
       "spoiler": 1
     },
     {
@@ -5681,6 +6051,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "9b64b2e1-31f2-4ab0-bc27-2a852bddd38d",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -5690,6 +6061,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01099",
+      "imagesrc": "/bundles/cards/01099.png",
       "spoiler": 1
     },
     {
@@ -5729,6 +6102,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "a4657b2a-a6c5-4219-9941-b3b97d395619",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5738,6 +6112,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01100",
+      "imagesrc": "/bundles/cards/01100.png",
       "spoiler": 1
     },
     {
@@ -5780,6 +6156,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "c73009c6-1937-4337-928a-61993a21b01b",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5789,6 +6166,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01101",
+      "imagesrc": "/bundles/cards/01101.png",
       "spoiler": 1
     },
     {
@@ -5831,6 +6210,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "14f6e92c-4a2a-4545-8052-a275fdd480c9",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5840,6 +6220,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01102",
+      "imagesrc": "/bundles/cards/01102.png",
       "spoiler": 1
     },
     {
@@ -5882,6 +6264,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "4543fce4-1833-4654-877c-f2e5b9948807",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5891,6 +6274,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01103",
+      "imagesrc": "/bundles/cards/01103.png",
       "spoiler": 1
     },
     {
@@ -5927,6 +6312,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "bd636747-04b7-4f4d-bad8-51bca13649dc",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5936,6 +6322,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01104",
+      "imagesrc": "/bundles/cards/01104.png",
       "spoiler": 1
     },
     {
@@ -5972,6 +6360,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "afe13025-a15b-43b8-bf07-7ff4ed3158a9",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -5981,6 +6370,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01105",
+      "imagesrc": "/bundles/cards/01105.png",
       "spoiler": 1
     },
     {
@@ -6017,6 +6408,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "68cded28-0a5e-426b-a549-532ae7919867",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6026,6 +6418,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01106",
+      "imagesrc": "/bundles/cards/01106.png",
       "spoiler": 1
     },
     {
@@ -6065,6 +6459,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "ef2f8584-2a72-46a2-81ac-076f10e7b883",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6074,6 +6469,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01107",
+      "imagesrc": "/bundles/cards/01107.png",
       "spoiler": 1
     },
     {
@@ -6113,6 +6510,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "0cec442b-79ef-4ab5-9ba7-772db0d4d33e",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6122,6 +6520,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01108",
+      "imagesrc": "/bundles/cards/01108.png",
       "spoiler": 1
     },
     {
@@ -6161,6 +6561,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "8cb351f4-cb5a-4407-8f01-1a6d61c8eb13",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6170,6 +6571,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01109",
+      "imagesrc": "/bundles/cards/01109.png",
       "spoiler": 1
     },
     {
@@ -6212,6 +6615,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "f9d67621-2ef5-4c6c-9b78-c4459b87f31f",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6221,6 +6625,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01110",
+      "imagesrc": "/bundles/cards/01110.png",
       "spoiler": 1
     },
     {
@@ -6257,6 +6663,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "e953af97-c075-42bf-96a8-c757c4b86688",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6266,6 +6673,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01111",
+      "imagesrc": "/bundles/cards/01111.png",
       "spoiler": 1
     },
     {
@@ -6303,6 +6712,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "5de00438-e4fb-4c43-83ba-a0926fd59caf",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6312,6 +6722,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01112",
+      "imagesrc": "/bundles/cards/01112.png",
       "spoiler": 1
     },
     {
@@ -6354,6 +6766,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "dd8ef54b-2bfd-4043-a2e2-e77ae3d5710e",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -6363,6 +6776,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01113",
+      "imagesrc": "/bundles/cards/01113.png",
       "spoiler": 1
     },
     {
@@ -6404,6 +6819,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "87da60fb-2502-4e5d-a8fc-9f06c447ab67",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -6413,6 +6829,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01114",
+      "imagesrc": "/bundles/cards/01114.png",
       "spoiler": 1
     },
     {
@@ -6454,6 +6872,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "f0ca13fc-9848-44a0-9842-f149d9308544",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -6463,6 +6882,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01115",
+      "imagesrc": "/bundles/cards/01115.png",
       "spoiler": 1
     },
     {
@@ -6505,6 +6926,7 @@
       "double_sided": true,
       "back_text": "<b>Contents</b>: Klaw (I) and Klaw (II). <i>(Klaw (II) and Klaw (III) instead for expert mode.)</i> Klaw and Standard encounter sets. One modular encounter set <i>(recommended: Masters of Evil)</i>\n<b>Setup</b>: Search the encounter deck for the Defense Network side scheme and reveal it. Shuffle the encounter deck. Advance to stage 1B.",
       "back_flavor": "The attack on the S.H.I.E.L.D. facility has been linked to an underground weapons network.",
+      "octgn_id": "77e9fb39-e38c-4b35-bf58-39072e9c6c10",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6514,7 +6936,10 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
-      "spoiler": 1
+      "url": "https://marvelcdb.com/card/01116",
+      "imagesrc": "/bundles/cards/01116.png",
+      "spoiler": 1,
+      "backimagesrc": "/bundles/cards/01116b.png"
     },
     {
       "pack_code": "core",
@@ -6553,6 +6978,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "77e9fb39-e38c-4b35-bf58-39072e9c6c10",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6562,6 +6988,7 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01116a",
       "spoiler": 1,
       "linked_card": {
         "pack_code": "core",
@@ -6624,6 +7051,7 @@
         "stage": "1B",
         "traits": null,
         "real_traits": null,
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -6636,6 +7064,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "77e9fb39-e38c-4b35-bf58-39072e9c6c10",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -6646,7 +7075,10 @@
         "threat_star": false,
         "escalation_threat_star": false,
         "errata": null,
-        "spoiler": 1
+        "url": "https://marvelcdb.com/card/01116b",
+        "imagesrc": "/bundles/cards/01116b.png",
+        "spoiler": 1,
+        "backimagesrc": null
       }
     },
     {
@@ -6689,6 +7121,7 @@
       "double_sided": true,
       "back_text": "<b>When Revealed</b>: Discard cards from the encounter deck until a minion is discarded. Put that minion into play engaged with the first player. Advance to stage 2B",
       "back_flavor": "Klaw has found a buyer for his illegal weapons. It's up to you to stop the sale but the meeting is surrounded by Klaw's cronies.",
+      "octgn_id": "76806fd2-3552-44be-98a5-17ab83880eca",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6698,7 +7131,10 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
-      "spoiler": 1
+      "url": "https://marvelcdb.com/card/01117",
+      "imagesrc": "/bundles/cards/01117.png",
+      "spoiler": 1,
+      "backimagesrc": "/bundles/cards/01117b.png"
     },
     {
       "pack_code": "core",
@@ -6737,6 +7173,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "76806fd2-3552-44be-98a5-17ab83880eca",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6746,6 +7183,7 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01117a",
       "spoiler": 1,
       "linked_card": {
         "pack_code": "core",
@@ -6808,6 +7246,7 @@
         "stage": "2B",
         "traits": null,
         "real_traits": null,
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -6820,6 +7259,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "76806fd2-3552-44be-98a5-17ab83880eca",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -6830,7 +7270,10 @@
         "threat_star": false,
         "escalation_threat_star": false,
         "errata": null,
-        "spoiler": 1
+        "url": "https://marvelcdb.com/card/01117b",
+        "imagesrc": "/bundles/cards/01117b.png",
+        "spoiler": 1,
+        "backimagesrc": null
       }
     },
     {
@@ -6870,6 +7313,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "ca97e8f7-2c9f-4953-bdb4-2380afa631cf",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -6879,6 +7323,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01118",
+      "imagesrc": "/bundles/cards/01118.png",
       "spoiler": 1
     },
     {
@@ -6917,6 +7363,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "4ab04b9e-b080-4767-97eb-e0a3ce2b7e86",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6926,6 +7373,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01119",
+      "imagesrc": "/bundles/cards/01119.png",
       "spoiler": 1
     },
     {
@@ -6967,6 +7416,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "685fecf2-664a-4fe2-8f78-8af5a5dfdb69",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -6976,6 +7426,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01120",
+      "imagesrc": "/bundles/cards/01120.png",
       "spoiler": 1
     },
     {
@@ -7016,6 +7468,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "c3479be7-4227-4f32-a049-0f33bc8f5b37",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7025,6 +7478,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01121",
+      "imagesrc": "/bundles/cards/01121.png",
       "spoiler": 1
     },
     {
@@ -7061,6 +7516,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "a1dd93bb-29b3-4389-b85a-329c7c7f2de1",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7070,6 +7526,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01122",
+      "imagesrc": "/bundles/cards/01122.png",
       "spoiler": 1
     },
     {
@@ -7105,6 +7563,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "d5d0bc67-1098-4798-a992-d5cac8e9ab8b",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7114,6 +7573,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01123",
+      "imagesrc": "/bundles/cards/01123.png",
       "spoiler": 1
     },
     {
@@ -7150,6 +7611,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "41dbe155-10b6-4cbe-bac1-d0ac21120c70",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7159,6 +7621,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01124",
+      "imagesrc": "/bundles/cards/01124.png",
       "spoiler": 1
     },
     {
@@ -7198,6 +7662,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "f37279a7-bbef-433f-b756-d078081a23be",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7207,6 +7672,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01125",
+      "imagesrc": "/bundles/cards/01125.png",
       "spoiler": 1
     },
     {
@@ -7246,6 +7713,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "e737e08f-5758-4d71-bdc0-39aa6226a358",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7255,6 +7723,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01126",
+      "imagesrc": "/bundles/cards/01126.png",
       "spoiler": 1
     },
     {
@@ -7293,6 +7763,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "41d90a95-581a-40c6-b73f-acfc209b6522",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7302,6 +7773,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01127",
+      "imagesrc": "/bundles/cards/01127.png",
       "spoiler": 1
     },
     {
@@ -7341,6 +7814,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "22965792-2301-4332-8c4a-f72e919c7eeb",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7350,6 +7824,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01128",
+      "imagesrc": "/bundles/cards/01128.png",
       "spoiler": 1
     },
     {
@@ -7390,6 +7866,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "2253b91e-9e08-4918-9691-ff51934a8dc6",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -7399,6 +7876,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01129",
+      "imagesrc": "/bundles/cards/01129.png",
       "spoiler": 1
     },
     {
@@ -7439,6 +7918,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "85e19139-8c69-4349-9d3f-67124cf5ba02",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -7448,6 +7928,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01130",
+      "imagesrc": "/bundles/cards/01130.png",
       "spoiler": 1
     },
     {
@@ -7489,6 +7971,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "83ab88e5-838b-4423-bf59-706e510815fe",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -7498,6 +7981,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01131",
+      "imagesrc": "/bundles/cards/01131.png",
       "spoiler": 1
     },
     {
@@ -7538,6 +8023,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "416d65b5-034f-4e4f-b2ee-6e60508a15d4",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -7547,6 +8033,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01132",
+      "imagesrc": "/bundles/cards/01132.png",
       "spoiler": 1
     },
     {
@@ -7583,6 +8071,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "3ae32f65-cd98-4f75-9756-fc4752d45fd3",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7592,6 +8081,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01133",
+      "imagesrc": "/bundles/cards/01133.png",
       "spoiler": 1
     },
     {
@@ -7633,6 +8124,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "1ac72089-1c7c-4b04-8389-423afae2f870",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -7642,6 +8134,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01134",
+      "imagesrc": "/bundles/cards/01134.png",
       "spoiler": 1
     },
     {
@@ -7683,6 +8177,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "9000efcd-7131-4e7a-bac9-69cee5fb54d1",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -7692,6 +8187,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01135",
+      "imagesrc": "/bundles/cards/01135.png",
       "spoiler": 1
     },
     {
@@ -7735,6 +8232,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "2a8069a6-044c-409c-a633-ded41dde6670",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7744,6 +8242,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01136",
+      "imagesrc": "/bundles/cards/01136.png",
       "spoiler": 1
     },
     {
@@ -7788,6 +8288,7 @@
       "double_sided": true,
       "back_text": "<b>Contents</b>: Ultron (I) and Ultron (II). <i>(Ultron (II) and Ultron (III) instead for expert mode.)</i> Ultron and Standard encounter sets. One modular encounter set <i>(recommended: Under Attack).</i>\n<b>Setup</b>: Put the Ultron Drones environment into play. Shuffle the encounter deck. Advanced to stage 1B.",
       "back_flavor": "Klaw's mysterious, red-hooded employer is really the genocidal android Ultron.",
+      "octgn_id": "741ee538-008d-4f5b-8b54-be47c3b37160",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7797,7 +8298,10 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
-      "spoiler": 1
+      "url": "https://marvelcdb.com/card/01137",
+      "imagesrc": "/bundles/cards/01137.png",
+      "spoiler": 1,
+      "backimagesrc": "/bundles/cards/01137b.png"
     },
     {
       "pack_code": "core",
@@ -7836,6 +8340,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "741ee538-008d-4f5b-8b54-be47c3b37160",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7845,6 +8350,7 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01137a",
       "spoiler": 1,
       "linked_card": {
         "pack_code": "core",
@@ -7907,6 +8413,7 @@
         "stage": "1B",
         "traits": null,
         "real_traits": null,
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -7919,6 +8426,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "741ee538-008d-4f5b-8b54-be47c3b37160",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -7929,7 +8437,10 @@
         "threat_star": false,
         "escalation_threat_star": false,
         "errata": null,
-        "spoiler": 1
+        "url": "https://marvelcdb.com/card/01137b",
+        "imagesrc": "/bundles/cards/01137b.png",
+        "spoiler": 1,
+        "backimagesrc": null
       }
     },
     {
@@ -7972,6 +8483,7 @@
       "double_sided": true,
       "back_text": "<b>When Revealed</b>: Each player puts the top card of their deck into play facedown, engaged with them as a [[Drone]] minion. Advance to stage 2B.",
       "back_flavor": "As you pursue Ultron, you receive a distress call from the North American Aerospace Defense Command in Colorado. They are besieged by an army of Ultron drones!",
+      "octgn_id": "79ae1bd9-628f-40f7-8e00-049526f13041",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -7981,7 +8493,10 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
-      "spoiler": 1
+      "url": "https://marvelcdb.com/card/01138",
+      "imagesrc": "/bundles/cards/01138.png",
+      "spoiler": 1,
+      "backimagesrc": "/bundles/cards/01138b.png"
     },
     {
       "pack_code": "core",
@@ -8020,6 +8535,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "79ae1bd9-628f-40f7-8e00-049526f13041",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8029,6 +8545,7 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01138a",
       "spoiler": 1,
       "linked_card": {
         "pack_code": "core",
@@ -8091,6 +8608,7 @@
         "stage": "2B",
         "traits": null,
         "real_traits": null,
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -8103,6 +8621,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "79ae1bd9-628f-40f7-8e00-049526f13041",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -8113,7 +8632,10 @@
         "threat_star": false,
         "escalation_threat_star": false,
         "errata": null,
-        "spoiler": 1
+        "url": "https://marvelcdb.com/card/01138b",
+        "imagesrc": "/bundles/cards/01138b.png",
+        "spoiler": 1,
+        "backimagesrc": null
       }
     },
     {
@@ -8156,6 +8678,7 @@
       "double_sided": true,
       "back_text": "<b>When Revealed</b>: Each player puts the top card of their deck into play facedown, engaged with them as a [[Drone]] minion. Advance to stage 3B.",
       "back_flavor": "Ultron has seized control of NORAD. It's only a matter of time before he overcomes the command safeguards and launches the nuclear arsenal.",
+      "octgn_id": "af49444f-d93e-4ef5-b2fb-2035cd386d41",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8165,7 +8688,10 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
-      "spoiler": 1
+      "url": "https://marvelcdb.com/card/01139",
+      "imagesrc": "/bundles/cards/01139.png",
+      "spoiler": 1,
+      "backimagesrc": "/bundles/cards/01139b.png"
     },
     {
       "pack_code": "core",
@@ -8204,6 +8730,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "af49444f-d93e-4ef5-b2fb-2035cd386d41",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8213,6 +8740,7 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01139a",
       "spoiler": 1,
       "linked_card": {
         "pack_code": "core",
@@ -8275,6 +8803,7 @@
         "stage": "3B",
         "traits": null,
         "real_traits": null,
+        "meta": null,
         "deck_requirements": null,
         "deck_options": null,
         "restrictions": null,
@@ -8287,6 +8816,7 @@
         "back_text": null,
         "back_flavor": null,
         "back_name": null,
+        "octgn_id": "af49444f-d93e-4ef5-b2fb-2035cd386d41",
         "attack_star": false,
         "thwart_star": false,
         "defense_star": false,
@@ -8297,7 +8827,10 @@
         "threat_star": false,
         "escalation_threat_star": false,
         "errata": null,
-        "spoiler": 1
+        "url": "https://marvelcdb.com/card/01139b",
+        "imagesrc": "/bundles/cards/01139b.png",
+        "spoiler": 1,
+        "backimagesrc": null
       }
     },
     {
@@ -8333,6 +8866,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "551b46f8-e92a-47c8-8506-70127a0aca16",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8342,6 +8876,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01140",
+      "imagesrc": "/bundles/cards/01140.png",
       "spoiler": 1
     },
     {
@@ -8381,6 +8917,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "9fb5fb97-0dcc-47d9-bce1-8b22c53e48cc",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8390,6 +8927,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01141",
+      "imagesrc": "/bundles/cards/01141.png",
       "spoiler": 1
     },
     {
@@ -8427,6 +8966,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "4704125d-e56c-450d-85f2-6773ad6484f7",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8436,6 +8976,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01142",
+      "imagesrc": "/bundles/cards/01142.png",
       "spoiler": 1
     },
     {
@@ -8477,6 +9019,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "4baf3e7a-96af-4f1b-9477-a7f9426b6d16",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8486,6 +9029,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01143",
+      "imagesrc": "/bundles/cards/01143.png",
       "spoiler": 1
     },
     {
@@ -8530,6 +9075,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01144",
+      "imagesrc": "/bundles/cards/01144.png",
       "spoiler": 1
     },
     {
@@ -8565,6 +9112,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "c48c6ee0-8bcc-4855-be15-9cebffbc17bb",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8574,6 +9122,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01144a",
+      "imagesrc": "/bundles/cards/01144a.png",
       "spoiler": 1
     },
     {
@@ -8609,6 +9159,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "112ca6dd-7733-457e-b2cb-2e4dd7720bf7",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8618,6 +9169,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01144b",
+      "imagesrc": "/bundles/cards/01144b.png",
       "spoiler": 1
     },
     {
@@ -8653,6 +9206,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "8dcff72d-dfd3-4717-9bbb-433eeca2efae",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8662,6 +9216,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01144c",
+      "imagesrc": "/bundles/cards/01144c.png",
       "spoiler": 1
     },
     {
@@ -8698,6 +9254,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "67976b80-f940-4e87-8856-2437c2729dc8",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8707,6 +9264,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01145",
+      "imagesrc": "/bundles/cards/01145.png",
       "spoiler": 1
     },
     {
@@ -8743,6 +9302,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "19c66bf5-f9a2-4189-abda-ac6401acc16b",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8752,6 +9312,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01146",
+      "imagesrc": "/bundles/cards/01146.png",
       "spoiler": 1
     },
     {
@@ -8788,6 +9350,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "33aa7723-e4ea-49cd-a1d5-c653fc99e77d",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8797,6 +9360,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01147",
+      "imagesrc": "/bundles/cards/01147.png",
       "spoiler": 1
     },
     {
@@ -8835,6 +9400,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "00d3ab63-ca36-45dd-bc07-484d8c26739c",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8844,6 +9410,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01148",
+      "imagesrc": "/bundles/cards/01148.png",
       "spoiler": 1
     },
     {
@@ -8883,6 +9451,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "1e73665c-99f8-4232-8786-e38eae794a34",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8892,6 +9461,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01149",
+      "imagesrc": "/bundles/cards/01149.png",
       "spoiler": 1
     },
     {
@@ -8931,6 +9502,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "0f38393d-c11d-49c7-b9a0-4c7c61f098d4",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8940,6 +9512,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01150",
+      "imagesrc": "/bundles/cards/01150.png",
       "spoiler": 1
     },
     {
@@ -8979,6 +9553,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "80edf5ec-f722-49b9-b0d9-66765d66f82e",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -8988,6 +9563,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01151",
+      "imagesrc": "/bundles/cards/01151.png",
       "spoiler": 1
     },
     {
@@ -9026,6 +9603,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "151dc38f-38b3-4c71-b07c-a9a1767931d6",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9035,6 +9613,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01152",
+      "imagesrc": "/bundles/cards/01152.png",
       "spoiler": 1
     },
     {
@@ -9073,6 +9653,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "1605113e-4ad8-467a-ab1d-de1c5947d6b3",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9082,6 +9663,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01153",
+      "imagesrc": "/bundles/cards/01153.png",
       "spoiler": 1
     },
     {
@@ -9117,6 +9700,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "806aec31-76c4-45e5-9cf2-8862a21499dc",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9126,6 +9710,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01154",
+      "imagesrc": "/bundles/cards/01154.png",
       "spoiler": 1
     },
     {
@@ -9161,6 +9747,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "8dc9fe9d-5174-4e7d-933a-cabe2b08cdae",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9170,6 +9757,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01155",
+      "imagesrc": "/bundles/cards/01155.png",
       "spoiler": 1
     },
     {
@@ -9207,6 +9796,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "24ec5d3e-e0e1-4a7a-b290-ebaefe854f63",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9216,6 +9806,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01156",
+      "imagesrc": "/bundles/cards/01156.png",
       "spoiler": 1
     },
     {
@@ -9258,6 +9850,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "5a468cd0-b1c1-45e9-80d6-864640934d08",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9267,6 +9860,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01157",
+      "imagesrc": "/bundles/cards/01157.png",
       "spoiler": 1
     },
     {
@@ -9303,6 +9898,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "5c73fbb6-fc58-4c4e-ae6a-b28af5a8ddf5",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9312,6 +9908,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01158",
+      "imagesrc": "/bundles/cards/01158.png",
       "spoiler": 1
     },
     {
@@ -9348,6 +9946,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "a52a8c6e-abb8-47bd-9aad-0135ce99dee8",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9357,6 +9956,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01159",
+      "imagesrc": "/bundles/cards/01159.png",
       "spoiler": 1
     },
     {
@@ -9393,6 +9994,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "215756dd-e34d-4d10-be2e-7d972ade0e36",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9402,6 +10004,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01160",
+      "imagesrc": "/bundles/cards/01160.png",
       "spoiler": 1
     },
     {
@@ -9441,6 +10045,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "c2071209-7ce4-4794-9013-08d38d1b260e",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9450,6 +10055,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01161",
+      "imagesrc": "/bundles/cards/01161.png",
       "spoiler": 1
     },
     {
@@ -9492,6 +10099,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "1eda50fe-f3a7-4751-a68c-3f0093278b08",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9501,6 +10109,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01162",
+      "imagesrc": "/bundles/cards/01162.png",
       "spoiler": 1
     },
     {
@@ -9539,6 +10149,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "e40d1f4b-3c64-4452-8b75-4900f023d2eb",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9548,6 +10159,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01163",
+      "imagesrc": "/bundles/cards/01163.png",
       "spoiler": 1
     },
     {
@@ -9584,6 +10197,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "bb04e1f3-9c1a-40b7-a8a9-78781abc2523",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9593,6 +10207,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01164",
+      "imagesrc": "/bundles/cards/01164.png",
       "spoiler": 1
     },
     {
@@ -9628,6 +10244,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "6c403e3d-bcb9-43f0-9928-498c958d22c3",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9637,6 +10254,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01165",
+      "imagesrc": "/bundles/cards/01165.png",
       "spoiler": 1
     },
     {
@@ -9675,6 +10294,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "1cee2430-914d-42c0-9d3e-ea583ca73ba2",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9684,6 +10304,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01166",
+      "imagesrc": "/bundles/cards/01166.png",
       "spoiler": 1
     },
     {
@@ -9726,6 +10348,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "5981e1e8-87ee-40cc-be89-4459648d6bcc",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9735,6 +10358,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01167",
+      "imagesrc": "/bundles/cards/01167.png",
       "spoiler": 1
     },
     {
@@ -9770,6 +10395,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "10d0ab81-6ebd-418e-8d2c-1d7b47976b37",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9779,6 +10405,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01168",
+      "imagesrc": "/bundles/cards/01168.png",
       "spoiler": 1
     },
     {
@@ -9816,6 +10444,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "5d7b24ab-140b-4b61-a4fb-7a4061f778d4",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9825,6 +10454,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01169",
+      "imagesrc": "/bundles/cards/01169.png",
       "spoiler": 1
     },
     {
@@ -9860,6 +10491,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "59094ad5-afba-45c9-bad8-0881549e1f03",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9869,6 +10501,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01170",
+      "imagesrc": "/bundles/cards/01170.png",
       "spoiler": 1
     },
     {
@@ -9908,6 +10542,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "61ad993f-1263-47d8-81f2-eb4ce6abf6a2",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9917,6 +10552,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01171",
+      "imagesrc": "/bundles/cards/01171.png",
       "spoiler": 1
     },
     {
@@ -9957,6 +10594,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "e5cbdf73-a226-4720-a43a-af700f5140ef",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -9966,6 +10604,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01172",
+      "imagesrc": "/bundles/cards/01172.png",
       "spoiler": 1
     },
     {
@@ -10001,6 +10641,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "c72e742d-b695-47aa-b35e-4634b87fe69c",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10010,6 +10651,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01173",
+      "imagesrc": "/bundles/cards/01173.png",
       "spoiler": 1
     },
     {
@@ -10047,6 +10690,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "14ba1590-2611-4a16-a7b0-c3eb2e71b2e9",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10056,6 +10700,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01174",
+      "imagesrc": "/bundles/cards/01174.png",
       "spoiler": 1
     },
     {
@@ -10091,6 +10737,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "00c2957b-8a7e-40f9-9f52-62f4c3c175e9",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10100,6 +10747,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01175",
+      "imagesrc": "/bundles/cards/01175.png",
       "spoiler": 1
     },
     {
@@ -10139,6 +10788,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "78ea09d6-bdd6-4133-b1b4-446ae53a68f6",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10148,6 +10798,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01176",
+      "imagesrc": "/bundles/cards/01176.png",
       "spoiler": 1
     },
     {
@@ -10190,6 +10842,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "75e5f8a6-ebe3-40b9-b067-79749c37f0e8",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -10199,6 +10852,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01177",
+      "imagesrc": "/bundles/cards/01177.png",
       "spoiler": 1
     },
     {
@@ -10234,6 +10889,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "f540bb02-6391-40df-b836-29d9c74b31b2",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10243,6 +10899,8 @@
       "boost_star": true,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01178",
+      "imagesrc": "/bundles/cards/01178.png",
       "spoiler": 1
     },
     {
@@ -10280,6 +10938,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "efd4b194-0f9e-4c6d-a860-10023f226338",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10289,6 +10948,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01179",
+      "imagesrc": "/bundles/cards/01179.png",
       "spoiler": 1
     },
     {
@@ -10327,6 +10988,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "70027835-0959-4317-b4ec-0a013c1d2022",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10336,6 +10998,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01180",
+      "imagesrc": "/bundles/cards/01180.png",
       "spoiler": 1
     },
     {
@@ -10377,6 +11041,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "fac6bbcf-23cc-4af3-8ea6-6f9a8ff1cd3f",
       "attack_star": true,
       "thwart_star": false,
       "defense_star": false,
@@ -10386,6 +11051,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01181",
+      "imagesrc": "/bundles/cards/01181.png",
       "spoiler": 1
     },
     {
@@ -10427,6 +11094,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "20e70c3c-11b3-46c9-ba8e-d67b950d2e93",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10436,6 +11104,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01182",
+      "imagesrc": "/bundles/cards/01182.png",
       "spoiler": 1
     },
     {
@@ -10474,6 +11144,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "272b5a87-d602-454a-8fe1-2afc9a21c677",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10484,6 +11155,8 @@
       "threat_star": false,
       "escalation_threat_star": false,
       "errata": "Added periods to “M.O.D.O.K.” (RRG 1.6)",
+      "url": "https://marvelcdb.com/card/01183",
+      "imagesrc": "/bundles/cards/01183.png",
       "spoiler": 1
     },
     {
@@ -10526,6 +11199,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "420f27a2-85a3-40be-9a72-e8f326723485",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10536,6 +11210,8 @@
       "threat_star": false,
       "escalation_threat_star": false,
       "errata": "Added periods to card title. (RRG 1.5)",
+      "url": "https://marvelcdb.com/card/01184",
+      "imagesrc": "/bundles/cards/01184.png",
       "spoiler": 1
     },
     {
@@ -10574,6 +11250,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "15bc3048-9fc3-4a15-96ab-63a2b11ae533",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10583,6 +11260,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01185",
+      "imagesrc": "/bundles/cards/01185.png",
       "spoiler": 1
     },
     {
@@ -10619,6 +11298,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "784c9289-6c13-44cd-97d0-100517406c82",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10628,6 +11308,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01186",
+      "imagesrc": "/bundles/cards/01186.png",
       "spoiler": 1
     },
     {
@@ -10664,6 +11346,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "42ff2d81-31cc-43a3-9ad2-0f29deab6fda",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10673,6 +11356,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01187",
+      "imagesrc": "/bundles/cards/01187.png",
       "spoiler": 1
     },
     {
@@ -10709,6 +11394,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "40a61b14-3ab2-459d-bee2-8c4983253116",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10718,6 +11404,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01188",
+      "imagesrc": "/bundles/cards/01188.png",
       "spoiler": 1
     },
     {
@@ -10754,6 +11442,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "97c72ae9-1ec6-44d4-876d-2e3688a55c9e",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10763,6 +11452,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01189",
+      "imagesrc": "/bundles/cards/01189.png",
       "spoiler": 1
     },
     {
@@ -10799,6 +11490,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "6d4aa932-4d9b-40d3-bf02-283bdfff9abf",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10808,6 +11500,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01190",
+      "imagesrc": "/bundles/cards/01190.png",
       "spoiler": 1
     },
     {
@@ -10844,6 +11538,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "77ddd5c1-04f0-4796-b0f1-b3558071d187",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10853,6 +11548,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01191",
+      "imagesrc": "/bundles/cards/01191.png",
       "spoiler": 1
     },
     {
@@ -10889,6 +11586,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "b18967c6-313b-40ec-a5b3-4e4e2fa88650",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10898,6 +11596,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01192",
+      "imagesrc": "/bundles/cards/01192.png",
       "spoiler": 1
     },
     {
@@ -10935,6 +11635,7 @@
       "hidden": false,
       "permanent": false,
       "double_sided": false,
+      "octgn_id": "6a40661c-e13a-4dfd-a676-d5022ce6cf1d",
       "attack_star": false,
       "thwart_star": false,
       "defense_star": false,
@@ -10944,6 +11645,8 @@
       "boost_star": false,
       "threat_star": false,
       "escalation_threat_star": false,
+      "url": "https://marvelcdb.com/card/01193",
+      "imagesrc": "/bundles/cards/01193.png",
       "spoiler": 1
     }
   ]

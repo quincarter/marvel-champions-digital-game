@@ -1,7 +1,7 @@
 import type { CardText, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
-import type { ArtRef, CardId, EncounterSetId } from "../ids.js";
+import type { ArtRef, CardId, EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard } from "./base.js";
 
 export interface HeroFace {
@@ -16,6 +16,8 @@ export interface HeroFace {
   readonly flavor?: string;
   readonly abilities: readonly AbilityReference[];
   readonly art?: ArtRef;
+  /** Upstream artwork for this face. The identity's `images` carries both. */
+  readonly image?: ImageRef;
 }
 
 export interface AlterEgoFace {
@@ -27,6 +29,8 @@ export interface AlterEgoFace {
   readonly flavor?: string;
   readonly abilities: readonly AbilityReference[];
   readonly art?: ArtRef;
+  /** Upstream artwork for this face. The identity's `images` carries both. */
+  readonly image?: ImageRef;
 }
 
 /**

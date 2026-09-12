@@ -1,0 +1,45 @@
+# Toolchain and task runner for Marvel Champions: Digital Edition.
+#
+# Tasks delegate to the package.json scripts rather than restating the commands,
+# so there is one definition of each and nothing to drift. Run `mise tasks` to
+# list them, or use the pnpm scripts directly — they are the same thing.
+
+[tools]
+pnpm = "11.24"
+
+[tasks.setup]
+description = "Install workspace dependencies"
+run = "pnpm install"
+
+[tasks.dev]
+description = "Run the game client on http://localhost:5173"
+run = "pnpm dev"
+
+[tasks.preview]
+description = "Build the client and serve the production bundle"
+run = "pnpm preview"
+
+[tasks.build]
+description = "Build every package (content → engine → cards → client)"
+run = "pnpm build"
+
+[tasks.test]
+description = "Run every package's Vitest suite"
+run = "pnpm test"
+
+[tasks.typecheck]
+description = "Typecheck every package"
+run = "pnpm typecheck"
+
+[tasks.check]
+description = "Everything CI runs: typecheck, then tests, then build"
+# A sequential array, so a failure stops the run and the output stays readable.
+run = ["pnpm typecheck", "pnpm test", "pnpm build"]
+
+[tasks.ingest]
+description = "Regenerate card data. Pass flags after --, e.g. mise run ingest -- --pack core --offline"
+run = "pnpm ingest"
+
+[tasks.clean]
+description = "Remove every package's build output"
+run = "pnpm clean"

@@ -1,0 +1,57 @@
+[
+  {
+    "code": "90001",
+    "name": "Ronan the Accuser",
+    "pack_code": "ron",
+    "type_name": "Minion",
+    "faction_name": "Encounter",
+    "card_set_name": "Kree Fanatic",
+    "card_set_code": "kree_fanatic",
+    "imagesrc": "/bundles/cards/90001.png",
+    "backimagesrc": null
+  },
+  {
+    "code": "90002",
+    "name": "Judge, Jury, Executioner",
+    "pack_code": "ron",
+    "type_name": "Side Scheme",
+    "faction_name": "Encounter",
+    "card_set_name": "Kree Fanatic",
+    "card_set_code": "kree_fanatic",
+    "imagesrc": "/bundles/cards/90002.png",
+    "backimagesrc": null
+  },
+  {
+    "code": "90003",
+    "name": "The Accused",
+    "pack_code": "ron",
+    "type_name": "Attachment",
+    "faction_name": "Encounter",
+    "card_set_name": "Kree Fanatic",
+    "card_set_code": "kree_fanatic",
+    "imagesrc": "/bundles/cards/90003.png",
+    "backimagesrc": null
+  },
+  {
+    "code": "90004",
+    "name": "Bring the Hammer Down",
+    "pack_code": "ron",
+    "type_name": "Treachery",
+    "faction_name": "Encounter",
+    "card_set_name": "Kree Fanatic",
+    "card_set_code": "kree_fanatic",
+    "imagesrc": "/bundles/cards/90004.png",
+    "backimagesrc": null
+  },
+  {
+    "code": "90005",
+    "name": "You Dare Oppose Me?",
+    "pack_code": "ron",
+    "type_name": "Treachery",
+    "faction_name": "Encounter",
+    "card_set_name": "Kree Fanatic",
+    "card_set_code": "kree_fanatic",
+    "imagesrc": "/bundles/cards/90005.png",
+    "backimagesrc": null
+  }
+]

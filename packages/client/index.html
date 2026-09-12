@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Marvel Champions</title>
+    <!--
+      The only DOM in the app. Phaser draws every screen (PLAN.md Phase 4), so
+      this page exists to host the canvas and nothing else. VOID (#0E0C0A) is
+      the design system's canvas-behind-screens colour, so the page never
+      flashes white before the game boots.
+    -->
+    <!--
+      The three families from Components.dc.html. Loaded as a stylesheet here
+      rather than through Phaser's loader, which loads font *files*, not a
+      Google Fonts CSS document. The Boot scene waits on `document.fonts`
+      before drawing, so no screen is ever laid out in a fallback face.
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Bangers&family=IBM+Plex+Mono:wght@400&family=Public+Sans:wght@400;700;800&display=block"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        overflow: hidden;
+        background: #0e0c0a;
+        color-scheme: dark;
+      }
+      #game {
+        width: 100%;
+        height: 100%;
+      }
+      canvas {
+        display: block;
+        touch-action: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="game"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-import type { ArtRef } from "./ids.js";
+import type { ArtRef, ImageRef } from "./ids.js";
 
 /**
  * Many printed values ("10 threat", "1 per player") scale with player count.
@@ -78,4 +78,25 @@ type Brand<T, B extends string> = T & { readonly __brand: B };
 export type Trait = Brand<string, "Trait">;
 export const trait = (value: string): Trait => value.trim().toUpperCase() as Trait;
 
-export type { ArtRef };
+export type { ArtRef, ImageRef };
+
+/**
+ * Upstream artwork for a card, one reference per printed face.
+ *
+ * `front` and `back` are the two sides of one physical card. A single-faced
+ * card has only `front`. What counts as the "back" depends on the card:
+ *
+ * - a double-sided encounter or scheme card: the printed reverse
+ *   (MarvelCDB's `backimagesrc`);
+ * - a hero identity: the alter-ego face, which MarvelCDB publishes as a
+ *   *linked card* rather than a back image — the faces also carry their own
+ *   `image`, so a consumer never has to know which side is which.
+ *
+ * Cards whose faces the schema models separately (villain stages, main scheme
+ * A/B sides) put the reference on the face instead, since each of those is its
+ * own printed card rather than a side of this one.
+ */
+export interface CardImages {
+  readonly front?: ImageRef;
+  readonly back?: ImageRef;
+}

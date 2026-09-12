@@ -1,7 +1,7 @@
 import type { CardText, ScalingValue, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
-import type { EncounterSetId } from "../ids.js";
+import type { EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard } from "./base.js";
 
 export interface VillainStage {
@@ -14,6 +14,8 @@ export interface VillainStage {
   readonly traits: readonly Trait[];
   readonly keywords: readonly KeywordInstance[];
   readonly abilities: readonly AbilityReference[];
+  /** Upstream artwork. Each stage is its own printed card, so the ref lives here. */
+  readonly image?: ImageRef;
 }
 
 /**

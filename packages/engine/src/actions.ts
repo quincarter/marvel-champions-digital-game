@@ -90,7 +90,7 @@ export function changeForm(ctx: Ctx, command: Command & { type: "changeForm" }):
 export { printedResources };
 
 /** A hand card's resources, including "double … while paying for an [aspect] card" (The Power of X). */
-function handCardResources(
+export function handCardResources(
   state: GameState,
   deps: EngineDeps,
   cardInstanceId: InstanceId,
@@ -111,7 +111,13 @@ function handCardResources(
   return pool;
 }
 
-function generatedResources(state: GameState, generation: ResourceGeneration | undefined, discardTop: InstanceId | null): ResourcePool {
+/**
+ * What a resource ability generates. `topCardOfDiscard` depends on the discard
+ * pile as it stands when the ability is paid, so earlier cards in the same
+ * payment change it; callers asking before a payment is built (the payment
+ * query) can only be told what the current top card is worth.
+ */
+export function generatedResources(state: GameState, generation: ResourceGeneration | undefined, discardTop: InstanceId | null): ResourcePool {
   if (generation === undefined) return poolOf({ wild: 1 });
   if (typeof generation === "number") return poolOf({ wild: generation });
   if ("kind" in generation) {
@@ -451,6 +457,21 @@ export function eventActionAbility(ctx: Ctx, card: AnyCard): AbilityDefinition |
   return undefined;
 }
 
+/**
+ * What playing a card demands: its printed cost less any "reduce the cost of
+ * the next card" effect, plus its own ability's cost.
+ */
+export function playRequirement(
+  state: GameState,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  abilityRequirement: Required<ResourceRequirement>,
+): Required<ResourceRequirement> {
+  const card = mustCardOf(state, cardInstanceId);
+  const printed = "cost" in card ? card.cost : 0;
+  return combineRequirements(Math.max(0, printed - costReductionFor(state, playerId)), abilityRequirement);
+}
+
 export interface PricedPlay {
   readonly pool: ResourcePool;
   readonly plan: CostPlan;
@@ -469,12 +490,9 @@ export function pricePlay(
   payment: readonly Payment[],
   choices: CostChoices,
 ): PricedPlay | PriceFault {
-  const card = mustCardOf(ctx.state, cardInstanceId);
-  const printed = "cost" in card ? card.cost : 0;
   const plan = planCost(ctx.state, ctx.deps, cardInstanceId, playerId, cost, choices, handCardsIn(payment));
   if (isFault(plan)) return plan;
-  const reduced = Math.max(0, printed - costReductionFor(ctx.state, playerId));
-  const requirement = combineRequirements(reduced, plan.requirement);
+  const requirement = playRequirement(ctx.state, playerId, cardInstanceId, plan.requirement);
   const pool = priceOf(ctx, playerId, payment, cardInstanceId, plan.payingFor ?? cardInstanceId);
   if (isFault(pool)) return pool;
   if (!satisfies(pool, requirement)) {

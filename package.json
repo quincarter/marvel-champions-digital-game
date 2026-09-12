@@ -6,9 +6,14 @@
     "node": ">=22"
   },
   "scripts": {
+    "dev": "pnpm --filter @mc/client dev",
+    "preview": "pnpm --filter @mc/client build && pnpm --filter @mc/client preview",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "ingest": "pnpm --filter @mc/content ingest --",
+    "clean": "rm -rf packages/*/dist"
   },
   "devDependencies": {
     "typescript": "^5.9.0",

@@ -19,6 +19,7 @@ export type BrandFn =
   | "encounterSetId"
   | "scenarioId"
   | "starterDeckId"
+  | "imageRef"
   | "trait";
 
 const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
@@ -40,6 +41,7 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   nemesisOfIdentityId: "cardId",
   cardId: "cardId",
   scenarioIds: "scenarioId",
+  image: "imageRef",
 };
 
 const INLINE_MAX = 100;
@@ -58,6 +60,8 @@ function brandFor(ctx: Ctx): BrandFn | undefined {
   const { key, parentKey, rootBrands } = ctx;
   if (key === undefined) return undefined;
   if (key === "id" && parentKey === "abilities") return "abilityId";
+  // `front`/`back` are image refs only inside a CardImages object.
+  if (parentKey === "images" && (key === "front" || key === "back")) return "imageRef";
   return rootBrands?.[key] ?? (key === "id" ? undefined : KEY_BRANDS[key]);
 }
 
@@ -136,7 +140,7 @@ export function emitModule(spec: ModuleSpec): string {
     return `${e.doc ? `/** ${e.doc} */\n` : ""}export const ${e.name}: ${e.type} = ${value};\n`;
   });
   const body = bodies.join("\n");
-  const helpers = (["abilityId", "cardId", "cycleId", "encounterSetId", "scenarioId", "setCode", "starterDeckId", "trait"] as const).filter(
+  const helpers = (["abilityId", "cardId", "cycleId", "encounterSetId", "imageRef", "scenarioId", "setCode", "starterDeckId", "trait"] as const).filter(
     (h) => new RegExp(`\\b${h}\\(`).test(body),
   );
   const lines = [...spec.header.map((h) => `// ${h}`), ""];

@@ -1,6 +1,8 @@
 /// <reference types="node" />
 import { readFileSync } from "node:fs";
 import {
+  imageRef,
+  imageUrl,
   validateCard,
   validateScenario,
   validateStarterDeck,
@@ -118,11 +120,19 @@ describe("Core Set data — matches the raw MarvelCDB cache", () => {
   const dropped = new Set(CORE_DROPPED_SOURCE_RECORDS.map((d) => d.marvelcdbCode));
   const rawRecords = rawCache.cards.flatMap((r) => (r.linked_card ? [r, r.linked_card] : [r]));
 
-  it("the raw cache has no art/asset fields or image references", () => {
+  it("the raw cache keeps MarvelCDB's asset/reference fields verbatim", () => {
+    // The cache is a verbatim copy of the API response: imagesrc/backimagesrc/meta/
+    // octgn_id/url are references, not image bytes, and are kept for downstream use
+    // (art lookup, cross-referencing OCTGN/MarvelCDB). No art is stored in the repo.
     for (const field of ["imagesrc", "backimagesrc", "meta", "octgn_id", "url"]) {
-      expect(rawCacheText).not.toContain(`"${field}":`);
+      expect(rawCacheText, field).toContain(`"${field}":`);
     }
-    expect(rawCacheText).not.toMatch(/\.(png|jpe?g|webp)\b|\/bundles\/cards\//);
+    const spiderMan = rawCache.cards.find((r) => r.code === "01001a");
+    expect(spiderMan?.["imagesrc"]).toBe("/bundles/cards/01001a.png");
+    expect(spiderMan?.["url"]).toBe("https://marvelcdb.com/card/01001a");
+    expect(spiderMan?.["octgn_id"]).toEqual(expect.any(String));
+    // …including inside linked_card, which used to be stripped recursively.
+    expect(spiderMan?.linked_card?.["imagesrc"]).toBe("/bundles/cards/01001b.png");
   });
 
   it("has 205 top-level records and drops only MarvelCDB aggregates", () => {
@@ -418,6 +428,122 @@ describe("Core Set data — spot checks across card types", () => {
       return c && "deckLimit" in c ? c.deckLimit : undefined;
     };
     expect([limit("01088"), limit("01055"), limit("01005"), limit("01014")]).toEqual([1, 2, 3, 2]);
+  });
+});
+
+describe("Core Set data — artwork references", () => {
+  const rawByCode = new Map(rawCache.cards.flatMap((r) => (r.linked_card ? [r, r.linked_card] : [r])).map((r) => [r.code, r]));
+  const src = (code: string) => rawByCode.get(code)?.["imagesrc"];
+
+  /**
+   * Every printed face, wherever the schema keeps it. A card's faces live in
+   * different places by type, so a coverage test has to know all of them —
+   * this mirrors `printedFaces` in the normalizer.
+   */
+  function faces(c: AnyCard): { what: string; image?: string }[] {
+    switch (c.type) {
+      case "hero_identity":
+        return [
+          { what: "hero", ...(c.hero.image ? { image: c.hero.image } : {}) },
+          { what: "alterEgo", ...(c.alterEgo.image ? { image: c.alterEgo.image } : {}) },
+        ];
+      case "villain":
+        return c.sides.flatMap((side) =>
+          side.stages.map((st) => ({ what: `${side.side}${st.stageNumber}`, ...(st.image ? { image: st.image } : {}) })),
+        );
+      case "main_scheme":
+        return c.stages.flatMap((st) => [
+          { what: `${st.stageNumber}A`, ...(st.aSide.image ? { image: st.aSide.image } : {}) },
+          { what: `${st.stageNumber}B`, ...(st.image ? { image: st.image } : {}) },
+        ]);
+      default:
+        return [{ what: "front", ...(c.images?.front ? { image: c.images.front } : {}) }];
+    }
+  }
+
+  it("every printed face of every card has an artwork reference", () => {
+    const missing = CORE_CARDS.flatMap((c) => faces(c).filter((f) => !f.image).map((f) => `${c.id}:${f.what}`));
+    expect(missing).toEqual([]);
+  });
+
+  it("references are the source's own paths, never bytes and never a baked URL", () => {
+    for (const c of CORE_CARDS) {
+      for (const face of faces(c)) {
+        // A site-relative path: the host is resolved by `imageUrl`, so the data
+        // stays references rather than thousands of URLs (CLAUDE.md IP boundary).
+        expect(face.image, `${c.id}:${face.what}`).toMatch(/^\/bundles\/cards\/[\w-]+\.png$/);
+      }
+    }
+  });
+
+  it("a single-faced card takes its front straight from the source record", () => {
+    const suit = card<AttachmentCard>("01098", "attachment");
+    expect(suit.images?.front).toBe(src("01098"));
+    expect(suit.images?.front).toBe("/bundles/cards/01098.png");
+    // MarvelCDB gives these no back image, so the schema shouldn't invent one.
+    expect(suit.images?.back).toBeUndefined();
+  });
+
+  it("a hero identity's faces come from the record and its linked card", () => {
+    // The alter-ego is published as a linked card that "flips", not as a back
+    // image, so the pair is assembled during ingestion.
+    const identities = CORE_CARDS.filter((c): c is HeroIdentityCard => c.type === "hero_identity");
+    expect(identities).toHaveLength(5);
+    for (const hero of identities) {
+      const id = hero.id;
+      const raw = rawByCode.get(id);
+      const linked = raw?.linked_card;
+      expect(raw, id).toBeDefined();
+      expect(linked, id).toBeDefined();
+      expect(linked?.type_code, id).toBe("alter_ego");
+      expect(hero.hero.image, id).toBe(raw?.["imagesrc"]);
+      expect(hero.alterEgo.image, id).toBe(linked?.["imagesrc"]);
+      // The card-level pair mirrors the two faces: front hero, back alter-ego.
+      expect(hero.images?.front, id).toBe(hero.hero.image);
+      expect(hero.images?.back, id).toBe(hero.alterEgo.image);
+      expect(hero.hero.image, id).not.toBe(hero.alterEgo.image);
+    }
+  });
+
+  it("Spider-Man's two faces are the a/b pair", () => {
+    const spiderMan = card<HeroIdentityCard>("01001a", "hero_identity");
+    expect(spiderMan.hero.image).toBe("/bundles/cards/01001a.png");
+    expect(spiderMan.alterEgo.image).toBe("/bundles/cards/01001b.png");
+  });
+
+  it("a villain carries one reference per stage, since each stage is its own card", () => {
+    const rhino = card<VillainCard>("01094", "villain");
+    expect(rhino.sides[0].stages.map((s) => s.image)).toEqual([
+      src("01094"),
+      src("01095"),
+      src("01096"),
+    ]);
+    // No card-level pair: there is no single "front" for a three-stage villain.
+    expect(rhino.images).toBeUndefined();
+  });
+
+  it("a main scheme carries a reference for each side of each stage", () => {
+    const breakIn = card<MainSchemeCard>("01097a", "main_scheme");
+    const stage = breakIn.stages[0];
+    // The A side's image only exists on the aggregate record MarvelCDB also
+    // publishes (`01097`), which ingestion drops as a duplicate.
+    expect(stage.aSide.image).toBe("/bundles/cards/01097.png");
+    expect(stage.image).toBe("/bundles/cards/01097b.png");
+    expect(breakIn.images).toBeUndefined();
+  });
+
+  it("every stage of a multi-stage main scheme gets its own pair", () => {
+    for (const c of CORE_CARDS.filter((x): x is MainSchemeCard => x.type === "main_scheme")) {
+      const refs = c.stages.flatMap((s) => [s.aSide.image, s.image]);
+      expect(new Set(refs).size, c.id).toBe(refs.length);
+    }
+  });
+
+  it("imageUrl resolves a reference against the source host, and leaves an absolute one alone", () => {
+    const spiderMan = card<HeroIdentityCard>("01001a", "hero_identity");
+    expect(imageUrl(spiderMan.hero.image!)).toBe("https://marvelcdb.com/bundles/cards/01001a.png");
+    expect(imageUrl(spiderMan.hero.image!, "https://mirror.example/")).toBe("https://mirror.example/bundles/cards/01001a.png");
+    expect(imageUrl(imageRef("https://cdn.example/x.png"))).toBe("https://cdn.example/x.png");
   });
 });
 

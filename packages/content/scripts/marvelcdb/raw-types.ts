@@ -5,9 +5,12 @@
  * nulls fields freely per card type — the normalizer decides what a missing
  * value means for each card type rather than trusting a default here.
  *
- * Art/asset fields (`imagesrc`, `backimagesrc`, `meta`, `octgn_id`, `url`) are
- * deliberately absent: they are stripped before the raw cache is written (see
- * `ART_FIELDS`) so no image URL is ever committed (CLAUDE.md IP boundary).
+ * Asset/reference fields (`imagesrc`, `backimagesrc`, `meta`, `octgn_id`, `url`)
+ * are kept verbatim in the raw cache. They are *references* — MarvelCDB paths,
+ * an OCTGN guid, a MarvelCDB page URL — not image bytes; no art is stored in the
+ * repo, which is the CLAUDE.md IP boundary. The normalized schema still models
+ * art separately via `ArtRef` (see `src/schema/ids.ts`) and ingestion does not
+ * copy these into the emitted card data.
  */
 export interface RawCard {
   readonly code: string;
@@ -79,6 +82,17 @@ export interface RawCard {
   readonly resource_mental?: number | null;
   readonly resource_physical?: number | null;
   readonly resource_wild?: number | null;
+
+  /** MarvelCDB-relative path to the card front image (e.g. `/bundles/cards/01001a.png`). */
+  readonly imagesrc?: string | null;
+  /** MarvelCDB-relative path to the back-face image of a double-sided card. */
+  readonly backimagesrc?: string | null;
+  /** Free-form MarvelCDB metadata blob; shape varies per card. */
+  readonly meta?: unknown;
+  /** OCTGN card guid, for cross-referencing other community tools. */
+  readonly octgn_id?: string | null;
+  /** Canonical MarvelCDB page for the card. */
+  readonly url?: string | null;
 }
 
 export type RawTypeCode =
@@ -98,9 +112,3 @@ export type RawTypeCode =
   | "obligation"
   | "environment"
   | "player_side_scheme";
-
-/**
- * Fields that point at card art or third-party asset metadata. Stripped from
- * every record (and from `linked_card`) before anything is written to disk.
- */
-export const ART_FIELDS = ["imagesrc", "backimagesrc", "meta", "octgn_id", "url"] as const;

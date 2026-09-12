@@ -28,8 +28,18 @@ export { effectChoiceAuthority, encounterTargetSelector, isEncounterSide, simult
 export type { AuditViolation, VillainActivationRecord, VillainAudit, VillainDecisionRecord, VillainPhaseRecord } from "./villain/audit.js";
 export { auditVillainPhases } from "./villain/audit.js";
 
-export type { ActionRef, BlockedTarget, IllegalAction, LegalAction, LegalActions } from "./legal.js";
-export { legalActions } from "./legal.js";
+export type {
+  ActionRef,
+  BlockedTarget,
+  IllegalAction,
+  LegalAction,
+  LegalActions,
+  PaymentAttempt,
+  PaymentContext,
+  PaymentQuery,
+  PaymentSource,
+} from "./legal.js";
+export { legalActions, paymentFor, tryPayment } from "./legal.js";
 export type { Command, CommandType, Payment } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode } from "./errors.js";

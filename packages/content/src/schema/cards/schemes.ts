@@ -1,7 +1,7 @@
 import type { CardText, ScalingValue, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
-import type { EncounterSetId } from "../ids.js";
+import type { EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard } from "./base.js";
 
 /**
@@ -20,6 +20,8 @@ export type SchemeIcon = "crisis" | "hazard" | "acceleration";
 export interface MainSchemeASide {
   readonly text: CardText;
   readonly abilities: readonly AbilityReference[];
+  /** Upstream artwork for the A side of this stage's card pair. */
+  readonly image?: ImageRef;
 }
 
 /**
@@ -43,6 +45,8 @@ export interface MainSchemeStage {
   readonly traits: readonly Trait[];
   readonly keywords: readonly KeywordInstance[];
   readonly abilities: readonly AbilityReference[];
+  /** Upstream artwork for the B side, which is what these top-level fields describe. */
+  readonly image?: ImageRef;
   readonly aSide: MainSchemeASide;
 }
 

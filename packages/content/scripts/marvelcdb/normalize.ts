@@ -24,6 +24,7 @@ import type {
   AllyCard,
   AnyCard,
   AttachmentCard,
+  CardImages,
   CardText,
   CoreAspect,
   Cycle,
@@ -46,6 +47,7 @@ import type {
   Trait,
   VillainCard,
   VillainStage,
+  ImageRef,
 } from "../../src/schema/index.ts";
 import type { CardProvenance, DroppedSourceRecord } from "../../src/data/types.ts";
 import type { RawCard } from "./raw-types.ts";
@@ -65,6 +67,7 @@ interface BrandMap {
   encounterSet: EncounterSet["id"];
   scenario: Scenario["id"];
   deck: StarterDeck["id"];
+  image: ImageRef;
 }
 const brand = <K extends keyof BrandMap>(_k: K, v: string): Branded<K> => v as unknown as Branded<K>;
 const traitOf = (v: string): Trait => v.trim().toUpperCase() as Trait;
@@ -96,6 +99,57 @@ interface Prepared {
 const ROMAN: Readonly<Record<string, number>> = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
 const CORE_ASPECTS: readonly CoreAspect[] = ["aggression", "justice", "leadership", "protection", "basic", "pool"];
 const PLAYER_TYPES = new Set(["ally", "event", "support", "upgrade", "resource"]);
+
+/**
+ * Upstream artwork refs for one raw record.
+ *
+ * These are MarvelCDB's own site-relative paths (`/bundles/cards/01001a.png`),
+ * stored verbatim as references — no image bytes, and the host is resolved by
+ * `imageUrl` in the schema rather than baked in here (CLAUDE.md "Content & IP
+ * boundaries").
+ */
+const imagesOf = (frontSrc: Src, backSrc?: Src): CardImages | undefined => {
+  const front = imageOf(frontSrc);
+  const back = imageOf(backSrc);
+  if (!front && !back) return undefined;
+  return { ...(front ? { front } : {}), ...(back ? { back } : {}) };
+};
+
+/** One face's ref, for where the schema models a single printed face. */
+const imageOf = (src: Src): ImageRef | undefined => (src ? brand("image", src) : undefined);
+
+/** MarvelCDB nulls image fields freely, and a linked record may be absent entirely. */
+type Src = string | null | undefined;
+
+/**
+ * The printed faces of a normalized card, for the artwork coverage check. A
+ * card's faces live in different places depending on its type — a hero identity
+ * has two, a villain one per stage, a main scheme two per stage — so this is
+ * the one place that knows where to look.
+ */
+function printedFaces(card: AnyCard): { readonly what: string; readonly image?: ImageRef }[] {
+  switch (card.type) {
+    case "hero_identity":
+      return [
+        { what: "the hero face", ...(card.hero.image ? { image: card.hero.image } : {}) },
+        { what: "the alter-ego face", ...(card.alterEgo.image ? { image: card.alterEgo.image } : {}) },
+      ];
+    case "villain":
+      return card.sides.flatMap((side) =>
+        side.stages.map((stage) => ({
+          what: `side ${side.side} stage ${stage.stageNumber}`,
+          ...(stage.image ? { image: stage.image } : {}),
+        })),
+      );
+    case "main_scheme":
+      return card.stages.flatMap((stage) => [
+        { what: `stage ${stage.stageNumber}A`, ...(stage.aSide.image ? { image: stage.aSide.image } : {}) },
+        { what: `stage ${stage.stageNumber}B`, ...(stage.image ? { image: stage.image } : {}) },
+      ]);
+    default:
+      return [{ what: "the card front", ...(card.images?.front ? { image: card.images.front } : {}) }];
+  }
+}
 
 const scalingOf = (value: number, perPlayer: boolean): ScalingValue =>
   perPlayer ? { base: 0, perPlayer: value } : { base: value, perPlayer: 0 };
@@ -148,6 +202,13 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
   }
   const dropped: DroppedSourceRecord[] = [];
   const isAggregate = (code: string) => /\d$/.test(code) && byCode.has(`${code}a`);
+  /**
+   * The front-face image of an A-side record's aggregate twin: MarvelCDB gives
+   * `01097a` no image of its own, but `01097` (dropped below as a duplicate of
+   * the 01097a/01097b pair) carries the pair's front, which is the A side.
+   */
+  const aggregateImage = (aSideCode: string): ImageRef | undefined =>
+    imageOf(byCode.get(aSideCode.replace(/a$/, ""))?.imagesrc);
   const topLevel: RawCard[] = [];
   for (const r of raw) {
     if (!isAggregate(r.code)) {
@@ -294,7 +355,18 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
     });
   };
 
-  const baseFields = (p: Prepared, id: string, codes: readonly string[]) => ({
+  /**
+   * `images` defaults to the record's own front/back. Pass an explicit pair for
+   * a card whose two faces come from linked records (a hero identity), or
+   * `null` for one whose faces the schema models separately (villain stages,
+   * main scheme A/B sides) — those carry the ref on the face instead.
+   */
+  const baseFields = (
+    p: Prepared,
+    id: string,
+    codes: readonly string[],
+    images: CardImages | null = imagesOf(p.raw.imagesrc, p.raw.backimagesrc) ?? null,
+  ) => ({
     id: brand("card", id),
     name: p.name,
     ...(p.raw.subname ? { subtitle: p.raw.subname } : {}),
@@ -303,6 +375,7 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
     collectorNumber: collector(codes),
     quantityInSet: p.raw.quantity,
     unique: Boolean(p.raw.is_unique),
+    ...(images ? { images } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),
   });
 
@@ -329,8 +402,14 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
     const nemesisSet = `${set}_nemesis`;
     if (obligations.length !== 1) errors.push(`${r.code}: expected exactly one obligation in set ${set}, found ${obligations.length}`);
     if (!topLevel.some((x) => x.card_set_code === nemesisSet)) errors.push(`${r.code}: no nemesis set ${nemesisSet}`);
+    const heroImage = imageOf(r.imagesrc);
+    const alterEgoImage = imageOf(ae.imagesrc);
     const card: HeroIdentityCard = {
-      ...baseFields(h, r.code, [r.code, ae.code]),
+      // MarvelCDB publishes the alter-ego as a linked card rather than a back
+      // image, so the pair is assembled here: front is the hero face, back the
+      // alter-ego. Each face also carries its own ref below, so a consumer
+      // never has to know which side is which.
+      ...baseFields(h, r.code, [r.code, ae.code], imagesOf(r.imagesrc, ae.imagesrc) ?? null),
       type: "hero_identity",
       hp: r.health ?? 0,
       hero: {
@@ -344,6 +423,7 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
         text: h.text,
         ...(h.flavor ? { flavor: h.flavor } : {}),
         abilities: abilityRefs(r.code, h.name, hp.abilities),
+        ...(heroImage ? { image: heroImage } : {}),
       },
       alterEgo: {
         faceName: a.name,
@@ -354,6 +434,7 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
         text: a.text,
         ...(a.flavor ? { flavor: a.flavor } : {}),
         abilities: abilityRefs(ae.code, a.name, ap.abilities),
+        ...(alterEgoImage ? { image: alterEgoImage } : {}),
       },
       obligationCardId: brand("card", obligations[0]?.code ?? ""),
       nemesisEncounterSetId: brand("encounterSet", nemesisSet),
@@ -379,6 +460,7 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
       expectNoPlayerData(p, parsed);
       expectNoAttach(p, parsed);
       const stageNumber = ROMAN[r.stage ?? ""];
+      const stageImage = imageOf(r.imagesrc);
       if (stageNumber === undefined) errors.push(`${r.code}: villain stage "${String(r.stage)}" is not a roman numeral`);
       if (r.health === null || r.health === undefined) errors.push(`${r.code}: villain without hit points`);
       stages.push({
@@ -390,6 +472,7 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
         traits: p.traits,
         keywords: parsed.keywords,
         abilities: abilityRefs(r.code, p.name, parsed.abilities),
+        ...(stageImage ? { image: stageImage } : {}),
       });
       handled.add(r.code);
     }
@@ -398,7 +481,8 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
     if (!first || !firstStage) continue;
     if (new Set(parts.map((p) => p.name)).size !== 1) errors.push(`villain set ${set}: stage names differ`);
     const card: VillainCard = {
-      ...baseFields(first, first.raw.code, parts.map((p) => p.raw.code)),
+      // No card-level images: every stage is a separate printed card.
+      ...baseFields(first, first.raw.code, parts.map((p) => p.raw.code), null),
       type: "villain",
       encounterSetIds: [brand("encounterSet", set)],
       sides: [{ side: "A", name: first.name, stages: [firstStage, ...stages.slice(1)] }],
@@ -441,6 +525,8 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
       if (rb.escalation_threat === null || rb.escalation_threat === undefined) errors.push(`${rb.code}: missing acceleration`);
       // A later stage with its own title (Klaw's stage 2 is "Secret Rendezvous") keeps it.
       const firstName = parts[0]?.name;
+      const bSideImage = imageOf(rb.imagesrc);
+      const aSideImage = aggregateImage(ra.code);
       stages.push({
         stageNumber,
         ...(firstName !== undefined && b.name !== firstName ? { name: b.name } : {}),
@@ -452,7 +538,15 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
         traits: b.traits,
         keywords: pb.keywords,
         abilities: abilityRefs(rb.code, b.name, pb.abilities),
-        aSide: { text: a.text, abilities: abilityRefs(ra.code, a.name, pa.abilities) },
+        ...(bSideImage ? { image: bSideImage } : {}),
+        aSide: {
+          text: a.text,
+          abilities: abilityRefs(ra.code, a.name, pa.abilities),
+          // MarvelCDB serves no image for the A-side record itself. The pair's
+          // front face lives on the aggregate record (`01097` for `01097a`),
+          // which is dropped as a duplicate but is the only source for it.
+          ...(aSideImage ? { image: aSideImage } : {}),
+        },
       });
       handled.add(ra.code).add(rb.code);
     }
@@ -460,7 +554,8 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
     const firstStage = stages[0];
     if (!first || !firstStage) continue;
     const card: MainSchemeCard = {
-      ...baseFields(first, first.raw.code, parts.map((p) => p.raw.code)),
+      // No card-level images: the A and B sides carry their own.
+      ...baseFields(first, first.raw.code, parts.map((p) => p.raw.code), null),
       type: "main_scheme",
       encounterSetIds: [brand("encounterSet", set)],
       stages: [firstStage, ...stages.slice(1)],
@@ -774,6 +869,15 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
   const allCodes = [...byCode.keys()].filter((c) => !isAggregate(c));
   const covered = new Set(provenance.flatMap((p) => p.marvelcdbCodes));
   for (const c of allCodes) if (!covered.has(c)) errors.push(`MarvelCDB record ${c} was not turned into any card`);
+
+  // Every printed face should have an artwork reference. This is a hard error
+  // rather than a warning: a silently art-less card would only show up as a
+  // blank frame in the client, long after ingestion.
+  for (const card of cards) {
+    for (const face of printedFaces(card)) {
+      if (!face.image) errors.push(`${card.id}: no artwork reference for ${face.what}`);
+    }
+  }
   void abilityCount;
 
   if (errors.length > 0) {

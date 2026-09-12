@@ -3,13 +3,23 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Cross-platform tabletop-style game client (Sentinels of the Multiverse-style 2D board). Presents engine state and captures input; owns no rules.",
+  "description": "Cross-platform tabletop-style game client (Sentinels of the Multiverse-style 2D board), drawn entirely in Phaser 4. Presents engine state and captures input; owns no rules.",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "dev": "vite",
+    "build": "tsc -p tsconfig.json --noEmit && vite build",
+    "preview": "vite preview",
     "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@mc/engine": "workspace:*"
+    "@mc/cards": "workspace:*",
+    "@mc/content": "workspace:*",
+    "@mc/engine": "workspace:*",
+    "phaser": "^4.2.1",
+    "phaser4-rex-plugins": "^4.2.0"
+  },
+  "devDependencies": {
+    "vite": "^8.3.0"
   }
 }

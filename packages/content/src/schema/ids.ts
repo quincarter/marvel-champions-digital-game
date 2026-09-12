@@ -14,6 +14,7 @@ export type ScenarioId = Brand<string, "ScenarioId">;
 export type CampaignId = Brand<string, "CampaignId">;
 export type AbilityId = Brand<string, "AbilityId">;
 export type ArtRef = Brand<string, "ArtRef">;
+export type ImageRef = Brand<string, "ImageRef">;
 export type StarterDeckId = Brand<string, "StarterDeckId">;
 
 export const cardId = (value: string): CardId => value as CardId;
@@ -32,3 +33,19 @@ export const starterDeckId = (value: string): StarterDeckId => value as StarterD
  * non-redistributed concern from this structured card data.
  */
 export const artRef = (value: string): ArtRef => value as ArtRef;
+
+/**
+ * A reference to a card's artwork *upstream*, as the source publishes it — for
+ * MarvelCDB, a site-relative path such as `/bundles/cards/01001a.png`.
+ *
+ * This is a pointer, not a picture: no image bytes are stored in this repo, and
+ * nothing here is a licence to redistribute the art (CLAUDE.md "Content & IP
+ * boundaries"). It exists so a client can show a card without the user first
+ * sourcing their own scans, and so a local scan can be matched to the printed
+ * face it belongs to.
+ *
+ * `ArtRef` is the other half of the story and keeps its own meaning: a key into
+ * a gitignored *local* asset folder. A client should prefer a local `ArtRef`
+ * when it has one and fall back to the `ImageRef` otherwise.
+ */
+export const imageRef = (value: string): ImageRef => value as ImageRef;

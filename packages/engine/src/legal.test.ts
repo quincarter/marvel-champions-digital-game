@@ -1,10 +1,10 @@
 import { applyCommand } from "./engine.js";
 import { playerId, type InstanceId, type PlayerId } from "./ids.js";
-import { legalActions, type LegalActions } from "./legal.js";
+import { legalActions, paymentFor, tryPayment, type LegalActions } from "./legal.js";
 import { mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { stubEvent, stubMinion } from "./testing/fixtures.js";
+import { stubEvent, stubMinion, stubSupport } from "./testing/fixtures.js";
 import { ALLY, DEFAULT_DECK, giveCard, newGame, run, settle } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -100,5 +100,90 @@ describe("legalActions", () => {
     expect(illegalFor(legalActions(state, p1, deps), "playCard", id)?.reason).toBe("card_type_not_playable");
     const played = applyCommand(state, { type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null }, deps);
     expect(played.ok ? null : played.error.code).toBe("card_type_not_playable");
+  });
+});
+
+describe("paymentFor / tryPayment", () => {
+  const playAction = (instanceId: InstanceId) => ({ kind: "playCard", instanceId }) as const;
+
+  it("lists what can be spent on a card, never the card itself, and suggests a payment the engine accepts", () => {
+    const { state, id: ally } = giveCard(newGame(), p1, ALLY.id);
+    const query = paymentFor(state, p1, playAction(ally), {});
+    if (!query) throw new Error("expected a payment query for a card that costs 2");
+    // The stub ally costs 2, with no typed requirement.
+    expect(query.requirement).toEqual({ generic: 2, physical: 0, mental: 0, energy: 0 });
+    expect(query.sources.map((source) => source.instanceId)).not.toContain(ally);
+    expect(query.sources.map((source) => source.instanceId).sort()).toEqual(
+      mustPlayer(state, p1).hand.filter((id) => id !== ally).sort(),
+    );
+    for (const source of query.sources) {
+      expect(source.kind).toBe("handCard");
+      expect(source.optionId).toBe(`hand:${source.instanceId}`);
+      // Every stub player card is worth one wild resource.
+      expect(source.pool).toEqual({ physical: 0, mental: 0, energy: 0, wild: 1 });
+    }
+    expect(query.suggested).toHaveLength(2);
+    const attempt = tryPayment(state, p1, playAction(ally), query.suggested, {});
+    expect(attempt.ok).toBe(true);
+    if (attempt.ok) expect(applyCommand(state, attempt.command).ok).toBe(true);
+  });
+
+  it("a selection that does not cover the cost is refused with the engine's own reason", () => {
+    const { state, id: ally } = giveCard(newGame(), p1, ALLY.id);
+    const query = paymentFor(state, p1, playAction(ally), {});
+    const attempt = tryPayment(state, p1, playAction(ally), query?.suggested.slice(0, 1) ?? [], {});
+    expect(attempt.ok).toBe(false);
+    if (!attempt.ok) {
+      expect(attempt.reason).toBe("insufficient_resources");
+      expect(attempt.message).toMatch(/paid 1/);
+    }
+    // A card still cannot pay for itself, even when the client asks it to.
+    const itself = tryPayment(state, p1, playAction(ally), [`hand:${ally}`, `hand:${ally}`], {});
+    expect(itself.ok).toBe(false);
+    if (!itself.ok) expect(itself.reason).toBe("insufficient_resources");
+  });
+
+  it("a resource ability is a source, priced by what it generates, and paying with it is accepted", () => {
+    const generate = stubAbility("battery.resource", {
+      trigger: { kind: "resource" },
+      cost: { exhaustSelf: true },
+      generates: { energy: 1 },
+      effects: [],
+    });
+    const battery = stubSupport({ id: "battery", cost: 0, abilities: [generate.ref] });
+    const deps = depsOf(generate);
+    const start = newGame({ extraCards: [battery], deck: [...DEFAULT_DECK, battery.id], deps });
+    const withBattery = giveCard(start, p1, battery.id);
+    const { state: withAlly, id: ally } = giveCard(withBattery.state, p1, ALLY.id);
+    const inPlay = run(
+      withAlly,
+      { type: "playCard", playerId: p1, cardInstanceId: withBattery.id, payment: [], attachToInstanceId: null },
+    );
+    const optionId = `ability:${withBattery.id}:battery.resource`;
+
+    const query = paymentFor(inPlay, p1, playAction(ally), {}, deps);
+    const source = query?.sources.find((candidate) => candidate.optionId === optionId);
+    expect(source).toMatchObject({ kind: "resourceAbility", instanceId: withBattery.id, label: "battery" });
+    expect(source?.pool).toEqual({ physical: 0, mental: 0, energy: 1, wild: 0 });
+    // Resource abilities come first in the engine's own suggestion: no card is lost.
+    expect(query?.suggested[0]).toBe(optionId);
+    expect(tryPayment(inPlay, p1, playAction(ally), query?.suggested ?? [], {}, deps).ok).toBe(true);
+
+    const hand = mustPlayer(inPlay, p1).hand.filter((id) => id !== ally);
+    const mixed = tryPayment(inPlay, p1, playAction(ally), [optionId, `hand:${hand[0]}`], {}, deps);
+    expect(mixed.ok).toBe(true);
+  });
+
+  it("an action that costs nothing has no payment step", () => {
+    const free = stubSupport({ id: "free", cost: 0 });
+    const start = newGame({ extraCards: [free], deck: [...DEFAULT_DECK, free.id] });
+    const { state, id } = giveCard(start, p1, free.id);
+    expect(paymentFor(state, p1, playAction(id), {})).toBeNull();
+    expect(paymentFor(state, p1, { kind: "changeForm" }, {})).toBeNull();
+    expect(paymentFor(state, p1, { kind: "endTurn" }, {})).toBeNull();
+    // The engine is still the judge for those: `tryPayment` builds and runs the command.
+    const attempt = tryPayment(state, p1, playAction(id), [], {});
+    expect(attempt.ok).toBe(true);
+    expect(tryPayment(state, p1, { kind: "changeForm" }, [], {}).ok).toBe(true);
   });
 });

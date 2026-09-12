@@ -6,9 +6,10 @@
  *   pnpm --filter @mc/content ingest -- --pack core
  *
  * 1. Fetch `https://marvelcdb.com/api/public/cards/<pack>` (or read the cache with --offline).
- * 2. Strip art/asset fields (imagesrc, backimagesrc, meta, octgn_id, url — also
- *    inside linked_card) and write `raw/marvelcdb/<pack>.json`. No image URL is
- *    ever written to disk (CLAUDE.md "Content & IP boundaries").
+ * 2. Write the response verbatim to `raw/marvelcdb/<pack>.json` — every field the
+ *    API returns, imagesrc/backimagesrc/meta/octgn_id/url included. Those are
+ *    references (MarvelCDB paths, an OCTGN guid, a page URL), not image bytes; no
+ *    art is stored in the repo (CLAUDE.md "Content & IP boundaries").
  * 3. Normalize against the schema + hand curation (scripts/marvelcdb/curation/<pack>.ts).
  * 4. Emit typed TS modules to the curation's outDir (src/data/core for the Core Set).
  *
@@ -17,7 +18,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ART_FIELDS, type RawCard } from "./marvelcdb/raw-types.ts";
+import type { RawCard } from "./marvelcdb/raw-types.ts";
 import { normalizePack, type NormalizedPack } from "./marvelcdb/normalize.ts";
 import { emitModule, type ModuleSpec } from "./marvelcdb/emit.ts";
 import { CORE_CURATION } from "./marvelcdb/curation/core.ts";
@@ -30,7 +31,6 @@ interface RawCache {
   readonly source: string;
   readonly fetchedAt: string;
   readonly pack: string;
-  readonly strippedFields: readonly string[];
   readonly cards: RawCard[];
 }
 
@@ -48,21 +48,6 @@ function parseArgs(argv: readonly string[]): { pack: string; offline: boolean } 
   return { pack, offline };
 }
 
-function stripArt(record: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const [k, v] of Object.entries(record)) {
-    if ((ART_FIELDS as readonly string[]).includes(k)) continue;
-    out[k] = k === "linked_card" && v && typeof v === "object" ? stripArt(v as Record<string, unknown>) : v;
-  }
-  return out;
-}
-
-function assertNoArt(json: string): void {
-  const hit = /\.(png|jpe?g|webp|gif)\b|\/bundles\/cards\//i.exec(json);
-  if (hit) throw new Error(`raw cache still contains an image reference near "${json.slice(hit.index - 40, hit.index + 20)}"`);
-  for (const f of ART_FIELDS) if (json.includes(`"${f}":`)) throw new Error(`raw cache still contains field ${f}`);
-}
-
 async function loadRaw(pack: string, offline: boolean): Promise<RawCache> {
   const cachePath = join(PKG_ROOT, "raw", "marvelcdb", `${pack}.json`);
   if (offline) return JSON.parse(await readFile(cachePath, "utf8")) as RawCache;
@@ -75,11 +60,9 @@ async function loadRaw(pack: string, offline: boolean): Promise<RawCache> {
     source,
     fetchedAt: new Date().toISOString().slice(0, 10),
     pack,
-    strippedFields: [...ART_FIELDS],
-    cards: body.map((r) => stripArt(r as Record<string, unknown>) as unknown as RawCard),
+    cards: body as RawCard[],
   };
   const json = `${JSON.stringify(cache, null, 2)}\n`;
-  assertNoArt(json);
   await mkdir(dirname(cachePath), { recursive: true });
   await writeFile(cachePath, json);
   console.log(`cached ${cache.cards.length} records → ${relative(PKG_ROOT, cachePath)}`);
