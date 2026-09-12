@@ -8,6 +8,7 @@
  */
 
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
+import type { SaveMeta } from "./game-storage.js";
 import type {
   CardPool,
   DispatchResult,
@@ -46,13 +47,12 @@ export class WorkerEngineHost implements EngineHost {
     this.#worker.addEventListener("error", this.#onError);
   }
 
-  async start(config: SessionConfig): Promise<EngineUpdate> {
-    const response = await this.#request({ kind: "start", id: this.#id(), config });
-    if (response.kind !== "started") throw new Error(`unexpected reply ${response.kind}`);
-    this.#cardPool = response.cardPool;
-    const update = this.#hydrate(response.snapshot);
-    this.#publish(update);
-    return update;
+  start(config: SessionConfig): Promise<EngineUpdate> {
+    return this.#begin({ kind: "start", id: this.#id(), config });
+  }
+
+  resume(gameId: string): Promise<EngineUpdate> {
+    return this.#begin({ kind: "resume", id: this.#id(), gameId });
   }
 
   async dispatch(command: Command): Promise<DispatchResult> {
@@ -85,6 +85,12 @@ export class WorkerEngineHost implements EngineHost {
     };
   }
 
+  async latestSave(): Promise<SaveMeta | null> {
+    const response = await this.#request({ kind: "latestSave", id: this.#id() });
+    if (response.kind !== "latestSave") throw new Error(`unexpected reply ${response.kind}`);
+    return response.meta;
+  }
+
   dispose(): void {
     this.#worker.removeEventListener("message", this.#onMessage);
     this.#worker.removeEventListener("error", this.#onError);
@@ -92,6 +98,18 @@ export class WorkerEngineHost implements EngineHost {
     this.#pending.clear();
     this.#listeners.clear();
     this.#worker.terminate();
+  }
+
+  /** Starting and resuming both answer `started`: a new card pool and a game from version 0 or N. */
+  async #begin(request: HostRequest): Promise<EngineUpdate> {
+    const response = await this.#request(request);
+    if (response.kind !== "started") throw new Error(`unexpected reply ${response.kind}`);
+    this.#cardPool = response.cardPool;
+    // A new game (or a different one) starts its own version count.
+    this.#version = -1;
+    const update = this.#hydrate(response.snapshot);
+    this.#publish(update);
+    return update;
   }
 
   #id(): number {
@@ -127,6 +145,8 @@ export class WorkerEngineHost implements EngineHost {
       state: { ...snapshot.state, cardPool: this.#cardPool },
       events: snapshot.events,
       legal: snapshot.legal,
+      record: snapshot.record,
+      saveError: snapshot.saveError,
     };
   }
 

@@ -20,6 +20,7 @@
     "phaser4-rex-plugins": "^4.2.0"
   },
   "devDependencies": {
+    "fake-indexeddb": "^6.2.5",
     "vite": "^8.3.0"
   }
 }

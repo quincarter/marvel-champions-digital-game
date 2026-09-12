@@ -23,6 +23,8 @@ import type {
   LegalActions,
   PlayerId,
 } from "@mc/engine";
+import type { GameRecord } from "./game-record.js";
+import type { SaveMeta } from "./game-storage.js";
 
 /** What the session flow collects across the Scenario → Seats → Deck screens. */
 export interface SessionConfig {
@@ -61,7 +63,7 @@ export interface EngineUpdate {
   readonly version: number;
   /** Full state, card pool re-attached, so every `@mc/engine` query helper works. */
   readonly state: GameState;
-  /** The events of the command that produced this state; empty for the initial one. */
+  /** The events of the command that produced this state; empty for a resumed game's first update. */
   readonly events: readonly GameEvent[];
   /**
    * Legal actions for the player who must act — the active player during a
@@ -69,6 +71,10 @@ export interface EngineUpdate {
    * needs input (the game is over, or the engine is mid-phase with no choice).
    */
   readonly legal: LegalActionsFor | null;
+  /** The game so far, for the game-over screen. Complete even for a resumed game. */
+  readonly record: GameRecord;
+  /** Set once saving has failed: the game plays on but may not survive a refresh. */
+  readonly saveError: string | null;
 }
 
 export type DispatchResult =
@@ -84,15 +90,19 @@ export interface SavedGame {
 export type UpdateListener = (update: EngineUpdate) => void;
 
 export interface EngineHost {
-  /** Creates the game and publishes its first update. Call once per host. */
+  /** Creates the game and publishes its first update. */
   start(config: SessionConfig): Promise<EngineUpdate>;
+  /** Picks a stored game back up by replaying its log, and publishes where it stands. */
+  resume(gameId: string): Promise<EngineUpdate>;
   /** Applies a command. A rejected command leaves the game untouched. */
   dispatch(command: Command): Promise<DispatchResult>;
   /** An on-demand query, for a seat that isn't the one the host prefetched. */
   legalActions(playerId: PlayerId): Promise<LegalActions>;
   /** Every update, including the one `start` returns. Returns an unsubscribe. */
   subscribe(listener: UpdateListener): () => void;
-  /** The replayable log, for save/resume. */
+  /** The replayable log, for export. */
   save(): Promise<SavedGame>;
+  /** The stored game to offer as "Continue", or null. */
+  latestSave(): Promise<SaveMeta | null>;
   dispose(): void;
 }
