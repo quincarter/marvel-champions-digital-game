@@ -5,6 +5,7 @@
 # list them, or use the pnpm scripts directly — they are the same thing.
 
 [tools]
+go = "latest"
 pnpm = "11.24"
 
 [tasks.setup]
