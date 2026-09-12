@@ -12,7 +12,7 @@
  */
 
 import Phaser from "phaser";
-import { border, hit, ink, selectionRing, surface, type TypeSpec } from "../tokens.js";
+import { accent, border, hit, ink, minType, selectionRing, surface, typeRole, type TypeSpec } from "../tokens.js";
 import type { Rect } from "../view/layout.js";
 import { caseOf, cssOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
 
@@ -141,6 +141,9 @@ export class McButton {
       .setText(caseOf(type, this.#options.label))
       .setColor(cssOf(s.text, s.textAlpha))
       .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
+    // No label ever runs past its own control: a button that says
+    // "REMOVE THIS SEA" is worse than one that says it a point smaller.
+    fitText(this.#label, rect.width - (hasValue ? 40 : 16), type.size);
     this.#value?.setColor(cssOf(s.text, s.textAlpha)).setPosition(rect.x + rect.width - 16, rect.y + rect.height / 2);
   }
 
@@ -239,4 +242,228 @@ export function label(
   const object = scene.add.text(x, y, caseOf(spec, text), textStyle(spec, color, alpha));
   if (spec.letterSpacing) object.setLetterSpacing(spec.letterSpacing);
   return object;
+}
+
+export interface McTabsOptions {
+  readonly rect: Rect;
+  readonly tabs: readonly { readonly id: string; readonly label: string; readonly badge?: number }[];
+  readonly activeId: string;
+  readonly onSelect: (id: string) => void;
+}
+
+/**
+ * The phone board's zone rail.
+ *
+ * A recessed parchment strip of equal cells; the active one is an ink fill, not
+ * an underline, because the design system's `rail` skin says so and an
+ * underline is invisible at 390px. A cell can carry a change badge, which is
+ * how a card landing on a tab you aren't looking at still reads.
+ */
+export class McTabs {
+  readonly #buttons: McButton[] = [];
+  readonly #badges: Phaser.GameObjects.GameObject[] = [];
+
+  constructor(scene: Phaser.Scene, options: McTabsOptions) {
+    const { rect, tabs, activeId } = options;
+    const rail = scene.add.graphics();
+    paintPanel(rail, rect, "rail", "rest");
+
+    const cellWidth = rect.width / Math.max(1, tabs.length);
+    tabs.forEach((tab, index) => {
+      const cell: Rect = { x: rect.x + index * cellWidth, y: rect.y, width: cellWidth, height: rect.height };
+      this.#buttons.push(
+        new McButton(scene, {
+          kind: "rail",
+          label: tab.label,
+          type: { ...typeRole.label, size: Math.max(minType.phoneLabel, typeRole.label.size) },
+          rect: cell,
+          selected: tab.id === activeId,
+          onClick: () => options.onSelect(tab.id),
+        }),
+      );
+
+      if (tab.badge && tab.badge > 0 && tab.id !== activeId) {
+        // A count, not a dot: "3 changed" is a different message from "changed".
+        const badge = scene.add.graphics();
+        badge.fillStyle(accent.heroRed.hex, 1).fillRect(cell.x + cell.width - 18, cell.y + 4, 14, 14);
+        const text = scene.add
+          .text(cell.x + cell.width - 11, cell.y + 11, String(Math.min(9, tab.badge)), textStyle(typeRole.label, surface.paper.hex))
+          .setOrigin(0.5);
+        this.#badges.push(badge, text);
+      }
+    });
+  }
+
+  destroy(): void {
+    for (const button of this.#buttons) button.destroy();
+    for (const badge of this.#badges) badge.destroy();
+  }
+}
+
+export interface McCardTileOptions {
+  readonly rect: Rect;
+  readonly label: string;
+  /** How much of the tile the card occupies. The caption takes what's left. */
+  readonly artHeight: number;
+  readonly selected?: boolean;
+  /** False dims the tile in place and refuses the tap. "Dim, don't hide." */
+  readonly enabled?: boolean;
+  readonly onClick: () => void;
+  /**
+   * A press-and-hold or a right-click, when the tile has somewhere to send one.
+   * A tile is a thumbnail, so reading the card it shows needs a second gesture.
+   */
+  readonly onInspect?: () => void;
+  /**
+   * Paints the card into the slot. Returns false when there is no scan, so the
+   * tile can say so itself — the widget layer never reaches for the art module.
+   */
+  readonly paintArt: (slot: Rect) => boolean;
+}
+
+/**
+ * How long a press has to last before it inspects instead of choosing. The same
+ * threshold the board and the choice sheet use, so the gesture means one thing
+ * everywhere in the app.
+ */
+export const INSPECT_HOLD_MS = 420;
+
+/**
+ * A card as a choosable thing: the scan above, its name below, one border
+ * around both.
+ *
+ * Drawn as a single control rather than an art block with a button under it.
+ * Two stacked rectangles read as two controls, and the one carrying the border
+ * looked like the only clickable half — which is exactly how the Title screen's
+ * scenario and hero pickers were coming out.
+ *
+ * The caption is fitted to the tile rather than allowed to run past it: at
+ * three across on a phone, "Captain Marvel (Leadership)" is wider than its own
+ * cell, and a label that overlaps its neighbour is worse than a shortened one.
+ */
+export class McCardTile {
+  readonly #objects: Phaser.GameObjects.GameObject[] = [];
+
+  constructor(scene: Phaser.Scene, options: McCardTileOptions) {
+    const { rect, artHeight, selected = false, enabled = true } = options;
+    const state: WidgetState = !enabled ? "unavailable" : selected ? "selected" : "rest";
+    const alpha = enabled ? 1 : ink.illegal;
+
+    const frame = scene.add.graphics();
+    paintPanel(frame, rect, "card", state);
+    this.#objects.push(frame);
+
+    const artSlot: Rect = {
+      x: rect.x + border.object,
+      y: rect.y + border.object,
+      width: rect.width - border.object * 2,
+      height: Math.max(0, artHeight - border.object),
+    };
+    if (artSlot.height > 0) {
+      const ground = scene.add.graphics();
+      ground.fillStyle(surface.parchment.hex, alpha).fillRect(artSlot.x, artSlot.y, artSlot.width, artSlot.height);
+      this.#objects.push(ground);
+      if (!options.paintArt(artSlot)) {
+        this.#objects.push(
+          label(scene, artSlot.x + artSlot.width / 2, artSlot.y + artSlot.height / 2, "art", typeRole.label, surface.ink.hex, ink.meta).setOrigin(0.5),
+        );
+      }
+      // A rule between the card and its name, the same 2px detail weight the
+      // stat tiles use — so the caption reads as part of this tile.
+      const rule = scene.add.graphics();
+      rule.fillStyle(surface.ink.hex, alpha).fillRect(artSlot.x, artSlot.y + artSlot.height, artSlot.width, border.detail);
+      this.#objects.push(rule);
+    }
+
+    // The caption strip: ink-filled when chosen, so selection reads from across
+    // the room without the art changing colour.
+    const captionTop = rect.y + artHeight;
+    const captionHeight = rect.y + rect.height - captionTop - border.object;
+    if (selected) {
+      const strip = scene.add.graphics();
+      strip.fillStyle(surface.ink.hex, 1).fillRect(rect.x + border.object, captionTop, rect.width - border.object * 2, captionHeight);
+      this.#objects.push(strip);
+    }
+
+    const text = scene.add
+      .text(rect.x + rect.width / 2, captionTop + captionHeight / 2, options.label, textStyle(typeRole.rowTitle, selected ? surface.paper.hex : surface.ink.hex, alpha))
+      .setOrigin(0.5);
+    fitText(text, rect.width - 12);
+    this.#objects.push(text);
+
+    const zone = scene.add
+      .zone(rect.x, rect.y, rect.width, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+
+    let held: Phaser.Time.TimerEvent | null = null;
+    let inspected = false;
+    const cancelHold = (): void => {
+      held?.remove();
+      held = null;
+    };
+    const inspect = (): void => {
+      inspected = true;
+      options.onInspect?.();
+    };
+
+    zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      inspected = false;
+      // A tile you cannot choose can still be read: that is how the player
+      // finds out *why* it is unavailable.
+      if (!options.onInspect) return;
+      if (pointer.rightButtonDown()) {
+        inspect();
+        return;
+      }
+      held = scene.time.delayedCall(INSPECT_HOLD_MS, inspect);
+    });
+    zone.on("pointerout", cancelHold);
+    zone.on("pointerup", () => {
+      cancelHold();
+      // A hold already did something; the release must not also act on it.
+      if (inspected) return;
+      if (enabled) options.onClick();
+    });
+    this.#objects.push(zone);
+  }
+
+  destroy(): void {
+    for (const object of this.#objects) object.destroy();
+  }
+}
+
+/**
+ * The smallest a caption is allowed to shrink to before it starts being clipped
+ * instead. The design's phone-label floor: below this the text stops being
+ * readable, and a shortened readable name beats a complete unreadable one.
+ */
+export const CAPTION_FLOOR = minType.phoneLabel;
+
+/**
+ * How tall a card tile's caption strip is.
+ *
+ * Not the 44px touch target: the *whole tile* is the control, and the tile is
+ * always taller than that, so spending 44px on a one-line caption only steals
+ * height from the card it is captioning.
+ */
+export const CAPTION_HEIGHT = 26;
+
+/**
+ * Shrinks a label to fit, then clips it with an ellipsis if shrinking alone
+ * isn't enough. Down to the design's phone-label floor and no further: below
+ * that the text stops being readable, and a shorter readable name beats a
+ * complete unreadable one.
+ */
+export function fitText(text: Phaser.GameObjects.Text, maxWidth: number, startSize: number = typeRole.rowTitle.size): void {
+  const full = text.text;
+  for (let size = startSize; size >= CAPTION_FLOOR; size -= 1) {
+    text.setFontSize(size);
+    if (text.width <= maxWidth) return;
+  }
+  let trimmed = full;
+  while (trimmed.length > 1 && text.width > maxWidth) {
+    trimmed = trimmed.slice(0, -1);
+    text.setText(`${trimmed.trimEnd()}…`);
+  }
 }

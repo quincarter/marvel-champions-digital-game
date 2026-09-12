@@ -522,14 +522,33 @@ describe("Core Set data — artwork references", () => {
     expect(rhino.images).toBeUndefined();
   });
 
-  it("a main scheme carries a reference for each side of each stage", () => {
+  it("a main scheme's B side is the aggregate image and its A side the linked one", () => {
     const breakIn = card<MainSchemeCard>("01097a", "main_scheme");
     const stage = breakIn.stages[0];
-    // The A side's image only exists on the aggregate record MarvelCDB also
-    // publishes (`01097`), which ingestion drops as a duplicate.
-    expect(stage.aSide.image).toBe("/bundles/cards/01097.png");
-    expect(stage.image).toBe("/bundles/cards/01097b.png");
+
+    // This looks inverted and is not. MarvelCDB's front/back for a main scheme
+    // is "the side you play with" / "the side you set up from", not A / B:
+    //   - the aggregate record's image (`01097.png`) is stamped "97B" and
+    //     prints the threat value and acceleration, so it is the B side;
+    //   - the linked record's image (`01097b.png`) is stamped "97A" and carries
+    //     the Contents/Setup text, so it is the A side.
+    // Both were checked against the printed collector numbers on the scans
+    // (`01116.png` is likewise "116B"). Reading it the intuitive way made every
+    // main scheme on the table draw its setup side.
+    expect(stage.image).toBe("/bundles/cards/01097.png");
+    expect(stage.aSide.image).toBe("/bundles/cards/01097b.png");
     expect(breakIn.images).toBeUndefined();
+  });
+
+  it("every main scheme follows that same side mapping", () => {
+    // The whole point of the mapping is that the side the table shows — the one
+    // with the threat values — is the aggregate image, for every scenario.
+    for (const scheme of CORE_CARDS.filter((c): c is MainSchemeCard => c.type === "main_scheme")) {
+      for (const stage of scheme.stages) {
+        expect(stage.image, `${scheme.id} stage ${stage.stageNumber}B`).not.toMatch(/b\.png$/);
+        expect(stage.aSide.image, `${scheme.id} stage ${stage.stageNumber}A`).toMatch(/b\.png$/);
+      }
+    }
   });
 
   it("every stage of a multi-stage main scheme gets its own pair", () => {

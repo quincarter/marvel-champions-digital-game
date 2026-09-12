@@ -22,12 +22,27 @@ import type { AnyCard, ArtRef, ImageRef } from "@mc/content";
 /** Must match `CARD_ART_ROUTE` in vite-card-art.ts. */
 const ROUTE = "/card-art/";
 
+/**
+ * Which card back a hidden card shows.
+ *
+ * The physical game has three, and only three: every player card shares one,
+ * every encounter card shares one, and the villain deck has its own. MarvelCDB
+ * carries a `backimagesrc` for six records in the whole Core Set — the main
+ * scheme A/B pairs — precisely because there is no per-card back to publish.
+ * So a hidden card resolves to one of these rather than to anything on the card.
+ */
+export type CardBack = "player" | "encounter" | "villain";
+
 /** Which printed face of a card is being drawn. */
 export type CardFace =
   /** The card's own front, for everything single-faced. */
   | { readonly kind: "front" }
-  /** The printed reverse, where the schema models it as a back rather than a face. */
-  | { readonly kind: "back" }
+  /**
+   * Not a face at all: this card's face may not be seen, so it shows a back.
+   * Resolved without consulting the card, so a hidden card cannot leak its own
+   * front through a missing-back fallback.
+   */
+  | { readonly kind: "back"; readonly back: CardBack }
   | { readonly kind: "hero" }
   | { readonly kind: "alterEgo" }
   | { readonly kind: "villainStage"; readonly sideIndex: number; readonly stageIndex: number }
@@ -42,6 +57,9 @@ export interface ArtSource {
 
 /** The art for one face, or null when the content has no reference for it. */
 export function artFor(card: AnyCard | undefined, face: CardFace): ArtSource | null {
+  // Answered before the card is consulted at all: a hidden card must not be
+  // able to fall through to its own front.
+  if (face.kind === "back") return CARD_BACKS[face.back];
   if (!card) return null;
   const local = localRefFor(card, face);
   if (local) return source(`${local as string}.png`);
@@ -79,8 +97,6 @@ function imageRefFor(card: AnyCard, face: CardFace): ImageRef | undefined {
       if (!stage) return card.images?.front;
       return (face.side === "A" ? stage.aSide.image : stage.image) ?? card.images?.front;
     }
-    case "back":
-      return card.images?.back ?? card.images?.front;
     default:
       return card.images?.front;
   }
@@ -94,3 +110,14 @@ function source(refPath: string): ArtSource {
   const clean = refPath.replace(/^\/+/, "");
   return { key: `art:${clean}`, url: `${ROUTE}${clean}` };
 }
+
+/**
+ * The three card backs, from the gitignored local asset folder like every other
+ * scan. They are not `ImageRef`s: no card names them, because in the physical
+ * game the back is a property of the deck a card came from, not of the card.
+ */
+export const CARD_BACKS: Readonly<Record<CardBack, ArtSource>> = {
+  player: source("bundles/cards/marvel-player-back.webp"),
+  encounter: source("bundles/cards/marvel-encounter-back.webp"),
+  villain: source("bundles/cards/marvel-villain-back.webp"),
+};

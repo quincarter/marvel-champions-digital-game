@@ -13,20 +13,32 @@
  */
 
 import Phaser from "phaser";
+import type { PendingChoice } from "@mc/engine";
+import { CORE_DEPS } from "@mc/cards";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, label, paintPanel } from "../ui/widgets.js";
+import { McButton, fitText, label, paintPanel } from "../ui/widgets.js";
+import { cardArt, drawArt } from "../art/card-art.js";
+import { artFor } from "../art/art-source.js";
+import { characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
-import { formFactorFor } from "../view/layout.js";
+import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { appSession } from "../session.js";
 import { SCENES } from "./keys.js";
+
+/**
+ * How long a press has to last before it blows the card up instead of picking
+ * it. The same threshold the board uses, so the gesture means one thing.
+ */
+const INSPECT_HOLD_MS = 420;
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
   #buttons: McButton[] = [];
   #unsubscribe: (() => void) | null = null;
   #choiceId: string | null = null;
+  #maxSelections = 1;
 
   constructor() {
     super({ key: SCENES.choice });
@@ -36,6 +48,14 @@ export class ChoiceOverlay extends Phaser.Scene {
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#rebuild());
     this.scale.on("resize", () => this.#rebuild(), this);
+    const artOff = cardArt(this).onArrived(() => this.#rebuild());
+    // The Inspect sheet answers by reporting back: it presents a card, it does
+    // not decide anything.
+    this.game.events.on("mc-choice-toggle", this.#onInspectToggle, this);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      artOff();
+      this.game.events.off("mc-choice-toggle", this.#onInspectToggle, this);
+    });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#unsubscribe?.();
       this.#unsubscribe = null;
@@ -53,6 +73,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       this.#choiceId = choice.choiceId;
       this.#selected = [];
     }
+    this.#maxSelections = choice.maxSelections;
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -61,12 +82,25 @@ export class ChoiceOverlay extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";
 
+    // A decision about cards is made on the cards, so it is decided here —
+    // before the sheet is sized, because a row of cards needs a wider sheet
+    // than a list of names does.
+    const asCards =
+      choice.options.length > 0 &&
+      choice.options.every((option) => option.ref.kind === "card");
+
     // The 70%-ink scrim.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
 
-    const sheetWidth = Math.min(width - (phone ? 16 : 80), 560);
-    const sheetHeight = Math.min(height - (phone ? 16 : 80), 560);
+    const sheetWidth = Math.min(
+      width - (phone ? 16 : 80),
+      asCards ? 1040 : 560,
+    );
+    const sheetHeight = Math.min(
+      height - (phone ? 16 : 80),
+      asCards ? 620 : 560,
+    );
     const sheet: Rect = {
       x: (width - sheetWidth) / 2,
       y: (height - sheetHeight) / 2,
@@ -76,14 +110,39 @@ export class ChoiceOverlay extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, sheet, "card", "rest");
 
-    // Ink title bar.
-    const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: 38 };
+    // Ink title bar. It names the seat as well as the decision once there is
+    // more than one seat: "Mulligan" on its own does not say *whose*, and with
+    // two Captain Marvel seats even the hero's name does not — the aspect is
+    // what tells them apart, so the whole identity line goes up there.
+    const decider = state.game.players.find((player) => player.playerId === choice.playerId);
+    const seat =
+      state.game.players.length > 1 && decider ? characterPanel(state.game, decider.identity.instanceId, CORE_DEPS) : null;
+    const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: seat ? 56 : 38 };
     const barG = this.add.graphics();
     barG.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
-    this.add
+
+    let titleRight = bar.x + bar.width - 10;
+    if (seat) {
+      // The identity card itself, so the seat is recognisable at a glance
+      // rather than only readable.
+      const thumb: Rect = { x: bar.x + bar.width - 46, y: bar.y + 5, width: 32, height: bar.height - 10 };
+      const key = cardArt(this).request(this, seat.art);
+      if (drawArt(this, key, thumb, { fit: "cover" })) titleRight = thumb.x - 8;
+      else titleRight = bar.x + bar.width - 10;
+
+      const nameRight = titleRight;
+      this.add
+        .text(nameRight, bar.y + 13, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex))
+        .setOrigin(1, 0);
+      label(this, nameRight, bar.y + 31, seat.subtitle, typeRole.label, surface.paper.hex, ink.meta).setOrigin(1, 0);
+      titleRight = nameRight - 120;
+    }
+
+    const title = this.add
       .text(bar.x + 10, bar.y + bar.height / 2, promptTitle(choice.prompt.kind), textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
+    fitText(title, Math.max(60, titleRight - (bar.x + 10)), typeRole.barTitle.size);
 
     // Why this player is the one deciding. The villain-phase screen's
     // "auto-advance paused" wording belongs to that screen, not here.
@@ -109,19 +168,47 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The options: every legal answer the engine listed.
     const listTop = advisory.y + advisory.height + 26;
     const commitTop = sheet.y + sheet.height - hit.primary - 12;
+
+    // A mulligan read as six words is not a decision a player can actually
+    // make, so when every option names a card the options are the cards.
+    const listHeight = commitTop - listTop - 8;
+
+    if (asCards && listHeight >= 120) {
+      this.#drawCardChoice(
+        {
+          x: sheet.x + 12,
+          y: listTop,
+          width: sheet.width - 24,
+          height: listHeight,
+        },
+        choice,
+      );
+      this.#drawCommit(sheet, commitTop, choice);
+      this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      return;
+    }
+
     const rowHeight = hit.target;
-    const capacity = Math.max(1, Math.floor((commitTop - listTop - 8) / (rowHeight + 4)));
+    const capacity = Math.max(1, Math.floor(listHeight / (rowHeight + 4)));
     const shown = choice.options.slice(0, capacity);
 
     shown.forEach((option, index) => {
       const order = this.#selected.indexOf(option.optionId);
-      const rowLabel = choice.ordered && order >= 0 ? `${order + 1}. ${option.label}` : option.label;
+      const rowLabel =
+        choice.ordered && order >= 0
+          ? `${order + 1}. ${option.label}`
+          : option.label;
       this.#buttons.push(
         new McButton(this, {
           kind: "secondary",
           label: rowLabel,
           type: typeRole.rowTitle,
-          rect: { x: sheet.x + 12, y: listTop + index * (rowHeight + 4), width: sheet.width - 24, height: rowHeight },
+          rect: {
+            x: sheet.x + 12,
+            y: listTop + index * (rowHeight + 4),
+            width: sheet.width - 24,
+            height: rowHeight,
+          },
           selected: order >= 0,
           onClick: () => this.#toggle(option.optionId, choice.maxSelections),
         }),
@@ -139,17 +226,117 @@ export class ChoiceOverlay extends Phaser.Scene {
       );
     }
 
-    const canCommit =
-      this.#selected.length >= choice.minSelections && this.#selected.length <= choice.maxSelections;
-    const commitWidth = choice.minSelections === 0 ? (sheet.width - 32) / 2 : sheet.width - 24;
+    this.#drawCommit(sheet, commitTop, choice);
+    this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+  }
 
-    // One red commit, plus a quiet alternative when declining is legal.
+  /**
+   * The options as two rows: what you have picked, above what you have not.
+   *
+   * A single row of six cards has to overlap to fit, and an overlapped card
+   * shows a sliver of its left edge — enough to tell them apart, nowhere near
+   * enough to *read* one. So picking a card lifts it out of the stack into its
+   * own row, where the row is short enough to hold the picks without crowding.
+   * Picking again pushes the previous pick down the stack and leaves the newest
+   * one fully visible, so the card you just chose is always the readable one.
+   */
+  #drawCardChoice(area: Rect, choice: PendingChoice): void {
+    const byId = new Map(
+      choice.options.map((option) => [option.optionId, option] as const),
+    );
+    // Pick order, not list order: the last thing you touched is the last drawn,
+    // and the last drawn is the one on top.
+    const picked = this.#selected.flatMap((optionId) => {
+      const option = byId.get(optionId);
+      return option ? [option] : [];
+    });
+    const available = choice.options.filter(
+      (option) => !this.#selected.includes(option.optionId),
+    );
+
+    const captionHeight = 16;
+    const gap = 10;
+    // The stack only gives up room once something is in the picked row, and
+    // gives up all of it once nothing is left in the stack.
+    const split = picked.length === 0 ? 0 : available.length === 0 ? 1 : 0.5;
+    const pickedHeight =
+      split === 0 ? 0 : Math.round((area.height - gap) * split);
+    const availableHeight =
+      area.height - pickedHeight - (pickedHeight > 0 ? gap : 0);
+
+    if (pickedHeight > captionHeight + 40) {
+      const row: Rect = {
+        x: area.x,
+        y: area.y,
+        width: area.width,
+        height: pickedHeight - captionHeight,
+      };
+      label(
+        this,
+        area.x,
+        area.y,
+        `selected ${picked.length}`,
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      );
+      const slots = cardRow(
+        { ...row, y: row.y + captionHeight },
+        picked.length,
+        { gap: 6 },
+      );
+      picked.forEach((option, index) => {
+        const slot = slots[index];
+        if (slot) this.#drawCardOption(slot, option, choice.ordered);
+      });
+    }
+
+    if (available.length > 0 && availableHeight > captionHeight + 40) {
+      const top = area.y + pickedHeight + (pickedHeight > 0 ? gap : 0);
+      const row: Rect = {
+        x: area.x,
+        y: top + captionHeight,
+        width: area.width,
+        height: availableHeight - captionHeight,
+      };
+      label(
+        this,
+        area.x,
+        top,
+        picked.length > 0
+          ? "tap to add · long press/right click to read it"
+          : "tap to select · long press/right click to read it",
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      );
+      const slots = cardRow(row, available.length, { gap: 6 });
+      available.forEach((option, index) => {
+        const slot = slots[index];
+        if (slot) this.#drawCardOption(slot, option, choice.ordered);
+      });
+    }
+  }
+
+  /** One red commit, plus a quiet alternative when declining is legal. */
+  #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
+    const canCommit =
+      this.#selected.length >= choice.minSelections &&
+      this.#selected.length <= choice.maxSelections;
+    const commitWidth =
+      choice.minSelections === 0 ? (sheet.width - 32) / 2 : sheet.width - 24;
+
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
         label: "Confirm",
         type: typeRole.barTitle,
-        rect: { x: sheet.x + 12, y: commitTop, width: commitWidth, height: hit.primary },
+        rect: {
+          x: sheet.x + 12,
+          y: commitTop,
+          width: commitWidth,
+          height: hit.primary,
+        },
         enabled: canCommit,
         reason: `choose ${choice.minSelections} to continue`,
         onClick: () => void this.#confirm(),
@@ -161,7 +348,12 @@ export class ChoiceOverlay extends Phaser.Scene {
           kind: "quiet",
           label: "Decline",
           type: typeRole.label,
-          rect: { x: sheet.x + 20 + commitWidth, y: commitTop, width: commitWidth, height: hit.primary },
+          rect: {
+            x: sheet.x + 20 + commitWidth,
+            y: commitTop,
+            width: commitWidth,
+            height: hit.primary,
+          },
           onClick: () => {
             this.#selected = [];
             void this.#confirm();
@@ -169,15 +361,129 @@ export class ChoiceOverlay extends Phaser.Scene {
         }),
       );
     }
+  }
 
-    this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+  /**
+   * One option drawn as the card it names. A selected card wears the red ring
+   * and, when the order matters, the number it will resolve in.
+   */
+  #drawCardOption(
+    slot: Rect,
+    option: PendingChoice["options"][number],
+    ordered: boolean,
+  ): void {
+    const { store } = appSession();
+    const state = store.state.game;
+    const instanceId =
+      option.ref.kind === "card" ? option.ref.instanceId : null;
+    const order = this.#selected.indexOf(option.optionId);
+    const picked = order >= 0;
+
+    const g = this.add.graphics();
+    paintPanel(g, slot, "card", picked ? "selected" : "rest");
+
+    const inner: Rect = {
+      x: slot.x + 3,
+      y: slot.y + 3,
+      width: slot.width - 6,
+      height: slot.height - 6,
+    };
+    const source =
+      state && instanceId
+        ? artFor(
+            state.cardPool[state.instances[instanceId]?.cardId ?? ""],
+            faceOf(state, instanceId),
+          )
+        : null;
+    const key = cardArt(this).request(this, source);
+    if (!drawArt(this, key, inner, { fit: "cover" })) {
+      // No scan: the name is the option, exactly as the list form shows it.
+      this.add
+        .text(
+          inner.x + inner.width / 2,
+          inner.y + inner.height / 2,
+          option.label,
+          textStyle(typeRole.rowTitle, surface.ink.hex),
+        )
+        .setOrigin(0.5)
+        .setWordWrapWidth(inner.width - 8)
+        .setMaxLines(3);
+    }
+
+    if (picked && ordered) {
+      const chip: Rect = {
+        x: slot.x + 4,
+        y: slot.y + 4,
+        width: 22,
+        height: 22,
+      };
+      const chipG = this.add.graphics();
+      chipG
+        .fillStyle(accent.heroRed.hex, 1)
+        .fillRect(chip.x, chip.y, chip.width, chip.height);
+      this.add
+        .text(
+          chip.x + chip.width / 2,
+          chip.y + chip.height / 2,
+          String(order + 1),
+          textStyle(typeRole.statSmall, surface.paper.hex),
+        )
+        .setOrigin(0.5);
+    }
+
+    // Tap picks; press-and-hold or right-click blows the card up, which is the
+    // only way to read one on a phone where six options share a row.
+    const zone = this.add
+      .zone(slot.x, slot.y, slot.width, slot.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
+
+    let held: Phaser.Time.TimerEvent | null = null;
+    let inspected = false;
+    const cancelHold = (): void => {
+      held?.remove();
+      held = null;
+    };
+    const inspect = (): void => {
+      inspected = true;
+      if (!instanceId) return;
+      this.scene.launch(SCENES.inspect, {
+        instanceId,
+        choice: {
+          optionId: option.optionId,
+          label: picked ? "Deselect" : "Select",
+        },
+      });
+    };
+
+    zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
+      inspected = false;
+      if (pointer.rightButtonDown()) {
+        inspect();
+        return;
+      }
+      held = this.time.delayedCall(INSPECT_HOLD_MS, inspect);
+    });
+    zone.on("pointerout", cancelHold);
+    zone.on("pointerup", () => {
+      cancelHold();
+      // A hold already did something; the release must not also act on it.
+      if (inspected) return;
+      this.#toggle(option.optionId, this.#maxSelections);
+    });
+  }
+
+  #onInspectToggle(optionId: string): void {
+    this.#toggle(optionId, this.#maxSelections);
   }
 
   #toggle(optionId: string, max: number): void {
     const at = this.#selected.indexOf(optionId);
-    if (at >= 0) this.#selected = this.#selected.filter((id) => id !== optionId);
+    if (at >= 0)
+      this.#selected = this.#selected.filter((id) => id !== optionId);
     else if (max === 1) this.#selected = [optionId];
-    else if (this.#selected.length < max) this.#selected = [...this.#selected, optionId];
+    else if (this.#selected.length < max)
+      this.#selected = [...this.#selected, optionId];
     this.#rebuild();
   }
 

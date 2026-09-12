@@ -2524,7 +2524,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [],
-        image: imageRef("/bundles/cards/01097b.png"),
+        image: imageRef("/bundles/cards/01097.png"),
         aSide: {
           text: {
             printed: "Contents: Rhino (I) and Rhino (II). (Rhino (II) and Rhino (III) instead for expert mode.) Rhino and Standard encounter sets. One modular encounter set (recommended: Bomb Scare).\nSetup: Advance to stage 1B.",
@@ -2536,7 +2536,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
               notesForScripting: "\"Advance to stage 1B\" is the whole ability; advancing to the B side is implicit in the engine.",
             },
           ],
-          image: imageRef("/bundles/cards/01097.png"),
+          image: imageRef("/bundles/cards/01097b.png"),
         },
       },
     ],
@@ -2983,7 +2983,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("01116b.when-revealed") }],
-        image: imageRef("/bundles/cards/01116b.png"),
+        image: imageRef("/bundles/cards/01116.png"),
         aSide: {
           text: {
             printed: "Contents: Klaw (I) and Klaw (II). (Klaw (II) and Klaw (III) instead for expert mode.) Klaw and Standard encounter sets. One modular encounter set (recommended: Masters of Evil)\nSetup: Search the encounter deck for the Defense Network side scheme and reveal it. Shuffle the encounter deck. Advance to stage 1B.",
@@ -2995,7 +2995,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
               notesForScripting: "Search the encounter deck for Defense Network and reveal it, shuffle; then advance to 1B (implicit).",
             },
           ],
-          image: imageRef("/bundles/cards/01116.png"),
+          image: imageRef("/bundles/cards/01116b.png"),
         },
       },
       {
@@ -3012,7 +3012,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [],
-        image: imageRef("/bundles/cards/01117b.png"),
+        image: imageRef("/bundles/cards/01117.png"),
         aSide: {
           text: {
             printed: "When Revealed: Discard cards from the encounter deck until a minion is discarded. Put that minion into play engaged with the first player. Advance to stage 2B.",
@@ -3024,7 +3024,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
               notesForScripting: "\"Advance to stage 2B\" is implicit in the engine.",
             },
           ],
-          image: imageRef("/bundles/cards/01117.png"),
+          image: imageRef("/bundles/cards/01117b.png"),
         },
       },
     ],
@@ -3500,7 +3500,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("01137b.when-revealed") }],
-        image: imageRef("/bundles/cards/01137b.png"),
+        image: imageRef("/bundles/cards/01137.png"),
         aSide: {
           text: {
             printed: "Contents: Ultron (I) and Ultron (II). (Ultron (II) and Ultron (III) instead for expert mode.) Ultron and Standard encounter sets. One modular encounter set (recommended: Under Attack).\nSetup: Put the Ultron Drones environment into play. Shuffle the encounter deck. Advance to stage 1B.",
@@ -3512,7 +3512,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
               notesForScripting: "Put the Ultron Drones environment into play, shuffle; then advance to 1B (implicit).",
             },
           ],
-          image: imageRef("/bundles/cards/01137.png"),
+          image: imageRef("/bundles/cards/01137b.png"),
         },
       },
       {
@@ -3529,7 +3529,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("01138b.assault-on-norad-forced-response") }],
-        image: imageRef("/bundles/cards/01138b.png"),
+        image: imageRef("/bundles/cards/01138.png"),
         aSide: {
           text: {
             printed: "When Revealed: Each player puts the top card of their deck into play facedown, engaged with them as a Drone minion. Advance to stage 2B.",
@@ -3541,7 +3541,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
               notesForScripting: "\"Advance to stage 2B\" is implicit in the engine.",
             },
           ],
-          image: imageRef("/bundles/cards/01138.png"),
+          image: imageRef("/bundles/cards/01138b.png"),
         },
       },
       {
@@ -3563,7 +3563,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
             notesForScripting: "Threat cannot be removed from this main scheme stage by any means.",
           },
         ],
-        image: imageRef("/bundles/cards/01139b.png"),
+        image: imageRef("/bundles/cards/01139.png"),
         aSide: {
           text: {
             printed: "When Revealed: Each player puts the top card of their deck into play facedown, engaged with them as a Drone minion. Advance to stage 3B.",
@@ -3575,7 +3575,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
               notesForScripting: "\"Advance to stage 3B\" is implicit in the engine.",
             },
           ],
-          image: imageRef("/bundles/cards/01139.png"),
+          image: imageRef("/bundles/cards/01139b.png"),
         },
       },
     ],

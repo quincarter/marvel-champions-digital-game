@@ -70,20 +70,41 @@ export interface NewGameOptions {
   readonly deps?: EngineDeps;
 }
 
+/**
+ * One identity card per seat. RRG "Unique" forbids two copies of the same identity at the
+ * table (`createGame` rejects it), so seats past the first get a re-titled clone of the
+ * requested identity — identical stats, HP and abilities, different title and alter-ego, so
+ * a multi-seat fixture stays a legal table without changing what the tests measure.
+ */
+export function seatIdentities(identity: HeroIdentityCard, count: number): readonly HeroIdentityCard[] {
+  return Array.from({ length: count }, (_, seat) =>
+    seat === 0
+      ? identity
+      : {
+          ...identity,
+          id: cardId(`${identity.id}-p${seat + 1}`),
+          name: `${identity.name} p${seat + 1}`,
+          hero: { ...identity.hero, faceName: `${identity.hero.faceName} p${seat + 1}` },
+          alterEgo: { ...identity.alterEgo, faceName: `${identity.alterEgo.faceName} p${seat + 1}` },
+        },
+  );
+}
+
 /** A freshly set-up game, still parked on the setup mulligan choice. */
 export function newGameAtMulligan(options: NewGameOptions = {}): GameState {
   const villain = options.villain ?? VILLAIN;
   const mainScheme = options.mainScheme ?? MAIN_SCHEME;
   const identity = options.identity ?? HERO;
   const playerCount = options.players ?? 1;
+  const identities = seatIdentities(identity, playerCount);
   const config: GameSetupConfig = {
     seed: options.seed ?? 1234,
-    cards: [...DEFAULT_CARDS, villain, mainScheme, identity, ...(options.extraCards ?? [])],
+    cards: [...DEFAULT_CARDS, villain, mainScheme, ...identities, ...(options.extraCards ?? [])],
     villainCardId: villain.id,
     mainSchemeCardId: mainScheme.id,
     encounterDeck: options.encounterDeck ?? repeat(TREACHERY.id, 20),
-    players: Array.from({ length: playerCount }, () => ({
-      identityCardId: identity.id,
+    players: identities.map((seatIdentity) => ({
+      identityCardId: seatIdentity.id,
       deck: options.deck ?? DEFAULT_DECK,
     })),
   };

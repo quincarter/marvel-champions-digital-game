@@ -77,13 +77,38 @@ describe("boardLayout", () => {
     expect(layout.zones.tabs!.height).toBe(hit.target);
   });
 
-  test("phone gives every tabbed zone the same rectangle, since one shows at a time", () => {
-    const layout = boardLayout(rectOf(REFERENCE_VIEWPORTS.phone), { playerCount: 3 });
-    const content = layout.zones.threat!;
-
-    for (const tab of PHONE_TABS) {
-      expect(layout.zones[tab], tab).toEqual(content);
+  test("phone shows one tab's zones and none of the others", () => {
+    for (const active of PHONE_TABS) {
+      const layout = boardLayout(rectOf(REFERENCE_VIEWPORTS.phone), { playerCount: 3, activeTab: active });
+      expect(layout.zones[active], active).not.toBeNull();
+      // Every other tab is absent, not merely stacked underneath: five zones
+      // sharing one rectangle is five zones drawn on top of each other.
+      for (const other of PHONE_TABS) {
+        if (other !== active) expect(layout.zones[other], `${active} hides ${other}`).toBeNull();
+      }
     }
+  });
+
+  test("the Me tab carries the play area under the identity, without overlapping it", () => {
+    const layout = boardLayout(rectOf(REFERENCE_VIEWPORTS.phone), { playerCount: 1, activeTab: "me" });
+    const me = layout.zones.me!;
+    const playArea = layout.zones.playArea!;
+    expect(playArea.y).toBeGreaterThanOrEqual(me.y + me.height);
+    expect(playArea.y + playArea.height).toBeLessThanOrEqual(layout.zones.hand!.y);
+  });
+
+  test("the Enemies tab carries the encounter piles above the enemies", () => {
+    const layout = boardLayout(rectOf(REFERENCE_VIEWPORTS.phone), { playerCount: 1, activeTab: "enemies" });
+    const piles = layout.zones.encounter!;
+    const enemies = layout.zones.enemies!;
+    expect(enemies.y).toBeGreaterThanOrEqual(piles.y + piles.height);
+    // The piles ride with the Enemies tab, so they vanish with it.
+    expect(boardLayout(rectOf(REFERENCE_VIEWPORTS.phone), { playerCount: 1, activeTab: "log" }).zones.encounter).toBeNull();
+  });
+
+  test("a solo game has no Team tab to show", () => {
+    const layout = boardLayout(rectOf(REFERENCE_VIEWPORTS.phone), { playerCount: 1, activeTab: "team" });
+    expect(layout.zones.team).toBeNull();
   });
 
   test("the long table keeps the villain band above the player band, both above the hand", () => {
@@ -139,5 +164,37 @@ describe("cardRow", () => {
 
   test("an empty zone produces no slots", () => {
     expect(cardRow(bounds, 0)).toEqual([]);
+  });
+});
+
+describe("tall screens share one board", () => {
+  test("a tablet in portrait is tabbed, like a phone and unlike a long table", () => {
+    // The two boards in the design set are shaped by orientation, not by
+    // device: a 768×1024 tablet is far closer to the phone's tall, narrow
+    // shape than to a long table, and the landscape layout gave it a game log
+    // too narrow to read a line in.
+    const portrait = boardLayout(rectOf(REFERENCE_VIEWPORTS.tabletPortrait), { playerCount: 1, activeTab: "log" });
+    expect(portrait.formFactor).toBe("tabletPortrait");
+    expect(portrait.tabbed).toBe(true);
+    expect(portrait.zones.tabs).not.toBeNull();
+
+    const landscape = boardLayout(rectOf(REFERENCE_VIEWPORTS.tabletLandscape), { playerCount: 1 });
+    expect(landscape.tabbed).toBe(false);
+    expect(landscape.zones.tabs).toBeNull();
+  });
+
+  test("the portrait tablet's log gets the full width, not an eleventh of it", () => {
+    const portrait = boardLayout(rectOf(REFERENCE_VIEWPORTS.tabletPortrait), { playerCount: 1, activeTab: "log" });
+    const log = portrait.zones.log!;
+    expect(log.width).toBeGreaterThan(REFERENCE_VIEWPORTS.tabletPortrait.width * 0.8);
+  });
+
+  test("every tall layout parks a two-row action bar at the bottom edge", () => {
+    for (const name of ["phone", "tabletPortrait"] as const) {
+      const layout = boardLayout(rectOf(REFERENCE_VIEWPORTS[name]), { playerCount: 1 });
+      const bar = layout.zones.actionBar!;
+      expect(bar.height, name).toBe(hit.target + hit.primary);
+      expect(bar.y + bar.height, name).toBe(REFERENCE_VIEWPORTS[name].height);
+    }
   });
 });

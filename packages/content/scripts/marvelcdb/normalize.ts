@@ -205,7 +205,14 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
   /**
    * The front-face image of an A-side record's aggregate twin: MarvelCDB gives
    * `01097a` no image of its own, but `01097` (dropped below as a duplicate of
-   * the 01097a/01097b pair) carries the pair's front, which is the A side.
+   * the 01097a/01097b pair) carries one.
+   *
+   * That image is the **B** side, not the A side. Verified against the printed
+   * collector numbers on the scans themselves: `/bundles/cards/01097.png` is
+   * stamped "97B" and `/bundles/cards/01116.png` is stamped "116B", and both
+   * show the threat value and acceleration that only the B side prints. Read
+   * the other way round — which is the intuitive reading, and was the original
+   * one — every main scheme on the table drew its setup/contents side.
    */
   const aggregateImage = (aSideCode: string): ImageRef | undefined =>
     imageOf(byCode.get(aSideCode.replace(/a$/, ""))?.imagesrc);
@@ -525,8 +532,11 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
       if (rb.escalation_threat === null || rb.escalation_threat === undefined) errors.push(`${rb.code}: missing acceleration`);
       // A later stage with its own title (Klaw's stage 2 is "Secret Rendezvous") keeps it.
       const firstName = parts[0]?.name;
-      const bSideImage = imageOf(rb.imagesrc);
-      const aSideImage = aggregateImage(ra.code);
+      // The aggregate record carries the B side and the `…b` record the A side
+      // (see `aggregateImage`). MarvelCDB's front/back for a main scheme is
+      // "the side you play with" / "the side you set up from", not A / B.
+      const bSideImage = aggregateImage(ra.code);
+      const aSideImage = imageOf(rb.imagesrc);
       stages.push({
         stageNumber,
         ...(firstName !== undefined && b.name !== firstName ? { name: b.name } : {}),
@@ -542,9 +552,8 @@ export function normalizePack(raw: readonly RawCard[], curation: PackCuration): 
         aSide: {
           text: a.text,
           abilities: abilityRefs(ra.code, a.name, pa.abilities),
-          // MarvelCDB serves no image for the A-side record itself. The pair's
-          // front face lives on the aggregate record (`01097` for `01097a`),
-          // which is dropped as a duplicate but is the only source for it.
+          // The A-side record (`01097a`) has no image; the setup side is served
+          // as the *linked* record's image (`01097b`).
           ...(aSideImage ? { image: aSideImage } : {}),
         },
       });

@@ -30,7 +30,8 @@ import {
   type InstanceId,
   type PlayerId,
 } from "@mc/engine";
-import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
+import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
+import { faceVisible } from "./visibility.js";
 import { STATUS_DISABLES } from "../tokens.js";
 import type { StatusName } from "./log-lines.js";
 import { playerName } from "./names.js";
@@ -150,11 +151,19 @@ export interface BoardModel {
   readonly handLimit: number;
   readonly myPiles: PileCounts;
   readonly encounterPiles: PileCounts;
+  /** The top of the encounter discard, which is faceup at the table. */
+  readonly encounterDiscardTop: ArtSource | null;
   readonly team: readonly SeatRow[];
   readonly outcome: GameState["outcome"];
 }
 
 const ROMAN = ["I", "II", "III", "IV", "V"] as const;
+
+/** The encounter discard is faceup, so its top card is public information. */
+function topOfDiscard(state: GameState): ArtSource | null {
+  const top = state.encounterDiscard[state.encounterDiscard.length - 1];
+  return top ? artFor(cardOf(state, top), { kind: "front" }) : null;
+}
 
 export function boardModel(state: GameState, perspectiveId: PlayerId, deps: EngineDeps): BoardModel {
   const me = getPlayer(state, perspectiveId);
@@ -178,13 +187,20 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
     myPlayArea: me.playArea
-      // Attachments are drawn on their host, not as their own panel.
-      .filter((id) => getInstance(state, id)?.attachedTo === null)
+      // An attachment is drawn on its host — except an upgrade on your own
+      // identity, which is a card you played and must be able to find. On the
+      // table those sit in front of you, not stacked on your identity card, so
+      // the play area is where a player looks for them.
+      .filter((id) => {
+        const attachedTo = getInstance(state, id)?.attachedTo ?? null;
+        return attachedTo === null || attachedTo === me.identity.instanceId;
+      })
       .map((id) => characterPanel(state, id, deps)),
     hand: me.hand.map((id) => handCardView(state, id)),
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },
     encounterPiles: { deck: state.encounterDeck.length, discard: state.encounterDiscard.length },
+    encounterDiscardTop: topOfDiscard(state),
     team: state.players
       .filter((player) => player.playerId !== perspectiveId)
       .map((player) => seatRow(state, player.playerId, deps)),
@@ -255,7 +271,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     keywords: keywordsOf(state, id, deps).map((keyword) => keyword.name),
     statuses,
     stats: statTiles(profile, identityForm(state, instance), current, max),
-    art: artFor(card, faceOf(state, instance, card)),
+    art: artFor(card, faceOf(state, id)),
     hp: current !== undefined && max !== undefined ? { current, max } : null,
     exhausted: instance.exhausted,
     boostCount: instance.boostCards.length,
@@ -272,14 +288,33 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
 }
 
 /**
+ * Which deck a hidden card came from, and therefore which back it shows.
+ *
+ * Decided from ownership, never from the card: `ownerId` is set for anything
+ * out of a player's deck and null for encounter and scenario cards, and which
+ * deck a facedown card came from is not a secret — the players watched it be
+ * dealt. Reading the card's own type here would be reading the thing the card
+ * is facedown to hide.
+ */
+function backKindOf(state: GameState, instance: CardInstance | undefined): CardBack {
+  if (!instance) return "encounter";
+  if (instance.instanceId === state.villain.instanceId) return "villain";
+  return instance.ownerId !== null ? "player" : "encounter";
+}
+
+/**
  * Which printed face this instance is showing right now.
  *
  * A facedown card gets none: the engine deliberately says only what a facedown
  * card is *treated as*, and drawing its front would leak what the players
  * aren't allowed to see.
  */
-function faceOf(state: GameState, instance: CardInstance, card: AnyCard | undefined): CardFace {
-  if (!instance.faceup || !card) return { kind: "back" };
+export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
+  const instance = getInstance(state, instanceId);
+  const card = cardOf(state, instanceId);
+  if (!instance || !card || !faceVisible(state, instanceId)) {
+    return { kind: "back", back: backKindOf(state, instance) };
+  }
   switch (card.type) {
     case "hero_identity":
       return (identityForm(state, instance) ?? "hero") === "hero" ? { kind: "hero" } : { kind: "alterEgo" };
@@ -289,6 +324,11 @@ function faceOf(state: GameState, instance: CardInstance, card: AnyCard | undefi
         sideIndex: Math.max(0, card.sides.findIndex((side) => side.side === state.villain.side)),
         stageIndex: state.villain.stageIndex,
       };
+    case "main_scheme":
+      // The B side is the one on the table: it carries the threat values shown,
+      // and it is the side with a picture. Asking a main scheme for its "front"
+      // gets nothing, because the schema puts the image on the stage.
+      return { kind: "mainSchemeStage", stageIndex: state.mainScheme.stageIndex, side: "B" };
     default:
       return { kind: "front" };
   }
@@ -430,8 +470,7 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
       isMain: true,
       crisis,
       accelerationTokens: accel,
-      // The B side is the one on the table: it carries the threat values shown.
-      art: artFor(card, { kind: "mainSchemeStage", stageIndex: state.mainScheme.stageIndex, side: "B" }),
+      art: artFor(card, faceOf(state, id)),
     };
   }
 

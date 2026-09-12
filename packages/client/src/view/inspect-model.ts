@@ -26,9 +26,10 @@ import {
   type LegalActions,
   type PlayerId,
 } from "@mc/engine";
-import { artFor, type ArtSource } from "../art/art-source.js";
+import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
 import { cardName } from "./names.js";
-import { resourceIconList, type StatTile } from "./board-model.js";
+import { faceVisible } from "./visibility.js";
+import { faceOf, resourceIconList, type StatTile } from "./board-model.js";
 
 /** What the engine says about this card right now. */
 export interface InspectStatus {
@@ -79,7 +80,7 @@ export function inspectModel(
 ): InspectModel {
   const instance = getInstance(state, instanceId);
   const card = cardOf(state, instanceId);
-  const hidden = !instance?.faceup;
+  const hidden = !faceVisible(state, instanceId);
 
   if (!instance || !card || hidden) {
     return {
@@ -87,7 +88,7 @@ export function inspectModel(
       name: cardName(state, instanceId),
       typeLine: "Facedown",
       cost: null,
-      // A facedown card is exactly as informative as the engine says it is.
+      // A hidden card is exactly as informative as the table makes it.
       rulesText: "This card is facedown. Nothing about its face is known to you.",
       printedText: null,
       flavor: null,
@@ -95,7 +96,9 @@ export function inspectModel(
       stats: [],
       keywords: [],
       traits: instance?.facedownAs ? instance.facedownAs.traits : [],
-      art: null,
+      // The back of whichever deck it came from — which is exactly what a
+      // player sees at the table, and gives the sheet something true to show.
+      art: artFor(undefined, faceOf(state, instanceId)),
       footerLeft: "",
       footerRight: "",
       status: { playable: null, message: "", targets: [] },
@@ -119,7 +122,10 @@ export function inspectModel(
     stats: profile ? profileTiles(profile, current, max) : [],
     keywords: keywordsOf(state, instanceId, deps).map(keywordLabel),
     traits: "traits" in card ? (card.traits as readonly string[]) : [],
-    art: artFor(card, { kind: "front" }),
+    // The face in play, not "the front": a villain's picture lives on its
+    // stage and a main scheme's on its side, so asking for a front gets
+    // nothing at all for exactly the cards a player most wants to read.
+    art: artFor(card, faceOf(state, instanceId)),
     footerLeft: `${card.setCode as string} · ${card.collectorNumber}`,
     footerRight: [card.unique ? "Unique" : null, `×${card.quantityInSet} in set`].filter(Boolean).join(" · "),
     status: statusOf(state, instanceId, legal, perspectiveId),
@@ -128,12 +134,109 @@ export function inspectModel(
 }
 
 /** Every card kind's text, since the schema keeps it in a different place per kind. */
-function textOf(card: AnyCard): { readonly printed: string; readonly current: string } {
+function textOf(card: AnyCard, face: CardFace = { kind: "front" }): { readonly printed: string; readonly current: string } {
   if ("text" in card) return card.text;
-  if (card.type === "hero_identity") return card.hero.text;
-  if (card.type === "villain") return card.sides[0].stages[0].text;
-  if (card.type === "main_scheme") return card.stages[0].text;
+  if (card.type === "hero_identity") return face.kind === "alterEgo" ? card.alterEgo.text : card.hero.text;
+  if (card.type === "villain") {
+    const side = face.kind === "villainStage" ? (card.sides[face.sideIndex] ?? card.sides[0]) : card.sides[0];
+    const stage = face.kind === "villainStage" ? (side.stages[face.stageIndex] ?? side.stages[0]) : side.stages[0];
+    return stage.text;
+  }
+  if (card.type === "main_scheme") {
+    const stage = face.kind === "mainSchemeStage" ? (card.stages[face.stageIndex] ?? card.stages[0]) : card.stages[0];
+    return face.kind === "mainSchemeStage" && face.side === "A" ? stage.aSide.text : stage.text;
+  }
   return { printed: "", current: "" };
+}
+
+/** The keywords printed on one face, without a game to ask about granted ones. */
+function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInstance[] {
+  if (card.type === "hero_identity") return face.kind === "alterEgo" ? card.alterEgo.keywords : card.hero.keywords;
+  if (card.type === "villain") {
+    const side = face.kind === "villainStage" ? (card.sides[face.sideIndex] ?? card.sides[0]) : card.sides[0];
+    return (face.kind === "villainStage" ? (side.stages[face.stageIndex] ?? side.stages[0]) : side.stages[0]).keywords;
+  }
+  if (card.type === "main_scheme") {
+    return (face.kind === "mainSchemeStage" ? (card.stages[face.stageIndex] ?? card.stages[0]) : card.stages[0]).keywords;
+  }
+  return "keywords" in card ? card.keywords : [];
+}
+
+/** The traits printed on one face. A hero's two sides do not share them. */
+function printedTraitsOf(card: AnyCard, face: CardFace): readonly string[] {
+  if (card.type === "hero_identity") {
+    return (face.kind === "alterEgo" ? card.alterEgo.traits : card.hero.traits) as readonly string[];
+  }
+  if (card.type === "villain") {
+    const side = face.kind === "villainStage" ? (card.sides[face.sideIndex] ?? card.sides[0]) : card.sides[0];
+    const stage = face.kind === "villainStage" ? (side.stages[face.stageIndex] ?? side.stages[0]) : side.stages[0];
+    return stage.traits as readonly string[];
+  }
+  return "traits" in card ? (card.traits as readonly string[]) : [];
+}
+
+/**
+ * The sheet for a card with no game behind it — the Title screen's scenario and
+ * hero pickers, where nothing has been dealt yet.
+ *
+ * Everything that comes from `@mc/content` is here; everything that needs a
+ * game is empty, because there is no honest value for it. No live stats: the
+ * scan prints them, and inventing a number for a card that isn't in play would
+ * be the client stating a rule.
+ */
+export function cardInspectModel(card: AnyCard | undefined, face: CardFace): InspectModel {
+  if (!card) {
+    return {
+      instanceId: "" as InstanceId,
+      name: "Unknown card",
+      typeLine: "",
+      cost: null,
+      rulesText: "",
+      printedText: null,
+      flavor: null,
+      resourceIcons: [],
+      stats: [],
+      keywords: [],
+      traits: [],
+      art: null,
+      footerLeft: "",
+      footerRight: "",
+      status: { playable: null, message: "", targets: [] },
+      hidden: false,
+    };
+  }
+  const text = textOf(card, face);
+  return {
+    instanceId: "" as InstanceId,
+    name: faceNameOf(card, face),
+    typeLine: typeLineOf(card),
+    cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    rulesText: text.current,
+    printedText: text.printed && text.printed !== text.current ? text.printed : null,
+    flavor: flavorOf(card, face),
+    resourceIcons: resourceIconList(printedResources(card)),
+    stats: [],
+    keywords: printedKeywordsOf(card, face).map(keywordLabel),
+    traits: printedTraitsOf(card, face),
+    art: artFor(card, face),
+    footerLeft: `${card.setCode as string} · ${card.collectorNumber}`,
+    footerRight: [card.unique ? "Unique" : null, `×${card.quantityInSet} in set`].filter(Boolean).join(" · "),
+    status: { playable: null, message: "", targets: [] },
+    hidden: false,
+  };
+}
+
+/** A hero identity names its two sides differently; everything else has one name. */
+function faceNameOf(card: AnyCard, face: CardFace): string {
+  if (card.type !== "hero_identity") return card.name;
+  return face.kind === "alterEgo" ? card.alterEgo.faceName : card.hero.faceName;
+}
+
+function flavorOf(card: AnyCard, face: CardFace): string | null {
+  if (card.type === "hero_identity") {
+    return (face.kind === "alterEgo" ? card.alterEgo.flavor : card.hero.flavor) ?? null;
+  }
+  return "flavor" in card && card.flavor ? card.flavor : null;
 }
 
 /** The printed wording, only when it differs from what the game plays by. */

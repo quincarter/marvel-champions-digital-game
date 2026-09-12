@@ -16,8 +16,6 @@ import Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
 import type { ArtSource } from "./art-source.js";
 
-type Status = "loading" | "ready" | "missing";
-
 /**
  * Textures live on the game, not the scene, so this cache does too: one per
  * `Phaser.Game`, shared by the board and every overlay above it.
@@ -32,14 +30,31 @@ export function cardArt(scene: Phaser.Scene): CardArt {
   return created;
 }
 
+/**
+ * What this cache tracks is deliberately *not* "has this scan arrived" — the
+ * texture manager already knows that, and a second answer to the same question
+ * is a second answer that can be wrong. An earlier version kept a per-key
+ * loading/ready/missing state and gated drawing on it; a scan could land in the
+ * texture manager while its entry stayed "loading", and the table then drew the
+ * placeholder until some unrelated redraw happened to fix it.
+ *
+ * So the texture manager decides what can be drawn, and this class only
+ * remembers two things it alone knows: what has already been handed to the
+ * loader (don't ask twice) and what came back 404 (don't ask again, ever).
+ */
 export class CardArt {
-  readonly #status = new Map<string, Status>();
+  /** Keys already handed to the loader, so one scan is fetched once. */
+  readonly #requested = new Set<string>();
+  /** Keys the server has no scan for. The generated frame is the answer for these. */
+  readonly #missing = new Set<string>();
   readonly #listeners = new Set<() => void>();
-  /** Keys queued this frame but not yet handed to the loader. */
+  /** Scenes whose loader this cache has already hooked. */
+  readonly #hooked = new WeakSet<Phaser.Scene>();
   #pending: { readonly scene: Phaser.Scene; readonly source: ArtSource }[] = [];
   #flushScheduled = false;
+  #notifyScheduled = false;
 
-  /** Called when a batch of art arrives, so the board can redraw with it. */
+  /** Called when art arrives, so the board can redraw with it. */
   onArrived(listener: () => void): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
@@ -51,25 +66,23 @@ export class CardArt {
    */
   request(scene: Phaser.Scene, source: ArtSource | null): string | null {
     if (!source) return null;
-    const status = this.#status.get(source.key);
-    if (status === "ready") return source.key;
-    if (status) return null;
+    if (scene.textures.exists(source.key)) return source.key;
+    if (this.#missing.has(source.key) || this.#requested.has(source.key)) return null;
 
-    this.#status.set(source.key, "loading");
+    this.#requested.add(source.key);
     this.#pending.push({ scene, source });
     this.#schedule(scene);
     return null;
   }
 
-  /** True once the loader has answered for this key, either way. */
-  settled(key: string): boolean {
-    const status = this.#status.get(key);
-    return status === "ready" || status === "missing";
+  /** True when the server has said it has no scan for this key. */
+  isMissing(key: string): boolean {
+    return this.#missing.has(key);
   }
 
   /**
    * One flush per frame. A board redraw asks for every visible card at once, so
-   * batching keeps that to a single loader run and a single redraw afterwards.
+   * batching keeps that to a single loader run.
    */
   #schedule(scene: Phaser.Scene): void {
     if (this.#flushScheduled) return;
@@ -86,45 +99,75 @@ export class CardArt {
     const scene = batch[0]?.scene;
     if (!scene) return;
 
-    for (const { source } of batch) {
-      if (scene.textures.exists(source.key)) {
-        this.#status.set(source.key, "ready");
-        continue;
-      }
-      scene.load.image(source.key, source.url);
-    }
+    this.#hook(scene);
+    for (const { source } of batch) scene.load.image(source.key, source.url);
+    // Files added while a run is in flight are picked up by that run; starting
+    // a second one would be the race, not the fix.
+    if (!scene.load.isLoading()) scene.load.start();
+  }
 
+  /**
+   * Redraw on *any* file arriving, rather than on a particular batch finishing.
+   * A redraw is cheap and idempotent, and the alternative — deciding which
+   * batch a completion belongs to — is exactly the bookkeeping this class no
+   * longer keeps.
+   */
+  #hook(scene: Phaser.Scene): void {
+    if (this.#hooked.has(scene)) return;
+    this.#hooked.add(scene);
+
+    const onFile = (): void => this.#notify(scene);
     // A 404 is the ordinary answer for a card with no scan, so it is recorded
     // rather than reported: the frame the board already drew is the fallback.
     const onError = (file: Phaser.Loader.File): void => {
-      if (this.#status.get(file.key) === "loading") this.#status.set(file.key, "missing");
+      this.#missing.add(file.key);
+      this.#notify(scene);
     };
+
+    scene.load.on(Phaser.Loader.Events.FILE_COMPLETE, onFile);
     scene.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, onError);
-    scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.load.off(Phaser.Loader.Events.FILE_COMPLETE, onFile);
       scene.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, onError);
-      for (const { source } of batch) {
-        if (scene.textures.exists(source.key)) this.#status.set(source.key, "ready");
-        else if (this.#status.get(source.key) === "loading") this.#status.set(source.key, "missing");
-      }
+      this.#hooked.delete(scene);
+    });
+  }
+
+  /** Coalesces a run of arrivals into one redraw, so eight cards cost one pass. */
+  #notify(scene: Phaser.Scene): void {
+    if (this.#notifyScheduled) return;
+    this.#notifyScheduled = true;
+    scene.time.delayedCall(0, () => {
+      this.#notifyScheduled = false;
       for (const listener of [...this.#listeners]) listener();
     });
-    if (!scene.load.isLoading()) scene.load.start();
   }
 }
 
-/** How a scan is fitted into the slot it's drawn in. */
+/**
+ * How a scan is fitted into the slot it is drawn in.
+ *
+ * `contain` is the default and the right answer nearly everywhere, because a
+ * scan is a *whole card* — frame, name, stat box and all — not a picture of a
+ * character. Cropping one does not produce artwork, it produces a card with its
+ * edges cut off, which is exactly what it looks like.
+ */
 export type ArtFit =
-  /** Fill the slot and crop the overflow — for the art band on a panel. */
-  | "cover"
-  /** Fit the whole card inside the slot — for a hand card or Inspect. */
-  | "contain";
+  /** Fit the whole card inside the slot. Nothing is ever lost. */
+  | "contain"
+  /**
+   * Fill the slot and crop the overflow. Only for a slot that is already the
+   * card's own shape, where "cover" and "contain" are the same fit and neither
+   * crops anything — a hand card's 2.5:3.5 slot against a 300×419 scan.
+   */
+  | "cover";
 
 export interface DrawArtOptions {
   readonly fit?: ArtFit;
   /**
    * Which part of the scan a `cover` crop keeps vertically, 0 = top, 1 = bottom.
-   * A card scan is name · illustration · rules text top to bottom, so the
-   * default keeps the illustration rather than centring on the rules box.
+   * Only consulted when the slot and the scan disagree about shape, which for
+   * `cover`'s intended use they essentially never do.
    */
   readonly focusY?: number;
   readonly alpha?: number;
@@ -150,7 +193,7 @@ export function drawArt(
   const sourceHeight = size.height;
   if (!sourceWidth || !sourceHeight) return null;
 
-  const fit = options.fit ?? "cover";
+  const fit = options.fit ?? "contain";
   const scale =
     fit === "cover"
       ? Math.max(rect.width / sourceWidth, rect.height / sourceHeight)

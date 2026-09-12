@@ -2,6 +2,14 @@ import type { Command } from "./commands.js";
 
 export type EngineErrorCode =
   | "invalid_setup"
+  /**
+   * RRG "Unique": "The players as a group are permitted to have only one copy of each
+   * unique card (by title) in play." Distinct from `invalid_setup` because it is the one
+   * setup failure caused by a legal-but-conflicting *player* choice rather than by a
+   * malformed config, so a client can route it to a "pick a different hero" prompt and
+   * show `message` verbatim.
+   */
+  | "duplicate_unique_card"
   | "game_over"
   | "choice_pending"
   | "no_choice_pending"

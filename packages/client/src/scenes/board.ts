@@ -16,25 +16,42 @@
 import Phaser from "phaser";
 import { CORE_DEPS } from "@mc/cards";
 import type { ResourceIconType } from "@mc/content";
-import type { Command, InstanceId, LegalAction } from "@mc/engine";
+import type { Command, GameEvent, InstanceId, LegalAction } from "@mc/engine";
 import { cardArt, drawArt, type ArtFit, type CardArt } from "../art/card-art.js";
-import type { ArtSource } from "../art/art-source.js";
+import { CARD_BACKS, type ArtSource } from "../art/art-source.js";
 import { appSession } from "../session.js";
-import { accent, dotGrid, hit, ink, signal, status as statusTokens, surface, threatMeter, typeRole } from "../tokens.js";
+import { cardName } from "../view/names.js";
+import { accent, dotGrid, hit, ink, motion, signal, status as statusTokens, surface, threatMeter, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McSelectionRing, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { McButton, McSelectionRing, McTabs, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { boardModel, type BoardModel, type CharacterPanel, type HandCardView, type SchemePanel } from "../view/board-model.js";
+import {
+  beginPayment,
+  paymentView,
+  togglePayment,
+  type PaymentState,
+  type PaymentView,
+} from "../view/payment-model.js";
 import { highlights, type BasicAction, type Highlights, type IllegalReason } from "../view/highlights.js";
 import { appendEvents, emptyLog, type LogState } from "../view/log-lines.js";
-import { boardLayout, cardRow, type BoardLayout, type Rect } from "../view/layout.js";
+import { tabsTouchedBy } from "../view/tab-badges.js";
+import { beatsFrom, type Beat } from "../view/beats.js";
+import { focusOrder, sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
+import { boardLayout, cardRow, CARD_ASPECT, PHONE_TABS, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
 
-/** What the player has picked so far, when an action needs a target. */
+/** What the player has picked so far, when an action needs a target or a payment. */
 type Selection =
   | { readonly kind: "idle" }
   /** An action-bar button or a hand card is chosen; now pick what it aims at. */
-  | { readonly kind: "targeting"; readonly action: LegalAction; readonly prompt: string };
+  | { readonly kind: "targeting"; readonly action: LegalAction; readonly prompt: string }
+  /**
+   * A card is chosen and aimed; now pick what pays for it. The design makes
+   * this a mode over the hand rather than a dialog (`Board - Phone`: a red
+   * "PAYING 1 / 3" bar above a hand you tap), so it lives in this scene.
+   */
+  | { readonly kind: "paying"; readonly payment: PaymentState };
 
 export class BoardScene extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
@@ -49,6 +66,18 @@ export class BoardScene extends Phaser.Scene {
   #hitRects = new Map<InstanceId, Rect>();
   #version = -1;
   #choiceOpen = false;
+  /** Which zone the phone board is showing. Ignored on wider layouts. */
+  #activeTab: PhoneTab = "me";
+  /** Changes that landed on a tab the player isn't looking at, per tab. */
+  #tabBadges = new Map<PhoneTab, number>();
+  #tabs: McTabs | null = null;
+  /** Beats still floating, with when each started, so a redraw doesn't kill them. */
+  #beats: { readonly beat: Beat; readonly startedAt: number }[] = [];
+  /** Keyboard focus: what is focused, not where — the "where" is re-derived each draw. */
+  #focus: FocusTarget | null = null;
+  /** Rects of everything focusable this draw, so the ring knows where to go. */
+  #focusRects = new Map<string, Rect>();
+  #focusRing: McSelectionRing | null = null;
   /** Card scans, shared with every overlay above this scene. */
   #artCache: CardArt | null = null;
   #artUnsubscribe: (() => void) | null = null;
@@ -70,6 +99,7 @@ export class BoardScene extends Phaser.Scene {
     // A scan arrives after the frame that asked for it, so the board redraws
     // once per batch rather than holding the table back on the network.
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
+    this.#bindKeys();
     // The Inspect overlay's "Play it" comes back here, because playing a card
     // is the board's job: the overlay only ever reports what the engine said.
     this.game.events.on("mc-play-card", this.#onInspectPlay, this);
@@ -88,6 +118,8 @@ export class BoardScene extends Phaser.Scene {
     // Fold this command's events onto the log before the state replaces it.
     if (state.version !== this.#version) {
       this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId);
+      this.#noteTabChanges(state);
+      this.#startBeats(state.lastEvents);
       this.#version = state.version;
       // A new state invalidates any half-made selection: the engine may have
       // changed what is legal, and a stale target would just be rejected.
@@ -103,6 +135,20 @@ export class BoardScene extends Phaser.Scene {
     }
     this.#syncChoiceOverlay(state);
     this.#draw();
+  }
+
+  /**
+   * Counts what happened on the tabs the player isn't looking at, so a phone
+   * board never changes silently off screen. Only meaningful on phone, but the
+   * counting is cheap and keeps the badge correct if the window is narrowed
+   * mid-game.
+   */
+  #noteTabChanges(state: SessionState): void {
+    if (!state.game || state.perspectiveId === null) return;
+    for (const [tab, count] of tabsTouchedBy(state.lastEvents, state.game, state.perspectiveId)) {
+      if (tab === this.#activeTab) continue;
+      this.#tabBadges.set(tab, (this.#tabBadges.get(tab) ?? 0) + count);
+    }
   }
 
   /**
@@ -126,15 +172,18 @@ export class BoardScene extends Phaser.Scene {
 
     for (const button of this.#buttons) button.destroy();
     for (const ring of this.#rings) ring.destroy();
+    this.#tabs?.destroy();
+    this.#tabs = null;
     this.#buttons = [];
     this.#rings = [];
     this.#hitRects.clear();
+    this.#focusRects.clear();
     this.children.removeAll(true);
 
     const { width, height } = this.scale.gameSize;
     const layout = boardLayout({ x: 0, y: 0, width, height }, {
       playerCount: model.team.length + 1,
-      ...(this.#layout?.activeTab ? { activeTab: this.#layout.activeTab } : {}),
+      activeTab: this.#activeTab,
     });
     this.#layout = layout;
 
@@ -142,6 +191,7 @@ export class BoardScene extends Phaser.Scene {
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
 
     this.#drawChrome(layout.zones.chrome!, model);
+    if (layout.zones.tabs) this.#drawTabs(layout.zones.tabs, model);
     if (layout.zones.threat) this.#drawSchemes(layout.zones.threat, model);
     if (layout.zones.enemies) this.#drawEnemies(layout.zones.enemies, model);
     if (layout.zones.encounter) this.#drawEncounter(layout.zones.encounter, model);
@@ -152,45 +202,254 @@ export class BoardScene extends Phaser.Scene {
     this.#drawHand(layout.zones.hand!, model);
     this.#drawActionBar(layout.zones.actionBar!, model);
     this.#drawTargetRings();
+    this.#drawFocusRing();
+    // Last, so beats float above the table rather than under a later panel.
+    this.#drawBeats();
   }
 
-  /** Round chip, phase toggle and the current step, on the ink chrome bar. */
+  /**
+   * Keyboard navigation.
+   *
+   * Arrows and Tab walk `focusOrder`, Enter and Space act on what is focused,
+   * `I` inspects it, and Escape backs out of a mode. A canvas has no focus of
+   * its own, so all of this is ours to state — including the visible ring,
+   * which is the selection ring drawn static rather than pulsing (a pulse means
+   * "the board is waiting for you", and focus is not a prompt).
+   */
+  #bindKeys(): void {
+    const keyboard = this.input.keyboard;
+    if (!keyboard) return;
+    keyboard.on("keydown", (event: KeyboardEvent) => {
+      // A decision overlay owns the keyboard while it is up.
+      if (this.#choiceOpen || this.scene.isActive(SCENES.inspect)) return;
+      switch (event.key) {
+        case "ArrowRight":
+        case "ArrowDown":
+        case "Tab":
+          event.preventDefault();
+          this.#moveFocus(event.shiftKey && event.key === "Tab" ? -1 : 1);
+          break;
+        case "ArrowLeft":
+        case "ArrowUp":
+          event.preventDefault();
+          this.#moveFocus(-1);
+          break;
+        case "Enter":
+        case " ":
+          event.preventDefault();
+          this.#activateFocus();
+          break;
+        case "i":
+        case "I":
+          if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
+          break;
+        case "Escape":
+          if (this.#selection.kind !== "idle") {
+            this.#selection = { kind: "idle" };
+            this.#draw();
+          }
+          break;
+        default:
+          break;
+      }
+    });
+  }
+
+  /** The focus route for whatever the board is currently asking for. */
+  #focusOrder(): readonly FocusTarget[] {
+    const model = this.#model;
+    if (!model) return [];
+    if (this.#selection.kind === "targeting") {
+      return focusOrder({ kind: "targeting", targets: this.#selection.action.targets }, this.#marks);
+    }
+    if (this.#selection.kind === "paying") {
+      return focusOrder(
+        { kind: "paying", sources: this.#selection.payment.query.sources.map((source) => source.instanceId) },
+        this.#marks,
+      );
+    }
+    return focusOrder({ kind: "idle", hand: model.hand.map((card) => card.instanceId) }, this.#marks);
+  }
+
+  #moveFocus(delta: number): void {
+    const order = this.#focusOrder();
+    const at = order.findIndex((target) => sameTarget(target, this.#focus));
+    const next = stepFocus(order, at, delta);
+    this.#focus = next >= 0 ? (order[next] ?? null) : null;
+    this.#draw();
+  }
+
+  #activateFocus(): void {
+    const focus = this.#focus;
+    if (!focus) return;
+    if (focus.kind === "basic") {
+      if (focus.action === "endTurn") void this.#dispatchExample("endTurn");
+      else this.#chooseBasic(focus.action);
+      return;
+    }
+    // A card means whatever a tap on it would mean right now.
+    if (this.#selection.kind === "paying") this.#spendByInstance(focus.instanceId);
+    else if (this.#selection.kind === "targeting") void this.#commitTarget(focus.instanceId);
+    else void this.#playCard(focus.instanceId);
+  }
+
+  #drawFocusRing(): void {
+    this.#focusRing?.destroy();
+    this.#focusRing = null;
+    const focus = this.#focus;
+    if (!focus) return;
+    // Focus that has fallen off the route (the card was played) is dropped
+    // rather than drawn somewhere stale.
+    if (!this.#focusOrder().some((target) => sameTarget(target, focus))) {
+      this.#focus = null;
+      return;
+    }
+    const rect = this.#focusRects.get(focusKey(focus));
+    if (!rect) return;
+    this.#focusRing = new McSelectionRing(this);
+    // Static, not pulsing: the ring says "here you are", not "act now".
+    this.#focusRing.show(rect, "static", true);
+  }
+
+  /**
+   * Starts the beats for a command. They are held as data rather than as game
+   * objects, so a redraw between now and their end re-creates them at whatever
+   * their anchor's new position is instead of wiping them.
+   */
+  #startBeats(events: readonly GameEvent[]): void {
+    // Reduced motion still gets the beat — it just doesn't travel (#drawBeats).
+    this.#beats = beatsFrom(events).map((beat) => ({ beat, startedAt: this.time.now }));
+  }
+
+  /**
+   * Floats each live beat off its anchor. A beat whose anchor is off screen —
+   * a hidden phone tab, a card that has since left play — is simply not drawn;
+   * the tab badge is what reports those.
+   */
+  #drawBeats(): void {
+    const now = this.time.now;
+    const reduced = appSession().settings.reducedMotion;
+    const lifetime = reduced ? motion.damageMs : motion.damageMs * 2.4;
+    this.#beats = this.#beats.filter((entry) => now - entry.startedAt < lifetime);
+
+    this.#beats.forEach(({ beat, startedAt }, index) => {
+      const rect = this.#hitRects.get(beat.anchor);
+      if (!rect) return;
+      const elapsed = now - startedAt;
+      const remaining = lifetime - elapsed;
+
+      const text = this.add
+        .text(rect.x + rect.width / 2, rect.y + rect.height / 2 - elapsed / 14, beat.text, {
+          ...textStyle(typeRole.stat, BEAT_COLORS[beat.tone]),
+          // A stroke is the only way a number stays readable over card art.
+          stroke: cssOf(surface.ink.hex),
+          strokeThickness: 4,
+        })
+        .setOrigin(0.5)
+        .setDepth(1000 + index);
+
+      if (reduced) {
+        // Held still, then gone: the information without the movement.
+        this.time.delayedCall(remaining, () => text.destroy());
+        return;
+      }
+      this.tweens.add({
+        targets: text,
+        y: text.y - 26,
+        alpha: { from: 1, to: 0 },
+        duration: remaining,
+        ease: "Quad.easeOut",
+        onComplete: () => text.destroy(),
+      });
+    });
+  }
+
+  /**
+   * Round chip, phase toggle and the current step, on the ink chrome bar.
+   *
+   * The phase toggle is the first thing to go when the bar is narrow: it says
+   * the same thing the step label already says, and two overlapping labels say
+   * less than one. The 1st-player mark goes next.
+   */
   #drawChrome(rect: Rect, model: BoardModel): void {
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
 
     // The live round chip is the one red besides the forward action.
-    const chip: Rect = { x: rect.x + 10, y: rect.y + 6, width: 62, height: rect.height - 12 };
+    const chip: Rect = { x: rect.x + 8, y: rect.y + 5, width: 54, height: rect.height - 10 };
     const chipG = this.add.graphics();
     chipG.fillStyle(accent.heroRed.hex, 1).fillRect(chip.x, chip.y, chip.width, chip.height);
     this.add
       .text(chip.x + chip.width / 2, chip.y + chip.height / 2, `RD ${model.round}`, textStyle(typeRole.statSmall, surface.paper.hex))
       .setOrigin(0.5);
 
-    // Two-state phase toggle: whichever side's clock is running is filled.
-    const toggleX = chip.x + chip.width + 12;
-    (["player", "villain"] as const).forEach((phase, index) => {
-      const box: Rect = { x: toggleX + index * 86, y: chip.y, width: 82, height: chip.height };
-      const active = model.phase === phase;
-      const bg = this.add.graphics();
-      bg.fillStyle(active ? surface.paper.hex : surface.ink.hex, 1).fillRect(box.x, box.y, box.width, box.height);
-      bg.lineStyle(2, surface.paper.hex, active ? 1 : ink.meta).strokeRect(box.x, box.y, box.width, box.height);
-      this.add
-        .text(box.x + box.width / 2, box.y + box.height / 2, phase.toUpperCase(), textStyle(typeRole.label, active ? surface.ink.hex : surface.paper.hex, active ? 1 : ink.meta))
-        .setOrigin(0.5)
-        .setLetterSpacing(typeRole.label.letterSpacing);
-    });
+    let left = chip.x + chip.width + 10;
+    const showToggle = rect.width >= 640;
+    if (showToggle) {
+      // Two-state phase toggle: whichever side's clock is running is filled.
+      (["player", "villain"] as const).forEach((phase, index) => {
+        const box: Rect = { x: left + index * 86, y: chip.y, width: 82, height: chip.height };
+        const active = model.phase === phase;
+        const bg = this.add.graphics();
+        bg.fillStyle(active ? surface.paper.hex : surface.ink.hex, 1).fillRect(box.x, box.y, box.width, box.height);
+        bg.lineStyle(2, surface.paper.hex, active ? 1 : ink.meta).strokeRect(box.x, box.y, box.width, box.height);
+        this.add
+          .text(box.x + box.width / 2, box.y + box.height / 2, phase.toUpperCase(), textStyle(typeRole.label, active ? surface.ink.hex : surface.paper.hex, active ? 1 : ink.meta))
+          .setOrigin(0.5)
+          .setLetterSpacing(typeRole.label.letterSpacing);
+      });
+      left += 86 * 2 + 18;
+    }
 
+    const firstPlayer = model.firstPlayerId === model.perspectiveId && rect.width >= 520;
+    const rightEdge = rect.x + rect.width - (firstPlayer ? 86 : 10);
     this.add
-      .text(toggleX + 190, rect.y + rect.height / 2, model.stepLabel, textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary))
-      .setOrigin(0, 0.5);
+      .text(left, rect.y + rect.height / 2, model.stepLabel, textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary))
+      .setOrigin(0, 0.5)
+      .setWordWrapWidth(Math.max(40, rightEdge - left))
+      .setMaxLines(1);
 
-    if (model.firstPlayerId === model.perspectiveId) {
+    if (firstPlayer) {
       this.add
-        .text(rect.x + rect.width - 12, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
+        .text(rect.x + rect.width - 10, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
         .setOrigin(1, 0.5)
         .setLetterSpacing(typeRole.label.letterSpacing);
     }
+  }
+
+  /**
+   * The phone board's zone rail. Only one tabbed zone has a rectangle at a time
+   * (`layout.ts`), so this is what makes the other four reachable at all.
+   *
+   * A tab the player isn't on carries a change badge, because a card that moves
+   * to a hidden zone would otherwise happen silently.
+   */
+  #drawTabs(rect: Rect, model: BoardModel): void {
+    const labels: Record<PhoneTab, string> = {
+      threat: "Threat",
+      enemies: "Enemies",
+      me: "Me",
+      team: "Team",
+      log: "Log",
+    };
+    // A solo game has no other seats, so it has no Team tab to offer.
+    const tabs = PHONE_TABS.filter((tab) => tab !== "team" || model.team.length > 0);
+
+    this.#tabs = new McTabs(this, {
+      rect,
+      tabs: tabs.map((tab) => ({
+        id: tab,
+        label: labels[tab],
+        ...(this.#tabBadges.get(tab) ? { badge: this.#tabBadges.get(tab)! } : {}),
+      })),
+      activeId: this.#activeTab,
+      onSelect: (id) => {
+        this.#activeTab = id as PhoneTab;
+        // Looking at a tab is what clears its badge.
+        this.#tabBadges.delete(this.#activeTab);
+        this.#draw();
+      },
+    });
   }
 
   #drawSchemes(rect: Rect, model: BoardModel): void {
@@ -215,9 +474,10 @@ export class BoardScene extends Phaser.Scene {
     paintPanel(g, rect, "card", this.#targetState(scheme.instanceId));
 
     const dim = this.#dimAlpha(scheme.instanceId);
-    // The art column only earns its place when the panel is wide enough that
-    // the name and the meter still fit beside it.
-    const artWidth = rect.width >= 220 ? Math.round(Math.min(96, rect.width * 0.3)) : 0;
+    // The art column earns its place whenever the name and the meter still fit
+    // beside it. The old threshold was tuned for the long table and silently
+    // dropped the main scheme's card on every narrower panel.
+    const artWidth = rect.width >= 170 ? Math.round(Math.min(96, rect.width * 0.3)) : 0;
     if (artWidth > 0) {
       const column: Rect = { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: rect.height - 6 };
       const frame = this.add.graphics();
@@ -291,25 +551,45 @@ export class BoardScene extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, rect, "card", this.#targetState(panel.instanceId));
 
-    // Reserve what the text below the band actually needs: two lines of
-    // heading plus the stat row. Whatever is left over is the art.
-    const textNeeded = (panel.stats.length > 0 ? 34 : 8) + 34;
-    const bandHeight = Math.max(0, Math.min(Math.round(rect.height * 0.46), rect.height - textNeeded));
-    let top = rect.y + 6;
-    if (bandHeight >= 24) {
-      const band: Rect = { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: bandHeight };
-      this.#drawArtBand(band, panel.art, dim);
-      top = band.y + band.height + 5;
+    // A panel that is already roughly card-shaped *is* the card: the scan fills
+    // it and the live numbers ride on top. A wider panel gives the card a
+    // column down its left and the numbers the room beside it. Either way the
+    // scan is never cropped — a card with its edges cut off reads as broken
+    // rather than as art.
+    if (rect.width < MIN_PANEL_TEXT_WIDTH + 60 || rect.width < rect.height * 0.95) {
+      this.#drawCardShapedPanel(rect, panel, dim);
+      return;
     }
 
-    this.add
-      .text(rect.x + 8, top, panel.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
-      .setWordWrapWidth(rect.width - 16)
-      .setMaxLines(1);
-    label(this, rect.x + 8, top + 15, panel.subtitle, typeRole.label, surface.ink.hex, ink.label * dim);
+    // As tall as the panel allows, so the card is the thing you see — capped
+    // only by leaving the numbers beside it a readable column.
+    const artWidth = Math.round(
+      Math.min(rect.width - MIN_PANEL_TEXT_WIDTH - 14, (rect.height - 6) * CARD_ASPECT),
+    );
+    if (artWidth > 0) {
+      const columnHeight = Math.min(rect.height - 6, Math.round(artWidth / CARD_ASPECT));
+      const column: Rect = { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: columnHeight };
+      this.#drawArtSlot(column, panel.art, dim);
+      const rule = this.add.graphics();
+      rule.fillStyle(surface.ink.hex, dim).fillRect(column.x + column.width, column.y, 3, column.height);
+    }
 
-    // Status pips: initial only, in the hue that exists nowhere else. They sit
-    // over the art band, as the design's STUNNED/TOUGH badges do.
+    const left = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
+    const textWidth = Math.max(40, rect.x + rect.width - 8 - left);
+    let top = rect.y + 6;
+
+    const name = this.add
+      .text(left, top, panel.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
+      .setWordWrapWidth(textWidth)
+      .setMaxLines(2);
+    // Wrapped, not shrunk: "Alter-ego · Justice" losing "Justice" to an
+    // ellipsis loses the aspect, which is a thing the player needs to know.
+    const subtitle = label(this, left, top + name.height + 4, panel.subtitle, typeRole.label, surface.ink.hex, ink.label * dim)
+      .setWordWrapWidth(textWidth)
+      .setMaxLines(2);
+    top = subtitle.y + subtitle.height + 6;
+
+    // Status pips: initial only, in the hue that exists nowhere else.
     panel.statuses.forEach(({ status }, index) => {
       const pip: Rect = { x: rect.x + rect.width - 26 - index * 24, y: rect.y + 6, width: 20, height: 20 };
       const pg = this.add.graphics();
@@ -321,19 +601,34 @@ export class BoardScene extends Phaser.Scene {
     });
 
     if (panel.exhausted) {
-      label(this, rect.x + rect.width - 8, top, "exhausted", typeRole.label, signal.spent.hex, ink.meta * dim).setOrigin(1, 0);
+      label(this, left, top, "exhausted", typeRole.label, signal.spent.hex, ink.meta * dim);
+      top += 14;
     }
     if (panel.boostCount > 0) {
-      label(this, rect.x + rect.width - 8, top + 15, `boost ?? ×${panel.boostCount}`, typeRole.label, surface.ink.hex, ink.meta * dim).setOrigin(1, 0);
+      label(this, left, top, `boost ?? ×${panel.boostCount}`, typeRole.label, surface.ink.hex, ink.meta * dim);
+      top += 14;
     }
 
-    // Stat tiles, in 2px inner boxes.
+    // Attachments hanging off this card — an upgrade on an enemy, a condition
+    // on an ally. Named, so "why is this minion tougher?" has an answer on the
+    // table rather than only in Inspect.
+    for (const attachment of panel.attachments.slice(0, 2)) {
+      if (top > rect.y + rect.height - 44) break;
+      const chip: Rect = { x: left, y: top, width: textWidth, height: 13 };
+      const cg = this.add.graphics();
+      cg.fillStyle(surface.parchment.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
+      cg.lineStyle(2, surface.ink.hex, dim * (attachment.exhausted ? ink.disabled : 1)).strokeRect(chip.x, chip.y, chip.width, chip.height);
+      label(this, chip.x + 3, chip.y + 2, attachment.name, typeRole.label, surface.ink.hex, ink.label * dim);
+      top += 16;
+    }
+
+    // Stat tiles, in 2px inner boxes, pinned to the bottom of the text column.
     const tiles = panel.stats;
-    if (tiles.length > 0) {
-      const boxWidth = (rect.width - 16 - (tiles.length - 1) * 4) / tiles.length;
+    if (tiles.length > 0 && textWidth > 60) {
+      const boxWidth = (textWidth - (tiles.length - 1) * 4) / tiles.length;
       tiles.forEach((tile, index) => {
         const box: Rect = {
-          x: rect.x + 8 + index * (boxWidth + 4),
+          x: left + index * (boxWidth + 4),
           y: rect.y + rect.height - 30,
           width: boxWidth,
           height: 24,
@@ -341,9 +636,13 @@ export class BoardScene extends Phaser.Scene {
         const bg = this.add.graphics();
         bg.lineStyle(2, surface.ink.hex, dim).strokeRect(box.x, box.y, box.width, box.height);
         label(this, box.x + 3, box.y + 2, tile.label, typeRole.label, surface.ink.hex, ink.label * dim);
-        this.add
+        const value = this.add
           .text(box.x + box.width - 3, box.y + box.height - 4, tile.value, textStyle(typeRole.statSmall, surface.ink.hex, dim))
           .setOrigin(1, 1);
+        // "14/14" in Bangers is wider than a quarter of a narrow panel; the
+        // number shrinks rather than running out of its own box.
+        fitText(value, box.width - 6, typeRole.statSmall.size);
+        value.setPosition(box.x + box.width - 3, box.y + box.height - 4);
       });
     }
 
@@ -351,39 +650,108 @@ export class BoardScene extends Phaser.Scene {
   }
 
   /**
-   * One art slot: the scan when it has arrived, and the designed fallback
-   * frame when it hasn't. The frame is drawn either way as the ground, so a
-   * scan that loads mid-game just paints over its own placeholder — there is
-   * never a hole where a picture is about to be.
+   * A card-shaped panel — a minion in a row, an ally in the play area.
+   *
+   * The scan fills it, because the slot and the scan are the same shape and the
+   * card already prints its own name and printed stats. Only what the *game*
+   * knows goes on top: the statuses, and a strip carrying the numbers that
+   * change (current HP, modified ATK) which the printed card cannot show.
    */
-  #drawArtBand(band: Rect, source: ArtSource | null, dim: number, fit: ArtFit = "cover"): void {
-    const frame = this.add.graphics();
-    frame.fillStyle(surface.parchment.hex, dim).fillRect(band.x, band.y, band.width, band.height);
-
-    const key = this.#art.request(this, source);
-    const image = drawArt(this, key, band, { fit, alpha: dim });
-    if (!image && band.height >= 30) {
-      // The design's empty art slot: dashed, so it reads as "not filled yet".
-      label(this, band.x + band.width / 2, band.y + band.height / 2, "art", typeRole.label, surface.ink.hex, ink.meta * dim).setOrigin(0.5);
+  #drawCardShapedPanel(rect: Rect, panel: CharacterPanel, dim: number): void {
+    const inner: Rect = { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: rect.height - 6 };
+    const key = this.#art.request(this, panel.art);
+    if (!drawArt(this, key, inner, { fit: "cover", alpha: dim })) {
+      const ground = this.add.graphics();
+      ground.fillStyle(surface.parchment.hex, dim).fillRect(inner.x, inner.y, inner.width, inner.height);
+      this.add
+        .text(inner.x + inner.width / 2, inner.y + 14, panel.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim))
+        .setOrigin(0.5, 0)
+        .setWordWrapWidth(inner.width - 8)
+        .setMaxLines(2);
     }
-    // A 3px ink rule closes the band, which is the design's whole depth model here.
-    const rule = this.add.graphics();
-    rule.fillStyle(surface.ink.hex, dim).fillRect(band.x, band.y + band.height, band.width, 3);
+
+    this.#drawStatusPips(rect, panel, dim);
+
+    // The live numbers, on an ink strip so they read over any artwork.
+    const tiles = panel.stats;
+    if (tiles.length > 0 && rect.height > 60) {
+      const strip: Rect = { x: inner.x, y: inner.y + inner.height - 22, width: inner.width, height: 22 };
+      const bg = this.add.graphics();
+      bg.fillStyle(surface.ink.hex, 0.82 * dim).fillRect(strip.x, strip.y, strip.width, strip.height);
+      const cell = strip.width / tiles.length;
+      tiles.forEach((tile, index) => {
+        this.add
+          .text(strip.x + cell * (index + 0.5), strip.y + strip.height / 2, `${tile.label} ${tile.value}`, textStyle(typeRole.label, surface.paper.hex, dim))
+          .setOrigin(0.5)
+          .setLetterSpacing(typeRole.label.letterSpacing);
+      });
+    }
+    if (panel.exhausted) {
+      label(this, inner.x + 4, inner.y + 4, "exhausted", typeRole.label, signal.spent.hex, ink.body * dim);
+    }
+
+    this.#makeTapTarget(rect, panel.instanceId);
   }
 
+  /** Status pips: initial only, in the hue that exists nowhere else. */
+  #drawStatusPips(rect: Rect, panel: CharacterPanel, dim: number): void {
+    panel.statuses.forEach(({ status }, index) => {
+      const pip: Rect = { x: rect.x + rect.width - 26 - index * 24, y: rect.y + 6, width: 20, height: 20 };
+      const pg = this.add.graphics();
+      pg.fillStyle(statusTokens[status].hex, dim).fillRect(pip.x, pip.y, pip.width, pip.height);
+      pg.lineStyle(3, surface.ink.hex, dim).strokeRect(pip.x, pip.y, pip.width, pip.height);
+      this.add
+        .text(pip.x + pip.width / 2, pip.y + pip.height / 2, status.charAt(0).toUpperCase(), textStyle(typeRole.statSmall, surface.ink.hex, dim))
+        .setOrigin(0.5);
+    });
+  }
+
+  /**
+   * One card slot: the whole scan when it has arrived, and the designed
+   * fallback frame when it hasn't. The frame is drawn either way as the
+   * ground, so a scan that loads mid-game paints over its own placeholder and
+   * there is never a hole where a picture is about to be.
+   */
+  #drawArtSlot(slot: Rect, source: ArtSource | null, dim: number, fit: ArtFit = "contain"): void {
+    const frame = this.add.graphics();
+    frame.fillStyle(surface.parchment.hex, dim).fillRect(slot.x, slot.y, slot.width, slot.height);
+
+    const key = this.#art.request(this, source);
+    if (!drawArt(this, key, slot, { fit, alpha: dim }) && slot.height >= 26) {
+      // The design's empty art slot: present, not filled yet.
+      label(this, slot.x + slot.width / 2, slot.y + slot.height / 2, "art", typeRole.label, surface.ink.hex, ink.meta * dim).setOrigin(0.5);
+    }
+  }
+
+  /**
+   * The encounter piles. The deck is a facedown stack, so it shows the
+   * encounter back — the same back every facedown encounter card shows, which
+   * is what makes a stack read as a stack rather than as a number in a box.
+   * The discard is faceup at the table, so it shows its top card.
+   */
   #drawEncounter(rect: Rect, model: BoardModel): void {
     const half = (rect.height - 6) / 2;
-    const piles: readonly [string, number, number][] = [
-      ["ENC DECK", model.encounterPiles.deck, rect.y],
-      ["DISCARD", model.encounterPiles.discard, rect.y + half + 6],
+    const piles: readonly { name: string; count: number; y: number; art: ArtSource | null }[] = [
+      { name: "ENC DECK", count: model.encounterPiles.deck, y: rect.y, art: CARD_BACKS.encounter },
+      { name: "DISCARD", count: model.encounterPiles.discard, y: rect.y + half + 6, art: model.encounterDiscardTop },
     ];
-    for (const [name, count, y] of piles) {
+    for (const { name, count, y, art } of piles) {
       const box: Rect = { x: rect.x, y, width: rect.width, height: half };
       const g = this.add.graphics();
       paintPanel(g, box, count > 0 ? "card" : "quiet", count > 0 ? "rest" : "unavailable");
-      label(this, box.x + 6, box.y + 6, name, typeRole.label, surface.ink.hex, ink.label);
+
+      const inner: Rect = { x: box.x + 3, y: box.y + 3, width: box.width - 6, height: box.height - 6 };
+      const drawn = count > 0 && drawArt(this, this.#art.request(this, art), inner, { fit: "cover" }) !== null;
+
+      label(this, box.x + 6, box.y + 6, name, typeRole.label, drawn ? surface.paper.hex : surface.ink.hex, drawn ? ink.body : ink.label);
+      // The count rides on an ink chip over the art, so it stays readable.
+      const chip: Rect = { x: box.x + 4, y: box.y + box.height - 26, width: box.width - 8, height: 22 };
+      if (drawn) {
+        const chipG = this.add.graphics();
+        chipG.fillStyle(surface.ink.hex, 0.78).fillRect(chip.x, chip.y, chip.width, chip.height);
+      }
       this.add
-        .text(box.x + box.width / 2, box.y + box.height / 2 + 6, String(count), textStyle(typeRole.stat, surface.ink.hex))
+        .text(chip.x + chip.width / 2, chip.y + chip.height / 2, String(count), textStyle(typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex))
         .setOrigin(0.5);
     }
   }
@@ -464,25 +832,105 @@ export class BoardScene extends Phaser.Scene {
   #drawHand(rect: Rect, model: BoardModel): void {
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    label(
-      this,
-      rect.x + 10,
-      rect.y + 4,
-      `hand ${model.hand.length} · deck ${model.myPiles.deck} · discard ${model.myPiles.discard}`,
-      typeRole.label,
-      surface.paper.hex,
-      ink.label,
-    );
 
-    const inner: Rect = { x: rect.x + 10, y: rect.y + 20, width: rect.width - 20, height: rect.height - 28 };
+    // While paying, the caption line gives way to the payment bar: the hand is
+    // the instrument of the payment, so the count belongs directly over it.
+    const payment = this.#paymentView();
+    let top = rect.y + 20;
+    if (payment) {
+      this.#drawPaymentBar({ x: rect.x, y: rect.y, width: rect.width, height: hit.target }, payment);
+      top = rect.y + hit.target + 4;
+    } else {
+      label(
+        this,
+        rect.x + 10,
+        rect.y + 4,
+        `hand ${model.hand.length} · deck ${model.myPiles.deck} · discard ${model.myPiles.discard}`,
+        typeRole.label,
+        surface.paper.hex,
+        ink.label,
+      );
+    }
+
+    const inner: Rect = { x: rect.x + 10, y: top, width: rect.width - 20, height: rect.y + rect.height - top - 8 };
     const slots = cardRow(inner, model.hand.length, { gap: 6, maxHeight: inner.height });
 
     model.hand.forEach((card, index) => {
       const slot = slots[index];
       if (!slot) return;
       this.#hitRects.set(card.instanceId, slot);
-      this.#drawHandCard(slot, card);
+      this.#focusRects.set(focusKey({ kind: "card", instanceId: card.instanceId }), slot);
+      this.#drawHandCard(slot, card, payment);
     });
+  }
+
+  /**
+   * "PAYING 1 / 3 — Photon Blast → Klaw. Tap cards to spend." on Hero Red, with
+   * Pay and Cancel, exactly as `Board - Phone` frames the mode.
+   *
+   * The mock's bar carries only Cancel, and commits the moment the count fills.
+   * This one has an explicit Pay because a payment can legitimately exceed the
+   * printed cost — "spend X [energy]" counts every resource beyond the fixed
+   * cost, so auto-committing at the first sufficient selection would take that
+   * choice away (docs/phase2-core-set.md §3, "Spend X").
+   */
+  #drawPaymentBar(rect: Rect, payment: PaymentView): void {
+    const g = this.add.graphics();
+    g.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
+
+    this.add
+      .text(rect.x + 12, rect.y + rect.height / 2, `PAYING ${payment.paid} / ${payment.required}`, textStyle(typeRole.barTitle, surface.paper.hex))
+      .setOrigin(0, 0.5)
+      .setLetterSpacing(1);
+
+    const buttonWidth = Math.max(64, Math.min(120, rect.width * 0.16));
+    const buttonsLeft = rect.x + rect.width - buttonWidth * 2 - 18;
+
+    // The line of prose is the first thing to go when the bar is narrow: the
+    // card being paid for already wears a "paying for" tag, so the sentence is
+    // repeating itself, and a sentence running under the Pay button is worse
+    // than no sentence.
+    const headlineLeft = rect.x + 170;
+    const headlineRoom = buttonsLeft - headlineLeft - 12;
+    if (headlineRoom > 90) {
+      const outstanding = payment.outstanding.length > 0 ? ` Still needs ${payment.outstanding.join(", ")}.` : "";
+      this.add
+        .text(headlineLeft, rect.y + rect.height / 2, `${payment.headline}. Tap cards to spend.${outstanding}`, textStyle(typeRole.emphasis, surface.paper.hex))
+        .setOrigin(0, 0.5)
+        .setWordWrapWidth(headlineRoom)
+        .setMaxLines(1);
+    }
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Pay",
+        type: typeRole.label,
+        rect: { x: buttonsLeft, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
+        enabled: payment.command !== null,
+        ...(payment.blockedBy ? { reason: payment.blockedBy } : {}),
+        onClick: () => void this.#commitPayment(),
+      }),
+    );
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "Cancel",
+        type: typeRole.label,
+        rect: { x: rect.x + rect.width - buttonWidth - 10, y: rect.y + 4, width: buttonWidth, height: rect.height - 8 },
+        onClick: () => {
+          this.#selection = { kind: "idle" };
+          this.#draw();
+        },
+      }),
+    );
+  }
+
+  async #commitPayment(): Promise<void> {
+    const payment = this.#paymentView();
+    if (!payment?.command) return;
+    this.#selection = { kind: "idle" };
+    await this.#dispatch(payment.command);
   }
 
   /**
@@ -491,15 +939,80 @@ export class BoardScene extends Phaser.Scene {
    * pips the card generates when spent. An illegal card keeps its place at 38%
    * ink and carries the engine's own reason as a badge ("dim, don't hide").
    */
-  #drawHandCard(slot: Rect, card: HandCardView): void {
-    const playable = this.#marks?.playable.has(card.instanceId) ?? false;
-    const alpha = playable ? 1 : ink.illegal;
-    const cg = this.add.graphics();
-    paintPanel(cg, slot, "card", playable ? "rest" : "unavailable");
+  #drawHandCard(slot: Rect, card: HandCardView, payment: PaymentView | null): void {
+    // While paying, "available" stops meaning "playable" and starts meaning
+    // "spendable": the only question in front of the player is what to spend.
+    const spent = payment?.spent.has(card.instanceId) ?? false;
+    // The card being paid *for* is the subject of the mode, not a candidate in
+    // it. It has to look different from a card being spent: marking both the
+    // same way said "these two cards are going away", when one of them is the
+    // thing you are buying.
+    const subject = payment?.subject === card.instanceId;
+    const available = payment
+      ? subject || spent || payment.spendable.has(card.instanceId)
+      : (this.#marks?.playable.has(card.instanceId) ?? false);
+    const alpha = available ? 1 : ink.illegal;
 
-    // Header strip: a Bangers cost chip against the name and type line.
+    const cg = this.add.graphics();
+    paintPanel(cg, slot, "card", subject ? "selected" : available ? "rest" : "unavailable");
+    if (subject) {
+      // The design's treatment for the card being paid for: the red ring.
+      const ring = new McSelectionRing(this);
+      ring.show(slot, "static", true);
+      this.#rings.push(ring);
+    }
+
+    // A hand slot keeps the physical card's 2.5:3.5, and a scan is that same
+    // shape, so the scan *is* the card face: it fills the slot with nothing
+    // cropped and nothing letterboxed, and it already prints the name, cost,
+    // type and rules text better than we can redraw them at this size.
+    const inner: Rect = { x: slot.x + 3, y: slot.y + 3, width: slot.width - 6, height: slot.height - 6 };
+    const key = this.#art.request(this, card.art);
+    const drawn = drawArt(this, key, inner, { fit: "cover", alpha });
+    if (!drawn) this.#drawHandCardFallback(inner, card, alpha);
+
+    // Chrome the scan cannot carry, because it is about this game rather than
+    // this card: what the engine will not let you do with it right now, and
+    // which side of a payment this card is on.
+    const tag = payment
+      ? subject
+        ? { text: "paying for", ground: accent.heroRed.hex }
+        : spent
+          ? { text: "spent", ground: surface.ink.hex }
+          : null
+      : (() => {
+          const reason = this.#marks?.unplayable.get(card.instanceId);
+          return reason ? { text: shortReason(reason), ground: surface.ink.hex } : null;
+        })();
+    if (tag && slot.width >= 70) {
+      // Inside the card during payment: the payment bar sits directly above the
+      // hand, and a tag hung over the top edge disappears behind it.
+      this.add
+        .text(slot.x + slot.width - 3, payment ? slot.y + 4 : slot.y - 9, caseOf(typeRole.label, tag.text), textStyle(typeRole.label, surface.paper.hex))
+        .setOrigin(1, 0)
+        .setLetterSpacing(typeRole.label.letterSpacing)
+        .setPadding(4, 2, 4, 2)
+        .setBackgroundColor(cssOf(tag.ground));
+    }
+    if (spent) {
+      // A spent card is on its way to the discard pile. Enough of a wash to
+      // read as "gone", not so much that the hand looks broken.
+      const wash = this.add.graphics();
+      wash.fillStyle(surface.ink.hex, 0.3).fillRect(slot.x + 3, slot.y + 3, slot.width - 6, slot.height - 6);
+    }
+
+    this.#makeTapTarget(slot, card.instanceId, () => this.#tapHandCard(card.instanceId));
+  }
+
+  /**
+   * The generated card face, for a card with no scan. Header strip of cost chip
+   * plus name and type line, then the rules text, then the resource pips —
+   * the Long Table canvas's layout, and the designed behaviour for a missing
+   * scan rather than an error state.
+   */
+  #drawHandCardFallback(slot: Rect, card: HandCardView, alpha: number): void {
     const headerHeight = Math.min(30, Math.max(22, Math.round(slot.height * 0.2)));
-    const header: Rect = { x: slot.x + 3, y: slot.y + 3, width: slot.width - 6, height: headerHeight };
+    const header: Rect = { x: slot.x, y: slot.y, width: slot.width, height: headerHeight };
     let nameLeft = header.x + 4;
     if (card.cost !== null) {
       const chip: Rect = { x: header.x, y: header.y, width: 20, height: header.height };
@@ -518,80 +1031,67 @@ export class BoardScene extends Phaser.Scene {
     const headerRule = this.add.graphics();
     headerRule.fillStyle(surface.ink.hex, alpha).fillRect(header.x, header.y + header.height, header.width, 2);
 
-    // Art band, then whatever is left for rules text and pips.
-    const pipRow = card.resourceIcons.length > 0 ? 14 : 0;
-    const bodyTop = header.y + header.height + 2;
-    const bodyHeight = slot.y + slot.height - 3 - bodyTop - pipRow;
-    const bandHeight = Math.max(0, Math.min(Math.round(slot.height * 0.36), bodyHeight - 22));
-    let textTop = bodyTop + 3;
-    if (bandHeight >= 20) {
-      this.#drawArtBand({ x: slot.x + 3, y: bodyTop, width: slot.width - 6, height: bandHeight }, card.art, alpha);
-      textTop = bodyTop + bandHeight + 5;
-    }
+    const pipRow = card.resourceIcons.length > 0 ? 16 : 0;
+    const textTop = header.y + header.height + 5;
     this.add
-      .text(slot.x + 5, textTop, card.rulesText, textStyle(typeRole.body, surface.ink.hex, ink.secondary * alpha))
-      .setWordWrapWidth(slot.width - 10)
-      // Capped on the table; Inspect carries the full wording.
+      .text(slot.x + 2, textTop, card.rulesText, textStyle(typeRole.body, surface.ink.hex, ink.secondary * alpha))
+      .setWordWrapWidth(slot.width - 4)
       .setMaxLines(Math.max(1, Math.floor((slot.y + slot.height - pipRow - 4 - textTop) / 15)));
 
-    // The icons this card generates when it is spent as a resource. The design
-    // draws them as squares, not dots — a resource is a thing you hand over.
     // One colour for every resource, with the type carried by a glyph rather
     // than a hue: the palette has one "resource" signal, and an indicator must
     // never rely on colour alone (PLAN.md Phase 4, accessibility).
     card.resourceIcons.forEach((icon, iconIndex) => {
-      const box: Rect = { x: slot.x + 6 + iconIndex * 15, y: slot.y + slot.height - 15, width: 12, height: 12 };
-      if (box.x + box.width > slot.x + slot.width - 4) return;
+      const box: Rect = { x: slot.x + 3 + iconIndex * 15, y: slot.y + slot.height - 15, width: 12, height: 12 };
+      if (box.x + box.width > slot.x + slot.width - 2) return;
       const pip = this.add.graphics();
       pip.fillStyle(signal.cost.hex, alpha).fillRect(box.x, box.y, box.width, box.height);
       this.add
         .text(box.x + box.width / 2, box.y + box.height / 2, RESOURCE_GLYPH[icon], textStyle(typeRole.label, surface.paper.hex, alpha))
         .setOrigin(0.5);
     });
-
-    // "ALTER-EGO ONLY", "CAN'T AFFORD" — the engine's own reason, shortened to
-    // a tag. The full sentence is one tap away in Inspect.
-    const reason = this.#marks?.unplayable.get(card.instanceId);
-    if (reason && slot.width >= 70) {
-      const tagText = shortReason(reason);
-      const tag = this.add
-        .text(slot.x + slot.width - 3, slot.y - 9, tagText, textStyle(typeRole.label, surface.paper.hex))
-        .setOrigin(1, 0)
-        .setLetterSpacing(typeRole.label.letterSpacing)
-        .setPadding(4, 2, 4, 2)
-        .setBackgroundColor(cssOf(surface.ink.hex));
-      tag.setText(caseOf(typeRole.label, tagText));
-    }
-
-    this.#makeTapTarget(slot, card.instanceId, () => void this.#playCard(card.instanceId));
   }
 
+  /**
+   * The action bar, parked at the thumb.
+   *
+   * Phone stacks it the way the design canvas does — a 44px abilities row over
+   * a 52px commit row — because five controls side by side at 375px are five
+   * controls nobody can hit. Wider layouts keep them on one line with End turn
+   * at the right.
+   */
   #drawActionBar(rect: Rect, model: BoardModel): void {
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
 
     const marks = this.#marks;
     const basics: readonly BasicAction[] = ["attack", "thwart", "recover", "changeForm"];
+    const stacked = rect.height >= hit.target + hit.primary;
     const labels: Record<BasicAction, string> = {
       attack: "Attack",
       thwart: "Thwart",
       recover: "Recover",
-      changeForm: model.myForm === "hero" ? "Flip to alter-ego" : "Flip to hero",
+      // "Flip to alter-ego" does not fit a quarter of a phone; the short form
+      // still says which way the flip goes.
+      changeForm: stacked ? (model.myForm === "hero" ? "To A-E" : "To hero") : model.myForm === "hero" ? "Flip to alter-ego" : "Flip to hero",
       endTurn: "End turn",
     };
 
-    const endTurnWidth = Math.min(180, rect.width * 0.28);
-    const cellWidth = (rect.width - endTurnWidth - 30 - (basics.length - 1) * 6) / basics.length;
+    const endTurnWidth = stacked ? rect.width - 20 : Math.min(180, rect.width * 0.28);
+    const basicsWidth = stacked ? rect.width - 20 : rect.width - endTurnWidth - 30;
+    const cellWidth = (basicsWidth - (basics.length - 1) * 6) / basics.length;
 
     basics.forEach((action, index) => {
       const button = marks?.basics.find((basic) => basic.action === action);
       const targeting = this.#selection.kind === "targeting" && basicKindOf(this.#selection.action) === action;
+      const cell: Rect = { x: rect.x + 10 + index * (cellWidth + 6), y: rect.y + 4, width: cellWidth, height: hit.target - 8 };
+      this.#focusRects.set(focusKey({ kind: "basic", action }), cell);
       this.#buttons.push(
         new McButton(this, {
           kind: "onInk",
           label: labels[action],
           type: typeRole.label,
-          rect: { x: rect.x + 10 + index * (cellWidth + 6), y: rect.y + 6, width: cellWidth, height: hit.target },
+          rect: cell,
           enabled: button?.enabled ?? false,
           selected: targeting,
           ...(button?.reason ? { reason: button.reason } : {}),
@@ -602,12 +1102,16 @@ export class BoardScene extends Phaser.Scene {
 
     // The one red fill in the bar: the forward action of the table.
     const endTurn = marks?.basics.find((basic) => basic.action === "endTurn");
+    const endTurnRect: Rect = stacked
+      ? { x: rect.x + 10, y: rect.y + hit.target, width: endTurnWidth, height: hit.primary - 6 }
+      : { x: rect.x + rect.width - endTurnWidth - 10, y: rect.y + 4, width: endTurnWidth, height: hit.primary - 10 };
+    this.#focusRects.set(focusKey({ kind: "basic", action: "endTurn" }), endTurnRect);
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
         label: "End turn",
         type: typeRole.barTitle,
-        rect: { x: rect.x + rect.width - endTurnWidth - 10, y: rect.y + 6, width: endTurnWidth, height: hit.primary - 6 },
+        rect: endTurnRect,
         enabled: endTurn?.enabled ?? false,
         ...(endTurn?.reason ? { reason: endTurn.reason } : {}),
         onClick: () => void this.#dispatchExample("endTurn"),
@@ -619,10 +1123,12 @@ export class BoardScene extends Phaser.Scene {
     const message =
       this.#selection.kind === "targeting"
         ? this.#selection.prompt
-        : (appSession().store.state.error ?? "");
-    if (message) {
+        : this.#selection.kind === "paying"
+          ? "" // The payment bar above the hand is already saying it.
+          : (appSession().store.state.error ?? "");
+    if (message && !stacked) {
       this.add
-        .text(rect.x + 10, rect.y + rect.height - 18, message, textStyle(typeRole.body, signal.caution.hex))
+        .text(rect.x + 10, rect.y + rect.height - 14, message, textStyle(typeRole.body, signal.caution.hex))
         .setOrigin(0, 0.5)
         .setMaxLines(1);
     }
@@ -641,15 +1147,28 @@ export class BoardScene extends Phaser.Scene {
     }
   }
 
-  /** "Out of scope" opacity while a target is being chosen (dim, don't hide). */
+  /**
+   * "Out of scope" opacity while a decision is open (dim, don't hide). During
+   * targeting that means "not a legal target"; during payment it means "not
+   * something you can spend" — a resource ability in play is, and the villain
+   * is not.
+   */
   #dimAlpha(id: InstanceId): number {
-    if (this.#selection.kind !== "targeting") return 1;
-    return this.#selection.action.targets.includes(id) ? 1 : ink.illegal;
+    return this.#targetState(id) === "unavailable" ? ink.illegal : 1;
   }
 
   #targetState(id: InstanceId): "rest" | "selected" | "unavailable" {
-    if (this.#selection.kind !== "targeting") return "rest";
-    return this.#selection.action.targets.includes(id) ? "selected" : "unavailable";
+    if (this.#selection.kind === "targeting") {
+      return this.#selection.action.targets.includes(id) ? "selected" : "unavailable";
+    }
+    if (this.#selection.kind === "paying") {
+      const sources = this.#selection.payment.query.sources;
+      if (this.#selection.payment.picked.some((optionId) => sources.find((s) => s.optionId === optionId)?.instanceId === id)) {
+        return "selected";
+      }
+      return sources.some((source) => source.instanceId === id) ? "rest" : "unavailable";
+    }
+    return "rest";
   }
 
   /**
@@ -661,6 +1180,7 @@ export class BoardScene extends Phaser.Scene {
    * opens a sheet, short enough to feel deliberate.
    */
   #makeTapTarget(rect: Rect, id: InstanceId, fallback?: () => void): void {
+    this.#focusRects.set(focusKey({ kind: "card", instanceId: id }), rect);
     const zone = this.add
       .zone(rect.x, rect.y, rect.width, rect.height)
       .setOrigin(0, 0)
@@ -690,6 +1210,10 @@ export class BoardScene extends Phaser.Scene {
       cancelHold();
       // A hold already did something; the release must not also act on it.
       if (inspected) return;
+      if (this.#selection.kind === "paying") {
+        this.#spendByInstance(id);
+        return;
+      }
       if (this.#selection.kind === "targeting") {
         void this.#commitTarget(id);
         return;
@@ -732,21 +1256,88 @@ export class BoardScene extends Phaser.Scene {
     const { action } = this.#selection;
     if (!action.targets.includes(id)) return;
     this.#selection = { kind: "idle" };
+    // An aimed action that also costs something still owes the player the
+    // payment decision; only a free one goes straight to the engine.
+    if (action.needsPayment && this.#openPayment(action, id)) return;
     await this.#dispatch(retarget(action.example, id));
   }
 
   /**
-   * Plays a hand card using the smallest payment the engine found. The Payment
-   * overlay, where the player picks what to spend, is the next piece of client
-   * work; until then the engine's own `example` payment is used, which is a
-   * payment `applyCommand` has already accepted.
+   * Plays a hand card. A card that costs something opens the payment mode
+   * rather than spending whatever the engine found first: what you spend is a
+   * real decision, and the engine's `example` payment is only a proof that
+   * *some* payment works.
    */
+  /**
+   * What tapping a hand card does.
+   *
+   * On a tall layout the hand is a row of thumbnails a centimetre wide — too
+   * small to read, and far too small to commit a turn on. So a tap there opens
+   * the card first and the sheet offers to play it, which is the second step
+   * the phone needs and the desktop does not: at desk widths the card is
+   * already legible, and a hold still opens the sheet.
+   */
+  #tapHandCard(instanceId: InstanceId): void {
+    if (this.#layout?.tabbed && this.#selection.kind === "idle") {
+      this.#inspect(instanceId);
+      return;
+    }
+    void this.#playCard(instanceId);
+  }
+
   async #playCard(instanceId: InstanceId): Promise<void> {
     const entry = this.#marks?.playable.has(instanceId)
       ? this.#legalEntries().find((candidate) => candidate.action.kind === "playCard" && candidate.action.instanceId === instanceId)
       : undefined;
     if (!entry) return;
+    if (entry.needsPayment && this.#openPayment(entry, null)) return;
     await this.#dispatch(entry.example);
+  }
+
+  /**
+   * Enters payment mode for an action. Returns false when the engine says the
+   * action needs no payment after all, so the caller can just dispatch it.
+   */
+  #openPayment(entry: LegalAction, target: InstanceId | null): boolean {
+    const { store } = appSession();
+    const { game, perspectiveId } = store.state;
+    if (!game || perspectiveId === null) return false;
+    const payment = beginPayment(game, perspectiveId, entry.action, target, CORE_DEPS);
+    if (!payment) return false;
+    this.#selection = { kind: "paying", payment };
+    this.#draw();
+    return true;
+  }
+
+  /** Tapping a card during payment spends it, if the engine listed it as spendable. */
+  #spendByInstance(id: InstanceId): void {
+    if (this.#selection.kind !== "paying") return;
+    const source = this.#selection.payment.query.sources.find((candidate) => candidate.instanceId === id);
+    if (source) this.#togglePayment(source.optionId);
+  }
+
+  /** Spends or un-spends one source. The engine re-judges the whole selection. */
+  #togglePayment(optionId: string): void {
+    if (this.#selection.kind !== "paying") return;
+    this.#selection = { kind: "paying", payment: togglePayment(this.#selection.payment, optionId) };
+    this.#draw();
+  }
+
+  /** The payment as the engine currently sees it, or null outside payment mode. */
+  #paymentView(): PaymentView | null {
+    if (this.#selection.kind !== "paying") return null;
+    const { store } = appSession();
+    const { game, perspectiveId } = store.state;
+    if (!game || perspectiveId === null) return null;
+    const { payment } = this.#selection;
+    const subject = payment.action.kind === "playCard" || payment.action.kind === "useAbility" ? payment.action.instanceId : null;
+    const headline = [
+      subject ? cardName(game, subject) : "This action",
+      payment.target ? `→ ${cardName(game, payment.target)}` : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
+    return paymentView(game, perspectiveId, payment, headline, CORE_DEPS);
   }
 
   #onInspectPlay(instanceId: InstanceId): void {
@@ -819,6 +1410,26 @@ function shortReason(reason: IllegalReason): string {
  * this, a tap is a tap; above it, the player clearly meant to look.
  */
 const INSPECT_HOLD_MS = 420;
+
+/**
+ * The narrowest a panel's text column may get before the panel stops being
+ * "card plus numbers" and becomes the card itself. Below this the name wraps to
+ * one word a line and the stat tiles have nowhere to sit.
+ */
+const MIN_PANEL_TEXT_WIDTH = 104;
+
+/** One string per focusable thing, so a rect can be looked up by what it is. */
+const focusKey = (target: FocusTarget): string =>
+  target.kind === "card" ? `card:${target.instanceId}` : `basic:${target.action}`;
+
+/** Each beat speaks in the signal that already means that thing everywhere else. */
+const BEAT_COLORS: Record<Beat["tone"], number> = {
+  damage: accent.heroRed.hex,
+  heal: signal.heal.hex,
+  threat: accent.heroRed.hex,
+  status: signal.caution.hex,
+  defeat: surface.paper.hex,
+};
 
 const BASIC_TO_KIND: Record<BasicAction, string> = {
   attack: "basicAttack",

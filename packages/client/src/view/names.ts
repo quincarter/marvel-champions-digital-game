@@ -8,16 +8,20 @@
  */
 
 import { cardOf, getInstance, getPlayer, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { faceVisible } from "./visibility.js";
 
 /**
- * A card's name. A facedown card in play is named for what it is treated as
- * ("Drone"), because that is all the players can see; a facedown card that is
- * nothing in particular reads as "a facedown card".
+ * A card's name. A card whose face this table can't see is named for what it is
+ * treated as ("Drone"), because that is all the players can see; one that is
+ * nothing in particular reads as "a facedown card". What counts as unseeable is
+ * `faceVisible`'s call, so the log and the Inspect sheet agree — a card in your
+ * own hand is not a mystery to you just because the engine doesn't call it
+ * faceup.
  */
 export function cardName(state: GameState, id: InstanceId): string {
   const instance = getInstance(state, id);
   if (!instance) return "something";
-  if (!instance.faceup) {
+  if (!faceVisible(state, id)) {
     if (instance.facedownAs) return instance.facedownAs.traits.join(" ") || "facedown minion";
     return "a facedown card";
   }

@@ -19,38 +19,73 @@
 import Phaser from "phaser";
 import { CORE_DEPS } from "@mc/cards";
 import type { InstanceId } from "@mc/engine";
+import { CORE_CARDS, type AnyCard, type CardId } from "@mc/content";
 import { cardArt, drawArt } from "../art/card-art.js";
+import type { CardFace } from "../art/art-source.js";
 import { appSession } from "../session.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, label, paintDotGrid } from "../ui/widgets.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
-import { inspectModel, type InspectModel } from "../view/inspect-model.js";
+import { cardInspectModel, inspectModel, type InspectModel } from "../view/inspect-model.js";
 import { SCENES } from "./keys.js";
 
-/** What Board hands over when it launches this overlay. */
+/** What the caller hands over when it launches this overlay. */
 export interface InspectData {
-  readonly instanceId: InstanceId;
+  /** A card in play or in hand. Omitted before a game exists. */
+  readonly instanceId?: InstanceId;
+  /**
+   * A card with no game behind it — the Title screen's pickers. The face is
+   * explicit because a villain's picture and text live on its stage and a
+   * hero's on its hero side.
+   */
+  readonly card?: { readonly cardId: CardId; readonly face: CardFace };
   /** Cards the ◂ ▸ keys step through — the hand, when inspect was opened from it. */
   readonly siblings?: readonly InstanceId[];
+  /**
+   * Set when the sheet was opened from an open decision. The card is then an
+   * *answer*, not a card on the table, so the sheet offers that answer directly
+   * — which is the whole point of blowing it up on a phone, where the option
+   * itself is a thumbnail in a stack.
+   */
+  readonly choice?: {
+    readonly optionId: string;
+    /** "Select" or "Deselect": the caller knows which, this scene doesn't. */
+    readonly label: string;
+  };
+  /**
+   * Shown where the choice buttons would be, when the card can be read but not
+   * chosen — "Captain Marvel is already at the table". The card is still worth
+   * opening: reading it is how the player finds out why.
+   */
+  readonly note?: string;
 }
 
 export class InspectOverlay extends Phaser.Scene {
   #instanceId: InstanceId | null = null;
   #siblings: readonly InstanceId[] = [];
+  #choice: InspectData["choice"] = undefined;
+  #card: InspectData["card"] = undefined;
+  #note: string | undefined = undefined;
   #buttons: McButton[] = [];
   #unsubscribe: (() => void) | null = null;
+  /** True once a press has *started* on this sheet, so its release may dismiss. */
+  #armed = false;
 
   constructor() {
     super({ key: SCENES.inspect });
   }
 
   create(data: InspectData): void {
-    this.#instanceId = data.instanceId;
+    this.#instanceId = data.instanceId ?? null;
     this.#siblings = data.siblings ?? [];
+    this.#choice = data.choice;
+    this.#card = data.card;
+    this.#note = data.note;
 
     const { store } = appSession();
-    this.#unsubscribe = store.subscribe(() => this.#rebuild());
+    // Only a card in a game can change underneath the sheet.
+    if (!this.#card) this.#unsubscribe = store.subscribe(() => this.#rebuild());
     this.scale.on("resize", () => this.#rebuild(), this);
     // A scan that arrives while the sheet is open should appear in it.
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
@@ -84,15 +119,13 @@ export class InspectOverlay extends Phaser.Scene {
   }
 
   #rebuild(): void {
-    const { store } = appSession();
-    const state = store.state;
-    if (!state.game || state.perspectiveId === null || !this.#instanceId) return;
+    const model = this.#model();
+    if (!model) return;
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.children.removeAll(true);
-
-    const model = inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, CORE_DEPS);
+    this.#armed = false;
 
     const { width, height } = this.scale.gameSize;
     // The scrim is a dismiss target as well as a scrim: the design says "click
@@ -100,11 +133,20 @@ export class InspectOverlay extends Phaser.Scene {
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.9).fillRect(0, 0, width, height);
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk).setAlpha(0.7);
+    // Dismiss on a *fresh* press, not on the release of the press that opened
+    // the sheet. Inspect opens on pointerdown (a right-click or a hold), so the
+    // matching pointerup lands on a scrim that did not exist when the gesture
+    // began — which made the sheet vanish the moment you let go.
     this.add
       .zone(0, 0, width, height)
       .setOrigin(0, 0)
       .setInteractive()
-      .on("pointerup", () => this.#close());
+      .on("pointerdown", () => {
+        this.#armed = true;
+      })
+      .on("pointerup", () => {
+        if (this.#armed) this.#close();
+      });
 
     // Phone stacks the two panels; anything wider sets them side by side.
     const narrow = formFactorFor(width, height) === "phone" || width < 900;
@@ -131,11 +173,23 @@ export class InspectOverlay extends Phaser.Scene {
 
     const hint =
       this.#siblings.length > 1
-        ? "◂ previous · next ▸ · esc or tap anywhere to dismiss"
-        : "esc or tap anywhere to dismiss";
+        ? "◂ previous · next ▸ · tap the card or Close to dismiss"
+        : "tap the card or Close to dismiss";
     label(this, width / 2, height - 20, hint, typeRole.label, surface.paper.hex, ink.meta).setOrigin(0.5);
 
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex, 0));
+  }
+
+  /**
+   * The sheet's subject: a card in a game, or a card from the content alone.
+   * Null when there is neither, which is the one case worth drawing nothing for.
+   */
+  #model(): InspectModel | null {
+    if (this.#card) return cardInspectModel(CARDS_BY_ID.get(this.#card.cardId as string), this.#card.face);
+    const { store } = appSession();
+    const state = store.state;
+    if (!state.game || state.perspectiveId === null || !this.#instanceId) return null;
+    return inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, CORE_DEPS);
   }
 
   /** The card face: everything `@mc/content` prints on it. */
@@ -143,8 +197,20 @@ export class InspectOverlay extends Phaser.Scene {
     const g = this.add.graphics();
     g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(5, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
-    // The sheet swallows taps so dismissing needs the scrim, not the card.
-    this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive();
+    // The card panel carries no controls, so it dismisses like the scrim does.
+    // Only the "Rules & state" panel swallows taps, because its buttons are
+    // there — on a phone the scrim is a few pixels of margin, and a sheet you
+    // can only close by hitting that margin is a sheet you cannot close.
+    this.add
+      .zone(rect.x, rect.y, rect.width, rect.height)
+      .setOrigin(0, 0)
+      .setInteractive()
+      .on("pointerdown", () => {
+        this.#armed = true;
+      })
+      .on("pointerup", () => {
+        if (this.#armed) this.#close();
+      });
 
     // Header: cost chip, name, type line.
     const headerHeight = 62;
@@ -180,8 +246,10 @@ export class InspectOverlay extends Phaser.Scene {
     label(this, rect.x + 14, footerTop + 12, model.footerLeft, typeRole.label, surface.ink.hex, ink.label);
     label(this, rect.x + rect.width - 14, footerTop + 12, model.footerRight, typeRole.label, surface.ink.hex, ink.label).setOrigin(1, 0);
 
-    // Body: the text decides how much room is left for the scan, not the other
-    // way round — a card whose whole point is its wording must show it all.
+    // The scan is the point of this sheet, so it gets the room and the text
+    // fits around it — the opposite of the table, where text leads and the
+    // scan is a thumbnail. Whatever the text needs is measured first, but the
+    // scan keeps a floor of just over half the panel.
     const bodyWidth = rect.width - 28;
     const measure = this.add
       .text(-10000, -10000, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
@@ -191,14 +259,18 @@ export class InspectOverlay extends Phaser.Scene {
     measure.destroy();
 
     const artTop = rect.y + headerHeight + 4;
-    const artHeight = Math.max(0, Math.min(rect.height * 0.42, footerTop - artTop - textHeight - 20));
+    const available = footerTop - artTop;
+    const artHeight = Math.max(
+      Math.min(available * 0.52, available),
+      Math.min(available * 0.78, available - textHeight - 20),
+    );
     const artBottom = artTop + artHeight;
     if (artHeight > 40) {
       const band: Rect = { x: rect.x + 5, y: artTop, width: rect.width - 10, height: artHeight };
       const frame = this.add.graphics();
       frame.fillStyle(surface.parchment.hex, 1).fillRect(band.x, band.y, band.width, band.height);
       const key = cardArt(this).request(this, model.art);
-      if (!drawArt(this, key, band, { focusY: 0.3 })) {
+      if (!drawArt(this, key, band)) {
         label(this, band.x + band.width / 2, band.y + band.height / 2, model.hidden ? "facedown" : "no scan", typeRole.label, surface.ink.hex, ink.meta).setOrigin(0.5);
       }
       const bandRule = this.add.graphics();
@@ -264,17 +336,26 @@ export class InspectOverlay extends Phaser.Scene {
     this.add
       .text(rect.x + 18, rect.y + 16, "RULES & STATE", textStyle(typeRole.barTitle, surface.paper.hex))
       .setLetterSpacing(1);
-    this.add
-      .text(rect.x + rect.width - 18, rect.y + 20, "ESC", textStyle(typeRole.label, surface.paper.hex))
-      .setOrigin(1, 0)
-      .setLetterSpacing(typeRole.label.letterSpacing)
-      .setPadding(6, 4, 6, 4);
+    // A phone has no Esc key, so the chip that names it is also the button.
+    const chipWidth = 62;
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: this.scale.gameSize.width < 900 ? "Close" : "Esc",
+        type: typeRole.label,
+        rect: { x: rect.x + rect.width - chipWidth - 14, y: rect.y + 12, width: chipWidth, height: 30 },
+        onClick: () => this.#close(),
+      }),
+    );
 
     let y = rect.y + 52;
     const inner = rect.width - 36;
 
     // "Right now" — the engine's own sentence, in the design's red callout.
-    if (model.status.message) {
+    // Skipped while this card *is* the answer to an open decision: "a decision
+    // is open, answer it first" is unhelpful when answering it is exactly what
+    // the button below does.
+    if (model.status.message && !this.#choice) {
       label(this, rect.x + 18, y, "right now", typeRole.label, surface.paper.hex, ink.meta);
       y += 16;
       const text = this.add
@@ -299,6 +380,48 @@ export class InspectOverlay extends Phaser.Scene {
 
     y = this.#chips(rect, y, inner, "keywords on this card", model.keywords);
     y = this.#chips(rect, y, inner, "traits", model.traits);
+
+    // Why this card cannot be chosen, where the choice buttons would be.
+    if (this.#note) {
+      const box: Rect = { x: rect.x + 18, y: rect.y + rect.height - hit.primary - 16, width: inner, height: hit.primary };
+      const callout = this.add.graphics();
+      callout.fillStyle(accent.heroRed.hex, 0.2).fillRect(box.x, box.y, box.width, box.height);
+      callout.lineStyle(3, accent.heroRed.hex, 1).strokeRect(box.x, box.y, box.width, box.height);
+      this.add
+        .text(box.x + box.width / 2, box.y + box.height / 2, this.#note, textStyle(typeRole.body, surface.paper.hex))
+        .setOrigin(0.5)
+        .setWordWrapWidth(box.width - 20)
+        .setMaxLines(2);
+      return;
+    }
+
+    // Answering the open decision, when the sheet was opened from one.
+    if (this.#choice) {
+      const { optionId, label: choiceLabel } = this.#choice;
+      const buttonWidth = (inner - 9) / 2;
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: choiceLabel,
+          type: typeRole.barTitle,
+          rect: { x: rect.x + 18, y: rect.y + rect.height - hit.primary - 16, width: buttonWidth, height: hit.primary },
+          onClick: () => {
+            this.#close();
+            this.game.events.emit("mc-choice-toggle", optionId);
+          },
+        }),
+      );
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "Cancel",
+          type: typeRole.label,
+          rect: { x: rect.x + 27 + buttonWidth, y: rect.y + rect.height - hit.primary - 16, width: buttonWidth, height: hit.primary },
+          onClick: () => this.#close(),
+        }),
+      );
+      return;
+    }
 
     // One action, and only when the engine has already said it is legal.
     if (model.status.playable === true) {
@@ -342,3 +465,6 @@ export class InspectOverlay extends Phaser.Scene {
     return y + 40;
   }
 }
+
+/** Every Core card by id, for the sheets opened before a game exists. */
+const CARDS_BY_ID = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id as string, card]));

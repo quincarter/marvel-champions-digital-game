@@ -101,20 +101,31 @@ const CHROME_HEIGHT = { phone: 36, tabletPortrait: 44, tabletLandscape: 44, desk
  * row, so the bar is the primary-CTA height.
  */
 const actionBarHeight = (formFactor: FormFactor): number =>
-  formFactor === "phone" ? hit.target + hit.primary : hit.primary + 4;
+  formFactor === "phone" || formFactor === "tabletPortrait" ? hit.target + hit.primary : hit.primary + 4;
+
+/**
+ * Which layout a viewport gets.
+ *
+ * The design set has two boards, and they are shaped by *orientation* rather
+ * than by device: `Board - Long Table` spreads a villain band over a player
+ * band and needs width, `Board - Phone` stacks one zone at a time and needs
+ * height. A tablet held in portrait is 768×1024 — far closer to the phone's
+ * tall, narrow shape than to a long table — and forcing it through the landscape
+ * layout gave it a 84px-wide game log and a main scheme too narrow to show its
+ * own card. So the tabbed layout covers both tall form factors.
+ */
+const isTabbed = (formFactor: FormFactor): boolean => formFactor === "phone" || formFactor === "tabletPortrait";
 
 export function boardLayout(viewport: Rect, options: LayoutOptions): BoardLayout {
   const formFactor = formFactorFor(viewport.width, viewport.height);
-  const zones =
-    formFactor === "phone"
-      ? phoneZones(viewport, options)
-      : longTableZones(viewport, formFactor, options);
+  const tabbed = isTabbed(formFactor);
+  const zones = tabbed ? phoneZones(viewport, options) : longTableZones(viewport, formFactor, options);
   return {
     formFactor,
     viewport,
     zones,
-    tabbed: formFactor === "phone",
-    activeTab: formFactor === "phone" ? (options.activeTab ?? "me") : null,
+    tabbed,
+    activeTab: tabbed ? (options.activeTab ?? "me") : null,
   };
 }
 
@@ -124,14 +135,26 @@ type Zones = Record<ZoneName, Rect | null>;
  * `Board - Phone`: chrome, tab rail, one full-width zone, then the hand and the
  * action bar parked at the thumb. Content scrolls under the bar; the bar never
  * scrolls away and its contents never reorder between screens.
+ *
+ * Only the active tab's zones get a rectangle — every other tabbed zone is
+ * null, which is the same "this layout doesn't show that zone" the long table
+ * uses for `team` in a solo game. Handing them all the *same* rectangle, as an
+ * earlier version did, meant the Board drew five zones on top of one another.
+ *
+ * Two tabs hold more than one zone, because on the table those things are one
+ * thing: "Me" is the identity panel with the play area under it, and "Enemies"
+ * carries the encounter deck and discard in a strip above the enemies.
  */
 function phoneZones(viewport: Rect, options: LayoutOptions): Zones {
-  const gutter = GUTTER.phone;
-  const chromeHeight = CHROME_HEIGHT.phone;
+  // A tablet in portrait uses this layout too, with its own gutters and chrome.
+  const formFactor = formFactorFor(viewport.width, viewport.height);
+  const gutter = GUTTER[formFactor];
+  const chromeHeight = CHROME_HEIGHT[formFactor];
   const tabsHeight = hit.target;
-  const barHeight = actionBarHeight("phone");
+  const barHeight = actionBarHeight(formFactor);
   // Enough for one row of fanned cards plus its "HAND 5 · Deck 28" caption.
-  const handHeight = Math.min(168, Math.max(120, Math.round(viewport.height * 0.2)));
+  const handHeight = Math.min(230, Math.max(120, Math.round(viewport.height * 0.2)));
+  const activeTab: PhoneTab = options.activeTab ?? "me";
 
   const chrome: Rect = { x: viewport.x, y: viewport.y, width: viewport.width, height: chromeHeight };
   const tabs: Rect = { x: viewport.x, y: chrome.y + chrome.height, width: viewport.width, height: tabsHeight };
@@ -142,7 +165,6 @@ function phoneZones(viewport: Rect, options: LayoutOptions): Zones {
     height: barHeight,
   };
   const hand: Rect = { x: viewport.x, y: actionBar.y - handHeight, width: viewport.width, height: handHeight };
-  // Every tabbed zone gets the same rectangle: only one is visible at a time.
   const content: Rect = {
     x: viewport.x + gutter,
     y: tabs.y + tabs.height + gutter,
@@ -150,18 +172,38 @@ function phoneZones(viewport: Rect, options: LayoutOptions): Zones {
     height: hand.y - (tabs.y + tabs.height) - gutter * 2,
   };
 
+  /** The active tab's content rect, or null when that tab isn't showing. */
+  const on = (tab: PhoneTab, rect: Rect = content): Rect | null => (activeTab === tab ? rect : null);
+
+  // "Me": identity above, play area below, split so the identity panel keeps
+  // the proportions it has on the long table rather than filling the screen.
+  const identityHeight = Math.round(content.height * 0.44);
+  const me = on("me", { ...content, height: identityHeight });
+  const playArea = on("me", {
+    ...content,
+    y: content.y + identityHeight + gutter,
+    height: content.height - identityHeight - gutter,
+  });
+
+  // "Enemies": a pile strip across the top, the enemies under it.
+  const pileHeight = Math.min(76, Math.round(content.height * 0.2));
+  const encounter = on("enemies", { ...content, height: pileHeight });
+  const enemies = on("enemies", {
+    ...content,
+    y: content.y + pileHeight + gutter,
+    height: content.height - pileHeight - gutter,
+  });
+
   return {
     chrome,
     tabs,
-    threat: content,
-    enemies: content,
-    me: content,
-    // On phone the play area lives inside the "Me" tab, under the identity panel.
-    playArea: content,
-    team: options.playerCount > 1 ? content : null,
-    // The encounter deck and discard ride in the Enemies tab's header strip.
-    encounter: content,
-    log: content,
+    threat: on("threat"),
+    enemies,
+    me,
+    playArea,
+    team: options.playerCount > 1 ? on("team") : null,
+    encounter,
+    log: on("log"),
     hand,
     actionBar,
   };

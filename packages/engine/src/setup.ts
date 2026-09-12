@@ -1,4 +1,4 @@
-import type { AnyCard, CardId } from "@mc/content";
+import type { AnyCard, CardId, HeroIdentityCard } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import { createCtx, emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
 import { giveStatus, shuffleZone } from "./effects.js";
@@ -68,6 +68,29 @@ const blankInstance = (id: InstanceId, cardId: CardId, ownerId: PlayerId | null)
   engagedWith: null,
 });
 
+/**
+ * The identity of a hero for the purposes of RRG "Unique".
+ *
+ * RRG "Unique": "A card with a [unique] icon before its title is unique. The players **as a
+ * group** are permitted to have only one copy of each unique card (by title) in play." The
+ * same entry carves out identities: "If two identities share the same title, but each has a
+ * different alter-ego, they may coexist in play."
+ *
+ * So the key is (title, alter-ego face name) — deliberately *not* the card id. Two seats
+ * holding different printings/starter decks of the same hero collide (both Core Captain
+ * Marvel starter decks point at 01010a: same title, same alter-ego Carol Danvers), while a
+ * future Spider-Man/Peter Parker and Spider-Man/Miles Morales share a title but not an
+ * alter-ego and are a legal table.
+ *
+ * `BaseCard.unique` is not consulted: every printed identity card carries the unique icon,
+ * and the RRG's deckbuilding half of the same entry says so outright ("The identity card is
+ * included in this evaluation"), so an identity is unique by rule rather than by data flag.
+ */
+const identityUniqueKey = (card: HeroIdentityCard): string => `${card.name}\u241F${card.alterEgo.faceName}`;
+
+/** How the engine names a colliding hero to a client: "Captain Marvel (Carol Danvers)". */
+const identityLabel = (card: HeroIdentityCard): string => `${card.name} (${card.alterEgo.faceName})`;
+
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
 export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_DEPS): SetupResult {
   if (config.players.length < 1 || config.players.length > 4) {
@@ -109,12 +132,27 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
 
   const players: PlayerState[] = [];
   const obligationIds: InstanceId[] = [];
+  /** (title, alter-ego) of each identity already seated → the seat that took it. See `identityUniqueKey`. */
+  const seatedIdentities = new Map<string, PlayerId>();
   for (const [seatIndex, setup] of config.players.entries()) {
     const id = playerId(`p${seatIndex + 1}`);
     const identityCard = pool[setup.identityCardId];
     if (!identityCard || identityCard.type !== "hero_identity") {
       return { ok: false, error: engineError("invalid_setup", `${setup.identityCardId} is not an identity card`) };
     }
+    // RRG "Unique" — only one copy by title in play across the whole table (see `identityUniqueKey`).
+    const uniqueKey = identityUniqueKey(identityCard);
+    const takenBy = seatedIdentities.get(uniqueKey);
+    if (takenBy) {
+      return {
+        ok: false,
+        error: engineError(
+          "duplicate_unique_card",
+          `${identityLabel(identityCard)} is already in play as ${takenBy}: the players as a group may have only one copy of each unique card in play, so ${id} cannot play the same hero`,
+        ),
+      };
+    }
+    seatedIdentities.set(uniqueKey, id);
     const identityInstanceId = nextId();
     instances[identityInstanceId] = { ...blankInstance(identityInstanceId, identityCard.id, id), faceup: true };
 

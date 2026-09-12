@@ -10,7 +10,8 @@ import type { GameState, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { boardModel, deckAspect } from "./board-model.js";
+import { boardModel, deckAspect, faceOf } from "./board-model.js";
+import { artFor, CARD_BACKS } from "../art/art-source.js";
 import { highlights } from "./highlights.js";
 
 const KLAW_TWO: SessionConfig = {
@@ -190,4 +191,53 @@ describe("highlights", () => {
     expect(marks.playable.size).toBe(0);
     expect(store.state.game).not.toBeNull();
   }, 60_000);
+});
+
+describe("your own upgrades", () => {
+  test("an upgrade attached to your identity shows in your play area", async () => {
+    const store = await intoPlay(KLAW_TWO);
+    const state = store.state.game!;
+    const me = store.state.perspectiveId!;
+    const player = state.players.find((seat) => seat.playerId === me)!;
+
+    const model = boardModel(state, me, CORE_DEPS);
+    const shown = new Set(model.myPlayArea.map((panel) => panel.instanceId));
+    for (const id of player.playArea) {
+      const attachedTo = state.instances[id]!.attachedTo;
+      // Attached to your own identity, or to nothing: either way it is a card
+      // you played and must be able to find again.
+      if (attachedTo === null || attachedTo === player.identity.instanceId) {
+        expect(shown.has(id)).toBe(true);
+      }
+    }
+  });
+});
+
+describe("facedown cards", () => {
+  test("a facedown encounter card shows a deck back, never its own face", async () => {
+    const store = await intoPlay(KLAW_TWO);
+    const state = store.state.game!;
+    const me = store.state.perspectiveId!;
+
+    const hidden = state.encounterDeck[0]!;
+    const face = faceOf(state, hidden);
+    expect(face.kind).toBe("back");
+
+    // The card it *is* must not be reachable through what we draw for it.
+    const ownFront = artFor(state.cardPool[state.instances[hidden]!.cardId], { kind: "front" });
+    const drawn = artFor(state.cardPool[state.instances[hidden]!.cardId], face);
+    expect(drawn).not.toBeNull();
+    expect(drawn!.url).not.toEqual(ownFront?.url);
+    expect(drawn!.url).toBe(CARD_BACKS.encounter.url);
+  });
+
+  test("a card from a player's deck shows the player back", async () => {
+    const store = await intoPlay(KLAW_TWO);
+    const state = store.state.game!;
+    const me = store.state.perspectiveId!;
+    const inDeck = state.players.find((player) => player.playerId === me)!.deck[0]!;
+
+    // Ownership, not the card's type: which deck it came from is not a secret.
+    expect(artFor(undefined, faceOf(state, inDeck))).toEqual(CARD_BACKS.player);
+  });
 });
