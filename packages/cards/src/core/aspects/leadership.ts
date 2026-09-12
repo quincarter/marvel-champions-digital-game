@@ -57,7 +57,7 @@ export const LEADERSHIP = defineAbilities({
     modifyStatOf("atk", 1, THAT_PLAYERS_CHARACTERS, "endOfPhase"),
   ),
   // Make the Call — Action: Pay the printed cost of an ally in any player's discard pile → put that ally into play under your control.
-  "01071.make-the-call-action": action({ cost: payPrintedCostOf("ally", { zone: "discard", player: "any", query: query("ally") }) }, putIntoPlay(chosen("ally"), you)),
+  "01071.make-the-call-action": action({ cost: payPrintedCostOf("ally", { zone: "discard", player: "any", query: query("ally") }, { entersPlay: true }) }, putIntoPlay(chosen("ally"), you)),
   // The Power of Leadership — Double the number of resources this card generates while paying for a Leadership (blue) card.
   "01072.the-power-of-leadership-constant": constant(doublesResourcesWhilePayingFor({ aspect: "leadership" })),
   // The Triskelion — Increase your ally limit by 1.

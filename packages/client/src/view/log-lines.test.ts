@@ -115,6 +115,32 @@ describe("game log", () => {
     expect(beat!.tags).toEqual([{ status: "stunned", spent: false }]);
   });
 
+  /**
+   * RRG 1.8 "Unique Icon". The board shows no change when an entry is refused,
+   * so the log line is the only thing that stops it reading as a bug — the same
+   * reason `threatRemovalBlocked` earns a line.
+   */
+  test("a refused unique entry says what blocked it, and whether the card was discarded", () => {
+    const villain = played.state.villain.instanceId;
+    const scheme = played.state.mainScheme.instanceId;
+
+    const noEffect = logLine(
+      { type: "uniqueEntryBlocked", instanceId: scheme, cardId: played.state.instances[scheme]!.cardId, matchedInstanceId: villain, disposition: "noEffect" },
+      played.state,
+      played.viewer,
+    );
+    expect(noEffect!.text).toContain("can't enter play");
+    expect(noEffect!.text).not.toContain("discarded");
+
+    const discarded = logLine(
+      { type: "uniqueEntryBlocked", instanceId: scheme, cardId: played.state.instances[scheme]!.cardId, matchedInstanceId: villain, disposition: "discarded" },
+      played.state,
+      played.viewer,
+    );
+    expect(discarded!.text).toContain("is discarded");
+    expect(discarded!.voice).toBe("scenario");
+  });
+
   test("keeps only the most recent lines so the list never grows without bound", () => {
     const many: GameEvent[] = Array.from({ length: 30 }, (_u, i) => ({ type: "roundStarted", round: i + 1 }));
     const capped = appendEvents(emptyLog(), many, played.state, played.viewer, 10);

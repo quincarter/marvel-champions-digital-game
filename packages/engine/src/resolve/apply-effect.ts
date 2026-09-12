@@ -42,12 +42,62 @@ import {
 import type { EffectSpec } from "../spec.js";
 import { currentActivationFrameId, type DeferredEffects, type ReportTarget, type StackFrame } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
+import { matchingCardInPlay } from "../unique.js";
 import { moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
 import { checkDefeats } from "./defeat.js";
 import { giveBoostCard } from "./enemy-activation.js";
 import { applyEnterPlayKeywords, quickstrikeAttack } from "./enter-play.js";
 import { addFrameVars, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
+
+/**
+ * RRG 1.8 "Unique Icon" (pp. 45–46), the *put into play* half of the rule, quoted:
+ *
+ *   "A non-villain card in an out-of-play state that matches a card in play cannot enter
+ *    play. If the out-of-play card is:
+ *      - A player card, it cannot be played or put into play. Any effect that attempts to
+ *        do so has no effect.
+ *      - A non-villain encounter card, it is discarded and any effects of it entering play
+ *        are ignored."
+ *
+ * So the two dispositions differ and neither is a failure the caller can see: a player card
+ * (Make the Call reaching into a discard pile) is left exactly where it was and the rest of
+ * the effect still resolves; a non-villain encounter card is discarded. A villain card is
+ * exempt — the restriction is on the *entering* card being non-villain, and FFG's ruling on
+ * the Ronan the Accuser minion vs. the Ronan the Accuser villain confirms a villain already
+ * in play still blocks (that direction is the scan below, not this carve-out).
+ *
+ * Returns the ids that may proceed, and records every refusal in the game log.
+ */
+function admitUniqueEntry(ctx: Ctx, ids: readonly InstanceId[]): readonly InstanceId[] {
+  const admitted: InstanceId[] = [];
+  for (const id of ids) {
+    const card = cardOf(ctx.state, id);
+    // A villain entering play is exempt; so is a card with no data to match on.
+    if (!card || card.type === "villain") {
+      admitted.push(id);
+      continue;
+    }
+    // `ignore` keeps a card already in play from matching itself.
+    const match = matchingCardInPlay(ctx.state, card, new Set([id]));
+    if (!match) {
+      admitted.push(id);
+      continue;
+    }
+    const isPlayerCard = getInstance(ctx.state, id)?.ownerId !== null;
+    emit(ctx, {
+      type: "uniqueEntryBlocked",
+      instanceId: id,
+      cardId: card.id,
+      matchedInstanceId: match,
+      disposition: isPlayerCard ? "noEffect" : "discarded",
+    });
+    // Already in the encounter discard (a `discardEncounterUntil` search left it there):
+    // nothing to move, and a no-op `cardMoved` would only muddy the log.
+    if (!isPlayerCard && !ctx.state.encounterDiscard.includes(id)) moveCard(ctx, id, { kind: "encounterDiscard" });
+  }
+  return admitted;
+}
 
 export function applyEffect(
   ctx: Ctx,
@@ -263,8 +313,9 @@ export function applyEffect(
     case "putIntoPlay": {
       const [controller] = resolvePlayers(ctx.state, effect.controller, context);
       if (!controller) return;
+      const admitted = admitUniqueEntry(ctx, targets(effect.card));
       const placed: InstanceId[] = [];
-      for (const id of targets(effect.card)) {
+      for (const id of admitted) {
         const card = cardOf(ctx.state, id);
         // Encounter cards other than minions enter where their type goes (villain area, host, play area).
         if (card && card.type !== "minion" && getInstance(ctx.state, id)?.ownerId === null && !cardsInPlay(ctx.state).includes(id)) {
@@ -273,7 +324,7 @@ export function applyEffect(
           placed.push(id);
         }
       }
-      const entering = targets(effect.card).filter((id) => !placed.includes(id));
+      const entering = admitted.filter((id) => !placed.includes(id));
       for (const id of entering) {
         // A minion belongs to the encounter side even while it sits in a player's area.
         const isMinion = cardOf(ctx.state, id)?.type === "minion";

@@ -46,13 +46,23 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
   }
 
   const cards: FocusTarget[] = mode.hand.map((instanceId) => ({ kind: "card", instanceId }));
+  // Cards in play with a usable ability — the villain, an ally, your own
+  // identity — sit between the hand and the action bar: they're something you
+  // could still act on this turn, same as the hand is, but they aren't a
+  // *basic* action and they aren't in your hand either. `usableAbilities`
+  // already excludes anything not currently legal, so nothing here decides
+  // that itself (PLAN.md Phase 4, "abilities on cards in play are not
+  // reachable from the UI").
+  const abilityCards: FocusTarget[] = marks
+    ? [...marks.usableAbilities].filter((id) => !mode.hand.includes(id)).map((instanceId) => ({ kind: "card", instanceId }))
+    : [];
   // An unusable control still takes focus: "why can't I attack?" is a question
   // the player has to be able to reach the answer to, and the reason lives on
   // the button. Only controls the engine never offers at all are skipped.
   const basics: FocusTarget[] = BASICS.filter((action) => marks?.basics.some((basic) => basic.action === action) ?? false).map(
     (action) => ({ kind: "basic", action }),
   );
-  return [...cards, ...basics];
+  return [...cards, ...abilityCards, ...basics];
 }
 
 /** Moves focus by `delta`, wrapping. Returns the new index, or -1 when there is nothing to focus. */

@@ -15,11 +15,12 @@
 
 import Phaser from "phaser";
 import { CORE_DEPS } from "@mc/cards";
-import type { ResourceIconType } from "@mc/content";
+import type { AbilityId, ResourceIconType } from "@mc/content";
 import type { Command, GameEvent, InstanceId, LegalAction } from "@mc/engine";
 import { cardArt, drawArt, type ArtFit, type CardArt } from "../art/card-art.js";
 import { CARD_BACKS, type ArtSource } from "../art/art-source.js";
 import { appSession } from "../session.js";
+import { abilityLabelOf, abilityShortLabelOf } from "../view/ability-label.js";
 import { cardName } from "../view/names.js";
 import { accent, dotGrid, hit, ink, motion, signal, status as statusTokens, surface, threatMeter, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
@@ -32,7 +33,7 @@ import {
   type PaymentState,
   type PaymentView,
 } from "../view/payment-model.js";
-import { highlights, type BasicAction, type Highlights, type IllegalReason } from "../view/highlights.js";
+import { abilityActionsFor, highlights, type BasicAction, type Highlights, type IllegalReason, type UsableAbilityAction } from "../view/highlights.js";
 import { appendEvents, emptyLog, type LogState } from "../view/log-lines.js";
 import { tabsTouchedBy } from "../view/tab-badges.js";
 import { beatsFrom, type Beat } from "../view/beats.js";
@@ -103,12 +104,17 @@ export class BoardScene extends Phaser.Scene {
     // The Inspect overlay's "Play it" comes back here, because playing a card
     // is the board's job: the overlay only ever reports what the engine said.
     this.game.events.on("mc-play-card", this.#onInspectPlay, this);
+    // Same pattern for the ability picker Inspect opens when a card offers
+    // more than one usable ability (see #onCharacterTap): the sheet reports
+    // which one was picked, and only the board ever dispatches.
+    this.game.events.on("mc-use-ability", this.#onInspectUseAbility, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       this.#artUnsubscribe?.();
       this.#artUnsubscribe = null;
       this.game.events.off("mc-play-card", this.#onInspectPlay, this);
+      this.game.events.off("mc-use-ability", this.#onInspectUseAbility, this);
     });
   }
 
@@ -116,7 +122,8 @@ export class BoardScene extends Phaser.Scene {
     if (!state.game || state.perspectiveId === null) return;
 
     // Fold this command's events onto the log before the state replaces it.
-    if (state.version !== this.#version) {
+    const fresh = state.version !== this.#version;
+    if (fresh) {
       this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId);
       this.#noteTabChanges(state);
       this.#startBeats(state.lastEvents);
@@ -133,8 +140,38 @@ export class BoardScene extends Phaser.Scene {
       this.scene.start(SCENES.gameOver);
       return;
     }
+    // Only a *new* command can start a villain phase; a plain redraw re-reads
+    // the same `lastEvents` and must not re-open a walkthrough the player skipped.
+    if (fresh) this.#openVillainWalkthrough(state.lastEvents);
     this.#syncChoiceOverlay(state);
     this.#draw();
+  }
+
+  /**
+   * Opens the villain-phase walkthrough when a villain phase begins.
+   *
+   * This is the whole of the Board's side of the contract documented at the top
+   * of `scenes/villain-phase.ts`: a bare, payload-free launch. The overlay
+   * subscribes to the store itself, accumulates the phase's beats across the
+   * several commands one phase can span, and closes itself when the phase ends.
+   *
+   * `placeThreat` is villain-phase step one, so this fires exactly once per
+   * phase and never on the later within-phase step changes — which is what lets
+   * a player who skipped the walkthrough stay skipped for the rest of that phase.
+   *
+   * The `isActive` guard is load-bearing. `launch` is NOT a no-op on an
+   * already-running scene in Phaser 4.2.1: it queues `SceneManager.start`, which
+   * for a scene in RUNNING..SLEEPING calls `sys.shutdown()` then `sys.start()` —
+   * a restart that would throw away the overlay's accumulated beats and its
+   * reveal cursor mid-phase. (`run()` is no safer: a RUNNING scene falls through
+   * its sleeping/paused branches to the same `start()`.)
+   */
+  #openVillainWalkthrough(events: readonly GameEvent[]): void {
+    if (this.scene.isActive(SCENES.villainPhase)) return;
+    const begins = events.some(
+      (event) => event.type === "stepChanged" && event.to.phase === "villain" && event.to.kind === "placeThreat",
+    );
+    if (begins) this.scene.launch(SCENES.villainPhase);
   }
 
   /**
@@ -290,6 +327,10 @@ export class BoardScene extends Phaser.Scene {
     // A card means whatever a tap on it would mean right now.
     if (this.#selection.kind === "paying") this.#spendByInstance(focus.instanceId);
     else if (this.#selection.kind === "targeting") void this.#commitTarget(focus.instanceId);
+    // A card in play with a usable ability, not a hand card: `#playCard` only
+    // ever looks for a `playCard` entry, so a card that's on the focus route
+    // solely because of `usableAbilities` needs the ability path instead.
+    else if (this.#marks?.usableAbilities.has(focus.instanceId)) this.#onCharacterTap(focus.instanceId);
     else void this.#playCard(focus.instanceId);
   }
 
@@ -608,6 +649,14 @@ export class BoardScene extends Phaser.Scene {
       label(this, left, top, `boost ?? ×${panel.boostCount}`, typeRole.label, surface.ink.hex, ink.meta * dim);
       top += 14;
     }
+    const abilityLine = this.#abilityLine(panel.instanceId);
+    if (abilityLine) {
+      // `setMaxLines(1)` with word wrap drops every word past the first line
+      // without a trace; `fitText` shrinks to the design's floor and then
+      // ellipsizes, so a clipped label at least admits it is clipped.
+      fitText(label(this, left, top, abilityLine, typeRole.label, signal.heal.hex, ink.body * dim), textWidth, typeRole.label.size);
+      top += 14;
+    }
 
     // Attachments hanging off this card — an upgrade on an enemy, a condition
     // on an ally. Named, so "why is this minion tougher?" has an answer on the
@@ -646,7 +695,7 @@ export class BoardScene extends Phaser.Scene {
       });
     }
 
-    this.#makeTapTarget(rect, panel.instanceId);
+    this.#makeTapTarget(rect, panel.instanceId, () => this.#onCharacterTap(panel.instanceId));
   }
 
   /**
@@ -689,8 +738,16 @@ export class BoardScene extends Phaser.Scene {
     if (panel.exhausted) {
       label(this, inner.x + 4, inner.y + 4, "exhausted", typeRole.label, signal.spent.hex, ink.body * dim);
     }
+    const abilityLine = this.#abilityLine(panel.instanceId);
+    if (abilityLine && rect.height >= 40) {
+      fitText(
+        label(this, inner.x + 4, inner.y + 4 + (panel.exhausted ? 12 : 0), abilityLine, typeRole.label, signal.heal.hex, ink.body * dim),
+        inner.width - 8,
+        typeRole.label.size,
+      );
+    }
 
-    this.#makeTapTarget(rect, panel.instanceId);
+    this.#makeTapTarget(rect, panel.instanceId, () => this.#onCharacterTap(panel.instanceId));
   }
 
   /** Status pips: initial only, in the hue that exists nowhere else. */
@@ -1294,6 +1351,88 @@ export class BoardScene extends Phaser.Scene {
     await this.#dispatch(entry.example);
   }
 
+  /** Every `useAbility` entry `legalActions` currently lists for one card, in order. */
+  #usableAbilitiesFor(instanceId: InstanceId): readonly UsableAbilityAction[] {
+    const actions = appSession().store.state.legal?.actions;
+    return actions ? abilityActionsFor(actions, instanceId) : [];
+  }
+
+  /**
+   * A tap on a card in play, while idle: nothing when it has no usable
+   * ability (the common case, for most cards, most of the time); the ability
+   * itself when it has exactly one, the same "a decisive gesture just acts"
+   * rule the hand already follows for playing a card; the Inspect sheet when
+   * it has more than one, because a real choice between two abilities needs
+   * a real picker — Inspect already shows the card's full rules text, so the
+   * player can read what each one does before committing to one
+   * (`inspectModel.abilities`, `scenes/inspect.ts`). No Core card reaches the
+   * second case today (checked by replaying three full games through
+   * `legalActions`), but the ability DSL doesn't rule it out.
+   */
+  #onCharacterTap(instanceId: InstanceId): void {
+    const abilities = this.#usableAbilitiesFor(instanceId);
+    if (abilities.length === 0) return;
+    if (abilities.length === 1) {
+      this.#useAbility(abilities[0]!);
+      return;
+    }
+    this.#inspect(instanceId);
+  }
+
+  /** The Inspect sheet's ability picker reports its pick here; it never dispatches itself. */
+  #onInspectUseAbility(instanceId: InstanceId, abilityId: AbilityId): void {
+    const entry = this.#usableAbilitiesFor(instanceId).find((candidate) => candidate.action.abilityId === abilityId);
+    if (entry) this.#useAbility(entry);
+  }
+
+  /**
+   * Triggers one action ability, the same three-step machinery `#chooseBasic`
+   * / `#commitTarget` already use for basic actions: enter target-select mode
+   * when the engine lists more than one legal target, open payment when the
+   * engine says it costs something, otherwise dispatch its `example` command
+   * straight away. Nothing here decides a target, a price, or legality —
+   * `legalActions` and `paymentFor` already did.
+   */
+  #useAbility(entry: UsableAbilityAction): void {
+    if (entry.targets.length > 1) {
+      const { game } = appSession().store.state;
+      const name = game ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, CORE_DEPS) : "this ability";
+      this.#selection = { kind: "targeting", action: entry, prompt: `Choose a target for ${name}` };
+      this.#draw();
+      return;
+    }
+    const target = entry.targets[0] ?? null;
+    if (entry.needsPayment && this.#openPayment(entry, target)) return;
+    void this.#dispatch(entry.example);
+  }
+
+  /**
+   * The small "you can do something here" line on a card in play — the one
+   * control PLAN.md's Phase 4 open item said the board was missing entirely.
+   * Reuses `signal.heal`, the token the palette already spends on "this is a
+   * good, legal state" (recover, HP gain, deck-legal), rather than inventing
+   * a new one; the leading glyph keeps the affordance readable without color
+   * (PLAN.md Phase 4 accessibility, "never color alone"). Hidden mid-decision
+   * — while targeting or paying for a *different* action, tapping this card
+   * would be intercepted for that instead, and a line promising otherwise
+   * would be wrong.
+   */
+  #abilityLine(instanceId: InstanceId): string | null {
+    if (this.#selection.kind !== "idle" || !this.#marks?.usableAbilities.has(instanceId)) return null;
+    const { game } = appSession().store.state;
+    if (!game) return null;
+    const abilities = this.#usableAbilitiesFor(instanceId);
+    if (abilities.length === 0) return null;
+    // The card's own name is already on the card, so the line carries the cost —
+    // see `abilityShortLabelOf`. "Use" is the fallback for an ability the engine
+    // prices at nothing, which is still worth a tap target.
+    const text =
+      abilities.length === 1
+        ? (abilityShortLabelOf(game, instanceId, abilities[0]!.action.abilityId, CORE_DEPS) ?? "use")
+        : `${abilities.length} abilities — tap to choose`;
+    return `▶ ${text}`;
+  }
+
   /**
    * Enters payment mode for an action. Returns false when the engine says the
    * action needs no payment after all, so the caller can just dispatch it.
@@ -1459,6 +1598,17 @@ function retarget(command: Command, target: InstanceId): Command {
       return { ...command, schemeInstanceId: target };
     case "playCard":
       return { ...command, attachToInstanceId: target };
+    case "useAbility": {
+      // A `useAbility` command carries no target field of its own — every
+      // target `legalActions` lists for one is a cost-choice pick (RRG "pay
+      // the printed cost of a card in a discard pile", `AbilityCost.payPrintedCostOf`),
+      // named by the slot the ability's own cost declares. No Core ability
+      // reaches this today (`legal.targets` is always empty for the three
+      // Core action abilities that exist), so this reads the registry rather
+      // than guessing a shape for content that doesn't exist yet.
+      const slot = CORE_DEPS.abilities[command.abilityId]?.cost?.payPrintedCostOf?.slot;
+      return slot ? { ...command, costChoices: { ...command.costChoices, [slot]: [target] } } : command;
+    }
     default:
       return command;
   }

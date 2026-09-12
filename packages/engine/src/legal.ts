@@ -77,7 +77,15 @@ export interface LegalAction {
 
 export interface IllegalAction {
   readonly action: ActionRef;
-  /** The engine's error code: `wrong_form`, `already_exhausted`, `insufficient_resources`, `no_valid_target`, … */
+  /**
+   * The engine's error code: `wrong_form`, `already_exhausted`, `insufficient_resources`,
+   * `no_valid_target`, `duplicate_unique_card`, …
+   *
+   * `duplicate_unique_card` and `no_valid_target` are easy to confuse and a client should
+   * word them differently: `duplicate_unique_card` is the group-wide RRG "Unique Icon" rule
+   * ("someone already has that card in play"), while a `no_valid_target` carrying a "max N
+   * per player" message is the card's own printed play restriction, scoped to one player.
+   */
   readonly reason: EngineErrorCode;
   /** The engine's explanation, suitable for "Why illegal?". */
   readonly message: string;

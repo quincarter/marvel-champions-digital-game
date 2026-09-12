@@ -166,8 +166,14 @@ export interface AbilityCost {
    * "Pay the printed cost of an ally in any player's discard pile →" (Make the
    * Call): the card picked in `costChoices[slot]` adds its printed cost to the
    * resource requirement and is bound to `slot`.
+   *
+   * `entersPlay` declares that the ability's effects then bring the picked card
+   * into play. The engine uses it to refuse a pick that could not enter play —
+   * RRG 1.8 "Unique Icon" (a card matching one in play), checked at initiation so
+   * the cost is never paid for nothing (RRG "Target": an ability "can only be
+   * initiated if it has at least one valid target").
    */
-  readonly payPrintedCostOf?: { readonly slot: string; readonly from: CardZoneQuery };
+  readonly payPrintedCostOf?: { readonly slot: string; readonly from: CardZoneQuery; readonly entersPlay?: boolean };
 }
 
 export interface AbilityLimit {

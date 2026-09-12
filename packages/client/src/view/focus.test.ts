@@ -41,6 +41,23 @@ describe("focusOrder", () => {
     expect(focusOrder({ kind: "idle", hand: [] }, disabled)).toEqual([{ kind: "basic", action: "attack" }]);
   });
 
+  test("puts a card in play with a usable ability between the hand and the action bar", () => {
+    const marks: Highlights = { ...marksWith(["attack", "endTurn"]), usableAbilities: new Set([id("villain")]) };
+    const order = focusOrder({ kind: "idle", hand: [id("a")] }, marks);
+    expect(order).toEqual<FocusTarget[]>([
+      { kind: "card", instanceId: id("a") },
+      { kind: "card", instanceId: id("villain") },
+      { kind: "basic", action: "attack" },
+      { kind: "basic", action: "endTurn" },
+    ]);
+  });
+
+  test("doesn't focus a hand card twice, if it were ever also a usable-ability id", () => {
+    const marks: Highlights = { ...marksWith(["endTurn"]), usableAbilities: new Set([id("a")]) };
+    const order = focusOrder({ kind: "idle", hand: [id("a")] }, marks);
+    expect(order.filter((target) => target.kind === "card")).toEqual([{ kind: "card", instanceId: id("a") }]);
+  });
+
   test("narrows to the targets while one is being chosen", () => {
     const order = focusOrder({ kind: "targeting", targets: [id("villain")] }, marksWith(["attack", "endTurn"]));
     // Stepping through an action bar you can't use to reach the one target you

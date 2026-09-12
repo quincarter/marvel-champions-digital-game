@@ -146,6 +146,19 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null): 
         text: `Threat can't be removed from ${card(event.schemeInstanceId)} — ${event.reason === "crisis" ? "Crisis" : "a rule"}.`,
         voice: "scenario",
       };
+    /**
+     * Worth a line for the same reason `threatRemovalBlocked` is: the board
+     * shows no change, so without it a card that refused to enter play reads as
+     * a bug. RRG 1.8 "Unique Icon" gives the two dispositions — a player card's
+     * effect simply has no effect, a non-villain encounter card is discarded.
+     */
+    case "uniqueEntryBlocked":
+      return {
+        text:
+          `${card(event.instanceId)} can't enter play — ${card(event.matchedInstanceId)} is already in play` +
+          (event.disposition === "discarded" ? ", so it is discarded." : "."),
+        voice: event.disposition === "discarded" ? "scenario" : "player",
+      };
     case "statusGiven":
       return { text: `${card(event.instanceId)} is`, tags: [{ status: event.status, spent: false }], voice: "player" };
     case "statusRemoved":

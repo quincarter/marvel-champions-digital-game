@@ -3,11 +3,16 @@ import type { Command } from "./commands.js";
 export type EngineErrorCode =
   | "invalid_setup"
   /**
-   * RRG "Unique": "The players as a group are permitted to have only one copy of each
-   * unique card (by title) in play." Distinct from `invalid_setup` because it is the one
-   * setup failure caused by a legal-but-conflicting *player* choice rather than by a
-   * malformed config, so a client can route it to a "pick a different hero" prompt and
-   * show `message` verbatim.
+   * RRG "Unique Icon": a card cannot enter play while it matches a card already in play
+   * (see `./unique.ts` for the RRG 1.8 match predicate). Raised by `createGame` when two
+   * seats pick matching identities, by `playCard`, and by the cost pick of an ability that
+   * would put a matching card into play.
+   *
+   * Distinct from `invalid_setup` because it is a legal-but-conflicting *player* choice
+   * rather than a malformed config, so a client can route it to "pick a different hero".
+   * Distinct from `no_valid_target` because that code also carries `playRestrictions`
+   * failures ("Max 1 per player"), which are a different, per-controller rule. Either way
+   * `message` is written to be shown verbatim.
    */
   | "duplicate_unique_card"
   | "game_over"

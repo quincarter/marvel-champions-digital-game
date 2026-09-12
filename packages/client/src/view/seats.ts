@@ -1,40 +1,27 @@
 /**
  * Which hero seats can still be taken.
  *
- * The rule is the Rules Reference "Unique" entry: a unique card is limited to
- * one copy *in play across all players*, by title —
+ * The rule is the Rules Reference "Unique Icon" entry: a unique card is limited
+ * to one copy *in play across all players*, and two identities that share a
+ * title but have different alter-egos may coexist. **The client does not decide
+ * that rule** — `cardsMatch` from `@mc/engine` is the single implementation of
+ * it, and this module only asks it the question ("Phaser is a view, never an
+ * authority", PLAN.md Phase 4).
  *
- *   "A card with a ✦ icon before its title is unique. The players as a group
- *    are permitted to have only one copy of each unique card (by title) in
- *    play."
- *
- * — with an exception stated in the same entry:
- *
- *   "If two identities share the same title, but each has a different
- *    alter-ego, they may coexist in play."
- *
- * So the predicate is title *and* alter-ego, not the card id. In the Core Set
- * both Captain Marvel starter decks name the same identity card, so they are
- * the same on both counts and cannot sit together; the exception is what will
- * let a Peter Parker Spider-Man and a Miles Morales Spider-Man share a table
- * once Phase 7 brings them in.
+ * That matters more than it looks. This module used to carry its own copy of
+ * the predicate, transcribed from the RRG 1.5–1.7 "Unique" wording (title *and*
+ * alter-ego). RRG 1.8 replaced that entry with a symmetric *match* predicate
+ * over title/subtitle/alter-ego title, so the copy was quietly out of date: it
+ * happens to give the same answer for every Core deck, and would have started
+ * disagreeing with the engine the moment a card's subtitle did the work. Two
+ * implementations of one rule only stay in step by luck.
  *
  * The engine refuses an illegal setup regardless — this is the client not
  * *offering* one, which is a different job from deciding the rule.
  */
 
 import type { AnyCard, CardId, StarterDeck } from "@mc/content";
-
-/** What identifies an identity for the uniqueness rule: its title and its other face. */
-interface IdentityKey {
-  readonly title: string;
-  readonly alterEgo: string;
-}
-
-const keyOf = (card: AnyCard | undefined): IdentityKey | null =>
-  card?.type === "hero_identity" ? { title: card.name, alterEgo: card.alterEgo.faceName } : null;
-
-const same = (a: IdentityKey, b: IdentityKey): boolean => a.title === b.title && a.alterEgo === b.alterEgo;
+import { cardsMatch } from "@mc/engine";
 
 export interface SeatOption {
   readonly deckId: string;
@@ -42,6 +29,14 @@ export interface SeatOption {
   /** Null when the seat can be taken; otherwise why it cannot, in the player's words. */
   readonly blockedBy: string | null;
 }
+
+const identityOf = (
+  deck: StarterDeck | undefined,
+  cardsById: ReadonlyMap<string, AnyCard>,
+): AnyCard | null => {
+  const card = deck ? cardsById.get(deck.identityCardId as string) : undefined;
+  return card?.type === "hero_identity" ? card : null;
+};
 
 /**
  * Every deck, with whether it is seated and whether it could be. A deck already
@@ -53,10 +48,12 @@ export function seatOptions(
   cardsById: ReadonlyMap<string, AnyCard>,
   maxSeats = 4,
 ): readonly SeatOption[] {
-  const seatedKeys = seatedDeckIds.flatMap((id) => {
-    const deck = decks.find((candidate) => (candidate.id as string) === id);
-    const key = deck ? keyOf(cardsById.get(deck.identityCardId as string)) : null;
-    return key ? [{ deckId: id, key }] : [];
+  const seatedIdentities = seatedDeckIds.flatMap((id) => {
+    const card = identityOf(
+      decks.find((candidate) => (candidate.id as string) === id),
+      cardsById,
+    );
+    return card ? [card] : [];
   });
 
   return decks.map((deck): SeatOption => {
@@ -64,12 +61,12 @@ export function seatOptions(
     const seated = seatedDeckIds.includes(deckId);
     if (seated) return { deckId, seated, blockedBy: null };
 
-    const key = keyOf(cardsById.get(deck.identityCardId as string));
-    const clash = key ? seatedKeys.find((taken) => same(taken.key, key)) : undefined;
+    const card = identityOf(deck, cardsById);
+    const clash = card ? seatedIdentities.find((taken) => cardsMatch(taken, card)) : undefined;
     if (clash) {
       // Named rather than generic: with two Captain Marvel decks on screen,
       // "already taken" without the name doesn't say which one took it.
-      return { deckId, seated, blockedBy: `${key!.title} is already at the table` };
+      return { deckId, seated, blockedBy: `${clash.name} is already at the table` };
     }
     if (seatedDeckIds.length >= maxSeats) return { deckId, seated, blockedBy: `${maxSeats} seats is the maximum` };
     return { deckId, seated, blockedBy: null };

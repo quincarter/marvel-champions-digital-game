@@ -111,7 +111,21 @@ export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
 export { modifiersFor, statBonus } from "./modifiers.js";
 
 export type { EffectContext } from "./select.js";
-export { canAttack, cardsInPlay, categoriesOf, controllerOf, matchesQuery, resolveValue, selectTargets, traitsOf } from "./select.js";
+export {
+  activeAbilityRefs,
+  canAttack,
+  cardsInPlay,
+  categoriesOf,
+  controllerOf,
+  matchesQuery,
+  resolveValue,
+  selectTargets,
+  traitsOf,
+} from "./select.js";
+
+/** RRG "Unique Icon": the match predicate and the in-play scan, for a client that wants to grey a card itself. */
+export type { UniqueNames } from "./unique.js";
+export { cardsMatch, isUnique, matchingCardInPlay, uniqueLabel, uniqueNamesOf } from "./unique.js";
 
 export type { GameSetupConfig, PlayerSetup, SetupResult } from "./setup.js";
 export { createGame } from "./setup.js";

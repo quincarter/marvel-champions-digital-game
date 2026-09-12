@@ -244,7 +244,16 @@ export const discardFromHandCost = (min: number, max: number, bind?: string): Ab
   discardFromHand: { min, max, ...(bind ? { bind } : {}) },
 });
 /** "Pay the printed cost of [a card] →" */
-export const payPrintedCostOf = (slot: string, from: CardZoneQuery): AbilityCost => ({ payPrintedCostOf: { slot, from } });
+/**
+ * "Pay the printed cost of an ally in any player's discard pile →" (Make the Call).
+ *
+ * Pass `{ entersPlay: true }` when the ability's effects then bring the chosen card into
+ * play: the engine uses it to refuse a pick that could not enter play (RRG "Unique Icon"),
+ * so the cost is never paid for an ability that cannot do anything.
+ */
+export const payPrintedCostOf = (slot: string, from: CardZoneQuery, options: { entersPlay?: boolean } = {}): AbilityCost => ({
+  payPrintedCostOf: { slot, from, ...(options.entersPlay ? { entersPlay: true } : {}) },
+});
 
 /** "(Limit once per round.)" */
 export const oncePerRound: AbilityLimit = { count: 1, period: "round" };

@@ -423,6 +423,42 @@ export class InspectOverlay extends Phaser.Scene {
       return;
     }
 
+    // A card in play with a usable action ability: one button per ability,
+    // checked *before* "Play it" below. `model.status.playable` is also true
+    // for these (`statusOf` finds either a `playCard` or a `useAbility` match
+    // and doesn't tell them apart), so without this order a card with an
+    // ability and no play of its own would show "Play it" and silently do
+    // nothing when tapped — `#playCard` only ever looks for a `playCard`
+    // entry. This is the fix, and it's also the picker PLAN.md asks for when
+    // a card has more than one usable ability: the sheet already shows the
+    // card's full rules text, so the player can read what each one does
+    // before choosing, and it only *reports* the pick — `mc-use-ability`,
+    // the same pattern `mc-play-card` already uses — never dispatches it
+    // itself. No Core card offers two at once today (checked by replaying
+    // three full games through `legalActions`), so the stacked-row case below
+    // is exercised by test data rather than by any real card yet.
+    if (model.abilities.length > 0) {
+      const instanceId = this.#instanceId;
+      const area: Rect = { x: rect.x + 18, y: rect.y + rect.height - hit.primary - 16, width: inner, height: hit.primary };
+      const rowHeight = model.abilities.length === 1 ? area.height : Math.max(hit.target, area.height / model.abilities.length);
+      model.abilities.forEach((ability, index) => {
+        const rowRect: Rect = { x: area.x, y: area.y + area.height - (model.abilities.length - index) * (rowHeight + 4), width: area.width, height: rowHeight };
+        this.#buttons.push(
+          new McButton(this, {
+            kind: index === 0 ? "primary" : "secondary",
+            label: ability.label,
+            type: model.abilities.length === 1 ? typeRole.barTitle : typeRole.label,
+            rect: rowRect,
+            onClick: () => {
+              this.#close();
+              if (instanceId) this.game.events.emit("mc-use-ability", instanceId, ability.abilityId);
+            },
+          }),
+        );
+      });
+      return;
+    }
+
     // One action, and only when the engine has already said it is legal.
     if (model.status.playable === true) {
       this.#buttons.push(

@@ -15,6 +15,7 @@ import { TitleScene } from "./scenes/title.js";
 import { BoardScene } from "./scenes/board.js";
 import { ChoiceOverlay } from "./scenes/choice.js";
 import { InspectOverlay } from "./scenes/inspect.js";
+import { VillainPhaseOverlay } from "./scenes/villain-phase.js";
 import { GameOverScene } from "./scenes/game-over.js";
 
 const settings = defaultSettings();
@@ -35,7 +36,7 @@ const game = new Phaser.Game({
     // the interactive zones the widgets place.
     mode: Phaser.Scale.RESIZE,
   },
-  scene: [BootScene, TitleScene, BoardScene, ChoiceOverlay, InspectOverlay, GameOverScene],
+  scene: [BootScene, TitleScene, BoardScene, ChoiceOverlay, InspectOverlay, VillainPhaseOverlay, GameOverScene],
 });
 
 // Right-click is the desktop Inspect gesture, so the browser's own menu has to

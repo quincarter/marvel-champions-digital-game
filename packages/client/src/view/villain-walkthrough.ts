@@ -109,7 +109,20 @@ export function appendWalkthrough(
   let pausedAt = working.pausedAt;
   let nextBeatId = working.nextBeatId;
   let complete = working.complete;
+  /**
+   * The round this phase belongs to, frozen when the phase starts.
+   *
+   * It cannot simply track `roundStarted`, because the engine can hand over a
+   * whole villain phase *and* the start of the next round in one command: round
+   * 1's villain phase arrives alongside `roundStarted(2)`, and reading the last
+   * one seen labels it "Round 2". Nor can it read `state.round`, which is the
+   * state *after* the command and has already moved on for the same reason.
+   * So: start from the round the command began in (the post-command round, less
+   * the rounds this command started), follow `roundStarted` as the events walk
+   * past, and freeze at the moment the phase opens.
+   */
   let round = working.round;
+  let liveRound = state.round - events.reduce((n, event) => n + (event.type === "roundStarted" ? 1 : 0), 0);
 
   /** Inside the five steps: recording beats. Outside them, events are ignored. */
   const inPhase = (): boolean => activeIndex >= 0 && !complete;
@@ -121,7 +134,7 @@ export function appendWalkthrough(
 
   for (const event of events) {
     if (event.type === "roundStarted") {
-      round = event.round;
+      liveRound = event.round;
       continue;
     }
 
@@ -141,6 +154,7 @@ export function appendWalkthrough(
         // A fresh villain phase: the screen shows one phase at a time, so the
         // previous round's beats are cleared rather than accumulated. Beat ids
         // keep counting up, so nothing reuses a key across the session.
+        round = liveRound;
         working = { ...emptyWalkthrough(round), nextBeatId };
         beats = working.steps.map(() => []);
         complete = false;

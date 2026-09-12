@@ -8,7 +8,8 @@
 
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
-import type { GameState, InstanceId, PlayerId } from "@mc/engine";
+import { abilityId } from "@mc/content";
+import type { GameState, InstanceId, LegalActions, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -91,5 +92,35 @@ describe("inspectModel", () => {
     // Every keyword reads as a complete phrase — never a bare "Retaliate".
     for (const keyword of model.keywords) expect(keyword.trim().length).toBeGreaterThan(0);
     expect(model.stats.some((tile) => tile.label === "HP")).toBe(true);
+  });
+
+  test("lists no usable ability for a card legalActions doesn't name one on", () => {
+    const identity = state.players.find((player) => player.playerId === me)!.identity.instanceId;
+    expect(inspect(identity).abilities).toEqual([]);
+  });
+
+  test("lists a usable ability straight off legalActions, named without inventing text", () => {
+    const identity = state.players.find((player) => player.playerId === me)!.identity.instanceId;
+    // A hand-built `LegalActions` standing in for a state where this card
+    // actually has a usable ability — driving a real game to that exact point
+    // is what `legal-actions.test.ts` (in `@mc/cards`, against three full
+    // games) already does; this only checks that Inspect reads what
+    // `legalActions` says rather than forming its own opinion.
+    const auntMayAction = abilityId("01006.aunt-may-action");
+    const fakeLegal: LegalActions = {
+      kind: "turn",
+      legal: [
+        {
+          action: { kind: "useAbility", instanceId: identity, abilityId: auntMayAction },
+          example: { type: "useAbility", playerId: me, cardInstanceId: identity, abilityId: auntMayAction, payment: [] },
+          targets: [],
+          blockedTargets: [],
+          needsPayment: false,
+        },
+      ],
+      illegal: [],
+    };
+    const model = inspectModel(state, identity, fakeLegal, me, CORE_DEPS);
+    expect(model.abilities).toEqual([{ abilityId: auntMayAction, label: `${model.name} — exhaust`, needsPayment: false }]);
   });
 });

@@ -396,7 +396,16 @@ export class ChoiceOverlay extends Phaser.Scene {
           )
         : null;
     const key = cardArt(this).request(this, source);
-    if (!drawArt(this, key, inner, { fit: "cover" })) {
+    /**
+     * `contain`, not `cover`. The option slot is portrait — it was shaped for a
+     * player card — but an option can be any card the engine offers, and a
+     * scheme is a *landscape* card. `cover`'s contract is "only for a slot that
+     * is already the card's own shape"; a landscape scan in this slot broke that
+     * and cropped the scheme down to a detail of its own artwork, with its name
+     * and threat box outside the frame. For the portrait cards this slot usually
+     * holds the two fits are identical, so nothing is lost by being safe.
+     */
+    if (!drawArt(this, key, inner, { fit: "contain" })) {
       // No scan: the name is the option, exactly as the list form shows it.
       this.add
         .text(

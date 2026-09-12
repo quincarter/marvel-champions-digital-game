@@ -73,6 +73,18 @@ export type GameEvent =
   | { readonly type: "surgeTriggered"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "optionChosen"; readonly label: string; readonly index: number }
   | { readonly type: "cardPutIntoPlayFacedown"; readonly instanceId: InstanceId; readonly playerId: PlayerId; readonly as: "minion" }
+  /**
+   * RRG "Unique Icon": a card that would have entered play matched one already in play.
+   * `disposition` is the RRG's own resolution — a player card's entry simply "has no
+   * effect"; a non-villain encounter card "is discarded".
+   */
+  | {
+      readonly type: "uniqueEntryBlocked";
+      readonly instanceId: InstanceId;
+      readonly cardId: CardId;
+      readonly matchedInstanceId: InstanceId;
+      readonly disposition: "noEffect" | "discarded";
+    }
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
   | { readonly type: "lastingEffectEnded"; readonly id: string; readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" }
   | { readonly type: "threatRemovalBlocked"; readonly schemeInstanceId: InstanceId; readonly reason: "crisis" | "rule" }

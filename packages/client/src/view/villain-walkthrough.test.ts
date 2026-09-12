@@ -102,6 +102,21 @@ describe("villain phase walkthrough", () => {
     expect(perStep[0]).toBeLessThanOrEqual(3);
   });
 
+  /**
+   * Regression: the engine hands over round 1's whole villain phase *and*
+   * `roundStarted(2)` in one command, so reading the last round seen — or
+   * `state.round`, which has already moved on — labelled the screen "Round 2"
+   * while it narrated round 1. Caught in the browser, not in a unit test, which
+   * is why the assertion is against a real game rather than a crafted stream.
+   */
+  test("labels the phase with the round it belongs to, not the round that follows it", () => {
+    expect(played.walkthrough.round).toBe(1);
+    // The phase ran to its end, so the next round really had begun by now:
+    // the label is frozen deliberately, not merely stale.
+    expect(played.walkthrough.complete).toBe(true);
+    expect(played.state.round).toBe(2);
+  });
+
   test("beat ids are unique, so the screen can key and animate them", () => {
     const ids = played.walkthrough.steps.flatMap((step) => step.beats.map((beat) => beat.id));
 

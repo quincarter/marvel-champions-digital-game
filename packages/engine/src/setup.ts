@@ -7,6 +7,7 @@ import { runFlow } from "./flow.js";
 import { instanceId, playerId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import { createRng } from "./rng.js";
+import { cardsMatch } from "./unique.js";
 import { mainSchemeStage, mustCardOf, scale } from "./query.js";
 import {
   announce,
@@ -69,26 +70,11 @@ const blankInstance = (id: InstanceId, cardId: CardId, ownerId: PlayerId | null)
 });
 
 /**
- * The identity of a hero for the purposes of RRG "Unique".
+ * How the engine names a colliding hero to a client: "Captain Marvel (Carol Danvers)".
  *
- * RRG "Unique": "A card with a [unique] icon before its title is unique. The players **as a
- * group** are permitted to have only one copy of each unique card (by title) in play." The
- * same entry carves out identities: "If two identities share the same title, but each has a
- * different alter-ego, they may coexist in play."
- *
- * So the key is (title, alter-ego face name) — deliberately *not* the card id. Two seats
- * holding different printings/starter decks of the same hero collide (both Core Captain
- * Marvel starter decks point at 01010a: same title, same alter-ego Carol Danvers), while a
- * future Spider-Man/Peter Parker and Spider-Man/Miles Morales share a title but not an
- * alter-ego and are a legal table.
- *
- * `BaseCard.unique` is not consulted: every printed identity card carries the unique icon,
- * and the RRG's deckbuilding half of the same entry says so outright ("The identity card is
- * included in this evaluation"), so an identity is unique by rule rather than by data flag.
+ * `uniqueLabel` from `./unique.js` would print the same string for an identity; this wrapper
+ * only pins the type so the setup message always names the person behind the mask.
  */
-const identityUniqueKey = (card: HeroIdentityCard): string => `${card.name}\u241F${card.alterEgo.faceName}`;
-
-/** How the engine names a colliding hero to a client: "Captain Marvel (Carol Danvers)". */
 const identityLabel = (card: HeroIdentityCard): string => `${card.name} (${card.alterEgo.faceName})`;
 
 /** RRG Appendix II: Setup, minus obligations/nemesis sets/setup abilities (they need slice 2). */
@@ -132,27 +118,31 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
 
   const players: PlayerState[] = [];
   const obligationIds: InstanceId[] = [];
-  /** (title, alter-ego) of each identity already seated → the seat that took it. See `identityUniqueKey`. */
-  const seatedIdentities = new Map<string, PlayerId>();
+  /**
+   * Every identity already seated, in seat order. RRG 1.8 "Unique Icon": "When choosing
+   * identities during setup, players cannot choose identities that match." Matching is a
+   * pairwise relation and not transitive (see `cardsMatch`), so this is a list scanned
+   * pairwise rather than a keyed map.
+   */
+  const seatedIdentities: { readonly playerId: PlayerId; readonly card: HeroIdentityCard }[] = [];
   for (const [seatIndex, setup] of config.players.entries()) {
     const id = playerId(`p${seatIndex + 1}`);
     const identityCard = pool[setup.identityCardId];
     if (!identityCard || identityCard.type !== "hero_identity") {
       return { ok: false, error: engineError("invalid_setup", `${setup.identityCardId} is not an identity card`) };
     }
-    // RRG "Unique" — only one copy by title in play across the whole table (see `identityUniqueKey`).
-    const uniqueKey = identityUniqueKey(identityCard);
-    const takenBy = seatedIdentities.get(uniqueKey);
-    if (takenBy) {
+    // RRG 1.8 "Unique Icon" — identities chosen at setup cannot match (see `cardsMatch`).
+    const taken = seatedIdentities.find((seated) => cardsMatch(seated.card, identityCard));
+    if (taken) {
       return {
         ok: false,
         error: engineError(
           "duplicate_unique_card",
-          `${identityLabel(identityCard)} is already in play as ${takenBy}: the players as a group may have only one copy of each unique card in play, so ${id} cannot play the same hero`,
+          `${identityLabel(identityCard)} is already in play as ${taken.playerId}: the players as a group may have only one copy of each unique card in play, so ${id} cannot play the same hero`,
         ),
       };
     }
-    seatedIdentities.set(uniqueKey, id);
+    seatedIdentities.push({ playerId: id, card: identityCard });
     const identityInstanceId = nextId();
     instances[identityInstanceId] = { ...blankInstance(identityInstanceId, identityCard.id, id), faceup: true };
 

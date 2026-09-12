@@ -57,6 +57,7 @@ import {
 } from "./select.js";
 import type { Bindings, Vars } from "./stack.js";
 import type { GameState } from "./state.js";
+import { entersPlayWhenPlayed, matchingCardInPlay, uniqueBlockedMessage } from "./unique.js";
 
 function requireActivePlayer(state: GameState, playerId: PlayerId, command: Command): EngineError | null {
   const step = state.step;
@@ -379,13 +380,32 @@ export function planCost(
     if (bind) vars[bind] = picks.length;
   }
   if (cost.payPrintedCostOf) {
-    const { slot, from } = cost.payPrintedCostOf;
+    const { slot, from, entersPlay } = cost.payPrintedCostOf;
     const [pick, ...extra] = choices[slot] ?? [];
     if (!pick || extra.length > 0) return { code: "invalid_choice", message: `choose exactly one card for ${slot}` };
     if (!zoneMatches(state, pick, playerId, from)) {
       return { code: "no_valid_target", message: `${pick} is not a legal choice for ${slot}` };
     }
     const card = cardOf(state, pick);
+    /**
+     * The ability will put this card into play, so a card that RRG "Unique Icon" forbids
+     * from entering play is not a valid target and the ability cannot be initiated (RRG
+     * "Target": an ability "can only be initiated if it has at least one valid target";
+     * RRG "Choose (Game Element)": with no valid target "the ability cannot be initiated").
+     *
+     * UNCONFIRMED READING. The RRG settles the *resolution* — "any effect that attempts to
+     * do so has no effect" — but not whether the attempt is legal to make in the first
+     * place. Read literally, a player could pay Make the Call's cost and get nothing. This
+     * engine refuses the pick instead, because that is what the targeting rules say and
+     * because it lets `legalActions` grey the card rather than let a player burn resources.
+     * No FFG ruling found either way as of 2026-09-12; see the report for the open question.
+     */
+    if (entersPlay && card) {
+      const match = matchingCardInPlay(state, card, new Set([pick]));
+      if (match) {
+        return { code: "duplicate_unique_card", message: uniqueBlockedMessage(card, mustCardOf(state, match)) };
+      }
+    }
     const printed = card && "cost" in card ? card.cost : 0;
     requirement = combineRequirements(requirement, printed);
     bindings[slot] = [pick];
@@ -576,6 +596,23 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
       (id) => controllerOf(ctx.state, id) === controllerId && cardOf(ctx.state, id)?.name === card.name,
     ).length;
     if (held >= restrictions.maxPerPlayer) return engineError("no_valid_target", `max ${restrictions.maxPerPlayer} per player`, command);
+  }
+
+  /**
+   * RRG 1.8 "Unique Icon" (pp. 45–46): "A non-villain card in an out-of-play state that
+   * matches a card in play cannot enter play. If the out-of-play card is [...] a player
+   * card, it cannot be played or put into play."
+   *
+   * Deliberately *not* `playRestrictions.maxPerPlayer` above: that is the printed "Max 1
+   * per player" text, scoped to one controller. This is the group-wide unique rule, so it
+   * scans every card in play regardless of who controls it. Checked before pricing so a
+   * refused play costs nothing.
+   */
+  if (entersPlayWhenPlayed(card)) {
+    const match = matchingCardInPlay(ctx.state, card);
+    if (match) {
+      return engineError("duplicate_unique_card", uniqueBlockedMessage(card, mustCardOf(ctx.state, match)), command);
+    }
   }
 
   let attachTo: InstanceId | null = null;

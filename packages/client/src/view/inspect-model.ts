@@ -11,7 +11,7 @@
  * legality: the message and the target list come from the engine.
  */
 
-import type { AnyCard, KeywordInstance, ResourceIconType } from "@mc/content";
+import type { AbilityId, AnyCard, KeywordInstance, ResourceIconType } from "@mc/content";
 import {
   cardOf,
   characterProfile,
@@ -27,9 +27,19 @@ import {
   type PlayerId,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
+import { abilityActionsFor } from "./highlights.js";
+import { abilityLabelOf } from "./ability-label.js";
 import { cardName } from "./names.js";
 import { faceVisible } from "./visibility.js";
 import { faceOf, resourceIconList, type StatTile } from "./board-model.js";
+
+/** One action ability this card could use right now, named and priced. */
+export interface UsableAbility {
+  readonly abilityId: AbilityId;
+  /** From `abilityLabelOf` — the card's own name plus its printed label or cost. Never invented. */
+  readonly label: string;
+  readonly needsPayment: boolean;
+}
 
 /** What the engine says about this card right now. */
 export interface InspectStatus {
@@ -67,6 +77,16 @@ export interface InspectModel {
   /** "Unique · ×2 in set". */
   readonly footerRight: string;
   readonly status: InspectStatus;
+  /**
+   * Action abilities this card could use right now, straight off the
+   * engine's `legalActions` — never the card's `AbilityReference`s, which
+   * says nothing about whether one is currently legal. Empty for a card with
+   * no usable ability (which is most cards, most of the time) and for a
+   * card with no game behind it. The "Play it" button is for a hand card;
+   * this is what makes an ability on a card already in play reachable at all
+   * (PLAN.md Phase 4).
+   */
+  readonly abilities: readonly UsableAbility[];
   /** True for a card the viewer isn't allowed to see the face of. */
   readonly hidden: boolean;
 }
@@ -102,6 +122,7 @@ export function inspectModel(
       footerLeft: "",
       footerRight: "",
       status: { playable: null, message: "", targets: [] },
+      abilities: [],
       hidden: true,
     };
   }
@@ -129,8 +150,19 @@ export function inspectModel(
     footerLeft: `${card.setCode as string} · ${card.collectorNumber}`,
     footerRight: [card.unique ? "Unique" : null, `×${card.quantityInSet} in set`].filter(Boolean).join(" · "),
     status: statusOf(state, instanceId, legal, perspectiveId),
+    abilities: usableAbilitiesOf(state, instanceId, legal, deps),
     hidden: false,
   };
+}
+
+/** Every action ability `legalActions` currently lists for this card, named and priced. */
+function usableAbilitiesOf(state: GameState, instanceId: InstanceId, legal: LegalActions | null, deps: EngineDeps): readonly UsableAbility[] {
+  if (!legal) return [];
+  return abilityActionsFor(legal, instanceId).map((entry) => ({
+    abilityId: entry.action.abilityId,
+    label: abilityLabelOf(state, instanceId, entry.action.abilityId, deps),
+    needsPayment: entry.needsPayment,
+  }));
 }
 
 /** Every card kind's text, since the schema keeps it in a different place per kind. */
@@ -202,6 +234,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       footerLeft: "",
       footerRight: "",
       status: { playable: null, message: "", targets: [] },
+      abilities: [],
       hidden: false,
     };
   }
@@ -222,6 +255,10 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     footerLeft: `${card.setCode as string} · ${card.collectorNumber}`,
     footerRight: [card.unique ? "Unique" : null, `×${card.quantityInSet} in set`].filter(Boolean).join(" · "),
     status: { playable: null, message: "", targets: [] },
+    // No game behind this sheet, so there is no honest verdict on what's
+    // usable — the same reasoning `cardInspectModel`'s header already gives
+    // for leaving `stats` empty.
+    abilities: [],
     hidden: false,
   };
 }
