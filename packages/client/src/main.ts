@@ -29,7 +29,7 @@ const game = new Phaser.Game({
   parent: "game",
   backgroundColor: cssOf(surface.void.hex),
   // Off by default in Phaser 4; the Board's focus route is otherwise wired
-  // for it already (`view/gamepad.ts`, `scenes/board.ts#bindGamepad`).
+  // for it already (`view/gamepad.ts`, `scenes/board/input.ts#bindGamepad`).
   input: { gamepad: true },
   scale: {
     // RESIZE makes the canvas exactly its parent's size, so game coordinates

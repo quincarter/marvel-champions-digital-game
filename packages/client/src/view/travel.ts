@@ -14,7 +14,7 @@
  * ghost from the recorded start to the recorded end. A redraw mid-flight can't
  * corrupt a travel because there is no object to lose: the ghost is recreated
  * from the same data, at whatever point its own elapsed time says it should
- * be (`scenes/board.ts#renderTravels`).
+ * be (`scenes/board/motion.ts#renderTravels`).
  *
  * A travel needs an on-screen rect at *both* ends to mean anything. Two kinds
  * of rect exist on this board: the concrete rect an individually-drawn card

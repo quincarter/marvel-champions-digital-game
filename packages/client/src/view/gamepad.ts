@@ -6,13 +6,13 @@
  * is the other half of "input-agnostic", answering "what does this button
  * mean" as a pure, data-driven table rather than a scene `switch`, so the
  * mapping is testable without a canvas or an actual controller attached. The
- * scene's job (`scenes/board.ts#bindGamepad`) is only to translate a button
+ * scene's job (`scenes/board/input.ts#bindGamepad`) is only to translate a button
  * index the browser handed it into one of these intents and hand it to the
- * same `#actOnIntent` the keyboard binding already calls — nothing about
+ * same `onIntent` the keyboard binding already calls — nothing about
  * focus order, targeting or dispatch lives here or there.
  */
 
-/** What the keyboard binding already distinguishes (`scenes/board.ts#bindKeys`). */
+/** What the keyboard binding already distinguishes (`scenes/board/input.ts#bindKeyboard`). */
 export type GamepadIntent = "next" | "previous" | "activate" | "inspect" | "cancel";
 
 /**
