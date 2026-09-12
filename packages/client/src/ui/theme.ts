@@ -131,10 +131,20 @@ export function setTextResolution(value: number): void {
   textResolution = value;
 }
 
+/**
+ * A `TypeSpec`'s font stack as a CSS `font-family` value, shared by every
+ * text object Phaser draws and by the one DOM element in the app
+ * (`McTextInput`'s rexUI `InputText`), so a seed field's digits render in the
+ * same mono face as the rest of the app's specs and tokens.
+ */
+export function fontFamilyOf(spec: TypeSpec): string {
+  return `"${spec.family}", ${spec.family === font.mono ? "monospace" : "sans-serif"}`;
+}
+
 /** A `TypeSpec` as a Phaser text style. */
 export function textStyle(spec: TypeSpec, color: number, alpha = 1): Phaser.Types.GameObjects.Text.TextStyle {
   return {
-    fontFamily: `"${spec.family}", ${spec.family === font.mono ? "monospace" : "sans-serif"}`,
+    fontFamily: fontFamilyOf(spec),
     fontSize: `${spec.size}px`,
     fontStyle: spec.weight === 400 ? "normal" : `${spec.weight}`,
     color: cssOf(color, alpha),

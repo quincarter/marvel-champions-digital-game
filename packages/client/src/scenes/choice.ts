@@ -13,7 +13,7 @@
  */
 
 import Phaser from "phaser";
-import type { PendingChoice } from "@mc/engine";
+import type { ChoiceRef, InstanceId, PendingChoice } from "@mc/engine";
 import { CORE_DEPS } from "@mc/cards";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -24,6 +24,7 @@ import { characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
+import { abilityShortLabelOf } from "../view/ability-label.js";
 import { appSession } from "../session.js";
 import { SCENES } from "./keys.js";
 
@@ -47,12 +48,25 @@ export class ChoiceOverlay extends Phaser.Scene {
   create(): void {
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#rebuild());
-    this.scale.on("resize", () => this.#rebuild(), this);
+    const onResize = (): void => this.#rebuild();
+    /**
+     * The resize listener MUST be removed on shutdown.
+     *
+     * `this.scale` is the *game's* emitter, not the scene's, so it outlives
+     * every scene and keeps whatever is registered on it. An overlay that is
+     * launched and stopped on every decision therefore added a listener per
+     * open, each closure retaining a dead scene and, through it, the game
+     * state, the view models and the card-art textures — a heap that reached
+     * 3.5 GB in one session. It also crashed: a resize would eventually reach
+     * a torn-down scene and draw into systems that no longer exist.
+     */
+    this.scale.on("resize", onResize, this);
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
     // The Inspect sheet answers by reporting back: it presents a card, it does
     // not decide anything.
     this.game.events.on("mc-choice-toggle", this.#onInspectToggle, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", onResize, this);
       artOff();
       this.game.events.off("mc-choice-toggle", this.#onInspectToggle, this);
     });
@@ -84,10 +98,15 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     // A decision about cards is made on the cards, so it is decided here —
     // before the sheet is sized, because a row of cards needs a wider sheet
-    // than a list of names does.
+    // than a list of names does. An "ability" ref names a card too — every
+    // `chooseTriggers`/`payForAbility` option is one (`ref.instanceId` plus
+    // the `abilityId` it would trigger) — so "TRIGGER AN ABILITY? / 1. She-Hulk"
+    // used to fall through to the bare-list branch below purely because
+    // `ref.kind` was "ability", not "card": the option named a card just as
+    // concretely, the check just didn't recognize it. See `refInstanceId`.
     const asCards =
       choice.options.length > 0 &&
-      choice.options.every((option) => option.ref.kind === "card");
+      choice.options.every((option) => refInstanceId(option.ref) !== null);
 
     // The 70%-ink scrim.
     const scrim = this.add.graphics();
@@ -374,8 +393,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   ): void {
     const { store } = appSession();
     const state = store.state.game;
-    const instanceId =
-      option.ref.kind === "card" ? option.ref.instanceId : null;
+    const instanceId = refInstanceId(option.ref);
     const order = this.#selected.indexOf(option.optionId);
     const picked = order >= 0;
 
@@ -417,6 +435,35 @@ export class ChoiceOverlay extends Phaser.Scene {
         .setOrigin(0.5)
         .setWordWrapWidth(inner.width - 8)
         .setMaxLines(3);
+    }
+
+    // "TRIGGER AN ABILITY?" and "pay for this ability?" name a card, but the
+    // question is about one *ability* on it, not the card as a whole — and a
+    // card can offer more than one at once, which would otherwise be two
+    // identical-looking slots. So an ability option gets a caption strip
+    // naming that ability specifically, straight off `abilityShortLabelOf`
+    // (the same source the board's own ability affordance uses) — never a
+    // guess from `option.label`, which is only ever the card's name here
+    // (`resolve/window.ts`).
+    if (state && instanceId && option.ref.kind === "ability") {
+      const captionHeight = 20;
+      const band: Rect = {
+        x: inner.x,
+        y: inner.y + inner.height - captionHeight,
+        width: inner.width,
+        height: captionHeight,
+      };
+      const bandG = this.add.graphics();
+      bandG.fillStyle(surface.ink.hex, 0.85).fillRect(band.x, band.y, band.width, band.height);
+      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, CORE_DEPS);
+      this.add
+        .text(band.x + band.width / 2, band.y + band.height / 2, short ?? "trigger", {
+          ...textStyle(typeRole.label, surface.paper.hex),
+          fontSize: "11px",
+        })
+        .setOrigin(0.5)
+        .setWordWrapWidth(band.width - 8)
+        .setMaxLines(1);
     }
 
     if (picked && ordered) {
@@ -500,6 +547,16 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The store issues this as the player the engine named, not as "the human".
     await appSession().store.resolveChoice(this.#selected);
   }
+}
+
+/**
+ * The card a `ChoiceRef` names, when it names one at all. `"card"` and
+ * `"ability"` both do — an ability option is still an ability *on* a card,
+ * so it renders as that card exactly like a `"card"` option does. `"player"`
+ * and `"none"` don't name a card and fall through to the plain list.
+ */
+function refInstanceId(ref: ChoiceRef): InstanceId | null {
+  return ref.kind === "card" || ref.kind === "ability" ? ref.instanceId : null;
 }
 
 /** The design's overlay titles for the engine's prompt kinds. */

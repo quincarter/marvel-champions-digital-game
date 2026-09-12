@@ -79,6 +79,29 @@ export const STATUS_DISABLES = {
 } as const satisfies Record<keyof typeof status, "attack" | "thwart" | null>;
 
 /**
+ * Stat badge hues — the starburst a printed hero card puts behind THW, ATK and
+ * DEF, redrawn so a live number can sit in it (`McStatBadge`).
+ *
+ * THW blue, ATK red and DEF green are taken from the card's own icons, because
+ * a player already reads those shapes and colours as those stats. SCH and REC
+ * are *chosen*, not taken from a card: change them freely if the printed
+ * villain and alter-ego icons are wanted instead.
+ *
+ * Two constraints hold for all five. None collides with the status hues above,
+ * which the design reserves as hues that exist nowhere else — so DEF is a
+ * blue-leaning green well clear of stunned's olive, and neither SCH nor REC is
+ * purple or orange. And none is ever the only signal: a badge always carries
+ * its label and its number as text.
+ */
+export const statHue = {
+  thw: token(0x2471b8),
+  atk: token(0xc4302b),
+  def: token(0x23875a),
+  sch: token(0x4a4e6e),
+  rec: token(0x17727e),
+} as const;
+
+/**
  * Section 01 — the ink opacity ladder. Opacity carries hierarchy so the palette
  * stays at five values.
  */

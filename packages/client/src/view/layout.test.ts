@@ -1,12 +1,16 @@
 import { describe, expect, test } from "vitest";
 import { hit } from "../tokens.js";
 import {
+  BADGE_MAX,
+  badgeExtent,
   boardLayout,
   cardRow,
+  cardStatColumn,
   CARD_ASPECT,
   formFactorFor,
   PHONE_TABS,
   REFERENCE_VIEWPORTS,
+  statBlockLayout,
   type Rect,
   type ZoneName,
 } from "./layout.js";
@@ -165,6 +169,66 @@ describe("cardRow", () => {
   test("an empty zone produces no slots", () => {
     expect(cardRow(bounds, 0)).toEqual([]);
   });
+
+  test("every slot is tagged full when fan is off, even a crowded row", () => {
+    const slots = cardRow(bounds, 12);
+    expect(slots.every((slot) => slot.kind === "full")).toBe(true);
+  });
+
+  test("fan does nothing when the row already fits", () => {
+    const fanned = cardRow(bounds, 3, { fan: true });
+    const plain = cardRow(bounds, 3);
+    expect(fanned).toEqual(plain);
+  });
+
+  test("a fanned row that's too crowded keeps full-size cards for as many as fit, then collapses the rest to spines", () => {
+    // 400px wide, ~90px-tall cards (63px wide at CARD_ASPECT) plus a 6px gap
+    // fit 5 at full size; a 9-card hand should keep those 5 full and collapse
+    // the other 4.
+    const slots = cardRow(bounds, 9, { fan: true, gap: 6 });
+    expect(slots).toHaveLength(9);
+    const full = slots.filter((slot) => slot.kind === "full");
+    const spines = slots.filter((slot) => slot.kind === "spine");
+    expect(full.length).toBeGreaterThan(0);
+    expect(spines.length).toBeGreaterThan(0);
+    expect(full.length + spines.length).toBe(9);
+    // Spines are narrower than full cards, but still card-ratio-tall.
+    for (const spine of spines) {
+      expect(spine.width).toBeLessThan(full[0]!.width);
+      expect(spine.height).toBe(full[0]!.height);
+    }
+  });
+
+  test("a fanned, overflowing row starts flush at the zone's edge and is allowed to run past its width", () => {
+    const slots = cardRow(bounds, 9, { fan: true, gap: 6 });
+    expect(slots[0]!.x).toBe(bounds.x);
+    const last = slots.at(-1)!;
+    // The row keeps growing rather than shrinking to fit — the scene scrolls
+    // to it instead (PLAN.md Phase 4, "the phone hand crowds at six cards").
+    expect(last.x + last.width).toBeGreaterThan(bounds.x + bounds.width);
+  });
+
+  test("fanned slots never overlap each other", () => {
+    const slots = cardRow(bounds, 9, { fan: true, gap: 6 });
+    for (let i = 1; i < slots.length; i += 1) {
+      expect(slots[i]!.x).toBeGreaterThanOrEqual(slots[i - 1]!.x + slots[i - 1]!.width);
+    }
+  });
+
+  test('"expanded" ("Fan out") keeps every card full-size, none collapsed, even past capacity', () => {
+    const slots = cardRow(bounds, 9, { fan: "expanded", gap: 6 });
+    expect(slots).toHaveLength(9);
+    expect(slots.every((slot) => slot.kind === "full")).toBe(true);
+    // Every card is the same size, so the row is strictly wider than the
+    // collapsed fan's — more scrolling in exchange for nothing hidden.
+    const expandedWidth = slots.at(-1)!.x + slots.at(-1)!.width;
+    const collapsedWidth = cardRow(bounds, 9, { fan: true, gap: 6 }).reduce((max, s) => Math.max(max, s.x + s.width), 0);
+    expect(expandedWidth).toBeGreaterThan(collapsedWidth);
+  });
+
+  test('"expanded" still lays out normally when the row already fits', () => {
+    expect(cardRow(bounds, 3, { fan: "expanded" })).toEqual(cardRow(bounds, 3));
+  });
 });
 
 describe("tall screens share one board", () => {
@@ -196,5 +260,52 @@ describe("tall screens share one board", () => {
       expect(bar.height, name).toBe(hit.target + hit.primary);
       expect(bar.y + bar.height, name).toBe(REFERENCE_VIEWPORTS[name].height);
     }
+  });
+});
+
+describe("stat badges", () => {
+  test("a row of badges and the HP plate stay inside the panel and clear of each other", () => {
+    const rect: Rect = { x: 10, y: 20, width: 120, height: 200 };
+    const block = statBlockLayout(rect, 3, true);
+
+    expect(block.badges).toHaveLength(3);
+    for (const badge of block.badges) {
+      expect(badge.cx - badge.size / 2).toBeGreaterThanOrEqual(rect.x);
+      expect(badge.cx + badge.size / 2).toBeLessThanOrEqual(rect.x + rect.width);
+    }
+    for (let index = 1; index < block.badges.length; index++) {
+      expect(block.badges[index]!.cx - block.badges[index - 1]!.cx).toBeGreaterThanOrEqual(block.badges[index]!.size);
+    }
+    const hp = block.hp!;
+    const first = block.badges[0]!;
+    expect(hp.y).toBeGreaterThanOrEqual(first.cy + badgeExtent(first.size).below);
+    expect(hp.y + hp.height).toBeLessThanOrEqual(rect.y + rect.height);
+    expect(block.height).toBeLessThanOrEqual(rect.height);
+  });
+
+  test("a wide panel caps the badges instead of blowing them up", () => {
+    const block = statBlockLayout({ x: 0, y: 0, width: 600, height: 300 }, 2, true);
+    for (const badge of block.badges) expect(badge.size).toBe(BADGE_MAX);
+  });
+
+  test("a stat block with no stats still places the HP plate", () => {
+    const rect: Rect = { x: 0, y: 0, width: 100, height: 120 };
+    const block = statBlockLayout(rect, 0, true);
+    expect(block.badges).toHaveLength(0);
+    expect(block.hp!.y + block.hp!.height).toBe(rect.y + rect.height);
+  });
+
+  test.each([140, 70])("a card-shaped column keeps every badge above the HP plate (card %ipx tall)", (height) => {
+    const inner: Rect = { x: 0, y: 0, width: 100, height };
+    const column = cardStatColumn(inner, 2, true);
+    const hp = column.hp!;
+
+    for (const badge of column.badges) {
+      expect(badge.cy + badgeExtent(badge.size).below).toBeLessThanOrEqual(hp.y);
+      expect(badge.cx - badge.size / 2).toBeGreaterThanOrEqual(inner.x);
+    }
+    const [top, next] = column.badges;
+    const { above, below } = badgeExtent(top!.size);
+    expect(next!.cy - top!.cy).toBeGreaterThanOrEqual(above + below);
   });
 });

@@ -15,9 +15,9 @@
  * (docs/phase3-encounter-ai.md).
  */
 
-import type { DecisionAuthority, GameEvent, GameState, PlayerId } from "@mc/engine";
+import type { ChoiceOption, ChoicePrompt, DecisionAuthority, GameEvent, GameState, PlayerId } from "@mc/engine";
 import { logLine } from "./log-lines.js";
-import { playerName, seatName } from "./names.js";
+import { cardName, playerName, seatName } from "./names.js";
 
 /** The engine's own villain-phase steps, in RRG order. */
 export const VILLAIN_STEPS = [
@@ -46,6 +46,15 @@ export interface Pause {
   readonly label: string;
   /** RRG "Peril": only this player may decide, and nobody else may act. */
   readonly soleDecider: boolean;
+  /**
+   * What the pause is actually offering, straight off `PendingChoice.options`
+   * — never invented here. Blank only when the engine parked no options at all.
+   * The pending-choice sheet still owns collecting the answer; this is the
+   * walkthrough saying, before that sheet is even read, what there is to
+   * decide (a defend, an interrupt, a card) so the pause never reads as an
+   * unexplained wall.
+   */
+  readonly offer: string;
 }
 
 export interface WalkthroughBeat {
@@ -255,15 +264,37 @@ export function pauseFor(choice: ChoiceLike, state: GameState, viewer: PlayerId 
     authority: choice.authority,
     label: choice.soleDecider ? `${base}${perilNote(state, choice.playerId)}` : base,
     soleDecider: choice.soleDecider,
+    offer: offerFor(choice, state),
   };
+}
+
+/**
+ * What a paused decision is offering, in the same terms an answer sheet would
+ * show a card by. For a defend it names the attack first (attacker → target),
+ * because "declare your defender" alone doesn't say which enemy or who it's
+ * hitting; everything else lists the options the engine actually parked
+ * (`PendingChoice.options`), capped so a wide "choose target" doesn't run off
+ * the panel.
+ */
+function offerFor(choice: ChoiceLike, state: GameState): string {
+  const context =
+    choice.prompt.kind === "declareDefender"
+      ? `${cardName(state, choice.prompt.attack.enemyInstanceId)} → ${cardName(state, choice.prompt.attack.targetCharacterInstanceId)}. `
+      : "";
+  const labels = choice.options.map((option) => option.label);
+  if (labels.length === 0) return context.trim();
+  const shown = labels.slice(0, 4);
+  const rest = labels.length - shown.length;
+  return `${context}Options: ${shown.join(", ")}${rest > 0 ? ` (+${rest} more)` : ""}.`;
 }
 
 /** The fields both labelers read off a `PendingChoice`. */
 interface ChoiceLike {
   readonly playerId: PlayerId;
-  readonly prompt: { readonly kind: string };
+  readonly prompt: ChoicePrompt;
   readonly authority: DecisionAuthority;
   readonly soleDecider: boolean;
+  readonly options: readonly ChoiceOption[];
 }
 
 const lowerFirst = (text: string): string => text.charAt(0).toLowerCase() + text.slice(1);

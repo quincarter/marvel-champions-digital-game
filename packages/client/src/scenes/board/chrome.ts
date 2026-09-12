@@ -1,0 +1,101 @@
+/**
+ * The Board's chrome: the ink bar across the top, and the phone board's tab rail.
+ */
+
+import type Phaser from "phaser";
+import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
+import { textStyle } from "../../ui/theme.js";
+import { McTabs } from "../../ui/widgets.js";
+import type { BoardModel } from "../../view/board-model.js";
+import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
+
+/**
+ * Round chip, phase toggle and the current step, on the ink chrome bar.
+ *
+ * The phase toggle is the first thing to go when the bar is narrow: it says
+ * the same thing the step label already says, and two overlapping labels say
+ * less than one. The 1st-player mark goes next.
+ */
+export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel): void {
+  const g = scene.add.graphics();
+  g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+
+  // The live round chip is the one red besides the forward action.
+  const chip: Rect = { x: rect.x + 8, y: rect.y + 5, width: 54, height: rect.height - 10 };
+  const chipG = scene.add.graphics();
+  chipG.fillStyle(accent.heroRed.hex, 1).fillRect(chip.x, chip.y, chip.width, chip.height);
+  scene.add
+    .text(chip.x + chip.width / 2, chip.y + chip.height / 2, `RD ${model.round}`, textStyle(typeRole.statSmall, surface.paper.hex))
+    .setOrigin(0.5);
+
+  let left = chip.x + chip.width + 10;
+  const showToggle = rect.width >= 640;
+  if (showToggle) {
+    // Two-state phase toggle: whichever side's clock is running is filled.
+    (["player", "villain"] as const).forEach((phase, index) => {
+      const box: Rect = { x: left + index * 86, y: chip.y, width: 82, height: chip.height };
+      const active = model.phase === phase;
+      const bg = scene.add.graphics();
+      bg.fillStyle(active ? surface.paper.hex : surface.ink.hex, 1).fillRect(box.x, box.y, box.width, box.height);
+      bg.lineStyle(2, surface.paper.hex, active ? 1 : ink.meta).strokeRect(box.x, box.y, box.width, box.height);
+      scene.add
+        .text(box.x + box.width / 2, box.y + box.height / 2, phase.toUpperCase(), textStyle(typeRole.label, active ? surface.ink.hex : surface.paper.hex, active ? 1 : ink.meta))
+        .setOrigin(0.5)
+        .setLetterSpacing(typeRole.label.letterSpacing);
+    });
+    left += 86 * 2 + 18;
+  }
+
+  const firstPlayer = model.firstPlayerId === model.perspectiveId && rect.width >= 520;
+  const rightEdge = rect.x + rect.width - (firstPlayer ? 86 : 10);
+  scene.add
+    .text(left, rect.y + rect.height / 2, model.stepLabel, textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary))
+    .setOrigin(0, 0.5)
+    .setWordWrapWidth(Math.max(40, rightEdge - left))
+    .setMaxLines(1);
+
+  if (firstPlayer) {
+    scene.add
+      .text(rect.x + rect.width - 10, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
+      .setOrigin(1, 0.5)
+      .setLetterSpacing(typeRole.label.letterSpacing);
+  }
+}
+
+export interface PhoneTabsState {
+  readonly activeTab: PhoneTab;
+  /** Changes that landed on a tab the player isn't looking at, per tab. */
+  readonly badges: ReadonlyMap<PhoneTab, number>;
+  onSelect(tab: PhoneTab): void;
+}
+
+const TAB_LABELS: Record<PhoneTab, string> = {
+  threat: "Threat",
+  enemies: "Enemies",
+  me: "Me",
+  team: "Team",
+  log: "Log",
+};
+
+/**
+ * The phone board's zone rail. Only one tabbed zone has a rectangle at a time
+ * (`layout.ts`), so this is what makes the other four reachable at all.
+ *
+ * A tab the player isn't on carries a change badge, because a card that moves
+ * to a hidden zone would otherwise happen silently.
+ */
+export function drawPhoneTabs(scene: Phaser.Scene, rect: Rect, model: BoardModel, state: PhoneTabsState): McTabs {
+  // A solo game has no other seats, so it has no Team tab to offer.
+  const tabs = PHONE_TABS.filter((tab) => tab !== "team" || model.team.length > 0);
+
+  return new McTabs(scene, {
+    rect,
+    tabs: tabs.map((tab) => ({
+      id: tab,
+      label: TAB_LABELS[tab],
+      ...(state.badges.get(tab) ? { badge: state.badges.get(tab)! } : {}),
+    })),
+    activeId: state.activeTab,
+    onSelect: (id) => state.onSelect(id as PhoneTab),
+  });
+}

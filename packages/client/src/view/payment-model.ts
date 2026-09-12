@@ -39,12 +39,36 @@ export interface PaymentState {
   readonly picked: readonly string[];
 }
 
+/**
+ * One source, as `PaymentView.sources` lists it: everything `PaymentSource`
+ * already carries (`instanceId`, `kind`, `pool`, ...) plus whether it is
+ * currently picked. `spendable`/`spent` (below) split the same sources into
+ * two maps keyed by instance id, which is what the hand already draws by; this
+ * is the same information as one flat, ordered list, for a renderer that wants
+ * every source as a card regardless of which zone it lives in — the gap the
+ * two maps don't cover is a `"resourceAbility"` source (Aunt May, Genius, a
+ * resource ability on a card already in play), which is not a hand card at
+ * all and so never appears in anything keyed only to the hand.
+ */
+export interface PaymentSourceView extends PaymentSource {
+  readonly spent: boolean;
+}
+
 export interface PaymentView {
   /** "Photon Blast → Klaw", for the bar's one line of prose. */
   readonly headline: string;
   /**
    * The card being paid for. It is never one of its own sources, but it is the
    * subject of the whole mode — the design rings it rather than dimming it.
+   *
+   * This is an id, not a name, on purpose: `cardOf`/`artFor` turn it into the
+   * same art a hand or play-area card renders with, so the mode can show the
+   * card itself rather than repeat its name in prose. For a `playCard` action
+   * the subject is in the hand the board already draws and can be tagged in
+   * place; for a `useAbility` action it is a card already in play (e.g. Iron
+   * Man's identity ability), outside the hand fan entirely, so nothing tags it
+   * today unless the board also renders a small thumbnail for it — the change
+   * this file's owner cannot make (`scenes/board.ts`).
    */
   readonly subject: InstanceId | null;
   /** Resources the picked sources add up to. The bar's numerator. */
@@ -57,6 +81,15 @@ export interface PaymentView {
   readonly spendable: ReadonlyMap<InstanceId, PaymentSource>;
   /** Picked sources, by instance id, so the board can ring them. */
   readonly spent: ReadonlyMap<InstanceId, PaymentSource>;
+  /**
+   * Every source the query offers, in the engine's own order, spendable and
+   * spent alike, each carrying whether it is currently picked. This is
+   * `spendable` and `spent` merged back into one list — for a renderer that
+   * wants to lay out "what you can pay with" as a row of cards (a
+   * `resourceAbility` source included) rather than reconstruct that list
+   * from two maps keyed to the hand.
+   */
+  readonly sources: readonly PaymentSourceView[];
   /**
    * The command to send, when the engine accepts this exact selection. Null
    * while it does not — with the engine's reason in `blockedBy`.
@@ -127,6 +160,7 @@ export function paymentView(
     outstanding: outstandingTypes(query, picked, byOption),
     spendable,
     spent,
+    sources: query.sources.map((source) => ({ ...source, spent: picked.includes(source.optionId) })),
     command: attempt.ok ? attempt.command : null,
     blockedBy: attempt.ok ? null : attempt.message,
   };

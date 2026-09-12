@@ -28,6 +28,9 @@ const game = new Phaser.Game({
   type: Phaser.WEBGL,
   parent: "game",
   backgroundColor: cssOf(surface.void.hex),
+  // Off by default in Phaser 4; the Board's focus route is otherwise wired
+  // for it already (`view/gamepad.ts`, `scenes/board/input.ts#bindGamepad`).
+  input: { gamepad: true },
   scale: {
     // RESIZE makes the canvas exactly its parent's size, so game coordinates
     // are CSS pixels and every layout rectangle is drawn at its real size.
@@ -36,6 +39,10 @@ const game = new Phaser.Game({
     // the interactive zones the widgets place.
     mode: Phaser.Scale.RESIZE,
   },
+  // `McTextInput` (ui/widgets.ts) is a DOM-backed rexUI `InputText` — the
+  // app's one DOM element (PLAN.md Phase 4). Phaser 4 only creates the DOM
+  // container Phaser.GameObjects.DOMElement needs when asked to.
+  dom: { createContainer: true },
   scene: [BootScene, TitleScene, BoardScene, ChoiceOverlay, InspectOverlay, VillainPhaseOverlay, GameOverScene],
 });
 

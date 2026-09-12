@@ -31,7 +31,7 @@ import { abilityActionsFor } from "./highlights.js";
 import { abilityLabelOf } from "./ability-label.js";
 import { cardName } from "./names.js";
 import { faceVisible } from "./visibility.js";
-import { faceOf, resourceIconList, type StatTile } from "./board-model.js";
+import { faceOf, printedStatsOf, profileStatTiles, resourceIconList, type StatTile } from "./board-model.js";
 
 /** One action ability this card could use right now, named and priced. */
 export interface UsableAbility {
@@ -140,7 +140,18 @@ export function inspectModel(
     printedText: errataDiff(card),
     flavor: "flavor" in card && card.flavor ? card.flavor : null,
     resourceIcons: resourceIconList(printedResources(card)),
-    stats: profile ? profileTiles(profile, current, max) : [],
+    // The shared builder the board uses, so a buff reads the same in both places.
+    // Every stat the card prints, since the sheet describes the card rather than
+    // the face in play.
+    stats: profile
+      ? profileStatTiles(
+          profile,
+          printedStatsOf(state, instanceId),
+          profile.kind === "identity" ? ["thw", "atk", "def", "rec"] : profile.kind === "ally" ? ["thw", "atk"] : ["atk", "sch"],
+          current,
+          max,
+        )
+      : [],
     keywords: keywordsOf(state, instanceId, deps).map(keywordLabel),
     traits: "traits" in card ? (card.traits as readonly string[]) : [],
     // The face in play, not "the front": a villain's picture lives on its
@@ -316,29 +327,6 @@ function keywordLabel(keyword: KeywordInstance): string {
   }
 }
 
-function profileTiles(
-  profile: NonNullable<ReturnType<typeof characterProfile>>,
-  current: number | undefined,
-  max: number | undefined,
-): readonly StatTile[] {
-  const dash = (stat: "atk" | "thw" | "sch", amount: number): string =>
-    profile.missing.includes(stat) ? "—" : String(amount);
-  const tiles: StatTile[] = [];
-  if (profile.kind === "identity") {
-    tiles.push({ label: "THW", value: dash("thw", profile.thw) });
-    tiles.push({ label: "ATK", value: dash("atk", profile.atk) });
-    tiles.push({ label: "DEF", value: String(profile.def) });
-    tiles.push({ label: "REC", value: String(profile.rec) });
-  } else if (profile.kind === "ally") {
-    tiles.push({ label: "THW", value: dash("thw", profile.thw) });
-    tiles.push({ label: "ATK", value: dash("atk", profile.atk) });
-  } else {
-    tiles.push({ label: "ATK", value: dash("atk", profile.atk) });
-    tiles.push({ label: "SCH", value: dash("sch", profile.sch) });
-  }
-  if (current !== undefined && max !== undefined) tiles.push({ label: "HP", value: `${current}/${max}` });
-  return tiles;
-}
 
 /**
  * "Right now", straight off `legalActions`. Nothing here decides legality: it

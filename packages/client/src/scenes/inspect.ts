@@ -14,6 +14,35 @@
  *
  * Everything on the left comes from `@mc/content`; everything on the right
  * comes from the engine's `legalActions`. This scene decides nothing.
+ *
+ * Z-ORDER VS. THE PENDING-CHOICE OVERLAY (`scenes/choice.ts`)
+ * ---------------------------------------------------------------------------
+ * `scenes/villain-phase.ts` calls `this.scene.bringToTop(SCENES.choice)` on
+ * every store update while a choice is open, so the sheet the player must
+ * *act* on always wins over the walkthrough that only narrates
+ * (`villain-phase.ts`'s own doc comment). `bringToTop` doesn't just set a
+ * z-index, it splices the scene to the tail of the Scene Manager's render
+ * list — a standing position that survives until something moves it again.
+ * So the first villain-phase decision of a game leaves `SCENES.choice`
+ * sitting above `SCENES.inspect`'s ordinary (registration-order) position for
+ * the rest of the session, in or out of the villain phase — the bug where
+ * Inspect, opened by right-clicking a card inside an open choice (e.g.
+ * Black Panther's discard search), rendered *behind* the choice sheet that
+ * launched it.
+ *
+ * Here the priority is the opposite of the villain-phase/choice one: Inspect
+ * was just opened *deliberately* by the player to read the very card the
+ * choice is asking about, so it must win. `#rebuild` re-asserts
+ * `bringToTop(SCENES.inspect)` every time it runs — i.e. on every store
+ * update this scene is subscribed to, the same cadence `villain-phase.ts`
+ * uses for its own claim — so whichever of the two fires last for a given
+ * tick decides the frame, and `SessionStore.subscribe` notifies listeners in subscription
+ * order (a `Set`, iterated in insertion order): Inspect always subscribes
+ * *after* Choice/VillainPhase, because it is only ever launched from a click
+ * inside one of them, so its claim always runs last and wins. Dismissing
+ * Inspect only stops the Inspect scene (`#close`); it never touches Choice,
+ * so the choice sheet — never stopped, only briefly drawn-under — is exactly
+ * what reappears once Inspect closes.
  */
 
 import Phaser from "phaser";
@@ -25,7 +54,7 @@ import type { CardFace } from "../art/art-source.js";
 import { appSession } from "../session.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
-import { McButton, label, paintDotGrid } from "../ui/widgets.js";
+import { McButton, McScrollPanel, label, paintDotGrid } from "../ui/widgets.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { cardInspectModel, inspectModel, type InspectModel } from "../view/inspect-model.js";
 import { SCENES } from "./keys.js";
@@ -86,7 +115,19 @@ export class InspectOverlay extends Phaser.Scene {
     const { store } = appSession();
     // Only a card in a game can change underneath the sheet.
     if (!this.#card) this.#unsubscribe = store.subscribe(() => this.#rebuild());
-    this.scale.on("resize", () => this.#rebuild(), this);
+    const onResize = (): void => this.#rebuild();
+    /**
+     * The resize listener MUST be removed on shutdown.
+     *
+     * `this.scale` is the *game's* emitter, not the scene's, so it outlives
+     * every scene and keeps whatever is registered on it. An overlay that is
+     * launched and stopped on every decision therefore added a listener per
+     * open, each closure retaining a dead scene and, through it, the game
+     * state, the view models and the card-art textures — a heap that reached
+     * 3.5 GB in one session. It also crashed: a resize would eventually reach
+     * a torn-down scene and draw into systems that no longer exist.
+     */
+    this.scale.on("resize", onResize, this);
     // A scan that arrives while the sheet is open should appear in it.
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
 
@@ -95,6 +136,7 @@ export class InspectOverlay extends Phaser.Scene {
     this.input.keyboard?.on("keydown-RIGHT", () => this.#step(1));
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", onResize, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       artOff();
@@ -121,6 +163,11 @@ export class InspectOverlay extends Phaser.Scene {
   #rebuild(): void {
     const model = this.#model();
     if (!model) return;
+
+    // See the "Z-ORDER VS. THE PENDING-CHOICE OVERLAY" note at the top of
+    // this file: re-claimed every rebuild so a later villain-phase/choice
+    // claim in the same tick never wins.
+    this.scene.bringToTop(SCENES.inspect);
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
@@ -279,35 +326,42 @@ export class InspectOverlay extends Phaser.Scene {
 
     let y = artBottom + 12;
     if (model.stats.length > 0) {
-      const statLine = model.stats.map((tile) => `${tile.label} ${tile.value}`).join("  ·  ");
+      // A modified stat says so in words, e.g. "THW 2 (+1)": the sheet is text, and
+      // colour alone never carries meaning.
+      const statLine = model.stats
+        .map((tile) => `${tile.label} ${tile.value}${tile.bonus ? ` (${tile.bonus > 0 ? "+" : "−"}${Math.abs(tile.bonus)})` : ""}`)
+        .join("  ·  ");
       this.add.text(rect.x + 14, y, statLine, textStyle(typeRole.stat, surface.ink.hex)).setLetterSpacing(1);
       y += 30;
     }
-    const body = this.add
-      .text(rect.x + 14, y, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
-      .setFontSize(14)
-      .setWordWrapWidth(bodyWidth);
-    y += body.height + 10;
 
-    if (model.printedText) {
-      // Errata: the card in hand no longer says what the cardboard says.
-      label(this, rect.x + 14, y, "printed text (superseded by errata)", typeRole.label, accent.redDeep.hex, ink.body);
-      const printed = this.add
-        .text(rect.x + 14, y + 14, model.printedText, textStyle(typeRole.body, surface.ink.hex, ink.meta))
-        .setWordWrapWidth(bodyWidth)
-        .setMaxLines(3);
-      y += printed.height + 22;
+    // Resource pips are their own fixed-height strip just above the footer —
+    // short and constant, unlike the prose above, so they don't need to
+    // scroll with it.
+    const iconsHeight = model.resourceIcons.length > 0 ? 30 : 0;
+    const scrollBottom = footerTop - iconsHeight - 6;
+    if (scrollBottom > y + 20) {
+      // Rules text, the superseded-by-errata printed text, and flavor, in one
+      // scrolling region rather than three stacked `Text` objects that could
+      // each run past the card's own edge. This is the fix PLAN.md calls for:
+      // long rules text used to overflow the panel instead of scrolling.
+      // Errata's red label and flavor's dimmer ink are lost in the merge —
+      // rexUI's `BBCodeText` could recover them, but card text prints literal
+      // `[energy]`/`[mental]`-style tokens that `BBCodeText` would read as
+      // markup, so a uniform style is the trade for not corrupting those.
+      let content = model.rulesText;
+      if (model.printedText) content += `\n\nPRINTED TEXT (superseded by errata)\n${model.printedText}`;
+      if (model.flavor) content += `\n\n${model.flavor}`;
+      new McScrollPanel(this, {
+        rect: { x: rect.x + 10, y, width: rect.width - 20, height: scrollBottom - y },
+        text: content,
+      });
     }
-    if (model.flavor) {
-      const flavor = this.add
-        .text(rect.x + 14, y, model.flavor, textStyle(typeRole.body, surface.ink.hex, ink.meta))
-        .setWordWrapWidth(bodyWidth)
-        .setMaxLines(2);
-      y += flavor.height + 8;
-    }
-    if (model.resourceIcons.length > 0 && y < footerTop - 24) {
+
+    if (model.resourceIcons.length > 0) {
+      const iconsTop = footerTop - iconsHeight;
       model.resourceIcons.forEach((icon, index) => {
-        const box: Rect = { x: rect.x + 14 + index * 22, y, width: 18, height: 18 };
+        const box: Rect = { x: rect.x + 14 + index * 22, y: iconsTop, width: 18, height: 18 };
         const pip = this.add.graphics();
         pip.fillStyle(signal.cost.hex, 1).fillRect(box.x, box.y, box.width, box.height);
         this.add
@@ -317,7 +371,7 @@ export class InspectOverlay extends Phaser.Scene {
       label(
         this,
         rect.x + 18 + model.resourceIcons.length * 22,
-        y + 5,
+        iconsTop + 5,
         `generates ${model.resourceIcons.join(", ")} when spent`,
         typeRole.label,
         surface.ink.hex,

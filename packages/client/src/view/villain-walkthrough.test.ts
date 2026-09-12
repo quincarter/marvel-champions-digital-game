@@ -5,7 +5,7 @@
  */
 
 import { beforeAll, describe, expect, test } from "vitest";
-import type { GameState, PlayerId } from "@mc/engine";
+import type { ChoiceOption, ChoicePrompt, GameState, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { appendWalkthrough, decisionLabel, emptyWalkthrough, pauseFor, VILLAIN_STEPS, type Walkthrough } from "./villain-walkthrough.js";
@@ -86,6 +86,20 @@ describe("villain phase walkthrough", () => {
     expect(played.walkthrough.steps[1]!.beats.some((beat) => /Rhino/.test(beat.text))).toBe(true);
   });
 
+  /**
+   * Regression: step 3 always moves at least one card into `dealtEncounter`
+   * (RRG "Villain Phase" step 3 deals every player a card, hazard icons aside),
+   * but that move used to be a bare `cardMoved` — bookkeeping the log already
+   * drops — so the step showed nothing while steps 1, 2, 4 and 5 all had a
+   * beat. A silent step reads as a bug, not as "nothing happened here."
+   */
+  test("step three (deal encounter cards) is never silently empty", () => {
+    const deal = played.walkthrough.steps[2]!;
+    expect(deal.kind).toBe("dealEncounterCards");
+    expect(deal.beats.length).toBeGreaterThan(0);
+    expect(deal.beats.some((beat) => /dealt/i.test(beat.text))).toBe(true);
+  });
+
   test("records only the villain phase: no player-turn beats leak in", () => {
     const texts = played.walkthrough.steps.flatMap((step) => step.beats.map((beat) => beat.text));
 
@@ -156,7 +170,7 @@ describe("a villain phase that really does pause", () => {
     });
     const viewer = store.state.game!.players[0]!.playerId;
     let walkthrough = emptyWalkthrough(store.state.game!.round);
-    let paused: { step: number; promptKind: string; authority: string; label: string } | null = null;
+    let paused: { step: number; promptKind: string; authority: string; label: string; offer: string } | null = null;
 
     for (let step = 0; step < 60 && !store.state.game!.outcome && !paused; step++) {
       const legal = store.state.legal;
@@ -179,6 +193,7 @@ describe("a villain phase that really does pause", () => {
               promptKind: beat.pause.promptKind,
               authority: beat.pause.authority,
               label: beat.pause.label,
+              offer: beat.pause.offer,
             };
           }
         }
@@ -191,6 +206,91 @@ describe("a villain phase that really does pause", () => {
     expect(paused!.promptKind.length).toBeGreaterThan(0);
     expect(["player", "firstPlayerTargets", "firstPlayerOrders"]).toContain(paused!.authority);
     expect(paused!.label).toMatch(/^Auto-advance paused/);
+    // Whatever this decision is, the pause says what it's actually offering,
+    // not just who has to make it (PLAN.md, "player actions during the
+    // villain phase need the same card visibility").
+    expect(paused!.offer.length).toBeGreaterThan(0);
+  }, 60_000);
+});
+
+describe("a defended attack", () => {
+  /**
+   * Regression for the other reported gap: the player needs to see what a
+   * defence actually did, not just that the villain attacked. Flipping to
+   * hero form before ending the first turn puts Spider-Man in the way of
+   * Rhino's attack (RRG "Activation": a villain attacks a player in hero
+   * form) instead of Rhino scheming against alter-ego, and declaring the
+   * identity as defender (rather than the "decline" option every other test
+   * in this file picks) is what actually produces `attackResolved`.
+   */
+  async function playThroughDefendedAttack(): Promise<{ walkthrough: Walkthrough }> {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    const viewer = store.state.game!.players[0]!.playerId;
+
+    let walkthrough = emptyWalkthrough(store.state.game!.round);
+    let changedForm = false;
+    let sawVillainPhase = false;
+
+    for (let step = 0; step < 80 && !store.state.game!.outcome; step++) {
+      const legal = store.state.legal;
+      if (!legal) break;
+      if (legal.actions.kind === "choice") {
+        const { choice } = legal.actions;
+        const declare = choice.prompt.kind === "declareDefender" ? choice.options.find((o) => o.optionId !== "decline") : null;
+        await store.resolveChoice(declare ? [declare.optionId] : choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
+      } else if (legal.actions.kind === "turn") {
+        if (!changedForm) {
+          const toHero = legal.actions.legal.find((entry) => entry.action.kind === "changeForm");
+          changedForm = true;
+          if (toHero) {
+            await store.dispatch(toHero.example);
+            continue;
+          }
+        }
+        const end = legal.actions.legal.find((entry) => entry.action.kind === "endTurn");
+        if (!end) break;
+        await store.dispatch(end.example);
+      } else break;
+
+      walkthrough = appendWalkthrough(walkthrough, store.state.lastEvents, store.state.game!, viewer);
+      if (walkthrough.activeStep !== null) sawVillainPhase = true;
+      if (sawVillainPhase && walkthrough.complete) break;
+    }
+
+    return { walkthrough };
+  }
+
+  test("shows the attack's numbers and the damage they produced", async () => {
+    const { walkthrough } = await playThroughDefendedAttack();
+    const beats = walkthrough.steps.flatMap((step) => step.beats.map((beat) => beat.text));
+
+    const resolved = beats.find((text) => /^Rhino hit /.test(text));
+    expect(resolved, `no attackResolved beat in: ${JSON.stringify(beats)}`).toBeDefined();
+    const match = resolved!.match(/^Rhino hit .+ for (\d+) \(ATK \d+ \+ \d+ boost − \d+ defense\)\.$/);
+    expect(match, resolved).not.toBeNull();
+
+    // The defended beat comes first, then the attack's own numbers — the
+    // whole point of "know what the result of my defense is."
+    expect(beats.indexOf(resolved!)).toBeGreaterThan(beats.findIndex((text) => /defends\.$/.test(text)));
+
+    // A full defense can reduce the hit to 0, and the engine emits no
+    // separate `damageDealt` for a 0-amount hit — so the beat's own "for 0"
+    // is the only place that outcome shows up, and this asserts it's not
+    // silently contradicted by a nonzero damage line appearing instead.
+    const damageDealt = Number(match![1]);
+    const tookLine = beats.slice(beats.indexOf(resolved!)).find((text) => /took \d+ damage\.$/.test(text));
+    if (damageDealt > 0) {
+      expect(tookLine, `expected a "took ${damageDealt} damage" beat after: ${resolved}`).toBeDefined();
+      expect(tookLine).toContain(`took ${damageDealt} damage`);
+    } else {
+      expect(tookLine).toBeUndefined();
+    }
   }, 60_000);
 });
 
@@ -201,11 +301,28 @@ describe("pauseFor", () => {
     played = await playThroughVillainPhase();
   }, 60_000);
 
-  const choice = (authority: "player" | "firstPlayerTargets" | "firstPlayerOrders", kind = "chooseTarget", soleDecider = false) => ({
+  // A real declareDefender needs a real `attack` (`offerFor` reads it to name
+  // the enemy and target); every other prompt kind here only cares about `kind`.
+  const choice = (
+    authority: "player" | "firstPlayerTargets" | "firstPlayerOrders",
+    kind = "chooseTarget",
+    soleDecider = false,
+    options: readonly ChoiceOption[] = [],
+  ) => ({
     playerId: played.viewer,
-    prompt: { kind },
+    prompt: (kind === "declareDefender"
+      ? {
+          kind,
+          attack: {
+            enemyInstanceId: played.state.villain.instanceId,
+            targetPlayerId: played.viewer,
+            targetCharacterInstanceId: played.state.players[0]!.identity.instanceId,
+          },
+        }
+      : { kind }) as ChoicePrompt,
     authority,
     soleDecider,
+    options,
   });
 
   test("names the rule that made this player the decider", () => {
@@ -226,6 +343,37 @@ describe("pauseFor", () => {
     expect(pauseFor(choice("player", "declareDefender"), played.state, played.viewer).label).toContain("declare your defender");
   });
 
+  test("offer names the attack a defend prompt is about, not just that one exists", () => {
+    const pause = pauseFor(choice("player", "declareDefender", false, [{ optionId: "decline", label: "No defense", ref: { kind: "none" } }]), played.state, played.viewer);
+
+    expect(pause.offer).toContain("Rhino");
+    expect(pause.offer).toContain("Options: No defense");
+  });
+
+  test("offer lists what a non-defend prompt is actually offering", () => {
+    const pause = pauseFor(
+      choice("player", "chooseTriggers", false, [
+        { optionId: "a", label: "Web-Shooter", ref: { kind: "none" } },
+        { optionId: "b", label: "Spider-Tracer", ref: { kind: "none" } },
+      ]),
+      played.state,
+      played.viewer,
+    );
+
+    expect(pause.offer).toBe("Options: Web-Shooter, Spider-Tracer.");
+  });
+
+  test("offer caps a long option list rather than running the panel off the screen", () => {
+    const options = Array.from({ length: 7 }, (_u, i) => ({ optionId: `o${i}`, label: `Card ${i}`, ref: { kind: "none" } as const }));
+    const pause = pauseFor(choice("player", "chooseTarget", false, options), played.state, played.viewer);
+
+    expect(pause.offer).toBe("Options: Card 0, Card 1, Card 2, Card 3 (+3 more).");
+  });
+
+  test("offer is blank rather than a stray label when the engine parked no options", () => {
+    expect(pauseFor(choice("player", "mulligan"), played.state, played.viewer).offer).toBe("");
+  });
+
   test("Peril says only that player may decide", () => {
     const pause = pauseFor(choice("player", "chooseTarget", true), played.state, played.viewer);
 
@@ -243,9 +391,10 @@ describe("decisionLabel", () => {
 
   const choice = (authority: "player" | "firstPlayerTargets" | "firstPlayerOrders", kind = "chooseTarget") => ({
     playerId: played.viewer,
-    prompt: { kind },
+    prompt: { kind } as ChoicePrompt,
     authority,
     soleDecider: false,
+    options: [] as ChoiceOption[],
   });
 
   test("never says 'auto-advance' — that wording belongs to the villain-phase screen", () => {

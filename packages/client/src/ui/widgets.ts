@@ -12,9 +12,13 @@
  */
 
 import Phaser from "phaser";
-import { accent, border, hit, ink, minType, selectionRing, surface, typeRole, type TypeSpec } from "../tokens.js";
-import type { Rect } from "../view/layout.js";
-import { caseOf, cssOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
+import type { InputText as RexInputText, TextArea as RexTextArea } from "phaser4-rex-plugins/templates/ui/ui-components";
+import { accent, border, hit, ink, minType, selectionRing, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { ribbonHeight, type Rect } from "../view/layout.js";
+// The only rexUI import in the app. See ui/rex.ts for why the two components
+// are constructed directly instead of through `RexUIPlugin`.
+import { addInputText, addTextArea } from "./rex.js";
+import { caseOf, cssOf, fontFamilyOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
 
 /** Draws a rect with the design's border model into an existing Graphics. */
 export function paintPanel(g: Phaser.GameObjects.Graphics, rect: Rect, kind: WidgetKind, state: WidgetState): void {
@@ -465,5 +469,465 @@ export function fitText(text: Phaser.GameObjects.Text, maxWidth: number, startSi
   while (trimmed.length > 1 && text.width > maxWidth) {
     trimmed = trimmed.slice(0, -1);
     text.setText(`${trimmed.trimEnd()}…`);
+  }
+}
+
+/** How wide the scroll track (and its thumb) draws, on either ground. */
+const SCROLL_TRACK_WIDTH = 6;
+/** Padding inside a scroll panel, and the gap reserved for its slider. */
+const SCROLL_PADDING_X = 4;
+const SCROLL_SLIDER_GAP = 6;
+
+export interface McScrollPanelOptions {
+  readonly rect: Rect;
+  readonly text: string;
+  /** Defaults to `typeRole.body` — rules text's own role. */
+  readonly type?: TypeSpec;
+  readonly color?: number;
+  readonly alpha?: number;
+  /** The ground the panel sits on, so the track and thumb read against it. */
+  readonly onInk?: boolean;
+}
+
+/**
+ * Long rules text that scrolls instead of overflowing its panel or being
+ * truncated (PLAN.md Phase 4's Inspect scroll panel).
+ *
+ * Backed by rexUI's `TextArea`, which is a genuine "hard by hand" case: it
+ * virtualizes lines (only the visible ones are live `Text` objects), tracks a
+ * scroll position, and answers wheel and drag input — none of which the widget
+ * layer's native Graphics/Zone approach gets for free the way a button or a
+ * card tile does. The text itself is a plain Phaser `Text` styled through the
+ * same `textStyle`/`caseOf` every other widget uses, so only the scrolling
+ * machinery is rexUI's; the track and thumb are flat rectangles in the
+ * design's own colors, not rexUI's default look.
+ *
+ * Deliberately plain text, not rexUI's `BBCodeText`: card rules text prints
+ * literal bracket tokens (`[energy]`, `[mental]`, …), which `BBCodeText` would
+ * read as markup. A uniform style is the trade for that safety — see the
+ * report for what that costs the printed-text/flavor styling in Inspect.
+ */
+export class McScrollPanel {
+  readonly panel: RexTextArea;
+  readonly #text: Phaser.GameObjects.Text;
+
+  constructor(scene: Phaser.Scene, options: McScrollPanelOptions) {
+    const { rect } = options;
+    const type = options.type ?? typeRole.body;
+    const onInk = options.onInk ?? false;
+    const textColor = options.color ?? (onInk ? surface.paper.hex : surface.ink.hex);
+    const trackFill = onInk ? surface.paper.hex : surface.ink.hex;
+
+    const textObject = scene.add.text(0, 0, "", textStyle(type, textColor, options.alpha ?? 1));
+    if (type.letterSpacing) textObject.setLetterSpacing(type.letterSpacing);
+
+
+    const track = scene.add.rectangle(0, 0, SCROLL_TRACK_WIDTH, 10, trackFill, onInk ? 0.22 : 0.14).setOrigin(0.5);
+    const thumb = scene.add.rectangle(0, 0, SCROLL_TRACK_WIDTH, 40, trackFill, onInk ? 0.9 : 0.8).setOrigin(0.5);
+
+    this.#text = textObject;
+    this.panel = addTextArea(scene, {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+        origin: 0,
+        text: textObject,
+        content: options.text,
+        /**
+         * Mask the overflow, don't crop it.
+         *
+         * rexUI computes the wrap width itself and it is correct — but for a
+         * plain Phaser `Text` it then defaults to `textCrop`, i.e. clipping via
+         * `setCrop`, and that crop came out far narrower than the wrapped text
+         * it was clipping: card rules text rendered as a single line reading
+         * "If this stage is completed, the player" and simply stopped, with the
+         * wrapped remainder cropped away. `textCrop: false` selects rexUI's
+         * geometry-mask path instead, which clips to the block it actually
+         * measured.
+         */
+        textCrop: false,
+        space: { left: SCROLL_PADDING_X, right: SCROLL_PADDING_X, top: 2, bottom: 2, sliderX: SCROLL_SLIDER_GAP },
+        slider: { track, thumb, width: SCROLL_TRACK_WIDTH },
+      mouseWheelScroller: true,
+    } as RexTextArea.IConfig).layout();
+  }
+
+  setText(text: string): void {
+    this.panel.setText(text);
+  }
+
+  /** Repositions and resizes in place, for a scene that redraws on every state change. */
+  layout(rect: Rect): void {
+    this.panel.setPosition(rect.x, rect.y);
+    this.panel.setMinSize(rect.width, rect.height);
+    this.panel.layout();
+  }
+
+  destroy(): void {
+    this.panel.destroy();
+  }
+}
+
+
+export interface McTextInputOptions {
+  readonly rect: Rect;
+  readonly value: string;
+  /** Defaults to `typeRole.mono` — the design's "specs, tokens" role, which a seed is. */
+  readonly type?: TypeSpec;
+  readonly placeholder?: string;
+  readonly maxLength?: number;
+  /** Restricts *keystrokes* to digits rather than rejecting the whole field on blur. */
+  readonly numeric?: boolean;
+  readonly onChange?: (value: string) => void;
+}
+
+/**
+ * A DOM-backed text field: rexUI's `InputText`, the app's one DOM element
+ * (PLAN.md Phase 4, "Text input ... is the only DOM in the app"). It is styled
+ * to the design tokens through CSS rather than left at rexUI's defaults, and
+ * its focus state reuses `McSelectionRing` — the same ring a card or a focused
+ * control gets everywhere else — so it doesn't read as a foreign control next
+ * to the native widgets beside it.
+ */
+export class McTextInput {
+  readonly #input: RexInputText;
+  readonly #ring: McSelectionRing;
+  #rect: Rect;
+  #onChange: ((value: string) => void) | undefined;
+  #numeric: boolean;
+
+  constructor(scene: Phaser.Scene, options: McTextInputOptions) {
+    this.#rect = options.rect;
+    this.#onChange = options.onChange;
+    this.#numeric = options.numeric ?? false;
+    const { rect } = options;
+    const type = options.type ?? typeRole.mono;
+    const s = skin("secondary", "rest");
+
+    this.#ring = new McSelectionRing(scene);
+
+    this.#input = addInputText(scene, {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      origin: 0,
+      // A numeric HTML input strips leading zeros and lets the browser reject
+      // partial input in ways that don't match "filter every keystroke", so
+      // the filtering below does the numeric job and the element stays text.
+      type: "text",
+      text: options.value,
+      placeholder: options.placeholder ?? "",
+      ...(options.maxLength !== undefined ? { maxLength: options.maxLength } : {}),
+      align: "left",
+      fontFamily: fontFamilyOf(type),
+      fontSize: `${type.size}px`,
+      color: cssOf(s.text, 1),
+      backgroundColor: cssOf(s.fill, 1),
+      borderColor: cssOf(s.stroke, 1),
+      borderWidth: `${s.strokeWidth}px`,
+      borderStyle: "solid",
+      borderRadius: "0px",
+      outline: "none",
+      paddingLeft: "10px",
+      paddingRight: "10px",
+    } as RexInputText.IConfig);
+
+    /**
+     * `origin: 0` in the config above is not enough.
+     *
+     * rexUI's sizer-based widgets read `origin` from their config, but
+     * `InputText` extends Phaser's `DOMElement`, which positions by its
+     * *centre* and ignores that key — so the field rendered centred on the
+     * rect's top-left corner and hung off the left edge of the screen. Every
+     * other widget here is top-left anchored, and `layout()` below feeds it
+     * top-left rects, so the origin has to be set on the object itself.
+     */
+    this.#input.setOrigin(0, 0);
+
+    this.#input.on("textchange", () => {
+      const raw = this.#input.text;
+      const filtered = this.#numeric ? raw.replace(/[^0-9]/g, "") : raw;
+      if (filtered !== raw) this.#input.setText(filtered);
+      this.#onChange?.(filtered);
+    });
+    this.#input.on("focus", () => this.#ring.show(this.#rect, "static", true));
+    this.#input.on("blur", () => this.#ring.hide());
+  }
+
+  /** The underlying DOM game object, so a scene can detach it from a full
+   * child-list sweep instead of destroying and recreating it — tearing down a
+   * DOM `<input>` mid-keystroke blurs it and drops focus and cursor position,
+   * which a Graphics-backed widget never has to worry about. */
+  get gameObject(): Phaser.GameObjects.GameObject {
+    return this.#input;
+  }
+
+  get value(): string {
+    return this.#input.text;
+  }
+
+  setValue(value: string): void {
+    this.#input.setText(value);
+  }
+
+  /** Repositions and resizes in place, for a scene that redraws on every state change. */
+  layout(rect: Rect): void {
+    this.#rect = rect;
+    this.#input.setPosition(rect.x, rect.y);
+    this.#input.resize(rect.width, rect.height);
+    if (this.#input.isFocused) this.#ring.show(rect, "static", true);
+  }
+
+  destroy(): void {
+    this.#ring.destroy();
+    this.#input.destroy();
+  }
+}
+
+/** A stat the card draws as a starburst. HP is not one; it gets `McHpPlate`. */
+export type StatKey = keyof typeof statHue;
+
+export interface McStatBadgeOptions {
+  /** Centre of the starburst, in scene coordinates. */
+  readonly cx: number;
+  readonly cy: number;
+  /** Starburst diameter. The label ribbon hangs below it; `badgeExtent` says how far. */
+  readonly size: number;
+  readonly stat: StatKey;
+  /** The engine's number, already modified; "—" for a printed dash. */
+  readonly value: string;
+  /** Additive modifiers on the stat, drawn as a signed chip. */
+  readonly bonus?: number;
+  readonly alpha?: number;
+}
+
+/** Points on the starburst: enough to read as the printed splat at badge size without becoming a circle. */
+const BURST_POINTS = 10;
+const BURST_INNER = 0.78;
+
+/**
+ * One stat, drawn the way the printed card draws it: a coloured starburst
+ * holding the number, with the stat's name on an ink ribbon beneath.
+ *
+ * It replaced four boxed tiles crammed into the ~110px text column beside the
+ * card, where "THW ATK DEF" collapsed into overlapping fragments and the
+ * number was the smallest thing on the panel. A player already reads these
+ * shapes as these stats from the card, so the live number goes into the same
+ * shape rather than a new one.
+ *
+ * **It draws the engine's number, not the card's.** The scan still prints the
+ * base value; this is where a modified value shows, and a buff or penalty gets
+ * a signed chip ("+1") rather than only a colour change, because colour never
+ * carries meaning alone in this design.
+ *
+ * One container, so a card-shaped panel that turns sideways when exhausted
+ * turns its badges with it, and `update()` changes the number in place for a
+ * future animation pass. It registers nothing on an emitter that outlives the
+ * scene, so destroying the container is the whole cleanup.
+ */
+export class McStatBadge {
+  readonly container: Phaser.GameObjects.Container;
+  readonly #burst: Phaser.GameObjects.Graphics;
+  readonly #ribbon: Phaser.GameObjects.Graphics;
+  readonly #number: Phaser.GameObjects.Text;
+  readonly #label: Phaser.GameObjects.Text;
+  readonly #chip: Phaser.GameObjects.Graphics;
+  readonly #chipText: Phaser.GameObjects.Text;
+  #options: McStatBadgeOptions;
+
+  constructor(scene: Phaser.Scene, options: McStatBadgeOptions) {
+    this.#options = options;
+    this.#burst = scene.add.graphics();
+    this.#ribbon = scene.add.graphics();
+    this.#number = scene.add.text(0, 0, "", textStyle(typeRole.stat, surface.paper.hex)).setOrigin(0.5, 0.5);
+    this.#label = scene.add.text(0, 0, "", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5, 0.5);
+    if (typeRole.label.letterSpacing) this.#label.setLetterSpacing(typeRole.label.letterSpacing);
+    this.#chip = scene.add.graphics();
+    this.#chipText = scene.add.text(0, 0, "", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5, 0.5);
+    this.container = scene.add.container(options.cx, options.cy, [
+      this.#burst,
+      this.#ribbon,
+      this.#number,
+      this.#label,
+      this.#chip,
+      this.#chipText,
+    ]);
+    this.redraw();
+  }
+
+  update(options: Partial<McStatBadgeOptions>): void {
+    this.#options = { ...this.#options, ...options };
+    this.redraw();
+  }
+
+  redraw(): void {
+    const { cx, cy, size, stat, value, bonus = 0, alpha = 1 } = this.#options;
+    this.container.setPosition(cx, cy);
+    const radius = size / 2;
+
+    const burst = Array.from({ length: BURST_POINTS * 2 }, (_unused, index) => {
+      const reach = index % 2 === 0 ? radius : radius * BURST_INNER;
+      const angle = -Math.PI / 2 + (index * Math.PI) / BURST_POINTS;
+      // Phaser 4 types `fillPoints` as `Vector2[]`; a plain `{x, y}` is not accepted.
+      return new Phaser.Math.Vector2(Math.cos(angle) * reach, Math.sin(angle) * reach);
+    });
+    this.#burst.clear();
+    this.#burst.fillStyle(statHue[stat].hex, alpha).fillPoints(burst, true);
+    this.#burst.lineStyle(2, surface.ink.hex, alpha).strokePoints(burst, true, true);
+
+    // White with an ink outline, as the card prints it: legible on any hue.
+    this.#number
+      .setText(value)
+      .setFontSize(Math.max(CAPTION_FLOOR + 2, Math.round(size * 0.52)))
+      .setColor(cssOf(surface.paper.hex, alpha))
+      .setStroke(cssOf(surface.ink.hex, alpha), Math.max(2, Math.round(size * 0.09)))
+      .setPosition(0, -size * 0.03);
+
+    const ribbon = ribbonHeight(size);
+    const ribbonWidth = Math.round(size * 0.94);
+    const ribbonTop = size * 0.34;
+    this.#ribbon.clear();
+    this.#ribbon.fillStyle(surface.ink.hex, alpha).fillRect(-ribbonWidth / 2, ribbonTop, ribbonWidth, ribbon);
+    const labelSize = Math.max(CAPTION_FLOOR, Math.min(typeRole.label.size + 1, Math.round(ribbon * 0.74)));
+    this.#label.setText(caseOf(typeRole.label, stat)).setColor(cssOf(surface.paper.hex, alpha));
+    fitText(this.#label, ribbonWidth - 2, labelSize);
+    this.#label.setPosition(0, ribbonTop + ribbon / 2);
+
+    const signed = bonus === 0 ? "" : `${bonus > 0 ? "+" : "\u2212"}${Math.abs(bonus)}`;
+    this.#chip.clear();
+    this.#chipText.setVisible(signed !== "");
+    if (signed) {
+      this.#chipText
+        .setText(signed)
+        .setFontSize(Math.max(CAPTION_FLOOR, Math.round(size * 0.28)))
+        .setColor(cssOf(surface.paper.hex, alpha));
+      const chipWidth = Math.ceil(this.#chipText.width) + 6;
+      const chipHeight = Math.ceil(this.#chipText.height) + 2;
+      const chipX = radius * 0.62;
+      const chipY = -radius * 0.74;
+      this.#chip
+        .fillStyle(bonus > 0 ? signal.heal.hex : surface.ink.hex, alpha)
+        .fillRect(chipX - chipWidth / 2, chipY - chipHeight / 2, chipWidth, chipHeight);
+      this.#chip.lineStyle(1.5, surface.paper.hex, alpha).strokeRect(chipX - chipWidth / 2, chipY - chipHeight / 2, chipWidth, chipHeight);
+      this.#chipText.setPosition(chipX, chipY);
+    }
+  }
+
+  destroy(): void {
+    this.container.destroy(true);
+  }
+}
+
+export interface McHpPlateOptions {
+  readonly rect: Rect;
+  readonly current: number;
+  readonly max: number;
+  /** Additive modifiers on maximum hit points, drawn as a signed chip. */
+  readonly bonus?: number;
+  readonly alpha?: number;
+}
+
+/**
+ * Hit points as the most prominent number on a character panel.
+ *
+ * HP was a 17px "9/11" in the last of four equal boxes. It is the number a
+ * player checks most and the one that ends the game, so it gets a full-width
+ * plate: the current value large, the maximum beside it smaller, and a meter
+ * along the foot so "how hurt" reads before the digits do.
+ */
+export class McHpPlate {
+  readonly container: Phaser.GameObjects.Container;
+  readonly #graphics: Phaser.GameObjects.Graphics;
+  readonly #caption: Phaser.GameObjects.Text;
+  readonly #current: Phaser.GameObjects.Text;
+  readonly #max: Phaser.GameObjects.Text;
+  readonly #chip: Phaser.GameObjects.Graphics;
+  readonly #chipText: Phaser.GameObjects.Text;
+  #options: McHpPlateOptions;
+
+  constructor(scene: Phaser.Scene, options: McHpPlateOptions) {
+    this.#options = options;
+    this.#graphics = scene.add.graphics();
+    this.#caption = scene.add.text(0, 0, caseOf(typeRole.label, "hp"), textStyle(typeRole.label, surface.ink.hex)).setOrigin(0, 0.5);
+    if (typeRole.label.letterSpacing) this.#caption.setLetterSpacing(typeRole.label.letterSpacing);
+    this.#current = scene.add.text(0, 0, "", textStyle(typeRole.stat, surface.ink.hex)).setOrigin(0, 0.5);
+    this.#max = scene.add.text(0, 0, "", textStyle(typeRole.statSmall, surface.ink.hex)).setOrigin(0, 0.5);
+    this.#chip = scene.add.graphics();
+    this.#chipText = scene.add.text(0, 0, "", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5, 0.5);
+    this.container = scene.add.container(options.rect.x, options.rect.y, [
+      this.#graphics,
+      this.#caption,
+      this.#current,
+      this.#max,
+      this.#chip,
+      this.#chipText,
+    ]);
+    this.redraw();
+  }
+
+  update(options: Partial<McHpPlateOptions>): void {
+    this.#options = { ...this.#options, ...options };
+    this.redraw();
+  }
+
+  redraw(): void {
+    const { rect, current, max, bonus = 0, alpha = 1 } = this.#options;
+    const { width, height } = rect;
+    this.container.setPosition(rect.x, rect.y);
+
+    const meter = Math.max(3, Math.round(height * 0.14));
+    const body = height - meter - 3;
+    const ratio = max > 0 ? Math.max(0, Math.min(1, current / max)) : 0;
+    this.#graphics.clear();
+    this.#graphics.fillStyle(surface.paper.hex, alpha).fillRect(0, 0, width, height);
+    this.#graphics.fillStyle(surface.parchment.hex, alpha).fillRect(2, height - meter - 2, width - 4, meter);
+    this.#graphics.fillStyle(signal.heal.hex, alpha).fillRect(2, height - meter - 2, (width - 4) * ratio, meter);
+    this.#graphics.lineStyle(2, surface.ink.hex, alpha).strokeRect(0, 0, width, height);
+
+    const mid = body / 2 + 1;
+    this.#caption.setColor(cssOf(surface.ink.hex, ink.label * alpha)).setPosition(6, mid);
+
+    const signed = bonus === 0 ? "" : `${bonus > 0 ? "+" : "\u2212"}${Math.abs(bonus)}`;
+    this.#chip.clear();
+    this.#chipText.setVisible(signed !== "");
+    let chipWidth = 0;
+    if (signed) {
+      this.#chipText
+        .setText(signed)
+        .setFontSize(Math.max(CAPTION_FLOOR, Math.round(body * 0.42)))
+        .setColor(cssOf(surface.paper.hex, alpha));
+      chipWidth = Math.ceil(this.#chipText.width) + 6;
+    }
+
+    // The current value as large as the plate allows, shrinking only until the
+    // whole reading ("HP 9/11 +2") fits.
+    const left = 6 + Math.ceil(this.#caption.width) + 6;
+    this.#current.setText(String(current)).setColor(cssOf(surface.ink.hex, alpha));
+    this.#max.setText(`/${max}`).setColor(cssOf(surface.ink.hex, ink.meta * alpha));
+    let big = Math.max(CAPTION_FLOOR + 2, Math.round(body * 0.86));
+    for (;;) {
+      this.#current.setFontSize(big);
+      this.#max.setFontSize(Math.max(CAPTION_FLOOR, Math.round(big * 0.58)));
+      const used = left + this.#current.width + 2 + this.#max.width + (chipWidth > 0 ? chipWidth + 6 : 0);
+      if (used <= width - 6 || big <= CAPTION_FLOOR + 2) break;
+      big -= 1;
+    }
+    this.#current.setPosition(left, mid);
+    this.#max.setPosition(left + this.#current.width + 2, mid + big * 0.14);
+
+    if (signed) {
+      const chipHeight = Math.ceil(this.#chipText.height) + 2;
+      const chipX = width - 4 - chipWidth / 2;
+      this.#chip
+        .fillStyle(bonus > 0 ? signal.heal.hex : surface.ink.hex, alpha)
+        .fillRect(chipX - chipWidth / 2, mid - chipHeight / 2, chipWidth, chipHeight);
+      this.#chipText.setPosition(chipX, mid);
+    }
+  }
+
+  destroy(): void {
+    this.container.destroy(true);
   }
 }

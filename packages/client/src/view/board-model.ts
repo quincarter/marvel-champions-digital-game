@@ -19,6 +19,7 @@ import {
   mainSchemeStage,
   maxHitPoints,
   minionsEngagedWith,
+  printedProfile,
   printedResources,
   remainingHitPoints,
   scale,
@@ -41,6 +42,59 @@ export interface StatTile {
   readonly label: "ATK" | "THW" | "DEF" | "SCH" | "REC" | "HP";
   /** "—" for a printed dash: the character cannot use that power at all. */
   readonly value: string;
+  /**
+   * How far the engine's current value sits from the printed one: +1 from
+   * Heroic Intuition, −1 from a condition, 0 when nothing modifies it.
+   *
+   * Read as modified − printed rather than summed from `statBonus`, so a "has a
+   * base ATK of N" override counts too — the player cares that the number on
+   * the table differs from the number on the card, whatever the cause. Always 0
+   * for HP (its tile shows current/max, and the max already includes any bonus)
+   * and for a printed dash, which no modifier makes usable.
+   */
+  readonly bonus: number;
+}
+
+/** A stat profile, as `characterProfile`/`printedProfile` both return it. */
+type Profile = NonNullable<ReturnType<typeof characterProfile>>;
+
+/**
+ * The printed stats a `bonus` is measured against, or undefined when there are
+ * none to measure against.
+ *
+ * A facedown card has no printed number. `printedProfile` reports a facedown
+ * minion as all zeros, and Ultron's facedown Drones take their whole stat line
+ * from base overrides (ATK 1, SCH 1, HP 1), so measuring against that zero
+ * would have drawn a "+1" buff chip on every Drone in the game. Undefined
+ * gives the builder nothing to subtract, which keeps `bonus` true to its own
+ * promise: the table differs from *the card*, and here there is no card face.
+ */
+export function printedStatsOf(state: GameState, id: InstanceId): Profile | undefined {
+  if (getInstance(state, id)?.facedownAs) return undefined;
+  return printedProfile(state, id);
+}
+
+/**
+ * The shared tile builder: board panels and the Inspect sheet both call this, so
+ * the two can never disagree about what a buff looks like.
+ */
+export function profileStatTiles(
+  profile: Profile,
+  printed: Profile | undefined,
+  rows: readonly ("thw" | "atk" | "def" | "rec" | "sch")[],
+  current: number | undefined,
+  max: number | undefined,
+): readonly StatTile[] {
+  const tiles: StatTile[] = rows.map((stat) => {
+    const dashed = (stat === "atk" || stat === "thw" || stat === "sch") && profile.missing.includes(stat);
+    return {
+      label: stat.toUpperCase() as StatTile["label"],
+      value: dashed ? "—" : String(profile[stat]),
+      bonus: dashed || !printed ? 0 : profile[stat] - printed[stat],
+    };
+  });
+  if (current !== undefined && max !== undefined) tiles.push({ label: "HP", value: `${current}/${max}`, bonus: 0 });
+  return tiles;
 }
 
 export interface StatusPip {
@@ -90,6 +144,19 @@ export interface SchemePanel {
   readonly threat: number;
   /** The threshold, or null for a scheme with none. */
   readonly target: number | null;
+  /**
+   * The number the threat meter is drawn against, or null when there is nothing
+   * to draw one against.
+   *
+   * For a main scheme this is `target`, the threshold it fills toward. A side
+   * scheme has no threshold — it is defeated when thwarted to 0 — but it is not
+   * therefore progress-less: the honest denominator is the threat it entered
+   * play with, and the bar then *empties* as the players clear it, which is the
+   * direction a side scheme actually moves. Kept at or above the threat now on
+   * it, because effects can add threat past where it started and a meter must
+   * not overflow its own box.
+   */
+  readonly meterMax: number | null;
   readonly isMain: boolean;
   readonly crisis: boolean;
   readonly accelerationTokens: number;
@@ -270,7 +337,7 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
     traits: card && "traits" in card ? (card.traits as readonly string[]) : [],
     keywords: keywordsOf(state, id, deps).map((keyword) => keyword.name),
     statuses,
-    stats: statTiles(profile, identityForm(state, instance), current, max),
+    stats: statTiles(state, id, profile, identityForm(state, instance), current, max),
     art: artFor(card, faceOf(state, id)),
     hp: current !== undefined && max !== undefined ? { current, max } : null,
     exhausted: instance.exhausted,
@@ -417,36 +484,27 @@ function statusPips(instance: CardInstance): readonly StatusPip[] {
  * is not a zero, and the player has to be able to tell them apart.
  */
 function statTiles(
+  state: GameState,
+  id: InstanceId,
   profile: ReturnType<typeof characterProfile>,
   form: Form | null,
   current: number | undefined,
   max: number | undefined,
 ): readonly StatTile[] {
   if (!profile) return [];
-  const value = (stat: "atk" | "thw" | "sch", amount: number): string =>
-    profile.missing.includes(stat) ? "—" : String(amount);
-
-  const tiles: StatTile[] = [];
-  if (profile.kind === "identity") {
-    // An alter-ego prints REC where a hero prints THW/ATK/DEF, so the panel
-    // shows the row that side of the card actually has.
-    if (form === "alterEgo") {
-      tiles.push({ label: "REC", value: String(profile.rec) });
-    } else {
-      tiles.push({ label: "THW", value: value("thw", profile.thw) });
-      tiles.push({ label: "ATK", value: value("atk", profile.atk) });
-      tiles.push({ label: "DEF", value: String(profile.def) });
-    }
-  } else if (profile.kind === "ally") {
-    tiles.push({ label: "THW", value: value("thw", profile.thw) });
-    tiles.push({ label: "ATK", value: value("atk", profile.atk) });
-  } else {
-    // Villains and minions: the design's "ATK 2 · SCH 14 · HP 14/22" row.
-    tiles.push({ label: "ATK", value: value("atk", profile.atk) });
-    tiles.push({ label: "SCH", value: value("sch", profile.sch) });
-  }
-  if (current !== undefined && max !== undefined) tiles.push({ label: "HP", value: `${current}/${max}` });
-  return tiles;
+  const printed = printedStatsOf(state, id);
+  // An alter-ego prints REC where a hero prints THW/ATK/DEF, so the panel shows
+  // the row that side of the card actually has. Villains and minions: the
+  // design's "ATK 2 · SCH 14 · HP 14/22" row.
+  const rows: readonly ("thw" | "atk" | "def" | "rec" | "sch")[] =
+    profile.kind === "identity"
+      ? form === "alterEgo"
+        ? ["rec"]
+        : ["thw", "atk", "def"]
+      : profile.kind === "ally"
+        ? ["thw", "atk"]
+        : ["atk", "sch"];
+  return profileStatTiles(profile, printed, rows, current, max);
 }
 
 export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps, isMain: boolean): SchemePanel {
@@ -467,6 +525,7 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
       // The stage's target threat, scaled the way the engine scales it: the
       // player count is fixed at setup, so eliminations don't change it.
       target: scale(stage.targetThreat, state.startingPlayerCount),
+      meterMax: scale(stage.targetThreat, state.startingPlayerCount),
       isMain: true,
       crisis,
       accelerationTokens: accel,
@@ -481,6 +540,10 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     threat: instance.threat,
     // A side scheme has no threshold: it is defeated when thwarted to 0.
     target: null,
+    meterMax:
+      card?.type === "side_scheme"
+        ? Math.max(scale(card.startingThreat, state.startingPlayerCount), instance.threat)
+        : null,
     isMain: false,
     crisis,
     accelerationTokens: 0,
