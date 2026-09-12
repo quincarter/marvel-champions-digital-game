@@ -128,6 +128,22 @@ describe("payment mode", () => {
     expect(view.spendable.size).toBe(empty.query.sources.length);
   });
 
+  test("lists every source once, flat, with its own picked state — the resourceAbility gap `spendable`/`spent` alone can't cover", () => {
+    const entry = costedPlay();
+    const opened = beginPayment(state, me, entry.action, null, CORE_DEPS)!;
+    const withPick = { ...opened, picked: opened.query.suggested };
+    const view = paymentView(state, me, withPick, "test", CORE_DEPS);
+
+    expect(view.sources).toHaveLength(opened.query.sources.length);
+    for (const source of view.sources) {
+      expect(source.spent).toBe(withPick.picked.includes(source.optionId));
+    }
+    // The same picks `spent` (keyed by instance id) already reports, just as
+    // one flat, ordered list instead of two maps.
+    const spentIds = new Set(view.sources.filter((source) => source.spent).map((source) => source.instanceId));
+    expect(spentIds).toEqual(new Set(view.spent.keys()));
+  });
+
   test("returns null for an action that costs nothing, so the board just plays it", () => {
     const legal = store.state.legal!.actions;
     if (legal.kind !== "turn") throw new Error("expected a turn");

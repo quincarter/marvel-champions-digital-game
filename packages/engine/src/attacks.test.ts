@@ -263,8 +263,10 @@ describe("enemy attacks: modifications, defenses, results", () => {
     const atDefense = settleUntil(runWith(deps, given.state, toHero, endTurn), "declareDefender", deps);
     const offered = resolvePending(atDefense, [identityOf(atDefense)], deps);
     expect(offered.pendingChoice?.prompt.kind).toBe("chooseTriggers");
-    const paying = resolvePending(offered, [`${given.ids[0]}:counter-punch`], deps);
-    const after = settle(resolvePending(paying, [], deps), undefined, deps);
+    // Selecting the event in `chooseTriggers` plays it: a 0-cost event in a
+    // window asks for no payment (see `requestWindowPayment`).
+    const played = resolvePending(offered, [`${given.ids[0]}:counter-punch`], deps);
+    const after = settle(played, undefined, deps);
     expect(damageOn(after, after.villain.instanceId)).toBe(2);
   });
 
@@ -278,8 +280,14 @@ describe("enemy attacks: modifications, defenses, results", () => {
     const { deps, state } = setup({ cards: [BRACE], abilities: [brace], villain: villainWith({ atk: 3 }) });
     const given = giveCards(state, p1, "brace");
     const offered = settleUntil(runWith(deps, given.state, toHero, endTurn), "chooseTriggers", deps);
-    const paying = resolvePending(offered, [`${given.ids[0]}:brace`], deps);
-    const { state: afterPay, events } = run(deps, paying, { type: "resolveChoice", playerId: p1, choiceId: paying.pendingChoice?.choiceId as never, selectedOptionIds: [] });
+    // Selecting it in `chooseTriggers` plays it — a 0-cost event asks for no
+    // payment — so the defence happens in *this* command's events.
+    const { state: afterPay, events } = run(deps, offered, {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: offered.pendingChoice?.choiceId as never,
+      selectedOptionIds: [`${given.ids[0]}:brace`],
+    });
     const defended = events.find((e: GameEvent) => e.type === "triggerEvent" && e.event.kind === "defended");
     expect(defended && defended.type === "triggerEvent" && defended.event).toMatchObject({ kind: "defended", basic: false });
     // The hero may still make a basic defense; declining keeps the labeled defense (not undefended).

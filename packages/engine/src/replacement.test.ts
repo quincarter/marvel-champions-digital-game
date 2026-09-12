@@ -72,12 +72,18 @@ const pick = (deps: EngineDeps, state: GameState, optionPrefix: string) => {
   if (!option) throw new Error(`no option ${optionPrefix} in ${state.pendingChoice?.prompt.kind}`);
   return resolvePending(state, [option.optionId], deps);
 };
-/** An in-hand event offered in a window: select it, then pay nothing for a 0-cost event. */
+/**
+ * An in-hand event offered in a window: selecting it *is* playing it.
+ *
+ * A 0-cost event asks for no payment. The player already opted in at
+ * `chooseTriggers` (which allows selecting nothing, and is where declining
+ * belongs), so a second sheet offering to pay nothing is a prompt with no
+ * question in it — see `requestWindowPayment`, which now short-circuits at zero
+ * the way `triggerCandidate` always did for in-play abilities.
+ */
 const playFromWindow = (deps: EngineDeps, state: GameState, eventId: InstanceId) => {
   const offered = settleUntil(state, "chooseTriggers", deps);
-  const paying = pick(deps, offered, `${eventId}:`);
-  expect(paying.pendingChoice?.prompt.kind).toBe("payForCard");
-  return resolvePending(paying, [], deps);
+  return pick(deps, offered, `${eventId}:`);
 };
 const minionIn = (state: GameState) =>
   mustPlayer(state, p1).playArea.filter((id) => state.instances[id]?.cardId === THUG.id);

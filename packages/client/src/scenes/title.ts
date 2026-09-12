@@ -15,12 +15,13 @@ import Phaser from "phaser";
 import { CORE_CARDS, CORE_SCENARIOS, CORE_STARTER_DECKS, type AnyCard, type CardId } from "@mc/content";
 import { accent, dotGrid, hit, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { CAPTION_FLOOR, CAPTION_HEIGHT, McButton, McCardTile, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { CAPTION_FLOOR, CAPTION_HEIGHT, McButton, McCardTile, McTextInput, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { artFor } from "../art/art-source.js";
 import { seatOptions } from "../view/seats.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { Rect } from "../view/layout.js";
 import { formFactorFor } from "../view/layout.js";
+import { parseSeed } from "../view/seed.js";
 import { appSession } from "../session.js";
 import { SCENES } from "./keys.js";
 
@@ -35,8 +36,18 @@ export class TitleScene extends Phaser.Scene {
    * and the number stays on screen so a game can be replayed deliberately.
    */
   #seed = rollSeed();
+  /** The seed field's raw text, which can be empty or mid-edit even when `#seed` — the last legal value — isn't. */
+  #seedText = String(this.#seed);
   #buttons: McButton[] = [];
   #tiles: McCardTile[] = [];
+  /**
+   * The seed field itself: kept across rebuilds rather than recreated with
+   * everything else, because it is a DOM `<input>` (`McTextInput`) and this
+   * screen rebuilds on every resize and every art scan arriving. Destroying
+   * and recreating it on each of those would blur it and drop the cursor out
+   * from under a player mid-keystroke.
+   */
+  #seedInput: McTextInput | null = null;
   /** What choosing each row does, by row id, so the Inspect sheet can trigger it. */
   #rowHandlers = new Map<string, () => void>();
   #status: Phaser.GameObjects.Text | null = null;
@@ -48,6 +59,14 @@ export class TitleScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    // `this.scale` is the game's own emitter, so it outlives every scene
+    // restart. Title is a singleton instance Phaser reuses across every
+    // "play again" round trip through Board/GameOver (`create()` runs again
+    // on the same object), so a listener added here and never removed isn't
+    // the dead-scene leak the other four scenes had — it's the same live
+    // scene registered N times, calling `#rebuild` N times per resize after N
+    // restarts. Still a real, growing leak on the one emitter every other
+    // scene was already audited for, so it's removed the same way.
     this.scale.on("resize", this.#rebuild, this);
     // Thumbnails arrive after the first frame, same as on the table.
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
@@ -55,8 +74,11 @@ export class TitleScene extends Phaser.Scene {
     // the row, and the row's own handler applies whatever choosing it means.
     this.game.events.on("mc-choice-toggle", this.#onInspectChoose, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", this.#rebuild, this);
       artOff();
       this.game.events.off("mc-choice-toggle", this.#onInspectChoose, this);
+      this.#seedInput?.destroy();
+      this.#seedInput = null;
     });
     this.#rebuild();
   }
@@ -67,7 +89,14 @@ export class TitleScene extends Phaser.Scene {
     this.#buttons = [];
     this.#tiles = [];
     this.#rowHandlers.clear();
+
+    // The seed field survives the sweep below: detach it first so
+    // `removeAll(true)` — which destroys every child it holds — doesn't take
+    // the DOM `<input>` with it, then hand it back so it still draws.
+    const seedNode = this.#seedInput?.gameObject ?? null;
+    if (seedNode) this.children.remove(seedNode);
     this.children.removeAll(true);
+    if (seedNode) this.children.add(seedNode);
 
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";
@@ -175,21 +204,46 @@ export class TitleScene extends Phaser.Scene {
       };
     }), phone, artHeight, heroCols);
 
-    // Seed: the design's spec-and-version voice, so it reads as a token.
-    label(this, left, y, `seed ${this.#seed}`, typeRole.mono, surface.ink.hex, ink.meta);
+    // Seed: a typed value, not just a rolled one — the engine's shuffle is
+    // only replayable if a specific seed can be entered back in (PLAN.md
+    // Phase 1, `GameLog`/`replay()`). "New seed" stays for the common case of
+    // just wanting a fresh game.
+    label(this, left, y, "seed", typeRole.label, surface.ink.hex, ink.label);
+    const newSeedWidth = 110;
+    const seedFieldWidth = column - newSeedWidth - 10;
+    const seedRect: Rect = { x: left, y: y + 16, width: seedFieldWidth, height: hit.target };
+    if (this.#seedInput) this.#seedInput.layout(seedRect);
+    else {
+      this.#seedInput = new McTextInput(this, {
+        rect: seedRect,
+        value: this.#seedText,
+        type: typeRole.mono,
+        numeric: true,
+        maxLength: 9,
+        placeholder: "seed",
+        onChange: (value) => {
+          this.#seedText = value;
+          const parsed = parseSeed(value);
+          if (parsed !== null) this.#seed = parsed;
+          this.#status?.setText(value.length > 0 && parsed === null ? "seed must be a whole number" : "");
+        },
+      });
+    }
     this.#buttons.push(
       new McButton(this, {
         kind: "quiet",
         label: "New seed",
         type: typeRole.label,
-        rect: { x: left + column - 110, y: y - 12, width: 110, height: hit.target },
+        rect: { x: left + seedFieldWidth + 10, y: y + 16, width: newSeedWidth, height: hit.target },
         onClick: () => {
           this.#seed = rollSeed();
-          this.#rebuild();
+          this.#seedText = String(this.#seed);
+          this.#seedInput?.setValue(this.#seedText);
+          this.#status?.setText("");
         },
       }),
     );
-    y += hit.target + 16;
+    y += 16 + hit.target + 16;
 
     // The one red on this screen: the single forward action.
     const start: Rect = { x: left, y, width: column, height: hit.primary };
@@ -352,6 +406,13 @@ export class TitleScene extends Phaser.Scene {
 
   async #start(): Promise<void> {
     if (this.#starting) return;
+    // The seed is the engine's shuffle key: a field the player has typed a
+    // non-number into (or emptied) must never fall back to some other value
+    // and quietly start a game that can't be reproduced from what's on screen.
+    if (parseSeed(this.#seedText) === null) {
+      this.#status?.setText("seed must be a whole number");
+      return;
+    }
     this.#starting = true;
     this.#rebuild();
 

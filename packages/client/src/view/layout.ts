@@ -281,20 +281,55 @@ function longTableZones(viewport: Rect, formFactor: FormFactor, options: LayoutO
 }
 
 /**
- * Card slots laid across a rect in one row, keeping `CARD_ASPECT` and shrinking
- * to fit rather than overflowing. Used for the hand, the play area and minion
- * rows, so they all crowd the same way.
+ * A card slot, tagged with which shape it got.
+ *
+ * "spine" is the fanned row's collapsed shape (`Board - Phone`'s hand once it
+ * holds more cards than fit): a narrow strip standing in for a card that has
+ * no room to show its face this draw, wide enough for a name running
+ * vertically and a position number, not for a full card.
+ */
+export interface CardSlot extends Rect {
+  readonly kind: "full" | "spine";
+}
+
+/**
+ * How much narrower a collapsed "spine" slot is than a full card in the same
+ * row, matched to `Board - Phone`'s own hand row (104px cards, 40px spines).
+ */
+const SPINE_WIDTH_RATIO = 0.38;
+
+/**
+ * Card slots laid across a rect in one row, keeping `CARD_ASPECT`.
+ *
+ * By default a row that's too wide shrinks every card down to a readable
+ * floor and then overlaps rather than leaving the zone — used for the play
+ * area and minion rows, so they crowd the same way a real tabletop does when
+ * you run out of space in front of you.
+ *
+ * `options.fan` swaps that for `Board - Phone`'s hand: full-size cards for as
+ * many as fit, then the rest collapsed to "spine" slots, left-aligned and
+ * free to run past `bounds.width` rather than shrinking below a readable
+ * size — the design scrolls this row instead of crowding it (PLAN.md Phase 4,
+ * "the phone hand crowds at six cards"). `"expanded"` is the row's "Fan out"
+ * pill: every card stays full-size and none collapse, at the cost of an even
+ * longer scroll. Either way the scene owns turning the overflow into an
+ * actual scroll offset; this stays a pure layout, so "how wide is the whole
+ * row" and "which slots are collapsed" both stay testable without one.
  */
 export function cardRow(
   bounds: Rect,
   count: number,
-  options: { readonly gap?: number; readonly maxHeight?: number } = {},
-): readonly Rect[] {
+  options: { readonly gap?: number; readonly maxHeight?: number; readonly fan?: boolean | "expanded" } = {},
+): readonly CardSlot[] {
   if (count <= 0) return [];
   const gap = options.gap ?? 6;
   const height = Math.min(bounds.height, options.maxHeight ?? bounds.height);
   const widthAtFullHeight = height * CARD_ASPECT;
   const needed = widthAtFullHeight * count + gap * (count - 1);
+
+  if (options.fan && needed > bounds.width) {
+    return fannedRow(bounds, count, gap, height, widthAtFullHeight, options.fan === "expanded");
+  }
 
   // Too wide: shrink the cards until the row fits, down to a readable floor.
   const scale = needed <= bounds.width ? 1 : Math.max(0.35, (bounds.width - gap * (count - 1)) / (widthAtFullHeight * count));
@@ -310,5 +345,130 @@ export function cardRow(
     y: bounds.y + (bounds.height - cardHeight) / 2,
     width: cardWidth,
     height: cardHeight,
+    kind: "full",
   }));
+}
+
+/**
+ * As many full-size cards as fit at the row's own height, then the remainder
+ * as spines, both left-aligned starting at `bounds.x` and never shrunk or
+ * overlapped — the row's true width may exceed `bounds.width`, which is the
+ * point: the scene clips or scrolls to it rather than this function lying
+ * about how much room the hand actually needs. `expanded` forces every card
+ * to stay full-size instead of collapsing whatever doesn't fit.
+ */
+function fannedRow(
+  bounds: Rect,
+  count: number,
+  gap: number,
+  cardHeight: number,
+  cardWidth: number,
+  expanded: boolean,
+): readonly CardSlot[] {
+  const capacity = expanded ? count : Math.max(1, Math.floor((bounds.width + gap) / (cardWidth + gap)));
+  const fullCount = Math.min(count, capacity);
+  const spineWidth = Math.round(cardWidth * SPINE_WIDTH_RATIO);
+  const y = bounds.y + (bounds.height - cardHeight) / 2;
+
+  const slots: CardSlot[] = [];
+  let x = bounds.x;
+  for (let index = 0; index < fullCount; index += 1) {
+    slots.push({ x, y, width: cardWidth, height: cardHeight, kind: "full" });
+    x += cardWidth + gap;
+  }
+  for (let index = fullCount; index < count; index += 1) {
+    slots.push({ x, y, width: spineWidth, height: cardHeight, kind: "spine" });
+    x += spineWidth + gap;
+  }
+  return slots;
+}
+
+/** Where one stat badge sits: its starburst's centre and its diameter. */
+export interface BadgeSlot {
+  readonly cx: number;
+  readonly cy: number;
+  readonly size: number;
+}
+
+/** A panel's stats, laid out: one slot per badge, and the hit-point plate. */
+export interface StatBlock {
+  readonly badges: readonly BadgeSlot[];
+  readonly hp: Rect | null;
+  /** How much of the host rect the block occupies, so content above it can stop short. */
+  readonly height: number;
+}
+
+/** A badge never grows past this, however wide the panel; past it the number just floats in colour. */
+export const BADGE_MAX = 46;
+const BADGE_GAP = 6;
+/** Below this a starburst stops reading as one. Layout shrinks toward it, never past. */
+const BADGE_FLOOR = 12;
+
+/** The ink ribbon carrying a badge's stat name. */
+export const ribbonHeight = (size: number): number => Math.max(9, Math.round(size * 0.3));
+
+/** How far a badge reaches above and below its starburst's centre, ribbon included. */
+export function badgeExtent(size: number): { readonly above: number; readonly below: number } {
+  return { above: size / 2, below: size * 0.34 + ribbonHeight(size) };
+}
+
+/**
+ * Stats for a wide panel (an identity, the villain): badges in a row, the HP
+ * plate full-width under them, the whole block pinned to the bottom of `rect`.
+ *
+ * Badges share the width evenly up to `BADGE_MAX`, so three hero stats in a
+ * ~110px column come out around 34px each — larger than the old 17px numbers
+ * in 25px boxes, whose labels overlapped into "TH|AT|DE".
+ */
+export function statBlockLayout(rect: Rect, count: number, withHp: boolean): StatBlock {
+  const hpHeight = withHp ? Math.max(24, Math.min(38, Math.round(rect.width * 0.26))) : 0;
+  const size =
+    count > 0 ? Math.max(BADGE_FLOOR, Math.min(BADGE_MAX, Math.floor((rect.width - BADGE_GAP * (count - 1)) / count))) : 0;
+  const { above, below } = badgeExtent(size);
+  const rowHeight = count > 0 ? Math.ceil(above + below) : 0;
+  const hpGap = withHp && count > 0 ? BADGE_GAP : 0;
+  const height = rowHeight + hpGap + hpHeight;
+  const top = rect.y + rect.height - height;
+  const rowWidth = count * size + BADGE_GAP * Math.max(0, count - 1);
+  const startX = rect.x + (rect.width - rowWidth) / 2;
+  const badges = Array.from({ length: count }, (_unused, index) => ({
+    cx: startX + size / 2 + index * (size + BADGE_GAP),
+    cy: top + above,
+    size,
+  }));
+  const hp = withHp ? { x: rect.x, y: top + rowHeight + hpGap, width: rect.width, height: hpHeight } : null;
+  return { badges, hp, height };
+}
+
+/**
+ * Stats for a card-shaped panel (an ally, a minion): badges stacked down the
+ * left edge, where the printed card puts its own stat icons, and the HP plate
+ * along the foot.
+ *
+ * Over the printed icons on purpose. The scan still shows the *base* numbers;
+ * an opaque badge in the same spot replaces a stale printed value with the
+ * live one instead of leaving two numbers for one stat. A short card shrinks
+ * its badges until the stack clears the HP plate, rather than overrunning it.
+ */
+export function cardStatColumn(inner: Rect, count: number, withHp: boolean): StatBlock {
+  const hpHeight = withHp ? Math.max(14, Math.min(28, Math.round(inner.height * 0.13))) : 0;
+  const hpTop = inner.y + inner.height - hpHeight;
+  const startTop = inner.y + Math.round(inner.height * 0.18);
+  const bottom = withHp ? hpTop - 4 : inner.y + inner.height;
+  const room = Math.max(0, bottom - startTop);
+  const stack = (size: number): number => {
+    const { above, below } = badgeExtent(size);
+    return count * (above + below) + Math.max(0, count - 1) * 3;
+  };
+  let size = count > 0 ? Math.max(BADGE_FLOOR, Math.min(BADGE_MAX, Math.round(inner.width * 0.3))) : 0;
+  while (size > BADGE_FLOOR && stack(size) > room) size -= 1;
+  const { above, below } = badgeExtent(size);
+  const cx = inner.x + size / 2 + 2;
+  const badges = Array.from({ length: count }, (_unused, index) => ({
+    cx,
+    cy: startTop + above + index * (above + below + 3),
+    size,
+  }));
+  const hp = withHp ? { x: inner.x, y: hpTop, width: inner.width, height: hpHeight } : null;
+  return { badges, hp, height: inner.y + inner.height - startTop };
 }

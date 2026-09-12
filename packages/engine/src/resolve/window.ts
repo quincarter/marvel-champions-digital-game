@@ -223,6 +223,31 @@ function requestWindowPayment(
     setFrame(ctx, { ...frame, queue: rest });
     return;
   }
+  const cost = windowEventCost(ctx, candidate);
+  /**
+   * A free card is not a decision. Play it.
+   *
+   * The player already opted in: `frame.queue` is filled only from what they
+   * picked in the `chooseTriggers` choice, so the payment step is a *second*
+   * question, and "select nothing to back out" has nothing to select when the
+   * cost is zero — it renders as an empty sheet with Confirm/Decline over a
+   * card like Great Responsibility. `triggerCandidate` above already
+   * short-circuits at zero for an in-play ability; this path simply never did,
+   * so the same free ability was silent from one route and prompted from the
+   * other. Declining is still possible, at the `chooseTriggers` step where it
+   * belongs.
+   */
+  // `windowEventCost` totals the *fixed* requirement only, so an "X" cost reads
+  // as 0 while the player still has a real decision to make about how much to
+  // spend (docs/phase2-core-set.md §3: X counts every resource in the payment
+  // beyond the fixed cost). Never skip the sheet for one of those.
+  const hasXCost = ctx.deps.abilities[candidate.abilityId]?.cost?.resourcesX !== undefined;
+  if (cost === 0 && !hasXCost) {
+    const playing = { ...frame, queue: rest, paying: candidate };
+    setFrame(ctx, playing);
+    playWindowEvent(ctx, playing, []);
+    return;
+  }
   const options = paymentOptions(ctx, controller, candidate.instanceId);
   setFrame(ctx, { ...frame, queue: rest, awaiting: "pay", paying: candidate });
   requestChoice(ctx, {
@@ -231,7 +256,7 @@ function requestWindowPayment(
       kind: "payForCard",
       instanceId: candidate.instanceId,
       abilityId: candidate.abilityId,
-      cost: windowEventCost(ctx, candidate),
+      cost,
     },
     options,
     minSelections: 0,

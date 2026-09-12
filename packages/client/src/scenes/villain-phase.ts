@@ -130,10 +130,23 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
-    this.scale.on("resize", () => this.#draw(), this);
+    const onResize = (): void => this.#draw();
+    /**
+     * The resize listener MUST be removed on shutdown.
+     *
+     * `this.scale` is the *game's* emitter, not the scene's, so it outlives
+     * every scene and keeps whatever is registered on it. An overlay that is
+     * launched and stopped on every decision therefore added a listener per
+     * open, each closure retaining a dead scene and, through it, the game
+     * state, the view models and the card-art textures — a heap that reached
+     * 3.5 GB in one session. It also crashed: a resize would eventually reach
+     * a torn-down scene and draw into systems that no longer exist.
+     */
+    this.scale.on("resize", onResize, this);
     this.input.keyboard?.on("keydown-ESC", () => this.#skip());
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", onResize, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       this.#revealTimer?.remove();
@@ -290,8 +303,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       cursorY += 20;
     }
 
-    // Happening now / pause banner.
-    const nowHeight = phone ? 96 : 132;
+    // Happening now / pause banner. Taller than a plain beat needs, because a
+    // pause also carries an "Options: ..." line naming what is actually on
+    // offer (see `#drawHappeningNow`).
+    const nowHeight = phone ? 128 : 168;
     const nowRect: Rect = { x: panel.x + pad, y: cursorY, width: panel.width - pad * 2, height: nowHeight };
     this.#drawHappeningNow(nowRect, reveal);
     cursorY += nowHeight + 12;
@@ -364,13 +379,26 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     );
 
     const body = reveal.current?.text ?? (reveal.total === 0 ? "The villain phase is starting…" : "");
-    this.add
+    const bodyText = this.add
       .text(rect.x + 14, rect.y + 30, body, textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex))
       .setOrigin(0, 0)
       .setWordWrapWidth(rect.width - 28)
-      .setMaxLines(3);
+      .setMaxLines(pause ? 2 : 3);
 
     if (pause) {
+      // What is actually being offered (the attack it names, the cards it
+      // lists) — straight from `pause.offer` (`view/villain-walkthrough.ts`),
+      // never invented here. The pending-choice sheet still collects the
+      // answer; this only says, before the player opens that sheet, what
+      // there is to decide.
+      if (pause.offer) {
+        this.add
+          .text(rect.x + 14, rect.y + 30 + bodyText.height + 4, pause.offer, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+          .setOrigin(0, 0)
+          .setWordWrapWidth(rect.width - 28)
+          .setMaxLines(2);
+      }
+
       label(
         this,
         rect.x + 14,

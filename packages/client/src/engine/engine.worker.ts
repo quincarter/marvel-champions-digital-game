@@ -1,15 +1,19 @@
 /**
  * The engine worker: the client's local authority on the rules.
  *
- * It holds the only `GameSession`, applies every command, and answers
- * `legalActions`. Nothing about rendering reaches this file. In Phase 5 a
- * network host replaces it behind the same `EngineHost` interface.
+ * It holds the only `GameSession`, applies every command, answers
+ * `legalActions`, and keeps the game in IndexedDB so it survives a refresh.
+ * Storage lives here rather than on the main thread because this is where the
+ * log is: each command is written by the thing that applied it. Nothing about
+ * rendering reaches this file. In Phase 5 a network host replaces it behind the
+ * same `EngineHost` interface.
  */
 
 import { EngineSessionCore } from "./session-core.js";
+import { IdbGameStorage } from "./idb-game-storage.js";
 import type { HostRequest, HostResponse } from "./protocol.js";
 
-const core = new EngineSessionCore();
+const core = new EngineSessionCore({ storage: new IdbGameStorage() });
 
 /**
  * The client compiles with the DOM lib (it is one app, one tsconfig), and
@@ -27,12 +31,16 @@ const reply = (response: HostResponse): void => {
   worker.postMessage(response);
 };
 
-worker.addEventListener("message", (event: MessageEvent<HostRequest>) => {
-  const request = event.data;
+async function handle(request: HostRequest): Promise<void> {
   try {
     switch (request.kind) {
       case "start": {
-        const { cardPool, snapshot } = core.start(request.config);
+        const { cardPool, snapshot } = await core.start(request.config);
+        reply({ kind: "started", id: request.id, cardPool, snapshot });
+        return;
+      }
+      case "resume": {
+        const { cardPool, snapshot } = await core.resume(request.gameId);
         reply({ kind: "started", id: request.id, cardPool, snapshot });
         return;
       }
@@ -50,8 +58,16 @@ worker.addEventListener("message", (event: MessageEvent<HostRequest>) => {
         reply({ kind: "save", id: request.id, save: { initialState: baseline, commands } });
         return;
       }
+      case "latestSave": {
+        reply({ kind: "latestSave", id: request.id, meta: await core.latestSave() });
+        return;
+      }
     }
   } catch (cause) {
     reply({ kind: "failed", id: request.id, message: cause instanceof Error ? cause.message : String(cause) });
   }
+}
+
+worker.addEventListener("message", (event: MessageEvent<HostRequest>) => {
+  void handle(event.data);
 });

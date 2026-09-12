@@ -6,11 +6,11 @@
 
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
-import type { GameState, PlayerId } from "@mc/engine";
+import type { GameState, InstanceId, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { boardModel, deckAspect, faceOf } from "./board-model.js";
+import { boardModel, characterPanel, deckAspect, faceOf } from "./board-model.js";
 import { artFor, CARD_BACKS } from "../art/art-source.js";
 import { highlights } from "./highlights.js";
 
@@ -79,6 +79,17 @@ describe("boardModel", () => {
     for (const side of model.sideSchemes) {
       expect(side.target).toBeNull();
       expect(side.isMain).toBe(false);
+      /**
+       * ...but "no threshold" is not "no progress". Reported from play: "Sub
+       * schemes don't have progress bars like the main scheme. Is this by
+       * design?" A side scheme is defeated by thwarting it to 0, so the meter
+       * is drawn against the threat it entered play with and empties as the
+       * players clear it. It must never be below the threat now on it, or the
+       * bar would overflow its own box when an effect adds threat.
+       */
+      expect(side.meterMax).not.toBeNull();
+      expect(side.meterMax!).toBeGreaterThan(0);
+      expect(side.meterMax!).toBeGreaterThanOrEqual(side.threat);
     }
   });
 
@@ -240,4 +251,94 @@ describe("facedown cards", () => {
     // Ownership, not the card's type: which deck it came from is not a secret.
     expect(artFor(undefined, faceOf(state, inDeck))).toEqual(CARD_BACKS.player);
   });
+});
+
+describe("stat buffs", () => {
+  /**
+   * Reported from play: "If a hero is buffed by stuff, we should show that as
+   * well." Heroic Intuition — "Your hero gets +1 THW" — is a real constant
+   * ability on a real upgrade, so this goes through the engine's actual
+   * modifier path rather than a crafted state.
+   */
+  test("a constant +1 THW shows as a bonus on the tile, on top of the printed value", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 43523,
+    });
+    const settle = async (): Promise<void> => {
+      for (let step = 0; step < 10; step++) {
+        const legal = store.state.legal;
+        if (!legal || legal.actions.kind !== "choice") return;
+        const { choice } = legal.actions;
+        await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
+      }
+    };
+    const turnActions = () => {
+      const legal = store.state.legal;
+      return legal && legal.actions.kind === "turn" ? legal.actions.legal : [];
+    };
+
+    await settle();
+    const game = () => store.state.game!;
+    const intuition = turnActions().find(
+      (entry) =>
+        entry.action.kind === "playCard" &&
+        game().cardPool[game().instances[entry.action.instanceId]!.cardId]?.name === "Heroic Intuition",
+    );
+    expect(intuition).toBeDefined();
+    await store.dispatch(intuition!.example);
+    await settle();
+    const flip = turnActions().find((entry) => entry.action.kind === "changeForm");
+    expect(flip).toBeDefined();
+    await store.dispatch(flip!.example);
+    await settle();
+
+    const me = boardModel(game(), store.state.perspectiveId!, CORE_DEPS).me;
+    const thw = me.stats.find((tile) => tile.label === "THW")!;
+    expect(thw.bonus).toBe(1);
+    // Spider-Man prints THW 1; the tile carries the engine's modified value.
+    expect(thw.value).toBe("2");
+    for (const tile of me.stats.filter((other) => other.label !== "THW")) expect(tile.bonus).toBe(0);
+  }, 60_000);
+});
+
+describe("facedown minions", () => {
+  /**
+   * Regression: a facedown Drone has no printed stats — its ATK 1 / SCH 1 /
+   * HP 1 all come from base overrides — so measuring a bonus against
+   * `printedProfile`'s zeros drew a "+1" buff on every Drone. Played out in a
+   * real Ultron game, and it fails loudly if no Drone ever appears rather than
+   * passing on an empty loop.
+   */
+  test("a facedown Drone's base-set stats are not shown as buffs", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "ultron",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 11,
+    });
+    let drone: InstanceId | undefined;
+    for (let step = 0; step < 400 && !store.state.game!.outcome && !drone; step++) {
+      const legal = store.state.legal;
+      if (!legal) break;
+      if (legal.actions.kind === "choice") {
+        const { choice } = legal.actions;
+        await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
+      } else if (legal.actions.kind === "turn") {
+        const end = legal.actions.legal.find((entry) => entry.action.kind === "endTurn");
+        if (!end) break;
+        await store.dispatch(end.example);
+      } else break;
+      drone = Object.values(store.state.game!.instances).find((instance) => instance.facedownAs?.kind === "minion")?.instanceId;
+    }
+
+    expect(drone).toBeDefined();
+    const panel = characterPanel(store.state.game!, drone!, CORE_DEPS);
+    expect(panel.stats.length).toBeGreaterThan(0);
+    for (const tile of panel.stats) expect(tile.bonus).toBe(0);
+  }, 120_000);
 });

@@ -10,17 +10,68 @@
  * (PLAN.md Phase 4, "a missing scan falls back to a generated frame").
  *
  * A failed load is remembered as missing so a 404 is asked for exactly once.
+ *
+ * Nothing ever evicted a loaded texture until this cap was added. A scan
+ * decodes to `width * height * 4` bytes on the GPU/CPU regardless of its
+ * compressed size on disk, most Core scans decode to 2-3 MB and a few (a
+ * villain's landscape stage art) run past 8 MB, and a long game — or several
+ * games back to back in the one tab this app never reloads (`main.ts` builds
+ * exactly one `Phaser.Game`) — touches far more than a table's worth of them:
+ * every side scheme cycled through, every discard pile browsed, every
+ * encounter card that ever left the deck. Left unbounded that is an
+ * unrecoverable multi-gigabyte climb for the life of the tab; a player
+ * reported the browser crashing at 3.5 GB. `RESIDENT_BUDGET_BYTES` below is
+ * the fix: a soft cap on decoded bytes resident at once, enforced by evicting
+ * the least-recently-*requested* textures (not "least recently drawn" —
+ * `request()` runs on every redraw for every card a scene currently wants to
+ * show, so anything still on screen is always the newest tick and is always
+ * the last thing evicted).
  */
 
-import Phaser from "phaser";
+import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
-import type { ArtSource } from "./art-source.js";
+import { CARD_BACKS, type ArtSource } from "./art-source.js";
+
+/**
+ * `Phaser.Loader.Events.FILE_COMPLETE` / `.FILE_LOAD_ERROR` and
+ * `Phaser.Scenes.Events.SHUTDOWN`, spelled out as the string literals they
+ * are (`phaser/src/loader/events/FILE_COMPLETE_EVENT.js` etc. — stable public
+ * event names, not implementation detail).
+ *
+ * Only a *type* import of `phaser` remains above. The real package has a
+ * module-scope `window` reference that throws outside a browser
+ * (`phaser.esm.js`'s environment sniff runs on import, not on use), so a
+ * runtime import here would make this file — the one with the actual
+ * eviction logic worth regression-testing — impossible to unit test without
+ * a DOM shim. Nothing else in this module needs Phaser as a value.
+ */
+const FILE_COMPLETE = "filecomplete";
+const FILE_LOAD_ERROR = "loaderror";
+const SHUTDOWN = "shutdown";
 
 /**
  * Textures live on the game, not the scene, so this cache does too: one per
  * `Phaser.Game`, shared by the board and every overlay above it.
  */
 const caches = new WeakMap<Phaser.Game, CardArt>();
+
+/**
+ * Decoded bytes allowed resident at once. ~256 MB comfortably holds a full
+ * board plus an open overlay (a few hundred typically-sized scans, more if
+ * they're the rare oversized ones) while keeping a long or repeated session
+ * from climbing toward the gigabytes that crashed a real game. Tune here if
+ * play reveals it's too tight (visible re-fetch stutter) or too loose
+ * (memory still climbing).
+ */
+const RESIDENT_BUDGET_BYTES = 256 * 1024 * 1024;
+
+/**
+ * The three card backs are requested constantly (every hidden card in every
+ * hand/deck/discard) and are cheap relative to the budget, so they are kept
+ * out of eviction accounting entirely rather than fought over with the LRU
+ * sweep on every redraw.
+ */
+const PINNED_KEYS: ReadonlySet<string> = new Set(Object.values(CARD_BACKS).map((back) => back.key));
 
 export function cardArt(scene: Phaser.Scene): CardArt {
   const existing = caches.get(scene.game);
@@ -53,6 +104,11 @@ export class CardArt {
   #pending: { readonly scene: Phaser.Scene; readonly source: ArtSource }[] = [];
   #flushScheduled = false;
   #notifyScheduled = false;
+  /** Decoded byte size of every non-pinned texture currently resident. */
+  readonly #resident = new Map<string, number>();
+  /** Tick a key was last asked for, by *any* scene. Lower = colder = evicted first. */
+  readonly #lastUsed = new Map<string, number>();
+  #tick = 0;
 
   /** Called when art arrives, so the board can redraw with it. */
   onArrived(listener: () => void): () => void {
@@ -66,6 +122,10 @@ export class CardArt {
    */
   request(scene: Phaser.Scene, source: ArtSource | null): string | null {
     if (!source) return null;
+    // Every request, hit or miss, marks the key as the newest tick — this is
+    // the only signal eviction uses, so a key still being drawn is always the
+    // last one evicted, never the first.
+    this.#lastUsed.set(source.key, ++this.#tick);
     if (scene.textures.exists(source.key)) return source.key;
     if (this.#missing.has(source.key) || this.#requested.has(source.key)) return null;
 
@@ -78,6 +138,13 @@ export class CardArt {
   /** True when the server has said it has no scan for this key. */
   isMissing(key: string): boolean {
     return this.#missing.has(key);
+  }
+
+  /** Test/diagnostic hook: decoded bytes currently counted as resident. */
+  residentBytes(): number {
+    let total = 0;
+    for (const bytes of this.#resident.values()) total += bytes;
+    return total;
   }
 
   /**
@@ -116,7 +183,10 @@ export class CardArt {
     if (this.#hooked.has(scene)) return;
     this.#hooked.add(scene);
 
-    const onFile = (): void => this.#notify(scene);
+    const onFile = (key: string): void => {
+      this.#track(scene, key);
+      this.#notify(scene);
+    };
     // A 404 is the ordinary answer for a card with no scan, so it is recorded
     // rather than reported: the frame the board already drew is the fallback.
     const onError = (file: Phaser.Loader.File): void => {
@@ -124,13 +194,46 @@ export class CardArt {
       this.#notify(scene);
     };
 
-    scene.load.on(Phaser.Loader.Events.FILE_COMPLETE, onFile);
-    scene.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, onError);
-    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
-      scene.load.off(Phaser.Loader.Events.FILE_COMPLETE, onFile);
-      scene.load.off(Phaser.Loader.Events.FILE_LOAD_ERROR, onError);
+    scene.load.on(FILE_COMPLETE, onFile);
+    scene.load.on(FILE_LOAD_ERROR, onError);
+    scene.events.once(SHUTDOWN, () => {
+      scene.load.off(FILE_COMPLETE, onFile);
+      scene.load.off(FILE_LOAD_ERROR, onError);
       this.#hooked.delete(scene);
     });
+  }
+
+  /**
+   * Records a freshly-loaded texture's decoded size and sweeps the
+   * least-recently-used ones out if that pushes residency over budget.
+   */
+  #track(scene: Phaser.Scene, key: string): void {
+    if (PINNED_KEYS.has(key)) return;
+    if (!scene.textures.exists(key)) return;
+    const image = scene.textures.get(key).getSourceImage() as { width?: number; height?: number };
+    const bytes = (image.width ?? 0) * (image.height ?? 0) * 4;
+    this.#resident.set(key, bytes);
+    this.#evict(scene);
+  }
+
+  /**
+   * Removes the coldest non-pinned textures until residency is back under
+   * budget. A removed key is also dropped from `#requested` so asking for it
+   * again (the ordinary thing to happen the next time it's drawn) reloads it
+   * rather than silently returning null forever.
+   */
+  #evict(scene: Phaser.Scene): void {
+    if (this.residentBytes() <= RESIDENT_BUDGET_BYTES) return;
+    const coldestFirst = [...this.#resident.keys()].sort(
+      (a, b) => (this.#lastUsed.get(a) ?? 0) - (this.#lastUsed.get(b) ?? 0),
+    );
+    for (const key of coldestFirst) {
+      if (this.residentBytes() <= RESIDENT_BUDGET_BYTES) break;
+      this.#resident.delete(key);
+      this.#lastUsed.delete(key);
+      this.#requested.delete(key);
+      if (scene.textures.exists(key)) scene.textures.remove(key);
+    }
   }
 
   /** Coalesces a run of arrivals into one redraw, so eight cards cost one pass. */

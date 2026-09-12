@@ -114,6 +114,28 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null): 
   switch (event.type) {
     case "roundStarted":
       return { text: `Round ${event.round} begins.`, voice: "scenario" };
+    /**
+     * Most `cardMoved`s are bookkeeping the player watches happen on the board
+     * (a card sliding from hand to play). Dealt encounter cards are the
+     * exception: RRG "Villain Phase" step 3 moves a card straight into a
+     * facedown zone with no other event marking it, so without this case the
+     * step produced zero beats and read as broken (the walkthrough showed
+     * "Happening now" for every other step but this one).
+     *
+     * The card is never named here, even though `card()` would resolve to the
+     * right name once revealed: this command usually runs step 4 (reveal)
+     * right after step 3 in the same burst, so by the *final* state the card
+     * may already be faceup in a new zone and `cardName` would say its name —
+     * spoiling step 4's own reveal beat by answering it one step early. "A
+     * facedown encounter card" is true regardless of what happens later in the
+     * same command.
+     */
+    case "cardMoved":
+      if (event.to.kind !== "dealtEncounter") return null;
+      return {
+        text: `${who(event.to.playerId)} ${verb(event.to.playerId, "are", "is")} dealt a facedown encounter card.`,
+        voice: "villain",
+      };
     case "turnStarted":
       return { text: `${who(event.playerId)} ${verb(event.playerId, "take", "takes")} a turn.`, voice: "player" };
     case "formChanged":

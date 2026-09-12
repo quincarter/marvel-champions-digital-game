@@ -7,10 +7,18 @@
  * computes `legalActions` for the player who must act, so highlighting is ready
  * before the player looks (PLAN.md Phase 4, "legal moves are computed ahead of
  * time"). It never touches the DOM, Phaser, or `postMessage`.
+ *
+ * **Persistence.** With a `GameStorage` it also keeps the game on disk, as a
+ * log: the setup config and baseline when a game starts, then each command as
+ * it lands. Resuming replays that log through the pure engine, so a game that
+ * survives a refresh is the same game to the command, and its `GameRecord` is
+ * folded from the same events it would have produced live. The record is never
+ * written anywhere — only the log is — so the two can't drift apart.
  */
 
 import { CORE_DEPS, coreScenario } from "@mc/cards";
 import {
+  applyCommand,
   createGame,
   legalActions as queryLegalActions,
   sessionApply,
@@ -24,6 +32,8 @@ import {
   type PlayerId,
 } from "@mc/engine";
 import { actingPlayer } from "./acting-player.js";
+import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
+import { SAVE_SCHEMA, type GameStorage, type SaveMeta, type SaveStatus } from "./game-storage.js";
 import type { CardPool, LegalActionsFor, SavedGame, SessionConfig, StateWithoutPool } from "./host.js";
 
 /** An update as it crosses a thread boundary: no card pool, so it stays ~68 KB. */
@@ -32,11 +42,26 @@ export interface Snapshot {
   readonly state: StateWithoutPool;
   readonly events: readonly GameEvent[];
   readonly legal: LegalActionsFor | null;
+  /** What the game-over screen reports, folded from every command so far. */
+  readonly record: GameRecord;
+  /**
+   * Set once a write to storage has failed. The game plays on — nothing about
+   * the rules depends on the disk — but it may not survive a refresh, and the
+   * player should be told rather than find out by losing it.
+   */
+  readonly saveError: string | null;
 }
 
 export type CoreDispatch =
   | { readonly ok: true; readonly snapshot: Snapshot }
   | { readonly ok: false; readonly error: EngineError };
+
+export interface CoreOptions {
+  /** Omit for a game that lives only as long as the page. */
+  readonly storage?: GameStorage | null;
+  readonly now?: () => number;
+  readonly newId?: () => string;
+}
 
 /** Splits the card pool off a state; the host re-attaches it on the other side. */
 const stripPool = (state: GameState): StateWithoutPool => {
@@ -44,31 +69,128 @@ const stripPool = (state: GameState): StateWithoutPool => {
   return rest;
 };
 
+const scenarioFor = (config: SessionConfig) =>
+  coreScenario(config.scenarioId, {
+    difficulty: config.difficulty,
+    players: config.players,
+    seed: config.seed,
+    ...(config.modularSetIds ? { modularSetIds: config.modularSetIds } : {}),
+    ...(config.firstPlayerIndex !== undefined ? { firstPlayerIndex: config.firstPlayerIndex } : {}),
+  });
+
+const statusOf = (state: GameState): SaveStatus =>
+  state.outcome ? (state.outcome.result === "win" ? "won" : "lost") : "active";
+
+const describeCause = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
+
 export class EngineSessionCore {
   #session: GameSession | null = null;
   /** The command count, which is also the version every update is stamped with. */
   #version = 0;
+  #record: GameRecord = emptyRecord();
+  readonly #storage: GameStorage | null;
+  readonly #now: () => number;
+  readonly #newId: () => string;
+  /** The stored game this session writes to; null when there is no storage or its creation failed. */
+  #gameId: string | null = null;
+  /**
+   * Every write waits for the one before it, so the stored log is in command
+   * order whatever the storage does internally.
+   */
+  #writes: Promise<void> = Promise.resolve();
+  #saveError: string | null = null;
+
+  constructor(options: CoreOptions = {}) {
+    this.#storage = options.storage ?? null;
+    this.#now = options.now ?? (() => Date.now());
+    this.#newId = options.newId ?? (() => crypto.randomUUID());
+  }
 
   /** Builds the Core scenario and runs RRG setup. Throws with the engine's message. */
-  start(config: SessionConfig): { readonly cardPool: CardPool; readonly snapshot: Snapshot } {
-    const setup = createGame(
-      coreScenario(config.scenarioId, {
-        difficulty: config.difficulty,
-        players: config.players,
-        seed: config.seed,
-        ...(config.modularSetIds ? { modularSetIds: config.modularSetIds } : {}),
-        ...(config.firstPlayerIndex !== undefined ? { firstPlayerIndex: config.firstPlayerIndex } : {}),
-      }),
-      CORE_DEPS,
-    );
+  async start(config: SessionConfig): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
+    const setup = createGame(scenarioFor(config), CORE_DEPS);
     if (!setup.ok) throw new Error(`setup failed: ${setup.error.message}`);
 
     this.#session = startSession(setup.state);
     this.#version = 0;
-    return {
-      cardPool: setup.state.cardPool,
-      snapshot: this.#snapshot(setup.events),
-    };
+    this.#record = recordEvents(emptyRecord(), setup.events, setup.state);
+    this.#writes = Promise.resolve();
+    this.#saveError = null;
+    this.#gameId = null;
+
+    if (this.#storage) {
+      const id = this.#newId();
+      const at = this.#now();
+      const meta: SaveMeta = {
+        id,
+        schema: SAVE_SCHEMA,
+        config,
+        createdAt: at,
+        updatedAt: at,
+        status: "active",
+        round: setup.state.round,
+        commandCount: 0,
+        outcome: null,
+      };
+      try {
+        // Awaited, unlike the command writes: a game that isn't recorded yet
+        // has nothing for its first command to append to.
+        await this.#storage.create(meta, stripPool(setup.state));
+        this.#gameId = id;
+      } catch (cause) {
+        this.#saveError = describeCause(cause);
+      }
+    }
+
+    return { cardPool: setup.state.cardPool, snapshot: this.#snapshot(setup.events) };
+  }
+
+  /**
+   * Picks a stored game back up by replaying its log.
+   *
+   * The card pool isn't stored — it reloads from the bundle — so the scenario
+   * is set up again to get it, and the *stored* baseline is what the commands
+   * replay against. If any command no longer applies (a card changed under an
+   * old save), the game is marked `incompatible` and never offered again,
+   * rather than resuming into a state the saved commands never produced.
+   */
+  async resume(gameId: string): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
+    const storage = this.#storage;
+    if (!storage) throw new Error("there is no saved-games storage to resume from");
+    const stored = await storage.load(gameId);
+    if (!stored) throw new Error("that saved game is no longer there");
+
+    const fresh = createGame(scenarioFor(stored.meta.config), CORE_DEPS);
+    if (!fresh.ok) {
+      await storage.setStatus(gameId, "incompatible");
+      throw new Error(`this saved game can no longer be set up: ${fresh.error.message}`);
+    }
+
+    const initialState: GameState = { ...stored.initialState, cardPool: fresh.state.cardPool };
+    // Setup's own events aren't stored; setup is deterministic from the config,
+    // so a fresh setup emits the same ones (the scheme's starting threat among them).
+    let record = recordEvents(emptyRecord(), fresh.events, initialState);
+    let state = initialState;
+    for (const [index, command] of stored.commands.entries()) {
+      const result = applyCommand(state, command, CORE_DEPS);
+      if (!result.ok) {
+        await storage.setStatus(gameId, "incompatible");
+        throw new Error(
+          `this saved game no longer replays (command ${index + 1} of ${stored.commands.length}: ${result.error.message})`,
+        );
+      }
+      state = result.state;
+      record = recordEvents(record, result.events, state);
+    }
+
+    this.#session = { state, log: { initialState, commands: stored.commands } };
+    this.#version = stored.commands.length;
+    this.#record = record;
+    this.#gameId = gameId;
+    this.#writes = Promise.resolve();
+    this.#saveError = null;
+    // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
+    return { cardPool: fresh.state.cardPool, snapshot: this.#snapshot([]) };
   }
 
   dispatch(command: Command): CoreDispatch {
@@ -77,6 +199,8 @@ export class EngineSessionCore {
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
+    this.#record = recordEvents(this.#record, result.events, result.session.state);
+    this.#persist(command, this.#version - 1, result.session.state);
     return { ok: true, snapshot: this.#snapshot(result.events) };
   }
 
@@ -84,13 +208,44 @@ export class EngineSessionCore {
     return queryLegalActions(this.#require().state, playerId, CORE_DEPS);
   }
 
+  /** The stored game to offer as "Continue", or null. */
+  latestSave(): Promise<SaveMeta | null> {
+    return this.#storage ? this.#storage.latestActive() : Promise.resolve(null);
+  }
+
   save(): SavedGame {
     const { log } = this.#require();
     return { initialState: log.initialState, commands: log.commands };
   }
 
+  /** Resolves once every write queued so far has settled. */
+  flushed(): Promise<void> {
+    return this.#writes;
+  }
+
   get version(): number {
     return this.#version;
+  }
+
+  #persist(command: Command, seq: number, state: GameState): void {
+    const storage = this.#storage;
+    const gameId = this.#gameId;
+    // After a failed write every later command would be out of order, so stop.
+    if (!storage || !gameId || this.#saveError) return;
+    const progress = {
+      round: state.round,
+      commandCount: seq + 1,
+      updatedAt: this.#now(),
+      status: statusOf(state),
+      outcome: state.outcome,
+    };
+    this.#writes = this.#writes
+      .then(() => storage.append(gameId, seq, command, progress))
+      .catch((cause: unknown) => {
+        // The first failure is the cause; the out-of-order rejections that
+        // follow it are only consequences, so they don't overwrite it.
+        this.#saveError ??= describeCause(cause);
+      });
   }
 
   #snapshot(events: readonly GameEvent[]): Snapshot {
@@ -101,6 +256,8 @@ export class EngineSessionCore {
       state: stripPool(state),
       events,
       legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, CORE_DEPS) } : null,
+      record: this.#record,
+      saveError: this.#saveError,
     };
   }
 

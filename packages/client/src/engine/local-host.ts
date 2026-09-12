@@ -4,9 +4,14 @@
  * Its methods are async to match the interface, but they resolve on the
  * microtask queue, so a test can `await host.dispatch(...)` and read the
  * store synchronously afterwards.
+ *
+ * It keeps games in memory by default. Pass the same `GameStorage` to two
+ * hosts and the second can resume what the first played — the in-thread
+ * stand-in for "refresh the page".
  */
 
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
+import { MemoryGameStorage, type GameStorage, type SaveMeta } from "./game-storage.js";
 import type {
   CardPool,
   DispatchResult,
@@ -19,16 +24,20 @@ import type {
 import { EngineSessionCore, type Snapshot } from "./session-core.js";
 
 export class LocalEngineHost implements EngineHost {
-  readonly #core = new EngineSessionCore();
+  readonly #core: EngineSessionCore;
   readonly #listeners = new Set<UpdateListener>();
   #cardPool: CardPool | null = null;
 
+  constructor(storage: GameStorage = new MemoryGameStorage()) {
+    this.#core = new EngineSessionCore({ storage });
+  }
+
   async start(config: SessionConfig): Promise<EngineUpdate> {
-    const { cardPool, snapshot } = this.#core.start(config);
-    this.#cardPool = cardPool;
-    const update = this.#hydrate(snapshot);
-    this.#publish(update);
-    return update;
+    return this.#begin(await this.#core.start(config));
+  }
+
+  async resume(gameId: string): Promise<EngineUpdate> {
+    return this.#begin(await this.#core.resume(gameId));
   }
 
   async dispatch(command: Command): Promise<DispatchResult> {
@@ -52,8 +61,24 @@ export class LocalEngineHost implements EngineHost {
     return this.#core.save();
   }
 
+  latestSave(): Promise<SaveMeta | null> {
+    return this.#core.latestSave();
+  }
+
+  /** Resolves once every queued write has settled — so a test can "refresh" after it. */
+  flushed(): Promise<void> {
+    return this.#core.flushed();
+  }
+
   dispose(): void {
     this.#listeners.clear();
+  }
+
+  #begin(started: { readonly cardPool: CardPool; readonly snapshot: Snapshot }): EngineUpdate {
+    this.#cardPool = started.cardPool;
+    const update = this.#hydrate(started.snapshot);
+    this.#publish(update);
+    return update;
   }
 
   /** Re-attaches the card pool so consumers get a complete `GameState`. */
@@ -64,6 +89,8 @@ export class LocalEngineHost implements EngineHost {
       state: { ...snapshot.state, cardPool: this.#cardPool },
       events: snapshot.events,
       legal: snapshot.legal,
+      record: snapshot.record,
+      saveError: snapshot.saveError,
     };
   }
 

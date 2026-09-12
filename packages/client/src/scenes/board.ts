@@ -16,7 +16,7 @@
 import Phaser from "phaser";
 import { CORE_DEPS } from "@mc/cards";
 import type { AbilityId, ResourceIconType } from "@mc/content";
-import type { Command, GameEvent, InstanceId, LegalAction } from "@mc/engine";
+import type { Command, GameEvent, InstanceId, LegalAction, PlayerId, ZoneId } from "@mc/engine";
 import { cardArt, drawArt, type ArtFit, type CardArt } from "../art/card-art.js";
 import { CARD_BACKS, type ArtSource } from "../art/art-source.js";
 import { appSession } from "../session.js";
@@ -24,8 +24,8 @@ import { abilityLabelOf, abilityShortLabelOf } from "../view/ability-label.js";
 import { cardName } from "../view/names.js";
 import { accent, dotGrid, hit, ink, motion, signal, status as statusTokens, surface, threatMeter, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McSelectionRing, McTabs, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
-import { boardModel, type BoardModel, type CharacterPanel, type HandCardView, type SchemePanel } from "../view/board-model.js";
+import { McButton, McHpPlate, McSelectionRing, McStatBadge, McTabs, fitText, label, paintDotGrid, paintPanel, type StatKey } from "../ui/widgets.js";
+import { boardModel, type BoardModel, type CharacterPanel, type HandCardView, type SchemePanel, type StatTile } from "../view/board-model.js";
 import {
   beginPayment,
   paymentView,
@@ -37,8 +37,21 @@ import { abilityActionsFor, highlights, type BasicAction, type Highlights, type 
 import { appendEvents, emptyLog, type LogState } from "../view/log-lines.js";
 import { tabsTouchedBy } from "../view/tab-badges.js";
 import { beatsFrom, type Beat } from "../view/beats.js";
+import { travelsFrom, type Travel } from "../view/travel.js";
+import { gamepadIntentFor, type GamepadIntent } from "../view/gamepad.js";
 import { focusOrder, sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
-import { boardLayout, cardRow, CARD_ASPECT, PHONE_TABS, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
+import {
+  boardLayout,
+  cardRow,
+  cardStatColumn,
+  CARD_ASPECT,
+  PHONE_TABS,
+  statBlockLayout,
+  type BoardLayout,
+  type PhoneTab,
+  type Rect,
+  type StatBlock,
+} from "../view/layout.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
 
@@ -74,6 +87,16 @@ export class BoardScene extends Phaser.Scene {
   #tabs: McTabs | null = null;
   /** Beats still floating, with when each started, so a redraw doesn't kill them. */
   #beats: { readonly beat: Beat; readonly startedAt: number }[] = [];
+  /**
+   * `cardMoved` events from the most recently landed *fresh* state, waiting
+   * for the one `#draw()` that can turn them into travels — the first draw
+   * after they land is the only point that has both `#hitRects` (freshly
+   * rebuilt, "where a card is now") and a snapshot of the draw before it
+   * ("where a card was"). Consumed and cleared by `#startTravels`.
+   */
+  #pendingMoves: readonly GameEvent[] = [];
+  /** Travels still in flight, with when each started — the same `beats.ts` trick, so a redraw mid-flight re-derives the ghost's position instead of losing it. */
+  #travels: { readonly travel: Travel; readonly startedAt: number }[] = [];
   /** Keyboard focus: what is focused, not where — the "where" is re-derived each draw. */
   #focus: FocusTarget | null = null;
   /** Rects of everything focusable this draw, so the ring knows where to go. */
@@ -82,6 +105,20 @@ export class BoardScene extends Phaser.Scene {
   /** Card scans, shared with every overlay above this scene. */
   #artCache: CardArt | null = null;
   #artUnsubscribe: (() => void) | null = null;
+  /**
+   * The tabbed hand's horizontal scroll, in unscrolled-layout pixels — how far
+   * the row has been dragged or scrolled left. `cardRow`'s own output never
+   * shrinks or shifts for this; the scene subtracts it from every slot's `x`
+   * at draw time, the same separation `#activeTab` keeps between "what the
+   * layout computed" and "what the player is currently looking at."
+   */
+  #handScrollX = 0;
+  /** This draw's ceiling for `#handScrollX`, recomputed by `#drawHand` every draw. */
+  #handMaxScroll = 0;
+  /** The hand's own content rect, unscrolled — where a wheel/drag gesture has to land to scroll it. */
+  #handContentRect: Rect | null = null;
+  /** Whether the tabbed hand shows every card at full size (and scrolls further) instead of collapsing the overflow to spines. */
+  #handFannedOut = false;
 
   get #art(): CardArt {
     this.#artCache ??= cardArt(this);
@@ -96,11 +133,28 @@ export class BoardScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
-    this.scale.on("resize", () => this.#draw(), this);
+    const onResize = (): void => this.#draw();
+    /**
+     * The resize listener MUST be removed on shutdown.
+     *
+     * `this.scale` is the *game's* emitter, not the scene's, so it outlives
+     * every scene and keeps whatever is registered on it. An overlay that is
+     * launched and stopped on every decision therefore added a listener per
+     * open, each closure retaining a dead scene and, through it, the game
+     * state, the view models and the card-art textures — a heap that reached
+     * 3.5 GB in one session. It also crashed: a resize would eventually reach
+     * a torn-down scene and draw into systems that no longer exist.
+     */
+    this.scale.on("resize", onResize, this);
     // A scan arrives after the frame that asked for it, so the board redraws
     // once per batch rather than holding the table back on the network.
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
     this.#bindKeys();
+    this.#bindGamepad();
+    // A wheel/trackpad gesture over the hand scrolls it, on any layout that
+    // needs scrolling at all — the tabbed board is the only one that ever
+    // does (`#drawHand`), so this is a no-op everywhere else.
+    this.input.on("wheel", this.#onWheel, this);
     // The Inspect overlay's "Play it" comes back here, because playing a card
     // is the board's job: the overlay only ever reports what the engine said.
     this.game.events.on("mc-play-card", this.#onInspectPlay, this);
@@ -109,13 +163,36 @@ export class BoardScene extends Phaser.Scene {
     // which one was picked, and only the board ever dispatches.
     this.game.events.on("mc-use-ability", this.#onInspectUseAbility, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.scale.off("resize", onResize, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
       this.#artUnsubscribe?.();
       this.#artUnsubscribe = null;
       this.game.events.off("mc-play-card", this.#onInspectPlay, this);
       this.game.events.off("mc-use-ability", this.#onInspectUseAbility, this);
+      this.input.off("wheel", this.#onWheel, this);
     });
+  }
+
+  /** A wheel or trackpad gesture over the hand's own rect scrolls it horizontally. */
+  #onWheel(pointer: Phaser.Input.Pointer, _objects: unknown, deltaX: number, deltaY: number): void {
+    const rect = this.#handContentRect;
+    if (!rect || this.#handMaxScroll <= 0) return;
+    if (pointer.y < rect.y || pointer.y > rect.y + rect.height) return;
+    // A vertical mouse wheel is still "scroll the hand" here — there is
+    // nothing in this rect to scroll vertically, and a trackpad's horizontal
+    // deltaX takes priority when a gesture actually has one. Positive scrolls
+    // right (reveals more of the hand), matching a page's own vertical wheel.
+    this.#scrollHandBy(deltaX !== 0 ? deltaX : deltaY);
+  }
+
+  /** Moves the hand's scroll by a pixel delta (positive reveals more to the right), clamped to what `#drawHand` last measured. */
+  #scrollHandBy(delta: number): void {
+    if (this.#handMaxScroll <= 0) return;
+    const next = Math.min(this.#handMaxScroll, Math.max(0, this.#handScrollX + delta));
+    if (next === this.#handScrollX) return;
+    this.#handScrollX = next;
+    this.#draw();
   }
 
   #onState(state: SessionState): void {
@@ -127,6 +204,7 @@ export class BoardScene extends Phaser.Scene {
       this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId);
       this.#noteTabChanges(state);
       this.#startBeats(state.lastEvents);
+      this.#pendingMoves = state.lastEvents;
       this.#version = state.version;
       // A new state invalidates any half-made selection: the engine may have
       // changed what is legal, and a stale target would just be rejected.
@@ -207,6 +285,11 @@ export class BoardScene extends Phaser.Scene {
     const model = this.#model;
     if (!model) return;
 
+    // The positions cards held under whatever was drawn last — the only place
+    // "where a card came from" can still be read once this redraw clears the
+    // board and rebuilds `#hitRects` for where cards are now (`view/travel.ts`).
+    const previousHitRects = new Map(this.#hitRects);
+
     for (const button of this.#buttons) button.destroy();
     for (const ring of this.#rings) ring.destroy();
     this.#tabs?.destroy();
@@ -240,8 +323,15 @@ export class BoardScene extends Phaser.Scene {
     this.#drawActionBar(layout.zones.actionBar!, model);
     this.#drawTargetRings();
     this.#drawFocusRing();
-    // Last, so beats float above the table rather than under a later panel.
+    // Turns this redraw's `#pendingMoves` (if any landed) into travels, now
+    // that `#hitRects` holds where every card ended up. A no-op on every
+    // redraw that isn't the first one after a fresh state (resize, focus
+    // movement, a tab switch) — `#pendingMoves` is already empty by then.
+    this.#startTravels(previousHitRects);
+    // Last, so beats and travelling ghosts float above the table rather than
+    // under a later panel.
     this.#drawBeats();
+    this.#renderTravels();
   }
 
   /**
@@ -252,6 +342,11 @@ export class BoardScene extends Phaser.Scene {
    * its own, so all of this is ours to state — including the visible ring,
    * which is the selection ring drawn static rather than pulsing (a pulse means
    * "the board is waiting for you", and focus is not a prompt).
+   *
+   * Every case below reduces to one of `GamepadIntent`'s five meanings and
+   * hands off to `#actOnIntent`, the same place the gamepad binding
+   * (`#bindGamepad`) hands off to — so the two input methods provably drive
+   * one route rather than two that happen to agree today.
    */
   #bindKeys(): void {
     const keyboard = this.input.keyboard;
@@ -264,32 +359,81 @@ export class BoardScene extends Phaser.Scene {
         case "ArrowDown":
         case "Tab":
           event.preventDefault();
-          this.#moveFocus(event.shiftKey && event.key === "Tab" ? -1 : 1);
+          this.#actOnIntent(event.shiftKey && event.key === "Tab" ? "previous" : "next");
           break;
         case "ArrowLeft":
         case "ArrowUp":
           event.preventDefault();
-          this.#moveFocus(-1);
+          this.#actOnIntent("previous");
           break;
         case "Enter":
         case " ":
           event.preventDefault();
-          this.#activateFocus();
+          this.#actOnIntent("activate");
           break;
         case "i":
         case "I":
-          if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
+          this.#actOnIntent("inspect");
           break;
         case "Escape":
-          if (this.#selection.kind !== "idle") {
-            this.#selection = { kind: "idle" };
-            this.#draw();
-          }
+          this.#actOnIntent("cancel");
           break;
         default:
           break;
       }
     });
+  }
+
+  /**
+   * Gamepad navigation, over the same route the keyboard walks.
+   *
+   * `phaser4-rex-plugins` is the other agent's widget layer's concern, not
+   * input's — this is Phaser's own built-in gamepad plugin (`main.ts` turns it
+   * on; it is off by default). `gamepadIntentFor` (`view/gamepad.ts`) is the
+   * only thing that knows a button index means "next" or "cancel"; this
+   * method only listens and forwards, exactly as `#bindKeys` does for the
+   * keyboard's own keys.
+   *
+   * `Gamepad.on("down", ...)` (bound below via the plugin, not the pad
+   * instance) fires once per press, not once per held frame, so there is no
+   * repeat-rate to manage the way a keyboard's OS auto-repeat already handles
+   * itself. Continuous analog-stick movement is not wired — a D-pad or the
+   * face buttons cover every intent this board has, and a stick's constant
+   * drift would need its own deadzone-and-repeat timer this pass doesn't
+   * need to take on.
+   */
+  #bindGamepad(): void {
+    const gamepad = this.input.gamepad;
+    if (!gamepad) return;
+    gamepad.on("down", (_pad: Phaser.Input.Gamepad.Gamepad, button: Phaser.Input.Gamepad.Button) => {
+      if (this.#choiceOpen || this.scene.isActive(SCENES.inspect)) return;
+      const intent = gamepadIntentFor(button.index);
+      if (intent) this.#actOnIntent(intent);
+    });
+  }
+
+  /** What one `GamepadIntent` does, shared by the keyboard and gamepad bindings. */
+  #actOnIntent(intent: GamepadIntent): void {
+    switch (intent) {
+      case "next":
+        this.#moveFocus(1);
+        break;
+      case "previous":
+        this.#moveFocus(-1);
+        break;
+      case "activate":
+        this.#activateFocus();
+        break;
+      case "inspect":
+        if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
+        break;
+      case "cancel":
+        if (this.#selection.kind !== "idle") {
+          this.#selection = { kind: "idle" };
+          this.#draw();
+        }
+        break;
+    }
   }
 
   /** The focus route for whatever the board is currently asking for. */
@@ -403,6 +547,109 @@ export class BoardScene extends Phaser.Scene {
         onComplete: () => text.destroy(),
       });
     });
+  }
+
+  /**
+   * Consumes `#pendingMoves` (if this is the first draw since they landed) and
+   * turns them into travels, using `previousHitRects` for "where a card was"
+   * and the just-rebuilt `#hitRects` for "where it is now". A no-op — cheaply,
+   * since `#pendingMoves` is empty — on every redraw this command didn't cause.
+   */
+  #startTravels(previousHitRects: ReadonlyMap<InstanceId, Rect>): void {
+    if (this.#pendingMoves.length === 0) return;
+    const events = this.#pendingMoves;
+    this.#pendingMoves = [];
+
+    const layout = this.#layout;
+    const perspectiveId = appSession().store.state.perspectiveId;
+    if (!layout || perspectiveId === null) return;
+
+    const anchorBefore = (instanceId: InstanceId, zone: ZoneId): Rect | null =>
+      previousHitRects.get(instanceId) ?? this.#pileAnchor(zone, layout, perspectiveId, previousHitRects);
+    const anchorAfter = (instanceId: InstanceId, zone: ZoneId): Rect | null =>
+      this.#hitRects.get(instanceId) ?? this.#pileAnchor(zone, layout, perspectiveId, this.#hitRects);
+
+    const now = this.time.now;
+    this.#travels.push(...travelsFrom(events, anchorBefore, anchorAfter).map((travel) => ({ travel, startedAt: now })));
+  }
+
+  /**
+   * The coarser rect a whole zone gets when no specific card is drawn there —
+   * the encounter deck box, the enemies band, the hand banner a card is about
+   * to leave or just arrived from. `attachment`/`boost` resolve to their host's
+   * own rect, so an upgrade reads as flying onto the card it attached to.
+   *
+   * Zones this board draws only as a number, never a box — a player's own deck
+   * or discard pile chief among them — resolve to `null`, so a move to or from
+   * one of those simply has no travel (see `view/travel.ts`'s file comment).
+   */
+  #pileAnchor(zone: ZoneId, layout: BoardLayout, perspectiveId: PlayerId, rects: ReadonlyMap<InstanceId, Rect>): Rect | null {
+    switch (zone.kind) {
+      case "encounterDeck":
+      case "encounterDiscard":
+        return layout.zones.encounter;
+      case "villainArea":
+        return layout.zones.enemies;
+      case "hand":
+      case "deck":
+      case "discard":
+        return zone.playerId === perspectiveId ? layout.zones.hand : layout.zones.team;
+      case "playArea":
+        return zone.playerId === perspectiveId ? layout.zones.playArea : layout.zones.team;
+      case "identity":
+        return zone.playerId === perspectiveId ? layout.zones.me : layout.zones.team;
+      case "attachment":
+      case "boost":
+        return rects.get(zone.hostInstanceId) ?? null;
+      default:
+        return null;
+    }
+  }
+
+  /**
+   * Draws every live travel as a ghost panel morphing from its "from" rect to
+   * its "to" rect, then lets it go. Reduced motion drops the flight entirely —
+   * the real card already sits at its destination, drawn moments ago by the
+   * rest of `#draw()` — the same "keep the information, drop the movement"
+   * rule `#drawBeats` follows.
+   *
+   * Every travel is redrawn from its own elapsed time on every `#draw()` call,
+   * the same trick `#drawBeats` uses: `this.children.removeAll(true)` destroys
+   * last frame's ghost along with everything else, so this recreates it
+   * already partway along its path rather than snapping it back to `from`.
+   */
+  #renderTravels(): void {
+    const now = this.time.now;
+    this.#travels = this.#travels.filter((entry) => now - entry.startedAt < motion.cardMoveMs);
+    if (appSession().settings.reducedMotion) return;
+
+    for (const { travel, startedAt } of this.#travels) {
+      const elapsed = now - startedAt;
+      const remaining = motion.cardMoveMs - elapsed;
+      if (remaining <= 0) continue;
+      const progress = elapsed / motion.cardMoveMs;
+
+      const fromCenter = { x: travel.from.x + travel.from.width / 2, y: travel.from.y + travel.from.height / 2 };
+      const toCenter = { x: travel.to.x + travel.to.width / 2, y: travel.to.y + travel.to.height / 2 };
+      const scaleTo = { x: travel.to.width / travel.from.width, y: travel.to.height / travel.from.height };
+
+      const ghost = this.add.graphics().setDepth(900);
+      ghost.fillStyle(surface.parchment.hex, 0.55).fillRect(-travel.from.width / 2, -travel.from.height / 2, travel.from.width, travel.from.height);
+      ghost.lineStyle(3, accent.heroRed.hex, 0.85).strokeRect(-travel.from.width / 2, -travel.from.height / 2, travel.from.width, travel.from.height);
+      ghost.setPosition(lerp(fromCenter.x, toCenter.x, progress), lerp(fromCenter.y, toCenter.y, progress));
+      ghost.setScale(lerp(1, scaleTo.x, progress), lerp(1, scaleTo.y, progress));
+
+      this.tweens.add({
+        targets: ghost,
+        x: toCenter.x,
+        y: toCenter.y,
+        scaleX: scaleTo.x,
+        scaleY: scaleTo.y,
+        duration: remaining,
+        ease: "Quad.easeOut",
+        onComplete: () => ghost.destroy(),
+      });
+    }
   }
 
   /**
@@ -542,8 +789,11 @@ export class BoardScene extends Phaser.Scene {
     const meter: Rect = { x: textLeft, y: rect.y + rect.height - 26, width: textWidth, height: 18 };
     const mg = this.add.graphics();
     mg.fillStyle(surface.parchment.hex, dim).fillRect(meter.x, meter.y, meter.width, meter.height);
-    if (scheme.target && scheme.target > 0) {
-      const ratio = Math.min(1, scheme.threat / scheme.target);
+    // Drawn against `meterMax`, not `target`: a side scheme has no threshold but
+    // still has somewhere it started from, and a bar that empties as it is
+    // thwarted says more than a bare number beside a main scheme that has one.
+    if (scheme.meterMax && scheme.meterMax > 0) {
+      const ratio = Math.min(1, scheme.threat / scheme.meterMax);
       mg.fillStyle(threatMeter.fill.hex, dim).fillRect(meter.x, meter.y, meter.width * ratio, meter.height);
     }
     mg.lineStyle(2, surface.ink.hex, dim).strokeRect(meter.x, meter.y, meter.width, meter.height);
@@ -589,6 +839,10 @@ export class BoardScene extends Phaser.Scene {
   #drawCharacter(rect: Rect, panel: CharacterPanel): void {
     this.#hitRects.set(panel.instanceId, rect);
     const dim = this.#dimAlpha(panel.instanceId);
+    // Captured before the frame is painted, because on a card-shaped panel the
+    // *frame* turns with the card — it is the card's border, not a box the card
+    // sits in. See `#turnSideways`.
+    const firstDrawn = this.children.list.length;
     const g = this.add.graphics();
     paintPanel(g, rect, "card", this.#targetState(panel.instanceId));
 
@@ -598,7 +852,7 @@ export class BoardScene extends Phaser.Scene {
     // scan is never cropped — a card with its edges cut off reads as broken
     // rather than as art.
     if (rect.width < MIN_PANEL_TEXT_WIDTH + 60 || rect.width < rect.height * 0.95) {
-      this.#drawCardShapedPanel(rect, panel, dim);
+      this.#drawCardShapedPanel(rect, panel, dim, firstDrawn);
       return;
     }
 
@@ -607,9 +861,12 @@ export class BoardScene extends Phaser.Scene {
     const artWidth = Math.round(
       Math.min(rect.width - MIN_PANEL_TEXT_WIDTH - 14, (rect.height - 6) * CARD_ASPECT),
     );
-    if (artWidth > 0) {
-      const columnHeight = Math.min(rect.height - 6, Math.round(artWidth / CARD_ASPECT));
-      const column: Rect = { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: columnHeight };
+    const artColumn: Rect | null =
+      artWidth > 0
+        ? { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: Math.min(rect.height - 6, Math.round(artWidth / CARD_ASPECT)) }
+        : null;
+    if (artColumn) {
+      const column = artColumn;
       this.#drawArtSlot(column, panel.art, dim);
       const rule = this.add.graphics();
       rule.fillStyle(surface.ink.hex, dim).fillRect(column.x + column.width, column.y, 3, column.height);
@@ -617,6 +874,18 @@ export class BoardScene extends Phaser.Scene {
 
     const left = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
     const textWidth = Math.max(40, rect.x + rect.width - 8 - left);
+    /**
+     * Stats in a row beside the card, the HP plate under them, pinned to the foot
+     * of the text column — never over the card on a wide panel. An identity's scan
+     * is shown whole so its rules text can be read, and badges stacked over its
+     * printed icons covered that text ("Spider-Sense — Interrupt…"). Laid out
+     * before anything above it is placed, so the chips know where to stop.
+     */
+    const statBlock = statBlockLayout(
+      { x: left, y: rect.y, width: textWidth, height: rect.height - 8 },
+      panel.stats.filter((tile) => tile.label !== "HP").length,
+      panel.hp !== null,
+    );
     let top = rect.y + 6;
 
     const name = this.add
@@ -642,8 +911,7 @@ export class BoardScene extends Phaser.Scene {
     });
 
     if (panel.exhausted) {
-      label(this, left, top, "exhausted", typeRole.label, signal.spent.hex, ink.meta * dim);
-      top += 14;
+      top = this.#drawExhaustedBadge(left, top, textWidth, dim);
     }
     if (panel.boostCount > 0) {
       label(this, left, top, `boost ?? ×${panel.boostCount}`, typeRole.label, surface.ink.hex, ink.meta * dim);
@@ -658,44 +926,71 @@ export class BoardScene extends Phaser.Scene {
       top += 14;
     }
 
-    // Attachments hanging off this card — an upgrade on an enemy, a condition
-    // on an ally. Named, so "why is this minion tougher?" has an answer on the
-    // table rather than only in Inspect.
-    for (const attachment of panel.attachments.slice(0, 2)) {
-      if (top > rect.y + rect.height - 44) break;
-      const chip: Rect = { x: left, y: top, width: textWidth, height: 13 };
+    /**
+     * Attachments hanging off this card — an upgrade on your identity, a
+     * condition on an ally, an attachment on an enemy.
+     *
+     * These used to be name-only labels, which was reported from play as "I
+     * cannot see those cards and know when I can use those upgrades" —
+     * Spider-Man's two Web-Shooters sat here as two identical words. A chip is
+     * still the right shape (an upgrade lives *on* its host, and giving each
+     * one a card-sized slot would push the host off the table), so the fix is
+     * to make the chip do the two things the player wanted:
+     *
+     *  - **say when it can be used**, with the same green `▶` the board already
+     *    uses for an ability you can trigger right now; and
+     *  - **open the card**, because the only way to read an upgrade's wording
+     *    was to already know where it was.
+     *
+     * It is a tap target like any other card, so it also answers a target
+     * prompt or a payment tap — a Web-Shooter *is* a resource for a payment,
+     * and before this there was no way to spend one from the table.
+     */
+    /**
+     * Collected, not registered here: the panel's own tap target is added at
+     * the end of this method, and a later interactive zone sits higher in the
+     * display list — so a chip registered now would be swallowed by the panel
+     * behind it. They go on *after* it.
+     */
+    const chipTargets: { readonly rect: Rect; readonly instanceId: InstanceId }[] = [];
+    for (const attachment of panel.attachments.slice(0, 4)) {
+      if (top + 16 > rect.y + rect.height - 8 - statBlock.height - 4) break;
+      const usable = this.#selection.kind === "idle" && (this.#marks?.usableAbilities.has(attachment.instanceId) ?? false);
+      const chip: Rect = { x: left, y: top, width: textWidth, height: 16 };
       const cg = this.add.graphics();
       cg.fillStyle(surface.parchment.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
-      cg.lineStyle(2, surface.ink.hex, dim * (attachment.exhausted ? ink.disabled : 1)).strokeRect(chip.x, chip.y, chip.width, chip.height);
-      label(this, chip.x + 3, chip.y + 2, attachment.name, typeRole.label, surface.ink.hex, ink.label * dim);
-      top += 16;
+      cg.lineStyle(2, usable ? signal.heal.hex : surface.ink.hex, dim * (attachment.exhausted ? ink.disabled : 1))
+        .strokeRect(chip.x, chip.y, chip.width, chip.height);
+      fitText(
+        label(
+          this,
+          chip.x + 3,
+          chip.y + 3,
+          usable ? `▶ ${attachment.name}` : attachment.name,
+          typeRole.label,
+          usable ? signal.heal.hex : surface.ink.hex,
+          (usable ? ink.body : ink.label) * dim,
+        ),
+        chip.width - 6,
+        typeRole.label.size,
+      );
+      chipTargets.push({ rect: chip, instanceId: attachment.instanceId });
+      top += 19;
     }
 
-    // Stat tiles, in 2px inner boxes, pinned to the bottom of the text column.
-    const tiles = panel.stats;
-    if (tiles.length > 0 && textWidth > 60) {
-      const boxWidth = (textWidth - (tiles.length - 1) * 4) / tiles.length;
-      tiles.forEach((tile, index) => {
-        const box: Rect = {
-          x: left + index * (boxWidth + 4),
-          y: rect.y + rect.height - 30,
-          width: boxWidth,
-          height: 24,
-        };
-        const bg = this.add.graphics();
-        bg.lineStyle(2, surface.ink.hex, dim).strokeRect(box.x, box.y, box.width, box.height);
-        label(this, box.x + 3, box.y + 2, tile.label, typeRole.label, surface.ink.hex, ink.label * dim);
-        const value = this.add
-          .text(box.x + box.width - 3, box.y + box.height - 4, tile.value, textStyle(typeRole.statSmall, surface.ink.hex, dim))
-          .setOrigin(1, 1);
-        // "14/14" in Bangers is wider than a quarter of a narrow panel; the
-        // number shrinks rather than running out of its own box.
-        fitText(value, box.width - 6, typeRole.statSmall.size);
-        value.setPosition(box.x + box.width - 3, box.y + box.height - 4);
-      });
-    }
+    this.#drawStatBlock(statBlock, panel, dim);
 
     this.#makeTapTarget(rect, panel.instanceId, () => this.#onCharacterTap(panel.instanceId));
+    // After the panel, so an attachment chip wins the pointer over the host it
+    // is drawn on top of.
+    for (const target of chipTargets) {
+      this.#makeTapTarget(target.rect, target.instanceId, () => {
+        // A tap uses it when there is something to use; otherwise it shows the
+        // card, which is the other half of what was being asked for.
+        if (this.#usableAbilitiesFor(target.instanceId).length > 0) this.#onCharacterTap(target.instanceId);
+        else this.#inspect(target.instanceId);
+      });
+    }
   }
 
   /**
@@ -706,7 +1001,10 @@ export class BoardScene extends Phaser.Scene {
    * knows goes on top: the statuses, and a strip carrying the numbers that
    * change (current HP, modified ATK) which the printed card cannot show.
    */
-  #drawCardShapedPanel(rect: Rect, panel: CharacterPanel, dim: number): void {
+  #drawCardShapedPanel(rect: Rect, panel: CharacterPanel, dim: number, firstDrawn: number): void {
+    // `firstDrawn` is the caller's index, taken *before* the panel frame, so an
+    // exhausted card turns frame and all. The tap target is added after the
+    // rotation and stays square to the slot — see `#turnSideways`.
     const inner: Rect = { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: rect.height - 6 };
     const key = this.#art.request(this, panel.art);
     if (!drawArt(this, key, inner, { fit: "cover", alpha: dim })) {
@@ -721,33 +1019,117 @@ export class BoardScene extends Phaser.Scene {
 
     this.#drawStatusPips(rect, panel, dim);
 
-    // The live numbers, on an ink strip so they read over any artwork.
-    const tiles = panel.stats;
-    if (tiles.length > 0 && rect.height > 60) {
-      const strip: Rect = { x: inner.x, y: inner.y + inner.height - 22, width: inner.width, height: 22 };
-      const bg = this.add.graphics();
-      bg.fillStyle(surface.ink.hex, 0.82 * dim).fillRect(strip.x, strip.y, strip.width, strip.height);
-      const cell = strip.width / tiles.length;
-      tiles.forEach((tile, index) => {
-        this.add
-          .text(strip.x + cell * (index + 0.5), strip.y + strip.height / 2, `${tile.label} ${tile.value}`, textStyle(typeRole.label, surface.paper.hex, dim))
-          .setOrigin(0.5)
-          .setLetterSpacing(typeRole.label.letterSpacing);
-      });
-    }
-    if (panel.exhausted) {
-      label(this, inner.x + 4, inner.y + 4, "exhausted", typeRole.label, signal.spent.hex, ink.body * dim);
+    // Live stats over the printed icons, where the eye already looks for them on
+    // this card, and hit points along the foot. Same widgets as the wide panel.
+    if (panel.stats.length > 0 && rect.height > 60) {
+      const column = cardStatColumn(inner, panel.stats.filter((tile) => tile.label !== "HP").length, panel.hp !== null);
+      this.#drawStatBlock(column, panel, dim);
     }
     const abilityLine = this.#abilityLine(panel.instanceId);
     if (abilityLine && rect.height >= 40) {
       fitText(
-        label(this, inner.x + 4, inner.y + 4 + (panel.exhausted ? 12 : 0), abilityLine, typeRole.label, signal.heal.hex, ink.body * dim),
+        label(this, inner.x + 4, inner.y + 4, abilityLine, typeRole.label, signal.heal.hex, ink.body * dim),
         inner.width - 8,
         typeRole.label.size,
       );
     }
 
+    // The card itself turns, the way it does on the table. No word needed.
+    if (panel.exhausted) this.#turnSideways(rect, this.children.list.slice(firstDrawn));
+
     this.#makeTapTarget(rect, panel.instanceId, () => this.#onCharacterTap(panel.instanceId));
+  }
+
+  /**
+   * A panel's stats, drawn into a laid-out block: a starburst per stat and the
+   * hit-point plate. The wide panel and the card-shaped one share this, so a
+   * hero, an ally, a minion and the villain all read their numbers one way.
+   */
+  #drawStatBlock(block: StatBlock, panel: CharacterPanel, dim: number): void {
+    panel.stats
+      .filter((tile) => tile.label !== "HP")
+      .forEach((tile, index) => {
+        const slot = block.badges[index];
+        if (!slot || tile.label === "HP") return;
+        new McStatBadge(this, {
+          cx: slot.cx,
+          cy: slot.cy,
+          size: slot.size,
+          stat: BADGE_STAT[tile.label],
+          value: tile.value,
+          bonus: tile.bonus,
+          alpha: dim,
+        });
+      });
+    if (block.hp && panel.hp) {
+      new McHpPlate(this, {
+        rect: block.hp,
+        current: panel.hp.current,
+        max: panel.hp.max,
+        bonus: panel.stats.find((tile) => tile.label === "HP")?.bonus ?? 0,
+        alpha: dim,
+      });
+    }
+  }
+
+  /**
+   * Turns a card-shaped panel a quarter turn, the table's own sign for
+   * exhausted (RRG "Exhaust": the card is turned sideways).
+   *
+   * A word in the corner was what this used to be, and it was missed in play —
+   * it sat over the card's own cost and name at label size. Rotation is the
+   * signal the physical game already uses, it reads at a glance from across the
+   * board, and it is a *shape* cue rather than a colour one, so it satisfies
+   * the design's colourblind rule without needing a second treatment.
+   *
+   * **The frame turns too.** A first version rotated only the contents and left
+   * the panel border upright, which read as a small card adrift in a big empty
+   * box — the border is the *card's* border, not a box the card sits in. The
+   * whole panel is therefore in the rotated group.
+   *
+   * It is scaled so the turned card spans the slot's width, which keeps it from
+   * reaching into its neighbours, and it stays centred on the slot so nothing
+   * reflows and the tap target stays where the pointer expects it. The board
+   * shows through above and below, the way a turned card leaves table visible
+   * around it.
+   *
+   * Objects are re-parented into a container rather than each being rotated,
+   * so the whole face — scan, status pips, the ink stat strip — turns as one
+   * piece. That also makes this a single `rotation` to tween when the animation
+   * pass lands, rather than a dozen.
+   */
+  #turnSideways(rect: Rect, drawn: readonly Phaser.GameObjects.GameObject[]): void {
+    if (drawn.length === 0) return;
+    const cx = rect.x + rect.width / 2;
+    const cy = rect.y + rect.height / 2;
+    const fit = Math.min(rect.width / rect.height, rect.height / rect.width);
+    for (const object of drawn) {
+      const placed = object as Phaser.GameObjects.GameObject & { x?: number; y?: number };
+      if (typeof placed.x === "number") placed.x -= cx;
+      if (typeof placed.y === "number") placed.y -= cy;
+    }
+    this.add
+      .container(cx, cy, [...drawn])
+      .setRotation(Math.PI / 2)
+      .setScale(fit);
+  }
+
+  /**
+   * The exhausted badge, for a panel too wide to turn.
+   *
+   * An identity sits in a wide panel with its card in a column and its numbers
+   * beside it, so turning it would turn the numbers too. It gets a filled chip
+   * in the design's "spent" ink instead. Returns the next free `y`.
+   */
+  #drawExhaustedBadge(x: number, y: number, maxWidth: number, dim: number): number {
+    const caption = label(this, 0, 0, "exhausted", typeRole.label, surface.paper.hex, dim);
+    const width = Math.min(maxWidth, Math.ceil(caption.width) + 14);
+    const height = Math.ceil(caption.height) + 6;
+    const chip = this.add.graphics();
+    chip.fillStyle(signal.spent.hex, dim).fillRect(x, y, width, height);
+    caption.setPosition(x + 7, y + 3);
+    this.children.bringToTop(caption);
+    return y + height + 5;
   }
 
   /** Status pips: initial only, in the hue that exists nowhere else. */
@@ -886,6 +1268,16 @@ export class BoardScene extends Phaser.Scene {
     });
   }
 
+  /**
+   * The hand row. On the tabbed board (`Board - Phone`) a crowded hand fans
+   * instead of shrinking below a readable size: full-size cards for as many
+   * as fit, the rest collapsed to spines, the whole row scrollable by wheel
+   * or drag, with a "Fan out" pill to trade the spines for more scrolling in
+   * exchange for every card being immediately readable (PLAN.md Phase 4,
+   * "the phone hand crowds at six cards"). The long table never crowds this
+   * badly at any realistic hand size, so it keeps the older shrink-and-
+   * overlap row (`cardRow`'s default).
+   */
   #drawHand(rect: Rect, model: BoardModel): void {
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -893,6 +1285,7 @@ export class BoardScene extends Phaser.Scene {
     // While paying, the caption line gives way to the payment bar: the hand is
     // the instrument of the payment, so the count belongs directly over it.
     const payment = this.#paymentView();
+    const tabbed = this.#layout?.tabbed ?? false;
     let top = rect.y + 20;
     if (payment) {
       this.#drawPaymentBar({ x: rect.x, y: rect.y, width: rect.width, height: hit.target }, payment);
@@ -910,15 +1303,98 @@ export class BoardScene extends Phaser.Scene {
     }
 
     const inner: Rect = { x: rect.x + 10, y: top, width: rect.width - 20, height: rect.y + rect.height - top - 8 };
-    const slots = cardRow(inner, model.hand.length, { gap: 6, maxHeight: inner.height });
+    const fan: boolean | "expanded" = tabbed ? (this.#handFannedOut ? "expanded" : true) : false;
+    const slots = cardRow(inner, model.hand.length, { gap: 6, maxHeight: inner.height, fan });
+
+    const rowRight = slots.reduce((max, slot) => Math.max(max, slot.x + slot.width), inner.x);
+    this.#handMaxScroll = Math.max(0, rowRight - (inner.x + inner.width));
+    this.#handScrollX = this.#handMaxScroll > 0 ? Math.min(this.#handScrollX, this.#handMaxScroll) : 0;
+    this.#handContentRect = inner;
+
+    // The pill only earns its place once there's something to fan or unfan —
+    // a hand that already fits has nothing to expand and nowhere to scroll.
+    if (tabbed && !payment && (this.#handMaxScroll > 0 || this.#handFannedOut)) {
+      this.#drawFanToggle(rect);
+    }
 
     model.hand.forEach((card, index) => {
       const slot = slots[index];
       if (!slot) return;
-      this.#hitRects.set(card.instanceId, slot);
-      this.#focusRects.set(focusKey({ kind: "card", instanceId: card.instanceId }), slot);
-      this.#drawHandCard(slot, card, payment);
+      const drawn: Rect = { ...slot, x: slot.x - this.#handScrollX };
+      this.#hitRects.set(card.instanceId, drawn);
+      this.#focusRects.set(focusKey({ kind: "card", instanceId: card.instanceId }), drawn);
+      if (slot.kind === "spine") this.#drawHandSpine(drawn, card, index, payment);
+      else this.#drawHandCard(drawn, card, payment);
     });
+  }
+
+  /**
+   * The tabbed hand's "Fan out" pill (`Board - Phone`): toggles between the
+   * default row (full-size cards for as many as fit, the rest collapsed to
+   * spines) and every card shown full-size, both scrollable. An outlined chip
+   * rather than a filled button, the design's own language for a toggle
+   * rather than a committing action.
+   */
+  #drawFanToggle(handRect: Rect): void {
+    const width = 62;
+    const chip: Rect = { x: handRect.x + handRect.width - width - 8, y: handRect.y + 3, width, height: 14 };
+    const g = this.add.graphics();
+    g.lineStyle(2, surface.paper.hex, 1).strokeRect(chip.x, chip.y, chip.width, chip.height);
+    this.add
+      .text(chip.x + chip.width / 2, chip.y + chip.height / 2, (this.#handFannedOut ? "Collapse" : "Fan out").toUpperCase(), textStyle(typeRole.label, surface.paper.hex))
+      .setOrigin(0.5)
+      .setLetterSpacing(typeRole.label.letterSpacing);
+    const zone = this.add.zone(chip.x, chip.y, chip.width, chip.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    zone.on("pointerup", () => {
+      this.#handFannedOut = !this.#handFannedOut;
+      // A fresh view onto whatever shape the row just took, rather than
+      // leaving the player scrolled to a position that meant something
+      // different a moment ago.
+      this.#handScrollX = 0;
+      this.#draw();
+    });
+  }
+
+  /**
+   * A collapsed hand card (`cardRow`'s "spine" slot): a position number and
+   * the card's name running vertically, standing in for a card that has no
+   * room to show its face this draw. Still a full tap target — tap, hold and
+   * right-click all mean exactly what they mean on a full card
+   * (`#makeTapTarget`) — and still drags to scroll like every other card in
+   * this row.
+   */
+  #drawHandSpine(slot: Rect, card: HandCardView, handIndex: number, payment: PaymentView | null): void {
+    const spent = payment?.spent.has(card.instanceId) ?? false;
+    const subject = payment?.subject === card.instanceId;
+    const available = payment
+      ? subject || spent || payment.spendable.has(card.instanceId)
+      : (this.#marks?.playable.has(card.instanceId) ?? false);
+    const alpha = available ? 1 : ink.illegal;
+
+    const g = this.add.graphics();
+    paintPanel(g, slot, "card", subject ? "selected" : available ? "rest" : "unavailable");
+    if (subject) {
+      const ring = new McSelectionRing(this);
+      ring.show(slot, "static", true);
+      this.#rings.push(ring);
+    }
+
+    label(this, slot.x + 3, slot.y + 4, String(handIndex + 1), typeRole.label, surface.ink.hex, ink.label * alpha);
+
+    const name = this.add
+      .text(slot.x + slot.width / 2, slot.y + slot.height - 6, card.name, textStyle(typeRole.label, surface.ink.hex, alpha))
+      .setOrigin(0.5, 1)
+      .setAngle(-90);
+    // Pre-rotation width becomes the strip's readable height once turned on
+    // its side, so that — not `slot.width` — is what `fitText` has to fit.
+    fitText(name, slot.height - 22, typeRole.label.size);
+
+    if (spent) {
+      const wash = this.add.graphics();
+      wash.fillStyle(surface.ink.hex, 0.3).fillRect(slot.x, slot.y, slot.width, slot.height);
+    }
+
+    this.#makeTapTarget(slot, card.instanceId, () => this.#tapHandCard(card.instanceId), (deltaX) => this.#scrollHandBy(-deltaX));
   }
 
   /**
@@ -1058,7 +1534,7 @@ export class BoardScene extends Phaser.Scene {
       wash.fillStyle(surface.ink.hex, 0.3).fillRect(slot.x + 3, slot.y + 3, slot.width - 6, slot.height - 6);
     }
 
-    this.#makeTapTarget(slot, card.instanceId, () => this.#tapHandCard(card.instanceId));
+    this.#makeTapTarget(slot, card.instanceId, () => this.#tapHandCard(card.instanceId), (deltaX) => this.#scrollHandBy(-deltaX));
   }
 
   /**
@@ -1235,8 +1711,13 @@ export class BoardScene extends Phaser.Scene {
    * Inspect takes the second gesture rather than a chrome button per card. The
    * hold threshold is `INSPECT_HOLD_MS`: long enough that a decisive tap never
    * opens a sheet, short enough to feel deliberate.
+   *
+   * `onDrag`, when given, turns a horizontal drag starting on this card into a
+   * scroll instead of a tap — the tabbed hand's cards are the only tap targets
+   * that ever sit inside a scrollable row (`#drawHand`), so every other caller
+   * simply never passes it and this is a no-op there.
    */
-  #makeTapTarget(rect: Rect, id: InstanceId, fallback?: () => void): void {
+  #makeTapTarget(rect: Rect, id: InstanceId, fallback?: () => void, onDrag?: (deltaX: number) => void): void {
     this.#focusRects.set(focusKey({ kind: "card", instanceId: id }), rect);
     const zone = this.add
       .zone(rect.x, rect.y, rect.width, rect.height)
@@ -1245,6 +1726,8 @@ export class BoardScene extends Phaser.Scene {
 
     let held: Phaser.Time.TimerEvent | null = null;
     let inspected = false;
+    let dragging = false;
+    let downX = 0;
     const cancelHold = (): void => {
       held?.remove();
       held = null;
@@ -1252,6 +1735,8 @@ export class BoardScene extends Phaser.Scene {
 
     zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
       inspected = false;
+      dragging = false;
+      downX = pointer.x;
       if (pointer.rightButtonDown()) {
         inspected = true;
         this.#inspect(id);
@@ -1262,11 +1747,23 @@ export class BoardScene extends Phaser.Scene {
         this.#inspect(id);
       });
     });
+    if (onDrag) {
+      zone.on("pointermove", (pointer: Phaser.Input.Pointer) => {
+        if (!pointer.isDown || inspected) return;
+        if (!dragging && Math.abs(pointer.x - downX) < DRAG_THRESHOLD_PX) return;
+        // Once a gesture reads as a drag it stays one for its whole length —
+        // a hold that was about to fire would otherwise still open Inspect
+        // out from under a scroll the player is mid-way through.
+        dragging = true;
+        cancelHold();
+        onDrag(pointer.x - pointer.prevPosition.x);
+      });
+    }
     zone.on("pointerout", cancelHold);
     zone.on("pointerup", () => {
       cancelHold();
-      // A hold already did something; the release must not also act on it.
-      if (inspected) return;
+      // A hold or a drag already did something; the release must not also act on it.
+      if (inspected || dragging) return;
       if (this.#selection.kind === "paying") {
         this.#spendByInstance(id);
         return;
@@ -1551,11 +2048,27 @@ function shortReason(reason: IllegalReason): string {
 const INSPECT_HOLD_MS = 420;
 
 /**
+ * How far a pointer has to move, in pixels, before a press on a card in a
+ * scrollable row (the tabbed hand) reads as a drag rather than the start of a
+ * tap or a hold. Below this, a slightly unsteady tap still taps.
+ */
+const DRAG_THRESHOLD_PX = 8;
+
+/**
  * The narrowest a panel's text column may get before the panel stops being
  * "card plus numbers" and becomes the card itself. Below this the name wraps to
  * one word a line and the stat tiles have nowhere to sit.
  */
 const MIN_PANEL_TEXT_WIDTH = 104;
+
+/** Which starburst each stat tile draws as. */
+const BADGE_STAT: Record<Exclude<StatTile["label"], "HP">, StatKey> = {
+  THW: "thw",
+  ATK: "atk",
+  DEF: "def",
+  SCH: "sch",
+  REC: "rec",
+};
 
 /** One string per focusable thing, so a rect can be looked up by what it is. */
 const focusKey = (target: FocusTarget): string =>
@@ -1569,6 +2082,9 @@ const BEAT_COLORS: Record<Beat["tone"], number> = {
   status: signal.caution.hex,
   defeat: surface.paper.hex,
 };
+
+/** Linear interpolation, for a travel ghost recreated partway through its flight. */
+const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;
 
 const BASIC_TO_KIND: Record<BasicAction, string> = {
   attack: "basicAttack",

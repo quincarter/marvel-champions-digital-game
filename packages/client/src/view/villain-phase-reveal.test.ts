@@ -100,7 +100,7 @@ describe("revealOf", () => {
           title: "Villain and minions activate",
           beats: [
             beat("b2", "Klaw activates against you"),
-            { id: "b3", text: "Auto-advance paused for your interrupt", pause: { playerId: "p1" as never, promptKind: "chooseTriggers", authority: "player", label: "Auto-advance paused for your interrupt", soleDecider: false } },
+            { id: "b3", text: "Auto-advance paused for your interrupt", pause: { playerId: "p1" as never, promptKind: "chooseTriggers", authority: "player", label: "Auto-advance paused for your interrupt", soleDecider: false, offer: "" } },
           ],
           status: "active",
         },
@@ -109,7 +109,7 @@ describe("revealOf", () => {
         { kind: "passFirstPlayer", number: 5, title: "Pass the first player token", beats: [], status: "pending" },
       ],
       activeStep: 2,
-      pausedAt: { playerId: "p1" as never, promptKind: "chooseTriggers", authority: "player", label: "Auto-advance paused for your interrupt", soleDecider: false },
+      pausedAt: { playerId: "p1" as never, promptKind: "chooseTriggers", authority: "player", label: "Auto-advance paused for your interrupt", soleDecider: false, offer: "" },
       complete: false,
       nextBeatId: 4,
     };
