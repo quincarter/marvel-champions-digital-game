@@ -44,6 +44,8 @@ export interface Snapshot {
   readonly legal: LegalActionsFor | null;
   /** What the game-over screen reports, folded from every command so far. */
   readonly record: GameRecord;
+  /** The setup this game came from, so a rematch can reuse it — for a resumed game too. */
+  readonly config: SessionConfig | null;
   /**
    * Set once a write to storage has failed. The game plays on — nothing about
    * the rules depends on the disk — but it may not survive a refresh, and the
@@ -99,6 +101,7 @@ export class EngineSessionCore {
    */
   #writes: Promise<void> = Promise.resolve();
   #saveError: string | null = null;
+  #config: SessionConfig | null = null;
 
   constructor(options: CoreOptions = {}) {
     this.#storage = options.storage ?? null;
@@ -112,6 +115,7 @@ export class EngineSessionCore {
     if (!setup.ok) throw new Error(`setup failed: ${setup.error.message}`);
 
     this.#session = startSession(setup.state);
+    this.#config = config;
     this.#version = 0;
     this.#record = recordEvents(emptyRecord(), setup.events, setup.state);
     this.#writes = Promise.resolve();
@@ -184,6 +188,7 @@ export class EngineSessionCore {
     }
 
     this.#session = { state, log: { initialState, commands: stored.commands } };
+    this.#config = stored.meta.config;
     this.#version = stored.commands.length;
     this.#record = record;
     this.#gameId = gameId;
@@ -258,6 +263,7 @@ export class EngineSessionCore {
       legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, CORE_DEPS) } : null,
       record: this.#record,
       saveError: this.#saveError,
+      config: this.#config,
     };
   }
 

@@ -3,7 +3,7 @@
  */
 
 import { appSession } from "../../session.js";
-import { hit, signal, surface, typeRole } from "../../tokens.js";
+import { hit, signal, status, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { McButton } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
@@ -48,14 +48,23 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     const targeting = selection.kind === "targeting" && basicKindOf(selection.action) === action;
     const cell: Rect = { x: rect.x + 10 + index * (cellWidth + 6), y: rect.y + 4, width: cellWidth, height: hit.target - 8 };
     ctx.frame.focusRects.set(focusKey({ kind: "basic", action }), cell);
+    // A status owns the button it cancels (Components.dc.html section 05):
+    // stunned hatches Attack, confused hatches Thwart, in that status's hue.
+    // Still pressable when the engine allows it — attacking while stunned is a
+    // legal play that spends the stun, and sometimes the right one.
+    const cancelledBy =
+      (action === "attack" || action === "thwart") && model.me.disabledActions.includes(action)
+        ? status[action === "attack" ? "stunned" : "confused"]
+        : null;
     ctx.frame.buttons.push(
       new McButton(scene, {
         kind: "onInk",
-        label: labels[action],
+        label: cancelledBy ? `${labels[action]} ✕` : labels[action],
         type: typeRole.label,
         rect: cell,
         enabled: button?.enabled ?? false,
         selected: targeting,
+        ...(cancelledBy ? { hatch: cancelledBy.hex } : {}),
         ...(button?.reason ? { reason: button.reason } : {}),
         onClick: () => controller.chooseBasic(action),
       }),

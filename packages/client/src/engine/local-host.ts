@@ -91,6 +91,7 @@ export class LocalEngineHost implements EngineHost {
       legal: snapshot.legal,
       record: snapshot.record,
       saveError: snapshot.saveError,
+      config: snapshot.config,
     };
   }
 

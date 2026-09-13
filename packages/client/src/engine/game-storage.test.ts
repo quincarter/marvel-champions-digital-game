@@ -21,7 +21,7 @@ const CONFIG: SessionConfig = {
 };
 
 /** A real replay baseline, so the round trip proves an actual engine state survives the copy. */
-const BASELINE = new EngineSessionCore().start(CONFIG).snapshot.state;
+const BASELINE = (await new EngineSessionCore().start(CONFIG)).snapshot.state;
 
 const meta = (id: string, updatedAt: number, overrides: Partial<SaveMeta> = {}): SaveMeta => ({
   id,

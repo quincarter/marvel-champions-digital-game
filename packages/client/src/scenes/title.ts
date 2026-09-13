@@ -21,7 +21,8 @@ import { seatOptions } from "../view/seats.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { Rect } from "../view/layout.js";
 import { formFactorFor } from "../view/layout.js";
-import { parseSeed } from "../view/seed.js";
+import { parseSeed, rollSeed } from "../view/seed.js";
+import type { SaveMeta } from "../engine/game-storage.js";
 import { appSession } from "../session.js";
 import { SCENES } from "./keys.js";
 
@@ -52,6 +53,12 @@ export class TitleScene extends Phaser.Scene {
   #rowHandlers = new Map<string, () => void>();
   #status: Phaser.GameObjects.Text | null = null;
   #starting = false;
+  /**
+   * The game in progress when this screen opened, if any. Games are saved as
+   * they're played, so a refresh lands here with the game still there to pick
+   * back up. Looked up asynchronously; the screen draws without it first.
+   */
+  #continuable: SaveMeta | null = null;
 
   constructor() {
     super(SCENES.title);
@@ -80,7 +87,16 @@ export class TitleScene extends Phaser.Scene {
       this.#seedInput?.destroy();
       this.#seedInput = null;
     });
+    this.#continuable = null;
     this.#rebuild();
+    void appSession()
+      .store.latestSave()
+      .then((save) => {
+        // The scene may have moved on while storage answered.
+        if (!save || !this.sys.isActive()) return;
+        this.#continuable = save;
+        this.#rebuild();
+      });
   }
 
   #rebuild(): void {
@@ -146,11 +162,30 @@ export class TitleScene extends Phaser.Scene {
       (scenarioLines + heroLines) * (CAPTION_HEIGHT + 6) +
       difficultyLines * (hit.target + 6) +
       // Seed row and the primary CTA.
-      hit.target + 16 + hit.primary;
+      hit.target + 16 + hit.primary +
+      // "Continue", when there is a game to continue.
+      (this.#continuable ? hit.target + gapAfterSection : 0);
     const artHeight = Math.max(0, Math.min(phone ? 96 : 128, Math.floor((height - fixed) / Math.max(1, artLines))));
     const showArt = artHeight >= 44;
 
     let y = pad + titleBlock;
+    if (this.#continuable) {
+      // Above setup, because picking up the game you were playing is the thing
+      // someone who just refreshed came back for. Not red: the one red on this
+      // screen stays "Start game".
+      const save = this.#continuable;
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: continueLabel(save),
+          type: typeRole.rowTitle,
+          rect: { x: left, y, width: column, height: hit.target },
+          enabled: !this.#starting,
+          onClick: () => void this.#resume(save.id),
+        }),
+      );
+      y += hit.target + gapAfterSection;
+    }
     y = this.#section(left, y, column, "Scenario", CORE_SCENARIOS.map((scenario) => ({
       id: scenario.id as string,
       text: scenario.name,
@@ -404,6 +439,24 @@ export class TitleScene extends Phaser.Scene {
     return drawArt(this, key, slot) !== null;
   }
 
+  async #resume(gameId: string): Promise<void> {
+    if (this.#starting) return;
+    this.#starting = true;
+    this.#rebuild();
+    const { store } = appSession();
+    await store.resume(gameId);
+    if (store.state.status === "failed") {
+      // A save that no longer replays has been retired by the host; say why, and drop the button.
+      this.#starting = false;
+      this.#continuable = null;
+      this.#rebuild();
+      this.#status?.setText(store.state.error ?? "that game could not be resumed");
+      return;
+    }
+    this.scale.off("resize", this.#rebuild, this);
+    this.scene.start(SCENES.board);
+  }
+
   async #start(): Promise<void> {
     if (this.#starting) return;
     // The seed is the engine's shuffle key: a field the player has typed a
@@ -436,8 +489,21 @@ export class TitleScene extends Phaser.Scene {
   }
 }
 
-/** Five digits: long enough not to collide, short enough to read back out loud. */
-const rollSeed = (): number => Math.floor(Math.random() * 100000);
 
 /** Every Core card by id, so a scenario or a deck can show the card it names. */
 const CARDS_BY_ID = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id as string, card]));
+
+/** "Continue — Rhino · Spider-Man · round 4". Names from content, never from the save's own text. */
+function continueLabel(save: SaveMeta): string {
+  const scenario = CORE_SCENARIOS.find((candidate) => (candidate.id as string) === save.config.scenarioId)?.name ?? save.config.scenarioId;
+  const heroes = save.config.players
+    .map((player) => {
+      // A seat is a starter deck or a custom deck; a custom one is named by its identity card.
+      if (!("starterDeckId" in player)) {
+        return CORE_CARDS.find((card) => (card.id as string) === player.identityCardId)?.name ?? player.identityCardId;
+      }
+      return CORE_STARTER_DECKS.find((deck) => (deck.id as string) === player.starterDeckId)?.name.split(" — ")[0] ?? player.starterDeckId;
+    })
+    .join(", ");
+  return `Continue — ${scenario} · ${heroes} · round ${save.round}`;
+}

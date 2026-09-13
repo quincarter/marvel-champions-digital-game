@@ -36,6 +36,19 @@ export function playerName(state: GameState, id: PlayerId): string {
 }
 
 /**
+ * A seat named by both faces of its identity — "Spider-Man / Peter Parker" —
+ * for a decision that picks a seat. The identity card's own name alone reads
+ * the same whichever face is up, and "p2" means nothing at the table.
+ */
+export function seatIdentityName(state: GameState, id: PlayerId): string {
+  const player = getPlayer(state, id);
+  if (!player) return id;
+  const card = cardOf(state, player.identity.instanceId);
+  if (!card || card.type !== "hero_identity") return playerName(state, id);
+  return `${card.hero.faceName} / ${card.alterEgo.faceName}`;
+}
+
+/**
  * A seat's name from the reader's side of the table: their own seat is "you",
  * everyone else is named. The design canvas's log reads "You played Stun",
  * so the perspective seat has to be addressed in the second person.

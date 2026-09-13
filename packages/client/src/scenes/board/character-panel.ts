@@ -105,7 +105,13 @@ export function drawCharacter(ctx: BoardDrawContext, rect: Rect, panel: Characte
     .setMaxLines(2);
   top = subtitle.y + subtitle.height + 6;
 
-  drawStatusPips(scene, rect, panel, dim);
+  // The named tag is the design's default wherever there is room beside the
+  // name; the corner pip is for the card-shaped panel that has none.
+  top = drawStatusTags(scene, left, top, textWidth, panel, dim);
+  for (const effect of panel.effects) {
+    drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 16 }, effect, "note", dim);
+    top += 19;
+  }
 
   if (panel.exhausted) {
     top = drawExhaustedBadge(scene, left, top, textWidth, dim);
@@ -116,11 +122,8 @@ export function drawCharacter(ctx: BoardDrawContext, rect: Rect, panel: Characte
   }
   const abilityLine = controller.abilityLine(panel.instanceId);
   if (abilityLine) {
-    // `setMaxLines(1)` with word wrap drops every word past the first line
-    // without a trace; `fitText` shrinks to the design's floor and then
-    // ellipsizes, so a clipped label at least admits it is clipped.
-    fitText(label(scene, left, top, abilityLine, typeRole.label, signal.heal.hex, ink.body * dim), textWidth, typeRole.label.size);
-    top += 14;
+    drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 18 }, abilityLine, "ability", dim);
+    top += 22;
   }
 
   /**
@@ -216,20 +219,38 @@ function drawCardShapedPanel(ctx: BoardDrawContext, rect: Rect, panel: Character
 
   drawStatusPips(scene, rect, panel, dim);
 
+  /**
+   * Strips along the foot: whose card this is when another player lent it
+   * ("play under any player's control"), and what tapping it does.
+   *
+   * The ability line used to be bare green label text laid over the top of the
+   * scan, where it fought the card's own name and cost for the same pixels and
+   * lost ("▶ EXHAUST, REMOVE 1 SNOOP…" over Surveillance Team's title). A solid
+   * ink strip is readable over any art, and the foot of a printed card is its
+   * set line and copyright — the one band a player never reads. The stat column
+   * lifts to clear them rather than share that space.
+   */
+  const abilityLine = rect.height >= 40 ? controller.abilityLine(panel.instanceId) : null;
+  const strips: { readonly text: string; readonly tone: FootTone }[] = [];
+  if (panel.ownerName && rect.height >= 40) strips.push({ text: `from ${panel.ownerName}`, tone: "note" });
+  if (abilityLine) strips.push({ text: abilityLine, tone: "ability" });
+  const stripHeight = Math.min(20, Math.max(14, Math.round(inner.height * 0.1)));
+  const reserved = strips.length * stripHeight;
+
   // Live stats over the printed icons, where the eye already looks for them on
   // this card, and hit points along the foot. Same widgets as the wide panel.
   if (panel.stats.length > 0 && rect.height > 60) {
-    const column = cardStatColumn(inner, panel.stats.filter((tile) => tile.label !== "HP").length, panel.hp !== null);
+    const column = cardStatColumn(
+      { ...inner, height: inner.height - reserved },
+      panel.stats.filter((tile) => tile.label !== "HP").length,
+      panel.hp !== null,
+    );
     drawStatBlock(scene, column, panel, dim);
   }
-  const abilityLine = controller.abilityLine(panel.instanceId);
-  if (abilityLine && rect.height >= 40) {
-    fitText(
-      label(scene, inner.x + 4, inner.y + 4, abilityLine, typeRole.label, signal.heal.hex, ink.body * dim),
-      inner.width - 8,
-      typeRole.label.size,
-    );
-  }
+  strips.forEach((strip, index) => {
+    const y = inner.y + inner.height - reserved + index * stripHeight;
+    drawFootStrip(scene, { x: inner.x, y, width: inner.width, height: stripHeight }, strip.text, strip.tone, dim);
+  });
 
   // The card itself turns, the way it does on the table. No word needed.
   if (panel.exhausted) turnSideways(scene, rect, scene.children.list.slice(firstDrawn));
@@ -265,6 +286,7 @@ function drawStatBlock(scene: Phaser.Scene, block: StatBlock, panel: CharacterPa
       max: panel.hp.max,
       bonus: panel.stats.find((tile) => tile.label === "HP")?.bonus ?? 0,
       alpha: dim,
+      tough: panel.statuses.some(({ status }) => status === "tough"),
     });
   }
 }
@@ -329,17 +351,81 @@ function drawExhaustedBadge(scene: Phaser.Scene, x: number, y: number, maxWidth:
   return y + height + 5;
 }
 
-/** Status pips: initial only, in the hue that exists nowhere else. */
+/** Lettering on each status hue, as the design's token cards set it: ink on the light two, paper on violet. */
+const STATUS_TEXT: Record<CharacterPanel["statuses"][number]["status"], number> = {
+  stunned: surface.ink.hex,
+  confused: surface.paper.hex,
+  tough: surface.ink.hex,
+};
+
+/**
+ * Status pips: initial only, in the hue that exists nowhere else. The design's
+ * 26px pip, scaled down only for a card too small to carry one.
+ */
 function drawStatusPips(scene: Phaser.Scene, rect: Rect, panel: CharacterPanel, dim: number): void {
+  const size = Math.max(16, Math.min(26, Math.round(rect.width * 0.2)));
   panel.statuses.forEach(({ status }, index) => {
-    const pip: Rect = { x: rect.x + rect.width - 26 - index * 24, y: rect.y + 6, width: 20, height: 20 };
+    const pip: Rect = { x: rect.x + rect.width - size - 6 - index * (size + 4), y: rect.y + 6, width: size, height: size };
     const pg = scene.add.graphics();
     pg.fillStyle(statusTokens[status].hex, dim).fillRect(pip.x, pip.y, pip.width, pip.height);
-    pg.lineStyle(3, surface.ink.hex, dim).strokeRect(pip.x, pip.y, pip.width, pip.height);
+    pg.lineStyle(2.5, surface.ink.hex, dim).strokeRect(pip.x, pip.y, pip.width, pip.height);
     scene.add
-      .text(pip.x + pip.width / 2, pip.y + pip.height / 2, status.charAt(0).toUpperCase(), textStyle(typeRole.statSmall, surface.ink.hex, dim))
+      .text(pip.x + pip.width / 2, pip.y + pip.height / 2, status.charAt(0).toUpperCase(), {
+        ...textStyle(typeRole.statSmall, STATUS_TEXT[status], dim),
+        fontSize: `${Math.round(size * 0.62)}px`,
+      })
       .setOrigin(0.5);
   });
+}
+
+/**
+ * The design's named status tag — "STUNNED" stamped in its hue with an ink
+ * border — for a panel with room beside the name. Wraps to a second row
+ * rather than clipping a status off. Returns the next free `y`.
+ */
+function drawStatusTags(scene: Phaser.Scene, x: number, y: number, maxWidth: number, panel: CharacterPanel, dim: number): number {
+  if (panel.statuses.length === 0) return y;
+  const height = 18;
+  let cursor = x;
+  let row = y;
+  for (const { status, count } of panel.statuses) {
+    const caption = scene.add
+      .text(0, 0, `${status.toUpperCase()}${count > 1 ? ` ×${count}` : ""}`, {
+        ...textStyle(typeRole.barTitle, STATUS_TEXT[status], dim),
+        fontSize: "13px",
+      })
+      .setOrigin(0, 0.5)
+      .setLetterSpacing(0.6);
+    const width = Math.ceil(caption.width) + 12;
+    if (cursor > x && cursor + width > x + maxWidth) {
+      cursor = x;
+      row += height + 4;
+    }
+    const tag = scene.add.graphics();
+    tag.fillStyle(statusTokens[status].hex, dim).fillRect(cursor, row, width, height);
+    tag.lineStyle(2, surface.ink.hex, dim).strokeRect(cursor, row, width, height);
+    caption.setPosition(cursor + 6, row + height / 2 + 1);
+    scene.children.bringToTop(caption);
+    cursor += width + 5;
+  }
+  return row + height + 5;
+}
+
+type FootTone = "ability" | "note";
+
+/**
+ * One solid ink strip carrying a line the table needs read over card art: the
+ * `▶` ability affordance (an accent bar in the "legal" green) or a note — who
+ * lent this card, a lasting effect aimed at this seat (caution yellow).
+ */
+function drawFootStrip(scene: Phaser.Scene, rect: Rect, text: string, tone: FootTone, dim: number): void {
+  const g = scene.add.graphics();
+  g.fillStyle(surface.ink.hex, 0.92 * dim).fillRect(rect.x, rect.y, rect.width, rect.height);
+  g.fillStyle(tone === "ability" ? signal.heal.hex : signal.caution.hex, dim).fillRect(rect.x, rect.y, 4, rect.height);
+  const caption = label(scene, rect.x + 8, rect.y + rect.height / 2, text, typeRole.label, tone === "ability" ? surface.paper.hex : signal.caution.hex, dim).setOrigin(0, 0.5);
+  // `fitText` shrinks to the design's floor and then ellipsizes, so a clipped
+  // line at least admits it is clipped.
+  fitText(caption, rect.width - 12, typeRole.label.size);
 }
 
 /**

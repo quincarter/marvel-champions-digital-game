@@ -153,6 +153,72 @@ describe("boardModel", () => {
   });
 });
 
+describe("seat rows and what is aimed at a seat", () => {
+  let state: GameState;
+  let viewer: PlayerId;
+
+  beforeAll(async () => {
+    const store = await intoPlay(KLAW_TWO);
+    state = store.state.game!;
+    viewer = store.state.perspectiveId!;
+  }, 60_000);
+
+  const otherSeat = () => state.players.find((player) => player.playerId !== viewer)!;
+
+  test("an eliminated seat is never shown as having finished its turn", () => {
+    const seat = otherSeat();
+    // Mid player phase, after that seat would have gone: exactly when "done" used to show.
+    const eliminated: GameState = {
+      ...state,
+      players: state.players.map((player) => (player.playerId === seat.playerId ? { ...player, eliminated: true } : player)),
+      step: { phase: "player", kind: "turn", activePlayerId: viewer, remainingPlayerIds: [] },
+    };
+    const row = boardModel(eliminated, viewer, CORE_DEPS).team[0]!;
+
+    expect(row.eliminated).toBe(true);
+    expect(row.done).toBe(false);
+    expect(row.identityInstanceId).toBe(seat.identity.instanceId);
+  });
+
+  test("a lingering 'next card costs less' shows on the chosen seat, and only there", () => {
+    const seat = otherSeat();
+    const reduced: GameState = {
+      ...state,
+      lastingEffects: [
+        ...state.lastingEffects,
+        { id: "test-helicarrier", kind: "costReduction", playerId: seat.playerId, amount: 1, duration: { kind: "endOfPhase" } },
+      ],
+    };
+    const model = boardModel(reduced, viewer, CORE_DEPS);
+
+    expect(model.team[0]!.effects).toEqual(["next card costs 1 less"]);
+    expect(model.me.effects).toEqual([]);
+    expect(characterPanel(reduced, seat.identity.instanceId, CORE_DEPS).effects).toEqual(["next card costs 1 less"]);
+  });
+
+  test("a card played under another player's control names the seat it came from", () => {
+    const seat = otherSeat();
+    const lentId = seat.hand[0]!;
+    const lent: GameState = {
+      ...state,
+      instances: { ...state.instances, [lentId]: { ...state.instances[lentId]!, ownerId: seat.playerId, controllerId: viewer, faceup: true } },
+      players: state.players.map((player) => {
+        if (player.playerId === viewer) return { ...player, playArea: [...player.playArea, lentId] };
+        if (player.playerId === seat.playerId) return { ...player, hand: player.hand.filter((id) => id !== lentId) };
+        return player;
+      }),
+    };
+    const lender = boardModel(lent, seat.playerId, CORE_DEPS);
+    const mine = boardModel(lent, viewer, CORE_DEPS).myPlayArea.find((panel) => panel.instanceId === lentId)!;
+    const lenderName = boardModel(lent, viewer, CORE_DEPS).team[0]!.name;
+
+    expect(mine.ownerName).toBe(lenderName);
+    expect(lender.team[0]!.borrowed).toEqual([`${mine.name} · from ${lenderName}`]);
+    // A card you own and control yourself carries no such note.
+    expect(boardModel(state, viewer, CORE_DEPS).myPlayArea.every((panel) => panel.ownerName === null)).toBe(true);
+  });
+});
+
 describe("highlights", () => {
   test("a turn lists playable cards and gives the engine's reason for the rest", async () => {
     const store = await intoPlay(KLAW_TWO);

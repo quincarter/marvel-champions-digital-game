@@ -36,6 +36,7 @@ import { boardModel, type BoardModel } from "../view/board-model.js";
 import { highlights, type Highlights } from "../view/highlights.js";
 import { appendEvents, emptyLog, type LogState } from "../view/log-lines.js";
 import { tabsTouchedBy } from "../view/tab-badges.js";
+import { playerName } from "../view/names.js";
 import type { GamepadIntent } from "../view/gamepad.js";
 import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
@@ -142,6 +143,19 @@ export class BoardScene extends Phaser.Scene {
       this.game.events.off("mc-play-card", this.#onInspectPlay, this);
       this.game.events.off("mc-use-ability", this.#onInspectUseAbility, this);
       this.input.off("wheel", this.#hand.onWheel, this.#hand);
+      /**
+       * The overlays this scene launches run in parallel over it, so stopping
+       * the Board doesn't stop them. When the game ends `#onState` hands off to
+       * Game Over before `#syncChoiceOverlay` gets its turn, which left the
+       * choice sheet running — invisibly, holding its store subscription —
+       * behind the game-over screen. The Board owns them, so it closes them.
+       * `#choiceOpen` resets too, or the next Board would think the sheet was
+       * already up and never relaunch it.
+       */
+      for (const overlay of [SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+        if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
+      }
+      this.#choiceOpen = false;
     });
   }
 
@@ -154,6 +168,14 @@ export class BoardScene extends Phaser.Scene {
       this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId);
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
+      // A hero going down is the one change nobody may miss. The last one
+      // standing falling is the game ending instead, and Game Over says that.
+      if (!state.game.outcome) {
+        for (const event of state.lastEvents) {
+          if (event.type !== "playerEliminated") continue;
+          this.#motion.announce(`${playerName(state.game, event.playerId)} is down`, "Defeated — out of the game. The rest of the team fights on");
+        }
+      }
       this.#version = state.version;
       // A new state invalidates any half-made selection: the engine may have
       // changed what is legal, and a stale target would just be rejected.
@@ -276,7 +298,7 @@ export class BoardScene extends Phaser.Scene {
     if (zones.log) drawLog(this, zones.log, this.#log);
     if (zones.me) drawCharacter(ctx, zones.me, model.me);
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model);
-    if (zones.team) drawTeam(this, zones.team, model);
+    if (zones.team) drawTeam(ctx, zones.team, model);
     drawHand(ctx, zones.hand!, model);
     drawActionBar(ctx, zones.actionBar!, model);
     this.#drawTargetRings();
@@ -288,6 +310,12 @@ export class BoardScene extends Phaser.Scene {
     // under a later panel.
     this.#motion.drawBeats(this.#frame.hitRects);
     this.#motion.renderTravels();
+    // Held back while an overlay covers the table, so it isn't spent unseen.
+    this.#motion.drawBanners(
+      { x: 0, y: 0, width, height },
+      !this.#choiceOpen && !this.scene.isActive(SCENES.villainPhase),
+      () => this.#draw(),
+    );
   }
 
   #drawTabs(rect: Rect, model: BoardModel): void {

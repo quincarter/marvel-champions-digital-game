@@ -128,6 +128,14 @@ export interface CharacterPanel {
   readonly disabledActions: readonly ("attack" | "thwart")[];
   /** Upgrades and attachments hanging off this card. */
   readonly attachments: readonly AttachmentChip[];
+  /**
+   * The seat that owns this card when someone else controls it — a Heroic
+   * Intuition played under another player's control — or null. Without it a
+   * lent card is indistinguishable from one of your own.
+   */
+  readonly ownerName: string | null;
+  /** Lasting effects aimed at this identity's seat, as short notes ("next card costs 1 less"). */
+  readonly effects: readonly string[];
 }
 
 export interface AttachmentChip {
@@ -189,8 +197,14 @@ export interface SeatRow {
   readonly statuses: readonly StatusPip[];
   readonly isFirstPlayer: boolean;
   readonly eliminated: boolean;
-  /** True once this seat's turn is done this round. */
+  /** True once this seat's turn is done this round. Never true for an eliminated seat. */
   readonly done: boolean;
+  /** The seat's identity card, so a beat or a target on this hero lands on its row. */
+  readonly identityInstanceId: InstanceId;
+  /** Lasting effects aimed at this seat ("next card costs 1 less"). */
+  readonly effects: readonly string[];
+  /** Cards this seat controls that another player owns: "Heroic Intuition · from Black Panther". */
+  readonly borrowed: readonly string[];
 }
 
 export interface PileCounts {
@@ -351,7 +365,27 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
       name: cardOf(state, attachmentId)?.name ?? "Attachment",
       exhausted: getInstance(state, attachmentId)?.exhausted ?? false,
     })),
+    ownerName:
+      instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
+        ? playerName(state, instance.ownerId)
+        : null,
+    effects: seatEffectsOf(state, state.players.find((seat) => seat.identity.instanceId === id)?.playerId ?? null),
   };
+}
+
+/**
+ * Lasting effects aimed at a seat, as the notes its panel and seat row wear.
+ * A "choose a player" effect that lingers (Helicarrier: "reduce the resource
+ * cost of the next card that player plays") otherwise leaves no trace on the
+ * table that it happened, or to whom.
+ */
+function seatEffectsOf(state: GameState, playerId: PlayerId | null): readonly string[] {
+  if (playerId === null) return [];
+  const reduction = state.lastingEffects.reduce(
+    (total, effect) => (effect.kind === "costReduction" && effect.playerId === playerId ? total + effect.amount : total),
+    0,
+  );
+  return reduction > 0 ? [`next card costs ${reduction} less`] : [];
 }
 
 /**
@@ -599,10 +633,18 @@ export function seatRow(state: GameState, playerId: PlayerId, deps: EngineDeps):
     statuses: instance ? statusPips(instance) : [],
     isFirstPlayer: state.firstPlayerId === playerId,
     eliminated: player.eliminated,
-    // Turns run off `remainingPlayerIds`: a seat not in that list has had its turn.
+    // Turns run off `remainingPlayerIds`: a seat not in that list has had its
+    // turn. An eliminated seat is dropped from that list too, which read as
+    // "done" — a defeated hero looking like one waiting for the next round.
     done:
-      step.phase === "player" && step.kind === "turn"
+      !player.eliminated && step.phase === "player" && step.kind === "turn"
         ? step.activePlayerId !== playerId && !step.remainingPlayerIds.includes(playerId)
         : false,
+    identityInstanceId: identity,
+    effects: seatEffectsOf(state, playerId),
+    borrowed: player.playArea.flatMap((id) => {
+      const ownerId = getInstance(state, id)?.ownerId ?? null;
+      return ownerId !== null && ownerId !== playerId ? [`${cardOf(state, id)?.name ?? "a card"} · from ${playerName(state, ownerId)}`] : [];
+    }),
   };
 }

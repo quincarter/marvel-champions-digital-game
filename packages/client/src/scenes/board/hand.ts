@@ -14,6 +14,7 @@ import type { IllegalReason } from "../../view/highlights.js";
 import { cardRow, type Rect } from "../../view/layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
+import { drawControllerBar } from "./controller-bar.js";
 import { drawPaymentBar } from "./payment-bar.js";
 import { focusKey } from "./selection.js";
 
@@ -112,8 +113,12 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   // While paying, the caption line gives way to the payment bar: the hand is
   // the instrument of the payment, so the count belongs directly over it.
   const payment = ctx.controller.paymentView();
+  const controllerChoice = ctx.controller.controllerChoice();
   let top = rect.y + 20;
-  if (payment) {
+  if (controllerChoice) {
+    drawControllerBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, controllerChoice);
+    top = rect.y + hit.target + 4;
+  } else if (payment) {
     drawPaymentBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, payment);
     top = rect.y + hit.target + 4;
   } else {

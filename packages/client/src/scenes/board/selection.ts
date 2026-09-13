@@ -5,7 +5,7 @@
  */
 
 import { CORE_DEPS } from "@mc/cards";
-import type { Command, InstanceId, LegalAction } from "@mc/engine";
+import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { ink } from "../../tokens.js";
 import type { FocusTarget } from "../../view/focus.js";
 import type { BasicAction } from "../../view/highlights.js";
@@ -21,7 +21,14 @@ export type Selection =
    * this a mode over the hand rather than a dialog (`Board - Phone`: a red
    * "PAYING 1 / 3" bar above a hand you tap), so it lives on the Board.
    */
-  | { readonly kind: "paying"; readonly payment: PaymentState };
+  | { readonly kind: "paying"; readonly payment: PaymentState }
+  /**
+   * A "play under any player's control" card is chosen; now pick whose control
+   * it enters play under. The engine lists every seat it may legally go to
+   * (`LegalAction.controllers`) — a seat already at "max 1 per player" is not
+   * one of them.
+   */
+  | { readonly kind: "choosingController"; readonly action: LegalAction; readonly controllers: readonly PlayerId[] };
 
 export type TargetState = "rest" | "selected" | "unavailable";
 

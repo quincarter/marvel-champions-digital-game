@@ -12,6 +12,9 @@
  * a different answer from `0` — a field the player is still typing into (or
  * has cleared) must not be read as the seed zero.
  */
+/** Five digits: long enough not to collide, short enough to read back out loud. */
+export const rollSeed = (): number => Math.floor(Math.random() * 100000);
+
 export function parseSeed(input: string): number | null {
   const trimmed = input.trim();
   if (trimmed.length === 0) return null;

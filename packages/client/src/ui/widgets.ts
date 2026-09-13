@@ -13,7 +13,7 @@
 
 import Phaser from "phaser";
 import type { InputText as RexInputText, TextArea as RexTextArea } from "phaser4-rex-plugins/templates/ui/ui-components";
-import { accent, border, hit, ink, minType, selectionRing, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { accent, border, hit, ink, minType, selectionRing, signal, statHue, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
 // The only rexUI import in the app. See ui/rex.ts for why the two components
 // are constructed directly instead of through `RexUIPlugin`.
@@ -49,6 +49,31 @@ export function dashedRect(g: Phaser.GameObjects.Graphics, rect: Rect, width: nu
   line(rect.x, rect.y + rect.height, rect.x, rect.y);
 }
 
+/**
+ * 45° hatching clipped to `rect` — the design's "why this is gone" texture
+ * (Components.dc.html section 05: a status hatches the control it cancels,
+ * and Tough hatches the HP bar as armour). Lines of `x + y = k`, each clipped
+ * to the rect by hand, because a Graphics object has no clip of its own.
+ */
+export function hatchRect(
+  g: Phaser.GameObjects.Graphics,
+  rect: Rect,
+  color: number,
+  alpha: number,
+  spacing = 8,
+  thickness = 3,
+): void {
+  const { x, y, width, height } = rect;
+  if (width <= 0 || height <= 0) return;
+  g.lineStyle(thickness, color, alpha);
+  for (let k = spacing / 2; k < width + height; k += spacing) {
+    const startX = Math.max(0, k - height);
+    const endX = Math.min(width, k);
+    if (endX <= startX) continue;
+    g.lineBetween(x + startX, y + (k - startX), x + endX, y + (k - endX));
+  }
+}
+
 export interface McButtonOptions {
   readonly kind: WidgetKind;
   readonly label: string;
@@ -61,6 +86,8 @@ export interface McButtonOptions {
   readonly selected?: boolean;
   /** Drawn beside the label, e.g. the "2" on the Attack button. */
   readonly value?: string;
+  /** A status hue to hatch the button in: the status that cancels what it does. */
+  readonly hatch?: number;
 }
 
 /**
@@ -139,6 +166,10 @@ export class McButton {
     const s = skin(this.#options.kind, state);
     this.#graphics.clear();
     paintPanel(this.#graphics, rect, this.#options.kind, state);
+    if (this.#options.hatch !== undefined) {
+      hatchRect(this.#graphics, { x: rect.x + 2, y: rect.y + 2, width: rect.width - 4, height: rect.height - 4 }, this.#options.hatch, 0.55, 10, 4);
+      this.#graphics.lineStyle(3, this.#options.hatch, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+    }
 
     const hasValue = this.#value !== null;
     this.#label
@@ -827,6 +858,12 @@ export interface McHpPlateOptions {
   /** Additive modifiers on maximum hit points, drawn as a signed chip. */
   readonly bonus?: number;
   readonly alpha?: number;
+  /**
+   * The character has a tough status. Drawn *over* the plate as hatched
+   * armour, never beside it: it is protection, not a wound (Components.dc.html
+   * section 05).
+   */
+  readonly tough?: boolean;
 }
 
 /**
@@ -873,7 +910,7 @@ export class McHpPlate {
   }
 
   redraw(): void {
-    const { rect, current, max, bonus = 0, alpha = 1 } = this.#options;
+    const { rect, current, max, bonus = 0, alpha = 1, tough = false } = this.#options;
     const { width, height } = rect;
     this.container.setPosition(rect.x, rect.y);
 
@@ -882,9 +919,16 @@ export class McHpPlate {
     const ratio = max > 0 ? Math.max(0, Math.min(1, current / max)) : 0;
     this.#graphics.clear();
     this.#graphics.fillStyle(surface.paper.hex, alpha).fillRect(0, 0, width, height);
+    if (tough) hatchRect(this.#graphics, { x: 0, y: 0, width, height }, status.tough.hex, alpha * 0.28, 9, 3);
     this.#graphics.fillStyle(surface.parchment.hex, alpha).fillRect(2, height - meter - 2, width - 4, meter);
     this.#graphics.fillStyle(signal.heal.hex, alpha).fillRect(2, height - meter - 2, (width - 4) * ratio, meter);
+    if (tough) {
+      const track: Rect = { x: 2, y: height - meter - 2, width: width - 4, height: meter };
+      this.#graphics.fillStyle(surface.ink.hex, alpha * 0.9).fillRect(track.x, track.y, track.width, track.height);
+      hatchRect(this.#graphics, track, status.tough.hex, alpha, 6, 3);
+    }
     this.#graphics.lineStyle(2, surface.ink.hex, alpha).strokeRect(0, 0, width, height);
+    if (tough) this.#graphics.lineStyle(3, status.tough.hex, alpha).strokeRect(2.5, 2.5, width - 5, height - 5);
 
     const mid = body / 2 + 1;
     this.#caption.setColor(cssOf(surface.ink.hex, ink.label * alpha)).setPosition(6, mid);

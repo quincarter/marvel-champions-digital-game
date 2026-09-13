@@ -386,12 +386,40 @@ Reported from play: the hero stat boxes were "very small and hard to read", HP w
 
 **Not verified:** an exhausted card-shaped panel *with* badges on screen. They turn by construction — they are drawn inside the range `#turnSideways` re-parents — but no Core ally was affordable in the scripted game used to check. The hero's HP plate is still modest at narrow window widths, where its text column is under 100px.
 
+### What landed (2026-09-12, saved games and game over)
+
+A refresh used to lose the game, and the game-over screen was a placeholder ("DEFEAT", a reason, a round count) nowhere near the designs. The two are one piece of work, because the screen the canvases draw needs a story about the whole game, and a story that survives a refresh has to be derived from something that survives it.
+
+**Games are saved as they're played, to IndexedDB, and resumed by replay** (`engine/game-storage.ts`, `engine/idb-game-storage.ts`, `engine/session-core.ts`).
+- **What is stored is the log, not the state:** the setup config, the post-setup baseline (without the card pool, which reloads from the bundle), and each command as it lands. Phase 1 made `applyCommand` pure and `replay()` deterministic precisely so a log fully describes a game, so resuming is "replay the log" — the same game to the command, not an approximation of it.
+- **Storage lives in the engine worker**, beside the log it writes: each command is saved by the thing that applied it. Three object stores — a small `games` summary row per game (what "Continue" and listing read), a `baselines` store read only on load, and `commands` keyed `[gameId, seq]` so a log is a key range and each append is one small put.
+- **Every append is checked for order.** It carries its sequence number and is rejected unless it's the next command, so a lost or reordered write fails when it happens instead of producing a log that replays differently later. After a failed write the session stops saving and surfaces `saveError` (the game plays on; nothing about the rules depends on the disk).
+- **A save that no longer replays is retired, not resumed.** If any stored command is rejected by this build's engine — a card changed under an old save — the game is marked `incompatible`, never offered again, and kept rather than deleted.
+- One game in progress at a time: starting a new game marks the previous active one `abandoned`. A finished game is recorded `won`/`lost` and is not offered as "Continue".
+- **The Title screen offers "Continue — Rhino · Spider-Man (Justice) · round 1"** when a game is in progress. Verified in the browser against real IndexedDB: play three commands, reload the page, click Continue, and the Board picks up at the same command and round.
+- `MemoryGameStorage` (Vitest, and `LocalEngineHost`'s default) and `IdbGameStorage` run **one shared contract test**, with `fake-indexeddb` standing in for the browser; memory storage copies in and out with `structuredClone` exactly as IndexedDB does, so a test can't pass on a shared reference the real storage would never have. A refresh is tested as a second host on the same storage.
+
+**What the game-over screen reports is derived, never saved** (`engine/game-record.ts`). A `GameRecord` — damage and thwart per seat, per-round threat, Crisis blocks, eliminations, the last threat placed and the last hit on the villain — is folded from the engine's events by one reducer, live as each command lands and again when a saved log is replayed. Only the log is persisted, so the record can't drift from it, and a resumed game ends with exactly the summary it would have had uninterrupted. Attribution is "the seat that controls, or else owns, the card the engine named as the source"; a threat placement learns who it was scheming against from the enemy activation in progress.
+
+**Game over now follows the canvases** (`scenes/game-over.ts`, `view/game-over-model.ts`).
+- **Wide** (Screens - Desktop #12): the outcome's colour as the whole ground — Hero Red for a loss, green for a win — the headline ("The scheme wins"), a final-blow box ("The Break-In! hit 7 threat / Placed by Rhino scheming against Spider-Man"), three stat cards, "Where it went wrong" (or "How it was won") as round-tagged turning points, the table's seats, and the rematch actions.
+- **Tall** (Phone P11 / P17): ink ground, the villain's card whole in a band up top, kicker, headline, one summary sentence, three number boxes, actions at the thumb.
+- **Every sentence traces to a count in the record**; where the record doesn't know something the sentence says less rather than guessing. Turning points are only Crisis blocks, eliminations, stage advances and the single heaviest threat round.
+- **"Run it back"** keeps the scenario and seats with a fresh seed; **"Same seed, same hands"** replays the identical deal. Both reuse the session config, which the host now publishes with every update so a resumed game can rematch too. Verified in the browser: Run it back deals a new Rhino game at the mulligan with a new seed and a reset record.
+
+**Fixed on the way.**
+- **The Board left its overlays running behind Game Over.** It hands off as soon as `outcome` is set, before `#syncChoiceOverlay` gets its turn, so the choice sheet kept running — invisibly, holding its store subscription — under the game-over screen. The Board now stops the overlays it launched when it shuts down, and resets `#choiceOpen` so the next Board relaunches the sheet. Verified: at Game Over only `GameOver` is running.
+- **`EngineSessionCore.start` became async** (creating the save is awaited, because a game not yet recorded has nothing for its first command to append to), which broke the storage contract test's synchronous baseline — the build error reported after the board refactor merged.
+
 Still open in Phase 4:
 - **The virtualized game-log grid table.** The one rexUI piece not yet taken; the log is drawn inline in `board.ts`.
 - **Deck and discard piles have no on-table box**, so a card drawn or discarded has no anchor to travel from and still appears rather than moving. Closing that means adding pile UI that does not exist today.
 - **Gamepad drives the Board only.** The choice and Inspect overlays own input while open and are not wired to it — the same gap the keyboard already has.
 - **The payment bar still shows only hand cards.** `PaymentView.sources` now lists every spendable source in the engine's order, including `resourceAbility` sources that live *in play* rather than in hand (a Web-Shooter is a resource, and there is no way to spend one from the table). `board.ts` needs to draw that list as a card strip, and the card being paid *for* as a thumbnail in the bar.
-- **`GameSession.log.commands` grows without bound** for save/replay, by design and small per command — but worth a cap before a very long session.
+- **`GameSession.log.commands` grows without bound** for save/replay, by design and small per command — but worth a cap before a very long session. It is now also what IndexedDB stores, one row per command.
+- **Game-over actions the canvases show that don't exist yet** are drawn unavailable with their reason rather than omitted ("dashed = not yet real"): the replay viewer. Not drawn at all: exporting the log, a full log reader, and "Tune deck" (Phase 9).
+- **The win layout is unverified in the browser.** No scripted game reached a win; the model's win branch is covered only by its own logic, and the green ground, "How it was won" and the phone MVP row have not been seen rendered.
+- **`saveError` isn't shown anywhere yet.** The store carries it and it stays set once saving fails, but no banner tells the player their game may not survive a refresh.
 
 ### Checklist
 
@@ -431,7 +459,7 @@ Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-
 ## Phase 8 — Polish
 
 - [ ] Tutorial/onboarding flow for players unfamiliar with the paper game.
-- [ ] Save/resume, settings, difficulty (standard/expert per the paper game's modes).
+- [ ] Save/resume, settings, difficulty (standard/expert per the paper game's modes). **Local save/resume landed 2026-09-12** (IndexedDB, resumed by replaying the saved log — see Phase 4, "saved games and game over"); settings remain.
 - [ ] Audio/feedback pass, performance pass, platform packaging as decided in Phase 0.
 - [ ] Backlog, moved out of Phase 4 on 2026-09-11: **hero AI** to fill seats with computer-controlled heroes. It needs real planning, not the greedy test driver in `packages/cards/src/testing/driver.ts`. It should issue ordinary commands, so a seat can switch between human, AI and (Phase 5) a remote player.
 

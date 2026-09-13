@@ -6,6 +6,7 @@
 
 import { beforeEach, describe, expect, test } from "vitest";
 import { LocalEngineHost } from "../engine/local-host.js";
+import { MemoryGameStorage } from "../engine/game-storage.js";
 import type { EngineHost, SessionConfig } from "../engine/host.js";
 import { SessionStore } from "./session-store.js";
 
@@ -137,4 +138,120 @@ describe("SessionStore", () => {
     expect(seen.at(-1)).toBe(store.state.version);
     expect(store.state.version).toBe(1);
   });
+
+  /** Walks a real game forward: answers choices with the minimum, otherwise ends the turn. */
+  const advance = async (target: SessionStore, steps: number): Promise<void> => {
+    for (let step = 0; step < steps && !target.state.game!.outcome; step++) {
+      const { legal } = target.state;
+      if (!legal) break;
+      if (legal.actions.kind === "choice") {
+        const { choice } = legal.actions;
+        await target.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
+        continue;
+      }
+      if (legal.actions.kind !== "turn") break;
+      const end = legal.actions.legal.find((entry) => entry.action.kind === "endTurn") ?? legal.actions.legal[0];
+      if (!end) break;
+      await target.dispatch(end.example);
+    }
+  };
+
+  /**
+   * The reason saves exist: refreshing the page used to lose the game. A second
+   * host on the same storage is the in-thread stand-in for a reload — nothing
+   * in memory carries over, only what was written.
+   */
+  test("a game survives a refresh: resuming restores the same state, position and record", async () => {
+    const storage = new MemoryGameStorage();
+    const firstHost = new LocalEngineHost(storage);
+    const played = new SessionStore(firstHost);
+    await played.start(RHINO_SOLO);
+    // Four commands: a table that only ends its turn loses to this seed's
+    // scheme on the fifth, and a finished game is never offered to resume.
+    await advance(played, 4);
+    await firstHost.flushed();
+    const before = played.state;
+    expect(before.game!.outcome).toBeNull();
+    expect(before.version).toBeGreaterThan(2);
+
+    const reloaded = new SessionStore(new LocalEngineHost(storage));
+    const offered = await reloaded.latestSave();
+    expect(offered).not.toBeNull();
+    expect(offered!.commandCount).toBe(before.version);
+    expect(offered!.round).toBe(before.game!.round);
+
+    await reloaded.resume(offered!.id);
+    const after = reloaded.state;
+    expect(after.status).toBe("playing");
+    expect(after.error).toBeNull();
+    expect(after.version).toBe(before.version);
+    expect(after.game).toEqual(before.game);
+    // Derived from the replayed log, not saved beside it — and still identical.
+    expect(after.record).toEqual(before.record);
+    // A resumed game arrives at its position; it doesn't replay the animations of getting there.
+    expect(after.lastEvents).toEqual([]);
+    expect(after.saveError).toBeNull();
+  }, 60_000);
+
+  test("a resumed game keeps saving, so a second refresh picks up the newer position", async () => {
+    const storage = new MemoryGameStorage();
+    const first = new SessionStore(new LocalEngineHost(storage));
+    await first.start(RHINO_SOLO);
+    await advance(first, 2);
+
+    const secondHost = new LocalEngineHost(storage);
+    const second = new SessionStore(secondHost);
+    await second.resume((await second.latestSave())!.id);
+    await advance(second, 2);
+    await secondHost.flushed();
+    expect(second.state.game!.outcome).toBeNull();
+
+    const third = new SessionStore(new LocalEngineHost(storage));
+    const offered = await third.latestSave();
+    expect(offered!.commandCount).toBe(second.state.version);
+    await third.resume(offered!.id);
+    expect(third.state.game).toEqual(second.state.game);
+  }, 60_000);
+
+  test("a finished game is recorded as over and is not offered as Continue", async () => {
+    const storage = new MemoryGameStorage();
+    const host = new LocalEngineHost(storage);
+    const played = new SessionStore(host);
+    await played.start(RHINO_SOLO);
+    await advance(played, 40);
+    await host.flushed();
+
+    const outcome = played.state.game!.outcome;
+    expect(outcome).not.toBeNull();
+    const [saved] = await storage.list();
+    expect(saved!.status).toBe(outcome!.result === "win" ? "won" : "lost");
+    expect(saved!.outcome).toEqual(outcome);
+    expect(await new SessionStore(new LocalEngineHost(storage)).latestSave()).toBeNull();
+  }, 60_000);
+
+  test("a save that no longer replays fails with the reason, and is never offered again", async () => {
+    const storage = new MemoryGameStorage();
+    const host = new LocalEngineHost(storage);
+    const played = new SessionStore(host);
+    await played.start(RHINO_SOLO);
+    await played.resolveChoice([]);
+    await host.flushed();
+
+    // A command this build's engine rejects — what a card changing under an old save looks like.
+    const saved = (await storage.latestActive())!;
+    await storage.append(saved.id, saved.commandCount, { type: "basicRecover", playerId: "nobody" } as never, {
+      round: saved.round,
+      commandCount: saved.commandCount + 1,
+      updatedAt: saved.updatedAt + 1,
+      status: "active",
+      outcome: null,
+    });
+
+    const reloaded = new SessionStore(new LocalEngineHost(storage));
+    await reloaded.resume(saved.id);
+    expect(reloaded.state.status).toBe("failed");
+    expect(reloaded.state.error).toMatch(/no longer replays/);
+    expect(await reloaded.latestSave()).toBeNull();
+  });
+
 });

@@ -229,6 +229,46 @@ describe("CardArt residency budget", () => {
     expect(raw.load.listenerCount("loaderror")).toBe(0);
   });
 
+  it("a scene that closes before its scheduled flush does not block later scans", () => {
+    // A real scene clock dies with its scene, so a delayed call armed on an
+    // overlay that closes first simply never runs.
+    const art = new CardArt();
+    const overlay = new FakeScene();
+    const deferred: (() => void)[] = [];
+    (overlay as { time: { delayedCall: (d: number, cb: () => void) => void } }).time = {
+      delayedCall: (_delay, callback) => void deferred.push(callback),
+    };
+    const board = new FakeScene();
+    board.textures.stage("late", { width: 300, height: 419 });
+
+    art.request(overlay as unknown as import("phaser").Scene, source("early"));
+    overlay.shutdown();
+    deferred.length = 0; // the dead clock's callbacks never fire
+
+    const asBoard = board as unknown as import("phaser").Scene;
+    art.request(asBoard, source("late"));
+    board.load.start();
+    expect(board.textures.exists("late")).toBe(true);
+  });
+
+  it("re-requests a scan whose loader closed with its scene mid-fetch", () => {
+    const art = new CardArt();
+    const overlay = new FakeScene();
+    const board = new FakeScene();
+    board.textures.stage("a", { width: 300, height: 419 });
+
+    // The overlay's fetch is still in flight when it closes, so it never lands.
+    (overlay.load as unknown as { start: () => void }).start = () => undefined;
+    art.request(overlay as unknown as import("phaser").Scene, source("a"));
+    overlay.shutdown();
+
+    const asBoard = board as unknown as import("phaser").Scene;
+    expect(art.request(asBoard, source("a"))).toBeNull();
+    board.load.start();
+    expect(board.textures.exists("a")).toBe(true);
+    expect(art.request(asBoard, source("a"))).toBe("a");
+  });
+
   it("stays under budget indefinitely across a long run of distinct cards", () => {
     const art = new CardArt();
     const scene = new FakeScene() as unknown as import("phaser").Scene;

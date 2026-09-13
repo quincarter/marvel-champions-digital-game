@@ -9,13 +9,13 @@
 
 import { CORE_DEPS } from "@mc/cards";
 import type { AbilityId } from "@mc/content";
-import type { Command, InstanceId, LegalAction } from "@mc/engine";
+import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
 import { abilityActionsFor, type BasicAction, type Highlights, type UsableAbilityAction } from "../../view/highlights.js";
-import { cardName } from "../../view/names.js";
+import { cardName, seatIdentityName } from "../../view/names.js";
 import { beginPayment, paymentView, togglePayment, type PaymentView } from "../../view/payment-model.js";
 import { BASIC_TO_KIND, retarget, type Selection } from "./selection.js";
 
@@ -27,6 +27,23 @@ export interface BoardControllerHost {
   tabbed(): boolean;
   redraw(): void;
   inspect(id: InstanceId): void;
+}
+
+/** What the controller picker bar shows: the card, and each seat it may be played under. */
+export interface ControllerChoiceView {
+  readonly subject: string;
+  readonly options: readonly { readonly playerId: PlayerId; readonly label: string }[];
+}
+
+/**
+ * The engine's example `playCard`, sent to `controllerId` instead of whichever
+ * seat the example picked. The payer's own seat is spelled as no controller,
+ * the way `legalActions` builds it.
+ */
+function withController(command: Command, controllerId: PlayerId | null): Command {
+  if (command.type !== "playCard" || controllerId === null) return command;
+  const { controllerId: _example, ...rest } = command;
+  return controllerId === command.playerId ? rest : { ...rest, controllerId };
 }
 
 export class BoardController {
@@ -164,8 +181,44 @@ export class BoardController {
       ? this.#legalEntries().find((candidate) => candidate.action.kind === "playCard" && candidate.action.instanceId === instanceId)
       : undefined;
     if (!entry) return;
-    if (entry.needsPayment && this.#openPayment(entry, null)) return;
-    await this.#dispatch(entry.example);
+    // "Play under any player's control" makes whose card it becomes a real
+    // decision, and the engine's `example` had quietly made it for the player
+    // (the first seat that could take it). So a choice of seats opens the picker.
+    if (entry.controllers && entry.controllers.length > 1) {
+      this.#selection = { kind: "choosingController", action: entry, controllers: entry.controllers };
+      this.#host.redraw();
+      return;
+    }
+    await this.#playAs(entry, entry.controllers?.[0] ?? null);
+  }
+
+  /** The controller picker's answer: play the card under that seat's control. */
+  async chooseController(controllerId: PlayerId): Promise<void> {
+    if (this.#selection.kind !== "choosingController") return;
+    const { action } = this.#selection;
+    if (!action.controllers?.includes(controllerId)) return;
+    this.#selection = { kind: "idle" };
+    await this.#playAs(action, controllerId);
+  }
+
+  /** The seats the picker offers, named by both faces, or null when it isn't open. */
+  controllerChoice(): ControllerChoiceView | null {
+    if (this.#selection.kind !== "choosingController") return null;
+    const { game, perspectiveId } = appSession().store.state;
+    if (!game) return null;
+    const { action, controllers } = this.#selection;
+    return {
+      subject: action.action.kind === "playCard" ? cardName(game, action.action.instanceId) : "This card",
+      options: controllers.map((playerId) => ({
+        playerId,
+        label: `${seatIdentityName(game, playerId)}${playerId === perspectiveId ? " (you)" : ""}`,
+      })),
+    };
+  }
+
+  async #playAs(entry: LegalAction, controllerId: PlayerId | null): Promise<void> {
+    if (entry.needsPayment && this.#openPayment(entry, null, controllerId)) return;
+    await this.#dispatch(withController(entry.example, controllerId));
   }
 
   /** Every `useAbility` entry `legalActions` currently lists for one card, in order. */
@@ -254,11 +307,11 @@ export class BoardController {
    * Enters payment mode for an action. Returns false when the engine says the
    * action needs no payment after all, so the caller can just dispatch it.
    */
-  #openPayment(entry: LegalAction, target: InstanceId | null): boolean {
+  #openPayment(entry: LegalAction, target: InstanceId | null, controllerId: PlayerId | null = null): boolean {
     const { store } = appSession();
     const { game, perspectiveId } = store.state;
     if (!game || perspectiveId === null) return false;
-    const payment = beginPayment(game, perspectiveId, entry.action, target, CORE_DEPS);
+    const payment = beginPayment(game, perspectiveId, entry.action, target, CORE_DEPS, controllerId);
     if (!payment) return false;
     this.#selection = { kind: "paying", payment };
     this.#host.redraw();

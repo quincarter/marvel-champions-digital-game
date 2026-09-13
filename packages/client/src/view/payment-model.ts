@@ -34,6 +34,8 @@ export interface PaymentState {
   readonly action: ActionRef;
   /** The target already chosen for the action, if it needed one. */
   readonly target: InstanceId | null;
+  /** The seat a "play under any player's control" card was sent to, when it isn't the payer's own. */
+  readonly controllerId?: PlayerId | null;
   readonly query: PaymentQuery;
   /** Option ids picked so far, in the order they were picked. */
   readonly picked: readonly string[];
@@ -114,11 +116,15 @@ export function beginPayment(
   action: ActionRef,
   target: InstanceId | null,
   deps: EngineDeps,
+  controllerId: PlayerId | null = null,
 ): PaymentState | null {
-  const query = paymentFor(state, playerId, action, { target }, deps);
+  const query = paymentFor(state, playerId, action, paymentContext(target, controllerId), deps);
   if (!query) return null;
-  return { action, target, query, picked: [] };
+  return { action, target, controllerId, query, picked: [] };
 }
+
+const paymentContext = (target: InstanceId | null, controllerId: PlayerId | null | undefined) =>
+  controllerId ? { target, controllerId } : { target };
 
 /** Toggles one source in or out of the payment. */
 export function togglePayment(payment: PaymentState, optionId: string): PaymentState {
@@ -149,7 +155,7 @@ export function paymentView(
   }
 
   const paid = picked.reduce((total, optionId) => total + poolTotal(byOption.get(optionId)?.pool), 0);
-  const attempt = tryPayment(state, playerId, payment.action, picked, { target: payment.target }, deps);
+  const attempt = tryPayment(state, playerId, payment.action, picked, paymentContext(payment.target, payment.controllerId), deps);
 
   const { action } = payment;
   return {

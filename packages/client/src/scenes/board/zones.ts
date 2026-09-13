@@ -6,14 +6,15 @@
 import type Phaser from "phaser";
 import { drawArt } from "../../art/card-art.js";
 import { CARD_BACKS, type ArtSource } from "../../art/art-source.js";
-import { ink, signal, surface, typeRole } from "../../tokens.js";
-import { textStyle } from "../../ui/theme.js";
-import { label, paintPanel } from "../../ui/widgets.js";
-import type { BoardModel } from "../../view/board-model.js";
+import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js";
+import { cssOf, textStyle } from "../../ui/theme.js";
+import { fitText, hatchRect, label, paintPanel } from "../../ui/widgets.js";
+import type { BoardModel, SeatRow } from "../../view/board-model.js";
 import { cardRow, type Rect } from "../../view/layout.js";
 import type { LogState } from "../../view/log-lines.js";
 import { drawCharacter } from "./character-panel.js";
 import type { BoardDrawContext } from "./context.js";
+import { dimAlpha, targetState } from "./selection.js";
 
 export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const g = ctx.scene.add.graphics();
@@ -109,18 +110,36 @@ export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardMode
   model.myPlayArea.forEach((panel, index) => drawCharacter(ctx, slots[index]!, panel));
 }
 
-export function drawTeam(scene: Phaser.Scene, rect: Rect, model: BoardModel): void {
+export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
+  const { scene } = ctx;
   const g = scene.add.graphics();
   paintPanel(g, rect, "rail", "rest");
   label(scene, rect.x + 8, rect.y + 6, "other heroes", typeRole.label, surface.ink.hex, ink.label);
 
-  const rowHeight = Math.min(58, (rect.height - 28) / Math.max(1, model.team.length));
+  const rowHeight = Math.min(76, (rect.height - 28) / Math.max(1, model.team.length) - 4);
   model.team.forEach((seat, index) => {
     const row: Rect = { x: rect.x + 8, y: rect.y + 24 + index * (rowHeight + 4), width: rect.width - 16, height: rowHeight };
-    const rg = scene.add.graphics();
-    paintPanel(rg, row, "card", seat.eliminated ? "unavailable" : "rest");
-    const alpha = seat.eliminated ? ink.illegal : 1;
-    scene.add.text(row.x + 6, row.y + 5, seat.name, textStyle(typeRole.rowTitle, surface.ink.hex, alpha));
+    // Registered like any card on the table: a beat on this hero ("−4")
+    // floats off the row, a heal aimed at them rings it, and a tap reads them.
+    ctx.frame.hitRects.set(seat.identityInstanceId, row);
+    if (seat.eliminated) drawEliminatedSeat(scene, row, seat);
+    else drawLiveSeat(ctx, row, seat);
+    ctx.makeTapTarget(row, seat.identityInstanceId, () => ctx.inspect(seat.identityInstanceId));
+  });
+}
+
+function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
+  const { scene } = ctx;
+  const rg = scene.add.graphics();
+  paintPanel(rg, row, "card", targetState(ctx.controller.selection, seat.identityInstanceId));
+  const dim = dimAlpha(ctx.controller.selection, seat.identityInstanceId);
+  const rightColumn = 58;
+  fitText(
+    scene.add.text(row.x + 6, row.y + 5, seat.name, textStyle(typeRole.rowTitle, surface.ink.hex, dim)),
+    row.width - 12 - rightColumn,
+    typeRole.rowTitle.size,
+  );
+  fitText(
     label(
       scene,
       row.x + 6,
@@ -128,13 +147,75 @@ export function drawTeam(scene: Phaser.Scene, rect: Rect, model: BoardModel): vo
       `${seat.form === "hero" ? "Hero" : "Alter-ego"} · ${seat.hp ? `${seat.hp.current}/${seat.hp.max} HP` : "—"} · ${seat.handCount} cards`,
       typeRole.label,
       surface.ink.hex,
-      ink.label * alpha,
+      ink.label * dim,
+    ),
+    row.width - 12,
+    typeRole.label.size,
+  );
+  if (seat.isFirstPlayer) {
+    label(scene, row.x + row.width - 6, row.y + 5, "1st player", typeRole.label, signal.caution.hex, ink.body).setOrigin(1, 0);
+  }
+  if (seat.done) {
+    label(scene, row.x + row.width - 6, row.y + 22, "turn done", typeRole.label, signal.heal.hex, ink.body).setOrigin(1, 0);
+  }
+
+  // Third line: statuses as the design's pips, then anything aimed at or lent
+  // to this seat — the things that change what this hero can do next.
+  if (row.height < 52) return;
+  const lineY = row.y + 37;
+  let cursor = row.x + 6;
+  for (const { status: name } of seat.statuses) {
+    const pip = scene.add.graphics();
+    pip.fillStyle(status[name].hex, dim).fillRect(cursor, lineY, 16, 16);
+    pip.lineStyle(2, surface.ink.hex, dim).strokeRect(cursor, lineY, 16, 16);
+    scene.add
+      .text(cursor + 8, lineY + 8, name.charAt(0).toUpperCase(), {
+        ...textStyle(typeRole.statSmall, name === "confused" ? surface.paper.hex : surface.ink.hex, dim),
+        fontSize: "11px",
+      })
+      .setOrigin(0.5);
+    cursor += 20;
+  }
+  const notes = [...seat.effects, ...seat.borrowed];
+  if (notes.length > 0) {
+    const room = row.x + row.width - 6 - cursor;
+    const chip: Rect = { x: cursor, y: lineY, width: room, height: 16 };
+    const cg = scene.add.graphics();
+    cg.fillStyle(surface.ink.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
+    cg.fillStyle(signal.caution.hex, dim).fillRect(chip.x, chip.y, 3, chip.height);
+    fitText(
+      label(scene, chip.x + 7, chip.y + chip.height / 2, notes.join(" · "), typeRole.label, signal.caution.hex, dim).setOrigin(0, 0.5),
+      chip.width - 10,
+      typeRole.label.size,
     );
-    if (seat.done) {
-      label(scene, row.x + row.width - 40, row.y + 5, "done", typeRole.label, signal.heal.hex, ink.body);
-    }
-    if (seat.isFirstPlayer) {
-      label(scene, row.x + row.width - 40, row.y + 22, "1st", typeRole.label, signal.caution.hex, ink.body);
-    }
-  });
+  }
+}
+
+/**
+ * A defeated hero stays at the table, visibly out of it: an ink tile hatched
+ * in Hero Red with the name struck through and ELIMINATED stamped across.
+ * Greying the row was all this used to do, and next to a stale "done" it read
+ * as a hero sitting out a turn — three seats died over two rounds unnoticed.
+ */
+function drawEliminatedSeat(scene: Phaser.Scene, row: Rect, seat: SeatRow): void {
+  const rg = scene.add.graphics();
+  rg.fillStyle(surface.ink.hex, 1).fillRect(row.x, row.y, row.width, row.height);
+  hatchRect(rg, row, accent.heroRed.hex, 0.3, 12, 3);
+  rg.lineStyle(2, accent.heroRed.hex, 1).strokeRect(row.x, row.y, row.width, row.height);
+
+  const name = scene.add.text(row.x + 6, row.y + 5, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex, 0.6));
+  fitText(name, row.width * 0.5, typeRole.rowTitle.size);
+  rg.lineStyle(2, surface.paper.hex, 0.8).lineBetween(name.x - 2, name.y + name.height / 2, name.x + name.width + 2, name.y + name.height / 2);
+  label(scene, row.x + 6, row.y + 22, "defeated · out of the game", typeRole.label, surface.paper.hex, ink.meta);
+
+  const stamp = scene.add
+    .text(row.x + row.width - 8, row.y + row.height / 2, "ELIMINATED", {
+      ...textStyle(typeRole.barTitle, accent.heroRed.hex),
+      stroke: cssOf(surface.ink.hex),
+      strokeThickness: 3,
+    })
+    .setOrigin(1, 0.5)
+    .setAngle(-6)
+    .setLetterSpacing(1);
+  fitText(stamp, row.width * 0.48, typeRole.barTitle.size);
 }

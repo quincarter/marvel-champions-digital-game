@@ -6,10 +6,16 @@
  * command leaves through `dispatch`, which hands it to the `EngineHost`
  * (PLAN.md Phase 4). The store never decides legality and never mutates a game
  * state — it only records what the host published.
+ *
+ * Saved games live behind the host too: the host writes each command as it
+ * lands, and `resume` asks it to replay a stored log. The store only carries
+ * what the host reports about that — the game's `record` and any `saveError`.
  */
 
 import type { ChoiceId, Command, GameEvent, GameState, PlayerId } from "@mc/engine";
 import { actingPlayer } from "../engine/acting-player.js";
+import { emptyRecord, type GameRecord } from "../engine/game-record.js";
+import type { SaveMeta } from "../engine/game-storage.js";
 import type { EngineHost, EngineUpdate, LegalActionsFor, SavedGame, SessionConfig } from "../engine/host.js";
 
 export type SessionStatus = "idle" | "starting" | "playing" | "failed";
@@ -36,6 +42,15 @@ export interface SessionState {
   readonly inFlight: boolean;
   /** The last rejection or host failure, for the advisory banner. Cleared on the next success. */
   readonly error: string | null;
+  /** The game so far, as the host folded it from every command. What Game Over reports. */
+  readonly record: GameRecord;
+  /**
+   * Set once the host could not save. Unlike `error` this is not cleared by the
+   * next command: the game may no longer survive a refresh, and that stays true.
+   */
+  readonly saveError: string | null;
+  /** The setup the current game came from, whether it was started or resumed. What a rematch reuses. */
+  readonly config: SessionConfig | null;
 }
 
 const INITIAL: SessionState = {
@@ -47,6 +62,9 @@ const INITIAL: SessionState = {
   perspectiveId: null,
   inFlight: false,
   error: null,
+  record: emptyRecord(),
+  saveError: null,
+  config: null,
 };
 
 export type SessionListener = (state: SessionState) => void;
@@ -73,13 +91,24 @@ export class SessionStore {
     return () => this.#listeners.delete(listener);
   }
 
-  async start(config: SessionConfig): Promise<void> {
-    this.#set({ ...INITIAL, status: "starting" });
+  start(config: SessionConfig): Promise<void> {
+    return this.#begin(() => this.#host.start(config));
+  }
+
+  /**
+   * Picks a saved game back up. A save that no longer replays fails here with
+   * the host's reason, and the host has already retired it, so it isn't offered again.
+   */
+  resume(gameId: string): Promise<void> {
+    return this.#begin(() => this.#host.resume(gameId));
+  }
+
+  /** The saved game to offer as "Continue", or null. A storage failure is treated as "none". */
+  async latestSave(): Promise<SaveMeta | null> {
     try {
-      await this.#host.start(config);
-      this.#set({ ...this.#state, status: "playing" });
-    } catch (cause) {
-      this.#set({ ...this.#state, status: "failed", error: message(cause) });
+      return await this.#host.latestSave();
+    } catch {
+      return null;
     }
   }
 
@@ -130,6 +159,17 @@ export class SessionStore {
     this.#listeners.clear();
   }
 
+  /** Starting and resuming share one shape: reset, ask the host, report its failure verbatim. */
+  async #begin(open: () => Promise<EngineUpdate>): Promise<void> {
+    this.#set({ ...INITIAL, status: "starting" });
+    try {
+      await open();
+      this.#set({ ...this.#state, status: "playing" });
+    } catch (cause) {
+      this.#set({ ...this.#state, status: "failed", error: message(cause) });
+    }
+  }
+
   #absorb(update: EngineUpdate): void {
     // An out-of-order reply for an older command must never overwrite newer state.
     if (update.version < this.#state.version) return;
@@ -143,6 +183,9 @@ export class SessionStore {
       perspectiveId: toAct ?? this.#state.perspectiveId ?? update.state.firstPlayerId,
       inFlight: false,
       error: null,
+      record: update.record,
+      saveError: update.saveError,
+      config: update.config,
     });
   }
 

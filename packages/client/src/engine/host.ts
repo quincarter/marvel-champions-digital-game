@@ -75,6 +75,8 @@ export interface EngineUpdate {
   readonly record: GameRecord;
   /** Set once saving has failed: the game plays on but may not survive a refresh. */
   readonly saveError: string | null;
+  /** The setup this game came from, for a rematch. */
+  readonly config: SessionConfig | null;
 }
 
 export type DispatchResult =

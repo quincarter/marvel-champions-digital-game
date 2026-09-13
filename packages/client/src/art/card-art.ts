@@ -101,9 +101,24 @@ export class CardArt {
   readonly #listeners = new Set<() => void>();
   /** Scenes whose loader this cache has already hooked. */
   readonly #hooked = new WeakSet<Phaser.Scene>();
-  #pending: { readonly scene: Phaser.Scene; readonly source: ArtSource }[] = [];
-  #flushScheduled = false;
-  #notifyScheduled = false;
+  /** Requested but not yet handed to a loader. */
+  #pending: ArtSource[] = [];
+  /**
+   * Keys handed to a loader and not yet answered, by the scene whose loader
+   * has them. A scene's loader dies with the scene — an overlay stopped
+   * mid-fetch never reports those files at all — so on shutdown these are
+   * un-requested and the next redraw that wants them asks again.
+   */
+  readonly #inflight = new Map<string, Phaser.Scene>();
+  /**
+   * The scene whose clock holds the scheduled flush/notify, or null. Held as
+   * the scene rather than a boolean because a scene's clock dies with it: the
+   * choice and inspect overlays are launched and stopped constantly, and a
+   * flush scheduled on one that closed before the next tick used to leave a
+   * `true` flag behind that blocked every later scan for the rest of the tab.
+   */
+  #flushScene: Phaser.Scene | null = null;
+  #notifyScene: Phaser.Scene | null = null;
   /** Decoded byte size of every non-pinned texture currently resident. */
   readonly #resident = new Map<string, number>();
   /** Tick a key was last asked for, by *any* scene. Lower = colder = evicted first. */
@@ -127,11 +142,15 @@ export class CardArt {
     // last one evicted, never the first.
     this.#lastUsed.set(source.key, ++this.#tick);
     if (scene.textures.exists(source.key)) return source.key;
-    if (this.#missing.has(source.key) || this.#requested.has(source.key)) return null;
+    if (this.#missing.has(source.key)) return null;
 
-    this.#requested.add(source.key);
-    this.#pending.push({ scene, source });
-    this.#schedule(scene);
+    if (!this.#requested.has(source.key)) {
+      this.#requested.add(source.key);
+      this.#pending.push(source);
+    }
+    // Also re-arms a flush whose scene closed before it ran: the work is still
+    // pending, and this scene is alive to run it.
+    if (this.#pending.length > 0) this.#schedule(scene);
     return null;
   }
 
@@ -152,22 +171,27 @@ export class CardArt {
    * batching keeps that to a single loader run.
    */
   #schedule(scene: Phaser.Scene): void {
-    if (this.#flushScheduled) return;
-    this.#flushScheduled = true;
+    if (this.#flushScene) return;
+    this.#flushScene = scene;
+    // Hooked before the call is armed, so this scene's shutdown can release
+    // the schedule even if it closes before the tick.
+    this.#hook(scene);
     scene.time.delayedCall(0, () => {
-      this.#flushScheduled = false;
-      this.#flush();
+      if (this.#flushScene !== scene) return;
+      this.#flushScene = null;
+      this.#flush(scene);
     });
   }
 
-  #flush(): void {
+  #flush(scene: Phaser.Scene): void {
     const batch = this.#pending;
     this.#pending = [];
-    const scene = batch[0]?.scene;
-    if (!scene) return;
+    if (batch.length === 0) return;
 
-    this.#hook(scene);
-    for (const { source } of batch) scene.load.image(source.key, source.url);
+    for (const source of batch) {
+      this.#inflight.set(source.key, scene);
+      scene.load.image(source.key, source.url);
+    }
     // Files added while a run is in flight are picked up by that run; starting
     // a second one would be the race, not the fix.
     if (!scene.load.isLoading()) scene.load.start();
@@ -184,12 +208,14 @@ export class CardArt {
     this.#hooked.add(scene);
 
     const onFile = (key: string): void => {
+      this.#inflight.delete(key);
       this.#track(scene, key);
       this.#notify(scene);
     };
     // A 404 is the ordinary answer for a card with no scan, so it is recorded
     // rather than reported: the frame the board already drew is the fallback.
     const onError = (file: Phaser.Loader.File): void => {
+      this.#inflight.delete(file.key);
       this.#missing.add(file.key);
       this.#notify(scene);
     };
@@ -200,6 +226,20 @@ export class CardArt {
       scene.load.off(FILE_COMPLETE, onFile);
       scene.load.off(FILE_LOAD_ERROR, onError);
       this.#hooked.delete(scene);
+      // The loader is reset with its scene, so whatever it still had will never
+      // report back. Forget those keys were ever asked for; the next redraw
+      // that wants one asks a live scene.
+      for (const [key, owner] of this.#inflight) {
+        if (owner !== scene) continue;
+        this.#inflight.delete(key);
+        this.#requested.delete(key);
+      }
+      if (this.#flushScene === scene) this.#flushScene = null;
+      if (this.#notifyScene === scene) {
+        this.#notifyScene = null;
+        // The redraw this scene owed the others still has to happen.
+        setTimeout(() => this.#fireListeners(), 0);
+      }
     });
   }
 
@@ -238,12 +278,17 @@ export class CardArt {
 
   /** Coalesces a run of arrivals into one redraw, so eight cards cost one pass. */
   #notify(scene: Phaser.Scene): void {
-    if (this.#notifyScheduled) return;
-    this.#notifyScheduled = true;
+    if (this.#notifyScene) return;
+    this.#notifyScene = scene;
     scene.time.delayedCall(0, () => {
-      this.#notifyScheduled = false;
-      for (const listener of [...this.#listeners]) listener();
+      if (this.#notifyScene !== scene) return;
+      this.#notifyScene = null;
+      this.#fireListeners();
     });
+  }
+
+  #fireListeners(): void {
+    for (const listener of [...this.#listeners]) listener();
   }
 }
 

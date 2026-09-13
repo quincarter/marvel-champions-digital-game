@@ -13,7 +13,7 @@
  */
 
 import Phaser from "phaser";
-import type { ChoiceRef, InstanceId, PendingChoice } from "@mc/engine";
+import type { ChoiceRef, GameState, InstanceId, PendingChoice, PlayerId } from "@mc/engine";
 import { CORE_DEPS } from "@mc/cards";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -25,6 +25,7 @@ import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
+import { seatIdentityName } from "../view/names.js";
 import { appSession } from "../session.js";
 import { SCENES } from "./keys.js";
 
@@ -213,10 +214,15 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     shown.forEach((option, index) => {
       const order = this.#selected.indexOf(option.optionId);
+      // The engine labels a seat by its id; the table knows it by its hero.
+      const text =
+        option.ref.kind === "player" && state.game
+          ? playerOptionLabel(state.game, option.ref.playerId, state.perspectiveId)
+          : option.label;
       const rowLabel =
         choice.ordered && order >= 0
-          ? `${order + 1}. ${option.label}`
-          : option.label;
+          ? `${order + 1}. ${text}`
+          : text;
       this.#buttons.push(
         new McButton(this, {
           kind: "secondary",
@@ -557,6 +563,25 @@ export class ChoiceOverlay extends Phaser.Scene {
  */
 function refInstanceId(ref: ChoiceRef): InstanceId | null {
   return ref.kind === "card" || ref.kind === "ability" ? ref.instanceId : null;
+}
+
+/**
+ * "Spider-Man / Peter Parker · Hero · 7/10 HP · you" — both faces, which side
+ * is up, and how hurt, which is usually what the player is choosing on.
+ */
+function playerOptionLabel(game: GameState, playerId: PlayerId, perspectiveId: PlayerId | null): string {
+  const seat = game.players.find((player) => player.playerId === playerId);
+  if (!seat) return playerId;
+  const panel = characterPanel(game, seat.identity.instanceId, CORE_DEPS);
+  return [
+    seatIdentityName(game, playerId),
+    seat.identity.form === "hero" ? "Hero" : "Alter-ego",
+    panel.hp ? `${panel.hp.current}/${panel.hp.max} HP` : null,
+    seat.eliminated ? "eliminated" : null,
+    playerId === perspectiveId ? "you" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** The design's overlay titles for the engine's prompt kinds. */

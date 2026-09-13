@@ -12,6 +12,10 @@ import type { GameEvent, InstanceId, PlayerId, ZoneId } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { accent, motion, signal, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
+import { fitText, hatchRect } from "../../ui/widgets.js";
+
+/** How long a table announcement holds once it is on screen. */
+const BANNER_MS = 3600;
 import { beatsFrom, type Beat } from "../../view/beats.js";
 import type { BoardLayout, Rect } from "../../view/layout.js";
 import { travelsFrom, type Travel } from "../../view/travel.js";
@@ -31,8 +35,85 @@ export class BoardMotion {
   /** Travels still in flight, with when each started — the same trick as beats, so a redraw mid-flight re-derives the ghost's position instead of losing it. */
   #travels: { readonly travel: Travel; readonly startedAt: number }[] = [];
 
+  /**
+   * Full-table announcements ("SPIDER-MAN IS DOWN"), oldest first. Unlike a
+   * beat, one only starts its clock once it is actually on screen: a hero is
+   * usually defeated in the villain phase, under the walkthrough overlay, and
+   * a banner that timed out behind it would be the silence it exists to end.
+   */
+  #banners: { readonly title: string; readonly detail: string; shownAt: number | null }[] = [];
+  #bannerPoll: Phaser.Time.TimerEvent | null = null;
+
   constructor(scene: Phaser.Scene) {
     this.#scene = scene;
+  }
+
+  announce(title: string, detail: string): void {
+    this.#banners.push({ title, detail, shownAt: null });
+  }
+
+  /**
+   * Draws the oldest announcement across the table, or — while something is
+   * covering the table (`visible` false) — checks back shortly so it appears
+   * the moment the table is uncovered. A tap anywhere dismisses it early.
+   */
+  drawBanners(area: Rect, visible: boolean, redraw: () => void): void {
+    const scene = this.#scene;
+    const now = scene.time.now;
+    this.#banners = this.#banners.filter((banner) => banner.shownAt === null || now - banner.shownAt < BANNER_MS);
+    const banner = this.#banners[0];
+    if (!banner) return;
+    if (!visible) {
+      this.#bannerPoll ??= scene.time.delayedCall(400, () => {
+        this.#bannerPoll = null;
+        redraw();
+      });
+      return;
+    }
+    const firstShow = banner.shownAt === null;
+    if (firstShow) {
+      banner.shownAt = now;
+      scene.time.delayedCall(BANNER_MS + 20, redraw);
+    }
+
+    const height = Math.max(110, Math.min(170, area.height * 0.28));
+    const band: Rect = { x: area.x, y: area.y + (area.height - height) / 2, width: area.width, height };
+    const g = scene.add.graphics().setDepth(1100);
+    g.fillStyle(surface.ink.hex, 0.55).fillRect(area.x, area.y, area.width, area.height);
+    g.fillStyle(surface.ink.hex, 0.97).fillRect(band.x, band.y, band.width, band.height);
+    hatchRect(g, band, accent.heroRed.hex, 0.22, 18, 6);
+    g.fillStyle(accent.heroRed.hex, 1).fillRect(band.x, band.y, band.width, 6).fillRect(band.x, band.y + band.height - 6, band.width, 6);
+
+    const title = scene.add
+      .text(band.x + band.width / 2, band.y + band.height * 0.42, banner.title.toUpperCase(), {
+        ...textStyle(typeRole.screenTitle, surface.paper.hex),
+        stroke: cssOf(accent.heroRed.hex),
+        strokeThickness: 6,
+      })
+      .setOrigin(0.5)
+      .setLetterSpacing(2)
+      .setDepth(1101);
+    fitText(title, band.width - 48, typeRole.screenTitle.size);
+    scene.add
+      .text(band.x + band.width / 2, band.y + band.height * 0.78, `${banner.detail} · tap to continue`, textStyle(typeRole.emphasis, surface.paper.hex))
+      .setOrigin(0.5)
+      .setDepth(1101);
+
+    // Over the whole table, so a tap anywhere dismisses rather than acting on
+    // a card the banner is covering.
+    scene.add
+      .zone(area.x, area.y, area.width, area.height)
+      .setOrigin(0, 0)
+      .setDepth(1102)
+      .setInteractive()
+      .on("pointerup", () => {
+        banner.shownAt = -Infinity;
+        redraw();
+      });
+
+    if (firstShow && !appSession().settings.reducedMotion) {
+      scene.tweens.add({ targets: title, scale: { from: 1.35, to: title.scale }, alpha: { from: 0, to: 1 }, duration: 260, ease: "Back.easeOut" });
+    }
   }
 
   /**
