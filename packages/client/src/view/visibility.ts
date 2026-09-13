@@ -7,7 +7,8 @@
  * visibility is a question of zone first and of that flag second:
  *
  *  - a hand and a discard pile are open to the player;
- *  - a deck is never open, however the card sits in it;
+ *  - a deck is closed, *except* for the cards an open decision is offering from
+ *    it (see `offeredFromDeck`);
  *  - everything else is open exactly when it is faceup, which covers a facedown
  *    boost card, a dealt encounter card, a tucked card and a set-aside nemesis
  *    set without naming any of them.
@@ -35,8 +36,33 @@ export function faceVisible(state: GameState, id: InstanceId): boolean {
       return true;
     case "deck":
     case "encounterDeck":
-      return false;
+      return offeredFromDeck(state, id);
     default:
       return instance.faceup;
   }
+}
+
+/**
+ * A deck card the open decision offers is one the deciding player is looking at.
+ *
+ * Every choice the engine opens over a deck is a real look: a search (Black
+ * Panther's Foresight, Shuri, Klaw's search for a Masters of Evil minion) or
+ * "look at the top 3" (Iron Man). In the physical game the searching player
+ * reads those cards — the shuffle afterwards is what keeps the deck's *order*
+ * secret, not the cards themselves — so drawing them as card backs made the
+ * decision one the player couldn't actually make.
+ *
+ * Deliberately scoped to deck zones. A choice can also offer a card that is
+ * facedown *in play* — a facedown Drone as an attack target — and being offered
+ * one doesn't turn it over; that still falls through to `faceup`.
+ *
+ * The viewer is the player the choice is addressed to. In Phase 4 every seat
+ * is the same human; in Phase 5 the server should send these faces only to that
+ * player (see the file comment).
+ */
+function offeredFromDeck(state: GameState, id: InstanceId): boolean {
+  return (
+    state.pendingChoice?.options.some((option) => (option.ref.kind === "card" || option.ref.kind === "ability") && option.ref.instanceId === id) ??
+    false
+  );
 }
