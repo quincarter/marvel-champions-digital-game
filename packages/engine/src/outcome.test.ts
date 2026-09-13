@@ -1,3 +1,4 @@
+import { activeVillain } from "./query.js";
 import { flat } from "@mc/content";
 import { applyCommand } from "./engine.js";
 import { playerId } from "./ids.js";
@@ -24,7 +25,7 @@ test("defeating the final villain stage wins the game", () => {
     type: "basicAttack",
     playerId: p1,
     attackerInstanceId: mustPlayer(start, p1).identity.instanceId,
-    targetInstanceId: start.villain.instanceId,
+    targetInstanceId: activeVillain(start).instanceId,
   });
   expect(state.outcome).toEqual({ result: "win", reason: "villainDefeated" });
   expect(state.step).toEqual({ phase: "gameOver", kind: "gameOver" });
@@ -40,12 +41,12 @@ test("defeating a non-final villain stage advances instead of ending the game", 
     type: "basicAttack",
     playerId: p1,
     attackerInstanceId: mustPlayer(start, p1).identity.instanceId,
-    targetInstanceId: start.villain.instanceId,
+    targetInstanceId: activeVillain(start).instanceId,
   });
   expect(state.outcome).toBeNull();
-  expect(state.villain.stageIndex).toBe(1);
+  expect(activeVillain(state).stageIndex).toBe(1);
   // RRG "Villain Defeat": excess damage does not carry over.
-  expect(remainingHitPoints(state, state.villain.instanceId)).toBe(20);
+  expect(remainingHitPoints(state, activeVillain(state).instanceId)).toBe(20);
 });
 
 test("completing the final main scheme stage loses the game", () => {

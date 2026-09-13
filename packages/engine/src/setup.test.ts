@@ -1,3 +1,4 @@
+import { activeVillain } from "./query.js";
 import { cardId, flat, type HeroIdentityCard } from "@mc/content";
 import { createGame } from "./setup.js";
 import { playerId } from "./ids.js";
@@ -28,7 +29,7 @@ test("a one-player game starts in alter-ego form with a full hand", () => {
 
 test("villain and main scheme enter at their starting values", () => {
   const state = newGame();
-  const villain = mustInstance(state, state.villain.instanceId);
+  const villain = mustInstance(state, activeVillain(state).instanceId);
   expect(villain.damage).toBe(0);
   expect(scale(villainStage(state).hp, state.startingPlayerCount)).toBe(20);
   expect(mustInstance(state, state.mainScheme.instanceId).threat).toBe(0);

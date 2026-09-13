@@ -1,3 +1,4 @@
+import { activeEncounterDeck, activeVillain } from "./query.js";
 import { abilityId, flat, type AnyCard, type CardId, type ScalingValue } from "@mc/content";
 import type { Command } from "./commands.js";
 import { applyCommand, replay, sessionApply, startSession, type GameSession } from "./engine.js";
@@ -446,10 +447,10 @@ test("two players play a full game from createGame through defeating the villain
   // play, and its constant ability is already modifying the villain's ATK.
   const atSetup = state(driver);
   expect(atSetup.step).toEqual({ phase: "setup", kind: "mulligan", remainingPlayerIds: [p1, p2] });
-  const hide = mustInstance(atSetup, atSetup.villain.instanceId).attachments[0] as InstanceId;
+  const hide = mustInstance(atSetup, activeVillain(atSetup).instanceId).attachments[0] as InstanceId;
   expect(atSetup.instances[hide]?.cardId).toBe(HIDE.id);
-  expect(atSetup.encounterDeck).not.toContain(hide);
-  expect(characterProfile(atSetup, atSetup.villain.instanceId, DEPS)?.atk).toBe(2);
+  expect(activeEncounterDeck(atSetup).deck).not.toContain(hide);
+  expect(characterProfile(atSetup, activeVillain(atSetup).instanceId, DEPS)?.atk).toBe(2);
 
   // --- mulligan: p1 keeps, p2 pitches a card and draws back up.
   answer(driver, []);
@@ -460,7 +461,7 @@ test("two players play a full game from createGame through defeating the villain
   expect(state(driver).round).toBe(1);
   expect(activePlayer(state(driver))).toBe(p1);
 
-  const villainId = state(driver).villain.instanceId;
+  const villainId = activeVillain(state(driver)).instanceId;
   const p1Hero = heroOf(state(driver), p1);
   const p2Hero = heroOf(state(driver), p2);
 
@@ -624,7 +625,7 @@ test("two players play a full game from createGame through defeating the villain
   expect(has(since(driver, winMark), "gameEnded", (e) => e.outcome.result === "win")).toBe(true);
   expect(final.outcome).toEqual({ result: "win", reason: "villainDefeated" });
   expect(final.step).toEqual({ phase: "gameOver", kind: "gameOver" });
-  expect(final.villain.defeated).toBe(true);
+  expect(activeVillain(final).defeated).toBe(true);
 
   // --- the whole game replays from its log to an identical state.
   const replayed = replay(driver.session.log, DEPS);

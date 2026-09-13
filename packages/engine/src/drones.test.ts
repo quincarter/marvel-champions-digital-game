@@ -1,3 +1,5 @@
+import { activeEncounterDeck, activeVillain } from "./query.js";
+import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, trait, type CardId } from "@mc/content";
 import type { AbilityDefinition } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -76,7 +78,7 @@ describe("facedown Drone minions (schema-free: `putIntoPlayFacedown`)", () => {
     const profile = characterProfile(roundTwo, drone, deps);
     expect([profile?.atk, profile?.sch, profile?.maxHp]).toEqual([1, 1, 1]);
     // The facedown card's own "+5 villain ATK" text is blank.
-    expect(characterProfile(roundTwo, roundTwo.villain.instanceId, deps)?.atk).toBe(0);
+    expect(characterProfile(roundTwo, activeVillain(roundTwo).instanceId, deps)?.atk).toBe(0);
   });
 
   it("activates like any minion (alter-ego: schemes for its SCH)", () => {
@@ -99,7 +101,7 @@ describe("facedown Drone minions (schema-free: `putIntoPlayFacedown`)", () => {
     const blastId = mustPlayer(roundTwo, p1).hand.find((id) => roundTwo.instances[id]?.cardId === BLAST.id) as InstanceId;
     const after = runWith(deps, roundTwo, toHero, { type: "playCard", playerId: p1, cardInstanceId: blastId, payment: [], attachToInstanceId: null });
     expect(mustPlayer(after, p1).discard).toContain(drone);
-    expect(after.encounterDiscard).not.toContain(drone);
+    expect(activeEncounterDeck(after).discard).not.toContain(drone);
     expect(mustInstance(after, drone).facedownAs).toBeNull();
     expect(mustInstance(after, drone).faceup).toBe(true);
   });
@@ -119,8 +121,10 @@ describe("facedown Drone minions (schema-free: `putIntoPlayFacedown`)", () => {
       ? state
       : {
           ...state,
-          encounterDeck: state.encounterDeck.filter((id) => id !== upgradedId),
-          encounterDiscard: state.encounterDiscard.filter((id) => id !== upgradedId),
+          encounterDecks: withEncounterPiles(state, {
+            deck: activeEncounterDeck(state).deck.filter((id) => id !== upgradedId),
+            discard: activeEncounterDeck(state).discard.filter((id) => id !== upgradedId),
+          }).encounterDecks,
           instances: {
             ...state.instances,
             [upgradedId]: { ...mustInstance(state, upgradedId), attachedTo: env, faceup: true },

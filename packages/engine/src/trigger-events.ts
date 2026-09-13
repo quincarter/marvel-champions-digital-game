@@ -1,3 +1,4 @@
+import type { AbilityId } from "@mc/content";
 import type { FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { Vars } from "./stack.js";
 
@@ -19,6 +20,8 @@ export type TriggerEventBody =
       readonly parentFrameId?: FrameId | null;
       /** This attack has overkill even if its source lacks the keyword (Relentless Assault, Charge). */
       readonly overkill?: boolean;
+      /** "This damage ignores tough status cards" (Lightning Strike, errata RRG 1.8 p. 65): taken through a tough status card, which stays. */
+      readonly ignoreTough?: boolean;
       /** The card whose ability produced this damage when that isn't the source ("damage from Black Panther upgrades"). */
       readonly viaInstanceId?: InstanceId | null;
     }
@@ -77,8 +80,24 @@ export type TriggerEventBody =
       readonly targetInstanceId: InstanceId;
       /** The same attack resolved against another player (Whirlwind): the attacker's "when it attacks" abilities don't re-trigger. */
       readonly additionalResolution?: boolean;
+      /** "That attack does not get a boost card" (Escaped Convict, I See You): step 1 deals nothing. */
+      readonly noBoost?: boolean;
     }
-  | { readonly kind: "enemyScheme"; readonly enemyInstanceId: InstanceId; readonly playerId: PlayerId }
+  | { readonly kind: "enemyScheme"; readonly enemyInstanceId: InstanceId; readonly playerId: PlayerId; readonly noBoost?: boolean }
+  /**
+   * A boost card was turned faceup during an activation (RRG 1.8 "Boost", p. 11), before its "Boost" ability resolves
+   * and its icons are added: "When a boost card is turned faceup" (Attacrobatics, an interrupt) and "After a boost card is
+   * turned faceup" (Target Acquired, a response). `boostIcons` is what it would add now, 0 once cancelled.
+   */
+  | {
+      readonly kind: "boostCardTurnedFaceup";
+      readonly enemyInstanceId: InstanceId;
+      readonly boostInstanceId: InstanceId;
+      readonly activation: "attack" | "scheme";
+      readonly boostIcons: number;
+      /** The player the activation is against ("you"). */
+      readonly playerId: PlayerId;
+    }
   /**
    * "After [character] is attacked", named after the attack's damage resolves so
    * the target is the character that was actually hit (the defender, if one was
@@ -93,6 +112,13 @@ export type TriggerEventBody =
     }
   | { readonly kind: "cardEntersPlay"; readonly instanceId: InstanceId; readonly playerId: PlayerId | null }
   | { readonly kind: "cardPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /**
+   * A card has been paid for and is about to resolve: "When you play an [Attack] event" (Embiggen!, Shrink). An
+   * interrupt here happens before the card's own abilities resolve, which is what lets a modifier apply to every
+   * instance of damage the event deals. `cardPlayed` stays where it is — announced after the card has resolved — so
+   * "after you play" responses are unaffected. Only put on the stack when an ability could react (`heard`).
+   */
+  | { readonly kind: "cardBeingPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly kind: "cardRevealed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**
    * An ally or minion at 0 hit points is being defeated. Interruptible ("when
@@ -115,9 +141,30 @@ export type TriggerEventBody =
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly kind: "schemeDefeated"; readonly instanceId: InstanceId }
-  | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number }
+  | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   | { readonly kind: "mainSchemeAdvanced"; readonly stageIndex: number }
   | { readonly kind: "turnStarted"; readonly playerId: PlayerId }
+  /**
+   * A minion engaged a player (RRG 1.8 "Engage", p. 18): it entered play in their area, was put into play engaged with
+   * them, or moved to them. "After you engage a minion" (Thor). Announced after the minion's keywords (quickstrike):
+   * ruling, Jan 17, 2026 (3) answer 2, "keywords have timing priority over triggered abilities".
+   */
+  | { readonly kind: "minionEngaged"; readonly minionInstanceId: InstanceId; readonly playerId: PlayerId }
+  /** A player's turn is about to end: "Forced Interrupt: When your turn ends, discard your hand." (Hulk). The turn ends when it applies. */
+  | { readonly kind: "turnEnding"; readonly playerId: PlayerId }
+  /**
+   * An encounter card's surge is about to resolve (its player deals themself another encounter card): "When the surge
+   * keyword on an encounter card would be resolved" (Espionage). Ruling, Aug 3, 2026 (3): surge "is treated as a When
+   * Revealed ability".
+   */
+  | { readonly kind: "surgeResolving"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /**
+   * An ability resolved: it was triggered and its effects resolved (RRG 1.8 "Resolve", p. 37). "After you resolve the
+   * ability of a Preparation card you control" (Black Widow; Synth-Suit too, ruling Feb 28, 2026 (2)).
+   */
+  | { readonly kind: "abilityResolved"; readonly instanceId: InstanceId; readonly abilityId: AbilityId; readonly controllerId: PlayerId | null }
+  /** A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened. */
+  | { readonly kind: "cardFlipped"; readonly instanceId: InstanceId }
   /** A player changed form (by the once-per-round flip or a card effect): "after you change to this form". */
   | { readonly kind: "formChanged"; readonly playerId: PlayerId; readonly to: "hero" | "alterEgo" }
   | { readonly kind: "playerPhaseEnded" }
@@ -150,6 +197,10 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "characterAttacked":
     case "characterDefeated":
     case "encounterCardRevealing":
+    case "boostCardTurnedFaceup":
+    case "turnEnding":
+    case "surgeResolving":
+    case "cardBeingPlayed":
       return false;
     default:
       return true;
@@ -200,16 +251,27 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.enemyInstanceId], [event.defenderInstanceId], [event.playerId]);
     case "cardEntersPlay":
     case "cardPlayed":
+    case "cardBeingPlayed":
     case "cardRevealed":
     case "encounterCardRevealing":
       return of([event.instanceId], [event.instanceId], [event.playerId]);
     case "characterDefeated":
       return of([], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "schemeDefeated":
+    case "cardFlipped":
       return of([], [event.instanceId], []);
+    case "boostCardTurnedFaceup":
+      return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);
     case "turnStarted":
     case "formChanged":
+    case "turnEnding":
       return of([], [], [event.playerId]);
+    case "minionEngaged":
+      return of([event.minionInstanceId], [event.minionInstanceId], [event.playerId]);
+    case "surgeResolving":
+      return of([event.instanceId], [event.instanceId], [event.playerId]);
+    case "abilityResolved":
+      return of([event.instanceId], [], [event.controllerId]);
     default:
       return of([], [], []);
   }

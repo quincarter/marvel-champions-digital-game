@@ -8,8 +8,10 @@ import { statusActive } from "../keywords.js";
 import { mustPlayer } from "../query.js";
 import { currentActivationFrameId } from "../stack.js";
 import type { GameState } from "../state.js";
+import type { TriggerEvent } from "../trigger-events.js";
 import { setDefender } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
+import { heard } from "./triggers.js";
 
 export function limitReached(state: GameState, id: InstanceId, abilityId: AbilityId, definition: AbilityDefinition): boolean {
   if (!definition.limit) return false;
@@ -30,6 +32,10 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   });
   if (definition.label && frame.controllerId && labelCancels(ctx, frame.controllerId, definition.label)) return;
   if (definition.label?.includes("defense") && frame.controllerId) declareLabeledDefense(ctx, frame.controllerId);
+  // RRG 1.8 "Resolve" (p. 37): resolved once its effects resolve, so the announcement waits under them. Pushed only when
+  // something could respond ("After you resolve the ability of a Preparation card you control").
+  const resolved: TriggerEvent = { kind: "abilityResolved", instanceId: frame.instanceId, abilityId: frame.abilityId, controllerId: frame.controllerId };
+  if (definition.effects.length > 0 && heard(ctx.state, ctx.deps, resolved)) announce(ctx, resolved);
   pushEffects(ctx, {
     effects: definition.effects,
     selfInstanceId: frame.instanceId,

@@ -1,3 +1,4 @@
+import { activeEncounterDeck } from "./query.js";
 import { flat, cardId, type AllyCard, type AnyCard, type HeroIdentityCard, type UpgradeCard } from "@mc/content";
 import type { Command } from "./commands.js";
 import { applyCommand } from "./engine.js";
@@ -351,7 +352,7 @@ describe("RRG 'Unique Icon': a non-villain encounter card is discarded instead",
     });
     const minion = Object.values(blocked.instances).find((i) => i.cardId === RONAN_MINION.id)?.instanceId;
     expect(minion).toBeDefined();
-    expect(blocked.encounterDiscard).toContain(minion);
+    expect(activeEncounterDeck(blocked).discard).toContain(minion);
     expect(mustPlayer(blocked, p1).playArea).not.toContain(minion);
 
     // Control: the same scheme puts a non-matching minion into play exactly as before.

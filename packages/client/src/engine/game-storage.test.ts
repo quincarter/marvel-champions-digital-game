@@ -83,6 +83,29 @@ describe.each<[string, () => GameStorage]>([
     expect(await storage.latestActive()).toBeNull();
   });
 
+  test("a save from an older schema is retired, not resumed (the several-villains state change)", async () => {
+    const storage = make();
+    // A game saved before the multi-villain state shape (docs/phase7-wave1.md §3.1–§3.2) landed.
+    await storage.create(meta("old-shape", 1, { schema: SAVE_SCHEMA - 1 }), BASELINE);
+    const core = new EngineSessionCore({ storage });
+
+    // Never offered as Continue, and marked incompatible on the way, deliberately rather than by a failed replay.
+    expect(await core.latestSave()).toBeNull();
+    expect((await storage.list()).find((game) => game.id === "old-shape")?.status).toBe("incompatible");
+
+    // Asking for it by id refuses too: no replay is attempted against a state shape this engine no longer has.
+    await storage.setStatus("old-shape", "active");
+    await expect(core.resume("old-shape")).rejects.toThrow(/older version/);
+    expect((await storage.list()).find((game) => game.id === "old-shape")?.status).toBe("incompatible");
+  });
+
+  test("an older save behind the newest current one is left alone, and the current one is still offered", async () => {
+    const storage = make();
+    await storage.create(meta("current", 5), BASELINE);
+    const core = new EngineSessionCore({ storage });
+    expect((await core.latestSave())?.id).toBe("current");
+  });
+
   test("games list most recently played first", async () => {
     const storage = make();
     await storage.create(meta("a", 1), BASELINE);

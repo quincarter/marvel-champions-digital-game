@@ -1,7 +1,7 @@
 import type { AbilityId, CardId } from "@mc/content";
 import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
-import type { Form, GameOutcome, GameStep, ZoneId } from "./state.js";
+import type { FacedownRole, Form, GameOutcome, GameStep, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import type { LastingEffect } from "./lasting.js";
@@ -27,21 +27,40 @@ export type GameEvent =
   | { readonly type: "damagePlaced"; readonly targetInstanceId: InstanceId; readonly amount: number; readonly sourceInstanceId: InstanceId | null }
   | { readonly type: "revealCancelled"; readonly instanceId: InstanceId; readonly scope: "whenRevealed" | "allEffects" }
   | { readonly type: "damageHealed"; readonly targetInstanceId: InstanceId; readonly amount: number }
+  /** "Set his hit point dial to 1" (Captain America's Helmet): sustained damage set from the remaining hit points, not healed. */
+  | { readonly type: "hitPointsSet"; readonly instanceId: InstanceId; readonly remaining: number; readonly damage: number }
   | { readonly type: "statusRemoved"; readonly instanceId: InstanceId; readonly status: "stunned" | "confused" | "tough"; readonly reason: "cancelledAttack" | "cancelledSchemeOrThwart" | "preventedDamage" | "piercing" | "effect" }
   | { readonly type: "threatPlaced"; readonly schemeInstanceId: InstanceId; readonly amount: number; readonly sourceInstanceId: InstanceId | null }
   | { readonly type: "threatRemoved"; readonly schemeInstanceId: InstanceId; readonly amount: number; readonly sourceInstanceId: InstanceId | null }
   | { readonly type: "enemyActivated"; readonly enemyInstanceId: InstanceId; readonly activation: "attack" | "scheme"; readonly playerId: PlayerId }
+  /** An initiated activation did nothing because the enemy's stat for it is printed "—" (`dashedStatSkipsActivation`). */
+  | { readonly type: "activationSkipped"; readonly enemyInstanceId: InstanceId; readonly activation: "attack" | "scheme"; readonly reason: "dashedStat" | "leftPlay" }
   | { readonly type: "boostCardDealt"; readonly enemyInstanceId: InstanceId; readonly instanceId: InstanceId }
+  /** A boost card's icons, or its "Boost" ability, were cancelled (Attacrobatics, Target Acquired). */
+  | { readonly type: "boostCancelled"; readonly instanceId: InstanceId; readonly scope: "icons" | "ability" }
   | { readonly type: "boostCardFlipped"; readonly enemyInstanceId: InstanceId; readonly instanceId: InstanceId; readonly boostIcons: number }
   | { readonly type: "defenderDeclared"; readonly attackInstanceId: InstanceId; readonly defenderInstanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "defenseDeclined"; readonly attackInstanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "attackResolved"; readonly enemyInstanceId: InstanceId; readonly targetInstanceId: InstanceId; readonly baseAtk: number; readonly boostIcons: number; readonly defenseReduction: number; readonly damageDealt: number }
   | { readonly type: "characterDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
-  | { readonly type: "villainStageAdvanced"; readonly stageIndex: number }
+  | { readonly type: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
+  /** A villain turned to its other face on the same stage (Green Goblin insert, "When the Villain Changes Form"). */
+  | { readonly type: "villainFlipped"; readonly instanceId: InstanceId; readonly from: "A" | "B"; readonly to: "A" | "B" }
+  /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
+  | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }
+  /** The active counter moved (The Wrecking Crew insert, "The Active Villain"). */
+  | {
+      readonly type: "activeVillainChanged";
+      readonly from: InstanceId;
+      readonly to: InstanceId;
+      readonly reason: "effect" | "activeVillainDefeated";
+    }
   | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number }
   | { readonly type: "mainSchemeAdvanced"; readonly stageIndex: number }
   | { readonly type: "encounterCardRevealed"; readonly instanceId: InstanceId; readonly cardId: CardId; readonly playerId: PlayerId }
+  /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetEmptySeparateDecks`). */
+  | { readonly type: "separateDeckReset"; readonly playerId: PlayerId; readonly name: string }
   | { readonly type: "accelerationTokenAdded"; readonly total: number }
   | { readonly type: "playerEliminated"; readonly playerId: PlayerId }
   | { readonly type: "firstPlayerChanged"; readonly playerId: PlayerId }
@@ -72,7 +91,7 @@ export type GameEvent =
   | { readonly type: "overkillSpilled"; readonly fromInstanceId: InstanceId; readonly toInstanceId: InstanceId; readonly amount: number }
   | { readonly type: "surgeTriggered"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "optionChosen"; readonly label: string; readonly index: number }
-  | { readonly type: "cardPutIntoPlayFacedown"; readonly instanceId: InstanceId; readonly playerId: PlayerId; readonly as: "minion" }
+  | { readonly type: "cardPutIntoPlayFacedown"; readonly instanceId: InstanceId; readonly playerId: PlayerId; readonly as: FacedownRole["kind"] }
   /**
    * RRG "Unique Icon": a card that would have entered play matched one already in play.
    * `disposition` is the RRG's own resolution — a player card's entry simply "has no
@@ -88,6 +107,8 @@ export type GameEvent =
   | { readonly type: "lastingEffectAdded"; readonly effect: LastingEffect }
   | { readonly type: "lastingEffectEnded"; readonly id: string; readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired" }
   | { readonly type: "threatRemovalBlocked"; readonly schemeInstanceId: InstanceId; readonly reason: "crisis" | "rule" }
+  /** A card that "cannot leave play" stayed where it was (RRG 1.8 "'Cannot'", p. 11). */
+  | { readonly type: "leavePlayBlocked"; readonly instanceId: InstanceId; readonly reason: "cannotLeavePlay" }
   | { readonly type: "gameEnded"; readonly outcome: GameOutcome };
 
 export type GameEventType = GameEvent["type"];

@@ -3,6 +3,7 @@
  * so it is exercised against the shapes the engine actually emits.
  */
 
+import { activeVillain } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import type { GameEvent, GameState, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
@@ -95,7 +96,7 @@ describe("game log", () => {
 
   test("a spent Tough is struck through, so a 0-damage hit never looks like a bug", () => {
     const beat = logLine(
-      { type: "damagePrevented", targetInstanceId: played.state.villain.instanceId, amount: 3, reason: "tough" },
+      { type: "damagePrevented", targetInstanceId: activeVillain(played.state).instanceId, amount: 3, reason: "tough" },
       played.state,
       played.viewer,
     );
@@ -107,7 +108,7 @@ describe("game log", () => {
 
   test("a status being given is tagged, not struck", () => {
     const beat = logLine(
-      { type: "statusGiven", instanceId: played.state.villain.instanceId, status: "stunned" },
+      { type: "statusGiven", instanceId: activeVillain(played.state).instanceId, status: "stunned" },
       played.state,
       played.viewer,
     );
@@ -121,7 +122,7 @@ describe("game log", () => {
    * reason `threatRemovalBlocked` earns a line.
    */
   test("a refused unique entry says what blocked it, and whether the card was discarded", () => {
-    const villain = played.state.villain.instanceId;
+    const villain = activeVillain(played.state).instanceId;
     const scheme = played.state.mainScheme.instanceId;
 
     const noEffect = logLine(

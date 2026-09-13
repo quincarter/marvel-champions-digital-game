@@ -4,10 +4,13 @@
  * decides a rule. Playing a few real turns here proves the boundary holds.
  */
 
+import { activeVillain } from "@mc/engine";
 import { beforeEach, describe, expect, test } from "vitest";
+import { CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck } from "@mc/content";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import type { EngineHost, SessionConfig } from "../engine/host.js";
+import { corePlayerFromDeck } from "../view/deck-seat.js";
 import { SessionStore } from "./session-store.js";
 
 const RHINO_SOLO: SessionConfig = {
@@ -43,11 +46,11 @@ describe("SessionStore", () => {
     expect(game).not.toBeNull();
     // The card pool is re-attached on this side of the boundary, so every
     // `@mc/engine` query helper works against what the store holds.
-    expect(game!.cardPool[game!.villain.cardId]).toBeDefined();
+    expect(game!.cardPool[activeVillain(game!).cardId]).toBeDefined();
     expect(game!.cardPool[game!.mainScheme.cardId]).toBeDefined();
     expect(game!.cardPool[game!.players[0]!.identity.cardId]).toBeDefined();
     expect(game!.players).toHaveLength(1);
-    expect(game!.villain.defeated).toBe(false);
+    expect(activeVillain(game!).defeated).toBe(false);
   });
 
   test("prefetches legal actions for the player who must act", async () => {
@@ -254,4 +257,63 @@ describe("SessionStore", () => {
     expect(await reloaded.latestSave()).toBeNull();
   });
 
+  /**
+   * PLAN.md Phase 9: `SessionConfig.players` already accepted a custom deck
+   * (`CorePlayer`'s `{ identityCardId, deck, aspects }` case) before a Decks
+   * screen existed to produce one — this is what a save now records once a
+   * seat is a saved/imported deck rather than a precon, and it must resume
+   * exactly like a `{ starterDeckId }` seat always has.
+   */
+  test("a game seated with a custom deck (not a starter-deck id) survives a refresh", async () => {
+    const spiderMan = deckFromStarterDeck(CORE_STARTER_DECKS[0]!, CORE_POOL_VERSION);
+    const config: SessionConfig = {
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [corePlayerFromDeck(spiderMan)],
+      seed: 2026,
+    };
+
+    const storage = new MemoryGameStorage();
+    const firstHost = new LocalEngineHost(storage);
+    const played = new SessionStore(firstHost);
+    await played.start(config);
+    await advance(played, 4);
+    await firstHost.flushed();
+    const before = played.state;
+    expect(before.game!.outcome).toBeNull();
+    expect(before.status).toBe("playing");
+
+    const reloaded = new SessionStore(new LocalEngineHost(storage));
+    const offered = await reloaded.latestSave();
+    expect(offered!.config.players).toEqual(config.players);
+
+    await reloaded.resume(offered!.id);
+    expect(reloaded.state.status).toBe("playing");
+    expect(reloaded.state.error).toBeNull();
+    expect(reloaded.state.game).toEqual(before.game);
+  }, 60_000);
+
+  /**
+   * `Setup` currently only ever offers legal, seatable decks (Title dims and
+   * blocks the rest), but `createGame` enforces `requireLegalDecks` regardless
+   * — this proves a refusal that reaches the store all the way from the
+   * engine still names the illegal seat, so a caller can route to "fix this
+   * deck" rather than a generic failure (PLAN.md Phase 9).
+   */
+  test("seating an illegal deck fails with the engine's illegal_deck code and names the seat", async () => {
+    const illegal = { ...deckFromStarterDeck(CORE_STARTER_DECKS[0]!, CORE_POOL_VERSION), cards: [] };
+    const config: SessionConfig = {
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [corePlayerFromDeck(illegal)],
+      seed: 2026,
+    };
+
+    await store.start(config);
+    expect(store.state.status).toBe("failed");
+    expect(store.state.error).toMatch(/deck/i);
+    expect(store.state.setupError?.code).toBe("illegal_deck");
+    expect(store.state.setupError?.illegalDecks).toHaveLength(1);
+    expect(store.state.setupError?.illegalDecks[0]?.seatIndex).toBe(0);
+  });
 });

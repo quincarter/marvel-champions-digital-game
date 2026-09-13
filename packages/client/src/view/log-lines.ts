@@ -264,6 +264,8 @@ const outcomeText = (outcome: { readonly result: string; readonly reason: string
   switch (outcome.reason) {
     case "villainDefeated":
       return "The villain is defeated. You win.";
+    case "allVillainsDefeated":
+      return "Every villain is defeated. You win.";
     case "mainSchemeCompleted":
       return "The main scheme completed. You lose.";
     default:

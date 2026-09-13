@@ -1,9 +1,31 @@
 import type { CardText, PrintedStat, Trait } from "../common.js";
 import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
-import type { EncounterSetId } from "../ids.js";
+import type { EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard } from "./base.js";
 import type { AttachmentHost, PrintedStatModifiers } from "./attachment-host.js";
+
+/**
+ * The other face of a double-sided encounter card whose two faces have the same card type: the Criminal
+ * Enterprise environment is flipped to State of Madness and back ("If there are no infamy counters here, flip
+ * Norman Osborn and Criminal Enterprise.").
+ *
+ * The top-level fields describe the face that enters play; this is the face it flips to. RRG 1.8
+ * "Double-Sided Card": "A card is double-sided if neither of its sides has a card back". RRG 1.8 "Flip": when the
+ * new face has "the same card type as the previous face, the card retains all attached cards, tucked cards, status
+ * cards, and tokens." A back face of a different card type is not modeled yet. Its ability ids must not repeat
+ * the front face's.
+ */
+export interface EncounterCardFlipSide {
+  readonly name: string;
+  readonly subtitle?: string;
+  readonly traits: readonly Trait[];
+  readonly keywords: readonly KeywordInstance[];
+  readonly text: CardText;
+  readonly flavor?: string;
+  readonly abilities: readonly AbilityReference[];
+  readonly image?: ImageRef;
+}
 
 /**
  * Every card that can sit in the encounter deck carries boost icons (0–3),
@@ -18,6 +40,8 @@ interface EncounterCardCommon extends BaseCard {
   readonly text: CardText;
   readonly flavor?: string;
   readonly abilities: readonly AbilityReference[];
+  /** Present on a double-sided card: the face it flips to (see `EncounterCardFlipSide`). */
+  readonly flipSide?: EncounterCardFlipSide;
 }
 
 export interface MinionCard extends EncounterCardCommon {
@@ -26,6 +50,13 @@ export interface MinionCard extends EncounterCardCommon {
   readonly atk: PrintedStat;
   readonly sch: PrintedStat;
   readonly hp: number;
+  /**
+   * True on the minion a nemesis set names as the hero's nemesis, printed as reminder text such as "(Captain
+   * America's nemesis minion.)". Core's Shadow of the Past reads "Reveal your set-aside nemesis minion", and wave 1
+   * nemesis sets hold other minions too (Hydra Soldier with Baron Zemo, Edison's Giant Robot with Thomas Edison), so
+   * "a minion in the set" is not enough to find it.
+   */
+  readonly nemesisMinion?: boolean;
 }
 
 export interface AttachmentCard extends EncounterCardCommon {

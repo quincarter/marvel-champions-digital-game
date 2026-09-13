@@ -9,19 +9,42 @@ export type {
   PlayerSideSchemeCard,
 } from "./player-cards.js";
 export type { PlayRestrictions } from "./player-cards.js";
-export type { HeroIdentityCard, HeroFace, AlterEgoFace } from "./identity.js";
+export type {
+  HeroIdentityCard,
+  HeroFace,
+  AlterEgoFace,
+  IdentityDeckbuilding,
+  IdentitySeparateDeck,
+  OffAspectPackage,
+} from "./identity.js";
 export type {
   EncounterCard,
+  EncounterCardFlipSide,
   MinionCard,
   AttachmentCard,
   TreacheryCard,
   ObligationCard,
   EnvironmentCard,
 } from "./encounter-cards.js";
-export type { AttachmentHost, AttachmentHostKind, PrintedStatModifiers } from "./attachment-host.js";
-export { ATTACHMENT_HOST_KINDS } from "./attachment-host.js";
-export type { MainSchemeCard, MainSchemeStage, MainSchemeASide, SideSchemeCard, SchemeIcon } from "./schemes.js";
-export type { VillainCard, VillainSide, VillainStage } from "./villain.js";
+export type {
+  AttachmentHost,
+  AttachmentHostCategory,
+  AttachmentHostKind,
+  HostMeasure,
+  HostQualifiers,
+  PrintedStatModifiers,
+  SuperlativeHostPool,
+} from "./attachment-host.js";
+export { ATTACHMENT_HOST_CATEGORIES, ATTACHMENT_HOST_KINDS, HOST_MEASURES, SUPERLATIVE_HOST_POOLS } from "./attachment-host.js";
+export type {
+  MainSchemeCard,
+  MainSchemeStage,
+  MainSchemeASide,
+  MainSchemeThreatField,
+  SideSchemeCard,
+  SchemeIcon,
+} from "./schemes.js";
+export type { VillainCard, VillainDashStat, VillainSide, VillainStage } from "./villain.js";
 
 import type { PlayerCard } from "./player-cards.js";
 import type { HeroIdentityCard } from "./identity.js";

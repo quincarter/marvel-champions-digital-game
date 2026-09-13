@@ -24,6 +24,7 @@ import {
   type GameState,
   type InstanceId,
   type PlayerId,
+  activeVillain,
 } from "@mc/engine";
 import type { GameRecord } from "../engine/game-record.js";
 import type { SessionConfig } from "../engine/host.js";
@@ -90,15 +91,17 @@ export function gameOverModel(
 ): GameOverModel {
   const outcome = state.outcome;
   const tone: GameOverTone = outcome?.result === "win" ? "win" : "loss";
-  const villain = cardName(state, state.villain.instanceId);
-  const stage = numeral(state.villain.stageIndex);
+  // The villain with the active counter: with several villains, the one still standing last.
+  const villainState = activeVillain(state);
+  const villain = cardName(state, villainState.instanceId);
+  const stage = numeral(villainState.stageIndex);
   const round = state.round;
 
   const scheme = mainSchemeStage(state);
   const schemeName = scheme.name ?? cardName(state, state.mainScheme.instanceId);
   const schemeTarget = scale(scheme.targetThreat, state.startingPlayerCount);
 
-  const villainHp = remainingHitPoints(state, state.villain.instanceId, deps) ?? 0;
+  const villainHp = remainingHitPoints(state, villainState.instanceId, deps) ?? 0;
   const heroesDown = record.seats.filter((seat) => seat.defeatedInRound !== null);
   const firstDown = [...heroesDown].sort((a, b) => (a.defeatedInRound ?? 0) - (b.defeatedInRound ?? 0))[0];
 
@@ -111,7 +114,8 @@ export function gameOverModel(
   let finalBlow: GameOverModel["finalBlow"] = null;
 
   switch (outcome?.reason) {
-    case "villainDefeated": {
+    case "villainDefeated":
+    case "allVillainsDefeated": {
       kicker = `Stage ${stage} cleared`;
       headline = `${villain} defeated`;
       summary = `${villain} went down in round ${round}, with ${record.damageToVillain} damage dealt to the villain across the game.`;
@@ -226,7 +230,7 @@ export function gameOverModel(
     beats: turningPoints(state, record, tone, villain),
     seats,
     mvp,
-    villainInstanceId: state.villain.instanceId,
+    villainInstanceId: villainState.instanceId,
   };
 }
 

@@ -26,7 +26,9 @@ import {
   type SideSchemeCard,
   type TreacheryCard,
   type UpgradeCard,
+  type EnvironmentCard,
   type VillainCard,
+  type VillainSide,
   type VillainStage,
   type Trait,
 } from "@mc/content";
@@ -190,35 +192,97 @@ export function stubResource(spec: {
   };
 }
 
-export function stubVillain(spec: {
-  readonly id: string;
-  readonly stages: readonly {
-    readonly hp: ScalingValue;
-    readonly atk: number;
-    readonly sch: number;
-    readonly keywords?: readonly KeywordInstance[];
-    readonly abilities?: readonly AbilityReference[];
-  }[];
-}): VillainCard {
-  const stages = spec.stages.map(
+export interface StubVillainStage {
+  readonly hp: ScalingValue;
+  readonly atk: number;
+  readonly sch: number;
+  /** Stats printed "—" (`VillainStage.dashedStats`). */
+  readonly dashedStats?: readonly ("atk" | "sch")[];
+  readonly traits?: readonly Trait[];
+  readonly keywords?: readonly KeywordInstance[];
+  readonly abilities?: readonly AbilityReference[];
+}
+
+const villainStages = (stages: readonly StubVillainStage[]): [VillainStage, ...VillainStage[]] => {
+  const built = stages.map(
     (stage, index): VillainStage => ({
       stageNumber: index + 1,
       hp: stage.hp,
       atk: stage.atk,
       sch: stage.sch,
+      ...(stage.dashedStats ? { dashedStats: stage.dashedStats } : {}),
       text,
-      traits: [],
+      traits: stage.traits ?? [],
       keywords: stage.keywords ?? [],
       abilities: stage.abilities ?? [],
     }),
   );
-  const [first, ...rest] = stages;
+  const [first, ...rest] = built;
   if (!first) throw new Error("stubVillain needs at least one stage");
+  return [first, ...rest];
+};
+
+/**
+ * A villain deck. `back` makes its stage cards double-sided: side B, with its own title and the same number of
+ * stages (docs/phase7-wave1.md §1.3; Norman Osborn / Green Goblin).
+ */
+export function stubVillain(spec: {
+  readonly id: string;
+  /** Side A's title; defaults to the id. */
+  readonly name?: string;
+  readonly stages: readonly StubVillainStage[];
+  readonly back?: { readonly name: string; readonly stages: readonly StubVillainStage[] };
+  readonly startingSide?: "A" | "B";
+}): VillainCard {
+  const name = spec.name ?? spec.id;
+  const front: VillainSide = { side: "A", name, stages: villainStages(spec.stages) };
+  const sides: [VillainSide, ...VillainSide[]] = spec.back
+    ? [front, { side: "B", name: spec.back.name, stages: villainStages(spec.back.stages) }]
+    : [front];
   return {
-    ...base(spec.id, spec.id),
+    ...base(spec.id, name),
     type: "villain",
     encounterSetIds: [],
-    sides: [{ side: "A", name: spec.id, stages: [first, ...rest] }],
+    sides,
+    ...(spec.startingSide ? { startingSide: spec.startingSide } : {}),
+  };
+}
+
+/** An environment; `flipSide` makes it double-sided (Criminal Enterprise / State of Madness). */
+export function stubEnvironment(spec: {
+  readonly id: string;
+  readonly name?: string;
+  readonly traits?: readonly Trait[];
+  readonly boostIcons?: number;
+  readonly keywords?: readonly KeywordInstance[];
+  readonly abilities?: readonly AbilityReference[];
+  readonly flipSide?: {
+    readonly name: string;
+    readonly traits?: readonly Trait[];
+    readonly keywords?: readonly KeywordInstance[];
+    readonly abilities?: readonly AbilityReference[];
+  };
+}): EnvironmentCard {
+  return {
+    ...base(spec.id, spec.name ?? spec.id),
+    type: "environment",
+    encounterSetIds: [],
+    boostIcons: spec.boostIcons ?? 0,
+    traits: spec.traits ?? [],
+    keywords: spec.keywords ?? [],
+    text,
+    abilities: spec.abilities ?? [],
+    ...(spec.flipSide
+      ? {
+          flipSide: {
+            name: spec.flipSide.name,
+            traits: spec.flipSide.traits ?? [],
+            keywords: spec.flipSide.keywords ?? [],
+            text,
+            abilities: spec.flipSide.abilities ?? [],
+          },
+        }
+      : {}),
   };
 }
 

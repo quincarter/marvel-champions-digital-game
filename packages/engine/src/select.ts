@@ -3,17 +3,24 @@ import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import {
+  activeVillain,
   cardOf,
   characterProfile,
+  currentName,
+  encounterFace,
   getInstance,
   getPlayer,
   handSize,
   isMinion,
+  isVillain,
   mainSchemeStage,
   maxHitPoints,
   playerOrder,
   printedHandSize,
-  villainStage,
+  textBoxBlank,
+  undefeatedVillains,
+  villainOf,
+  villainStageOf,
 } from "./query.js";
 import { printedResources } from "./resources.js";
 import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
@@ -102,12 +109,14 @@ function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   if (!card) return [];
   const facedown = getInstance(state, id)?.facedownAs;
   if (facedown) return facedown.traits;
+  const face = encounterFace(state, id);
+  if (face) return face.traits;
   if (card.type === "hero_identity") {
     const player = state.players.find((p) => p.identity.instanceId === id);
     if (!player) return [];
     return player.identity.form === "hero" ? card.hero.traits : card.alterEgo.traits;
   }
-  if (card.type === "villain") return villainStage(state).traits;
+  if (card.type === "villain") return isVillain(state, id) ? villainStageOf(state, id).traits : [];
   if (card.type === "main_scheme") return mainSchemeStage(state).traits;
   return "traits" in card ? card.traits : [];
 }
@@ -140,13 +149,15 @@ export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DE
 
 /** Every card instance that is in play, in a stable order (RRG "In Play and Out of Play"). */
 export function cardsInPlay(state: GameState): readonly InstanceId[] {
-  const ids: InstanceId[] = [state.villain.instanceId, state.mainScheme.instanceId];
+  // A defeated villain's last stage is removed from the game (RRG 1.8 "Villain Defeat", p. 47), so it is out of play.
+  const villains = undefeatedVillains(state).map((villain) => villain.instanceId);
+  const ids: InstanceId[] = [...villains, state.mainScheme.instanceId];
   const withAttachments = (id: InstanceId): void => {
     ids.push(id);
     for (const attachment of getInstance(state, id)?.attachments ?? []) ids.push(attachment);
   };
-  for (const attachment of getInstance(state, state.villain.instanceId)?.attachments ?? []) {
-    ids.push(attachment);
+  for (const villainId of villains) {
+    for (const attachment of getInstance(state, villainId)?.attachments ?? []) ids.push(attachment);
   }
   for (const attachment of getInstance(state, state.mainScheme.instanceId)?.attachments ?? []) {
     ids.push(attachment);
@@ -186,8 +197,8 @@ export function matchesQuery(
   if (query.engagedWith === "you" && instance.engagedWith !== context.controllerId) return false;
   if (query.engagedWith === "any" && instance.engagedWith === null) return false;
   if (query.trait && !traitsOf(state, id, context.deps).includes(query.trait)) return false;
-  // A facedown card has no name.
-  if (query.name !== undefined && (instance.facedownAs !== null || cardOf(state, id)?.name !== query.name)) return false;
+  // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
+  if (query.name !== undefined && currentName(state, id) !== query.name) return false;
   if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return false;
   if (query.hostOfSelf !== undefined) {
     const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
@@ -216,12 +227,23 @@ export function matchesQuery(
     if (!attacker || !canAttack(state, attacker, id, context.deps)) return false;
   }
   if (query.excludeSlots?.some((slot) => (context.bindings[slot] ?? []).includes(id))) return false;
+  if (query.inSlot !== undefined && !(context.bindings[query.inSlot] ?? []).includes(id)) return false;
   if (query.controlledBy) {
     const controller = controllerOf(state, id);
     if (controller === null || !resolvePlayers(state, query.controlledBy, context).includes(controller)) return false;
   }
+  if (query.signatureSideScheme !== undefined && state.villains.some((villain) => villain.signatureSideSchemeId === id) !== query.signatureSideScheme) {
+    return false;
+  }
   if (query.engagedWithPlayer) {
     if (instance.engagedWith === null || !resolvePlayers(state, query.engagedWithPlayer, context).includes(instance.engagedWith)) return false;
+  }
+  if (query.identitySetOf) {
+    // RRG 1.8 "Identity-Specific Card" (p. 23): the set icon, carried as `aspect: "hero:<identity card id>"`.
+    const card = cardOf(state, id);
+    const aspect = card && "aspect" in card ? String(card.aspect) : null;
+    const identities = resolvePlayers(state, query.identitySetOf, context).map((playerId) => getPlayer(state, playerId)?.identity.cardId);
+    if (!aspect || !identities.some((cardId) => cardId !== undefined && aspect === `hero:${cardId}`)) return false;
   }
   return true;
 }
@@ -239,14 +261,35 @@ const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps
  * cannot use cards they control to attack a villain without this keyword. It
  * restricts the *controller*, so it blocks that player's allies too, and it
  * only ever protects villains — other minions stay attackable. Ranged does not
- * bypass guard (RRG "Ranged" only ignores retaliate).
+ * bypass guard (RRG "Ranged" only ignores retaliate). With several villains in
+ * play it protects every one of them, not only the active villain (RRG 1.8
+ * "Guard", p. 21: "The engaged player cannot attack any villain.").
  */
 export function canAttack(state: GameState, attackerId: InstanceId, targetId: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean {
   const controller = controllerOf(state, attackerId);
   if (controller === null) return true;
-  if (targetId !== state.villain.instanceId) return true;
+  if (attackForbidden(state, targetId, deps)) return false;
+  if (!isVillain(state, targetId)) return true;
   if (hasKeyword(state, targetId, "guard", deps)) return true;
   return !guardEngagedWith(state, controller, deps);
+}
+
+/** "Players cannot attack other villains" (Distracting Taunts): a constant `cannotAttack` rule in play matches the target. */
+function attackForbidden(state: GameState, targetId: InstanceId, deps: EngineDeps): boolean {
+  if (Object.keys(deps.abilities).length === 0) return false;
+  for (const sourceId of cardsInPlay(state)) {
+    for (const ref of activeAbilityRefs(state, sourceId)) {
+      const trigger = deps.abilities[ref.id]?.trigger;
+      if (trigger?.kind !== "constant") continue;
+      for (const rule of trigger.rules ?? []) {
+        if (rule.kind !== "cannotAttack") continue;
+        const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
+        if (rule.while && !evaluate(state, rule.while, context)) continue;
+        if (matchesQuery(state, targetId, rule.target, context)) return true;
+      }
+    }
+  }
+  return false;
 }
 
 /** A minion's controller is null (it belongs to the encounter side) even while engaged. */
@@ -326,7 +369,8 @@ export function resolveRef(
     case "each":
       return selectTargets(state, ref.query, context);
     case "named": {
-      const found = cardsInPlay(state).find((id) => !getInstance(state, id)?.facedownAs && cardOf(state, id)?.name === ref.name);
+      // The current face only: a flipped Criminal Enterprise is no longer "Criminal Enterprise" (§3.4).
+      const found = cardsInPlay(state).find((id) => currentName(state, id) === ref.name);
       return found ? [found] : [];
     }
     case "slot":
@@ -335,14 +379,50 @@ export function resolveRef(
       return context.event ? eventSubjects(context.event).sources : [];
     case "eventTarget":
       return context.event ? eventSubjects(context.event).targets : [];
-    case "villain":
-      return [state.villain.instanceId];
+    case "villain": {
+      // "The villain" is the active villain (The Wrecking Crew insert, "The Active Villain").
+      const active = activeVillain(state);
+      return active.defeated ? [] : [active.instanceId];
+    }
     case "mainScheme":
       return [state.mainScheme.instanceId];
     case "identityOf":
       return resolvePlayers(state, ref.player, context)
         .map((id) => getPlayer(state, id)?.identity.instanceId)
         .filter((id): id is InstanceId => id !== undefined);
+    case "villainOfSideScheme": {
+      const schemes = resolveRef(state, ref.scheme, context);
+      return undefeatedVillains(state)
+        .filter((villain) => villain.signatureSideSchemeId !== null && schemes.includes(villain.signatureSideSchemeId))
+        .map((villain) => villain.instanceId);
+    }
+    case "signatureSideSchemeOf": {
+      const inPlay = cardsInPlay(state);
+      return resolveRef(state, ref.villain, context).flatMap((id) => {
+        const scheme = villainOf(state, id)?.signatureSideSchemeId;
+        return scheme && inPlay.includes(scheme) ? [scheme] : [];
+      });
+    }
+    case "attachmentsOf": {
+      // "Each card attached here": in attachment order, out-of-play hosts included (nothing attaches out of play today).
+      const attached = resolveRef(state, ref.of, context).flatMap((id) => getInstance(state, id)?.attachments ?? []);
+      return ref.filter ? attached.filter((id) => matchesQuery(state, id, ref.filter as TargetQuery, context)) : attached;
+    }
+    case "superlative": {
+      // Each candidate is measured with itself bound to `slot`, so the measure can read another card ("the villain
+      // whose side scheme has the most threat"). Ties resolve to every tied card; see the `TargetRef` comment.
+      const slot = ref.slot ?? "candidate";
+      const candidates = resolveRef(state, ref.among, context).filter((id) => getInstance(state, id) !== undefined);
+      if (candidates.length === 0) return [];
+      const measured = candidates.map((id) => ({
+        id,
+        value: resolveValue(state, ref.measure, { ...context, bindings: { ...context.bindings, [slot]: [id] } }),
+      }));
+      const values = measured.map((entry) => entry.value);
+      const best = ref.order === "highest" ? Math.max(...values) : Math.min(...values);
+      const tied = measured.filter((entry) => entry.value === best).map((entry) => entry.id);
+      return ref.ties === "first" ? tied.slice(0, 1) : tied;
+    }
   }
 }
 
@@ -427,6 +507,23 @@ export function resolveValue(
       const [playerId] = resolvePlayers(state, value.player, context);
       return playerId ? (getPlayer(state, playerId)?.hand.length ?? 0) : 0;
     }
+    case "distinctCardTypes": {
+      const types = new Set<string>();
+      for (const id of resolveRef(state, value.cards, context)) {
+        const card = cardOf(state, id);
+        if (card) types.add(card.type);
+      }
+      return types.size;
+    }
+    case "printedCost": {
+      const [id] = resolveRef(state, value.of, context);
+      const card = id ? cardOf(state, id) : undefined;
+      return card && "cost" in card && typeof card.cost === "number" ? card.cost : 0;
+    }
+    case "villainStageNumber": {
+      const [id] = value.of ? resolveRef(state, value.of, context) : [activeVillain(state).instanceId];
+      return id && isVillain(state, id) ? villainStageOf(state, id).stageNumber : 0;
+    }
   }
 }
 
@@ -474,11 +571,30 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       return frame?.kind === "event" && (frame.vars[predicate.key] ?? 0) >= predicate.atLeast;
     }
     case "refMatches": {
-      const inPlay = cardsInPlay(state);
-      return resolveRef(state, predicate.ref, context).some((id) => inPlay.includes(id) && matchesQuery(state, id, predicate.query, context));
+      const inPlay = predicate.anywhere === true ? null : cardsInPlay(state);
+      return resolveRef(state, predicate.ref, context).some(
+        (id) => (inPlay === null || inPlay.includes(id)) && matchesQuery(state, id, predicate.query, context),
+      );
     }
     case "gameStep":
       return state.step.phase === predicate.phase && (predicate.step === undefined || state.step.kind === predicate.step);
+    case "isAttached": {
+      const [id] = resolveRef(state, predicate.of, context);
+      return id !== undefined && getInstance(state, id)?.attachedTo !== null && getInstance(state, id) !== undefined;
+    }
+    case "faceNamed": {
+      const [id] = resolveRef(state, predicate.of, context);
+      return id ? currentName(state, id) === predicate.name : false;
+    }
+    case "paidWithOnly": {
+      const vars = context.vars ?? {};
+      if ((vars["paid.total"] ?? 0) <= 0) return false;
+      return (["physical", "mental", "energy"] as const).every((type) => type === predicate.resource || (vars[`paid.${type}`] ?? 0) === 0);
+    }
+    case "playedThisRound": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      return playerId !== undefined && (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0) <= predicate.atMost;
+    }
   }
 }
 
@@ -486,15 +602,17 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
 export function activeAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
-  // A facedown card's own text is blank while it is facedown.
-  if (getInstance(state, id)?.facedownAs) return [];
+  // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank.
+  if (getInstance(state, id)?.facedownAs || textBoxBlank(state, id)) return [];
+  const face = encounterFace(state, id);
+  if (face) return face.abilities;
   if (card.type === "hero_identity") {
     const player = state.players.find((p) => p.identity.instanceId === id);
     if (!player) return [];
     return player.identity.form === "hero" ? card.hero.abilities : card.alterEgo.abilities;
   }
   if (card.type === "villain") {
-    return id === state.villain.instanceId ? villainStage(state).abilities : [];
+    return isVillain(state, id) ? villainStageOf(state, id).abilities : [];
   }
   if (card.type === "main_scheme") {
     return id === state.mainScheme.instanceId ? mainSchemeStage(state).abilities : [];

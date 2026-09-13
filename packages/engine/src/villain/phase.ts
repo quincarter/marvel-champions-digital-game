@@ -11,16 +11,15 @@ import { dealEncounterCardTo } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import {
-  characterProfile,
+  activeVillain,
   countSchemeIcons,
   getPlayer,
   isMinion,
-  mainSchemeStage,
+  mainSchemeValue,
   mustCardOf,
   mustPlayer,
   nextClockwisePlayer,
   playerOrder,
-  scale,
 } from "../query.js";
 import { pushEvent, pushRevealFrame } from "../resolve/index.js";
 import type { GameState, GameStep } from "../state.js";
@@ -34,9 +33,8 @@ const livePlayers = (state: GameState, ids: readonly PlayerId[]): readonly Playe
 export function executePlaceThreat(ctx: Ctx): void {
   const step = ctx.state.step;
   if (step.kind === "placeThreat" && !step.placed) {
-    const stage = mainSchemeStage(ctx.state);
     const amount =
-      scale(stage.acceleration, ctx.state.startingPlayerCount) +
+      mainSchemeValue(ctx.state, "acceleration", ctx.deps) +
       ctx.state.mainScheme.accelerationTokens +
       countSchemeIcons(ctx.state, "acceleration");
     setStep(ctx, { phase: "villain", kind: "placeThreat", placed: true });
@@ -82,7 +80,11 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
   if (!villainActivated) {
     // Mark before resolving: the attack suspends on the defend choice and resumes here.
     setStep(ctx, { ...step, villainActivated: true });
-    activateEnemy(ctx, ctx.state.villain.instanceId, current.playerId);
+    // Only the active villain activates (The Wrecking Crew insert, "The Active Villain"), read at each player's
+    // activation rather than fixed at the start of the step, so a counter moved during one player's activations
+    // changes who activates against the next. Proposed reading of docs/phase7-wave1.md §4.10: the insert says
+    // only "the active villain will activate".
+    activateEnemy(ctx, activeVillain(ctx.state).instanceId, current.playerId);
     return;
   }
   const minions = current.playArea.filter((id) => isMinion(ctx.state, id) && !activatedMinionIds.includes(id));
@@ -119,14 +121,18 @@ export function activateChosenMinion(ctx: Ctx, minionId: InstanceId): void {
   activateEnemy(ctx, minionId, step.currentPlayerId);
 }
 
-// RRG "Activation": attack a player in hero form, scheme against a player in alter-ego form.
+/**
+ * RRG "Activation" (p. 6): attack a player in hero form, scheme against a player in alter-ego form.
+ *
+ * The status check comes first: FAQ "Norman Osborn (#1A)" (p. 58), "Because status cards take priority over all
+ * other abilities, a stun status card will prevent Norman Osborn's activation." Only then is the activation
+ * initiated, even for a printed "—" ATK or SCH, so a "When [enemy] would attack … instead" replacement has an event
+ * to replace. An activation nothing replaces is skipped when it applies (`dashedStatSkipsActivation`).
+ */
 export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
-  const missing = characterProfile(ctx.state, enemyId, ctx.deps)?.missing ?? [];
   if (player.identity.form === "hero") {
     emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation: "attack", playerId });
-    // A printed "—" ATK: this enemy cannot attack, so the activation does nothing.
-    if (missing.includes("atk")) return;
     if (statusActive(ctx.state, enemyId, "stunned", ctx.deps)) {
       // RRG "Stun": a stunned enemy discards the status instead of attacking.
       updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, stunned: 0 } }));
@@ -143,7 +149,6 @@ export function activateEnemy(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId)
     return;
   }
   emit(ctx, { type: "enemyActivated", enemyInstanceId: enemyId, activation: "scheme", playerId });
-  if (missing.includes("sch")) return;
   if (statusActive(ctx.state, enemyId, "confused", ctx.deps)) {
     // RRG "Confuse": a confused enemy discards the status instead of scheming.
     updateInstance(ctx, enemyId, (i) => ({ ...i, statuses: { ...i.statuses, confused: 0 } }));

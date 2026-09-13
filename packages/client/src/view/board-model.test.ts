@@ -4,6 +4,7 @@
  * the engine actually publishes.
  */
 
+import { activeEncounterDeck } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
 import type { GameState, InstanceId, PlayerId } from "@mc/engine";
@@ -296,7 +297,7 @@ describe("facedown cards", () => {
     const state = store.state.game!;
     const me = store.state.perspectiveId!;
 
-    const hidden = state.encounterDeck[0]!;
+    const hidden = activeEncounterDeck(state).deck[0]!;
     const face = faceOf(state, hidden);
     expect(face.kind).toBe("back");
 

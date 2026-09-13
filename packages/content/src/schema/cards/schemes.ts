@@ -11,6 +11,9 @@ import type { BaseCard } from "./base.js";
  */
 export type SchemeIcon = "crisis" | "hazard" | "acceleration";
 
+/** The threat values printed on a main scheme stage. */
+export type MainSchemeThreatField = "startingThreat" | "targetThreat" | "acceleration";
+
 /**
  * The A side of a main scheme stage: stage 1A carries the scenario's `Setup:`
  * text, later A sides carry `When Revealed:` text that resolves when the main
@@ -40,6 +43,13 @@ export interface MainSchemeStage {
   readonly targetThreat: ScalingValue;
   /** Threat added during each villain phase's "place threat" step. */
   readonly acceleration: ScalingValue;
+  /**
+   * Threat values printed as "X". Each listed field holds `{ base: 0, perPlayer: 0 }`, and the stage's own
+   * ability defines X (RRG 1.8 "Non-Numerical Variable": "If the variable is not defined [...] treat that variable
+   * as being equal to 0"). Mutagen Cloud 2B prints an X acceleration: "X is equal to the number of Goblin enemies
+   * (including Green Goblin) in play." (MarvelCDB `escalation_threat: -1`.)
+   */
+  readonly printedX?: readonly MainSchemeThreatField[];
   readonly icons: readonly SchemeIcon[];
   readonly text: CardText;
   readonly traits: readonly Trait[];
@@ -71,4 +81,11 @@ export interface SideSchemeCard extends BaseCard {
   readonly text: CardText;
   readonly flavor?: string;
   readonly abilities: readonly AbilityReference[];
+  /**
+   * The title of the villain this is the signature side scheme of, printed as "Wrecker's Side Scheme.".
+   * The Wrecking Crew insert, "Signature Side Schemes": "These side schemes are not discarded when they have no
+   * threat on them. Instead, these side schemes are removed from the game when their corresponding villain is
+   * defeated." The printed "This card cannot leave play while [villain] is in play." is an ability, not this field.
+   */
+  readonly signatureOf?: string;
 }

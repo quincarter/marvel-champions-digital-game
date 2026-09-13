@@ -2,7 +2,7 @@ import type { GameEvent } from "./events.js";
 import { EngineInvariantError } from "./errors.js";
 import { choiceId, frameId as makeFrameId, instanceId, type ChoiceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
-import { locateCard, mustInstance, mustPlayer, zoneContents as zoneOf } from "./query.js";
+import { locateCard, mustInstance, mustPlayer, separateDeckDefinition, zoneContents as zoneOf } from "./query.js";
 import type { ChoiceOption, ChoicePrompt, DecisionAuthority, PendingChoice } from "./choices.js";
 import type { CardInstance, GameState, GameStep, PlayerState, ZoneId } from "./state.js";
 import { describeFrame, type StackFrame } from "./stack.js";
@@ -66,9 +66,22 @@ function setZone(state: GameState, zone: ZoneId, ids: readonly InstanceId[]): Ga
       return { ...state, instances: { ...state.instances, [host.instanceId]: { ...host, tucked: ids } } };
     }
     case "encounterDeck":
-      return { ...state, encounterDeck: ids };
-    case "encounterDiscard":
-      return { ...state, encounterDiscard: ids };
+    case "encounterDiscard": {
+      const piles = state.encounterDecks[zone.deckId];
+      if (!piles) throw new EngineInvariantError(`unknown encounter deck ${zone.deckId}`);
+      const next = zone.kind === "encounterDeck" ? { ...piles, deck: ids } : { ...piles, discard: ids };
+      return { ...state, encounterDecks: { ...state.encounterDecks, [zone.deckId]: next } };
+    }
+    case "separateDeck":
+    case "separateDiscard":
+      return withPlayer(state, zone.playerId, (p) => {
+        const piles = p.separateDecks[zone.name];
+        if (!piles) throw new EngineInvariantError(`${zone.playerId} has no separate deck ${zone.name}`);
+        const next = zone.kind === "separateDeck" ? { ...piles, deck: ids } : { ...piles, discard: ids };
+        return { ...p, separateDecks: { ...p.separateDecks, [zone.name]: next } };
+      });
+    case "encounterSetAside":
+      return { ...state, encounterSetAside: ids };
     case "villainArea":
       return { ...state, villainArea: ids };
     case "victoryDisplay":
@@ -132,6 +145,24 @@ export function moveCard(ctx: Ctx, id: InstanceId, to: ZoneId, position: ZonePos
     cardId: instance.cardId,
     from: from ?? { kind: "removedFromGame" },
     to,
+  });
+  for (const zone of [from, to]) {
+    if (zone?.kind === "separateDeck") syncSeparateDeckTop(ctx, zone.playerId, zone.name);
+  }
+}
+
+/**
+ * Keeps an identity's separate deck showing what its rules say: the Doctor Strange insert, "play with the top card of
+ * the INVOCATION deck faceup at all times" (`IdentitySeparateDeck.topCardFaceup`), every other card in it facedown.
+ * Called after every change to that deck, so a client reads `faceup` instead of re-deriving the rule.
+ */
+export function syncSeparateDeckTop(ctx: Ctx, playerId: PlayerId, name: string): void {
+  const piles = mustPlayer(ctx.state, playerId).separateDecks[name];
+  if (!piles) return;
+  const topFaceup = separateDeckDefinition(ctx.state, playerId, name)?.topCardFaceup ?? false;
+  piles.deck.forEach((id, index) => {
+    const faceup = index === 0 && topFaceup;
+    if (mustInstance(ctx.state, id).faceup !== faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup }));
   });
 }
 

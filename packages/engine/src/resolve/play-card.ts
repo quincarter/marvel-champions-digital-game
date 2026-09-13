@@ -7,8 +7,10 @@ import { getInstance, mustCardOf, mustPlayer, scale } from "../query.js";
 import { printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
+import { expireCardResolutionEffects } from "../effects.js";
 import { enterPlay } from "./enter-play.js";
 import { abilityFrame, announce, base, type Frame, pushEvent } from "./frames.js";
+import { heard } from "./triggers.js";
 
 export function pushPlayCardFrame(
   ctx: Ctx,
@@ -76,8 +78,15 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
     }
     case "effects": {
       setFrame(ctx, { ...frame, stage: "discardEvent" });
+      // "When you play an [Attack] event" (Embiggen!, Shrink): an interrupt window before the card's own abilities
+      // resolve, so a modifier can apply to every instance of damage the event deals (RRG 1.8 "Event", p. 19).
+      // Pushed after the ability frames so it resolves before them, and only when an ability could react to it.
+      const beingPlayed: TriggerEvent = { kind: "cardBeingPlayed", instanceId: frame.instanceId, playerId: frame.playerId };
+      const openWindow = (): void => {
+        if (heard(ctx.state, ctx.deps, beingPlayed)) pushEvent(ctx, beingPlayed);
+      };
       // RRG "Event": an event's effects resolve while it is out of play, then it is discarded.
-      if (card.type !== "event") return;
+      if (card.type !== "event") return openWindow();
       const frames: StackFrame[] = [];
       for (const ref of printedAbilityRefs(card)) {
         const definition = ctx.deps.abilities[ref.id];
@@ -107,6 +116,7 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
         );
       }
       pushFrames(ctx, frames);
+      openWindow();
       return;
     }
     case "discardEvent": {
@@ -118,6 +128,8 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       return;
     }
     case "done":
+      // "That event" bonuses (Embiggen!, Shrink) last exactly as long as this card's play.
+      expireCardResolutionEffects(ctx, frame.instanceId);
       popFrame(ctx);
       return;
   }

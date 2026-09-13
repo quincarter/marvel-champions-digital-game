@@ -3,6 +3,7 @@
 import type { Ctx } from "../ctx.js";
 import { EngineInvariantError } from "../errors.js";
 import { executeAbilityFrame } from "./ability.js";
+import { executeDamageGroupFrame } from "./damage-group.js";
 import { executeEffectsFrame } from "./effects-frame.js";
 import { executeEnemyAttackFrame, executeEnemySchemeFrame } from "./enemy-activation.js";
 import { executeEventFrame } from "./event.js";
@@ -11,7 +12,7 @@ import { executeRevealFrame } from "./reveal.js";
 import { executeWindowFrame } from "./window.js";
 
 export { clearAbilityUses, recordAbilityUse } from "./ability.js";
-export { selectCards } from "./cards.js";
+export { selectCards, shuffleSeparateDeck } from "./cards.js";
 export { checkDefeats, eliminatePlayer } from "./defeat.js";
 export { legalDefenders } from "./enemy-activation.js";
 export { applyEnterPlayKeywords } from "./enter-play.js";
@@ -28,6 +29,7 @@ export {
 } from "./frames.js";
 export { pushPlayCardFrame } from "./play-card.js";
 export { attachmentHostCandidates, enterPlayOnReveal, pushRevealFrame } from "./reveal.js";
+export { heard } from "./triggers.js";
 
 export function executeFrame(ctx: Ctx): void {
   const frame = ctx.state.stack[0];
@@ -49,5 +51,7 @@ export function executeFrame(ctx: Ctx): void {
       return executeRevealFrame(ctx, frame);
     case "playCard":
       return executePlayCardFrame(ctx, frame);
+    case "damageGroup":
+      return executeDamageGroupFrame(ctx, frame);
   }
 }

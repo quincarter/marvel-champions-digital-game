@@ -1,3 +1,5 @@
+import { activeEncounterDeck } from "./query.js";
+import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, type AnyCard, type CardId } from "@mc/content";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -43,7 +45,7 @@ function treacheryGame(effects: readonly EffectSpec[], options: { villain?: Retu
 const identityOf = (state: GameState, player = p1) => mustPlayer(state, player).identity.instanceId;
 const damageOn = (state: GameState, id: InstanceId) => mustInstance(state, id).damage;
 const threat = (state: GameState) => mustInstance(state, state.mainScheme.instanceId).threat;
-const revealedCount = (state: GameState, cardId: CardId) => state.encounterDiscard.filter((id) => state.instances[id]?.cardId === cardId).length;
+const revealedCount = (state: GameState, cardId: CardId) => activeEncounterDeck(state).discard.filter((id) => state.instances[id]?.cardId === cardId).length;
 const decline = (state: GameState): readonly string[] =>
   state.pendingChoice?.prompt.kind === "declareDefender" ? ["decline"] : (state.pendingChoice?.options.slice(0, state.pendingChoice.minSelections).map((o) => o.optionId) ?? []);
 /**
@@ -51,7 +53,7 @@ const decline = (state: GameState): readonly string[] =>
  * In round 1 the villain's activation draws a boost card first (one per player), then each player is dealt one.
  */
 function stackEncounter(state: GameState, ...order: readonly CardId[]): GameState {
-  const rest = [...state.encounterDeck];
+  const rest = [...activeEncounterDeck(state).deck];
   const top: InstanceId[] = [];
   for (const card of order) {
     const index = rest.findIndex((id) => state.instances[id]?.cardId === card);
@@ -59,7 +61,7 @@ function stackEncounter(state: GameState, ...order: readonly CardId[]): GameStat
     top.push(rest[index] as InstanceId);
     rest.splice(index, 1);
   }
-  return { ...state, encounterDeck: [...top, ...rest] };
+  return withEncounterPiles(state, { deck: [...top, ...rest] });
 }
 
 const patch = (state: GameState, id: InstanceId, change: Partial<CardInstance>): GameState => ({
@@ -90,10 +92,10 @@ describe("'X attacks you' / 'The villain schemes'", () => {
   it("'When Revealed (Alter-Ego): This card gains surge'", () => {
     const { deps, state, card } = treacheryGame(assault, { encounter: [...copies(BLANK.id, 10)], extra: [] });
     // Test surgery: encounter deck = [blank (the villain's boost card), Assault (the dealt card), blanks…].
-    const [boost, dealt, ...rest] = state.encounterDeck as [InstanceId, InstanceId, ...InstanceId[]];
+    const [boost, dealt, ...rest] = activeEncounterDeck(state).deck as [InstanceId, InstanceId, ...InstanceId[]];
     const stacked: GameState = {
       ...patch(state, dealt, { cardId: card.id }),
-      encounterDeck: [boost, dealt, ...rest],
+      encounterDecks: withEncounterPiles(state, { deck: [boost, dealt, ...rest] }).encounterDecks,
     };
     const after = settle(runWith(deps, stacked, endTurn()), decline, deps);
     expect(revealedCount(after, card.id)).toBe(1);
@@ -162,7 +164,7 @@ describe("attack results: 'if this attack deals damage' / 'that character is stu
     ];
     const { deps, state, card } = treacheryGame(fury, { villain: VILLAIN(0, 0), extra: [TITANIA] });
     // Test surgery: turn one encounter-deck card into a stunned, damaged Titania engaged with p1.
-    const titaniaId = state.encounterDeck[state.encounterDeck.length - 1] as InstanceId;
+    const titaniaId = activeEncounterDeck(state).deck[activeEncounterDeck(state).deck.length - 1] as InstanceId;
     const withTitania: GameState = {
       ...patch(state, titaniaId, {
         cardId: TITANIA.id,
@@ -172,7 +174,7 @@ describe("attack results: 'if this attack deals damage' / 'that character is stu
         controllerId: null,
         faceup: true,
       }),
-      encounterDeck: state.encounterDeck.filter((id) => id !== titaniaId),
+      encounterDecks: withEncounterPiles(state, { deck: activeEncounterDeck(state).deck.filter((id) => id !== titaniaId) }).encounterDecks,
       players: state.players.map((p) => (p.playerId === p1 ? { ...p, playArea: [...p.playArea, titaniaId] } : p)),
     };
     // Alter-ego form: Titania's own activation is a scheme, so her stun is still there at the reveal.
@@ -197,7 +199,7 @@ describe("attack results: 'if this attack deals damage' / 'that character is stu
     const roundTwo = settle(runWith(deps, stackEncounter(state, BLANK.id, THUG.id), endTurn()), decline, deps);
     expect(mustPlayer(roundTwo, p1).playArea.some((id) => roundTwo.instances[id]?.cardId === THUG.id)).toBe(true);
     // Round 2: index 0 is the villain attack's boost card; the dealt card (index 1) becomes Gang-Up.
-    const nextId = roundTwo.encounterDeck[1] as InstanceId;
+    const nextId = activeEncounterDeck(roundTwo).deck[1] as InstanceId;
     const rigged: GameState = { ...roundTwo, instances: { ...roundTwo.instances, [nextId]: { ...mustInstance(roundTwo, nextId), cardId: card.id } } };
     const after = settle(runWith(deps, rigged, toHero(), endTurn()), decline, deps);
     expect(threat(after)).toBe(15);

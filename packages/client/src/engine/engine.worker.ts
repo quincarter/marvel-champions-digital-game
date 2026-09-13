@@ -9,7 +9,7 @@
  * same `EngineHost` interface.
  */
 
-import { EngineSessionCore } from "./session-core.js";
+import { EngineSessionCore, SetupError } from "./session-core.js";
 import { IdbGameStorage } from "./idb-game-storage.js";
 import type { HostRequest, HostResponse } from "./protocol.js";
 
@@ -64,7 +64,18 @@ async function handle(request: HostRequest): Promise<void> {
       }
     }
   } catch (cause) {
-    reply({ kind: "failed", id: request.id, message: cause instanceof Error ? cause.message : String(cause) });
+    const message = cause instanceof Error ? cause.message : String(cause);
+    reply(
+      cause instanceof SetupError
+        ? {
+            kind: "failed",
+            id: request.id,
+            message,
+            code: cause.code,
+            ...(cause.illegalDecks ? { illegalDecks: cause.illegalDecks } : {}),
+          }
+        : { kind: "failed", id: request.id, message },
+    );
   }
 }
 

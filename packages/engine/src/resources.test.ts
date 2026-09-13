@@ -1,3 +1,4 @@
+import { activeVillain } from "./query.js";
 import { flat, type AnyCard, type CardId } from "@mc/content";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command, Payment } from "./commands.js";
@@ -255,7 +256,7 @@ describe("non-resource cost components", () => {
     const charged = runWith(deps, inPlay, use(channelId, "channel-charge", hand(energyId)));
     expect(mustInstance(charged, channelId).counters.energy).toBe(2);
     const released = runWith(deps, charged, use(channelId, "channel-release"));
-    expect(mustInstance(released, released.villain.instanceId).damage).toBe(2);
+    expect(mustInstance(released, activeVillain(released).instanceId).damage).toBe(2);
     expect(mustPlayer(released, p1).discard).toContain(channelId);
   });
 

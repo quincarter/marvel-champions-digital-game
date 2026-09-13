@@ -19,7 +19,7 @@ import type {
   UpdateListener,
 } from "./host.js";
 import type { HostRequest, HostResponse } from "./protocol.js";
-import type { Snapshot } from "./session-core.js";
+import { SetupError, type Snapshot } from "./session-core.js";
 
 type Pending = {
   readonly resolve: (response: HostResponse) => void;
@@ -128,8 +128,16 @@ export class WorkerEngineHost implements EngineHost {
     const pending = this.#pending.get(response.id);
     if (!pending) return;
     this.#pending.delete(response.id);
-    if (response.kind === "failed") pending.reject(new Error(response.message));
-    else pending.resolve(response);
+    if (response.kind === "failed") {
+      // Reconstructed from plain fields, not a cloned `SetupError` instance
+      // (a class's own fields don't reliably survive structured clone) — see
+      // `protocol.ts`'s `failed` reply and `session-core.ts`'s `SetupError`.
+      pending.reject(
+        response.code
+          ? new SetupError({ code: response.code, message: response.message, command: null, ...(response.illegalDecks ? { illegalDecks: response.illegalDecks } : {}) })
+          : new Error(response.message),
+      );
+    } else pending.resolve(response);
   };
 
   readonly #onError = (event: ErrorEvent): void => {

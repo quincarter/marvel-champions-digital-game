@@ -15,6 +15,8 @@ import {
   type InstanceId,
   type Payment,
   type PlayerId,
+  activeEncounterDeck,
+  activeEncounterDeckId,
 } from "@mc/engine";
 import { CORE_DEPS } from "../core/index.js";
 
@@ -171,17 +173,24 @@ export function putOnTopOfDeck(state: GameState, player: PlayerId, ...codes: rea
  * is dealt their card(s).
  */
 export function stackEncounterDeck(state: GameState, ...codes: readonly string[]): GameState {
+  // "The encounter deck" is the active villain's.
+  const piles = activeEncounterDeck(state);
   const ids: InstanceId[] = [];
   for (const code of codes) {
     const wanted = (id: InstanceId) => state.instances[id]?.cardId === cardId(code) && !ids.includes(id);
-    const id = state.encounterDeck.find(wanted) ?? state.encounterDiscard.find(wanted);
+    const id = piles.deck.find(wanted) ?? piles.discard.find(wanted);
     if (!id) throw new Error(`no ${code} in the encounter deck or discard`);
     ids.push(id);
   }
   return {
     ...state,
-    encounterDeck: [...ids, ...state.encounterDeck.filter((id) => !ids.includes(id))],
-    encounterDiscard: state.encounterDiscard.filter((id) => !ids.includes(id)),
+    encounterDecks: {
+      ...state.encounterDecks,
+      [activeEncounterDeckId(state)]: {
+        deck: [...ids, ...piles.deck.filter((id) => !ids.includes(id))],
+        discard: piles.discard.filter((id) => !ids.includes(id)),
+      },
+    },
   };
 }
 

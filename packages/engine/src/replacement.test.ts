@@ -1,3 +1,5 @@
+import { activeEncounterDeck, activeVillain } from "./query.js";
+import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, type AnyCard, type CardId } from "@mc/content";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -192,16 +194,16 @@ describe("replacement effects (RRG 'Replacement Effect', '\"Instead\"')", () => 
     const kick = stubAbility("kick", def({ trigger: { kind: "action" }, label: ["attack"], effects: [{ kind: "attack", target: { kind: "villain" }, amount: { kind: "const", value: 3 } }] }));
     const KICK = stubEvent({ id: "kick", cost: 0, abilities: [kick.ref] });
     const { deps, state } = setup({ cards: [SUIT, KICK], abilities: [suit, kick], encounter: [SUIT.id, ...copies(BLANK.id, 20)] });
-    const suitId = mustInstance(state, state.villain.instanceId).attachments[0] as InstanceId;
+    const suitId = mustInstance(state, activeVillain(state).instanceId).attachments[0] as InstanceId;
     const given = giveCards(state, p1, "kick", "kick", "kick");
     const [k1, k2, k3] = given.ids as [InstanceId, InstanceId, InstanceId];
     const once = runWith(deps, given.state, toHero, play(k1));
-    expect([damageOn(once, once.villain.instanceId), damageOn(once, suitId)]).toEqual([0, 3]);
+    expect([damageOn(once, activeVillain(once).instanceId), damageOn(once, suitId)]).toEqual([0, 3]);
     const twice = runWith(deps, once, play(k2));
-    expect(twice.encounterDiscard).toContain(suitId);
-    expect(damageOn(twice, twice.villain.instanceId)).toBe(0);
+    expect(activeEncounterDeck(twice).discard).toContain(suitId);
+    expect(damageOn(twice, activeVillain(twice).instanceId)).toBe(0);
     const thrice = runWith(deps, twice, play(k3));
-    expect(damageOn(thrice, thrice.villain.instanceId)).toBe(3);
+    expect(damageOn(thrice, activeVillain(thrice).instanceId)).toBe(3);
 
     // Replay of the same line, from its log, reaches the identical state.
     let session: GameSession = startSession(given.state);
@@ -227,8 +229,10 @@ describe("replacement effects (RRG 'Replacement Effect', '\"Instead\"')", () => 
     const bioId = Object.values(roundTwo.instances).find((i) => i.cardId === BIO.id)?.instanceId as InstanceId;
     const withBio: GameState = {
       ...roundTwo,
-      encounterDeck: roundTwo.encounterDeck.filter((id) => id !== bioId),
-      encounterDiscard: roundTwo.encounterDiscard.filter((id) => id !== bioId),
+      encounterDecks: withEncounterPiles(roundTwo, {
+        deck: activeEncounterDeck(roundTwo).deck.filter((id) => id !== bioId),
+        discard: activeEncounterDeck(roundTwo).discard.filter((id) => id !== bioId),
+      }).encounterDecks,
       instances: {
         ...roundTwo.instances,
         [bioId]: { ...mustInstance(roundTwo, bioId), attachedTo: thug, faceup: true },
@@ -240,7 +244,7 @@ describe("replacement effects (RRG 'Replacement Effect', '\"Instead\"')", () => 
     const saved = blast(deps, runWith(deps, given.state, toHero), b1, thug);
     expect(minionIn(saved)).toContain(thug);
     expect(damageOn(saved, thug)).toBe(0);
-    expect(saved.encounterDiscard).toContain(bioId);
+    expect(activeEncounterDeck(saved).discard).toContain(bioId);
     const gone = blast(deps, saved, b2, thug);
     expect(minionIn(gone)).not.toContain(thug);
   });
@@ -260,9 +264,9 @@ describe("replacement effects (RRG 'Replacement Effect', '\"Instead\"')", () => 
     const { deps, state } = setup({ cards: [WEBBED], abilities: [webbed], villain: VILLAIN(3) });
     const given = giveCards(state, p1, "webbed");
     const webbedId = given.ids[0] as InstanceId;
-    const after = settle(runWith(deps, given.state, toHero, play(webbedId, state.villain.instanceId), endTurn), undefined, deps);
+    const after = settle(runWith(deps, given.state, toHero, play(webbedId, activeVillain(state).instanceId), endTurn), undefined, deps);
     expect(damageOn(after, identityOf(after))).toBe(0);
-    expect(mustInstance(after, after.villain.instanceId).statuses.stunned).toBe(1);
+    expect(mustInstance(after, activeVillain(after).instanceId).statuses.stunned).toBe(1);
     expect(mustPlayer(after, p1).discard).toContain(webbedId);
   });
 
@@ -319,7 +323,7 @@ describe("cancelling a revealed encounter card (RRG 'Cancel', 'Surge')", () => {
     const firstRevealed = (prompt?.kind === "chooseTriggers" && prompt.event.kind === "encounterCardRevealing" ? prompt.event.instanceId : null) as InstanceId;
     const paying = pick(deps, offered, `${widowId}:`);
     const after = settle(resolvePending(paying, [`hand:${mentalId}`], deps), undefined, deps);
-    expect(after.encounterDiscard).toContain(firstRevealed);
+    expect(activeEncounterDeck(after).discard).toContain(firstRevealed);
     expect(minionIn(after)).toHaveLength(1);
     expect(minionIn(after)).not.toContain(firstRevealed);
     expect(mustInstance(after, widowId).exhausted).toBe(true);

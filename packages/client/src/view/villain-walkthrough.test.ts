@@ -4,6 +4,7 @@
  * phase inside one command, so a synthetic event list would prove nothing.
  */
 
+import { activeVillain } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import type { ChoiceOption, ChoicePrompt, GameState, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
@@ -314,7 +315,7 @@ describe("pauseFor", () => {
       ? {
           kind,
           attack: {
-            enemyInstanceId: played.state.villain.instanceId,
+            enemyInstanceId: activeVillain(played.state).instanceId,
             targetPlayerId: played.viewer,
             targetCharacterInstanceId: played.state.players[0]!.identity.instanceId,
           },

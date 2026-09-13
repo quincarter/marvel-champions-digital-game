@@ -1,7 +1,19 @@
 import type { Command } from "./commands.js";
+import type { DeckProblem } from "./deck.js";
+import type { PlayerId } from "./ids.js";
 
 export type EngineErrorCode =
   | "invalid_setup"
+  /**
+   * A seat's deck breaks the RRG deckbuilding rules (`validateDeck` in `./deck.ts`). Raised by
+   * `createGame` when `GameSetupConfig.requireLegalDecks` is set. The per-seat reasons are in
+   * `EngineError.illegalDecks`.
+   *
+   * Distinct from `invalid_setup` (a malformed config) and from `duplicate_unique_card` (a
+   * table-level conflict between otherwise legal choices), so a client can route it to
+   * "fix this deck".
+   */
+  | "illegal_deck"
   /**
    * RRG "Unique Icon": a card cannot enter play while it matches a card already in play
    * (see `./unique.ts` for the RRG 1.8 match predicate). Raised by `createGame` when two
@@ -39,6 +51,15 @@ export interface EngineError {
   readonly code: EngineErrorCode;
   readonly message: string;
   readonly command: Command | null;
+  /** Present only on `illegal_deck`: each illegal seat's problems, to render verbatim. */
+  readonly illegalDecks?: readonly IllegalDeck[];
+}
+
+/** One seat whose deck `createGame` refused. */
+export interface IllegalDeck {
+  readonly seatIndex: number;
+  readonly playerId: PlayerId;
+  readonly problems: readonly DeckProblem[];
 }
 
 export class EngineInvariantError extends Error {}

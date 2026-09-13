@@ -1,3 +1,5 @@
+import { activeEncounterDeck, activeVillain } from "./query.js";
+import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, trait, type AnyCard, type CardId } from "@mc/content";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -112,7 +114,7 @@ describe("lasting effects (RRG 'Lasting Effects')", () => {
     const atDefense = settleUntil(runWith(deps, state, toHero, endTurn), "declareDefender", deps);
     const after = resolvePending(atDefense, ["decline"], deps);
     expect(mustInstance(after, identityOf(after)).damage).toBe(4);
-    expect(profile(deps, after, after.villain.instanceId)?.atk).toBe(2);
+    expect(profile(deps, after, activeVillain(after).instanceId)?.atk).toBe(2);
     expect(after.lastingEffects).toEqual([]);
   });
 
@@ -129,9 +131,9 @@ describe("lasting effects (RRG 'Lasting Effects')", () => {
     const given = giveCards(state, p1, "boots", "punch", "punch");
     const [bootsId, p1Id, p2Id] = given.ids as [InstanceId, InstanceId, InstanceId];
     const first = runWith(deps, given.state, toHero, play(bootsId), play(p1Id));
-    expect(mustInstance(first, first.villain.instanceId).damage).toBe(4);
+    expect(mustInstance(first, activeVillain(first).instanceId).damage).toBe(4);
     const second = runWith(deps, first, use(bootsId, "rocket-boots"), play(p2Id));
-    expect(mustInstance(second, second.villain.instanceId).damage).toBe(12);
+    expect(mustInstance(second, activeVillain(second).instanceId).damage).toBe(12);
   });
 
   it("'At the end of the round, if Nick Fury is still in play, discard him' (a delayed effect)", () => {
@@ -159,8 +161,8 @@ describe("constant abilities with computed amounts, grants and rules", () => {
     const JJ = stubAlly({ id: "jj", cost: 0, atk: 2, thw: 1, hp: 3, abilities: [jj.ref] });
     const SIDE = stubSideScheme({ id: "side", startingThreat: 2, boostIcons: 0 });
     const { deps, state } = setup({ cards: [JJ, SIDE], abilities: [jj], encounter: [SIDE.id, ...copies(BLANK.id, 10)] });
-    const sideId = state.encounterDeck.find((id) => state.instances[id]?.cardId === SIDE.id) as InstanceId;
-    const withSide: GameState = { ...state, encounterDeck: state.encounterDeck.filter((id) => id !== sideId), villainArea: [...state.villainArea, sideId] };
+    const sideId = activeEncounterDeck(state).deck.find((id) => state.instances[id]?.cardId === SIDE.id) as InstanceId;
+    const withSide: GameState = { ...withEncounterPiles(state, { deck: activeEncounterDeck(state).deck.filter((id) => id !== sideId) }), villainArea: [...state.villainArea, sideId] };
     const given = giveCards(withSide, p1, "jj");
     const after = runWith(deps, given.state, play(given.ids[0] as InstanceId));
     expect(profile(deps, after, given.ids[0] as InstanceId)?.thw).toBe(2);
@@ -231,14 +233,14 @@ describe("constant abilities with computed amounts, grants and rules", () => {
     const [drone] = engaged(roundTwo, DRONE_MINION) as [InstanceId];
     const given = giveCards(roundTwo, p1, "kick", "kick");
     const shielded = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId));
-    expect(mustInstance(shielded, shielded.villain.instanceId).damage).toBe(0);
+    expect(mustInstance(shielded, activeVillain(shielded).instanceId).damage).toBe(0);
     const noDrone: GameState = {
       ...shielded,
       players: shielded.players.map((p) => (p.playerId === p1 ? { ...p, playArea: p.playArea.filter((id) => id !== drone) } : p)),
-      encounterDiscard: [...shielded.encounterDiscard, drone],
+      encounterDecks: withEncounterPiles(shielded, { discard: [...activeEncounterDeck(shielded).discard, drone] }).encounterDecks,
     };
     const hit = runWith(deps, noDrone, play(given.ids[1] as InstanceId));
-    expect(mustInstance(hit, hit.villain.instanceId).damage).toBe(3);
+    expect(mustInstance(hit, activeVillain(hit).instanceId).damage).toBe(3);
   });
 
   it("'Killmonger cannot take damage from Black Panther upgrades' — other damage still lands", () => {

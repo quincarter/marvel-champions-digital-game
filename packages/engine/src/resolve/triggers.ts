@@ -1,7 +1,7 @@
 /** Trigger matching: which abilities (in play or in hand) an event makes available in a timing window. */
 
 import type { EngineDeps, EventPattern } from "../abilities.js";
-import { isPriceFault, planCost } from "../actions.js";
+import { isPriceFault, planCost, playRestrictionFault } from "../actions.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { cardOf, getPlayer, playerOrder } from "../query.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, type EffectContext, matchesQuery } from "../select.js";
@@ -75,6 +75,14 @@ function matchesRest(
       if ((event.results?.[key] ?? 0) < amount) return false;
     }
   }
+  if (pattern.activation && (!("activation" in event) || event.activation !== pattern.activation)) return false;
+  if (pattern.eventAtLeast) {
+    const carried = event as unknown as Readonly<Record<string, unknown>>;
+    for (const [key, amount] of Object.entries(pattern.eventAtLeast)) {
+      const value = carried[key];
+      if (typeof value !== "number" || value < amount) return false;
+    }
+  }
   if (pattern.attackKind) {
     if (event.kind !== "attack" && event.kind !== "thwart") return false;
     if ((pattern.attackKind === "basic") !== (event.basic === true)) return false;
@@ -144,6 +152,8 @@ function inHandCandidates(
     for (const id of player.hand) {
       const card = cardOf(state, id);
       if (card?.type !== "event") continue;
+      // "Max 1 per round", "Play only if …": a window never offers a card its restrictions forbid.
+      if (playRestrictionFault(state, deps, player.playerId, card)) continue;
       for (const ref of card.abilities) {
         const definition = deps.abilities[ref.id];
         if (!definition) continue;
@@ -163,6 +173,14 @@ function inHandCandidates(
   }
   return found;
 }
+
+/**
+ * Whether any ability could react to this event right now, in either window. Events on paths every game takes (a turn
+ * ending, surge, an ability resolving, a minion engaging) go on the stack only when one could, so a game with nothing
+ * listening resolves exactly as it did before those events existed.
+ */
+export const heard = (state: GameState, deps: EngineDeps, event: TriggerEvent): boolean =>
+  hasCandidates(state, deps, event, "interrupt") || hasCandidates(state, deps, event, "response");
 
 export const hasCandidates = (state: GameState, deps: EngineDeps, event: TriggerEvent, timing: WindowTiming): boolean =>
   candidatesFor(state, deps, event, timing, true).length > 0 ||

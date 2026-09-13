@@ -1,10 +1,15 @@
-import { CORE_CARDS, CORE_SCENARIOS, CORE_STARTER_DECKS, type AnyCard, type CardId } from "@mc/content";
+import { CORE_CARDS, CORE_SCENARIOS, CORE_STARTER_DECKS, type AnyCard, type CardId, type CoreAspect } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
 
 export type CoreDifficulty = "standard" | "expert";
 
-/** A seat: a Core starter deck by id, or an identity plus an explicit deck list. */
-export type CorePlayer = { readonly starterDeckId: string } | { readonly identityCardId: string; readonly deck: readonly string[] };
+/**
+ * A seat: a Core starter deck by id, or an identity plus an explicit deck list. Decks must be
+ * legal (`requireLegalDecks`), so an explicit list also needs its chosen `aspects`.
+ */
+export type CorePlayer =
+  | { readonly starterDeckId: string }
+  | { readonly identityCardId: string; readonly deck: readonly string[]; readonly aspects?: readonly CoreAspect[] };
 
 export interface CoreScenarioOptions {
   readonly difficulty?: CoreDifficulty;
@@ -23,6 +28,7 @@ export function starterDeckSetup(starterDeckId: string): PlayerSetup {
   if (!starter) throw new Error(`no Core starter deck ${starterDeckId}`);
   return {
     identityCardId: starter.identityCardId,
+    aspects: starter.aspects,
     deck: starter.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId)),
   };
 }
@@ -78,9 +84,16 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
     mainSchemeCardId: scenario.mainSchemeCardId,
     encounterDeck: encounterCardsOf(sets),
     players: options.players.map((seat) =>
-      "starterDeckId" in seat ? starterDeckSetup(seat.starterDeckId) : { identityCardId: seat.identityCardId as CardId, deck: seat.deck as readonly CardId[] },
+      "starterDeckId" in seat
+        ? starterDeckSetup(seat.starterDeckId)
+        : {
+            identityCardId: seat.identityCardId as CardId,
+            deck: seat.deck as readonly CardId[],
+            ...(seat.aspects ? { aspects: seat.aspects } : {}),
+          },
     ),
     requireIdentitySets: true,
+    requireLegalDecks: true,
     ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
   };
 }

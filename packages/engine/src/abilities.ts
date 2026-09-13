@@ -1,7 +1,7 @@
 import type { AbilityId, KeywordInstance, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
-import type { EffectSpec, Predicate, StatName, TargetQuery, ValueSpec } from "./spec.js";
+import type { EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, ValueSpec } from "./spec.js";
 import type { Form } from "./state.js";
 import type { TriggerEventKind } from "./trigger-events.js";
 
@@ -29,6 +29,13 @@ export interface EventPattern {
   readonly requireResults?: Readonly<Record<string, number>>;
   /** "After you make a basic attack" → `basic`; "(attack)" abilities → `ability`. */
   readonly attackKind?: "basic" | "ability";
+  /** The activation the event belongs to: "while the villain attacks" / "during a scheme activation" (boost card events). */
+  readonly activation?: "attack" | "scheme";
+  /**
+   * Numbers the event itself carries must be at least this, in both windows: `{ boostIcons: 1 }` for "cancel the boost
+   * icons on that card", which cannot trigger on a card with none (FAQ "Attacrobatics (#6)", p. 59).
+   */
+  readonly eventAtLeast?: Readonly<Record<string, number>>;
 }
 
 /**
@@ -49,10 +56,28 @@ export type AbilityTriggerSpec =
   | { readonly kind: "response"; readonly forced: boolean; readonly on: EventPattern; readonly form?: Form }
   | { readonly kind: "whenRevealed" }
   | { readonly kind: "whenDefeated" }
+  /**
+   * RRG 1.8 "When Completed Abilities" (p. 48): "equivalent to … 'Forced Interrupt: When this scheme is completed…'".
+   * Resolves on a main scheme stage reaching its target threat, before it advances; never on the final stage, whose
+   * completion loses the game.
+   */
+  | { readonly kind: "whenCompleted" }
   | { readonly kind: "boost" }
   | { readonly kind: "setup" }
   /** RRG "Special": resolves only when another ability instructs it (`resolveSpecials`; Wakanda Forever!). */
   | { readonly kind: "special" }
+  /**
+   * A forced ability that resolves when a condition becomes true, with no triggering event: "If there are no madness
+   * counters here, flip Green Goblin and State of Madness." Checked between every two frames (as the RRG 1.8 "Uses"
+   * discard is, p. 46), so it happens immediately, mid-attack included (FAQ "Green Goblin (#1B)", p. 59).
+   *
+   * Edge-triggered: it fires when the condition changes from false to true, and not again until it has been false.
+   * A card's first observation only records the value. So a card that enters play, or flips to a face, with the
+   * condition already true does not fire until the condition has been false once. That keeps "enters play with N
+   * counters" scripted as a response from racing the check. It is the engine's reading, not a printed rule: see
+   * docs/phase7-wave1.md §4.1.
+   */
+  | { readonly kind: "stateCheck"; readonly when: Predicate }
   | {
       readonly kind: "constant";
       readonly modifiers?: readonly StatModifierSpec[];
@@ -68,11 +93,47 @@ export type AbilityTriggerSpec =
        * resources when it is discarded to pay for a card matching the query.
        */
       readonly resourceMultiplier?: { readonly factor: number; readonly whilePayingFor: TargetQuery };
+      /** Changes to the cost of playing cards (docs/phase7-wave1.md §3.10). */
+      readonly costModifiers?: readonly CostModifierSpec[];
+      /** "You can only spend [physical] resources to pay for this card." (Crushing Blow). Read from the card being paid for. */
+      readonly paymentOnly?: readonly TypedResource[];
+      /** "Spend this card only in hero form." (Limitless Strength). Read from a hand card when it is spent. */
+      readonly spendableIn?: Form;
+      /**
+       * "You may play Lockjaw from your discard pile during your turn." A permission read from the card itself (RRG 1.8
+       * "Play Restrictions and Permissions", p. 33: "a permission might allow an ally card to be played from a player's
+       * discard pile").
+       */
+      readonly playableFrom?: readonly "discard"[];
+      /** "As an additional cost for Wonder Man to attack, you must discard 1 card." Costs on this character's own basic powers. */
+      readonly basicPowerCosts?: readonly { readonly power: "attack" | "thwart"; readonly cost: AbilityCost }[];
     };
+
+/**
+ * A change to what a card costs to play. `delta` is signed: −1 "reduce the cost by 1", +3 "costs 3 additional
+ * resources" (Physical Toll). `appliesTo` is the card being played, `host` the card it will be attached to ("each upgrade
+ * on Iron Man"), `while` gates it ("the first ally played each round" with `playedThisRound`).
+ *
+ * In play by default. `activeIn: "hand"` is read from the card being played while it is in hand ("Reduce the cost to
+ * play Hercules by 1 for each minion engaged with you"); RRG 1.8 "In Play and Out of Play" (p. 23): out-of-play text
+ * works only when it "specifically refer[s] to being used from an out-of-play area".
+ */
+export interface CostModifierSpec {
+  readonly delta: number | ValueSpec;
+  readonly appliesTo: TargetQuery;
+  readonly host?: TargetQuery;
+  readonly while?: Predicate;
+  readonly activeIn?: "hand";
+}
 
 /** A constant ability's stat change. `while` gates it (RRG "Constant Abilities"). */
 export interface StatModifierSpec {
-  readonly stat: StatName | "hp" | "handSize";
+  /**
+   * A character or hand-size stat, a scheme threat value (`SchemeValueName`), `boostIcons` ("This card gets +1 boost
+   * icon if …", read from the boost card itself while it resolves, `boostIconsFor`), or an ally's consequential
+   * damage ("takes +1 consequential damage after it attacks", Enraged).
+   */
+  readonly stat: StatName | "hp" | "handSize" | SchemeValueName | "boostIcons" | "consequentialAttack" | "consequentialThwart";
   /**
    * A number, or a value read from game state on every check: "+1 THW for each
    * side scheme in play" (`count`), "X is equal to Titania's remaining hit
@@ -108,19 +169,47 @@ export interface TraitGrantSpec {
 export type RuleSpec =
   /** "X cannot take damage [while …]" (Ultron III, Madame Hydra); `fromSource`: "…from Black Panther upgrades" (Killmonger). */
   | { readonly kind: "cannotTakeDamage"; readonly target: TargetQuery; readonly while?: Predicate; readonly fromSource?: TargetQuery }
-  /** "Threat cannot be removed from this scheme" (Countdown to Oblivion). */
-  | { readonly kind: "threatCannotBeRemoved"; readonly target: TargetQuery; readonly while?: Predicate }
+  /** "Threat cannot be removed from this scheme" (Countdown to Oblivion); `by: "thwart"`: "… from attached scheme by thwarting" (Held Hostage). */
+  | { readonly kind: "threatCannotBeRemoved"; readonly target: TargetQuery; readonly while?: Predicate; readonly by?: "thwart" }
+  /** "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's speaker (`speakerOf`). */
+  | { readonly kind: "cannotThwart"; readonly player: PlayerRef; readonly while?: Predicate }
+  /** "… cannot ready" (All Tied Up). */
+  | { readonly kind: "cannotReady"; readonly target: TargetQuery; readonly while?: Predicate }
+  /** "You cannot change form" (All Tied Up). */
+  | { readonly kind: "cannotChangeForm"; readonly player: PlayerRef; readonly while?: Predicate }
+  /** "Players cannot attack other villains." (Distracting Taunts): player attacks against a matching card are illegal. */
+  | { readonly kind: "cannotAttack"; readonly target: TargetQuery; readonly while?: Predicate }
+  /** "Resolve each 'When Revealed' ability that you reveal 1 additional time." (Media Coverage). */
+  | { readonly kind: "repeatWhenRevealed"; readonly player: PlayerRef; readonly times: number; readonly while?: Predicate }
   /** "Increase your ally limit by N" — for the controller of the card (The Triskelion). */
   | { readonly kind: "allyLimit"; readonly amount: number }
   /** "The engaged player must defend against [attacker]'s attacks with an ally they control, if able" (Melter). */
-  | { readonly kind: "mustDefendWithAlly"; readonly attacker: TargetQuery; readonly while?: Predicate };
+  | { readonly kind: "mustDefendWithAlly"; readonly attacker: TargetQuery; readonly while?: Predicate }
+  /**
+   * "When Wrecker schemes, place the threat on his side scheme instead of the main scheme" — printed as a constant ★
+   * ability on each Wrecking Crew villain (docs/phase7-wave1.md §3.6). A scheme activation by a matching enemy places
+   * its threat on that villain's signature side scheme while it is in play, else on the main scheme.
+   */
+  | { readonly kind: "schemeThreatDestination"; readonly enemy: TargetQuery; readonly scheme: "ownSignatureSideScheme"; readonly while?: Predicate }
+  /** "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword. */
+  | { readonly kind: "cannotLeavePlay"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * The Wrecking Crew insert, "Signature Side Schemes": "These side schemes are not discarded when they have no threat on
+   * them." A scenario rule overriding RRG 1.8 "Defeat" (p. 15) under the Golden Rules (p. 4), carried by the main scheme.
+   */
+  | { readonly kind: "notDefeatedWithoutThreat"; readonly target: TargetQuery; readonly while?: Predicate };
 
 /** Where a cost may pick a card from (outside play). */
 export interface CardZoneQuery {
-  readonly zone: "discard" | "hand" | "deck";
+  /** `separateDeck`: an identity's separate deck, named by `separateDeck` ("the top card of the Invocation deck"). */
+  readonly zone: "discard" | "hand" | "deck" | "separateDeck";
   /** Whose zone: the paying player's, or any player's. */
   readonly player: "you" | "any";
   readonly query?: TargetQuery;
+  /** Which separate deck, with zone `separateDeck`. */
+  readonly separateDeck?: string;
+  /** Only the top N cards of the zone. */
+  readonly top?: number;
 }
 
 /**
@@ -174,6 +263,8 @@ export interface AbilityCost {
    * initiated if it has at least one valid target").
    */
   readonly payPrintedCostOf?: { readonly slot: string; readonly from: CardZoneQuery; readonly entersPlay?: boolean };
+  /** "Spend 2 resources of different types" (Red Dagger): the payment must hold this many types; a wild can be any one. */
+  readonly distinctResourceTypes?: number;
 }
 
 export interface AbilityLimit {
@@ -200,6 +291,8 @@ export interface AbilityDefinition {
   readonly effects: readonly EffectSpec[];
   /** Resource abilities only. Defaults to 1 wild resource. */
   readonly generates?: ResourceGeneration;
+  /** Resource abilities only: "generate a [wild] resource for an event" — usable only while paying for a matching card. */
+  readonly generatesFor?: TargetQuery;
 }
 
 /** Ability definitions are engine-side data keyed by the `AbilityId` printed on cards. */

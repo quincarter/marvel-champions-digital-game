@@ -108,6 +108,9 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
   if (Array.isArray(record.excludeSlots)) {
     for (const slot of record.excludeSlots) if (typeof slot === "string" && !known(scope, scope.slots, slot)) problems.push(`${where}: excluded slot "${slot}" is never bound`);
   }
+  if (typeof record.inSlot === "string" && !known(scope, scope.slots, record.inSlot)) {
+    problems.push(`${where}: slot "${record.inSlot}" is read before it is bound`);
+  }
   for (const [key, item] of Object.entries(record)) {
     if (key === "effects" || key === "then" || key === "otherwise" || key === "with" || key === "options") continue;
     checkRefs(item, scope, where, problems);

@@ -1,3 +1,5 @@
+import { activeEncounterDeck } from "./query.js";
+import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, type AnyCard, type CardId } from "@mc/content";
 import type { AbilityDefinition } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -76,7 +78,7 @@ describe("query and player-ref primitives", () => {
     const discarded: GameState = {
       ...state,
       players: state.players.map((p) => ({ ...p, playArea: p.playArea.filter((id) => id !== t1) })),
-      encounterDiscard: [...state.encounterDiscard, t1],
+      encounterDecks: withEncounterPiles(state, { discard: [...activeEncounterDeck(state).discard, t1] }).encounterDecks,
     };
     expect(evaluate(discarded, refIsMinion, ctxWith({ m: [t1] }))).toBe(false);
   });
@@ -96,9 +98,9 @@ test("EventPattern.on with several kinds: 'After this minion schemes or attacks,
   const deps = depsOf(either);
   const start = newGame({ villain: VILLAIN, mainScheme: SCHEME, extraCards: [BLANK, GRUNT], encounterDeck: [GRUNT.id, ...copies(BLANK.id)], deps });
   // Round 1: the villain's boost card is a blank, the dealt card is the grunt.
-  const gruntId = start.encounterDeck.find((id) => start.instances[id]?.cardId === GRUNT.id) as InstanceId;
-  const [first, ...others] = start.encounterDeck.filter((id) => id !== gruntId);
-  const stacked: GameState = { ...start, encounterDeck: [first as InstanceId, gruntId, ...others] };
+  const gruntId = activeEncounterDeck(start).deck.find((id) => start.instances[id]?.cardId === GRUNT.id) as InstanceId;
+  const [first, ...others] = activeEncounterDeck(start).deck.filter((id) => id !== gruntId);
+  const stacked: GameState = withEncounterPiles(start, { deck: [first as InstanceId, gruntId, ...others] });
   const roundTwo = settle(runWith(deps, stacked, endTurn()), decline, deps);
   const threat = (s: GameState) => mustInstance(s, s.mainScheme.instanceId).threat;
   const afterScheme = settle(runWith(deps, roundTwo, endTurn()), decline, deps);
@@ -131,11 +133,11 @@ test("characterDefeated carries the defeating player: 'After you defeat a minion
   const [p2Blast] = p2Cards.ids as [InstanceId];
   expect(p2Cards.state.firstPlayerId).toBe(p2);
   const byP2 = resolvePending(runWith(deps, p2Cards.state, play(p2, p2Blast)), [thugOf(p2)], deps);
-  expect(byP2.encounterDiscard).toContain(thugOf(p2));
+  expect(activeEncounterDeck(byP2).discard).toContain(thugOf(p2));
   expect(threat(byP2)).toBe(threat(state));
   const p1Turn = giveCards(runWith(deps, byP2, endTurn(p2), play(p1, roomId)), p1, "blast");
   const byP1 = resolvePending(runWith(deps, p1Turn.state, play(p1, p1Turn.ids[0] as InstanceId)), [thugOf(p1)], deps);
-  expect(byP1.encounterDiscard).toContain(thugOf(p1));
+  expect(activeEncounterDeck(byP1).discard).toContain(thugOf(p1));
   expect(threat(byP1)).toBe(threat(state) + 5);
 });
 

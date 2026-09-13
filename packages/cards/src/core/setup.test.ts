@@ -64,6 +64,9 @@ test("a re-titled alter-ego of the same hero may share the table", () => {
   const result = createGame(
     {
       ...base,
+      // Deliberately not a legal deck: the second seat reuses Captain Marvel's signature cards
+      // under a synthetic identity. This test is about the setup half of the unique rule only.
+      requireLegalDecks: false,
       cards: [...base.cards, otherCarol],
       players: [seat, { identityCardId: otherCarol.id, deck: seat.deck }],
     },

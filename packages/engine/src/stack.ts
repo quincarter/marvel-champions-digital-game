@@ -44,6 +44,17 @@ export interface ReportTarget {
   readonly prefix: string;
 }
 
+/**
+ * The boost card an activation is resolving (RRG 1.8 "Boost", p. 11): `window` while its `boostCardTurnedFaceup` event
+ * resolves, `ability` while its "Boost" ability resolves. Its icons are added and it is discarded after that.
+ */
+export interface BoostInProgress {
+  readonly instanceId: InstanceId;
+  readonly step: "window" | "ability";
+  readonly iconsCancelled: boolean;
+  readonly abilityCancelled: boolean;
+}
+
 /** Effects waiting for a timing point ("at the end of this attack"), with the context that created them. */
 export interface DeferredEffects {
   readonly effects: readonly EffectSpec[];
@@ -73,6 +84,28 @@ export type StackFrame =
       readonly reportTo: ReportTarget | null;
       /** "At the end of this attack" effects, run after the response window. */
       readonly endEffects: readonly DeferredEffects[];
+      /**
+       * A member of a simultaneous `damageGroup`: this frame runs only the interrupt window, then hands its (possibly
+       * prevented or cancelled) event back to the group at `index`, which applies it with the others.
+       */
+      readonly group?: { readonly frameId: FrameId; readonly index: number };
+    })
+  /**
+   * Damage events resolved simultaneously (RRG 1.8 "Indirect Damage", p. 24: "All indirect damage from a single source
+   * is first assigned and then resolved simultaneously"): every member's interrupt window in order, then every
+   * member's damage followed by one defeat sweep, then every member's response window.
+   */
+  | (FrameBase & {
+      readonly kind: "damageGroup";
+      readonly members: readonly {
+        readonly event: Extract<TriggerEvent, { kind: "dealDamage" }>;
+        readonly cancelled: boolean;
+        /** What applying it did (`amount` taken, `excessDealt`), for its response window's results. */
+        readonly vars: Vars;
+      }[];
+      readonly stage: "interrupts" | "apply" | "responses" | "done";
+      readonly cursor: number;
+      readonly reportTo: ReportTarget | null;
     })
   /** Gathers, orders, and runs the triggered abilities for one timing window. */
   | (FrameBase & {
@@ -130,6 +163,9 @@ export type StackFrame =
       readonly stage: "giveBoost" | "declareDefender" | "flipBoosts" | "dealDamage" | "done";
       /** The `enemyAttack` event frame this procedure belongs to. */
       readonly eventFrameId: FrameId | null;
+      /** No boost card for this attack (`TriggerEvent.noBoost`). */
+      readonly noBoost?: boolean;
+      readonly boost?: BoostInProgress | null;
     })
   /** RRG "Scheme (Enemy Activation)". */
   | (FrameBase & {
@@ -139,6 +175,8 @@ export type StackFrame =
       readonly boostIcons: number;
       readonly stage: "giveBoost" | "flipBoosts" | "placeThreat" | "done";
       readonly eventFrameId: FrameId | null;
+      readonly noBoost?: boolean;
+      readonly boost?: BoostInProgress | null;
     })
   /** RRG "Reveal" steps 1–4. */
   | (FrameBase & {
@@ -212,6 +250,8 @@ export function describeFrame(frame: StackFrame): string {
       return `reveal ${frame.instanceId} (${frame.stage})`;
     case "playCard":
       return `play ${frame.instanceId} (${frame.stage})`;
+    case "damageGroup":
+      return `simultaneous damage to ${frame.members.length} character(s) (${frame.stage})`;
   }
 }
 

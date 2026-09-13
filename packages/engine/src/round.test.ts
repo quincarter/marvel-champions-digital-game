@@ -1,3 +1,4 @@
+import { activeEncounterDeck, activeVillain } from "./query.js";
 import { applyCommand } from "./engine.js";
 import { playerId } from "./ids.js";
 import { minionsEngagedWith, mustInstance, mustPlayer } from "./query.js";
@@ -22,7 +23,7 @@ test("a solo round ends with the villain scheming against an alter-ego and a new
   expect(mustInstance(state, state.mainScheme.instanceId).threat).toBe(3);
   expect(state.round).toBe(2);
   expect(state.step).toEqual({ phase: "player", kind: "turn", activePlayerId: p1, remainingPlayerIds: [] });
-  expect(state.encounterDiscard.length).toBe(2);
+  expect(activeEncounterDeck(state).discard.length).toBe(2);
   expect(state.pendingChoice).toBeNull();
 });
 
@@ -67,7 +68,7 @@ test("cards exhausted during a turn ready at the end of the player phase, before
     type: "basicAttack",
     playerId: p1,
     attackerInstanceId: identityId,
-    targetInstanceId: start.villain.instanceId,
+    targetInstanceId: activeVillain(start).instanceId,
   });
   expect(mustInstance(afterAttack, identityId).exhausted).toBe(true);
 

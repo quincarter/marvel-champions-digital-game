@@ -12,12 +12,12 @@
  */
 
 import Phaser from "phaser";
-import type { InputText as RexInputText, TextArea as RexTextArea } from "phaser4-rex-plugins/templates/ui/ui-components";
+import type { InputText as RexInputText, TextArea as RexTextArea, TextAreaInput as RexTextAreaInput } from "phaser4-rex-plugins/templates/ui/ui-components";
 import { accent, border, hit, ink, minType, selectionRing, signal, statHue, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
-// The only rexUI import in the app. See ui/rex.ts for why the two components
+// The only rexUI import in the app. See ui/rex.ts for why the components
 // are constructed directly instead of through `RexUIPlugin`.
-import { addInputText, addTextArea } from "./rex.js";
+import { addInputText, addTextArea, addTextAreaInput } from "./rex.js";
 import { caseOf, cssOf, fontFamilyOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
 
 /** Draws a rect with the design's border model into an existing Graphics. */
@@ -736,6 +736,141 @@ export class McTextInput {
     this.#input.setPosition(rect.x, rect.y);
     this.#input.resize(rect.width, rect.height);
     if (this.#input.isFocused) this.#ring.show(rect, "static", true);
+  }
+
+  destroy(): void {
+    this.#ring.destroy();
+    this.#input.destroy();
+  }
+}
+
+export interface McMultilineInputOptions {
+  readonly rect: Rect;
+  readonly value: string;
+  /** Defaults to `typeRole.mono` — a pasted decklist is data, not prose. */
+  readonly type?: TypeSpec;
+  readonly placeholder?: string;
+  readonly onChange?: (value: string) => void;
+}
+
+/**
+ * A multi-line, wrapped, scrollable text field for pasting a decklist (PLAN.md
+ * Phase 9's paste importer) — `McTextInput`'s sibling for the one case a
+ * single-line DOM `<input>` cannot serve. A real decklist is several dozen
+ * lines, and pasting multi-line text into a single-line field is browsers'
+ * own territory to mangle: Chromium and Firefox both strip the newlines on the
+ * way in, which silently turns a legible decklist into one unparsable line
+ * before this app's code ever sees it (`@mc/content`'s `parseDecklistText`
+ * splits on `\r?\n`). `McTextInput` cannot be fixed to avoid that; only a
+ * field that actually accepts more than one line can.
+ *
+ * Backed by rexUI's `TextAreaInput`, canvas-rendered rather than a second kind
+ * of visible DOM control (see `ui/rex.ts`), so this still honours "`McTextInput`
+ * is the app's only DOM element" (PLAN.md Phase 4) in spirit: a hidden native
+ * text-edit element captures keystrokes and paste exactly as `InputText`'s
+ * does, and nothing here is a second *visible* DOM field beside it.
+ */
+export class McMultilineInput {
+  readonly #input: RexTextAreaInput;
+  readonly #ring: McSelectionRing;
+  #rect: Rect;
+  #focused = false;
+
+  constructor(scene: Phaser.Scene, options: McMultilineInputOptions) {
+    this.#rect = options.rect;
+    const { rect } = options;
+    const type = options.type ?? typeRole.mono;
+    const s = skin("secondary", "rest");
+
+    this.#ring = new McSelectionRing(scene);
+
+    this.#input = addTextAreaInput(scene, {
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      origin: 0,
+      text: {
+        style: {
+          fontFamily: fontFamilyOf(type),
+          fontSize: `${type.size}px`,
+          color: cssOf(s.text, 1),
+        },
+        background: {
+          color: cssOf(s.fill, 1),
+          stroke: cssOf(s.stroke, 1),
+          strokeThickness: s.strokeWidth,
+        },
+        wrap: { mode: "word" },
+        onFocus: () => {
+          this.#focused = true;
+          this.#ring.show(this.#rect, "static", true);
+        },
+        onBlur: () => {
+          this.#focused = false;
+          this.#ring.hide();
+        },
+      },
+      space: { left: 10, right: 10, top: 8, bottom: 8 },
+      content: options.value,
+    } as unknown as ConstructorParameters<typeof RexTextAreaInput>[1]).layout();
+
+    if (options.onChange) {
+      const onChange = options.onChange;
+      this.#input.on("textchange", (text: string) => onChange(text));
+    }
+  }
+
+  /** True while the player is typing — a screen's keyboard route stands aside, the same convention as `McTextInput.focused`. */
+  get focused(): boolean {
+    return this.#focused;
+  }
+
+  /**
+   * Puts the caret in the field, for a keyboard or pad user who pressed Enter
+   * on it — the same job `McTextInput.focus()` does. `TextAreaInput`'s own
+   * type declarations expose no public "open the editor" call (only
+   * `setText`/`setReadOnly`/scrolling), so this reaches for its inner
+   * `CanvasInput` child's `open()` the same way `TextAreaInput.js` itself
+   * does internally, defensively: if a future rexUI version changes that
+   * shape, a keyboard user simply has to click the field instead, rather than
+   * this throwing.
+   */
+  focus(): void {
+    const child = (this.#input as unknown as { childrenMap?: { child?: { open?: () => void } } }).childrenMap?.child;
+    child?.open?.();
+  }
+
+  get value(): string {
+    return this.#input.text;
+  }
+
+  setValue(value: string): void {
+    this.#input.setText(value);
+  }
+
+  /**
+   * Every display-list object this field draws with, root first, so a scene can
+   * detach all of them from a full child-list sweep and hand them back after.
+   *
+   * Unlike `McTextInput` (one DOM element), rexUI's `TextAreaInput` is a sizer:
+   * its `GridSizer` and the `CanvasInput` that renders the text are separate
+   * entries in the scene's display list. Detaching only the root left those two
+   * out of the list after the first rebuild, so the field kept taking keystrokes
+   * but drew nothing.
+   */
+  get gameObjects(): readonly Phaser.GameObjects.GameObject[] {
+    const root = this.#input as unknown as Phaser.GameObjects.GameObject & { getAllChildren(): Phaser.GameObjects.GameObject[] };
+    return [root, ...root.getAllChildren()];
+  }
+
+  /** Repositions and resizes in place, for a scene that redraws on every state change. */
+  layout(rect: Rect): void {
+    this.#rect = rect;
+    this.#input.setPosition(rect.x, rect.y);
+    this.#input.setMinSize(rect.width, rect.height);
+    this.#input.layout();
+    if (this.#focused) this.#ring.show(rect, "static", true);
   }
 
   destroy(): void {

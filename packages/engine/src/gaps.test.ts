@@ -1,3 +1,4 @@
+import { activeEncounterDeck } from "./query.js";
 import { flat, type CardId } from "@mc/content";
 import { playerId, type InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
@@ -120,7 +121,7 @@ test("a player-side attachment with no legal target is discarded on reveal", () 
     encounterDeck: deckOf(attachment.id),
   });
   const state = settle(run(start, endTurn()));
-  const revealed = state.encounterDiscard.filter((id) => state.instances[id]?.cardId === attachment.id);
+  const revealed = activeEncounterDeck(state).discard.filter((id) => state.instances[id]?.cardId === attachment.id);
   expect(revealed.length).toBeGreaterThan(0);
   expect(state.villainArea).toHaveLength(0);
   expect(mustInstance(state, revealed[0] as InstanceId).attachedTo).toBeNull();

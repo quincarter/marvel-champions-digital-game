@@ -1,3 +1,4 @@
+import { activeEncounterDeck, activeVillain } from "./query.js";
 import { cardId, flat, type CardId } from "@mc/content";
 import { applyCommand } from "./engine.js";
 import { playerId } from "./ids.js";
@@ -44,7 +45,7 @@ test("a when-revealed treachery resolves through the stack and is then discarded
   const state = settle(runWith(deps, start, endTurn), undefined, deps);
   // 1 acceleration + villain SCH 1 + 2 from the revealed treachery (boost card has no icons)
   expect(mustInstance(state, state.mainScheme.instanceId).threat).toBe(4);
-  expect(state.encounterDiscard.length).toBe(2);
+  expect(activeEncounterDeck(state).discard.length).toBe(2);
   expect(mustPlayer(state, p1).dealtEncounter).toHaveLength(0);
 });
 
@@ -110,7 +111,7 @@ test("an event's effect targets a minion through a chooseTarget choice", () => {
 
   const resolved = settle(resolvePending(atChoice, [minionId as string], deps), undefined, deps);
   expect(mustPlayer(resolved, p1).playArea).not.toContain(minionId);
-  expect(resolved.encounterDiscard).toContain(minionId);
+  expect(activeEncounterDeck(resolved).discard).toContain(minionId);
 });
 
 test("an event with no legal target for its choice resolves without effect and is still discarded", () => {
@@ -181,7 +182,7 @@ test("useAbility pays an exhaust-plus-counter cost and enforces its limit", () =
 
   const use = { type: "useAbility", playerId: p1, cardInstanceId: upgradeId, abilityId: ability.ref.id, payment: [] } as const;
   const used = runWith(deps, loaded, use);
-  expect(remainingHitPoints(used, used.villain.instanceId)).toBe(18);
+  expect(remainingHitPoints(used, activeVillain(used).instanceId)).toBe(18);
   expect(mustInstance(used, upgradeId).exhausted).toBe(true);
   expect(mustInstance(used, upgradeId).counters.ammo).toBe(1);
 
@@ -305,9 +306,9 @@ test("a constant ability modifies ATK without touching printed stats", () => {
     type: "basicAttack",
     playerId: p1,
     attackerInstanceId: identityId,
-    targetInstanceId: inPlay.villain.instanceId,
+    targetInstanceId: activeVillain(inPlay).instanceId,
   });
-  expect(remainingHitPoints(attacked, attacked.villain.instanceId, deps)).toBe(17);
+  expect(remainingHitPoints(attacked, activeVillain(attacked).instanceId, deps)).toBe(17);
 });
 
 test("unknown ability ids are rejected rather than silently ignored", () => {

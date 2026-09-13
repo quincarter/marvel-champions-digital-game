@@ -3,8 +3,10 @@ import type {
   AnyCard,
   AttachmentCard,
   AttachmentHost,
+  EncounterCardFlipSide,
   HeroIdentityCard,
   MainSchemeCard,
+  MainSchemeThreatField,
   MinionCard,
   PlayerCard,
   SideSchemeCard,
@@ -12,7 +14,15 @@ import type {
   UpgradeCard,
   VillainCard,
 } from "./cards/index.js";
-import { ATTACHMENT_HOST_KINDS } from "./cards/attachment-host.js";
+import {
+  ATTACHMENT_HOST_CATEGORIES,
+  ATTACHMENT_HOST_KINDS,
+  HOST_MEASURES,
+  SUPERLATIVE_HOST_POOLS,
+  type AttachmentHostCategory,
+  type HostMeasure,
+  type SuperlativeHostPool,
+} from "./cards/attachment-host.js";
 import type { AbilityReference } from "./abilities.js";
 import type { Scenario, StarterDeck } from "./sets.js";
 
@@ -53,6 +63,9 @@ function isNonNegativeNumber(value: unknown): value is number {
 
 const isPositiveInteger = (value: unknown): value is number =>
   typeof value === "number" && Number.isInteger(value) && value >= 1;
+
+const isNonNegativeInteger = (value: unknown): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 0;
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
@@ -95,18 +108,63 @@ function keywordListErrors(keywords: unknown, label: string): string[] {
 export function validateAttachmentHost(host: unknown, label: string): string[] {
   if (typeof host !== "object" || host === null) return [`${label} attachesTo must be an AttachmentHost object`];
   const h = host as Partial<AttachmentHost> & Record<string, unknown>;
-  if (!ATTACHMENT_HOST_KINDS.includes(h.kind as AttachmentHost["kind"])) {
+  const kind = h.kind as AttachmentHost["kind"];
+  if (!ATTACHMENT_HOST_KINDS.includes(kind)) {
     return [`${label} attachesTo.kind '${String(h.kind)}' is not a known host kind`];
   }
-  if (h.kind === "namedCard" && !isNonEmptyString(h.name)) return [`${label} namedCard host needs a name`];
-  if (
-    h.kind === "minionWithHighestPrintedHp" &&
-    h.withoutAttachmentNamed !== undefined &&
-    !isNonEmptyString(h.withoutAttachmentNamed)
-  ) {
-    return [`${label} withoutAttachmentNamed must be a non-empty string when present`];
+  const errors: string[] = [];
+  const optionalName = (key: string): void => {
+    if (h[key] !== undefined && !isNonEmptyString(h[key])) errors.push(`${label} ${kind} host ${key} must be a non-empty string when present`);
+  };
+  const qualifiers = (): void => {
+    optionalName("trait");
+    optionalName("withoutTrait");
+    optionalName("withoutAttachmentNamed");
+  };
+  switch (kind) {
+    case "namedCard":
+    case "namedVillain":
+      if (!isNonEmptyString(h.name)) errors.push(`${label} ${kind} host needs a name`);
+      break;
+    case "minionWithHighestPrintedHp":
+      optionalName("withoutAttachmentNamed");
+      break;
+    case "villainSideScheme": {
+      const of = h.of;
+      const ofOk =
+        of === "activeVillain" ||
+        (typeof of === "object" && of !== null && isNonEmptyString((of as Record<string, unknown>).villainName));
+      if (!ofOk) errors.push(`${label} villainSideScheme host needs of: "activeVillain" or { villainName }`);
+      break;
+    }
+    case "yourIdentity":
+      if (h.form !== undefined && h.form !== "hero" && h.form !== "alterEgo") {
+        errors.push(`${label} yourIdentity host form must be 'hero' or 'alterEgo' when present`);
+      }
+      break;
+    case "qualified":
+      if (!ATTACHMENT_HOST_CATEGORIES.includes(h.category as AttachmentHostCategory)) {
+        errors.push(`${label} qualified host category '${String(h.category)}' is not a known category`);
+      }
+      qualifiers();
+      if (h.trait === undefined && h.withoutTrait === undefined && h.withoutAttachmentNamed === undefined) {
+        errors.push(`${label} qualified host needs at least one qualifier (an unqualified category uses its plain kind)`);
+      }
+      break;
+    case "superlative":
+      if (!SUPERLATIVE_HOST_POOLS.includes(h.among as SuperlativeHostPool)) {
+        errors.push(`${label} superlative host among '${String(h.among)}' is not a known pool`);
+      }
+      if (h.order !== "highest" && h.order !== "lowest") errors.push(`${label} superlative host order must be 'highest' or 'lowest'`);
+      if (!HOST_MEASURES.includes(h.measure as HostMeasure)) {
+        errors.push(`${label} superlative host measure '${String(h.measure)}' is not a known measure`);
+      }
+      qualifiers();
+      break;
+    default:
+      break;
   }
-  return [];
+  return errors;
 }
 
 function baseErrors(card: AnyCard): string[] {
@@ -129,7 +187,7 @@ function boostErrors(card: { boostIcons: number }, label: string): string[] {
     : [`${label} boostIcons must be 0–3`];
 }
 
-/** Fields every player-deck card shares: text, keywords, abilities, deck limit, play restrictions. */
+/** Fields every player-deck card shares: text, keywords, abilities, deck limit, play restrictions, separate deck. */
 function playerCommonErrors(card: PlayerCard): string[] {
   const errors: string[] = [];
   // Resource cards can be printed with no text box (Energy Absorption, Vibranium).
@@ -137,7 +195,13 @@ function playerCommonErrors(card: PlayerCard): string[] {
   if (!textOk) errors.push(`${card.type} text must have non-empty printed and current strings`);
   errors.push(...keywordListErrors(card.keywords, card.type));
   errors.push(...abilityRefErrors(card.abilities, card.type));
-  if (!isPositiveInteger(card.deckLimit)) errors.push(`${card.type} deckLimit must be a positive integer`);
+  if (card.separateDeck !== undefined) {
+    // RRG 1.8 "Deck": a card of a separate deck an identity brings is never in a player deck.
+    if (!isNonEmptyString(card.separateDeck)) errors.push(`${card.type} separateDeck must name the deck`);
+    if (card.deckLimit !== 0) errors.push(`${card.type} in a separate deck cannot be put in a player deck, so its deckLimit must be 0`);
+  } else if (!isPositiveInteger(card.deckLimit)) {
+    errors.push(`${card.type} deckLimit must be a positive integer`);
+  }
   const r = card.playRestrictions;
   if (r !== undefined) {
     if (typeof r !== "object" || r === null) errors.push("playRestrictions must be an object");
@@ -153,6 +217,15 @@ function playerCommonErrors(card: PlayerCard): string[] {
       }
       if (r.anyPlayerControl !== undefined && typeof r.anyPlayerControl !== "boolean") {
         errors.push("playRestrictions.anyPlayerControl must be a boolean");
+      }
+      if (r.maxPerRound !== undefined && !isPositiveInteger(r.maxPerRound)) {
+        errors.push("playRestrictions.maxPerRound must be a positive integer");
+      }
+      if (r.requiresIdentityTrait !== undefined && !isNonEmptyString(r.requiresIdentityTrait)) {
+        errors.push("playRestrictions.requiresIdentityTrait must be a trait");
+      }
+      if (r.requiresControlledCharacterTrait !== undefined && !isNonEmptyString(r.requiresControlledCharacterTrait)) {
+        errors.push("playRestrictions.requiresControlledCharacterTrait must be a trait");
       }
     }
   }
@@ -210,6 +283,31 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
     errors.push(...keywordListErrors(card.alterEgo.keywords, "alterEgo face"));
     errors.push(...abilityRefErrors(card.alterEgo.abilities, "alterEgo face"));
   }
+  if (card.separateDecks !== undefined) {
+    if (!Array.isArray(card.separateDecks)) errors.push("identity separateDecks must be an array");
+    else {
+      const names = new Set<string>();
+      for (const deck of card.separateDecks) {
+        const label = `identity separate deck ${isNonEmptyString(deck.name) ? deck.name : "(unnamed)"}`;
+        if (!isNonEmptyString(deck.name)) errors.push("identity separate deck needs a name");
+        else if (names.has(deck.name)) errors.push(`${label} is listed twice`);
+        else names.add(deck.name);
+        if (!Array.isArray(deck.cards) || deck.cards.length === 0) errors.push(`${label} must list its cards`);
+        else {
+          const seen = new Set<string>();
+          for (const entry of deck.cards) {
+            if (!isNonEmptyString(entry.cardId)) errors.push(`${label} has an entry without a cardId`);
+            else if (seen.has(entry.cardId)) errors.push(`${label} lists ${entry.cardId} twice`);
+            else seen.add(entry.cardId);
+            if (!isPositiveInteger(entry.quantity)) errors.push(`${label} quantity for ${entry.cardId} must be >= 1`);
+          }
+        }
+        if (typeof deck.topCardFaceup !== "boolean") errors.push(`${label} topCardFaceup must be a boolean`);
+        if (deck.discardPile !== "own") errors.push(`${label} discardPile must be 'own'`);
+        if (deck.whenEmpty !== "reshuffleDiscardWithoutPenalty") errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty'`);
+      }
+    }
+  }
   return result(errors);
 }
 
@@ -217,32 +315,90 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
   const errors = baseErrors(card);
   if (!card.sides || card.sides.length === 0) {
     errors.push("villain must have at least one side");
-  } else {
-    for (const side of card.sides) {
-      if (!side.stages || side.stages.length === 0) {
-        errors.push(`villain side ${side.side} must have at least one stage`);
-        continue;
-      }
-      side.stages.forEach((stage, i) => {
-        const label = `villain side ${side.side} stage ${stage.stageNumber}`;
-        if (i > 0 && stage.stageNumber <= (side.stages[i - 1]?.stageNumber ?? 0)) {
-          errors.push(`${label} must be numbered after the previous stage`);
-        }
-        if (!isScalingValue(stage.hp)) errors.push(`${label} hp must be a ScalingValue`);
-        if (!isNonNegativeNumber(stage.atk)) errors.push(`${label} atk must be a non-negative number`);
-        if (!isNonNegativeNumber(stage.sch)) errors.push(`${label} sch must be a non-negative number`);
-        // A villain stage can be printed with no text (Rhino I).
-        if (!isCardTextAllowEmpty(stage.text)) errors.push(`${label} text must have printed and current strings`);
-        errors.push(...keywordListErrors(stage.keywords, label));
-        errors.push(...abilityRefErrors(stage.abilities, label));
-      });
+    return result(errors);
+  }
+  if (card.sides.length > 2) errors.push("villain has at most two sides (the two faces of its stage cards)");
+  const letters = card.sides.map((side) => side.side);
+  if (new Set(letters).size !== letters.length) errors.push("villain sides must be distinct");
+  for (const side of card.sides) {
+    if (side.side !== "A" && side.side !== "B") errors.push(`villain side ${String(side.side)} must be A or B`);
+    if (!isNonEmptyString(side.name)) errors.push(`villain side ${side.side} needs a name`);
+    if (!side.stages || side.stages.length === 0) {
+      errors.push(`villain side ${side.side} must have at least one stage`);
+      continue;
     }
+    const labelled = side.stages.filter((stage) => stage.stageLabel !== undefined).length;
+    if (labelled !== 0 && labelled !== side.stages.length) {
+      errors.push(`villain side ${side.side} labels some stages but not all; either every stage has a stageLabel or none does`);
+    }
+    side.stages.forEach((stage, i) => {
+      const label = `villain side ${side.side} stage ${stage.stageLabel ?? stage.stageNumber}`;
+      if (i > 0 && stage.stageNumber <= (side.stages[i - 1]?.stageNumber ?? 0)) {
+        errors.push(`${label} must be numbered after the previous stage`);
+      }
+      if (stage.stageLabel !== undefined && !isNonEmptyString(stage.stageLabel)) {
+        errors.push(`${label} stageLabel must be a non-empty string when present`);
+      }
+      if (!isScalingValue(stage.hp)) errors.push(`${label} hp must be a ScalingValue`);
+      if (!isNonNegativeNumber(stage.atk)) errors.push(`${label} atk must be a non-negative number`);
+      if (!isNonNegativeNumber(stage.sch)) errors.push(`${label} sch must be a non-negative number`);
+      // Read as untrusted data: `Array.isArray` would otherwise widen the element type to `any`.
+      const dashed: unknown = stage.dashedStats;
+      if (dashed !== undefined) {
+        if (!Array.isArray(dashed)) errors.push(`${label} dashedStats must be an array`);
+        else {
+          const stats: readonly unknown[] = dashed;
+          if (new Set(stats).size !== stats.length) errors.push(`${label} dashedStats lists a stat twice`);
+          for (const stat of stats) {
+            if (stat !== "atk" && stat !== "sch") errors.push(`${label} dashedStats may only list 'atk' and 'sch'`);
+            else if (stage[stat] !== 0) errors.push(`${label} ${stat} is printed "—", so its value must be 0`);
+          }
+        }
+      }
+      // A villain stage can be printed with no text (Rhino I).
+      if (!isCardTextAllowEmpty(stage.text)) errors.push(`${label} text must have printed and current strings`);
+      errors.push(...keywordListErrors(stage.keywords, label));
+      errors.push(...abilityRefErrors(stage.abilities, label));
+    });
+  }
+  const [first, second] = card.sides;
+  if (second) {
+    // The two sides are the faces of the same stage cards (see `VillainSide`).
+    const numbers = (stages: readonly { stageNumber: number }[] | undefined): string => (stages ?? []).map((s) => s.stageNumber).join(",");
+    if (numbers(first.stages) !== numbers(second.stages)) {
+      errors.push("a two-sided villain's sides are the faces of the same stage cards, so both must list the same stage numbers");
+    }
+  }
+  if (card.startingSide !== undefined && !card.sides.some((side) => side.side === card.startingSide)) {
+    errors.push(`villain startingSide ${String(card.startingSide)} is not one of its sides`);
   }
   return result(errors);
 }
 
+/** The face a double-sided encounter card flips to (see `EncounterCardFlipSide`). */
+function flipSideErrors(card: { readonly flipSide?: EncounterCardFlipSide; readonly abilities: unknown }, label: string): string[] {
+  const back = card.flipSide;
+  if (back === undefined) return [];
+  if (typeof back !== "object" || back === null) return [`${label} flipSide must be an object`];
+  const side = `${label} flip side`;
+  const errors: string[] = [];
+  if (!isNonEmptyString(back.name)) errors.push(`${side} needs a name`);
+  if (back.subtitle !== undefined && !isNonEmptyString(back.subtitle)) errors.push(`${side} subtitle must be a non-empty string when present`);
+  if (!Array.isArray(back.traits)) errors.push(`${side} traits must be an array`);
+  if (!isCardText(back.text)) errors.push(`${side} text must have non-empty printed and current strings`);
+  errors.push(...keywordListErrors(back.keywords, side));
+  errors.push(...abilityRefErrors(back.abilities, side));
+  if (Array.isArray(back.abilities) && Array.isArray(card.abilities)) {
+    const front = new Set((card.abilities as readonly AbilityReference[]).map((ref) => ref?.id));
+    for (const ref of back.abilities) {
+      if (ref && front.has(ref.id)) errors.push(`${side} ability ${ref.id} is also on the front face; ability ids are unique per card`);
+    }
+  }
+  return errors;
+}
+
 function encounterCommonErrors(
-  card: { boostIcons: number; keywords: unknown; abilities: unknown; text: unknown },
+  card: { boostIcons: number; keywords: unknown; abilities: unknown; text: unknown; flipSide?: EncounterCardFlipSide },
   label: string,
 ): string[] {
   return [
@@ -250,6 +406,7 @@ function encounterCommonErrors(
     ...keywordListErrors(card.keywords, label),
     ...abilityRefErrors(card.abilities, label),
     ...(isCardText(card.text) ? [] : [`${label} text must have non-empty printed and current strings`]),
+    ...flipSideErrors(card, label),
   ];
 }
 
@@ -258,9 +415,11 @@ export function validateMinionCard(card: MinionCard): ValidationResult {
   errors.push(...boostErrors(card, "minion"));
   errors.push(...keywordListErrors(card.keywords, "minion"));
   errors.push(...abilityRefErrors(card.abilities, "minion"));
+  errors.push(...flipSideErrors(card, "minion"));
   if (!isPrintedStat(card.atk)) errors.push("minion atk must be a non-negative number, \"X\", or null (printed —)");
   if (!isPrintedStat(card.sch)) errors.push("minion sch must be a non-negative number, \"X\", or null (printed —)");
   if (!isNonNegativeNumber(card.hp) || card.hp < 1) errors.push("minion hp must be a positive number");
+  if (card.nemesisMinion !== undefined && typeof card.nemesisMinion !== "boolean") errors.push("minion nemesisMinion must be a boolean");
   return result(errors);
 }
 
@@ -282,6 +441,8 @@ export function validateAttachmentCard(card: AttachmentCard): ValidationResult {
   return result(errors);
 }
 
+const MAIN_SCHEME_THREAT_FIELDS: readonly MainSchemeThreatField[] = ["startingThreat", "targetThreat", "acceleration"];
+
 export function validateMainSchemeCard(card: MainSchemeCard): ValidationResult {
   const errors = baseErrors(card);
   if (!card.stages || card.stages.length === 0) {
@@ -295,6 +456,24 @@ export function validateMainSchemeCard(card: MainSchemeCard): ValidationResult {
       if (!isScalingValue(stage.startingThreat)) errors.push(`${label} startingThreat must be a ScalingValue`);
       if (!isScalingValue(stage.targetThreat)) errors.push(`${label} targetThreat must be a ScalingValue`);
       if (!isScalingValue(stage.acceleration)) errors.push(`${label} acceleration must be a ScalingValue`);
+      const printedX: unknown = stage.printedX;
+      if (printedX !== undefined) {
+        if (!Array.isArray(printedX)) errors.push(`${label} printedX must be an array`);
+        else {
+          const fields: readonly unknown[] = printedX;
+          if (new Set(fields).size !== fields.length) errors.push(`${label} printedX lists a field twice`);
+          for (const field of fields) {
+            if (!MAIN_SCHEME_THREAT_FIELDS.includes(field as MainSchemeThreatField)) {
+              errors.push(`${label} printedX lists '${String(field)}', which is not a threat value`);
+              continue;
+            }
+            const value = stage[field as MainSchemeThreatField];
+            if (isScalingValue(value) && (value.base !== 0 || value.perPlayer !== 0)) {
+              errors.push(`${label} ${field} is printed "X", so its value must be { base: 0, perPlayer: 0 }`);
+            }
+          }
+        }
+      }
       if (!isCardText(stage.text)) errors.push(`${label} text must have printed and current strings`);
       errors.push(...abilityRefErrors(stage.abilities, label));
       if (!stage.aSide || typeof stage.aSide !== "object") errors.push(`${label} is missing its aSide`);
@@ -314,6 +493,9 @@ export function validateSideSchemeCard(card: SideSchemeCard): ValidationResult {
     ...encounterCommonErrors({ ...card, text: isCardTextAllowEmpty(card.text) ? { printed: "-", current: "-" } : card.text }, "side scheme"),
   );
   if (!isScalingValue(card.startingThreat)) errors.push("side scheme startingThreat must be a ScalingValue");
+  if (card.signatureOf !== undefined && !isNonEmptyString(card.signatureOf)) {
+    errors.push("side scheme signatureOf must name the villain it belongs to");
+  }
   return result(errors);
 }
 
@@ -375,6 +557,38 @@ export function validateScenario(scenario: Scenario): ValidationResult {
   }
   if (!scenario.villainStages || !isStageRange(scenario.villainStages.standard) || !isStageRange(scenario.villainStages.expert)) {
     errors.push("scenario villainStages.standard/expert must be [first, last] stage numerals");
+  }
+  const multi = scenario.multipleVillains;
+  if (multi !== undefined) {
+    if (!Array.isArray(multi.villains) || multi.villains.length < 2) {
+      errors.push("scenario multipleVillains must list at least two villains");
+    } else {
+      if (multi.villains[0]?.villainCardId !== scenario.villainCardId) {
+        errors.push("scenario villainCardId must be the first of multipleVillains.villains");
+      }
+      const ids = new Set<string>();
+      for (const villain of multi.villains) {
+        if (!isNonEmptyString(villain.villainCardId)) errors.push("scenario multipleVillains entry missing villainCardId");
+        else if (ids.has(villain.villainCardId)) errors.push(`scenario multipleVillains lists ${villain.villainCardId} twice`);
+        else ids.add(villain.villainCardId);
+        if (!Array.isArray(villain.encounterSetIds)) errors.push(`scenario villain ${villain.villainCardId} encounterSetIds must be an array`);
+        else if (multi.encounterDecks === "perVillain" && villain.encounterSetIds.length === 0) {
+          errors.push(`scenario villain ${villain.villainCardId} has its own encounter deck, so it needs the encounter sets to build it from`);
+        }
+        if (villain.signatureSideSchemeCardId !== undefined && !isNonEmptyString(villain.signatureSideSchemeCardId)) {
+          errors.push(`scenario villain ${villain.villainCardId} signatureSideSchemeCardId must be a card id when present`);
+        }
+      }
+    }
+    if (multi.encounterDecks !== "perVillain") errors.push("scenario multipleVillains.encounterDecks must be 'perVillain'");
+    if (multi.activation !== "activeVillainOnly") errors.push("scenario multipleVillains.activation must be 'activeVillainOnly'");
+    if (multi.winCondition !== "allVillainsDefeated") errors.push("scenario multipleVillains.winCondition must be 'allVillainsDefeated'");
+  }
+  if (scenario.usesIdentityEncounterSets !== undefined && typeof scenario.usesIdentityEncounterSets !== "boolean") {
+    errors.push("scenario usesIdentityEncounterSets must be a boolean");
+  }
+  if (scenario.modularSetCount !== undefined && !isNonNegativeInteger(scenario.modularSetCount)) {
+    errors.push("scenario modularSetCount must be a whole number of at least 0");
   }
   return result(errors);
 }

@@ -23,6 +23,16 @@ const ICON_CLASS_TO_TOKEN: Readonly<Record<string, string>> = {
   per_hero: "[per_hero]",
   "per-hero": "[per_hero]",
   star: "[star]",
+  // Seen across post-Core packs (survey 2026-09-13): a reminder-text reference
+  // to the printed boost icon (e.g. "for each boost icon"), the Crisis scheme
+  // icon (e.g. "ignoring any crisis icon"), and the Per-Group icon used by
+  // some multiplayer scaling text distinct from Per-Hero. None of these carry
+  // ability semantics by themselves — they are reminder-text icon references,
+  // same as [star] — so a bracket token is enough for round-tripping the text.
+  boost: "[boost]",
+  crisis: "[crisis]",
+  per_group: "[per_group]",
+  "per-group": "[per_group]",
 };
 
 const ENTITIES: Readonly<Record<string, string>> = {
@@ -56,7 +66,17 @@ export function toPlainText(html: string | null | undefined): string {
 }
 
 /** Every `[token]` left in normalized text must be one of these. */
-export const KNOWN_TEXT_TOKENS = ["[energy]", "[mental]", "[physical]", "[wild]", "[per_hero]", "[star]"] as const;
+export const KNOWN_TEXT_TOKENS = [
+  "[energy]",
+  "[mental]",
+  "[physical]",
+  "[wild]",
+  "[per_hero]",
+  "[star]",
+  "[boost]",
+  "[crisis]",
+  "[per_group]",
+] as const;
 
 export function unknownTokens(text: string): string[] {
   const known = new Set<string>(KNOWN_TEXT_TOKENS);

@@ -27,7 +27,7 @@
  * - A leading `[star]` marker is a printed reminder icon, not part of the
  *   ability kind; it stays in the card text.
  */
-import type { AttachmentHost, KeywordInstance, PlayRestrictions } from "../../src/schema/index.ts";
+import type { AttachmentHost, KeywordInstance } from "../../src/schema/index.ts";
 import { slugify } from "./text.ts";
 
 export type AbilityKind =
@@ -45,6 +45,7 @@ export type AbilityKind =
   | "when-revealed-hero"
   | "when-revealed-alter-ego"
   | "when-defeated"
+  | "when-completed"
   | "obligation";
 
 const STRUCTURAL_KINDS: ReadonlySet<AbilityKind> = new Set([
@@ -54,6 +55,7 @@ const STRUCTURAL_KINDS: ReadonlySet<AbilityKind> = new Set([
   "when-revealed-hero",
   "when-revealed-alter-ego",
   "when-defeated",
+  "when-completed",
   "obligation",
 ]);
 
@@ -69,15 +71,34 @@ export interface ParsedAbility {
   readonly text: string;
 }
 
+/**
+ * `PlayRestrictions` shape, but with trait fields left as plain uppercased strings — the parser has no access to
+ * the schema's branding helpers at runtime under Node type-stripping (see `normalize.ts`'s own `brand` helper);
+ * the caller brands them into `Trait` when building the card.
+ */
+export interface ParsedRestrictions {
+  readonly maxPerPlayer?: number;
+  readonly maxPerHost?: number;
+  readonly form?: "hero" | "alterEgo";
+  readonly anyPlayerControl?: boolean;
+  readonly maxPerRound?: number;
+  readonly requiresIdentityTrait?: string;
+  readonly requiresControlledCharacterTrait?: string;
+}
+
 export interface ParsedText {
   readonly keywords: KeywordInstance[];
   readonly abilities: ParsedAbility[];
-  readonly restrictions: PlayRestrictions;
+  readonly restrictions: ParsedRestrictions;
   /** Parsed "Max N per deck." — cross-checked against MarvelCDB `deck_limit`. */
   readonly maxPerDeckText?: number;
   readonly attachesTo?: AttachmentHost;
   /** Printed name inside "Attach to Rhino." — the caller checks it's the villain. */
   readonly attachesToVillainNamed?: string;
+  /** "(<Hero>'s nemesis minion.)" reminder text (docs/phase7-wave1.md §1.7). */
+  readonly nemesisMinion?: boolean;
+  /** "<Villain>'s Side Scheme." (The Wrecking Crew's signature side schemes, docs/phase7-wave1.md §1.1). */
+  readonly signatureOf?: string;
   readonly unclassified: string[];
 }
 
@@ -86,10 +107,17 @@ export interface ParseOptions {
   readonly obligation?: boolean;
   /** Names of villains in the pack, so "Attach to Rhino." maps to `{ kind: "villain" }`. */
   readonly villainNames: ReadonlySet<string>;
+  /**
+   * Whether *this scenario* puts several villains in play at once (docs/phase7-wave1.md §1.6 — The Wrecking
+   * Crew), so "Attach to Wrecker." maps to `{ kind: "namedVillain" }` instead of the single-villain `{ kind:
+   * "villain" }`. Not the same as "this pack contains more than one villain name" — Core's three scenarios each
+   * have one villain, so its Rhino/Klaw/Ultron attachments stay `villain` even though the pack has three names.
+   */
+  readonly multipleVillains?: boolean;
 }
 
 const TRIGGER =
-  String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|Contents)`;
+  String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
 /** A trigger header at a sentence boundary: start of line, or after `.`/`)`/`!` + space. */
 const HEADER_RE = new RegExp(
   String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,}))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
@@ -163,6 +191,8 @@ function kindOf(trigger: string): KindResult {
       return { kind: "when-revealed-alter-ego" };
     case "When Defeated":
       return { kind: "when-defeated" };
+    case "When Completed":
+      return { kind: "when-completed" };
     case "Contents":
       return { kind: "contents" };
     default:
@@ -243,7 +273,17 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   return undefined;
 }
 
-function parseAttach(sentence: string, villainNames: ReadonlySet<string>): { host: AttachmentHost; villainName?: string } | undefined {
+/**
+ * Wave 1 attachment host phrasing (docs/phase7-wave1.md §1.6). `villainNames.size > 1` means several villains are
+ * in play at once (The Wrecking Crew), so a named villain becomes `namedVillain` rather than the single-villain
+ * `villain` kind ("Attach to Green Goblin." stays `villain` when there is only one villain — Green Goblin insert's
+ * Hysteria).
+ */
+function parseAttach(
+  sentence: string,
+  villainNames: ReadonlySet<string>,
+  multiVillain: boolean,
+): { host: AttachmentHost; villainName?: string } | undefined {
   const s = sentence.replace(/\.$/, "");
   const m = /^Attach to (.+)$/.exec(s);
   if (!m) return undefined;
@@ -257,16 +297,36 @@ function parseAttach(sentence: string, villainNames: ReadonlySet<string>): { hos
     "the villain": { kind: "villain" },
     "the main scheme": { kind: "mainScheme" },
     "a side scheme": { kind: "sideScheme" },
+    "a scheme": { kind: "scheme" },
+    "your identity card": { kind: "yourIdentity" },
+    "your hero": { kind: "yourIdentity", form: "hero" },
+    "your alter-ego": { kind: "yourIdentity", form: "alterEgo" },
+    "a friendly character": { kind: "friendlyCharacter" },
+    "the active villain's side scheme": { kind: "villainSideScheme", of: "activeVillain" },
   };
   const hit = simple[target];
   if (hit) return { host: hit };
-  if (villainNames.has(target)) return { host: { kind: "villain" }, villainName: target };
+  if (villainNames.has(target)) {
+    return multiVillain ? { host: { kind: "namedVillain", name: target }, villainName: target } : { host: { kind: "villain" }, villainName: target };
+  }
   const highest = /^the minion with the highest printed hit points(?: and without another (.+) attached)?$/.exec(target);
   if (highest) {
     return {
       host: highest[1]
         ? { kind: "minionWithHighestPrintedHp", withoutAttachmentNamed: highest[1] }
         : { kind: "minionWithHighestPrintedHp" },
+    };
+  }
+  const superlativeEnemyHp = /^the enemy with the highest printed hit points(?: and without another (.+) attached)?$/.exec(target);
+  if (superlativeEnemyHp) {
+    return {
+      host: {
+        kind: "superlative",
+        among: "enemy",
+        order: "highest",
+        measure: "printedHp",
+        ...(superlativeEnemyHp[1] ? { withoutAttachmentNamed: superlativeEnemyHp[1] } : {}),
+      },
     };
   }
   const named = /^the (.+) (?:environment|side scheme|support|upgrade)$/.exec(target);
@@ -279,14 +339,24 @@ interface MutableRestrictions {
   maxPerHost?: number;
   form?: "hero" | "alterEgo";
   anyPlayerControl?: boolean;
+  maxPerRound?: number;
+  /** Plain uppercased trait text; the caller brands it as a `Trait`. */
+  requiresIdentityTrait?: string;
+  requiresControlledCharacterTrait?: string;
 }
 
+/** Wave 1 play restrictions (docs/phase7-wave1.md §1.8), in addition to the Phase 2 shapes above. */
 function parseRestriction(sentence: string, into: MutableRestrictions): { maxPerDeck?: number } | undefined {
   let m = /^Max (\d+) per deck\.$/.exec(sentence);
   if (m) return { maxPerDeck: Number(m[1]) };
   m = /^Max (\d+) per player\.$/.exec(sentence);
   if (m) {
     into.maxPerPlayer = Number(m[1]);
+    return {};
+  }
+  m = /^Max (\d+) per round\.$/.exec(sentence);
+  if (m) {
+    into.maxPerRound = Number(m[1]);
     return {};
   }
   m = /^Max (\d+) per (?:enemy|ally|minion|character|hero)\.$/.exec(sentence);
@@ -306,6 +376,21 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     into.anyPlayerControl = true;
     return {};
   }
+  m = /^Play only if your identity has the (.+) trait\.$/.exec(sentence);
+  if (m) {
+    into.requiresIdentityTrait = m[1] as string;
+    return {};
+  }
+  m = /^Play only if you have the (.+) trait\.$/.exec(sentence);
+  if (m) {
+    into.requiresIdentityTrait = m[1] as string;
+    return {};
+  }
+  m = /^Play only if you control an? (.+) character\.$/.exec(sentence);
+  if (m) {
+    into.requiresControlledCharacterTrait = m[1] as string;
+    return {};
+  }
   return undefined;
 }
 
@@ -319,6 +404,8 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let attachesTo: AttachmentHost | undefined;
   let attachesToVillainNamed: string | undefined;
   let maxPerDeckText: number | undefined;
+  let nemesisMinion: boolean | undefined;
+  let signatureOf: string | undefined;
 
   if (options.obligation) {
     if (text.trim()) abilities.push({ kind: "obligation", text });
@@ -343,6 +430,10 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         keywords.push(keyword);
         continue;
       }
+      if (/^\(.+ nemesis minion\.\)$/i.test(sentence)) {
+        nemesisMinion = true;
+        continue;
+      }
       if (/^\(.*\)\.?$/.test(sentence)) continue; // reminder text
       if (STAGE_LOSS_REMINDER.test(sentence)) continue;
       const restriction = parseRestriction(sentence, restrictions);
@@ -351,7 +442,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         if (restriction.maxPerDeck !== undefined) maxPerDeckText = restriction.maxPerDeck;
         continue;
       }
-      const attach = parseAttach(sentence, options.villainNames);
+      const attach = parseAttach(sentence, options.villainNames, options.multipleVillains ?? false);
       if (attach) {
         flushConstant();
         if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
@@ -363,6 +454,11 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         unclassified.push(`unrecognized attach rule: ${sentence}`);
         continue;
       }
+      // "Wrecker's Side Scheme." names which villain this is the signature side scheme of. It stays part of the
+      // card's printed text/ability (it is not stripped like a keyword or restriction line) — only the villain
+      // name is captured separately.
+      const signature = /^(.+)'s Side Scheme\.$/.exec(sentence);
+      if (signature) signatureOf = signature[1] as string;
       constantBuffer.push(sentence);
     }
     flushConstant();
@@ -391,6 +487,8 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     ...(maxPerDeckText !== undefined ? { maxPerDeckText } : {}),
     ...(attachesTo ? { attachesTo } : {}),
     ...(attachesToVillainNamed ? { attachesToVillainNamed } : {}),
+    ...(nemesisMinion ? { nemesisMinion } : {}),
+    ...(signatureOf ? { signatureOf } : {}),
     unclassified,
   };
 }

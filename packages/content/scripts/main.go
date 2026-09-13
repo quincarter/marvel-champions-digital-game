@@ -1,9 +1,16 @@
-// This is a modified go script compared to the ingest-marvecdb.ts - it captures all packs with higher throughput as a go mod. 
+// This is a modified go script compared to the ingest-marvecdb.ts - it captures all packs with higher throughput as a go mod.
 // This is compiled to a binary in this directory called `./scraper` that can be invoked at any time for fast use.
+//
+//	go build -o scraper . && ./scraper              # every pack's raw JSON, plus card images
+//	./scraper -images=false                          # raw JSON only
+//
+// Run from packages/content: the raw cache lands in raw/marvelcdb/<pack>.json,
+// the same files `ingest-marvelcdb.ts --offline` reads.
 package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,6 +34,10 @@ type Pack struct {
 	Name string `json:"name"`
 }
 
+// Card is only the handful of fields the image downloader needs. It is NOT
+// what gets saved: re-marshalling this struct is what used to throw away every
+// other field MarvelCDB returns (text, cost, stats, traits, quantity, linked
+// faces, boost...), leaving raw files that could not be normalized.
 type Card struct {
 	Code         string  `json:"code"`
 	Name         string  `json:"name"`
@@ -37,6 +48,16 @@ type Card struct {
 	CardSetCode  *string `json:"card_set_code"`
 	ImageSrc     *string `json:"imagesrc"`
 	BackImageSrc *string `json:"backimagesrc"`
+}
+
+// RawCache is the envelope `scripts/ingest-marvelcdb.ts` writes and reads back
+// with --offline. Cards are kept as json.RawMessage, so every record is saved
+// exactly as the API returned it.
+type RawCache struct {
+	Source    string            `json:"source"`
+	FetchedAt string            `json:"fetchedAt"`
+	Pack      string            `json:"pack"`
+	Cards     []json.RawMessage `json:"cards"`
 }
 
 type DownloadJob struct {
@@ -152,6 +173,9 @@ func worker(id int, client *http.Client, jobs <-chan DownloadJob, wg *sync.WaitG
 }
 
 func main() {
+	downloadImages := flag.Bool("images", true, "download card images into "+imagesBaseDir)
+	flag.Parse()
+
 	client := &http.Client{Timeout: 30 * time.Second}
 
 	fmt.Println("Fetching pack index from MarvelCDB...")
@@ -162,7 +186,10 @@ func main() {
 	}
 	fmt.Printf("Found %d packs. Processing cards and images...\n", len(packs))
 
-	_ = os.MkdirAll(rawCacheDir, 0o755)
+	if err := os.MkdirAll(rawCacheDir, 0o755); err != nil {
+		fmt.Printf("Cannot create %s: %v\n", rawCacheDir, err)
+		os.Exit(1)
+	}
 
 	// Launch download worker pool
 	jobs := make(chan DownloadJob, 500)
@@ -174,45 +201,68 @@ func main() {
 
 	totalCards := 0
 	totalImagesQueued := 0
+	failedPacks := 0
+	fetchedAt := time.Now().UTC().Format("2006-01-02")
 
 	for _, pack := range packs {
 		url := fmt.Sprintf("%s/api/public/cards/%s", baseURL, pack.Code)
-		var cards []Card
+		var rawCards []json.RawMessage
 
-		if err := fetchJSON(client, url, &cards); err != nil {
+		if err := fetchJSON(client, url, &rawCards); err != nil {
 			fmt.Printf("Failed to fetch pack %s: %v\n", pack.Code, err)
+			failedPacks++
 			continue
 		}
 
-		// Save raw pack JSON verbatim
-		rawBytes, _ := json.MarshalIndent(cards, "", "  ")
+		// Save raw pack JSON verbatim, in the envelope the TypeScript ingest reads.
+		cache := RawCache{Source: url, FetchedAt: fetchedAt, Pack: pack.Code, Cards: rawCards}
+		rawBytes, err := json.MarshalIndent(cache, "", "  ")
+		if err != nil {
+			fmt.Printf("Failed to encode pack %s: %v\n", pack.Code, err)
+			failedPacks++
+			continue
+		}
 		packCachePath := filepath.Join(rawCacheDir, fmt.Sprintf("%s.json", pack.Code))
-		_ = os.WriteFile(packCachePath, rawBytes, 0o644)
+		if err := os.WriteFile(packCachePath, append(rawBytes, '\n'), 0o644); err != nil {
+			fmt.Printf("Failed to write %s: %v\n", packCachePath, err)
+			failedPacks++
+			continue
+		}
 
-		for _, card := range cards {
-			if card.ImageSrc != nil && *card.ImageSrc != "" {
-				jobs <- DownloadJob{
-					URL:      baseURL + *card.ImageSrc,
-					DestPath: buildImagePath(card, false),
+		if *downloadImages {
+			for _, raw := range rawCards {
+				var card Card
+				if err := json.Unmarshal(raw, &card); err != nil {
+					fmt.Printf("Skipping images for an unreadable card in %s: %v\n", pack.Code, err)
+					continue
 				}
-				totalImagesQueued++
-			}
-			if card.BackImageSrc != nil && *card.BackImageSrc != "" {
-				jobs <- DownloadJob{
-					URL:      baseURL + *card.BackImageSrc,
-					DestPath: buildImagePath(card, true),
+				if card.ImageSrc != nil && *card.ImageSrc != "" {
+					jobs <- DownloadJob{
+						URL:      baseURL + *card.ImageSrc,
+						DestPath: buildImagePath(card, false),
+					}
+					totalImagesQueued++
 				}
-				totalImagesQueued++
+				if card.BackImageSrc != nil && *card.BackImageSrc != "" {
+					jobs <- DownloadJob{
+						URL:      baseURL + *card.BackImageSrc,
+						DestPath: buildImagePath(card, true),
+					}
+					totalImagesQueued++
+				}
 			}
 		}
 
-		totalCards += len(cards)
-		fmt.Printf("✔ Cached %-18s (%3d cards)\n", pack.Code, len(cards))
+		totalCards += len(rawCards)
+		fmt.Printf("✔ Cached %-18s (%3d cards)\n", pack.Code, len(rawCards))
 	}
 
 	close(jobs)
 	wg.Wait()
 
-	fmt.Printf("\nDone! Processed %d packs, %d cards, and queued %d images into %s/\n",
-		len(packs), totalCards, totalImagesQueued, imagesBaseDir)
+	fmt.Printf("\nDone! Processed %d packs (%d failed), %d cards, and queued %d images into %s/\n",
+		len(packs), failedPacks, totalCards, totalImagesQueued, imagesBaseDir)
+	if failedPacks > 0 {
+		os.Exit(1)
+	}
 }

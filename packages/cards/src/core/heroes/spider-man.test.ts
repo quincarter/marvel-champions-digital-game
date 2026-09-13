@@ -1,3 +1,4 @@
+import { activeEncounterDeck } from "@mc/engine";
 import { coreScenario } from "../setup.js";
 import {
   answer,
@@ -116,7 +117,7 @@ describe("Eviction Notice (Spider-Man's obligation)", () => {
     expect(atChoice.pendingChoice?.options).toHaveLength(2);
     const handBefore = playerOf(atChoice, P1).hand.length;
     const after = settle(answer(atChoice, ["1"]));
-    expect(after.encounterDiscard).toContain(instancesOf(after, "01165")[0]);
+    expect(activeEncounterDeck(after).discard).toContain(instancesOf(after, "01165")[0]);
     // Surge revealed the Hydra Mercenary.
     expect(playerOf(after, P1).playArea.some((id) => inst(after, id).cardId === HYDRA_MERCENARY)).toBe(true);
     expect(handBefore).toBeGreaterThan(0);
