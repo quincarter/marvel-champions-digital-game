@@ -25,8 +25,8 @@ let store: SessionStore;
 let state: GameState;
 let me: PlayerId;
 
-/** Plays past setup and flips to hero, so real hero-form cards are playable. */
-async function intoHeroTurn(): Promise<void> {
+/** Plays past setup, flipping to hero when asked so real hero-form cards are playable. */
+async function intoTurn(flip: boolean): Promise<void> {
   store = new SessionStore(new LocalEngineHost());
   await store.start(SPIDER_MAN_SOLO);
   for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
@@ -34,7 +34,7 @@ async function intoHeroTurn(): Promise<void> {
     await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
   }
   const legal = store.state.legal?.actions;
-  if (legal?.kind === "turn") {
+  if (flip && legal?.kind === "turn") {
     const flip = legal.legal.find((entry) => entry.action.kind === "changeForm");
     if (flip) await store.dispatch(flip.example);
   }
@@ -51,9 +51,9 @@ function costedPlay(): LegalAction {
   return entry;
 }
 
-beforeEach(intoHeroTurn);
-
 describe("payment mode", () => {
+  beforeEach(() => intoTurn(true));
+
   test("opens with nothing picked, so the count fills as you choose", () => {
     const entry = costedPlay();
     const payment = beginPayment(state, me, entry.action, null, CORE_DEPS)!;
@@ -150,5 +150,34 @@ describe("payment mode", () => {
     const free = legal.legal.find((entry) => entry.action.kind === "basicAttack");
     if (!free) return;
     expect(beginPayment(state, me, free.action, free.targets[0] ?? null, CORE_DEPS)).toBeNull();
+  });
+});
+
+describe("resources on the table", () => {
+  // Peter Parker's Scientist is a resource ability on the alter-ego itself, so
+  // staying in alter-ego puts a non-hand source into every payment.
+  beforeEach(() => intoTurn(false));
+
+  test("an identity's resource ability is a table source, and the engine takes a payment that spends it", () => {
+    const entry = costedPlay();
+    const opened = beginPayment(state, me, entry.action, null, CORE_DEPS)!;
+    const identity = state.players.find((player) => player.playerId === me)!.identity.instanceId;
+
+    const view = paymentView(state, me, opened, "test", CORE_DEPS);
+    expect(view.tableSources.every((source) => source.kind === "resourceAbility")).toBe(true);
+    const scientist = view.tableSources.find((source) => source.instanceId === identity);
+    expect(scientist).toBeDefined();
+    // The card being bought came from the hand, which already tags it.
+    expect(view.subjectInHand).toBe(true);
+
+    let payment = togglePayment(opened, scientist!.optionId);
+    for (const source of opened.query.sources) {
+      if (paymentView(state, me, payment, "test", CORE_DEPS).command) break;
+      if (source.kind === "handCard") payment = togglePayment(payment, source.optionId);
+    }
+    const settled = paymentView(state, me, payment, "test", CORE_DEPS);
+    expect(settled.command).not.toBeNull();
+    expect(settled.tableSources.find((source) => source.optionId === scientist!.optionId)?.spent).toBe(true);
+    expect(applyCommand(state, settled.command!, CORE_DEPS).ok).toBe(true);
   });
 });

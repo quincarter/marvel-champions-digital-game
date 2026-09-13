@@ -18,6 +18,7 @@
 
 import type { ResourceIconType } from "@mc/content";
 import {
+  locateCard,
   paymentFor,
   tryPayment,
   type ActionRef,
@@ -93,6 +94,20 @@ export interface PaymentView {
    */
   readonly sources: readonly PaymentSourceView[];
   /**
+   * The sources that are not hand cards — a resource ability on a card in play
+   * (Peter Parker's Scientist, Pepper Potts) — one per option, since a card
+   * could offer two. The hand is the only zone visible on every layout, so the
+   * payment strip draws these beside it; otherwise, on a phone, the one
+   * resource that makes a card affordable can sit on a tab you aren't looking at.
+   */
+  readonly tableSources: readonly PaymentSourceView[];
+  /**
+   * Whether the card being paid for is in the payer's hand, where the board
+   * already tags it. False for an ability on a card in play, which needs its
+   * own thumbnail in the bar.
+   */
+  readonly subjectInHand: boolean;
+  /**
    * The command to send, when the engine accepts this exact selection. Null
    * while it does not — with the engine's reason in `blockedBy`.
    */
@@ -158,15 +173,19 @@ export function paymentView(
   const attempt = tryPayment(state, playerId, payment.action, picked, paymentContext(payment.target, payment.controllerId), deps);
 
   const { action } = payment;
+  const subject = action.kind === "playCard" || action.kind === "useAbility" ? action.instanceId : null;
+  const sources = query.sources.map((source) => ({ ...source, spent: picked.includes(source.optionId) }));
   return {
     headline,
-    subject: action.kind === "playCard" || action.kind === "useAbility" ? action.instanceId : null,
+    subject,
     paid,
     required: poolTotal(query.requirement),
     outstanding: outstandingTypes(query, picked, byOption),
     spendable,
     spent,
-    sources: query.sources.map((source) => ({ ...source, spent: picked.includes(source.optionId) })),
+    sources,
+    tableSources: sources.filter((source) => source.kind === "resourceAbility"),
+    subjectInHand: subject !== null && locateCard(state, subject)?.kind === "hand",
     command: attempt.ok ? attempt.command : null,
     blockedBy: attempt.ok ? null : attempt.message,
   };

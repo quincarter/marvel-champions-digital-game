@@ -17,7 +17,7 @@ import type { ChoiceRef, GameState, InstanceId, PendingChoice, PlayerId } from "
 import { CORE_DEPS } from "@mc/cards";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, fitText, label, paintPanel } from "../ui/widgets.js";
+import { McButton, McSelectionRing, fitText, label, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { artFor } from "../art/art-source.js";
 import { characterPanel, faceOf } from "../view/board-model.js";
@@ -26,7 +26,17 @@ import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { seatIdentityName } from "../view/names.js";
+import {
+  cardChoiceDisplayOrder,
+  choiceFocusKey,
+  choiceFocusOrder,
+  sameChoiceTarget,
+  type ChoiceFocusTarget,
+} from "../view/choice-focus.js";
+import { stepFocus } from "../view/focus.js";
+import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
+import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { SCENES } from "./keys.js";
 
 /**
@@ -41,6 +51,11 @@ export class ChoiceOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
   #choiceId: string | null = null;
   #maxSelections = 1;
+  /** Keyboard/pad focus: what is focused, not where — the rect is re-read each rebuild. */
+  #focus: ChoiceFocusTarget | null = null;
+  #route: readonly ChoiceFocusTarget[] = [];
+  #focusRects = new Map<string, Rect>();
+  #focusRing: McSelectionRing | null = null;
 
   constructor() {
     super({ key: SCENES.choice });
@@ -66,7 +81,18 @@ export class ChoiceOverlay extends Phaser.Scene {
     // The Inspect sheet answers by reporting back: it presents a card, it does
     // not decide anything.
     this.game.events.on("mc-choice-toggle", this.#onInspectToggle, this);
+    // The Board hands the keyboard and the pad over while this sheet is up
+    // (`BoardScene`'s `blocked`), so this is where they have to land — and
+    // Inspect, opened from here, owns them in turn while it is open.
+    const binding = {
+      blocked: () => this.scene.isActive(SCENES.inspect),
+      onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+    };
+    bindKeyboard(this, binding);
+    bindGamepad(this, binding);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.#focusRing?.destroy();
+      this.#focusRing = null;
       this.scale.off("resize", onResize, this);
       artOff();
       this.game.events.off("mc-choice-toggle", this.#onInspectToggle, this);
@@ -87,11 +113,15 @@ export class ChoiceOverlay extends Phaser.Scene {
     if (choice.choiceId !== this.#choiceId) {
       this.#choiceId = choice.choiceId;
       this.#selected = [];
+      this.#focus = null;
     }
     this.#maxSelections = choice.maxSelections;
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
+    this.#focusRing?.destroy();
+    this.#focusRing = null;
+    this.#focusRects.clear();
     this.children.removeAll(true);
 
     const { width, height } = this.scale.gameSize;
@@ -194,6 +224,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const listHeight = commitTop - listTop - 8;
 
     if (asCards && listHeight >= 120) {
+      this.#route = choiceFocusOrder(cardChoiceDisplayOrder(choice.options, this.#selected), choice.minSelections === 0);
       this.#drawCardChoice(
         {
           x: sheet.x + 12,
@@ -211,6 +242,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const rowHeight = hit.target;
     const capacity = Math.max(1, Math.floor(listHeight / (rowHeight + 4)));
     const shown = choice.options.slice(0, capacity);
+    this.#route = choiceFocusOrder(shown.map((option) => option.optionId), choice.minSelections === 0);
 
     shown.forEach((option, index) => {
       const order = this.#selected.indexOf(option.optionId);
@@ -238,6 +270,12 @@ export class ChoiceOverlay extends Phaser.Scene {
           onClick: () => this.#toggle(option.optionId, choice.maxSelections),
         }),
       );
+      this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: option.optionId }), {
+        x: sheet.x + 12,
+        y: listTop + index * (rowHeight + 4),
+        width: sheet.width - 24,
+        height: rowHeight,
+      });
     });
     if (choice.options.length > capacity) {
       label(
@@ -385,7 +423,21 @@ export class ChoiceOverlay extends Phaser.Scene {
           },
         }),
       );
+      this.#focusRects.set(choiceFocusKey({ kind: "decline" }), {
+        x: sheet.x + 20 + commitWidth,
+        y: commitTop,
+        width: commitWidth,
+        height: hit.primary,
+      });
     }
+    this.#focusRects.set(choiceFocusKey({ kind: "confirm" }), {
+      x: sheet.x + 12,
+      y: commitTop,
+      width: commitWidth,
+      height: hit.primary,
+    });
+    // Last in every rebuild, so the ring sits over the controls it frames.
+    this.#drawFocusRing();
   }
 
   /**
@@ -402,6 +454,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     const instanceId = refInstanceId(option.ref);
     const order = this.#selected.indexOf(option.optionId);
     const picked = order >= 0;
+    this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: option.optionId }), slot);
 
     const g = this.add.graphics();
     paintPanel(g, slot, "card", picked ? "selected" : "rest");
@@ -533,6 +586,83 @@ export class ChoiceOverlay extends Phaser.Scene {
       if (inspected) return;
       this.#toggle(option.optionId, this.#maxSelections);
     });
+  }
+
+  /**
+   * One intent from the keyboard or the pad, over the sheet's stated route
+   * (`view/choice-focus.ts`). Arrows/Tab walk it, Enter/Space presses what is
+   * focused, `I` reads a card option, Escape drops focus — it does not dismiss
+   * the sheet, because an open decision has to be answered.
+   */
+  #onIntent(intent: GamepadIntent): void {
+    const choice = appSession().store.state.game?.pendingChoice;
+    if (!choice) return;
+    switch (intent) {
+      case "next":
+      case "previous": {
+        const at = this.#route.findIndex((target) => sameChoiceTarget(target, this.#focus));
+        const next = stepFocus(this.#route, at, intent === "next" ? 1 : -1);
+        this.#focus = next >= 0 ? (this.#route[next] ?? null) : null;
+        this.#drawFocusRing();
+        break;
+      }
+      case "activate":
+        this.#activate(choice);
+        break;
+      case "inspect":
+        if (this.#focus?.kind === "option") this.#inspectOption(choice, this.#focus.optionId);
+        break;
+      case "cancel":
+        this.#focus = null;
+        this.#drawFocusRing();
+        break;
+    }
+  }
+
+  /** Enter on the focused control means exactly what a tap on it means — including nothing, for a Confirm that isn't ready. */
+  #activate(choice: PendingChoice): void {
+    const focus = this.#focus;
+    if (!focus) return;
+    if (focus.kind === "option") {
+      this.#toggle(focus.optionId, choice.maxSelections);
+      return;
+    }
+    if (focus.kind === "decline") {
+      if (choice.minSelections === 0) {
+        this.#selected = [];
+        void this.#confirm();
+      }
+      return;
+    }
+    if (this.#selected.length >= choice.minSelections && this.#selected.length <= choice.maxSelections) {
+      void this.#confirm();
+    }
+  }
+
+  #inspectOption(choice: PendingChoice, optionId: string): void {
+    const option = choice.options.find((candidate) => candidate.optionId === optionId);
+    const instanceId = option ? refInstanceId(option.ref) : null;
+    if (!instanceId) return;
+    this.scene.launch(SCENES.inspect, {
+      instanceId,
+      choice: { optionId, label: this.#selected.includes(optionId) ? "Deselect" : "Select" },
+    });
+  }
+
+  /** Static, not pulsing: the ring says "here you are", not "act now" — the Board's convention. */
+  #drawFocusRing(): void {
+    this.#focusRing?.destroy();
+    this.#focusRing = null;
+    const focus = this.#focus;
+    if (!focus) return;
+    if (!this.#route.some((target) => sameChoiceTarget(target, focus))) {
+      this.#focus = null;
+      return;
+    }
+    const rect = this.#focusRects.get(choiceFocusKey(focus));
+    if (!rect) return;
+    this.#focusRing = new McSelectionRing(this);
+    this.#focusRing.show(rect, "static", true);
   }
 
   #onInspectToggle(optionId: string): void {

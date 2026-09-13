@@ -5,18 +5,22 @@
 
 import type Phaser from "phaser";
 import type { ResourceIconType } from "@mc/content";
+import { cardOf, type GameState, type InstanceId } from "@mc/engine";
+import { artFor } from "../../art/art-source.js";
 import { drawArt } from "../../art/card-art.js";
+import { appSession } from "../../session.js";
 import { accent, hit, ink, signal, surface, typeRole } from "../../tokens.js";
 import { caseOf, cssOf, textStyle } from "../../ui/theme.js";
 import { McSelectionRing, fitText, label, paintPanel } from "../../ui/widgets.js";
-import type { BoardModel, HandCardView } from "../../view/board-model.js";
+import { faceOf, type BoardModel, type HandCardView } from "../../view/board-model.js";
 import type { IllegalReason } from "../../view/highlights.js";
-import { cardRow, type Rect } from "../../view/layout.js";
+import { CARD_ASPECT, cardRow, type Rect } from "../../view/layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
 import { drawControllerBar } from "./controller-bar.js";
 import { drawPaymentBar } from "./payment-bar.js";
 import { focusKey } from "./selection.js";
+import { addTapTarget } from "./tap-target.js";
 
 /**
  * The tabbed hand's horizontal scroll and fan state.
@@ -133,7 +137,11 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     );
   }
 
-  const inner: Rect = { x: rect.x + 10, y: top, width: rect.width - 20, height: rect.y + rect.height - top - 8 };
+  let inner: Rect = { x: rect.x + 10, y: top, width: rect.width - 20, height: rect.y + rect.height - top - 8 };
+  if (payment) {
+    const used = drawPaymentTable(ctx, inner, payment);
+    inner = { ...inner, x: inner.x + used, width: inner.width - used };
+  }
   const fan: boolean | "expanded" = tabbed ? (hand.fannedOut ? "expanded" : true) : false;
   const slots = cardRow(inner, model.hand.length, { gap: 6, maxHeight: inner.height, fan });
 
@@ -176,6 +184,103 @@ function drawFanToggle(ctx: BoardDrawContext, handRect: Rect): void {
     .setLetterSpacing(typeRole.label.letterSpacing);
   const zone = scene.add.zone(chip.x, chip.y, chip.width, chip.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
   zone.on("pointerup", () => hand.toggleFan());
+}
+
+/**
+ * The half of a payment that isn't in the hand, drawn at the head of the hand
+ * row: a card in play whose ability is being paid for, then every resource
+ * ability on the table (Peter Parker's Scientist, Pepper Potts).
+ *
+ * Tapping the card in its own zone already spends it, but the hand is the only
+ * zone every layout shows — on a phone the one resource that makes a card
+ * affordable would otherwise sit on a tab you aren't looking at. Returns the
+ * width it took, so the hand row starts after it.
+ *
+ * Deliberately not registered in `hitRects`: that map says where a card *is*
+ * on the table, for beats and travels, and this tile is a stand-in. The focus
+ * rect is registered, so keyboard focus lands here, where it's always visible.
+ */
+function drawPaymentTable(ctx: BoardDrawContext, row: Rect, payment: PaymentView): number {
+  const { scene } = ctx;
+  const game = appSession().store.state.game;
+  const subject = payment.subject !== null && !payment.subjectInHand ? payment.subject : null;
+  const count = payment.tableSources.length + (subject ? 1 : 0);
+  if (!game || count === 0) return 0;
+
+  const gap = 6;
+  // Never more than half the row: the hand is still where most payments come from.
+  const width = Math.max(40, Math.min(row.height * CARD_ASPECT, (row.width * 0.5 - gap * count) / count));
+  let x = row.x;
+
+  if (subject) {
+    const tile: Rect = { x, y: row.y, width, height: row.height };
+    drawTableTile(ctx, tile, game, subject, "selected");
+    tableTag(scene, tile, "paying for", accent.heroRed.hex, "top");
+    const ring = new McSelectionRing(scene);
+    ring.show(tile, "static", true);
+    ctx.frame.rings.push(ring);
+    x += width + gap;
+  }
+
+  for (const source of payment.tableSources) {
+    const tile: Rect = { x, y: row.y, width, height: row.height };
+    drawTableTile(ctx, tile, game, source.instanceId, source.spent ? "selected" : "rest");
+    if (source.spent) {
+      const wash = scene.add.graphics();
+      wash.fillStyle(surface.ink.hex, 0.3).fillRect(tile.x + 3, tile.y + 3, tile.width - 6, tile.height - 6);
+    }
+    tableTag(scene, tile, source.spent ? "spent" : "in play", surface.ink.hex, "top");
+    tableTag(scene, tile, poolText(source.pool), signal.cost.hex, "bottom");
+    ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: source.instanceId }), tile);
+    // By option, not by card: a card offering two resource abilities is two tiles.
+    addTapTarget(scene, tile, {
+      onTap: () => ctx.controller.togglePaymentOption(source.optionId),
+      onInspect: () => ctx.inspect(source.instanceId),
+    });
+    x += width + gap;
+  }
+
+  const rule = scene.add.graphics();
+  rule.fillStyle(surface.paper.hex, ink.meta).fillRect(x, row.y, 2, row.height);
+  return x - row.x + 2 + gap;
+}
+
+/** A table card in the payment strip: its current face, whole, in a card frame. */
+function drawTableTile(ctx: BoardDrawContext, tile: Rect, game: GameState, id: InstanceId, state: "rest" | "selected"): void {
+  const { scene } = ctx;
+  const g = scene.add.graphics();
+  paintPanel(g, tile, "card", state);
+  const inner: Rect = { x: tile.x + 3, y: tile.y + 3, width: tile.width - 6, height: tile.height - 6 };
+  const card = cardOf(game, id);
+  const art = card ? artFor(card, faceOf(game, id)) : null;
+  if (!drawArt(scene, ctx.art.request(scene, art), inner, { fit: "contain" })) {
+    const ground = scene.add.graphics();
+    ground.fillStyle(surface.parchment.hex, 1).fillRect(inner.x, inner.y, inner.width, inner.height);
+    fitText(
+      scene.add.text(inner.x + 3, inner.y + 18, card?.name ?? "Card", textStyle(typeRole.label, surface.ink.hex)),
+      inner.width - 6,
+      typeRole.label.size,
+    );
+  }
+}
+
+/** A one-word tag inside a strip tile, the same chip the hand's cards carry. */
+function tableTag(scene: Phaser.Scene, tile: Rect, text: string, ground: number, edge: "top" | "bottom"): void {
+  const tag = scene.add
+    .text(tile.x + tile.width - 3, edge === "top" ? tile.y + 4 : tile.y + tile.height - 4, caseOf(typeRole.label, text), textStyle(typeRole.label, surface.paper.hex))
+    .setOrigin(1, edge === "top" ? 0 : 1)
+    .setLetterSpacing(typeRole.label.letterSpacing)
+    .setPadding(4, 2, 4, 2)
+    .setBackgroundColor(cssOf(ground));
+  fitText(tag, tile.width - 6, typeRole.label.size);
+}
+
+/** What a source adds, with the type carried by its glyph: "+1M", "+1*". */
+function poolText(pool: Readonly<Record<ResourceIconType, number>>): string {
+  const parts = (Object.keys(RESOURCE_GLYPH) as ResourceIconType[])
+    .filter((type) => pool[type] > 0)
+    .map((type) => `${pool[type]}${RESOURCE_GLYPH[type]}`);
+  return parts.length > 0 ? `+${parts.join(" ")}` : "+0";
 }
 
 /** How a hand card reads right now, playing or paying. */

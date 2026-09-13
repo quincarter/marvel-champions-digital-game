@@ -66,7 +66,7 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
 }
 
 /** Moves focus by `delta`, wrapping. Returns the new index, or -1 when there is nothing to focus. */
-export function stepFocus(order: readonly FocusTarget[], current: number, delta: number): number {
+export function stepFocus<T>(order: readonly T[], current: number, delta: number): number {
   if (order.length === 0) return -1;
   const from = current < 0 ? (delta > 0 ? -1 : 0) : current;
   return (((from + delta) % order.length) + order.length) % order.length;

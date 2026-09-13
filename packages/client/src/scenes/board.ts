@@ -65,6 +65,7 @@ export class BoardScene extends Phaser.Scene {
   #frame: BoardFrame = emptyFrame();
   #version = -1;
   #choiceOpen = false;
+  #saveFailureAnnounced = false;
   /** Which zone the phone board is showing. Ignored on wider layouts. */
   #activeTab: PhoneTab = "me";
   /** Changes that landed on a tab the player isn't looking at, per tab. */
@@ -175,6 +176,12 @@ export class BoardScene extends Phaser.Scene {
           if (event.type !== "playerEliminated") continue;
           this.#motion.announce(`${playerName(state.game, event.playerId)} is down`, "Defeated — out of the game. The rest of the team fights on");
         }
+      }
+      // Saving failing is silent otherwise — the game plays on — and a refresh
+      // would then lose it. Said once, loudly; the chrome chip keeps saying it.
+      if (state.saveError !== null && !this.#saveFailureAnnounced) {
+        this.#saveFailureAnnounced = true;
+        this.#motion.announce("Game not saving", "It may not survive a refresh");
       }
       this.#version = state.version;
       // A new state invalidates any half-made selection: the engine may have
@@ -290,7 +297,7 @@ export class BoardScene extends Phaser.Scene {
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
 
     const { zones } = layout;
-    drawChrome(this, zones.chrome!, model);
+    drawChrome(this, zones.chrome!, model, appSession().store.state.saveError !== null);
     if (zones.tabs) this.#drawTabs(zones.tabs, model);
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
     if (zones.enemies) drawEnemies(ctx, zones.enemies, model);

@@ -325,6 +325,15 @@ export class BoardController {
     if (source) this.#togglePayment(source.optionId);
   }
 
+  /**
+   * Spends or un-spends one source by its option id. The engine re-judges the
+   * whole selection. Public for the payment strip, where a card offering two
+   * resource abilities is two tiles and a tap must mean one of them.
+   */
+  togglePaymentOption(optionId: string): void {
+    this.#togglePayment(optionId);
+  }
+
   /** Spends or un-spends one source. The engine re-judges the whole selection. */
   #togglePayment(optionId: string): void {
     if (this.#selection.kind !== "paying") return;

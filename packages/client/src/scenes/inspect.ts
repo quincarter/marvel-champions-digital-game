@@ -57,6 +57,8 @@ import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McScrollPanel, label, paintDotGrid } from "../ui/widgets.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { cardInspectModel, inspectModel, type InspectModel } from "../view/inspect-model.js";
+import type { GamepadIntent } from "../view/gamepad.js";
+import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { SCENES } from "./keys.js";
 
 /** What the caller hands over when it launches this overlay. */
@@ -100,6 +102,8 @@ export class InspectOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
   /** True once a press has *started* on this sheet, so its release may dismiss. */
   #armed = false;
+  /** What the sheet's primary button does this rebuild — what Enter presses. Null when there is none. */
+  #primaryAction: (() => void) | null = null;
 
   constructor() {
     super({ key: SCENES.inspect });
@@ -131,9 +135,11 @@ export class InspectOverlay extends Phaser.Scene {
     // A scan that arrives while the sheet is open should appear in it.
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
 
-    this.input.keyboard?.on("keydown-ESC", () => this.#close());
-    this.input.keyboard?.on("keydown-LEFT", () => this.#step(-1));
-    this.input.keyboard?.on("keydown-RIGHT", () => this.#step(1));
+    // The same five intents the Board and the choice sheet speak, so a pad
+    // works here too. Both of those are blocked while this sheet is open.
+    const binding = { blocked: () => false, onIntent: (intent: GamepadIntent) => this.#onIntent(intent) };
+    bindKeyboard(this, binding);
+    bindGamepad(this, binding);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
@@ -146,6 +152,30 @@ export class InspectOverlay extends Phaser.Scene {
 
   #close(): void {
     this.scene.stop();
+  }
+
+  /**
+   * ◂ ▸ (and Tab) step through the list the sheet was opened from, Enter or
+   * Space presses the primary button — Select, the first ability, or Play it —
+   * and Escape closes. `inspect` means nothing here: this already is Inspect.
+   */
+  #onIntent(intent: GamepadIntent): void {
+    switch (intent) {
+      case "next":
+        this.#step(1);
+        break;
+      case "previous":
+        this.#step(-1);
+        break;
+      case "activate":
+        this.#primaryAction?.();
+        break;
+      case "cancel":
+        this.#close();
+        break;
+      default:
+        break;
+    }
   }
 
   /** ◂ ▸ through whatever list the overlay was opened from. */
@@ -173,6 +203,7 @@ export class InspectOverlay extends Phaser.Scene {
     this.#buttons = [];
     this.children.removeAll(true);
     this.#armed = false;
+    this.#primaryAction = null;
 
     const { width, height } = this.scale.gameSize;
     // The scrim is a dismiss target as well as a scrim: the design says "click
@@ -453,16 +484,18 @@ export class InspectOverlay extends Phaser.Scene {
     if (this.#choice) {
       const { optionId, label: choiceLabel } = this.#choice;
       const buttonWidth = (inner - 9) / 2;
+      const choose = (): void => {
+        this.#close();
+        this.game.events.emit("mc-choice-toggle", optionId);
+      };
+      this.#primaryAction = choose;
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
           label: choiceLabel,
           type: typeRole.barTitle,
           rect: { x: rect.x + 18, y: rect.y + rect.height - hit.primary - 16, width: buttonWidth, height: hit.primary },
-          onClick: () => {
-            this.#close();
-            this.game.events.emit("mc-choice-toggle", optionId);
-          },
+          onClick: choose,
         }),
       );
       this.#buttons.push(
@@ -497,16 +530,19 @@ export class InspectOverlay extends Phaser.Scene {
       const rowHeight = model.abilities.length === 1 ? area.height : Math.max(hit.target, area.height / model.abilities.length);
       model.abilities.forEach((ability, index) => {
         const rowRect: Rect = { x: area.x, y: area.y + area.height - (model.abilities.length - index) * (rowHeight + 4), width: area.width, height: rowHeight };
+        const use = (): void => {
+          this.#close();
+          if (instanceId) this.game.events.emit("mc-use-ability", instanceId, ability.abilityId);
+        };
+        // Enter takes the first, the one drawn as primary; the rest are a click or a tap.
+        if (index === 0) this.#primaryAction = use;
         this.#buttons.push(
           new McButton(this, {
             kind: index === 0 ? "primary" : "secondary",
             label: ability.label,
             type: model.abilities.length === 1 ? typeRole.barTitle : typeRole.label,
             rect: rowRect,
-            onClick: () => {
-              this.#close();
-              if (instanceId) this.game.events.emit("mc-use-ability", instanceId, ability.abilityId);
-            },
+            onClick: use,
           }),
         );
       });
@@ -515,17 +551,19 @@ export class InspectOverlay extends Phaser.Scene {
 
     // One action, and only when the engine has already said it is legal.
     if (model.status.playable === true) {
+      const play = (): void => {
+        const instanceId = this.#instanceId;
+        this.#close();
+        if (instanceId) this.game.events.emit("mc-play-card", instanceId);
+      };
+      this.#primaryAction = play;
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
           label: "Play it",
           type: typeRole.barTitle,
           rect: { x: rect.x + 18, y: rect.y + rect.height - hit.primary - 16, width: inner, height: hit.primary },
-          onClick: () => {
-            const instanceId = this.#instanceId;
-            this.#close();
-            if (instanceId) this.game.events.emit("mc-play-card", instanceId);
-          },
+          onClick: play,
         }),
       );
     }

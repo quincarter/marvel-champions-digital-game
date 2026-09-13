@@ -4,7 +4,7 @@
 
 import type Phaser from "phaser";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
-import { textStyle } from "../../ui/theme.js";
+import { cssOf, textStyle } from "../../ui/theme.js";
 import { McTabs } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
@@ -15,8 +15,12 @@ import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
  * The phase toggle is the first thing to go when the bar is narrow: it says
  * the same thing the step label already says, and two overlapping labels say
  * less than one. The 1st-player mark goes next.
+ *
+ * `notSaving` puts a standing "NOT SAVING" chip at the right edge, ahead of
+ * the 1st-player mark, which it displaces: once a save has failed the game
+ * may not survive a refresh, and that stays true for the rest of the session.
  */
-export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel): void {
+export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, notSaving = false): void {
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
 
@@ -46,8 +50,18 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel): 
     left += 86 * 2 + 18;
   }
 
-  const firstPlayer = model.firstPlayerId === model.perspectiveId && rect.width >= 520;
-  const rightEdge = rect.x + rect.width - (firstPlayer ? 86 : 10);
+  const firstPlayer = !notSaving && model.firstPlayerId === model.perspectiveId && rect.width >= 520;
+  let rightEdge = rect.x + rect.width - (firstPlayer ? 86 : 10);
+  if (notSaving) {
+    // A glyph as well as the hue, so the warning never rests on colour alone.
+    const warning = scene.add
+      .text(rect.x + rect.width - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.ink.hex))
+      .setOrigin(1, 0.5)
+      .setLetterSpacing(typeRole.label.letterSpacing)
+      .setPadding(6, 3, 6, 3)
+      .setBackgroundColor(cssOf(signal.caution.hex));
+    rightEdge = warning.x - warning.width - 8;
+  }
   scene.add
     .text(left, rect.y + rect.height / 2, model.stepLabel, textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary))
     .setOrigin(0, 0.5)
