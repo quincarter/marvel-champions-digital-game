@@ -19,6 +19,7 @@ const BANNER_MS = 3600;
 import { beatsFrom, type Beat } from "../../view/beats.js";
 import type { BoardLayout, Rect } from "../../view/layout.js";
 import { travelsFrom, type Travel } from "../../view/travel.js";
+import { pileKey, type BoardFrame } from "./context.js";
 
 export class BoardMotion {
   readonly #scene: Phaser.Scene;
@@ -133,7 +134,7 @@ export class BoardMotion {
    * pending — on every redraw the command didn't cause (resize, focus
    * movement, a tab switch).
    */
-  startTravels(previous: ReadonlyMap<InstanceId, Rect>, current: ReadonlyMap<InstanceId, Rect>, layout: BoardLayout): void {
+  startTravels(previous: BoardFrame, current: BoardFrame, layout: BoardLayout): void {
     if (this.#pendingMoves.length === 0) return;
     const events = this.#pendingMoves;
     this.#pendingMoves = [];
@@ -142,9 +143,9 @@ export class BoardMotion {
     if (perspectiveId === null) return;
 
     const anchorBefore = (instanceId: InstanceId, zone: ZoneId): Rect | null =>
-      previous.get(instanceId) ?? pileAnchor(zone, layout, perspectiveId, previous);
+      previous.hitRects.get(instanceId) ?? pileAnchor(zone, layout, perspectiveId, previous);
     const anchorAfter = (instanceId: InstanceId, zone: ZoneId): Rect | null =>
-      current.get(instanceId) ?? pileAnchor(zone, layout, perspectiveId, current);
+      current.hitRects.get(instanceId) ?? pileAnchor(zone, layout, perspectiveId, current);
 
     const now = this.#scene.time.now;
     this.#travels.push(...travelsFrom(events, anchorBefore, anchorAfter).map((travel) => ({ travel, startedAt: now })));
@@ -248,20 +249,24 @@ export class BoardMotion {
  * to leave or just arrived from. `attachment`/`boost` resolve to their host's
  * own rect, so an upgrade reads as flying onto the card it attached to.
  *
- * Zones this board draws only as a number, never a box — a player's own deck
- * or discard pile chief among them — resolve to `null`, so a move to or from
- * one of those simply has no travel (see `view/travel.ts`'s file comment).
+ * A pile drawn as its own box — your deck and discard beside the hand, the
+ * encounter deck and discard — resolves to that box (`frame.pileRects`), so a
+ * drawn card flies out of your deck and a discarded one lands on your discard.
+ * Zones this board never draws resolve to `null`, and a move to or from one of
+ * those has no travel (see `view/travel.ts`'s file comment).
  */
-function pileAnchor(zone: ZoneId, layout: BoardLayout, perspectiveId: PlayerId, rects: ReadonlyMap<InstanceId, Rect>): Rect | null {
+function pileAnchor(zone: ZoneId, layout: BoardLayout, perspectiveId: PlayerId, frame: BoardFrame): Rect | null {
   switch (zone.kind) {
     case "encounterDeck":
     case "encounterDiscard":
-      return layout.zones.encounter;
+      return frame.pileRects.get(pileKey(zone.kind)) ?? layout.zones.encounter;
     case "villainArea":
       return layout.zones.enemies;
-    case "hand":
     case "deck":
     case "discard":
+      if (zone.playerId !== perspectiveId) return layout.zones.team;
+      return frame.pileRects.get(pileKey(zone.kind, zone.playerId)) ?? layout.zones.hand;
+    case "hand":
       return zone.playerId === perspectiveId ? layout.zones.hand : layout.zones.team;
     case "playArea":
       return zone.playerId === perspectiveId ? layout.zones.playArea : layout.zones.team;
@@ -269,7 +274,7 @@ function pileAnchor(zone: ZoneId, layout: BoardLayout, perspectiveId: PlayerId, 
       return zone.playerId === perspectiveId ? layout.zones.me : layout.zones.team;
     case "attachment":
     case "boost":
-      return rects.get(zone.hostInstanceId) ?? null;
+      return frame.hitRects.get(zone.hostInstanceId) ?? null;
     default:
       return null;
   }

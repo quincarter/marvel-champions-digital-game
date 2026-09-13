@@ -195,12 +195,20 @@ export class McSelectionRing {
   readonly graphics: Phaser.GameObjects.Graphics;
   #tween: Phaser.Tweens.Tween | null = null;
 
-  constructor(private readonly scene: Phaser.Scene) {
+  /**
+   * `color` overrides the ring's red for the one ground it would disappear into:
+   * a focus ring on Game Over's Hero Red loss screen.
+   */
+  constructor(
+    private readonly scene: Phaser.Scene,
+    private readonly color?: number,
+  ) {
     this.graphics = scene.add.graphics();
   }
 
   show(rect: Rect, mode: "static" | "pulse", reducedMotion: boolean): void {
-    const { offset, width, color, glowWidth, glowAlpha } = selectionRing;
+    const { offset, width, glowWidth, glowAlpha } = selectionRing;
+    const color = { hex: this.color ?? selectionRing.color.hex };
     const outer: Rect = {
       x: rect.x - offset,
       y: rect.y - offset,
@@ -685,6 +693,25 @@ export class McTextInput {
     });
     this.#input.on("focus", () => this.#ring.show(this.#rect, "static", true));
     this.#input.on("blur", () => this.#ring.hide());
+
+    // Enter or Escape leaves the field and hands the keyboard back to the
+    // screen's focus route. The event stops here, so the same key press doesn't
+    // reach Phaser's window listener and also press whatever the route has focused.
+    (this.#input.node as HTMLElement).addEventListener("keydown", (event: KeyboardEvent) => {
+      if (event.key !== "Enter" && event.key !== "Escape") return;
+      event.stopPropagation();
+      this.#input.setBlur();
+    });
+  }
+
+  /** True while the player is typing in the field — a screen's keyboard route stands aside. */
+  get focused(): boolean {
+    return this.#input.isFocused;
+  }
+
+  /** Puts the caret in the field, for a keyboard or pad user who pressed Enter on it. */
+  focus(): void {
+    this.#input.setFocus();
   }
 
   /** The underlying DOM game object, so a scene can detach it from a full

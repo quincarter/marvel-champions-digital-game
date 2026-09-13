@@ -8,7 +8,7 @@
  */
 
 import type Phaser from "phaser";
-import type { InstanceId } from "@mc/engine";
+import type { InstanceId, PlayerId } from "@mc/engine";
 import type { CardArt } from "../../art/card-art.js";
 import type { McButton, McSelectionRing } from "../../ui/widgets.js";
 import type { Highlights } from "../../view/highlights.js";
@@ -26,12 +26,21 @@ export interface BoardFrame {
   readonly hitRects: Map<InstanceId, Rect>;
   /** Rects of everything focusable this draw, so the focus ring knows where to go. */
   readonly focusRects: Map<string, Rect>;
+  /**
+   * Each pile box drawn this draw, by `pileKey`: where a card moving into or
+   * out of a pile travels to or from (`motion.ts#pileAnchor`).
+   */
+  readonly pileRects: Map<string, Rect>;
   /** Widgets that own listeners, destroyed before the next draw. */
   readonly buttons: McButton[];
   readonly rings: McSelectionRing[];
 }
 
-export const emptyFrame = (): BoardFrame => ({ hitRects: new Map(), focusRects: new Map(), buttons: [], rings: [] });
+export const emptyFrame = (): BoardFrame => ({ hitRects: new Map(), focusRects: new Map(), pileRects: new Map(), buttons: [], rings: [] });
+
+/** A pile's key in `BoardFrame.pileRects`: the zone kind, and whose pile it is when it belongs to a player. */
+export const pileKey = (kind: "deck" | "discard" | "encounterDeck" | "encounterDiscard", playerId?: PlayerId): string =>
+  playerId === undefined ? kind : `${kind}:${playerId}`;
 
 export interface BoardDrawContext {
   readonly scene: Phaser.Scene;
@@ -49,5 +58,6 @@ export interface BoardDrawContext {
    * and — only when `onDrag` is given — a horizontal drag scrolls instead.
    */
   makeTapTarget(rect: Rect, id: InstanceId, onTap?: () => void, onDrag?: (deltaX: number) => void): void;
-  inspect(id: InstanceId): void;
+  /** Opens a card. `siblings` is the list ◂ ▸ steps through; without it, the hand when the card is in it. */
+  inspect(id: InstanceId, siblings?: readonly InstanceId[]): void;
 }

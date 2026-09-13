@@ -14,11 +14,13 @@ import { caseOf, cssOf, textStyle } from "../../ui/theme.js";
 import { McSelectionRing, fitText, label, paintPanel } from "../../ui/widgets.js";
 import { faceOf, type BoardModel, type HandCardView } from "../../view/board-model.js";
 import type { IllegalReason } from "../../view/highlights.js";
-import { CARD_ASPECT, cardRow, type Rect } from "../../view/layout.js";
+import { handRow, type HandRowLayout } from "../../view/hand-row.js";
+import type { Rect } from "../../view/layout.js";
 import type { PaymentView } from "../../view/payment-model.js";
 import type { BoardDrawContext } from "./context.js";
 import { drawControllerBar } from "./controller-bar.js";
 import { drawPaymentBar } from "./payment-bar.js";
+import { drawMyPiles } from "./piles.js";
 import { focusKey } from "./selection.js";
 import { addTapTarget } from "./tap-target.js";
 
@@ -130,23 +132,27 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
       scene,
       rect.x + 10,
       rect.y + 4,
-      `hand ${model.hand.length} · deck ${model.myPiles.deck} · discard ${model.myPiles.discard}`,
+      // The deck and discard counts moved onto the piles themselves (`piles.ts`).
+      `hand ${model.hand.length}`,
       typeRole.label,
       surface.paper.hex,
       ink.label,
     );
   }
 
-  let inner: Rect = { x: rect.x + 10, y: top, width: rect.width - 20, height: rect.y + rect.height - top - 8 };
-  if (payment) {
-    const used = drawPaymentTable(ctx, inner, payment);
-    inner = { ...inner, x: inner.x + used, width: inner.width - used };
-  }
+  const inner: Rect = { x: rect.x + 10, y: top, width: rect.width - 20, height: rect.y + rect.height - top - 8 };
   const fan: boolean | "expanded" = tabbed ? (hand.fannedOut ? "expanded" : true) : false;
-  const slots = cardRow(inner, model.hand.length, { gap: 6, maxHeight: inner.height, fan });
+  const row = handRow(inner, {
+    handCount: model.hand.length,
+    tableTiles: payment ? paymentTileCount(payment) : 0,
+    fan,
+    piles: tabbed ? "stacked" : "flank",
+  });
+  const { slots } = row;
+  if (payment) drawPaymentTable(ctx, row, payment);
 
-  const rowRight = slots.reduce((max, slot) => Math.max(max, slot.x + slot.width), inner.x);
-  hand.measure(inner, rowRight);
+  const rowRight = slots.reduce((max, slot) => Math.max(max, slot.x + slot.width), row.cardArea.x);
+  hand.measure(row.cardArea, rowRight);
 
   // The pill only earns its place once there's something to fan or unfan —
   // a hand that already fits has nothing to expand and nowhere to scroll.
@@ -163,6 +169,11 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
     if (slot.kind === "spine") drawHandSpine(ctx, drawn, card, index, payment);
     else drawHandCard(ctx, drawn, card, payment);
   });
+
+  // After the cards: on the tabbed board the hand scrolls, and a scrolled card
+  // should slide under the pile column rather than across it.
+  const backing: Rect | null = tabbed ? { x: rect.x, y: top, width: row.cardArea.x - rect.x, height: rect.y + rect.height - top } : null;
+  drawMyPiles(ctx, row, model, backing);
 }
 
 /**
@@ -193,37 +204,33 @@ function drawFanToggle(ctx: BoardDrawContext, handRect: Rect): void {
  *
  * Tapping the card in its own zone already spends it, but the hand is the only
  * zone every layout shows — on a phone the one resource that makes a card
- * affordable would otherwise sit on a tab you aren't looking at. Returns the
- * width it took, so the hand row starts after it.
+ * affordable would otherwise sit on a tab you aren't looking at. Where the
+ * tiles go is `view/hand-row.ts`'s decision, made together with the hand's.
  *
  * Deliberately not registered in `hitRects`: that map says where a card *is*
  * on the table, for beats and travels, and this tile is a stand-in. The focus
  * rect is registered, so keyboard focus lands here, where it's always visible.
  */
-function drawPaymentTable(ctx: BoardDrawContext, row: Rect, payment: PaymentView): number {
+function drawPaymentTable(ctx: BoardDrawContext, row: HandRowLayout, payment: PaymentView): void {
   const { scene } = ctx;
   const game = appSession().store.state.game;
+  if (!game) return;
   const subject = payment.subject !== null && !payment.subjectInHand ? payment.subject : null;
-  const count = payment.tableSources.length + (subject ? 1 : 0);
-  if (!game || count === 0) return 0;
+  const tiles = [...row.tiles];
 
-  const gap = 6;
-  // Never more than half the row: the hand is still where most payments come from.
-  const width = Math.max(40, Math.min(row.height * CARD_ASPECT, (row.width * 0.5 - gap * count) / count));
-  let x = row.x;
-
-  if (subject) {
-    const tile: Rect = { x, y: row.y, width, height: row.height };
+  const subjectTile = subject ? tiles.shift() : undefined;
+  if (subject && subjectTile) {
+    const tile = subjectTile;
     drawTableTile(ctx, tile, game, subject, "selected");
     tableTag(scene, tile, "paying for", accent.heroRed.hex, "top");
     const ring = new McSelectionRing(scene);
     ring.show(tile, "static", true);
     ctx.frame.rings.push(ring);
-    x += width + gap;
   }
 
-  for (const source of payment.tableSources) {
-    const tile: Rect = { x, y: row.y, width, height: row.height };
+  payment.tableSources.forEach((source, index) => {
+    const tile = tiles[index];
+    if (!tile) return;
     drawTableTile(ctx, tile, game, source.instanceId, source.spent ? "selected" : "rest");
     if (source.spent) {
       const wash = scene.add.graphics();
@@ -237,12 +244,17 @@ function drawPaymentTable(ctx: BoardDrawContext, row: Rect, payment: PaymentView
       onTap: () => ctx.controller.togglePaymentOption(source.optionId),
       onInspect: () => ctx.inspect(source.instanceId),
     });
-    x += width + gap;
-  }
+  });
 
-  const rule = scene.add.graphics();
-  rule.fillStyle(surface.paper.hex, ink.meta).fillRect(x, row.y, 2, row.height);
-  return x - row.x + 2 + gap;
+  if (row.rule) {
+    const rule = scene.add.graphics();
+    rule.fillStyle(surface.paper.hex, ink.meta).fillRect(row.rule.x, row.rule.y, row.rule.width, row.rule.height);
+  }
+}
+
+/** How many strip tiles a payment needs: the in-play subject (an ability's cost), then each table source. */
+function paymentTileCount(payment: PaymentView): number {
+  return payment.tableSources.length + (payment.subject !== null && !payment.subjectInHand ? 1 : 0);
 }
 
 /** A table card in the payment strip: its current face, whole, in a card frame. */

@@ -23,7 +23,9 @@ import type { Rect } from "../view/layout.js";
 import { formFactorFor } from "../view/layout.js";
 import { parseSeed, rollSeed } from "../view/seed.js";
 import type { SaveMeta } from "../engine/game-storage.js";
+import { titleFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
+import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
 export class TitleScene extends Phaser.Scene {
@@ -59,6 +61,9 @@ export class TitleScene extends Phaser.Scene {
    * back up. Looked up asynchronously; the screen draws without it first.
    */
   #continuable: SaveMeta | null = null;
+  /** Keyboard and pad, over `titleFocusOrder`. Each rebuild hands it the controls it drew. */
+  #route: FocusRoute | null = null;
+  #stops = new Map<string, FocusStop>();
 
   constructor() {
     super(SCENES.title);
@@ -87,7 +92,17 @@ export class TitleScene extends Phaser.Scene {
       this.#seedInput?.destroy();
       this.#seedInput = null;
     });
+    this.#route = new FocusRoute(this, {
+      // Inspect owns input while it is open over this screen, and the seed
+      // field while the player is typing in it — or "i" would open a card.
+      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#seedInput?.focused ?? false),
+    });
     this.#continuable = null;
+    // Phaser reuses this instance, and a successful Start or Continue leaves
+    // `#starting` set as the scene hands off to the Board — so coming back from
+    // Game Over's "Back to title" found Start stuck on "Starting…" and Continue
+    // disabled, with no way to begin another game.
+    this.#starting = false;
     this.#rebuild();
     void appSession()
       .store.latestSave()
@@ -105,6 +120,7 @@ export class TitleScene extends Phaser.Scene {
     this.#buttons = [];
     this.#tiles = [];
     this.#rowHandlers.clear();
+    this.#stops = new Map();
 
     // The seed field survives the sweep below: detach it first so
     // `removeAll(true)` — which destroys every child it holds — doesn't take
@@ -174,16 +190,18 @@ export class TitleScene extends Phaser.Scene {
       // someone who just refreshed came back for. Not red: the one red on this
       // screen stays "Start game".
       const save = this.#continuable;
+      const rect: Rect = { x: left, y, width: column, height: hit.target };
       this.#buttons.push(
         new McButton(this, {
           kind: "secondary",
           label: continueLabel(save),
           type: typeRole.rowTitle,
-          rect: { x: left, y, width: column, height: hit.target },
+          rect,
           enabled: !this.#starting,
           onClick: () => void this.#resume(save.id),
         }),
       );
+      this.#stops.set("continue", { rect, activate: () => void this.#resume(save.id) });
       y += hit.target + gapAfterSection;
     }
     y = this.#section(left, y, column, "Scenario", CORE_SCENARIOS.map((scenario) => ({
@@ -197,7 +215,7 @@ export class TitleScene extends Phaser.Scene {
         this.#scenarioId = scenario.id as string;
         this.#rebuild();
       },
-    })), phone, artHeight, scenarioCols);
+    })), phone, artHeight, scenarioCols, "scenario");
 
     y = this.#section(left, y, column, "Difficulty", (["standard", "expert"] as const).map((difficulty) => ({
       id: difficulty,
@@ -207,7 +225,7 @@ export class TitleScene extends Phaser.Scene {
         this.#difficulty = difficulty;
         this.#rebuild();
       },
-    })), phone, 0, difficultyCols);
+    })), phone, 0, difficultyCols, "difficulty");
 
     // A hero already at the table cannot sit twice: the Rules Reference limits
     // a unique card to one copy in play across all players, by title. Both
@@ -237,7 +255,7 @@ export class TitleScene extends Phaser.Scene {
           this.#rebuild();
         },
       };
-    }), phone, artHeight, heroCols);
+    }), phone, artHeight, heroCols, "hero");
 
     // Seed: a typed value, not just a rolled one — the engine's shuffle is
     // only replayable if a specific seed can be entered back in (PLAN.md
@@ -264,20 +282,24 @@ export class TitleScene extends Phaser.Scene {
         },
       });
     }
+    this.#stops.set("seed", { rect: seedRect, activate: () => this.#seedInput?.focus() });
+    const newSeedRect: Rect = { x: left + seedFieldWidth + 10, y: y + 16, width: newSeedWidth, height: hit.target };
+    const newSeed = (): void => {
+      this.#seed = rollSeed();
+      this.#seedText = String(this.#seed);
+      this.#seedInput?.setValue(this.#seedText);
+      this.#status?.setText("");
+    };
     this.#buttons.push(
       new McButton(this, {
         kind: "quiet",
         label: "New seed",
         type: typeRole.label,
-        rect: { x: left + seedFieldWidth + 10, y: y + 16, width: newSeedWidth, height: hit.target },
-        onClick: () => {
-          this.#seed = rollSeed();
-          this.#seedText = String(this.#seed);
-          this.#seedInput?.setValue(this.#seedText);
-          this.#status?.setText("");
-        },
+        rect: newSeedRect,
+        onClick: newSeed,
       }),
     );
+    this.#stops.set("new-seed", { rect: newSeedRect, activate: newSeed });
     y += 16 + hit.target + 16;
 
     // The one red on this screen: the single forward action.
@@ -292,10 +314,22 @@ export class TitleScene extends Phaser.Scene {
         onClick: () => void this.#start(),
       }),
     );
+    this.#stops.set("start", { rect: start, activate: () => void this.#start() });
 
     this.#status = this.add
       .text(left, y + hit.primary + 10, "", textStyle(typeRole.body, accent.redDeep.hex))
       .setWordWrapWidth(column);
+
+    // Last, so the focus ring sits over the control it frames.
+    this.#route?.set(
+      titleFocusOrder({
+        continuable: this.#continuable !== null,
+        scenarioIds: CORE_SCENARIOS.map((scenario) => scenario.id as string),
+        difficulties: ["standard", "expert"],
+        deckIds: CORE_STARTER_DECKS.map((deck) => deck.id as string),
+      }),
+      this.#stops,
+    );
   }
 
   #onInspectChoose(rowId: string): void {
@@ -322,6 +356,8 @@ export class TitleScene extends Phaser.Scene {
     phone: boolean,
     artHeight: number,
     columns: number,
+    /** The section's prefix in `titleFocusOrder`'s keys. */
+    focusPrefix: "scenario" | "difficulty" | "hero",
   ): number {
     label(this, x, y, heading, typeRole.label, surface.ink.hex, ink.label);
     let top = y + 16;
@@ -349,6 +385,16 @@ export class TitleScene extends Phaser.Scene {
         width: cellWidth,
         height: rowHeight,
       };
+      const cardIdForInspect = row.cardId;
+      this.#stops.set(`${focusPrefix}:${row.id}`, {
+        rect: cell,
+        // Enter means what a tap means: a hero already at the table refuses it.
+        activate: () => (row.blockedBy ? undefined : row.onClick()),
+        // `I` reads the card even when the art has dropped out for lack of room.
+        ...(cardIdForInspect
+          ? { inspect: () => this.#inspect(cardIdForInspect, row.id, row.blockedBy ?? row.chooseLabel ?? "Select", !row.blockedBy) }
+          : {}),
+      });
       if (row.cardId && art > 0) {
         const cardId = row.cardId;
         this.#tiles.push(

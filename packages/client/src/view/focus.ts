@@ -72,6 +72,16 @@ export function stepFocus<T>(order: readonly T[], current: number, delta: number
   return (((from + delta) % order.length) + order.length) % order.length;
 }
 
+/**
+ * `stepFocus` over a route of plain string keys, for the screens whose stops
+ * are just their controls (Title, the villain-phase walkthrough, Game Over).
+ * A key no longer on the route counts as no focus. Null when the route is empty.
+ */
+export function stepKey(order: readonly string[], current: string | null, delta: number): string | null {
+  const next = stepFocus(order, current === null ? -1 : order.indexOf(current), delta);
+  return next >= 0 ? (order[next] ?? null) : null;
+}
+
 /** True when two focus targets name the same thing, so focus survives a redraw. */
 export function sameTarget(a: FocusTarget | null, b: FocusTarget | null): boolean {
   if (!a || !b || a.kind !== b.kind) return false;

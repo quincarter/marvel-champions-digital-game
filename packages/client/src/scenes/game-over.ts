@@ -32,6 +32,7 @@ import { formFactorFor, type Rect } from "../view/layout.js";
 import { rollSeed } from "../view/seed.js";
 import type { SessionConfig } from "../engine/host.js";
 import { appSession } from "../session.js";
+import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
@@ -41,6 +42,14 @@ export class GameOverScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #busy = false;
   #status: Phaser.GameObjects.Text | null = null;
+  /**
+   * Keyboard and pad. The route is the buttons in the order `#button` lays them
+   * out, which is the action list's own order (`#actions`) then Back to title —
+   * the list is the stated order, so nothing here depends on draw-call order.
+   */
+  #route: FocusRoute | null = null;
+  #stops = new Map<string, FocusStop>();
+  #order: string[] = [];
 
   constructor() {
     super(SCENES.gameOver);
@@ -59,6 +68,7 @@ export class GameOverScene extends Phaser.Scene {
       for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
     });
+    this.#route = new FocusRoute(this);
     this.#draw();
   }
 
@@ -67,23 +77,29 @@ export class GameOverScene extends Phaser.Scene {
     this.#buttons = [];
     this.children.removeAll(true);
     this.#status = null;
+    this.#stops = new Map();
+    this.#order = [];
 
     const { store } = appSession();
     const { game, record, config } = store.state;
     const { width, height } = this.scale.gameSize;
+    let ringColor: number | undefined;
     if (!game) {
       this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
       this.#button("primary", "Back to title", { x: (width - 280) / 2, y: height / 2 - 26, width: 280, height: hit.primary }, () =>
         this.scene.start(SCENES.title),
       );
-      return;
+    } else {
+      const model = gameOverModel(game, record, config, CORE_DEPS);
+      const formFactor = formFactorFor(width, height);
+      const tall = formFactor === "phone" || formFactor === "tabletPortrait";
+      if (tall) this.#drawTall(model, config, width, height);
+      else this.#drawWide(model, config, width, height);
+      // The wide loss screen is Hero Red from edge to edge, which would swallow a red ring.
+      if (!tall && model.tone === "loss") ringColor = surface.ink.hex;
     }
-
-    const model = gameOverModel(game, record, config, CORE_DEPS);
-    const formFactor = formFactorFor(width, height);
-    const tall = formFactor === "phone" || formFactor === "tabletPortrait";
-    if (tall) this.#drawTall(model, config, width, height);
-    else this.#drawWide(model, config, width, height);
+    // Last, so the ring sits over the button it frames.
+    this.#route?.set(this.#order, this.#stops, ringColor);
   }
 
   /** Screens - Desktop #12. */
@@ -310,6 +326,10 @@ export class GameOverScene extends Phaser.Scene {
   }
 
   #button(kind: "primary" | "secondary" | "quiet", text: string, rect: Rect, onClick: () => void, unavailable?: string): void {
+    const key = `button:${this.#order.length}`;
+    this.#order.push(key);
+    // Enter on an unavailable action does what a tap on it does: nothing.
+    this.#stops.set(key, { rect, activate: () => (unavailable === undefined ? onClick() : undefined) });
     this.#buttons.push(
       new McButton(this, {
         kind,

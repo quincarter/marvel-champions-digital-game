@@ -1,6 +1,6 @@
 /**
- * The Board's remaining table zones: enemies, the encounter piles, the game
- * log, your play area and the other heroes' seats.
+ * The Board's remaining table zones: enemies, the encounter piles, your play
+ * area and the other heroes' seats. The game log is `log.ts`.
  */
 
 import type Phaser from "phaser";
@@ -11,9 +11,8 @@ import { cssOf, textStyle } from "../../ui/theme.js";
 import { fitText, hatchRect, label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, SeatRow } from "../../view/board-model.js";
 import { cardRow, type Rect } from "../../view/layout.js";
-import type { LogState } from "../../view/log-lines.js";
 import { drawCharacter } from "./character-panel.js";
-import type { BoardDrawContext } from "./context.js";
+import { pileKey, type BoardDrawContext } from "./context.js";
 import { dimAlpha, targetState } from "./selection.js";
 
 export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
@@ -45,12 +44,14 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
 export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const { scene } = ctx;
   const half = (rect.height - 6) / 2;
-  const piles: readonly { name: string; count: number; y: number; art: ArtSource | null }[] = [
-    { name: "ENC DECK", count: model.encounterPiles.deck, y: rect.y, art: CARD_BACKS.encounter },
-    { name: "DISCARD", count: model.encounterPiles.discard, y: rect.y + half + 6, art: model.encounterDiscardTop },
+  const piles: readonly { kind: "encounterDeck" | "encounterDiscard"; name: string; count: number; y: number; art: ArtSource | null }[] = [
+    { kind: "encounterDeck", name: "ENC DECK", count: model.encounterPiles.deck, y: rect.y, art: CARD_BACKS.encounter },
+    { kind: "encounterDiscard", name: "DISCARD", count: model.encounterPiles.discard, y: rect.y + half + 6, art: model.encounterDiscardTop },
   ];
-  for (const { name, count, y, art } of piles) {
+  for (const { kind, name, count, y, art } of piles) {
     const box: Rect = { x: rect.x, y, width: rect.width, height: half };
+    // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole column.
+    ctx.frame.pileRects.set(pileKey(kind), box);
     const g = scene.add.graphics();
     paintPanel(g, box, count > 0 ? "card" : "quiet", count > 0 ? "rest" : "unavailable");
 
@@ -68,26 +69,6 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       .text(chip.x + chip.width / 2, chip.y + chip.height / 2, String(count), textStyle(typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex))
       .setOrigin(0.5);
   }
-}
-
-/** The game log, virtualized: only the lines that fit exist as objects. */
-export function drawLog(scene: Phaser.Scene, rect: Rect, log: LogState): void {
-  const g = scene.add.graphics();
-  paintPanel(g, rect, "rail", "rest");
-  label(scene, rect.x + 6, rect.y + 5, "LOG", typeRole.label, surface.ink.hex, ink.label);
-
-  const lineHeight = 26;
-  const capacity = Math.max(0, Math.floor((rect.height - 24) / lineHeight));
-  const visible = log.lines.slice(-capacity);
-  visible.forEach((line, index) => {
-    const y = rect.y + 22 + index * lineHeight;
-    label(scene, rect.x + 6, y, line.ref, typeRole.mono, surface.ink.hex, ink.meta);
-    scene.add
-      .text(rect.x + 6, y + 11, line.text, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
-      .setWordWrapWidth(rect.width - 12)
-      // Two lines on the table at most; the rest is one tap away in Inspect.
-      .setMaxLines(1);
-  });
 }
 
 export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {

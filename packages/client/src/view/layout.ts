@@ -319,7 +319,13 @@ const SPINE_WIDTH_RATIO = 0.38;
 export function cardRow(
   bounds: Rect,
   count: number,
-  options: { readonly gap?: number; readonly maxHeight?: number; readonly fan?: boolean | "expanded" } = {},
+  options: {
+    readonly gap?: number;
+    readonly maxHeight?: number;
+    readonly fan?: boolean | "expanded";
+    /** Where a row narrower than its bounds sits. "start" lets a caller centre it together with something else (`view/hand-row.ts`). */
+    readonly align?: "center" | "start";
+  } = {},
 ): readonly CardSlot[] {
   if (count <= 0) return [];
   const gap = options.gap ?? 6;
@@ -338,7 +344,7 @@ export function cardRow(
   const rowWidth = cardWidth * count + gap * (count - 1);
   // Overlap when even the floor doesn't fit, so the row never leaves the zone.
   const step = rowWidth <= bounds.width ? cardWidth + gap : (bounds.width - cardWidth) / Math.max(1, count - 1);
-  const startX = rowWidth <= bounds.width ? bounds.x + (bounds.width - rowWidth) / 2 : bounds.x;
+  const startX = rowWidth <= bounds.width && options.align !== "start" ? bounds.x + (bounds.width - rowWidth) / 2 : bounds.x;
 
   return Array.from({ length: count }, (_unused, index) => ({
     x: startX + step * index,

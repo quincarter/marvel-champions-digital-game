@@ -231,6 +231,10 @@ export interface BoardModel {
   readonly hand: readonly HandCardView[];
   readonly handLimit: number;
   readonly myPiles: PileCounts;
+  /** Your discard pile, top card first. Discard piles are open information (`view/visibility.ts`). */
+  readonly myDiscard: readonly InstanceId[];
+  /** The top of your discard, which the pile box shows faceup. */
+  readonly myDiscardTop: ArtSource | null;
   readonly encounterPiles: PileCounts;
   /** The top of the encounter discard, which is faceup at the table. */
   readonly encounterDiscardTop: ArtSource | null;
@@ -241,8 +245,14 @@ export interface BoardModel {
 const ROMAN = ["I", "II", "III", "IV", "V"] as const;
 
 /** The encounter discard is faceup, so its top card is public information. */
-function topOfDiscard(state: GameState): ArtSource | null {
-  const top = state.encounterDiscard[state.encounterDiscard.length - 1];
+/**
+ * The faceup card on top of a discard pile. The engine puts a discarded card on
+ * top by *prepending* it (`moveCard(..., "top")`), so the top is index 0 — this
+ * used to read the last element, and the encounter discard showed the first
+ * card ever discarded instead of the latest.
+ */
+function topOfDiscard(state: GameState, pile: readonly InstanceId[]): ArtSource | null {
+  const top = pile[0];
   return top ? artFor(cardOf(state, top), { kind: "front" }) : null;
 }
 
@@ -281,7 +291,9 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },
     encounterPiles: { deck: state.encounterDeck.length, discard: state.encounterDiscard.length },
-    encounterDiscardTop: topOfDiscard(state),
+    myDiscard: me.discard,
+    myDiscardTop: topOfDiscard(state, me.discard),
+    encounterDiscardTop: topOfDiscard(state, state.encounterDiscard),
     team: state.players
       .filter((player) => player.playerId !== perspectiveId)
       .map((player) => seatRow(state, player.playerId, deps)),

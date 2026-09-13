@@ -6,6 +6,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@mc/client", "dev"],
       "port": 5173
+    },
+    {
+      "name": "client-5183",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@mc/client", "exec", "vite", "--port", "5183", "--strictPort"],
+      "port": 5183
     }
   ]
 }

@@ -52,7 +52,7 @@
  * SKIP / DISMISS
  * ---------------------------------------------------------------------------
  * A villain phase the player has already read should not be a wall (PLAN.md).
- * "Skip" (button, top right) and Esc both call `this.scene.stop()` and do
+ * "Skip" (button, top right) and Esc (or B on a pad) both call `this.scene.stop()` and do
  * nothing else — Board's own state is untouched, the actual game keeps
  * running underneath exactly as it would with this screen open. Because the
  * launch condition only fires on step one, skipping mid-phase does not get
@@ -90,8 +90,10 @@ import type { Rect } from "../view/layout.js";
 import { formFactorFor } from "../view/layout.js";
 import { revealOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
 import { appendWalkthrough, emptyWalkthrough, type StepStatus, type Walkthrough } from "../view/villain-walkthrough.js";
+import { villainPhaseFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
+import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
 /** How often a new beat is revealed while auto-advancing at normal motion. */
@@ -118,6 +120,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #revealTimer: Phaser.Time.TimerEvent | null = null;
   #closeTimer: Phaser.Time.TimerEvent | null = null;
   #buttons: McButton[] = [];
+  #route: FocusRoute | null = null;
 
   constructor() {
     super({ key: SCENES.villainPhase });
@@ -143,7 +146,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
      * a torn-down scene and draw into systems that no longer exist.
      */
     this.scale.on("resize", onResize, this);
-    this.input.keyboard?.on("keydown-ESC", () => this.#skip());
+    // Keyboard and pad: Tab to Continue or Skip, Enter presses, Escape skips.
+    // The choice sheet collects answers over this screen, and Inspect can open
+    // over both; while either is up it owns input — Escape used to skip the
+    // walkthrough from under an open decision.
+    this.#route = new FocusRoute(this, {
+      blocked: () => this.scene.isActive(SCENES.choice) || this.scene.isActive(SCENES.inspect),
+      onCancel: () => this.#skip(),
+    });
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
@@ -265,12 +275,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       .setLetterSpacing(1);
     fitText(title, panel.width - pad * 2 - skipWidth - 12, phone ? 22 : 34);
 
+    const skipRect: Rect = { x: panel.x + panel.width - pad - skipWidth, y: cursorY, width: skipWidth, height: hit.target };
     this.#buttons.push(
       new McButton(this, {
         kind: "onInk",
         label: "Skip",
         type: typeRole.label,
-        rect: { x: panel.x + panel.width - pad - skipWidth, y: cursorY, width: skipWidth, height: hit.target },
+        rect: skipRect,
         onClick: () => this.#skip(),
       }),
     );
@@ -325,7 +336,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       width: panel.width - pad * 2,
       height: hit.primary,
     };
-    this.#drawFooter(footerRect, reveal);
+    const finished = this.#drawFooter(footerRect, reveal);
+
+    // Last, so the focus ring sits over the button it frames.
+    const stops = new Map<string, FocusStop>([["skip", { rect: skipRect, activate: () => this.#skip() }]]);
+    if (finished) stops.set("continue", { rect: footerRect, activate: () => this.scene.stop() });
+    this.#route?.set(villainPhaseFocusOrder(finished), stops);
   }
 
   #subtitle(reveal: Reveal): string {
@@ -435,7 +451,8 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     });
   }
 
-  #drawFooter(rect: Rect, reveal: Reveal): void {
+  /** Returns true when the phase is over and Continue is showing. */
+  #drawFooter(rect: Rect, reveal: Reveal): boolean {
     const done = this.#walkthrough.complete && reveal.caughtUp;
     const paused = this.#walkthrough.pausedAt !== null;
 
@@ -449,7 +466,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           onClick: () => this.scene.stop(),
         }),
       );
-      return;
+      return true;
     }
 
     label(
@@ -461,6 +478,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       surface.paper.hex,
       ink.meta,
     );
+    return false;
   }
 }
 

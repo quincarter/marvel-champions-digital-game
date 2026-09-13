@@ -53,7 +53,8 @@ import { BoardMotion } from "./board/motion.js";
 import { drawSchemes } from "./board/schemes.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
-import { drawEncounter, drawEnemies, drawLog, drawPlayArea, drawTeam } from "./board/zones.js";
+import { LogPanel } from "./board/log.js";
+import { drawEncounter, drawEnemies, drawPlayArea, drawTeam } from "./board/zones.js";
 
 export class BoardScene extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
@@ -86,6 +87,7 @@ export class BoardScene extends Phaser.Scene {
     inspect: (id) => this.#inspect(id),
   });
   readonly #hand = new HandScroll(() => this.#draw());
+  readonly #logPanel = new LogPanel(() => this.#draw());
   readonly #motion = new BoardMotion(this);
 
   get #art(): CardArt {
@@ -98,6 +100,16 @@ export class BoardScene extends Phaser.Scene {
   }
 
   create(): void {
+    // Phaser reuses this one instance for every game — "Run it back" and
+    // "Continue" start this same scene again — so everything about *a game*
+    // starts over here. The log didn't, and a rematch was dealt under the
+    // previous game's "The villain is defeated. You win."
+    this.#log = emptyLog();
+    this.#logPanel.reset();
+    this.#version = -1;
+    this.#tabBadges.clear();
+    this.#focus = null;
+    this.#saveFailureAnnounced = false;
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
@@ -118,8 +130,10 @@ export class BoardScene extends Phaser.Scene {
     // once per batch rather than holding the table back on the network.
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
     const binding: IntentBinding = {
-      // A decision overlay owns the keyboard and the pad while it is up.
-      blocked: () => this.#choiceOpen || this.scene.isActive(SCENES.inspect),
+      // A decision overlay or the villain-phase walkthrough owns the keyboard
+      // and the pad while it is up — the walkthrough used to leave arrows
+      // walking the board unseen underneath it.
+      blocked: () => this.#choiceOpen || this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.villainPhase),
       onIntent: (intent) => this.#actOnIntent(intent),
     };
     bindKeyboard(this, binding);
@@ -128,6 +142,8 @@ export class BoardScene extends Phaser.Scene {
     // needs scrolling at all — the tabbed board is the only one that ever
     // does (`drawHand`), so this is a no-op everywhere else.
     this.input.on("wheel", this.#hand.onWheel, this.#hand);
+    // The same for the game log, which checks the pointer is over it.
+    this.input.on("wheel", this.#logPanel.onWheel, this.#logPanel);
     // The Inspect overlay's "Play it" comes back here, because playing a card
     // is the board's job: the overlay only ever reports what the engine said.
     this.game.events.on("mc-play-card", this.#onInspectPlay, this);
@@ -144,6 +160,7 @@ export class BoardScene extends Phaser.Scene {
       this.game.events.off("mc-play-card", this.#onInspectPlay, this);
       this.game.events.off("mc-use-ability", this.#onInspectUseAbility, this);
       this.input.off("wheel", this.#hand.onWheel, this.#hand);
+      this.input.off("wheel", this.#logPanel.onWheel, this.#logPanel);
       /**
        * The overlays this scene launches run in parallel over it, so stopping
        * the Board doesn't stop them. When the game ends `#onState` hands off to
@@ -166,6 +183,9 @@ export class BoardScene extends Phaser.Scene {
     // Fold this command's events onto the log before the state replaces it.
     const fresh = state.version !== this.#version;
     if (fresh) {
+      // A resumed game arrives mid-round with no events saying which round, so
+      // an empty log starts counting from the state's round rather than "R0".
+      if (this.#log.round === 0) this.#log = { ...this.#log, round: state.game.round };
       this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId);
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
@@ -290,7 +310,7 @@ export class BoardScene extends Phaser.Scene {
       hand: this.#hand,
       frame: this.#frame,
       makeTapTarget: (rect, id, onTap, onDrag) => this.#makeTapTarget(rect, id, onTap, onDrag),
-      inspect: (id) => this.#inspect(id),
+      inspect: (id, siblings) => this.#inspect(id, siblings),
     };
 
     // The table felt, and nothing else.
@@ -302,7 +322,8 @@ export class BoardScene extends Phaser.Scene {
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
     if (zones.enemies) drawEnemies(ctx, zones.enemies, model);
     if (zones.encounter) drawEncounter(ctx, zones.encounter, model);
-    if (zones.log) drawLog(this, zones.log, this.#log);
+    if (zones.log) this.#logPanel.draw(this, zones.log, this.#log);
+    else this.#logPanel.hide();
     if (zones.me) drawCharacter(ctx, zones.me, model.me);
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model);
     if (zones.team) drawTeam(ctx, zones.team, model);
@@ -312,7 +333,7 @@ export class BoardScene extends Phaser.Scene {
     this.#drawFocusRing();
     // Turns the moves of a fresh state (if any landed) into travels, now that
     // this frame holds where every card ended up. A no-op on every other redraw.
-    this.#motion.startTravels(previous.hitRects, this.#frame.hitRects, layout);
+    this.#motion.startTravels(previous, this.#frame, layout);
     // Last, so beats and travelling ghosts float above the table rather than
     // under a later panel.
     this.#motion.drawBeats(this.#frame.hitRects);
@@ -414,12 +435,15 @@ export class BoardScene extends Phaser.Scene {
     });
   }
 
-  /** Opens the Inspect overlay over the board, stepping through the hand when it came from there. */
-  #inspect(id: InstanceId): void {
-    const siblings = this.#model?.hand.map((card) => card.instanceId) ?? [];
+  /**
+   * Opens the Inspect overlay over the board. ◂ ▸ step through `siblings` when
+   * given (your discard pile), else through the hand when the card came from there.
+   */
+  #inspect(id: InstanceId, siblings?: readonly InstanceId[]): void {
+    const list = siblings ?? this.#model?.hand.map((card) => card.instanceId) ?? [];
     this.scene.launch(SCENES.inspect, {
       instanceId: id,
-      ...(siblings.includes(id) ? { siblings } : {}),
+      ...(list.includes(id) ? { siblings: list } : {}),
     });
   }
 
