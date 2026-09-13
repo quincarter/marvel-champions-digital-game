@@ -1,3 +1,4 @@
+import { activeVillain } from "./query.js";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { applyCommands, replay, sessionApply, startSession, type GameSession } from "./engine.js";
@@ -60,7 +61,7 @@ const script = (state: GameState): readonly Command[] => [
     type: "basicAttack",
     playerId: p1,
     attackerInstanceId: mustPlayer(state, p1).identity.instanceId,
-    targetInstanceId: state.villain.instanceId,
+    targetInstanceId: activeVillain(state).instanceId,
   },
   { type: "endTurn", playerId: p1 },
   { type: "changeForm", playerId: p2 },

@@ -25,6 +25,19 @@ import type { ResourceIconType, Trait } from "./common.js";
  * the source consulted — represented below as a stub with an optional
  * numeric value so the shape exists, but flagged: do not treat its semantics
  * as confirmed until cross-checked against the actual card/FAQ text.
+ *
+ * Checked against RRG 1.8 (Jul 2026) for Phase 7 wave 1 (docs/phase7-wave1.md §1):
+ * - Glossary entries exist for "Team-Up" (p. 43), "Teamwork (Trait)" (p. 43),
+ *   "Requirement (Resources)" (p. 37) and "Linked (Card Title)" (p. 27).
+ * - RRG 1.8 has no "Discount" entry at all.
+ * - "Find" (p. 19) is defined as an instruction ("When instructed to find a
+ *   card, a player searches each game area..."), not a keyword with a value, so
+ *   the `find` shape below is unconfirmed.
+ * - "Requirement (Resources)" reads "cannot be played unless each resource of
+ *   the specified type is spent", so a single `icon` may be too narrow. Confirm
+ *   against a printed card before ingesting one.
+ * - No wave 1 card prints Team-Up, Teamwork, Requirement, Find or Discount. The
+ *   Thor Hero Pack's "Teamwork" (06032) is an event's title, not the keyword.
  */
 export type KeywordName =
   | "guard"
@@ -56,7 +69,8 @@ export type KeywordName =
   | "assault"
   | "find"
   | "vulnerable"
-  | "discount";
+  | "discount"
+  | "linked";
 
 interface KeywordBase<N extends KeywordName> {
   readonly name: N;
@@ -76,7 +90,6 @@ export type KeywordInstance =
       | "ranged"
       | "setup"
       | "villainous"
-      | "teamUp"
       | "amplify"
       | "patrol"
       | "stalwart"
@@ -95,7 +108,21 @@ export type KeywordInstance =
   | (KeywordBase<"teamwork"> & { readonly sharedTrait: Trait })
   | (KeywordBase<"find"> & { readonly count?: number })
   /** See file-header note: definition not yet published at the source consulted. */
-  | (KeywordBase<"discount"> & { readonly value?: number });
+  | (KeywordBase<"discount"> & { readonly value?: number })
+  /**
+   * RRG 1.8 "Team-Up" (p. 43): "Team-Up (name 1 and name 2)". The two names are what
+   * deckbuilding checks against the identity, so they are data. Optional only because no
+   * ingested card carries the keyword yet. `validateDeck` reports a card that has the
+   * keyword but no names as `missing_card_data` instead of guessing.
+   */
+  | (KeywordBase<"teamUp"> & { readonly names?: readonly [string, string] })
+  /**
+   * RRG 1.8 "Linked (Card Title)" (p. 27): "Cards with the linked keyword cannot be included in
+   * any deck. Instead, they are set aside at the start of the game if any deck includes the
+   * card that brings the linked cards into play (indicated in the parentheses following the
+   * keyword)." `cardTitle` is that parenthesized title.
+   */
+  | (KeywordBase<"linked"> & { readonly cardTitle?: string });
 
 export const KNOWN_KEYWORD_NAMES: readonly KeywordName[] = [
   "guard",
@@ -128,4 +155,5 @@ export const KNOWN_KEYWORD_NAMES: readonly KeywordName[] = [
   "find",
   "vulnerable",
   "discount",
+  "linked",
 ];

@@ -13,7 +13,22 @@ import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import type { Command, Payment } from "../commands.js";
 import type { GameState } from "../state.js";
 import type { InstanceId, PlayerId } from "../ids.js";
-import { mustPlayer } from "../query.js";
+import { activeEncounterDeck, activeEncounterDeckId, mustPlayer } from "../query.js";
+
+/** Test surgery on the active villain's encounter deck and discard pile ("the encounter deck"). */
+export function withEncounterPiles(
+  state: GameState,
+  piles: { readonly deck?: readonly InstanceId[]; readonly discard?: readonly InstanceId[] },
+): GameState {
+  const current = activeEncounterDeck(state);
+  return {
+    ...state,
+    encounterDecks: {
+      ...state.encounterDecks,
+      [activeEncounterDeckId(state)]: { deck: piles.deck ?? current.deck, discard: piles.discard ?? current.discard },
+    },
+  };
+}
 import {
   stubAlly,
   stubIdentity,

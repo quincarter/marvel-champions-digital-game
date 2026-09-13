@@ -1,3 +1,4 @@
+import { activeVillain } from "./query.js";
 import { flat, trait, type AnyCard, type CardId } from "@mc/content";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -126,7 +127,7 @@ describe("deck and discard manipulation", () => {
     const given = giveCards(state, p1, "repulsor");
     const stacked = stackDeck(given.state, p1, ENERGY.id, RESOURCE.id, RESOURCE.id, MENTAL.id, RESOURCE.id);
     const after = runWith(deps, stacked.state, toHero(), play(given.ids[0] as InstanceId));
-    expect(damageOn(after, after.villain.instanceId)).toBe(5); // 1 + 2 × (2 energy icons)
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(5); // 1 + 2 × (2 energy icons)
   });
 
   it("'Look at the top 3 cards of your deck. Add 1 to your hand and discard the others' (Tony Stark)", () => {
@@ -253,7 +254,7 @@ describe("form, choices, players", () => {
     const offered = settleUntil(runWith(deps, given.state, play(given.ids[0] as InstanceId)), "chooseTriggers", deps);
     const after = settle(resolvePending(offered, [offered.pendingChoice?.options[0]?.optionId as string], deps), undefined, deps);
     expect(mustPlayer(after, p1).identity.form).toBe("hero");
-    expect(damageOn(after, after.villain.instanceId)).toBe(2);
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(2);
     expect(mustPlayer(after, p1).hand).toHaveLength(8);
     // The voluntary flip is still available this round.
     expect(mustPlayer(after, p1).identity.changedFormThisRound).toBe(false);
@@ -331,7 +332,7 @@ describe("form, choices, players", () => {
     const [thug] = mustPlayer(roundTwo, p1).playArea.filter((id) => roundTwo.instances[id]?.cardId === THUG.id) as [InstanceId];
     const given = giveCards(roundTwo, p1, "stomp");
     const after = runWith(deps, given.state, toHero(), play(given.ids[0] as InstanceId));
-    expect(damageOn(after, after.villain.instanceId)).toBe(1);
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(1);
     expect(damageOn(after, thug)).toBe(1);
   });
 });
@@ -362,7 +363,7 @@ describe("Special abilities in a sequence (Wakanda Forever!)", () => {
     expect(ordering.pendingChoice?.prompt.kind).toBe("orderSpecials");
     const after = resolvePending(ordering, [`${geniusId}:tactical`, `${clawsId}:claws`], deps);
     expect(threat(after)).toBe(4); // tactical first: 1
-    expect(damageOn(after, after.villain.instanceId)).toBe(4); // claws last: 4
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(4); // claws last: 4
   });
 });
 
@@ -425,10 +426,13 @@ describe("play restrictions and upgrade hosts (schema PlayRestrictions / Attachm
     const CLAWS = stubUpgrade({ id: "claws", cost: 0, traits: [BLACK_PANTHER] });
     const deps = depsOf(foresight);
     const start = newGameAtMulligan({ identity, villain: VILLAIN, mainScheme: SCHEME, extraCards: [CLAWS], deck: [...copies(CLAWS.id, 2), ...copies(RESOURCE.id, 20)], deps });
-    expect(start.pendingChoice?.prompt).toEqual({ kind: "chooseCards", slot: "u" });
-    const picked = start.pendingChoice?.options[0]?.optionId as InstanceId;
-    const afterSetup = resolvePending(start, [picked], deps);
-    expect(afterSetup.pendingChoice?.prompt.kind).toBe("mulligan");
+    // RRG 1.8 Appendix II (p. 51): the mulligan is step 15 and player "Setup:" abilities are step 16, so the search
+    // happens after the opening hand is drawn and mulliganed (docs/phase7-wave1.md §3.15).
+    expect(start.pendingChoice?.prompt.kind).toBe("mulligan");
+    const atSetup = resolvePending(start, [], deps);
+    expect(atSetup.pendingChoice?.prompt).toEqual({ kind: "chooseCards", slot: "u" });
+    const picked = atSetup.pendingChoice?.options[0]?.optionId as InstanceId;
+    const afterSetup = resolvePending(atSetup, [picked], deps);
     expect(mustPlayer(afterSetup, p1).hand).toContain(picked);
     expect(mustPlayer(afterSetup, p1).hand).toHaveLength(7);
   });

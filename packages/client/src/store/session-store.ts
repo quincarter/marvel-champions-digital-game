@@ -12,7 +12,7 @@
  * what the host reports about that — the game's `record` and any `saveError`.
  */
 
-import type { ChoiceId, Command, GameEvent, GameState, PlayerId } from "@mc/engine";
+import type { ChoiceId, Command, EngineErrorCode, GameEvent, GameState, IllegalDeck, PlayerId } from "@mc/engine";
 import { actingPlayer } from "../engine/acting-player.js";
 import { emptyRecord, type GameRecord } from "../engine/game-record.js";
 import type { SaveMeta } from "../engine/game-storage.js";
@@ -42,6 +42,14 @@ export interface SessionState {
   readonly inFlight: boolean;
   /** The last rejection or host failure, for the advisory banner. Cleared on the next success. */
   readonly error: string | null;
+  /**
+   * Set when `start`/`resume` failed with `illegal_deck` (`SetupError`,
+   * `engine/session-core.ts`) — which seat, and why, so a caller (Title) can
+   * route the player to fix that specific deck instead of only showing
+   * `error`'s flattened text. Null for every other failure, and cleared on the
+   * next attempt.
+   */
+  readonly setupError: { readonly code: EngineErrorCode; readonly illegalDecks: readonly IllegalDeck[] } | null;
   /** The game so far, as the host folded it from every command. What Game Over reports. */
   readonly record: GameRecord;
   /**
@@ -62,6 +70,7 @@ const INITIAL: SessionState = {
   perspectiveId: null,
   inFlight: false,
   error: null,
+  setupError: null,
   record: emptyRecord(),
   saveError: null,
   config: null,
@@ -166,7 +175,7 @@ export class SessionStore {
       await open();
       this.#set({ ...this.#state, status: "playing" });
     } catch (cause) {
-      this.#set({ ...this.#state, status: "failed", error: message(cause) });
+      this.#set({ ...this.#state, status: "failed", error: message(cause), setupError: setupFailureOf(cause) });
     }
   }
 
@@ -183,6 +192,7 @@ export class SessionStore {
       perspectiveId: toAct ?? this.#state.perspectiveId ?? update.state.firstPlayerId,
       inFlight: false,
       error: null,
+      setupError: null,
       record: update.record,
       saveError: update.saveError,
       config: update.config,
@@ -196,3 +206,17 @@ export class SessionStore {
 }
 
 const message = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
+
+/**
+ * Duck-typed rather than an `instanceof SetupError` check: a worker-hosted
+ * game rejects with a plain reconstructed `SetupError` (`worker-host.ts`), but
+ * the store shouldn't have to import `engine/session-core.js` to recognise it
+ * — its own `code`/`illegalDecks` shape is all that matters here.
+ */
+function setupFailureOf(cause: unknown): SessionState["setupError"] {
+  if (!cause || typeof cause !== "object") return null;
+  const code = (cause as { code?: unknown }).code;
+  const illegalDecks = (cause as { illegalDecks?: unknown }).illegalDecks;
+  if (typeof code !== "string" || !Array.isArray(illegalDecks) || illegalDecks.length === 0) return null;
+  return { code: code as EngineErrorCode, illegalDecks: illegalDecks as readonly IllegalDeck[] };
+}

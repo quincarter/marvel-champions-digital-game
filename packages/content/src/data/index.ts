@@ -5,3 +5,87 @@
  */
 export type { CardProvenance, DroppedSourceRecord } from "./types.js";
 export * from "./core/index.js";
+export * from "./pool-version.js";
+
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 1 (PLAN.md Phase 7): the Green Goblin and The Wrecking Crew scenario packs, plus the Captain America,
+// Ms. Marvel, Thor, Black Widow, Doctor Strange and Hulk hero packs. See docs/phase7-wave1.md.
+//
+// `@mc/engine`, `coreScenario()` and the client keep using the `CORE_*` exports above until the engine grows the
+// primitives docs/phase7-wave1.md §3 lists (several villains at once, double-sided villain/encounter cards, an
+// identity's separate deck, ...) — these `WAVE1_*` exports are `@mc/content`-only aggregates for now, not wired
+// into anything that runs a game yet.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./gob/index.js";
+export * from "./twc/index.js";
+export * from "./cap/index.js";
+export * from "./msm/index.js";
+export * from "./thor/index.js";
+export * from "./bkw/index.js";
+export * from "./drs/index.js";
+export * from "./hlk/index.js";
+
+import type { AnyCard, EncounterSet, Scenario, StarterDeck } from "../schema/index.js";
+import { CORE_CARDS } from "./core/cards.js";
+import { GOB_CARDS } from "./gob/cards.js";
+import { GOB_SCENARIOS } from "./gob/scenarios.js";
+import { TWC_CARDS } from "./twc/cards.js";
+import { TWC_SCENARIOS } from "./twc/scenarios.js";
+import { CAP_CARDS } from "./cap/cards.js";
+import { CAP_STARTER_DECKS } from "./cap/starterDecks.js";
+import { MSM_CARDS } from "./msm/cards.js";
+import { MSM_STARTER_DECKS } from "./msm/starterDecks.js";
+import { THOR_CARDS } from "./thor/cards.js";
+import { THOR_STARTER_DECKS } from "./thor/starterDecks.js";
+import { BKW_CARDS } from "./bkw/cards.js";
+import { BKW_STARTER_DECKS } from "./bkw/starterDecks.js";
+import { DRS_CARDS } from "./drs/cards.js";
+import { DRS_STARTER_DECKS } from "./drs/starterDecks.js";
+import { HLK_CARDS } from "./hlk/cards.js";
+import { HLK_STARTER_DECKS } from "./hlk/starterDecks.js";
+import { GOB_ENCOUNTER_SETS } from "./gob/encounterSets.js";
+import { TWC_ENCOUNTER_SETS } from "./twc/encounterSets.js";
+import { CAP_ENCOUNTER_SETS } from "./cap/encounterSets.js";
+import { MSM_ENCOUNTER_SETS } from "./msm/encounterSets.js";
+import { THOR_ENCOUNTER_SETS } from "./thor/encounterSets.js";
+import { BKW_ENCOUNTER_SETS } from "./bkw/encounterSets.js";
+import { DRS_ENCOUNTER_SETS } from "./drs/encounterSets.js";
+import { HLK_ENCOUNTER_SETS } from "./hlk/encounterSets.js";
+
+/** Every card in the wave 1 pool: Core plus the eight wave 1 packs, in pack order. */
+export const WAVE1_CARDS: readonly AnyCard[] = [
+  ...CORE_CARDS,
+  ...GOB_CARDS,
+  ...TWC_CARDS,
+  ...CAP_CARDS,
+  ...MSM_CARDS,
+  ...THOR_CARDS,
+  ...BKW_CARDS,
+  ...DRS_CARDS,
+  ...HLK_CARDS,
+];
+
+/** Every wave 1 encounter set (Core's three villain sets are not included: Core's own scenarios/decks are unaffected by wave 1). */
+export const WAVE1_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...GOB_ENCOUNTER_SETS,
+  ...TWC_ENCOUNTER_SETS,
+  ...CAP_ENCOUNTER_SETS,
+  ...MSM_ENCOUNTER_SETS,
+  ...THOR_ENCOUNTER_SETS,
+  ...BKW_ENCOUNTER_SETS,
+  ...DRS_ENCOUNTER_SETS,
+  ...HLK_ENCOUNTER_SETS,
+];
+
+/** Every wave 1 scenario: Risky Business, Mutagen Formula (Green Goblin) and Breakout (The Wrecking Crew). The six hero packs define no scenario of their own. */
+export const WAVE1_SCENARIOS: readonly Scenario[] = [...GOB_SCENARIOS, ...TWC_SCENARIOS];
+
+/** Every wave 1 hero-pack starter deck (Captain America, Ms. Marvel, Thor, Black Widow, Doctor Strange, Hulk). The two scenario packs define no starter deck. */
+export const WAVE1_STARTER_DECKS: readonly StarterDeck[] = [
+  ...CAP_STARTER_DECKS,
+  ...MSM_STARTER_DECKS,
+  ...THOR_STARTER_DECKS,
+  ...BKW_STARTER_DECKS,
+  ...DRS_STARTER_DECKS,
+  ...HLK_STARTER_DECKS,
+];

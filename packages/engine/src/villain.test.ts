@@ -1,3 +1,5 @@
+import { activeEncounterDeck } from "./query.js";
+import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, type CardId } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -40,7 +42,7 @@ function settleRecording(state: GameState, deps: EngineDeps, asked: Asked[]): Ga
 
 /** Test surgery: the encounter deck's first cards become copies of `order`, in order. */
 function stackEncounter(state: GameState, ...order: readonly CardId[]): GameState {
-  const rest = [...state.encounterDeck];
+  const rest = [...activeEncounterDeck(state).deck];
   const top: InstanceId[] = [];
   for (const card of order) {
     const index = rest.findIndex((id) => state.instances[id]?.cardId === card);
@@ -48,7 +50,7 @@ function stackEncounter(state: GameState, ...order: readonly CardId[]): GameStat
     top.push(rest[index] as InstanceId);
     rest.splice(index, 1);
   }
-  return { ...state, encounterDeck: [...top, ...rest] };
+  return withEncounterPiles(state, { deck: [...top, ...rest] });
 }
 
 describe("RRG 'First Player': an encounter card with several eligible targets", () => {

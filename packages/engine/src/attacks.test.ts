@@ -1,3 +1,5 @@
+import { activeEncounterDeck, activeVillain } from "./query.js";
+import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, type AnyCard, type CardId } from "@mc/content";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -80,7 +82,7 @@ describe("'(attack)' abilities resolve as attacks (RRG 'Attack (Player Ability T
     const { deps, state } = setup({ cards: [KICK], abilities: [kickAbility], villain: villainWith({ keywords: [{ name: "retaliate", value: 1 }] }) });
     const given = giveCards(state, p1, "kick");
     const after = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId));
-    expect(damageOn(after, after.villain.instanceId)).toBe(3);
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(3);
     expect(damageOn(after, identityOf(after))).toBe(1);
   });
 
@@ -91,7 +93,7 @@ describe("'(attack)' abilities resolve as attacks (RRG 'Attack (Player Ability T
     expect(mustPlayer(roundTwo, p1).playArea.some((id) => roundTwo.instances[id]?.cardId === guard.id)).toBe(true);
     const given = giveCards(roundTwo, p1, "kick");
     const after = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId));
-    expect(damageOn(after, after.villain.instanceId)).toBe(0);
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(0);
     expect(mustPlayer(after, p1).discard).toContain(given.ids[0]);
   });
 
@@ -101,7 +103,7 @@ describe("'(attack)' abilities resolve as attacks (RRG 'Attack (Player Ability T
     const hero = runWith(deps, given.state, toHero);
     const stunned = patchInstance(hero, identityOf(hero), { statuses: { stunned: 1, confused: 0, tough: 0 } });
     const after = runWith(deps, stunned, play(given.ids[0] as InstanceId));
-    expect(damageOn(after, after.villain.instanceId)).toBe(0);
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(0);
     expect(mustInstance(after, identityOf(after)).statuses.stunned).toBe(0);
     expect(mustPlayer(after, p1).discard).toContain(given.ids[0]);
   });
@@ -121,7 +123,7 @@ describe("'(attack)' abilities resolve as attacks (RRG 'Attack (Player Ability T
     const { deps, state } = setup({ cards: [upgrade, event], abilities: [strength, punch] });
     const given = giveCards(state, p1, "strength", "punch");
     const after = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId), play(given.ids[1] as InstanceId));
-    expect(damageOn(after, after.villain.instanceId)).toBe(4);
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(4);
   });
 
   it("reports defeats: overkill spills to the villain and 'after your hero attacks and defeats' fires", () => {
@@ -150,8 +152,8 @@ describe("'(attack)' abilities resolve as attacks (RRG 'Attack (Player Ability T
     const handBefore = mustPlayer(atChoice, p1).hand.length;
     expect(mustPlayer(atChoice, p1).hand).not.toContain(eventId);
     const after = resolvePending(atChoice, [thugId], deps);
-    expect(after.encounterDiscard).toContain(thugId);
-    expect(damageOn(after, after.villain.instanceId)).toBe(3);
+    expect(activeEncounterDeck(after).discard).toContain(thugId);
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(3);
     expect(mustPlayer(after, p1).discard).toContain(eventId);
     expect(mustPlayer(after, p1).hand.length).toBe(handBefore + 1);
   });
@@ -190,10 +192,10 @@ describe("'(thwart)' abilities resolve as thwarts", () => {
   it("a crisis icon stops any player card from removing main-scheme threat (RRG 'Crisis Icon')", () => {
     const crisis = stubSideScheme({ id: "crowd", startingThreat: 2, icons: ["crisis"], boostIcons: 0 });
     const { deps, state } = setup({ cards: [JUSTICE, crisis], abilities: [forJustice], encounter: [crisis.id, ...copies(BLANK.id, 10)] });
-    const crisisId = state.encounterDeck.find((id) => state.instances[id]?.cardId === crisis.id) as InstanceId;
+    const crisisId = activeEncounterDeck(state).deck.find((id) => state.instances[id]?.cardId === crisis.id) as InstanceId;
     const withCrisis: GameState = {
       ...state,
-      encounterDeck: state.encounterDeck.filter((id) => id !== crisisId),
+      encounterDecks: withEncounterPiles(state, { deck: activeEncounterDeck(state).deck.filter((id) => id !== crisisId) }).encounterDecks,
       villainArea: [...state.villainArea, crisisId],
     };
     const given = giveCards(withCrisis, p1, "justice");
@@ -210,7 +212,7 @@ describe("enemy attacks: modifications, defenses, results", () => {
     }));
     const CHARGE = stubAttachment({ id: "charge", attachesTo: { kind: "villain" }, keywords: [{ name: "setup" }], statModifiers: { atk: 1 }, abilities: [charge.ref] });
     const { deps, state } = setup({ cards: [CHARGE], abilities: [charge], villain: villainWith({ atk: 4 }), encounter: [CHARGE.id, ...copies(BLANK.id, 20)] });
-    const chargeId = mustInstance(state, state.villain.instanceId).attachments[0] as InstanceId;
+    const chargeId = mustInstance(state, activeVillain(state).instanceId).attachments[0] as InstanceId;
     expect(chargeId).toBeDefined();
     const given = giveCards(state, p1, ALLY.id, RESOURCE.id, RESOURCE.id);
     const [allyId, r1, r2] = given.ids as [InstanceId, InstanceId, InstanceId];
@@ -228,7 +230,7 @@ describe("enemy attacks: modifications, defenses, results", () => {
     // Villain ATK 4 + Charge +1 = 5 into a 3-HP ally: 2 excess spills to the ally's controller.
     expect(mustPlayer(after, p1).discard).toContain(allyId);
     expect(damageOn(after, identityOf(after))).toBe(2);
-    expect(after.encounterDiscard).toContain(chargeId);
+    expect(activeEncounterDeck(after).discard).toContain(chargeId);
   });
 
   it("'give him 1 additional boost card for this activation'", () => {
@@ -267,7 +269,7 @@ describe("enemy attacks: modifications, defenses, results", () => {
     // window asks for no payment (see `requestWindowPayment`).
     const played = resolvePending(offered, [`${given.ids[0]}:counter-punch`], deps);
     const after = settle(played, undefined, deps);
-    expect(damageOn(after, after.villain.instanceId)).toBe(2);
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(2);
   });
 
   it("a (defense) ability makes the identity the defender without its DEF reducing the damage", () => {

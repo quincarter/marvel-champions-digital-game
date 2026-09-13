@@ -14,6 +14,15 @@
  * survives a refresh is the same game to the command, and its `GameRecord` is
  * folded from the same events it would have produced live. The record is never
  * written anywhere — only the log is — so the two can't drift apart.
+ *
+ * **Setup failures keep their engine error code.** `createGame` refuses an
+ * illegal deck with `illegal_deck` and its own per-seat `illegalDecks`
+ * (PLAN.md Phase 9: "a client can route it to 'fix this deck'"). Throwing a
+ * plain `Error` here would flatten that down to a message string before the
+ * client ever saw it, so `start`/`resume` throw `SetupError` instead, which
+ * keeps `code` and `illegalDecks` alongside the message. `engine.worker.ts`
+ * forwards those two fields on its `failed` reply so a worker-hosted game
+ * loses nothing `LocalEngineHost` (same thread, no serialization) keeps for free.
  */
 
 import { CORE_DEPS, coreScenario } from "@mc/cards";
@@ -25,15 +34,17 @@ import {
   startSession,
   type Command,
   type EngineError,
+  type EngineErrorCode,
   type GameEvent,
   type GameSession,
   type GameState,
+  type IllegalDeck,
   type LegalActions,
   type PlayerId,
 } from "@mc/engine";
 import { actingPlayer } from "./acting-player.js";
 import { emptyRecord, recordEvents, type GameRecord } from "./game-record.js";
-import { SAVE_SCHEMA, type GameStorage, type SaveMeta, type SaveStatus } from "./game-storage.js";
+import { isCurrentSchema, SAVE_SCHEMA, type GameStorage, type SaveMeta, type SaveStatus } from "./game-storage.js";
 import type { CardPool, LegalActionsFor, SavedGame, SessionConfig, StateWithoutPool } from "./host.js";
 
 /** An update as it crosses a thread boundary: no card pool, so it stays ~68 KB. */
@@ -57,6 +68,27 @@ export interface Snapshot {
 export type CoreDispatch =
   | { readonly ok: true; readonly snapshot: Snapshot }
   | { readonly ok: false; readonly error: EngineError };
+
+/**
+ * A setup (`start`/`resume`) refusal, carrying the engine's own `code` and — for
+ * `illegal_deck` — which seat and why, rather than only a flattened message. A
+ * plain `{ code, illegalDecks }` payload rides alongside this over the worker
+ * boundary (`protocol.ts`'s `failed` reply) since a class instance's own fields
+ * don't reliably survive structured clone; `WorkerEngineHost` reconstructs a
+ * `SetupError` from those two fields so the main thread sees the same shape
+ * whether the game runs local or in the worker.
+ */
+export class SetupError extends Error {
+  readonly code: EngineErrorCode;
+  readonly illegalDecks: readonly IllegalDeck[] | undefined;
+
+  constructor(engineError: EngineError) {
+    super(engineError.message);
+    this.name = "SetupError";
+    this.code = engineError.code;
+    this.illegalDecks = engineError.illegalDecks;
+  }
+}
 
 export interface CoreOptions {
   /** Omit for a game that lives only as long as the page. */
@@ -109,10 +141,10 @@ export class EngineSessionCore {
     this.#newId = options.newId ?? (() => crypto.randomUUID());
   }
 
-  /** Builds the Core scenario and runs RRG setup. Throws with the engine's message. */
+  /** Builds the Core scenario and runs RRG setup. Throws `SetupError` with the engine's own code and message. */
   async start(config: SessionConfig): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
     const setup = createGame(scenarioFor(config), CORE_DEPS);
-    if (!setup.ok) throw new Error(`setup failed: ${setup.error.message}`);
+    if (!setup.ok) throw new SetupError({ ...setup.error, message: `setup failed: ${setup.error.message}` });
 
     this.#session = startSession(setup.state);
     this.#config = config;
@@ -163,11 +195,19 @@ export class EngineSessionCore {
     if (!storage) throw new Error("there is no saved-games storage to resume from");
     const stored = await storage.load(gameId);
     if (!stored) throw new Error("that saved game is no longer there");
+    // A save from an older schema is retired deliberately, before any replay is attempted: its baseline state is a
+    // shape this engine no longer has, even if its commands would happen to apply.
+    if (!isCurrentSchema(stored.meta)) {
+      await storage.setStatus(gameId, "incompatible");
+      throw new Error(
+        `this saved game was made by an older version of the game (save format ${stored.meta.schema}; this build reads ${SAVE_SCHEMA}) and can't be continued`,
+      );
+    }
 
     const fresh = createGame(scenarioFor(stored.meta.config), CORE_DEPS);
     if (!fresh.ok) {
       await storage.setStatus(gameId, "incompatible");
-      throw new Error(`this saved game can no longer be set up: ${fresh.error.message}`);
+      throw new SetupError({ ...fresh.error, message: `this saved game can no longer be set up: ${fresh.error.message}` });
     }
 
     const initialState: GameState = { ...stored.initialState, cardPool: fresh.state.cardPool };
@@ -213,9 +253,19 @@ export class EngineSessionCore {
     return queryLegalActions(this.#require().state, playerId, CORE_DEPS);
   }
 
-  /** The stored game to offer as "Continue", or null. */
-  latestSave(): Promise<SaveMeta | null> {
-    return this.#storage ? this.#storage.latestActive() : Promise.resolve(null);
+  /**
+   * The stored game to offer as "Continue", or null. A game saved under an older `SAVE_SCHEMA` is retired on the
+   * way — marked `incompatible` and skipped — so it is never offered and then fails to replay.
+   */
+  async latestSave(): Promise<SaveMeta | null> {
+    const storage = this.#storage;
+    if (!storage) return null;
+    // Each pass retires one game, so this ends when the newest active game is current or none is left.
+    for (;;) {
+      const latest = await storage.latestActive();
+      if (!latest || isCurrentSchema(latest)) return latest;
+      await storage.setStatus(latest.id, "incompatible");
+    }
   }
 
   save(): SavedGame {

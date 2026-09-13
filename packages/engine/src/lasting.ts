@@ -16,7 +16,13 @@ export type LastingDuration =
   /** "Until the end of the round" / "this round". */
   | { readonly kind: "endOfRound" }
   /** "Until the end of this attack/activation": ends when that event frame finishes. */
-  | { readonly kind: "endOfEvent"; readonly frameId: FrameId };
+  | { readonly kind: "endOfEvent"; readonly frameId: FrameId }
+  /**
+   * While one card resolves: "increase the amount of damage *that event* deals by 2" (Embiggen!) lasts exactly as
+   * long as that event card's play, so a card returned to hand and replayed does not keep the bonus. Ends when that
+   * card's `playCard` frame finishes.
+   */
+  | { readonly kind: "endOfCardResolution"; readonly instanceId: InstanceId };
 
 /** The context a lasting effect evaluates its values and queries in (the ability that created it). */
 export interface LastingScope {
@@ -49,8 +55,16 @@ export type LastingEffectBody =
     })
   /** "Gain the [trait] trait until the end of the phase". */
   | (LastingReach & { readonly kind: "traitGrant"; readonly trait: Trait; readonly scope: LastingScope })
+  /** "Treat this card's printed text box as if it were blank" (`textBoxBlank`). */
+  | { readonly kind: "blankTextBox"; readonly targets: readonly InstanceId[] }
   /** A delayed effect ("At the end of the round, …"): fires when its duration ends. */
-  | { readonly kind: "delayedEffects"; readonly effects: readonly EffectSpec[]; readonly scope: LastingScope };
+  | { readonly kind: "delayedEffects"; readonly effects: readonly EffectSpec[]; readonly scope: LastingScope }
+  /**
+   * "Increase the amount of damage that event deals by 2" (Embiggen!) / "…threat that event removes…" (Shrink): a
+   * bonus on one card, added to every instance of damage dealt (or threat removed) by that card's own effects while
+   * it resolves (RRG 1.8 "Event", p. 19; FAQ #10/#11, p. 59).
+   */
+  | { readonly kind: "cardEffectBonus"; readonly sourceInstanceId: InstanceId; readonly damage: number; readonly threatRemoved: number };
 
 export type LastingEffect = LastingEffectBody & {
   readonly id: string;

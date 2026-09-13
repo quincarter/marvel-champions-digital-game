@@ -8,7 +8,7 @@
 
 import { describe, expect, test } from "vitest";
 import type { CardId } from "@mc/content";
-import type { GameEvent, InstanceId, PlayerId, ZoneId } from "@mc/engine";
+import { encounterDeckId, type GameEvent, type InstanceId, type PlayerId, type ZoneId } from "@mc/engine";
 import type { Rect } from "./layout.js";
 import { travelsFrom } from "./travel.js";
 
@@ -61,7 +61,7 @@ describe("travelsFrom", () => {
   });
 
   test("a reveal from a hidden deck to a visible zone still travels — the pile itself is public", () => {
-    const encounterDeck: ZoneId = { kind: "encounterDeck" };
+    const encounterDeck: ZoneId = { kind: "encounterDeck", deckId: encounterDeckId("e1") };
     const villainArea: ZoneId = { kind: "villainArea" };
     const travels = travelsFrom(
       [moved(id("minion-1"), encounterDeck, villainArea)],

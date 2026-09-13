@@ -17,7 +17,7 @@ import type { DecisionAuthority } from "../choices.js";
 import { applyCommand, type GameLog } from "../engine.js";
 import type { GameEvent } from "../events.js";
 import type { ChoiceId, InstanceId, PlayerId } from "../ids.js";
-import { isMinion, scale } from "../query.js";
+import { isMinion, mainSchemeValue } from "../query.js";
 import type { Form, GameState, GameStep } from "../state.js";
 
 export interface VillainActivationRecord {
@@ -147,6 +147,9 @@ function nextClockwise(seats: readonly PlayerId[], from: PlayerId, eliminated: R
   return null;
 }
 
+/** Any of the scenario's villains (the active one activates; any villain may be given a boost card by an effect). */
+const isAVillain = (state: GameState, id: InstanceId): boolean => state.villains.some((villain) => villain.instanceId === id);
+
 const isVillainous = (card: AnyCard | undefined): boolean =>
   card?.type === "minion" && card.keywords.some((k) => k.name === "villainous");
 
@@ -187,6 +190,7 @@ class PhaseTracker {
     private readonly seats: readonly PlayerId[],
     shadow: Shadow,
     private readonly violations: AuditViolation[],
+    private readonly deps: EngineDeps,
   ) {
     this.round = shadow.round;
     this.firstPlayerId = shadow.firstPlayerId;
@@ -231,8 +235,10 @@ class PhaseTracker {
         const trigger = event.event;
         const villainActs =
           (trigger.kind === "enemyAttack" || trigger.kind === "enemyScheme") &&
-          trigger.enemyInstanceId === this.state.villain.instanceId &&
-          !(trigger.kind === "enemyAttack" && trigger.additionalResolution);
+          isAVillain(this.state, trigger.enemyInstanceId) &&
+          !(trigger.kind === "enemyAttack" && trigger.additionalResolution) &&
+          // "That attack does not get a boost card".
+          trigger.noBoost !== true;
         // An attack or scheme canceled at its interrupt window never happened, so it deals no boost card.
         if (event.phase === "cancelled" && villainActs) this.villainAttacksAndSchemes--;
         if (event.phase !== "initiated") return;
@@ -243,10 +249,10 @@ class PhaseTracker {
           trigger.sourceInstanceId === null &&
           trigger.schemeInstanceId === this.state.mainScheme.instanceId
         ) {
-          const main = this.state.cardPool[this.state.mainScheme.cardId];
-          const acceleration = main?.type === "main_scheme" ? main.stages[shadow.mainStage]?.acceleration : undefined;
-          const expected =
-            (acceleration ? scale(acceleration, this.state.startingPlayerCount) : 0) + shadow.tokens + schemeIcons(this.state, shadow, "acceleration");
+          // The stage's acceleration with its modifiers ("X is equal to the number of Goblin enemies"), read from the
+          // state at the start of the command that opened this phase: the one engine rule this audit borrows.
+          const atStage: GameState = { ...this.state, mainScheme: { ...this.state.mainScheme, stageIndex: shadow.mainStage } };
+          const expected = mainSchemeValue(atStage, "acceleration", this.deps) + shadow.tokens + schemeIcons(this.state, shadow, "acceleration");
           this.accelerationThreat = { placed: trigger.amount, expected };
           if (trigger.amount !== expected) {
             this.violate("step1.acceleration", `step one placed ${trigger.amount} threat; acceleration calls for ${expected}`);
@@ -260,7 +266,7 @@ class PhaseTracker {
       case "boostCardDealt": {
         this.boostCards.push({ enemyInstanceId: event.enemyInstanceId, instanceId: event.instanceId, boostIcons: null });
         this.unflippedBoosts.add(event.instanceId);
-        if (event.enemyInstanceId === this.state.villain.instanceId) {
+        if (isAVillain(this.state, event.enemyInstanceId)) {
           this.villainBoosts++;
         } else if (!isVillainous(this.state.cardPool[this.state.instances[event.enemyInstanceId]?.cardId ?? ""])) {
           this.violate("boost.recipient", `${event.enemyInstanceId} got a boost card but is neither the villain nor villainous`);
@@ -328,7 +334,7 @@ class PhaseTracker {
     if (event.activation !== expected) {
       this.violate("step2.form", `${event.enemyInstanceId} ${event.activation}ed against ${event.playerId}, who is in ${shadow.forms.get(event.playerId)} form`);
     }
-    if (event.enemyInstanceId === this.state.villain.instanceId) {
+    if (isAVillain(this.state, event.enemyInstanceId)) {
       while (this.activationCursor < this.order.length && shadow.eliminated.has(this.order[this.activationCursor] as PlayerId)) this.activationCursor++;
       const due = this.order[this.activationCursor];
       if (event.playerId !== due) this.violate("step2.villainOrder", `the villain activated against ${event.playerId}; ${due ?? "nobody"} was next`);
@@ -394,7 +400,7 @@ class PhaseTracker {
       for (const step of this.steps) if (step === VILLAIN_STEPS[cursor]) cursor++;
       if (cursor < VILLAIN_STEPS.length) this.violate("steps", `villain phase steps ran as ${this.steps.join(" → ")}`);
       if (this.accelerationThreat === null) this.violate("step1.acceleration", "no step-one threat was placed");
-      const encounterCardsLeft = finalState.encounterDeck.length + finalState.encounterDiscard.length > 0;
+      const encounterCardsLeft = Object.values(finalState.encounterDecks).some((piles) => piles.deck.length + piles.discard.length > 0);
       if (encounterCardsLeft && this.villainBoosts < this.villainAttacksAndSchemes) {
         this.violate("boost.villain", `the villain attacked or schemed ${this.villainAttacksAndSchemes} time(s) but got ${this.villainBoosts} boost card(s)`);
       }
@@ -439,7 +445,7 @@ export function auditVillainPhases(log: GameLog, deps: EngineDeps = DEFAULT_DEPS
     shadow = shadowOf(state);
     for (const event of result.events) {
       if (event.type === "stepChanged" && event.to.kind === "placeThreat" && !event.to.placed) {
-        open = new PhaseTracker(state, seats, shadow, violations);
+        open = new PhaseTracker(state, seats, shadow, violations, deps);
       }
       open?.observe(event, shadow);
       observeShadow(shadow, state, event);

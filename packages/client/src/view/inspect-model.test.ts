@@ -6,6 +6,7 @@
  * the player isn't entitled to see.
  */
 
+import { activeEncounterDeck, activeVillain } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
 import { abilityId } from "@mc/content";
@@ -80,14 +81,14 @@ describe("inspectModel", () => {
   });
 
   test("keeps a card in the encounter deck hidden even so", () => {
-    const top = state.encounterDeck[0]!;
+    const top = activeEncounterDeck(state).deck[0]!;
     const model = inspect(top);
     expect(model.hidden).toBe(true);
     expect(model.rulesText).toContain("facedown");
   });
 
   test("carries the villain's keywords with their printed values", () => {
-    const model = inspect(state.villain.instanceId);
+    const model = inspect(activeVillain(state).instanceId);
     expect(model.hidden).toBe(false);
     // Every keyword reads as a complete phrase — never a bare "Retaliate".
     for (const keyword of model.keywords) expect(keyword.trim().length).toBeGreaterThan(0);

@@ -1,0 +1,70 @@
+/**
+ * Step 1: index every raw record by code and drop MarvelCDB's aggregate records.
+ *
+ * An aggregate is a bare code like `01097` or `01144` whose suffixed variants `01097a`/`01144a…` also exist: it
+ * duplicates the real cards and would double-count copies.
+ */
+import type { DroppedSourceRecord } from "../../../src/data/types.ts";
+import type { ImageRef } from "../../../src/schema/index.ts";
+import type { RawCard } from "../raw-types.ts";
+import { imageOf } from "./art.ts";
+
+export interface Flattened {
+  /** Every raw record by code, linked (back-face) records included. */
+  readonly byCode: ReadonlyMap<string, RawCard>;
+  /** The records that become cards: `raw` without the aggregates. */
+  readonly topLevel: readonly RawCard[];
+  readonly dropped: DroppedSourceRecord[];
+  readonly isAggregate: (code: string) => boolean;
+  /**
+   * The front-face image of an A-side record's aggregate twin: MarvelCDB gives
+   * `01097a` no image of its own, but `01097` (dropped as a duplicate of
+   * the 01097a/01097b pair) carries one.
+   *
+   * That image is the **B** side, not the A side. Verified against the printed
+   * collector numbers on the scans themselves: `/bundles/cards/01097.png` is
+   * stamped "97B" and `/bundles/cards/01116.png` is stamped "116B", and both
+   * show the threat value and acceleration that only the B side prints. Read
+   * the other way round — which is the intuitive reading, and was the original
+   * one — every main scheme on the table drew its setup/contents side.
+   */
+  readonly aggregateImage: (aSideCode: string) => ImageRef | undefined;
+}
+
+export function flatten(raw: readonly RawCard[], errors: string[]): Flattened {
+  const byCode = new Map<string, RawCard>();
+  for (const r of raw) {
+    if (byCode.has(r.code)) errors.push(`duplicate MarvelCDB code ${r.code}`);
+    byCode.set(r.code, r);
+    if (r.linked_card) byCode.set(r.linked_card.code, r.linked_card);
+  }
+  const dropped: DroppedSourceRecord[] = [];
+  const isAggregate = (code: string) => /\d$/.test(code) && byCode.has(`${code}a`);
+  const aggregateImage = (aSideCode: string): ImageRef | undefined => imageOf(byCode.get(aSideCode.replace(/a$/, ""))?.imagesrc);
+  const topLevel: RawCard[] = [];
+  for (const r of raw) {
+    if (!isAggregate(r.code)) {
+      topLevel.push(r);
+      continue;
+    }
+    const variants = [...byCode.values()].filter((v) => new RegExp(`^${r.code}[a-z]$`).test(v.code));
+    if (r.type_code === "main_scheme") {
+      const b = byCode.get(`${r.code}b`);
+      if (!b || b.threat !== r.threat || b.escalation_threat !== r.escalation_threat) {
+        errors.push(`aggregate ${r.code} does not match its B side — inspect before dropping`);
+      }
+      dropped.push({
+        marvelcdbCode: r.code,
+        reason: `MarvelCDB aggregate record duplicating main scheme stage ${r.code}a/${r.code}b.`,
+      });
+    } else {
+      const sum = variants.reduce((n, v) => n + v.quantity, 0);
+      if (sum !== r.quantity) errors.push(`aggregate ${r.code} quantity ${r.quantity} != variants' total ${sum}`);
+      dropped.push({
+        marvelcdbCode: r.code,
+        reason: `MarvelCDB aggregate record for the printed variants ${variants.map((v) => v.code).join(", ")} (quantity ${r.quantity} = their total).`,
+      });
+    }
+  }
+  return { byCode, topLevel, dropped, isAggregate, aggregateImage };
+}

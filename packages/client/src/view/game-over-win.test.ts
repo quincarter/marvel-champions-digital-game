@@ -36,8 +36,8 @@ async function nearWin(): Promise<SessionStore> {
   const saved = (await storage.load(meta.id))!;
 
   const base = saved.initialState;
-  const villainId = base.villain.instanceId;
-  const onLastStage: StateWithoutPool = { ...base, villain: { ...base.villain, stageIndex: base.villain.lastStageIndex } };
+  const villainId = base.activeVillainId;
+  const onLastStage: StateWithoutPool = { ...base, villains: base.villains.map((v) => ({ ...v, stageIndex: v.lastStageIndex })) };
   const remaining = remainingHitPoints({ ...onLastStage, cardPool: first.state.game!.cardPool } as GameState, villainId, CORE_DEPS)!;
   const villain = onLastStage.instances[villainId]!;
   const patched: StateWithoutPool = {

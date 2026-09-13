@@ -28,6 +28,17 @@ export type ChoicePrompt =
   | { readonly kind: "orderEnemies"; readonly activation: "attack" | "scheme" }
   /** RRG "Simultaneous Resolution": the first player orders same-trigger effects. */
   | { readonly kind: "orderTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
+  /**
+   * RRG 1.8 "Each Player" (p. 17): "If the effect does not specify what order the players resolve the effect in,
+   * the first player decides the order." Ordering which players receive dealt encounter cards (ruling, Jan 26, 2026
+   * (4) answer 3). The selections are player ids, in the order they resolve.
+   */
+  | { readonly kind: "orderPlayers"; readonly reason: "dealEncounterCards" }
+  /**
+   * "Put the others back in any order" (Heimdall): the selections are the cards, in the order they go back on top of
+   * the deck. RRG 1.8 "Deck" (p. 15): a deck's order changes only when a card instructs it.
+   */
+  | { readonly kind: "orderCards"; readonly to: "encounterDeckTop" }
   /** Optional interrupts/responses: a controller picks which of theirs to use, in order. */
   | { readonly kind: "chooseTriggers"; readonly event: TriggerEvent; readonly timing: WindowTiming }
   | { readonly kind: "chooseTarget"; readonly slot: string; readonly abilityId: AbilityId | null }
@@ -62,7 +73,13 @@ export type ChoicePrompt =
   /** RRG "Ally Limit": the controller discards allies down to their ally limit. */
   | { readonly kind: "discardOverAllyLimit"; readonly limit: number }
   /** RRG "Restricted": the controller discards down to two restricted cards. */
-  | { readonly kind: "discardRestricted"; readonly limit: number };
+  | { readonly kind: "discardRestricted"; readonly limit: number }
+  /**
+   * RRG 1.8 "Indirect Damage" (p. 24): divide `amount` among these characters, at most `caps[instanceId]` each (its
+   * remaining hit points). Options are `<instanceId>#<n>` for n = 1…cap; each selected option is 1 damage to that
+   * character, and exactly `amount` must be selected.
+   */
+  | { readonly kind: "assignIndirectDamage"; readonly amount: number; readonly caps: Readonly<Record<string, number>> };
 
 export type ChoiceRef =
   | { readonly kind: "card"; readonly instanceId: InstanceId }

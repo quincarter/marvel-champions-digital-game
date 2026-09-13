@@ -7,7 +7,7 @@
  * picking a game back up and starting one look the same.
  */
 
-import type { Command, EngineError, LegalActions, PlayerId } from "@mc/engine";
+import type { Command, EngineError, EngineErrorCode, IllegalDeck, LegalActions, PlayerId } from "@mc/engine";
 import type { SaveMeta } from "./game-storage.js";
 import type { CardPool, SessionConfig, StateWithoutPool } from "./host.js";
 import type { Snapshot } from "./session-core.js";
@@ -38,5 +38,12 @@ export type HostResponse =
   | { readonly kind: "legalActions"; readonly id: number; readonly actions: LegalActions }
   | { readonly kind: "save"; readonly id: number; readonly save: SerializedSave }
   | { readonly kind: "latestSave"; readonly id: number; readonly meta: SaveMeta | null }
-  /** The worker threw: an invariant break, a bad setup, or a save that won't replay. Surfaced, never swallowed. */
-  | { readonly kind: "failed"; readonly id: number; readonly message: string };
+  /**
+   * The worker threw: an invariant break, a bad setup, or a save that won't
+   * replay. Surfaced, never swallowed. `code`/`illegalDecks` are present when
+   * the throw was a `SetupError` (`session-core.ts`), so a `start`/`resume`
+   * refusal keeps its engine error code across the worker boundary — plain
+   * data, not the `SetupError` instance itself, since a class's own fields
+   * don't reliably survive structured clone.
+   */
+  | { readonly kind: "failed"; readonly id: number; readonly message: string; readonly code?: EngineErrorCode; readonly illegalDecks?: readonly IllegalDeck[] };

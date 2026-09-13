@@ -2,9 +2,15 @@
  * Title, then setup: pick a scenario, a difficulty, and 1–4 seats.
  *
  * The mocks split this across Scenario → Heroes → Deck screens; this is one
- * screen carrying the same three decisions, with the preconstructed Core decks
- * as the only deck choice (deckbuilding is out of scope for Phase 4). One red
- * per screen, so "Start game" is the only red fill here.
+ * screen carrying the same three decisions. **Seats are "any legal deck"**
+ * (PLAN.md Phase 9): the Heroes section offers every precon plus every saved
+ * or imported deck (`view/deck-list-model.ts`'s `deckOptionsOf`), each dimmed
+ * in place when it can't be seated — illegal, missing scripts, or its
+ * identity already at the table — with the engine's own reason, the same
+ * "dim, don't hide" pattern the precon-only picker always used. Precons stay
+ * first and are still the default seat, so the fastest path to a game (just
+ * press Start) is no slower than it was before decks existed. One red per
+ * screen, so "Start game" is the only red fill here.
  *
  * Every seat is played by the same human (PLAN.md Phase 4, hero seats): the
  * board's perspective follows whoever must act, and each command is still
@@ -12,11 +18,14 @@
  */
 
 import Phaser from "phaser";
-import { CORE_CARDS, CORE_SCENARIOS, CORE_STARTER_DECKS, type AnyCard, type CardId } from "@mc/content";
+import { CORE_DEPS } from "@mc/cards";
+import { CORE_CARDS, CORE_POOL_VERSION, CORE_SCENARIOS, CORE_STARTER_DECKS, type AnyCard, type CardId, type Deck } from "@mc/content";
 import { accent, dotGrid, hit, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { CAPTION_FLOOR, CAPTION_HEIGHT, McButton, McCardTile, McTextInput, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { artFor } from "../art/art-source.js";
+import { deckOptionsOf, preconDecks, type DeckOption } from "../view/deck-list-model.js";
+import { corePlayerFromDeck } from "../view/deck-seat.js";
 import { seatOptions } from "../view/seats.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { Rect } from "../view/layout.js";
@@ -24,14 +33,27 @@ import { formFactorFor } from "../view/layout.js";
 import { parseSeed, rollSeed } from "../view/seed.js";
 import type { SaveMeta } from "../engine/game-storage.js";
 import { titleFocusOrder } from "../view/screen-focus.js";
-import { appSession } from "../session.js";
+import { appSession, deckStorage } from "../session.js";
+import type { DecksSceneData } from "./decks.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+
+/** The default seat: the first Core precon, as a `Deck` id — unchanged from before decks existed, so "just press Start" still seats the same hero. */
+const DEFAULT_SEAT_DECK_ID = preconDecks(CORE_POOL_VERSION)[0]!.id as string;
 
 export class TitleScene extends Phaser.Scene {
   #scenarioId = CORE_SCENARIOS[0]!.id as string;
   #difficulty: "standard" | "expert" = "standard";
-  #seats: string[] = [CORE_STARTER_DECKS[0]!.id as string];
+  /** Deck ids (`Deck.id`, e.g. `precon:core-spider-man-justice` or a saved deck's own id) — a single namespace covering every seat option. */
+  #seats: string[] = [DEFAULT_SEAT_DECK_ID];
+  /**
+   * Saved and imported decks, loaded once per visit (`deckStorage().list()`),
+   * refreshed on return from the Decks screen since Phaser reruns `create()`
+   * on every visit to this scene instance (PLAN.md Phase 4, "reset per-visit
+   * state in `create()`"). Precons are never stored here — `preconDecks()`
+   * derives them fresh every time, the same as `deckOptionsOf` always does.
+   */
+  #savedDecks: readonly Deck[] = [];
   /**
    * A fresh seed per visit. The engine shuffles every deck from `config.seed`
    * at setup, so a constant default meant every new game dealt the same opening
@@ -98,6 +120,7 @@ export class TitleScene extends Phaser.Scene {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#seedInput?.focused ?? false),
     });
     this.#continuable = null;
+    this.#savedDecks = [];
     // Phaser reuses this instance, and a successful Start or Continue leaves
     // `#starting` set as the scene hands off to the Board — so coming back from
     // Game Over's "Back to title" found Start stuck on "Starting…" and Continue
@@ -110,6 +133,16 @@ export class TitleScene extends Phaser.Scene {
         // The scene may have moved on while storage answered.
         if (!save || !this.sys.isActive()) return;
         this.#continuable = save;
+        this.#rebuild();
+      });
+    // Saved/imported decks, re-read on every visit: coming back from the Decks
+    // screen (a new deck saved, one deleted, an illegal one fixed) must not
+    // show what this scene last saw before that trip.
+    void deckStorage()
+      .list()
+      .then((decks) => {
+        if (!this.sys.isActive()) return;
+        this.#savedDecks = decks;
         this.#rebuild();
       });
   }
@@ -132,13 +165,18 @@ export class TitleScene extends Phaser.Scene {
 
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";
-    const pad = phone ? 16 : 40;
+    // A short window gives the margins back first: every seat a saved deck adds
+    // is another row, and "Start game" has to stay on screen, since a canvas
+    // doesn't scroll.
+    const pad = phone ? 16 : height < 820 ? 24 : 40;
     const column = Math.min(width - pad * 2, 640);
     const left = (width - column) / 2;
 
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper);
 
-    const titleSize = phone ? 38 : Math.min(92, Math.round(width / 10));
+    // Scaled by height as well as width: at a wide, short window the two-line
+    // wordmark alone took a quarter of the screen.
+    const titleSize = phone ? 38 : Math.min(92, Math.round(width / 10), Math.round(height * 0.085));
     this.add
       .text(left, pad + 8, "MARVEL\nCHAMPIONS", {
         ...textStyle(typeRole.screenTitle, surface.ink.hex),
@@ -152,8 +190,19 @@ export class TitleScene extends Phaser.Scene {
     // (Leadership)" is wider than its own cell, and the label then runs over
     // its neighbour. Measuring is the only way to know, since the answer
     // depends on the font the browser actually loaded.
+    // Every seat option: every precon, then every saved/imported deck
+    // (PLAN.md Phase 9, "seats become any legal deck") — computed once per
+    // rebuild rather than per row, since `deckOptionsOf` asks the engine for
+    // each deck's legality and playability.
+    const deckOptions = this.#deckOptions();
+    // A seat naming a deck that no longer exists (deleted at the Decks screen
+    // since this scene was last built) falls back to the default rather than
+    // silently seating nothing.
+    this.#seats = this.#seats.filter((id) => deckOptions.some((option) => (option.deck.id as string) === id));
+    if (this.#seats.length === 0) this.#seats = [DEFAULT_SEAT_DECK_ID];
+
     const scenarioNames = CORE_SCENARIOS.map((scenario) => scenario.name);
-    const heroNames = CORE_STARTER_DECKS.map((deck) => deck.name.split(" — ")[0]!);
+    const heroNames = deckOptions.map((option) => option.deck.name.split(" — ")[0]!);
     const scenarioCols = this.#columnsFor(scenarioNames, column, true);
     const heroCols = this.#columnsFor(heroNames, column, true);
     const difficultyCols = 2;
@@ -180,7 +229,9 @@ export class TitleScene extends Phaser.Scene {
       // Seed row and the primary CTA.
       hit.target + 16 + hit.primary +
       // "Continue", when there is a game to continue.
-      (this.#continuable ? hit.target + gapAfterSection : 0);
+      (this.#continuable ? hit.target + gapAfterSection : 0) +
+      // "Manage decks": a row of its own only on a phone; wider, it shares the seed row.
+      (phone ? hit.target + gapAfterSection : 0);
     const artHeight = Math.max(0, Math.min(phone ? 96 : 128, Math.floor((height - fixed) / Math.max(1, artLines))));
     const showArt = artHeight >= 44;
 
@@ -230,32 +281,56 @@ export class TitleScene extends Phaser.Scene {
     // A hero already at the table cannot sit twice: the Rules Reference limits
     // a unique card to one copy in play across all players, by title. Both
     // Captain Marvel starter decks name the same identity, so offering them
-    // together was offering an illegal game (see view/seats.ts).
-    const seating = new Map(seatOptions(CORE_STARTER_DECKS, this.#seats, CARDS_BY_ID).map((o) => [o.deckId, o]));
+    // together was offering an illegal game. A deck that can't be seated at
+    // all (illegal, or using cards this build can't play yet) is blocked the
+    // same way, with the engine's own reason (see view/seats.ts).
+    const seating = new Map(seatOptions(deckOptions, this.#seats, CARDS_BY_ID).map((o) => [o.deckId, o]));
 
-    y = this.#section(left, y, column, `Heroes — ${this.#seats.length} seat${this.#seats.length === 1 ? "" : "s"}, all played by you`, CORE_STARTER_DECKS.map((deck) => {
-      const seated = this.#seats.includes(deck.id as string);
-      const blockedBy = seating.get(deck.id as string)?.blockedBy ?? null;
+    y = this.#section(left, y, column, `Heroes — ${this.#seats.length} seat${this.#seats.length === 1 ? "" : "s"}, all played by you`, deckOptions.map((option) => {
+      const deckId = option.deck.id as string;
+      const seated = this.#seats.includes(deckId);
+      const blockedBy = seating.get(deckId)?.blockedBy ?? null;
       return {
-        id: deck.id as string,
+        id: deckId,
         // "Spider-Man (Justice) — Core Set starter deck" and the tutorial
-        // deck's own suffix both trim to the part that identifies the hero.
-        text: deck.name.split(" — ")[0]!,
-        ...(showArt ? { cardId: deck.identityCardId } : {}),
+        // deck's own suffix both trim to the part that identifies the hero;
+        // an imported/built deck's own name (no " — " in it) is unaffected.
+        text: option.deck.name.split(" — ")[0]!,
+        ...(showArt ? { cardId: option.deck.identityCardId } : {}),
         chooseLabel: seated ? "Remove this seat" : "Take this seat",
         selected: seated,
         ...(blockedBy ? { blockedBy } : {}),
         onClick: () => {
           if (seated) {
             // A game needs at least one seat.
-            if (this.#seats.length > 1) this.#seats = this.#seats.filter((id) => id !== (deck.id as string));
+            if (this.#seats.length > 1) this.#seats = this.#seats.filter((id) => id !== deckId);
           } else if (!blockedBy) {
-            this.#seats = [...this.#seats, deck.id as string];
+            this.#seats = [...this.#seats, deckId];
           }
           this.#rebuild();
         },
       };
     }), phone, artHeight, heroCols, "hero");
+
+    // The way to the Decks screen: build, import, or manage a deck. Always
+    // shown, not only once a custom deck exists — it's how the first one gets
+    // made. Never red: the one red on this screen stays "Start game".
+    //
+    // On a phone it gets a row of its own; wider, it shares the seed row. A row
+    // of its own pushed "Start game" below the bottom of an 800×600 window,
+    // where a canvas can't scroll to it.
+    const openDecks = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      this.scene.start(SCENES.decks);
+    };
+    const addManageDecks = (rect: Rect): void => {
+      this.#buttons.push(new McButton(this, { kind: "secondary", label: "Manage decks…", type: typeRole.rowTitle, rect, onClick: openDecks }));
+      this.#stops.set("manage-decks", { rect, activate: openDecks });
+    };
+    if (phone) {
+      addManageDecks({ x: left, y, width: column, height: hit.target });
+      y += hit.target + gapAfterSection;
+    }
 
     // Seed: a typed value, not just a rolled one — the engine's shuffle is
     // only replayable if a specific seed can be entered back in (PLAN.md
@@ -263,7 +338,8 @@ export class TitleScene extends Phaser.Scene {
     // just wanting a fresh game.
     label(this, left, y, "seed", typeRole.label, surface.ink.hex, ink.label);
     const newSeedWidth = 110;
-    const seedFieldWidth = column - newSeedWidth - 10;
+    const manageDecksWidth = phone ? 0 : 150;
+    const seedFieldWidth = column - newSeedWidth - 10 - (phone ? 0 : manageDecksWidth + 10);
     const seedRect: Rect = { x: left, y: y + 16, width: seedFieldWidth, height: hit.target };
     if (this.#seedInput) this.#seedInput.layout(seedRect);
     else {
@@ -300,6 +376,7 @@ export class TitleScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("new-seed", { rect: newSeedRect, activate: newSeed });
+    if (!phone) addManageDecks({ x: newSeedRect.x + newSeedWidth + 10, y: y + 16, width: manageDecksWidth, height: hit.target });
     y += 16 + hit.target + 16;
 
     // The one red on this screen: the single forward action.
@@ -326,7 +403,8 @@ export class TitleScene extends Phaser.Scene {
         continuable: this.#continuable !== null,
         scenarioIds: CORE_SCENARIOS.map((scenario) => scenario.id as string),
         difficulties: ["standard", "expert"],
-        deckIds: CORE_STARTER_DECKS.map((deck) => deck.id as string),
+        deckIds: deckOptions.map((option) => option.deck.id as string),
+        manageDecks: true,
       }),
       this.#stops,
     );
@@ -515,23 +593,53 @@ export class TitleScene extends Phaser.Scene {
     this.#starting = true;
     this.#rebuild();
 
+    const deckOptions = this.#deckOptions();
+    const seatedDecks = this.#seats.map((deckId) => deckOptions.find((option) => (option.deck.id as string) === deckId)!);
     const { store } = appSession();
     await store.start({
       scenarioId: this.#scenarioId,
       difficulty: this.#difficulty,
-      players: this.#seats.map((starterDeckId) => ({ starterDeckId })),
+      // A precon seat still goes through `{ starterDeckId }` — the same shape
+      // every existing save and test already uses — rather than re-deriving
+      // its card list from `Deck.cards`, which would be a second way to say
+      // the same seat (`view/deck-seat.ts`).
+      players: seatedDecks.map((option) =>
+        option.deck.source.kind === "precon" ? { starterDeckId: option.deck.source.starterDeckId as string } : corePlayerFromDeck(option.deck),
+      ),
       seed: this.#seed,
     });
 
     if (store.state.status === "failed") {
       this.#starting = false;
       this.#rebuild();
+      // `Setup` only ever offers seatable decks, dimming the rest — but the
+      // engine is still the one enforcing `requireLegalDecks` (PLAN.md Phase
+      // 9: "no opt-out"), so a refusal is still possible (a pool update
+      // landing between this screen loading and Start being pressed). Route
+      // straight to fixing the named deck rather than only showing the
+      // engine's message here.
+      const setupError = store.state.setupError;
+      if (setupError?.code === "illegal_deck") {
+        const seat = setupError.illegalDecks[0];
+        const deckId = seat ? this.#seats[seat.seatIndex] : undefined;
+        this.scale.off("resize", this.#rebuild, this);
+        this.scene.start(SCENES.decks, {
+          focusDeckId: deckId ?? null,
+          message: seat?.problems[0]?.message ?? store.state.error ?? "This deck is not legal.",
+        } satisfies DecksSceneData);
+        return;
+      }
       // The engine's own message: nothing here rephrases a setup failure.
       this.#status?.setText(store.state.error ?? "setup failed");
       return;
     }
     this.scale.off("resize", this.#rebuild, this);
     this.scene.start(SCENES.board);
+  }
+
+  /** Every seat option, precons then saved/imported decks — the same computation `#rebuild` uses for the Heroes section. */
+  #deckOptions(): readonly DeckOption[] {
+    return deckOptionsOf(this.#savedDecks, CORE_CARDS, CORE_POOL_VERSION, CORE_DEPS);
   }
 }
 

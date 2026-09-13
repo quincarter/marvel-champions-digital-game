@@ -12,10 +12,14 @@ import {
   resolveValue,
   type EffectContext,
 } from "./select.js";
-import type { StatName } from "./spec.js";
+import type { SchemeValueName, StatName } from "./spec.js";
 import type { GameState } from "./state.js";
 
-export type ModifiedStat = StatName | "hp" | "handSize";
+/**
+ * `consequentialAttack` / `consequentialThwart`: "takes +1 consequential damage after it attacks" (Enraged), the
+ * small number printed under an ally's ATK/THW (RRG 1.8 "Consequential Damage").
+ */
+export type ModifiedStat = StatName | "hp" | "handSize" | SchemeValueName | "boostIcons" | "consequentialAttack" | "consequentialThwart";
 
 export interface ActiveModifier {
   /** The card whose printed stat box, constant ability, or lasting effect produced this. */
@@ -93,6 +97,42 @@ export function statBonus(
   return modifiersFor(state, deps, targetId, stat)
     .filter((modifier) => !modifier.setBase)
     .reduce((sum, modifier) => sum + modifier.amount, 0);
+}
+
+/**
+ * A boost card's icons as they count now (RRG 1.8 "Boost", p. 11): printed, plus "This card gets +1 boost icon if …"
+ * constant modifiers on the card itself (read although it is not in play: it is resolving as a boost card), plus
+ * `boostIcons` modifiers from cards in play (docs/phase7-wave1.md §3.9).
+ */
+export function boostIconsFor(state: GameState, deps: EngineDeps, id: InstanceId): number {
+  const card = cardOf(state, id);
+  const printed = card && "boostIcons" in card ? card.boostIcons : 0;
+  let own = 0;
+  if (card && "abilities" in card && !cardsInPlay(state).includes(id)) {
+    const context: EffectContext = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps };
+    for (const ref of card.abilities) {
+      const definition = deps.abilities[ref.id];
+      if (definition?.trigger.kind !== "constant") continue;
+      for (const modifier of definition.trigger.modifiers ?? []) {
+        if (modifier.stat !== "boostIcons" || !matchesQuery(state, id, modifier.target, context)) continue;
+        if (modifier.while && !evaluate(state, modifier.while, context)) continue;
+        own += typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, context, deps);
+      }
+    }
+  }
+  return Math.max(0, printed + own + statBonus(state, deps, id, "boostIcons"));
+}
+
+/**
+ * "Increase the amount of damage that event deals by 2" (Embiggen!) / "…threat that event removes…" (Shrink): the
+ * bonus one resolving card carries, added to every instance that card's own effects produce (RRG 1.8 "Event", p. 19).
+ */
+export function cardEffectBonus(state: GameState, sourceId: InstanceId | null, field: "damage" | "threatRemoved"): number {
+  if (!sourceId) return 0;
+  return state.lastingEffects.reduce(
+    (sum, effect) => (effect.kind === "cardEffectBonus" && effect.sourceInstanceId === sourceId ? sum + effect[field] : sum),
+    0,
+  );
 }
 
 /** The base value set by a "has a base X of N" ability, if any (the last one in play order wins). */

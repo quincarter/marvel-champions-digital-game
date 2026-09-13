@@ -1,3 +1,4 @@
+import { activeEncounterDeck, activeVillain } from "@mc/engine";
 import { characterProfile, type Command, type GameState, type InstanceId } from "@mc/engine";
 import { CORE_DEPS } from "../index.js";
 import { coreScenario } from "../setup.js";
@@ -75,12 +76,12 @@ describe("Black Panther", () => {
     expect(ordering.pendingChoice?.prompt.kind).toBe("orderSpecials");
     const choosingPlayer = answer(ordering, [`${daggers}:01046.energy-daggers-special`, `${claws}:01047.panther-claws-special`]);
     const afterDaggers = answer(choosingPlayer, [P1]);
-    expect(inst(afterDaggers, afterDaggers.villain.instanceId).damage).toBe(1);
+    expect(inst(afterDaggers, activeVillain(afterDaggers).instanceId).damage).toBe(1);
     expect(inst(afterDaggers, mercenary).damage).toBe(1);
     // Panther Claws is an attack: guard leaves only the Mercenary.
     expect(afterDaggers.pendingChoice?.options.map((o) => o.optionId)).toEqual([mercenary]);
     const after = settle(answer(afterDaggers, [mercenary]));
-    expect(after.encounterDiscard).toContain(mercenary);
+    expect(activeEncounterDeck(after).discard).toContain(mercenary);
   });
 });
 
@@ -91,8 +92,8 @@ describe("She-Hulk and Aggression", () => {
     const hero = settle(run(given.state, toHero())); // declines "Do You Even Lift?"
     const strong = run(hero, play(P1, strength, payWith(hero, P1, 2, given.ids)));
     expect(characterProfile(strong, identityOf(strong), CORE_DEPS)?.atk).toBe(5);
-    const after = settle(run(strong, basicAttack(strong, identityOf(strong), strong.villain.instanceId)));
-    expect(inst(after, after.villain.instanceId)).toMatchObject({ damage: 5, statuses: { stunned: 1 } });
+    const after = settle(run(strong, basicAttack(strong, identityOf(strong), activeVillain(strong).instanceId)));
+    expect(inst(after, activeVillain(after).instanceId)).toMatchObject({ damage: 5, statuses: { stunned: 1 } });
     expect(playerOf(after, P1).discard).toContain(strength);
   });
 
@@ -101,10 +102,10 @@ describe("She-Hulk and Aggression", () => {
     const [hulk] = given.ids as [InstanceId];
     const hero = settle(run(given.state, toHero()));
     const withHulk = run(hero, play(P1, hulk, payWith(hero, P1, 2, given.ids)));
-    const physical = settle(run(putOnTopOfDeck(withHulk, P1, "01090").state, basicAttack(withHulk, hulk, withHulk.villain.instanceId)));
-    expect(inst(physical, physical.villain.instanceId).damage).toBe(5); // 3 ATK + 2
+    const physical = settle(run(putOnTopOfDeck(withHulk, P1, "01090").state, basicAttack(withHulk, hulk, activeVillain(withHulk).instanceId)));
+    expect(inst(physical, activeVillain(physical).instanceId).damage).toBe(5); // 3 ATK + 2
     expect(playerOf(physical, P1).playArea).toContain(hulk);
-    const mental = settle(run(putOnTopOfDeck(withHulk, P1, "01089").state, basicAttack(withHulk, hulk, withHulk.villain.instanceId)));
+    const mental = settle(run(putOnTopOfDeck(withHulk, P1, "01089").state, basicAttack(withHulk, hulk, activeVillain(withHulk).instanceId)));
     expect(playerOf(mental, P1).discard).toContain(hulk);
   });
 });

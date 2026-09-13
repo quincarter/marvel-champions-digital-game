@@ -111,4 +111,16 @@ export type RawTypeCode =
   | "treachery"
   | "obligation"
   | "environment"
-  | "player_side_scheme";
+  | "player_side_scheme"
+  // Seen in the full 63-pack survey (2026-09-13), not present in Core:
+  // "leader" — Civil War / Synthezoid multiplayer "team" villain-side cards
+  // (card_set_type_name_code "leader"); faction_code "encounter" like a
+  // villain, but a distinct type_code MarvelCDB doesn't fold into "villain".
+  // "evidence_means"/"evidence_motive"/"evidence_opportunity" — Agents of
+  // S.H.I.E.L.D.'s investigation-board encounter cards (card_set_code
+  // "executive_board_evidence"). Neither has a schema shape yet; see the
+  // card-data-pipeline survey report for the gap-matrix entry.
+  | "leader"
+  | "evidence_means"
+  | "evidence_motive"
+  | "evidence_opportunity";

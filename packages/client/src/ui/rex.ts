@@ -24,8 +24,9 @@
 import type Phaser from "phaser";
 import TextArea from "phaser4-rex-plugins/templates/ui/textarea/TextArea.js";
 import InputText from "phaser4-rex-plugins/templates/ui/inputtext/InputText.js";
+import TextAreaInput from "phaser4-rex-plugins/templates/ui/textareainput/TextAreaInput.js";
 
-export { TextArea, InputText };
+export { TextArea, InputText, TextAreaInput };
 
 /** What `rexUI.add.textArea(config)` did: construct, then adopt into the scene. */
 export function addTextArea(scene: Phaser.Scene, config: ConstructorParameters<typeof TextArea>[1]): TextArea {
@@ -37,6 +38,23 @@ export function addTextArea(scene: Phaser.Scene, config: ConstructorParameters<t
 /** What `rexUI.add.inputText(config)` did. Its element is the app's only DOM. */
 export function addInputText(scene: Phaser.Scene, config: ConstructorParameters<typeof InputText>[1]): InputText {
   const gameObject = new InputText(scene, config);
+  scene.add.existing(gameObject as unknown as Phaser.GameObjects.GameObject);
+  return gameObject;
+}
+
+/**
+ * What `rexUI.add.textAreaInput(config)` did: a multi-line, wrapped, scrollable
+ * editable field (`McTextInput`'s multiline sibling for pasting a decklist,
+ * PLAN.md Phase 9). Its text is canvas-drawn (`CanvasInput`/`DynamicText`), not
+ * a visible DOM element the way `InputText` is — a single-line `<input>` would
+ * silently strip the newlines a real decklist paste depends on, which is the
+ * whole reason this exists rather than reusing `McTextInput`. It still opens a
+ * hidden, unstyled native text-edit element to capture keystrokes and paste
+ * events, exactly as `InputText` does; nothing here adds a *visible* second
+ * kind of DOM control to the app.
+ */
+export function addTextAreaInput(scene: Phaser.Scene, config: ConstructorParameters<typeof TextAreaInput>[1]): TextAreaInput {
+  const gameObject = new TextAreaInput(scene, config);
   scene.add.existing(gameObject as unknown as Phaser.GameObjects.GameObject);
   return gameObject;
 }

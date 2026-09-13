@@ -1,3 +1,4 @@
+import { activeVillain } from "./query.js";
 import { applyCommand } from "./engine.js";
 import { playerId, type InstanceId, type PlayerId } from "./ids.js";
 import { legalActions, paymentFor, tryPayment, type LegalActions } from "./legal.js";
@@ -79,7 +80,7 @@ describe("legalActions", () => {
     const [minion] = mustPlayer(roundTwo, p1).playArea;
     const attack = legalFor(legalActions(roundTwo, p1), "basicAttack", mustPlayer(roundTwo, p1).identity.instanceId);
     expect(attack?.targets).toEqual([minion]);
-    expect(attack?.blockedTargets.map((b) => [b.instanceId, b.reason])).toEqual([[roundTwo.villain.instanceId, "no_valid_target"]]);
+    expect(attack?.blockedTargets.map((b) => [b.instanceId, b.reason])).toEqual([[activeVillain(roundTwo).instanceId, "no_valid_target"]]);
     expect(attack?.blockedTargets[0]?.message).toMatch(/guard/);
     expect(legalFor(legalActions(roundTwo, p1), "basicThwart")?.targets).toEqual([roundTwo.mainScheme.instanceId]);
   });
@@ -87,7 +88,7 @@ describe("legalActions", () => {
   it("an exhausted hero can't attack again this turn", () => {
     const hero = run(newGame(), toHero());
     const identity = mustPlayer(hero, p1).identity.instanceId;
-    const attacked = run(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: hero.villain.instanceId });
+    const attacked = run(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: activeVillain(hero).instanceId });
     expect(illegalFor(legalActions(attacked, p1), "basicAttack", identity)?.reason).toBe("already_exhausted");
     expect(illegalFor(legalActions(attacked, p1), "changeForm")?.reason).toBe("already_changed_form");
   });

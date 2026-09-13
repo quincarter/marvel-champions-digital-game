@@ -20,8 +20,18 @@
 import type { Command, GameOutcome } from "@mc/engine";
 import type { SessionConfig, StateWithoutPool } from "./host.js";
 
-/** Bumped when the stored shape changes, so an old save is recognised instead of misread. */
-export const SAVE_SCHEMA = 1;
+/**
+ * Bumped when the stored shape changes, so an old save is recognised instead of misread.
+ *
+ * - 2 (2026-09-13): the engine state holds several villains and an encounter deck per villain
+ *   (`villains`/`activeVillainId`, `encounterDecks`, `CardInstance.home`; docs/phase7-wave1.md §3.1–§3.2). Saves
+ *   from 1 are retired, not migrated (user decision, PLAN.md Phase 7): marked `incompatible`, never offered as
+ *   Continue.
+ */
+export const SAVE_SCHEMA = 2;
+
+/** Whether this build can read a save: only the current schema. Anything older is retired, not migrated. */
+export const isCurrentSchema = (meta: Pick<SaveMeta, "schema">): boolean => meta.schema === SAVE_SCHEMA;
 
 /**
  * `incompatible`: the log no longer replays against this build's engine or

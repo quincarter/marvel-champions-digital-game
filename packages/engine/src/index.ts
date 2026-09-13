@@ -1,13 +1,15 @@
 export const ENGINE_VERSION = "0.1.0";
 
-export type { PlayerId, InstanceId, ChoiceId, FrameId } from "./ids.js";
-export { playerId, instanceId, choiceId, frameId } from "./ids.js";
+export type { PlayerId, InstanceId, ChoiceId, EncounterDeckId, FrameId } from "./ids.js";
+export { playerId, instanceId, choiceId, encounterDeckId, frameId } from "./ids.js";
 
 export type { RngState } from "./rng.js";
 export { createRng, nextInt, nextUint32, shuffle } from "./rng.js";
 
 export type {
+  CardHome,
   CardInstance,
+  EncounterDeckState,
   FacedownRole,
   Form,
   GameOutcome,
@@ -16,6 +18,7 @@ export type {
   IdentityState,
   MainSchemeState,
   PlayerState,
+  SeparateDeckState,
   StatusCounts,
   VillainState,
   ZoneId,
@@ -42,7 +45,20 @@ export type {
 export { legalActions, paymentFor, tryPayment } from "./legal.js";
 export type { Command, CommandType, Payment } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
-export type { EngineError, EngineErrorCode } from "./errors.js";
+export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
+
+/** Deck legality (RRG 1.8 Appendix I) and playability in this build: two separate questions. */
+export type { CardPool, DeckProblem, DeckProblemCode, DeckValidation } from "./deck.js";
+export {
+  abilityRefsOf,
+  CHOOSABLE_ASPECTS,
+  DECK_COPY_LIMIT,
+  DECK_MAX_CARDS,
+  DECK_MIN_CARDS,
+  requiredIdentitySet,
+  unscriptedCards,
+  validateDeck,
+} from "./deck.js";
 export { EngineInvariantError } from "./errors.js";
 
 export type {
@@ -54,6 +70,7 @@ export type {
   AbilitySource,
   AbilityTriggerSpec,
   CardZoneQuery,
+  CostModifierSpec,
   EngineDeps,
   EventPattern,
   KeywordGrantSpec,
@@ -78,7 +95,15 @@ export {
 } from "./resources.js";
 
 export type { LastingDuration, LastingEffect, LastingEffectBody, LastingReach, LastingScope } from "./lasting.js";
-export { allyLimitFor, cannotTakeDamage, mustDefendWithAlly, threatCannotBeRemoved } from "./rules.js";
+export {
+  allyLimitFor,
+  cannotLeavePlay,
+  cannotTakeDamage,
+  mustDefendWithAlly,
+  notDefeatedWithoutThreat,
+  schemeThreatDestination,
+  threatCannotBeRemoved,
+} from "./rules.js";
 export { hasKeyword, keywordsOf, printedKeywordsOf } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export type { CostChoices } from "./commands.js";
@@ -93,6 +118,7 @@ export type {
   LastingUntil,
   PlayerRef,
   Predicate,
+  SchemeValueName,
   StatName,
   StatusName,
   TargetCategory,
@@ -104,11 +130,11 @@ export type {
 export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
 export { eventSubjects, isAnnouncement } from "./trigger-events.js";
 
-export type { Bindings, StackFrame, StackFrameKind, StackView, TriggerCandidate, WindowTiming } from "./stack.js";
+export type { Bindings, BoostInProgress, StackFrame, StackFrameKind, StackView, TriggerCandidate, WindowTiming } from "./stack.js";
 export { describeFrame, viewStack } from "./stack.js";
 
 export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
-export { modifiersFor, statBonus } from "./modifiers.js";
+export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 
 export type { EffectContext } from "./select.js";
 export {
@@ -127,7 +153,7 @@ export {
 export type { UniqueNames } from "./unique.js";
 export { cardsMatch, isUnique, matchingCardInPlay, uniqueLabel, uniqueNamesOf } from "./unique.js";
 
-export type { GameSetupConfig, PlayerSetup, SetupResult } from "./setup.js";
+export type { GameSetupConfig, PlayerSetup, SetupResult, VillainSetup } from "./setup.js";
 export { createGame } from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
@@ -143,6 +169,20 @@ export {
 
 export type { CharacterKind, CharacterProfile } from "./query.js";
 export {
+  activeEncounterDeck,
+  activeEncounterDeckId,
+  activeVillain,
+  cardZoneCandidates,
+  currentName,
+  encounterFace,
+  separateDeckDefinition,
+  separateDeckOf,
+  discardZoneFor,
+  encounterDeckOf,
+  isVillain,
+  undefeatedVillains,
+  villainOf,
+  villainStageOf,
   cardOf,
   characterProfile,
   countSchemeIcons,
@@ -156,6 +196,8 @@ export {
   printedHandSize,
   locateCard,
   mainSchemeStage,
+  mainSchemeValue,
+  startingThreatOf,
   minionsEngagedWith,
   nextClockwisePlayer,
   playerOrder,

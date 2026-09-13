@@ -722,6 +722,8 @@ function promptTitle(kind: string): string {
     mulligan: "Mulligan",
     chooseMinionToActivate: "Choose a minion to activate",
     orderEnemies: "Order the enemies",
+    orderPlayers: "Order the players",
+    orderCards: "Put these back in any order",
     orderTriggers: "Order these effects",
     chooseTriggers: "Trigger an ability?",
     chooseTarget: "Choose a target",

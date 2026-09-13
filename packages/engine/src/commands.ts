@@ -47,12 +47,17 @@ export type Command =
       readonly playerId: PlayerId;
       readonly attackerInstanceId: InstanceId;
       readonly targetInstanceId: InstanceId;
+      /** For a basic power with an additional cost ("you must discard 1 card"; `basicPowerCosts`). */
+      readonly payment?: readonly Payment[];
+      readonly costChoices?: CostChoices;
     }
   | {
       readonly type: "basicThwart";
       readonly playerId: PlayerId;
       readonly thwarterInstanceId: InstanceId;
       readonly schemeInstanceId: InstanceId;
+      readonly payment?: readonly Payment[];
+      readonly costChoices?: CostChoices;
     }
   | { readonly type: "basicRecover"; readonly playerId: PlayerId }
   | { readonly type: "endTurn"; readonly playerId: PlayerId }

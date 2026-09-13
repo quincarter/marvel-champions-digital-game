@@ -1,3 +1,4 @@
+import { activeEncounterDeck, activeVillain } from "@mc/engine";
 import { characterProfile, type GameState, type InstanceId } from "@mc/engine";
 import { CORE_DEPS } from "../index.js";
 import { coreScenario } from "../setup.js";
@@ -35,18 +36,18 @@ describe("coreScenario('klaw')", () => {
   it("expert: Klaw (II) reveals The \"Immortal\" Klaw, which gives him +10 hit points while it's in play", () => {
     const state = vsKlaw("expert");
     expect(state.villainArea).toContain(instancesOf(state, "01127")[0]);
-    expect(characterProfile(state, state.villain.instanceId, CORE_DEPS)?.maxHp).toBe(18 + 10);
+    expect(characterProfile(state, activeVillain(state).instanceId, CORE_DEPS)?.maxHp).toBe(18 + 10);
   });
 });
 
 describe("Klaw encounter set", () => {
   it("Weapons Runner's boost puts it into play engaged with the attacked player instead of being discarded", () => {
     const stacked = stackEncounterDeck(vsKlaw(), "01121", "01186", "01186");
-    const runner = stacked.encounterDeck[0] as InstanceId;
+    const runner = activeEncounterDeck(stacked).deck[0] as InstanceId;
     const after = settle(run(settle(run(stacked, toHero())), endTurn()));
     expect(playerOf(after, P1).playArea).toContain(runner);
     expect(inst(after, runner).engagedWith).toBe(P1);
-    expect(after.encounterDiscard).not.toContain(runner);
+    expect(activeEncounterDeck(after).discard).not.toContain(runner);
   });
 
   it("Sonic Boom: declining to spend [E][M][P] exhausts each character you control", () => {

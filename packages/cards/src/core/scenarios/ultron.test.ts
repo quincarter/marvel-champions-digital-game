@@ -1,3 +1,4 @@
+import { activeEncounterDeck, activeVillain } from "@mc/engine";
 import { characterProfile, type GameState, type InstanceId } from "@mc/engine";
 import { CORE_DEPS } from "../index.js";
 import { coreScenario } from "../setup.js";
@@ -36,11 +37,11 @@ describe("Ultron", () => {
   it("Ultron (III): Drones get +1 ATK/+1 hit point, and Ultron can't take damage while a Drone is in play", () => {
     const start = vsUltron();
     // Test surgery: jump to stage III (its When Revealed isn't under test here).
-    const stageThree: GameState = { ...start, villain: { ...start.villain, stageIndex: 2, lastStageIndex: 2 } };
+    const stageThree: GameState = { ...start, villains: start.villains.map((v) => ({ ...v, stageIndex: 2, lastStageIndex: 2 })) };
     const profile = characterProfile(stageThree, dronesOf(stageThree)[0] as InstanceId, CORE_DEPS);
     expect([profile?.atk, profile?.maxHp]).toEqual([2, 2]);
-    const after = settle(run(stageThree, toHero(), attack(stageThree, stageThree.villain.instanceId)));
-    expect(inst(after, after.villain.instanceId).damage).toBe(0);
+    const after = settle(run(stageThree, toHero(), attack(stageThree, activeVillain(stageThree).instanceId)));
+    expect(inst(after, activeVillain(after).instanceId).damage).toBe(0);
   });
 
   it("Advanced Ultron Drone: when it's defeated, the engaged player puts the top card of their deck into play as a Drone", () => {
@@ -48,7 +49,7 @@ describe("Ultron", () => {
     const advanced = playerOf(round2, P1).playArea.find((id) => inst(round2, id).cardId === "01143") as InstanceId;
     const before = dronesOf(round2).length;
     const after = settle(run(patchInstance(round2, advanced, { damage: 3 }), toHero(), attack(round2, advanced)));
-    expect(after.encounterDiscard).toContain(advanced);
+    expect(activeEncounterDeck(after).discard).toContain(advanced);
     expect(dronesOf(after)).toHaveLength(before + 1);
   });
 

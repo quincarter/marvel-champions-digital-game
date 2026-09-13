@@ -1,3 +1,5 @@
+import { activeEncounterDeck, activeVillain } from "./query.js";
+import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, type AnyCard, type CardId } from "@mc/content";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
@@ -50,7 +52,7 @@ const threatOn = (state: GameState, id: InstanceId) => mustInstance(state, id).t
 
 /** Test surgery: the first encounter cards become copies of `order`, in order (round 1 draws each player's boost card first). */
 function stackEncounter(state: GameState, ...order: readonly CardId[]): GameState {
-  const rest = [...state.encounterDeck];
+  const rest = [...activeEncounterDeck(state).deck];
   const top: InstanceId[] = [];
   for (const card of order) {
     const index = rest.findIndex((id) => state.instances[id]?.cardId === card);
@@ -58,7 +60,7 @@ function stackEncounter(state: GameState, ...order: readonly CardId[]): GameStat
     top.push(rest[index] as InstanceId);
     rest.splice(index, 1);
   }
-  return { ...state, encounterDeck: [...top, ...rest] };
+  return withEncounterPiles(state, { deck: [...top, ...rest] });
 }
 
 function game(options: { cards?: readonly AnyCard[]; abilities?: readonly StubAbility[]; encounter?: readonly CardId[]; villain?: ReturnType<typeof stubVillain>; scheme?: ReturnType<typeof stubMainScheme>; start?: number; last?: number; deck?: readonly CardId[] } = {}) {
@@ -87,10 +89,10 @@ describe("setup completeness (RRG Appendix II, 'Obligation', 'Nemesis Encounter 
   it("shuffles each identity's obligation into the encounter deck and sets its nemesis set aside", () => {
     const OBLIGATION = stubObligation({ id: "hero-obligation" });
     const { state } = game({ cards: [OBLIGATION, ...NEMESIS] });
-    expect(idsOf(state, state.encounterDeck, OBLIGATION)).toHaveLength(1);
+    expect(idsOf(state, activeEncounterDeck(state).deck, OBLIGATION)).toHaveLength(1);
     const setAside = mustPlayer(state, p1).setAside;
     expect(setAside).toHaveLength(4); // minion, side scheme, 2 × treachery (quantityInSet)
-    expect(state.encounterDeck.some((id) => setAside.includes(id))).toBe(false);
+    expect(activeEncounterDeck(state).deck.some((id) => setAside.includes(id))).toBe(false);
     expect(setAside.some((id) => cardsInPlay(state).includes(id))).toBe(false);
   });
 
@@ -155,8 +157,8 @@ describe("setup completeness (RRG Appendix II, 'Obligation', 'Nemesis Encounter 
     const kickId = Object.values(state.instances).find((i) => i.cardId === KICK.id)?.instanceId as InstanceId;
     const withKick: GameState = { ...state, players: state.players.map((p) => ({ ...p, deck: p.deck.filter((id) => id !== kickId), hand: [...p.hand.filter((id) => id !== kickId), kickId] })) };
     const after = runWith(deps, withKick, toHero(), { type: "playCard", playerId: p1, cardInstanceId: kickId, payment: [], attachToInstanceId: null });
-    expect(after.villain.stageIndex).toBe(2);
-    expect(mustInstance(after, after.villain.instanceId).statuses.tough).toBe(1);
+    expect(activeVillain(after).stageIndex).toBe(2);
+    expect(mustInstance(after, activeVillain(after).instanceId).statuses.tough).toBe(1);
     expect(mustInstance(after, mustPlayer(after, p1).identity.instanceId).statuses.stunned).toBe(1);
   });
 });
@@ -203,7 +205,7 @@ describe("obligations (RRG 'Obligation', 'Reveal')", () => {
     if (!created.ok) throw new Error(created.error.message);
     // Round 1: two boost cards (one per villain activation), then p1 and p2 are dealt one each: p2 gets the obligation.
     const start = stackEncounter(settle(created.state, decline, deps), BLANK.id, BLANK.id, BLANK.id, OBLIGATION.id);
-    const obligationId = start.encounterDeck[3] as InstanceId;
+    const obligationId = activeEncounterDeck(start).deck[3] as InstanceId;
     const atChoice = settleUntil(runWith(deps, start, endTurn(p1), endTurn(p2)), "chooseOption", deps);
     expect(atChoice.pendingChoice?.playerId).toBe(p1);
     expect(mustPlayer(atChoice, p1).playArea).toContain(obligationId);
@@ -219,12 +221,12 @@ describe("obligations (RRG 'Obligation', 'Reveal')", () => {
     const ABSENT = stubIdentity({ id: "absent", hp: 10, atk: 1, thw: 1, def: 1, rec: 1, heroHandSize: 5, alterEgoHandSize: 5 });
     const { deps, state } = game({ cards: [ORPHAN, ABSENT], abilities: [orphan], encounter: [ORPHAN.id, ...copies(BLANK.id, 10)] });
     const stacked = stackEncounter(state, BLANK.id, ORPHAN.id);
-    const orphanId = stacked.encounterDeck[1] as InstanceId;
+    const orphanId = activeEncounterDeck(stacked).deck[1] as InstanceId;
     const after = settle(runWith(deps, stacked, endTurn()), decline, deps);
     expect(after.removedFromGame).toContain(orphanId);
     expect(threatOn(after, after.mainScheme.instanceId)).toBe(5);
     // The replacement reveal was a blank (boost card + the extra reveal).
-    expect(idsOf(after, after.encounterDiscard, BLANK)).toHaveLength(2);
+    expect(idsOf(after, activeEncounterDeck(after).discard, BLANK)).toHaveLength(2);
   });
 });
 
@@ -267,7 +269,7 @@ describe("encounter-deck searches and set-aside cards", () => {
     expect(after.villainArea).toContain(scheme);
     expect(threatOn(after, scheme)).toBe(3);
     const treacheries = Object.values(after.instances).filter((i) => i.cardId === NEMESIS_TREACHERY.id).map((i) => i.instanceId);
-    expect(treacheries.every((id) => after.encounterDeck.includes(id) || after.encounterDiscard.includes(id))).toBe(true);
+    expect(treacheries.every((id) => activeEncounterDeck(after).deck.includes(id) || activeEncounterDeck(after).discard.includes(id))).toBe(true);
   });
 
   it("Highway Robbery: cards placed facedown under the scheme (tucked, out of play) return to hand when it is defeated", () => {
@@ -286,7 +288,7 @@ describe("encounter-deck searches and set-aside cards", () => {
     expect(cardsInPlay(roundTwo)).not.toContain(tuckedId);
     const thwarted = runWith(deps, roundTwo, toHero(), { type: "basicThwart", playerId: p1, thwarterInstanceId: mustPlayer(roundTwo, p1).identity.instanceId, schemeInstanceId: robberyId });
     expect(mustPlayer(thwarted, p1).hand).toContain(tuckedId);
-    expect(thwarted.encounterDiscard).toContain(robberyId);
+    expect(activeEncounterDeck(thwarted).discard).toContain(robberyId);
     expect(mustInstance(thwarted, robberyId).tucked).toEqual([]);
   });
 });

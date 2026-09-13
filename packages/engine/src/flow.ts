@@ -1,11 +1,13 @@
 import type { ChoiceOption } from "./choices.js";
-import { emit, requestChoice, setStep, updatePlayer, type Ctx } from "./ctx.js";
+import { emit, pushFrames, requestChoice, setStep, updatePlayer, type Ctx } from "./ctx.js";
 import { drawCards, endLastingEffect, expireLastingEffects, readyCard } from "./effects.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
 import type { PlayerId } from "./ids.js";
-import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder } from "./query.js";
-import { announce, clearAbilityUses, executeFrame, pushEffects } from "./resolve/index.js";
+import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVillains } from "./query.js";
+import { announce, clearAbilityUses, executeFrame, gameAbilityFrames, pushEffects } from "./resolve/index.js";
+import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
+import { checkStateTriggers } from "./resolve/state-checks.js";
 import { describeFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
 import {
@@ -26,6 +28,11 @@ const MAX_STEPS_PER_COMMAND = 5000;
 export function runFlow(ctx: Ctx): void {
   for (let i = 0; i < MAX_STEPS_PER_COMMAND; i++) {
     if (ctx.state.outcome || ctx.state.pendingChoice) return;
+    // An emptied separate deck (the Invocation deck) takes its discard pile back at once, with no penalty.
+    resetEmptySeparateDecks(ctx);
+    // Condition-triggered forced abilities go on the stack the moment their condition becomes true, ahead of whatever
+    // was about to resolve next (docs/phase7-wave1.md §3.4; FAQ "Green Goblin (#1B)", p. 59).
+    if (checkStateTriggers(ctx)) continue;
     if (ctx.state.stack.length > 0) {
       executeFrame(ctx);
       continue;
@@ -49,6 +56,8 @@ function executeStep(ctx: Ctx): void {
       return executeDrawStartingHands(ctx);
     case "mulligan":
       return executeMulligan(ctx, step.remainingPlayerIds);
+    case "playerSetupAbilities":
+      return executePlayerSetupAbilities(ctx, step);
     case "turn":
       return;
     case "endPhaseDiscard":
@@ -101,8 +110,7 @@ function executeDrawStartingHands(ctx: Ctx): void {
 function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): void {
   const [current, ...rest] = livePlayers(ctx.state, remainingPlayerIds);
   if (!current) {
-    emit(ctx, { type: "roundStarted", round: ctx.state.round });
-    beginPlayerPhase(ctx);
+    setStep(ctx, { phase: "setup", kind: "playerSetupAbilities" });
     return;
   }
   const player = mustPlayer(ctx.state, current);
@@ -132,6 +140,23 @@ export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
   });
 }
 
+/**
+ * RRG 1.8 Appendix II step 16 (p. 51), "Resolve Player Setup Abilities": the last setup step, after the draw (step
+ * 14) and the mulligan (step 15). A search like Steve Rogers' therefore reads a deck and discard pile that already
+ * hold the opening hand and whatever the mulligan put away (FAQ "Steve Rogers (#1B)", p. 59: "only the deck and the
+ * discard pile are searched"). The abilities go on the stack and the first round begins once they have resolved.
+ */
+function executePlayerSetupAbilities(ctx: Ctx, step: Extract<GameStep, { kind: "playerSetupAbilities" }>): void {
+  if (!step.resolved) {
+    const frames = playerOrder(ctx.state).flatMap((player) => gameAbilityFrames(ctx, player.identity.instanceId, ["setup"], null));
+    setStep(ctx, { phase: "setup", kind: "playerSetupAbilities", resolved: true });
+    pushFrames(ctx, frames);
+    return;
+  }
+  emit(ctx, { type: "roundStarted", round: ctx.state.round });
+  beginPlayerPhase(ctx);
+}
+
 export function beginTurn(ctx: Ctx, activePlayerId: PlayerId, remainingPlayerIds: readonly PlayerId[]): void {
   clearAbilityUses(ctx, "turn");
   setStep(ctx, { phase: "player", kind: "turn", activePlayerId, remainingPlayerIds });
@@ -148,6 +173,14 @@ export function beginPlayerPhase(ctx: Ctx): void {
     return;
   }
   beginTurn(ctx, first, rest);
+}
+
+/** Ends `playerId`'s turn if it still is theirs: the `endTurn` command, or its `turnEnding` event applying. */
+export function finishTurn(ctx: Ctx, playerId: PlayerId): void {
+  const step = ctx.state.step;
+  if (step.phase !== "player" || step.kind !== "turn" || step.activePlayerId !== playerId) return;
+  emit(ctx, { type: "turnEnded", playerId });
+  advanceAfterTurn(ctx, step.remainingPlayerIds);
 }
 
 /** Called by the `endTurn` command once the active player is done. */
@@ -210,7 +243,7 @@ function executeEndPhaseReady(ctx: Ctx): void {
     for (const id of mustPlayer(ctx.state, player.playerId).playArea) readyCard(ctx, id);
   }
   for (const id of ctx.state.villainArea) readyCard(ctx, id);
-  readyCard(ctx, ctx.state.villain.instanceId);
+  for (const villain of undefeatedVillains(ctx.state)) readyCard(ctx, villain.instanceId);
   setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
   expireLastingEffects(ctx, "endOfPhase");
@@ -245,7 +278,8 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
     }));
   }
   clearAbilityUses(ctx, "round");
-  ctx.state = { ...ctx.state, round: ctx.state.round + 1 };
+  // "Max X per round" and "first … each round" count again from zero.
+  ctx.state = { ...ctx.state, round: ctx.state.round + 1, playedThisRound: {}, playedByPlayerThisRound: {} };
   emit(ctx, { type: "roundStarted", round: ctx.state.round });
   beginPlayerPhase(ctx);
   announce(ctx, { kind: "villainPhaseEnded" });

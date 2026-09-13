@@ -1,3 +1,4 @@
+import { activeVillain } from "./query.js";
 import { flat, type CardId } from "@mc/content";
 import type { Command } from "./commands.js";
 import { applyCommand } from "./engine.js";
@@ -55,7 +56,7 @@ test("an ally with a printed '—' THW cannot make a basic thwart, and stays rea
 
 test("an ally with a printed '—' ATK cannot make a basic attack", () => {
   const { deps, state, pacifist } = start();
-  const result = applyCommand(state, { type: "basicAttack", playerId: p1, attackerInstanceId: pacifist, targetInstanceId: state.villain.instanceId }, deps);
+  const result = applyCommand(state, { type: "basicAttack", playerId: p1, attackerInstanceId: pacifist, targetInstanceId: activeVillain(state).instanceId }, deps);
   expect(result.ok).toBe(false);
 });
 

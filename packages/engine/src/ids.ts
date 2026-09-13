@@ -14,7 +14,14 @@ export type ChoiceId = Brand<string, "ChoiceId">;
 /** Identifies one frame on the resolution stack, so a choice can be routed back to it. */
 export type FrameId = Brand<string, "FrameId">;
 
+/**
+ * Identifies one encounter deck (with its discard pile). A single-villain scenario has one; The Wrecking Crew
+ * has one per villain (insert, "Prepare Encounter Decks"). Assigned at setup: "e1", "e2", … in villain order.
+ */
+export type EncounterDeckId = Brand<string, "EncounterDeckId">;
+
 export const playerId = (value: string): PlayerId => value as PlayerId;
+export const encounterDeckId = (value: string): EncounterDeckId => value as EncounterDeckId;
 export const instanceId = (value: string): InstanceId => value as InstanceId;
 export const choiceId = (value: string): ChoiceId => value as ChoiceId;
 export const frameId = (value: string): FrameId => value as FrameId;

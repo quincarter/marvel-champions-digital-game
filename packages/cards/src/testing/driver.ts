@@ -24,6 +24,7 @@ import {
   type Payment,
   type PendingChoice,
   type PlayerId,
+  isVillain,
 } from "@mc/engine";
 
 /**
@@ -177,7 +178,7 @@ function* turnCandidates(state: GameState, deps: EngineDeps, playerId: PlayerId,
   const thwartTarget = mainThreat * 2 >= target || sideSchemes.length === 0 ? state.mainScheme.instanceId : (sideSchemes[0] as InstanceId);
   const enemies = cardsInPlay(state).filter((id) => {
     const c = card(state, id);
-    return id === state.villain.instanceId || c?.type === "minion" || getInstance(state, id)?.facedownAs;
+    return isVillain(state, id) || c?.type === "minion" || getInstance(state, id)?.facedownAs;
   });
   const attackers = [identityId, ...player.playArea.filter((id) => card(state, id)?.type === "ally")];
   for (const attacker of attackers) {

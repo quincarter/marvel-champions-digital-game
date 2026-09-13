@@ -18,6 +18,10 @@ import {
   keywordsOf,
   mainSchemeStage,
   maxHitPoints,
+  activeEncounterDeck,
+  activeVillain,
+  isVillain,
+  villainOf,
   minionsEngagedWith,
   printedProfile,
   printedResources,
@@ -271,7 +275,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     stepLabel: stepLabel(state, perspectiveId),
     firstPlayerId: state.firstPlayerId,
     perspectiveId,
-    villain: characterPanel(state, state.villain.instanceId, deps),
+    villain: characterPanel(state, activeVillain(state).instanceId, deps),
     mainScheme: schemePanel(state, state.mainScheme.instanceId, deps, true),
     sideSchemes,
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
@@ -290,10 +294,10 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     hand: me.hand.map((id) => handCardView(state, id)),
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },
-    encounterPiles: { deck: state.encounterDeck.length, discard: state.encounterDiscard.length },
+    encounterPiles: { deck: activeEncounterDeck(state).deck.length, discard: activeEncounterDeck(state).discard.length },
     myDiscard: me.discard,
     myDiscardTop: topOfDiscard(state, me.discard),
-    encounterDiscardTop: topOfDiscard(state, state.encounterDiscard),
+    encounterDiscardTop: topOfDiscard(state, activeEncounterDeck(state).discard),
     team: state.players
       .filter((player) => player.playerId !== perspectiveId)
       .map((player) => seatRow(state, player.playerId, deps)),
@@ -341,7 +345,7 @@ function stepLabel(state: GameState, perspectiveId: PlayerId): string {
 
 /** Enemies in the villain area and engaged with a player, villain excluded. */
 function minionsOf(state: GameState): readonly InstanceId[] {
-  const fromVillainArea = state.villainArea.filter((id) => id !== state.villain.instanceId && isMinion(state, id));
+  const fromVillainArea = state.villainArea.filter((id) => !isVillain(state, id) && isMinion(state, id));
   const engaged = state.players.flatMap((player) => minionsEngagedWith(state, player.playerId));
   // A minion can only be in one zone, so the two lists never overlap.
   return [...fromVillainArea, ...engaged];
@@ -411,7 +415,7 @@ function seatEffectsOf(state: GameState, playerId: PlayerId | null): readonly st
  */
 function backKindOf(state: GameState, instance: CardInstance | undefined): CardBack {
   if (!instance) return "encounter";
-  if (instance.instanceId === state.villain.instanceId) return "villain";
+  if (isVillain(state, instance.instanceId)) return "villain";
   return instance.ownerId !== null ? "player" : "encounter";
 }
 
@@ -431,12 +435,14 @@ export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
   switch (card.type) {
     case "hero_identity":
       return (identityForm(state, instance) ?? "hero") === "hero" ? { kind: "hero" } : { kind: "alterEgo" };
-    case "villain":
+    case "villain": {
+      const villain = villainOf(state, instanceId) ?? activeVillain(state);
       return {
         kind: "villainStage",
-        sideIndex: Math.max(0, card.sides.findIndex((side) => side.side === state.villain.side)),
-        stageIndex: state.villain.stageIndex,
+        sideIndex: Math.max(0, card.sides.findIndex((side) => side.side === villain.side)),
+        stageIndex: villain.stageIndex,
       };
+    }
     case "main_scheme":
       // The B side is the one on the table: it carries the threat values shown,
       // and it is the side with a picture. Asking a main scheme for its "front"
@@ -466,8 +472,10 @@ function displayName(state: GameState, instance: CardInstance, card: AnyCard | u
 function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | undefined): string {
   if (!card) return "";
   switch (card.type) {
-    case "villain":
-      return `Villain · Stage ${ROMAN[state.villain.stageIndex] ?? String(state.villain.stageIndex + 1)}`;
+    case "villain": {
+      const villain = villainOf(state, instance.instanceId) ?? activeVillain(state);
+      return `Villain · Stage ${ROMAN[villain.stageIndex] ?? String(villain.stageIndex + 1)}`;
+    }
     case "hero_identity": {
       const player = state.players.find((seat) => seat.identity.instanceId === instance.instanceId);
       const form = player?.identity.form ?? "hero";

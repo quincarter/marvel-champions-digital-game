@@ -1,3 +1,4 @@
+import { activeEncounterDeck } from "@mc/engine";
 import { coreScenario } from "../setup.js";
 import {
   answer,
@@ -34,7 +35,7 @@ describe("Justice", () => {
     const roomOption = `${room}:01063.interrogation-room-response`;
     const offered = settle(answer(targeting, [mercenary as string]), firstLegal, (s) => s.pendingChoice?.options.some((o) => o.optionId === roomOption) ?? false);
     const after = settle(answer(offered, [roomOption]));
-    expect(after.encounterDiscard).toContain(mercenary);
+    expect(activeEncounterDeck(after).discard).toContain(mercenary);
     expect(inst(after, room).exhausted).toBe(true);
     expect(mainThreat(after)).toBe(before - 1);
   });

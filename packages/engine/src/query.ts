@@ -1,17 +1,19 @@
 import type {
   AnyCard,
   CardId,
+  EncounterCardFlipSide,
   MainSchemeStage,
   PrintedStat,
   ScalingValue,
   SchemeIcon,
   VillainStage,
 } from "@mc/content";
-import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import { DEFAULT_DEPS, type CardZoneQuery, type EngineDeps } from "./abilities.js";
 import { EngineInvariantError } from "./errors.js";
-import type { InstanceId, PlayerId } from "./ids.js";
+import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { baseOverride, statBonus } from "./modifiers.js";
-import type { CardInstance, GameState, PlayerState, ZoneId } from "./state.js";
+import type { SchemeValueName } from "./spec.js";
+import type { CardInstance, EncounterDeckState, GameState, PlayerState, SeparateDeckState, VillainState, ZoneId } from "./state.js";
 
 export const scale = (value: ScalingValue, playerCount: number): number =>
   value.base + value.perPlayer * playerCount;
@@ -76,22 +78,154 @@ export function nextClockwisePlayer(state: GameState, from: PlayerId): PlayerSta
   return undefined;
 }
 
-export function villainStage(state: GameState): VillainStage {
-  const card = mustCard(state, state.villain.cardId);
+/** The villain state for a villain instance, or undefined for any other card. */
+export const villainOf = (state: GameState, id: InstanceId): VillainState | undefined =>
+  state.villains.find((villain) => villain.instanceId === id);
+
+export function mustVillain(state: GameState, id: InstanceId): VillainState {
+  const villain = villainOf(state, id);
+  if (!villain) throw new EngineInvariantError(`${id} is not a villain`);
+  return villain;
+}
+
+/** Whether this instance is one of the scenario's villains (defeated or not). */
+export const isVillain = (state: GameState, id: InstanceId): boolean => villainOf(state, id) !== undefined;
+
+/**
+ * "The villain": the villain with the active counter (The Wrecking Crew insert, "The Active Villain": "Any card
+ * effect that refers to 'the villain' only refers to the active villain."). With one villain, that villain.
+ */
+export const activeVillain = (state: GameState): VillainState => mustVillain(state, state.activeVillainId);
+
+/** "A villain": every villain still in play, in printed order. */
+export const undefeatedVillains = (state: GameState): readonly VillainState[] => state.villains.filter((villain) => !villain.defeated);
+
+function villainSideOf(state: GameState, villain: VillainState) {
+  const card = mustCard(state, villain.cardId);
   if (card.type !== "villain") throw new EngineInvariantError("villain card is not a villain");
-  const side = card.sides.find((s) => s.side === state.villain.side);
-  if (!side) throw new EngineInvariantError(`villain has no side ${state.villain.side}`);
-  const stage = side.stages[state.villain.stageIndex];
-  if (!stage) throw new EngineInvariantError(`villain has no stage ${state.villain.stageIndex}`);
+  const side = card.sides.find((s) => s.side === villain.side);
+  if (!side) throw new EngineInvariantError(`villain has no side ${villain.side}`);
+  return side;
+}
+
+/** The stage currently up for this villain instance. */
+export function villainStageOf(state: GameState, id: InstanceId): VillainStage {
+  const villain = mustVillain(state, id);
+  const stage = villainSideOf(state, villain).stages[villain.stageIndex];
+  if (!stage) throw new EngineInvariantError(`villain has no stage ${villain.stageIndex}`);
   return stage;
 }
 
-export function villainStageCount(state: GameState): number {
-  const card = mustCard(state, state.villain.cardId);
-  if (card.type !== "villain") throw new EngineInvariantError("villain card is not a villain");
-  const side = card.sides.find((s) => s.side === state.villain.side);
-  return side ? side.stages.length : 0;
+/** The active villain's current stage. */
+export const villainStage = (state: GameState): VillainStage => villainStageOf(state, state.activeVillainId);
+
+/** How many stages this villain's current side has (the active villain's when `id` is absent). */
+export function villainStageCount(state: GameState, id: InstanceId = state.activeVillainId): number {
+  return villainSideOf(state, mustVillain(state, id)).stages.length;
 }
+
+/**
+ * "The encounter deck": the active villain's. The Wrecking Crew insert, "The Active Villain": "Any card that
+ * refers to 'the encounter deck' only refers to the active villain's deck"; ruling, Jan 17, 2026 (5): "only the
+ * active villain's encounter deck can be interacted with." Every read of "the encounter deck" resolves here.
+ */
+export const activeEncounterDeckId = (state: GameState): EncounterDeckId => activeVillain(state).encounterDeckId;
+
+export function encounterDeckOf(state: GameState, deckId: EncounterDeckId): EncounterDeckState {
+  const deck = state.encounterDecks[deckId];
+  if (!deck) throw new EngineInvariantError(`unknown encounter deck ${deckId}`);
+  return deck;
+}
+
+export const activeEncounterDeck = (state: GameState): EncounterDeckState => encounterDeckOf(state, activeEncounterDeckId(state));
+
+/** A player's separate deck by name (the Invocation deck; docs/phase7-wave1.md §3.5). */
+export function separateDeckOf(state: GameState, playerId: PlayerId, name: string): SeparateDeckState {
+  const piles = mustPlayer(state, playerId).separateDecks[name];
+  if (!piles) throw new EngineInvariantError(`${playerId} has no separate deck ${name}`);
+  return piles;
+}
+
+/** The identity's printed definition of that separate deck (`HeroIdentityCard.separateDecks`), if it has one. */
+export function separateDeckDefinition(state: GameState, playerId: PlayerId, name: string) {
+  const player = getPlayer(state, playerId);
+  const card = player ? state.cardPool[player.identity.cardId] : undefined;
+  return card?.type === "hero_identity" ? card.separateDecks?.find((deck) => deck.name === name) : undefined;
+}
+
+/** The cards of one player's zone a cost may pick from (`CardZoneQuery`), before its query filter: "the top card of the Invocation deck". */
+export function cardZoneCandidates(state: GameState, from: CardZoneQuery, playerId: PlayerId): readonly InstanceId[] {
+  const player = getPlayer(state, playerId);
+  if (!player) return [];
+  const ids =
+    from.zone === "separateDeck"
+      ? ((from.separateDeck !== undefined ? player.separateDecks[from.separateDeck]?.deck : undefined) ?? [])
+      : zoneContents(state, { kind: from.zone, playerId });
+  return from.top === undefined ? ids : ids.slice(0, Math.max(0, from.top));
+}
+
+/** The encounter deck a card goes back to when discarded (its home deck, or the active villain's). */
+export function homeEncounterDeckId(state: GameState, id: InstanceId): EncounterDeckId {
+  const home = getInstance(state, id)?.home;
+  if (home?.kind === "encounterDeck" && state.encounterDecks[home.deckId]) return home.deckId;
+  return activeEncounterDeckId(state);
+}
+
+/**
+ * Where "discard" sends a card, from its `home` (docs/phase7-wave1.md §3.2): a player card to its owner's discard
+ * pile, an encounter card to its own deck's discard pile, and a card with no encounter deck of its own to the
+ * active villain's (ruling, Jan 17, 2026 (5)).
+ *
+ * Treachery and boost cards never enter play, and the insert only routes "an encounter card [that] leaves play".
+ * They are routed to their home deck too: docs/phase7-wave1.md §4.3's proposed reading, still open for FFG.
+ */
+export function discardZoneFor(state: GameState, id: InstanceId): ZoneId {
+  const instance = getInstance(state, id);
+  if (instance?.home.kind === "player" && instance.ownerId) return { kind: "discard", playerId: instance.ownerId };
+  // An Invocation card goes to its own deck's discard pile, never its owner's (RRG 1.8 "Tuck" discards included).
+  if (instance?.home.kind === "separateDeck" && instance.ownerId && getPlayer(state, instance.ownerId)?.separateDecks[instance.home.name]) {
+    return { kind: "separateDiscard", playerId: instance.ownerId, name: instance.home.name };
+  }
+  if (instance && instance.home.kind !== "player") return { kind: "encounterDiscard", deckId: homeEncounterDeckId(state, id) };
+  // A player card whose owner is unknown cannot exist; keep encounter routing as the safe default.
+  return instance?.ownerId ? { kind: "discard", playerId: instance.ownerId } : { kind: "encounterDiscard", deckId: activeEncounterDeckId(state) };
+}
+
+/**
+ * The other face of a double-sided encounter card, when that face is up (RRG 1.8 "Flip", p. 20; §3.4). Its name,
+ * traits, keywords and abilities replace the printed front's while it is flipped.
+ */
+export function encounterFace(state: GameState, id: InstanceId): EncounterCardFlipSide | undefined {
+  const instance = getInstance(state, id);
+  const card = cardOf(state, id);
+  if (!instance?.flipped || !card || !("flipSide" in card)) return undefined;
+  return card.flipSide;
+}
+
+/**
+ * The title showing right now: a villain's current face ("Norman Osborn" / "Green Goblin"), a flipped card's other
+ * face, or the printed name. A facedown card has none. `named` targets and `name` queries read this.
+ */
+export function currentName(state: GameState, id: InstanceId): string | undefined {
+  const instance = getInstance(state, id);
+  const card = cardOf(state, id);
+  if (!instance || !card || instance.facedownAs) return undefined;
+  const villain = villainOf(state, id);
+  if (villain && card.type === "villain") return card.sides.find((side) => side.side === villain.side)?.name ?? card.name;
+  return encounterFace(state, id)?.name ?? card.name;
+}
+
+/**
+ * "Treat this card's printed text box as if it were blank" (Edison's Giant Robot): its abilities and keywords are
+ * gone while the lasting effect lasts. An attachment's printed stat modifier is outside the text box and still applies
+ * (ruling, Apr 30, 2026 (3) answer 4).
+ */
+export const textBoxBlank = (state: GameState, id: InstanceId): boolean =>
+  state.lastingEffects.some((effect) => effect.kind === "blankTextBox" && effect.targets.includes(id));
+
+/** Whether this card sits in any encounter discard pile. */
+export const inAnyEncounterDiscard = (state: GameState, id: InstanceId): boolean =>
+  state.encounterDeckOrder.some((deckId) => state.encounterDecks[deckId]?.discard.includes(id));
 
 export function mainSchemeStage(state: GameState): MainSchemeStage {
   const card = mustCard(state, state.mainScheme.cardId);
@@ -99,6 +233,27 @@ export function mainSchemeStage(state: GameState): MainSchemeStage {
   const stage = card.stages[state.mainScheme.stageIndex];
   if (!stage) throw new EngineInvariantError(`main scheme has no stage ${state.mainScheme.stageIndex}`);
   return stage;
+}
+
+/**
+ * The current main scheme stage's threat value as the rules read it now: printed (0 when printed "X", `printedX`; RRG
+ * 1.8 "Non-Numerical Variable", p. 30), replaced by a "has a base … of" override (`setBase`), plus modifiers ("Increase
+ * the target threat value of attached scheme by 4"). Every reader of acceleration, target threat and starting threat
+ * goes through here (docs/phase7-wave1.md §3.8).
+ */
+export function mainSchemeValue(state: GameState, field: SchemeValueName, deps: EngineDeps = DEFAULT_DEPS): number {
+  const stage = mainSchemeStage(state);
+  const id = state.mainScheme.instanceId;
+  const printed = stage.printedX?.includes(field) ? 0 : scale(stage[field], state.startingPlayerCount);
+  return Math.max(0, (baseOverride(state, deps, id, field) ?? printed) + statBonus(state, deps, id, field));
+}
+
+/** A side scheme's starting threat (printed, per player), with modifiers; the main scheme's goes to `mainSchemeValue`. */
+export function startingThreatOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): number {
+  if (id === state.mainScheme.instanceId) return mainSchemeValue(state, "startingThreat", deps);
+  const card = cardOf(state, id);
+  const printed = card && "startingThreat" in card ? scale(card.startingThreat, state.startingPlayerCount) : 0;
+  return Math.max(0, (baseOverride(state, deps, id, "startingThreat") ?? printed) + statBonus(state, deps, id, "startingThreat"));
 }
 
 export function mainSchemeStageCount(state: GameState): number {
@@ -142,9 +297,12 @@ export function characterProfile(
 ): CharacterProfile | undefined {
   const printed = printedProfile(state, id);
   if (!printed) return undefined;
-  // A base override ("has a base ATK of 1") replaces the printed value before modifiers apply.
+  // A base override ("has a base ATK of 1") replaces the printed value before modifiers apply. A dash is "treated as
+  // an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15), so no modifier or override touches it.
   const bump = (stat: "atk" | "thw" | "def" | "rec" | "sch", value: number): number =>
-    Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
+    (printed.missing as readonly string[]).includes(stat)
+      ? 0
+      : Math.max(0, (baseOverride(state, deps, id, stat) ?? value) + statBonus(state, deps, id, stat));
   return {
     kind: printed.kind,
     missing: printed.missing,
@@ -205,11 +363,12 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       maxHp: card.hp,
     };
   }
-  if (card.type === "villain" && id === state.villain.instanceId) {
-    const stage = villainStage(state);
+  if (card.type === "villain" && isVillain(state, id)) {
+    const stage = villainStageOf(state, id);
     return {
       kind: "villain",
-      missing: [],
+      // `VillainStage.dashedStats`: Norman Osborn's ATK, Risky Business Green Goblin's SCH (RRG 1.8 "Dash (Value)").
+      missing: [...(stage.dashedStats ?? [])],
       atk: stage.atk,
       thw: 0,
       def: 0,
@@ -305,9 +464,15 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
     case "identity":
       return [mustPlayer(state, zone.playerId).identity.instanceId];
     case "encounterDeck":
-      return state.encounterDeck;
+      return encounterDeckOf(state, zone.deckId).deck;
     case "encounterDiscard":
-      return state.encounterDiscard;
+      return encounterDeckOf(state, zone.deckId).discard;
+    case "separateDeck":
+      return separateDeckOf(state, zone.playerId, zone.name).deck;
+    case "separateDiscard":
+      return separateDeckOf(state, zone.playerId, zone.name).discard;
+    case "encounterSetAside":
+      return state.encounterSetAside;
     case "villainArea":
       return state.villainArea;
     case "victoryDisplay":
@@ -332,9 +497,17 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
     if (player.dealtEncounter.includes(id)) return { kind: "dealtEncounter", playerId: player.playerId };
     if (player.resolving.includes(id)) return { kind: "resolving", playerId: player.playerId };
     if (player.setAside.includes(id)) return { kind: "setAside", playerId: player.playerId };
+    for (const [name, piles] of Object.entries(player.separateDecks)) {
+      if (piles.deck.includes(id)) return { kind: "separateDeck", playerId: player.playerId, name };
+      if (piles.discard.includes(id)) return { kind: "separateDiscard", playerId: player.playerId, name };
+    }
   }
-  if (state.encounterDeck.includes(id)) return { kind: "encounterDeck" };
-  if (state.encounterDiscard.includes(id)) return { kind: "encounterDiscard" };
+  for (const deckId of state.encounterDeckOrder) {
+    const piles = state.encounterDecks[deckId];
+    if (piles?.deck.includes(id)) return { kind: "encounterDeck", deckId };
+    if (piles?.discard.includes(id)) return { kind: "encounterDiscard", deckId };
+  }
+  if (state.encounterSetAside.includes(id)) return { kind: "encounterSetAside" };
   if (state.villainArea.includes(id)) return { kind: "villainArea" };
   if (state.victoryDisplay.includes(id)) return { kind: "victoryDisplay" };
   if (state.removedFromGame.includes(id)) return { kind: "removedFromGame" };

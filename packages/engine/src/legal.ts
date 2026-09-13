@@ -15,12 +15,14 @@
 import type { AbilityId, ResourceIconType } from "@mc/content";
 import { DEFAULT_DEPS, type AbilityCost, type EngineDeps } from "./abilities.js";
 import {
+  basicPowerCost,
   eventActionAbility,
   generatedResources,
   handCardResources,
   paymentOptions,
   paymentsFromOptionIds,
   planCost,
+  playableFromDiscard,
   playRequirement,
 } from "./actions.js";
 import type { PendingChoice } from "./choices.js";
@@ -29,7 +31,7 @@ import { createCtx } from "./ctx.js";
 import { applyCommand } from "./engine.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { cardOf, getPlayer, isMinion, playerOrder, zoneContents } from "./query.js";
+import { cardOf, cardZoneCandidates, getPlayer, isMinion, playerOrder, undefeatedVillains } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResourceRequirement } from "./resources.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, type EffectContext } from "./select.js";
@@ -168,7 +170,7 @@ function costChoiceSets(
   const pay = cost?.payPrintedCostOf;
   if (!pay) return [{ costChoices: baseChoices, target: null }];
   const owners = pay.from.player === "you" ? [playerId] : playerOrder(state).map((p) => p.playerId);
-  const candidates = owners.flatMap((owner) => zoneContents(state, { kind: pay.from.zone, playerId: owner }));
+  const candidates = owners.flatMap((owner) => cardZoneCandidates(state, pay.from, owner));
   // With nothing to pick, one bare variant lets the engine say why.
   if (candidates.length === 0) return [{ costChoices: baseChoices, target: null }];
   return candidates.map((candidate) => ({ costChoices: { ...base, [pay.slot]: [candidate] }, target: candidate }));
@@ -344,7 +346,9 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   if (!player) return { kind: "notYourTurn", activePlayerId: step.activePlayerId };
 
   const results: Evaluated[] = [];
-  for (const id of player.hand) {
+  // Hand cards, and discard pile cards whose own permission allows playing them from there (RRG 1.8 "Play Restrictions
+  // and Permissions", p. 33).
+  for (const id of [...player.hand, ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id))]) {
     const evaluated = evaluatePlay(state, deps, playerId, id);
     if (evaluated) results.push(evaluated);
   }
@@ -354,7 +358,8 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
 
   const characters = [player.identity.instanceId, ...player.playArea.filter((id) => cardOf(state, id)?.type === "ally")];
   const enemies = [
-    ...(state.villain.defeated ? [] : [state.villain.instanceId]),
+    // Any undefeated villain, not only the active one (The Wrecking Crew insert: "Players may attack any villain").
+    ...undefeatedVillains(state).map((villain) => villain.instanceId),
     ...cardsInPlay(state).filter((id) => isMinion(state, id)),
   ];
   const schemes = [
@@ -364,14 +369,19 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
       return type === "side_scheme" || type === "player_side_scheme";
     }),
   ];
+  // A basic power with an additional "discard N cards" cost gets the cheapest picks filled in (`basicPowerCosts`).
+  const withPicks = (character: InstanceId, power: "attack" | "thwart", command: Command): Command => {
+    const picks = discardPicks(state, playerId, character, basicPowerCost(state, deps, character, power));
+    return picks.length > 0 && (command.type === "basicAttack" || command.type === "basicThwart") ? { ...command, costChoices: { discard: picks } } : command;
+  };
   for (const attacker of characters) {
     const action: ActionRef = { kind: "basicAttack", instanceId: attacker };
-    const variants: Variant[] = enemies.map((target) => ({ target, build: () => mustBasicCommand(playerId, action, target) }));
+    const variants: Variant[] = enemies.map((target) => ({ target, build: () => withPicks(attacker, "attack", mustBasicCommand(playerId, action, target)) }));
     results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
   }
   for (const thwarter of characters) {
     const action: ActionRef = { kind: "basicThwart", instanceId: thwarter };
-    const variants: Variant[] = schemes.map((target) => ({ target, build: () => mustBasicCommand(playerId, action, target) }));
+    const variants: Variant[] = schemes.map((target) => ({ target, build: () => withPicks(thwarter, "thwart", mustBasicCommand(playerId, action, target)) }));
     results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
   }
   results.push(simple(state, deps, playerId, { kind: "basicRecover" }));
@@ -497,7 +507,7 @@ function payableFor(
     const host = options.target && hosts.includes(options.target) ? options.target : (hosts[0] ?? null);
     const plan = planCost(state, deps, id, playerId, cost, costChoices ?? {}, NO_RESERVED);
     const planned = "requirement" in plan ? plan : null;
-    const requirement = card && planned ? playRequirement(state, playerId, id, planned.requirement) : null;
+    const requirement = card && planned ? playRequirement(state, playerId, id, planned.requirement, deps, host) : null;
     return {
       build: (payment) => ({
         type: "playCard",

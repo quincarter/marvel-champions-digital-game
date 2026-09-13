@@ -7,6 +7,7 @@
  * something happened off screen.
  */
 
+import { activeVillain } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import type { GameEvent, GameState, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
@@ -45,7 +46,7 @@ describe("tabsTouchedBy", () => {
 
   test("damage to the villain is Enemies news, not Threat news", () => {
     const events: GameEvent[] = [
-      { type: "damageDealt", targetInstanceId: state.villain.instanceId, amount: 2, sourceInstanceId: null },
+      { type: "damageDealt", targetInstanceId: activeVillain(state).instanceId, amount: 2, sourceInstanceId: null },
     ];
     const tabs = tabsTouchedBy(events, state, me);
     expect(tabs.get("enemies")).toBe(1);
@@ -65,8 +66,8 @@ describe("tabsTouchedBy", () => {
 
   test("counts repeats, so 'three things happened' is distinguishable from 'one'", () => {
     const events: GameEvent[] = [
-      { type: "damageDealt", targetInstanceId: state.villain.instanceId, amount: 1, sourceInstanceId: null },
-      { type: "damageDealt", targetInstanceId: state.villain.instanceId, amount: 1, sourceInstanceId: null },
+      { type: "damageDealt", targetInstanceId: activeVillain(state).instanceId, amount: 1, sourceInstanceId: null },
+      { type: "damageDealt", targetInstanceId: activeVillain(state).instanceId, amount: 1, sourceInstanceId: null },
     ];
     expect(tabsTouchedBy(events, state, me).get("enemies")).toBe(2);
   });
@@ -74,7 +75,7 @@ describe("tabsTouchedBy", () => {
   test("never badges the log, which every event would light permanently", () => {
     const events: GameEvent[] = [
       { type: "threatPlaced", schemeInstanceId: state.mainScheme.instanceId, amount: 1, sourceInstanceId: null },
-      { type: "damageDealt", targetInstanceId: state.villain.instanceId, amount: 1, sourceInstanceId: null },
+      { type: "damageDealt", targetInstanceId: activeVillain(state).instanceId, amount: 1, sourceInstanceId: null },
     ];
     expect(tabsTouchedBy(events, state, me).has("log")).toBe(false);
   });

@@ -1,12 +1,13 @@
 /** Enemy attack and scheme procedures: boost cards, defenders, damage and threat. */
 
-import type { AnyCard } from "@mc/content";
+import type { EngineDeps } from "../abilities.js";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
-import { cardOf, characterProfile, getInstance, mustCardOf, mustInstance, mustPlayer, playerOrder } from "../query.js";
-import { mustDefendWithAlly } from "../rules.js";
-import { controllerOf } from "../select.js";
+import { boostIconsFor } from "../modifiers.js";
+import { cardOf, characterProfile, discardZoneFor, getInstance, locateCard, mustCardOf, mustInstance, mustPlayer, playerOrder } from "../query.js";
+import { mustDefendWithAlly, schemeThreatDestination } from "../rules.js";
+import { cardsInPlay, controllerOf } from "../select.js";
 import type { Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -20,7 +21,20 @@ const getsBoostCard = (state: GameState, enemyId: InstanceId): boolean => {
   return false;
 };
 
-const boostIconsOf = (card: AnyCard): number => ("boostIcons" in card ? card.boostIcons : 0);
+
+/**
+ * Whether an initiated activation by an enemy whose ATK (attack) or SCH (scheme) is printed "—" does nothing.
+ *
+ * The engine's reading of docs/phase7-wave1.md §4.4, kept in this one function so it is easy to change. RRG 1.8
+ * "Dash (Value)" (p. 15): the character "cannot exhaust to use that power", and a referenced dash "is treated as an
+ * unmodifiable 0". Nothing says whether such an enemy still attacks for 0 plus boost icons. Core's decision for "—"
+ * minions was to skip the activation, and that is kept: the activation is initiated (so "would attack … instead"
+ * replacements such as Norman Osborn's can fire in its interrupt window) and, if nothing replaced it, it is skipped
+ * when it applies, before any boost card is dealt. An attack already in progress when the villain flips to a dashed
+ * face is not affected: it carries on for 0 plus boost icons (FAQ "Green Goblin (#1B)", p. 59).
+ */
+export const dashedStatSkipsActivation = (state: GameState, deps: EngineDeps, enemyId: InstanceId, activation: "attack" | "scheme"): boolean =>
+  characterProfile(state, enemyId, deps)?.missing.includes(activation === "attack" ? "atk" : "sch") ?? false;
 
 export function giveBoostCard(ctx: Ctx, enemyId: InstanceId): void {
   if (!getsBoostCard(ctx.state, enemyId)) return;
@@ -32,21 +46,43 @@ export function giveBoostCard(ctx: Ctx, enemyId: InstanceId): void {
 }
 
 /**
- * RRG "Boost": each boost card is flipped, its "Boost" ability resolves, and its
- * icons raise the enemy's ATK/SCH. The abilities go on the stack, so they resolve
- * before the activation's damage/threat step rather than interleaved per card.
+ * RRG 1.8 "Attack (Enemy Activation)" step 3 / "Scheme (Enemy Activation)" step 2, and "Boost" (p. 11): one boost card
+ * at a time, in the order dealt. Each is turned faceup; a `boostCardTurnedFaceup` event gives "When/After a boost card
+ * is turned faceup" abilities their windows; its "Boost" ability resolves ("when the card is turned face up"), unless
+ * cancelled; its icons are added, unless cancelled; then "After applying a boost card to an activation, discard it."
+ *
+ * Called repeatedly while the procedure sits on `flipBoosts`. Returns `"busy"` while a card is resolving, the icons to
+ * add once one finishes, or `null` when none is left.
  */
-function flipNextBoostCard(ctx: Ctx, enemyId: InstanceId, playerId: PlayerId): number | null {
-  const [boostId] = mustInstance(ctx.state, enemyId).boostCards;
-  if (!boostId) return null;
-  updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
-  const card = mustCardOf(ctx.state, boostId);
-  const value = boostIconsOf(card);
-  emit(ctx, { type: "boostCardFlipped", enemyInstanceId: enemyId, instanceId: boostId, boostIcons: value });
-  const frames = gameAbilityFrames(ctx, boostId, ["boost"], null, undefined, playerId);
-  moveCard(ctx, boostId, { kind: "encounterDiscard" }, "top");
-  pushFrames(ctx, frames);
-  return value;
+function stepBoostCard(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack"> | Frame<"enemyScheme">,
+  playerId: PlayerId,
+  activation: "attack" | "scheme",
+): number | null | "busy" {
+  const boost = frame.boost ?? null;
+  if (!boost) {
+    const [boostId] = mustInstance(ctx.state, frame.enemyInstanceId).boostCards;
+    if (!boostId) return null;
+    updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
+    const icons = boostIconsFor(ctx.state, ctx.deps, boostId);
+    emit(ctx, { type: "boostCardFlipped", enemyInstanceId: frame.enemyInstanceId, instanceId: boostId, boostIcons: icons });
+    setFrame(ctx, { ...frame, boost: { instanceId: boostId, step: "window", iconsCancelled: false, abilityCancelled: false } });
+    pushEvent(ctx, { kind: "boostCardTurnedFaceup", enemyInstanceId: frame.enemyInstanceId, boostInstanceId: boostId, activation, boostIcons: icons, playerId });
+    return "busy";
+  }
+  if (boost.step === "window") {
+    setFrame(ctx, { ...frame, boost: { ...boost, step: "ability" } });
+    if (boost.abilityCancelled) emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "ability" });
+    else pushFrames(ctx, gameAbilityFrames(ctx, boost.instanceId, ["boost"], null, undefined, playerId));
+    return "busy";
+  }
+  const icons = boost.iconsCancelled ? 0 : boostIconsFor(ctx.state, ctx.deps, boost.instanceId);
+  // Discarded to its home deck's discard (docs/phase7-wave1.md §4.3, proposed), unless its own Boost ability already
+  // moved it ("Put Goblin Thrall into play engaged with you").
+  if (locateCard(ctx.state, boost.instanceId)?.kind === "boost") moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
+  setFrame(ctx, { ...frame, boost: null });
+  return icons;
 }
 
 /** An activation's recorded modifications ("gains overkill", "+N ATK", extra boost cards). */
@@ -89,6 +125,7 @@ export function pushEnemyAttackFrame(ctx: Ctx, event: Extract<TriggerEvent, { ki
       boostIcons: 0,
       stage: "giveBoost",
       eventFrameId,
+      ...(event.noBoost ? { noBoost: true } : {}),
     },
   ]);
 }
@@ -117,10 +154,21 @@ export function legalDefenders(state: GameState, attackedPlayerId: PlayerId): re
   return [...defenders].sort((a, b) => ownFirst(a) - ownFirst(b));
 }
 
+/** RRG 1.8 "Activation" (p. 6): an enemy that left play mid-activation ends it; nothing further resolves. */
+function endedByLeavingPlay(ctx: Ctx, frame: Frame<"enemyAttack"> | Frame<"enemyScheme">, activation: "attack" | "scheme"): boolean {
+  if (frame.stage === "done" || cardsInPlay(ctx.state).includes(frame.enemyInstanceId)) return false;
+  emit(ctx, { type: "activationSkipped", enemyInstanceId: frame.enemyInstanceId, activation, reason: "leftPlay" });
+  setFrame(ctx, { ...frame, stage: "done", boost: null });
+  return true;
+}
+
 export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): void {
+  if (endedByLeavingPlay(ctx, frame, "attack")) return;
   switch (frame.stage) {
     case "giveBoost": {
       setFrame(ctx, { ...frame, stage: "declareDefender" });
+      // "That attack does not get a boost card": no boost card at all, additional ones included.
+      if (frame.noBoost) return;
       const extra = activationVars(ctx, frame.eventFrameId).extraBoost ?? 0;
       for (let i = 0; i < 1 + extra; i++) giveBoostCard(ctx, frame.enemyInstanceId);
       return;
@@ -190,7 +238,8 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
     }
     case "flipBoosts": {
       // RRG "Attack (Enemy Activation)" step 3: one boost card at a time, in the order dealt.
-      const icons = flipNextBoostCard(ctx, frame.enemyInstanceId, frame.attackedPlayerId);
+      const icons = stepBoostCard(ctx, frame, frame.attackedPlayerId, "attack");
+      if (icons === "busy") return;
       if (icons === null) {
         setFrame(ctx, { ...frame, stage: "dealDamage" });
         return;
@@ -208,7 +257,9 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         : undefined;
       // Only a basic defense by a hero reduces damage by DEF (RRG "Defend, Defense").
       const reduction = frame.basicDefense && defenderProfile?.kind === "identity" ? defenderProfile.def : 0;
-      const atk = enemyProfile.atk + (vars.atkBonus ?? 0);
+      // A dashed ATK is an unmodifiable 0 (RRG 1.8 "Dash (Value)"), so "+N ATK for this attack" doesn't raise it, but
+      // boost icons are still added (FAQ "Green Goblin (#1B)", p. 59: a flip mid-attack deals 0 plus the icons).
+      const atk = enemyProfile.atk + (enemyProfile.missing.includes("atk") ? 0 : (vars.atkBonus ?? 0));
       addFrameSlots(ctx, frame.eventFrameId, { target: [frame.targetInstanceId] });
       const damage = Math.max(0, atk + frame.boostIcons - reduction);
       emit(ctx, {
@@ -255,20 +306,24 @@ export function pushEnemySchemeFrame(ctx: Ctx, event: Extract<TriggerEvent, { ki
       boostIcons: 0,
       stage: "giveBoost",
       eventFrameId,
+      ...(event.noBoost ? { noBoost: true } : {}),
     },
   ]);
 }
 
 export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): void {
+  if (endedByLeavingPlay(ctx, frame, "scheme")) return;
   switch (frame.stage) {
     case "giveBoost": {
       setFrame(ctx, { ...frame, stage: "flipBoosts" });
+      if (frame.noBoost) return;
       const extra = activationVars(ctx, frame.eventFrameId).extraBoost ?? 0;
       for (let i = 0; i < 1 + extra; i++) giveBoostCard(ctx, frame.enemyInstanceId);
       return;
     }
     case "flipBoosts": {
-      const icons = flipNextBoostCard(ctx, frame.enemyInstanceId, frame.playerId);
+      const icons = stepBoostCard(ctx, frame, frame.playerId, "scheme");
+      if (icons === "busy") return;
       if (icons === null) {
         setFrame(ctx, { ...frame, stage: "placeThreat" });
         return;
@@ -282,7 +337,8 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       if (!profile) return;
       pushEvent(ctx, {
         kind: "placeThreat",
-        schemeInstanceId: ctx.state.mainScheme.instanceId,
+        // RRG 1.8 "Scheme (Enemy Activation)" step 3 places it on the main scheme unless a constant ability redirects it.
+        schemeInstanceId: schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ?? ctx.state.mainScheme.instanceId,
         amount: Math.max(0, profile.sch + frame.boostIcons + (activationVars(ctx, frame.eventFrameId).threatBonus ?? 0)),
         sourceInstanceId: frame.enemyInstanceId,
         parentFrameId: frame.eventFrameId,

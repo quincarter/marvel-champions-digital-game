@@ -1,3 +1,4 @@
+import { activeVillain } from "./query.js";
 import { applyCommand } from "./engine.js";
 import { playerId } from "./ids.js";
 import { mustInstance, mustPlayer, remainingHitPoints } from "./query.js";
@@ -24,10 +25,10 @@ test("a basic attack exhausts the hero and damages the villain", () => {
     type: "basicAttack",
     playerId: p1,
     attackerInstanceId: identity,
-    targetInstanceId: start.villain.instanceId,
+    targetInstanceId: activeVillain(start).instanceId,
   });
   expect(mustInstance(state, identity).exhausted).toBe(true);
-  expect(remainingHitPoints(state, state.villain.instanceId)).toBe(18);
+  expect(remainingHitPoints(state, activeVillain(state).instanceId)).toBe(18);
 });
 
 test("an exhausted hero cannot attack again", () => {
@@ -37,7 +38,7 @@ test("an exhausted hero cannot attack again", () => {
     type: "basicAttack",
     playerId: p1,
     attackerInstanceId: identity,
-    targetInstanceId: start.villain.instanceId,
+    targetInstanceId: activeVillain(start).instanceId,
   } as const;
   const state = run(start, toHero, attack);
   const second = applyCommand(state, attack);
@@ -52,7 +53,7 @@ test("an alter-ego cannot attack or thwart", () => {
     type: "basicAttack",
     playerId: p1,
     attackerInstanceId: identity,
-    targetInstanceId: start.villain.instanceId,
+    targetInstanceId: activeVillain(start).instanceId,
   });
   expect(result.ok).toBe(false);
   if (!result.ok) expect(result.error.code).toBe("wrong_form");

@@ -1,3 +1,4 @@
+import { activeEncounterDeck, activeVillain } from "@mc/engine";
 import { characterProfile } from "@mc/engine";
 import { CORE_DEPS } from "../index.js";
 import { coreScenario } from "../setup.js";
@@ -31,29 +32,29 @@ const engaged = (state: ReturnType<typeof spiderManVsRhino>, code: string) => pl
 describe("coreScenario('rhino')", () => {
   it("standard: Rhino I–II; Rhino + Bomb Scare + Standard sets and Eviction Notice shuffled in; the nemesis set aside", () => {
     const state = spiderManVsRhino();
-    expect([state.villain.stageIndex, state.villain.lastStageIndex]).toEqual([0, 1]);
+    expect([activeVillain(state).stageIndex, activeVillain(state).lastStageIndex]).toEqual([0, 1]);
     // Rhino set 17 + Bomb Scare 6 + Standard 7 + the obligation.
-    expect(state.encounterDeck).toHaveLength(31);
-    expect(state.encounterDeck.some((id) => inst(state, id).cardId === "01165")).toBe(true);
+    expect(activeEncounterDeck(state).deck).toHaveLength(31);
+    expect(activeEncounterDeck(state).deck.some((id) => inst(state, id).cardId === "01165")).toBe(true);
     expect(playerOf(state, P1).setAside.map((id) => inst(state, id).cardId).sort()).toEqual(["01166", "01167", "01168", "01168", "01169"]);
   });
 
   it("expert: Rhino (II) starts and reveals Breakin' & Takin' during setup; the Expert set is in the deck", () => {
     const state = spiderManVsRhino("expert");
-    expect([state.villain.stageIndex, state.villain.lastStageIndex]).toEqual([1, 2]);
+    expect([activeVillain(state).stageIndex, activeVillain(state).lastStageIndex]).toEqual([1, 2]);
     const breakin = instancesOf(state, "01107")[0];
     expect(state.villainArea).toContain(breakin);
     expect(inst(state, breakin as never).threat).toBe(3);
-    expect(state.encounterDeck.some((id) => inst(state, id).cardId === "01192")).toBe(true);
+    expect(activeEncounterDeck(state).deck.some((id) => inst(state, id).cardId === "01192")).toBe(true);
   });
 });
 
 describe("Rhino encounter set", () => {
   it("Charge: Rhino gets +3 ATK; his attack gains overkill (a defending ally's excess goes to its controller); then Charge is discarded", () => {
     const round2 = settle(run(stackEncounterDeck(spiderManVsRhino(), ADVANCE, "01099"), endTurn()));
-    const charge = instancesOf(round2, "01099").find((id) => inst(round2, id).attachedTo === round2.villain.instanceId);
+    const charge = instancesOf(round2, "01099").find((id) => inst(round2, id).attachedTo === activeVillain(round2).instanceId);
     expect(charge).toBeDefined();
-    expect(characterProfile(round2, round2.villain.instanceId, CORE_DEPS)?.atk).toBe(5);
+    expect(characterProfile(round2, activeVillain(round2).instanceId, CORE_DEPS)?.atk).toBe(5);
     const given = moveToHand(round2, P1, "01002"); // Black Cat, 2 hit points
     const [cat] = given.ids as [never];
     const withCat = settle(run(given.state, toHero(), play(P1, cat, payWith(given.state, P1, 2, [cat]))));
@@ -61,7 +62,7 @@ describe("Rhino encounter set", () => {
     const after = answer(atDefense, [cat]);
     expect(playerOf(after, P1).discard).toContain(cat);
     expect(inst(after, identityOf(after)).damage).toBe(3); // 5 into 2 hit points
-    expect(after.encounterDiscard).toContain(charge);
+    expect(activeEncounterDeck(after).discard).toContain(charge);
   });
 
   it("Breakin' & Takin': enters with 2 + 1 [per_hero] threat; its hazard icon deals an extra encounter card", () => {

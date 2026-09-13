@@ -8,6 +8,9 @@ export const SCENES = {
   setup: "Setup",
   board: "Board",
   gameOver: "GameOver",
+  // PLAN.md Phase 9: precons, MarvelCDB import, and the in-app deck builder.
+  decks: "Decks",
+  deckBuilder: "DeckBuilder",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",

@@ -251,12 +251,26 @@ export const zone = (
 /** "The top N cards of your deck". */
 export const topOfDeck = (n: Amount, player: PlayerRef = you): CardSelector => zone("deck", player, { top: n });
 export const cards = (ref: TargetRef, filter?: TargetQuery): CardSelector => ({ kind: "ref", ref, ...(filter ? { filter } : {}) });
-export const encounterCards = (zones: readonly ("deck" | "discard")[], filter?: TargetQuery, top?: Amount): CardSelector => ({
+/**
+ * "The encounter deck" (and/or its discard pile): the active villain's. `deckOf` names another villain's deck where
+ * the card text does ("Reveal the top card of *his* deck"; docs/phase7-wave1.md §4.2, open).
+ */
+export const encounterCards = (
+  zones: readonly ("deck" | "discard")[],
+  filter?: TargetQuery,
+  top?: Amount,
+  deckOf?: TargetRef,
+): CardSelector => ({
   kind: "encounter",
   zones,
   ...(filter ? { filter } : {}),
   ...(top !== undefined ? { top: amount(top) } : {}),
+  ...(deckOf ? { deckOf } : {}),
 });
+/** Scenario cards set aside at setup (a signature side scheme before Breakout 1A puts it into play). */
+export const encounterSetAside = (filter?: TargetQuery): CardSelector => ({ kind: "encounterSetAside", ...(filter ? { filter } : {}) });
+/** "Place the active counter on Wrecker" / "Move the active counter to …" (The Wrecking Crew insert). */
+export const setActiveVillain = (villain: TargetRef): EffectSpec => ({ kind: "setActiveVillain", villain });
 export const setAside = (player: PlayerRef = you, filter?: TargetQuery): CardSelector => ({ kind: "setAside", player, ...(filter ? { filter } : {}) });
 export const tuckedUnder = (under: TargetRef): CardSelector => ({ kind: "tucked", under });
 

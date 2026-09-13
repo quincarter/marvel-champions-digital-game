@@ -3,10 +3,11 @@
 import type { EngineDeps } from "../abilities.js";
 import { paymentOptions, paymentsFromOptionIds, payPayment, priceOrNull } from "../actions.js";
 import type { ChoiceOption } from "../choices.js";
-import { type Ctx, emit, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
-import { discardFromHand } from "../effects.js";
-import { type InstanceId, instanceId as asInstanceId } from "../ids.js";
-import { cardOf, getPlayer, mustCardOf, playerOrder } from "../query.js";
+import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
+import { dealEncounterCardTo, discardFromHand } from "../effects.js";
+import { type InstanceId, instanceId as asInstanceId, playerId as asPlayerId, type PlayerId } from "../ids.js";
+import { activeEncounterDeckId, cardOf, characterProfile, getInstance, getPlayer, mustCardOf, playerOrder } from "../query.js";
+import { cannotTakeDamage } from "../rules.js";
 import { combineRequirements, satisfies } from "../resources.js";
 import {
   activeAbilityRefs,
@@ -24,6 +25,7 @@ import type { EffectSpec } from "../spec.js";
 import type { TriggerCandidate } from "../stack.js";
 import { effectChoiceAuthority, simultaneousOrderer } from "../villain/authority.js";
 import { applyEffect } from "./apply-effect.js";
+import { damageGroupFrame } from "./damage-group.js";
 import { selectCards } from "./cards.js";
 import { abilityFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { candidateOption } from "./window.js";
@@ -51,7 +53,10 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   if (effect.kind === "choosePlayer") return executeChoosePlayer(ctx, frame, effect, context);
   if (effect.kind === "resolveSpecials") return executeResolveSpecials(ctx, frame, effect, context);
   if (effect.kind === "assignDamage") return executeAssignDamage(ctx, frame, effect, context);
+  if (effect.kind === "dealIndirectDamage") return executeDealIndirectDamage(ctx, frame, effect, context);
   if (effect.kind === "spendResources") return executeSpendResources(ctx, frame, effect, context);
+  if (effect.kind === "dealEncounterCard") return executeDealEncounterCards(ctx, frame, effect, context);
+  if (effect.kind === "reorderCards") return executeReorderCards(ctx, frame, effect, context);
 
   if (effect.kind === "chooseTarget") {
     if (frame.answer === null) return requestTargetChoice(ctx, frame, effect, context);
@@ -136,6 +141,76 @@ function orderEnemies(
     ordered: true,
   });
   return true;
+}
+
+/**
+ * "Deal N encounter cards to each player" (Green Goblin II). RRG 1.8 "Each Player" (p. 17): "If the effect does not
+ * specify what order the players resolve the effect in, the first player decides the order"; ruling, Jan 26, 2026 (4)
+ * answer 3: "the first player chooses the order players receive cards, and cards are dealt simultaneously.
+ * Distribution is AABB or BBAA." So one player's whole share is dealt before the next player's, and the first player
+ * orders the players. One player receiving cards is dealt to without asking, exactly as before.
+ */
+function executeDealEncounterCards(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "dealEncounterCard" }>,
+  context: EffectContext,
+): void {
+  const players = resolvePlayers(ctx.state, effect.player, context).filter((id) => getPlayer(ctx.state, id)?.eliminated === false);
+  const count = effect.count === undefined ? 1 : Math.max(0, resolveValue(ctx.state, effect.count, context, ctx.deps));
+  if (frame.answer === null && players.length > 1 && count > 0) {
+    requestChoice(ctx, {
+      playerId: simultaneousOrderer(ctx.state),
+      authority: "firstPlayerOrders",
+      prompt: { kind: "orderPlayers", reason: "dealEncounterCards" },
+      options: players.map((id) => ({ optionId: id, label: id, ref: { kind: "player", playerId: id } as const })),
+      minSelections: players.length,
+      maxSelections: players.length,
+      frameId: frame.frameId,
+      ordered: true,
+    });
+    return;
+  }
+  const answered = (frame.answer ?? []).map((id) => asPlayerId(id)).filter((id) => players.includes(id));
+  const order = answered.length === players.length ? answered : players;
+  setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+  for (const playerId of order) {
+    for (let i = 0; i < count; i++) dealEncounterCardTo(ctx, playerId);
+  }
+}
+
+/**
+ * "Discard 1 of them and put the others back in any order" (Heimdall). RRG 1.8 "Deck" (p. 15): a deck's order changes
+ * only when a card instructs it. The cards go back on top of the encounter deck they were looked at — the active
+ * villain's (§3.2) — with the first card chosen ending up on top. One card needs no ordering.
+ */
+function executeReorderCards(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "reorderCards" }>,
+  context: EffectContext,
+): void {
+  const ids = selectCards(ctx, effect.cards, context);
+  const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
+  if (frame.answer === null && ids.length > 1 && chooser) {
+    requestChoice(ctx, {
+      playerId: chooser,
+      authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
+      prompt: { kind: "orderCards", to: effect.to },
+      options: cardOptions(ctx, ids),
+      minSelections: ids.length,
+      maxSelections: ids.length,
+      frameId: frame.frameId,
+      ordered: true,
+    });
+    return;
+  }
+  const answered = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => ids.includes(id));
+  const order = answered.length === ids.length ? answered : ids;
+  setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
+  const deckId = activeEncounterDeckId(ctx.state);
+  // Placed one at a time on top, last first, so the first card chosen ends up on top.
+  for (const id of [...order].reverse()) moveCard(ctx, id, { kind: "encounterDeck", deckId }, "top");
 }
 
 const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] =>
@@ -338,6 +413,112 @@ function executeAssignDamage(
   );
 }
 
+const INDIRECT = "_indirect.";
+
+/** The characters a player (or the group) may assign indirect damage to: identities and allies they control. */
+function indirectAssigners(
+  ctx: Ctx,
+  to: Extract<EffectSpec, { kind: "dealIndirectDamage" }>["to"],
+  context: EffectContext,
+): readonly { readonly playerId: PlayerId; readonly characters: readonly InstanceId[] }[] {
+  const controlledBy = (playerId: PlayerId): readonly InstanceId[] => {
+    const player = getPlayer(ctx.state, playerId);
+    if (!player || player.eliminated) return [];
+    const allies = player.playArea.filter((id) => controllerOf(ctx.state, id) === playerId && categoriesOf(ctx.state, id).includes("character"));
+    return [player.identity.instanceId, ...allies];
+  };
+  // "Dealt to a group of players … as the group chooses": the first player submits it (docs/phase7-wave1.md §4.7).
+  if (to === "group") return [{ playerId: ctx.state.firstPlayerId, characters: playerOrder(ctx.state).flatMap((p) => controlledBy(p.playerId)) }];
+  return resolvePlayers(ctx.state, to, context)
+    .map((playerId) => ({ playerId, characters: controlledBy(playerId) }))
+    .filter((assigner) => assigner.characters.length > 0);
+}
+
+/**
+ * RRG 1.8 "Indirect Damage" (p. 24). Players assign in player order, each on their own choice; the order is not asked
+ * of the first player ("Each Player", p. 17) because the assignments are independent and resolve together. A forced
+ * split (one eligible character, or every cap reached) is made without asking. Then every share resolves as one
+ * `damageGroup`.
+ */
+function executeDealIndirectDamage(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "dealIndirectDamage" }>,
+  context: EffectContext,
+): void {
+  const vars: Record<string, number> = { ...frame.vars };
+  vars[`${INDIRECT}amount`] ??= Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
+  const amount = vars[`${INDIRECT}amount`] ?? 0;
+  const assign = (id: InstanceId, points: number): void => {
+    vars[`${INDIRECT}to.${id}`] = (vars[`${INDIRECT}to.${id}`] ?? 0) + points;
+  };
+  let index = vars[`${INDIRECT}index`] ?? 0;
+  if (frame.answer !== null) {
+    for (const optionId of frame.answer) assign(asInstanceId(optionId.slice(0, optionId.lastIndexOf("#"))), 1);
+    index += 1;
+  }
+  const assigners = indirectAssigners(ctx, effect.to, context);
+  for (; index < assigners.length; index++) {
+    const assigner = assigners[index];
+    if (!assigner) break;
+    // "A character cannot be assigned more indirect damage than would cause it to be defeated", and "characters that
+    // cannot take damage cannot be assigned indirect damage".
+    const caps: Record<string, number> = {};
+    for (const id of assigner.characters) {
+      const max = characterProfile(ctx.state, id, ctx.deps)?.maxHp;
+      const remaining = max === undefined ? 0 : max - (getInstance(ctx.state, id)?.damage ?? 0);
+      if (remaining > 0 && !cannotTakeDamage(ctx.state, ctx.deps, id, [frame.selfInstanceId])) caps[id] = remaining;
+    }
+    const eligible = Object.keys(caps).map((id) => asInstanceId(id));
+    const total = eligible.reduce((sum, id) => sum + (caps[id] ?? 0), 0);
+    const assignable = Math.min(amount, total);
+    if (assignable === 0) continue;
+    const [only] = eligible;
+    if (eligible.length === 1 && only) {
+      assign(only, assignable);
+      continue;
+    }
+    if (assignable === total) {
+      for (const id of eligible) assign(id, caps[id] ?? 0);
+      continue;
+    }
+    setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${INDIRECT}index`]: index } });
+    requestChoice(ctx, {
+      playerId: assigner.playerId,
+      authority: "player",
+      prompt: { kind: "assignIndirectDamage", amount: assignable, caps },
+      options: eligible.flatMap((id) =>
+        Array.from({ length: caps[id] ?? 0 }, (_, n) => ({
+          optionId: `${id}#${n + 1}`,
+          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          ref: { kind: "card", instanceId: id } as const,
+        })),
+      ),
+      minSelections: assignable,
+      maxSelections: assignable,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const shares = Object.entries(vars).filter(([key, points]) => key.startsWith(`${INDIRECT}to.`) && points > 0);
+  const cleaned = Object.fromEntries(Object.entries(vars).filter(([key]) => !key.startsWith(INDIRECT)));
+  setFrame(ctx, { ...frame, answer: null, vars: cleaned, cursor: frame.cursor + 1 });
+  if (shares.length === 0) return;
+  pushFrames(ctx, [
+    damageGroupFrame(
+      ctx,
+      shares.map(([key, points]) => ({
+        kind: "dealDamage",
+        targetInstanceId: asInstanceId(key.slice(`${INDIRECT}to.`.length)),
+        amount: points,
+        sourceInstanceId: frame.selfInstanceId,
+        fromAttack: false,
+      })),
+      effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
+    ),
+  ]);
+}
+
 /** RRG "Special": each special ability is a step of the sequence; the last step gets `sequence.final`. */
 function executeResolveSpecials(
   ctx: Ctx,
@@ -346,7 +527,13 @@ function executeResolveSpecials(
   context: EffectContext,
 ): void {
   const steps: TriggerCandidate[] = [];
-  for (const id of selectTargets(ctx.state, effect.cards, context)) {
+  // Cards in play (`cards`), or cards a ref names wherever they are (`of`): an Invocation card resolves from its deck.
+  const sources = effect.of
+    ? resolveRef(ctx.state, effect.of, context).filter((id) => getInstance(ctx.state, id) !== undefined)
+    : effect.cards
+      ? selectTargets(ctx.state, effect.cards, context)
+      : [];
+  for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id)) {
       if (ctx.deps.abilities[ref.id]?.trigger.kind !== "special") continue;
       steps.push({ instanceId: id, abilityId: ref.id, controllerId: controllerOf(ctx.state, id), forced: true, fromHand: false });
@@ -386,12 +573,15 @@ function requestTargetChoice(
 ): void {
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
   const legal = selectTargets(ctx.state, effect.query, context);
-  if (!chooser || legal.length === 0) {
+  // "X enemies": the count can be a value bound earlier in the ability (Shield Toss).
+  const wanted =
+    effect.count === undefined ? 1 : typeof effect.count === "number" ? effect.count : Math.max(0, resolveValue(ctx.state, effect.count, context, ctx.deps));
+  if (!chooser || legal.length === 0 || wanted <= 0) {
     // RRG "Choose (Game Element)": with no legal target there is nothing to choose.
     setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });
     return;
   }
-  const count = Math.min(effect.count ?? 1, legal.length);
+  const count = Math.min(wanted, legal.length);
   requestChoice(ctx, {
     playerId: chooser,
     authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),

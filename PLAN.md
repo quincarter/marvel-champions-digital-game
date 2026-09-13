@@ -236,7 +236,7 @@ Notes and deviations worth carrying:
 - **The dot grid must be a tiled texture, not `fillCircle` per dot.** At the design's 6px spacing a 1280×800 table is ~28,000 dots; as Graphics geometry that overwhelms the renderer. `paintDotGrid` generates one `spacing`-sized texture and tiles it.
 - **`Scale.RESIZE` with no `autoCenter`.** With RESIZE there is nothing to centre, and an autoCentre offset desynchronises pointer input from the widgets' interactive zones.
 - **Text resolution is per-`Text` object in Phaser 4** (there is no game-level setting), so it is applied in `ui/theme.ts`, where every text object in the app is created.
-- **Three screens are folded into one.** The mocks' Scenario → Heroes → Deck flow is a single Setup screen, since the preconstructed Core decks are the only deck choice in Phase 4.
+- **Three screens are folded into one.** The mocks' Scenario → Heroes → Deck flow is a single Setup screen, since the preconstructed Core decks are the only deck choice in Phase 4. *(Revisited 2026-09-13: Phase 9 decks have landed, so the split is back on the table. See [docs/phase4-screen-gaps.md](docs/phase4-screen-gaps.md), W2.)*
 
 ### What landed (2026-09-12)
 
@@ -521,6 +521,15 @@ Still open in Phase 4:
 - **The log column is short on the long table at 800×600**: about three lines under the encounter piles. It scrolls, but the layout gives it little room. Revisit when the long table is next laid out.
 - **An engaged minion is drawn twice.** See above.
 
+### Screen gaps against the design canvases (2026-09-13)
+
+An inventory of every screen in `Marvel Champions game screens/` compared with the client found several missing or partial. The full list, shared prerequisites, workstreams and open decisions are in **[docs/phase4-screen-gaps.md](docs/phase4-screen-gaps.md)**. Work them from there, and tick them off in that file.
+
+- **Missing:** Scenario select, Take your seats, Table setup (modular sets, first player, encounter deck preview), the Setup deal & mulligan screen, Pause & Rules, and a Settings screen.
+- **Partial:** Title (setup is folded into it rather than a menu), deck analysis (no curve or composition in the builder, no Deck check screen), Targeting and Defend (no outcome previews or "why not"), Decks & Collection (single pane, no stats).
+- **Built, with small follow-ups:** Board, Inspect, Villain phase, Game Over.
+- **Engine work it needs:** outcome preview queries for targeting and defending (`game-rules-architect`), and a decision on how Concede ends a game.
+
 ### Checklist
 
 - [x] Reference point: *Sentinels of the Multiverse* (digital edition) — a 2D tabletop-style card game, not a 3D physical simulator, playable cross-platform. Board/zones/cards are the primary UI; chrome (log, phase tracker, counters) supports it rather than replacing the tabletop feel.
@@ -528,6 +537,7 @@ Still open in Phase 4:
 - [x] Card rendering (using licensed-for-personal-use art per the IP boundary in CLAUDE.md), zoom/inspect, legal-move highlighting, tap-to-target interaction for choosing targets/attachments/assignments. **Landed:** real card scans through the same-origin art route with the generated frame as the designed fallback, the Inspect overlay, legal-move highlighting, tap-to-target, tap-to-play, and the payment mode for choosing what to spend. **Deliberately not built:** drag-and-drop — tap-to-target does every job the mocks use drag for, and works identically on a phone.
 - [ ] Animations/feedback for damage, threat, defeat, phase transitions — enough to make state changes readable, not spectacle for its own sake. **Landed:** floating beats anchored to the card each change happened to, including the changes that leave the board looking the same (Tough, Crisis), honouring reduced motion; and the villain phase, which the engine resolves in a single command, now steps through its five RRG steps at a readable pace instead of landing all at once. **Landed since:** card-movement travel between any two zones that both have an on-table anchor. **Landed 2026-09-13:** your deck and discard are pile boxes beside the hand, so draws and discards have an on-table anchor to travel from and to.
 - [ ] Accessibility pass: colorblind-safe indicators (damage/threat/keywords shouldn't rely on color alone), readable type sizes, keyboard/controller navigation if platform requires it. Scope per the stack decision above: keyboard and gamepad focus navigation, colorblind-safe indicators, minimum sizes and reduced motion. Screen readers are out of scope for the canvas client. **Landed:** icon-plus-text indicators (status pips carry their initial, stat tiles carry their label, resource pips carry their type's glyph rather than relying on a hue, the threat meter carries its numbers), the design's minimum type sizes and 44/52px touch targets, reduced motion defaulting from `prefers-reduced-motion` (honoured by the selection ring and the beats), and keyboard navigation with a visible focus ring. **Landed since:** gamepad navigation, through the same focus route as the keyboard. **Landed 2026-09-13:** the choice sheet and Inspect take keyboard and gamepad input through the same intents as the Board. **Landed 2026-09-13:** the Title screen, the villain-phase walkthrough and Game Over, through one shared focus route, so keyboard and gamepad reach every screen.
+- [ ] Screens from the design canvases: the setup flow, mulligan, Pause & Rules, Settings, deck analysis, and the richer Targeting and Defend overlays. Tracked in [docs/phase4-screen-gaps.md](docs/phase4-screen-gaps.md) (workstreams W1–W9).
 - [x] Exit criteria: a solo human player can play a full Core Set scenario against the AI villain from the Phase 3 engine, entirely through the UI, with no engine internals exposed. That covers one hero, or 1–4 heroes played multi-handed. **Partly met:** a Rhino solo game runs through the UI from setup, through a player turn, into and out of a villain phase (verified in the browser: mulligan, change form, basic attack, choosing what to pay and playing the card, using an ability on a card in play and picking its target, discard to hand size, villain-phase choices, the villain-phase walkthrough), with card art, Inspect and readable beats, and no engine internals exposed. **The two pieces named here as missing both landed 2026-09-12.** What remains is the sitting itself: the game has not yet been played end to end *to an outcome* in one unbroken session through the UI, which is now a matter of playing it rather than of missing machinery.
 
 ## Phase 5 — Multiplayer
@@ -555,6 +565,205 @@ Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-
 - [ ] Cycle 1 (The Rise of Red Skull) as the next full content pass, then subsequent cycles/campaign boxes in release order.
 - [ ] Each new cycle's new keywords get added to `game-rules-architect`'s keyword set before that cycle's cards are scripted.
 - [ ] Ongoing: `content-release-tracker` watches for new releases/errata/taboo changes and files content-pipeline work rather than letting the card pool go stale.
+
+### Scope decided (2026-09-13)
+
+- **Phase 7 and Phase 9 run together.** A deck builder is only as useful as the pool it builds from. And import's most common outcome, "this deck needs cards we don't have", can only name the cards precisely when every real card is known.
+- **All 62 non-Core packs become card data; only wave 1 is scripted this pass.**
+  - Wave 1 is what released before The Rise of Red Skull: the Green Goblin and Wrecking Crew scenario packs, and the Captain America, Ms. Marvel, Thor, Black Widow, Doctor Strange and Hulk hero packs.
+  - Every other card is data the builder can show and `validateDeck` can judge, marked not playable yet.
+  - The checklist item above names Rise of Red Skull as next; release order puts wave 1 first.
+- **Execution:** the specialist agents work in parallel, and the main thread integrates their work and verifies it in the browser.
+
+**Raw data fixed and refetched (2026-09-13).**
+- **What was wrong.** `scripts/main.go` decoded each pack into a nine-field struct and saved that struct, not the response. So 62 of the 63 raw files held only names and image paths, with no `text`, `cost`, `health`, `traits`, `quantity`, `linked_to_code` or `boost` field anywhere.
+- **The fix.** It now saves each response verbatim, in the `{ source, fetchedAt, pack, cards }` envelope that `ingest-marvelcdb.ts --offline` reads, and it takes `-images=false`.
+- **Build it with `go build -o scraper main.go`**, not `go build .`: the latter also compiles `download_images.go`, a separate program in the same folder.
+- **Refetched:** 63 packs, 4,126 cards. Core's 205 records came back field-for-field identical, so the committed Core data stands.
+
+**In progress:**
+- **Landed (`game-rules-architect`, verified: root typecheck clean; content 103, engine 272, cards 125, client 243 tests):**
+  - **`@mc/content`:** `Deck` (with `source` and `poolVersion`) and `deckFromStarterDeck`.
+  - **`@mc/engine`:** `validateDeck` from RRG 1.8 (Jul 2026) Appendix I and the glossary, returning every problem with a player-readable message, and `unscriptedCards` for "legal but not playable in this build".
+    - `unscriptedCards` includes the identity's obligation and nemesis set, deliberately: setup brings those into the game.
+  - **Setup:** `createGame` refuses an illegal deck with `illegal_deck`, reporting every bad seat, behind `requireLegalDecks`, which `coreScenario` turns on. Seats carry their `aspects`.
+  - **Schema hooks:** `HeroIdentityCard.deckbuilding` (aspect count, the equal-cards-per-aspect and off-aspect-package rulings, and an `unmodeled` escape hatch that blocks seating), `linked.cardTitle` and `teamUp.names`.
+  - **Questions for FFG:**
+    - Identity sets with more than three copies of a title vs the three-copy rule. Black Panther's set has 5 "Wakanda Forever!"; the implementation holds signature cards to their set quantity.
+    - Four vs five choosable aspects: 'Pool is implemented as the fifth.
+    - "May" vs "must" choose an aspect: implemented as must.
+  - **Follow-ups:** setup doesn't yet set Linked or Permanent cards aside, and MarvelCDB reprint codes (`duplicate_of_code`) will need mapping before real decklists import cleanly.
+- **Interrupted, then restarted (2026-09-13).** Both agents below were cut off by an API usage limit. Fresh agents are continuing from the work left in the tree, which was checked first:
+  - **Rules work that survived:**
+    - about 670 lines of wave 1 schema, with `schema/wave1.test.ts` covering Wrecking Crew's lettered stages and four villains, Risky Business's double-sided villain stage cards, Mutagen Formula's X values, wave 1 attachment hosts, nemesis-minion markers, play restrictions, and the Invocation separate deck;
+    - Invocation-deck legality tests in `engine/src/deck.test.ts`, with no implementation behind them.
+    - It left four content type errors and a missing import that stopped `deck.test.ts` loading. `docs/phase7-wave1.md` was not started.
+  - **Client work that survived, all tested (client 276 passing):**
+    - decklist parsing (`@mc/content` `src/import/`) and the pool version;
+    - saved-deck storage (its own `mc-decks` database);
+    - the dev-only `/api/marvelcdb-import/*` route;
+    - view models for the deck list, import and builder.
+    - No scenes yet.
+- **Local rules sources (2026-09-13).** The user added RRG 1.8 (`mc_rulesreference_v18_compressed.pdf`) and Hall of Heroes' transcription of official FFG rulings since RRG 1.7 (`marvel-champions-rulings-post-rrg-1-7.md`) to the repo root; CLAUDE.md now points at both. Entries that bear on current work:
+  - **Aug 3, 2026, ruling 4:** Linked cards cannot be included in decks. Confirms `validateDeck`'s `linked_card` problem.
+  - **Jan 17, 2026, ruling 5 (Wrecking Crew):** only the active villain's encounter deck can be interacted with. A card shuffled into "the encounter deck" goes into the active villain's, and a defeated nemesis minion goes to the active villain's discard. This settles the multi-villain encounter-deck model.
+  - **Jan 26, 2026, ruling 4, #3:** when several players are dealt encounter cards at once (Green Goblin II's When Revealed), the first player chooses the order and players receive their cards in blocks, AABB or BBAA, never ABAB.
+  - **Mar 19, 2026, ruling 6:** the deckbuilding half of the unique rule applies only during deck construction. Unique cards added at setup (Cameo, scenario rules) may share titles with cards in player decks.
+  - **Jan 26, 2026, ruling 4, #6 and #7:** "Kang (The Conqueror)" and "Kang (Master of Time)" don't match (the parenthetical is part of the title, not a subtitle), and Valkyrie the hero doesn't match Valkyrie the ally (the hero's alter-ego title differs). Both are regression cases for `cardsMatch`.
+- **Wave 1 schema and engine spec landed (`game-rules-architect`, 2026-09-13).** Verified by the main session: content, engine and cards typecheck clean, with content 186, engine 276 and cards 125 tests passing.
+  - **Schema.** Every wave 1 card shape can now be represented; the final survey run found no gap left for the schema. It covers:
+    - several villains in one scenario, with a signature side scheme per villain;
+    - Wrecking Crew's versions A and B as consecutive stages;
+    - villain stage cards with two faces, `startingSide` and `dashedStats`;
+    - double-sided encounter cards;
+    - `printedX` scheme values;
+    - seven new attachment host kinds;
+    - a nemesis-minion marker;
+    - play restrictions: max per round, and identity-trait and controlled-character-trait requirements;
+    - an identity's separate deck, the Invocation deck.
+  - **Invocation deck legality.** Its cards may not be listed in a deck and don't count toward deck size; the identity defines them. They count as used for `unscriptedCards`, and the unique rule doesn't apply to them (ruling Mar 19, 2026 (6)).
+  - **`docs/phase7-wave1.md`** has the schema decisions with citations, each pack's setup needs, and 15 engine primitives in priority order, starting with several villains and the active villain (`state.villain` becomes a list, read in 43 places), an encounter deck per villain with discard routing, and two-faced villain stage cards. It also lists eleven open questions.
+  - **Raw-data errors curation must fix:** Pile It On! names the wrong villain; Black Widow and Synth-Suit are missing their errata; plus several typos (doc §1.12).
+  - **Keywords.** No wave 1 card prints Team-Up, Find, Discount, Requirement or Teamwork. "Teamwork" (06032) is an event's title and must not parse as the keyword.
+- **Decided by the user (2026-09-13): games saved before the multi-villain state change are retired, not migrated.** When that change lands, every older save is marked `incompatible` and no longer offered as Continue, the existing path for a save that no longer replays. This answers open question 11 in `docs/phase7-wave1.md`.
+- **Decided by the user and confirmed against the rules (2026-09-13): each player assigns their own indirect damage.**
+  - RRG 1.8 "Indirect Damage" (p. 24): damage dealt to a player "can be divided as that player chooses among characters under their control".
+  - When the effect hits each player, "Each Player" (p. 17) has the players resolve it one at a time, in an order the first player picks when the card doesn't give one.
+  - Every wave 1 indirect-damage card deals it to "each player" or "you": Green Goblin I–II, Pumpkin Bombs ×2, Electro, Lightning Bolt. None deals it to "the group".
+  - When a later pack does, the RRG says it "can be divided as the group chooses", and "First Player" (p. 19) gives the first player the final say ("the players as a group are encouraged to work together, but the first player decides"). That decision goes to the first player's seat.
+  - The rulings file has no ruling on who divides it; its only indirect-damage ruling (Aug 3, 2026 (2)) is about Echo.
+  - This answers open question 7 in `docs/phase7-wave1.md`.
+- **Phase 9 client landed (`game-client-engineer`, 2026-09-13), then verified and fixed in the browser by the main session.** Root typecheck is clean, and content 186, engine 276, cards 125 and client 296 tests pass.
+  - **Built:**
+    - a `SessionConfig` seat can carry a custom deck, and a `createGame` refusal keeps its engine code (`SetupError`) across the worker boundary;
+    - Title seats offer every precon and saved deck, with seats that can't be played dimmed in place;
+    - a Decks screen: a virtualized list with a status chip per deck, paste import, import by MarvelCDB link or id through a dev-only route, and delete;
+    - a minimal deck builder;
+    - `McMultilineInput` for pasting decklists;
+    - focus routes for both new screens.
+  - **Seen working in the browser at 800×600:**
+    - importing MarvelCDB decklist 2416 by id through the dev route: "Black Panther (imported)", which the engine confirms is legal (40 cards, Protection, nothing unscripted) and saved against the current pool version;
+    - that deck appearing as a Title seat;
+    - a game started from it, dealing a real Rhino game that opened on Black Panther's Foresight choice.
+  - **Four bugs found in the browser and fixed:**
+    - **The paste field drew nothing.** It took keystrokes but never rendered. rexUI's `TextAreaInput` keeps its `GridSizer` and `CanvasInput` as separate entries in the scene's display list, and the Decks screen only kept the root object through each full redraw. `McMultilineInput.gameObjects` now returns every piece, and the Decks screen keeps them all.
+    - **Status chips were colour only.** Each "LEGAL" label was created before its chip's fill, so it was drawn underneath it.
+    - **A saved deck's status chip was hidden** under its Edit button. It now sits left of Edit and Delete.
+    - **"Start game" was pushed off the bottom of an 800×600 window** by the extra seat row and "Manage decks…", and a canvas can't scroll. On wider screens "Manage decks…" now shares the seed row; the wordmark scales with window height as well as width; short windows get tighter margins. It fits with seven seats. **Still open:** every further saved deck adds a seat row, so Title needs a cap or a scrollable seat list before a player's collection grows.
+  - **Also fixed:** a successful import was reported in error red. The banner now has a success tone and an error tone.
+  - **The deck builder, seen and fixed.** Picking an identity, choosing an aspect (Spider-Man's pool went from 19 to 27 browsable cards), live problems in the engine's own wording, and add/remove all work.
+    - **Fixed: a new deck started empty,** so the builder opened on ten problems, eight of them "X is missing" for signature cards the player had to add by hand.
+    - `@mc/engine` now exports `requiredIdentitySet(identity, pool)`: the identity-set cards at their exact set quantities, leaving out Linked cards and separate-deck (Invocation) cards. `validateDeck` reads set membership from the same predicate, so the two can't disagree.
+    - `newDeck` starts from it. A new Spider-Man deck now opens with 15 cards and two problems: choose an aspect, reach 40 cards.
+    - Tested: for every Core precon the helper returns exactly that precon's signature cards.
+  - **Not yet verified in the browser:**
+    - paste import of a real MarvelCDB text export (the parser's format is inferred and was never checked against real export bytes);
+    - Title rerouting an `illegal_deck` refusal to Decks;
+    - both new screens on the phone layout, and their keyboard routes.
+  - **Known gaps from the agent:**
+    - rows can't be clicked to edit them, only through their Edit button;
+    - no card-art thumbnails in the Decks or builder lists;
+    - `McMultilineInput.focus()` reaches into rexUI internals;
+    - the main bundle grew about 600 kB (to 2.22 MB) from rexUI's `TextAreaInput` and `CanvasInput`.
+- **Sequencing.** Engine primitives waited for the client agent to finish; that condition is now met, and the engine work has started (below).
+- **A transient cards failure, explained (2026-09-13).** Rhino's "Charge" test briefly failed: it couldn't find card `01099`. The data agent had re-emitted `src/data/core` mid-run and then reverted it. Core data matches HEAD again (checked staged and unstaged), all 125 cards tests pass, and the agent has been told to do any Core drift check in a temporary directory.
+- **Stopped by the account's monthly spend limit (2026-09-13).** Both agents below ended early. Checked afterwards: root typecheck is clean and all 884 tests pass (content 186, engine 277, cards 125, client 296).
+  - **Engine primitives:** not started. No engine files changed.
+  - **Wave 1 data:** unfinished edits to `scripts/marvelcdb/normalize.ts` and `parse-text.ts`. No wave 1 curation files, no emitted `src/data/<pack>/` folders, no `WAVE1_*` pool, no precons. `src/data/core` still matches HEAD.
+  - **Restage `scripts/marvelcdb/normalize.ts` before committing.** The staged copy uses raw NUL characters as map-key separators (`` `${type}<NUL>${name}` ``, at byte offsets 5,858 and 6,431). The code works, but git treats the whole file as binary and shows no readable diff. The working file has since switched to a space separator (`` `${c.type_code} ${c.name}` ``; `type_code` never contains a space, so keys can't collide) and has no control bytes, so `git add` it after reviewing.
+  - **To resume** once the limit allows: re-run both briefs as fresh agents. Tell the data agent to review the unfinished `normalize.ts` and `parse-text.ts` edits first (keep them if they're sound, otherwise revert them) rather than starting over blind.
+- **Wave 1 card data landed (`card-data-pipeline`, 2026-09-13).** Verified by the main session: `src/data/core` still matches HEAD; content (246 tests) and cards (151) typecheck clean and pass.
+  - **Emitted:** eight packs to `src/data/<code>/`.
+    - Hero packs: cap 34, msm 33, thor 34, bkw 33, drs 39, hlk 32, each matching its raw record count.
+    - Scenario packs: gob 43 of 53 records, twc 55 of 60. MarvelCDB lists each villain stage and main scheme both as a combined record and as an a/b pair, and each is emitted once.
+    - Aggregated as `WAVE1_CARDS`, `WAVE1_ENCOUNTER_SETS`, `WAVE1_SCENARIOS` and `WAVE1_STARTER_DECKS`, beside the unchanged `CORE_*` exports. The engine, `coreScenario` and the client still use Core only.
+  - **Scenarios:**
+    - Risky Business: Norman Osborn is the side up at setup, Green Goblin the other side.
+    - Mutagen Formula: its B-side acceleration is printed as X.
+    - Breakout: four villains in printed order, each with its own encounter set and signature side scheme.
+  - **Curation corrections, each cited:**
+    - Pile It On! names Piledriver, not Wrecker.
+    - Held Hostage 07005: "attacked" → "attached".
+    - Held Hostage 07036 / 07050: a missing apostrophe. Uncorrected, it silently parsed to a host naming a nonexistent card.
+    - Black Widow and Synth-Suit: the "trigger" → "resolve" errata, via a new forward-errata mechanism (RRG p66; ruling Feb 28, 2026 (2)).
+    - Electrostatic Armor: "Player under" → "Play under". Otherwise the restriction silently parses as plain text.
+    - Title capitalization for "Strength in Numbers" and "Clash of the Titans", confirmed against the printed decklists.
+  - **Pipeline fixes:**
+    - three wave 1 fields missing from the emitter's key brands;
+    - separate-deck cards exempted from the precon identity-set check;
+    - a scenario's main scheme may live in a different set from its villain (Breakout);
+    - scenarios may reference Core's Standard and Expert sets;
+    - "When Completed" is now a recognized trigger.
+  - **Reprint art:** a reprinted basic or aspect card with no image of its own resolves to its first printing in Core, matched by type and name. Every wave 1 reprint originates in Core.
+  - **Precons.** Captain America (Leadership), Ms. Marvel (Protection), Thor (Aggression), Black Widow (Justice), Doctor Strange (Protection) and Hulk (Aggression) all pass `validateDeck` and `requiredIdentitySet` (`packages/cards/src/wave1-precon-legality.test.ts`). Doctor Strange's Invocation cards come from his identity's `separateDecks`.
+    - **Provenance deviation, accepted:** each is marked `verified: true` on one source, the printed decklist on the deck's title card (Hall of Heroes photo, viewed only, not stored). The brief asked for `verified: false` with a single source. FFG's printed decklist is the primary evidence; no matching MarvelCDB decklist was found to cross-check.
+  - **Still untrusted:** "Chaos In the Prison" (07011 / 07026 / 07056) may be a MarvelCDB capitalization error; there's no second source, so it's left as is.
+- **Resumed (2026-09-13):** both tasks restarted as fresh agents. The data agent reviews the unfinished `normalize.ts` and `parse-text.ts` edits before building on them.
+- **Engine primitives §3.1–§3.2 landed; the agent was stopped again by the spend limit partway into §3.3–§3.4 (checked 2026-09-13 by a new main session).** Root typecheck is clean and all 991 tests pass (content 246, engine 294, cards 151, client 300).
+  - **§3.1 several villains and §3.2 an encounter deck per villain: done and tested** (`packages/engine/src/multi-villain.test.ts`, 18 tests on synthetic cards).
+    - `GameState.villains` + `activeVillainId`; `encounterDecks` + `encounterDeckOrder` + `encounterSetAside`; `CardInstance.home` routes discards.
+    - `setActiveVillain` effect, `activeVillainChanged` event, the "most threat, tie → first player" rule on defeat, the `allVillainsDefeated` win.
+    - Core games unchanged; the client board model reads `activeVillain(state)`.
+  - **Old saves retired, as decided:** `SAVE_SCHEMA` is 2; a schema-1 save is marked `incompatible` and never offered as Continue (`client/src/engine/session-core.ts`).
+  - **§3.3–§3.4 partly written, untested:**
+    - written: `flipVillain` / `flipCard` effect (`resolve/apply-effect.ts`), `CardInstance.flipped` and the flipped-face accessor, the `faceNamed` predicate, `dashedStats` read in `characterProfile`, double-sided cards removed from the game instead of discarded (RRG 1.8 "Double-Sided Card", p. 17), the `stateCheck` trigger kind, and `GameState.stateChecks`.
+    - **not yet wired:** `resolve/state-checks.ts` `checkStateTriggers` is called from nowhere, so condition-triggered abilities never fire.
+    - **no tests** for any §3.3–§3.4 item.
+- **Engine primitives §3.3–§3.11 landed (`game-rules-architect`, 2026-09-13; the agent was stopped by the session limit before reporting, and this was verified by the main session).** Root typecheck is clean and all 1,070 tests pass (content 246, engine 373, cards 151, client 300). Engine test files went 25 → 33.
+  - **Landed, each with its own test file:** §3.3/§3.4 two-faced villain stages, flipping encounter cards and edge-triggered state checks (`flip.test.ts`); §3.5 the Invocation separate deck (`separate-deck.test.ts`); §3.6 enemy-activation replacement, redirection, boost suppression and queued attacks (`activation-wave1.test.ts`); §3.7 indirect damage, each player assigning their own (`indirect-damage.test.ts`); §3.8 scheme values, When Completed and signature side schemes (`scheme-values.test.ts`); §3.9 boost cards as events (`boost.test.ts`); §3.10 play, cost and resource restrictions (`play-restrictions.test.ts`); §3.11 four new trigger events and seven rule specs (`triggers-wave1.test.ts`).
+  - **Core is unchanged:** a new announcement only reaches the stack when an ability could react to it, so Core's event order and logs stay identical.
+  - `docs/phase7-wave1.md` §3 now carries a per-section status note saying what landed and which test file proves it.
+- **Engine primitives §3.12–§3.16 landed (`game-rules-architect`, 2026-09-13), verified by the main session: root typecheck clean, 1,116 tests pass (content 246, engine 419, cards 151, client 300). Every wave 1 engine primitive in `docs/phase7-wave1.md` §3 is now implemented, and each section carries a status note naming its test file.**
+  - **Landed:** §3.12 selection and value vocabulary (`selection-wave1.test.ts`); §3.13 card movement and placement (`movement-wave1.test.ts`); §3.14 attachment host resolution, every §1.6 host kind evaluated at attach time (`attachment-hosts.test.ts`); §3.15 setup, with a per-villain `version: "A" | "B" | "extreme"` (`setup-wave1.test.ts`); §3.16 verification (`verify-wave1.test.ts`).
+  - **A Core behaviour was corrected, deliberately.** Identity `Setup:` abilities used to resolve before the opening draw; RRG 1.8 Appendix II (p. 51) makes them step 16 — after Draw Cards (14) and Resolve Mulligans (15) — which is what makes Steve Rogers' "deck **and** discard pile" search meaningful (FAQ "Steve Rogers (#1B)", p. 59). They now run in a new `playerSetupAbilities` flow step. **Verified against the RRG text by the main session**, not taken on the agent's word. One engine test's prompt order flipped (`player-cards.test.ts`, same subject); Black Panther's Foresight in `@mc/cards` passes unchanged.
+  - **§3.16 found two real gaps, both fixed:**
+    - `CardSelector.zone` took a single zone, so "search your deck **and** discard pile" (Agent Coulson, Hail Hydra!, For Asgard!) could not be one choice. It now takes several.
+    - **Stun vs an unlabeled multi-attack ability.** FAQ "Dance of Death (#4)" (p. 59): a stun prevents only the first of its three attacks. The engine only spent a stun on `(attack)`-labeled abilities and basic attacks, so an unlabeled attack effect ignored stun entirely. An `attack` effect now checks the attacker's stun at initiation. **Core is unaffected:** `dsl/validate.ts` `checkLabels` refuses an attack effect on an ability without an `(attack)` label, so no Core script can reach that path.
+  - **Readings taken** (each isolated, easy to change): §4.6's extreme challenge as the doc proposes (`VERSION_STAGES` in `setup.ts`); a superlative tie resolves to every tied card, with `chooseTarget { inSlot }` breaking it the way §3.1 does; `ignoreTough` leaves the tough status card in place (piercing is the keyword the RRG defines as discarding it, p. 44); `setRemainingHitPoints` is not a heal. §4.2, §4.4 and §4.5 were not touched.
+  - **Follow-ups for `ability-scripting-engineer`, before the cards that need them can be scripted:**
+    - `dsl/validate.ts` `checkLabels` needs an opt-out, or Dance of Death (no printed `(attack)` label) cannot be written.
+    - `dsl/validate.ts` `bindsOf` doesn't know `discardEncounterCards.bind`, so a script reading `<bind>.count` is wrongly flagged.
+    - `PlayerZone` is defined in `spec.ts` but not re-exported from `@mc/engine`'s `index.ts`; a consumer outside the engine can't name the type yet.
+- **Not started:** scripting any wave 1 card (`ability-scripting-engineer`), and every client screen still reads the Core pool only — scenario choice, seats, the deck list, the deck builder and Inspect, and the engine the client runs is given Core's cards and scripts. Wave 1 is data and engine rules only; nothing of it is reachable in the UI yet.
+- **Running now:**
+  - `card-data-pipeline`: curations for the eight wave 1 packs, parser and normalizer support for the wave 1 schema, a reprint art policy, emitted `src/data/<pack>/` modules and a `WAVE1_*` pool beside the unchanged `CORE_*` exports, and the six wave 1 hero precons checked with `validateDeck`.
+  - `game-rules-architect`: the wave 1 schema (several villains at once and Wrecking Crew's A/B stages, Green Goblin's Norman Osborn side, Doctor Strange's Invocation deck, attachment hosts, wave 1 keywords), plus the engine design spec `docs/phase7-wave1.md`.
+  - `game-client-engineer`: the pool version, decklist parsing (`@mc/content` `src/import/`), a dev-only MarvelCDB import route, saved decks, and the Setup, Decks and deck-builder screens.
+- **Next:**
+  - Curate and ingest the wave 1 packs (`card-data-pipeline`), then the wave 1 engine rules, then card scripts (`ability-scripting-engineer`), then rules QA.
+  - Per-hero precons.
+  - The remaining 54 packs as data.
+
+**Pack survey (2026-09-13, `card-data-pipeline`).** New tooling:
+- `scripts/marvelcdb/survey.ts` does a dry-run normalization of any or all packs and produces a categorized gap matrix.
+- `ingest-marvelcdb.ts` gains `--all`, `--dry-run` and `--allow-bare`, a curation registry keyed by pack, and a default output folder of `src/data/<pack>/`.
+- Schema-neutral fixes: three missing icon tokens (`icon-boost`, `icon-crisis`, `icon-per_group`) that crashed normalization, and `player_side_scheme` now reaches the existing `PlayerSideSchemeCard` type.
+
+Findings:
+- **No non-Core pack normalizes without hand curation: 0 of 62.** Core only normalized because `curation/core.ts` corrected it card by card. So "all packs as data" means per-pack curation work, not a bulk conversion.
+  - **Order:** wave 1 packs are curated first, because scripting needs them. The remaining 54 packs follow.
+- **Largest gaps:**
+  - 534 missing art references, mostly benign: MarvelCDB gives reprinted basic cards no image. The "every face has art" rule was written for a set where every card was a first printing.
+  - 359 attachment host rules the parser can't read: trait-qualified ("an Avenger ally"), negated, "a scheme", conditional named hosts.
+  - 137 cards missing `deck_limit`, and 99 with an unknown `campaign` faction: campaign reward cards.
+  - 37 unknown card types: `leader` (Civil War, Synthezoid), the Agents of S.H.I.E.L.D. `evidence_*` cards, and third hero faces.
+  - 33 villain stage labels that aren't roman numerals: Wrecking Crew uses `A`/`B`.
+  - 19 hero-kit cards outside their hero's card set: Doctor Strange's Invocation deck and others.
+  - 7 A/B main-scheme mismatches, the same trap Core needed curating for: Hood, Mad Titan's Shadow, and Mutant Genesis ×3.
+- **Keyword gap, a correctness risk.** Team-Up, Find, Discount, Requirement and Teamwork exist in `schema/keywords.ts` but not in `parse-text.ts`. A card using them is silently read as plain constant text rather than failing.
+- **What wave 1 needs from the schema and engine:**
+  - multiple simultaneous villains, and what Wrecking Crew's `A`/`B` stages mean;
+  - Doctor Strange's Invocation deck, a named sub-deck both in data and as an engine zone;
+  - trait-qualified attachment hosts;
+  - the keyword parsing above;
+  - an art policy for reprints;
+  - Green Goblin's Norman Osborn side.
+- **Precons:** each hero's Hall of Heroes "Starter Deck" link is a photo of the printed decklist. Plan: cross-check it against a MarvelCDB decklist and record both in curation, as Core did. This is per-hero hand work.
+- **Corrected after checking the agent's report:**
+  - *"Green Goblin's raw data is untrustworthy" is wrong.* Norman Osborn's two stages (`02001a`, `02002a`) are `hidden` cards that MarvelCDB nests inside the Green Goblin records. They are complete (88 fields, with stats and text), and all 328 links to cards that aren't top-level records point at nested objects. The scraper does not need to fetch linked cards separately.
+  - *A third hero face is not a wave 1 blocker.* Ant-Man, Wasp, Angel and SP//dr are later packs.
+  - *Adam Warlock is not missing from the refetch.* MarvelCDB's own pack index (63 packs) doesn't list him.
+  - The agent briefly wrote into `src/data/core` and reverted it with `git checkout`. It was confirmed identical to what's committed afterwards.
 
 ## Phase 8 — Polish
 
@@ -591,6 +800,14 @@ Today a game can only be seated from the six hardcoded `CORE_STARTER_DECKS`. Thr
 - [ ] **The deck builder.** Filter and search the pool by aspect, type, trait and cost; live legality from the same `validateDeck`; the existing Inspect sheet for reading a card. This is a text-heavy, filterable, scrolling list — exactly the case rexUI's grid table was kept in reserve for, and it shares that work with the still-open virtualized game log.
 - [ ] **Persistence.** User and imported decks are local-only until Phase 5, matching the existing persistence decision, and must **survive a card-pool update** — errata can change a card under a saved deck, and a deck that silently becomes illegal (or silently changes) after an update is a bug the player cannot diagnose.
 - [ ] **The Setup screen stops being "pick one of six."** Seats become "any legal deck", with precons as the obvious default so the fastest path to a game does not get slower.
+
+### Decided (2026-09-13)
+
+- **Illegal decks are always enforced.** An illegal deck can be saved and edited but not seated; there is no solo opt-out.
+- **Import:** paste works everywhere. Import by MarvelCDB URL or id goes through a dev/preview-only same-origin route, with paste as the fallback.
+- **Decks record the card-pool version** they were built against.
+- **No taboo list** for now.
+- **Multi-aspect rules are still open.** `validateDeck` is being written from the RRG's text rather than assuming one aspect per deck.
 
 ### Decisions to settle before building
 
