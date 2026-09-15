@@ -724,7 +724,134 @@ Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-
     - `dsl/validate.ts` `checkLabels` needs an opt-out, or Dance of Death (no printed `(attack)` label) cannot be written.
     - `dsl/validate.ts` `bindsOf` doesn't know `discardEncounterCards.bind`, so a script reading `<bind>.count` is wrongly flagged.
     - `PlayerZone` is defined in `spec.ts` but not re-exported from `@mc/engine`'s `index.ts`; a consumer outside the engine can't name the type yet.
-- **Not started:** scripting any wave 1 card (`ability-scripting-engineer`), and every client screen still reads the Core pool only — scenario choice, seats, the deck list, the deck builder and Inspect, and the engine the client runs is given Core's cards and scripts. Wave 1 is data and engine rules only; nothing of it is reachable in the UI yet.
+- **Wave 1 scripting foundation and Captain America (`cap`) landed (`ability-scripting-engineer`, 2026-09-13).** Two agents were cut off by usage limits along the way. The main session checked the tree afterwards: root typecheck is clean, and all 1,152 tests pass (content 246, engine 426, cards 178, client 302).
+  - **The three follow-ups above are done:**
+    - `allowUnlabeledAttack(definition, { citation })` in `dsl/validate.ts` is a named opt-out that requires a citation, never a blanket relaxation;
+    - `discardEncounterCards` is a card-binding effect in `bindsOf`;
+    - `PlayerZone` is exported.
+  - **Layout.** `packages/cards/src/wave1/`:
+    - one folder per pack, with its own `<PACK>_ABILITIES`;
+    - `wave1/index.ts` merges them into `WAVE1_ABILITIES` / `WAVE1_DEPS`, one line per pack, which the main session adds when it integrates a pack;
+    - `wave1Scenario` for setup, with helpers in `wave1/testing.ts`;
+    - all of it exported from `@mc/cards`.
+    - The client still uses Core only.
+  - **Reprints.** `wave1/reprints.ts` gives a wave 1 card that is the identical Core card by name and type its Core ability automatically. `mergeRegistries` throws if a pack script defines one again.
+  - **Coverage.** `wave1/coverage.test.ts` derives the pack list from `@mc/content`'s exports and asserts that `cap` is fully scripted: 34 cards, 37 ability references, 0 unscripted, 6 of them Core reprints. The other seven packs resolve nothing beyond reprints.
+  - **Tests.** `cap/captain-america.test.ts` has per-card tests, including both branches of Man Out of Time. `cap/e2e.test.ts` plays the Captain America (Leadership) precon against Rhino to an outcome with the greedy driver and replays it deep-equal.
+  - **Six failing tests and one type error at the hand-off were all test bugs.** No script or engine change was needed. For example, Agent 13 (03002) is printed S.H.I.E.L.D. only, so Avengers Tower's test now uses Squirrel Girl (03013), an Avenger. A Response always leaves a `chooseTriggers` choice to settle.
+  - **New engine primitives, added while scripting `cap`, all general-purpose:**
+    - costs `exhaustTarget`, `returnToHand` and `exhaustChosen`, plus an optional `max` on `discardFromHand`;
+    - `costReduction.cardFilter` and a conditional `allyLimit.while`;
+    - `TargetQuery.withoutTrait` and `maxPrintedCost`;
+    - `scaled.divideBy`, the `countInRef` value, and `<bind>.boostIcons`;
+    - tests in `engine/src/target-cost.test.ts`.
+    - **Reviewed by `game-rules-architect` (2026-09-13).** The main session verified the result: typecheck clean, 1,172 tests passing (content 246, engine 441, cards 183, client 302). It also checked the review's three rules claims against the RRG 1.8 text: the "Cost" minimum of one, "Ally Limit" "ever controls", and "Modifiers" rounding fractions up.
+      - **Reshaped:**
+        - `exhaustTarget` / `exhaustChosen` / `returnToHand` are now one in-play pick shape, `InPlayCostPick { slot, query, min, max?, bind? }`.
+          - DSL: `exhaustCardsCost(q, { min?, max?: n | "any" })` and `returnToHandCost`.
+          - The engine only considers cards in play that you control and that can pay. A pick with only one possible answer pays itself.
+        - `scaled.divideBy` is now `divide: { by, round: "down" | "up" }`, with `round` required. RRG "Modifiers" rounds fractions **up** by default, so the old "always floor" was wrong for any card that doesn't print "rounded down".
+      - **Bugs fixed,** each with a test in `target-cost.test.ts` (now 22):
+        - a same-named card controlled by another player hid your own copy;
+        - a card in hand was accepted as an in-play pick;
+        - a zero-card "any number" cost was allowed (RRG "Cost": minimum of one);
+        - one card could pay two parts of a cost;
+        - a card that can't leave play could be returned to hand as a cost;
+        - legal actions never offered an ability whose pick had several possible answers.
+        - The ally limit was checked only when an ally entered play. RRG "Ally Limit" says "if a player ever controls" too many, so `checkAllyLimits` now also runs from `checkStateTriggers`.
+      - The validator now rejects `min` < 1 on in-play picks, duplicate cost slots, and a malformed `divide`.
+      - **Open, no ruling found:**
+        - Four Avenger allies plus Avengers Tower, then a non-Avenger enters play: the engine asks for 2 discards at once, though discarding the non-Avenger first would restore the limit of 4.
+        - "Each of your allies" with no allies is read as true.
+        - Shield Toss with X = 0 is allowed.
+        - Interrupt and response windows pay costs without picks, so a triggered ability whose in-play pick has several answers isn't offered. No wave 1 card is known to need this yet.
+        - A card's own exhaust cost isn't checked against a resource ability on the same card. This predates wave 1 and was left alone to keep Core unchanged.
+      - **Client follow-up (`game-client-engineer`):** `client/src/scenes/board/selection.ts` only fills `payPrintedCostOf` picks. `exhaustCards` / `returnToHand` need a picker before Strength in Numbers is usable in the UI.
+  - **Per-pack brief:** `docs/phase7-wave1-scripting.md` covers the layout, registration, reprints, test pitfalls, "missing primitive → record and skip", the primitive table and per-pack status.
+  - **A concurrent session shares this working tree.** A separate Claude session is fixing client bugs in the same checkout: attached upgrades (Focused Rage, Web-Shooter) not readying in `engine/src/flow.ts`, confirm-button selection in `client/src/view/choice-focus.ts` and `scenes/choice.ts`. Those edits are its own, not wave 1's; check whose files are whose before committing.
+- **Running now (2026-09-13): seven `ability-scripting-engineer` agents in parallel,** one each for `msm`, `thor`, `bkw`, `drs`, `hlk`, `gob` and `twc`.
+  - **All share this working tree.** Worktrees would branch from the last commit, which doesn't have the uncommitted `cap` foundation. So each agent writes only in `packages/cards/src/wave1/<pack>/`.
+  - **Missing engine or DSL pieces are recorded and the card skipped,** not added, so the agents never collide in `spec.ts`.
+  - **Each agent tests against local deps** (`mergeRegistries(WAVE1_ABILITIES, <PACK>_ABILITIES)`) and runs only its own folder's tests plus the cards typecheck.
+  - **The main session integrates each pack:** its `wave1/index.ts` registry line, the status table in `docs/phase7-wave1-scripting.md`, and this file.
+  - **Usage limits interrupted the batch twice (2026-09-14).** All seven agents stopped before writing anything, then Ms. Marvel, Thor and Hulk stopped again partway through. The packs now run at most three at a time, resumed with their context intact, in the order `msm`, `thor`, `hlk`, then `bkw`, `drs`, `gob`, `twc`.
+  - **Thor (`thor`) landed and is registered (2026-09-14).** The main session verified it: 28 tests pass in `wave1/thor/`, nothing was written outside the folder, and both skipped cards' printed text matches the agent's report.
+    - 34 cards; every ability ref resolves except 2 recorded skips, pinned in `wave1/coverage.test.ts` `KNOWN_SKIPPED`, which now allows a scripted pack a documented skip list.
+    - **Missing primitives for the batch:**
+      - Mean Swing (06015) needs a host filter on `TargetQuery` ("a Weapon upgrade on your hero").
+      - Valkyrie's Response (06012) doesn't receive her own `paid.*` vars, because a Response to a card's own entering play gets a fresh frame.
+    - **DSL gap:** `wave1/thor/local.ts` wraps engine effects that are landed but have no DSL builder (`engage`, `reorderCards`, `distinctCardTypes`, `dealDamage.ignoreTough`). Promote them into `dsl/` when the batch lands, so packs don't each copy them.
+    - **Not a gap:** a hero's nemesis set stays set aside in a plain game until an effect like Shadow of the Past brings it in, so Thor's nemesis cards are unit-tested by moving them onto the encounter deck in the test setup.
+  - **Ms. Marvel (`msm`) landed and is registered (2026-09-14).** The main session verified 26 passing tests in `wave1/msm/` and found nothing written outside the folder.
+    - **Coverage.** 33 ability refs: 26 scripted, 3 Core reprints, 4 recorded skips pinned in `wave1/coverage.test.ts` `KNOWN_SKIPPED`.
+    - **Missing primitives, for the batch:**
+      - `TargetQuery.anyTrait` (Morphogenetics 05001a);
+      - a player-deck `discardDeckUntil` (Teen Spirit 05001b);
+      - a `ValueSpec` sum (Generation Why? 05026).
+    - **Confirmed engine bug, for the batch:** the `attack` case in `resolve/apply-effect.ts` never adds `cardEffectBonus`, while `dealDamage`, `thwart` and `removeThreat` do. This blocks Embiggen! (05010).
+    - **Refuted.** The agent said a nemesis set should come into play automatically when the identity's obligation is discarded. RRG 1.8 "Nemesis Encounter Set" says the cards are set aside at the start of the game and "Cards drawn from the encounter deck may instruct the player on how to bring their nemesis set into play". So keeping it set aside is correct. Nemesis-set tests stage those cards themselves.
+  - **Changed by the user (2026-09-15): packs land one at a time, not in parallel.** Parallel agents kept exhausting the usage limit, most recently Hulk, Black Widow and Doctor Strange together. Black Widow and Doctor Strange are paused with partial folders.
+  - **Hulk (`hlk`) landed and is registered (2026-09-15).** The agent stopped at "All 20 tests pass", just before its typecheck.
+    - **Finished by the main session:** `hlk/e2e.test.ts` (Hulk vs Rhino: a loss in round 4, replayed deep-equal) and `hlk/coverage.test.ts`. Neither was in the folder.
+    - **Coverage:** 32 cards. Every ability ref resolves except 3 skips, pinned in `wave1/coverage.test.ts` `KNOWN_SKIPPED`.
+    - **Missing primitives, as the agent traced them** (not yet re-checked; `game-rules-architect` verifies in the batch):
+      - **Hulk Smash (10003):** a player attack never reads overkill granted by an interrupt; `applyPlayerAttack` vs `enemy-activation.ts`.
+      - **Clash of the Titans (10028):** `dsl/validate.ts` rejects `superlative`'s implicit `candidate` slot. This blocks any "the X with the highest/lowest Y" card, likely including some in `gob` and `twc`, so fix it before those packs.
+      - **Beat Cop's second action (10029):** `discardSelf` doesn't snapshot threat.
+  - **Black Widow (`bkw`) landed and is registered (2026-09-15).** The scripts were written before the usage limit. A fresh agent then reviewed them against the printed and errata'd text, and wrote the tests.
+    - **Found and fixed:**
+      - Agent Coulson (08011), Quake (08012) and Stealth Strike (08013) had no scripts at all. They're written now.
+      - Burn Notice (08025) used `superlative`. The validator rejects that at import time, which broke the whole `BKW_ABILITIES` registry. It's now a recorded skip.
+    - **Skips, pinned in `KNOWN_SKIPPED`:**
+      - Taskmaster's boost (08026): `modifyAttack` can only bonus the current activation's own attacker.
+      - Burn Notice (08025): the `superlative` validator gap.
+    - **Tests:** 25 in `wave1/bkw/`. The e2e test, Black Widow (Justice) vs Rhino, is a win in round 12 and replays deep-equal.
+    - **The `superlative` validator gap has now blocked two packs** (Clash of the Titans, Burn Notice). Fix it before `gob` and `twc`.
+  - **The `superlative` validator gap is fixed (main session, 2026-09-15).** It was blocking a card in two landed packs and was about to hit Doctor Strange's Thoughtcasting.
+    - **The fix:** `dsl/validate.ts` `checkRefs` now checks a `superlative`'s `among` in the current scope, and its `measure` with the ref's own slot (`candidate` by default) added. The slot stays unreadable anywhere else. Tests are in `dsl/validate.test.ts`.
+    - **Restored with tests:**
+      - **Burn Notice (08025, `bkw/obligation.test.ts`).** It discards the highest-cost Preparation card, and a tie is the player's choice via `chooseTarget { inSlot }`. Staying in hero form, only the discard branch can be paid, so it resolves without a prompt.
+      - **Clash of the Titans (10028, `hlk/clash-of-the-titans.test.ts`).** In alter-ego form with Brawn in play, Rhino attacks Brawn. Ties go to the first player's choice, and the card surges if no attack was made.
+    - **Skips now:** `bkw` 1 (Taskmaster's boost), `hlk` 2 (Hulk Smash, Beat Cop).
+  - **Doctor Strange (`drs`) is running (2026-09-15).** It's a fresh agent and the only one running. It builds on the partial folder: kit and nemesis scripts, plus the recorded Physical Toll skip, which needs a cost increase with no phase or round duration.
+  - **Doctor Strange (`drs`) landed and is registered (2026-09-15).** Verified by the main session: nothing written outside the folder, typecheck clean, and all wave 1 tests pass (189, across 29 files).
+    - **Tests:** 33 in `wave1/drs/`. The e2e game resolves at least one Invocation card.
+    - **Skips, pinned in `KNOWN_SKIPPED`:**
+      - Vapors of Valtorr (09035): no query for "has any status".
+      - Physical Toll (09027): no cost modifier without a phase or round duration.
+      - Counterspell (09030): a cancelled play doesn't stop the card's own effects.
+      - Unflappable (09020): a Response's cost can't depend on "and take no damage".
+      - Desperate Defense (09015): the `defended` bug below.
+    - **The agent fixed Thoughtcasting.** `chooseTarget { inSlot }` only matches cards in play, so a pick from hand silently did nothing. It now uses `chooseCards`. The scripting doc's guidance is corrected: `chooseTarget` for cards in play, `chooseCards` for cards out of play.
+    - **Confirmed engine bug, for the batch:** `isAnnouncement` (`engine/src/trigger-events.ts`) doesn't list `defended`, so the event only opens a response window and an Interrupt on `when.defends` never fires.
+      - Blocks Desperate Defense (09015).
+      - **Captain America's Expert Defense (03033) has the same shape and is registered as scripted, but is untested and almost certainly never fires.** Fix and test it with the batch.
+  - **Green Goblin (`gob`) is running (2026-09-15):** a fresh agent, the only one running, in an empty folder.
+  - **Green Goblin (`gob`) landed and is registered (2026-09-15).**
+    - **Scope:** Risky Business, Mutagen Formula and the 4 modular sets, with 31 tests.
+    - **E2E:** both scenarios, solo and 2-player, reach an outcome and replay deep-equal.
+    - **Verified by the main session:** nothing written outside the folder, typecheck clean, and all wave 1 tests pass (220 across 34 files).
+    - **Two problems surfaced on registration:**
+      - **Gang-Up (02039) was hand-scripted.** It's a Core reprint that `reprints.ts` already aliases, so `mergeRegistries` threw "defined twice" and every wave 1 test file failed to load. The pack's local deps used an object spread (`{ ...WAVE1_ABILITIES, ...GOB_ABILITIES }`), which silently hid the collision in its own tests. The duplicate entries are removed. Local deps must use `mergeRegistries`, never a spread.
+      - **The shared coverage test missed back-face refs.** `wave1/coverage.test.ts` `abilityRefIds` ignored a double-sided encounter card's `flipSide.abilities`. It now counts them.
+    - **8 skips:**
+      - **Criminal Enterprise / State of Madness (02006a/b), a `card-data-pipeline` item.** The data gives one ability ref per face, but each face needs two triggers.
+      - **Hired Gun (02007), Intimidation (02035):** no "give the villain a boost card" outside an activation.
+      - **Power Drain (02041), Lightning Bolt (02044), Shock Therapy (02045):** boost icons summed across discarded cards. Likely scriptable already via `moveCards`'s summed `<bind>.boostIcons`; retry these with the batch.
+      - **Tombstone (02047):** no filter for either of two resource types.
+    - **Shared setup gap:** `wave1Scenario` delegates to `coreScenario`, which only looks up `CORE_SCENARIOS`, so it can't build a wave 1 scenario. Green Goblin works around it with a local `gobScenario`. Fix it in `wave1/setup.ts` before `twc`.
+  - **The Wrecking Crew (`twc`) landed and is registered (2026-09-15). All eight wave 1 packs are now scripted and registered.**
+    - **Scope:** Breakout with Wrecker, Thunderball, Piledriver and Bulldozer, 29 tests. E2E solo and 2-player reach an outcome and replay deep-equal.
+    - **Shared setup fixed by the agent.** `wave1Scenario` now builds any wave 1 scenario: single-villain Risky Business and Mutagen Formula, and multi-villain Breakout with per-villain encounter decks, signature side schemes and versions. Core ids still go to `coreScenario`. Green Goblin's local `gobScenario` is deleted.
+    - **Verified by the main session:** nothing written outside the allowed files, typecheck clean, and the whole `@mc/cards` suite passes (382 tests across 56 files, Core included).
+    - **9 skips:**
+      - Hard Hitter, Gamma Blast, Pile Drive, Charge: no predicate for a scheme's current threat against a threshold.
+      - Magic Crowbar, Ball and Chain, Bulldozer's Helmet: no random discard from hand as a cost.
+      - Radioactive Buildup: no redirect of an enemy attack's excess damage to a scheme.
+      - Thunderball's boost: no ref for "the defending character".
+  - **Wave 1 scripting status (2026-09-15):** 8 packs registered, **31 recorded skips** (thor 2, msm 4, hlk 2, bkw 1, drs 5, gob 8, twc 9) pinned in `wave1/coverage.test.ts` `KNOWN_SKIPPED`, plus one registered card known broken: Captain America's Expert Defense (the `defended` interrupt bug). The client still runs Core only.
+  - **Next:** the main session gathers the recorded missing primitives across all seven packs and hands them to `game-rules-architect` as one batch, then the skipped cards, then rules QA (`rules-qa-engineer`).
+- **Not started:** scripting the other seven wave 1 packs, and every client screen still reads the Core pool only — scenario choice, seats, the deck list, the deck builder and Inspect, and the engine the client runs is given Core's cards and scripts. Wave 1 is data and engine rules only; nothing of it is reachable in the UI yet.
 - **Running now:**
   - `card-data-pipeline`: curations for the eight wave 1 packs, parser and normalizer support for the wave 1 schema, a reprint art policy, emitted `src/data/<pack>/` modules and a `WAVE1_*` pool beside the unchanged `CORE_*` exports, and the six wave 1 hero precons checked with `validateDeck`.
   - `game-rules-architect`: the wave 1 schema (several villains at once and Wrecking Crew's A/B stages, Green Goblin's Norman Osborn side, Doctor Strange's Invocation deck, attachment hosts, wave 1 keywords), plus the engine design spec `docs/phase7-wave1.md`.

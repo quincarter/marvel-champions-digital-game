@@ -290,7 +290,7 @@ function* playExtras(
   const spare = (player?.hand ?? []).filter((h) => h !== id && !reserved.has(h));
   const costChoices: Record<string, readonly InstanceId[]> = {};
   if (action?.cost?.discardFromHand) {
-    const n = Math.max(action.cost.discardFromHand.min, Math.min(action.cost.discardFromHand.max, spare.length, 2));
+    const n = Math.max(action.cost.discardFromHand.min, Math.min(action.cost.discardFromHand.max ?? spare.length, spare.length, 2));
     if (spare.length < n) return;
     costChoices.discard = spare.slice(0, n);
   }

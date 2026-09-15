@@ -148,7 +148,7 @@ function windowEventCost(ctx: Ctx, candidate: TriggerCandidate): number {
   const card = cardOf(ctx.state, candidate.instanceId);
   if (!card || !candidate.controllerId) return 0;
   const printed = "cost" in card ? card.cost : 0;
-  const reduced = Math.max(0, printed - costReductionFor(ctx.state, candidate.controllerId));
+  const reduced = Math.max(0, printed - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId));
   const abilityCost = ctx.deps.abilities[candidate.abilityId]?.cost?.resources;
   return requirementTotal(combineRequirements(reduced, abilityCost));
 }

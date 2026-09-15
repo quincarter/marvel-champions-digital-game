@@ -1,0 +1,165 @@
+import {
+  action,
+  addCounters,
+  after,
+  alterEgoAction,
+  anAttackableEnemy,
+  attack,
+  cards,
+  chooseCards,
+  chooseTarget,
+  chosen,
+  coveredByEngineRule,
+  constant,
+  costModifier,
+  countOf,
+  damageAnEnemy,
+  dealDamage,
+  defineAbilities,
+  discard,
+  draw,
+  encounterCards,
+  exhaustCardsCost,
+  exhaustThis,
+  gets,
+  giveTough,
+  hasTrait,
+  heal,
+  heroAction,
+  heroInterrupt,
+  heroResource,
+  ifElse,
+  ifThen,
+  modifyStat,
+  moveCards,
+  paidWith,
+  query,
+  ready,
+  removeCounter,
+  response,
+  scaled,
+  selectCards,
+  self,
+  spend,
+  statOf,
+  TRAIT,
+  yourIdentity,
+  YOUR_HERO,
+} from "../../dsl/index.js";
+import { engage, reorderCards } from "./local.js";
+
+/**
+ * Generic-aspect filler cards bundled in the Thor pack, printed with a plain aspect (`aggression`/`justice`/
+ * `leadership`/`protection`/`basic`), not locked to Thor's own deck — see `kit.ts`'s docblock. "Chase Them Down"
+ * (06013), "The Power of Aggression" (06016) and "Avengers Mansion" (06025) are Core reprints aliased from
+ * `../reprints.ts`. Energy/Genius/Strength (06022–06024) print no ability text.
+ */
+export const THOR_PACK_CARDS = defineAbilities({
+  // Hercules — Reduce the cost to play Hercules by 1 for each minion engaged with you. Active from hand
+  // (docs/phase7-wave1.md §3.10, "Cost reductions active from hand").
+  "06011.hercules-constant": constant(
+    costModifier({
+      delta: scaled(countOf(query("minion", { engagedWith: "you" })), { times: -1 }),
+      appliesTo: query("ally", { self: true }),
+      activeIn: "hand",
+    }),
+  ),
+
+  // Valkyrie (06012) — Response: After Valkyrie enters play, deal 2 damage to a minion (3 damage instead if you
+  // paid for this card using a [energy] resource). SKIPPED: a Response triggered by this card's own `cardEntersPlay`
+  // resolves in a freshly-built ability frame with empty `vars`/`bindings` (`abilityFrame`'s defaults,
+  // `packages/engine/src/resolve/frames.ts`, called with no `vars` argument from `triggerCandidate`,
+  // `packages/engine/src/resolve/window.ts`) — the printed card's own `paid.*` vars (set on the *playCard* frame,
+  // `packages/engine/src/actions.ts` `resourceVars`/`priceCard`) never reach it, so `paidWith("energy")` would
+  // always read false regardless of how Valkyrie was actually paid for. Every other `paidWith` use in this pack
+  // (Second Wind 06033) is on the card's own directly-resolving action, which *does* run inside the playCard
+  // frame's own vars — this is specifically about a *separately triggered* Response reading its own card's payment.
+  // Proposed shape: thread the originating playCard frame's `paid.*` vars into a Response candidate's ability frame
+  // when the candidate's `instanceId` is the same card that just entered play (`triggerCandidate`/`abilityFrame`
+  // could carry `vars` from the still-open `playCard` frame for that one instance, the way `atEndOfAttack`'s
+  // deferred effects already carry the ability's own `frame.vars` forward). Flagged to `game-rules-architect`.
+
+  // Valkyrie's damage-to-a-minion shape without the payment condition is `dealDamage(2 or 3, chosen minion)` — not
+  // scripted at all rather than half-scripted, per docs/phase7-wave1-scripting.md "the rule": an approximation
+  // (always 2, or always guessing 3) would be worse than leaving it unresolved.
+
+  // Get Over Here! — Hero Action (attack): Deal 1 damage to a minion. If you have the Aerial trait, engage that
+  // enemy. `EffectSpec.engage` (packages/engine/src/spec.ts, named for this exact card); no `dsl/effects.ts`
+  // wrapper yet, so `engage` is a local helper (`local.ts`).
+  "06014.get-over-here-action": heroAction(
+    { label: "attack" },
+    anAttackableEnemy("minion", "minion"),
+    attack(1, chosen("minion")),
+    ifThen(hasTrait(yourIdentity, TRAIT.AERIAL), engage(chosen("minion"))),
+  ),
+
+  // Mean Swing (06015) — Hero Interrupt: When your hero makes a basic attack, exhaust a Weapon upgrade on your hero
+  // → your hero gets +3 ATK for this attack. SKIPPED: no `TargetQuery` field expresses "a card attached to an
+  // arbitrary `TargetRef`" (only `hostOfSelf: boolean`, fixed to the ability's own card — `packages/engine/src/
+  // spec.ts` `TargetQuery`). `exhaustCardsCost`'s query is a plain `TargetQuery`, so "a Weapon upgrade on your
+  // hero" (yourIdentity is not `self` here — Mean Swing is an event, not the upgrade) can't be expressed without
+  // either broadening to "a Weapon upgrade you control" (wrong if some other pack ever attaches a Weapon upgrade to
+  // an ally) or a new primitive. Proposed shape: `TargetQuery.host?: TargetRef`, checked the same way
+  // `attackableBy`/`controlledBy` compare against a resolved ref, so `query("upgrade", { trait: WEAPON, host:
+  // yourIdentity })` reads "a Weapon upgrade on your hero". Flagged to `game-rules-architect`.
+
+  // Hall of Heroes — Response: After you defeat a minion, place 1 glory counter here.
+  "06017.hall-of-heroes-response": response(after.defeated(query("minion"), { byYou: true }), addCounters("glory", 1)),
+  // Hall of Heroes — Alter-Ego Action: Exhaust Hall of Heroes and remove 3 glory counters from it → draw 3 cards.
+  "06017.hall-of-heroes-action": alterEgoAction({ cost: [exhaustThis, removeCounter("glory", 3)] }, draw(3)),
+
+  // Battle Fury — Play under any player's control. Max 1 per player (data, `playRestrictions`). Response: After
+  // your hero attacks and defeats a minion, deal 1 damage to your hero and discard Battle Fury → ready your hero.
+  "06018.battle-fury-response": response(
+    after.attacks(YOUR_HERO, { target: query("minion"), defeats: true }),
+    dealDamage(1, yourIdentity),
+    discard(self),
+    ready(yourIdentity),
+  ),
+
+  // Jarnbjorn — Restricted (data). Response: After your hero attacks an enemy, spend a [physical] resource → deal
+  // 2 damage to an enemy.
+  "06019.jarnbjorn-response": response(after.attacks(YOUR_HERO, { target: query("enemy") }), { cost: spend({ physical: 1 }) }, damageAnEnemy(2)),
+
+  // Heimdall — Response: After Heimdall enters play, look at the top 3 cards of the encounter deck. Discard 1 of
+  // them and put the others back in any order. `EffectSpec.reorderCards` (packages/engine/src/spec.ts, named for
+  // this exact card); no `dsl/effects.ts` wrapper yet, so `reorderCards` is a local helper (`local.ts`).
+  "06020.heimdall-response": response(
+    after.entersPlay("self"),
+    selectCards("looked", encounterCards(["deck"], undefined, 3)),
+    chooseCards("discarded", cards(chosen("looked")), { min: 1, max: 1 }),
+    moveCards(cards(chosen("discarded")), "discard"),
+    reorderCards(cards(chosen("looked"), { excludeSlots: ["discarded"] })),
+  ),
+
+  // Invulnerability — Hero Action: Give your hero a tough status card.
+  "06021.invulnerability-action": heroAction(giveTough(yourIdentity)),
+
+  // Under Surveillance — Attach to the main scheme. Max 1 per scheme (data, `attachesTo`/`playRestrictions`); no
+  // effect of its own beyond the attach restriction, already covered by engine rules.
+  "06031.under-surveillance-constant": coveredByEngineRule(),
+  // Under Surveillance — Increase the target threat value of attached scheme by 4.
+  "06031.under-surveillance-constant-2": constant(gets("targetThreat", 4, { hostOfSelf: true })),
+
+  // Teamwork — Hero Interrupt: When you use your basic thwart power (THW) or basic attack power (ATK), exhaust an
+  // ally you control → add that ally's matching power to your hero's power for this use. One `EventPattern`
+  // matches both `attack` and `thwart` events from your hero with `attackKind: "basic"` (both event kinds carry a
+  // `basic` flag, packages/engine/src/trigger-events.ts). Applying both stat bonuses is exact, not an
+  // approximation: `until: "endOfAttack"` expires at the end of *this* activation frame regardless of whether it's
+  // an attack or a thwart (`currentActivationFrameId`, packages/engine/src/stack.ts), and only the matching power
+  // (ATK for an attack, THW for a thwart) is ever read while that frame resolves, so the other bonus is inert.
+  "06032.teamwork-constant": heroInterrupt(
+    { on: ["attack", "thwart"], sourceIs: YOUR_HERO, attackKind: "basic" },
+    { cost: exhaustCardsCost(query("ally", { controller: "you" }), { slot: "ally" }) },
+    modifyStat("atk", statOf(chosen("ally"), "atk"), yourIdentity, "endOfAttack"),
+    modifyStat("thw", statOf(chosen("ally"), "thw"), yourIdentity, "endOfAttack"),
+  ),
+
+  // Second Wind — Action: Heal 4 damage from an identity (5 damage instead if you paid for this card using a
+  // [mental] resource).
+  "06033.second-wind-action": action(chooseTarget("identity", query("identity")), heal(ifElse(paidWith("mental"), 5, 4), chosen("identity"))),
+
+  // Enhanced Physique — Uses (3 physical counters) (data). Hero Resource: Exhaust Enhanced Physique and remove 1
+  // physical counter from it → generate a [physical] resource.
+  "06034.enhanced-physique-resource": heroResource({ physical: 1 }, { cost: [exhaustThis, removeCounter("physical")] }),
+});

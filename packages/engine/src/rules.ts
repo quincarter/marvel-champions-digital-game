@@ -94,9 +94,15 @@ export const whenRevealedRepeats = (state: GameState, deps: EngineDeps, playerId
     .filter(({ rule, context }) => rulePlayers(state, rule, context).includes(playerId))
     .reduce((sum, { rule }) => sum + rule.times, 0);
 
-/** RRG "Ally Limit": three, plus "increase your ally limit" abilities on cards that player controls. */
+/** RRG 1.8 "Ally Limit" (p. 7): "a maximum of three allies in play". */
+export const BASE_ALLY_LIMIT = 3;
+
+/**
+ * RRG "Ally Limit": three, plus "increase your ally limit" abilities on cards that player controls. A rule's `while`
+ * is read now, on every call, so a conditional increase (Avengers Tower) counts only while its condition holds.
+ */
 export const allyLimitFor = (state: GameState, deps: EngineDeps, playerId: PlayerId): number =>
-  3 +
+  BASE_ALLY_LIMIT +
   activeRules(state, deps, "allyLimit")
     .filter(({ context }) => context.controllerId === playerId)
     .reduce((sum, { rule }) => sum + rule.amount, 0);

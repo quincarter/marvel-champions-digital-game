@@ -664,11 +664,14 @@ export function applyEffect(
     case "moveCards": {
       const ids = selectCards(ctx, effect.cards, context);
       if (effect.bind) {
-        // Record what moved (and its printed resources) before it moves.
+        // Record what moved (and its printed resources / boost icons) before it moves.
         const pool = ids.reduce((sum, id) => {
           const card = cardOf(ctx.state, id);
           return card ? addPools(sum, printedResources(card)) : sum;
         }, EMPTY_POOL);
+        // "… takes 1 damage for each boost icon discarded this way" (Hit Squad, `cap` pack): the printed count plus
+        // any "gets +1 boost icon if …" modifier (§3.9's `boostIconsFor`), summed across every card this bind moved.
+        const boostIcons = ids.reduce((sum, id) => sum + boostIconsFor(ctx.state, ctx.deps, id), 0);
         const bind = effect.bind;
         updateFrame(ctx, frame.frameId, (f) =>
           f.kind === "effects"
@@ -682,6 +685,7 @@ export function applyEffect(
                   [`${bind}.mental`]: pool.mental,
                   [`${bind}.energy`]: pool.energy,
                   [`${bind}.wild`]: pool.wild,
+                  [`${bind}.boostIcons`]: boostIcons,
                 },
               }
             : f,
@@ -931,7 +935,7 @@ export function applyEffect(
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         addLastingEffect(
           ctx,
-          { kind: "costReduction", playerId, amount },
+          { kind: "costReduction", playerId, amount, ...(effect.cardFilter ? { cardFilter: effect.cardFilter } : {}) },
           { kind: effect.duration === "phase" ? "endOfPhase" : "endOfRound" },
         );
       }

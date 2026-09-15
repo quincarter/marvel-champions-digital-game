@@ -14,7 +14,7 @@ import type { ArtSource } from "../../art/art-source.js";
 import { ink, signal, status as statusTokens, surface, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { McHpPlate, McStatBadge, fitText, label, paintPanel, type StatKey } from "../../ui/widgets.js";
-import type { CharacterPanel, StatTile } from "../../view/board-model.js";
+import { attachmentChipLabel, type CharacterPanel, type StatTile } from "../../view/board-model.js";
 import { CARD_ASPECT, cardStatColumn, statBlockLayout, type Rect, type StatBlock } from "../../view/layout.js";
 import type { BoardDrawContext } from "./context.js";
 import { dimAlpha, targetState } from "./selection.js";
@@ -165,7 +165,7 @@ export function drawCharacter(ctx: BoardDrawContext, rect: Rect, panel: Characte
         scene,
         chip.x + 3,
         chip.y + 3,
-        usable ? `▶ ${attachment.name}` : attachment.name,
+        usable ? `▶ ${attachmentChipLabel(attachment)}` : attachmentChipLabel(attachment),
         typeRole.label,
         usable ? signal.heal.hex : surface.ink.hex,
         (usable ? ink.body : ink.label) * dim,

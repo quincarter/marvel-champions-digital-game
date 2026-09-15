@@ -24,7 +24,8 @@ import {
 import { engineError, type EngineError, type EngineErrorCode } from "./errors.js";
 import { finishTurn } from "./flow.js";
 import { statBonus } from "./modifiers.js";
-import { cannotChangeForm, cannotThwart } from "./rules.js";
+import { cannotChangeForm, cannotLeavePlay, cannotThwart } from "./rules.js";
+import type { InPlayCostPick } from "./abilities.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
 import { hasKeyword, statusActive } from "./keywords.js";
@@ -44,6 +45,7 @@ import {
   villainOf,
 } from "./query.js";
 import { attachmentHostCandidates, heard, pushActionAbility, pushEvent, pushPlayCardFrame, recordAbilityUse } from "./resolve/index.js";
+import { moveCardsTo } from "./resolve/cards.js";
 import {
   addPools,
   combineRequirements,
@@ -69,6 +71,7 @@ import {
   evaluate,
   matchesQuery,
   printedAbilityRefs,
+  resolveRef,
   resolveValue,
   restrictedCardsOf,
   traitsOf,
@@ -421,9 +424,12 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
   }
 }
 
-/** Cards a payment discards from hand; they can't also be picked for a "discard N cards" cost. */
+/**
+ * Cards a payment already uses: hand cards it discards and cards whose resource ability it uses. A hand card can't also
+ * be picked for a "discard N cards" cost, and an in-play card can't also pay an `InPlayCostPick` (RRG 1.8 "Cost", p. 13).
+ */
 const handCardsIn = (payment: readonly Payment[]): ReadonlySet<InstanceId> =>
-  new Set(payment.flatMap((entry) => ("fromHand" in entry ? [entry.fromHand] : [])));
+  new Set(payment.map((entry) => ("fromHand" in entry ? entry.fromHand : entry.ability.instanceId)));
 
 // ---------------------------------------------------------------------------
 // Non-resource costs
@@ -501,8 +507,8 @@ export function planCost(
   if (cost.discardFromHand) {
     const picks = choices.discard ?? [];
     const { min, max, bind } = cost.discardFromHand;
-    if (picks.length < min || picks.length > max) {
-      return { code: "invalid_choice", message: `discard ${min}–${max} cards to pay this cost` };
+    if (picks.length < min || (max !== undefined && picks.length > max)) {
+      return { code: "invalid_choice", message: `discard ${min}–${max ?? "any number of"} cards to pay this cost` };
     }
     for (const id of picks) {
       if (!player.hand.includes(id) || id === sourceId || reserved.has(id)) {
@@ -545,7 +551,90 @@ export function planCost(
     bindings[slot] = [pick];
     payingFor = pick;
   }
+  // Costs paid with cards in play: "exhaust Captain America's Shield →", "exhaust any number of allies you control →",
+  // "return Captain America's Shield from play to your hand →" (`InPlayCostPick`).
+  const exhausting = cost.exhaustCards ? planInPlayPick(state, deps, sourceId, playerId, "exhaust", cost.exhaustCards, choices) : [];
+  if (isFault(exhausting)) return exhausting;
+  const returning = cost.returnToHand ? planInPlayPick(state, deps, sourceId, playerId, "return", cost.returnToHand, choices) : [];
+  if (isFault(returning)) return returning;
+  // RRG 1.8 "Cost" (p. 13): a cost's components are paid simultaneously, so one card can't pay two of them. It can't
+  // be exhausted twice, exhausted and also returned, or picked here and also exhausted for a resource in the payment.
+  const spentInPlay = [...(cost.exhaustSelf ? [sourceId] : []), ...(cost.exhaustIdentity ? [identity.instanceId] : []), ...exhausting, ...returning];
+  if (new Set(spentInPlay).size !== spentInPlay.length || [...exhausting, ...returning].some((id) => reserved.has(id))) {
+    return { code: "invalid_choice", message: "one card cannot pay two parts of a cost" };
+  }
+  if (cost.exhaustCards) bindInPlayPick(cost.exhaustCards, exhausting, bindings, vars);
+  if (cost.returnToHand) bindInPlayPick(cost.returnToHand, returning, bindings, vars);
   return { requirement, bindings, vars, payingFor };
+}
+
+function bindInPlayPick(pick: InPlayCostPick, picks: readonly InstanceId[], bindings: Record<string, readonly InstanceId[]>, vars: Record<string, number>): void {
+  bindings[pick.slot] = picks;
+  if (pick.bind) vars[pick.bind] = picks.length;
+}
+
+/**
+ * The cards in play that could pay an `InPlayCostPick`, in play-area order: controlled by the paying player, matching
+ * the query, and still able to pay (ready to exhaust, or able to leave play to return).
+ */
+export function inPlayCostCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  mode: "exhaust" | "return",
+  pick: InPlayCostPick,
+): readonly InstanceId[] {
+  return eligibleForInPlayPick(state, deps, sourceId, playerId, pick).filter((id) => canPayInPlayPick(state, deps, id, mode));
+}
+
+function eligibleForInPlayPick(state: GameState, deps: EngineDeps, sourceId: InstanceId, playerId: PlayerId, pick: InPlayCostPick): readonly InstanceId[] {
+  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+  return cardsInPlay(state).filter((id) => controllerOf(state, id) === playerId && matchesQuery(state, id, pick.query, context));
+}
+
+function canPayInPlayPick(state: GameState, deps: EngineDeps, id: InstanceId, mode: "exhaust" | "return"): boolean {
+  const instance = mustInstance(state, id);
+  // Returning goes to the owner's hand (RRG 1.8 "Ownership and Control", p. 30); a card with no owning player can't go there.
+  return mode === "exhaust" ? !instance.exhausted : instance.ownerId !== null && !cannotLeavePlay(state, deps, id);
+}
+
+/** Checks an `InPlayCostPick` against the command's picks (or the forced pick) without paying anything. */
+function planInPlayPick(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  mode: "exhaust" | "return",
+  pick: InPlayCostPick,
+  choices: CostChoices,
+): readonly InstanceId[] | PriceFault {
+  const verb = mode === "exhaust" ? "exhaust" : "return to hand";
+  const eligible = eligibleForInPlayPick(state, deps, sourceId, playerId, pick);
+  const candidates = eligible.filter((id) => canPayInPlayPick(state, deps, id, mode));
+  const whyNot = (id: InstanceId): PriceFault =>
+    !eligible.includes(id)
+      ? { code: "no_valid_target", message: `${id} is not a card in play you control that can pay ${pick.slot}` }
+      : mode === "exhaust"
+        ? { code: "already_exhausted", message: `${id} is already exhausted` }
+        : { code: "no_valid_target", message: `${id} cannot leave play` };
+  // RRG 1.8 "Initiating Abilities" (p. 24, steps 3 and 5): a cost that can't be paid in full can't be initiated.
+  if (candidates.length < pick.min) {
+    // Enough matching cards, but some are exhausted (or can't leave play): say that, rather than "no card".
+    const blocked = eligible.find((id) => !candidates.includes(id));
+    return blocked && eligible.length >= pick.min
+      ? whyNot(blocked)
+      : { code: "no_valid_target", message: `not enough cards you control to ${verb} for this cost` };
+  }
+  // No picks given: pay only a forced choice (exactly `min` candidates); otherwise the choice is the player's.
+  const picks = choices[pick.slot] ?? (candidates.length === pick.min ? candidates : undefined);
+  if (!picks) return { code: "invalid_choice", message: `choose which cards to ${verb} for ${pick.slot}` };
+  if (picks.length < pick.min || (pick.max !== undefined && picks.length > pick.max)) {
+    return { code: "invalid_choice", message: `${verb} ${pick.min}–${pick.max ?? "any number of"} cards to pay this cost` };
+  }
+  if (new Set(picks).size !== picks.length) return { code: "invalid_choice", message: `duplicate choice for ${pick.slot}` };
+  const bad = picks.find((id) => !candidates.includes(id));
+  return bad ? whyNot(bad) : picks;
 }
 
 /** "Spend X [type] resources": binds X from the pool beyond the cost's fixed requirement. */
@@ -603,6 +692,10 @@ export function payCost(
     pushEvent(ctx, { kind: "dealDamage", targetInstanceId: sourceId, amount: cost.damageThisCard, sourceInstanceId: sourceId, fromAttack: false });
   }
   if (cost.discardSelf && getInstance(ctx.state, sourceId)) discardFromPlay(ctx, sourceId);
+  if (cost.exhaustCards) {
+    for (const id of plan.bindings[cost.exhaustCards.slot] ?? []) exhaustCard(ctx, id);
+  }
+  if (cost.returnToHand) moveCardsTo(ctx, plan.bindings[cost.returnToHand.slot] ?? [], "hand");
 }
 
 // ---------------------------------------------------------------------------
@@ -634,7 +727,7 @@ export function playRequirement(
   const card = mustCardOf(state, cardInstanceId);
   const printed = "cost" in card ? card.cost : 0;
   const modified = Math.max(0, printed + playCostModifier(state, deps, playerId, cardInstanceId, attachTo));
-  return combineRequirements(Math.max(0, modified - costReductionFor(state, playerId)), abilityRequirement);
+  return combineRequirements(Math.max(0, modified - costReductionFor(state, deps, playerId, cardInstanceId)), abilityRequirement);
 }
 
 export interface PricedPlay {
@@ -671,7 +764,7 @@ export function pricePlay(
 
 /** Pays for a priced play and records it; the caller pushes the play frame. */
 export function commitPlay(ctx: Ctx, playerId: PlayerId, cardInstanceId: InstanceId, payment: readonly Payment[], priced: PricedPlay): void {
-  consumeCostReductions(ctx, playerId);
+  consumeCostReductions(ctx, ctx.deps, playerId, cardInstanceId);
   payPayment(ctx, playerId, payment);
   // Counted as played now, so a card cancelled later still counts toward "Max N per round" (RRG 1.8 "Max, Maximum").
   const played = mustCardOf(ctx.state, cardInstanceId);

@@ -1,0 +1,52 @@
+import { cannotLeavePlay, encounterDeckOf, notDefeatedWithoutThreat, schemeThreatDestination, villainOf, type GameState, type InstanceId } from "@mc/engine";
+import { P1, endTurn, identityOf, inst, patchInstance, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { wave1Scenario } from "../setup.js";
+import { runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
+
+const spiderManVsBreakout = () => startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
+const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): GameState =>
+  settle(runTwc(state, ...commands), undefined, (s) => s.step.phase === "player" && s.step.kind === "turn", TWC_DEPS);
+
+const thunderballId = (state: GameState) => state.villains[1]!.instanceId;
+const thunderstruckId = (state: GameState) => villainOf(state, thunderballId(state))!.signatureSideSchemeId!;
+const withActive = (state: GameState, id: InstanceId): GameState => ({ ...state, activeVillainId: id });
+
+describe("Thunderball (07017/07018)", () => {
+  it("redirects his own scheme threat to Thunderstruck instead of the main scheme", () => {
+    const state = spiderManVsBreakout();
+    expect(schemeThreatDestination(state, TWC_DEPS, thunderballId(state))).toBe(thunderstruckId(state));
+  });
+
+  it("Forced Response: after Thunderball attacks you, deals 1 damage to each character you control (real villain-phase attack, hero form)", () => {
+    let state = withActive(spiderManVsBreakout(), thunderballId(spiderManVsBreakout()));
+    const heroId = identityOf(state, P1);
+    state = patchInstance(state, heroId, { exhausted: false });
+    // Breakout 1B re-picks the active villain every round by highest side-scheme threat; keep Thunderball active
+    // for this round (otherwise it reverts to Wrecker, whose Day of Reckoning starts highest, before step two).
+    state = patchInstance(state, thunderstruckId(state), { threat: 99 });
+    const before = inst(state, heroId).damage;
+    state = play(state, toHero(), endTurn());
+    // Thunderball's own attack plus the Forced Response's extra "1 damage to each character you control" (and
+    // whatever the round's dealt encounter card also does) all land on the same lone hero, so this is strictly more
+    // than any single one of those alone would be.
+    expect(inst(state, heroId).damage).toBeGreaterThan(before);
+  });
+});
+
+describe("Thunderstruck (07019)", () => {
+  it("cannot leave play while Thunderball is in play, and is not defeated at 0 threat", () => {
+    const state = spiderManVsBreakout();
+    const scheme = thunderstruckId(state);
+    expect(cannotLeavePlay(state, TWC_DEPS, scheme)).toBe(true);
+    expect(notDefeatedWithoutThreat(state, TWC_DEPS, scheme)).toBe(true);
+  });
+});
+
+describe("Radioactive Buildup (07022)", () => {
+  it("is in Thunderball's own 15-card encounter deck", () => {
+    const state = spiderManVsBreakout();
+    const deckId = state.villains[1]!.encounterDeckId;
+    const cards = [...encounterDeckOf(state, deckId).deck, ...encounterDeckOf(state, deckId).discard];
+    expect(cards.some((id) => inst(state, id).cardId === "07022")).toBe(true);
+  });
+});

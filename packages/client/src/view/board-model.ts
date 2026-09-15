@@ -146,6 +146,15 @@ export interface AttachmentChip {
   readonly instanceId: InstanceId;
   readonly name: string;
   readonly exhausted: boolean;
+  /** Counters left on it ("web" ×2), so a Uses card shows how many uses remain. */
+  readonly counters: readonly { readonly name: string; readonly count: number }[];
+}
+
+/** "Web-Shooter · 2 web · exhausted" — everything a chip has room to say. */
+export function attachmentChipLabel(chip: AttachmentChip): string {
+  return [chip.name, ...chip.counters.map((counter) => `${counter.count} ${counter.name}`), chip.exhausted ? "exhausted" : null]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export interface SchemePanel {
@@ -380,6 +389,9 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
       instanceId: attachmentId,
       name: cardOf(state, attachmentId)?.name ?? "Attachment",
       exhausted: getInstance(state, attachmentId)?.exhausted ?? false,
+      counters: Object.entries(getInstance(state, attachmentId)?.counters ?? {})
+        .filter(([, count]) => count > 0)
+        .map(([name, count]) => ({ name, count })),
     })),
     ownerName:
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId

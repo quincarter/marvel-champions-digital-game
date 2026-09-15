@@ -44,3 +44,7 @@ run = "pnpm ingest"
 [tasks.clean]
 description = "Remove every package's build output"
 run = "pnpm clean"
+
+[tasks.start]
+description = "Clean Start"
+run = "mise clean && mise build && mise preview"

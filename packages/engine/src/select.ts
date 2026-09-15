@@ -197,6 +197,7 @@ export function matchesQuery(
   if (query.engagedWith === "you" && instance.engagedWith !== context.controllerId) return false;
   if (query.engagedWith === "any" && instance.engagedWith === null) return false;
   if (query.trait && !traitsOf(state, id, context.deps).includes(query.trait)) return false;
+  if (query.withoutTrait && traitsOf(state, id, context.deps).includes(query.withoutTrait)) return false;
   // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
   if (query.name !== undefined && currentName(state, id) !== query.name) return false;
   if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return false;
@@ -221,6 +222,12 @@ export function matchesQuery(
     const card = cardOf(state, id);
     const hp = card && "hp" in card ? (card.hp as number) : undefined;
     if (hp === undefined || hp > query.maxPrintedHp) return false;
+  }
+  if (query.maxPrintedCost !== undefined) {
+    const card = cardOf(state, id);
+    const cost = card && "cost" in card ? card.cost : 0;
+    const bound = typeof query.maxPrintedCost === "number" ? query.maxPrintedCost : resolveValue(state, query.maxPrintedCost, context);
+    if (cost > bound) return false;
   }
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
@@ -461,11 +468,22 @@ export function resolveValue(
     case "eventResult":
       return context.event?.results?.[value.key] ?? 0;
     case "scaled": {
-      const scaled = resolveValue(state, value.value, context, deps) * (value.times ?? 1) + (value.plus ?? 0);
+      const base = resolveValue(state, value.value, context, deps);
+      // A non-positive divisor is an authoring error (`@mc/cards`' validator rejects it); read it as 0, never NaN/Infinity.
+      const divided = !value.divide
+        ? base
+        : value.divide.by > 0
+          ? (value.divide.round === "up" ? Math.ceil : Math.floor)(base / value.divide.by)
+          : 0;
+      const scaled = divided * (value.times ?? 1) + (value.plus ?? 0);
       return value.max === undefined ? scaled : Math.min(value.max, scaled);
     }
     case "count":
       return selectTargets(state, value.query, { ...context, deps }).length;
+    case "countInRef": {
+      const withDeps = { ...context, deps };
+      return resolveRef(state, value.cards, withDeps).filter((id) => matchesQuery(state, id, value.query, withDeps)).length;
+    }
     case "remainingHp": {
       const [id] = resolveRef(state, value.of, context);
       const max = id ? maxHitPoints(state, id, deps) : undefined;

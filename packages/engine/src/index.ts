@@ -63,6 +63,7 @@ export { EngineInvariantError } from "./errors.js";
 
 export type {
   AbilityCost,
+  InPlayCostPick,
   AbilityDefinition,
   AbilityLabel,
   AbilityLimit,
@@ -117,6 +118,7 @@ export type {
   EffectSpec,
   LastingUntil,
   PlayerRef,
+  PlayerZone,
   Predicate,
   SchemeValueName,
   StatName,

@@ -44,8 +44,13 @@ export interface LastingReach {
 
 /** What a lasting effect does. Extend this union for new lasting mechanics. */
 export type LastingEffectBody =
-  /** "Reduce the resource cost of the next card that player plays by N" — consumed by that player's next played card. */
-  | { readonly kind: "costReduction"; readonly playerId: PlayerId; readonly amount: number }
+  /**
+   * "Reduce the resource cost of the next card that player plays by N" — consumed by that player's next played
+   * card. `cardFilter` narrows which card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
+   * `cap` pack) leaves the reduction waiting through any other card that player plays first. Absent = any card
+   * (Helicarrier's unfiltered "the next card").
+   */
+  | { readonly kind: "costReduction"; readonly playerId: PlayerId; readonly amount: number; readonly cardFilter?: TargetQuery }
   /** "Until the end of the phase, X gets +N STAT". `amount` is re-evaluated on every read. */
   | (LastingReach & {
       readonly kind: "statModifier";

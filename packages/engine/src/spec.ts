@@ -40,6 +40,13 @@ export interface TargetQuery {
   readonly controller?: "you" | "other" | "any" | "encounter";
   readonly engagedWith?: "you" | "any";
   readonly trait?: Trait;
+  /**
+   * Excludes cards that carry this trait (printed or granted): "an Avenger ally" pairs with `trait`, while "if
+   * each of your allies has the Avenger trait" (Avengers Tower, `cap` pack) needs its negation — `not(exists(query(
+   * "ally", { controller: "you", withoutTrait: AVENGER })))`, i.e. no ally lacks it. New for wave 1: no Core card
+   * needed a negative trait filter.
+   */
+  readonly withoutTrait?: Trait;
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
   /** The card this card is attached to (true) or anything else (false): "When attached minion is defeated". */
@@ -59,6 +66,13 @@ export interface TargetQuery {
   /** Restrict to (or exclude) the ability's own card. */
   readonly self?: boolean;
   readonly maxPrintedHp?: number;
+  /**
+   * Printed resource cost at most this much (events print none, read as 0): "an Avenger ally from your hand with
+   * printed cost equal to or less than the number of time counters on Quinjet" (`cap` pack) — a `ValueSpec` bound
+   * re-read every check, unlike `maxPrintedHp`'s fixed number, since "the number of time counters on Quinjet"
+   * changes over the game.
+   */
+  readonly maxPrintedCost?: number | ValueSpec;
   /** Only enemies this character is allowed to attack right now (RRG "Guard"). */
   readonly attackableBy?: TargetRef;
   /** Excludes cards already bound to these slots: "remove 2 threat from a *different* scheme". */
@@ -165,10 +179,30 @@ export type ValueSpec =
   | { readonly kind: "var"; readonly name: string }
   /** A result of the triggering event ("for each damage dealt by this attack" → `damage`). */
   | { readonly kind: "eventResult"; readonly key: string }
-  /** Arithmetic on another value: "2 damage for each counter (max 10)" → `{ value, times: 2, max: 10 }`; "X is 1 more than" → `plus: 1`. */
-  | { readonly kind: "scaled"; readonly value: ValueSpec; readonly times?: number; readonly plus?: number; readonly max?: number }
+  /**
+   * Arithmetic on another value: "2 damage for each counter (max 10)" → `{ value, times: 2, max: 10 }`; "X is 1 more
+   * than" → `plus: 1`; "half of the cards in your hand, rounded down" (Man Out of Time, `cap` pack) → `{ value:
+   * handCount(you), divide: { by: 2, round: "down" } }`. `divide` applies first, then `times`, `plus`, `max`.
+   *
+   * `round` is required. RRG 1.8 "Modifiers" (p. 29) rounds fractional values **up** by default, and cards that
+   * print "rounded down" override that. Neither direction is a safe silent default.
+   */
+  | {
+      readonly kind: "scaled";
+      readonly value: ValueSpec;
+      readonly divide?: { readonly by: number; readonly round: "down" | "up" };
+      readonly times?: number;
+      readonly plus?: number;
+      readonly max?: number;
+    }
   /** How many cards in play match: "for each side scheme in play", "for each Drone minion engaged with you". */
   | { readonly kind: "count"; readonly query: TargetQuery }
+  /**
+   * How many of the cards a ref names match a query, wherever they are (not restricted to in play, unlike `count`):
+   * "for each treachery looked at this way" (Falcon, `cap` pack, over `selectCards`' non-in-play "look") reads the
+   * cards bound to a slot. Resolved the same way `resourceTypes`/`distinctCardTypes` already read a ref's cards.
+   */
+  | { readonly kind: "countInRef"; readonly cards: TargetRef; readonly query: TargetQuery }
   /** A character's remaining hit points (max HP minus damage): "X is equal to Titania's remaining hit points". */
   | { readonly kind: "remainingHp"; readonly of: TargetRef }
   /** "N (M instead if …)": `then` when the predicate holds, `else` otherwise. */
@@ -634,12 +668,17 @@ export type EffectSpec =
   | { readonly kind: "if"; readonly condition: Predicate; readonly then: readonly EffectSpec[]; readonly otherwise?: readonly EffectSpec[] }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
-  /** "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use). */
+  /**
+   * "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use).
+   * `cardFilter` narrows which played card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
+   * `cap` pack). Absent = any card (Helicarrier).
+   */
   | {
       readonly kind: "reduceNextCardCost";
       readonly player: PlayerRef;
       readonly amount: ValueSpec;
       readonly duration: "phase" | "round";
+      readonly cardFilter?: TargetQuery;
     };
 
 /** A player's own out-of-play zones a selector can read. */

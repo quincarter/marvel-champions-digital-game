@@ -1,9 +1,11 @@
+import type { EngineDeps } from "./abilities.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { emit, moveCard, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
 import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
 import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, mustInstance, mustPlayer, mustVillain } from "./query.js";
 import { shuffle } from "./rng.js";
 import { cannotLeavePlay, cannotReady } from "./rules.js";
+import { matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, ZoneId } from "./state.js";
 import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
@@ -324,16 +326,26 @@ export function expireEventLastingEffects(ctx: Ctx, frameId: string): void {
   }
 }
 
-/** Total "reduce the cost of the next card you play" waiting for this player. */
-export const costReductionFor = (state: GameState, playerId: PlayerId): number =>
-  state.lastingEffects.reduce(
-    (sum, effect) => (effect.kind === "costReduction" && effect.playerId === playerId ? sum + effect.amount : sum),
-    0,
-  );
+/**
+ * Total "reduce the cost of the next card you play" waiting for this player, against a specific card being priced.
+ * A `cardFilter`-bearing reduction ("the next Avenger ally played this phase", Avengers Tower) only applies while
+ * pricing a card it matches, and keeps waiting through any other card `cardInstanceId` names.
+ */
+export function costReductionFor(state: GameState, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId): number {
+  const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
+  return state.lastingEffects.reduce((sum, effect) => {
+    if (effect.kind !== "costReduction" || effect.playerId !== playerId) return sum;
+    if (effect.cardFilter && !matchesQuery(state, cardInstanceId, effect.cardFilter, context)) return sum;
+    return sum + effect.amount;
+  }, 0);
+}
 
-/** The player just played a card: every pending "next card" reduction is used up. */
-export function consumeCostReductions(ctx: Ctx, playerId: PlayerId): void {
+/** The player just played a card: every pending "next card" reduction that card matches is used up. */
+export function consumeCostReductions(ctx: Ctx, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId): void {
+  const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
   for (const effect of [...ctx.state.lastingEffects]) {
-    if (effect.kind === "costReduction" && effect.playerId === playerId) endLastingEffect(ctx, effect.id, "consumed");
+    if (effect.kind !== "costReduction" || effect.playerId !== playerId) continue;
+    if (effect.cardFilter && !matchesQuery(ctx.state, cardInstanceId, effect.cardFilter, context)) continue;
+    endLastingEffect(ctx, effect.id, "consumed");
   }
 }

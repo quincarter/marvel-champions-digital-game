@@ -1,6 +1,36 @@
 import type { AbilityDefinition, AbilityRegistry, EffectSpec } from "@mc/engine";
 
 /**
+ * A private marker for `allowUnlabeledAttack`'s opt-out (below). A symbol key never appears in `Object.entries`/
+ * `Object.keys`, so it is invisible to `checkPlain`'s "is this JSON?" walk and to `bindsOf`'s field scan, and it is
+ * dropped by `structuredClone` if a definition object is ever cloned — it never reaches the engine as data.
+ */
+const UNLABELED_ATTACK = Symbol("ability-scripting-engineer: unlabeled attack, see allowUnlabeledAttack");
+
+/**
+ * Opts one ability out of `checkLabels`'s "an attack effect belongs to an (attack)-labeled ability" rule.
+ *
+ * The rule holds for almost every Core and wave 1 card: a stunned identity cancels a labeled ability's attack
+ * outright, so the engine needs the label to know what a stun touches. **Dance of Death** is the documented
+ * exception: it prints no "(attack)" label at all, and FAQ "Dance of Death (#4)" (RRG 1.8 p. 59) rules that its
+ * first sentence "defines each damage-dealing effect ... as an individual attack" anyway, with a stun cancelling
+ * only the first of the three. `dsl/validate.ts` cannot tell that apart from a card that simply forgot its label,
+ * so the opt-out must be requested by name, with a citation, right where the ability is defined — never a blanket
+ * relaxation of the check.
+ *
+ * Use only when a card's own text (or an FAQ ruling on it) makes an unlabeled attack effect correct; every other
+ * ability with an `attack` effect must still carry `{ label: "attack" }`.
+ */
+export function allowUnlabeledAttack<T extends AbilityDefinition>(definition: T, reason: { readonly citation: string }): T {
+  if (!reason.citation.trim()) throw new Error("allowUnlabeledAttack needs a citation");
+  Object.defineProperty(definition, UNLABELED_ATTACK, { value: true, enumerable: false, configurable: false });
+  return definition;
+}
+
+const hasUnlabeledAttackOptOut = (definition: AbilityDefinition): boolean =>
+  (definition as unknown as Record<symbol, unknown>)[UNLABELED_ATTACK] === true;
+
+/**
  * Shape validation for compiled abilities. The engine trusts its registry, so
  * authoring mistakes that TypeScript can't see are caught here, when a card
  * module is defined:
@@ -14,8 +44,48 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkPlain(definition, "definition", problems);
   checkTrigger(definition, problems);
   checkLabels(definition, problems);
+  checkCost(definition, problems);
+  checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
   return problems;
+}
+
+/** Cost shapes TypeScript can't see. */
+function checkCost(definition: AbilityDefinition, problems: string[]): void {
+  const cost = definition.cost;
+  if (!cost) return;
+  for (const [name, pick] of [["exhaustCards", cost.exhaustCards], ["returnToHand", cost.returnToHand]] as const) {
+    if (!pick) continue;
+    // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
+    if (!Number.isInteger(pick.min) || pick.min < 1) problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);
+    if (pick.max !== undefined && (!Number.isInteger(pick.max) || pick.max < pick.min)) problems.push(`cost ${name}: max must be a whole number no smaller than min`);
+  }
+  // `discardFromHand` keeps min 0 legal: "Discard X cards" lets the player choose X (RRG 1.8 "'X' (Value)", p. 29).
+  const discard = cost.discardFromHand;
+  if (discard && discard.max !== undefined && discard.max < discard.min) problems.push("cost discardFromHand: max must be no smaller than min");
+  const slots = [
+    ...(cost.discardFromHand ? ["discard"] : []),
+    ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
+    ...(cost.exhaustCards ? [cost.exhaustCards.slot] : []),
+    ...(cost.returnToHand ? [cost.returnToHand.slot] : []),
+  ];
+  if (new Set(slots).size !== slots.length) problems.push(`cost components pick into the same slot (${slots.join(", ")}); give each its own slot`);
+}
+
+/** `scaled.divide` needs a positive whole divisor; the engine would otherwise read the value as 0. */
+function checkScaled(value: unknown, path: string, problems: string[]): void {
+  if (Array.isArray(value)) {
+    value.forEach((item, i) => checkScaled(item, `${path}[${i}]`, problems));
+    return;
+  }
+  if (value === null || typeof value !== "object") return;
+  const record = value as Record<string, unknown>;
+  if (record.kind === "scaled" && record.divide !== undefined) {
+    const divide = record.divide as { by?: unknown; round?: unknown };
+    if (typeof divide.by !== "number" || !Number.isInteger(divide.by) || divide.by < 1) problems.push(`${path}: scaled divide.by must be a whole number of at least 1`);
+    if (divide.round !== "down" && divide.round !== "up") problems.push(`${path}: scaled divide.round must be "down" or "up"`);
+  }
+  for (const [key, item] of Object.entries(record)) checkScaled(item, `${path}.${key}`, problems);
 }
 
 function checkPlain(value: unknown, path: string, problems: string[]): void {
@@ -77,7 +147,9 @@ function nestedLists(effect: EffectSpec): (readonly EffectSpec[])[] {
  */
 function checkLabels(definition: AbilityDefinition, problems: string[]): void {
   const kinds = new Set(allEffects(definition.effects).map((e) => e.kind));
-  if (kinds.has("attack") && !(definition.label ?? []).includes("attack")) problems.push("an attack effect belongs to an (attack)-labeled ability");
+  if (kinds.has("attack") && !(definition.label ?? []).includes("attack") && !hasUnlabeledAttackOptOut(definition)) {
+    problems.push('an attack effect belongs to an (attack)-labeled ability (opt out with allowUnlabeledAttack for a documented exception like Dance of Death, FAQ "Dance of Death (#4)", RRG 1.8 p. 59)');
+  }
   if (kinds.has("thwart") && !(definition.label ?? []).includes("thwart")) problems.push("a thwart effect belongs to a (thwart)-labeled ability");
 }
 
@@ -99,6 +171,15 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
   }
   if (typeof value !== "object" || value === null) return;
   const record = value as Record<string, unknown>;
+  // `TargetRef.superlative` ("the X with the highest/lowest Y", docs/phase7-wave1.md §3.12) measures each candidate
+  // with that candidate bound to its own slot, "candidate" unless `slot` names another. The engine binds it, never
+  // the ability, and only while `measure` is evaluated, so it is readable there and nowhere else.
+  if (record.kind === "superlative") {
+    checkRefs(record.among, scope, where, problems);
+    const candidate = typeof record.slot === "string" ? record.slot : "candidate";
+    checkRefs(record.measure, { ...scope, slots: new Set([...scope.slots, candidate]) }, where, problems);
+    return;
+  }
   if (record.kind === "slot" && typeof record.slot === "string" && !known(scope, scope.slots, record.slot)) {
     problems.push(`${where}: slot "${record.slot}" is read before it is bound`);
   }
@@ -141,6 +222,9 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "heal":
     case "placeThreat":
     case "removeThreat":
+    // "Discard cards from the encounter deck until N are discarded" binds the discarded cards themselves to `bind`
+    // (docs/phase7-wave1.md §3.12), so it belongs with the card-selecting effects above, not the vars-only ones below.
+    case "discardEncounterCards":
       if (effect.bind) {
         scope.slots.add(effect.bind);
         scope.prefixes.add(`${effect.bind}.`);
@@ -148,6 +232,15 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       return;
     case "spendResources":
       scope.prefixes.add(`${effect.bind}.`);
+      return;
+    // Vars only (`<bind>.made`, `.amount`, `.forcedResponses`, ...): no cards are bound to the slot itself.
+    // docs/phase7-wave1.md §3.6 (cancelBoostIcons/cancelBoostAbility), §3.7 (dealIndirectDamage) and §3.8 (moveThreat)
+    // each flagged this as a gap for `ability-scripting-engineer` before their cards could be scripted.
+    case "cancelBoostIcons":
+    case "cancelBoostAbility":
+    case "dealIndirectDamage":
+    case "moveThreat":
+      if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
     default:
       return;
@@ -179,6 +272,11 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   }
   if (cost?.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
   if (cost?.resourcesX) scope.vars.add(cost.resourcesX.bind);
+  for (const pick of [cost?.exhaustCards, cost?.returnToHand]) {
+    if (!pick) continue;
+    scope.slots.add(pick.slot);
+    if (pick.bind) scope.vars.add(pick.bind);
+  }
   if (definition.trigger.kind === "constant") {
     checkRefs(definition.trigger, scope, "constant", problems);
     return;

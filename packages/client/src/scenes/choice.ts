@@ -27,9 +27,12 @@ import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { seatIdentityName } from "../view/names.js";
 import {
+  canConfirmChoice,
   cardChoiceDisplayOrder,
   choiceFocusKey,
   choiceFocusOrder,
+  confirmMinimum,
+  initialChoiceSelection,
   sameChoiceTarget,
   type ChoiceFocusTarget,
 } from "../view/choice-focus.js";
@@ -112,7 +115,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // A new choice clears the previous selection.
     if (choice.choiceId !== this.#choiceId) {
       this.#choiceId = choice.choiceId;
-      this.#selected = [];
+      this.#selected = [...initialChoiceSelection(choice)];
       this.#focus = null;
     }
     this.#maxSelections = choice.maxSelections;
@@ -383,9 +386,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
-    const canCommit =
-      this.#selected.length >= choice.minSelections &&
-      this.#selected.length <= choice.maxSelections;
+    const canCommit = canConfirmChoice(choice, this.#selected.length);
     const commitWidth =
       choice.minSelections === 0 ? (sheet.width - 32) / 2 : sheet.width - 24;
 
@@ -401,7 +402,7 @@ export class ChoiceOverlay extends Phaser.Scene {
           height: hit.primary,
         },
         enabled: canCommit,
-        reason: `choose ${choice.minSelections} to continue`,
+        reason: `choose ${confirmMinimum(choice)} to continue`,
         onClick: () => void this.#confirm(),
       }),
     );
@@ -634,9 +635,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       }
       return;
     }
-    if (this.#selected.length >= choice.minSelections && this.#selected.length <= choice.maxSelections) {
-      void this.#confirm();
-    }
+    if (canConfirmChoice(choice, this.#selected.length)) void this.#confirm();
   }
 
   #inspectOption(choice: PendingChoice, optionId: string): void {

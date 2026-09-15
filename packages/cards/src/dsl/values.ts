@@ -103,6 +103,11 @@ export const perHero = (perPlayer: number, base = 0): ValueSpec => ({ kind: "per
 export const varOf = (name: string): ValueSpec => ({ kind: "var", name });
 export const statOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat });
 export const countOf = (q: TargetQuery): ValueSpec => ({ kind: "count", query: q });
+/**
+ * How many of a bound-slot's cards match a query, wherever they are (unlike `countOf`, not restricted to in play):
+ * "for each treachery looked at this way" (Falcon: `countAmong(chosen("looked"), query("treachery"))`).
+ */
+export const countAmong = (cardsRef: TargetRef, q: TargetQuery): ValueSpec => ({ kind: "countInRef", cards: cardsRef, query: q });
 export const damageOn = (of: TargetRef): ValueSpec => ({ kind: "damage", of });
 export const threatOn = (of: TargetRef): ValueSpec => ({ kind: "threat", of });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
@@ -115,11 +120,27 @@ export const eventAmount: ValueSpec = { kind: "eventAmount" };
 export const eventResult = (key: string): ValueSpec => ({ kind: "eventResult", key });
 export const handSizeOf = (player: PlayerRef = you, printed = false): ValueSpec =>
   printed ? { kind: "handSize", player, printed } : { kind: "handSize", player };
+/** "The cards in your hand" as a count (distinct from `handSizeOf`, the max-hand-size *stat*): "half of the cards in your hand, rounded down" (Man Out of Time). */
+export const handCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "handCount", player });
 
-/** Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`. */
-export const scaled = (value: Amount, by: { readonly times?: number; readonly plus?: number; readonly max?: number }): ValueSpec => ({
+/**
+ * Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`;
+ * "half of the cards in your hand, rounded down" (Man Out of Time) → `scaled(handCountOf(you), { divide: { by: 2,
+ * round: "down" } })`. `divide` applies first. Its `round` is required: RRG 1.8 "Modifiers" (p. 29) rounds fractions
+ * up unless the card says otherwise.
+ */
+export const scaled = (
+  value: Amount,
+  by: {
+    readonly divide?: { readonly by: number; readonly round: "down" | "up" };
+    readonly times?: number;
+    readonly plus?: number;
+    readonly max?: number;
+  },
+): ValueSpec => ({
   kind: "scaled",
   value: amount(value),
+  ...(by.divide !== undefined ? { divide: { by: by.divide.by, round: by.divide.round } } : {}),
   ...(by.times !== undefined ? { times: by.times } : {}),
   ...(by.plus !== undefined ? { plus: by.plus } : {}),
   ...(by.max !== undefined ? { max: by.max } : {}),
@@ -165,3 +186,9 @@ export const undefendedAttack: Predicate = { kind: "currentAttack", key: "undefe
 export const finalStep: Predicate = varAtLeast("sequence.final", 1);
 /** "During step one of the villain phase". */
 export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "villain", step: "placeThreat" };
+/**
+ * "The first [card type] played each round" (Steve Rogers, Living Legend: "Reduce the cost of the first ally
+ * played each round by 1"). FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): applies to the very first ally that player
+ * plays each round, whatever form they're in when it's played — so this reads the round count, not the phase's.
+ */
+export const firstThisRound = (cardType: string, player: PlayerRef = you): Predicate => ({ kind: "playedThisRound", player, cardType, atMost: 0 });

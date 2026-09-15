@@ -5,6 +5,7 @@ import type {
   FacedownRole,
   LastingUntil,
   PlayerRef,
+  PlayerZone,
   Predicate,
   ResourceRequirement,
   StatName,
@@ -74,6 +75,11 @@ export const removeThreat = (n: Amount, target: TargetRef, opts: { readonly bind
   ...withBind(opts.bind),
 });
 export const placeDamage = (n: Amount, target: TargetRef): EffectSpec => ({ kind: "placeDamage", target, amount: amount(n) });
+/**
+ * "Set his hit point dial to N instead" (Captain America's Helmet, `cap` pack): sets the remaining-hit-points dial
+ * directly. Not a heal — the card doesn't say "heal" — so it fires no heal event (docs/phase7-wave1.md §3.13).
+ */
+export const setRemainingHitPoints = (n: Amount, target: TargetRef): EffectSpec => ({ kind: "setRemainingHitPoints", target, amount: amount(n) });
 
 /** The "(attack)" body: resolves as an attack by your identity (guard, retaliate, "after X attacks" apply). */
 export const attack = (
@@ -151,14 +157,14 @@ export const forEachPlayer = (players: PlayerRef, ...effects: readonly EffectArg
 export const chooseTarget = (
   slot: string,
   q: TargetQuery,
-  opts: { readonly chooser?: PlayerRef; readonly optional?: boolean; readonly count?: number } = {},
+  opts: { readonly chooser?: PlayerRef; readonly optional?: boolean; readonly count?: Amount } = {},
 ): EffectSpec => ({
   kind: "chooseTarget",
   slot,
   query: q,
   chooser: opts.chooser ?? you,
   ...(opts.optional ? { optional: true } : {}),
-  ...(opts.count !== undefined ? { count: opts.count } : {}),
+  ...(opts.count !== undefined ? { count: amount(opts.count) } : {}),
 });
 export const bindTargets = (slot: string, target: TargetRef): EffectSpec => ({ kind: "bindTargets", slot, target });
 
@@ -224,19 +230,30 @@ export const modifyStatOf = (stat: StatName | "hp" | "handSize", n: Amount, affe
   until,
 });
 export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil): EffectSpec => ({ kind: "grantTraitUntil", trait: t, target, until });
-export const reduceNextCardCost = (player: PlayerRef, n: Amount, duration: "phase" | "round"): EffectSpec => ({
+/**
+ * "Reduce the cost of the next card that player plays this phase/round by N." `cardFilter` narrows which played
+ * card consumes it — "the next Avenger ally played this phase" (Avengers Tower, `cap` pack): `{ trait: AVENGER,
+ * categories: ["ally"] }`. Omit for the unfiltered "next card" (Helicarrier).
+ */
+export const reduceNextCardCost = (player: PlayerRef, n: Amount, duration: "phase" | "round", cardFilter?: TargetQuery): EffectSpec => ({
   kind: "reduceNextCardCost",
   player,
   amount: amount(n),
   duration,
+  ...(cardFilter ? { cardFilter } : {}),
 });
 
 // ---------------------------------------------------------------------------
 // Cards outside play, form, sequences
 // ---------------------------------------------------------------------------
 
+/**
+ * A player's own zone(s): "your deck", "your discard pile", or several searched as one pool ("search your deck
+ * **and** discard pile for a Doctor Strange card" — Mystical Studies, For Asgard!, Agent Coulson, Hail Hydra!;
+ * docs/phase7-wave1.md §3.16). `z` is one zone or a list.
+ */
 export const zone = (
-  z: "hand" | "deck" | "discard",
+  z: PlayerZone | readonly PlayerZone[],
   player: PlayerRef = you,
   opts: { readonly filter?: TargetQuery; readonly top?: Amount; readonly topmostOnly?: boolean; readonly random?: Amount } = {},
 ): CardSelector => ({

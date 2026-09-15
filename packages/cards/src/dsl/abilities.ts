@@ -6,6 +6,7 @@ import type {
   AbilityLimit,
   AbilityTriggerSpec,
   CardZoneQuery,
+  CostModifierSpec,
   EventPattern,
   Form,
   KeywordGrantSpec,
@@ -13,9 +14,11 @@ import type {
   ResourceGeneration,
   ResourceRequirement,
   RuleSpec,
+  SchemeValueName,
   StatModifierSpec,
   StatName,
   TargetQuery,
+  InPlayCostPick,
   TraitGrantSpec,
   TriggerEventKind,
   TypedResource,
@@ -156,17 +159,34 @@ export interface ConstantPart {
   readonly traitGrants?: readonly TraitGrantSpec[];
   readonly rules?: readonly RuleSpec[];
   readonly resourceMultiplier?: { readonly factor: number; readonly whilePayingFor: TargetQuery };
+  /** Changes to the cost of playing cards (docs/phase7-wave1.md §3.10): "Reduce the cost to play Hercules by 1 for each minion engaged with you". */
+  readonly costModifiers?: readonly CostModifierSpec[];
+  /** "You can only spend [physical] resources to pay for this card." (Crushing Blow). */
+  readonly paymentOnly?: readonly TypedResource[];
+  /** "Spend this card only in hero form." (Limitless Strength). */
+  readonly spendableIn?: Form;
+  /** "You may play Lockjaw from your discard pile during your turn." */
+  readonly playableFrom?: readonly "discard"[];
+  /** "As an additional cost for Wonder Man to attack, you must discard 1 card from your hand." (Wonder Man, `cap` pack). */
+  readonly basicPowerCosts?: readonly { readonly power: "attack" | "thwart"; readonly cost: AbilityCost }[];
 }
 
 export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
-  const all = <K extends "modifiers" | "keywordGrants" | "traitGrants" | "rules">(key: K) =>
-    parts.flatMap((p) => (p[key] ?? []) as NonNullable<ConstantPart[K]>[number][]);
+  const all = <K extends "modifiers" | "keywordGrants" | "traitGrants" | "rules" | "costModifiers" | "paymentOnly" | "playableFrom" | "basicPowerCosts">(
+    key: K,
+  ) => parts.flatMap((p) => (p[key] ?? []) as NonNullable<ConstantPart[K]>[number][]);
   const multipliers = parts.flatMap((p) => (p.resourceMultiplier ? [p.resourceMultiplier] : []));
   if (multipliers.length > 1) throw new Error("a constant ability has at most one resource multiplier");
+  const spendableInList = parts.flatMap((p) => (p.spendableIn ? [p.spendableIn] : []));
+  if (spendableInList.length > 1) throw new Error("a constant ability has at most one spendableIn form");
   const modifiers = all("modifiers");
   const keywordGrants = all("keywordGrants");
   const traitGrants = all("traitGrants");
   const rules = all("rules");
+  const costModifiers = all("costModifiers");
+  const paymentOnly = all("paymentOnly");
+  const playableFrom = all("playableFrom");
+  const basicPowerCosts = all("basicPowerCosts");
   return {
     trigger: {
       kind: "constant",
@@ -175,14 +195,23 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(traitGrants.length ? { traitGrants } : {}),
       ...(rules.length ? { rules } : {}),
       ...(multipliers[0] ? { resourceMultiplier: multipliers[0] } : {}),
+      ...(costModifiers.length ? { costModifiers } : {}),
+      ...(paymentOnly.length ? { paymentOnly } : {}),
+      ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
+      ...(playableFrom.length ? { playableFrom } : {}),
+      ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
     },
     effects: [],
   };
 }
+/** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */
+export const costModifier = (spec: CostModifierSpec): ConstantPart => ({ costModifiers: [spec] });
+/** "As an additional cost for [this character] to attack/thwart, you must …" (Wonder Man). */
+export const basicPowerCost = (power: "attack" | "thwart", cost: AbilityCost): ConstantPart => ({ basicPowerCosts: [{ power, cost }] });
 
 /** "X gets +N [stat]" (a negative N for "-N"); `setBase` for "has a base [stat] of N". */
 export const gets = (
-  stat: StatName | "hp" | "handSize",
+  stat: StatName | "hp" | "handSize" | SchemeValueName | "boostIcons" | "consequentialAttack" | "consequentialThwart",
   n: Amount,
   target: TargetQuery,
   opts: { readonly while?: Predicate; readonly setBase?: boolean } = {},
@@ -239,10 +268,42 @@ export const damageThisCardCost = (n: number): AbilityCost => ({ damageThisCard:
 export const healYourIdentityCost = (n: number): AbilityCost => ({ healIdentity: n });
 /** "Exhaust your hero →" */
 export const exhaustYourHero: AbilityCost = { exhaustIdentity: true };
-/** "Choose and discard N (up to N) cards from your hand →" — the cards are bound to slot `discard`, their count to `bind`. */
-export const discardFromHandCost = (min: number, max: number, bind?: string): AbilityCost => ({
-  discardFromHand: { min, max, ...(bind ? { bind } : {}) },
+/**
+ * "Choose and discard N (up to M) cards from your hand →" — the cards are bound to slot `discard`, their count to
+ * `bind`. Omit `max` for "Discard X cards from your hand" with no printed cap (Shield Toss, `cap` pack): bounded
+ * only by hand size, since a payment can never repeat a card or pick one not in hand.
+ */
+export const discardFromHandCost = (min: number, max?: number, bind?: string): AbilityCost => ({
+  discardFromHand: { min, ...(max !== undefined ? { max } : {}), ...(bind ? { bind } : {}) },
 });
+/**
+ * How many cards an in-play cost takes. `min` defaults to 1. `max` defaults to `min`, a fixed count ("exhaust
+ * Captain America's Shield"). Pass `"any"` for no cap ("exhaust any number of allies"). "Any number" and "up to N"
+ * still need at least one card (RRG 1.8 "Cost", p. 14), so `min` below 1 fails validation.
+ */
+export interface InPlayCostOptions {
+  readonly min?: number;
+  readonly max?: number | "any";
+  /** The slot the cards are bound to. Defaults to `"exhausted"` / `"returned"`. */
+  readonly slot?: string;
+  /** The var that receives how many cards paid: "draw 1 card for each ally exhausted this way". */
+  readonly bind?: string;
+}
+
+const inPlayPick = (q: TargetQuery, opts: InPlayCostOptions, defaultSlot: string): InPlayCostPick => {
+  const min = opts.min ?? 1;
+  const max = opts.max === undefined ? min : opts.max;
+  return { slot: opts.slot ?? defaultSlot, query: q, min, ...(max !== "any" ? { max } : {}), ...(opts.bind ? { bind: opts.bind } : {}) };
+};
+
+/**
+ * "Exhaust [cards you control in play] →", other than this card (`exhaustThis`) or your hero (`exhaustYourHero`):
+ * `exhaustCardsCost(query("upgrade", { name: SHIELD }))` (Shield Block) or `exhaustCardsCost(query("ally"),
+ * { max: "any", bind: "n" })` (Strength in Numbers). The engine limits candidates to cards the payer controls.
+ */
+export const exhaustCardsCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({ exhaustCards: inPlayPick(q, opts, "exhausted") });
+/** "… return [cards you control] from play to your hand →" (Shield Toss). Same picking rules as `exhaustCardsCost`. */
+export const returnToHandCost = (q: TargetQuery, opts: InPlayCostOptions = {}): AbilityCost => ({ returnToHand: inPlayPick(q, opts, "returned") });
 /** "Pay the printed cost of [a card] →" */
 /**
  * "Pay the printed cost of an ally in any player's discard pile →" (Make the Call).
@@ -324,8 +385,16 @@ export const on = {
   /** "When/After X is defeated"; `byYou`: "after *you* defeat a minion". */
   defeated: (what: Who, opts: { readonly byYou?: boolean } = {}): EventPattern =>
     pattern("characterDefeated", asTarget(what), opts.byYou ? { playerIs: "controller" } : {}),
+  /**
+   * "When/After [a scheme] is defeated" (a side scheme reaching 0 threat, or a scenario rule's own defeat) —
+   * distinct trigger event from `defeated`, which is characters only. "When attached scheme is defeated"
+   * (Followed, `cap` pack): `on.schemeDefeated("host")`.
+   */
+  schemeDefeated: (what: Who): EventPattern => pattern("schemeDefeated", asTarget(what)),
   /** "After you change to this form". */
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
+  /** "After your turn begins" (Quinjet, `cap` pack). */
+  yourTurnBegins: (): EventPattern => pattern("turnStarted", { playerIs: "controller" }),
 } as const;
 
 /** Interrupt wording: `heroInterrupt(when.villainAttacks({ againstYou: true }), …)`. */

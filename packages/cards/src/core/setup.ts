@@ -18,6 +18,14 @@ export interface CoreScenarioOptions {
   readonly players: readonly CorePlayer[];
   readonly seed: number;
   readonly firstPlayerIndex?: number;
+  /**
+   * The card pool sent to the engine (`GameSetupConfig.cards`). Defaults to `CORE_CARDS`. A Core scenario's
+   * villain/main-scheme/encounter-set cards are always looked up in `CORE_CARDS` regardless of this — only a
+   * seat's identity and deck need the wider pool, e.g. a wave 1 hero's precon sitting at a Core scenario
+   * (`packages/cards/src/wave1/setup.ts` `wave1Scenario`, docs/phase7-wave1-scripting.md). Every existing caller
+   * that doesn't set this keeps exactly the old behavior.
+   */
+  readonly cardPool?: readonly AnyCard[];
 }
 
 const cardsById = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id, card]));
@@ -76,7 +84,7 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1–4 players");
   return {
     seed: options.seed,
-    cards: CORE_CARDS,
+    cards: options.cardPool ?? CORE_CARDS,
     villainCardId: scenario.villainCardId,
     villainSide: side.side,
     villainStartStageIndex: stageIndex(firstStage),

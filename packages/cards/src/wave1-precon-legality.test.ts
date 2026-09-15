@@ -4,9 +4,11 @@
  * This lives in `@mc/cards` rather than `@mc/content`'s own test suite because checking legality means calling
  * `@mc/engine`'s `validateDeck`/`requiredIdentitySet`, and `@mc/content` must never import `@mc/engine`
  * (`client → cards → engine → content`, CLAUDE.md). `@mc/cards` already depends on both, so the check belongs
- * here. It does not use anything else in `@mc/cards` (no `CORE_DEPS`, no ability registry): wave 1 is not wired
- * into the engine yet (docs/phase7-wave1.md §3 — "Nothing here is implemented yet"), so this is a data-legality
- * check only, not a playability/`createGame` check the way `core/deck-legality.test.ts` runs for Core.
+ * here. It does not use anything else in `@mc/cards` (no `WAVE1_DEPS`, no ability registry): this file only checks
+ * deck-list legality (`validateDeck`/`requiredIdentitySet`), not playability. A `createGame`-level check that
+ * actually plays a wave 1 precon now exists too — see `wave1/cap/e2e.test.ts` and
+ * `docs/phase7-wave1-scripting.md` — but scripting coverage is per pack (`wave1/coverage.test.ts`'s `PACK_STATUS`),
+ * so this file stays the one check every wave 1 precon gets regardless of whether its pack is scripted yet.
  */
 import { WAVE1_CARDS, WAVE1_STARTER_DECKS, type DeckContents, type HeroIdentityCard, type StarterDeck } from "@mc/content";
 import { requiredIdentitySet, validateDeck } from "@mc/engine";
