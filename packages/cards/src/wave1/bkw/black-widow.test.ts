@@ -234,11 +234,14 @@ describe("Black Widow pack cards", () => {
     const hero = runBkw(given.state, toHero()); // "control a Spy character": only Black Widow's hero face has SPY
     const withSpycraft = settle(runBkw(hero, play(P1, spycraft, payWith(hero, P1, 1, [spycraft]))), firstLegal, undefined, BKW_DEPS);
     const before = mainThreat(withSpycraft);
-    const stacked = stackEncounterDeck(withSpycraft, ADVANCE, "01188", "01186"); // Advance (boost); Caught Off Guard (cancelled); Advance again ("the villain schemes")
+    // Advance (Rhino's attack boost); Caught Off Guard (cancelled); Advance again ("the villain schemes"); Hard to Keep
+    // Down (01104, that scheme's 0-icon boost card; Core has only two Advances).
+    const stacked = stackEncounterDeck(withSpycraft, ADVANCE, "01188", "01186", "01104");
     const after = settle(runBkw(stacked, endTurn()), preferring("spycraft-interrupt"), (s) => s.step.kind === "turn", BKW_DEPS);
     expect(playerOf(after, P1).discard).toContain(spycraft);
-    // The second reveal's "the villain schemes" resolved: proof the chain (cancel → reveal another) actually ran.
-    expect(mainThreat(after)).toBe(before + 1);
+    // +1 from The Break-In's acceleration (step 1), +1 from Rhino's SCH when the second reveal's "the villain
+    // schemes" resolves: proof the chain (cancel → reveal another) actually ran.
+    expect(mainThreat(after)).toBe(before + 2);
   });
 
   it("Quincarrier: a [wild] Resource ability, playable only with an Avenger identity", () => {
@@ -257,17 +260,20 @@ describe("Black Widow pack cards", () => {
     expect(inst(after, carrier).exhausted).toBe(true);
   });
 
-  it("Counterintelligence: prevents 3 threat that would be placed on the main scheme", () => {
+  it("Counterintelligence: prevents threat that would be placed on the main scheme, once", () => {
     const start = bkwVsRhino();
     const given = moveToHand(start, P1, "08017");
     const [ci] = given.ids as [never];
-    const hero = runBkw(given.state, toHero()); // hero form: Rhino attacks (not schemes), so it can't spend Counterintelligence's single use first
+    const hero = runBkw(given.state, toHero()); // hero form: Rhino attacks rather than schemes during activation
     const withCI = settle(runBkw(hero, play(P1, ci, payWith(hero, P1, 2, [ci]))), firstLegal, undefined, BKW_DEPS);
     const before = mainThreat(withCI);
-    const stacked = stackEncounterDeck(withCI, ADVANCE, ADVANCE); // Advance (boost); Advance again — "the villain schemes"
+    // Advance (Rhino's attack boost); Advance dealt to Black Widow ("the villain schemes"); Hard to Keep Down (01104,
+    // that scheme's 0-icon boost card; Core has only two Advances).
+    const stacked = stackEncounterDeck(withCI, ADVANCE, ADVANCE, "01104");
     const after = settle(runBkw(stacked, endTurn()), preferring("counterintelligence-interrupt"), (s) => s.step.kind === "turn", BKW_DEPS);
-    // Rhino's printed SCH is 1: fully prevented by Counterintelligence's prevent(3).
-    expect(mainThreat(after)).toBe(before);
+    // The first placement is The Break-In's 1 acceleration threat in step 1, fully prevented. Counterintelligence is
+    // then discarded, so the dealt Advance's scheme (Rhino's SCH 1) lands.
+    expect(mainThreat(after)).toBe(before + 1);
     expect(playerOf(after, P1).discard).toContain(ci);
   });
 

@@ -63,6 +63,8 @@ function checkCost(definition: AbilityDefinition, problems: string[]): void {
   // `discardFromHand` keeps min 0 legal: "Discard X cards" lets the player choose X (RRG 1.8 "'X' (Value)", p. 29).
   const discard = cost.discardFromHand;
   if (discard && discard.max !== undefined && discard.max < discard.min) problems.push("cost discardFromHand: max must be no smaller than min");
+  const random = cost.discardRandomFromHand;
+  if (random !== undefined && (!Number.isInteger(random) || random < 1)) problems.push("cost discardRandomFromHand: must be a whole number of at least 1");
   const slots = [
     ...(cost.discardFromHand ? ["discard"] : []),
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
@@ -85,6 +87,9 @@ function checkScaled(value: unknown, path: string, problems: string[]): void {
     if (typeof divide.by !== "number" || !Number.isInteger(divide.by) || divide.by < 1) problems.push(`${path}: scaled divide.by must be a whole number of at least 1`);
     if (divide.round !== "down" && divide.round !== "up") problems.push(`${path}: scaled divide.round must be "down" or "up"`);
   }
+  // An empty list is almost certainly an authoring slip: `sum` of nothing is 0, and `anyTrait` of nothing matches no card.
+  if (record.kind === "sum" && (!Array.isArray(record.values) || record.values.length === 0)) problems.push(`${path}: sum needs at least one value`);
+  if (Array.isArray(record.anyTrait) && record.anyTrait.length === 0) problems.push(`${path}: anyTrait needs at least one trait`);
   for (const [key, item] of Object.entries(record)) checkScaled(item, `${path}.${key}`, problems);
 }
 
@@ -269,6 +274,11 @@ function checkBindings(definition: AbilityDefinition, problems: string[]): void 
   if (cost?.discardFromHand) {
     scope.slots.add("discard");
     if (cost.discardFromHand.bind) scope.vars.add(cost.discardFromHand.bind);
+  }
+  // "For each threat here" after a discard-self cost (Beat Cop): snapshotted with the counters (`AbilityCost.discardSelf`).
+  if (cost?.discardSelf) {
+    scope.vars.add("self.threat");
+    scope.vars.add("self.damage");
   }
   if (cost?.payPrintedCostOf) scope.slots.add(cost.payPrintedCostOf.slot);
   if (cost?.resourcesX) scope.vars.add(cost.resourcesX.bind);

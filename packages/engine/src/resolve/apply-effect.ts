@@ -5,8 +5,8 @@ import {
   addAccelerationToken,
   addCounters,
   addLastingEffect,
-  discardFromHand,
   discardFromPlay,
+  discardRandomFromHand,
   drawCards,
   drawEncounterCard,
   exhaustCard,
@@ -43,7 +43,6 @@ import {
   villainOf,
 } from "../query.js";
 import { addPools, EMPTY_POOL, printedResources } from "../resources.js";
-import { nextInt } from "../rng.js";
 import {
   canAttack,
   cardsInPlay,
@@ -207,6 +206,10 @@ export function applyEffect(
         if (!from || amount <= 0) return;
         healDamage(ctx, from, amount);
       }
+      // "Increase the amount of damage that event deals by 2" (Embiggen!): an "(attack)" event's damage is an instance
+      // too, like `dealDamage` above (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59). Added after a move is capped,
+      // so it raises the damage dealt without healing more from the source.
+      amount += cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
       // RRG 1.8 "Stun" (p. 41): "If a stunned identity or ally attempts to attack or use an attack ability, discard
       // the stunned card instead. Costs associated with the attack attempt … must still be paid." An ability that
       // creates several attacks spends the stun on the first of them only — FAQ "Dance of Death (#4)" (p. 59):
@@ -327,16 +330,7 @@ export function applyEffect(
     }
     case "discardFromHand": {
       const amount = value(effect.amount);
-      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
-        for (let i = 0; i < amount; i++) {
-          const hand = mustPlayer(ctx.state, playerId).hand;
-          if (hand.length === 0) break;
-          const [index, rng] = nextInt(ctx.state.rng, hand.length);
-          ctx.state = { ...ctx.state, rng };
-          const picked = hand[index];
-          if (picked) discardFromHand(ctx, playerId, picked);
-        }
-      }
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) discardRandomFromHand(ctx, playerId, amount);
       return;
     }
     case "revealTopOfEncounterDeck": {

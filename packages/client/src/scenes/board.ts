@@ -24,7 +24,7 @@
  */
 
 import Phaser from "phaser";
-import { CORE_DEPS } from "@mc/cards";
+import { POOL_DEPS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
 import type { GameEvent, InstanceId } from "@mc/engine";
 import { cardArt, type CardArt } from "../art/card-art.js";
@@ -209,7 +209,7 @@ export class BoardScene extends Phaser.Scene {
       this.#controller.reset();
     }
 
-    this.#model = boardModel(state.game, state.perspectiveId, CORE_DEPS);
+    this.#model = boardModel(state.game, state.perspectiveId, POOL_DEPS);
     this.#marks = state.legal ? highlights(state.legal.actions) : null;
 
     if (state.game.outcome) {

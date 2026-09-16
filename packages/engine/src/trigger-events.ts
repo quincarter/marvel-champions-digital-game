@@ -194,6 +194,10 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "thwart":
     case "enemyAttack":
     case "enemyScheme":
+    // RRG 1.8 "Defend, Defense" (p. 15) names abilities that trigger "when your hero defends against an attack"
+    // (Expert Defense, Desperate Defense), and "Interrupt" (p. 25) resolves them as the triggering condition
+    // initiates. The defender is recorded before this event is pushed, so the interrupt window sees it.
+    case "defended":
     case "characterAttacked":
     case "characterDefeated":
     case "encounterCardRevealing":

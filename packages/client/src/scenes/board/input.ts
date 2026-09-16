@@ -50,6 +50,22 @@ export function bindKeyboard(scene: Phaser.Scene, binding: IntentBinding): void 
       case "I":
         binding.onIntent("inspect");
         break;
+      case "PageDown":
+        event.preventDefault();
+        binding.onIntent("pageNext");
+        break;
+      case "PageUp":
+        event.preventDefault();
+        binding.onIntent("pagePrevious");
+        break;
+      case "Home":
+        event.preventDefault();
+        binding.onIntent("home");
+        break;
+      case "End":
+        event.preventDefault();
+        binding.onIntent("end");
+        break;
       case "Escape":
         binding.onIntent("cancel");
         break;

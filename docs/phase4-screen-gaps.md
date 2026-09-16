@@ -65,6 +65,26 @@ These are needed by more than one workstream. Each is small enough to land on it
   - For a defend choice: each option's damage as a range over the unrevealed boost, using only public information.
   - "Why not the others?": group each present-but-illegal target by the engine's reason. `legalActions` already returns blocked targets with reasons, so check whether that covers pending choices before adding anything.
 - **S6. Player-facing keyword text.** `content/src/schema/keywords.ts` enumerates keywords but holds no definitions a player reads. The Pause screen's glossary needs short definitions, each tied to its RRG 1.8 page. Owner: `card-data-pipeline`. See §4 on wording.
+- **S8. Searchable, scrollable roster.** Scenario select and Take your seats both list things that will grow far past a screenful. The pool already has 3 Core and 3 wave 1 scenarios and 12 precons before any saved or imported decks, and every later pack adds more. So neither roster may be a fixed grid that assumes it fits.
+  - **The list:** build on the virtualized list the deck screens use (`ui/virtual-list.ts`, PLAN.md Phase 7, "scroll lists"). Rows scroll by pixels, only visible rows are live objects, and the scroll state lives in a plain-TS model that survives a scene rebuild.
+  - **The search:** a text field above the list, with a plain-TS filter model and tests.
+    - Heroes match on hero name, alter-ego name, deck name, aspect and source (precon, imported, built). Scenarios match on villain name, scenario name, product or pack, and encounter set name.
+    - Filtering is case- and accent-insensitive.
+    - When nothing matches, the list says so and offers Clear.
+    - The query persists while the player moves between setup steps (S2), and resets on a new setup.
+  - **Quick filters** are chips beside the search:
+    - heroes: aspect, source, and "playable now" (hides seats blocked by the engine's reasons in `view/seats.ts`, without dropping them from the data);
+    - scenarios: product or cycle.
+  - **Keyboard, pad and touch:**
+    - Every row is a logical focus stop, and focusing a row scrolls it into view.
+    - Page Up/Down and Home/End move through the list, and typing while the list has focus jumps to the search field.
+    - A dimmed (blocked) row still takes focus, so its reason can be read.
+  - **Layout:** the search and the list share one layout function with the rest of the screen, and a test checks the list's viewport never overlaps the controls above or below it. Checked at portrait phone (about 440×900), 800×600 and desktop sizes.
+  - Used by W2's Scenario select and Take your seats, and by W9's deck list.
+  - **Partly landed (`game-client-engineer`, 2026-09-15), on today's Title rather than W2's own screens.** `ui/virtual-list.ts` (`McVirtualList`) is the pixel-scrolling virtualized list, with `view/list-scroll.ts` for scroll state, `view/drag-gesture.ts` for tap-vs-drag and momentum, and `view/roster-filter.ts` for the search. The Decks list and the deck builder's pool use the same widget.
+    - **Done:** the list, the search field with an empty-result message and Clear, every row a focus stop with scroll-into-view, Page Up/Down and Home/End, and layout tests.
+    - **Not done:** the quick-filter chips (aspect, source, playable-now, product/cycle). The filter model is shaped to take them without a rewrite.
+    - **Seen working in the browser by the main session** at 800×600 and an emulated 375×812 phone: wheel, drag with a flick, and tapping a row; typing narrows both rosters; rows clip at the list edges.
 - **S7. Log jump.** Replay a saved log up to command N into a read-only view, with the live game untouched. `replay()` exists (`packages/engine/src/engine.ts:171`). The work is a read-only board over a replayed state. It is also the basis for Game Over's "Watch the replay". Used by W4 and W8.
 
 ## 3. Workstreams
@@ -98,8 +118,8 @@ Already there: all the setup decisions on `scenes/title.ts`, `view/seats.ts` (se
 
 - [ ] S2, the setup draft state.
 - [ ] **Title as a menu** (D01). Continue card (scenario · difficulty · round · heroes, from the existing `continueLabel`), New game, Decks & Collection, Campaign (drawn locked), Settings (W4; drawn unavailable until then). Footer: card-pool coverage ("233 / 233 Core cards live", from the ability registry) and build version.
-- [ ] **Scenario select** (D02). One card per scenario with villain art. Detail panel: main scheme, threat per player, villain HP per player per stage, encounter sets, a stage-by-stage row. Step indicator ("Step 1 of 4"), Back, "Choose heroes ▸". The record line waits on S4. Blurbs wait on §4.
-- [ ] **Take your seats** (D03, P03, T-P02). Up to 4 seat slots, each with identity, aspect, HP and hand size, plus an empty-seat state ("Tap a hero for seat 4"). A roster of every seatable deck with THW/ATK/DEF, dimmed in place with the engine's reason when blocked. Hero detail panel: the identity's **obligation** and **nemesis set** (`HeroIdentityCard.obligationCardId`, `nemesisEncounterSetId`). "Use preconstructed for all seats". "Build decks ▸" / "Deck check ▸" into W1.
+- [ ] **Scenario select** (D02). A searchable, scrollable roster (S8) of every scenario in the pool, not a fixed row of thumbnails. Each row is a card with villain art. Detail panel: main scheme, threat per player, villain HP per player per stage, encounter sets, a stage-by-stage row. Step indicator ("Step 1 of 4"), Back, "Choose heroes ▸". The record line waits on S4. Blurbs wait on §4.
+- [ ] **Take your seats** (D03, P03, T-P02). Up to 4 seat slots, each with identity, aspect, HP and hand size, plus an empty-seat state ("Tap a hero for seat 4"). A searchable, scrollable roster (S8) of every precon, saved and imported deck, with THW/ATK/DEF. A blocked deck is dimmed in place with the engine's reason. The seat slots stay fixed above the roster while it scrolls. Hero detail panel: the identity's **obligation** and **nemesis set** (`HeroIdentityCard.obligationCardId`, `nemesisEncounterSetId`). "Use preconstructed for all seats". "Build decks ▸" / "Deck check ▸" into W1.
 - [ ] S3, the encounter deck preview.
 - [ ] **Table setup** (D05, P12).
   - Difficulty: Standard and Expert, from `Scenario.villainStages`.
@@ -110,9 +130,13 @@ Already there: all the setup decisions on `scenes/title.ts`, `view/seats.ts` (se
 - [ ] Focus routes for every new screen, following `view/screen-focus.ts`.
 - [ ] Retire the setup half of `scenes/title.ts` once the flow covers it. The fastest path must stay fast: New game → accept every default → a game in the same number of presses as today's "Start game", or close to it.
 
-Depends on: S2, S3. S4 for the record line. W1 for the Deck check step (the flow can link straight to Table setup until W1 lands).
+Depends on: S2, S3, S8. S4 for the record line. W1 for the Deck check step (the flow can link straight to Table setup until W1 lands).
 
-Done when: a 1–4 seat game with a non-recommended modular set and a non-default first player starts from the new flow, and its save replays.
+Done when: a 1–4 seat game with a non-recommended modular set and a non-default first player starts from the new flow, and its save replays. Also, with at least 100 decks and 20 scenarios loaded (test fixtures are fine), both rosters must:
+- scroll smoothly;
+- find a deck or scenario by typing part of its name;
+- be fully reachable by keyboard and pad;
+- never overlap the controls above or below them, at phone, 800×600 and desktop sizes.
 
 ### W3. Setup deal and mulligan
 
@@ -204,6 +228,7 @@ Canvas: D14. This overlaps PLAN.md Phase 9 and should be checked off there as we
 Already there: `scenes/decks.ts`, `view/deck-list-model.ts`, `view/deck-status.ts`, `view/deck-import-model.ts`.
 
 - [ ] Two-pane layout on wide screens: deck list beside the card pool and the selected deck's stats (S1).
+- [ ] The deck list uses S8's search and quick filters (aspect, source, legal/blocked).
 - [ ] Per-deck record and last played (needs S4, including its deck-id gap).
 - [ ] "Recently changed" (needs a deck revision history in deck storage).
 - [ ] Duplicate, Export (decklist text, the inverse of paste import), and "Play this deck ▸" (opens W2's Seats with this deck in seat 1).
@@ -238,7 +263,7 @@ Build these from `@mc/content`, not from the canvases:
 ## 6. Suggested order
 
 1. **W1**, starting with S1. Small, unblocks the analysis in two places, and needs no engine work.
-2. **W2**, with S2 and S3. The largest visible gap, and it gives W1's Deck check its place in the flow.
+2. **W2**, with S2, S3 and S8. S8 can land first, on today's Title seats and scenario row, since the pool has already outgrown them. The largest visible gap, and it gives W1's Deck check its place in the flow.
 3. **W3**. Self-contained once W2's flow exists.
 4. **W4**, starting with Pause, Resume, Save & quit and Settings. The glossary follows S6, and log jump follows S7.
 5. **S5**, then **W5** and **W6**. Blocked on engine queries, so start the `game-rules-architect` design early and build the parts that don't need it.

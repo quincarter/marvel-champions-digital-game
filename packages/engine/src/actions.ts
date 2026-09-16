@@ -16,6 +16,7 @@ import {
   costReductionFor,
   discardFromHand,
   discardFromPlay,
+  discardRandomFromHand,
   exhaustCard,
   healDamage,
   removeCounters,
@@ -503,6 +504,9 @@ export function planCost(
   }
   if (cost.discardSelf) {
     for (const [counterType, amount] of Object.entries(source.counters)) vars[`self.counters.${counterType}`] = amount;
+    // "For each threat here" after "discard Beat Cop →": leaving play clears threat and damage (`leavePlay`).
+    vars["self.threat"] = source.threat;
+    vars["self.damage"] = source.damage;
   }
   if (cost.discardFromHand) {
     const picks = choices.discard ?? [];
@@ -518,6 +522,14 @@ export function planCost(
     if (new Set(picks).size !== picks.length) return { code: "invalid_choice", message: "duplicate discard choice" };
     bindings.discard = picks;
     if (bind) vars[bind] = picks.length;
+  }
+  if (cost.discardRandomFromHand !== undefined) {
+    // Picked when paid (`payCost`); here only whether enough cards are left once the payment and chosen discards are out.
+    const chosen = new Set(bindings.discard ?? []);
+    const left = player.hand.filter((id) => id !== sourceId && !reserved.has(id) && !chosen.has(id)).length;
+    if (left < cost.discardRandomFromHand) {
+      return { code: "card_not_in_zone", message: `discard ${cost.discardRandomFromHand} card(s) at random from your hand to pay this cost` };
+    }
   }
   if (cost.payPrintedCostOf) {
     const { slot, from, entersPlay } = cost.payPrintedCostOf;
@@ -685,6 +697,8 @@ export function payCost(
   if (cost.exhaustIdentity) exhaustCard(ctx, identityId);
   if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity);
   for (const id of plan.bindings.discard ?? []) discardFromHand(ctx, playerId, id);
+  // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
+  if (cost.discardRandomFromHand) discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId]);
   if (cost.damageSelf) {
     pushEvent(ctx, { kind: "dealDamage", targetInstanceId: identityId, amount: cost.damageSelf, sourceInstanceId: sourceId, fromAttack: false });
   }

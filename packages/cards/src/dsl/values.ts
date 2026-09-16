@@ -104,6 +104,12 @@ export const varOf = (name: string): ValueSpec => ({ kind: "var", name });
 export const statOf = (of: TargetRef, stat: StatName): ValueSpec => ({ kind: "stat", of, stat });
 export const countOf = (q: TargetQuery): ValueSpec => ({ kind: "count", query: q });
 /**
+ * The total of several values: "for each ally and Persona support in play" (Generation Why?) →
+ * `sum(countOf(query("ally")), countOf(query("support", { trait: PERSONA })))`. Use it when one query can't say it:
+ * a query's `trait` applies to every category it lists.
+ */
+export const sum = (...values: readonly Amount[]): ValueSpec => ({ kind: "sum", values: values.map(amount) });
+/**
  * How many of a bound-slot's cards match a query, wherever they are (unlike `countOf`, not restricted to in play):
  * "for each treachery looked at this way" (Falcon: `countAmong(chosen("looked"), query("treachery"))`).
  */

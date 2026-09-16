@@ -25,8 +25,39 @@ import type Phaser from "phaser";
 import TextArea from "phaser4-rex-plugins/templates/ui/textarea/TextArea.js";
 import InputText from "phaser4-rex-plugins/templates/ui/inputtext/InputText.js";
 import TextAreaInput from "phaser4-rex-plugins/templates/ui/textareainput/TextAreaInput.js";
+import { SetMask, ClearMask, type MaskType } from "phaser4-rex-plugins/plugins/utils/mask/MaskMethods.js";
 
 export { TextArea, InputText, TextAreaInput };
+
+/**
+ * Clips `gameObject` to `maskGameObject`'s shape, in both renderers.
+ *
+ * **Why this exists rather than `gameObject.setMask(shape.createGeometryMask())`:**
+ * that call is a silent no-op under WebGL in Phaser 4 — `Components.Mask#setMask`
+ * only logs "This method is not supported in WebGL. Create a Mask filter
+ * instead." and does nothing (`GeometryMask` became Canvas-only in v4; see the
+ * v4.0 migration guide). The app runs WebGL (PLAN.md Phase 4, "Use the WebGL
+ * renderer"), so anything masked that way never actually clips — every row a
+ * `McVirtualList` draws rendered over whatever the scene drew before or after
+ * it, unclipped, which read as "rows overlap everything above and below the
+ * list."
+ *
+ * rexUI's own `SetMask` (`plugins/utils/mask/MaskMethods.js`) already branches
+ * on render mode — a WebGL filter mask or a Canvas `GeometryMask` — and our
+ * rexUI scroll panels (`McScrollPanel`'s `TextArea`) already clip correctly
+ * through it, so this is the same helper, not a new one.
+ *
+ * `maskType: "world"` matches the external/world filter context, so the mask
+ * shape's coordinates stay in world space — the same space `#layoutTrack`
+ * (and every other caller) already draws the mask rect in.
+ */
+export function setMask(gameObject: Phaser.GameObjects.GameObject, maskGameObject: Phaser.GameObjects.GameObject, maskType: MaskType = "world"): void {
+  SetMask(gameObject, maskGameObject, false, maskType);
+}
+
+export function clearMask(gameObject: Phaser.GameObjects.GameObject): void {
+  ClearMask(gameObject);
+}
 
 /** What `rexUI.add.textArea(config)` did: construct, then adopt into the scene. */
 export function addTextArea(scene: Phaser.Scene, config: ConstructorParameters<typeof TextArea>[1]): TextArea {

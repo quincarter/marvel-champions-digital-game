@@ -7,7 +7,7 @@
  * whenever the selection changes it asks the scene to redraw.
  */
 
-import { CORE_DEPS } from "@mc/cards";
+import { POOL_DEPS } from "../../content/pool.js";
 import type { AbilityId } from "@mc/content";
 import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { appSession } from "../../session.js";
@@ -266,7 +266,7 @@ export class BoardController {
   #useAbility(entry: UsableAbilityAction): void {
     if (entry.targets.length > 1) {
       const { game } = appSession().store.state;
-      const name = game ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, CORE_DEPS) : "this ability";
+      const name = game ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, POOL_DEPS) : "this ability";
       this.#selection = { kind: "targeting", action: entry, prompt: `Choose a target for ${name}` };
       this.#host.redraw();
       return;
@@ -298,7 +298,7 @@ export class BoardController {
     // prices at nothing, which is still worth a tap target.
     const text =
       abilities.length === 1
-        ? (abilityShortLabelOf(game, instanceId, abilities[0]!.action.abilityId, CORE_DEPS) ?? "use")
+        ? (abilityShortLabelOf(game, instanceId, abilities[0]!.action.abilityId, POOL_DEPS) ?? "use")
         : `${abilities.length} abilities — tap to choose`;
     return `▶ ${text}`;
   }
@@ -311,7 +311,7 @@ export class BoardController {
     const { store } = appSession();
     const { game, perspectiveId } = store.state;
     if (!game || perspectiveId === null) return false;
-    const payment = beginPayment(game, perspectiveId, entry.action, target, CORE_DEPS, controllerId);
+    const payment = beginPayment(game, perspectiveId, entry.action, target, POOL_DEPS, controllerId);
     if (!payment) return false;
     this.#selection = { kind: "paying", payment };
     this.#host.redraw();
@@ -355,7 +355,7 @@ export class BoardController {
     ]
       .filter(Boolean)
       .join(" ");
-    return paymentView(game, perspectiveId, payment, headline, CORE_DEPS);
+    return paymentView(game, perspectiveId, payment, headline, POOL_DEPS);
   }
 
   async commitPayment(): Promise<void> {

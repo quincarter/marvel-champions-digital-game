@@ -75,6 +75,7 @@ describe("seatOptions", () => {
       poolChanged: false,
       seatable: true,
       blockedReason: null,
+      warning: null,
     });
     const otherDeck: Deck = { ...deckFromStarterDeck(CORE_STARTER_DECKS[0]!, CORE_POOL_VERSION), id: "other-spider-man" as never, identityCardId: "99001a" as never };
     const decks = [PRECON_OPTIONS[0]!, bareOption(otherDeck)];

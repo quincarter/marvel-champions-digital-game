@@ -14,6 +14,7 @@
  * already supplies — `mergeRegistries` throws "defined twice" if it does, which is the intended guard rail.
  */
 import type { AbilityRegistry, EngineDeps } from "@mc/engine";
+import { CORE_ABILITIES } from "../core/index.js";
 import { mergeRegistries } from "../dsl/index.js";
 import { BKW_ABILITIES } from "./bkw/index.js";
 import { CAP_ABILITIES } from "./cap/index.js";
@@ -25,8 +26,12 @@ import { THOR_ABILITIES } from "./thor/index.js";
 import { TWC_ABILITIES } from "./twc/index.js";
 import { WAVE1_REPRINT_ABILITIES } from "./reprints.js";
 
-/** Every scripted wave 1 ability, keyed by `AbilityReference` id: Core reprints, then one entry per pack. */
+/**
+ * Every scripted ability in the wave 1 pool, keyed by `AbilityReference` id: Core's own scripts (`WAVE1_CARDS`
+ * includes Core, and the engine skips an unregistered ability silently), Core reprints, then one entry per pack.
+ */
 export const WAVE1_ABILITIES: AbilityRegistry = mergeRegistries(
+  CORE_ABILITIES,
   WAVE1_REPRINT_ABILITIES,
   CAP_ABILITIES,
   THOR_ABILITIES,

@@ -8,7 +8,16 @@
  * pack lands here automatically the moment `@mc/content` exports it, instead of silently going unchecked.
  */
 import { BKW_CARDS, CAP_CARDS, DRS_CARDS, GOB_CARDS, HLK_CARDS, MSM_CARDS, THOR_CARDS, TWC_CARDS, type AnyCard } from "@mc/content";
+import { CORE_ABILITIES } from "../core/index.js";
 import { WAVE1_ABILITIES, wave1ReprintPairs } from "./index.js";
+
+// `WAVE1_CARDS` includes Core, and the engine skips an unregistered ability silently, so a missing Core script would
+// quietly play Rhino, Klaw or Ultron (or a Core hero) with no abilities in any wave 1 game.
+describe("wave 1 ability registry", () => {
+  it("includes every Core script, the same definition object", () => {
+    for (const [id, definition] of Object.entries(CORE_ABILITIES)) expect(WAVE1_ABILITIES[id], id).toBe(definition);
+  });
+});
 
 function abilityRefIds(card: AnyCard): string[] {
   switch (card.type) {

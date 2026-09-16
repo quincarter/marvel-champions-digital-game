@@ -411,6 +411,10 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   if (profile?.missing.includes("atk")) return;
   const amount = event.amount ?? profile?.atk;
   if (amount === undefined) return;
+  // "That attack gains overkill" (Hulk Smash): an interrupt's `modifyAttack` records the grant on this attack's event
+  // frame, the same var an enemy attack reads when it deals its damage (`enemy-activation.ts`).
+  const attackFrame = findFrame(ctx.state, frameId);
+  const granted = attackFrame?.kind === "event" && (attackFrame.vars.overkill ?? 0) > 0;
   pushEvents(ctx, [
     {
       kind: "dealDamage",
@@ -419,7 +423,7 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
       sourceInstanceId: event.attackerInstanceId,
       fromAttack: true,
       parentFrameId: frameId,
-      overkill: event.overkill === true,
+      overkill: event.overkill === true || granted,
       viaInstanceId: event.sourceInstanceId ?? null,
     },
     {

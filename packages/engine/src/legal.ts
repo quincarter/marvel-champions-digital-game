@@ -150,6 +150,20 @@ function wallets(spend: readonly Payment[]): readonly (readonly Payment[])[] {
   return handOnly.length === spend.length ? [spend] : [spend, handOnly];
 }
 
+/**
+ * "Discard N cards at random from your hand →" needs N cards the payment leaves in hand, so each wallet is also tried
+ * with its last N hand cards kept back. The unchanged wallet is tried first; costs without the component are untouched.
+ */
+function leavingCardsToDiscard(tryWallets: readonly (readonly Payment[])[], cost: AbilityCost | undefined): readonly (readonly Payment[])[] {
+  const keep = cost?.discardRandomFromHand ?? 0;
+  if (keep <= 0) return tryWallets;
+  return tryWallets.flatMap((wallet) => {
+    const handIndexes = wallet.flatMap((entry, index) => ("fromHand" in entry ? [index] : []));
+    const keptBack = new Set(handIndexes.slice(-keep));
+    return [wallet, wallet.filter((_, index) => !keptBack.has(index))];
+  });
+}
+
 /** "Choose and discard N cards" cost picks: the cards worth the fewest resources, keeping resource cards for paying. */
 function discardPicks(state: GameState, playerId: PlayerId, source: InstanceId, cost: AbilityCost | undefined): readonly InstanceId[] {
   const min = cost?.discardFromHand?.min ?? 0;
@@ -288,7 +302,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
       }
     }
   }
-  return evaluate(state, deps, { kind: "playCard", instanceId: id }, variants, wallets(spend));
+  return evaluate(state, deps, { kind: "playCard", instanceId: id }, variants, leavingCardsToDiscard(wallets(spend), cost));
 }
 
 function evaluateAbility(state: GameState, deps: EngineDeps, playerId: PlayerId, instanceId: InstanceId, abilityId: AbilityId): Evaluated {
@@ -299,7 +313,7 @@ function evaluateAbility(state: GameState, deps: EngineDeps, playerId: PlayerId,
     target,
     build: (payment) => ({ type: "useAbility", playerId, cardInstanceId: instanceId, abilityId, payment, ...(costChoices ? { costChoices } : {}) }),
   }));
-  return evaluate(state, deps, { kind: "useAbility", instanceId, abilityId }, variants, wallets(spend));
+  return evaluate(state, deps, { kind: "useAbility", instanceId, abilityId }, variants, leavingCardsToDiscard(wallets(spend), cost));
 }
 
 /** Action abilities the player could trigger: on cards they control, and "Hero Action" text on encounter cards. */

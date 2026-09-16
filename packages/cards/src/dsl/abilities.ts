@@ -277,6 +277,11 @@ export const discardFromHandCost = (min: number, max?: number, bind?: string): A
   discardFromHand: { min, ...(max !== undefined ? { max } : {}), ...(bind ? { bind } : {}) },
 });
 /**
+ * "Discard N card(s) at random from your hand →" (Magic Crowbar: `[exhaustYourHero, discardRandomFromHandCost(1)]`).
+ * The engine picks with the game's seeded RNG when the cost is paid; nothing is chosen by the player or bound.
+ */
+export const discardRandomFromHandCost = (n = 1): AbilityCost => ({ discardRandomFromHand: n });
+/**
  * How many cards an in-play cost takes. `min` defaults to 1. `max` defaults to `min`, a fixed count ("exhaust
  * Captain America's Shield"). Pass `"any"` for no cap ("exhaust any number of allies"). "Any number" and "up to N"
  * still need at least one card (RRG 1.8 "Cost", p. 14), so `min` below 1 fails validation.

@@ -14,6 +14,7 @@
 import Phaser from "phaser";
 import type { InputText as RexInputText, TextArea as RexTextArea, TextAreaInput as RexTextAreaInput } from "phaser4-rex-plugins/templates/ui/ui-components";
 import { accent, border, hit, ink, minType, selectionRing, signal, statHue, status, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { pointInRect } from "../view/drag-gesture.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
 // The only rexUI import in the app. See ui/rex.ts for why the components
 // are constructed directly instead of through `RexUIPlugin`.
@@ -88,6 +89,25 @@ export interface McButtonOptions {
   readonly value?: string;
   /** A status hue to hatch the button in: the status that cancels what it does. */
   readonly hatch?: number;
+  /**
+   * A viewport this button must be visually inside of to respond to a click —
+   * for a button reparented into a `McVirtualList` row layer, which clips
+   * what's *drawn* but not what Phaser hit-tests (`ui/virtual-list.ts`'s doc
+   * comment). A row scrolled fully or partly out of the list's own rect would
+   * otherwise still be clickable in the part that isn't visible. Read fresh
+   * on every click (a function, not a value) since the list's rect can change
+   * between this button being built and being clicked (a resize, a scroll).
+   * Null means "no viewport, always eligible" (the default: a button that
+   * isn't inside a scrolling list).
+   */
+  readonly clip?: () => Rect | null;
+  /**
+   * True while a drag gesture over this button's list should swallow the
+   * click that ends it — the `McVirtualList` doc comment's "tap vs drag":
+   * releasing a pointer after dragging the list must not also activate
+   * whatever the pointer happens to be over.
+   */
+  readonly suppressClick?: () => boolean;
 }
 
 /**
@@ -129,8 +149,12 @@ export class McButton {
       this.#hovered = false;
       this.redraw();
     });
-    this.#zone.on("pointerup", () => {
-      if (this.#options.enabled !== false) this.#options.onClick();
+    this.#zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
+      if (this.#options.enabled === false) return;
+      if (this.#options.suppressClick?.()) return;
+      const clip = this.#options.clip?.() ?? null;
+      if (clip && !pointInRect(pointer.x, pointer.y, clip)) return;
+      this.#options.onClick();
     });
 
     this.container = scene.add.container(0, 0, [this.#graphics, this.#label, ...(this.#value ? [this.#value] : []), this.#zone]);
@@ -473,6 +497,11 @@ export class McCardTile {
 
   destroy(): void {
     for (const object of this.#objects) object.destroy();
+  }
+
+  /** Every display-list object this tile drew, for a caller that reparents a row into its own container (`ui/virtual-list.ts`). */
+  get objects(): readonly Phaser.GameObjects.GameObject[] {
+    return this.#objects;
   }
 }
 

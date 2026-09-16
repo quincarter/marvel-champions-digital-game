@@ -4,7 +4,7 @@
  * state that can be reasoned about without a canvas.
  */
 
-import { CORE_DEPS } from "@mc/cards";
+import { POOL_DEPS } from "../../content/pool.js";
 import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { ink } from "../../tokens.js";
 import type { FocusTarget } from "../../view/focus.js";
@@ -97,7 +97,7 @@ export function retarget(command: Command, target: InstanceId): Command {
       // reaches this today (`legal.targets` is always empty for the three
       // Core action abilities that exist), so this reads the registry rather
       // than guessing a shape for content that doesn't exist yet.
-      const slot = CORE_DEPS.abilities[command.abilityId]?.cost?.payPrintedCostOf?.slot;
+      const slot = POOL_DEPS.abilities[command.abilityId]?.cost?.payPrintedCostOf?.slot;
       return slot ? { ...command, costChoices: { ...command.costChoices, [slot]: [target] } } : command;
     }
     default:

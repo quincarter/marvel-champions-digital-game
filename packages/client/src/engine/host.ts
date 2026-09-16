@@ -26,15 +26,25 @@ import type {
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta } from "./game-storage.js";
 
-/** What the session flow collects across the Scenario → Seats → Deck screens. */
+/**
+ * What the session flow collects across the Scenario → Seats → Deck screens.
+ *
+ * `difficulty` gained `"extreme"` for Breakout's own multi-villain challenge
+ * (docs/phase7-wave1.md §2.3, §4.6: version A in play with version B
+ * underneath). `villainVersions` overrides `difficulty`'s uniform default
+ * per villain, in the scenario's printed order — Breakout only; every other
+ * scenario has one villain and reads `difficulty` alone.
+ */
 export interface SessionConfig {
   readonly scenarioId: string;
-  readonly difficulty: "standard" | "expert";
+  readonly difficulty: "standard" | "expert" | "extreme";
   /** Defaults to the scenario's recommended modular set(s) when omitted. */
   readonly modularSetIds?: readonly string[];
   readonly players: readonly CorePlayer[];
   readonly seed: number;
   readonly firstPlayerIndex?: number;
+  /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */
+  readonly villainVersions?: readonly ("A" | "B" | "extreme")[];
 }
 
 /**

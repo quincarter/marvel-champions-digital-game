@@ -46,9 +46,9 @@
  */
 
 import Phaser from "phaser";
-import { CORE_DEPS } from "@mc/cards";
 import type { InstanceId } from "@mc/engine";
-import { CORE_CARDS, type AnyCard, type CardId } from "@mc/content";
+import type { AnyCard, CardId } from "@mc/content";
+import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { CardFace } from "../art/art-source.js";
 import { appSession } from "../session.js";
@@ -267,7 +267,7 @@ export class InspectOverlay extends Phaser.Scene {
     const { store } = appSession();
     const state = store.state;
     if (!state.game || state.perspectiveId === null || !this.#instanceId) return null;
-    return inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, CORE_DEPS);
+    return inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, POOL_DEPS);
   }
 
   /** The card face: everything `@mc/content` prints on it. */
@@ -595,4 +595,4 @@ export class InspectOverlay extends Phaser.Scene {
 }
 
 /** Every Core card by id, for the sheets opened before a game exists. */
-const CARDS_BY_ID = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id as string, card]));
+const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));

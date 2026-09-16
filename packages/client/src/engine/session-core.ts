@@ -25,7 +25,7 @@
  * loses nothing `LocalEngineHost` (same thread, no serialization) keeps for free.
  */
 
-import { CORE_DEPS, coreScenario } from "@mc/cards";
+import { POOL_DEPS, buildScenario } from "../content/pool.js";
 import {
   applyCommand,
   createGame,
@@ -104,12 +104,13 @@ const stripPool = (state: GameState): StateWithoutPool => {
 };
 
 const scenarioFor = (config: SessionConfig) =>
-  coreScenario(config.scenarioId, {
+  buildScenario(config.scenarioId, {
     difficulty: config.difficulty,
     players: config.players,
     seed: config.seed,
     ...(config.modularSetIds ? { modularSetIds: config.modularSetIds } : {}),
     ...(config.firstPlayerIndex !== undefined ? { firstPlayerIndex: config.firstPlayerIndex } : {}),
+    ...(config.villainVersions ? { villainVersions: config.villainVersions } : {}),
   });
 
 const statusOf = (state: GameState): SaveStatus =>
@@ -143,7 +144,7 @@ export class EngineSessionCore {
 
   /** Builds the Core scenario and runs RRG setup. Throws `SetupError` with the engine's own code and message. */
   async start(config: SessionConfig): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
-    const setup = createGame(scenarioFor(config), CORE_DEPS);
+    const setup = createGame(scenarioFor(config), POOL_DEPS);
     if (!setup.ok) throw new SetupError({ ...setup.error, message: `setup failed: ${setup.error.message}` });
 
     this.#session = startSession(setup.state);
@@ -204,7 +205,7 @@ export class EngineSessionCore {
       );
     }
 
-    const fresh = createGame(scenarioFor(stored.meta.config), CORE_DEPS);
+    const fresh = createGame(scenarioFor(stored.meta.config), POOL_DEPS);
     if (!fresh.ok) {
       await storage.setStatus(gameId, "incompatible");
       throw new SetupError({ ...fresh.error, message: `this saved game can no longer be set up: ${fresh.error.message}` });
@@ -216,7 +217,7 @@ export class EngineSessionCore {
     let record = recordEvents(emptyRecord(), fresh.events, initialState);
     let state = initialState;
     for (const [index, command] of stored.commands.entries()) {
-      const result = applyCommand(state, command, CORE_DEPS);
+      const result = applyCommand(state, command, POOL_DEPS);
       if (!result.ok) {
         await storage.setStatus(gameId, "incompatible");
         throw new Error(
@@ -240,7 +241,7 @@ export class EngineSessionCore {
 
   dispatch(command: Command): CoreDispatch {
     const session = this.#require();
-    const result = sessionApply(session, command, CORE_DEPS);
+    const result = sessionApply(session, command, POOL_DEPS);
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
@@ -250,7 +251,7 @@ export class EngineSessionCore {
   }
 
   legalActions(playerId: PlayerId): LegalActions {
-    return queryLegalActions(this.#require().state, playerId, CORE_DEPS);
+    return queryLegalActions(this.#require().state, playerId, POOL_DEPS);
   }
 
   /**
@@ -310,7 +311,7 @@ export class EngineSessionCore {
       version: this.#version,
       state: stripPool(state),
       events,
-      legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, CORE_DEPS) } : null,
+      legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, POOL_DEPS) } : null,
       record: this.#record,
       saveError: this.#saveError,
       config: this.#config,

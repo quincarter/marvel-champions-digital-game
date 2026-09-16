@@ -14,7 +14,7 @@
 
 import Phaser from "phaser";
 import type { ChoiceRef, GameState, InstanceId, PendingChoice, PlayerId } from "@mc/engine";
-import { CORE_DEPS } from "@mc/cards";
+import { POOL_DEPS } from "../content/pool.js";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, fitText, label, paintPanel } from "../ui/widgets.js";
@@ -169,7 +169,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // what tells them apart, so the whole identity line goes up there.
     const decider = state.game.players.find((player) => player.playerId === choice.playerId);
     const seat =
-      state.game.players.length > 1 && decider ? characterPanel(state.game, decider.identity.instanceId, CORE_DEPS) : null;
+      state.game.players.length > 1 && decider ? characterPanel(state.game, decider.identity.instanceId, POOL_DEPS) : null;
     const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: seat ? 56 : 38 };
     const barG = this.add.graphics();
     barG.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
@@ -515,7 +515,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       };
       const bandG = this.add.graphics();
       bandG.fillStyle(surface.ink.hex, 0.85).fillRect(band.x, band.y, band.width, band.height);
-      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, CORE_DEPS);
+      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
       this.add
         .text(band.x + band.width / 2, band.y + band.height / 2, short ?? "trigger", {
           ...textStyle(typeRole.label, surface.paper.hex),
@@ -701,7 +701,7 @@ function refInstanceId(ref: ChoiceRef): InstanceId | null {
 function playerOptionLabel(game: GameState, playerId: PlayerId, perspectiveId: PlayerId | null): string {
   const seat = game.players.find((player) => player.playerId === playerId);
   if (!seat) return playerId;
-  const panel = characterPanel(game, seat.identity.instanceId, CORE_DEPS);
+  const panel = characterPanel(game, seat.identity.instanceId, POOL_DEPS);
   return [
     seatIdentityName(game, playerId),
     seat.identity.form === "hero" ? "Hero" : "Alter-ego",

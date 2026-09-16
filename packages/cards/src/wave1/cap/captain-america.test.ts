@@ -28,6 +28,8 @@ const capVsRhino = () => startWave1Game(wave1Scenario("rhino", { players: [{ sta
 // the villain phase's boost draw consumes it first, leaving the real target on top for the player's deal step
 // (matches `packages/cards/src/core/heroes/spider-man.test.ts`'s `ADVANCE`, same Rhino encounter pool).
 const ADVANCE = "01186";
+// Rhino's own set, 0 boost icons and no boost ability: a second neutral boost card, since Core has only two Advances.
+const HARD_TO_KEEP_DOWN = "01104";
 
 describe("Captain America kit", () => {
   it("\"I Can Do This All Day!\": discards 1 card, readies Captain America, once per round", () => {
@@ -87,7 +89,10 @@ describe("Captain America kit", () => {
     expect(inst(withShield, shield).attachedTo).toBe(identityOf(withShield));
     expect(inst(withShield, shield).exhausted).toBe(false);
 
-    const afterTurn = runWave1(withShield, endTurn());
+    // Advance as Rhino's boost card, Advance dealt to Cap (it schemes, dealing no damage), and Hard to Keep Down as that
+    // scheme's 0-icon boost card (a boost card's When Revealed doesn't resolve). Otherwise a random dealt card (Shadow
+    // of the Past, Assault, …) attacks again after Shield Block is spent. Core has only two Advances.
+    const afterTurn = runWave1(stackEncounterDeck(withShield, ADVANCE, ADVANCE, HARD_TO_KEEP_DOWN), endTurn());
     const option = `${shieldBlock}:03005.shield-block-interrupt`;
     const after = settle(afterTurn, picking(option), undefined, WAVE1_DEPS);
     expect(inst(after, identityOf(after)).damage).toBe(0);
@@ -121,7 +126,7 @@ describe("Captain America kit", () => {
     const withHelmet = runWave1(hero, play(P1, helmet, payWith(hero, P1, 1, [helmet])));
     const identity = identityOf(withHelmet);
     const near = patchInstance(withHelmet, identity, { damage: 10 }); // 11 printed HP: any hit is lethal
-    const afterTurn = runWave1(near, endTurn());
+    const afterTurn = runWave1(stackEncounterDeck(near, ADVANCE, ADVANCE, HARD_TO_KEEP_DOWN), endTurn()); // as in Shield Block: no second attack
     const option = `${helmet}:03008.captain-americas-helmet-interrupt`;
     const after = settle(afterTurn, picking(option), undefined, WAVE1_DEPS);
     expect(remainingHitPoints(after, identity)).toBe(1);

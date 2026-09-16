@@ -1,8 +1,8 @@
 import type { AbilityDefinition } from "@mc/engine";
-import { action, discardFromHandCost, exhaustCardsCost, returnToHandCost } from "./abilities.js";
+import { action, discardFromHandCost, discardRandomFromHandCost, discardThis, exhaustCardsCost, returnToHandCost } from "./abilities.js";
 import { dealDamage, draw } from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { handCountOf, query, scaled, varOf } from "./values.js";
+import { countOf, each, handCountOf, query, scaled, sum, varOf } from "./values.js";
 
 const drawN = draw(varOf("n"));
 
@@ -27,6 +27,29 @@ describe("validateDefinition: costs paid with cards in play", () => {
 
   it("keeps min 0 legal for discard X, where X is the player's choice", () => {
     expect(validateDefinition(action({ cost: discardFromHandCost(0, undefined, "x") }, draw(varOf("x"))))).toEqual([]);
+  });
+});
+
+describe("validateDefinition: wave 1 batch costs and values", () => {
+  const minions = each(query("minion"));
+
+  it("a discard-random-from-hand cost needs a whole number of at least 1 (Magic Crowbar)", () => {
+    expect(discardRandomFromHandCost()).toEqual({ discardRandomFromHand: 1 });
+    expect(validateDefinition(action({ cost: discardRandomFromHandCost(1) }, draw(1)))).toEqual([]);
+    expect(validateDefinition(action({ cost: discardRandomFromHandCost(0) }, draw(1))).join("\n")).toMatch(/discardRandomFromHand: must be a whole number/);
+  });
+
+  it("a discard-self cost makes self.threat and self.damage readable (Beat Cop), and nothing else does", () => {
+    expect(validateDefinition(action({ cost: discardThis }, dealDamage(varOf("self.threat"), minions)))).toEqual([]);
+    expect(validateDefinition(action({ cost: discardThis }, dealDamage(varOf("self.damage"), minions)))).toEqual([]);
+    expect(validateDefinition(action(dealDamage(varOf("self.threat"), minions))).join("\n")).toMatch(/var "self.threat" is read before it is bound/);
+  });
+
+  it("rejects an empty sum or anyTrait, and accepts a real one (Generation Why?, Morphogenetics)", () => {
+    expect(sum(1, countOf(query("ally")))).toEqual({ kind: "sum", values: [{ kind: "const", value: 1 }, { kind: "count", query: { categories: ["ally"] } }] });
+    expect(validateDefinition(action(draw(sum(countOf(query("ally")), countOf(query("support"))))))).toEqual([]);
+    expect(validateDefinition(action(draw(sum()))).join("\n")).toMatch(/sum needs at least one value/);
+    expect(validateDefinition(action(dealDamage(1, each(query("minion", { anyTrait: [] }))))).join("\n")).toMatch(/anyTrait needs at least one trait/);
   });
 });
 

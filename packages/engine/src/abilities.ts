@@ -243,9 +243,20 @@ export interface AbilityCost {
   /**
    * "Discard [this card] →" (Cosmic Flight, Tenacity, Energy Channel). The
    * card's counters are snapshotted into vars `self.counters.<type>` first, so
-   * "for each counter here" still reads them after the discard.
+   * "for each counter here" still reads them after the discard. Its threat and
+   * damage are snapshotted the same way, into `self.threat` and `self.damage`:
+   * "Exhaust and discard Beat Cop → deal 1 damage to a minion for each threat
+   * here" (leaving play clears both).
    */
   readonly discardSelf?: boolean;
+  /**
+   * "Discard 1 card at random from your hand →" (Magic Crowbar, Ball and Chain, Bulldozer's Helmet): this many cards,
+   * picked with the game's seeded RNG as the cost is paid, so a replay picks the same cards. Payable only with at least
+   * that many cards in hand beyond this card and the cards the payment spends (RRG 1.8 "Cost", p. 13: a cost is paid in
+   * full). A hand of exactly that many is discarded whole (ruling, Feb 28, 2026 (4) answer 1). The picked cards aren't
+   * bound: they are only known once the cost is paid.
+   */
+  readonly discardRandomFromHand?: number;
   /** "Exhaust your hero →" / "Exhaust your identity →" (encounter-card Hero Actions). */
   readonly exhaustIdentity?: boolean;
   /**

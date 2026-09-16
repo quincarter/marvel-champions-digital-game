@@ -149,7 +149,10 @@ describe("Doctor Strange pack cards", () => {
     const [warning] = given.ids as [InstanceId];
     const hero = runDrs(given.state, toHero());
     const identity = identityOf(hero);
-    const staged = stackEncounterDeck(hero, ADVANCE);
+    // Advance as Rhino's boost card, Advance dealt to Doctor Strange (it schemes, dealing no damage), and Hard to Keep
+    // Down (01104, 0 icons) as that scheme's boost card. Otherwise a random dealt card (e.g. Assault) attacks again
+    // after Warning is spent. Core has only two Advances.
+    const staged = stackEncounterDeck(hero, ADVANCE, ADVANCE, "01104");
     const atDeclare = settleUntil(runDrs(staged, endTurn()), "declareDefender", firstLegal, DRS_DEPS);
     const declared = answer(atDeclare, [identity], DRS_DEPS); // basic defense: printed DEF 2 against Rhino's ATK 2
     const option = `${warning}:09021.warning-interrupt`;

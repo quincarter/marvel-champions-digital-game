@@ -22,11 +22,25 @@ import type { Rect } from "../view/layout.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 
 export interface FocusStop {
-  readonly rect: Rect;
+  /**
+   * Where the ring frames this stop. A function rather than a fixed `Rect`
+   * for a row inside a scrolling list (`ui/virtual-list.ts`): its on-screen
+   * position depends on the list's current scroll offset, which
+   * `ensureVisible` below may just have changed, so the rect has to be read
+   * *after* that runs rather than captured once when the stop was built.
+   */
+  readonly rect: Rect | (() => Rect);
   /** What Enter does. A control that can't be used right now does nothing — exactly what a tap on it does. */
   readonly activate: () => void;
   /** What `I` does, when the stop shows a card. */
   readonly inspect?: () => void;
+  /**
+   * Called right after this stop takes focus, before the ring is drawn — a
+   * row inside a virtualized list scrolls itself fully into view here
+   * (`McVirtualList.scrollIntoView`), so arrowing onto an off-screen row
+   * brings it on screen instead of leaving the ring nowhere a player can see.
+   */
+  readonly ensureVisible?: () => void;
 }
 
 export interface FocusRouteOptions {
@@ -34,11 +48,17 @@ export interface FocusRouteOptions {
   readonly blocked?: () => boolean;
   /** Escape or B. Without one, it just drops focus. */
   readonly onCancel?: () => void;
+  /** Page Up/Down (or a pad's shoulder buttons), forwarded as-is — the screen decides what "a page" means (a virtualized list, usually). No-op when omitted. */
+  readonly onPage?: (direction: 1 | -1) => void;
+  /** Home/End, forwarded as-is. No-op when omitted. */
+  readonly onHomeEnd?: (edge: "home" | "end") => void;
 }
 
 export class FocusRoute {
   readonly #scene: Phaser.Scene;
   readonly #onCancel: (() => void) | undefined;
+  readonly #onPage: ((direction: 1 | -1) => void) | undefined;
+  readonly #onHomeEnd: ((edge: "home" | "end") => void) | undefined;
   #order: readonly string[] = [];
   #stops: ReadonlyMap<string, FocusStop> = new Map();
   #focus: string | null = null;
@@ -53,6 +73,8 @@ export class FocusRoute {
   constructor(scene: Phaser.Scene, options: FocusRouteOptions = {}) {
     this.#scene = scene;
     this.#onCancel = options.onCancel;
+    this.#onPage = options.onPage;
+    this.#onHomeEnd = options.onHomeEnd;
     const binding = { blocked: options.blocked ?? (() => false), onIntent: (intent: GamepadIntent) => this.#onIntent(intent) };
     bindKeyboard(scene, binding);
     bindGamepad(scene, binding);
@@ -82,6 +104,7 @@ export class FocusRoute {
       case "next":
       case "previous":
         this.#focus = stepKey(this.#order, this.#focus, intent === "next" ? 1 : -1);
+        if (this.#focus) this.#stops.get(this.#focus)?.ensureVisible?.();
         this.#drawRing();
         break;
       case "activate":
@@ -89,6 +112,16 @@ export class FocusRoute {
         break;
       case "inspect":
         if (this.#focus) this.#stops.get(this.#focus)?.inspect?.();
+        break;
+      case "pageNext":
+      case "pagePrevious":
+        this.#onPage?.(intent === "pageNext" ? 1 : -1);
+        this.#drawRing();
+        break;
+      case "home":
+      case "end":
+        this.#onHomeEnd?.(intent);
+        this.#drawRing();
         break;
       case "cancel":
         if (this.#onCancel) {
@@ -109,6 +142,6 @@ export class FocusRoute {
     const stop = this.#focus === null ? undefined : this.#stops.get(this.#focus);
     if (!stop) return;
     this.#ring = new McSelectionRing(this.#scene, this.#ringColor);
-    this.#ring.show(stop.rect, "static", true);
+    this.#ring.show(typeof stop.rect === "function" ? stop.rect() : stop.rect, "static", true);
   }
 }

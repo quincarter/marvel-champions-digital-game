@@ -135,9 +135,15 @@ export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DE
         const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
         for (const grant of definition.trigger.traitGrants) {
           if (grant.while && !evaluate(state, grant.while, context)) continue;
-          // Trait grants can't depend on traits being granted: a `trait` filter here only sees printed traits.
-          const { trait: requiredTrait, ...rest } = grant.target;
-          if (matchesQuery(state, id, rest, context) && (!requiredTrait || printedTraitsOf(state, id).includes(requiredTrait))) {
+          // Trait grants can't depend on traits being granted: every trait filter here only sees printed traits (reading
+          // granted traits would recurse back into this function).
+          const { trait: requiredTrait, withoutTrait, anyTrait, ...rest } = grant.target;
+          const printed = printedTraitsOf(state, id);
+          const traitsMatch =
+            (!requiredTrait || printed.includes(requiredTrait)) &&
+            (!withoutTrait || !printed.includes(withoutTrait)) &&
+            (!anyTrait || anyTrait.some((wanted) => printed.includes(wanted)));
+          if (matchesQuery(state, id, rest, context) && traitsMatch) {
             traits.push(grant.trait);
           }
         }
@@ -198,6 +204,10 @@ export function matchesQuery(
   if (query.engagedWith === "any" && instance.engagedWith === null) return false;
   if (query.trait && !traitsOf(state, id, context.deps).includes(query.trait)) return false;
   if (query.withoutTrait && traitsOf(state, id, context.deps).includes(query.withoutTrait)) return false;
+  if (query.anyTrait) {
+    const traits = traitsOf(state, id, context.deps);
+    if (!query.anyTrait.some((wanted) => traits.includes(wanted))) return false;
+  }
   // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
   if (query.name !== undefined && currentName(state, id) !== query.name) return false;
   if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return false;
@@ -480,6 +490,8 @@ export function resolveValue(
     }
     case "count":
       return selectTargets(state, value.query, { ...context, deps }).length;
+    case "sum":
+      return value.values.reduce((total, part) => total + resolveValue(state, part, context, deps), 0);
     case "countInRef": {
       const withDeps = { ...context, deps };
       return resolveRef(state, value.cards, withDeps).filter((id) => matchesQuery(state, id, value.query, withDeps)).length;

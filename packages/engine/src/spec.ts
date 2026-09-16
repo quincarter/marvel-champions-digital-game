@@ -47,6 +47,12 @@ export interface TargetQuery {
    * needed a negative trait filter.
    */
   readonly withoutTrait?: Trait;
+  /**
+   * At least one of these traits (printed or granted): "an Attack, Thwart, or Defense event" (Morphogenetics, `msm`
+   * pack). An OR of traits, where `trait` is a single one. An empty list matches nothing (`@mc/cards`' validator
+   * rejects it).
+   */
+  readonly anyTrait?: readonly Trait[];
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
   /** The card this card is attached to (true) or anything else (false): "When attached minion is defeated". */
@@ -197,6 +203,12 @@ export type ValueSpec =
     }
   /** How many cards in play match: "for each side scheme in play", "for each Drone minion engaged with you". */
   | { readonly kind: "count"; readonly query: TargetQuery }
+  /**
+   * The total of several values: "for each ally and Persona support in play" (Generation Why?, `msm` pack) is the ally
+   * count plus the Persona support count. Two counts rather than one query, because a query's `trait` applies to every
+   * category it lists. An empty list is 0 (`@mc/cards`' validator rejects it).
+   */
+  | { readonly kind: "sum"; readonly values: readonly ValueSpec[] }
   /**
    * How many of the cards a ref names match a query, wherever they are (not restricted to in play, unlike `count`):
    * "for each treachery looked at this way" (Falcon, `cap` pack, over `selectCards`' non-in-play "look") reads the

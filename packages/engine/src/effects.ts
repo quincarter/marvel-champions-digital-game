@@ -3,7 +3,7 @@ import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { emit, moveCard, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
 import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
 import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, mustInstance, mustPlayer, mustVillain } from "./query.js";
-import { shuffle } from "./rng.js";
+import { nextInt, shuffle } from "./rng.js";
 import { cannotLeavePlay, cannotReady } from "./rules.js";
 import { matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
@@ -228,6 +228,26 @@ export function drawCards(ctx: Ctx, playerId: PlayerId, count: number): void {
 export function discardFromHand(ctx: Ctx, playerId: PlayerId, id: InstanceId): void {
   moveCard(ctx, id, { kind: "discard", playerId }, "top");
   emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
+}
+
+/**
+ * "Discard N cards at random from your hand", one card at a time with the game's seeded RNG, so a replay discards the
+ * same cards. Stops early when no eligible card is left; a hand of one still discards it (ruling, Feb 28, 2026 (4)).
+ * `exclude` keeps cards out of the pick (the card whose cost this is). Returns the discarded cards in order.
+ */
+export function discardRandomFromHand(ctx: Ctx, playerId: PlayerId, amount: number, exclude: readonly InstanceId[] = []): readonly InstanceId[] {
+  const discarded: InstanceId[] = [];
+  for (let i = 0; i < amount; i++) {
+    const hand = mustPlayer(ctx.state, playerId).hand.filter((id) => !exclude.includes(id));
+    if (hand.length === 0) break;
+    const [index, rng] = nextInt(ctx.state.rng, hand.length);
+    ctx.state = { ...ctx.state, rng };
+    const picked = hand[index];
+    if (!picked) break;
+    discardFromHand(ctx, playerId, picked);
+    discarded.push(picked);
+  }
+  return discarded;
 }
 
 /** Sends a card in play to the discard pile its `home` names (its owner's, or its encounter deck's). */
