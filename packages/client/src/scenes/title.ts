@@ -79,7 +79,7 @@ interface RosterRow {
   readonly selected: boolean;
   /** Why this row cannot be chosen. Null when it can (a seatable-with-a-warning deck is still clickable). */
   readonly blockedBy: string | null;
-  /** A non-blocking note, shown on Inspect ("Not playable yet: ..."). */
+  /** A non-blocking note, shown on Inspect ("Playable, but <cards> do nothing yet."). */
   readonly warning: string | null;
   readonly onClick: () => void;
   readonly inspectCardId: CardId | null;

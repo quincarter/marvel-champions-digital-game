@@ -7,7 +7,7 @@
  * from `@mc/content`").
  */
 
-import { cardOf, getInstance, getPlayer, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { cardOf, currentName, getInstance, getPlayer, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { faceVisible } from "./visibility.js";
 
 /**
@@ -26,6 +26,25 @@ export function cardName(state: GameState, id: InstanceId): string {
     return "a facedown card";
   }
   return cardOf(state, id)?.name ?? "a card";
+}
+
+/**
+ * The name printed on the face that is currently up.
+ *
+ * For every card but a hero identity this is just the card's name. For an identity it is the live side — "Steve
+ * Rogers", not "Captain America" — which matters wherever the client attributes something to that card's text:
+ * Living Legend is printed on the alter-ego side, so a player told "Captain America made this cheaper" would go
+ * looking at the wrong face for the wrong reason. The engine's `currentName` answers with the card's name and
+ * has no way to say this.
+ */
+export function faceUpName(state: GameState, id: InstanceId): string {
+  const card = cardOf(state, id);
+  if (card?.type === "hero_identity") {
+    const form = state.players.find((player) => player.identity.instanceId === id)?.identity.form;
+    if (form) return form === "hero" ? card.hero.faceName : card.alterEgo.faceName;
+  }
+  // `currentName` covers the other double-sided cards — a villain's active side, a flipped encounter card.
+  return (faceVisible(state, id) ? currentName(state, id) : undefined) ?? cardName(state, id);
 }
 
 /** A seat's name: the identity's card name ("Captain Marvel"), not "player 2". */

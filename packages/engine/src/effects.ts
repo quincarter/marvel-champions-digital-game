@@ -360,6 +360,33 @@ export function costReductionFor(state: GameState, deps: EngineDeps, playerId: P
   }, 0);
 }
 
+/**
+ * A card's play has finished resolving: every lasting effect whose duration is "until this player plays a
+ * (matching) card" reaches its timing point now. A `delayedEffects` body with that duration is returned rather than
+ * run, so the caller can push it through the stack ("Discard this obligation after you play an event", Physical
+ * Toll) — the same split `executeEndOfRound` uses for round-end delayed effects.
+ *
+ * Distinct from `consumeCostReductions`, which fires earlier (as the cost is paid) and only for `costReduction`
+ * bodies, so the reduction/increase applies to the card that consumes it and to nothing played after it.
+ */
+export function endUntilCardPlayedEffects(
+  ctx: Ctx,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+): readonly Extract<LastingEffect, { kind: "delayedEffects" }>[] {
+  const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
+  const fired: Extract<LastingEffect, { kind: "delayedEffects" }>[] = [];
+  for (const effect of [...ctx.state.lastingEffects]) {
+    const duration = effect.duration;
+    if (duration.kind !== "untilCardPlayed" || duration.playerId !== playerId) continue;
+    if (duration.cardFilter && !matchesQuery(ctx.state, cardInstanceId, duration.cardFilter, context)) continue;
+    if (effect.kind === "delayedEffects") fired.push(effect);
+    endLastingEffect(ctx, effect.id, effect.kind === "delayedEffects" ? "fired" : "expired");
+  }
+  return fired;
+}
+
 /** The player just played a card: every pending "next card" reduction that card matches is used up. */
 export function consumeCostReductions(ctx: Ctx, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId): void {
   const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };

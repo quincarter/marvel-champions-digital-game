@@ -9,10 +9,12 @@ import {
   dealDamage,
   defineAbilities,
   discard,
+  discardRandomFromHandCost,
   each,
   enemyAttack,
   enemyScheme,
   encounterCards,
+  exhaustYourHero,
   exists,
   FRIENDLY_CHARACTER,
   forcedResponse,
@@ -92,8 +94,9 @@ export const THUNDERBALL_SET = defineAbilities({
   // Ball and Chain — Attach to Thunderball. [star] Forced Response: After Thunderball attacks, place 1 threat on
   // the main scheme.
   "07020.ball-and-chain-forced-response": forcedResponse(after.enemyAttacks("host"), placeThreat(1, theMainScheme)),
-  // Hero Action: Exhaust your hero and discard 1 card at random from your hand → discard this card. KNOWN_SKIPPED:
-  // same missing random-discard-from-hand cost as Magic Crowbar (`wrecker.ts`).
+  // Hero Action: Exhaust your hero and discard 1 card at random from your hand → discard this card. Same
+  // `discardRandomFromHandCost` shape as Magic Crowbar (`wrecker.ts`).
+  "07020.ball-and-chain-action": heroAction({ cost: [exhaustYourHero, discardRandomFromHandCost(1)] }, discard(self)),
 
   // Held Hostage — same text as Wrecker's copy (07005).
   "07021.held-hostage-constant": constant(rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" })),

@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeEncounterDeckId, activeVillain, remainingHitPoints, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { activeEncounterDeck, activeEncounterDeckId, activeVillain, handSize, remainingHitPoints, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -152,6 +152,29 @@ describe("Ms. Marvel's nemesis set", () => {
     const [bigHands2] = given2.ids as [never];
     const after = settle(runMsm(given2.state, play(P1, bigHands2, payWith(given2.state, P1, 2, [bigHands2]))), picking(robot), undefined, MSM_DEPS);
     expect(inst(after, robot).damage).toBe(4);
+  });
+
+  it("Generation Why?: discards the top card of each player's deck for each ally and Persona support in play", () => {
+    const start = msmVsRhino();
+    const given = moveToHand(start, P1, "05002", "05006"); // Red Dagger (ally), Aamir Khan (Persona support)
+    const [redDagger, aamir] = given.ids as [never, never];
+    const hero = runMsm(given.state, toHero());
+    const withRedDagger = settle(runMsm(hero, play(P1, redDagger, payWith(hero, P1, 3, [redDagger, aamir]))), firstLegal, undefined, MSM_DEPS);
+    const withBoth = settle(runMsm(withRedDagger, play(P1, aamir, payWith(withRedDagger, P1, 1, [redDagger, aamir]))), firstLegal, undefined, MSM_DEPS);
+    const withScheme = stackFromSetAside(withBoth, P1, "05026");
+    const stacked = stackEncounterDeck(withScheme, ADVANCE, "05026");
+    const deckBefore = playerOf(stacked, P1).deck;
+    // `endTurn()` first runs Round 1's own end-of-phase draw (RRG "Draw", each player refills to hand size before
+    // the next round's Villain Phase even begins), which — having spent most of the hand paying for Red Dagger and
+    // Aamir Khan above — takes several cards off the top of the deck before Generation Why? ever reveals. Skip past
+    // those so `top2` names the cards actually still on top when the reveal happens, not the pre-refill top of deck.
+    const refill = handSize(stacked, P1, MSM_DEPS) - playerOf(stacked, P1).hand.length;
+    // count(ally) + count(support, trait: Persona) = 1 (Red Dagger) + 1 (Aamir Khan) = 2, a `sum(...)` of two
+    // disjoint queries (Aamir Khan is a Persona support, never an ally) — docs/phase7-wave1-scripting.md §6.
+    const top2 = deckBefore.slice(refill, refill + 2);
+    const revealed = settle(runMsm(stacked, endTurn()), firstLegal, undefined, MSM_DEPS);
+    expect(playerOf(revealed, P1).discard).toEqual(expect.arrayContaining(top2));
+    expect(playerOf(revealed, P1).deck.length).toBe(deckBefore.length - refill - 2);
   });
 
   it("Harvest: exhausts each Persona support, heals the villain 1 per support exhausted this way", () => {

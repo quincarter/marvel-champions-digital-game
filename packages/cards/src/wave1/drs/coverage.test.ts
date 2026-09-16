@@ -8,7 +8,8 @@ import { DRS_ABILITIES } from "./index.js";
  * reprint aliasing, except the four documented skips (`index.ts`'s docblock, and the comments beside each in
  * `kit.ts` / `obligation.ts` / `nemesis.ts` / `pack-cards.ts`). The main session's `wave1/coverage.test.ts` does the
  * same check across every pack once this one is registered in `WAVE1_ABILITIES` — this file is the pack-local
- * version a pack agent owns in the meantime.
+ * version a pack agent owns in the meantime. Desperate Defense (09015) was a fifth skip until the 2026-09-15
+ * `isAnnouncement`/`defended` fix landed; it's scripted in `pack-cards.ts` now.
  */
 
 function abilityRefIds(card: AnyCard): string[] {
@@ -41,17 +42,18 @@ const reprintIds = new Set<string>();
  *   only by the next matching card played.
  * - `09030.counterspell-forced-interrupt` (`nemesis.ts`): `play-card.ts` never checks whether a player card's own
  *   play was cancelled, unlike `reveal.ts`'s equivalent guard for encounter cards.
- * - `09020.unflappable-response` (`pack-cards.ts`): a Response's own `AbilityCost` is paid before "and take no
- *   damage" is knowable — no primitive lets a cost defer to a compound condition's later half.
- * - `09015.desperate-defense-interrupt` (`pack-cards.ts`): confirmed engine bug — `isAnnouncement` has no
- *   `case "defended"`, so no Interrupt can ever fire on `on.defends` at all.
+ * - `09020.unflappable-response` (`pack-cards.ts`): the Response window now opens after the attack ends, carrying
+ *   that attack's results (RRG 1.8 "Defend, Defense", p. 16), so "and take no damage" is knowable by the time the
+ *   cost is offered. What is still missing is an *upper bound* on results in the trigger pattern: `requireResults`
+ *   and `eventAtLeast` are both minimums, so "exactly 0 damage from that attack" has nothing to compile to.
+ * `09015.desperate-defense-interrupt` was a fifth skip (the same `isAnnouncement`/`defended` engine bug as
+ * Unflappable's timing half) until the 2026-09-15 fix; it's scripted in `pack-cards.ts` now.
  */
 const KNOWN_SKIPPED = new Set<string>([
   "09035.vapors-of-valtorr-special",
   "09027.obligation",
   "09030.counterspell-forced-interrupt",
   "09020.unflappable-response",
-  "09015.desperate-defense-interrupt",
 ]);
 
 describe("Doctor Strange (drs) pack ability coverage", () => {

@@ -9,7 +9,7 @@ import { CARD_BACKS, type ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fitText, hatchRect, label, paintPanel } from "../../ui/widgets.js";
-import type { BoardModel, SeatRow } from "../../view/board-model.js";
+import type { BoardModel, EnvironmentPanel, SeatRow } from "../../view/board-model.js";
 import { cardRow, type Rect } from "../../view/layout.js";
 import { drawCharacter } from "./character-panel.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
@@ -22,6 +22,23 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
   const villainRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: Math.min(280, rect.width - 20), height: 128 };
   drawCharacter(ctx, villainRect, model.villain);
 
+  // The environment sits beside the villain, in the space to the right of its panel. It belongs next to him
+  // rather than down with the minions because in the one scenario that has one it *is* the villain's health bar:
+  // Norman Osborn cannot be damaged, and the infamy counters on Criminal Enterprise are what you are actually
+  // reducing when you attack him.
+  const envLeft = villainRect.x + villainRect.width + 10;
+  const envRoom = rect.x + rect.width - 10 - envLeft;
+  // Laid out wider than a card's own 2.5:3.5, unlike every other tile on the table. At card proportions a
+  // 128px-tall tile is 91px wide, and "2 MADNESS" does not fit in that: the count truncated to "2 MADNE…",
+  // which is the one thing on this card a player has to be able to read.
+  const envWidth = Math.min(170, Math.max(110, (envRoom - 8 * (model.environments.length - 1)) / Math.max(1, model.environments.length)));
+  if (model.environments.length > 0 && envRoom >= envWidth) {
+    model.environments.forEach((environment, index) => {
+      const slot: Rect = { x: envLeft + index * (envWidth + 8), y: villainRect.y, width: envWidth, height: villainRect.height };
+      if (slot.x + slot.width <= rect.x + rect.width - 10) drawEnvironment(ctx, slot, environment);
+    });
+  }
+
   const minionTop = villainRect.y + villainRect.height + 8;
   const minionArea: Rect = {
     x: rect.x + 10,
@@ -33,6 +50,66 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
     const slots = cardRow(minionArea, model.minions.length, { gap: 8, maxHeight: minionArea.height });
     model.minions.forEach((minion, index) => drawCharacter(ctx, slots[index]!, minion));
   }
+}
+
+/**
+ * One environment card: its scan, its name, and its counters.
+ *
+ * The counters are the loud part. "If there are no infamy counters here, flip Norman Osborn" makes them the
+ * scenario's only visible progress, and a player attacking a villain who takes no damage needs to see the number
+ * that *is* moving — otherwise the attack looks like it did nothing at all.
+ */
+function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: EnvironmentPanel): void {
+  const { scene } = ctx;
+  const g = scene.add.graphics();
+  paintPanel(g, rect, "card", targetState(ctx.controller.selection, environment.instanceId));
+  const dim = dimAlpha(ctx.controller.selection, environment.instanceId);
+  ctx.frame.hitRects.set(environment.instanceId, rect);
+
+  const inner: Rect = { x: rect.x + 3, y: rect.y + 3, width: rect.width - 6, height: rect.height - 6 };
+  const drawn = drawArt(scene, ctx.art.request(scene, environment.art), inner, { fit: "cover", alpha: dim }) !== null;
+
+  // Over the art, so the name stays readable whether or not a scan loaded.
+  const titleBox: Rect = { x: inner.x, y: inner.y, width: inner.width, height: 30 };
+  if (drawn) {
+    const wash = scene.add.graphics();
+    wash.fillStyle(surface.ink.hex, 0.78 * dim).fillRect(titleBox.x, titleBox.y, titleBox.width, titleBox.height);
+  }
+  const onArt = drawn ? surface.paper.hex : surface.ink.hex;
+  fitText(
+    scene.add.text(titleBox.x + 6, titleBox.y + 3, environment.name, textStyle(typeRole.rowTitle, onArt, dim)),
+    titleBox.width - 12,
+    typeRole.rowTitle.size,
+  );
+  label(scene, titleBox.x + 6, titleBox.y + 18, environment.subtitle, typeRole.label, onArt, ink.label * dim);
+
+  // Each counter kind as its own chip along the bottom: the number big, the kind spelled out beside it, so
+  // "4 INFAMY" never has to be inferred from a colour or a pip count.
+  const chipHeight = 24;
+  environment.counters.slice(0, 2).forEach((counter, index) => {
+    const chip: Rect = {
+      x: inner.x + 4,
+      y: inner.y + inner.height - 4 - chipHeight * (index + 1) - index * 3,
+      width: inner.width - 8,
+      height: chipHeight,
+    };
+    const cg = scene.add.graphics();
+    cg.fillStyle(surface.ink.hex, 0.88 * dim).fillRect(chip.x, chip.y, chip.width, chip.height);
+    cg.fillStyle(signal.caution.hex, dim).fillRect(chip.x, chip.y, 3, chip.height);
+    const count = scene.add
+      .text(chip.x + 9, chip.y + chip.height / 2, String(counter.count), textStyle(typeRole.stat, signal.caution.hex, dim))
+      .setOrigin(0, 0.5);
+    fitText(
+      label(scene, chip.x + 11 + count.width, chip.y + chip.height / 2, counter.name, typeRole.label, surface.paper.hex, ink.body * dim).setOrigin(0, 0.5),
+      chip.width - 18 - count.width,
+      typeRole.label.size,
+    );
+  });
+  if (environment.counters.length === 0) {
+    label(scene, inner.x + 6, inner.y + inner.height - 18, "no counters", typeRole.label, onArt, ink.meta * dim);
+  }
+
+  ctx.makeTapTarget(rect, environment.instanceId, () => ctx.inspect(environment.instanceId));
 }
 
 /**

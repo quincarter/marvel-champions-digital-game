@@ -1,5 +1,5 @@
 import { trait } from "@mc/content";
-import type { AbilityDefinition, EffectSpec, Predicate, PlayerRef, TargetQuery, TargetRef, ValueSpec } from "@mc/engine";
+import type { AbilityDefinition, EffectSpec, EventPattern, Predicate, PlayerRef, TargetQuery, TargetRef, ValueSpec } from "@mc/engine";
 import { amount, flatten, self, you, type Amount, type EffectArg } from "../../dsl/index.js";
 
 /**
@@ -35,6 +35,17 @@ export const noCounters = (of: TargetRef, counterType: string): Predicate => ({
   kind: "not",
   of: { kind: "counterAtLeast", of, counterType, amount: 1 },
 });
+
+/**
+ * "After this card enters play **or flips to this face**" / "after this card flips to this face".
+ *
+ * `dsl/abilities.ts`'s `after.*` has no wrapper for `cardFlipped`, and only a double-sided card needs one.
+ * Criminal Enterprise's front face enters play at setup and can also be flipped back to, so it listens to both;
+ * State of Madness is a back face only ever reached by a flip, so it listens to the flip alone. Both shapes are
+ * the ones `packages/engine/src/flip.test.ts` proves against stubs.
+ */
+export const entersPlayOrFlipsHere: EventPattern = { on: ["cardEntersPlay", "cardFlipped"], selfIs: "target" };
+export const flipsHere: EventPattern = { on: "cardFlipped", selfIs: "target" };
 
 /**
  * "When Revealed (Face Name)" (docs/phase7-wave1.md §3.3): reads a villain's side or a flipped encounter card's

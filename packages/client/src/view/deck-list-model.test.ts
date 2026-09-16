@@ -45,7 +45,7 @@ describe("deckOptionOf", () => {
     expect(option.poolChanged).toBe(true);
   });
 
-  test("an unplayable-but-legal deck is still seatable, but names which cards have no script yet as a warning", () => {
+  test("a legal deck with unscripted cards is seatable, and names the cards whose abilities do nothing yet", () => {
     const starter = CORE_STARTER_DECKS[0]!;
     const deck = deckFromStarterDeck(starter, CORE_POOL_VERSION);
     const bareDeps = { abilities: {} };
@@ -55,7 +55,8 @@ describe("deckOptionOf", () => {
     // Missing scripts no longer block a seat — only illegality does.
     expect(option.seatable).toBe(true);
     expect(option.blockedReason).toBeNull();
-    expect(option.warning).toContain("no card script in this build");
+    expect(option.warning).toContain("Playable, but");
+    expect(option.warning).toContain("do nothing yet");
   });
 });
 

@@ -44,10 +44,29 @@ export function validateDefinition(definition: AbilityDefinition): readonly stri
   checkPlain(definition, "definition", problems);
   checkTrigger(definition, problems);
   checkLabels(definition, problems);
+  checkBoostCards(definition, problems);
   checkCost(definition, problems);
   checkScaled(definition, "definition", problems);
   checkBindings(definition, problems);
   return problems;
+}
+
+/**
+ * `giveBoostCard` is a boost card dealt *outside* an activation, waiting facedown for the enemy's next one (RRG 1.8
+ * "Boost, Boost Icon", p. 11). Inside a Boost ability the printed shape is always "1 additional boost card for this
+ * activation", which is `modifyAttack({ extraBoostCards })`; the two would resolve differently when the Boost ability
+ * belongs to a minion's activation, so the likely slip is rejected. A constant count below 1 gives nothing.
+ */
+function checkBoostCards(definition: AbilityDefinition, problems: string[]): void {
+  for (const effect of allEffects(definition.effects)) {
+    if (effect.kind !== "giveBoostCard") continue;
+    if (definition.trigger.kind === "boost") {
+      problems.push("giveBoostCard deals a facedown boost card outside an activation; inside a Boost ability use modifyAttack({ extraBoostCards }) for \"for this activation\"");
+    }
+    if (effect.count?.kind === "const" && (!Number.isInteger(effect.count.value) || effect.count.value < 1)) {
+      problems.push("giveBoostCard: a constant count must be a whole number of at least 1");
+    }
+  }
 }
 
 /** Cost shapes TypeScript can't see. */
@@ -87,9 +106,10 @@ function checkScaled(value: unknown, path: string, problems: string[]): void {
     if (typeof divide.by !== "number" || !Number.isInteger(divide.by) || divide.by < 1) problems.push(`${path}: scaled divide.by must be a whole number of at least 1`);
     if (divide.round !== "down" && divide.round !== "up") problems.push(`${path}: scaled divide.round must be "down" or "up"`);
   }
-  // An empty list is almost certainly an authoring slip: `sum` of nothing is 0, and `anyTrait` of nothing matches no card.
+  // An empty list is almost certainly an authoring slip: `sum` of nothing is 0, and `anyTrait`/`anyPrintedResource` of nothing matches no card.
   if (record.kind === "sum" && (!Array.isArray(record.values) || record.values.length === 0)) problems.push(`${path}: sum needs at least one value`);
   if (Array.isArray(record.anyTrait) && record.anyTrait.length === 0) problems.push(`${path}: anyTrait needs at least one trait`);
+  if (Array.isArray(record.anyPrintedResource) && record.anyPrintedResource.length === 0) problems.push(`${path}: anyPrintedResource needs at least one resource type`);
   for (const [key, item] of Object.entries(record)) checkScaled(item, `${path}.${key}`, problems);
 }
 
@@ -136,6 +156,7 @@ function nestedLists(effect: EffectSpec): (readonly EffectSpec[])[] {
     case "forEachPlayer":
     case "atEndOfAttack":
     case "atEndOfRound":
+    case "afterNextCardPlayed":
       return [effect.effects];
     case "replaceTriggeringEvent":
       return [effect.with];

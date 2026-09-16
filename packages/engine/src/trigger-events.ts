@@ -197,6 +197,10 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     // RRG 1.8 "Defend, Defense" (p. 15) names abilities that trigger "when your hero defends against an attack"
     // (Expert Defense, Desperate Defense), and "Interrupt" (p. 25) resolves them as the triggering condition
     // initiates. The defender is recorded before this event is pushed, so the interrupt window sees it.
+    //
+    // The *response* side is not symmetric: RRG 1.8 p. 16, "Abilities that trigger after a character defends an
+    // attack resolve after that attack ends", so this event's response window is deferred to the end of the
+    // attack it belongs to rather than opened here (`resolve/event.ts`, `deferredResponses`).
     case "defended":
     case "characterAttacked":
     case "characterDefeated":

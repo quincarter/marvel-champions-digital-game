@@ -5,9 +5,10 @@ import { HLK_ABILITIES } from "./index.js";
 /**
  * Local coverage check for the Hulk (`hlk`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5): every
  * `hlk` card with ability text resolves, either via `HLK_ABILITIES` or via `../reprints.ts`'s automatic Core
- * reprint aliasing, except the two documented skips (`index.ts`'s docblock, and the comments beside each in
- * `pack-cards.ts`). The main session's `wave1/coverage.test.ts` does the same check across every pack once this
+ * reprint aliasing. The main session's `wave1/coverage.test.ts` does the same check across every pack once this
  * one is registered in `WAVE1_ABILITIES` — this file is the pack-local version a pack agent owns in the meantime.
+ * Hulk Smash (10003) and Beat Cop's second action (10029) were both skips (missing engine primitives) until
+ * 2026-09-15's fixes landed — see `kit.ts` and `pack-cards.ts`.
  */
 
 function abilityRefIds(card: AnyCard): string[] {
@@ -32,8 +33,8 @@ const reprintIds = new Set<string>();
   }
 }
 
-/** Recorded gaps: none yet. */
-const KNOWN_SKIPPED = new Set<string>(["10003.hulk-smash-interrupt", "10029.beat-cop-action-2"]);
+/** Recorded gaps: none. */
+const KNOWN_SKIPPED = new Set<string>([]);
 
 describe("Hulk (hlk) pack ability coverage", () => {
   const allRefs = HLK_CARDS.flatMap(abilityRefIds);

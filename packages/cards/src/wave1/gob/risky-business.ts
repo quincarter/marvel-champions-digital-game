@@ -13,6 +13,7 @@ import {
   eventAmount,
   firstPlayer,
   forcedInterrupt,
+  forcedResponse,
   forEachPlayer,
   ifThen,
   inPlay,
@@ -43,9 +44,14 @@ import {
   CRIMINAL_ENTERPRISE,
   dealIndirectDamage,
   enemyAttackCharacter,
+  entersPlayOrFlipsHere,
   faceNamed,
+  flipCard,
+  flipsHere,
+  noCounters,
   removeCounters,
   STATE_OF_MADNESS,
+  stateCheck,
   superlative,
   whenCompleted,
 } from "./local.js";
@@ -98,16 +104,28 @@ export const RISKY_BUSINESS = defineAbilities({
   // Corporate Acquisition 2A — When Revealed: Advance to stage 2B (implicit).
   "02005a.when-revealed": whenRevealed(),
 
-  // Criminal Enterprise / State of Madness (02006a/02006b) — KNOWN_SKIPPED, see coverage.test.ts: the card data
-  // provides only one ability ref per face (`02006a.criminal-enterprise-constant` / `02006b.state-of-madness-
-  // constant`) for a two-mechanism behavior (docs/phase7-wave1.md §3.4): a persistent, edge-triggered "if there
-  // are no infamy/madness counters here, flip" check (`AbilityTriggerSpec.stateCheck`) plus an independent forced
-  // response to entering play/flipping that places the starting counters (`AbilityDefinition.trigger` is one
-  // trigger per ability id — the two cannot be merged into one `AbilityDefinition`). The schema's own test fixture
-  // (`packages/content/src/schema/wave1.test.ts` lines 223-245) shows the intended two-ref shape for this exact
-  // card ("02006a.enters-with-infamy" + "02006a.flip"); the real `GOB_CARDS` data was curated with only one. A
-  // data gap for `card-data-pipeline`, not an engine/DSL gap — the flip mechanism itself is proven end to end with
-  // synthetic stubs in `packages/engine/src/flip.test.ts`.
+  // Criminal Enterprise (02006a) — "Criminal Enterprise enter play with 2[per_hero] infamy counters on it. If
+  // there are no infamy counters here, flip Norman Osborn and Criminal Enterprise."
+  // State of Madness (02006b) — the same, with madness counters and Green Goblin.
+  //
+  // This is the scenario's entire win condition, so it is worth spelling out: Norman Osborn cannot be damaged at
+  // all (his Forced Interrupt above turns damage into removed infamy counters), so the only way past him is to
+  // strip those counters and flip him into Green Goblin, who can be damaged. Without these four abilities the
+  // scenario has no reachable ending — the counters never arrive and the flip never fires.
+  //
+  // Two abilities per face, because they are two mechanisms and an `AbilityDefinition` carries one trigger: a
+  // forced response that places the starting counters, and a persistent `stateCheck` that flips both cards once
+  // they run out (docs/phase7-wave1.md §3.4). The state check is edge-triggered and a first observation only
+  // records, which is what lets the counters be placed by a response to the same entering-play event without the
+  // still-empty card flipping itself first.
+  //
+  // §4.1's reading — the new face's "enter play with N counters" applies on a flip — is why the front face
+  // listens for `cardFlipped` as well as `cardEntersPlay`, and why the back face (only ever reached by a flip)
+  // listens for `cardFlipped` alone. Without it State of Madness would arrive empty and flip straight back.
+  "02006a.enters-with-infamy": forcedResponse(entersPlayOrFlipsHere, addCounters("infamy", perHero(2), self)),
+  "02006a.flip": stateCheck(noCounters(self, "infamy"), flipCard(theVillain), flipCard(self)),
+  "02006b.enters-with-madness": forcedResponse(flipsHere, addCounters("madness", perHero(2), self)),
+  "02006b.flip": stateCheck(noCounters(self, "madness"), flipCard(theVillain), flipCard(self)),
 
   // Hired Gun — When Revealed: Choose to either give the villain 1 facedown boost card or place 2 infamy counters
   // on Criminal Enterprise. KNOWN_SKIPPED (only the first option): "give the villain N facedown boost card(s)"
@@ -158,5 +176,5 @@ export const RISKY_BUSINESS = defineAbilities({
   ),
 });
 
-/** Recorded gaps: see the comments beside `02006a`/`02006b`/`02007.when-revealed` above. */
-export const RISKY_BUSINESS_SKIPPED = ["02006a.criminal-enterprise-constant", "02006b.state-of-madness-constant", "02007.when-revealed"] as const;
+/** Recorded gaps: see the comment beside `02007.when-revealed` above. */
+export const RISKY_BUSINESS_SKIPPED = ["02007.when-revealed"] as const;

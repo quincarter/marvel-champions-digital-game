@@ -16,6 +16,9 @@ export interface StatusCounts {
 
 export const NO_STATUSES: StatusCounts = { stunned: 0, confused: 0, tough: 0 };
 
+/** Every status card type in the game, in RRG 1.8 "Status Cards" (p. 42) order. */
+export const STATUS_NAMES = ["confused", "stunned", "tough"] as const satisfies readonly (keyof StatusCounts)[];
+
 /**
  * Every zone a card instance can occupy, as data. `attachment` and `boost` are
  * per-instance lists (attachments/boost cards hang off the card they're on),

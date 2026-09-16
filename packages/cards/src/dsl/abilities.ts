@@ -369,8 +369,15 @@ export const on = {
   },
   /** "After X thwarts". */
   thwarts: (by: Who): EventPattern => pattern("thwart", asSource(by)),
-  /** "After [defender] defends (against an enemy attack)". */
-  defends: (defender: TargetQuery): EventPattern => pattern("defended", { targetIs: defender }),
+  /**
+   * "After [defender] defends (against an enemy attack)". `takingNoDamage`: "…and take no damage" — the attack must
+   * have dealt the defender no damage, checked as part of the trigger condition, so the ability is never offered
+   * and its cost is never paid when it did (FAQ "Unflappable (#20)", RRG 1.8 p. 60). The `defended` response window
+   * is deferred to the end of the attack and carries that attack's own results, so damage from a Boost ability
+   * during the same attack does not count against it.
+   */
+  defends: (defender: TargetQuery, opts: { readonly takingNoDamage?: boolean } = {}): EventPattern =>
+    pattern("defended", { targetIs: defender }, opts.takingNoDamage ? { resultsAtMost: { damage: 0 } } : {}),
   /** "After X enters play". */
   entersPlay: (what: Who): EventPattern => pattern("cardEntersPlay", asTarget(what)),
   /** "After you play [this card]" — playing, not merely putting into play. */

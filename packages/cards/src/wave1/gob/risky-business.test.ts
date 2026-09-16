@@ -1,4 +1,4 @@
-import { activeVillain, type Command, type GameEvent, type GameState } from "@mc/engine";
+import { activeVillain, currentName, type Command, type GameEvent, type GameState } from "@mc/engine";
 import { applyOk, endTurn, firstLegal, identityOf, inst, P1, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
@@ -95,6 +95,60 @@ describe("Hostile Takeover 1B — When Completed", () => {
     expect(infamyAddedAt).toBeLessThan(advancedAt); // and before the scheme advances (RRG 1.8 "When Completed Abilities", p. 48)
     expect(discards).toHaveLength(2); // 1 discard per infamy counter (1 + 1[per_hero] = 2) on Criminal Enterprise
     expect(advancedAt).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("Criminal Enterprise / State of Madness — the scenario's win condition", () => {
+  it("enters play with 2[per_hero] infamy counters, so there is something to strip", () => {
+    const solo = spiderManVsRiskyBusiness();
+    expect(inst(solo, criminalEnterpriseId(solo)).counters.infamy).toBe(2);
+    const two = startGobGame(
+      wave1Scenario("risky-business", {
+        players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-black-panther-protection" }],
+        seed: 11,
+        modularSetIds: [],
+      }),
+    );
+    const enterprise = [...two.villainArea].find((id) => two.instances[id]?.cardId === "02006a")!;
+    expect(inst(two, enterprise).counters.infamy).toBe(4);
+  });
+
+  it("flips Norman Osborn into Green Goblin the moment the last infamy counter comes off", () => {
+    const start = spiderManVsRiskyBusiness();
+    const villain = activeVillain(start).instanceId;
+    const enterprise = criminalEnterpriseId(start);
+    // One counter left, against a hero who hits for more: the attack's damage is replaced by counter removal
+    // (Norman's Forced Interrupt), which empties the card and trips the state check.
+    const primed = patchInstance(start, enterprise, { counters: { infamy: 1 } });
+    const identity = identityOf(primed);
+    const after = play(primed, toHero(), { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain });
+
+    expect(activeVillain(after).side).toBe("B");
+    expect(currentName(after, villain)).toBe("Green Goblin");
+    expect(currentName(after, enterprise)).toBe("State of Madness");
+    // §4.1: the new face's "enter play with N counters" applies on the flip, or State of Madness arrives empty
+    // and flips straight back on the next state check.
+    expect(inst(after, enterprise).counters.madness).toBe(2);
+    expect(inst(after, enterprise).counters.infamy ?? 0).toBe(0);
+  });
+
+  it("flips back to Norman Osborn when the madness counters run out, and re-arms the infamy side", () => {
+    const start = spiderManVsRiskyBusiness();
+    const villain = activeVillain(start).instanceId;
+    const enterprise = criminalEnterpriseId(start);
+    const goblin = play(
+      patchInstance(start, enterprise, { counters: { infamy: 1 } }),
+      toHero(),
+      { type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(start), targetInstanceId: villain },
+    );
+    expect(currentName(goblin, enterprise)).toBe("State of Madness");
+
+    // Green Goblin's own Forced Interrupt spends a madness counter instead of schemeing, so ending the turn with
+    // one left empties the card and flips the pair back.
+    const back = play(patchInstance(goblin, enterprise, { counters: { madness: 1 } }), endTurn());
+    expect(activeVillain(back).side).toBe("A");
+    expect(currentName(back, enterprise)).toBe("Criminal Enterprise");
+    expect(inst(back, enterprise).counters.infamy).toBe(2);
   });
 });
 

@@ -66,30 +66,26 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "not started">> = {
  * resolve every other ref, and each listed ref must still be unresolved, so an entry can't go stale.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // Mean Swing: "a Weapon upgrade on your hero" (no TargetQuery host filter). Valkyrie: a Response to its own
-  // entering play can't see how that card was paid for.
-  thor: ["06015.mean-swing-interrupt", "06012.valkyrie-response"],
-  // Morphogenetics: an OR of traits (no `TargetQuery.anyTrait`). Teen Spirit: discard from a player deck until a
-  // match (no player-deck `discardEncounterUntil`). Embiggen!: the engine's `attack` effect ignores
-  // `cardEffectBonus`. Generation Why?: a sum of two counts (no `ValueSpec` sum).
-  // Hulk Smash: a granted overkill isn't read back for a player's attack. Beat Cop: `discardSelf` doesn't snapshot
-  // the card's threat.
+  // Mean Swing: "a Weapon upgrade on your hero" (no TargetQuery host filter).
+  thor: ["06015.mean-swing-interrupt"],
   // Taskmaster's boost: `modifyAttack` can only bonus the current activation's own attacker.
   bkw: ["08026.boost"],
   // Vapors of Valtorr: no query for "has any status". Physical Toll: no cost modifier without a phase/round duration.
   // Counterspell: a cancelled play doesn't stop the card's own effects. Unflappable: a cost can't depend on "take no
-  // damage". Desperate Defense: interrupts to a `defended` event are skipped (agent-reported engine bug).
-  drs: ["09035.vapors-of-valtorr-special", "09027.obligation", "09030.counterspell-forced-interrupt", "09020.unflappable-response", "09015.desperate-defense-interrupt"],
-  // Criminal Enterprise / State of Madness: one ability ref per face where two triggers are needed (data). Hired Gun,
-  // Intimidation: no "give the villain a boost card" outside an activation. Power Drain, Lightning Bolt, Shock Therapy:
-  // boost icons summed across several discarded cards. Tombstone: no filter for either of two resource types.
-  gob: ["02006a.criminal-enterprise-constant", "02006b.state-of-madness-constant", "02007.when-revealed", "02035.when-revealed", "02041.when-defeated", "02044.when-revealed", "02045.when-revealed", "02047.tombstone-forced-response"],
+  // damage".
+  drs: ["09035.vapors-of-valtorr-special", "09027.obligation", "09030.counterspell-forced-interrupt", "09020.unflappable-response"],
+  // Hired Gun, Intimidation: no "give the villain a boost card" outside an activation. Power Drain, Lightning Bolt,
+  // Shock Therapy: boost icons summed across several discarded cards — verified 2026-09-15 that `moveCards`'s new
+  // `<bind>.boostIcons` doesn't transfer (it's a different EffectSpec case than these cards' `discardEncounterCards`,
+  // which has its own reshuffle-safety `moveCards` lacks; see `gob/power-drain.ts`). Tombstone: no filter for
+  // either of two resource types.
+  gob: ["02007.when-revealed", "02035.when-revealed", "02041.when-defeated", "02044.when-revealed", "02045.when-revealed", "02047.tombstone-forced-response"],
   // Hard Hitter, Gamma Blast, Pile Drive, Charge: no predicate reads a scheme's current threat against a threshold.
-  // Magic Crowbar, Ball and Chain, Bulldozer's Helmet: no random discard from hand as a cost. Radioactive Buildup: no
-  // redirect of an enemy attack's excess damage to a scheme. Thunderball's boost: no ref for "the defending character".
-  twc: ["07004.hard-hitter", "07019.gamma-blast", "07034.pile-drive", "07048.charge", "07006.magic-crowbar-action", "07020.ball-and-chain-action", "07049.bulldozers-helmet-action", "07022.radioactive-buildup-constant", "07027.boost"],
-  hlk: ["10003.hulk-smash-interrupt", "10029.beat-cop-action-2"],
-  msm: ["05001a.morphogenetics", "05001b.teen-spirit", "05010.embiggen-interrupt", "05026.when-revealed"],
+  // Radioactive Buildup: no redirect of an enemy attack's excess damage to a scheme. Thunderball's boost: no ref
+  // for "the defending character".
+  twc: ["07004.hard-hitter", "07019.gamma-blast", "07034.pile-drive", "07048.charge", "07022.radioactive-buildup-constant", "07027.boost"],
+  // Teen Spirit: discard from a player deck until a match (no player-deck `discardEncounterUntil`).
+  msm: ["05001b.teen-spirit"],
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [

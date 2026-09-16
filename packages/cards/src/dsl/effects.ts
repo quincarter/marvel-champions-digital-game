@@ -23,6 +23,7 @@ import {
   you,
   yourIdentity,
   identityOf,
+  theVillain,
   type Amount,
 } from "./values.js";
 
@@ -113,6 +114,11 @@ export const stun = (target: TargetRef): EffectSpec => giveStatus(target, "stunn
 export const confuse = (target: TargetRef): EffectSpec => giveStatus(target, "confused");
 /** "Give X a tough status card". */
 export const giveTough = (target: TargetRef): EffectSpec => giveStatus(target, "tough");
+/**
+ * "Remove a [status] card from X" / the removal half of "replace that status card with a different status card"
+ * (Vapors of Valtorr, `drs` pack). One card of that type; a character with none is unaffected.
+ */
+export const removeStatus = (target: TargetRef, status: StatusName): EffectSpec => ({ kind: "removeStatus", target, status });
 export const exhaust = (target: TargetRef): EffectSpec => ({ kind: "exhaust", target });
 export const ready = (target: TargetRef): EffectSpec => ({ kind: "ready", target });
 /** "Discard X" for a card in play. */
@@ -235,11 +241,39 @@ export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil)
  * card consumes it — "the next Avenger ally played this phase" (Avengers Tower, `cap` pack): `{ trait: AVENGER,
  * categories: ["ally"] }`. Omit for the unfiltered "next card" (Helicarrier).
  */
-export const reduceNextCardCost = (player: PlayerRef, n: Amount, duration: "phase" | "round", cardFilter?: TargetQuery): EffectSpec => ({
+export const reduceNextCardCost = (player: PlayerRef, n: Amount, duration: NextCardCostDuration, cardFilter?: TargetQuery): EffectSpec => ({
   kind: "reduceNextCardCost",
   player,
   amount: amount(n),
   duration,
+  ...(cardFilter ? { cardFilter } : {}),
+});
+/**
+ * How long a "the next card you play …" cost change waits. `"untilPlayed"` is the unbounded form — no phase or
+ * round limit at all, however many rounds it takes ("The **next** event you play costs 3 additional resources",
+ * Physical Toll, `drs` pack). Use `"phase"`/`"round"` only when the card prints that bound.
+ */
+export type NextCardCostDuration = "phase" | "round" | "untilPlayed";
+/**
+ * "The next [card] you play costs N additional resources" (Physical Toll, `drs` pack) — the mirror of
+ * `reduceNextCardCost`, which the engine stores as the same signed lasting effect. The price is floored at 0.
+ */
+export const increaseNextCardCost = (player: PlayerRef, n: number, duration: NextCardCostDuration, cardFilter?: TargetQuery): EffectSpec => ({
+  kind: "reduceNextCardCost",
+  player,
+  amount: amount(-n),
+  duration,
+  ...(cardFilter ? { cardFilter } : {}),
+});
+/**
+ * "Discard this obligation after you play an event" (Physical Toll, `drs` pack): a delayed effect whose timing
+ * point is the next matching card that player plays, the sibling of `atEndOfRound`/`atEndOfAttack`. Fires once,
+ * after that card's play has finished resolving, whatever round that is.
+ */
+export const afterNextCardPlayed = (player: PlayerRef, cardFilter: TargetQuery | undefined, ...effects: readonly EffectSpec[]): EffectSpec => ({
+  kind: "afterNextCardPlayed",
+  player,
+  effects,
   ...(cardFilter ? { cardFilter } : {}),
 });
 
@@ -345,6 +379,14 @@ export const tuckCards = (from: CardSelector, under: TargetRef, facedown = false
 export const assignDamage = (n: Amount, among: TargetQuery, chooser: PlayerRef = you): EffectSpec => ({ kind: "assignDamage", amount: amount(n), among, chooser });
 export const dealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "dealEncounterCard", player });
 export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "revealEncounterCard", player });
+/**
+ * "Give the villain 1 facedown boost card" (Hired Gun 02007, Intimidation 02035): dealt outside an activation, it
+ * stays facedown on that enemy and is flipped at its next activation, before and in addition to the automatic one
+ * (RRG 1.8 "Boost, Boost Icon", p. 11). Not "1 additional boost card **for this activation**" — that is
+ * `modifyAttack({ extraBoostCards })`, and the validator rejects this builder inside a Boost ability.
+ */
+export const giveBoostCard = (enemy: TargetRef = theVillain, count: Amount = 1): EffectSpec =>
+  count === 1 ? { kind: "giveBoostCard", enemy } : { kind: "giveBoostCard", enemy, count: amount(count) };
 export const addAccelerationToken = (): EffectSpec => ({ kind: "addAccelerationToken" });
 /** "Either spend … resources or …": follow with `ifThen(not(made(bind)), …)`. */
 export const spendResources = (resources: ResourceRequirement, bind: string, player: PlayerRef = you): EffectSpec => ({

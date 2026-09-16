@@ -455,6 +455,15 @@ export class InspectOverlay extends Phaser.Scene {
       this.children.bringToTop(text);
       y += box.height + 18;
     }
+    // The price the table is actually charging, when it isn't the one on the card. Sits above "legal targets"
+    // because it changes what the player can afford this turn, which is the decision in front of them.
+    if (model.priceNote) {
+      label(this, rect.x + 18, y, "cost right now", typeRole.label, surface.paper.hex, ink.meta);
+      const note = this.add
+        .text(rect.x + 18, y + 16, model.priceNote, textStyle(typeRole.body, surface.paper.hex))
+        .setWordWrapWidth(inner);
+      y += 16 + note.height + 16;
+    }
     if (model.status.targets.length > 0) {
       label(this, rect.x + 18, y, "legal targets", typeRole.label, surface.paper.hex, ink.meta);
       const targets = this.add

@@ -35,12 +35,19 @@ export type GameEvent =
   | { readonly type: "enemyActivated"; readonly enemyInstanceId: InstanceId; readonly activation: "attack" | "scheme"; readonly playerId: PlayerId }
   /** An initiated activation did nothing because the enemy's stat for it is printed "—" (`dashedStatSkipsActivation`). */
   | { readonly type: "activationSkipped"; readonly enemyInstanceId: InstanceId; readonly activation: "attack" | "scheme"; readonly reason: "dashedStat" | "leftPlay" }
-  | { readonly type: "boostCardDealt"; readonly enemyInstanceId: InstanceId; readonly instanceId: InstanceId }
+  /**
+   * `outsideActivation`: a card ability dealt this one, not the activation procedure ("give the villain 1 facedown
+   * boost card"). RRG 1.8 "Boost, Boost Icon" (p. 11): it "remains facedown on that enemy until that enemy
+   * activates", so it is expected *not* to be turned faceup in the villain phase it was dealt in.
+   */
+  | { readonly type: "boostCardDealt"; readonly enemyInstanceId: InstanceId; readonly instanceId: InstanceId; readonly outsideActivation?: true }
   /** A boost card's icons, or its "Boost" ability, were cancelled (Attacrobatics, Target Acquired). */
   | { readonly type: "boostCancelled"; readonly instanceId: InstanceId; readonly scope: "icons" | "ability" }
   | { readonly type: "boostCardFlipped"; readonly enemyInstanceId: InstanceId; readonly instanceId: InstanceId; readonly boostIcons: number }
   | { readonly type: "defenderDeclared"; readonly attackInstanceId: InstanceId; readonly defenderInstanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "defenseDeclined"; readonly attackInstanceId: InstanceId; readonly playerId: PlayerId }
+  /** The declared defender left play before damage: the attack is undefended and targets that player's identity (RRG 1.8 p. 9 step 5). */
+  | { readonly type: "defenderLeftPlay"; readonly enemyInstanceId: InstanceId; readonly defenderInstanceId: InstanceId; readonly targetInstanceId: InstanceId }
   | { readonly type: "attackResolved"; readonly enemyInstanceId: InstanceId; readonly targetInstanceId: InstanceId; readonly baseAtk: number; readonly boostIcons: number; readonly defenseReduction: number; readonly damageDealt: number }
   | { readonly type: "characterDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
@@ -89,6 +96,8 @@ export type GameEvent =
   | { readonly type: "statusGiven"; readonly instanceId: InstanceId; readonly status: "stunned" | "confused" | "tough" }
   | { readonly type: "cardDiscardedFromPlay"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "overkillSpilled"; readonly fromInstanceId: InstanceId; readonly toInstanceId: InstanceId; readonly amount: number }
+  /** Why a `placeThreat` follows a damage event: a constant `excessDamageAsThreat` rule converted excess damage dealt. */
+  | { readonly type: "excessDamageAsThreat"; readonly sourceInstanceId: InstanceId; readonly targetInstanceId: InstanceId; readonly schemeInstanceId: InstanceId; readonly amount: number }
   | { readonly type: "surgeTriggered"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "optionChosen"; readonly label: string; readonly index: number }
   | { readonly type: "cardPutIntoPlayFacedown"; readonly instanceId: InstanceId; readonly playerId: PlayerId; readonly as: FacedownRole["kind"] }

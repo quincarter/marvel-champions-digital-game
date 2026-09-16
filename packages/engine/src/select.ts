@@ -26,7 +26,7 @@ import { printedResources } from "./resources.js";
 import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
 import type { LastingReach, LastingScope } from "./lasting.js";
 import type { PlayerRef, Predicate, TargetCategory, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
-import type { GameState } from "./state.js";
+import { STATUS_NAMES, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { eventSubjects } from "./trigger-events.js";
 
@@ -59,6 +59,9 @@ export function lastingReaches(state: GameState, effect: LastingReach & { readon
   if (effect.targets) return effect.targets.includes(id);
   return effect.affects ? matchesQuery(state, id, effect.affects, lastingContext(effect.scope, deps)) : false;
 }
+
+/** The `enemyAttack` event frame slot a defense records its defender in (`resolve/enemy-activation.ts` `setDefender`). */
+export const DEFENDER_SLOT = "defender";
 
 export function categoriesOf(state: GameState, id: InstanceId): readonly TargetCategory[] {
   const instance = getInstance(state, id);
@@ -215,10 +218,21 @@ export function matchesQuery(
     const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
     if ((host === id) !== query.hostOfSelf) return false;
   }
+  // "A Weapon upgrade **on your hero**": the candidate is attached to one of the cards the ref names. The mirror of
+  // `hostOfSelf`, which asks whether the candidate *is* this card's host.
+  if (query.host !== undefined) {
+    const attachedTo = instance.attachedTo;
+    if (attachedTo === null || !resolveRef(state, query.host, context).includes(attachedTo)) return false;
+  }
   if (query.owner === "you" && instance.ownerId !== context.controllerId) return false;
   if (query.printedResource !== undefined) {
     const card = cardOf(state, id);
     if (!card || printedResources(card)[query.printedResource] <= 0) return false;
+  }
+  if (query.anyPrintedResource !== undefined) {
+    const card = cardOf(state, id);
+    const pool = card ? printedResources(card) : null;
+    if (!pool || !query.anyPrintedResource.some((type) => pool[type] > 0)) return false;
   }
   if (query.aspect !== undefined) {
     const card = cardOf(state, id);
@@ -228,6 +242,12 @@ export function matchesQuery(
   if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat) return false;
   if (query.damaged !== undefined && instance.damage > 0 !== query.damaged) return false;
   if (query.hasStatus && instance.statuses[query.hasStatus] <= 0) return false;
+  // "A status card in play": a character carrying at least one of any type (RRG 1.8 "Status Cards", p. 42 lists
+  // exactly three). Counts the cards present, so a steady character's second stunned card still reads as "has one".
+  if (query.hasAnyStatus !== undefined) {
+    const any = STATUS_NAMES.some((status) => instance.statuses[status] > 0);
+    if (any !== query.hasAnyStatus) return false;
+  }
   if (query.maxPrintedHp !== undefined) {
     const card = cardOf(state, id);
     const hp = card && "hp" in card ? (card.hp as number) : undefined;
@@ -396,6 +416,13 @@ export function resolveRef(
       return context.event ? eventSubjects(context.event).sources : [];
     case "eventTarget":
       return context.event ? eventSubjects(context.event).targets : [];
+    case "defendingCharacter": {
+      // The stack is innermost-first, so a nested or queued attack names its own defender.
+      const attack = state.stack.find((f) => f.kind === "event" && f.event.kind === "enemyAttack");
+      if (attack?.kind !== "event") return [];
+      const inPlay = cardsInPlay(state);
+      return (attack.slots[DEFENDER_SLOT] ?? []).filter((id) => inPlay.includes(id));
+    }
     case "villain": {
       // "The villain" is the active villain (The Wrecking Crew insert, "The Active Villain").
       const active = activeVillain(state);
@@ -624,6 +651,13 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     case "playedThisRound": {
       const [playerId] = resolvePlayers(state, predicate.player, context);
       return playerId !== undefined && (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0) <= predicate.atMost;
+    }
+    case "compare": {
+      const left = resolveValue(state, predicate.left, context);
+      const right = resolveValue(state, predicate.right, context);
+      if (predicate.op === "atLeast") return left >= right;
+      if (predicate.op === "atMost") return left <= right;
+      return left === right;
     }
   }
 }

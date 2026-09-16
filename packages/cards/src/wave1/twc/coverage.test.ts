@@ -41,24 +41,21 @@ const reprintIds = new Set<string>();
  * - `07004.hard-hitter`, `07019.gamma-blast`, `07034.pile-drive`, `07048.charge` (each side scheme's own file):
  *   "if there is 10 or more threat here" reads a scheme's *live* threat total against a threshold — `Predicate` has
  *   `damagedAtLeast`/`counterAtLeast`, no threat equivalent.
- * - `07006.magic-crowbar-action`, `07020.ball-and-chain-action`, `07049.bulldozers-helmet-action`: "discard 1 card
- *   at random from your hand" as part of a Hero Action's *cost* — `AbilityCost.discardFromHand` only supports a
- *   player-chosen discard (`min`/`max`/`bind`), no random option.
  * - `07022.radioactive-buildup-constant`: "excess damage dealt by Thunderball is placed as threat on his
  *   corresponding side scheme" — no `RuleSpec`/`EffectSpec` redirects a built-in enemy attack's excess damage; a
  *   scripted `attack()` effect's own `bind.excessDealt` isn't available for a villain's ordinary enemy attack.
  * - `07027.boost` (Energy Projectiles): "deal 1 damage to the defending character" mid-boost — no `TargetRef` names
  *   the current attack's defender outside a `defended` trigger event, and a boost card resolves with no event in
  *   context.
+ * `07006.magic-crowbar-action`, `07020.ball-and-chain-action` and `07049.bulldozers-helmet-action` were skips for
+ * the same reason (`AbilityCost.discardFromHand` had no random option) until `discardRandomFromHandCost` landed
+ * 2026-09-15; all three are scripted now (`wrecker.ts`/`thunderball.ts`/`bulldozer.ts`).
  */
 const KNOWN_SKIPPED = new Set<string>([
   "07004.hard-hitter",
   "07019.gamma-blast",
   "07034.pile-drive",
   "07048.charge",
-  "07006.magic-crowbar-action",
-  "07020.ball-and-chain-action",
-  "07049.bulldozers-helmet-action",
   "07022.radioactive-buildup-constant",
   "07027.boost",
 ]);

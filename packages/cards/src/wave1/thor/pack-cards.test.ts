@@ -9,6 +9,7 @@ import {
   P1,
   patchInstance,
   payWith,
+  picking,
   play,
   playerOf,
   settle,
@@ -78,6 +79,36 @@ describe("Thor pack cards (generic aspect)", () => {
     const after = settle(atChoice, () => [minion], undefined, THOR_DEPS);
     expect(inst(after, minion).damage).toBe(hpBefore + 1);
     expect(inst(after, minion).engagedWith).toBe(P1); // already engaged before the attack — Aerial's engage is a no-op here
+  });
+
+  it("Valkyrie: Response after she enters play deals 3 damage to a minion if paid with a [energy] resource", () => {
+    const { state, minion } = thorWithEngagedMinion();
+    const given = moveToHand(state, P1, "06012", "06022"); // Valkyrie, Energy
+    const [valkyrie, energy] = given.ids as [never, never];
+    // Exclude every 2-icon resource card from the "1 more filler" pick, so the filler is guaranteed worth 1 (cost 3
+    // = filler 1 + Energy's own 2), matching this file's Hercules/Second Wind convention.
+    const multiValue = ["06022", "06023", "06024"].flatMap((code) => instancesOf(given.state, code));
+    const hpBefore = inst(given.state, minion).damage;
+    const played = runThor(given.state, play(P1, valkyrie, [...payWith(given.state, P1, 1, [valkyrie, ...multiValue]), energy]));
+    // Response is optional (RRG "Response") even with no "you may" — take it, then the mandatory chooseTarget of the
+    // minion falls back to `firstLegal` (only one minion in play).
+    const after = settle(played, picking(`${valkyrie}:06012.valkyrie-response`), undefined, THOR_DEPS);
+    expect(inst(after, minion).damage).toBe(hpBefore + 3);
+  });
+
+  it("Valkyrie: deals only 2 damage when not paid with a [energy] resource", () => {
+    const { state, minion } = thorWithEngagedMinion();
+    const given = moveToHand(state, P1, "06012");
+    const [valkyrie] = given.ids as [never];
+    // `paidWith` also reads true off a paid [wild] resource (any type satisfies it), so exclude every hand card
+    // whose resource icon (or, for a resource card, produced icon) is [energy] or [wild] — Get Over Here!, Battle
+    // Fury, Energy, and The Power of Aggression (wild) — so the payment can't accidentally count as "paid using a
+    // [energy] resource".
+    const noEnergy = ["06012", "06014", "06016", "06018", "06022"].flatMap((code) => instancesOf(given.state, code));
+    const hpBefore = inst(given.state, minion).damage;
+    const played = runThor(given.state, play(P1, valkyrie, payWith(given.state, P1, 3, noEnergy)));
+    const after = settle(played, picking(`${valkyrie}:06012.valkyrie-response`), undefined, THOR_DEPS);
+    expect(inst(after, minion).damage).toBe(hpBefore + 2);
   });
 
   it("Hall of Heroes: exhausts and removes 3 glory counters to draw 3", () => {

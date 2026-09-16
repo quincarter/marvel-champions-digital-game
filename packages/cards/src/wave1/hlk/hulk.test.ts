@@ -1,4 +1,5 @@
-import { activeEncounterDeck, activeVillain, applyCommand, characterProfile, remainingHitPoints, type Command, type GameState, type InstanceId } from "@mc/engine";
+import { cardId } from "@mc/content";
+import { activeEncounterDeck, activeVillain, applyCommand, characterProfile, createGame, remainingHitPoints, type Command, type GameSetupConfig, type GameState, type InstanceId } from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -28,7 +29,27 @@ const hulkGame = () => startHlkGame(wave1Scenario("rhino", { players: [{ starter
 // boost draw consumes it first, leaving the real target on top for the next deal step (matches
 // `packages/cards/src/core/heroes/spider-man.test.ts`'s `ADVANCE`, same Rhino encounter pool).
 const ADVANCE = "01186";
+// Hydra Mercenary (Core "rhino" encounter set), printed 3 hit points — matches `core/scenarios/rhino.test.ts`'s own use.
+const HYDRA_MERCENARY = "01101";
 const basicAttack = (attacker: InstanceId, target: InstanceId): Command => ({ type: "basicAttack", playerId: P1, attackerInstanceId: attacker, targetInstanceId: target });
+
+/**
+ * A Hulk (Aggression) game whose deck also contains a few off-aspect filler cards not in the Aggression precon
+ * (Beat Cop is justice) purely so their abilities can be exercised in isolation — matches `wave1/thor/pack-
+ * cards.test.ts`'s `thorVsRhinoWithExtras`. `requireLegalDecks` is dropped for this one setup (deckbuilding
+ * legality is `card-data-pipeline`/`rules-qa-engineer` territory, not what these ability tests are about).
+ */
+function hulkGameWithExtras(...extraCodes: readonly string[]) {
+  const config = wave1Scenario("rhino", { players: [{ starterDeckId: "hlk-aggression" }], seed: 17 });
+  const patched: GameSetupConfig = {
+    ...config,
+    requireLegalDecks: false,
+    players: config.players.map((p, i) => (i === 0 ? { ...p, deck: [...p.deck, ...extraCodes.map((c) => cardId(c))] } : p)),
+  };
+  const created = createGame(patched, HLK_DEPS);
+  if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
+  return settle(created.state, firstLegal, (s) => s.step.phase === "player", HLK_DEPS);
+}
 
 describe("Hulk / Bruce Banner kit", () => {
   it("\"Enraged\": Forced Interrupt — discards your hand when your turn ends, in hero form", () => {
@@ -93,8 +114,65 @@ describe("Hulk / Bruce Banner kit", () => {
     expect(remainingHitPoints(after, villain, HLK_DEPS)).toBe(hpBefore - 3);
   });
 
-  // Hulk Smash (10003) is unscripted — see `kit.ts`'s docblock note (missing engine primitive: `modifyAttack({
-  // overkill: true })` doesn't apply to a player's own attack, only an enemy's).
+  it("Hulk Smash: +10 ATK on a basic attack, but no overkill when not paid using only [physical] resources", () => {
+    // Hydra Mercenary (01101, Core "rhino" encounter set), 3 hit points: attacking it for 13 (3 printed ATK + 10)
+    // without overkill defeats it but wastes the excess — the villain's own HP must stay untouched, proving the
+    // ATK bonus applied without also granting overkill.
+    const stacked = stackEncounterDeck(hulkGame(), ADVANCE, HYDRA_MERCENARY);
+    const hero = runHlk(stacked, toHero());
+    const revealed = settle(runHlk(hero, endTurn()), firstLegal, undefined, HLK_DEPS);
+    // Rhino's encounter set prints 2 copies of Hydra Mercenary; only the one actually engaged (in P1's own play
+    // area — a minion "in play" lives there, not in `villainArea`) is the one this attack targets.
+    const mercenary = playerOf(revealed, P1).playArea.find((id) => inst(revealed, id).cardId === "01101")!;
+    const villain = activeVillain(revealed).instanceId;
+    const hpBefore = remainingHitPoints(revealed, villain, HLK_DEPS)!;
+    const given = moveToHand(revealed, P1, "10003", "10021", "10014"); // Hulk Smash, Genius (mental x2), Drop Kick (physical x1) — mixed payment
+    const [hulkSmash, genius, dropKick] = given.ids as [never, never, never];
+    const identity = identityOf(given.state);
+    const option = `${hulkSmash}:10003.hulk-smash-interrupt`;
+    const after = settle(
+      runHlk(given.state, basicAttack(identity, mercenary)),
+      (s) => {
+        const prompt = s.pendingChoice?.prompt;
+        if (prompt?.kind === "chooseTriggers") return picking(option)(s);
+        if (prompt?.kind === "payForCard" && prompt.instanceId === hulkSmash) return [`hand:${genius}`, `hand:${dropKick}`];
+        return firstLegal(s);
+      },
+      undefined,
+      HLK_DEPS,
+    );
+    expect(playerOf(after, P1).playArea).not.toContain(mercenary); // defeated (13 damage into 3 hit points)
+    expect(remainingHitPoints(after, villain, HLK_DEPS)).toBe(hpBefore); // no overkill: nothing spilled to the villain
+  });
+
+  it("Hulk Smash: gains overkill when paid using only [physical] resources, spilling the excess to the villain", () => {
+    const stacked = stackEncounterDeck(hulkGame(), ADVANCE, HYDRA_MERCENARY);
+    const hero = runHlk(stacked, toHero());
+    const revealed = settle(runHlk(hero, endTurn()), firstLegal, undefined, HLK_DEPS);
+    const mercenary = playerOf(revealed, P1).playArea.find((id) => inst(revealed, id).cardId === "01101")!;
+    const villain = activeVillain(revealed).instanceId;
+    const hpBefore = remainingHitPoints(revealed, villain, HLK_DEPS)!;
+    const given = moveToHand(revealed, P1, "10003", "10022", "10014"); // Hulk Smash, Strength (physical x2), Drop Kick (physical x1) — all-physical payment
+    const [hulkSmash, strength, dropKick] = given.ids as [never, never, never];
+    const identity = identityOf(given.state);
+    const option = `${hulkSmash}:10003.hulk-smash-interrupt`;
+    const after = settle(
+      runHlk(given.state, basicAttack(identity, mercenary)),
+      (s) => {
+        const prompt = s.pendingChoice?.prompt;
+        if (prompt?.kind === "chooseTriggers") return picking(option)(s);
+        if (prompt?.kind === "payForCard" && prompt.instanceId === hulkSmash) return [`hand:${strength}`, `hand:${dropKick}`];
+        return firstLegal(s);
+      },
+      undefined,
+      HLK_DEPS,
+    );
+    expect(playerOf(after, P1).playArea).not.toContain(mercenary); // defeated
+    // 13 damage into 3 hit points: 10 excess, overkill (RRG "Overkill") spills it to the active villain (the
+    // target's own recipient, since Hydra Mercenary is a minion — `packages/engine/src/resolve/event.ts`
+    // `overkillRecipient`).
+    expect(remainingHitPoints(after, villain, HLK_DEPS)).toBe(hpBefore - 10);
+  });
 
   it("Sub-Orbital Leap: removes 3 threat (5 instead if paid using only [physical] resources)", () => {
     const start = hulkGame();
@@ -371,5 +449,23 @@ describe("hlk pack-cards (aggression filler, in the precon)", () => {
       HLK_DEPS,
     );
     expect(inst(after, prowess).exhausted).toBe(true);
+  });
+
+  it("Beat Cop: exhausts and discards itself to deal damage to a minion equal to threat here", () => {
+    const stacked = stackEncounterDeck(hulkGameWithExtras("10029"), ADVANCE, HYDRA_MERCENARY);
+    const hero = runHlk(stacked, toHero());
+    const revealed = settle(runHlk(hero, endTurn()), firstLegal, undefined, HLK_DEPS);
+    const mercenary = instancesOf(revealed, HYDRA_MERCENARY)[0]!;
+    const given = moveToHand(revealed, P1, "10029");
+    const [beatCop] = given.ids as [never];
+    const played = settle(runHlk(given.state, play(P1, beatCop, payWith(given.state, P1, 3, [beatCop]))), firstLegal, undefined, HLK_DEPS);
+    // Test-only surgery for "threat here": a real game builds this up over several activations of Beat Cop's own
+    // first action ("move 1 threat from a scheme to here"), matching `patchInstance`'s use elsewhere in this file.
+    const staged = patchInstance(played, beatCop, { threat: 3 });
+    const after = settle(runHlk(staged, use(P1, beatCop, "10029.beat-cop-action-2")), picking(mercenary), undefined, HLK_DEPS);
+    // `discardSelf` snapshots `self.threat` before `leavePlay` clears it, so the exhaust-and-discard cost doesn't
+    // erase the very count "for each threat here" is about to read (docs/phase7-wave1-scripting.md §6).
+    expect(playerOf(after, P1).discard).toContain(beatCop);
+    expect(after.villainArea).not.toContain(mercenary); // 3 damage into 3 hit points — defeated
   });
 });

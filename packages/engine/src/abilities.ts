@@ -1,7 +1,7 @@
 import type { AbilityId, KeywordInstance, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
-import type { EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, ValueSpec } from "./spec.js";
+import type { EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
 import type { Form } from "./state.js";
 import type { TriggerEventKind } from "./trigger-events.js";
 
@@ -27,6 +27,18 @@ export interface EventPattern {
    * "…undefended" → `{ undefended: 1 }`. Keys are the event's `results`.
    */
   readonly requireResults?: Readonly<Record<string, number>>;
+  /**
+   * The upper-bound counterpart of `requireResults`: each result must be **at most** this, read at the same moment.
+   * `{ damage: 0 }` is "and take no damage" / "if it dealt no damage" — a bound `requireResults` and `eventAtLeast`,
+   * both minimums, cannot express. A missing result reads as 0 and therefore satisfies any non-negative bound.
+   *
+   * It is part of the *trigger condition*, so an ability whose bound fails is never offered and its cost is never
+   * paid — which is what "Response: After you defend against an attack **and take no damage**, exhaust this →" needs
+   * (FAQ "Unflappable (#20)", RRG 1.8 p. 60: "The cost of the ability on Unflappable only requires that the
+   * defending identity take no damage during step 4 of the enemy attack"). Modeling the same sentence as an
+   * effect-level `if` would charge the cost first, which is a different card.
+   */
+  readonly resultsAtMost?: Readonly<Record<string, number>>;
   /** "After you make a basic attack" → `basic`; "(attack)" abilities → `ability`. */
   readonly attackKind?: "basic" | "ability";
   /** The activation the event belongs to: "while the villain attacks" / "during a scheme activation" (boost card events). */
@@ -194,6 +206,19 @@ export type RuleSpec =
    * its threat on that villain's signature side scheme while it is in play, else on the main scheme.
    */
   | { readonly kind: "schemeThreatDestination"; readonly enemy: TargetQuery; readonly scheme: "ownSignatureSideScheme"; readonly while?: Predicate }
+  /**
+   * "Excess damage dealt by Thunderball is placed as threat on his corresponding side scheme" (Radioactive Buildup,
+   * 07022). Whenever a card matching `source` deals damage beyond the target's remaining hit points, that much threat
+   * is placed on `scheme`: `"ownSignatureSideScheme"` is the dealing villain's signature side scheme (nothing if it
+   * is not in play), a `TargetRef` is read from the rule card ("his" on an attachment is
+   * `signatureSideSchemeOf { villain: host }`).
+   *
+   * Any damage the source deals, not just its attacks: the card says "excess damage dealt by", not "by his attacks".
+   * Excess damage is measured as RRG 1.8 "Excess Damage" (p. 19) defines it, damage *dealt* beyond remaining hit
+   * points, so it is placed even when a tough status card or "cannot take damage" stops the target taking it (ruling,
+   * Jan 26, 2026 (3)). See `resolve/event.ts` `applyDamage` for the ordering and the open overkill question.
+   */
+  | { readonly kind: "excessDamageAsThreat"; readonly source: TargetQuery; readonly scheme: "ownSignatureSideScheme" | TargetRef; readonly while?: Predicate }
   /** "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword. */
   | { readonly kind: "cannotLeavePlay"; readonly target: TargetQuery; readonly while?: Predicate }
   /**

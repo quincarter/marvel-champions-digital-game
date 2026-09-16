@@ -12,6 +12,7 @@ import type { Aspect, AnyCard, ResourceIconType } from "@mc/content";
 import {
   cardOf,
   characterProfile,
+  currentName,
   getInstance,
   getPlayer,
   isMinion,
@@ -23,6 +24,7 @@ import {
   isVillain,
   villainOf,
   minionsEngagedWith,
+  playCostOf,
   printedProfile,
   printedResources,
   remainingHitPoints,
@@ -33,13 +35,14 @@ import {
   type Form,
   type GameState,
   type InstanceId,
+  type PlayCost,
   type PlayerId,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { faceVisible } from "./visibility.js";
 import { STATUS_DISABLES } from "../tokens.js";
 import type { StatusName } from "./log-lines.js";
-import { playerName } from "./names.js";
+import { faceUpName, playerName } from "./names.js";
 
 /** One of the 2px inner stat boxes in the design's entity card. */
 export interface StatTile {
@@ -184,13 +187,43 @@ export interface SchemePanel {
   readonly art: ArtSource | null;
 }
 
+/**
+ * An environment card in the villain area — Risky Business's Criminal Enterprise / State of Madness.
+ *
+ * It is neither a character nor a scheme, so it fitted none of the panels above and was drawn nowhere at all:
+ * the card sat in `state.villainArea` doing the whole job of gating the scenario while the table showed no sign
+ * it existed. Its counters are the point of it ("if there are no infamy counters here, flip Norman Osborn"), so
+ * they are first-class here rather than a footnote on a chip.
+ */
+export interface EnvironmentPanel {
+  readonly instanceId: InstanceId;
+  /** The face in play: "Criminal Enterprise", or "State of Madness" once it has flipped. */
+  readonly name: string;
+  readonly subtitle: string;
+  /** Every counter kind on the card, with its count: `[{ name: "infamy", count: 4 }]`. */
+  readonly counters: readonly { readonly name: string; readonly count: number }[];
+  readonly art: ArtSource | null;
+}
+
 export interface HandCardView {
   readonly instanceId: InstanceId;
   readonly name: string;
   /** "EVENT · ATTACK", "ALLY", "UPGRADE". */
   readonly typeLine: string;
-  /** Null for a resource card, which has no cost. */
+  /** The cost printed on the card. Null for a resource card, which has no cost. */
   readonly cost: number | null;
+  /**
+   * What the card costs to play right now. Equal to `cost` unless something on the table is changing the price —
+   * Steve Rogers' Living Legend, an Avengers Tower reduction, Man Out of Time's surcharge — in which case the
+   * scan's printed pip is wrong and the hand has to say so.
+   */
+  readonly currentCost: number | null;
+  /**
+   * The cards moving the price, by name, so the table can answer "why is this cheaper?" without the player
+   * hunting for the ability. Empty when nothing is, or when the change came from a pending "next card"
+   * reduction, which carries no source card of its own.
+   */
+  readonly costSources: readonly string[];
   /** Current (errata'd) rules text; the table caps it, Inspect shows it whole. */
   readonly rulesText: string;
   /** The icons this card produces when spent as a resource. */
@@ -238,6 +271,8 @@ export interface BoardModel {
   readonly mainScheme: SchemePanel;
   readonly sideSchemes: readonly SchemePanel[];
   readonly minions: readonly CharacterPanel[];
+  /** Environment cards in the villain area, in play order. Empty for every scenario that uses none. */
+  readonly environments: readonly EnvironmentPanel[];
   readonly me: CharacterPanel;
   readonly myForm: Form;
   readonly myPlayArea: readonly CharacterPanel[];
@@ -288,6 +323,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     mainScheme: schemePanel(state, state.mainScheme.instanceId, deps, true),
     sideSchemes,
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
+    environments: state.villainArea.filter((id) => cardOf(state, id)?.type === "environment").map((id) => environmentPanel(state, id)),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
     myPlayArea: me.playArea
@@ -300,7 +336,7 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
         return attachedTo === null || attachedTo === me.identity.instanceId;
       })
       .map((id) => characterPanel(state, id, deps)),
-    hand: me.hand.map((id) => handCardView(state, id)),
+    hand: me.hand.map((id) => handCardView(state, id, perspectiveId, deps)),
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },
     encounterPiles: { deck: activeEncounterDeck(state).deck.length, discard: activeEncounterDeck(state).discard.length },
@@ -461,7 +497,9 @@ export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
       // gets nothing, because the schema puts the image on the stage.
       return { kind: "mainSchemeStage", stageIndex: state.mainScheme.stageIndex, side: "B" };
     default:
-      return { kind: "front" };
+      // A flipped double-sided encounter card shows its other face, not its front (Criminal Enterprise once it
+      // has become State of Madness). Without this the table keeps drawing the side that is no longer in play.
+      return instance.flipped && "flipSide" in card && card.flipSide ? { kind: "flipSide" } : { kind: "front" };
   }
 }
 
@@ -478,7 +516,11 @@ function displayName(state: GameState, instance: CardInstance, card: AnyCard | u
   if (card.type === "hero_identity") {
     return (identityForm(state, instance) ?? "hero") === "hero" ? card.hero.faceName : card.alterEgo.faceName;
   }
-  return card.name;
+  // Every other double-sided card is named for the face in play too, and only the engine knows which that is: a
+  // villain's active side (Risky Business's card is titled "Norman Osborn", but once he flips the table is facing
+  // Green Goblin) and a flipped encounter card's other face. `card.name` alone left the villain panel naming a
+  // side that was no longer there, while the damage and the abilities came from the other one.
+  return currentName(state, instance.instanceId) ?? card.name;
 }
 
 function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | undefined): string {
@@ -617,24 +659,58 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
   };
 }
 
-export function handCardView(state: GameState, id: InstanceId): HandCardView {
+export function environmentPanel(state: GameState, id: InstanceId): EnvironmentPanel {
+  const card = cardOf(state, id);
+  return {
+    instanceId: id,
+    // `currentName`, not `card.name`: a flipped card is a different card as far as the table is concerned.
+    name: currentName(state, id) ?? card?.name ?? "Environment",
+    subtitle: "Environment",
+    counters: countersOf(state, id),
+    art: artFor(card, faceOf(state, id)),
+  };
+}
+
+/** Every counter kind on a card, in a stable order, skipping kinds that have run to zero. */
+function countersOf(state: GameState, id: InstanceId): readonly { readonly name: string; readonly count: number }[] {
+  return Object.entries(getInstance(state, id)?.counters ?? {})
+    .filter(([, count]) => count > 0)
+    .map(([name, count]) => ({ name, count }));
+}
+
+export function handCardView(state: GameState, id: InstanceId, playerId: PlayerId, deps: EngineDeps): HandCardView {
   const card = cardOf(state, id);
   if (!card) {
-    return { instanceId: id, name: "Unknown card", typeLine: "", cost: null, rulesText: "", resourceIcons: [], art: null };
+    return { instanceId: id, name: "Unknown card", typeLine: "", cost: null, currentCost: null, costSources: [], rulesText: "", resourceIcons: [], art: null };
   }
 
   const traits = "traits" in card ? (card.traits as readonly string[]) : [];
   const typeLine = [card.type.replace(/_/g, " "), ...traits.slice(0, 1)].join(" · ").toUpperCase();
+  // Priced with no attachment host: an upgrade's host is only chosen once the play is under way, and a
+  // host-conditional modifier that hasn't been earned yet must not quote a price the player can't get.
+  const price = playCostOf(state, playerId, id, deps);
   return {
     instanceId: id,
     name: card.name,
     typeLine,
-    cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    cost: price?.printed ?? null,
+    currentCost: price?.current ?? null,
+    costSources: price ? costSourceNames(state, price) : [],
     // `current`, not `printed`: the errata'd wording is what the game plays by.
     rulesText: "text" in card ? card.text.current : "",
     resourceIcons: resourceIconList(printedResources(card)),
     art: artFor(card, { kind: "front" }),
   };
+}
+
+/** The distinct names behind a price change, in the engine's own order. A card can't be its own reason. */
+function costSourceNames(state: GameState, price: PlayCost): readonly string[] {
+  const names: string[] = [];
+  for (const { sourceInstanceId } of price.contributions) {
+    const name = faceUpName(state, sourceInstanceId);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
 }
 
 /** A resource pool flattened to one entry per icon, for drawing pips. */

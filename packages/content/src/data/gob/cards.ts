@@ -223,7 +223,11 @@ export const GOB_CARDS: readonly AnyCard[] = [
       current: "Criminal Enterprise enter play with 2[per_hero] infamy counters on it. If there are no infamy counters here, flip Norman Osborn and Criminal Enterprise.",
     },
     flavor: "\"Business. Is. Good.\"",
-    abilities: [{ id: abilityId("02006a.criminal-enterprise-constant") }],
+    // Two refs, not one: the printed text is two independent mechanisms — a forced response that places the
+    // starting counters, and a persistent "if there are no infamy counters here, flip" state check. One
+    // `AbilityDefinition` carries one trigger, so they cannot share an id (`packages/content/src/schema/
+    // wave1.test.ts` uses this same two-ref shape as the schema's own fixture for this card).
+    abilities: [{ id: abilityId("02006a.enters-with-infamy") }, { id: abilityId("02006a.flip") }],
     flipSide: {
       name: "State of Madness",
       traits: [],
@@ -233,7 +237,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
         current: "State of Madness enter play with 2[per_hero] madness counters on it. If there are no madness counters here, flip Green Goblin and State of Madness.",
       },
       flavor: "\"Fool! Your power is nothing compared to mine! Your strength is nothing, your intellect is NOTHING!\" —Green Goblin",
-      abilities: [{ id: abilityId("02006b.state-of-madness-constant") }],
+      abilities: [{ id: abilityId("02006b.enters-with-madness") }, { id: abilityId("02006b.flip") }],
       image: imageRef("/bundles/cards/02006b.png"),
     },
   },

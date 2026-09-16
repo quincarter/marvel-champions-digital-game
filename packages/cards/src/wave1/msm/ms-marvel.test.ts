@@ -61,6 +61,25 @@ const protecting = (protect: readonly InstanceId[], triggerOption?: string): Pic
 };
 
 describe("Ms. Marvel kit", () => {
+  it('"Morphogenetics": exhausts Ms. Marvel to return a just-played Attack event to hand', () => {
+    const start = msmVsRhino();
+    const given = moveToHand(start, P1, "05003"); // Big Hands (Attack, Superpower)
+    const [bigHands] = given.ids as [never];
+    const hero = runMsm(given.state, toHero());
+    const identity = identityOf(hero);
+    const villain = activeVillain(hero).instanceId;
+    const hpBefore = remainingHitPoints(hero, villain);
+    const option = `${identity}:05001a.morphogenetics`;
+    const played = runMsm(hero, play(P1, bigHands, payWith(hero, P1, 2, [bigHands])));
+    // The Response fires from `cardPlayed` (after the event has already resolved and been discarded), so the
+    // damage lands first and the "return to hand" undoes the discard afterward, not the play.
+    const after = settle(played, protecting([bigHands], option), undefined, MSM_DEPS);
+    expect(remainingHitPoints(after, villain)).toBe(hpBefore! - 4);
+    expect(playerOf(after, P1).hand).toContain(bigHands);
+    expect(playerOf(after, P1).discard).not.toContain(bigHands);
+    expect(inst(after, identity).exhausted).toBe(true);
+  });
+
   it("Red Dagger: an Interrupt that replaces his own defeat, paid with 2 resources of different types", () => {
     const start = msmVsRhino();
     // Red Dagger, 3 single-icon cards to pay his own cost (energy/mental/mental filler), and Big Hands (physical)
@@ -223,10 +242,20 @@ describe("Ms. Marvel kit", () => {
     expect(inst(after, suit).exhausted).toBe(true);
   });
 
-  // Embiggen! (05010) is intentionally unscripted — a confirmed engine bug (the "attack" EffectSpec case in
-  // apply-effect.ts doesn't read `cardEffectBonus` the way its "dealDamage"/"thwart"/"removeThreat" siblings do),
-  // not a missing DSL primitive. See the doc comment on `MSM_KIT` in `./kit.ts` for the full citation. The Shrink
-  // test right below proves the underlying `cardBeingPlayed`/`modifyCardEffect` mechanism itself is sound.
+  it("Embiggen!: increases an Attack event's damage by 2 while exhausted", () => {
+    const start = msmVsRhino();
+    const given = moveToHand(start, P1, "05010", "05003"); // Embiggen!, Big Hands
+    const [embiggen, bigHands] = given.ids as [never, never];
+    const hero = runMsm(given.state, toHero());
+    const withEmbiggen = settle(runMsm(hero, play(P1, embiggen, payWith(hero, P1, 2, [embiggen, bigHands]))), firstLegal, undefined, MSM_DEPS);
+    const villain = activeVillain(withEmbiggen).instanceId;
+    const hpBefore = remainingHitPoints(withEmbiggen, villain);
+    const option = `${embiggen}:05010.embiggen-interrupt`;
+    const midPlay = runMsm(withEmbiggen, play(P1, bigHands, payWith(withEmbiggen, P1, 2, [embiggen, bigHands])));
+    const after = settle(midPlay, protecting([embiggen, bigHands], option), undefined, MSM_DEPS);
+    expect(remainingHitPoints(after, villain)).toBe(hpBefore! - 6); // printed 4 damage + Embiggen!'s +2
+    expect(inst(after, embiggen).exhausted).toBe(true);
+  });
 
   it("Shrink: increases the threat a Thwart event removes by 2", () => {
     const start = msmVsRhino();

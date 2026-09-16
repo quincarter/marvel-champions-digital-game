@@ -66,22 +66,16 @@ export const THOR_PACK_CARDS = defineAbilities({
   ),
 
   // Valkyrie (06012) — Response: After Valkyrie enters play, deal 2 damage to a minion (3 damage instead if you
-  // paid for this card using a [energy] resource). SKIPPED: a Response triggered by this card's own `cardEntersPlay`
-  // resolves in a freshly-built ability frame with empty `vars`/`bindings` (`abilityFrame`'s defaults,
-  // `packages/engine/src/resolve/frames.ts`, called with no `vars` argument from `triggerCandidate`,
-  // `packages/engine/src/resolve/window.ts`) — the printed card's own `paid.*` vars (set on the *playCard* frame,
-  // `packages/engine/src/actions.ts` `resourceVars`/`priceCard`) never reach it, so `paidWith("energy")` would
-  // always read false regardless of how Valkyrie was actually paid for. Every other `paidWith` use in this pack
-  // (Second Wind 06033) is on the card's own directly-resolving action, which *does* run inside the playCard
-  // frame's own vars — this is specifically about a *separately triggered* Response reading its own card's payment.
-  // Proposed shape: thread the originating playCard frame's `paid.*` vars into a Response candidate's ability frame
-  // when the candidate's `instanceId` is the same card that just entered play (`triggerCandidate`/`abilityFrame`
-  // could carry `vars` from the still-open `playCard` frame for that one instance, the way `atEndOfAttack`'s
-  // deferred effects already carry the ability's own `frame.vars` forward). Flagged to `game-rules-architect`.
-
-  // Valkyrie's damage-to-a-minion shape without the payment condition is `dealDamage(2 or 3, chosen minion)` — not
-  // scripted at all rather than half-scripted, per docs/phase7-wave1-scripting.md "the rule": an approximation
-  // (always 2, or always guessing 3) would be worse than leaving it unresolved.
+  // paid for this card using a [energy] resource). Previously skipped: a Response to a card's own entering play saw
+  // an empty `vars`/`bindings` ability frame, so `paidWith("energy")` always read false. Fixed 2026-09-15
+  // (`packages/engine/src/resolve/frames.ts` `abilityFrame`/`playPaymentVars`): while a card's own `playCard` frame
+  // is still on the stack, its Response candidate's ability frame is seeded with that play's `paid.*` vars, so
+  // `paidWith("energy")` now reads correctly here (docs/phase7-wave1-scripting.md §6).
+  "06012.valkyrie-response": response(
+    after.entersPlay("self"),
+    chooseTarget("minion", query("minion")),
+    dealDamage(ifElse(paidWith("energy"), 3, 2), chosen("minion")),
+  ),
 
   // Get Over Here! — Hero Action (attack): Deal 1 damage to a minion. If you have the Aerial trait, engage that
   // enemy. `EffectSpec.engage` (packages/engine/src/spec.ts, named for this exact card); no `dsl/effects.ts`

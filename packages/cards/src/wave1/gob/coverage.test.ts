@@ -38,17 +38,14 @@ const reprintIds = new Set<string>();
 
 /**
  * Recorded gaps — every one is a missing engine/DSL primitive, cited beside where the ability would go:
- * - `02006a.criminal-enterprise-constant` / `02006b.state-of-madness-constant` (`risky-business.ts`): the real card
- *   data lists only one ability ref per face for a behavior that needs two independent triggers (a persistent
- *   edge-triggered flip-at-zero `stateCheck`, plus a forced response placing starting counters on enter/flip) — a
- *   data curation gap (the schema's own test fixture shows the intended two-ref shape), not an engine/DSL gap, but
- *   unresolvable under the one id the data actually provides.
  * - `02007.when-revealed` (`risky-business.ts`), `02035.when-revealed` (`goblin-gimmicks.ts`): "give the villain N
  *   facedown boost card(s)" outside an activation already in progress — no `CardDestination`/effect stockpiles a
  *   boost card onto the villain ahead of its next activation.
  * - `02041.when-defeated`, `02044.when-revealed` (`power-drain.ts`): `ValueSpec.boostIcons` reads only the first
  *   card a ref names (`select.ts` `case "boostIcons"`), with no sum over several bound cards — both discard 2 cards
- *   and need a total across both.
+ *   and need a total across both. Verified 2026-09-15 that `moveCards`'s new `<bind>.boostIcons` (landed for Hit
+ *   Squad) doesn't reach these: see `power-drain.ts`'s doc comment for why swapping to it would be a real behavior
+ *   change (loses `discardEncounterCards`'s reshuffle-safety), not an equivalent fix.
  * - `02045.when-revealed` (`power-drain.ts`): the same boost-icon-sum gap — it discards `1[per_hero]` cards, more
  *   than one with 2+ heroes.
  * - `02047.tombstone-forced-response` (`running-interference.ts`): no `TargetQuery`/`CardSelector` composition for
@@ -56,8 +53,6 @@ const reprintIds = new Set<string>();
  *   as the documented "no anyTrait" gap, generalized to resource types.
  */
 const KNOWN_SKIPPED = new Set<string>([
-  "02006a.criminal-enterprise-constant",
-  "02006b.state-of-madness-constant",
   "02007.when-revealed",
   "02035.when-revealed",
   "02041.when-defeated",

@@ -2,9 +2,10 @@
  * Local coverage for the `msm` pack (docs/phase7-wave1-scripting.md "What to deliver" §5) — never touches the
  * shared `../coverage.test.ts` (its `PACK_STATUS`/registration line are the main session's to update once this
  * pack is merged into `WAVE1_ABILITIES`). Every `msm` card's ability reference must resolve — through this pack's
- * own `MSM_ABILITIES`, or aliased as a Core reprint by `../reprints.ts` — except the four recorded, cited gaps
- * (two missing DSL primitives, one confirmed engine bug, one "sum of two counts" DSL gap; see the doc comments on
- * `MSM_KIT` in `./kit.ts` and `MSM_NEMESIS` in `./nemesis.ts`).
+ * own `MSM_ABILITIES`, or aliased as a Core reprint by `../reprints.ts` — except the one recorded, cited gap
+ * (a missing "discard from a player deck until a match" primitive; see the doc comment on `MSM_KIT` in `./kit.ts`).
+ * Morphogenetics (05001a), Embiggen! (05010) and Generation Why? (05026) were skips here too until `TargetQuery.
+ * anyTrait`, the `attack` effect's `cardEffectBonus` fix, and `ValueSpec` `sum` landed (2026-09-15).
  */
 import { MSM_CARDS, type AnyCard } from "@mc/content";
 import { WAVE1_REPRINT_ABILITIES } from "../reprints.js";
@@ -19,12 +20,9 @@ function abilityRefIds(card: AnyCard): string[] {
   }
 }
 
-/** Ability ids intentionally left unscripted (see the doc comments on `MSM_KIT`/`MSM_NEMESIS` for the full citation). */
+/** Ability ids intentionally left unscripted (see the doc comment on `MSM_KIT` for the full citation). */
 const SKIPPED = new Set([
-  "05001a.morphogenetics", // missing `TargetQuery.anyTrait` (an OR of Attack/Thwart/Defense traits)
   "05001b.teen-spirit", // missing `discardDeckUntil` (a player-deck analog of `discardEncounterUntil`)
-  "05010.embiggen-interrupt", // confirmed engine bug: the "attack" EffectSpec case doesn't read `cardEffectBonus`
-  "05026.when-revealed", // missing a "sum of two counts" `ValueSpec` combinator
 ]);
 
 describe("msm pack ability coverage", () => {

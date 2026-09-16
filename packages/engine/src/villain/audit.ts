@@ -265,6 +265,10 @@ class PhaseTracker {
         return this.onActivation(event, shadow);
       case "boostCardDealt": {
         this.boostCards.push({ enemyInstanceId: event.enemyInstanceId, instanceId: event.instanceId, boostIcons: null });
+        // A card ability's boost card ("give the villain 1 facedown boost card") is exempt from both checks below:
+        // RRG 1.8 "Boost, Boost Icon" (p. 11) says it "remains facedown on that enemy until that enemy activates",
+        // so it is expected not to flip this phase, and card text names its own recipient (the Golden Rules, p. 4).
+        if (event.outsideActivation) return;
         this.unflippedBoosts.add(event.instanceId);
         if (isAVillain(this.state, event.enemyInstanceId)) {
           this.villainBoosts++;

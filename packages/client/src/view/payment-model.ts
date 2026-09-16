@@ -20,6 +20,7 @@ import type { ResourceIconType } from "@mc/content";
 import {
   locateCard,
   paymentFor,
+  playCostOf,
   tryPayment,
   type ActionRef,
   type Command,
@@ -30,6 +31,7 @@ import {
   type PaymentSource,
   type PlayerId,
 } from "@mc/engine";
+import { faceUpName } from "./names.js";
 
 export interface PaymentState {
   readonly action: ActionRef;
@@ -78,6 +80,15 @@ export interface PaymentView {
   readonly paid: number;
   /** Resources the action costs. The bar's denominator. */
   readonly required: number;
+  /**
+   * Why the denominator isn't the number printed on the card — "Steve Rogers: 3 → 2" — or null when it is.
+   *
+   * Without this the bar counts to a total nothing on the table explains, and the player is left to guess
+   * whether the game is wrong or they have forgotten an ability. It names the source card wherever the engine
+   * can attribute one; a pending "reduce the cost of your next card" effect has no source card, so that reads
+   * as a bare reduction.
+   */
+  readonly priceNote: string | null;
   /** Typed requirements still outstanding, e.g. "1 energy". Empty when only generic is left. */
   readonly outstanding: readonly string[];
   /** Sources that can still be tapped, by instance id, so the board can light them. */
@@ -180,6 +191,7 @@ export function paymentView(
     subject,
     paid,
     required: poolTotal(query.requirement),
+    priceNote: subject !== null && action.kind === "playCard" ? priceNoteFor(state, playerId, subject, deps) : null,
     outstanding: outstandingTypes(query, picked, byOption),
     spendable,
     spent,
@@ -189,6 +201,23 @@ export function paymentView(
     command: attempt.ok ? attempt.command : null,
     blockedBy: attempt.ok ? null : attempt.message,
   };
+}
+
+/**
+ * The one line that explains a price the card does not print: "Steve Rogers: 3 → 2". Null when the card costs
+ * what it says, which is the overwhelmingly common case and wants no words at all.
+ */
+function priceNoteFor(state: GameState, playerId: PlayerId, subject: InstanceId, deps: EngineDeps): string | null {
+  const price = playCostOf(state, playerId, subject, deps);
+  if (!price || price.current === price.printed) return null;
+  const names: string[] = [];
+  for (const { sourceInstanceId } of price.contributions) {
+    if (sourceInstanceId === subject) continue;
+    const name = faceUpName(state, sourceInstanceId);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  const why = names.length > 0 ? `${names.join(", ")}: ` : "";
+  return `${why}${price.printed} → ${price.current}`;
 }
 
 /** The three typed requirements. `generic` takes any icon, `wild` pays any type. */

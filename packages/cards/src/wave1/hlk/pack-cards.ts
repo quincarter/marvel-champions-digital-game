@@ -31,6 +31,7 @@ import {
   self,
   stun,
   thwartAScheme,
+  varOf,
   when,
   YOUR_HERO,
   you,
@@ -82,16 +83,11 @@ export const HLK_PACK_CARDS = defineAbilities({
   // Beat Cop — Action: Exhaust Beat Cop → move 1 threat from a scheme to here. `moveThreat` (local): landed
   // `EffectSpec.moveThreat`, documented against this exact card, no `dsl/effects.ts` wrapper yet.
   "10029.beat-cop-action": heroAction({ cost: exhaustThis }, chooseTarget("scheme", query("scheme")), moveThreat(chosen("scheme"), self, 1)),
-  // Beat Cop — Action: Exhaust and discard Beat Cop → deal 1 damage to a minion for each threat here.
-  // SKIPPED — missing primitive (docs/phase7-wave1-scripting.md §4): `AbilityCost.discardSelf` snapshots the
-  // card's own *counters* into vars `self.counters.<type>` before discarding it (`packages/engine/src/actions.ts`
-  // lines ~501–505, `AbilityCost.discardSelf`'s own doc comment), so "for each counter here" still reads them
-  // after the discard — but it does *not* snapshot the card's *threat* (or damage). `leavePlay`
-  // (`packages/engine/src/effects.ts`) clears an instance's threat to 0 when it leaves play, so by the time this
-  // ability's effects would read "threat here", the cost has already discarded Beat Cop and its threat is gone.
-  // Closest existing primitive: the same counter-snapshot mechanism, generalized to also snapshot
-  // `self.threat`/`self.damage` (or a general "snapshot this card's in-play state" on `discardSelf`) before
-  // `discardFromPlay` runs. Flagged for `game-rules-architect`.
+  // Beat Cop — Action: Exhaust and discard Beat Cop → deal 1 damage to a minion for each threat here. Was a skip
+  // until the 2026-09-15 fix: `AbilityCost.discardSelf` now snapshots `self.threat`/`self.damage` the same way it
+  // already snapshotted `self.counters.<type>`, before `leavePlay` clears them (`packages/engine/src/actions.ts`),
+  // so "for each threat here" still reads correctly after the discard.
+  "10029.beat-cop-action-2": heroAction({ cost: [exhaustThis, discardThis] }, chooseTarget("minion", query("minion")), dealDamage(varOf("self.threat"), chosen("minion"))),
 
   // Inspiring Presence — Play only if your identity has the Avenger trait (data). Hero Action: Heal 1 damage from
   // an ally and ready it.

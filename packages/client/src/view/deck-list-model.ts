@@ -43,7 +43,7 @@ const unscriptedMessage = (unscripted: readonly CardId[], pool: CardPool): strin
   if (unscripted.length === 0) return null;
   const names = unscripted.map((id) => cardName(pool, id) ?? id).slice(0, 3);
   const suffix = unscripted.length > names.length ? `, and ${unscripted.length - names.length} more` : "";
-  return `Not playable yet: ${names.join(", ")}${suffix} ${unscripted.length === 1 ? "has" : "have"} no card script in this build.`;
+  return `Playable, but ${names.join(", ")}${suffix} ${unscripted.length === 1 ? "does" : "do"} nothing yet.`;
 };
 
 /** Every precon deck, freshly derived from `POOL_STARTER_DECKS` (Core's six plus wave 1's six) — never stored, since a precon is data, not something a player edits. */

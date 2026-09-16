@@ -164,14 +164,33 @@ export function playRestrictionFault(state: GameState, deps: EngineDeps, playerI
   return null;
 }
 
-/** The signed change to a card's cost from every `CostModifierSpec` that applies to playing it now (see there). */
-export function playCostModifier(state: GameState, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId, attachTo: InstanceId | null): number {
-  let delta = 0;
-  const apply = (modifier: CostModifierSpec, context: EffectContext): void => {
+/**
+ * One card's text changing what another card costs, kept separate from the total so a client can *name* the card
+ * doing it. A price that silently differs from the one printed on the card is a price the player cannot check:
+ * "Mockingbird costs 2" is only trustworthy next to "because Steve Rogers is out".
+ */
+export interface PlayCostContribution {
+  /** The card whose text moves the price: an in-play source, or the priced card itself for a hand-active constant. */
+  readonly sourceInstanceId: InstanceId;
+  /** Signed, and never 0 — a modifier that works out to nothing is not a contribution. */
+  readonly delta: number;
+}
+
+/** Every `CostModifierSpec` that applies to playing this card now, one entry per source (see `CostModifierSpec`). */
+export function playCostContributions(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  attachTo: InstanceId | null,
+): readonly PlayCostContribution[] {
+  const contributions: PlayCostContribution[] = [];
+  const apply = (modifier: CostModifierSpec, sourceInstanceId: InstanceId, context: EffectContext): void => {
     if (!matchesQuery(state, cardInstanceId, modifier.appliesTo, context)) return;
     if (modifier.host && !(attachTo !== null && matchesQuery(state, attachTo, modifier.host, context))) return;
     if (modifier.while && !evaluate(state, modifier.while, context)) return;
-    delta += typeof modifier.delta === "number" ? modifier.delta : resolveValue(state, modifier.delta, context, deps);
+    const delta = typeof modifier.delta === "number" ? modifier.delta : resolveValue(state, modifier.delta, context, deps);
+    if (delta !== 0) contributions.push({ sourceInstanceId, delta });
   };
   for (const sourceId of cardsInPlay(state)) {
     // A card nobody controls in a player's area (an obligation) speaks for that player.
@@ -180,16 +199,23 @@ export function playCostModifier(state: GameState, deps: EngineDeps, playerId: P
       const trigger = deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "constant") continue;
       for (const modifier of trigger.costModifiers ?? []) {
-        if (modifier.activeIn !== "hand") apply(modifier, { selfInstanceId: sourceId, controllerId, event: null, bindings: {}, deps });
+        if (modifier.activeIn !== "hand") apply(modifier, sourceId, { selfInstanceId: sourceId, controllerId, event: null, bindings: {}, deps });
       }
     }
   }
   for (const trigger of printedConstants(state, deps, cardInstanceId)) {
     for (const modifier of trigger.costModifiers ?? []) {
-      if (modifier.activeIn === "hand") apply(modifier, { selfInstanceId: cardInstanceId, controllerId: playerId, event: null, bindings: {}, deps });
+      if (modifier.activeIn === "hand") {
+        apply(modifier, cardInstanceId, { selfInstanceId: cardInstanceId, controllerId: playerId, event: null, bindings: {}, deps });
+      }
     }
   }
-  return delta;
+  return contributions;
+}
+
+/** The signed change to a card's cost from every `CostModifierSpec` that applies to playing it now (see there). */
+export function playCostModifier(state: GameState, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId, attachTo: InstanceId | null): number {
+  return playCostContributions(state, deps, playerId, cardInstanceId, attachTo).reduce((total, entry) => total + entry.delta, 0);
 }
 
 /** The additional cost on this character's own basic power, if it has one (`basicPowerCosts`). */
@@ -742,6 +768,43 @@ export function playRequirement(
   const printed = "cost" in card ? card.cost : 0;
   const modified = Math.max(0, printed + playCostModifier(state, deps, playerId, cardInstanceId, attachTo));
   return combineRequirements(Math.max(0, modified - costReductionFor(state, deps, playerId, cardInstanceId)), abilityRequirement);
+}
+
+/**
+ * What a card in hand costs *right now*, beside what is printed on it, and which cards moved the price.
+ *
+ * `playRequirement` already computes this, but folds it into a `ResourceRequirement` alongside the card's own
+ * ability cost ("Spend 1 [energy] →"), which is a different question from "does this card cost what it says".
+ * A client showing a card face has to answer that second question on its own: the scan prints 3, the engine
+ * charges 2, and nothing on the table explains the gap unless the price carries its reasons with it.
+ *
+ * Read-only. `contributions` lists constant `costModifier`s by source card; `reduction` is the "reduce the cost
+ * of the next card you play" total waiting on this card (`costReductionFor`), which carries no source card of
+ * its own. Both are already applied to `current`.
+ */
+export interface PlayCost {
+  readonly printed: number;
+  /** Never below 0, and floored the same way `playRequirement` floors it: after modifiers, then after reductions. */
+  readonly current: number;
+  readonly contributions: readonly PlayCostContribution[];
+  /** The pending "next card" reduction this card consumes, as a positive number. */
+  readonly reduction: number;
+}
+
+/** Prices playing `cardInstanceId` as it stands. Null for a card with no printed cost (a resource card). */
+export function playCostOf(
+  state: GameState,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  deps: EngineDeps = DEFAULT_DEPS,
+  attachTo: InstanceId | null = null,
+): PlayCost | null {
+  const card = cardOf(state, cardInstanceId);
+  if (!card || !("cost" in card) || typeof card.cost !== "number") return null;
+  const contributions = playCostContributions(state, deps, playerId, cardInstanceId, attachTo);
+  const modified = Math.max(0, card.cost + contributions.reduce((total, entry) => total + entry.delta, 0));
+  const reduction = costReductionFor(state, deps, playerId, cardInstanceId);
+  return { printed: card.cost, current: Math.max(0, modified - reduction), contributions, reduction };
 }
 
 export interface PricedPlay {

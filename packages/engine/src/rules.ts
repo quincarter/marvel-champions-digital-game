@@ -1,7 +1,7 @@
 import type { EngineDeps, RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { getInstance, villainOf } from "./query.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, resolvePlayers, type EffectContext } from "./select.js";
+import { activeAbilityRefs, cardsInPlay, categoriesOf, controllerOf, evaluate, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
 import type { PlayerRef } from "./spec.js";
 import type { GameState } from "./state.js";
 
@@ -121,6 +121,27 @@ export function schemeThreatDestination(state: GameState, deps: EngineDeps, enem
   if (!redirected) return null;
   const scheme = villainOf(state, enemyId)?.signatureSideSchemeId ?? null;
   return scheme !== null && cardsInPlay(state).includes(scheme) ? scheme : null;
+}
+
+/**
+ * The schemes that receive excess damage dealt by `sourceId` as threat (`excessDamageAsThreat`), in play, each once:
+ * two rules naming the same scheme still place the same excess damage there only once, since it is one amount of
+ * damage being converted, not one per rule.
+ */
+export function excessDamageThreatSchemes(state: GameState, deps: EngineDeps, sourceId: InstanceId | null): readonly InstanceId[] {
+  if (sourceId === null) return [];
+  const inPlay = cardsInPlay(state);
+  const schemes: InstanceId[] = [];
+  for (const { rule, context } of activeRules(state, deps, "excessDamageAsThreat")) {
+    if (!matchesQuery(state, sourceId, rule.source, context)) continue;
+    const named =
+      rule.scheme === "ownSignatureSideScheme" ? [villainOf(state, sourceId)?.signatureSideSchemeId ?? null] : resolveRef(state, rule.scheme, context);
+    for (const id of named) {
+      if (id === null || schemes.includes(id) || !inPlay.includes(id)) continue;
+      if (categoriesOf(state, id).includes("scheme")) schemes.push(id);
+    }
+  }
+  return schemes;
 }
 
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */

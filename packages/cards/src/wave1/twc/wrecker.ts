@@ -10,10 +10,12 @@ import {
   dealDamage,
   defineAbilities,
   discard,
+  discardRandomFromHandCost,
   each,
   enemyAttack,
   enemyScheme,
   encounterCards,
+  exhaustYourHero,
   exists,
   FRIENDLY_CHARACTER,
   forcedResponse,
@@ -95,8 +97,10 @@ export const WRECKER_SET = defineAbilities({
   // Magic Crowbar — Attach to Wrecker. [star] Forced Response: After Wrecker attacks, place 1 threat on the side
   // scheme with the least threat.
   "07006.magic-crowbar-forced-response": forcedResponse(after.enemyAttacks("host"), placeThreat(1, leastThreatSideScheme)),
-  // Hero Action: Exhaust your hero and discard 1 card at random from your hand → discard this card. KNOWN_SKIPPED:
-  // `AbilityCost.discardFromHand` only supports a player-chosen discard (`min`/`max`/`bind`), no random option.
+  // Hero Action: Exhaust your hero and discard 1 card at random from your hand → discard this card.
+  // `discardRandomFromHandCost` (`dsl/abilities.ts`) picks with the game's own seeded RNG, landed for exactly this
+  // card (docs/phase7-wave1-scripting.md §6).
+  "07006.magic-crowbar-action": heroAction({ cost: [exhaustYourHero, discardRandomFromHandCost(1)] }, discard(self)),
 
   // Wrecker's Command — Attach to Wrecker. [star] Forced Response: After Wrecker schemes, place 1 threat on each
   // other villain's side scheme. "Other" = every signature side scheme except the one bound to Wrecker himself

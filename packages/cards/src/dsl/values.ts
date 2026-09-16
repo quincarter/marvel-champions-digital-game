@@ -46,6 +46,11 @@ export const self: TargetRef = { kind: "self" };
 /** "Attached minion/enemy/ally". */
 export const host: TargetRef = { kind: "host" };
 export const theVillain: TargetRef = { kind: "villain" };
+/**
+ * "The defending character" of the enemy attack in progress (Energy Projectiles' boost, 07027), while it is in play.
+ * Empty for an undefended attack or outside an enemy attack. Works in a Boost ability, which has no triggering event.
+ */
+export const defendingCharacter: TargetRef = { kind: "defendingCharacter" };
 export const theMainScheme: TargetRef = { kind: "mainScheme" };
 /** A player's identity, in whichever form it is ("you take 2 damage", "your hero", "Peter Parker"). */
 export const identityOf = (player: PlayerRef = you): TargetRef => ({ kind: "identityOf", player });
@@ -184,6 +189,19 @@ export const youHaveTrait = (t: Trait): Predicate => hasTrait(yourIdentity, t);
 /** The ref names a card that is in play and matches the query. */
 export const refMatches = (ref: TargetRef, q: TargetQuery): Predicate => ({ kind: "refMatches", ref, query: q });
 export const damagedAtLeast = (of: TargetRef, n: number): Predicate => ({ kind: "damagedAtLeast", of, amount: n });
+/**
+ * A numeric comparison between two live values — the general form behind "if there is 10 or more threat here"
+ * (Day of Reckoning, Thunderstruck, Pile It On!, Clear the Road): `valueAtLeast(threatOn(self), 10)`. Either side may
+ * be any `ValueSpec`, so the threshold can itself be read from the board. Use it for anything the older
+ * `damagedAtLeast`/`counterAtLeast`/`varAtLeast` spellings don't already cover.
+ */
+export const valueAtLeast = (value: Amount, threshold: Amount): Predicate => ({ kind: "compare", left: amount(value), op: "atLeast", right: amount(threshold) });
+/** "If there is no threat here" / "if you have 2 or fewer cards in hand": the upper-bound half of `valueAtLeast`. */
+export const valueAtMost = (value: Amount, threshold: Amount): Predicate => ({ kind: "compare", left: amount(value), op: "atMost", right: amount(threshold) });
+/** "If X is exactly N". */
+export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({ kind: "compare", left: amount(value), op: "equalTo", right: amount(threshold) });
+/** "If there is N or more threat on <scheme>" — the spelling the Wrecking Crew signature side schemes print. */
+export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLeast(threatOn(of), n);
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
 export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResultAtLeast", key, amount: n });
 /** "If the villain is making an undefended attack". */

@@ -20,8 +20,11 @@ import {
   gets,
   handCountOf,
   heroAction,
+  heroInterrupt,
   ifElse,
   ifThen,
+  modifyAttack,
+  modifyStat,
   moveCards,
   oncePerRound,
   query,
@@ -30,6 +33,7 @@ import {
   self,
   statOf,
   thwartAScheme,
+  when,
   you,
   yourIdentity,
   YOUR_IDENTITY,
@@ -70,11 +74,16 @@ export const HLK_KIT = defineAbilities({
   // Crushing Blow — Hero Action (attack): Deal damage to an enemy equal to your ATK.
   "10002.crushing-blow-action": heroAction({ label: "attack" }, attackAnEnemy(statOf(yourIdentity, "atk"))),
 
-  // Hulk Smash (10003) — SKIPPED, missing primitive (docs/phase7-wave1-scripting.md §4). See the docblock note
-  // below this object for the full write-up; the +10 ATK half works (`modifyStat(...,"endOfAttack")` reads
-  // correctly), but `modifyAttack({ overkill: true })` silently does nothing for a *player's* attack, so scripting
-  // only the ATK half would be a subtly wrong implementation (CLAUDE.md: "a subtly wrong implementation is worse
-  // than an unimplemented one").
+  // Hulk Smash — Hero Interrupt: When you make a basic attack, you get +10 ATK for that attack. If you paid for
+  // this card using only [physical] resources, that attack gains overkill. Was a skip until the 2026-09-15 fix to
+  // `applyPlayerAttack` (`packages/engine/src/resolve/event.ts`) reading a granted overkill's frame var back for a
+  // player's own attack the same way `enemy-activation.ts` already did for an enemy's — see the doc comment on
+  // `HLK_KIT_SKIPPED` below (kept for the full citation) for the traced root cause.
+  "10003.hulk-smash-interrupt": heroInterrupt(
+    when.attacks(YOUR_IDENTITY, { basic: true }),
+    modifyStat("atk", 10, yourIdentity, "endOfAttack"),
+    ifThen(paidOnly("physical"), modifyAttack({ overkill: true })),
+  ),
 
   // Sub-Orbital Leap — Hero Action (thwart): Remove 3 threat from a scheme (5 threat instead if you paid for this
   // card using only [physical] resources).
@@ -108,33 +117,11 @@ export const HLK_KIT = defineAbilities({
 });
 
 /**
- * SKIPPED — missing primitive (docs/phase7-wave1-scripting.md §4): Hulk Smash (10003), current text unchanged from
- * printed: "Hero Interrupt: When you make a basic attack, you get +10 ATK for that attack. If you paid for this
- * card using only [physical] resources, that attack gains overkill."
- *
- * Scripted as `heroInterrupt(when.attacks(YOUR_IDENTITY, { basic: true }), modifyStat("atk", 10, yourIdentity,
- * "endOfAttack"), ifThen(paidOnly("physical"), modifyAttack({ overkill: true })))` and proven against a real Rhino
- * game (a basic attack on an engaged Hydra Mercenary, HP 3): the `dealDamage` event fired with `amount: 13`
- * (3 printed ATK + 10, confirmed by a raw event-log capture) — the ATK boost is correct. But the resulting `attack`
- * event's own `dealDamage` never carries `overkill: true` (checked the same way, by event log), so the 10 excess
- * damage never spills to the villain (RRG "Overkill") even though the payment was all-[physical].
- *
- * Root cause, traced to `@mc/engine`: `modifyAttack({ overkill: true })` records the grant as a frame var
- * (`addFrameVars(ctx, activation, { overkill: 1 })`, `packages/engine/src/resolve/apply-effect.ts`'s "modifyAttack"
- * case) on the current attack's own event frame. For an *enemy* attack, `packages/engine/src/resolve/
- * enemy-activation.ts` reads that var back out when it builds the `dealDamage` event (`overkill: (vars.overkill ??
- * 0) > 0`, line ~282) — this is why Rhino's own Charge (`packages/cards/src/core/scenarios/rhino.ts`,
- * `modifyAttack({ overkill: true })` on a villain attack) works. But for a *player's* attack (kind `"attack"`,
- * basic or a `(attack)`-labeled ability), `applyPlayerAttack` (`packages/engine/src/resolve/event.ts`) builds its
- * `dealDamage` event from `overkill: event.overkill === true` — the *original* `attack` trigger event's own fixed
- * field (set only when the event is first pushed, e.g. by `basicAttack` in `actions.ts`, which never sets it) —
- * never from the frame vars an interrupt accumulated. The two code paths diverged: only the enemy-attack one was
- * ever wired to read a granted overkill back.
- *
- * Proposed shape: `applyPlayerAttack` needs the same read `enemy-activation.ts` already does — resolve the current
- * attack's frame vars (via `frame.frameId`/`frameId` already in scope there) and OR that into `event.overkill ===
- * true` when constructing the `dealDamage` event, e.g. `overkill: event.overkill === true || (frameVars.overkill ??
- * 0) > 0`. This is a general gap (any card granting overkill to a *player's* attack via an interrupt/response would
- * hit it), not specific to this card. Flagged for `game-rules-architect`.
+ * Hulk Smash (10003) was a skip until the 2026-09-15 engine fix: `applyPlayerAttack`
+ * (`packages/engine/src/resolve/event.ts`) now ORs a granted `modifyAttack({ overkill: true })` frame var into
+ * `event.overkill === true` when it builds the attack's `dealDamage` event, the same read
+ * `packages/engine/src/resolve/enemy-activation.ts` already did for an *enemy's* attack (Rhino's Charge). Proven
+ * against a real Rhino game (a basic attack on an engaged Hydra Mercenary, HP 3): the `dealDamage` event fires with
+ * `amount: 13` (3 printed ATK + 10) and `overkill: true` when paid all-[physical], so the 10 excess damage spills to
+ * the villain (RRG "Overkill").
  */
-export const HLK_KIT_SKIPPED = ["10003.hulk-smash-interrupt"] as const;

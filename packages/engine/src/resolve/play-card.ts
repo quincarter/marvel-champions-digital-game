@@ -7,9 +7,9 @@ import { getInstance, mustCardOf, mustPlayer, scale } from "../query.js";
 import { printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { expireCardResolutionEffects } from "../effects.js";
+import { endUntilCardPlayedEffects, expireCardResolutionEffects } from "../effects.js";
 import { enterPlay } from "./enter-play.js";
-import { abilityFrame, announce, base, type Frame, pushEvent } from "./frames.js";
+import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
 import { heard } from "./triggers.js";
 
 export function pushPlayCardFrame(
@@ -37,6 +37,7 @@ export function pushPlayCardFrame(
       triggeredAbilityId: triggered?.triggeredAbilityId ?? null,
       event: triggered?.event ?? null,
       eventFrameId: triggered?.eventFrameId ?? null,
+      effectsCancelled: false,
       bindings: cost?.bindings ?? {},
       vars: cost?.vars ?? {},
     },
@@ -77,16 +78,24 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       return;
     }
     case "effects": {
-      setFrame(ctx, { ...frame, stage: "discardEvent" });
       // "When you play an [Attack] event" (Embiggen!, Shrink): an interrupt window before the card's own abilities
-      // resolve, so a modifier can apply to every instance of damage the event deals (RRG 1.8 "Event", p. 19).
-      // Pushed after the ability frames so it resolves before them, and only when an ability could react to it.
+      // resolve, so a modifier can apply to every instance of damage the event deals (RRG 1.8 "Event", p. 19). It
+      // is also where a cancel lands ("When you play an event, cancel its effects and discard it", Counterspell),
+      // so the card's own ability frames are pushed in the *next* stage, after this window has resolved — pushing
+      // them first would queue them past anything the interrupt could do (RRG 1.8 "Cancel", p. 13: "Only the
+      // effects are prevented from initiating, and do not resolve").
+      setFrame(ctx, { ...frame, stage: card.type === "event" ? "abilities" : "discardEvent" });
       const beingPlayed: TriggerEvent = { kind: "cardBeingPlayed", instanceId: frame.instanceId, playerId: frame.playerId };
-      const openWindow = (): void => {
-        if (heard(ctx.state, ctx.deps, beingPlayed)) pushEvent(ctx, beingPlayed);
-      };
+      if (heard(ctx.state, ctx.deps, beingPlayed)) pushEvent(ctx, beingPlayed);
+      return;
+    }
+    case "abilities": {
+      setFrame(ctx, { ...frame, stage: "discardEvent" });
+      // RRG 1.8 "Cancel" (p. 13): "If the effects of an event card are canceled, the card is still considered
+      // played, and it is discarded." So only the ability frames are skipped — `discardEvent` still runs and still
+      // announces `cardPlayed`, and the cost paid in `commitPlay` stands.
+      if (frame.effectsCancelled) return;
       // RRG "Event": an event's effects resolve while it is out of play, then it is discarded.
-      if (card.type !== "event") return openWindow();
       const frames: StackFrame[] = [];
       for (const ref of printedAbilityRefs(card)) {
         const definition = ctx.deps.abilities[ref.id];
@@ -116,7 +125,6 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
         );
       }
       pushFrames(ctx, frames);
-      openWindow();
       return;
     }
     case "discardEvent": {
@@ -127,10 +135,15 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       announce(ctx, { kind: "cardPlayed", instanceId: frame.instanceId, playerId: frame.playerId });
       return;
     }
-    case "done":
+    case "done": {
       // "That event" bonuses (Embiggen!, Shrink) last exactly as long as this card's play.
       expireCardResolutionEffects(ctx, frame.instanceId);
+      // "…after you play an event": a lasting effect whose timing point is this player's next matching play reaches
+      // it now, once the card has finished resolving (and after its own `cardPlayed` responses, announced above).
+      const delayed = endUntilCardPlayedEffects(ctx, ctx.deps, frame.playerId, frame.instanceId);
       popFrame(ctx);
+      for (const effect of [...delayed].reverse()) pushEffects(ctx, { effects: effect.effects, ...effect.scope });
       return;
+    }
   }
 }

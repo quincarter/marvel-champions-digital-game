@@ -9,11 +9,13 @@ import {
   dealDamage,
   defineAbilities,
   discard,
+  discardRandomFromHandCost,
   each,
   enemyAttack,
   enemyScheme,
   encounterCards,
   eventResult,
+  exhaustYourHero,
   exists,
   forcedInterrupt,
   forcedResponse,
@@ -91,8 +93,9 @@ export const BULLDOZER_SET = defineAbilities({
     after.enemyAttacks("host", { againstYou: true, damages: true }),
     moveCards(topOfDeck(eventResult("damage"), you), "discard"),
   ),
-  // Hero Action: Exhaust your hero and discard 1 card at random from your hand → discard this card. KNOWN_SKIPPED:
-  // same missing random-discard-from-hand cost as Magic Crowbar (`wrecker.ts`).
+  // Hero Action: Exhaust your hero and discard 1 card at random from your hand → discard this card. Same
+  // `discardRandomFromHandCost` shape as Magic Crowbar (`wrecker.ts`).
+  "07049.bulldozers-helmet-action": heroAction({ cost: [exhaustYourHero, discardRandomFromHandCost(1)] }, discard(self)),
 
   // Held Hostage — same text as Wrecker's copy (07005).
   "07050.held-hostage-constant": constant(rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" })),

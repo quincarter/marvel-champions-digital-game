@@ -402,6 +402,8 @@ function drawHandCard(ctx: BoardDrawContext, slot: Rect, card: HandCardView, pay
       .setPadding(4, 2, 4, 2)
       .setBackgroundColor(cssOf(tag.ground));
   }
+  drawPriceChip(scene, inner, card, alpha);
+
   if (spent) {
     // A spent card is on its way to the discard pile. Enough of a wash to
     // read as "gone", not so much that the hand looks broken.
@@ -410,6 +412,33 @@ function drawHandCard(ctx: BoardDrawContext, slot: Rect, card: HandCardView, pay
   }
 
   ctx.makeTapTarget(slot, card.instanceId, () => ctx.controller.tapHandCard(card.instanceId), (deltaX) => ctx.hand.scrollBy(-deltaX));
+}
+
+/**
+ * "3→2" over the card's own cost pip, when the table is charging something other than the printed price.
+ *
+ * The pip in the top-left corner is the first thing a player reads off a card, and while Steve Rogers is in
+ * alter-ego it is simply wrong — Living Legend takes 1 off the first ally played each round, so a Mockingbird
+ * that prints 3 costs 2 and the payment bar counts to 2 with no explanation anywhere on the table. The chip
+ * sits exactly where the wrong number is, covering it: the printed cost stays visible on the left of the arrow
+ * so the change is legible as a change rather than as a different card.
+ *
+ * Green means cheaper and red means dearer, but neither is load-bearing — both numbers and the arrow are text
+ * (PLAN.md Phase 4 accessibility, "never colour alone"). `costSources` names the card responsible; the chip has
+ * no room for it, so Inspect and the payment bar carry the name.
+ */
+function drawPriceChip(scene: Phaser.Scene, inner: Rect, card: HandCardView, alpha: number): void {
+  const { cost, currentCost } = card;
+  if (cost === null || currentCost === null || currentCost === cost) return;
+
+  const chip: Rect = { x: inner.x, y: inner.y, width: Math.min(40, inner.width - 4), height: 18 };
+  const ground = currentCost < cost ? signal.heal.hex : accent.heroRed.hex;
+  const g = scene.add.graphics();
+  g.fillStyle(ground, alpha).fillRect(chip.x, chip.y, chip.width, chip.height);
+  const text = scene.add
+    .text(chip.x + chip.width / 2, chip.y + chip.height / 2, `${cost}→${currentCost}`, textStyle(typeRole.statSmall, surface.paper.hex, alpha))
+    .setOrigin(0.5);
+  fitText(text, chip.width - 4, typeRole.statSmall.size);
 }
 
 /**

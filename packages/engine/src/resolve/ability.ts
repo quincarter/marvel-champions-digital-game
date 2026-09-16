@@ -6,6 +6,7 @@ import { type Ctx, emit, popFrame, setFrame, updateInstance } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import { mustPlayer } from "../query.js";
+import { DEFENDER_SLOT } from "../select.js";
 import { currentActivationFrameId } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -87,6 +88,7 @@ function declareLabeledDefense(ctx: Ctx, playerId: PlayerId): void {
     ...frame,
     event: { ...frame.event, targetInstanceId: identity, targetPlayerId: playerId },
     vars: { ...frame.vars, labeledDefense: 1 },
+    slots: { ...frame.slots, [DEFENDER_SLOT]: [identity] },
   });
   announce(ctx, { kind: "defended", defenderInstanceId: identity, enemyInstanceId, playerId, basic: false });
 }

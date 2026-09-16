@@ -5,7 +5,7 @@ import { THOR_ABILITIES } from "./index.js";
 /**
  * Local coverage check for the Thor (`thor`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5): every
  * `thor` card with ability text resolves, either via `THOR_ABILITIES` or via `../reprints.ts`'s automatic Core
- * reprint aliasing, except the two documented skips (`index.ts`'s docblock, and the comments beside each in
+ * reprint aliasing, except the one documented skip (`index.ts`'s docblock, and the comment beside it in
  * `pack-cards.ts`). The main session's `wave1/coverage.test.ts` does the same check across every pack once this
  * one is registered in `WAVE1_ABILITIES` — this file is the pack-local version a pack agent owns in the meantime.
  */
@@ -32,9 +32,9 @@ const reprintIds = new Set<string>();
   }
 }
 
-/** Recorded gaps (see `pack-cards.ts`'s comments beside each): a missing `TargetQuery` primitive (Mean Swing), and
- * a Response not seeing its own card's payment vars (Valkyrie). Neither is approximated — see `index.ts`. */
-const KNOWN_SKIPPED = new Set(["06015.mean-swing-interrupt", "06012.valkyrie-response"]);
+/** Recorded gap (see `pack-cards.ts`'s comment beside it): a missing `TargetQuery` host filter (Mean Swing). Not
+ * approximated — see `index.ts`. Valkyrie (06012) was a skip here too until the 2026-09-15 `paid.*` frame fix. */
+const KNOWN_SKIPPED = new Set(["06015.mean-swing-interrupt"]);
 
 describe("Thor (thor) pack ability coverage", () => {
   const allRefs = THOR_CARDS.flatMap(abilityRefIds);

@@ -69,3 +69,36 @@ export function forceMinionIntoPlay(state: GameState, id: InstanceId, player: Pl
     instances: { ...state.instances, [id]: { ...state.instances[id]!, engagedWith: player } },
   };
 }
+
+/** The instance of `code` wherever it currently sits (any encounter deck, `setAside`, in play, …) — Breakout runs
+ * one encounter deck per villain (docs/phase7-wave1.md §3.1), so a plain `stackEncounterDeck` only ever reaches the
+ * "active" one. */
+export function findInstance(state: GameState, code: string): InstanceId {
+  const found = Object.values(state.instances).find((i) => i.cardId === cardId(code));
+  if (!found) throw new Error(`no ${code} instance anywhere in this game`);
+  return found.instanceId;
+}
+
+/**
+ * Test-only state surgery: attaches a villain-attachment encounter card (Magic Crowbar/Ball and Chain/Bulldozer's
+ * Helmet, "Attach to <villain>") directly to that villain, without going through a real reveal — Breakout's own
+ * per-villain encounter decks (above) make stacking a specific villain's own deck and then revealing it, several
+ * villains deep into a shared turn structure, disproportionate for exercising an attachment's own ability in
+ * isolation, matching this file's `forceMinionIntoPlay`.
+ */
+export function forceAttachToVillain(state: GameState, id: InstanceId, villainInstanceId: InstanceId): GameState {
+  const host = state.instances[villainInstanceId];
+  if (!host) throw new Error(`no villain instance ${villainInstanceId}`);
+  const encounterDecks = Object.fromEntries(
+    Object.entries(state.encounterDecks).map(([deckId, piles]) => [deckId, { deck: piles.deck.filter((x) => x !== id), discard: piles.discard.filter((x) => x !== id) }]),
+  );
+  return {
+    ...state,
+    encounterDecks,
+    instances: {
+      ...state.instances,
+      [villainInstanceId]: { ...host, attachments: [...host.attachments, id] },
+      [id]: { ...state.instances[id]!, attachedTo: villainInstanceId, faceup: true },
+    },
+  };
+}

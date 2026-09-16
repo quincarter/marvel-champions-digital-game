@@ -7,7 +7,7 @@ import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerI
 import { boostIconsFor } from "../modifiers.js";
 import { cardOf, characterProfile, discardZoneFor, getInstance, locateCard, mustCardOf, mustInstance, mustPlayer, playerOrder } from "../query.js";
 import { mustDefendWithAlly, schemeThreatDestination } from "../rules.js";
-import { cardsInPlay, controllerOf } from "../select.js";
+import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "../select.js";
 import type { Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
@@ -36,13 +36,31 @@ const getsBoostCard = (state: GameState, enemyId: InstanceId): boolean => {
 export const dashedStatSkipsActivation = (state: GameState, deps: EngineDeps, enemyId: InstanceId, activation: "attack" | "scheme"): boolean =>
   characterProfile(state, enemyId, deps)?.missing.includes(activation === "attack" ? "atk" : "sch") ?? false;
 
-export function giveBoostCard(ctx: Ctx, enemyId: InstanceId): void {
-  if (!getsBoostCard(ctx.state, enemyId)) return;
+/**
+ * Puts one facedown boost card from the active encounter deck on `enemyId`, whoever it is.
+ *
+ * `outsideActivation` marks a card ability's doing ("give the villain 1 facedown boost card", Hired Gun/Intimidation,
+ * `gob` pack) rather than the activation procedure's. RRG 1.8 "Boost, Boost Icon" (p. 11): "If an enemy is dealt a
+ * boost card outside of its own activation, that boost card remains facedown on that enemy until that enemy
+ * activates", and "If that enemy is a villain or a minion with the villainous keyword, it still gets dealt another
+ * boost card at the start of its activation as normal" — so nothing else is needed: the card simply waits in
+ * `boostCards`, ahead of the automatic one, and `stepBoostCard` flips them in the order dealt.
+ *
+ * A card ability naming an enemy is the authority on who gets one (RRG 1.8 "The Golden Rules", p. 4), so this is
+ * deliberately *not* gated on `getsBoostCard`, which is about the automatic boost card only.
+ */
+export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation = false): void {
   const id = drawEncounterCard(ctx);
   if (!id) return;
   updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
   moveCard(ctx, id, { kind: "boost", hostInstanceId: enemyId });
-  emit(ctx, { type: "boostCardDealt", enemyInstanceId: enemyId, instanceId: id });
+  emit(ctx, { type: "boostCardDealt", enemyInstanceId: enemyId, instanceId: id, ...(outsideActivation ? { outsideActivation: true } : {}) });
+}
+
+/** The activation procedure's own boost card: only a villain or a villainous minion is dealt one (p. 11). */
+export function giveBoostCard(ctx: Ctx, enemyId: InstanceId): void {
+  if (!getsBoostCard(ctx.state, enemyId)) return;
+  dealBoostCard(ctx, enemyId);
 }
 
 /**
@@ -106,6 +124,7 @@ export function setDefender(ctx: Ctx, frame: Frame<"enemyAttack">, defenderId: I
         ? { ...f, event: { ...f.event, targetInstanceId: defenderId, targetPlayerId: defenderPlayer } }
         : f,
     );
+    addFrameSlots(ctx, frame.eventFrameId, { [DEFENDER_SLOT]: [defenderId] });
   }
   announce(ctx, { kind: "defended", defenderInstanceId: defenderId, enemyInstanceId: frame.enemyInstanceId, playerId: defenderPlayer, basic });
 }
@@ -160,6 +179,32 @@ function endedByLeavingPlay(ctx: Ctx, frame: Frame<"enemyAttack"> | Frame<"enemy
   emit(ctx, { type: "activationSkipped", enemyInstanceId: frame.enemyInstanceId, activation, reason: "leftPlay" });
   setFrame(ctx, { ...frame, stage: "done", boost: null });
   return true;
+}
+
+/**
+ * RRG 1.8 "Attack (Enemy Activation)" step 5 (p. 9): "If the defending ally leaves play prior to damage from the
+ * attack being dealt, the attack is considered to have no character defending and the identity of that ally's
+ * controller becomes the target of the attack." "Defend, Defense" (p. 16): "if a defending ally is defeated before
+ * damage from the attack is dealt (such as through a 'Boost' ability), the attack is considered undefended."
+ *
+ * The defender's player is already the target player (`setDefender`), so the new target is that player's identity.
+ * The `defender` slot on the event keeps its record of the defense, since the character did defend (p. 16: abilities
+ * that trigger after a character defends still resolve); `defendingCharacter` filters it out as no longer in play.
+ */
+function defenderLeftPlay(ctx: Ctx, frame: Frame<"enemyAttack">): Frame<"enemyAttack"> {
+  const defender = frame.defenderInstanceId;
+  if (defender === null || cardsInPlay(ctx.state).includes(defender)) return frame;
+  const identity = mustPlayer(ctx.state, frame.targetPlayerId).identity.instanceId;
+  emit(ctx, { type: "defenderLeftPlay", enemyInstanceId: frame.enemyInstanceId, defenderInstanceId: defender, targetInstanceId: identity });
+  const next: Frame<"enemyAttack"> = { ...frame, defenderInstanceId: null, basicDefense: false, targetInstanceId: identity };
+  setFrame(ctx, next);
+  if (frame.eventFrameId) {
+    updateFrame(ctx, frame.eventFrameId, (f) =>
+      f.kind === "event" && f.event.kind === "enemyAttack" ? { ...f, event: { ...f.event, targetInstanceId: identity } } : f,
+    );
+    addFrameVars(ctx, frame.eventFrameId, { undefended: 1 });
+  }
+  return next;
 }
 
 export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): void {
@@ -248,6 +293,7 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       return;
     }
     case "dealDamage": {
+      frame = defenderLeftPlay(ctx, frame);
       setFrame(ctx, { ...frame, stage: "done" });
       const enemyProfile = characterProfile(ctx.state, frame.enemyInstanceId, ctx.deps);
       if (!enemyProfile) return;

@@ -22,7 +22,10 @@ export interface DeckStatus {
  */
 export function deckStatusOf(option: DeckOption): DeckStatus {
   if (!option.legal) return { text: "Illegal", tone: "illegal" };
-  if (option.unscripted.length > 0) return { text: "Not playable yet", tone: "unscripted" };
+  // Every legal deck can be seated and played (`DeckOption.seatable` is `legal` alone). What an unscripted card
+  // costs the player is that one card's ability doing nothing — not the deck being unplayable, which is what this
+  // chip used to claim.
+  if (option.unscripted.length > 0) return { text: "Partly playable", tone: "unscripted" };
   if (option.poolChanged) return { text: "Pool changed", tone: "poolChanged" };
   return { text: "Legal", tone: "legal" };
 }

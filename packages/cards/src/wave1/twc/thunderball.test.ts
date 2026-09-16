@@ -1,7 +1,7 @@
 import { cannotLeavePlay, encounterDeckOf, notDefeatedWithoutThreat, schemeThreatDestination, villainOf, type GameState, type InstanceId } from "@mc/engine";
-import { P1, endTurn, identityOf, inst, patchInstance, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { P1, endTurn, identityOf, inst, patchInstance, playerOf, settle, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
-import { runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
+import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
 const spiderManVsBreakout = () => startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
 const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): GameState =>
@@ -39,6 +39,29 @@ describe("Thunderstruck (07019)", () => {
     const scheme = thunderstruckId(state);
     expect(cannotLeavePlay(state, TWC_DEPS, scheme)).toBe(true);
     expect(notDefeatedWithoutThreat(state, TWC_DEPS, scheme)).toBe(true);
+  });
+});
+
+describe("Ball and Chain (07020)", () => {
+  it("Hero Action: exhausts your hero and discards 1 random hand card, then discards itself", () => {
+    const start = spiderManVsBreakout();
+    // Same "attach directly, without a real reveal" surgery as `wrecker.test.ts`'s Magic Crowbar test — the RNG
+    // determinism of `discardRandomFromHandCost` itself is proven there (`startSession`/`sessionApply`/`replay`);
+    // this only needs to prove the shape here.
+    const thunderball = thunderballId(start);
+    const ballAndChain = findInstance(start, "07020");
+    const state = runTwc(forceAttachToVillain(start, ballAndChain, thunderball), toHero());
+    const identity = identityOf(state);
+    const handBefore = playerOf(state, P1).hand;
+    expect(handBefore.length).toBeGreaterThan(0);
+    const after = runTwc(state, use(P1, ballAndChain, "07020.ball-and-chain-action"));
+    const handAfter = playerOf(after, P1).hand;
+    const discarded = handBefore.filter((id) => !handAfter.includes(id));
+    expect(discarded).toHaveLength(1);
+    expect(playerOf(after, P1).discard).toContain(discarded[0]);
+    expect(inst(after, identity).exhausted).toBe(true);
+    expect(inst(after, thunderball).attachments).not.toContain(ballAndChain);
+    expect(Object.values(after.encounterDecks).some((piles) => piles.discard.includes(ballAndChain))).toBe(true);
   });
 });
 

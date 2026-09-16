@@ -1,7 +1,19 @@
-import { cannotLeavePlay, characterProfile, notDefeatedWithoutThreat, schemeThreatDestination, villainOf, type GameState } from "@mc/engine";
-import { P1, endTurn, identityOf, inst, patchInstance, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  cannotLeavePlay,
+  characterProfile,
+  notDefeatedWithoutThreat,
+  replay,
+  schemeThreatDestination,
+  sessionApply,
+  startSession,
+  villainOf,
+  type Command,
+  type GameSession,
+  type GameState,
+} from "@mc/engine";
+import { P1, endTurn, identityOf, inst, patchInstance, playerOf, settle, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
-import { runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
+import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
 const spiderManVsBreakout = () => startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
 const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): GameState =>
@@ -54,5 +66,44 @@ describe("Escaped Convict boost (07009)", () => {
     state = stackEncounterDeck(state, "07009");
     state = play(state, toHero(), endTurn());
     expect(state.round).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe("Magic Crowbar (07006)", () => {
+  it("Hero Action: exhausts your hero and discards 1 random hand card, then discards itself — and replays identically", () => {
+    const start = spiderManVsBreakout();
+    // Test-only surgery (matches `forceMinionIntoPlay`): attaches Magic Crowbar straight to Wrecker, since a real
+    // reveal would need Breakout's own per-villain encounter deck (docs/phase7-wave1.md §3.1) actually reaching the
+    // top of Wrecker's specifically — this test is about the Hero Action, not the reveal-time auto-attach.
+    const wrecker = wreckerId(start);
+    const crowbar = findInstance(start, "07006");
+    const state = runTwc(forceAttachToVillain(start, crowbar, wrecker), toHero());
+    const identity = identityOf(state);
+    const handBefore = playerOf(state, P1).hand;
+    expect(handBefore.length).toBeGreaterThan(0);
+
+    // `discardRandomFromHandCost` picks with the game's own seeded RNG (dsl/abilities.ts) — proven deterministic
+    // here via `startSession`/`sessionApply`/`replay`, the same session-log mechanism `engine/src/attacks.test.ts`
+    // uses for "ability attacks … replay to an identical state" (docs/phase7-wave1-scripting.md §6).
+    let session: GameSession = startSession(state);
+    const apply = (command: Command) => {
+      const result = sessionApply(session, command, TWC_DEPS);
+      if (!result.ok) throw new Error(result.error.message);
+      session = result.session;
+    };
+    apply(use(P1, crowbar, "07006.magic-crowbar-action"));
+
+    const handAfter = playerOf(session.state, P1).hand;
+    const discarded = handBefore.filter((id) => !handAfter.includes(id));
+    expect(discarded).toHaveLength(1); // exactly 1 card, chosen at random
+    expect(playerOf(session.state, P1).discard).toContain(discarded[0]);
+    expect(inst(session.state, identity).exhausted).toBe(true);
+    expect(inst(session.state, wrecker).attachments).not.toContain(crowbar);
+    // Magic Crowbar is an encounter card (`home: { kind: "encounterDeck" }`): "discard this card" sends it to its
+    // own encounter discard pile, not the player's (docs/phase7-wave1-scripting.md "Test conventions").
+    expect(Object.values(session.state.encounterDecks).some((piles) => piles.discard.includes(crowbar))).toBe(true);
+
+    const replayed = replay(session.log, TWC_DEPS);
+    expect(replayed.ok && replayed.state).toEqual(session.state);
   });
 });

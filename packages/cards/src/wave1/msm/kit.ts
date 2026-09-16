@@ -1,4 +1,4 @@
-import { trait } from "@mc/content";
+import { trait, type Trait } from "@mc/content";
 import type { AbilityCost, AbilityDefinition, EffectSpec, EventPattern, ResourceGeneration, TargetQuery, TargetRef } from "@mc/engine";
 import {
   action,
@@ -22,6 +22,7 @@ import {
   preventDamage,
   query,
   reduceNextCardCost,
+  response,
   self,
   thwartAScheme,
   when,
@@ -31,6 +32,8 @@ import {
 } from "../../dsl/index.js";
 
 const THWART = trait("Thwart");
+const ATTACK = trait("Attack");
+const DEFENSE = trait("Defense");
 
 /**
  * "Spend 2 resources of different types" (Red Dagger, 05002): `AbilityCost.distinctResourceTypes` was landed ahead
@@ -65,28 +68,25 @@ const heroResourceFor = (generates: ResourceGeneration, forQuery: TargetQuery): 
  * and `modifyCardEffect` (docs/phase7-wave1.md §3.13) are landed, but `dsl/abilities.ts`'s `on`/`when` object has no
  * sugar for this pattern yet, so it's composed here as a raw `EventPattern`.
  */
-const whenYouPlay = (t: typeof THWART): EventPattern => ({ on: "cardBeingPlayed", playerIs: "controller", targetIs: query("event", { trait: t }) });
+const whenYouPlay = (t: typeof THWART | typeof ATTACK): EventPattern => ({ on: "cardBeingPlayed", playerIs: "controller", targetIs: query("event", { trait: t }) });
+
+/**
+ * "After you play an Attack, Thwart, or Defense event" (Morphogenetics, 05001a): the `cardPlayed` trigger event
+ * (announced after the card resolves, unlike `cardBeingPlayed` above) plus `TargetQuery.anyTrait` — an OR of traits,
+ * landed 2026-09-15 (`engine/src/spec.ts`, checked in `select.ts`'s `matchesQuery`) — the primitive that had blocked
+ * this card (docs/phase7-wave1-scripting.md §6). Proven for this exact shape by `engine/src/movement-wave1.test.ts`'s
+ * `RETURN_EVENT` stub.
+ */
+const afterYouPlay = (traits: readonly Trait[]): EventPattern => ({ on: "cardPlayed", playerIs: "controller", targetIs: query("event", { anyTrait: traits }) });
 
 /**
  * Ms. Marvel / Kamala Khan (05001a/b) and her hero kit (05002–05011). Reprints bundled in this pack (Get Behind
  * Me! 05013, The Power of Protection 05016, Energy 05019, Genius 05020, Strength 05021, Avengers Mansion 05022) are
  * aliased from Core by `../reprints.ts`, not scripted here — see `docs/phase7-wave1-scripting.md`.
  *
- * **Two identity abilities are intentionally unscripted** (missing engine primitives — docs/phase7-wave1-scripting.md
- * §4, "record and skip"):
- *
- * - **"Morphogenetics" (05001a)** — Response: After you play an Attack, Thwart, or Defense event, exhaust Ms.
- *   Marvel → return that event to your hand. `TargetQuery` (engine `spec.ts`) has only a single `trait` field (and
- *   its negation `withoutTrait`); there is no way to match "any of these traits" (Attack, Thwart, or Defense) in
- *   one query. `EventPattern.targetIs`/`sourceIs` are typed `TargetQuery`, so the trigger can't be built from
- *   existing pieces without over- or under-matching — filtering only on `categories: ["event"]` would also fire
- *   for a General-trait event, which the printed text doesn't cover, and there is no `condition?: Predicate` hook
- *   on `EventPattern` to compose `Predicate.anyOf(hasTrait(…), hasTrait(…), hasTrait(…))` instead. Closest existing
- *   primitives: `TargetQuery.trait`/`withoutTrait` (singular only), `Predicate.anyOf` (composes predicates, not
- *   usable inside a query-shaped `targetIs`). Proposed shape: `TargetQuery.anyTrait?: readonly Trait[]` — matches a
- *   card carrying at least one of the listed traits (printed or granted), symmetric with `trait`/`withoutTrait`.
- *   (`EffectSpec moveCards` to `"hand"` and the `cardPlayed` event pattern themselves are already proven for this
- *   exact card by `engine/src/movement-wave1.test.ts`'s `RETURN_EVENT`/`MORPHO` stub — only the trait-OR gate is missing.)
+ * **One identity ability is still intentionally unscripted** (a missing engine primitive — docs/phase7-wave1-scripting.md
+ * §4, "record and skip"). "Morphogenetics" (05001a) was a second skip for the same reason until `TargetQuery.anyTrait`
+ * landed 2026-09-15; it's now scripted below (`afterYouPlay`, above).
  *
  * - **"Teen Spirit" (05001b)** — Action: Discard cards from the top of your deck until you discard a Ms. Marvel
  *   card, then add that card to your hand. (Limit once per round.) `EffectSpec discardEncounterUntil` (spec.ts) —
@@ -98,24 +98,21 @@ const whenYouPlay = (t: typeof THWART): EventPattern => ({ on: "cardBeingPlayed"
  *   so a deck with no match can't loop forever" semantics, over `zone("deck", player)` instead of the encounter
  *   deck (RRG 1.8 "Deck", p. 15, governs a player deck's own reshuffle-on-empty the same way).
  *
- * - **"Embiggen!" (05010)** — Hero Interrupt: When you play an Attack event, exhaust Embiggen! → increase the
- *   amount of damage that event deals by 2. This one is a confirmed **engine bug**, not a missing DSL primitive:
- *   `modifyCardEffect`/`cardEffectBonus` is proven and correct for `dealDamage`, `removeThreat` and `thwart` (each
- *   reads `cardEffectBonus(ctx.state, frame.selfInstanceId, …)` in `apply-effect.ts`, and Shrink's own interrupt,
- *   scripted right below with the identical shape over `threatRemoved`, passes its own test in `ms-marvel.test.ts`
- *   proving the `cardBeingPlayed`/`modifyCardEffect` mechanism itself is sound) — but the `"attack"` case in that
- *   same `switch` (`apply-effect.ts`, the case starting `case "attack": {`) computes `amount = value(effect.amount)`
- *   with no `+ cardEffectBonus(ctx.state, frame.selfInstanceId, "damage")`, unlike its `dealDamage` sibling one
- *   case above. Big Hands (05003, "Hero Action (attack): Deal 4 damage to an enemy") correctly uses the `attack`
- *   `EffectSpec` (not `dealDamage`) so guard and retaliate apply, matching `cap`'s own precedent (Heroic Strike,
- *   Shield Toss); rewriting it as `dealDamage` just to make Embiggen! read would silently drop guard/retaliate —
- *   the wrong kind of approximation. Flagging for `game-rules-architect`: add the same one-line
- *   `+ cardEffectBonus(ctx.state, frame.selfInstanceId, "damage")` to the `"attack"` case that `"dealDamage"`
- *   already has, then `"05010.embiggen-interrupt"` can be scripted exactly like `"05011.shrink-interrupt"` below.
+ * **"Embiggen!" (05010)** was a third skip for the same reason (a confirmed engine bug: the `attack` effect ignored
+ * `cardEffectBonus`) until the 2026-09-15 fix (`packages/engine/src/resolve/apply-effect.ts`'s `"attack"` case now
+ * adds `cardEffectBonus(ctx.state, frame.selfInstanceId, "damage")`, matching `dealDamage`/`removeThreat`/`thwart`);
+ * it's now scripted below, identically to Shrink's own interrupt over `threatRemoved`.
  */
 export const MSM_KIT = defineAbilities({
-  // "05001a.morphogenetics" and "05001b.teen-spirit" — intentionally absent; see the module doc comment above.
-  // "05010.embiggen-interrupt" — intentionally absent; see the module doc comment above (engine bug, not a DSL gap).
+  // "05001b.teen-spirit" — intentionally absent; see the module doc comment above.
+
+  // Morphogenetics — Response: After you play an Attack, Thwart, or Defense event, exhaust Ms. Marvel → return
+  // that event to your hand.
+  "05001a.morphogenetics": response(afterYouPlay([ATTACK, THWART, DEFENSE]), { cost: exhaustThis }, moveCards(cards(eventTarget), "hand")),
+
+  // Embiggen! — Hero Interrupt: When you play an Attack event, exhaust Embiggen! → increase the amount of damage
+  // that event deals by 2.
+  "05010.embiggen-interrupt": heroInterrupt(whenYouPlay(ATTACK), { cost: exhaustThis }, { kind: "modifyCardEffect", card: eventTarget, damage: amount(2) }),
 
   // Red Dagger — Interrupt: When Red Dagger is defeated, spend 2 resources of different types → deal 2 damage to
   // an enemy and return Red Dagger to your hand. A replacement (RRG "Replacement Effect"), same shape as Clea

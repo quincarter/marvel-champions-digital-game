@@ -21,7 +21,7 @@ describe("deckStatusOf", () => {
   test("a legal deck this build can't script yet reads not-playable", () => {
     const deck = deckFromStarterDeck(starter, CORE_POOL_VERSION);
     const status = deckStatusOf(deckOptionOf(deck, CORE_CARDS, CORE_POOL_VERSION, { abilities: {} }));
-    expect(status).toEqual({ text: "Not playable yet", tone: "unscripted" });
+    expect(status).toEqual({ text: "Partly playable", tone: "unscripted" });
   });
 
   test("a legal, playable deck built against an old pool flags the pool change", () => {

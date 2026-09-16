@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import { activeVillain, handSize, remainingHitPoints, type Command, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { activeEncounterDeck, activeVillain, handSize, remainingHitPoints, type Command, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -29,6 +29,9 @@ const drsVsRhino = (seed = 6601) => startDrsGame(wave1Scenario("rhino", { player
 /** A neutral boost card (0 icons, no boost ability), so the villain phase's own boost draw doesn't distort a
  * deterministic attack — matches `wave1/hlk/hulk.test.ts`'s `ADVANCE`, same Rhino encounter pool. */
 const ADVANCE = "01186";
+/** 2 boost icons, no boost ability (Rhino's own encounter set) — matches `wave1/cap/expert-defense.test.ts`'s use
+ * for the identical "prove a DEF bonus actually reduced a defense's damage" shape. */
+const CROWD_CONTROL = "01108";
 
 const basicAttack = (attacker: InstanceId, target: InstanceId): Command => ({ type: "basicAttack", playerId: P1, attackerInstanceId: attacker, targetInstanceId: target });
 
@@ -93,6 +96,52 @@ describe("Doctor Strange pack cards", () => {
     expect(playerOf(after, P1).deck).toContain(clea);
     expect(playerOf(after, P1).discard).not.toContain(clea);
     expect(playerOf(after, P1).playArea).not.toContain(clea);
+  });
+
+  it("Desperate Defense: +2 DEF reduces that attack's damage to 0, and readies the hero since it took none", () => {
+    // Doctor Strange (printed DEF 2) against Rhino (ATK 2) with Crowd Control (2 boost icons) staged: a basic
+    // defense alone takes 2 + 2 - 2 = 2 damage (`09021.warning-interrupt`'s own test, above, is the DEF-2-vs-ATK-2
+    // baseline with no boost); Desperate Defense's own +2 DEF makes it 2 + 2 - 4 = 0.
+    const start = drsVsRhino();
+    const given = moveToHand(start, P1, "09015");
+    const [desperate] = given.ids as [InstanceId];
+    const hero = runDrs(given.state, toHero());
+    const identity = identityOf(hero);
+    const staged = stackEncounterDeck(hero, CROWD_CONTROL);
+    const atDeclare = settleUntil(runDrs(staged, endTurn()), "declareDefender", firstLegal, DRS_DEPS);
+    const declared = answer(atDeclare, [identity], DRS_DEPS); // basic defense: exhausts Doctor Strange
+    expect(inst(declared, identity).exhausted).toBe(true);
+    const option = `${desperate}:09015.desperate-defense-interrupt`;
+    // "When your hero defends" is an Interrupt: offered as the defense is declared, before damage (RRG 1.8
+    // "Interrupt", p. 25) — fixed 2026-09-15 (`isAnnouncement`, `packages/engine/src/trigger-events.ts`).
+    expect(declared.pendingChoice?.prompt).toMatchObject({ kind: "chooseTriggers", timing: "interrupt" });
+    expect(declared.pendingChoice?.options.map((o) => o.optionId)).toContain(option);
+    const played = answer(declared, [option], DRS_DEPS);
+    // Desperate Defense is played from hand, paying its own printed cost as it triggers (matches
+    // `doctor-strange.test.ts`'s other from-hand interrupts) — the only hand card offered pays its cost 1.
+    const after = settle(
+      played,
+      (s) => (s.pendingChoice?.prompt.kind === "payForCard" ? [s.pendingChoice!.options[0]!.optionId] : firstLegal(s)),
+      (s) => activeEncounterDeck(s).discard.some((id) => inst(s, id).cardId === CROWD_CONTROL),
+      DRS_DEPS,
+    );
+    expect(inst(after, identity).damage).toBe(0);
+    expect(playerOf(after, P1).discard).toContain(desperate);
+    // "If you take no damage from that attack, ready your hero" — the deferred `atEndOfAttack` effect (proven by
+    // Rhino's Charge) fires once the attack (and its deferred `defended` response window, RRG 1.8 p. 16) is done.
+    expect(inst(after, identity).exhausted).toBe(false);
+  });
+
+  it("Desperate Defense: without it, the same basic defense takes 2 damage and stays exhausted", () => {
+    const start = drsVsRhino();
+    const hero = runDrs(start, toHero());
+    const identity = identityOf(hero);
+    const staged = stackEncounterDeck(hero, CROWD_CONTROL);
+    const atDeclare = settleUntil(runDrs(staged, endTurn()), "declareDefender", firstLegal, DRS_DEPS);
+    const declared = answer(atDeclare, [identity], DRS_DEPS);
+    const after = settle(declared, firstLegal, (s) => activeEncounterDeck(s).discard.some((id) => inst(s, id).cardId === CROWD_CONTROL), DRS_DEPS);
+    expect(inst(after, identity).damage).toBe(2);
+    expect(inst(after, identity).exhausted).toBe(true); // never readied: nothing removed the damage this time
   });
 
   it("Iron Fist: enters play with 2 mystic counters; his own attack can remove one to stun and damage the target", () => {

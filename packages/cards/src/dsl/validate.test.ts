@@ -1,8 +1,8 @@
 import type { AbilityDefinition } from "@mc/engine";
-import { action, discardFromHandCost, discardRandomFromHandCost, discardThis, exhaustCardsCost, returnToHandCost } from "./abilities.js";
-import { dealDamage, draw } from "./effects.js";
+import { action, boost, discardFromHandCost, discardRandomFromHandCost, discardThis, exhaustCardsCost, returnToHandCost, whenRevealed } from "./abilities.js";
+import { chooseOne, dealDamage, draw, giveBoostCard } from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { countOf, each, handCountOf, query, scaled, sum, varOf } from "./values.js";
+import { countOf, defendingCharacter, each, handCountOf, query, scaled, sum, varOf } from "./values.js";
 
 const drawN = draw(varOf("n"));
 
@@ -79,5 +79,38 @@ describe("validateDefinition: superlative's per-candidate slot", () => {
   it("still rejects the candidate slot read anywhere outside measure", () => {
     const problems = validateDefinition(action({}, dealDamage(1, { kind: "slot", slot: "candidate" } as never)));
     expect(problems.join("\n")).toMatch(/slot "candidate" is read before it is bound/);
+  });
+});
+
+describe("giveBoostCard: a facedown boost card outside an activation (Hired Gun, Intimidation)", () => {
+  it("defaults to one card for the villain, and omits the count when it is 1", () => {
+    expect(giveBoostCard()).toEqual({ kind: "giveBoostCard", enemy: { kind: "villain" } });
+    expect(giveBoostCard(each(query("minion")), 2)).toEqual({ kind: "giveBoostCard", enemy: { kind: "each", query: { categories: ["minion"] } }, count: { kind: "const", value: 2 } });
+    expect(validateDefinition(whenRevealed(giveBoostCard()))).toEqual([]);
+  });
+
+  it("is rejected inside a Boost ability, where the printed shape is 'for this activation' (modifyAttack), even nested", () => {
+    expect(validateDefinition(boost(giveBoostCard())).join("\n")).toMatch(/inside a Boost ability use modifyAttack/);
+    const nested = boost(chooseOne({ label: "give", effects: [giveBoostCard()] }));
+    expect(validateDefinition(nested).join("\n")).toMatch(/inside a Boost ability/);
+  });
+
+  it("rejects a constant count below 1", () => {
+    expect(validateDefinition(whenRevealed(giveBoostCard(undefined, 0))).join("\n")).toMatch(/count must be a whole number of at least 1/);
+  });
+});
+
+describe("anyPrintedResource: a card printing any of several resource types (Tombstone)", () => {
+  it("accepts a non-empty list in a zone filter and rejects an empty one", () => {
+    const tossFrom = (types: readonly ("mental" | "physical")[]) => action({}, dealDamage(countOf(query("resource", { anyPrintedResource: types })), each(query("villain"))));
+    expect(validateDefinition(tossFrom(["mental", "physical"]))).toEqual([]);
+    expect(validateDefinition(tossFrom([])).join("\n")).toMatch(/anyPrintedResource needs at least one resource type/);
+  });
+});
+
+describe("defendingCharacter: the defender of the attack in progress (Energy Projectiles)", () => {
+  it("is a plain ref a Boost ability can target without binding anything", () => {
+    expect(defendingCharacter).toEqual({ kind: "defendingCharacter" });
+    expect(validateDefinition(boost(dealDamage(1, defendingCharacter)))).toEqual([]);
   });
 });

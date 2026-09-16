@@ -15,7 +15,11 @@ import { DRS_DEPS } from "./testing.js";
  * doesn't know any Doctor Strange ability id yet.
  */
 test("Rhino (standard, Bomb Scare), solo: Doctor Strange (Protection)", () => {
-  const config = wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed: 2026 });
+  // Seed 2026 no longer resolves any Invocation card once Desperate Defense (09015) is scripted: a new legal
+  // Interrupt in the defense window shifts the greedy driver's RNG consumption enough that this particular seed's
+  // playthrough (still a real, valid game) never happens to draw/use a Special this time. Reseeded to one that
+  // does, keeping the "must resolve at least one Invocation card" coverage this test exists for.
+  const config = wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed: 2 });
   const created = createGame(config, DRS_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const result = playToOutcome(created.state, DRS_DEPS);

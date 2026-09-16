@@ -64,7 +64,7 @@ import { cannotChangeForm, cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats } from "./defeat.js";
 import { threatRemovalBlocked } from "./event.js";
 import { heard } from "./triggers.js";
-import { giveBoostCard } from "./enemy-activation.js";
+import { dealBoostCard, giveBoostCard } from "./enemy-activation.js";
 import { applyEnterPlayKeywords, quickstrikeAttack } from "./enter-play.js";
 import { addFrameVars, eventFrame, type Frame, gameAbilityFrames, pushEffects, pushEvents } from "./frames.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
@@ -469,6 +469,18 @@ export function applyEffect(
       pushFrames(ctx, frames);
       return;
     }
+    case "giveBoostCard": {
+      const count = effect.count ? Math.max(0, value(effect.count)) : 1;
+      // Only an enemy in play can hold a boost card (RRG 1.8 "Boost, Boost Icon", p. 11: "dealt a boost card … remains
+      // facedown on that enemy until that enemy activates"). Any enemy qualifies, villainous or not: the card text names
+      // the recipient, and the villainous gate is only about the activation's automatic card (`giveBoostCard`).
+      const inPlay = cardsInPlay(ctx.state);
+      const enemies = targets(effect.enemy).filter((id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"));
+      for (const enemyId of enemies) {
+        for (let i = 0; i < count; i++) dealBoostCard(ctx, enemyId, true);
+      }
+      return;
+    }
     case "addAccelerationToken":
       addAccelerationToken(ctx);
       return;
@@ -550,6 +562,15 @@ export function applyEffect(
       updateFrame(ctx, frame.eventFrameId, (target) =>
         target.kind === "event" ? { ...target, cancelled: true } : target,
       );
+      // RRG 1.8 "Cancel" (p. 13): cancelling the "when you play this card" event cancels *the card's* effects —
+      // "Only the effects are prevented from initiating, and do not resolve", while "the card is still considered
+      // played, and it is discarded". The play frame carries the flag the way a reveal frame carries
+      // `effectsCancelled` for an encounter card, so this is one rule rather than a per-card branch.
+      if (frame.event?.kind === "cardBeingPlayed") {
+        const played = frame.event.instanceId;
+        const play = ctx.state.stack.find((f) => f.kind === "playCard" && f.instanceId === played);
+        if (play?.kind === "playCard") setFrame(ctx, { ...play, effectsCancelled: true });
+      }
       return;
     }
     case "preventDamage":
@@ -847,20 +868,42 @@ export function applyEffect(
       const deckId = activeEncounterDeckId(ctx.state);
       const count = Math.max(0, value(effect.count));
       const discarded: InstanceId[] = [];
+      // "… for each boost icon discarded this way" (Power Drain, Lightning Bolt, Shock Therapy): summed across every
+      // card this discard actually reached — so a discard cut short by the empty-deck rule above counts only what it
+      // got. Each card's icons are read the moment it is discarded, before it moves, exactly as `moveCards` does.
+      let boostIcons = 0;
+      let pool = EMPTY_POOL;
       for (let i = 0; i < count; i++) {
         if (discarded.length > 0 && encounterDeckOf(ctx.state, deckId).deck.length === 0) break;
         const id = drawEncounterCard(ctx, deckId);
         if (!id) break;
         updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
+        boostIcons += boostIconsFor(ctx.state, ctx.deps, id);
+        const card = cardOf(ctx.state, id);
+        if (card) pool = addPools(pool, printedResources(card));
         // Each card goes to its own deck's discard pile (its `home`), not necessarily the deck it came from.
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
         discarded.push(id);
       }
       const bind = effect.bind;
       if (bind) {
+        const totals = pool;
+        const icons = boostIcons;
         updateFrame(ctx, frame.frameId, (f) =>
           f.kind === "effects"
-            ? { ...f, bindings: { ...f.bindings, [bind]: discarded }, vars: { ...f.vars, [`${bind}.count`]: discarded.length } }
+            ? {
+                ...f,
+                bindings: { ...f.bindings, [bind]: discarded },
+                vars: {
+                  ...f.vars,
+                  [`${bind}.count`]: discarded.length,
+                  [`${bind}.boostIcons`]: icons,
+                  [`${bind}.physical`]: totals.physical,
+                  [`${bind}.mental`]: totals.mental,
+                  [`${bind}.energy`]: totals.energy,
+                  [`${bind}.wild`]: totals.wild,
+                },
+              }
             : f,
         );
       }
@@ -925,12 +968,31 @@ export function applyEffect(
       throw new EngineInvariantError(`${effect.kind} is handled before applyEffect`);
     case "reduceNextCardCost": {
       const amount = value(effect.amount);
-      if (amount <= 0) return;
+      // Signed: a positive amount reduces, a negative one increases ("costs N additional resources"). 0 does nothing.
+      if (amount === 0) return;
+      const filter = effect.cardFilter ? { cardFilter: effect.cardFilter } : {};
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         addLastingEffect(
           ctx,
-          { kind: "costReduction", playerId, amount, ...(effect.cardFilter ? { cardFilter: effect.cardFilter } : {}) },
-          { kind: effect.duration === "phase" ? "endOfPhase" : "endOfRound" },
+          { kind: "costReduction", playerId, amount, ...filter },
+          effect.duration === "untilPlayed"
+            ? { kind: "untilCardPlayed", playerId, ...filter }
+            : { kind: effect.duration === "phase" ? "endOfPhase" : "endOfRound" },
+        );
+      }
+      return;
+    }
+    case "afterNextCardPlayed": {
+      const filter = effect.cardFilter ? { cardFilter: effect.cardFilter } : {};
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        addLastingEffect(
+          ctx,
+          {
+            kind: "delayedEffects",
+            effects: effect.effects,
+            scope: { selfInstanceId: frame.selfInstanceId, controllerId: frame.controllerId, vars: frame.vars, bindings: frame.bindings },
+          },
+          { kind: "untilCardPlayed", playerId, ...filter },
         );
       }
       return;

@@ -3,22 +3,29 @@ import type { EffectSpec } from "@mc/engine";
 import {
   cards,
   constant,
+  countOf,
   defineAbilities,
   each,
+  eachPlayer,
   engagedPlayerOf,
   exhaust,
   exists,
+  forEachPlayer,
   heal,
   heroAction,
   ifThen,
+  moveCards,
   not,
   query,
   rule,
   self,
   selectCards,
   spend,
+  sum,
   surge,
   theVillain,
+  thatPlayer,
+  topOfDeck,
   varAtLeast,
   varOf,
   whenRevealed,
@@ -29,21 +36,17 @@ const PERSONA = trait("Persona");
 /**
  * Ms. Marvel's nemesis set: Generation Why? (05026, side scheme), Thomas Edison (05027, nemesis minion), Edison's
  * Giant Robot (05028, minion), Harvest (05029, treachery ×2).
- *
- * **Generation Why? (05026) is intentionally unscripted** — missing primitive. Printed text: "When Revealed:
- * Discard the top card of each player's deck for each ally and Persona support in play." The discard count is
- * `count(ally, controller: any) + count(support, trait: Persona)` — two *disjoint* queries (a plain ally can lack
- * Persona, and every Persona card in this pack is a support, never an ally) that must be summed into one live
- * number. `ValueSpec` (engine `spec.ts`) has no "add two values" combinator: `scaled`'s `plus` is a fixed number,
- * not a nested `ValueSpec`, and `TargetQuery` has no "match either of these two queries" union (only a single
- * `categories` list, whose `trait` filter would apply to *every* listed category alike — `categories: ["ally",
- * "support"], trait: PERSONA` would wrongly require allies to have the Persona trait too). Closest existing
- * primitives: `ValueSpec.scaled { value, plus }` (a constant addend, not another value) and `ValueSpec.count
- * { query }` (a single query only). Proposed shape: `ValueSpec { kind: "sum", values: readonly ValueSpec[] }` — a
- * small, generally reusable "for each X and Y" combinator, not specific to this card.
  */
 export const MSM_NEMESIS = defineAbilities({
-  // "05026.when-revealed" — intentionally absent; see the module doc comment above.
+  // Generation Why? — When Revealed: Discard the top card of each player's deck for each ally and Persona support
+  // in play. The count is `count(ally) + count(support, trait: Persona)` — two disjoint queries (a plain ally can
+  // lack Persona, and every Persona card in this pack is a support, never an ally) summed with `sum(...)`
+  // (`ValueSpec` `sum`, landed 2026-09-15 for exactly this card — docs/phase7-wave1-scripting.md §6), since a
+  // single query's `trait` filter would apply to every category it lists (`categories: ["ally", "support"], trait:
+  // PERSONA` would wrongly require allies to have the Persona trait too).
+  "05026.when-revealed": whenRevealed(
+    forEachPlayer(eachPlayer, moveCards(topOfDeck(sum(countOf(query("ally")), countOf(query("support", { trait: PERSONA }))), thatPlayer), "discard")),
+  ),
 
   // Thomas Edison — Thomas Edison cannot take damage while you are engaged with another minion. (Ms. Marvel's
   // nemesis minion.) "You" here is the player engaged with him (RRG "You, Your" reads an encounter card's "you" as

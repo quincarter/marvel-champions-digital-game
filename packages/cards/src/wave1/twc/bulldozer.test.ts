@@ -1,7 +1,7 @@
 import { cannotLeavePlay, mustDefendWithAlly, notDefeatedWithoutThreat, schemeThreatDestination, villainOf, type GameState, type InstanceId } from "@mc/engine";
-import { P1, endTurn, identityOf, inst, patchInstance, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { P1, endTurn, identityOf, inst, patchInstance, playerOf, settle, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
-import { runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
+import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
 const spiderManVsBreakout = () => startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
 const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): GameState =>
@@ -36,6 +36,26 @@ describe("Clear the Road (07048)", () => {
     const scheme = clearTheRoadId(state);
     expect(cannotLeavePlay(state, TWC_DEPS, scheme)).toBe(true);
     expect(notDefeatedWithoutThreat(state, TWC_DEPS, scheme)).toBe(true);
+  });
+});
+
+describe("Bulldozer's Helmet (07049)", () => {
+  it("Hero Action: exhausts your hero and discards 1 random hand card, then discards itself", () => {
+    const start = spiderManVsBreakout();
+    const bulldozer = bulldozerId(start);
+    const helmet = findInstance(start, "07049");
+    const state = runTwc(forceAttachToVillain(start, helmet, bulldozer), toHero());
+    const identity = identityOf(state);
+    const handBefore = playerOf(state, P1).hand;
+    expect(handBefore.length).toBeGreaterThan(0);
+    const after = runTwc(state, use(P1, helmet, "07049.bulldozers-helmet-action"));
+    const handAfter = playerOf(after, P1).hand;
+    const discarded = handBefore.filter((id) => !handAfter.includes(id));
+    expect(discarded).toHaveLength(1);
+    expect(playerOf(after, P1).discard).toContain(discarded[0]);
+    expect(inst(after, identity).exhausted).toBe(true);
+    expect(inst(after, bulldozer).attachments).not.toContain(helmet);
+    expect(Object.values(after.encounterDecks).some((piles) => piles.discard.includes(helmet))).toBe(true);
   });
 });
 
