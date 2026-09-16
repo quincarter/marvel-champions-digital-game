@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import { applyCommand, createGame, type GameSetupConfig } from "@mc/engine";
+import { activeVillain, applyCommand, createGame, remainingHitPoints, type GameSetupConfig } from "@mc/engine";
 import {
   firstLegal,
   identityOf,
@@ -165,8 +165,36 @@ describe("Thor pack cards (generic aspect)", () => {
   });
 });
 
-describe("Mean Swing (06015) is not scripted", () => {
-  it("has no ability id resolved — a missing TargetQuery primitive; see pack-cards.ts's docblock beside it", () => {
-    expect("06015.mean-swing-interrupt" in THOR_DEPS.abilities).toBe(false);
+describe("Mean Swing (06015)", () => {
+  it("exhausts a Weapon upgrade on your hero to give +3 ATK for a basic attack", () => {
+    const start = thorVsRhino();
+    const given = moveToHand(start, P1, "06015", "06019"); // Mean Swing, Jarnbjorn
+    const [meanSwing, jarnbjorn] = given.ids as [never, never];
+    const hero = runThor(given.state, toHero());
+    // Jarnbjorn prints no `attachesTo`, so it auto-attaches to the identity (test conventions, `actions.ts`'s
+    // `ownIdentity` fallback).
+    const withWeapon = runThor(hero, play(P1, jarnbjorn, payWith(hero, P1, 1, [jarnbjorn, meanSwing])));
+    const identity = identityOf(withWeapon);
+    expect(inst(withWeapon, jarnbjorn).attachedTo).toBe(identity);
+
+    const villain = activeVillain(withWeapon).instanceId;
+    const hpBefore = remainingHitPoints(withWeapon, villain);
+    // Mean Swing is still in hand — only Jarnbjorn was played.
+    const attacked = runThor(withWeapon, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain });
+    const option = `${meanSwing}:06015.mean-swing-interrupt`;
+    const after = settle(attacked, picking(option), undefined, THOR_DEPS);
+    expect(inst(after, jarnbjorn).exhausted).toBe(true);
+    // Thor's basic ATK (2) plus Mean Swing's +3 for this attack.
+    expect(hpBefore! - remainingHitPoints(after, villain)!).toBe(5);
+  });
+
+  it("without a Weapon upgrade in play, the interrupt is never offered — the basic attack resolves at printed ATK", () => {
+    const start = thorVsRhino();
+    const hero = runThor(start, toHero());
+    const identity = identityOf(hero);
+    const villain = activeVillain(hero).instanceId;
+    const hpBefore = remainingHitPoints(hero, villain);
+    const after = runThor(hero, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain });
+    expect(hpBefore! - remainingHitPoints(after, villain)!).toBe(2);
   });
 });

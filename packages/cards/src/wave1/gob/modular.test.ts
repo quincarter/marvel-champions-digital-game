@@ -1,5 +1,5 @@
 import { activeVillain, applyCommand, type Command, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
-import { applyOk, endTurn, firstLegal, identityOf, inst, P1, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { applyOk, endTurn, firstLegal, identityOf, inst, moveToHand, P1, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
 
@@ -56,6 +56,17 @@ describe("Goblin Gimmicks", () => {
     const surged = events.some((e) => e.type === "surgeTriggered");
     expect(attached || surged).toBe(true);
   });
+
+  it("Intimidation: declining the resource payment gives the villain a facedown boost card instead", () => {
+    // Spider-Man's starter deck has no guaranteed spare 2-resource hand at turn 1 in every seed, so `firstLegal`'s
+    // default (decline the payment) is the deterministic outcome — same reasoning as Running Interference's own
+    // test below.
+    const start = spiderManVsRiskyBusiness(["goblin_gimmicks"]);
+    const boostCardsBefore = inst(start, activeVillain(start).instanceId).boostCards.length;
+    const after = play(stackEncounterDeck(start, "02012", "02035"), endTurn());
+    const villain = activeVillain(after).instanceId;
+    expect(inst(after, villain).boostCards.length).toBeGreaterThan(boostCardsBefore);
+  });
 });
 
 describe("A Mess of Things", () => {
@@ -107,6 +118,26 @@ describe("Power Drain", () => {
     // Electro is a minion: "put him into play engaged with you" means engaged with P1 (playArea), not villainArea.
     expect(electroInPlay || electroInVillainArea).toBe(true);
   });
+
+  it("Lightning Bolt: indirect damage equal to the boost icons summed across the 2 discarded encounter cards", () => {
+    const start = spiderManVsRiskyBusiness(["power_drain"]);
+    const identity = identityOf(start);
+    const damageBefore = inst(start, identity).damage;
+    // Electro (2 boost icons) and Electromagnetic Pulse (2), stacked right behind Lightning Bolt so
+    // `discardEncounterCards(2)` reaches exactly these two, deterministically.
+    const after = play(stackEncounterDeck(start, "02012", "02044", "02042", "02043"), endTurn());
+    expect(inst(after, identity).damage).toBe(damageBefore + 4);
+  });
+
+  it("Shock Therapy: the villain heals 1 per boost icon among the 1[per_hero] discarded cards (solo: 1 card)", () => {
+    const start = spiderManVsRiskyBusiness(["power_drain"]);
+    const villain = activeVillain(start).instanceId;
+    const damaged = patchInstance(start, villain, { damage: 5 });
+    // Electro (2 boost icons) stacked right behind Shock Therapy, the one card `discardEncounterCards(1[per_hero])`
+    // reaches solo.
+    const after = play(stackEncounterDeck(damaged, "02012", "02045", "02042"), endTurn());
+    expect(inst(after, villain).damage).toBe(3); // 5 - 2 healed
+  });
 });
 
 describe("Running Interference", () => {
@@ -117,6 +148,24 @@ describe("Running Interference", () => {
     const after = play(stackEncounterDeck(start, "02012", "02046"), endTurn());
     const running = Object.keys(after.instances).find((id) => after.instances[id as never]?.cardId === "02046") as InstanceId;
     expect(inst(after, running).threat).toBeGreaterThanOrEqual(1); // printed 1[per_hero] (1) plus, if declined, +2
+  });
+
+  it("Tombstone: after it attacks and damages you, discards a [mental] or [physical] resource from hand, if able", () => {
+    const start = spiderManVsRiskyBusiness(["running_interference"]);
+    // Round 1: Tombstone enters play engaged with P1 via the normal "deal encounter cards" step (a minion doesn't
+    // attack the same round it enters play).
+    const round1 = play(stackEncounterDeck(start, "02012", "02047"), endTurn());
+    const tombstone = Object.keys(round1.instances).find((id) => round1.instances[id as never]?.cardId === "02047");
+    expect(tombstone).toBeDefined();
+    // Backflip (01003, printed [physical]) guaranteed in hand, so "if able" definitely finds a match.
+    const given = moveToHand(round1, P1, "01003");
+    const backflip = given.ids[0]!;
+    const handBefore = playerOf(given.state, P1).hand.length;
+    // Round 2, hero form: an enemy attacks its engaged player only while that player is in hero form.
+    const round2 = play(given.state, toHero(), endTurn());
+    expect(inst(round2, identityOf(round2)).damage).toBeGreaterThan(0); // Tombstone's own basic attack (ATK 3), undefended
+    expect(playerOf(round2, P1).hand.length).toBeLessThan(handBefore);
+    expect(playerOf(round2, P1).discard).toContain(backflip);
   });
 });
 

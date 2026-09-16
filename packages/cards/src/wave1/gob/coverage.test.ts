@@ -37,29 +37,17 @@ const reprintIds = new Set<string>();
 }
 
 /**
- * Recorded gaps — every one is a missing engine/DSL primitive, cited beside where the ability would go:
- * - `02007.when-revealed` (`risky-business.ts`), `02035.when-revealed` (`goblin-gimmicks.ts`): "give the villain N
- *   facedown boost card(s)" outside an activation already in progress — no `CardDestination`/effect stockpiles a
- *   boost card onto the villain ahead of its next activation.
- * - `02041.when-defeated`, `02044.when-revealed` (`power-drain.ts`): `ValueSpec.boostIcons` reads only the first
- *   card a ref names (`select.ts` `case "boostIcons"`), with no sum over several bound cards — both discard 2 cards
- *   and need a total across both. Verified 2026-09-15 that `moveCards`'s new `<bind>.boostIcons` (landed for Hit
- *   Squad) doesn't reach these: see `power-drain.ts`'s doc comment for why swapping to it would be a real behavior
- *   change (loses `discardEncounterCards`'s reshuffle-safety), not an equivalent fix.
- * - `02045.when-revealed` (`power-drain.ts`): the same boost-icon-sum gap — it discards `1[per_hero]` cards, more
- *   than one with 2+ heroes.
- * - `02047.tombstone-forced-response` (`running-interference.ts`): no `TargetQuery`/`CardSelector` composition for
- *   "matches either of two printed resource types" (a hand card with a mental *or* physical icon) — the same shape
- *   as the documented "no anyTrait" gap, generalized to resource types.
+ * Recorded gap — `02041.when-defeated` (`power-drain.ts`) only: a per-player hand discard whose count is a live
+ * value (summed boost icons) *and* whose candidates are filtered to resource-type cards — see `power-drain.ts`'s
+ * doc comment for the exact primitive shape proposed. `02007.when-revealed`/`02035.when-revealed` ("give the
+ * villain a facedown boost card" outside an activation), `02044.when-revealed`/`02045.when-revealed` (the same
+ * boost-icon-sum gap `02041` used to share), and `02047.tombstone-forced-response` (an OR of printed resource
+ * types) were all skips until the wave B primitives batch (docs/phase7-wave1-scripting.md §6) landed
+ * `giveBoostCard`, `discardEncounterCards`'s own `<bind>.boostIcons`, and `TargetQuery.anyPrintedResource`
+ * respectively; they're scripted now in `risky-business.ts`/`goblin-gimmicks.ts`, `power-drain.ts`, and
+ * `running-interference.ts`.
  */
-const KNOWN_SKIPPED = new Set<string>([
-  "02007.when-revealed",
-  "02035.when-revealed",
-  "02041.when-defeated",
-  "02044.when-revealed",
-  "02045.when-revealed",
-  "02047.tombstone-forced-response",
-]);
+const KNOWN_SKIPPED = new Set<string>(["02041.when-defeated"]);
 
 describe("Green Goblin (gob) pack ability coverage", () => {
   const allRefs = GOB_CARDS.flatMap(abilityRefIds);

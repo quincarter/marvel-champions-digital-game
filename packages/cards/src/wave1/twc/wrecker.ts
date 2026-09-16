@@ -34,14 +34,18 @@ import {
   placeThreat,
   query,
   remainingHpOf,
+  removeThreat,
   revealCard,
   rule,
+  scaled,
   self,
   selectCards,
   setActiveVillain,
   spend,
   surge,
   theVillain,
+  threatAtLeast,
+  threatOn,
   undefendedAttack,
   varAtLeast,
   whenRevealed,
@@ -85,8 +89,14 @@ export const WRECKER_SET = defineAbilities({
   // threat on them." Landed `RuleSpec.notDefeatedWithoutThreat`.
   "07004.day-of-reckoning-constant-2": constant(rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Day of Reckoning" }) })),
   // Hard Hitter — Forced Response: After threat is placed here, if there is 10 or more threat here, deal 2 damage
-  // to each friendly character. Remove all but 3 threat from this scheme. KNOWN_SKIPPED: no `Predicate` reads a
-  // scheme's live threat total against a threshold (`damagedAtLeast`/`counterAtLeast` exist; no threat equivalent).
+  // to each friendly character. Remove all but 3 threat from this scheme. `threatAtLeast` (`Predicate` `compare`,
+  // wave B primitives batch, docs/phase7-wave1-scripting.md §6) is the live-threat-vs-threshold read this needed;
+  // both punishments are gated together, inside the same `ifThen` (engine test, `primitives-wave1c.test.ts`'s
+  // `THRESHOLD` fixture, pins the pair resolving as one unit, not "remove down to 3" unconditionally).
+  "07004.hard-hitter": forcedResponse(
+    after.threatPlaced("self"),
+    ifThen(threatAtLeast(self, 10), [dealDamage(2, each(FRIENDLY_CHARACTER)), removeThreat(scaled(threatOn(self), { plus: -3 }), self)]),
+  ),
 
   // Held Hostage — Attach to the active villain's side scheme. Threat cannot be removed from attached scheme by
   // thwarting.

@@ -37,28 +37,19 @@ const reprintIds = new Set<string>();
 }
 
 /**
- * Recorded gaps — every one is a missing engine/DSL primitive, cited beside where the ability would go:
- * - `07004.hard-hitter`, `07019.gamma-blast`, `07034.pile-drive`, `07048.charge` (each side scheme's own file):
- *   "if there is 10 or more threat here" reads a scheme's *live* threat total against a threshold — `Predicate` has
- *   `damagedAtLeast`/`counterAtLeast`, no threat equivalent.
- * - `07022.radioactive-buildup-constant`: "excess damage dealt by Thunderball is placed as threat on his
- *   corresponding side scheme" — no `RuleSpec`/`EffectSpec` redirects a built-in enemy attack's excess damage; a
- *   scripted `attack()` effect's own `bind.excessDealt` isn't available for a villain's ordinary enemy attack.
- * - `07027.boost` (Energy Projectiles): "deal 1 damage to the defending character" mid-boost — no `TargetRef` names
- *   the current attack's defender outside a `defended` trigger event, and a boost card resolves with no event in
- *   context.
+ * No recorded gaps left. `07004.hard-hitter`, `07019.gamma-blast`, `07034.pile-drive`, `07048.charge` (each side
+ * scheme's own file) were skips because "if there is 10 or more threat here" reads a scheme's *live* threat total
+ * against a threshold, which no `Predicate` expressed, until the wave B primitives batch
+ * (docs/phase7-wave1-scripting.md §6) landed `threatAtLeast` (`Predicate` `compare`). `07022.radioactive-buildup-
+ * constant` ("excess damage dealt by Thunderball is placed as threat on his corresponding side scheme") was a skip
+ * until that same batch landed `RuleSpec.excessDamageAsThreat`. `07027.boost` (Energy Projectiles, "deal 1 damage
+ * to the defending character" mid-boost) was a skip until it landed `defendingCharacter`. All are scripted now, in
+ * each side scheme's own file / `thunderball.ts`.
  * `07006.magic-crowbar-action`, `07020.ball-and-chain-action` and `07049.bulldozers-helmet-action` were skips for
- * the same reason (`AbilityCost.discardFromHand` had no random option) until `discardRandomFromHandCost` landed
+ * a different reason (`AbilityCost.discardFromHand` had no random option) until `discardRandomFromHandCost` landed
  * 2026-09-15; all three are scripted now (`wrecker.ts`/`thunderball.ts`/`bulldozer.ts`).
  */
-const KNOWN_SKIPPED = new Set<string>([
-  "07004.hard-hitter",
-  "07019.gamma-blast",
-  "07034.pile-drive",
-  "07048.charge",
-  "07022.radioactive-buildup-constant",
-  "07027.boost",
-]);
+const KNOWN_SKIPPED = new Set<string>([]);
 
 describe("The Wrecking Crew (twc) pack ability coverage", () => {
   const allRefs = TWC_CARDS.flatMap(abilityRefIds);

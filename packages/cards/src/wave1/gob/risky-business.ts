@@ -2,6 +2,7 @@ import {
   addCounters,
   bindTargets,
   boost,
+  chooseOne,
   chooseTarget,
   chosen,
   countersOn,
@@ -15,6 +16,7 @@ import {
   forcedInterrupt,
   forcedResponse,
   forEachPlayer,
+  giveBoostCard,
   ifThen,
   inPlay,
   instead,
@@ -22,6 +24,7 @@ import {
   moveCards,
   named,
   not,
+  option,
   perHero,
   placeThreat,
   putIntoPlay,
@@ -128,10 +131,11 @@ export const RISKY_BUSINESS = defineAbilities({
   "02006b.flip": stateCheck(noCounters(self, "madness"), flipCard(theVillain), flipCard(self)),
 
   // Hired Gun — When Revealed: Choose to either give the villain 1 facedown boost card or place 2 infamy counters
-  // on Criminal Enterprise. KNOWN_SKIPPED (only the first option): "give the villain N facedown boost card(s)"
-  // outside an ongoing activation (stockpiled for its *next* activation) has no engine primitive — `CardDestination`
-  // has no villain-boost-area entry, and `EffectSpec.modifyAttack.extraBoostCards` only "changes the attack/
-  // activation in progress" (`spec.ts`), which does not exist yet when a When Revealed resolves mid-turn.
+  // on Criminal Enterprise. `giveBoostCard` (wave B primitives batch, docs/phase7-wave1-scripting.md §6) is the
+  // "outside an ongoing activation, stockpiled for its next one" shape this needed.
+  "02007.when-revealed": whenRevealed(
+    chooseOne(option("Give the villain 1 facedown boost card", giveBoostCard()), option("Place 2 infamy counters on Criminal Enterprise", addCounters("infamy", 2, named(CRIMINAL_ENTERPRISE)))),
+  ),
   // [star] Boost: Place 1 infamy counter on Criminal Enterprise. If you cannot, remove 1 madness counter from State
   // of Madness (fully scriptable; docs/phase7-wave1.md §3.4's "addCounters plus if not made" pattern, read here as
   // `ifThen(inPlay(name), …)` since `addCounters` itself has no `bind`/success flag).
@@ -176,5 +180,6 @@ export const RISKY_BUSINESS = defineAbilities({
   ),
 });
 
-/** Recorded gaps: see the comment beside `02007.when-revealed` above. */
-export const RISKY_BUSINESS_SKIPPED = ["02007.when-revealed"] as const;
+/** No recorded gaps: Hired Gun's When Revealed (`02007.when-revealed`) was the pack's skip here until `giveBoostCard`
+ * landed (see the comment beside it above). */
+export const RISKY_BUSINESS_SKIPPED = [] as const;

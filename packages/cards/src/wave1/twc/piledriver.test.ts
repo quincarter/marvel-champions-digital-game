@@ -32,13 +32,22 @@ describe("Escape Plan (07043)", () => {
     let state = withActive(spiderManVsBreakout(), piledriverId(spiderManVsBreakout()));
     const heroId = identityOf(state, P1);
     state = patchInstance(state, heroId, { statuses: { stunned: 0, confused: 1, tough: 0 } });
-    // Breakout 1B re-picks the active villain every round by highest side-scheme threat; keep Piledriver active for
-    // this round (otherwise it reverts to Wrecker before step two, and Piledriver never activates at all).
-    state = patchInstance(state, pileItOnId(state), { threat: 99 });
+    // Breakout 1B re-picks the active villain every round by highest post-step-one side-scheme threat; keep
+    // Piledriver active for this round (otherwise it reverts to Wrecker before step two, and Piledriver never
+    // activates at all). 8 (9 after step one's own +1) safely beats every other villain's own post-step-one total
+    // (Wrecker 6+1=7 is the highest of the rest) without itself already being 10-or-more when step one's +1 lands —
+    // crossing Pile Drive's own threshold before the re-pick reads the totals would hand the active counter to
+    // Wrecker instead, the same interaction `wave1/twc/breakout.test.ts`'s own test now documents.
+    state = patchInstance(state, pileItOnId(state), { threat: 8 });
     const before = inst(state, pileItOnId(state)).threat;
     state = stackEncounterDeck(state, "07043");
     state = play(state, endTurn());
-    expect(inst(state, pileItOnId(state)).threat).toBeGreaterThan(before);
+    // Piledriver's own reveal-triggered scheme (redirected onto Pile It On!, `07032.piledriver-constant`) pushes
+    // this comfortably past Pile Drive's own 10-or-more threshold (9 + his SCH of 2, plus any boost icons), so the
+    // scheme is placed here — proven by the value actually *changing* — and then immediately capped to 3
+    // (`07034.pile-drive`, scripted since the wave B primitives batch).
+    expect(inst(state, pileItOnId(state)).threat).toBe(3);
+    expect(before).not.toBe(3);
   });
 });
 
@@ -47,7 +56,7 @@ describe("Pummel (07044)", () => {
     let state = withActive(spiderManVsBreakout(), piledriverId(spiderManVsBreakout()));
     const heroId = identityOf(state, P1);
     state = patchInstance(state, heroId, { exhausted: false });
-    state = patchInstance(state, pileItOnId(state), { threat: 99 });
+    state = patchInstance(state, pileItOnId(state), { threat: 8 });
     const before = inst(state, heroId).damage;
     state = stackEncounterDeck(state, "07044");
     state = play(state, toHero(), endTurn());
@@ -58,7 +67,9 @@ describe("Pummel (07044)", () => {
 describe("Uncanny Resilience (07045)", () => {
   it("When Revealed: removes every villain's stunned/confused status cards", () => {
     let state = withActive(spiderManVsBreakout(), piledriverId(spiderManVsBreakout()));
-    state = patchInstance(state, pileItOnId(state), { threat: 99 });
+    // See Escape Plan's own comment above: 8 keeps Piledriver picked active without prematurely tripping Pile
+    // Drive during step one, so his own encounter deck (holding the stacked cards below) is the one actually used.
+    state = patchInstance(state, pileItOnId(state), { threat: 8 });
     const bulldozer = state.villains[3]!.instanceId;
     state = patchInstance(state, bulldozer, { statuses: { stunned: 1, confused: 0, tough: 0 } });
     expect(inst(state, bulldozer).statuses.stunned).toBe(1);

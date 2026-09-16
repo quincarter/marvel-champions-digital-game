@@ -11,6 +11,7 @@ import {
   discard,
   discardRandomFromHandCost,
   each,
+  eachPlayer,
   enemyAttack,
   enemyScheme,
   encounterCards,
@@ -19,6 +20,7 @@ import {
   exists,
   forcedInterrupt,
   forcedResponse,
+  forEachPlayer,
   heroAction,
   host,
   ifElse,
@@ -31,14 +33,19 @@ import {
   option,
   placeThreat,
   query,
+  removeThreat,
   revealCard,
   rule,
+  scaled,
   self,
   selectCards,
   setActiveVillain,
   statOf,
   surge,
+  thatPlayer,
   theVillain,
+  threatAtLeast,
+  threatOn,
   topOfDeck,
   undefendedAttack,
   varOf,
@@ -84,8 +91,13 @@ export const BULLDOZER_SET = defineAbilities({
   "07048.clear-the-road-constant": constant(rule({ kind: "cannotLeavePlay", target: query("sideScheme", { name: "Clear the Road" }), while: exists(BULLDOZER) })),
   "07048.clear-the-road-constant-2": constant(rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Clear the Road" }) })),
   // Charge! — Forced Response: After threat is placed here, if there is 10 or more threat here, each player must
-  // discard the top 10 cards of their deck. Remove all but 3 threat from this scheme. KNOWN_SKIPPED: same missing
-  // threat-threshold predicate as Day of Reckoning's Hard Hitter (`wrecker.ts`).
+  // discard the top 10 cards of their deck. Remove all but 3 threat from this scheme. `threatAtLeast` (wave B
+  // primitives batch, docs/phase7-wave1-scripting.md §6) is the same live-threat-vs-threshold read Day of
+  // Reckoning's Hard Hitter needed (`wrecker.ts`).
+  "07048.charge": forcedResponse(
+    after.threatPlaced("self"),
+    ifThen(threatAtLeast(self, 10), [forEachPlayer(eachPlayer, moveCards(topOfDeck(10, thatPlayer), "discard")), removeThreat(scaled(threatOn(self), { plus: -3 }), self)]),
+  ),
 
   // Bulldozer's Helmet — Attach to Bulldozer. [star] Forced Response: After Bulldozer attacks you, discard 1 card
   // from the top of your deck for each point of damage dealt by this attack.

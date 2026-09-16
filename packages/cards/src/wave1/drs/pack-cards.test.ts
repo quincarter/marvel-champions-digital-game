@@ -144,6 +144,59 @@ describe("Doctor Strange pack cards", () => {
     expect(inst(after, identity).exhausted).toBe(true); // never readied: nothing removed the damage this time
   });
 
+  it("Unflappable: after defending and taking no damage, exhausts to draw a card", () => {
+    // Doctor Strange (printed DEF 2) against Rhino (ATK 2) with a neutral 0-icon boost card: a basic defense takes
+    // 2 + 0 - 2 = 0 damage already (no extra DEF bonus needed — matches `09021.warning-interrupt`'s own DEF-2-vs-
+    // ATK-2 baseline note above).
+    const start = drsVsRhino();
+    const given = moveToHand(start, P1, "09020");
+    const [unflappable] = given.ids as [InstanceId];
+    const hero = runDrs(given.state, toHero());
+    const withCard = settle(runDrs(hero, play(P1, unflappable, payWith(hero, P1, 1, [unflappable]))), firstLegal, undefined, DRS_DEPS);
+    const identity = identityOf(withCard);
+    // Two neutral Advances (matching `doctor-strange.test.ts`'s own precedent, line ~245): one is Rhino's own
+    // boost card for this attack, the other keeps the per-player reveal that immediately follows from dealing
+    // extra, uncontrolled damage this same round (an Ambush minion, say) that would confuse the "took no damage"
+    // read.
+    const staged = stackEncounterDeck(withCard, ADVANCE, ADVANCE, "01104");
+    const atDeclare = settleUntil(runDrs(staged, endTurn()), "declareDefender", firstLegal, DRS_DEPS);
+    const declared = answer(atDeclare, [identity], DRS_DEPS);
+    const handBefore = playerOf(declared, P1).hand.length;
+    // The deferred `defended` Response window opens only after the attack finishes (RRG 1.8 "Defend, Defense",
+    // p. 16), carrying that attack's own results — "and take no damage" is part of the trigger condition
+    // (`EventPattern.resultsAtMost`), so the ability is offered here only because the attack actually dealt 0. It
+    // resolves before the per-player encounter card reveal that follows in the same villain phase, so stopping the
+    // instant the boost card lands in the encounter discard (matching Desperate Defense's own precedent above)
+    // isolates it from anything a later, uncontrolled reveal might also do.
+    const atResponse = settleUntil(declared, "chooseTriggers", firstLegal, DRS_DEPS);
+    const option = `${unflappable}:09020.unflappable-response`;
+    expect(atResponse.pendingChoice?.options.map((o) => o.optionId)).toContain(option);
+    // A single `answer` (not a broad `settle`): the response itself ("exhaust Unflappable, draw 1") needs no
+    // further choice, so this lands immediately after it resolves, before any later, uncontrolled villain-phase
+    // step gets a chance to run.
+    const after = answer(atResponse, [option], DRS_DEPS);
+    expect(inst(after, identity).damage).toBe(0);
+    expect(inst(after, unflappable).exhausted).toBe(true);
+    expect(playerOf(after, P1).hand.length).toBe(handBefore + 1);
+  });
+
+  it("Unflappable: not offered when the defense takes damage", () => {
+    const start = drsVsRhino();
+    const given = moveToHand(start, P1, "09020");
+    const [unflappable] = given.ids as [InstanceId];
+    const hero = runDrs(given.state, toHero());
+    const withCard = settle(runDrs(hero, play(P1, unflappable, payWith(hero, P1, 1, [unflappable]))), firstLegal, undefined, DRS_DEPS);
+    const identity = identityOf(withCard);
+    // CROWD_CONTROL (2 boost icons) as Rhino's own boost card: 2 + 2 - 2 = 2 damage taken. ADVANCE/"01104" again
+    // keep the following per-player reveal harmless.
+    const staged = stackEncounterDeck(withCard, CROWD_CONTROL, ADVANCE, "01104");
+    const atDeclare = settleUntil(runDrs(staged, endTurn()), "declareDefender", firstLegal, DRS_DEPS);
+    const declared = answer(atDeclare, [identity], DRS_DEPS);
+    const after = settle(declared, firstLegal, (s) => activeEncounterDeck(s).discard.some((id) => inst(s, id).cardId === cardId(CROWD_CONTROL)), DRS_DEPS);
+    expect(inst(after, identity).damage).toBe(2);
+    expect(inst(after, unflappable).exhausted).toBe(false); // never offered, so never paid for
+  });
+
   it("Iron Fist: enters play with 2 mystic counters; his own attack can remove one to stun and damage the target", () => {
     const start = drsVsRhino();
     const given = moveToHand(start, P1, "09014");

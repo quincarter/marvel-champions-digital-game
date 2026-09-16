@@ -1,4 +1,4 @@
-import { after, boost, boostIconsOn, cards, chosen, defineAbilities, forcedResponse, ifThen, putIntoPlay, query, selectCards, surge, varAtLeast, whenRevealed, you } from "../../dsl/index.js";
+import { after, boost, boostIconsOn, cards, chosen, defineAbilities, forcedResponse, heal, ifThen, perHero, putIntoPlay, query, selectCards, surge, theVillain, varAtLeast, varOf, whenRevealed, you } from "../../dsl/index.js";
 import { dealIndirectDamage, discardEncounterCards } from "./local.js";
 
 /**
@@ -25,36 +25,45 @@ export const POWER_DRAIN = defineAbilities({
   ),
   "02043.boost": boost(discardEncounterCards(3)),
 
-  // Lightning Bolt — [star] Boost: Discard 3 cards from the encounter deck (no icon-sum needed; scriptable on its own).
+  // Lightning Bolt — When Revealed: Discard 2 cards from the encounter deck. Take 1 indirect damage for each boost
+  // icon discarded this way. `discardEncounterCards`'s own `<bind>.boostIcons` (wave B primitives batch,
+  // docs/phase7-wave1-scripting.md §6) sums icons across all 2 discarded cards, unlike `boostIconsOn`, which only
+  // ever reads the first.
+  "02044.when-revealed": whenRevealed(discardEncounterCards(2, { bind: "lb" }), dealIndirectDamage(varOf("lb.boostIcons"), you)),
+  // [star] Boost: Discard 3 cards from the encounter deck (no icon-sum needed; scriptable on its own).
   "02044.boost": boost(discardEncounterCards(3)),
 
-  // Shock Therapy — [star] Boost: Discard 3 cards from the encounter deck (same shape, scriptable on its own).
+  // Shock Therapy — When Revealed: Discard 1[per_hero] cards from the encounter deck. The villain heals 1 damage
+  // for each boost icon discarded this way.
+  "02045.when-revealed": whenRevealed(discardEncounterCards(perHero(1), { bind: "st" }), heal(varOf("st.boostIcons"), theVillain)),
+  // [star] Boost: Discard 3 cards from the encounter deck (same shape, scriptable on its own).
   "02045.boost": boost(discardEncounterCards(3)),
 });
 
 /**
- * Recorded skips — all three share the same gap: `ValueSpec.boostIcons` only reads the *first* card a ref names
- * (`packages/engine/src/select.ts`, `case "boostIcons"`: `const [id] = resolveRef(...)`), with no sum over several
- * bound cards. Each of these needs "N indirect damage / 1 resource discarded / N damage healed for each boost icon
- * discarded this way" across *more than one* discarded card:
- * - `02041.when-defeated` (Power Drain): discards 2 cards, one resource discard per boost icon among both.
- * - `02044.when-revealed` (Lightning Bolt): discards 2 cards, indirect damage per boost icon among both.
- * - `02045.when-revealed` (Shock Therapy): discards 1[per_hero] cards (>1 with 2+ heroes), heals per boost icon.
+ * `02044.when-revealed` (Lightning Bolt) and `02045.when-revealed` (Shock Therapy) were skips for the same gap —
+ * `ValueSpec.boostIcons` only reads the *first* card a ref names (`packages/engine/src/select.ts`, `case
+ * "boostIcons"`: `const [id] = resolveRef(...)`), with no sum over several bound cards — until the wave B
+ * primitives batch landed `discardEncounterCards`'s own summed `<bind>.boostIcons` (docs/phase7-wave1-scripting.md
+ * §6), scripted directly on the same `EffectSpec` case these two already (correctly) use rather than `moveCards`'s
+ * version of the same bookkeeping (`moveCards` over an `encounterCards(["deck"], …, top: N)` selector snapshots the
+ * top N once, up front, and so lacks the reshuffle-then-stop rule RRG 1.8 "Encounter Deck" (p. 17) requires for a
+ * discard that empties the deck mid-effect — the exact behavior "Electro" (02042) and "Electromagnetic Pulse"
+ * (02043) above depend on, so swapping onto `moveCards` for the sum would have been a real behavior change, not an
+ * equivalent rephrasing). Both are scripted above now.
  *
- * **Verified 2026-09-15, still unresolved**: `moveCards`'s `<bind>.boostIcons` (a summed frame var landed for Hit
- * Squad, docs/phase7-wave1-scripting.md §6) does not transfer here. It lives on a *different* `EffectSpec` case
- * (`apply-effect.ts` `"moveCards"`) than the one these three already (correctly) use, `discardEncounterCards`
- * (`"discardEncounterCards"`, same file) — and the two cases are not interchangeable for an encounter-deck discard:
- * `discardEncounterCards` draws one card at a time via `drawEncounterCard`, which reshuffles the discard pile back
- * into the deck (adding an acceleration token) if the deck empties *during* the draw, then stops rather than
- * continuing into the reshuffled deck (RRG 1.8 "Encounter Deck", p. 17: "do not continue the discard effect with
- * the newly shuffled encounter deck") — the exact behavior "Electro" (02042) and "Electromagnetic Pulse" (02043)
- * above depend on. `moveCards` over an `encounterCards(["deck"], …, top: N)` selector instead snapshots
- * `deck.slice(0, N)` once, up front: with fewer than N cards left it silently discards fewer, with no reshuffle and
- * no acceleration token — a real behavior change in the near-empty-deck case (RNG consumption differs too), not an
- * equivalent rephrasing. Swapping these three onto `moveCards` to get the boost-icon sum would be the wrong kind of
- * approximation (CLAUDE.md), so they stay skipped. The genuinely missing primitive is the same boost-icon-sum
- * bookkeeping `moveCards` already has, added to `discardEncounterCards`'s own bind instead (or a general "sum a
- * value over a bound array of cards" `ValueSpec`) — flagged for `game-rules-architect`.
+ * **Still skipped: `02041.when-defeated` (Power Drain)**, current text unchanged from printed: "When Defeated:
+ * Discard 2 cards from the encounter deck. Each player must choose and discard 1 resource of any type from their
+ * hand for each boost icon discarded this way." This needs a *second*, independent primitive the boost-icon-sum
+ * batch didn't add: a per-player hand discard whose **count is a live value** (the summed boost icons, known only
+ * at resolution time) **and** whose candidates are filtered to resource-type cards. `chooseCards`'s `min`/`max`
+ * (`packages/engine/src/spec.ts`) are plain `number`s, not a `ValueSpec`, so a dynamically-computed count can't be
+ * expressed there. `EffectSpec.discardFromHand` does take a live `ValueSpec` amount and already opens a real
+ * "which cards" choice (`packages/engine/src/resolve/effects-frame.ts`), which is the closer of the two existing
+ * primitives — but it lists every hand card as a candidate, with no filter, so it can't restrict to "a resource of
+ * any type" either. Closest existing primitive: `EffectSpec.discardFromHand`. Proposed shape: an optional
+ * `filter?: TargetQuery` on `discardFromHand`, checked the same way `zone(...).filter` already is, so
+ * `discardFromHand(varOf("pd.boostIcons"), thatPlayer, { filter: { anyPrintedResource: [...] } })` reads the whole
+ * sentence in one `forEachPlayer`. Flagged for `game-rules-architect`.
  */
-export const POWER_DRAIN_SKIPPED = ["02041.when-defeated", "02044.when-revealed", "02045.when-revealed"] as const;
+export const POWER_DRAIN_SKIPPED = ["02041.when-defeated"] as const;

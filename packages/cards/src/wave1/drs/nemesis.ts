@@ -1,16 +1,21 @@
+import type { EventPattern } from "@mc/engine";
 import {
   anyOf,
   bindTargets,
+  cancelIt,
   cards,
   chooseCards,
   chosen,
   confuse,
   defineAbilities,
+  discard,
   forcedInterrupt,
   ifThen,
   moveCards,
   partOf,
   placeThreat,
+  query,
+  self,
   selectCards,
   stun,
   takeDamage,
@@ -59,26 +64,20 @@ const discardHighestCostCard = (slot: string) => [
  * Doctor Strange's nemesis set: Baron Mordo (09028, nemesis minion), Open the Dark Dimension (09029, side scheme),
  * Counterspell ×2 (09030, attachment), Thoughtcasting (09031, treachery).
  *
- * **Recorded skip: Counterspell (09030).** Printed text: "Attach to your hero (data). Forced Interrupt: When you
- * play an event, cancel its effects and discard it. Then, discard this card." The trigger itself is landed and
- * proven (`{ on: "cardBeingPlayed", playerIs: "controller", targetIs: { categories: ["event"] } }`, engine
- * `packages/engine/src/movement-wave1.test.ts`'s Embiggen/Shrink fixtures use the identical pattern), and
- * `EffectSpec.cancelTriggeringEvent` exists (`dsl/effects.ts`'s `cancelIt()`) — but tracing what it actually does
- * (`packages/engine/src/resolve/apply-effect.ts` `case "cancelTriggeringEvent"`) shows it only flags the
- * `cardBeingPlayed` *event frame* itself as `cancelled`, read by `resolve/window.ts` to close that event's own
- * interrupt/response windows. It does **not** stop the event card's own printed-ability effect frames from
- * resolving: `resolve/play-card.ts`'s "effects" stage pushes those ability frames *before* it opens the
- * `cardBeingPlayed` interrupt window (`pushFrames(ctx, frames); openWindow();`), so by the time Counterspell's
- * interrupt could cancel anything, the event's own effects are already queued independently on the stack, with
- * nothing that later checks whether the card's own play was cancelled. Contrast `resolve/reveal.ts`'s
- * `case "enterPlay"`, which explicitly gates an encounter card's own When Revealed on `!frame.effectsCancelled` —
- * `play-card.ts` has no equivalent guard for a *player* card's own effects. Implementing this by hand (a
- * bespoke "if the last interrupt cancelled this card's play, skip its ability frames" branch in `play-card.ts`)
- * would be exactly the one-off special-case CLAUDE.md and docs/phase7-wave1-scripting.md §4 rule out; the correct
- * fix is `play-card.ts` gaining the same `effectsCancelled`-style check `reveal.ts` already has, then Counterspell
- * (and the discard-it-afterward sentence, easy once that lands) just script normally. Flagged for
- * `game-rules-architect`; left out of `DRS_NEMESIS`, unresolved in `coverage.test.ts`.
+ * Counterspell (09030): "Attach to your hero (data). Forced Interrupt: When you play an event, cancel its effects
+ * and discard it. Then, discard this card." Was a skip because `cancelTriggeringEvent` only flagged the
+ * `cardBeingPlayed` *event frame* as cancelled (closing its own interrupt/response windows) without stopping the
+ * played card's own printed-ability effect frames, already queued independently on the stack by the time the
+ * interrupt resolved — unlike `resolve/reveal.ts`'s `case "enterPlay"`, which already gated an encounter card's own
+ * When Revealed on `!frame.effectsCancelled`. Landed with the wave B primitives batch (docs/phase7-wave1-scripting.md
+ * §6): `play-card.ts` now pushes a card's own ability frames in a later `"abilities"` stage, after the
+ * `cardBeingPlayed` window resolves, so there's something left for `cancelIt()` to cancel. Per RRG 1.8 "Cancel"
+ * (p. 13) the play still stands otherwise — cost paid, "Max N per round" counted, `cardPlayed` still announced, and
+ * the event still goes to its owner's discard "because it is still considered played" — so "cancel its effects and
+ * discard it" needs no separate discard effect of its own; only "Then, discard this card" (Counterspell itself) is
+ * scripted here.
  */
+const whenYouPlayAnEvent: EventPattern = { on: "cardBeingPlayed", playerIs: "controller", targetIs: query("event") };
 export const DRS_NEMESIS = defineAbilities({
   // Baron Mordo — Elite (data). Forced Interrupt: When Baron Mordo attacks you, discard the top card of your deck.
   // If that card's printed resource has: [physical] You are stunned. [energy] Take 2 damage. [mental] You are
@@ -110,6 +109,11 @@ export const DRS_NEMESIS = defineAbilities({
     facedown: true,
   }),
   "09029.when-defeated": whenDefeated(moveCards({ kind: "tucked", under: { kind: "self" } }, "separateDeckShuffle")),
+
+  // Counterspell — Attach to your hero (data). Forced Interrupt: When you play an event, cancel its effects and
+  // discard it (the discard is the standard "cancel" rule, not a separate effect here — see the module doc comment
+  // above). Then, discard this card.
+  "09030.counterspell-forced-interrupt": forcedInterrupt(whenYouPlayAnEvent, cancelIt(), discard(self)),
 
   // Thoughtcasting — When Revealed (Alter-Ego): Discard a card from your hand with the highest cost. Place threat
   // on the main scheme equal to the printed cost of that card. When Revealed (Hero): Discard a card from your hand

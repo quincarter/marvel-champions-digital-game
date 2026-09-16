@@ -65,31 +65,16 @@ const duringASchemeActivation: EventPattern = { on: "boostCardTurnedFaceup", act
  * Genius 09023, Strength 09024, Avengers Mansion 09025) are aliased from Core by `../reprints.ts`, not scripted
  * here.
  *
- * **Recorded skip: Unflappable (09020).** Printed text: "Play under any player's control. Max 1 per player.
- * Response: After you defend against an attack and take no damage, exhaust Unflappable → draw 1 card." The
- * compound trigger condition — "you defended, **and** (once the attack is fully resolved) it dealt you no damage"
- * — isn't representable yet, but the timing half of the problem is fixed. **Updated 2026-09-15:** `on.defends`
- * (the `defended` trigger event) used to fire its Response window the moment a defender was declared, strictly
- * *before* the attack dealt any damage, so a Response keyed off `defends` had to decide whether to pay its cost
- * before "take no damage" was knowable. Per RRG 1.8 "Defend, Defense" (p. 16), "Abilities that trigger after a
- * character defends an attack resolve after that attack ends", that window is now deferred to the end of the
- * attack (`packages/engine/src/resolve/event.ts`, `deferredResponses`) and carries the finished attack's results,
- * so "take no damage" *is* knowable when the cost is offered — and per FAQ "Unflappable (#20)" (p. 60) those
- * results count only damage from the attack itself, not damage a "Boost" ability dealt during it, which is exactly
- * what this card needs. `atEndOfAttack` (used for Desperate Defense, `09015` below, and proven for exactly this
- * kind of delayed check by Rhino's Charge, `packages/cards/src/core/scenarios/rhino.ts`) defers *effects*, not an
- * `AbilityCost` — it cannot delay when an `exhaustSelf` cost is charged, only when the resulting damage-dependent
- * effect resolves. Modeling "exhaust Unflappable" as a plain `exhaust(self)` *effect* inside a deferred
- * `ifThen(not(eventDealt("damage")), …)` (rather than an `AbilityCost`) would silently drop the real rule that the
- * response cannot be used at all while Unflappable is already exhausted for some other reason — a wrong answer, not
- * an approximation. What was missing as (a) "an `EventPattern`/trigger-event shape for 'the *finished* attack you
- * defended, with its final results' that a Response can match directly" has landed: the deferred `defended` window
- * is offered only after the attack, with those results. **What is still missing** is an upper bound on results in
- * the pattern: `requireResults` and `eventAtLeast` are both *minimums* ("at least N"), so "and take no damage" —
- * results that must be exactly 0 — has nothing to compile to. It needs one new `EventPattern` operator (an "at
- * most"/"none of" on results), after which this card is `response(after.defends(YOUR_HERO), { cost: exhaustThis },
- * draw(1))` plus that gate. Flagged for `game-rules-architect`; left out of `DRS_PACK_CARDS`, unresolved in
- * `coverage.test.ts`.
+ * Unflappable (09020): "Play under any player's control. Max 1 per player. Response: After you defend against an
+ * attack and take no damage, exhaust Unflappable → draw 1 card." Was a skip pending an upper bound on trigger
+ * results (`requireResults`/`eventAtLeast` are both minimums, "at least N"), landed with the wave B primitives
+ * batch as `EventPattern.resultsAtMost` (docs/phase7-wave1-scripting.md §6): `on.defends(defender, {
+ * takingNoDamage: true })` reads "and take no damage" as `resultsAtMost: { damage: 0 }` on the same deferred
+ * `defended` window (RRG 1.8 "Defend, Defense" p. 16, FAQ "Unflappable (#20)" p. 60 — only the attack's own
+ * damage counts, not a Boost ability's, which the deferred window's own results already reflect). Since the bound
+ * is part of the trigger condition, not a nested effect check, the ability is never even offered (and its
+ * `exhaustThis` cost never charged) when the attack dealt damage — matching the printed cost-arrow exactly, unlike
+ * a `discardThis`-style workaround that would spend the cost regardless.
  *
  * Desperate Defense (09015) was a skip for the same `isAnnouncement`/`defended` engine bug until the 2026-09-15 fix
  * landed (`case "defended": return false;`, `packages/engine/src/trigger-events.ts`); it's scripted below now,
@@ -158,8 +143,10 @@ export const DRS_PACK_CARDS = defineAbilities({
     ),
   ),
 
-  // "09020.unflappable-response" — intentionally absent; see the module doc comment above (missing primitive, not
-  // a DSL gap this pack can work around).
+  // Unflappable — Response: After you defend against an attack and take no damage, exhaust Unflappable → draw 1
+  // card. "You" is Unflappable's controller ("play under any player's control"), not necessarily the deck's own
+  // owner — `YOUR_IDENTITY`'s "you" reads correctly since a Response's controller is whoever controls the card.
+  "09020.unflappable-response": response(after.defends(YOUR_IDENTITY, { takingNoDamage: true }), { cost: exhaustThis }, draw(1)),
 
   // Warning — Interrupt: When a hero would take any amount of damage, reduce that amount by 1. Any hero, not just
   // yours — `query("hero")`, not `YOUR_HERO`.

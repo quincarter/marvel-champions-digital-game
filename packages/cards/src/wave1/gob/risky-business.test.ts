@@ -1,5 +1,5 @@
 import { activeVillain, currentName, type Command, type GameEvent, type GameState } from "@mc/engine";
-import { applyOk, endTurn, firstLegal, identityOf, inst, P1, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { answer, applyOk, endTurn, firstLegal, identityOf, inst, P1, patchInstance, playerOf, settle, settleUntil, stackEncounterDeck, toHero } from "../../testing/harness.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
 
@@ -149,6 +149,31 @@ describe("Criminal Enterprise / State of Madness — the scenario's win conditio
     expect(activeVillain(back).side).toBe("A");
     expect(currentName(back, enterprise)).toBe("Criminal Enterprise");
     expect(inst(back, enterprise).counters.infamy).toBe(2);
+  });
+});
+
+describe("Hired Gun", () => {
+  it("When Revealed: gives the villain a facedown boost card (the default, first-listed choice)", () => {
+    // Hero form so Norman Osborn's Forced Interrupt fully replaces his attack (no boost card consumed that round,
+    // `Oscorp Manufacturing`'s own test above), leaving the single stacked card for the per-player deal. Hired Gun
+    // itself is a minion (it enters play, engaged with P1, as it's revealed) — `giveBoostCard` deals a *fresh* card
+    // off the top of the deck as the villain's waiting boost card, not Hired Gun's own card.
+    const after = play(stackEncounterDeck(spiderManVsRiskyBusiness(), "02007"), toHero(), endTurn());
+    const villain = activeVillain(after).instanceId;
+    expect(playerOf(after, P1).playArea.some((id) => inst(after, id).cardId === "02007")).toBe(true);
+    expect(inst(after, villain).boostCards).toHaveLength(1);
+  });
+
+  it("When Revealed: alternatively places 2 infamy counters on Criminal Enterprise", () => {
+    const start = spiderManVsRiskyBusiness();
+    const enterprise = criminalEnterpriseId(start);
+    const before = inst(start, enterprise).counters.infamy ?? 0;
+    const staged = stackEncounterDeck(start, "02007");
+    const atChoice = settleUntil(runGob(staged, toHero(), endTurn()), "chooseOption", firstLegal, GOB_DEPS);
+    const placeOption = atChoice.pendingChoice!.options.findIndex((o) => o.label.startsWith("Place 2 infamy counters"));
+    expect(placeOption).toBeGreaterThanOrEqual(0);
+    const after = settle(answer(atChoice, [String(placeOption)], GOB_DEPS), firstLegal, undefined, GOB_DEPS);
+    expect(inst(after, enterprise).counters.infamy).toBeGreaterThanOrEqual(before + 2);
   });
 });
 

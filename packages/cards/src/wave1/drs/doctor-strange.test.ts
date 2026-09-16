@@ -273,6 +273,24 @@ describe("Invocation cards", () => {
     expect(playerOf(after, P1).hand.length).toBe(handBefore + 3);
   });
 
-  // Vapors of Valtorr (09035) is intentionally unscripted — see `kit.ts`'s doc comment for the full citation
-  // (missing `TargetQuery` primitives for "has any status" / "a *different* status").
+  it("Vapors of Valtorr: replaces a character's current status with a different one, the player's choice", () => {
+    const hero = runDrs(drsVsRhino(), toHero());
+    const identity = identityOf(hero);
+    // Give Doctor Strange the stunned status directly (test-only surgery, matching `black-widow.test.ts`'s own
+    // `statuses` patch) so there's exactly one status-bearing character to choose.
+    const stunned = patchInstance(hero, identity, { statuses: { ...inst(hero, identity).statuses, stunned: 1 } });
+    const stacked = stackInvocation(stunned, P1, "09035");
+    const payment = payWith(stacked, P1, 0).map((id) => ({ fromHand: id }) as const);
+    const invoked = runDrs(stacked, use(P1, identity, "09001a.spell-mastery", payment, { invocation: [topInvocation(stacked)] }));
+    // Choose Doctor Strange as the character with a status (the only candidate, still a real choice to settle —
+    // docs/phase7-wave1-scripting.md "Test conventions"). The outer `chooseOne` ("which status does it currently
+    // have?") resolves without asking, since only the "stunned" branch's condition is true. The nested `chooseOne`
+    // (the genuine "a *different* status card" choice, between the two statuses it doesn't already have) is what's
+    // left to settle: `picking("0")` always takes the first-listed alternative.
+    const after = settle(invoked, picking(identity, "0"), undefined, DRS_DEPS);
+    expect(inst(after, identity).statuses.stunned).toBe(0);
+    expect(inst(after, identity).statuses.confused).toBeGreaterThan(0);
+    // The resolved Invocation card goes to the Invocation discard pile, per its own "Special" text.
+    expect(playerOf(after, P1).separateDecks["Invocation"]?.discard.some((id) => after.instances[id]?.cardId === cardId("09035"))).toBe(true);
+  });
 });

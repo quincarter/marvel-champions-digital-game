@@ -32,9 +32,10 @@ const reprintIds = new Set<string>();
   }
 }
 
-/** Recorded gap (see `pack-cards.ts`'s comment beside it): a missing `TargetQuery` host filter (Mean Swing). Not
- * approximated — see `index.ts`. Valkyrie (06012) was a skip here too until the 2026-09-15 `paid.*` frame fix. */
-const KNOWN_SKIPPED = new Set(["06015.mean-swing-interrupt"]);
+/** No recorded gaps: Mean Swing (06015) was the pack's last skip, scripted with `TargetQuery.host` (wave B
+ * primitives batch, docs/phase7-wave1-scripting.md §6). Valkyrie (06012) was a skip here too until the 2026-09-15
+ * `paid.*` frame fix. */
+const KNOWN_SKIPPED = new Set<string>([]);
 
 describe("Thor (thor) pack ability coverage", () => {
   const allRefs = THOR_CARDS.flatMap(abilityRefIds);

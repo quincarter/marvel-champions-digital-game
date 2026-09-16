@@ -7,6 +7,7 @@ import {
   constant,
   countOf,
   dealDamage,
+  defendingCharacter,
   defineAbilities,
   discard,
   discardRandomFromHandCost,
@@ -30,14 +31,19 @@ import {
   option,
   placeThreat,
   query,
+  removeThreat,
   revealCard,
   rule,
+  scaled,
   self,
   selectCards,
   setActiveVillain,
+  stun,
   surge,
   theMainScheme,
   theVillain,
+  threatAtLeast,
+  threatOn,
   undefendedAttack,
   varAtLeast,
   when,
@@ -88,8 +94,13 @@ export const THUNDERBALL_SET = defineAbilities({
   "07019.thunderstruck-constant": constant(rule({ kind: "cannotLeavePlay", target: query("sideScheme", { name: "Thunderstruck" }), while: exists(THUNDERBALL) })),
   "07019.thunderstruck-constant-2": constant(rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Thunderstruck" }) })),
   // Gamma Blast — Forced Response: After threat is placed here, if there is 10 or more threat here, stun each
-  // friendly character. Remove all but 3 threat from this scheme. KNOWN_SKIPPED: same missing threat-threshold
-  // predicate as Day of Reckoning's Hard Hitter (`wrecker.ts`).
+  // friendly character. Remove all but 3 threat from this scheme. `threatAtLeast` (wave B primitives batch,
+  // docs/phase7-wave1-scripting.md §6) is the same live-threat-vs-threshold read Day of Reckoning's Hard Hitter
+  // needed (`wrecker.ts`).
+  "07019.gamma-blast": forcedResponse(
+    after.threatPlaced("self"),
+    ifThen(threatAtLeast(self, 10), [stun(each(FRIENDLY_CHARACTER)), removeThreat(scaled(threatOn(self), { plus: -3 }), self)]),
+  ),
 
   // Ball and Chain — Attach to Thunderball. [star] Forced Response: After Thunderball attacks, place 1 threat on
   // the main scheme.
@@ -103,10 +114,11 @@ export const THUNDERBALL_SET = defineAbilities({
   "07021.held-hostage-action": heroAction(enemyAttack(villainOfSideScheme(host), { against: you }), discard(self)),
 
   // Radioactive Buildup — Attach to Thunderball. Excess damage dealt by Thunderball is placed as threat on his
-  // corresponding side scheme. KNOWN_SKIPPED: no `RuleSpec`/`EffectSpec` redirects a built-in enemy attack's excess
-  // damage to a scheme — `<bind>.excessDealt` is only documented for a *scripted* `attack()` effect's own bind,
-  // never surfaced as a live `Predicate`/`ValueSpec` on the "enemyAttack"/"dealDamage" trigger events this card
-  // would need to intercept.
+  // corresponding side scheme. `RuleSpec.excessDamageAsThreat` (wave B primitives batch,
+  // docs/phase7-wave1-scripting.md §6) is a **constant**, not a forced response on the attack: as a response it
+  // would race this card's own "After Thunderball attacks, discard this card" below. Excess damage counts even
+  // against a tough target (ruling, Jan 26, 2026 (3)); its interaction with overkill is open (both apply today).
+  "07022.radioactive-buildup-constant": constant(rule({ kind: "excessDamageAsThreat", source: { hostOfSelf: true }, scheme: signatureSideSchemeOf(host) })),
   // [star] Forced Response: After Thunderball attacks, discard this card.
   "07022.radioactive-buildup-forced-response": forcedResponse(after.enemyAttacks("host"), discard(self)),
 
@@ -136,9 +148,11 @@ export const THUNDERBALL_SET = defineAbilities({
 
   // Energy Projectiles — When Revealed: Deal 1 damage to each friendly character you control.
   "07027.when-revealed": whenRevealed(dealDamage(1, each(query(["identity", "ally"], { controller: "you" })))),
-  // [star] Boost: Deal 1 damage to the defending character. KNOWN_SKIPPED: no `TargetRef` names "the character
-  // currently defending this attack" mid-boost (`eventTarget` needs a triggering event; a boost card resolves with
-  // no event in context).
+  // [star] Boost: Deal 1 damage to the defending character. `defendingCharacter` (wave B primitives batch,
+  // docs/phase7-wave1-scripting.md §6) names the defender of the enemy attack in progress — the ref a Boost
+  // ability needs since it has no triggering event of its own for `eventTarget` to read. Empty (no-op) for an
+  // undefended attack.
+  "07027.boost": boost(dealDamage(1, defendingCharacter)),
 
   // Get Wrecked! — same text as Wrecker's copy (07013).
   "07028.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(mostThreatVillain)),

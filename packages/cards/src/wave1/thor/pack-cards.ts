@@ -1,3 +1,4 @@
+import { trait } from "@mc/content";
 import {
   action,
   addCounters,
@@ -32,6 +33,7 @@ import {
   ifThen,
   modifyStat,
   moveCards,
+  on,
   paidWith,
   query,
   ready,
@@ -88,14 +90,15 @@ export const THOR_PACK_CARDS = defineAbilities({
   ),
 
   // Mean Swing (06015) — Hero Interrupt: When your hero makes a basic attack, exhaust a Weapon upgrade on your hero
-  // → your hero gets +3 ATK for this attack. SKIPPED: no `TargetQuery` field expresses "a card attached to an
-  // arbitrary `TargetRef`" (only `hostOfSelf: boolean`, fixed to the ability's own card — `packages/engine/src/
-  // spec.ts` `TargetQuery`). `exhaustCardsCost`'s query is a plain `TargetQuery`, so "a Weapon upgrade on your
-  // hero" (yourIdentity is not `self` here — Mean Swing is an event, not the upgrade) can't be expressed without
-  // either broadening to "a Weapon upgrade you control" (wrong if some other pack ever attaches a Weapon upgrade to
-  // an ally) or a new primitive. Proposed shape: `TargetQuery.host?: TargetRef`, checked the same way
-  // `attackableBy`/`controlledBy` compare against a resolved ref, so `query("upgrade", { trait: WEAPON, host:
-  // yourIdentity })` reads "a Weapon upgrade on your hero". Flagged to `game-rules-architect`.
+  // → your hero gets +3 ATK for this attack. Was skipped for lack of a `TargetQuery` field that names "a card
+  // attached to an arbitrary `TargetRef`" (`hostOfSelf` only reads against the ability's own card). Now scripted
+  // with `TargetQuery.host` (docs/phase7-wave1-scripting.md §6, landed with the wave B primitives batch):
+  // `query("upgrade", { trait: trait("WEAPON"), host: yourIdentity })` reads "a Weapon upgrade on your hero".
+  "06015.mean-swing-interrupt": heroInterrupt(
+    on.attacks(YOUR_HERO, { basic: true }),
+    { cost: exhaustCardsCost(query("upgrade", { trait: trait("WEAPON"), host: yourIdentity })) },
+    modifyStat("atk", 3, yourIdentity, "endOfAttack"),
+  ),
 
   // Hall of Heroes — Response: After you defeat a minion, place 1 glory counter here.
   "06017.hall-of-heroes-response": response(after.defeated(query("minion"), { byYou: true }), addCounters("glory", 1)),

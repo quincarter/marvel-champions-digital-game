@@ -1,4 +1,4 @@
-import { action, alterEgoAction, constant, defineAbilities, discard, eachPlayer, forEachPlayer, ifThen, not, placeThreat, rule, self, spend, spendResources, thatPlayer, varAtLeast, whenRevealed, you } from "../../dsl/index.js";
+import { action, after, alterEgoAction, cards, chooseCards, chosen, constant, defineAbilities, discard, eachPlayer, forcedResponse, forEachPlayer, ifThen, moveCards, not, placeThreat, rule, self, spend, spendResources, thatPlayer, varAtLeast, whenRevealed, you, zone } from "../../dsl/index.js";
 
 /**
  * Running Interference modular set: Running Interference (02046, side scheme), Tombstone (02047, minion), All Tied
@@ -9,6 +9,16 @@ export const RUNNING_INTERFERENCE = defineAbilities({
   // place 2 threat here.
   "02046.when-revealed": whenRevealed(
     forEachPlayer(eachPlayer, spendResources({ mental: 1, physical: 1 }, "paid", thatPlayer), ifThen(not(varAtLeast("paid.made")), placeThreat(2, self))),
+  ),
+
+  // Tombstone — [star] Forced Response: After Tombstone attacks and damages you, discard a [mental] or a
+  // [physical] resource from your hand, if able. `TargetQuery.anyPrintedResource` (wave B primitives batch,
+  // docs/phase7-wave1-scripting.md §6) is the OR over resource types this needed; `chooseCards`'s own `min: 1`
+  // simply finds no candidates and skips when the hand has neither, which is "if able" (RRG "cannot" default).
+  "02047.tombstone-forced-response": forcedResponse(
+    after.enemyAttacks("self", { againstYou: true, damages: true }),
+    chooseCards("tossed", zone("hand", you, { filter: { anyPrintedResource: ["mental", "physical"] } }), { min: 1, max: 1 }),
+    moveCards(cards(chosen("tossed")), "discard"),
   ),
 
   // All Tied Up — Attach to your identity card (data). Attached character cannot ready or change form.
@@ -23,10 +33,7 @@ export const RUNNING_INTERFERENCE = defineAbilities({
   "02049.media-coverage-action": alterEgoAction({ cost: spend({ mental: 1 }) }, discard(self)),
 });
 
-/**
- * Recorded skip: Tombstone's Forced Response ("discard a [mental] or a [physical] resource from your hand, if
- * able") needs a hand-card filter matching *either* of two printed resource types in one selection — `TargetQuery.
- * printedResource` only takes a single resource type, and `CardSelector`/`TargetQuery` have no "match any of these
- * categories" composition (the same shape as the documented "no anyTrait" gap, generalized to resource types).
- */
-export const RUNNING_INTERFERENCE_SKIPPED = ["02047.tombstone-forced-response"] as const;
+/** No recorded gaps: Tombstone's Forced Response was a skip for a hand-card filter matching *either* of two
+ * printed resource types in one selection until the wave B primitives batch landed `TargetQuery.anyPrintedResource`
+ * (docs/phase7-wave1-scripting.md §6); it's scripted above now. */
+export const RUNNING_INTERFERENCE_SKIPPED = [] as const;

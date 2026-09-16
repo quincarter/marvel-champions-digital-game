@@ -96,7 +96,9 @@ const afterYouPlay = (traits: readonly Trait[]): EventPattern => ({ on: "cardPla
  *   `discardEncounterUntil { filter, bind }`. Proposed shape: `discardDeckUntil { player, filter, bind }` — same
  *   "discard from the top, stop at (and include) the first match, bound to `bind`, bounded by deck+discard length
  *   so a deck with no match can't loop forever" semantics, over `zone("deck", player)` instead of the encounter
- *   deck (RRG 1.8 "Deck", p. 15, governs a player deck's own reshuffle-on-empty the same way).
+ *   deck (RRG 1.8 "Deck", p. 15, governs a player deck's own reshuffle-on-empty the same way). **Verified
+ *   2026-09-16 (wave B primitives batch)**: `discardDeckUntil` was not among the 12 primitives that batch landed;
+ *   still unresolved, unchanged from this description.
  *
  * **"Embiggen!" (05010)** was a third skip for the same reason (a confirmed engine bug: the `attack` effect ignored
  * `cardEffectBonus`) until the 2026-09-15 fix (`packages/engine/src/resolve/apply-effect.ts`'s `"attack"` case now

@@ -19,7 +19,11 @@ describe("Bulldozer (07046/07047)", () => {
 
   it("Forced Interrupt gives every one of his attacks overkill: a lethal attack against an ally spills over", () => {
     let state = withActive(spiderManVsBreakout(), bulldozerId(spiderManVsBreakout()));
-    state = patchInstance(state, clearTheRoadId(state), { threat: 99 });
+    // 8 (9 after step one's own +1) beats every other villain's post-step-one total (Wrecker's 6+1=7 is the
+    // highest of the rest) without itself already crossing Charge!'s own 10-or-more threshold when step one's +1
+    // lands, which would hand the active counter to Wrecker before the re-pick even reads the totals
+    // (`wave1/twc/breakout.test.ts`'s own test documents the same interaction).
+    state = patchInstance(state, clearTheRoadId(state), { threat: 8 });
     const heroId = identityOf(state, P1);
     state = patchInstance(state, heroId, { exhausted: false });
     const before = inst(state, heroId).damage;
@@ -36,6 +40,20 @@ describe("Clear the Road (07048)", () => {
     const scheme = clearTheRoadId(state);
     expect(cannotLeavePlay(state, TWC_DEPS, scheme)).toBe(true);
     expect(notDefeatedWithoutThreat(state, TWC_DEPS, scheme)).toBe(true);
+  });
+
+  it("Charge!: at 10+ threat, every player discards the top 10 cards of their deck and it's capped to 3", () => {
+    // Alter-ego (no `toHero()`): Bulldozer schemes this round, redirected onto Clear the Road
+    // (`07046.bulldozer-constant`), same interaction as Thunderstruck's own Gamma Blast test.
+    let state = withActive(spiderManVsBreakout(), bulldozerId(spiderManVsBreakout()));
+    // 8 (9 after step one's own +1) keeps Bulldozer picked active while comfortably crossing Charge!'s 10-or-more
+    // threshold once his own SCH (1) redirects onto it too.
+    state = patchInstance(state, clearTheRoadId(state), { threat: 8 });
+    const deckBefore = state.players[0]!.deck.length;
+    state = play(state, endTurn());
+    expect(inst(state, clearTheRoadId(state)).threat).toBe(3);
+    expect(state.players[0]!.deck.length).toBe(deckBefore - 10);
+    expect(state.players[0]!.discard.length).toBeGreaterThanOrEqual(10);
   });
 });
 
@@ -69,7 +87,9 @@ describe("Ramming Speed (07051)", () => {
 describe("Headbutt (07058)", () => {
   it("When Revealed: discards 1 card at random from hand; in hero form, takes damage equal to its printed cost", () => {
     let state = withActive(spiderManVsBreakout(), bulldozerId(spiderManVsBreakout()));
-    state = patchInstance(state, clearTheRoadId(state), { threat: 99 });
+    // See the Forced Interrupt test above: 8 keeps Bulldozer picked active without prematurely tripping Charge!
+    // during step one, so his own encounter deck (holding the stacked cards below) is the one actually used.
+    state = patchInstance(state, clearTheRoadId(state), { threat: 8 });
     const heroId = identityOf(state, P1);
     const before = { damage: inst(state, heroId).damage, hand: state.players[0]!.hand.length };
     state = stackEncounterDeck(state, "07052", "07058");

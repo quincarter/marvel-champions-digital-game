@@ -35,26 +35,15 @@ const reprintIds = new Set<string>();
 }
 
 /**
- * Recorded gaps — two missing DSL primitives and two confirmed engine bugs, each fully cited beside where the
- * ability would go:
- * - `09035.vapors-of-valtorr-special` (`kit.ts`): no `TargetQuery` for "has any status" / "a *different* status".
- * - `09027.obligation` (`obligation.ts`): no lasting cost modifier with no phase/round-bound duration, consumed
- *   only by the next matching card played.
- * - `09030.counterspell-forced-interrupt` (`nemesis.ts`): `play-card.ts` never checks whether a player card's own
- *   play was cancelled, unlike `reveal.ts`'s equivalent guard for encounter cards.
- * - `09020.unflappable-response` (`pack-cards.ts`): the Response window now opens after the attack ends, carrying
- *   that attack's results (RRG 1.8 "Defend, Defense", p. 16), so "and take no damage" is knowable by the time the
- *   cost is offered. What is still missing is an *upper bound* on results in the trigger pattern: `requireResults`
- *   and `eventAtLeast` are both minimums, so "exactly 0 damage from that attack" has nothing to compile to.
- * `09015.desperate-defense-interrupt` was a fifth skip (the same `isAnnouncement`/`defended` engine bug as
- * Unflappable's timing half) until the 2026-09-15 fix; it's scripted in `pack-cards.ts` now.
+ * No recorded gaps left. `09015.desperate-defense-interrupt` was a skip (the `isAnnouncement`/`defended` engine
+ * bug) until the 2026-09-15 fix; it's scripted in `pack-cards.ts`. `09020.unflappable-response`,
+ * `09035.vapors-of-valtorr-special`, `09027.obligation` and `09030.counterspell-forced-interrupt` were all skips
+ * for missing primitives until the wave B primitives batch landed `EventPattern.resultsAtMost`,
+ * `TargetQuery.hasAnyStatus`, `increaseNextCardCost(..., "untilPlayed", ...)`/`afterNextCardPlayed`, and the
+ * `play-card.ts` fix letting a cancelled play stop its own effects, respectively; they're scripted in
+ * `pack-cards.ts`, `kit.ts`, `obligation.ts` and `nemesis.ts`.
  */
-const KNOWN_SKIPPED = new Set<string>([
-  "09035.vapors-of-valtorr-special",
-  "09027.obligation",
-  "09030.counterspell-forced-interrupt",
-  "09020.unflappable-response",
-]);
+const KNOWN_SKIPPED = new Set<string>([]);
 
 describe("Doctor Strange (drs) pack ability coverage", () => {
   const allRefs = DRS_CARDS.flatMap(abilityRefIds);

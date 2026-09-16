@@ -27,7 +27,9 @@ import {
   forcedResponse,
   gainsTrait,
   gets,
+  giveStatus,
   giveTough,
+  hasStatus,
   heal,
   heroAction,
   heroInterrupt,
@@ -39,6 +41,7 @@ import {
   payPrintedCostOf,
   query,
   ready,
+  removeStatus,
   removeThreat,
   scaled,
   self,
@@ -75,19 +78,15 @@ const milled = (bind: string, type: "physical" | "energy" | "mental") => anyOf(v
  * signature set (docs/phase7-wave1.md §1.12 confirms Iron Man (09039, an ally here) stays distinct from Core's
  * identity of the same name; that card lives in `pack-cards.ts`).
  *
- * **Recorded skip: Vapors of Valtorr (09035).** Printed text: "Special: Choose a status card in play. Replace that
- * status card with a different status card. Place this card in the Invocation deck discard pile." Missing:
- * - a `TargetQuery` that matches a character with *any* status card ("stunned", "confused" or "tough"), an OR the
- *   current `hasStatus?: "stunned" | "confused" | "tough"` field (`packages/engine/src/spec.ts`) can't express — it
- *   takes exactly one status, not "has one of these three";
- * - a way to read which status a chosen character currently has, to determine the two remaining choices for
- *   "a *different* status card" (a `ValueSpec`/`Predicate` pair, not just `hasStatus`'s yes/no check);
- * - `EffectSpec.removeStatus` (already landed, `packages/engine/src/spec.ts`) has no `dsl/effects.ts` wrapper, but
- *   that part alone isn't the blocker.
- * Closest existing primitive: `TargetQuery.hasStatus`, which would need an `anyOf`-style widening (e.g.
- * `hasAnyStatus?: boolean`) the way `withoutTrait` widened trait filtering for wave 1. Flagged for
- * `game-rules-architect`; left out of `DRS_KIT` and therefore unresolved in `coverage.test.ts`, per
- * docs/phase7-wave1-scripting.md §4.
+ * Vapors of Valtorr (09035): "Special: Choose a status card in play. Replace that status card with a different
+ * status card. Place this card in the Invocation deck discard pile." Was a skip pending an OR over status types;
+ * landed with the wave B primitives batch as `TargetQuery.hasAnyStatus` (docs/phase7-wave1-scripting.md §6) —
+ * "a status card in play" is read as "a character with any status" (RRG 1.8 "Status Cards", p. 42), since a status
+ * is an attachment to a character rather than an independently targetable card. Which status it currently has,
+ * and therefore which two are genuinely "different", is read with `hasStatus` per option: the outer choice picks
+ * the character's current status (exactly one condition is ever true in the normal case of a single status, so it
+ * resolves without asking), removes it, and a nested choice offers the other two as the replacement — the
+ * printed text names no specific replacement, so RRG "Choose" defaults to the ability's controller deciding.
  */
 export const DRS_KIT = defineAbilities({
   // Spell Mastery — Action: Exhaust Doctor Strange and pay the cost of the top card of the Invocation deck →
@@ -224,6 +223,38 @@ export const DRS_KIT = defineAbilities({
   "09034.seven-rings-of-raggadorr-special": {
     trigger: { kind: "special" },
     effects: [chooseTarget("characters", query("character"), { optional: true, count: 3 }), giveTough(chosen("characters")), moveCards(cards(self), "separateDiscard")],
+  },
+
+  // Vapors of Valtorr (Invocation) — Special: Choose a status card in play. Replace that status card with a
+  // different status card. Place this card in the Invocation deck discard pile. See the module doc comment above
+  // for the reading: choose a character with any status, remove whichever one it has (the outer `chooseOne`
+  // resolves without asking once only one `hasStatus` condition is true), then choose one of the other two to give.
+  "09035.vapors-of-valtorr-special": {
+    trigger: { kind: "special" },
+    effects: [
+      chooseTarget("target", query("character", { hasAnyStatus: true })),
+      chooseOne(
+        option(
+          "It has the stunned status",
+          { when: hasStatus(chosen("target"), "stunned") },
+          removeStatus(chosen("target"), "stunned"),
+          chooseOne(option("Give it the confused status", giveStatus(chosen("target"), "confused")), option("Give it the tough status", giveStatus(chosen("target"), "tough"))),
+        ),
+        option(
+          "It has the confused status",
+          { when: hasStatus(chosen("target"), "confused") },
+          removeStatus(chosen("target"), "confused"),
+          chooseOne(option("Give it the stunned status", giveStatus(chosen("target"), "stunned")), option("Give it the tough status", giveStatus(chosen("target"), "tough"))),
+        ),
+        option(
+          "It has the tough status",
+          { when: hasStatus(chosen("target"), "tough") },
+          removeStatus(chosen("target"), "tough"),
+          chooseOne(option("Give it the stunned status", giveStatus(chosen("target"), "stunned")), option("Give it the confused status", giveStatus(chosen("target"), "confused"))),
+        ),
+      ),
+      moveCards(cards(self), "separateDiscard"),
+    ],
   },
 
   // Winds of Watoomb (Invocation) — Special: Draw 3 cards. Place this card in the Invocation deck discard pile.

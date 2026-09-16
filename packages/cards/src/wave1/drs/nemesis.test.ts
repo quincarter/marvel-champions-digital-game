@@ -1,6 +1,6 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, type GameState, type InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, mainThreat, moveToHand, P1, playerOf, putOnTopOfDeck, settle, stackEncounterDeck, toHero, type Picker } from "../../testing/harness.js";
+import { activeEncounterDeck, activeVillain, remainingHitPoints, type GameState, type InstanceId } from "@mc/engine";
+import { endTurn, firstLegal, identityOf, inst, instancesOf, mainThreat, moveToHand, P1, patchInstance, payWith, play, playerOf, putOnTopOfDeck, settle, stackEncounterDeck, toHero, type Picker } from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
 import { DRS_DEPS, forceMinionIntoPlay, runDrs, stackFromSetAside, startDrsGame } from "./testing.js";
 
@@ -108,6 +108,36 @@ describe("Doctor Strange's nemesis set", () => {
     expect(inst(after, identity).damage).toBeGreaterThanOrEqual(damageBefore + 3);
   });
 
-  // Counterspell (09030) is intentionally unscripted — see `nemesis.ts`'s doc comment for the full citation
-  // (`play-card.ts` never checks whether a player card's own play was cancelled).
+  it("Counterspell: cancels the next event's effects (its own cost is still paid) and discards itself", () => {
+    const start = drsVsRhino();
+    const hero = runDrs(start, toHero());
+    // Attach to your hero: reveal it while in hero form so it has a legal host.
+    const staged = stackEncounterDeck(stackFromSetAside(hero, P1, "09030"), ADVANCE);
+    const identity = identityOf(staged);
+    const afterReveal = settle(runDrs(staged, endTurn()), firstLegal, (s) => s.step.kind === "turn", DRS_DEPS);
+    const counterspell = instancesOf(afterReveal, "09030")[0]!;
+    expect(inst(afterReveal, counterspell).attachedTo).toBe(identity);
+
+    // Momentum Shift (09016): "Hero Action: Heal 2 damage from your hero → deal 2 damage to an enemy." Damage the
+    // identity first so its own heal-2 cost is payable.
+    const given = moveToHand(afterReveal, P1, "09016");
+    const [momentumShift] = given.ids as [InstanceId];
+    const damaged = patchInstance(given.state, identity, { damage: 2 });
+    const villain = activeVillain(damaged).instanceId;
+    const hpBefore = remainingHitPoints(damaged, villain);
+    // Counterspell's Forced Interrupt fires automatically (a "Forced" ability is never optional, so there is no
+    // `chooseTriggers` prompt to answer, unlike every plain "Response"/"Interrupt" this file's other tests settle).
+    const after = settle(runDrs(damaged, play(P1, momentumShift, payWith(damaged, P1, 2, [momentumShift]))), firstLegal, (s) => s.step.kind === "turn", DRS_DEPS);
+
+    // RRG 1.8 "Cancel" (p. 13): "the ability (apart from its effects) is still regarded as initiated, and any
+    // costs are still paid" — Momentum Shift's own heal-2 cost still applied, but its effect (2 damage to the
+    // villain) never resolved.
+    expect(inst(after, identity).damage).toBe(0);
+    expect(remainingHitPoints(after, villain)).toBe(hpBefore);
+    // "the card is still considered played, and it is discarded" (same citation).
+    expect(playerOf(after, P1).discard).toContain(momentumShift);
+    // "Then, discard this card": Counterspell itself.
+    expect(activeEncounterDeck(after).discard).toContain(counterspell);
+    expect(inst(after, counterspell).attachedTo).toBeNull();
+  });
 });

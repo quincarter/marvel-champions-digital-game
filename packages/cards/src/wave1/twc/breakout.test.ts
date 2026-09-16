@@ -50,9 +50,13 @@ describe("wave1Scenario('breakout')", () => {
     }
     // Wrecker's own scheme redirect (07002.wrecker-constant) also fires: step two has him scheme (nothing is
     // engaged with him), and his own "When Wrecker schemes, place the threat on his side scheme instead of the
-    // main scheme" constant redirects that onto Day of Reckoning too, on top of 1B's +1.
-    expect(schemeThreat(after, "Wrecker")).toBeGreaterThan(schemeThreat(before, "Wrecker") + 1);
-    // Day of Reckoning is still the highest of the four, so the active counter stays on Wrecker.
+    // main scheme" constant redirects that onto Day of Reckoning too, on top of 1B's +1 — for this seed, enough
+    // (6 base + 1 + 2 SCH + a boost icon) to cross Hard Hitter's own 10-or-more threshold, which then removes all
+    // but 3 threat from the scheme (`wrecker.ts`'s `07004.hard-hitter`, scripted since the wave B primitives batch).
+    expect(schemeThreat(after, "Wrecker")).toBe(3);
+    // The active counter only moves when a villain is defeated (the third test below), not merely when another
+    // side scheme's threat overtakes it, so it stays on Wrecker here even though Day of Reckoning (3) is now below
+    // Thunderstruck (6).
     expect(after.activeVillainId).toBe(villainNamed(after, "Wrecker"));
   });
 

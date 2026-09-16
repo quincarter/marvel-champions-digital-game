@@ -1,6 +1,7 @@
 import {
   after,
   allOf,
+  bindTargets,
   boost,
   chooseTarget,
   chosen,
@@ -9,11 +10,13 @@ import {
   defineAbilities,
   discard,
   each,
+  eachPlayer,
   enemyAttack,
   enemyScheme,
   encounterCards,
   exists,
   forcedResponse,
+  forEachPlayer,
   gets,
   giveTough,
   hasStatus,
@@ -28,15 +31,20 @@ import {
   not,
   placeThreat,
   query,
+  removeThreat,
   response,
   revealCard,
   rule,
+  scaled,
   self,
   selectCards,
   setActiveVillain,
   spend,
   surge,
+  thatPlayer,
   theVillain,
+  threatAtLeast,
+  threatOn,
   whenRevealed,
   whenRevealedAlterEgo,
   whenRevealedHero,
@@ -77,7 +85,24 @@ export const PILEDRIVER_SET = defineAbilities({
   "07034.pile-it-on-constant-2": constant(rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Pile It On!" }) })),
   // Pile Drive — Forced Response: After threat is placed here, if there is 10 or more threat here, each player
   // discards the upgrade or support they control with the highest cost. Remove all but 3 threat from this scheme.
-  // KNOWN_SKIPPED: same missing threat-threshold predicate as Day of Reckoning's Hard Hitter (`wrecker.ts`).
+  // `threatAtLeast` (wave B primitives batch, docs/phase7-wave1-scripting.md §6) is the same live-threat-vs-
+  // threshold read Day of Reckoning's Hard Hitter needed (`wrecker.ts`). A tie is broken by each player's own
+  // choice among their tied cards, matching Burn Notice's identical "the card with the highest cost" reading
+  // (`wave1/bkw/obligation.ts`).
+  "07034.pile-drive": forcedResponse(
+    after.threatPlaced("self"),
+    ifThen(threatAtLeast(self, 10), [
+      forEachPlayer(
+        eachPlayer,
+        ifThen(exists(query(["upgrade", "support"], { controlledBy: thatPlayer })), [
+          bindTargets("pd", superlative("highest", each(query(["upgrade", "support"], { controlledBy: thatPlayer })), printedCostOf(chosen("candidate")))),
+          chooseTarget("burned", { inSlot: "pd" }, { chooser: thatPlayer }),
+          discard(chosen("burned")),
+        ]),
+      ),
+      removeThreat(scaled(threatOn(self), { plus: -3 }), self),
+    ]),
+  ),
 
   // Distracting Taunts — Attach to Piledriver. Piledriver gets +3 hit points. Players cannot attack other villains.
   "07035.distracting-taunts-constant": constant(

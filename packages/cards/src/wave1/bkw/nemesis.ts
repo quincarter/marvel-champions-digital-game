@@ -1,4 +1,4 @@
-import { chooseTarget, chosen, constant, countOf, defineAbilities, discard, engagedPlayerOf, gets, perHero, placeThreat, query, self, takeDamage, theMainScheme, whenRevealed, whenRevealedAlterEgo, whenRevealedHero, you } from "../../dsl/index.js";
+import { boost, chooseTarget, chosen, constant, countOf, defineAbilities, discard, engagedPlayerOf, gets, modifyStat, perHero, placeThreat, query, self, takeDamage, theMainScheme, theVillain, whenRevealed, whenRevealedAlterEgo, whenRevealedHero, you } from "../../dsl/index.js";
 
 const YOUR_UPGRADES = query("upgrade", { controller: "you" });
 /** "Discard an upgrade you control" (Deadly Shot). A `chooseTarget` with zero candidates simply resolves to
@@ -10,8 +10,6 @@ const discardAnUpgradeYouControl = [chooseTarget("upgrade", YOUR_UPGRADES), disc
  * Black Widow's nemesis set: Taskmaster (08026, nemesis minion), Killer for Hire (08027, side scheme), Hydra
  * Mercenary (08028, minion — a Core reprint aliased by `../reprints.ts`, printing no ability of its own, not
  * scripted here), Deadly Shot (08029, treachery).
- *
- * **Taskmaster's Boost ability (08026.boost) is intentionally SKIPPED** — see `BKW_NEMESIS_SKIPPED` below.
  */
 export const BKW_NEMESIS = defineAbilities({
   // Taskmaster — [star] Taskmaster gets +1 SCH and +1 ATK for each upgrade you control. "You" on an encounter card
@@ -20,6 +18,19 @@ export const BKW_NEMESIS = defineAbilities({
   "08026.taskmaster-constant": constant(
     gets("sch", countOf(query("upgrade", { controlledBy: engagedPlayerOf(self) })), { self: true }),
     gets("atk", countOf(query("upgrade", { controlledBy: engagedPlayerOf(self) })), { self: true }),
+  ),
+
+  // Taskmaster — [star] Boost: For this activation, the villain gets +1 SCH and +1 ATK for each upgrade you
+  // control. Was skipped: `modifyAttack` only bonuses the current activation's own attacker, wrong here since
+  // Taskmaster's own card can be drawn as the boost card for a *different* enemy's activation and its text names a
+  // fixed target ("the villain") regardless. Not a new primitive after all (docs/phase7-wave1-scripting.md §6):
+  // `modifyStat(stat, n, theVillain, "endOfAttack")` is a lasting modifier on the ref-named card, scoped to the
+  // current activation frame (attack or scheme alike), so it reads correctly whichever enemy is actually
+  // activating. "You" during a Boost ability resolves to the attacked/scheming player (`frames.ts`
+  // `gameAbilityFrames`'s `actingPlayerId`), matching the printed "for each upgrade you control".
+  "08026.boost": boost(
+    modifyStat("sch", countOf(query("upgrade", { controller: "you" })), theVillain, "endOfAttack"),
+    modifyStat("atk", countOf(query("upgrade", { controller: "you" })), theVillain, "endOfAttack"),
   ),
 
   // Killer for Hire — When Revealed: Place an additional 1[per_hero] threat here.
@@ -31,22 +42,6 @@ export const BKW_NEMESIS = defineAbilities({
   "08029.when-revealed-hero": whenRevealedHero(discardAnUpgradeYouControl, takeDamage(1, you)),
 });
 
-/**
- * SKIPPED — missing primitive (docs/phase7-wave1-scripting.md §4). Taskmaster (08026), current text unchanged
- * from printed: "[star] Boost: For this activation, the villain gets +1 SCH and +1 ATK for each upgrade you
- * control."
- *
- * The only landed "Boost:" stat-bonus primitive is `EffectSpec.modifyAttack { atkBonus, threatBonus }`
- * (`packages/engine/src/spec.ts`), applied in `packages/engine/src/resolve/apply-effect.ts`'s `modifyAttack` case
- * to `currentActivationFrameId` — i.e. it always bonuses *whichever enemy is currently being activated*. Taskmaster's
- * boost text names a *fixed* target ("the villain") instead: when Taskmaster's own card is drawn as a boost card
- * for a *different* enemy's activation (any minion's, since a card can't be its own boost while it's the one
- * attacking/scheming), `modifyAttack` would incorrectly bonus that minion's activation rather than the villain.
- * No ruling for this exact interaction was found in marvel-champions-rulings-post-rrg-1-7.md.
- *
- * Closest existing primitive: `EffectSpec.modifyAttack`. Proposed shape: an optional `target?: TargetRef` on
- * `modifyAttack` (or a sibling effect) naming a fixed enemy to bonus for the current activation's boost step,
- * defaulting to the current activation's own enemy when absent (every existing scripted "Boost:" ability keeps its
- * current behavior unchanged). Flagged for `game-rules-architect`/`ability-scripting-engineer` coordination.
- */
-export const BKW_NEMESIS_SKIPPED = ["08026.boost"] as const;
+/** No recorded gaps: Taskmaster's Boost (08026.boost) was the pack's last skip, scripted above once the wave B
+ * primitives batch confirmed no new engine primitive was actually needed (docs/phase7-wave1-scripting.md §6). */
+export const BKW_NEMESIS_SKIPPED = [] as const;
