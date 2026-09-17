@@ -10,7 +10,7 @@ Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps
 
 | Workstream | Agent type | Where it works | Branch | Commits? |
 |---|---|---|---|---|
-| **W1** Deck analysis (Deck check scene, builder stats panel, type/aspect filters, Preconstructed/Clear) | `game-client-engineer` | main repo dir, **uncommitted in the working tree** | `feature/phase4-screen-gaps` | No — told not to commit. Also edits `docs/phase4-screen-gaps.md` directly. |
+| **W1** Deck analysis (Deck check scene, builder stats panel, type/aspect filters, Preconstructed/Clear) | `game-client-engineer` | main repo dir, **uncommitted in the working tree** | `feature/phase4-screen-gaps` | **Done and committed** on the integration branch (client 554 → 580 tests). Browser check still owed. |
 | **S5** Engine queries: `stackEntries`, `preview()`, `schemeResolved`, `plannedAttackDamage` + `defendPreview`, `explainQuery` + `choiceExclusions`, and the `concede` command / `conceded` outcome | `game-rules-architect` | `.claude/worktrees/agent-a60d2333f66c689c0` | `worktree-agent-a60d2333f66c689c0` | Commits as it goes (`f92c5c5` = steps 1–2). |
 | **W2** Title menu + setup flow (Scenario select, Take your seats, Table setup) | `game-client-engineer` | `.claude/worktrees/agent-a823678c74b964cea` | `worktree-agent-a823678c74b964cea` | Commits at the end. |
 | **W4** Pause & Rules, Settings, menu button, and S7's read-only replay board if it fits | `game-client-engineer` | `.claude/worktrees/agent-a7a89ad77a61b012c` | `worktree-agent-a7a89ad77a61b012c` | Commits at the end. |
