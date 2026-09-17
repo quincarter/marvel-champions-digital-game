@@ -139,6 +139,18 @@ export { eventSubjects, isAnnouncement } from "./trigger-events.js";
 export type { Bindings, BoostInProgress, StackFrame, StackFrameKind, StackView, TriggerCandidate, WindowTiming } from "./stack.js";
 export { describeFrame, viewStack } from "./stack.js";
 
+/** The resolution stack as rows a client can word (`stack-view.ts`); `frameCardId` is the card a frame resolves. */
+export type { StackEntry } from "./stack-view.js";
+export { stackEntries } from "./stack-view.js";
+export { frameCardId } from "./ctx.js";
+
+/** Who may read a card's face, as a rule over zones — the client's rendering and `preview()` share this one answer. */
+export { faceHidden, faceVisible, offeredByOpenChoice, zoneHidden } from "./visibility.js";
+
+/** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */
+export type { CounterSnapshot, OutcomePreview, PreviewCounter, PreviewStop } from "./preview.js";
+export { preview } from "./preview.js";
+
 export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
 export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 
