@@ -337,11 +337,17 @@ export class InspectOverlay extends Phaser.Scene {
     // fits around it — the opposite of the table, where text leads and the
     // scan is a thumbnail. Whatever the text needs is measured first, but the
     // scan keeps a floor of just over half the panel.
+    //
+    // `largeCardText` (Settings, docs/phase4-screen-gaps.md §3 "W4") is read
+    // here rather than app-wide: this sheet's whole job is reading a card's
+    // full text closely, which is exactly the accessibility need that setting
+    // names (`settings.ts`'s own doc comment).
+    const bodySize = appSession().settings.largeCardText ? 17 : 14;
     const bodyWidth = rect.width - 28;
     const measure = this.add
       .text(-10000, -10000, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
       .setWordWrapWidth(bodyWidth)
-      .setFontSize(14);
+      .setFontSize(bodySize);
     const textHeight = measure.height + (model.flavor ? 28 : 0) + (model.printedText ? 46 : 0) + (model.resourceIcons.length ? 30 : 0) + (model.stats.length ? 34 : 0);
     measure.destroy();
 
@@ -395,6 +401,7 @@ export class InspectOverlay extends Phaser.Scene {
       new McScrollPanel(this, {
         rect: { x: rect.x + 10, y, width: rect.width - 20, height: scrollBottom - y },
         text: content,
+        type: { ...typeRole.body, size: bodySize },
       });
     }
 

@@ -15,6 +15,15 @@ export const SCENES = {
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",
   villainPhase: "VillainPhaseOverlay",
+  /** Launched over the Board by its own MENU/≡ chrome button or Escape (`scenes/pause.ts`). */
+  pause: "PauseOverlay",
+  /** Launched over Pause (`scenes/rules.ts`); docs/phase4-screen-gaps.md §3 "W4". */
+  rules: "RulesOverlay",
+  /**
+   * Reachable from Pause and, once Title's rewrite (W2) adds a button for it, from
+   * Title too (`scenes/settings.ts`'s own doc comment is that button's entry point).
+   */
+  settings: "SettingsOverlay",
 } as const;
 
 export type SceneKey = (typeof SCENES)[keyof typeof SCENES];

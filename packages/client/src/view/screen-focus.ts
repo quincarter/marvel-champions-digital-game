@@ -121,3 +121,35 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
 export function villainPhaseFocusOrder(finished: boolean): readonly string[] {
   return [...(finished ? ["continue"] : []), "skip"];
 }
+
+/**
+ * Pause (docs/phase4-screen-gaps.md §3 "W4"): Resume first (the control a
+ * player pressing Escape almost always wants), then Save & quit, Rules
+ * reference, Settings, then every visible "jump to a moment" row (empty until
+ * S7's read-only board lands — see `scenes/pause.ts`), then Concede last. When
+ * the concede confirm is open, its own two controls replace the single
+ * Concede stop so Enter can't fire the real button by accident mid-confirm.
+ */
+export function pauseFocusOrder(input: { readonly momentIds: readonly string[]; readonly confirmingConcede: boolean }): readonly string[] {
+  return [
+    "resume",
+    "save-quit",
+    "rules",
+    "settings",
+    ...input.momentIds.map((id) => `moment:${id}`),
+    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
+  ];
+}
+
+/**
+ * Rules Reference: the three tabs, then the glossary's search field (glossary
+ * tab only), then whatever rows the active tab is showing.
+ */
+export function rulesFocusOrder(input: { readonly tabIds: readonly string[]; readonly showSearch: boolean; readonly rowIds: readonly string[] }): readonly string[] {
+  return ["back", ...input.tabIds.map((id) => `tab:${id}`), ...(input.showSearch ? ["search"] : []), ...input.rowIds.map((id) => `row:${id}`)];
+}
+
+/** Settings: Back, then one stop per toggle row, in the order they're drawn. */
+export function settingsFocusOrder(rowIds: readonly string[]): readonly string[] {
+  return ["back", ...rowIds.map((id) => `row:${id}`)];
+}

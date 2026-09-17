@@ -14,6 +14,7 @@ import { WAVE1_DEPS, wave1Scenario, type Wave1ScenarioOptions } from "@mc/cards"
 import {
   BKW_PACK,
   CAP_PACK,
+  CORE_ENCOUNTER_SETS,
   CORE_PACK,
   CORE_SCENARIOS,
   CORE_STARTER_DECKS,
@@ -24,10 +25,12 @@ import {
   THOR_PACK,
   TWC_PACK,
   WAVE1_CARDS,
+  WAVE1_ENCOUNTER_SETS,
   WAVE1_SCENARIOS,
   WAVE1_STARTER_DECKS,
   poolVersionOf,
   type AnyCard,
+  type EncounterSet,
   type Pack,
   type Scenario,
   type StarterDeck,
@@ -42,6 +45,9 @@ export const POOL_DEPS: EngineDeps = WAVE1_DEPS;
 
 /** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout). */
 export const POOL_SCENARIOS: readonly Scenario[] = [...CORE_SCENARIOS, ...WAVE1_SCENARIOS];
+
+/** Every encounter set in the app's pool, Core's three villain sets included (`WAVE1_ENCOUNTER_SETS` deliberately omits them). Display names for `view/scenario-card-list.ts` and `view/encounter-preview.ts`. */
+export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [...CORE_ENCOUNTER_SETS, ...WAVE1_ENCOUNTER_SETS];
 
 /** Every starter deck, Core's six precons first, then the six wave 1 hero packs'. */
 export const POOL_STARTER_DECKS: readonly StarterDeck[] = [...CORE_STARTER_DECKS, ...WAVE1_STARTER_DECKS];

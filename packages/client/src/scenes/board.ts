@@ -130,10 +130,17 @@ export class BoardScene extends Phaser.Scene {
     // once per batch rather than holding the table back on the network.
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
     const binding: IntentBinding = {
-      // A decision overlay or the villain-phase walkthrough owns the keyboard
-      // and the pad while it is up — the walkthrough used to leave arrows
-      // walking the board unseen underneath it.
-      blocked: () => this.#choiceOpen || this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.villainPhase),
+      // A decision overlay, the villain-phase walkthrough, or Pause (and
+      // whatever Pause itself launched) owns the keyboard and the pad while it
+      // is up — the walkthrough used to leave arrows walking the board unseen
+      // underneath it, and Pause's own Escape must not also reopen itself.
+      blocked: () =>
+        this.#choiceOpen ||
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.villainPhase) ||
+        this.scene.isActive(SCENES.pause) ||
+        this.scene.isActive(SCENES.rules) ||
+        this.scene.isActive(SCENES.settings),
       onIntent: (intent) => this.#actOnIntent(intent),
     };
     bindKeyboard(this, binding);
@@ -170,7 +177,7 @@ export class BoardScene extends Phaser.Scene {
        * `#choiceOpen` resets too, or the next Board would think the sheet was
        * already up and never relaunch it.
        */
-      for (const overlay of [SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+      for (const overlay of [SCENES.choice, SCENES.inspect, SCENES.villainPhase, SCENES.pause, SCENES.rules, SCENES.settings]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
       this.#choiceOpen = false;
@@ -317,7 +324,11 @@ export class BoardScene extends Phaser.Scene {
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
 
     const { zones } = layout;
-    drawChrome(this, zones.chrome!, model, appSession().store.state.saveError !== null);
+    drawChrome(this, zones.chrome!, model, {
+      notSaving: appSession().store.state.saveError !== null,
+      onMenu: () => this.#openPause(),
+      buttons: this.#frame.buttons,
+    });
     if (zones.tabs) this.#drawTabs(zones.tabs, model);
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
     if (zones.enemies) drawEnemies(ctx, zones.enemies, model);
@@ -389,9 +400,21 @@ export class BoardScene extends Phaser.Scene {
         if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
         break;
       case "cancel":
+        // Escape/B backs out of a mode first, same as everywhere else in this
+        // app; with no mode open, it's the keyboard/pad route to Pause
+        // (docs/phase4-screen-gaps.md §3 "W4": "Escape when no mode/overlay is
+        // open"). `binding.blocked()` already keeps this from firing while an
+        // overlay owns input, so reaching here means the board itself is idle.
         if (this.#controller.selection.kind !== "idle") this.#controller.cancel();
+        else this.#openPause();
         break;
     }
+  }
+
+  /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */
+  #openPause(): void {
+    if (this.scene.isActive(SCENES.pause)) return;
+    this.scene.launch(SCENES.pause);
   }
 
   #moveFocus(delta: number): void {
