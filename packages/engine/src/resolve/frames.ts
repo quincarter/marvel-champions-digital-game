@@ -13,13 +13,19 @@ export type Frame<K extends StackFrame["kind"]> = Extract<StackFrame, { kind: K 
 
 export const base = (ctx: Ctx) => ({ frameId: nextFrameId(ctx), answer: null }) as const;
 
-export const eventFrame = (ctx: Ctx, event: TriggerEvent, reportTo: ReportTarget | null = null): StackFrame => ({
+/**
+ * `vars` seeds the frame's activation record. An enemy attack/scheme reads its modifications (`atkBonus`, `schBonus`,
+ * `overkill`, `extraBoost`, `threatBonus`) off the event frame, and `modifyAttack` adds to them while the activation
+ * is in progress; seeding them here is how an effect that *initiates* an activation scopes a bonus to exactly it
+ * ("Green Goblin attacks with +X ATK").
+ */
+export const eventFrame = (ctx: Ctx, event: TriggerEvent, reportTo: ReportTarget | null = null, vars: Vars = {}): StackFrame => ({
   ...base(ctx),
   kind: "event",
   event,
   stage: isAnnouncement(event) ? "responses" : "interrupts",
   cancelled: false,
-  vars: {},
+  vars,
   slots: {},
   reportTo,
   endEffects: [],
@@ -64,10 +70,11 @@ export function addFrameSlots(ctx: Ctx, frameId: FrameId | null | undefined, del
  * first. `pushFrames` prepends, so anything that queues per-target events in a
  * loop has to build the whole batch before pushing or it resolves backwards.
  */
-export function pushEvents(ctx: Ctx, events: readonly TriggerEvent[], reportTo: ReportTarget | null = null): void {
+export function pushEvents(ctx: Ctx, events: readonly TriggerEvent[], reportTo: ReportTarget | null = null, vars: Vars = {}): void {
   pushFrames(
     ctx,
-    events.map((event) => eventFrame(ctx, event, reportTo)),
+    // Each event gets its own copy of `vars`: "each enemy attacks with +X ATK" is +X per attack, never cumulative.
+    events.map((event) => eventFrame(ctx, event, reportTo, { ...vars })),
   );
 }
 
@@ -105,6 +112,23 @@ export function pushEffects(
   ]);
 }
 
+/**
+ * What was paid to play this card, while its play is still resolving (its `playCard` frame is on the stack): the
+ * `paid.*` vars. RRG 1.8 "Cost" (p. 13): the resources spent to play a card are "paid for that card", so "if you paid
+ * for this card using a [energy] resource" is a fact about the card's own play. Valkyrie's "Response: After Valkyrie
+ * enters play" resolves inside that play (RRG 1.8 "Initiating Abilities", p. 25, step 7: the card enters play, and a
+ * response resolves immediately after), but in its own ability frame, which otherwise starts with no vars.
+ *
+ * Scoped to the play in progress, not to the card for as long as it stays in play: every "if you paid for this card"
+ * card in the pool so far reads it while the card is being played. A card put into play without being played has no
+ * `playCard` frame, so it reads as paid with nothing.
+ */
+function playPaymentVars(ctx: Ctx, instanceId: InstanceId): Vars {
+  const play = ctx.state.stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
+  if (play?.kind !== "playCard") return {};
+  return Object.fromEntries(Object.entries(play.vars).filter(([key]) => key.startsWith("paid.")));
+}
+
 export function abilityFrame(
   ctx: Ctx,
   candidate: TriggerCandidate,
@@ -122,7 +146,8 @@ export function abilityFrame(
     event,
     eventFrameId,
     bindings,
-    vars,
+    // The ability's own vars win: an ability paid for with its own resource cost (`payWindowAbility`) keeps that payment.
+    vars: { ...playPaymentVars(ctx, candidate.instanceId), ...vars },
   };
 }
 

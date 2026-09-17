@@ -85,6 +85,12 @@ export type StackFrame =
       /** "At the end of this attack" effects, run after the response window. */
       readonly endEffects: readonly DeferredEffects[];
       /**
+       * Events whose *response* window was deferred to the end of this activation: RRG 1.8 "Defend, Defense" (p. 16),
+       * "Abilities that trigger after a character defends an attack resolve after that attack ends." Only an
+       * activation event frame (`enemyAttack`) carries these; `resolve/event.ts` opens them in its `done` stage.
+       */
+      readonly deferredResponses?: readonly TriggerEvent[];
+      /**
        * A member of a simultaneous `damageGroup`: this frame runs only the interrupt window, then hands its (possibly
        * prevented or cancelled) event back to the group at `index`, which applies it with the others.
        */
@@ -199,7 +205,13 @@ export type StackFrame =
       /** Who controls the card once it's in play ("Play under any player's control"); usually `playerId`. */
       readonly controllerId: PlayerId;
       readonly attachToInstanceId: InstanceId | null;
-      readonly stage: "enterPlay" | "effects" | "discardEvent" | "done";
+      readonly stage: "enterPlay" | "effects" | "abilities" | "discardEvent" | "done";
+      /**
+       * RRG 1.8 "Cancel" (p. 13): a Forced Interrupt on `cardBeingPlayed` cancelled this card's effects
+       * ("When you play an event, cancel its effects and discard it", Counterspell, `drs` pack). The card is still
+       * considered played and is still discarded — only its own abilities are prevented from initiating.
+       */
+      readonly effectsCancelled: boolean;
       /** Set when an event was played inside a timing window: only this ability resolves. */
       readonly triggeredAbilityId: AbilityId | null;
       readonly event: TriggerEvent | null;

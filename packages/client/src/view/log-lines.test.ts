@@ -6,6 +6,7 @@
 import { activeVillain } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import type { GameEvent, GameState, PlayerId } from "@mc/engine";
+import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { appendEvents, emptyLog, logLine, type LogState } from "./log-lines.js";
@@ -23,7 +24,7 @@ async function playedGame(): Promise<{ log: LogState; state: GameState; viewer: 
   let log = emptyLog();
   const viewer = store.state.game!.players[0]!.playerId;
   const record = (): void => {
-    log = appendEvents(log, store.state.lastEvents, store.state.game!, viewer);
+    log = appendEvents(log, store.state.lastEvents, store.state.game!, viewer, POOL_DEPS);
   };
   record();
 
@@ -90,7 +91,7 @@ describe("game log", () => {
     ];
 
     for (const event of noisy) {
-      expect(logLine(event, played.state, played.viewer), event.type).toBeNull();
+      expect(logLine(event, played.state, played.viewer, POOL_DEPS), event.type).toBeNull();
     }
   });
 
@@ -99,6 +100,7 @@ describe("game log", () => {
       { type: "damagePrevented", targetInstanceId: activeVillain(played.state).instanceId, amount: 3, reason: "tough" },
       played.state,
       played.viewer,
+      POOL_DEPS,
     );
 
     expect(beat).not.toBeNull();
@@ -111,6 +113,7 @@ describe("game log", () => {
       { type: "statusGiven", instanceId: activeVillain(played.state).instanceId, status: "stunned" },
       played.state,
       played.viewer,
+      POOL_DEPS,
     );
 
     expect(beat!.tags).toEqual([{ status: "stunned", spent: false }]);
@@ -129,6 +132,7 @@ describe("game log", () => {
       { type: "uniqueEntryBlocked", instanceId: scheme, cardId: played.state.instances[scheme]!.cardId, matchedInstanceId: villain, disposition: "noEffect" },
       played.state,
       played.viewer,
+      POOL_DEPS,
     );
     expect(noEffect!.text).toContain("can't enter play");
     expect(noEffect!.text).not.toContain("discarded");
@@ -137,6 +141,7 @@ describe("game log", () => {
       { type: "uniqueEntryBlocked", instanceId: scheme, cardId: played.state.instances[scheme]!.cardId, matchedInstanceId: villain, disposition: "discarded" },
       played.state,
       played.viewer,
+      POOL_DEPS,
     );
     expect(discarded!.text).toContain("is discarded");
     expect(discarded!.voice).toBe("scenario");
@@ -144,11 +149,75 @@ describe("game log", () => {
 
   test("keeps only the most recent lines so the list never grows without bound", () => {
     const many: GameEvent[] = Array.from({ length: 30 }, (_u, i) => ({ type: "roundStarted", round: i + 1 }));
-    const capped = appendEvents(emptyLog(), many, played.state, played.viewer, 10);
+    const capped = appendEvents(emptyLog(), many, played.state, played.viewer, POOL_DEPS, 10);
 
     expect(capped.lines).toHaveLength(10);
     expect(capped.lines.at(-1)!.text).toContain("Round 30");
     // Ids stay unique across the trim, so a virtualized list can key on them.
     expect(new Set(capped.lines.map((line) => line.id)).size).toBe(10);
+  });
+
+  test("stays quiet for a resolved ability with nothing to say — no printed label, no cost, not a Special", () => {
+    const deps = { abilities: { "test.bare": { trigger: { kind: "response" }, effects: [] } as never } };
+    const beat = logLine(
+      { type: "abilityResolved", instanceId: activeVillain(played.state).instanceId, abilityId: "test.bare" as never, controllerId: played.viewer },
+      played.state,
+      played.viewer,
+      deps,
+    );
+    expect(beat).toBeNull();
+  });
+});
+
+/**
+ * Doctor Strange's Invocation deck (PLAN.md Phase 7 wave 1, reported
+ * 2026-09-16: "the Special doesn't seem to be firing, or I can't tell"). The
+ * engine was already right (`packages/cards/src/wave1/drs/doctor-strange
+ * .test.ts`); the client simply never said anything happened. This plays a
+ * real Doctor Strange game exactly the way the Board does (`SessionStore` +
+ * `legalActions`' own example), the same setup `view/board-model-invocation
+ * .test.ts` already proved reaches the Invocation deck.
+ */
+describe("game log: abilityResolved", () => {
+  test("names an Invocation card's Special, and the hero action that paid for it — not just that a card left the deck", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    // Seed 3 deals Master of the Mystic Arts (09005) into the opening hand (see `board-model-invocation.test.ts`'s
+    // own note on this seed).
+    await store.start({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "drs-protection" }], seed: 3 });
+    for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
+      const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+      await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
+    }
+    let legal = store.state.legal!.actions;
+    if (legal.kind === "turn") {
+      const flip = legal.legal.find((e) => e.action.kind === "changeForm");
+      if (flip) await store.dispatch(flip.example);
+    }
+
+    legal = store.state.legal!.actions;
+    if (legal.kind !== "turn") throw new Error("expected a turn");
+    const playMota = legal.legal.find(
+      (entry) => entry.action.kind === "playCard" && store.state.game!.instances[entry.action.instanceId]?.cardId === "09005",
+    );
+    if (!playMota) throw new Error("expected Master of the Mystic Arts to be playable");
+    let log = emptyLog();
+    await store.dispatch(playMota.example);
+    log = appendEvents(log, store.state.lastEvents, store.state.game!, store.state.perspectiveId, POOL_DEPS);
+
+    // A "choose a target" (Seven Rings of Raggadorr) or similar decision may follow the Special resolving — the
+    // same generic answer `board-model-invocation.test.ts` uses.
+    let afterLegal = store.state.legal?.actions;
+    while (afterLegal?.kind === "choice") {
+      await store.resolveChoice(afterLegal.choice.options.slice(0, afterLegal.choice.minSelections).map((option) => option.optionId));
+      log = appendEvents(log, store.state.lastEvents, store.state.game!, store.state.perspectiveId, POOL_DEPS);
+      afterLegal = store.state.legal?.actions;
+    }
+
+    const texts = log.lines.map((line) => line.text);
+    // Whichever Invocation card was on top, its Special is named — never left silent because it has no printed
+    // ability label of its own (RRG "Special" is the only name it has).
+    expect(texts.some((text) => text.endsWith(" — Special."))).toBe(true);
+    // The hero action that paid for it is named too, by the engine's own cost terms (`ability-label.ts`).
+    expect(texts).toContain("Master of the Mystic Arts — pay a card's printed cost.");
   });
 });

@@ -75,6 +75,13 @@ function matchesRest(
       if ((event.results?.[key] ?? 0) < amount) return false;
     }
   }
+  // "…and take no damage" (`{ damage: 0 }`): a result the event must not exceed. A result the event never recorded
+  // reads as 0, so it satisfies any non-negative bound.
+  if (pattern.resultsAtMost) {
+    for (const [key, amount] of Object.entries(pattern.resultsAtMost)) {
+      if ((event.results?.[key] ?? 0) > amount) return false;
+    }
+  }
   if (pattern.activation && (!("activation" in event) || event.activation !== pattern.activation)) return false;
   if (pattern.eventAtLeast) {
     const carried = event as unknown as Readonly<Record<string, unknown>>;

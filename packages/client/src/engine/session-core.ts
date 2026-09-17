@@ -25,7 +25,7 @@
  * loses nothing `LocalEngineHost` (same thread, no serialization) keeps for free.
  */
 
-import { CORE_DEPS, coreScenario } from "@mc/cards";
+import { POOL_DEPS, buildScenario } from "../content/pool.js";
 import {
   applyCommand,
   createGame,
@@ -104,18 +104,47 @@ const stripPool = (state: GameState): StateWithoutPool => {
 };
 
 const scenarioFor = (config: SessionConfig) =>
-  coreScenario(config.scenarioId, {
+  buildScenario(config.scenarioId, {
     difficulty: config.difficulty,
     players: config.players,
     seed: config.seed,
     ...(config.modularSetIds ? { modularSetIds: config.modularSetIds } : {}),
     ...(config.firstPlayerIndex !== undefined ? { firstPlayerIndex: config.firstPlayerIndex } : {}),
+    ...(config.villainVersions ? { villainVersions: config.villainVersions } : {}),
   });
 
 const statusOf = (state: GameState): SaveStatus =>
   state.outcome ? (state.outcome.result === "win" ? "won" : "lost") : "active";
 
 const describeCause = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
+
+/** What rebuilding a stored game's replay baseline produces. */
+export interface ReplayBaseline {
+  /** The stored baseline with a freshly-built card pool re-attached. */
+  readonly initialState: GameState;
+  /** Setup's own events, not stored — a fresh setup emits the same ones deterministically. */
+  readonly setupEvents: readonly GameEvent[];
+}
+
+/**
+ * Rebuilds a stored game's replay baseline: the same scenario-construction
+ * path `resume` uses, so `resume` and a read-only replay (S7, `view/replay-
+ * cursor.ts`) can never disagree about what a saved log's baseline is. The
+ * card pool isn't stored (`game-storage.ts`), so this always sets the
+ * scenario up fresh to get one and attaches it to the *stored* state — the
+ * stored commands still replay against the stored baseline, never a freshly
+ * generated one.
+ *
+ * Throws `SetupError` if the scenario itself can no longer be set up (a
+ * config referencing content that no longer exists).
+ */
+export function rebuildBaseline(config: SessionConfig, storedInitialState: StateWithoutPool): ReplayBaseline {
+  const fresh = createGame(scenarioFor(config), POOL_DEPS);
+  if (!fresh.ok) {
+    throw new SetupError({ ...fresh.error, message: `this saved game can no longer be set up: ${fresh.error.message}` });
+  }
+  return { initialState: { ...storedInitialState, cardPool: fresh.state.cardPool }, setupEvents: fresh.events };
+}
 
 export class EngineSessionCore {
   #session: GameSession | null = null;
@@ -143,7 +172,7 @@ export class EngineSessionCore {
 
   /** Builds the Core scenario and runs RRG setup. Throws `SetupError` with the engine's own code and message. */
   async start(config: SessionConfig): Promise<{ readonly cardPool: CardPool; readonly snapshot: Snapshot }> {
-    const setup = createGame(scenarioFor(config), CORE_DEPS);
+    const setup = createGame(scenarioFor(config), POOL_DEPS);
     if (!setup.ok) throw new SetupError({ ...setup.error, message: `setup failed: ${setup.error.message}` });
 
     this.#session = startSession(setup.state);
@@ -204,19 +233,20 @@ export class EngineSessionCore {
       );
     }
 
-    const fresh = createGame(scenarioFor(stored.meta.config), CORE_DEPS);
-    if (!fresh.ok) {
+    let baseline: ReplayBaseline;
+    try {
+      baseline = rebuildBaseline(stored.meta.config, stored.initialState);
+    } catch (cause) {
       await storage.setStatus(gameId, "incompatible");
-      throw new SetupError({ ...fresh.error, message: `this saved game can no longer be set up: ${fresh.error.message}` });
+      throw cause;
     }
-
-    const initialState: GameState = { ...stored.initialState, cardPool: fresh.state.cardPool };
+    const { initialState } = baseline;
     // Setup's own events aren't stored; setup is deterministic from the config,
     // so a fresh setup emits the same ones (the scheme's starting threat among them).
-    let record = recordEvents(emptyRecord(), fresh.events, initialState);
+    let record = recordEvents(emptyRecord(), baseline.setupEvents, initialState);
     let state = initialState;
     for (const [index, command] of stored.commands.entries()) {
-      const result = applyCommand(state, command, CORE_DEPS);
+      const result = applyCommand(state, command, POOL_DEPS);
       if (!result.ok) {
         await storage.setStatus(gameId, "incompatible");
         throw new Error(
@@ -235,12 +265,12 @@ export class EngineSessionCore {
     this.#writes = Promise.resolve();
     this.#saveError = null;
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
-    return { cardPool: fresh.state.cardPool, snapshot: this.#snapshot([]) };
+    return { cardPool: initialState.cardPool, snapshot: this.#snapshot([]) };
   }
 
   dispatch(command: Command): CoreDispatch {
     const session = this.#require();
-    const result = sessionApply(session, command, CORE_DEPS);
+    const result = sessionApply(session, command, POOL_DEPS);
     if (!result.ok) return { ok: false, error: result.error };
     this.#session = result.session;
     this.#version += 1;
@@ -250,7 +280,7 @@ export class EngineSessionCore {
   }
 
   legalActions(playerId: PlayerId): LegalActions {
-    return queryLegalActions(this.#require().state, playerId, CORE_DEPS);
+    return queryLegalActions(this.#require().state, playerId, POOL_DEPS);
   }
 
   /**
@@ -310,7 +340,7 @@ export class EngineSessionCore {
       version: this.#version,
       state: stripPool(state),
       events,
-      legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, CORE_DEPS) } : null,
+      legal: toAct ? { playerId: toAct, actions: queryLegalActions(state, toAct, POOL_DEPS) } : null,
       record: this.#record,
       saveError: this.#saveError,
       config: this.#config,

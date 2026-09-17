@@ -10,6 +10,7 @@ import { mustInstance, mustPlayer } from "./query.js";
 import type { CardInstance, GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import {
+  stubAlly,
   stubAttachment,
   stubEvent,
   stubMainScheme,
@@ -316,6 +317,134 @@ describe("enemy attacks: modifications, defenses, results", () => {
     expect(threatOnMain(after)).toBe(threatBefore + 1);
     expect(damageOn(after, identityOf(after))).toBe(2);
     expect(mustInstance(after, identityOf(after)).exhausted).toBe(true);
+  });
+});
+
+/**
+ * RRG 1.8 "Defend, Defense" (p. 16): "Abilities that trigger after a character defends an attack resolve after that
+ * attack ends." RRG 1.8 "Attack (Enemy Activation)" (p. 9) step 6 lists "after [character] defends [and takes no
+ * damage]…" among the abilities an attack triggers as it finishes resolving, next to retaliate and the attack's own
+ * "after [enemy] attacks you". The interrupt side is unchanged: "when your hero defends" fires as the defense
+ * initiates (p. 15), before damage.
+ *
+ * These use *forced* triggers so no prompt intervenes and the event log alone shows where each one resolved.
+ */
+describe("'after a character defends' resolves after the attack ends", () => {
+  const damageVillain = { kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: 1 } } as const;
+  const onDefended = (forced: boolean, timing: "interrupt" | "response") =>
+    ({ kind: timing, forced, on: { on: "defended", playerIs: "controller" } }) as const;
+
+  const counter = stubAbility("counter", def({ trigger: onDefended(true, "response"), effects: [damageVillain] }));
+  const brace = stubAbility("brace", def({ trigger: onDefended(true, "interrupt"), effects: [damageVillain] }));
+  const COUNTER = stubSupport({ id: "counter", cost: 0, abilities: [counter.ref] });
+  const BRACE = stubSupport({ id: "brace", cost: 0, abilities: [brace.ref] });
+
+  const at = (events: readonly GameEvent[], match: (event: GameEvent) => boolean): number => {
+    const index = events.findIndex(match);
+    expect(index, "expected event not in the log").toBeGreaterThanOrEqual(0);
+    return index;
+  };
+  const resolved = (events: readonly GameEvent[], abilityId: string): number =>
+    at(events, (e) => e.type === "abilityResolved" && e.abilityId === abilityId);
+  const damageTo = (events: readonly GameEvent[], target: InstanceId): number =>
+    at(events, (e) => e.type === "damageDealt" && e.targetInstanceId === target);
+  const declareDefence = (state: GameState, picked: string) => ({
+    type: "resolveChoice" as const,
+    playerId: p1,
+    choiceId: state.pendingChoice?.choiceId as never,
+    selectedOptionIds: [picked],
+  });
+
+  it("a response sees the damage the attack already dealt, and the interrupt on the same event still comes first", () => {
+    const { deps, state } = setup({ cards: [COUNTER, BRACE], abilities: [counter, brace], villain: villainWith({ atk: 4 }) });
+    const given = giveCards(state, p1, "counter", "brace");
+    const [counterId, braceId] = given.ids as [InstanceId, InstanceId];
+    const inPlay = runWith(deps, given.state, toHero, play(counterId), play(braceId), endTurn);
+    const atDefense = settleUntil(inPlay, "declareDefender", deps);
+    const hero = identityOf(atDefense);
+    expect(damageOn(atDefense, hero)).toBe(0);
+
+    const { state: after, events } = run(deps, atDefense, declareDefence(atDefense, hero));
+    // 4 ATK against a basic defense of 2 DEF.
+    expect(damageOn(after, hero)).toBe(2);
+    // The interrupt resolves before the attack's damage; the response only after it.
+    expect(resolved(events, "brace")).toBeLessThan(damageTo(events, hero));
+    expect(resolved(events, "counter")).toBeGreaterThan(damageTo(events, hero));
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(2); // 1 from each
+  });
+
+  it("a response still resolves when the attack defeated the defending ally, and sees it already discarded", () => {
+    const { deps, state } = setup({ cards: [COUNTER], abilities: [counter], villain: villainWith({ atk: 4 }) });
+    const given = giveCards(state, p1, "counter", ALLY.id, RESOURCE.id, RESOURCE.id);
+    const [counterId, allyId, r1, r2] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
+    const playAlly: Command = { type: "playCard", playerId: p1, cardInstanceId: allyId, payment: [{ fromHand: r1 }, { fromHand: r2 }], attachToInstanceId: null };
+    const inPlay = runWith(deps, given.state, toHero, play(counterId), playAlly, endTurn);
+    const atDefense = settleUntil(inPlay, "declareDefender", deps);
+
+    const { state: after, events } = run(deps, atDefense, declareDefence(atDefense, allyId));
+    // 4 damage into a 3-hit-point ally defeats it, and the response resolves after that.
+    expect(mustPlayer(after, p1).discard).toContain(allyId);
+    expect(resolved(events, "counter")).toBeGreaterThan(at(events, (e) => e.type === "characterDefeated" && e.instanceId === allyId));
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(1);
+  });
+
+  it("resolves after retaliate and before 'at the end of this attack' effects", () => {
+    // Rhino's Charge: "When Rhino attacks … At the end of this attack, discard Charge."
+    const charge = stubAbility("charge", def({
+      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
+      effects: [{ kind: "atEndOfAttack", effects: [{ kind: "discardFromPlay", target: { kind: "self" } }] }],
+    }));
+    const CHARGE = stubAttachment({ id: "charge", attachesTo: { kind: "villain" }, keywords: [{ name: "setup" }], abilities: [charge.ref] });
+    const retaliator = stubAlly({ id: "retaliator", cost: 0, atk: 1, thw: 1, hp: 5, keywords: [{ name: "retaliate", value: 1 }] });
+    const { deps, state } = setup({
+      cards: [COUNTER, CHARGE, retaliator],
+      abilities: [counter, charge],
+      villain: villainWith({ atk: 2 }),
+      encounter: [CHARGE.id, ...copies(BLANK.id, 20)],
+    });
+    const chargeId = mustInstance(state, activeVillain(state).instanceId).attachments[0] as InstanceId;
+    const given = giveCards(state, p1, "counter", "retaliator");
+    const [counterId, allyId] = given.ids as [InstanceId, InstanceId];
+    const inPlay = runWith(deps, given.state, toHero, play(counterId), play(allyId), endTurn);
+    const atDefense = settleUntil(inPlay, "declareDefender", deps);
+
+    const { state: after, events } = run(deps, atDefense, declareDefence(atDefense, allyId));
+    const villain = activeVillain(after).instanceId;
+    // Retaliate (a forced response to "after this character is attacked", step 6a) answers the attack first…
+    const retaliate = at(events, (e) => e.type === "damageDealt" && e.targetInstanceId === villain && e.sourceInstanceId === allyId);
+    expect(resolved(events, "counter")).toBeGreaterThan(retaliate);
+    // …and the delayed "at the end of this attack" effect is the last thing the attack does.
+    expect(resolved(events, "counter")).toBeLessThan(at(events, (e) => e.type === "cardDiscardedFromPlay" && e.instanceId === chargeId));
+    expect(damageOn(after, villain)).toBe(2); // retaliate 1 + the response's 1
+  });
+
+  it("resolves even when the attack is cancelled after the defense (RRG 1.8 p. 16; p. 9)", () => {
+    // A "(defense)" ability makes the identity the defender while the attack is still being initiated; a second
+    // interrupt then cancels the attack. The attack never deals damage, but it was still defended.
+    const guardUp = stubAbility("guard-up", def({
+      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true } },
+      label: ["defense"],
+      effects: [],
+    }));
+    const nope = stubAbility("nope", def({
+      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true } },
+      effects: [{ kind: "cancelTriggeringEvent" }],
+    }));
+    const GUARD_UP = stubSupport({ id: "guard-up", cost: 0, abilities: [guardUp.ref] });
+    const NOPE = stubSupport({ id: "nope", cost: 0, abilities: [nope.ref] });
+    const { deps, state } = setup({ cards: [COUNTER, GUARD_UP, NOPE], abilities: [counter, guardUp, nope], villain: villainWith({ atk: 4 }) });
+    const given = giveCards(state, p1, "counter", "guard-up", "nope");
+    const [counterId, guardId, nopeId] = given.ids as [InstanceId, InstanceId, InstanceId];
+    const inPlay = runWith(deps, given.state, toHero, play(counterId), play(guardId), play(nopeId), endTurn);
+    // Two forced interrupts on the same attack: the first player orders them, defense first, then the cancel.
+    const ordering = settleUntil(inPlay, "orderTriggers", deps);
+    expect(ordering.pendingChoice?.prompt.kind).toBe("orderTriggers");
+    const ordered = resolvePending(ordering, [`${guardId}:guard-up`, `${nopeId}:nope`], deps);
+
+    const after = settle(ordered, undefined, deps);
+    const hero = identityOf(after);
+    expect(damageOn(after, hero)).toBe(0); // the attack was cancelled
+    expect(damageOn(after, activeVillain(after).instanceId)).toBe(1); // the defense's response resolved anyway
   });
 });
 

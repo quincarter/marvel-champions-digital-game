@@ -6,10 +6,25 @@ export type CoreDifficulty = "standard" | "expert";
 /**
  * A seat: a Core starter deck by id, or an identity plus an explicit deck list. Decks must be
  * legal (`requireLegalDecks`), so an explicit list also needs its chosen `aspects`.
+ *
+ * `deckId` on the explicit-list case is opaque provenance, not a rules input: the client's local
+ * deck-storage id (`Deck.id`, `@mc/content`) this seat's cards were read from, carried along only
+ * so a saved game can later be attributed back to the deck that played it
+ * (docs/phase4-screen-gaps.md §2 S4). `coreScenario` below (and `wave1Scenario`'s `seatsOf`,
+ * `packages/cards/src/wave1/setup.ts`) map each `CorePlayer` field by name into `PlayerSetup`
+ * rather than spreading the seat, so `deckId` never reaches `@mc/engine`: it can't affect setup,
+ * RNG, or a replay, and an old save built before this field existed still replays byte-for-byte.
+ * It's optional and precon seats (`{ starterDeckId }`) don't carry one, because `starterDeckId`
+ * already *is* that seat's stable attribution key.
  */
 export type CorePlayer =
   | { readonly starterDeckId: string }
-  | { readonly identityCardId: string; readonly deck: readonly string[]; readonly aspects?: readonly CoreAspect[] };
+  | {
+      readonly identityCardId: string;
+      readonly deck: readonly string[];
+      readonly aspects?: readonly CoreAspect[];
+      readonly deckId?: string;
+    };
 
 export interface CoreScenarioOptions {
   readonly difficulty?: CoreDifficulty;
@@ -18,6 +33,14 @@ export interface CoreScenarioOptions {
   readonly players: readonly CorePlayer[];
   readonly seed: number;
   readonly firstPlayerIndex?: number;
+  /**
+   * The card pool sent to the engine (`GameSetupConfig.cards`). Defaults to `CORE_CARDS`. A Core scenario's
+   * villain/main-scheme/encounter-set cards are always looked up in `CORE_CARDS` regardless of this — only a
+   * seat's identity and deck need the wider pool, e.g. a wave 1 hero's precon sitting at a Core scenario
+   * (`packages/cards/src/wave1/setup.ts` `wave1Scenario`, docs/phase7-wave1-scripting.md). Every existing caller
+   * that doesn't set this keeps exactly the old behavior.
+   */
+  readonly cardPool?: readonly AnyCard[];
 }
 
 const cardsById = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id, card]));
@@ -76,7 +99,7 @@ export function coreScenario(scenarioId: string, options: CoreScenarioOptions): 
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1–4 players");
   return {
     seed: options.seed,
-    cards: CORE_CARDS,
+    cards: options.cardPool ?? CORE_CARDS,
     villainCardId: scenario.villainCardId,
     villainSide: side.side,
     villainStartStageIndex: stageIndex(firstStage),

@@ -45,6 +45,34 @@ export function choiceFocusOrder(shownOptionIds: readonly string[], canDecline: 
   ];
 }
 
+/**
+ * What a freshly opened choice starts with selected. A lone option ("Trigger an
+ * ability? · Backflip", "Choose a target · The Break-In!") starts picked, so the
+ * sheet reads as the yes/no question it is: Confirm takes it, Decline doesn't.
+ * Anything with more than one option starts empty — picking is the question.
+ */
+export function initialChoiceSelection(choice: Pick<PendingChoice, "options" | "maxSelections">): readonly string[] {
+  const [only] = choice.options;
+  return choice.options.length === 1 && choice.maxSelections >= 1 && only ? [only.optionId] : [];
+}
+
+/**
+ * The fewest picks Confirm needs. When declining is legal the sheet already has
+ * a Decline button for "none", so Confirm with nothing picked is the same answer
+ * wearing the wrong label — and read in play as a Confirm that did nothing.
+ */
+export function confirmMinimum(choice: Pick<PendingChoice, "options" | "minSelections">): number {
+  return choice.minSelections === 0 && choice.options.length > 0 ? 1 : choice.minSelections;
+}
+
+/** True when Confirm can be pressed with `selectedCount` picks. */
+export function canConfirmChoice(
+  choice: Pick<PendingChoice, "options" | "minSelections" | "maxSelections">,
+  selectedCount: number,
+): boolean {
+  return selectedCount >= confirmMinimum(choice) && selectedCount <= choice.maxSelections;
+}
+
 /** One string per focusable thing on the sheet, so a rect can be looked up by what it is. */
 export const choiceFocusKey = (target: ChoiceFocusTarget): string =>
   target.kind === "option" ? `option:${target.optionId}` : target.kind;

@@ -83,6 +83,7 @@
  */
 
 import Phaser from "phaser";
+import { POOL_DEPS } from "../content/pool.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, fitText, label } from "../ui/widgets.js";
@@ -180,7 +181,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     if (state.version !== this.#version) {
       this.#version = state.version;
       const before = totalBeatsOf(this.#walkthrough);
-      this.#walkthrough = appendWalkthrough(this.#walkthrough, state.lastEvents, state.game, state.perspectiveId);
+      this.#walkthrough = appendWalkthrough(this.#walkthrough, state.lastEvents, state.game, state.perspectiveId, POOL_DEPS);
       const after = totalBeatsOf(this.#walkthrough);
       // A fresh villain phase clears the previous one's beats (the walkthrough
       // shows one phase at a time) — the reveal cursor follows suit.

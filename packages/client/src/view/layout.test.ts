@@ -11,6 +11,7 @@ import {
   PHONE_TABS,
   REFERENCE_VIEWPORTS,
   statBlockLayout,
+  villainRowSlots,
   type Rect,
   type ZoneName,
 } from "./layout.js";
@@ -295,6 +296,22 @@ describe("stat badges", () => {
     expect(block.hp!.y + block.hp!.height).toBe(rect.y + rect.height);
   });
 
+  /**
+   * The villain panel's bug (`docs`/task brief: "VILLAIN · STAGE II is overdrawn
+   * by the ATK/SCH badges"): a caller lays this out against whatever's left
+   * under the name/subtitle it already drew, which can be far shorter than the
+   * ~97px a `BADGE_MAX` row plus the HP plate wants. Without a shrink, the block
+   * bottom-pins itself using that oversized height and its `top` lands above
+   * `rect.y` — over whatever the caller drew there.
+   */
+  test("a wide panel too short for BADGE_MAX shrinks its badges rather than starting above its own rect", () => {
+    const rect: Rect = { x: 0, y: 40, width: 171, height: 75 };
+    const block = statBlockLayout(rect, 2, true);
+    expect(block.badges.every((badge) => badge.size < BADGE_MAX)).toBe(true);
+    expect(block.top).toBeGreaterThanOrEqual(rect.y);
+    expect(block.height).toBeLessThanOrEqual(rect.height);
+  });
+
   test.each([140, 70])("a card-shaped column keeps every badge above the HP plate (card %ipx tall)", (height) => {
     const inner: Rect = { x: 0, y: 0, width: 100, height };
     const column = cardStatColumn(inner, 2, true);
@@ -307,5 +324,50 @@ describe("stat badges", () => {
     const [top, next] = column.badges;
     const { above, below } = badgeExtent(top!.size);
     expect(next!.cy - top!.cy).toBeGreaterThanOrEqual(above + below);
+  });
+});
+
+describe("villainRowSlots", () => {
+  test("one villain gets the whole rect", () => {
+    const rect: Rect = { x: 5, y: 5, width: 280, height: 128 };
+    expect(villainRowSlots(rect, 1)).toEqual([rect]);
+  });
+
+  test("four villains at a desktop-ish width (800×600) fit on one row", () => {
+    // Roughly `enemies` at 800×600 (tabletLandscape): comfortably wider than four panels at the compact floor.
+    const rect: Rect = { x: 0, y: 0, width: 434, height: 128 };
+    const slots = villainRowSlots(rect, 4);
+    expect(slots).toHaveLength(4);
+    expect(new Set(slots.map((s) => s.y)).size).toBe(1);
+    for (const slot of slots) {
+      expect(slot.width).toBeGreaterThan(0);
+      expect(slot.x + slot.width).toBeLessThanOrEqual(rect.x + rect.width + 0.001);
+    }
+  });
+
+  test("four villains too narrow for one row (a phone's 359px content width) wrap into more than one row", () => {
+    const rect: Rect = { x: 0, y: 0, width: 200, height: 240 };
+    const slots = villainRowSlots(rect, 4);
+    expect(slots).toHaveLength(4);
+    const rowYs = new Set(slots.map((s) => s.y));
+    expect(rowYs.size).toBeGreaterThan(1);
+    for (const slot of slots) {
+      expect(slot.x).toBeGreaterThanOrEqual(rect.x);
+      expect(slot.x + slot.width).toBeLessThanOrEqual(rect.x + rect.width + 0.001);
+      expect(slot.y + slot.height).toBeLessThanOrEqual(rect.y + rect.height + 0.001);
+    }
+  });
+
+  test("no villains draws nothing", () => {
+    expect(villainRowSlots({ x: 0, y: 0, width: 100, height: 100 }, 0)).toEqual([]);
+  });
+
+  test("slots never overlap within a row", () => {
+    const rect: Rect = { x: 0, y: 0, width: 300, height: 200 };
+    const slots = villainRowSlots(rect, 3);
+    const sorted = [...slots].sort((a, b) => a.x - b.x);
+    for (let i = 1; i < sorted.length; i++) {
+      expect(sorted[i]!.x).toBeGreaterThanOrEqual(sorted[i - 1]!.x + sorted[i - 1]!.width - 0.001);
+    }
   });
 });

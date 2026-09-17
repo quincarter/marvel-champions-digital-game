@@ -1,9 +1,11 @@
+import type { EngineDeps } from "./abilities.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { emit, moveCard, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
 import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
 import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, mustInstance, mustPlayer, mustVillain } from "./query.js";
-import { shuffle } from "./rng.js";
+import { nextInt, shuffle } from "./rng.js";
 import { cannotLeavePlay, cannotReady } from "./rules.js";
+import { matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, ZoneId } from "./state.js";
 import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
@@ -228,6 +230,26 @@ export function discardFromHand(ctx: Ctx, playerId: PlayerId, id: InstanceId): v
   emit(ctx, { type: "cardDiscardedFromHand", playerId, instanceId: id });
 }
 
+/**
+ * "Discard N cards at random from your hand", one card at a time with the game's seeded RNG, so a replay discards the
+ * same cards. Stops early when no eligible card is left; a hand of one still discards it (ruling, Feb 28, 2026 (4)).
+ * `exclude` keeps cards out of the pick (the card whose cost this is). Returns the discarded cards in order.
+ */
+export function discardRandomFromHand(ctx: Ctx, playerId: PlayerId, amount: number, exclude: readonly InstanceId[] = []): readonly InstanceId[] {
+  const discarded: InstanceId[] = [];
+  for (let i = 0; i < amount; i++) {
+    const hand = mustPlayer(ctx.state, playerId).hand.filter((id) => !exclude.includes(id));
+    if (hand.length === 0) break;
+    const [index, rng] = nextInt(ctx.state.rng, hand.length);
+    ctx.state = { ...ctx.state, rng };
+    const picked = hand[index];
+    if (!picked) break;
+    discardFromHand(ctx, playerId, picked);
+    discarded.push(picked);
+  }
+  return discarded;
+}
+
 /** Sends a card in play to the discard pile its `home` names (its owner's, or its encounter deck's). */
 export function discardFromPlay(ctx: Ctx, id: InstanceId): void {
   leavePlay(ctx, id, discardZoneFor(ctx.state, id), "top", true);
@@ -324,16 +346,53 @@ export function expireEventLastingEffects(ctx: Ctx, frameId: string): void {
   }
 }
 
-/** Total "reduce the cost of the next card you play" waiting for this player. */
-export const costReductionFor = (state: GameState, playerId: PlayerId): number =>
-  state.lastingEffects.reduce(
-    (sum, effect) => (effect.kind === "costReduction" && effect.playerId === playerId ? sum + effect.amount : sum),
-    0,
-  );
+/**
+ * Total "reduce the cost of the next card you play" waiting for this player, against a specific card being priced.
+ * A `cardFilter`-bearing reduction ("the next Avenger ally played this phase", Avengers Tower) only applies while
+ * pricing a card it matches, and keeps waiting through any other card `cardInstanceId` names.
+ */
+export function costReductionFor(state: GameState, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId): number {
+  const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
+  return state.lastingEffects.reduce((sum, effect) => {
+    if (effect.kind !== "costReduction" || effect.playerId !== playerId) return sum;
+    if (effect.cardFilter && !matchesQuery(state, cardInstanceId, effect.cardFilter, context)) return sum;
+    return sum + effect.amount;
+  }, 0);
+}
 
-/** The player just played a card: every pending "next card" reduction is used up. */
-export function consumeCostReductions(ctx: Ctx, playerId: PlayerId): void {
+/**
+ * A card's play has finished resolving: every lasting effect whose duration is "until this player plays a
+ * (matching) card" reaches its timing point now. A `delayedEffects` body with that duration is returned rather than
+ * run, so the caller can push it through the stack ("Discard this obligation after you play an event", Physical
+ * Toll) — the same split `executeEndOfRound` uses for round-end delayed effects.
+ *
+ * Distinct from `consumeCostReductions`, which fires earlier (as the cost is paid) and only for `costReduction`
+ * bodies, so the reduction/increase applies to the card that consumes it and to nothing played after it.
+ */
+export function endUntilCardPlayedEffects(
+  ctx: Ctx,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+): readonly Extract<LastingEffect, { kind: "delayedEffects" }>[] {
+  const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
+  const fired: Extract<LastingEffect, { kind: "delayedEffects" }>[] = [];
   for (const effect of [...ctx.state.lastingEffects]) {
-    if (effect.kind === "costReduction" && effect.playerId === playerId) endLastingEffect(ctx, effect.id, "consumed");
+    const duration = effect.duration;
+    if (duration.kind !== "untilCardPlayed" || duration.playerId !== playerId) continue;
+    if (duration.cardFilter && !matchesQuery(ctx.state, cardInstanceId, duration.cardFilter, context)) continue;
+    if (effect.kind === "delayedEffects") fired.push(effect);
+    endLastingEffect(ctx, effect.id, effect.kind === "delayedEffects" ? "fired" : "expired");
+  }
+  return fired;
+}
+
+/** The player just played a card: every pending "next card" reduction that card matches is used up. */
+export function consumeCostReductions(ctx: Ctx, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId): void {
+  const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
+  for (const effect of [...ctx.state.lastingEffects]) {
+    if (effect.kind !== "costReduction" || effect.playerId !== playerId) continue;
+    if (effect.cardFilter && !matchesQuery(ctx.state, cardInstanceId, effect.cardFilter, context)) continue;
+    endLastingEffect(ctx, effect.id, "consumed");
   }
 }

@@ -21,6 +21,7 @@ import {
   handCardResources,
   paymentOptions,
   paymentsFromOptionIds,
+  inPlayCostCandidates,
   planCost,
   playableFromDiscard,
   playRequirement,
@@ -149,6 +150,20 @@ function wallets(spend: readonly Payment[]): readonly (readonly Payment[])[] {
   return handOnly.length === spend.length ? [spend] : [spend, handOnly];
 }
 
+/**
+ * "Discard N cards at random from your hand →" needs N cards the payment leaves in hand, so each wallet is also tried
+ * with its last N hand cards kept back. The unchanged wallet is tried first; costs without the component are untouched.
+ */
+function leavingCardsToDiscard(tryWallets: readonly (readonly Payment[])[], cost: AbilityCost | undefined): readonly (readonly Payment[])[] {
+  const keep = cost?.discardRandomFromHand ?? 0;
+  if (keep <= 0) return tryWallets;
+  return tryWallets.flatMap((wallet) => {
+    const handIndexes = wallet.flatMap((entry, index) => ("fromHand" in entry ? [index] : []));
+    const keptBack = new Set(handIndexes.slice(-keep));
+    return [wallet, wallet.filter((_, index) => !keptBack.has(index))];
+  });
+}
+
 /** "Choose and discard N cards" cost picks: the cards worth the fewest resources, keeping resource cards for paying. */
 function discardPicks(state: GameState, playerId: PlayerId, source: InstanceId, cost: AbilityCost | undefined): readonly InstanceId[] {
   const min = cost?.discardFromHand?.min ?? 0;
@@ -158,14 +173,31 @@ function discardPicks(state: GameState, playerId: PlayerId, source: InstanceId, 
   return cheapest.slice(0, min);
 }
 
+/**
+ * Default picks for costs paid with cards in play (`InPlayCostPick`), so an ability whose choice isn't forced is still
+ * listed. The first `min` candidates in play-area order are the smallest payment. The player's own picks replace them.
+ */
+function inPlayCostPicks(state: GameState, deps: EngineDeps, playerId: PlayerId, source: InstanceId, cost: AbilityCost | undefined): CostChoices {
+  const picks: Record<string, readonly InstanceId[]> = {};
+  for (const [mode, pick] of [["exhaust", cost?.exhaustCards], ["return", cost?.returnToHand]] as const) {
+    if (!pick) continue;
+    const candidates = inPlayCostCandidates(state, deps, source, playerId, mode, pick);
+    // With too few candidates, leave the slot empty so the engine reports why the cost can't be paid.
+    if (candidates.length >= pick.min) picks[pick.slot] = candidates.slice(0, pick.min);
+  }
+  return picks;
+}
+
 /** The `costChoices` to try, one per candidate for a "pay the printed cost of …" pick. */
 function costChoiceSets(
   state: GameState,
+  deps: EngineDeps,
   playerId: PlayerId,
+  source: InstanceId,
   cost: AbilityCost | undefined,
   picks: readonly InstanceId[],
 ): readonly { readonly costChoices: CostChoices | undefined; readonly target: InstanceId | null }[] {
-  const base: CostChoices = cost?.discardFromHand ? { discard: picks } : {};
+  const base: CostChoices = { ...inPlayCostPicks(state, deps, playerId, source, cost), ...(cost?.discardFromHand ? { discard: picks } : {}) };
   const baseChoices = Object.keys(base).length > 0 ? base : undefined;
   const pay = cost?.payPrintedCostOf;
   if (!pay) return [{ costChoices: baseChoices, target: null }];
@@ -252,7 +284,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
   const controllers: readonly (PlayerId | undefined)[] = restrictions?.anyPlayerControl ? playerOrder(state).map((p) => p.playerId) : [undefined];
   const variants: Variant[] = [];
   for (const host of hosts) {
-    for (const { costChoices, target } of costChoiceSets(state, playerId, cost, picks)) {
+    for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
       for (const controllerId of controllers) {
         variants.push({
           target: host ?? target,
@@ -270,18 +302,18 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
       }
     }
   }
-  return evaluate(state, deps, { kind: "playCard", instanceId: id }, variants, wallets(spend));
+  return evaluate(state, deps, { kind: "playCard", instanceId: id }, variants, leavingCardsToDiscard(wallets(spend), cost));
 }
 
 function evaluateAbility(state: GameState, deps: EngineDeps, playerId: PlayerId, instanceId: InstanceId, abilityId: AbilityId): Evaluated {
   const cost = deps.abilities[abilityId]?.cost;
   const picks = discardPicks(state, playerId, instanceId, cost);
   const spend = spendOrder(state, deps, playerId, new Set(picks));
-  const variants: Variant[] = costChoiceSets(state, playerId, cost, picks).map(({ costChoices, target }) => ({
+  const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).map(({ costChoices, target }) => ({
     target,
     build: (payment) => ({ type: "useAbility", playerId, cardInstanceId: instanceId, abilityId, payment, ...(costChoices ? { costChoices } : {}) }),
   }));
-  return evaluate(state, deps, { kind: "useAbility", instanceId, abilityId }, variants, wallets(spend));
+  return evaluate(state, deps, { kind: "useAbility", instanceId, abilityId }, variants, leavingCardsToDiscard(wallets(spend), cost));
 }
 
 /** Action abilities the player could trigger: on cards they control, and "Hero Action" text on encounter cards. */
@@ -498,7 +530,7 @@ function payableFor(
     const card = cardOf(state, id);
     const cost = card ? eventActionAbility(createCtx(state, deps), card)?.cost : undefined;
     const picks = options.costChoices?.discard ?? discardPicks(state, playerId, id, cost);
-    const sets = costChoiceSets(state, playerId, cost, picks);
+    const sets = costChoiceSets(state, deps, playerId, id, cost, picks);
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);
     const controllerId = options.controllerId;
@@ -529,7 +561,7 @@ function payableFor(
     const { instanceId, abilityId } = action;
     const cost = deps.abilities[abilityId]?.cost;
     const picks = options.costChoices?.discard ?? discardPicks(state, playerId, instanceId, cost);
-    const sets = costChoiceSets(state, playerId, cost, picks);
+    const sets = costChoiceSets(state, deps, playerId, instanceId, cost, picks);
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);
     const plan = planCost(state, deps, instanceId, playerId, cost, costChoices ?? {}, NO_RESERVED);

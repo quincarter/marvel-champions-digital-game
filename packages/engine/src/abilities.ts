@@ -1,7 +1,7 @@
 import type { AbilityId, KeywordInstance, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
-import type { EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, ValueSpec } from "./spec.js";
+import type { EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
 import type { Form } from "./state.js";
 import type { TriggerEventKind } from "./trigger-events.js";
 
@@ -27,6 +27,18 @@ export interface EventPattern {
    * "…undefended" → `{ undefended: 1 }`. Keys are the event's `results`.
    */
   readonly requireResults?: Readonly<Record<string, number>>;
+  /**
+   * The upper-bound counterpart of `requireResults`: each result must be **at most** this, read at the same moment.
+   * `{ damage: 0 }` is "and take no damage" / "if it dealt no damage" — a bound `requireResults` and `eventAtLeast`,
+   * both minimums, cannot express. A missing result reads as 0 and therefore satisfies any non-negative bound.
+   *
+   * It is part of the *trigger condition*, so an ability whose bound fails is never offered and its cost is never
+   * paid — which is what "Response: After you defend against an attack **and take no damage**, exhaust this →" needs
+   * (FAQ "Unflappable (#20)", RRG 1.8 p. 60: "The cost of the ability on Unflappable only requires that the
+   * defending identity take no damage during step 4 of the enemy attack"). Modeling the same sentence as an
+   * effect-level `if` would charge the cost first, which is a different card.
+   */
+  readonly resultsAtMost?: Readonly<Record<string, number>>;
   /** "After you make a basic attack" → `basic`; "(attack)" abilities → `ability`. */
   readonly attackKind?: "basic" | "ability";
   /** The activation the event belongs to: "while the villain attacks" / "during a scheme activation" (boost card events). */
@@ -181,8 +193,11 @@ export type RuleSpec =
   | { readonly kind: "cannotAttack"; readonly target: TargetQuery; readonly while?: Predicate }
   /** "Resolve each 'When Revealed' ability that you reveal 1 additional time." (Media Coverage). */
   | { readonly kind: "repeatWhenRevealed"; readonly player: PlayerRef; readonly times: number; readonly while?: Predicate }
-  /** "Increase your ally limit by N" — for the controller of the card (The Triskelion). */
-  | { readonly kind: "allyLimit"; readonly amount: number }
+  /**
+   * "Increase your ally limit by N" — for the controller of the card (The Triskelion), optionally conditional
+   * ("If each of your allies has the Avenger trait, increase your ally limit by 1" — Avengers Tower, `cap` pack).
+   */
+  | { readonly kind: "allyLimit"; readonly amount: number; readonly while?: Predicate }
   /** "The engaged player must defend against [attacker]'s attacks with an ally they control, if able" (Melter). */
   | { readonly kind: "mustDefendWithAlly"; readonly attacker: TargetQuery; readonly while?: Predicate }
   /**
@@ -191,6 +206,19 @@ export type RuleSpec =
    * its threat on that villain's signature side scheme while it is in play, else on the main scheme.
    */
   | { readonly kind: "schemeThreatDestination"; readonly enemy: TargetQuery; readonly scheme: "ownSignatureSideScheme"; readonly while?: Predicate }
+  /**
+   * "Excess damage dealt by Thunderball is placed as threat on his corresponding side scheme" (Radioactive Buildup,
+   * 07022). Whenever a card matching `source` deals damage beyond the target's remaining hit points, that much threat
+   * is placed on `scheme`: `"ownSignatureSideScheme"` is the dealing villain's signature side scheme (nothing if it
+   * is not in play), a `TargetRef` is read from the rule card ("his" on an attachment is
+   * `signatureSideSchemeOf { villain: host }`).
+   *
+   * Any damage the source deals, not just its attacks: the card says "excess damage dealt by", not "by his attacks".
+   * Excess damage is measured as RRG 1.8 "Excess Damage" (p. 19) defines it, damage *dealt* beyond remaining hit
+   * points, so it is placed even when a tough status card or "cannot take damage" stops the target taking it (ruling,
+   * Jan 26, 2026 (3)). See `resolve/event.ts` `applyDamage` for the ordering and the open overkill question.
+   */
+  | { readonly kind: "excessDamageAsThreat"; readonly source: TargetQuery; readonly scheme: "ownSignatureSideScheme" | TargetRef; readonly while?: Predicate }
   /** "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword. */
   | { readonly kind: "cannotLeavePlay"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
@@ -240,17 +268,29 @@ export interface AbilityCost {
   /**
    * "Discard [this card] →" (Cosmic Flight, Tenacity, Energy Channel). The
    * card's counters are snapshotted into vars `self.counters.<type>` first, so
-   * "for each counter here" still reads them after the discard.
+   * "for each counter here" still reads them after the discard. Its threat and
+   * damage are snapshotted the same way, into `self.threat` and `self.damage`:
+   * "Exhaust and discard Beat Cop → deal 1 damage to a minion for each threat
+   * here" (leaving play clears both).
    */
   readonly discardSelf?: boolean;
+  /**
+   * "Discard 1 card at random from your hand →" (Magic Crowbar, Ball and Chain, Bulldozer's Helmet): this many cards,
+   * picked with the game's seeded RNG as the cost is paid, so a replay picks the same cards. Payable only with at least
+   * that many cards in hand beyond this card and the cards the payment spends (RRG 1.8 "Cost", p. 13: a cost is paid in
+   * full). A hand of exactly that many is discarded whole (ruling, Feb 28, 2026 (4) answer 1). The picked cards aren't
+   * bound: they are only known once the cost is paid.
+   */
+  readonly discardRandomFromHand?: number;
   /** "Exhaust your hero →" / "Exhaust your identity →" (encounter-card Hero Actions). */
   readonly exhaustIdentity?: boolean;
   /**
    * "Choose and discard 1 card from your hand →" (min 1, max 1) / "Choose and
-   * discard up to 5 cards" (min 0, max 5). Picked in `costChoices.discard`;
-   * the cards are bound to slot `discard` and their count to var `bind`.
+   * discard up to 5 cards" (min 0, max 5) / "Discard X cards from your hand →" with no printed cap (Shield Toss:
+   * `max` omitted — bounded only by hand size, since a player can never select a card twice or one not in hand).
+   * Picked in `costChoices.discard`; the cards are bound to slot `discard` and their count to var `bind`.
    */
-  readonly discardFromHand?: { readonly min: number; readonly max: number; readonly bind?: string };
+  readonly discardFromHand?: { readonly min: number; readonly max?: number; readonly bind?: string };
   /**
    * "Pay the printed cost of an ally in any player's discard pile →" (Make the
    * Call): the card picked in `costChoices[slot]` adds its printed cost to the
@@ -265,6 +305,40 @@ export interface AbilityCost {
   readonly payPrintedCostOf?: { readonly slot: string; readonly from: CardZoneQuery; readonly entersPlay?: boolean };
   /** "Spend 2 resources of different types" (Red Dagger): the payment must hold this many types; a wild can be any one. */
   readonly distinctResourceTypes?: number;
+  /**
+   * "Exhaust Captain America's Shield →" (min 1, max 1) / "Exhaust any number of allies you control →" (min 1, no
+   * max): exhaust cards in play, other than this ability's own card (`exhaustSelf`) or your identity
+   * (`exhaustIdentity`). See `InPlayCostPick` for how the cards are picked and when the cost is payable.
+   */
+  readonly exhaustCards?: InPlayCostPick;
+  /** "… return Captain America's Shield from play to your hand →": cards in play go to their owner's hand. See `InPlayCostPick`. */
+  readonly returnToHand?: InPlayCostPick;
+}
+
+/**
+ * A cost paid with cards in play (`AbilityCost.exhaustCards` / `returnToHand`).
+ *
+ * - **Who pays.** Only cards in play that the paying player controls and that match `query` are candidates (RRG 1.8
+ *   "Cost", p. 14: "that player must pay costs with cards and/or game elements they control"; ruling June 25, 2026
+ *   #1: Steve Rogers can't pay Shield Toss with a Shield Falcon controls). An exhaust candidate must be ready. A
+ *   return candidate must be able to leave play (RRG "Cannot", p. 11).
+ * - **How many.** `min`–`max` cards; `max` omitted means no cap. "Any number" and "up to N" still mean at least one
+ *   (RRG 1.8 "Cost", p. 14), so `min` is at least 1 (`@mc/cards`' validator enforces it).
+ * - **Picking.** The picks come from `costChoices[slot]`. With no picks given, the cost pays itself only when the
+ *   choice is forced: exactly `min` candidates exist, so every legal payment takes all of them (a unique Shield).
+ *   Otherwise the command must name its picks. The cards are bound to `slot`, their count to var `bind`.
+ * - **Payable.** With fewer than `min` candidates the cost can't be paid, so the ability can't be initiated and
+ *   `legalActions` doesn't offer it (RRG 1.8 "Initiating Abilities", p. 24, steps 3 and 5).
+ * - **All at once.** A card can pay only one component of a cost: it can't be exhausted twice, both exhausted and
+ *   returned, or also exhausted for a resource in the same payment (RRG 1.8 "Cost", p. 13: multiple costs "must be
+ *   paid simultaneously").
+ */
+export interface InPlayCostPick {
+  readonly slot: string;
+  readonly query: TargetQuery;
+  readonly min: number;
+  readonly max?: number;
+  readonly bind?: string;
 }
 
 export interface AbilityLimit {

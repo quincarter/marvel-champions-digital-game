@@ -25,12 +25,19 @@ describe("gamepadIntentFor", () => {
     expect(gamepadIntentFor(99)).toBeNull();
   });
 
+  test("maps the shoulder buttons to paging", () => {
+    expect(gamepadIntentFor(GAMEPAD_BUTTON.l1)).toBe("pagePrevious");
+    expect(gamepadIntentFor(GAMEPAD_BUTTON.r1)).toBe("pageNext");
+  });
+
   test("every mapped button names a distinct, real intent", () => {
     const intents = Object.values(GAMEPAD_BUTTON)
       .map((index) => gamepadIntentFor(index))
       .filter((intent): intent is GamepadIntent => intent !== null);
-    // x is deliberately unmapped, so one of the eight named buttons contributes nothing here.
-    expect(intents).toHaveLength(7);
-    expect(new Set(intents)).toEqual(new Set<GamepadIntent>(["next", "previous", "activate", "inspect", "cancel"]));
+    // x is deliberately unmapped, so one of the ten named buttons contributes nothing here.
+    expect(intents).toHaveLength(9);
+    expect(new Set(intents)).toEqual(
+      new Set<GamepadIntent>(["next", "previous", "activate", "inspect", "cancel", "pagePrevious", "pageNext"]),
+    );
   });
 });

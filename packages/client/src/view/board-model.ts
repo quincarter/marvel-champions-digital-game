@@ -12,6 +12,7 @@ import type { Aspect, AnyCard, ResourceIconType } from "@mc/content";
 import {
   cardOf,
   characterProfile,
+  currentName,
   getInstance,
   getPlayer,
   isMinion,
@@ -23,6 +24,7 @@ import {
   isVillain,
   villainOf,
   minionsEngagedWith,
+  playCostOf,
   printedProfile,
   printedResources,
   remainingHitPoints,
@@ -33,13 +35,15 @@ import {
   type Form,
   type GameState,
   type InstanceId,
+  type PlayCost,
   type PlayerId,
+  type PlayerState,
 } from "@mc/engine";
 import { artFor, type ArtSource, type CardBack, type CardFace } from "../art/art-source.js";
 import { faceVisible } from "./visibility.js";
 import { STATUS_DISABLES } from "../tokens.js";
 import type { StatusName } from "./log-lines.js";
-import { playerName } from "./names.js";
+import { faceUpName, playerName } from "./names.js";
 
 /** One of the 2px inner stat boxes in the design's entity card. */
 export interface StatTile {
@@ -133,6 +137,15 @@ export interface CharacterPanel {
   /** Upgrades and attachments hanging off this card. */
   readonly attachments: readonly AttachmentChip[];
   /**
+   * Counters on the card itself, as opposed to an attachment's own
+   * (`AttachmentChip.counters`) — Quinjet's time counters (`03019`, PLAN.md
+   * Phase 7: "the board has to show counters on a support"), Web-Shooter's
+   * uses when it sits unattached, or any future card that keeps its own
+   * tally in play. Empty is the common case (most cards never hold one) and
+   * draws nothing.
+   */
+  readonly counters: readonly { readonly name: string; readonly count: number }[];
+  /**
    * The seat that owns this card when someone else controls it — a Heroic
    * Intuition played under another player's control — or null. Without it a
    * lent card is indistinguishable from one of your own.
@@ -146,6 +159,15 @@ export interface AttachmentChip {
   readonly instanceId: InstanceId;
   readonly name: string;
   readonly exhausted: boolean;
+  /** Counters left on it ("web" ×2), so a Uses card shows how many uses remain. */
+  readonly counters: readonly { readonly name: string; readonly count: number }[];
+}
+
+/** "Web-Shooter · 2 web · exhausted" — everything a chip has room to say. */
+export function attachmentChipLabel(chip: AttachmentChip): string {
+  return [chip.name, ...chip.counters.map((counter) => `${counter.count} ${counter.name}`), chip.exhausted ? "exhausted" : null]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 export interface SchemePanel {
@@ -172,6 +194,61 @@ export interface SchemePanel {
   readonly isMain: boolean;
   readonly crisis: boolean;
   readonly accelerationTokens: number;
+  /**
+   * Cards tucked facedown under this scheme (RRG "Tuck") — Open the Dark
+   * Dimension holding the Invocation deck's top card (`09029`), Highway
+   * Robbery holding a hand card from each player (`01166`, Core). Shown as a
+   * count only: a tucked card is genuinely hidden information (`view/
+   * visibility.ts`), the same "present, not named" treatment `boostCount`
+   * already gives a facedown boost card.
+   */
+  readonly tuckedCount: number;
+  readonly art: ArtSource | null;
+}
+
+/**
+ * An environment card in the villain area — Risky Business's Criminal Enterprise / State of Madness.
+ *
+ * It is neither a character nor a scheme, so it fitted none of the panels above and was drawn nowhere at all:
+ * the card sat in `state.villainArea` doing the whole job of gating the scenario while the table showed no sign
+ * it existed. Its counters are the point of it ("if there are no infamy counters here, flip Norman Osborn"), so
+ * they are first-class here rather than a footnote on a chip.
+ */
+/**
+ * This villain's signature side scheme (`VillainState.signatureSideSchemeId`), and where it currently sits — set
+ * aside at setup, in play on the table, or removed from the game once its villain was defeated (RRG 1.8 "Villain
+ * Defeat", p. 47: "their side scheme is also removed from the game", whether it was in play or still set aside).
+ * `schemePanel` reads a card's instance data regardless of which of those zones it's in, so this is buildable for
+ * all three — the compact villain panel and the schemes zone can each decide what a non-`"inPlay"` scheme looks like.
+ */
+export interface VillainSchemeLink {
+  readonly scheme: SchemePanel;
+  readonly status: "setAside" | "inPlay" | "removed";
+}
+
+/**
+ * One villain of the scenario (The Wrecking Crew's four are the only scenario with more than one today), in
+ * printed order. A single-villain scenario's `BoardModel.villains` still has exactly one of these, identical in
+ * shape to every other scenario's — so a screen reading `villains` never has to special-case "just one."
+ */
+export interface VillainPanel {
+  readonly panel: CharacterPanel;
+  /** Whether this is the villain the active counter is on: the one that activates, and whose deck is "the encounter deck" (`state.activeVillainId`). */
+  readonly active: boolean;
+  readonly defeated: boolean;
+  /** Null for a villain with no signature side scheme (every scenario before The Wrecking Crew). */
+  readonly signatureScheme: VillainSchemeLink | null;
+  /** This villain's own encounter deck (`VillainState.encounterDeckId`) — every villain shares one deck outside The Wrecking Crew. */
+  readonly deck: PileCounts;
+}
+
+export interface EnvironmentPanel {
+  readonly instanceId: InstanceId;
+  /** The face in play: "Criminal Enterprise", or "State of Madness" once it has flipped. */
+  readonly name: string;
+  readonly subtitle: string;
+  /** Every counter kind on the card, with its count: `[{ name: "infamy", count: 4 }]`. */
+  readonly counters: readonly { readonly name: string; readonly count: number }[];
   readonly art: ArtSource | null;
 }
 
@@ -180,8 +257,20 @@ export interface HandCardView {
   readonly name: string;
   /** "EVENT · ATTACK", "ALLY", "UPGRADE". */
   readonly typeLine: string;
-  /** Null for a resource card, which has no cost. */
+  /** The cost printed on the card. Null for a resource card, which has no cost. */
   readonly cost: number | null;
+  /**
+   * What the card costs to play right now. Equal to `cost` unless something on the table is changing the price —
+   * Steve Rogers' Living Legend, an Avengers Tower reduction, Man Out of Time's surcharge — in which case the
+   * scan's printed pip is wrong and the hand has to say so.
+   */
+  readonly currentCost: number | null;
+  /**
+   * The cards moving the price, by name, so the table can answer "why is this cheaper?" without the player
+   * hunting for the ability. Empty when nothing is, or when the change came from a pending "next card"
+   * reduction, which carries no source card of its own.
+   */
+  readonly costSources: readonly string[];
   /** Current (errata'd) rules text; the table caps it, Inspect shows it whole. */
   readonly rulesText: string;
   /** The icons this card produces when spent as a resource. */
@@ -225,10 +314,23 @@ export interface BoardModel {
   readonly firstPlayerId: PlayerId;
   /** Whose side of the table this is: whoever must act. */
   readonly perspectiveId: PlayerId;
+  /**
+   * The active villain's panel — "the villain" everywhere a screen only ever meant one (PLAN.md Phase 7's own
+   * scenarios). Kept as its own field, identical to `villains.find((v) => v.active)!.panel`, so every consumer
+   * from before The Wrecking Crew's four villains keeps working unchanged.
+   */
   readonly villain: CharacterPanel;
+  /**
+   * Every villain of the scenario, printed order, defeated ones included (`state.villains`). One entry for every
+   * scenario so far; four for The Wrecking Crew's Breakout, where they used to be invisible — the board built only
+   * `villain` above, so Thunderball, Piledriver and Bulldozer were in play with nothing drawn for them at all.
+   */
+  readonly villains: readonly VillainPanel[];
   readonly mainScheme: SchemePanel;
   readonly sideSchemes: readonly SchemePanel[];
   readonly minions: readonly CharacterPanel[];
+  /** Environment cards in the villain area, in play order. Empty for every scenario that uses none. */
+  readonly environments: readonly EnvironmentPanel[];
   readonly me: CharacterPanel;
   readonly myForm: Form;
   readonly myPlayArea: readonly CharacterPanel[];
@@ -242,8 +344,35 @@ export interface BoardModel {
   readonly encounterPiles: PileCounts;
   /** The top of the encounter discard, which is faceup at the table. */
   readonly encounterDiscardTop: ArtSource | null;
+  /**
+   * A second deck your identity brings besides your player deck — Doctor
+   * Strange's Invocation deck (`HeroIdentityCard.separateDecks`) — one entry
+   * per named deck, empty for every identity that has none. The board had no
+   * zone for this at all (PLAN.md Phase 7: "the board has no Invocation
+   * deck; the client never mentions `separateDeck`"), so a card whose entire
+   * action reads its top card had nothing on the table to point at.
+   */
+  readonly separateDecks: readonly SeparateDeckPile[];
   readonly team: readonly SeatRow[];
   readonly outcome: GameState["outcome"];
+}
+
+export interface SeparateDeckPile {
+  readonly name: string;
+  readonly deckCount: number;
+  readonly discardCount: number;
+  /** The deck's own top card, for the pile's tap-to-inspect target. Null when the deck is empty. */
+  readonly topInstanceId: InstanceId | null;
+  /** The top card's face — faceup for every printed separate deck so far (`topCardFaceup`), so this is its scan. */
+  readonly topArt: ArtSource | null;
+  /**
+   * This deck's *own* discard pile — apart from the player's own discard, the
+   * same way the encounter deck's discard is its own pile rather than
+   * folding into anyone's. Open information, like every discard pile
+   * (`view/visibility.ts`): the deck's cards are hidden, its discard is not.
+   */
+  readonly discardTopInstanceId: InstanceId | null;
+  readonly discardTopArt: ArtSource | null;
 }
 
 const ROMAN = ["I", "II", "III", "IV", "V"] as const;
@@ -258,6 +387,58 @@ const ROMAN = ["I", "II", "III", "IV", "V"] as const;
 function topOfDiscard(state: GameState, pile: readonly InstanceId[]): ArtSource | null {
   const top = pile[0];
   return top ? artFor(cardOf(state, top), { kind: "front" }) : null;
+}
+
+/**
+ * Every separate deck this identity brings, by printed name — Doctor
+ * Strange's Invocation deck is the only one today, but this reads
+ * `PlayerState.separateDecks` itself rather than naming it, so a later
+ * identity with a deck of its own needs no client change.
+ */
+function separateDeckPiles(state: GameState, me: PlayerState): readonly SeparateDeckPile[] {
+  return Object.entries(me.separateDecks).map(([name, pile]) => {
+    const top = pile.deck[0] ?? null;
+    const discardTop = pile.discard[0] ?? null;
+    // `topCardFaceup` (RRG-scoped to the deck's own definition) keeps the engine's `CardInstance.faceup` true for
+    // this card, so `faceOf` — the same visibility-aware face lookup every other pile on the table already uses —
+    // reads it correctly without this file re-deriving "is the top card visible" itself.
+    return {
+      name,
+      deckCount: pile.deck.length,
+      discardCount: pile.discard.length,
+      topInstanceId: top,
+      topArt: top ? artFor(cardOf(state, top), faceOf(state, top)) : null,
+      discardTopInstanceId: discardTop,
+      discardTopArt: discardTop ? artFor(cardOf(state, discardTop), { kind: "front" }) : null,
+    };
+  });
+}
+
+/**
+ * Every villain of the scenario, printed order, defeated ones included — The Wrecking Crew's Breakout has four;
+ * every other scenario so far has one. Built from `state.villains`/`state.activeVillainId` directly rather than
+ * from `activeVillain(state)`, which only ever names the one with the active counter.
+ */
+function villainPanels(state: GameState, deps: EngineDeps): readonly VillainPanel[] {
+  return state.villains.map((villain) => ({
+    panel: characterPanel(state, villain.instanceId, deps),
+    active: villain.instanceId === state.activeVillainId,
+    defeated: villain.defeated,
+    signatureScheme: villain.signatureSideSchemeId
+      ? {
+          scheme: schemePanel(state, villain.signatureSideSchemeId, deps, false),
+          status: state.removedFromGame.includes(villain.signatureSideSchemeId)
+            ? "removed"
+            : state.villainArea.includes(villain.signatureSideSchemeId)
+              ? "inPlay"
+              : "setAside",
+        }
+      : null,
+    deck: {
+      deck: state.encounterDecks[villain.encounterDeckId]?.deck.length ?? 0,
+      discard: state.encounterDecks[villain.encounterDeckId]?.discard.length ?? 0,
+    },
+  }));
 }
 
 export function boardModel(state: GameState, perspectiveId: PlayerId, deps: EngineDeps): BoardModel {
@@ -276,9 +457,11 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     firstPlayerId: state.firstPlayerId,
     perspectiveId,
     villain: characterPanel(state, activeVillain(state).instanceId, deps),
+    villains: villainPanels(state, deps),
     mainScheme: schemePanel(state, state.mainScheme.instanceId, deps, true),
     sideSchemes,
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
+    environments: state.villainArea.filter((id) => cardOf(state, id)?.type === "environment").map((id) => environmentPanel(state, id)),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
     myPlayArea: me.playArea
@@ -291,13 +474,14 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
         return attachedTo === null || attachedTo === me.identity.instanceId;
       })
       .map((id) => characterPanel(state, id, deps)),
-    hand: me.hand.map((id) => handCardView(state, id)),
+    hand: me.hand.map((id) => handCardView(state, id, perspectiveId, deps)),
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },
     encounterPiles: { deck: activeEncounterDeck(state).deck.length, discard: activeEncounterDeck(state).discard.length },
     myDiscard: me.discard,
     myDiscardTop: topOfDiscard(state, me.discard),
     encounterDiscardTop: topOfDiscard(state, activeEncounterDeck(state).discard),
+    separateDecks: separateDeckPiles(state, me),
     team: state.players
       .filter((player) => player.playerId !== perspectiveId)
       .map((player) => seatRow(state, player.playerId, deps)),
@@ -380,7 +564,9 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
       instanceId: attachmentId,
       name: cardOf(state, attachmentId)?.name ?? "Attachment",
       exhausted: getInstance(state, attachmentId)?.exhausted ?? false,
+      counters: countersOf(state, attachmentId),
     })),
+    counters: countersOf(state, id),
     ownerName:
       instance.ownerId !== null && instance.controllerId !== null && instance.ownerId !== instance.controllerId
         ? playerName(state, instance.ownerId)
@@ -449,7 +635,9 @@ export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
       // gets nothing, because the schema puts the image on the stage.
       return { kind: "mainSchemeStage", stageIndex: state.mainScheme.stageIndex, side: "B" };
     default:
-      return { kind: "front" };
+      // A flipped double-sided encounter card shows its other face, not its front (Criminal Enterprise once it
+      // has become State of Madness). Without this the table keeps drawing the side that is no longer in play.
+      return instance.flipped && "flipSide" in card && card.flipSide ? { kind: "flipSide" } : { kind: "front" };
   }
 }
 
@@ -466,7 +654,11 @@ function displayName(state: GameState, instance: CardInstance, card: AnyCard | u
   if (card.type === "hero_identity") {
     return (identityForm(state, instance) ?? "hero") === "hero" ? card.hero.faceName : card.alterEgo.faceName;
   }
-  return card.name;
+  // Every other double-sided card is named for the face in play too, and only the engine knows which that is: a
+  // villain's active side (Risky Business's card is titled "Norman Osborn", but once he flips the table is facing
+  // Green Goblin) and a flipped encounter card's other face. `card.name` alone left the villain panel naming a
+  // side that was no longer there, while the damage and the abilities came from the other one.
+  return currentName(state, instance.instanceId) ?? card.name;
 }
 
 function subtitleOf(state: GameState, instance: CardInstance, card: AnyCard | undefined): string {
@@ -574,7 +766,7 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     return {
       instanceId: id,
       name: stage.name ?? card?.name ?? "Main scheme",
-      subtitle: `Main scheme ${state.mainScheme.stageIndex + 1}${accel > 0 ? ` · Accel ×${accel}` : ""}`,
+      subtitle: `Main scheme ${state.mainScheme.stageIndex + 1}${accel > 0 ? ` · Accel ×${accel}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}`,
       threat: instance.threat,
       // The stage's target threat, scaled the way the engine scales it: the
       // player count is fixed at setup, so eliminations don't change it.
@@ -583,14 +775,21 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
       isMain: true,
       crisis,
       accelerationTokens: accel,
+      tuckedCount: instance.tucked.length,
       art: artFor(card, faceOf(state, id)),
     };
   }
 
+  // A signature side scheme (The Wrecking Crew's Thunderstruck, Pile It On!, …) is tied to one villain (`VillainState.
+  // signatureSideSchemeId`), and the table has to say whose: with four in play at once under one "side schemes"
+  // list, "Side scheme · Crisis" told the player nothing about which villain it was thwarting toward.
+  const signatureOf = state.villains.find((villain) => villain.signatureSideSchemeId === id);
+  const villainName = signatureOf ? (currentName(state, signatureOf.instanceId) ?? cardOf(state, signatureOf.instanceId)?.name ?? null) : null;
+
   return {
     instanceId: id,
     name: card?.name ?? "Side scheme",
-    subtitle: `Side scheme${crisis ? " · Crisis" : ""}`,
+    subtitle: `Side scheme${crisis ? " · Crisis" : ""}${villainName ? ` · ${villainName}` : ""}${instance.tucked.length > 0 ? ` · ${instance.tucked.length} tucked` : ""}`,
     threat: instance.threat,
     // A side scheme has no threshold: it is defeated when thwarted to 0.
     target: null,
@@ -601,28 +800,63 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
     isMain: false,
     crisis,
     accelerationTokens: 0,
+    tuckedCount: instance.tucked.length,
     art: artFor(card, { kind: "front" }),
   };
 }
 
-export function handCardView(state: GameState, id: InstanceId): HandCardView {
+export function environmentPanel(state: GameState, id: InstanceId): EnvironmentPanel {
+  const card = cardOf(state, id);
+  return {
+    instanceId: id,
+    // `currentName`, not `card.name`: a flipped card is a different card as far as the table is concerned.
+    name: currentName(state, id) ?? card?.name ?? "Environment",
+    subtitle: "Environment",
+    counters: countersOf(state, id),
+    art: artFor(card, faceOf(state, id)),
+  };
+}
+
+/** Every counter kind on a card, in a stable order, skipping kinds that have run to zero. */
+function countersOf(state: GameState, id: InstanceId): readonly { readonly name: string; readonly count: number }[] {
+  return Object.entries(getInstance(state, id)?.counters ?? {})
+    .filter(([, count]) => count > 0)
+    .map(([name, count]) => ({ name, count }));
+}
+
+export function handCardView(state: GameState, id: InstanceId, playerId: PlayerId, deps: EngineDeps): HandCardView {
   const card = cardOf(state, id);
   if (!card) {
-    return { instanceId: id, name: "Unknown card", typeLine: "", cost: null, rulesText: "", resourceIcons: [], art: null };
+    return { instanceId: id, name: "Unknown card", typeLine: "", cost: null, currentCost: null, costSources: [], rulesText: "", resourceIcons: [], art: null };
   }
 
   const traits = "traits" in card ? (card.traits as readonly string[]) : [];
   const typeLine = [card.type.replace(/_/g, " "), ...traits.slice(0, 1)].join(" · ").toUpperCase();
+  // Priced with no attachment host: an upgrade's host is only chosen once the play is under way, and a
+  // host-conditional modifier that hasn't been earned yet must not quote a price the player can't get.
+  const price = playCostOf(state, playerId, id, deps);
   return {
     instanceId: id,
     name: card.name,
     typeLine,
-    cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    cost: price?.printed ?? null,
+    currentCost: price?.current ?? null,
+    costSources: price ? costSourceNames(state, price) : [],
     // `current`, not `printed`: the errata'd wording is what the game plays by.
     rulesText: "text" in card ? card.text.current : "",
     resourceIcons: resourceIconList(printedResources(card)),
     art: artFor(card, { kind: "front" }),
   };
+}
+
+/** The distinct names behind a price change, in the engine's own order. A card can't be its own reason. */
+function costSourceNames(state: GameState, price: PlayCost): readonly string[] {
+  const names: string[] = [];
+  for (const { sourceInstanceId } of price.contributions) {
+    const name = faceUpName(state, sourceInstanceId);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
 }
 
 /** A resource pool flattened to one entry per icon, for drawing pips. */

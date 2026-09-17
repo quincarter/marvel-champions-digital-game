@@ -43,6 +43,10 @@ export type {
   PaymentSource,
 } from "./legal.js";
 export { legalActions, paymentFor, tryPayment } from "./legal.js";
+
+/** What a card costs right now vs. what is printed on it, and the cards moving the price (Steve Rogers' Living Legend). */
+export type { PlayCost, PlayCostContribution } from "./actions.js";
+export { playCostOf } from "./actions.js";
 export type { Command, CommandType, Payment } from "./commands.js";
 export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
@@ -63,6 +67,7 @@ export { EngineInvariantError } from "./errors.js";
 
 export type {
   AbilityCost,
+  InPlayCostPick,
   AbilityDefinition,
   AbilityLabel,
   AbilityLimit,
@@ -117,6 +122,7 @@ export type {
   EffectSpec,
   LastingUntil,
   PlayerRef,
+  PlayerZone,
   Predicate,
   SchemeValueName,
   StatName,

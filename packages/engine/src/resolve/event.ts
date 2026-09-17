@@ -6,9 +6,9 @@ import type { FrameId, InstanceId } from "../ids.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import { activeVillain, cardOf, characterProfile, countSchemeIcons, getInstance, getPlayer, isMinion, mustInstance, villainOf } from "../query.js";
 import type { EngineDeps } from "../abilities.js";
-import { cannotTakeDamage, notDefeatedWithoutThreat, threatCannotBeRemoved } from "../rules.js";
+import { cannotTakeDamage, excessDamageThreatSchemes, notDefeatedWithoutThreat, threatCannotBeRemoved } from "../rules.js";
 import { cardsInPlay, controllerOf } from "../select.js";
-import type { StackFrame, Vars } from "../stack.js";
+import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { checkDefeats, checkMainSchemeCompletion, eliminatePlayer } from "./defeat.js";
@@ -54,6 +54,11 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
         return;
       }
       if (frame.cancelled) {
+        // An attack that ends before fully resolving was still defended, and the abilities that trigger after that
+        // defense still resolve (RRG 1.8 "Defend, Defense", p. 16, and "Attack (Enemy Activation)", p. 9: "If an
+        // enemy attack ends before damage is dealt, abilities that trigger after an attack or after a character
+        // defends an attack resolve as normal"). So these run even on the cancel path.
+        if (stepDeferredResponses(ctx, frame)) return;
         // RRG "Cancel": the canceled effect is not considered to have occurred, so no responses.
         emit(ctx, { type: "triggerEvent", event: frame.event, phase: "cancelled" });
         reportResults(ctx, frame, false);
@@ -73,6 +78,17 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       // Results are final once everything the event pushed has resolved.
       const event = withResults(frame.event, frame.vars);
       emit(ctx, { type: "triggerEvent", event, phase: "resolved" });
+      // "After a character defends" waits for the attack to end (RRG 1.8 p. 16): hand the response window to the
+      // activation frame, which opens it in its own `done` stage. With no activation on the stack (a defense-labeled
+      // ability triggered outside an attack) there is nothing to wait for, so the window opens here as before.
+      const activation = defersResponsesToActivation(event) ? currentActivationFrameId(ctx.state.stack) : null;
+      if (activation !== null) {
+        setFrame(ctx, { ...frame, event, stage: "done" });
+        updateFrame(ctx, activation, (f) =>
+          f.kind === "event" ? { ...f, deferredResponses: [...(f.deferredResponses ?? []), event] } : f,
+        );
+        return;
+      }
       // How many forced responses this event triggers, reported to a `bind` ("If that scheme's 'Forced Response'
       // ability is not triggered this way"). Only recorded when there are some, so other results are unchanged.
       const forcedResponses = candidatesFor(ctx.state, ctx.deps, event, "response", true).length;
@@ -83,6 +99,16 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       return;
     }
     case "done": {
+      // Step 6 of the attack first: the abilities that trigger after the attack ends, which is where a deferred
+      // "after a character defends" response belongs (RRG 1.8 p. 9 step 6, p. 16). This frame's own response window
+      // has already run, so the order within the attack's end is: the attack's own "after" abilities, then the
+      // defense's, then "at the end of this attack" delayed effects (RRG 1.8 "Delayed Effect", p. 16) below.
+      //
+      // Open question, flagged rather than hidden: p. 9 step 6 orders *all* of these by forced (6a) before non-forced
+      // (6b), across every trigger it lists. The engine tiers forced-before-optional inside each window, but these are
+      // separate windows per event, so a forced defend-response resolves after an optional "after [enemy] attacks you"
+      // response. It only shows up when one attack triggers both, with opposite forcedness.
+      if (stepDeferredResponses(ctx, frame)) return;
       if (frame.endEffects.length > 0) {
         // "At the end of this attack": run after the response window, before the event is gone.
         setFrame(ctx, { ...frame, endEffects: [] });
@@ -102,6 +128,43 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
 
 const withResults = (event: TriggerEvent, vars: Vars): TriggerEvent =>
   Object.keys(vars).length === 0 ? event : { ...event, results: vars };
+
+/**
+ * Whether this event's *response* window waits for the activation it belongs to to finish.
+ *
+ * RRG 1.8 "Defend, Defense" (p. 16): "Abilities that trigger after a character defends an attack resolve after that
+ * attack ends." RRG 1.8 "Attack (Enemy Activation)" (p. 9) step 6 places "after [character] defends [and takes no
+ * damage]…" in the step the attack triggers as it finishes resolving, alongside retaliate and the attack's own
+ * "after [enemy] attacks you" abilities — so a defense declared in step 2 must not resolve its responses until then.
+ * The interrupt side is unaffected: "when your hero defends" still fires as the defense initiates (p. 15).
+ *
+ * Only `defended` defers. The other step 6 triggers the RRG lists (`characterAttacked` for retaliate, `dealDamage`)
+ * are already pushed by the attack procedure after damage, so they resolve inside step 6 where they belong.
+ */
+const defersResponsesToActivation = (event: TriggerEvent): boolean => event.kind === "defended";
+
+/**
+ * Opens one deferred response window held on an activation frame. The finished activation's own results ride along
+ * as the event's `results`, which is what makes "after you defend … and take no damage" expressible: the attack's
+ * `damage`/`damaged` results count only damage dealt by the attack itself (FAQ "Unflappable (#20)", p. 60: the
+ * defending identity must "take no damage during step 4 of the enemy attack", so damage from a "Boost" ability
+ * during the same attack does not count).
+ */
+function openDeferredResponse(ctx: Ctx, frame: Frame<"event">, deferred: TriggerEvent): void {
+  const event = withResults(deferred, frame.vars);
+  // Triggering conditions are checked when the window opens, not when the defense happened.
+  if (!hasCandidates(ctx.state, ctx.deps, event, "response")) return;
+  pushWindow(ctx, event, "response", frame.frameId);
+}
+
+/** Takes the next deferred response window off `frame` and opens it; false when none is left. */
+function stepDeferredResponses(ctx: Ctx, frame: Frame<"event">): boolean {
+  const [deferred, ...rest] = frame.deferredResponses ?? [];
+  if (!deferred) return false;
+  setFrame(ctx, { ...frame, deferredResponses: rest });
+  openDeferredResponse(ctx, frame, deferred);
+  return true;
+}
 
 /** An event frame is finishing: hand its results (and whether it happened) to whoever asked for them. */
 function reportResults(ctx: Ctx, frame: Frame<"event">, happened: boolean): void {
@@ -241,11 +304,12 @@ export function applyDamage(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
   const hit = getInstance(ctx.state, event.targetInstanceId);
   const maxHp = characterProfile(ctx.state, event.targetInstanceId, ctx.deps)?.maxHp;
   const excessDealt = hit && maxHp !== undefined ? event.amount - Math.max(0, maxHp - hit.damage) : 0;
+  const source = event.sourceInstanceId;
   if (excessDealt > 0) {
     addFrameVars(ctx, frameId, { excessDealt });
     addFrameVars(ctx, event.parentFrameId, { excessDealt });
+    placeExcessDamageAsThreat(ctx, event, excessDealt);
   }
-  const source = event.sourceInstanceId;
   const attackKeyword = (name: "piercing" | "overkill"): boolean =>
     event.fromAttack && source !== null && hasKeyword(ctx.state, source, name, ctx.deps);
 
@@ -305,6 +369,33 @@ export function applyDamage(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
   if (villainBefore && villainAfter && (villainAfter.stageIndex !== villainBefore.stageIndex || villainAfter.defeated)) {
     addFrameVars(ctx, event.parentFrameId, { defeated: 1 });
   }
+}
+
+/**
+ * A constant "Excess damage dealt by [source] is placed as threat on [scheme]" (`RuleSpec excessDamageAsThreat`,
+ * Radioactive Buildup 07022): one `placeThreat` event per scheme, sourced by the dealing card and reported to the
+ * damage's parent (an attack's `threatPlaced` result), announced by an `excessDamageAsThreat` log entry.
+ *
+ * - **Measured as dealt, not taken** (RRG 1.8 "Excess Damage", p. 19; ruling, Jan 26, 2026 (3)), so it is called
+ *   before the tough / "cannot take damage" checks below and a prevented hit still places threat. It inherits the
+ *   flagged §3.6 reading that a prevention *interrupt* lowers `event.amount` first (ruling, Mar 6, 2026 (1)).
+ * - **Order:** it is pushed before the damage lands, so it resolves after this damage's defeats (pushed later, on
+ *   top) and before the damage event's own response window. The RRG gives a constant conversion no step of its own;
+ *   the observable difference is only "when defeated" vs. "after threat is placed" ordering.
+ * - **Open, flagged for the user:** whether the excess still spills with overkill. Overkill uses excess damage
+ *   *taken* and this uses excess damage *dealt* (ruling, Jan 26, 2026 (3) keeps them apart), so the engine applies
+ *   both independently; "placed as threat" could instead be read as the damage no longer existing to spill. No wave 1
+ *   card gives Thunderball overkill.
+ */
+function placeExcessDamageAsThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>, excessDealt: number): void {
+  const source = event.sourceInstanceId;
+  if (source === null) return;
+  const frames: StackFrame[] = [];
+  for (const schemeId of excessDamageThreatSchemes(ctx.state, ctx.deps, source)) {
+    emit(ctx, { type: "excessDamageAsThreat", sourceInstanceId: source, targetInstanceId: event.targetInstanceId, schemeInstanceId: schemeId, amount: excessDealt });
+    frames.push(eventFrame(ctx, { kind: "placeThreat", schemeInstanceId: schemeId, amount: excessDealt, sourceInstanceId: source, parentFrameId: event.parentFrameId ?? null }));
+  }
+  pushFrames(ctx, frames);
 }
 
 /**
@@ -411,6 +502,10 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   if (profile?.missing.includes("atk")) return;
   const amount = event.amount ?? profile?.atk;
   if (amount === undefined) return;
+  // "That attack gains overkill" (Hulk Smash): an interrupt's `modifyAttack` records the grant on this attack's event
+  // frame, the same var an enemy attack reads when it deals its damage (`enemy-activation.ts`).
+  const attackFrame = findFrame(ctx.state, frameId);
+  const granted = attackFrame?.kind === "event" && (attackFrame.vars.overkill ?? 0) > 0;
   pushEvents(ctx, [
     {
       kind: "dealDamage",
@@ -419,7 +514,7 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
       sourceInstanceId: event.attackerInstanceId,
       fromAttack: true,
       parentFrameId: frameId,
-      overkill: event.overkill === true,
+      overkill: event.overkill === true || granted,
       viaInstanceId: event.sourceInstanceId ?? null,
     },
     {

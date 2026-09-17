@@ -5,8 +5,8 @@ import {
   addAccelerationToken,
   addCounters,
   addLastingEffect,
-  discardFromHand,
   discardFromPlay,
+  discardRandomFromHand,
   drawCards,
   drawEncounterCard,
   exhaustCard,
@@ -43,7 +43,6 @@ import {
   villainOf,
 } from "../query.js";
 import { addPools, EMPTY_POOL, printedResources } from "../resources.js";
-import { nextInt } from "../rng.js";
 import {
   canAttack,
   cardsInPlay,
@@ -65,7 +64,7 @@ import { cannotChangeForm, cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats } from "./defeat.js";
 import { threatRemovalBlocked } from "./event.js";
 import { heard } from "./triggers.js";
-import { giveBoostCard } from "./enemy-activation.js";
+import { dealBoostCard, giveBoostCard } from "./enemy-activation.js";
 import { applyEnterPlayKeywords, quickstrikeAttack } from "./enter-play.js";
 import { addFrameVars, eventFrame, type Frame, gameAbilityFrames, pushEffects, pushEvents } from "./frames.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
@@ -207,6 +206,10 @@ export function applyEffect(
         if (!from || amount <= 0) return;
         healDamage(ctx, from, amount);
       }
+      // "Increase the amount of damage that event deals by 2" (Embiggen!): an "(attack)" event's damage is an instance
+      // too, like `dealDamage` above (RRG 1.8 "Event", p. 19; FAQ "Embiggen (#10)", p. 59). Added after a move is capped,
+      // so it raises the damage dealt without healing more from the source.
+      amount += cardEffectBonus(ctx.state, frame.selfInstanceId, "damage");
       // RRG 1.8 "Stun" (p. 41): "If a stunned identity or ally attempts to attack or use an attack ability, discard
       // the stunned card instead. Costs associated with the attack attempt … must still be paid." An ability that
       // creates several attacks spends the stun on the first of them only — FAQ "Dance of Death (#4)" (p. 59):
@@ -326,16 +329,15 @@ export function applyEffect(
       return;
     }
     case "discardFromHand": {
+      // Only the `random` form lands here; the choosing form stops for a choice per player in `effects-frame.ts`.
       const amount = value(effect.amount);
+      const filter = effect.filter;
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
-        for (let i = 0; i < amount; i++) {
-          const hand = mustPlayer(ctx.state, playerId).hand;
-          if (hand.length === 0) break;
-          const [index, rng] = nextInt(ctx.state.rng, hand.length);
-          ctx.state = { ...ctx.state, rng };
-          const picked = hand[index];
-          if (picked) discardFromHand(ctx, playerId, picked);
-        }
+        // A filter narrows the pool the random pick draws from, by excluding everything that doesn't match.
+        const excluded = filter
+          ? mustPlayer(ctx.state, playerId).hand.filter((id) => !matchesQuery(ctx.state, id, filter, context))
+          : [];
+        discardRandomFromHand(ctx, playerId, amount, excluded);
       }
       return;
     }
@@ -475,6 +477,18 @@ export function applyEffect(
       pushFrames(ctx, frames);
       return;
     }
+    case "giveBoostCard": {
+      const count = effect.count ? Math.max(0, value(effect.count)) : 1;
+      // Only an enemy in play can hold a boost card (RRG 1.8 "Boost, Boost Icon", p. 11: "dealt a boost card … remains
+      // facedown on that enemy until that enemy activates"). Any enemy qualifies, villainous or not: the card text names
+      // the recipient, and the villainous gate is only about the activation's automatic card (`giveBoostCard`).
+      const inPlay = cardsInPlay(ctx.state);
+      const enemies = targets(effect.enemy).filter((id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"));
+      for (const enemyId of enemies) {
+        for (let i = 0; i < count; i++) dealBoostCard(ctx, enemyId, true);
+      }
+      return;
+    }
     case "addAccelerationToken":
       addAccelerationToken(ctx);
       return;
@@ -556,6 +570,15 @@ export function applyEffect(
       updateFrame(ctx, frame.eventFrameId, (target) =>
         target.kind === "event" ? { ...target, cancelled: true } : target,
       );
+      // RRG 1.8 "Cancel" (p. 13): cancelling the "when you play this card" event cancels *the card's* effects —
+      // "Only the effects are prevented from initiating, and do not resolve", while "the card is still considered
+      // played, and it is discarded". The play frame carries the flag the way a reveal frame carries
+      // `effectsCancelled` for an encounter card, so this is one rule rather than a per-card branch.
+      if (frame.event?.kind === "cardBeingPlayed") {
+        const played = frame.event.instanceId;
+        const play = ctx.state.stack.find((f) => f.kind === "playCard" && f.instanceId === played);
+        if (play?.kind === "playCard") setFrame(ctx, { ...play, effectsCancelled: true });
+      }
       return;
     }
     case "preventDamage":
@@ -664,11 +687,14 @@ export function applyEffect(
     case "moveCards": {
       const ids = selectCards(ctx, effect.cards, context);
       if (effect.bind) {
-        // Record what moved (and its printed resources) before it moves.
+        // Record what moved (and its printed resources / boost icons) before it moves.
         const pool = ids.reduce((sum, id) => {
           const card = cardOf(ctx.state, id);
           return card ? addPools(sum, printedResources(card)) : sum;
         }, EMPTY_POOL);
+        // "… takes 1 damage for each boost icon discarded this way" (Hit Squad, `cap` pack): the printed count plus
+        // any "gets +1 boost icon if …" modifier (§3.9's `boostIconsFor`), summed across every card this bind moved.
+        const boostIcons = ids.reduce((sum, id) => sum + boostIconsFor(ctx.state, ctx.deps, id), 0);
         const bind = effect.bind;
         updateFrame(ctx, frame.frameId, (f) =>
           f.kind === "effects"
@@ -682,6 +708,7 @@ export function applyEffect(
                   [`${bind}.mental`]: pool.mental,
                   [`${bind}.energy`]: pool.energy,
                   [`${bind}.wild`]: pool.wild,
+                  [`${bind}.boostIcons`]: boostIcons,
                 },
               }
             : f,
@@ -796,7 +823,17 @@ export function applyEffect(
           );
         }
       }
-      pushEvents(ctx, events, reportTo(effect.bind));
+      // "Green Goblin attacks with +X ATK" / "schemes with +X SCH": evaluated once, now, and carried by each
+      // activation this effect initiates, so it applies to exactly those and never leaks into a later one.
+      const bonus =
+        effect.kind === "enemyAttack"
+          ? effect.atkBonus
+            ? { atkBonus: value(effect.atkBonus) }
+            : {}
+          : effect.schBonus
+            ? { schBonus: value(effect.schBonus) }
+            : {};
+      pushEvents(ctx, events, reportTo(effect.bind), bonus);
       return;
     }
     case "selectCards": {
@@ -842,6 +879,39 @@ export function applyEffect(
       );
       return;
     }
+    case "discardDeckUntil": {
+      // RRG 1.8 "Player Deck" (p. 33), read on its own rather than carried over from the encounter deck (p. 17): "if
+      // the player's deck empties while the player was discarding cards from their deck, no further cards are
+      // discarded from the newly shuffled deck". A deck that was already empty when the effect began is reset first
+      // (`takeTopOfDeck`) and the discarding happens from the new deck — the same split `discardEncounterCards` makes.
+      const bind = effect.bind;
+      // One player per "your deck"; several ("each player") each search their own deck, in player order, and every
+      // match lands in the one slot, so `<bind>.count` is how many were found.
+      const found: InstanceId[] = [];
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        const player = getPlayer(ctx.state, playerId);
+        if (!player || player.eliminated) continue;
+        // Bounded by the cards that exist, so a deck with no match can't loop forever.
+        const limit = player.deck.length + player.discard.length;
+        let discarded = 0;
+        for (let i = 0; i < limit; i++) {
+          if (discarded > 0 && mustPlayer(ctx.state, playerId).deck.length === 0) break;
+          const id = takeTopOfDeck(ctx, playerId);
+          if (!id) break;
+          // The log already carries each move as `cardMoved`, the same record `discardEncounterUntil` leaves.
+          moveCard(ctx, id, { kind: "discard", playerId }, "top");
+          discarded++;
+          if (matchesQuery(ctx.state, id, effect.filter, context)) {
+            found.push(id);
+            break;
+          }
+        }
+      }
+      updateFrame(ctx, frame.frameId, (f) =>
+        f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [bind]: found }, vars: { ...f.vars, [`${bind}.count`]: found.length } } : f,
+      );
+      return;
+    }
     case "discardEncounterCards": {
       // RRG 1.8 "Encounter Deck" (p. 17): discard until the count is met or the deck is emptied *by this effect*, and
       // then "do not continue the discard effect with the newly shuffled encounter deck". A deck that was already
@@ -849,20 +919,42 @@ export function applyEffect(
       const deckId = activeEncounterDeckId(ctx.state);
       const count = Math.max(0, value(effect.count));
       const discarded: InstanceId[] = [];
+      // "… for each boost icon discarded this way" (Power Drain, Lightning Bolt, Shock Therapy): summed across every
+      // card this discard actually reached — so a discard cut short by the empty-deck rule above counts only what it
+      // got. Each card's icons are read the moment it is discarded, before it moves, exactly as `moveCards` does.
+      let boostIcons = 0;
+      let pool = EMPTY_POOL;
       for (let i = 0; i < count; i++) {
         if (discarded.length > 0 && encounterDeckOf(ctx.state, deckId).deck.length === 0) break;
         const id = drawEncounterCard(ctx, deckId);
         if (!id) break;
         updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
+        boostIcons += boostIconsFor(ctx.state, ctx.deps, id);
+        const card = cardOf(ctx.state, id);
+        if (card) pool = addPools(pool, printedResources(card));
         // Each card goes to its own deck's discard pile (its `home`), not necessarily the deck it came from.
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
         discarded.push(id);
       }
       const bind = effect.bind;
       if (bind) {
+        const totals = pool;
+        const icons = boostIcons;
         updateFrame(ctx, frame.frameId, (f) =>
           f.kind === "effects"
-            ? { ...f, bindings: { ...f.bindings, [bind]: discarded }, vars: { ...f.vars, [`${bind}.count`]: discarded.length } }
+            ? {
+                ...f,
+                bindings: { ...f.bindings, [bind]: discarded },
+                vars: {
+                  ...f.vars,
+                  [`${bind}.count`]: discarded.length,
+                  [`${bind}.boostIcons`]: icons,
+                  [`${bind}.physical`]: totals.physical,
+                  [`${bind}.mental`]: totals.mental,
+                  [`${bind}.energy`]: totals.energy,
+                  [`${bind}.wild`]: totals.wild,
+                },
+              }
             : f,
         );
       }
@@ -927,12 +1019,31 @@ export function applyEffect(
       throw new EngineInvariantError(`${effect.kind} is handled before applyEffect`);
     case "reduceNextCardCost": {
       const amount = value(effect.amount);
-      if (amount <= 0) return;
+      // Signed: a positive amount reduces, a negative one increases ("costs N additional resources"). 0 does nothing.
+      if (amount === 0) return;
+      const filter = effect.cardFilter ? { cardFilter: effect.cardFilter } : {};
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         addLastingEffect(
           ctx,
-          { kind: "costReduction", playerId, amount },
-          { kind: effect.duration === "phase" ? "endOfPhase" : "endOfRound" },
+          { kind: "costReduction", playerId, amount, ...filter },
+          effect.duration === "untilPlayed"
+            ? { kind: "untilCardPlayed", playerId, ...filter }
+            : { kind: effect.duration === "phase" ? "endOfPhase" : "endOfRound" },
+        );
+      }
+      return;
+    }
+    case "afterNextCardPlayed": {
+      const filter = effect.cardFilter ? { cardFilter: effect.cardFilter } : {};
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        addLastingEffect(
+          ctx,
+          {
+            kind: "delayedEffects",
+            effects: effect.effects,
+            scope: { selfInstanceId: frame.selfInstanceId, controllerId: frame.controllerId, vars: frame.vars, bindings: frame.bindings },
+          },
+          { kind: "untilCardPlayed", playerId, ...filter },
         );
       }
       return;

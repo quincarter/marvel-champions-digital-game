@@ -13,8 +13,8 @@
  */
 
 import Phaser from "phaser";
-import type { ChoiceRef, GameState, InstanceId, PendingChoice, PlayerId } from "@mc/engine";
-import { CORE_DEPS } from "@mc/cards";
+import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingChoice, type PlayerId } from "@mc/engine";
+import { POOL_DEPS } from "../content/pool.js";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, fitText, label, paintPanel } from "../ui/widgets.js";
@@ -25,11 +25,15 @@ import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
+import { choiceHeaderInstanceId, choiceHeaderText } from "../view/choice-source.js";
 import { seatIdentityName } from "../view/names.js";
 import {
+  canConfirmChoice,
   cardChoiceDisplayOrder,
   choiceFocusKey,
   choiceFocusOrder,
+  confirmMinimum,
+  initialChoiceSelection,
   sameChoiceTarget,
   type ChoiceFocusTarget,
 } from "../view/choice-focus.js";
@@ -112,7 +116,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // A new choice clears the previous selection.
     if (choice.choiceId !== this.#choiceId) {
       this.#choiceId = choice.choiceId;
-      this.#selected = [];
+      this.#selected = [...initialChoiceSelection(choice)];
       this.#focus = null;
     }
     this.#maxSelections = choice.maxSelections;
@@ -166,7 +170,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     // what tells them apart, so the whole identity line goes up there.
     const decider = state.game.players.find((player) => player.playerId === choice.playerId);
     const seat =
-      state.game.players.length > 1 && decider ? characterPanel(state.game, decider.identity.instanceId, CORE_DEPS) : null;
+      state.game.players.length > 1 && decider ? characterPanel(state.game, decider.identity.instanceId, POOL_DEPS) : null;
     const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: seat ? 56 : 38 };
     const barG = this.add.graphics();
     barG.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
@@ -188,11 +192,27 @@ export class ChoiceOverlay extends Phaser.Scene {
       titleRight = nameRight - 120;
     }
 
+    // Which card (and, where it can be pinned down, which ability) is actually asking — "Crimson Bands of Cyttorak
+    // — Special: choose a target" rather than a bare, anonymous "Choose a target" (`view/choice-source.ts`'s own
+    // doc comment covers what is and isn't derivable, and the one real engine gap it found doing this without
+    // touching the engine). A thumb on the left mirrors the decider's own thumb on the right.
+    let titleLeft = bar.x + 10;
+    const sourceInstanceId = state.game ? choiceHeaderInstanceId(state.game, choice) : null;
+    if (sourceInstanceId !== null && state.game) {
+      const source = artFor(cardOf(state.game, sourceInstanceId), faceOf(state.game, sourceInstanceId));
+      if (source) {
+        const thumb: Rect = { x: titleLeft, y: bar.y + 5, width: 32, height: bar.height - 10 };
+        const key = cardArt(this).request(this, source);
+        if (drawArt(this, key, thumb, { fit: "cover" })) titleLeft = thumb.x + thumb.width + 8;
+      }
+    }
+
+    const titleText = state.game ? choiceHeaderText(state.game, choice, POOL_DEPS, promptTitle(choice.prompt.kind)) : promptTitle(choice.prompt.kind);
     const title = this.add
-      .text(bar.x + 10, bar.y + bar.height / 2, promptTitle(choice.prompt.kind), textStyle(typeRole.barTitle, surface.paper.hex))
+      .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
-    fitText(title, Math.max(60, titleRight - (bar.x + 10)), typeRole.barTitle.size);
+    fitText(title, Math.max(60, titleRight - titleLeft), typeRole.barTitle.size);
 
     // Why this player is the one deciding. The villain-phase screen's
     // "auto-advance paused" wording belongs to that screen, not here.
@@ -383,9 +403,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
-    const canCommit =
-      this.#selected.length >= choice.minSelections &&
-      this.#selected.length <= choice.maxSelections;
+    const canCommit = canConfirmChoice(choice, this.#selected.length);
     const commitWidth =
       choice.minSelections === 0 ? (sheet.width - 32) / 2 : sheet.width - 24;
 
@@ -401,7 +419,7 @@ export class ChoiceOverlay extends Phaser.Scene {
           height: hit.primary,
         },
         enabled: canCommit,
-        reason: `choose ${choice.minSelections} to continue`,
+        reason: `choose ${confirmMinimum(choice)} to continue`,
         onClick: () => void this.#confirm(),
       }),
     );
@@ -514,7 +532,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       };
       const bandG = this.add.graphics();
       bandG.fillStyle(surface.ink.hex, 0.85).fillRect(band.x, band.y, band.width, band.height);
-      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, CORE_DEPS);
+      const short = abilityShortLabelOf(state, instanceId, option.ref.abilityId, POOL_DEPS);
       this.add
         .text(band.x + band.width / 2, band.y + band.height / 2, short ?? "trigger", {
           ...textStyle(typeRole.label, surface.paper.hex),
@@ -634,9 +652,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       }
       return;
     }
-    if (this.#selected.length >= choice.minSelections && this.#selected.length <= choice.maxSelections) {
-      void this.#confirm();
-    }
+    if (canConfirmChoice(choice, this.#selected.length)) void this.#confirm();
   }
 
   #inspectOption(choice: PendingChoice, optionId: string): void {
@@ -702,7 +718,7 @@ function refInstanceId(ref: ChoiceRef): InstanceId | null {
 function playerOptionLabel(game: GameState, playerId: PlayerId, perspectiveId: PlayerId | null): string {
   const seat = game.players.find((player) => player.playerId === playerId);
   if (!seat) return playerId;
-  const panel = characterPanel(game, seat.identity.instanceId, CORE_DEPS);
+  const panel = characterPanel(game, seat.identity.instanceId, POOL_DEPS);
   return [
     seatIdentityName(game, playerId),
     seat.identity.form === "hero" ? "Hero" : "Alter-ego",

@@ -7,12 +7,18 @@
  * whenever the selection changes it asks the scene to redraw.
  */
 
-import { CORE_DEPS } from "@mc/cards";
+import { POOL_DEPS } from "../../content/pool.js";
 import type { AbilityId } from "@mc/content";
 import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
 import type { BoardModel } from "../../view/board-model.js";
+import {
+  beginDiscardChoice,
+  discardChoiceView as buildDiscardChoiceView,
+  toggleDiscardChoice,
+  type DiscardChoiceView,
+} from "../../view/discard-choice-model.js";
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
 import { abilityActionsFor, type BasicAction, type Highlights, type UsableAbilityAction } from "../../view/highlights.js";
 import { cardName, seatIdentityName } from "../../view/names.js";
@@ -49,13 +55,45 @@ function withController(command: Command, controllerId: PlayerId | null): Comman
 export class BoardController {
   readonly #host: BoardControllerHost;
   #selection: Selection = { kind: "idle" };
+  /**
+   * Set when the board is showing a replayed state rather than the live
+   * session — the minimal safe seam S7 leaves for W4's "jump to a moment"
+   * and W8's "watch the replay" (docs/phase4-screen-gaps.md §2), landed ahead
+   * of either because wiring a replayed `GameState` through the rest of the
+   * board (which reads the live session via `appSession()` in a dozen more
+   * places — `hand.ts`, `action-bar.ts`, `motion.ts`, this file) turned out to
+   * be a scene-sized job, not a seam; see the doc for what's still open.
+   *
+   * Every method here that would enter a target/payment/discard/controller-
+   * choice mode, or dispatch a command, becomes a no-op while this is set —
+   * regardless of what the live session's own `legalActions` say — so a
+   * replay screen built on this controller can never act on, or even *look
+   * like it could act on*, the game actually being played. `#dispatch` is
+   * also guarded on its own, as the one choke point every mutating path
+   * already funnels through, so the guarantee holds even if a future caller
+   * reaches one of the other guards incorrectly.
+   */
+  #readOnly: boolean;
 
-  constructor(host: BoardControllerHost) {
+  constructor(host: BoardControllerHost, options: { readonly readOnly?: boolean } = {}) {
     this.#host = host;
+    this.#readOnly = options.readOnly ?? false;
   }
 
   get selection(): Selection {
     return this.#selection;
+  }
+
+  get readOnly(): boolean {
+    return this.#readOnly;
+  }
+
+  /** Flips read-only mode. A scene switching between a live board and a replayed one calls this rather than rebuilding the controller. */
+  setReadOnly(readOnly: boolean): void {
+    if (this.#readOnly === readOnly) return;
+    this.#readOnly = readOnly;
+    this.#selection = { kind: "idle" };
+    this.#host.redraw();
   }
 
   /**
@@ -87,11 +125,16 @@ export class BoardController {
         marks,
       );
     }
+    if (this.#selection.kind === "choosingDiscard") {
+      // Same route shape as "paying": only the candidates are worth stepping through.
+      return focusOrder({ kind: "paying", sources: this.#selection.choice.candidates }, marks);
+    }
     return focusOrder({ kind: "idle", hand: model.hand.map((card) => card.instanceId) }, marks);
   }
 
   /** Acts on the focused target, meaning whatever a tap or a press on it would mean right now. */
   activate(focus: FocusTarget): void {
+    if (this.#readOnly) return;
     if (focus.kind === "basic") {
       if (focus.action === "endTurn") void this.dispatchExample("endTurn");
       else this.chooseBasic(focus.action);
@@ -111,8 +154,13 @@ export class BoardController {
    * the card's own tap behaviour can run instead.
    */
   tapInMode(id: InstanceId): boolean {
+    if (this.#readOnly) return false;
     if (this.#selection.kind === "paying") {
       this.#spendByInstance(id);
+      return true;
+    }
+    if (this.#selection.kind === "choosingDiscard") {
+      this.toggleDiscardPick(id);
       return true;
     }
     if (this.#selection.kind === "targeting") {
@@ -127,6 +175,7 @@ export class BoardController {
    * no target. The engine decided both: `targets` came from `legalActions`.
    */
   chooseBasic(action: BasicAction): void {
+    if (this.#readOnly) return;
     const entry = this.#legalFor(action);
     if (!entry) return;
     if (entry.targets.length === 0) {
@@ -163,7 +212,9 @@ export class BoardController {
    * already legible, and a hold still opens the sheet.
    */
   tapHandCard(instanceId: InstanceId): void {
-    if (this.#host.tabbed() && this.#selection.kind === "idle") {
+    // Read-only: a tap can still open the card to read it, same as the
+    // tabbed layout's own idle behaviour below, but never offers to play it.
+    if (this.#readOnly || (this.#host.tabbed() && this.#selection.kind === "idle")) {
       this.#host.inspect(instanceId);
       return;
     }
@@ -177,10 +228,16 @@ export class BoardController {
    * *some* payment works.
    */
   async playCard(instanceId: InstanceId): Promise<void> {
+    if (this.#readOnly) return;
     const entry = this.#host.marks()?.playable.has(instanceId)
       ? this.#legalEntries().find((candidate) => candidate.action.kind === "playCard" && candidate.action.instanceId === instanceId)
       : undefined;
     if (!entry) return;
+    // "Discard X cards from your hand" (Shield Toss, `03006`) is a real
+    // decision the engine's `example` only guessed the minimum answer to —
+    // see `#tryOpenDiscardChoice`. Checked before the controller picker below
+    // since a card could in principle need both; nothing in the pool does yet.
+    if (this.#tryOpenDiscardChoice(entry)) return;
     // "Play under any player's control" makes whose card it becomes a real
     // decision, and the engine's `example` had quietly made it for the player
     // (the first seat that could take it). So a choice of seats opens the picker.
@@ -194,6 +251,7 @@ export class BoardController {
 
   /** The controller picker's answer: play the card under that seat's control. */
   async chooseController(controllerId: PlayerId): Promise<void> {
+    if (this.#readOnly) return;
     if (this.#selection.kind !== "choosingController") return;
     const { action } = this.#selection;
     if (!action.controllers?.includes(controllerId)) return;
@@ -240,6 +298,13 @@ export class BoardController {
    * `legalActions`), but the ability DSL doesn't rule it out.
    */
   onCharacterTap(instanceId: InstanceId): void {
+    // Read-only: never auto-trigger an ability (and never even consult the
+    // *live* session's `usableAbilitiesFor` to decide whether to) — a tap
+    // just opens the card, the same as when it has more than one ability.
+    if (this.#readOnly) {
+      this.#host.inspect(instanceId);
+      return;
+    }
     const abilities = this.usableAbilitiesFor(instanceId);
     if (abilities.length === 0) return;
     if (abilities.length === 1) {
@@ -251,6 +316,7 @@ export class BoardController {
 
   /** The Inspect sheet's ability picker reports its pick here; it never dispatches itself. */
   useAbilityById(instanceId: InstanceId, abilityId: AbilityId): void {
+    if (this.#readOnly) return;
     const entry = this.usableAbilitiesFor(instanceId).find((candidate) => candidate.action.abilityId === abilityId);
     if (entry) this.#useAbility(entry);
   }
@@ -264,9 +330,10 @@ export class BoardController {
    * `legalActions` and `paymentFor` already did.
    */
   #useAbility(entry: UsableAbilityAction): void {
+    if (this.#tryOpenDiscardChoice(entry)) return;
     if (entry.targets.length > 1) {
       const { game } = appSession().store.state;
-      const name = game ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, CORE_DEPS) : "this ability";
+      const name = game ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, POOL_DEPS) : "this ability";
       this.#selection = { kind: "targeting", action: entry, prompt: `Choose a target for ${name}` };
       this.#host.redraw();
       return;
@@ -288,6 +355,7 @@ export class BoardController {
    * would be wrong.
    */
   abilityLine(instanceId: InstanceId): string | null {
+    if (this.#readOnly) return null;
     if (this.#selection.kind !== "idle" || !this.#host.marks()?.usableAbilities.has(instanceId)) return null;
     const { game } = appSession().store.state;
     if (!game) return null;
@@ -298,9 +366,59 @@ export class BoardController {
     // prices at nothing, which is still worth a tap target.
     const text =
       abilities.length === 1
-        ? (abilityShortLabelOf(game, instanceId, abilities[0]!.action.abilityId, CORE_DEPS) ?? "use")
+        ? (abilityShortLabelOf(game, instanceId, abilities[0]!.action.abilityId, POOL_DEPS) ?? "use")
         : `${abilities.length} abilities — tap to choose`;
     return `▶ ${text}`;
+  }
+
+  /**
+   * Enters discard-choice mode for an action whose cost has a real "discard
+   * from your hand" decision in it (`view/discard-choice-model.ts`). Returns
+   * false when there is nothing to decide — no such cost, or so few hand
+   * cards that `legalActions`'s own default is the only legal answer — so
+   * the caller falls through to its usual targeting/payment/dispatch path.
+   */
+  #tryOpenDiscardChoice(entry: LegalAction): boolean {
+    const { game, perspectiveId } = appSession().store.state;
+    if (!game || perspectiveId === null) return false;
+    const choice = beginDiscardChoice(game, perspectiveId, entry, POOL_DEPS);
+    if (!choice) return false;
+    this.#selection = { kind: "choosingDiscard", choice };
+    this.#host.redraw();
+    return true;
+  }
+
+  /** Adds or removes one hand card from the discard choice. A card not offered, or past its cap, is a no-op. */
+  toggleDiscardPick(id: InstanceId): void {
+    if (this.#readOnly) return;
+    if (this.#selection.kind !== "choosingDiscard") return;
+    this.#selection = { kind: "choosingDiscard", choice: toggleDiscardChoice(this.#selection.choice, id) };
+    this.#host.redraw();
+  }
+
+  /** The discard choice as the engine currently sees it, or null outside that mode. */
+  discardChoiceView(): DiscardChoiceView | null {
+    if (this.#selection.kind !== "choosingDiscard") return null;
+    const { game } = appSession().store.state;
+    if (!game) return null;
+    return buildDiscardChoiceView(game, this.#selection.choice, POOL_DEPS);
+  }
+
+  /**
+   * Confirms the discard choice: dispatches the exact command the engine
+   * just accepted (`discardChoiceView().command`) — the ability's cost paid
+   * with the player's own picks and, in the same command, its effects
+   * (Shield Toss's "deal 4 damage to X enemies") begin resolving. A "choose
+   * X enemies" decision, if the ability needs one, opens as an ordinary
+   * `PendingChoice` afterward — the same generic overlay every other card's
+   * `chooseTarget` already uses, nothing new here.
+   */
+  async commitDiscardChoice(): Promise<void> {
+    if (this.#readOnly) return;
+    const view = this.discardChoiceView();
+    if (!view?.command) return;
+    this.#selection = { kind: "idle" };
+    await this.#dispatch(view.command);
   }
 
   /**
@@ -311,7 +429,7 @@ export class BoardController {
     const { store } = appSession();
     const { game, perspectiveId } = store.state;
     if (!game || perspectiveId === null) return false;
-    const payment = beginPayment(game, perspectiveId, entry.action, target, CORE_DEPS, controllerId);
+    const payment = beginPayment(game, perspectiveId, entry.action, target, POOL_DEPS, controllerId);
     if (!payment) return false;
     this.#selection = { kind: "paying", payment };
     this.#host.redraw();
@@ -331,6 +449,7 @@ export class BoardController {
    * resource abilities is two tiles and a tap must mean one of them.
    */
   togglePaymentOption(optionId: string): void {
+    if (this.#readOnly) return;
     this.#togglePayment(optionId);
   }
 
@@ -355,10 +474,11 @@ export class BoardController {
     ]
       .filter(Boolean)
       .join(" ");
-    return paymentView(game, perspectiveId, payment, headline, CORE_DEPS);
+    return paymentView(game, perspectiveId, payment, headline, POOL_DEPS);
   }
 
   async commitPayment(): Promise<void> {
+    if (this.#readOnly) return;
     const payment = this.paymentView();
     if (!payment?.command) return;
     this.#selection = { kind: "idle" };
@@ -366,11 +486,18 @@ export class BoardController {
   }
 
   async dispatchExample(kind: BasicAction): Promise<void> {
+    if (this.#readOnly) return;
     const entry = this.#legalFor(kind);
     if (entry) await this.#dispatch(entry.example);
   }
 
+  /**
+   * The one choke point every mutating path above funnels through — guarded
+   * on its own, not only at each of those call sites, so read-only mode holds
+   * even if a future caller reaches this some other way.
+   */
   async #dispatch(command: Command): Promise<void> {
+    if (this.#readOnly) return;
     const { store } = appSession();
     const before = store.state.version;
     await store.dispatch(command);

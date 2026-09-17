@@ -48,32 +48,38 @@ export function applyOk(state: GameState, command: Command, deps: EngineDeps = C
   return { state: result.state, events: result.events };
 }
 
-export const run = (state: GameState, ...commands: readonly Command[]): GameState => commands.reduce((s, c) => applyOk(s, c).state, state);
+export const run = (state: GameState, ...commands: readonly Command[]): GameState => runWith(CORE_DEPS, state, ...commands);
+/**
+ * `run`, with an explicit `deps` — for wave 1 (or any non-Core) content, whose ability ids aren't in `CORE_DEPS`.
+ * `packages/cards/src/wave1/testing.ts` wraps this with `WAVE1_DEPS` so a pack's tests read exactly like Core's.
+ */
+export const runWith = (deps: EngineDeps, state: GameState, ...commands: readonly Command[]): GameState =>
+  commands.reduce((s, c) => applyOk(s, c, deps).state, state);
 
-export function answer(state: GameState, selected: readonly string[]): GameState {
+export function answer(state: GameState, selected: readonly string[], deps: EngineDeps = CORE_DEPS): GameState {
   const choice = state.pendingChoice;
   if (!choice) throw new Error("no pending choice");
-  return applyOk(state, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: selected }).state;
+  return applyOk(state, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: selected }, deps).state;
 }
 
 /** Answers pending choices with `pick` until none is left, the game ends, or `stop` says so. */
-export function settle(state: GameState, pick: Picker = firstLegal, stop?: (state: GameState) => boolean): GameState {
+export function settle(state: GameState, pick: Picker = firstLegal, stop?: (state: GameState) => boolean, deps: EngineDeps = CORE_DEPS): GameState {
   let current = state;
   for (let guard = 0; current.pendingChoice && !current.outcome && !stop?.(current); guard++) {
     if (guard > 500) throw new Error(`choices did not settle (stuck on ${current.pendingChoice.prompt.kind})`);
-    current = answer(current, pick(current));
+    current = answer(current, pick(current), deps);
   }
   return current;
 }
 
-export const settleUntil = (state: GameState, kind: PromptKind, pick: Picker = firstLegal): GameState =>
-  settle(state, pick, (s) => s.pendingChoice?.prompt.kind === kind);
+export const settleUntil = (state: GameState, kind: PromptKind, pick: Picker = firstLegal, deps: EngineDeps = CORE_DEPS): GameState =>
+  settle(state, pick, (s) => s.pendingChoice?.prompt.kind === kind, deps);
 
-/** A Core game past setup, with every opening hand kept. */
+/** A Core (or, with `deps`, any) game past setup, with every opening hand kept. */
 export function startCoreGame(config: GameSetupConfig, deps: EngineDeps = CORE_DEPS): GameState {
   const created = createGame(config, deps);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
-  return settle(created.state, firstLegal, (s) => s.step.phase === "player");
+  return settle(created.state, firstLegal, (s) => s.step.phase === "player", deps);
 }
 
 export const toHero = (player: PlayerId = P1): Command => ({ type: "changeForm", playerId: player });
@@ -92,12 +98,19 @@ export const play = (
   attachToInstanceId: extra.attachToInstanceId ?? null,
   ...(extra.costChoices ? { costChoices: extra.costChoices } : {}),
 });
-export const use = (player: PlayerId, id: InstanceId, ability: string, payment: readonly Payment[] = []): Command => ({
+export const use = (
+  player: PlayerId,
+  id: InstanceId,
+  ability: string,
+  payment: readonly Payment[] = [],
+  costChoices?: CostChoices,
+): Command => ({
   type: "useAbility",
   playerId: player,
   cardInstanceId: id,
   abilityId: ability as never,
   payment,
+  ...(costChoices ? { costChoices } : {}),
 });
 export const resourceAbility = (id: InstanceId, ability: string): Payment => ({ ability: { instanceId: id, abilityId: ability as never } });
 

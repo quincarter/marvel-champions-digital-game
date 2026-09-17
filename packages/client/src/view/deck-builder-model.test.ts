@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { CORE_CARDS, cardId, type Deck } from "@mc/content";
+import { CORE_CARDS, WAVE1_CARDS, cardId, type Deck } from "@mc/content";
 import {
   addCard,
   aspectCountFor,
@@ -83,6 +83,34 @@ describe("browsablePool", () => {
     const events = browsablePool(CORE_CARDS, spiderMan, ["justice"], { type: "event" });
     expect(events.every((c) => c.type === "event")).toBe(true);
     expect(events.length).toBeGreaterThan(0);
+  });
+});
+
+describe("wave 1 (PLAN.md Phase 7)", () => {
+  test("identityOptions includes the wave 1 heroes alongside Core's", () => {
+    const names = identityOptions(WAVE1_CARDS).map((c) => c.name);
+    expect(names).toContain("Doctor Strange");
+    expect(names).toContain("Captain America");
+    expect(names).toContain("Spider-Man");
+  });
+
+  test("a basic card reprinted across several wave 1 packs (Energy) appears once, not once per printing", () => {
+    const capIdentity = identityOptions(WAVE1_CARDS).find((c) => c.name === "Captain America")!;
+    const pool = browsablePool(WAVE1_CARDS, capIdentity, ["leadership"]);
+    const energyRows = pool.filter((c) => c.name === "Energy");
+    expect(energyRows).toHaveLength(1);
+    // The Core printing wins (pool is Core-first) so it matches what an existing Core deck already uses.
+    const coreEnergy = CORE_CARDS.find((c) => c.name === "Energy");
+    expect(energyRows[0]!.id).toBe(coreEnergy!.id);
+  });
+
+  test("Doctor Strange's Invocation cards never appear in the browsable pool — they come from his identity's separateDecks, not a deck list", () => {
+    const drStrange = identityOptions(WAVE1_CARDS).find((c) => c.name === "Doctor Strange")!;
+    expect(drStrange.separateDecks?.length).toBeGreaterThan(0);
+    const invocationNames = new Set((drStrange.separateDecks ?? []).flatMap((d) => d.cards.map((c) => c.cardId)));
+    const pool = browsablePool(WAVE1_CARDS, drStrange, ["protection"]);
+    for (const card of pool) expect(invocationNames.has(card.id)).toBe(false);
+    expect(pool.length).toBeGreaterThan(0);
   });
 });
 

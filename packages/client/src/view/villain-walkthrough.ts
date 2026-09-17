@@ -15,7 +15,7 @@
  * (docs/phase3-encounter-ai.md).
  */
 
-import type { ChoiceOption, ChoicePrompt, DecisionAuthority, GameEvent, GameState, PlayerId } from "@mc/engine";
+import type { ChoiceOption, ChoicePrompt, DecisionAuthority, EngineDeps, GameEvent, GameState, PlayerId } from "@mc/engine";
 import { logLine } from "./log-lines.js";
 import { cardName, playerName, seatName } from "./names.js";
 
@@ -111,6 +111,7 @@ export function appendWalkthrough(
   events: readonly GameEvent[],
   state: GameState,
   viewer: PlayerId | null,
+  deps: EngineDeps,
 ): Walkthrough {
   let working = current;
   let beats = working.steps.map((step) => [...step.beats]);
@@ -187,7 +188,7 @@ export function appendWalkthrough(
     }
     // Everything else reuses the log's wording, so the walkthrough and the log
     // never describe the same beat two different ways.
-    const described = logLine(event, state, viewer);
+    const described = logLine(event, state, viewer, deps);
     if (described) push(described.text, null);
   }
 

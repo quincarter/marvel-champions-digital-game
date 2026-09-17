@@ -15,6 +15,7 @@ import type { InstanceId } from "../ids.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import { limitReached } from "./ability.js";
+import { checkAllyLimits } from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
 
 const registriesWithChecks = new WeakMap<AbilityRegistry, boolean>();
@@ -34,6 +35,9 @@ function hasStateChecks(registry: AbilityRegistry): boolean {
  * on the stack, in play-area order; the rest only have their value recorded. Returns true when it pushed a frame.
  */
 export function checkStateTriggers(ctx: Ctx): boolean {
+  // A continuous rule rather than an ability, checked in the same place and for the same reason: RRG 1.8 "Ally
+  // Limit" (p. 7) applies the moment a player "ever" controls too many allies. Asking for the discard is the result.
+  if (checkAllyLimits(ctx)) return true;
   if (!hasStateChecks(ctx.deps.abilities)) return false;
   const observed: Record<string, boolean> = {};
   const firing: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] = [];

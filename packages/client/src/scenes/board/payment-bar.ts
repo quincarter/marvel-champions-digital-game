@@ -41,8 +41,11 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
   const headlineRoom = buttonsLeft - headlineLeft - 12;
   if (headlineRoom > 90) {
     const outstanding = payment.outstanding.length > 0 ? ` Still needs ${payment.outstanding.join(", ")}.` : "";
+    // The price note comes before the instruction: a denominator that isn't the number printed on the card is
+    // the first thing a player will question, and "tap cards to spend" can wait behind the answer.
+    const note = payment.priceNote ? ` ${payment.priceNote}.` : "";
     scene.add
-      .text(headlineLeft, rect.y + rect.height / 2, `${payment.headline}. Tap cards to spend.${outstanding}`, textStyle(typeRole.emphasis, surface.paper.hex))
+      .text(headlineLeft, rect.y + rect.height / 2, `${payment.headline}.${note} Tap cards to spend.${outstanding}`, textStyle(typeRole.emphasis, surface.paper.hex))
       .setOrigin(0, 0.5)
       .setWordWrapWidth(headlineRoom)
       .setMaxLines(1);

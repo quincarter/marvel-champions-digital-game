@@ -7,6 +7,7 @@
 import { activeVillain } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import type { ChoiceOption, ChoicePrompt, GameState, PlayerId } from "@mc/engine";
+import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import { appendWalkthrough, decisionLabel, emptyWalkthrough, pauseFor, VILLAIN_STEPS, type Walkthrough } from "./villain-walkthrough.js";
@@ -50,7 +51,7 @@ async function playThroughVillainPhase(): Promise<Played> {
       await store.dispatch(end.example);
     } else break;
 
-    walkthrough = appendWalkthrough(walkthrough, store.state.lastEvents, store.state.game!, viewer);
+    walkthrough = appendWalkthrough(walkthrough, store.state.lastEvents, store.state.game!, viewer, POOL_DEPS);
     if (walkthrough.pausedAt) pauses.push(walkthrough.pausedAt.label);
     if (walkthrough.activeStep !== null) sawVillainPhase = true;
     // Stop once a whole villain phase has been walked.
@@ -185,7 +186,7 @@ describe("a villain phase that really does pause", () => {
         await store.dispatch(end.example);
       } else break;
 
-      walkthrough = appendWalkthrough(walkthrough, store.state.lastEvents, store.state.game!, viewer);
+      walkthrough = appendWalkthrough(walkthrough, store.state.lastEvents, store.state.game!, viewer, POOL_DEPS);
       for (const view of walkthrough.steps) {
         for (const beat of view.beats) {
           if (beat.pause && !paused) {
@@ -259,7 +260,7 @@ describe("a defended attack", () => {
         await store.dispatch(end.example);
       } else break;
 
-      walkthrough = appendWalkthrough(walkthrough, store.state.lastEvents, store.state.game!, viewer);
+      walkthrough = appendWalkthrough(walkthrough, store.state.lastEvents, store.state.game!, viewer, POOL_DEPS);
       if (walkthrough.activeStep !== null) sawVillainPhase = true;
       if (sawVillainPhase && walkthrough.complete) break;
     }

@@ -12,8 +12,16 @@
  * focus order, targeting or dispatch lives here or there.
  */
 
-/** What the keyboard binding already distinguishes (`scenes/board/input.ts#bindKeyboard`). */
-export type GamepadIntent = "next" | "previous" | "activate" | "inspect" | "cancel";
+/**
+ * What the keyboard binding already distinguishes (`scenes/board/input.ts#bindKeyboard`).
+ *
+ * `pageNext`/`pagePrevious`/`home`/`end` are for a scrolling list
+ * (`ui/virtual-list.ts`): most screens have no list and simply never wire
+ * `FocusRouteOptions.onPage`/`onHomeEnd`, so these intents fall through as a
+ * no-op there — the same "just don't wire it" shape `inspect` already has on
+ * a screen with nothing to read.
+ */
+export type GamepadIntent = "next" | "previous" | "activate" | "inspect" | "cancel" | "pageNext" | "pagePrevious" | "home" | "end";
 
 /**
  * Indices from the Web Gamepad API's "standard" layout, which browsers map
@@ -28,6 +36,8 @@ export const GAMEPAD_BUTTON = {
   b: 1,
   x: 2,
   y: 3,
+  l1: 4,
+  r1: 5,
   dpadUp: 12,
   dpadDown: 13,
   dpadLeft: 14,
@@ -47,6 +57,10 @@ const INTENT_BY_BUTTON: Readonly<Record<number, GamepadIntent>> = {
   [GAMEPAD_BUTTON.y]: "inspect",
   // B is the pad's universal "back" — Escape's equivalent.
   [GAMEPAD_BUTTON.b]: "cancel",
+  // The shoulder buttons are a scrolling list's Page Up/Down on every pad
+  // that has a browser/menu convention (a game console's own "next tab").
+  [GAMEPAD_BUTTON.l1]: "pagePrevious",
+  [GAMEPAD_BUTTON.r1]: "pageNext",
 };
 
 /** The intent one button press means, or `null` for a button this board doesn't use. */

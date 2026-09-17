@@ -51,6 +51,11 @@ describe("abilityLabelOf", () => {
     expect(abilityLabelOf(state, identityId, abilityId("test.bare"), deps)).toBe(cardName(state, identityId));
   });
 
+  test("names a Special ability \"Special\" — the RRG's own term, never printed on the AbilityReference itself", () => {
+    const deps = { abilities: { "test.special": { trigger: { kind: "special" }, effects: [] } as AbilityDefinition } };
+    expect(abilityLabelOf(state, identityId, abilityId("test.special"), deps)).toBe(`${cardName(state, identityId)} — Special`);
+  });
+
   // The next three use the real `AbilityCost` shapes from `CORE_DEPS` for the
   // three action abilities that actually reach `useAbility` in a real Rhino
   // game (found by scanning `legalActions` across three full games — none of

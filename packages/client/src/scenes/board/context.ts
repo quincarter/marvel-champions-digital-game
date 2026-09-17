@@ -38,9 +38,17 @@ export interface BoardFrame {
 
 export const emptyFrame = (): BoardFrame => ({ hitRects: new Map(), focusRects: new Map(), pileRects: new Map(), buttons: [], rings: [] });
 
-/** A pile's key in `BoardFrame.pileRects`: the zone kind, and whose pile it is when it belongs to a player. */
-export const pileKey = (kind: "deck" | "discard" | "encounterDeck" | "encounterDiscard", playerId?: PlayerId): string =>
-  playerId === undefined ? kind : `${kind}:${playerId}`;
+/**
+ * A pile's key in `BoardFrame.pileRects`: the zone kind, whose pile it is when
+ * it belongs to a player, and — for a separate deck, since an identity could
+ * in principle bring more than one — which one by its printed name (Doctor
+ * Strange's Invocation deck).
+ */
+export const pileKey = (
+  kind: "deck" | "discard" | "encounterDeck" | "encounterDiscard" | "separateDeck" | "separateDiscard",
+  playerId?: PlayerId,
+  name?: string,
+): string => [kind, playerId, name].filter((part) => part !== undefined).join(":");
 
 export interface BoardDrawContext {
   readonly scene: Phaser.Scene;

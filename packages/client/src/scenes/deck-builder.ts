@@ -11,13 +11,16 @@
  * `Deck.identityCardId` is required, so there is no `Deck` to build against
  * until then (`view/deck-builder-model.ts`'s `newDeck` needs an identity).
  *
- * The pool browser is a long, filterable list, so it follows the same
- * redraw-safe virtualized pattern as the Decks screen's deck list
- * (`view/list-scroll.ts`).
+ * The pool browser is a long, filterable list — wave 1 more than doubles the
+ * pool — so it is a `McVirtualList` (`ui/virtual-list.ts`), the same widget
+ * the Decks screen's deck list uses: recreated fresh every `#rebuild()` (like
+ * every other non-DOM control this scene draws), with only its scroll
+ * position (`#listScroll`) surviving that.
  */
 
 import Phaser from "phaser";
-import { CORE_CARDS, CORE_POOL_VERSION, type AnyCard, type Deck, type HeroIdentityCard } from "@mc/content";
+import type { AnyCard, Deck, HeroIdentityCard } from "@mc/content";
+import { POOL_CARDS, POOL_VERSION } from "../content/pool.js";
 import {
   SELECTABLE_ASPECTS,
   addCard,
@@ -33,7 +36,8 @@ import {
 } from "../view/deck-builder-model.js";
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
-import { ListScroll, thumbOf } from "../view/list-scroll.js";
+import { ListScroll } from "../view/list-scroll.js";
+import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
@@ -47,7 +51,7 @@ export interface DeckBuilderSceneData {
 
 const IDENTITY_ROW_HEIGHT = hit.target;
 const CARD_ROW_HEIGHT = 56;
-const POOL: readonly AnyCard[] = CORE_CARDS;
+const POOL: readonly AnyCard[] = POOL_CARDS;
 const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
 
 export class DeckBuilderScene extends Phaser.Scene {
@@ -55,7 +59,6 @@ export class DeckBuilderScene extends Phaser.Scene {
   #deck: Deck | null = null;
   #filter: PoolFilter = {};
   #filterText = "";
-  #scroll = new ListScroll();
   #status: string | null = null;
   #busy = false;
   #nameInput: McTextInput | null = null;
@@ -63,7 +66,9 @@ export class DeckBuilderScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
-  #listRect: Rect | null = null;
+  /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
+  #list: McVirtualList | null = null;
+  #listScroll = new ListScroll();
 
   constructor() {
     super(SCENES.deckBuilder);
@@ -75,23 +80,25 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#identity = this.#deck ? (IDENTITIES.find((i) => i.id === this.#deck!.identityCardId) ?? null) : null;
     this.#filter = {};
     this.#filterText = "";
-    this.#scroll = new ListScroll();
     this.#status = null;
     this.#busy = false;
+    this.#listScroll = new ListScroll();
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
-    this.input.on("wheel", this.#onWheel, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
-      this.input.off("wheel", this.#onWheel, this);
       this.#nameInput?.destroy();
       this.#nameInput = null;
       this.#filterInput?.destroy();
       this.#filterInput = null;
+      this.#list?.destroy();
+      this.#list = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#nameInput?.focused ?? false) || (this.#filterInput?.focused ?? false),
+      onPage: (direction) => this.#list?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
     });
     this.#rebuild();
   }
@@ -100,14 +107,17 @@ export class DeckBuilderScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
+    // The list is recreated fresh every rebuild, in the normal draw order
+    // (`ui/virtual-list.ts` — reattaching it across a sweep put it ahead of
+    // whatever the scene drew afterward). Its scroll position lives in
+    // `#listScroll`, which survives this regardless.
+    this.#list?.destroy();
+    this.#list = null;
 
-    const nameNode = this.#nameInput?.gameObject ?? null;
-    const filterNode = this.#filterInput?.gameObject ?? null;
-    if (nameNode) this.children.remove(nameNode);
-    if (filterNode) this.children.remove(filterNode);
+    const kept = [...(this.#nameInput ? [this.#nameInput.gameObject] : []), ...(this.#filterInput ? [this.#filterInput.gameObject] : [])];
+    for (const node of kept) this.children.remove(node);
     this.children.removeAll(true);
-    if (nameNode) this.children.add(nameNode);
-    if (filterNode) this.children.add(filterNode);
+    for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";
@@ -129,14 +139,7 @@ export class DeckBuilderScene extends Phaser.Scene {
     if (!this.#identity) {
       this.#drawIdentityPicker(left, y, column);
       this.#route?.set(
-        deckBuilderFocusOrder({
-          identityChosen: false,
-          identityIds: IDENTITIES.map((identity) => identity.id as string),
-          aspectIds: [],
-          visiblePoolCardIds: [],
-          canScrollUp: false,
-          canScrollDown: false,
-        }),
+        deckBuilderFocusOrder({ identityChosen: false, identityIds: IDENTITIES.map((identity) => identity.id as string), aspectIds: [], poolCardIds: [] }),
         this.#stops,
       );
       return;
@@ -216,7 +219,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         onChange: (value) => {
           this.#filterText = value;
           this.#filter = { ...this.#filter, text: value };
-          this.#scroll.reset();
+          this.#listScroll.reset();
           this.#rebuild();
         },
       });
@@ -224,36 +227,30 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#stops.set("filter-text", { rect: filterRect, activate: () => this.#filterInput?.focus() });
     y += hit.target + 16;
 
-    // The pool, virtualized: only the visible rows become game objects or focus stops.
+    // The pool, virtualized: `McVirtualList` owns which rows are live game
+    // objects; every card still gets a focus stop below regardless of
+    // whether it's currently drawn.
     const pool = browsablePool(POOL, this.#identity, deck.aspects, this.#filter);
     label(this, left, y, `pool — ${pool.length} card${pool.length === 1 ? "" : "s"}`, typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const listRect: Rect = { x: left, y, width: column, height: Math.max(CARD_ROW_HEIGHT, height - y - pad) };
-    this.#listRect = listRect;
-    const rail = this.add.graphics();
-    paintPanel(rail, listRect, "rail", "rest");
 
-    const rowsVisible = Math.max(1, Math.floor((listRect.height - 8) / CARD_ROW_HEIGHT));
-    const win = this.#scroll.windowFor(pool.length, rowsVisible);
     if (pool.length === 0) {
       this.add.text(listRect.x + 10, listRect.y + 10, "No cards match this filter.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
     }
-    let rowY = listRect.y + 4;
-    for (let i = win.start; i < win.end; i++) {
-      this.#drawCardRow(left, rowY, column, deck, pool[i]!);
-      rowY += CARD_ROW_HEIGHT;
-    }
-    const thumb = thumbOf(win, pool.length);
-    if (thumb) {
-      const track: Rect = { x: listRect.x + listRect.width - 6, y: listRect.y, width: 3, height: listRect.height };
-      const tg = this.add.graphics();
-      tg.fillStyle(surface.ink.hex, 0.12).fillRect(track.x, track.y, track.width, track.height);
-      tg.fillStyle(surface.ink.hex, 0.6).fillRect(track.x, track.y + thumb.top * track.height, track.width, Math.max(10, thumb.size * track.height));
-    }
-    const canScrollUp = win.start > 0;
-    const canScrollDown = win.end < pool.length;
-    if (canScrollUp) this.#stops.set("scroll-up", { rect: { x: listRect.x, y: listRect.y - 2, width: listRect.width, height: 4 }, activate: () => this.#scrollBy(-3, pool.length, rowsVisible) });
-    if (canScrollDown) this.#stops.set("scroll-down", { rect: { x: listRect.x, y: listRect.y + listRect.height - 2, width: listRect.width, height: 4 }, activate: () => this.#scrollBy(3, pool.length, rowsVisible) });
+
+    const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderCardRow(rect, deck, pool[index]!);
+    this.#list = new McVirtualList(this, { rect: listRect, rowHeight: CARD_ROW_HEIGHT, count: pool.length, renderRow, scroll: this.#listScroll });
+    const list = this.#list;
+    pool.forEach((card, index) => {
+      const cardId = card.id as string;
+      this.#stops.set(`card:${cardId}`, {
+        rect: () => list.rectFor(index),
+        activate: () => this.#setDeck(addCard(deck, card.id)),
+        inspect: () => this.#inspect(card),
+        ensureVisible: () => list.scrollIntoView(index),
+      });
+    });
 
     this.#stops.set("save", { rect: saveRect, activate: doSave });
 
@@ -262,9 +259,7 @@ export class DeckBuilderScene extends Phaser.Scene {
         identityChosen: true,
         identityIds: [],
         aspectIds: [...SELECTABLE_ASPECTS],
-        visiblePoolCardIds: pool.slice(win.start, win.end).map((card) => card.id as string),
-        canScrollUp,
-        canScrollDown,
+        poolCardIds: pool.map((card) => card.id as string),
       }),
       this.#stops,
     );
@@ -279,7 +274,7 @@ export class DeckBuilderScene extends Phaser.Scene {
       const rect: Rect = { x: left + 6, y: y + 6 + index * (IDENTITY_ROW_HEIGHT + 6), width: column - 12, height: IDENTITY_ROW_HEIGHT };
       const choose = (): void => {
         this.#identity = identity;
-        this.#deck = newDeck(identity, CORE_CARDS, `deck-${crypto.randomUUID()}`, CORE_POOL_VERSION, new Date().toISOString());
+        this.#deck = newDeck(identity, POOL_CARDS, `deck-${crypto.randomUUID()}`, POOL_VERSION, new Date().toISOString());
         this.#rebuild();
       };
       this.#buttons.push(new McButton(this, { kind: "secondary", label: identity.name, type: typeRole.rowTitle, rect, onClick: choose }));
@@ -287,29 +282,42 @@ export class DeckBuilderScene extends Phaser.Scene {
     });
   }
 
-  #drawCardRow(x: number, y: number, width: number, deck: Deck, card: AnyCard): void {
-    const rect: Rect = { x: x + 4, y, width: width - 8, height: CARD_ROW_HEIGHT - 6 };
+  #renderCardRow(rect: Rect, deck: Deck, card: AnyCard): VirtualListRow {
+    const row: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: CARD_ROW_HEIGHT - 6 };
+    const objects: Phaser.GameObjects.GameObject[] = [];
     const g = this.add.graphics();
-    paintPanel(g, rect, "card", "rest");
+    paintPanel(g, row, "card", "rest");
+    objects.push(g);
     const quantity = deck.cards.find((c) => c.cardId === card.id)?.quantity ?? 0;
 
-    const name = this.add.text(rect.x + 10, rect.y + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
-    fitText(name, rect.width - 190);
+    const name = this.add.text(row.x + 10, row.y + 6, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
+    fitText(name, row.width - 190);
+    objects.push(name);
     const cost = "cost" in card ? String((card as unknown as { cost: number }).cost) : "—";
-    this.add.text(rect.x + 10, rect.y + 6 + name.height + 2, `${card.type.replace(/_/g, " ")} · cost ${cost}`, textStyle(typeRole.label, surface.ink.hex, ink.meta));
+    objects.push(this.add.text(row.x + 10, row.y + 6 + name.height + 2, `${card.type.replace(/_/g, " ")} · cost ${cost}`, textStyle(typeRole.label, surface.ink.hex, ink.meta)));
 
-    const qtyText = label(this, rect.x + rect.width - 128, rect.y + rect.height / 2, String(quantity), typeRole.rowTitle, surface.ink.hex).setOrigin(0.5);
+    const qtyText = label(this, row.x + row.width - 128, row.y + row.height / 2, String(quantity), typeRole.rowTitle, surface.ink.hex).setOrigin(0.5);
+    objects.push(qtyText);
 
-    const minusRect: Rect = { x: rect.x + rect.width - 106, y: rect.y + (rect.height - hit.target) / 2, width: 40, height: hit.target };
+    // `clip`/`suppressClick` read `this.#list` lazily (see decks.ts's
+    // `#renderRow` for why it can't be a value captured up front): a row
+    // reparented into the list's masked layer is still fully hit-testable
+    // outside the mask, and a drag that just scrolled the list must not also
+    // add or remove a card it happened to end over.
+    const clip = (): Rect | null => this.#list?.rect ?? null;
+    const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
+
+    const minusRect: Rect = { x: row.x + row.width - 106, y: row.y + (row.height - hit.target) / 2, width: 40, height: hit.target };
     const doRemove = (): void => this.#setDeck(removeCard(deck, card.id));
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "−", type: typeRole.rowTitle, rect: minusRect, enabled: quantity > 0, onClick: doRemove }));
+    const minusButton = new McButton(this, { kind: "secondary", label: "−", type: typeRole.rowTitle, rect: minusRect, enabled: quantity > 0, onClick: doRemove, clip, suppressClick });
+    objects.push(minusButton.container);
 
-    const plusRect: Rect = { x: rect.x + rect.width - 46, y: minusRect.y, width: 40, height: hit.target };
+    const plusRect: Rect = { x: row.x + row.width - 46, y: minusRect.y, width: 40, height: hit.target };
     const doAdd = (): void => this.#setDeck(addCard(deck, card.id));
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "+", type: typeRole.rowTitle, rect: plusRect, onClick: doAdd }));
+    const plusButton = new McButton(this, { kind: "secondary", label: "+", type: typeRole.rowTitle, rect: plusRect, onClick: doAdd, clip, suppressClick });
+    objects.push(plusButton.container);
 
-    qtyText.setDepth(1);
-    this.#stops.set(`card:${card.id as string}`, { rect, activate: doAdd, inspect: () => this.#inspect(card) });
+    return { objects };
   }
 
   #inspect(card: AnyCard): void {
@@ -319,19 +327,6 @@ export class DeckBuilderScene extends Phaser.Scene {
   #setDeck(deck: Deck, rebuild = true): void {
     this.#deck = deck;
     if (rebuild) this.#rebuild();
-  }
-
-  #scrollBy(rows: number, count: number, rowsVisible: number): void {
-    if (this.#scroll.scrollBy(rows, count, rowsVisible)) this.#rebuild();
-  }
-
-  #onWheel(pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number): void {
-    const rect = this.#listRect;
-    if (!this.#identity || !rect || pointer.x < rect.x || pointer.x > rect.x + rect.width || pointer.y < rect.y || pointer.y > rect.y + rect.height) return;
-    const pool = browsablePool(POOL, this.#identity, this.#deck?.aspects ?? [], this.#filter);
-    const rowsVisible = Math.max(1, Math.floor((rect.height - 8) / CARD_ROW_HEIGHT));
-    const lines = Math.trunc(dy / 40);
-    if (lines !== 0) this.#scrollBy(lines, pool.length, rowsVisible);
   }
 
   async #save(): Promise<void> {

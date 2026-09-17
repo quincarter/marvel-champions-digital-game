@@ -30,6 +30,8 @@ export interface SeatOption {
   readonly seated: boolean;
   /** Null when the seat can be taken; otherwise why it cannot, in the player's words. */
   readonly blockedBy: string | null;
+  /** A seatable deck's named unscripted cards, shown but never blocking. Null when nothing is unscripted. */
+  readonly warning: string | null;
 }
 
 const identityOf = (option: DeckOption | undefined, cardsById: ReadonlyMap<string, AnyCard>): AnyCard | null => {
@@ -58,10 +60,11 @@ export function seatOptions(
   return decks.map((option): SeatOption => {
     const deckId = option.deck.id as string;
     const seated = seatedDeckIds.includes(deckId);
-    if (seated) return { deckId, seated, blockedBy: null };
+    const warning = option.warning;
+    if (seated) return { deckId, seated, blockedBy: null, warning };
 
     if (!option.seatable) {
-      return { deckId, seated, blockedBy: option.blockedReason ?? "This deck cannot be played." };
+      return { deckId, seated, blockedBy: option.blockedReason ?? "This deck cannot be played.", warning };
     }
 
     const card = identityOf(option, cardsById);
@@ -69,10 +72,10 @@ export function seatOptions(
     if (clash) {
       // Named rather than generic: with two Captain Marvel decks on screen,
       // "already taken" without the name doesn't say which one took it.
-      return { deckId, seated, blockedBy: `${clash.name} is already at the table` };
+      return { deckId, seated, blockedBy: `${clash.name} is already at the table`, warning };
     }
-    if (seatedDeckIds.length >= maxSeats) return { deckId, seated, blockedBy: `${maxSeats} seats is the maximum` };
-    return { deckId, seated, blockedBy: null };
+    if (seatedDeckIds.length >= maxSeats) return { deckId, seated, blockedBy: `${maxSeats} seats is the maximum`, warning };
+    return { deckId, seated, blockedBy: null, warning };
   });
 }
 

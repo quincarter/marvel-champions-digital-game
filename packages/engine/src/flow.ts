@@ -8,6 +8,7 @@ import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVil
 import { announce, clearAbilityUses, executeFrame, gameAbilityFrames, pushEffects } from "./resolve/index.js";
 import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
+import { cardsInPlay, controllerOf } from "./select.js";
 import { describeFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
 import {
@@ -241,6 +242,11 @@ function executeEndPhaseReady(ctx: Ctx): void {
   for (const player of playerOrder(ctx.state)) {
     readyCard(ctx, player.identity.instanceId);
     for (const id of mustPlayer(ctx.state, player.playerId).playArea) readyCard(ctx, id);
+    // Every card the player controls readies, not just the play-area list: an upgrade attached to an identity
+    // (Focused Rage, Web-Shooter) or to another card lives in its host's `attachments` instead.
+    for (const id of cardsInPlay(ctx.state)) {
+      if (controllerOf(ctx.state, id) === player.playerId) readyCard(ctx, id);
+    }
   }
   for (const id of ctx.state.villainArea) readyCard(ctx, id);
   for (const villain of undefeatedVillains(ctx.state)) readyCard(ctx, villain.instanceId);

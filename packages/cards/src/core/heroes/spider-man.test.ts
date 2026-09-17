@@ -81,6 +81,18 @@ describe("Spider-Man kit", () => {
     expect(playerOf(paidAid, P1).discard).toEqual(expect.arrayContaining([shooter, firstAid]));
   });
 
+  it("Web-Shooter: an upgrade attached to the identity readies in the end-of-phase ready step", () => {
+    const start = stackEncounterDeck(spiderManVsRhino(), ADVANCE, HYDRA_MERCENARY);
+    const given = moveToHand(start, P1, "01008");
+    const [shooter] = given.ids as [never];
+    const hero = run(given.state, toHero());
+    const played = run(hero, play(P1, shooter, payWith(hero, P1, 1, given.ids)));
+    expect(inst(played, shooter).attachedTo).toBe(identityOf(played));
+    const nextRound = settle(run(patchInstance(played, shooter, { exhausted: true }), endTurn()), firstLegal);
+    expect(nextRound.round).toBe(2);
+    expect(inst(nextRound, shooter)).toMatchObject({ exhausted: false, counters: { web: 3 } });
+  });
+
   it("Black Cat: after you play her, discard the top 2 cards of your deck and keep each with a printed [mental] resource", () => {
     const given = moveToHand(spiderManVsRhino(), P1, "01002");
     const [cat] = given.ids as [never];

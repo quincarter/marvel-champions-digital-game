@@ -471,7 +471,7 @@ Quantities are MarvelCDB `quantity`.
   - RRG 1.8 "Uses" (p. 46) is the same shape: "If there are no all-purpose counters on this card, discard this card."
 - **"Place 1 infamy counter on Criminal Enterprise. If you cannot, remove 1 madness counter …"** is `addCounters { bind }` plus `if not made`. "Cannot" is true when no card with that face name is in play.
 
-**Open (§4.1):** whether the new face's "enter play with N counters" applies on a flip. Without it, State of Madness flips back immediately.
+**Settled (§4.1):** the new face's "enter play with N counters" applies on a flip — without it State of Madness arrives empty and flips straight back. The engine does not do it by itself; each face's script adds its own counters as a forced response to `cardEntersPlay`/`cardFlipped` (`wave1/gob/risky-business.ts`, `02006a.enters-with-infamy` / `02006b.enters-with-madness`).
 
 **Tests:**
 - a flip retains attachments and tokens;

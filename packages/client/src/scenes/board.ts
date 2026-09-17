@@ -24,7 +24,7 @@
  */
 
 import Phaser from "phaser";
-import { CORE_DEPS } from "@mc/cards";
+import { POOL_DEPS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
 import type { GameEvent, InstanceId } from "@mc/engine";
 import { cardArt, type CardArt } from "../art/card-art.js";
@@ -186,7 +186,7 @@ export class BoardScene extends Phaser.Scene {
       // A resumed game arrives mid-round with no events saying which round, so
       // an empty log starts counting from the state's round rather than "R0".
       if (this.#log.round === 0) this.#log = { ...this.#log, round: state.game.round };
-      this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId);
+      this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId, POOL_DEPS);
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
       // A hero going down is the one change nobody may miss. The last one
@@ -209,7 +209,7 @@ export class BoardScene extends Phaser.Scene {
       this.#controller.reset();
     }
 
-    this.#model = boardModel(state.game, state.perspectiveId, CORE_DEPS);
+    this.#model = boardModel(state.game, state.perspectiveId, POOL_DEPS);
     this.#marks = state.legal ? highlights(state.legal.actions) : null;
 
     if (state.game.outcome) {

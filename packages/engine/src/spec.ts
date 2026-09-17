@@ -40,14 +40,43 @@ export interface TargetQuery {
   readonly controller?: "you" | "other" | "any" | "encounter";
   readonly engagedWith?: "you" | "any";
   readonly trait?: Trait;
+  /**
+   * Excludes cards that carry this trait (printed or granted): "an Avenger ally" pairs with `trait`, while "if
+   * each of your allies has the Avenger trait" (Avengers Tower, `cap` pack) needs its negation — `not(exists(query(
+   * "ally", { controller: "you", withoutTrait: AVENGER })))`, i.e. no ally lacks it. New for wave 1: no Core card
+   * needed a negative trait filter.
+   */
+  readonly withoutTrait?: Trait;
+  /**
+   * At least one of these traits (printed or granted): "an Attack, Thwart, or Defense event" (Morphogenetics, `msm`
+   * pack). An OR of traits, where `trait` is a single one. An empty list matches nothing (`@mc/cards`' validator
+   * rejects it).
+   */
+  readonly anyTrait?: readonly Trait[];
   /** Exact printed card name ("the Breakin' & Takin' side scheme", "the Ultron Drones environment"). */
   readonly name?: string;
   /** The card this card is attached to (true) or anything else (false): "When attached minion is defeated". */
   readonly hostOfSelf?: boolean;
+  /**
+   * The card is attached to one of the cards this ref names: "exhaust a Weapon upgrade **on your hero**" (Mean
+   * Swing, `thor` pack) → `query("upgrade", { trait: WEAPON, host: yourIdentity })`. The mirror of `hostOfSelf`,
+   * which asks whether a candidate *is* this card's own host; `host` asks what a candidate is attached *to*, and so
+   * works on a card (an event) that is not itself an attachment. An unattached card never matches.
+   */
+  readonly host?: TargetRef;
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
   /** Cards with at least one printed icon of this resource type ("each card with a printed [mental] resource"). Wild is its own type. */
   readonly printedResource?: "physical" | "mental" | "energy" | "wild";
+  /**
+   * Cards with at least one printed icon of **any** of these resource types: "discard a [mental] or a [physical]
+   * resource from your hand, if able" (Tombstone, `gob` pack) → `{ anyPrintedResource: ["mental", "physical"] }`.
+   * The OR that `printedResource` (exactly one type) can't say, the way `anyTrait` is to `trait`; the two are ANDed if
+   * both are given. Printed icons only (ruling, Jan 11, 2026 (3): a "printed resource" is the bottom-left icon), and
+   * a wild icon matches only `"wild"`: RRG 1.8 "Wild Resource" (p. 48), "When resources are not being generated for a
+   * cost, a wild resource does not have any characteristic other than 'wild resource'".
+   */
+  readonly anyPrintedResource?: readonly ("physical" | "mental" | "energy" | "wild")[];
   /** The card's owner is the ability's controller ("your discard pile" cards, "cards you own"). */
   readonly owner?: "you";
   /** Player-card aspect, e.g. "aggression" ("while paying for an Aggression card"). */
@@ -56,9 +85,23 @@ export interface TargetQuery {
   readonly hasThreat?: boolean;
   readonly damaged?: boolean;
   readonly hasStatus?: "stunned" | "confused" | "tough";
+  /**
+   * The character has at least one status card of any type (true), or none at all (false): "choose a status card in
+   * play" (Vapors of Valtorr, `drs` pack) is a choice among the characters that have one. An OR over the three
+   * status types, which `hasStatus` — exactly one type — cannot say. Both may be given at once (`hasStatus:
+   * "stunned"` narrows further); they are ANDed like every other field.
+   */
+  readonly hasAnyStatus?: boolean;
   /** Restrict to (or exclude) the ability's own card. */
   readonly self?: boolean;
   readonly maxPrintedHp?: number;
+  /**
+   * Printed resource cost at most this much (events print none, read as 0): "an Avenger ally from your hand with
+   * printed cost equal to or less than the number of time counters on Quinjet" (`cap` pack) — a `ValueSpec` bound
+   * re-read every check, unlike `maxPrintedHp`'s fixed number, since "the number of time counters on Quinjet"
+   * changes over the game.
+   */
+  readonly maxPrintedCost?: number | ValueSpec;
   /** Only enemies this character is allowed to attack right now (RRG "Guard"). */
   readonly attackableBy?: TargetRef;
   /** Excludes cards already bound to these slots: "remove 2 threat from a *different* scheme". */
@@ -93,6 +136,17 @@ export type TargetRef =
   | { readonly kind: "slot"; readonly slot: string }
   | { readonly kind: "eventSource" }
   | { readonly kind: "eventTarget" }
+  /**
+   * "The defending character" (Energy Projectiles' boost, 07027: "Deal 1 damage to the defending character"): the
+   * character declared as the defender of the innermost enemy attack on the stack, whether by a basic defense or a
+   * "(defense)" ability, while it is still in play. Read from the stack rather than the triggering event because a
+   * Boost ability resolves with no event in context, and it keeps working in that attack's "after it attacks" and
+   * deferred "after you defend" windows. Empty for an undefended attack, outside an enemy attack (a scheme
+   * activation, a player attack), and once the defender has left play: RRG 1.8 "Defend, Defense" (p. 16), "if a
+   * defending ally is defeated before damage from the attack is dealt (such as through a 'Boost' ability), the
+   * attack is considered undefended".
+   */
+  | { readonly kind: "defendingCharacter" }
   /**
    * "The villain": the active villain (The Wrecking Crew insert, "The Active Villain": "Any card effect that refers
    * to 'the villain' only refers to the active villain."). "A villain" is `each`/`chooseTarget` over the
@@ -165,10 +219,36 @@ export type ValueSpec =
   | { readonly kind: "var"; readonly name: string }
   /** A result of the triggering event ("for each damage dealt by this attack" → `damage`). */
   | { readonly kind: "eventResult"; readonly key: string }
-  /** Arithmetic on another value: "2 damage for each counter (max 10)" → `{ value, times: 2, max: 10 }`; "X is 1 more than" → `plus: 1`. */
-  | { readonly kind: "scaled"; readonly value: ValueSpec; readonly times?: number; readonly plus?: number; readonly max?: number }
+  /**
+   * Arithmetic on another value: "2 damage for each counter (max 10)" → `{ value, times: 2, max: 10 }`; "X is 1 more
+   * than" → `plus: 1`; "half of the cards in your hand, rounded down" (Man Out of Time, `cap` pack) → `{ value:
+   * handCount(you), divide: { by: 2, round: "down" } }`. `divide` applies first, then `times`, `plus`, `max`.
+   *
+   * `round` is required. RRG 1.8 "Modifiers" (p. 29) rounds fractional values **up** by default, and cards that
+   * print "rounded down" override that. Neither direction is a safe silent default.
+   */
+  | {
+      readonly kind: "scaled";
+      readonly value: ValueSpec;
+      readonly divide?: { readonly by: number; readonly round: "down" | "up" };
+      readonly times?: number;
+      readonly plus?: number;
+      readonly max?: number;
+    }
   /** How many cards in play match: "for each side scheme in play", "for each Drone minion engaged with you". */
   | { readonly kind: "count"; readonly query: TargetQuery }
+  /**
+   * The total of several values: "for each ally and Persona support in play" (Generation Why?, `msm` pack) is the ally
+   * count plus the Persona support count. Two counts rather than one query, because a query's `trait` applies to every
+   * category it lists. An empty list is 0 (`@mc/cards`' validator rejects it).
+   */
+  | { readonly kind: "sum"; readonly values: readonly ValueSpec[] }
+  /**
+   * How many of the cards a ref names match a query, wherever they are (not restricted to in play, unlike `count`):
+   * "for each treachery looked at this way" (Falcon, `cap` pack, over `selectCards`' non-in-play "look") reads the
+   * cards bound to a slot. Resolved the same way `resourceTypes`/`distinctCardTypes` already read a ref's cards.
+   */
+  | { readonly kind: "countInRef"; readonly cards: TargetRef; readonly query: TargetQuery }
   /** A character's remaining hit points (max HP minus damage): "X is equal to Titania's remaining hit points". */
   | { readonly kind: "remainingHp"; readonly of: TargetRef }
   /** "N (M instead if …)": `then` when the predicate holds, `else` otherwise. */
@@ -253,7 +333,17 @@ export type Predicate =
    */
   | { readonly kind: "paidWithOnly"; readonly resource: TypedResource }
   /** How many cards of a type a player has played this round is at most `atMost`: "the first ally played each round" → 0. */
-  | { readonly kind: "playedThisRound"; readonly player: PlayerRef; readonly cardType: string; readonly atMost: number };
+  | { readonly kind: "playedThisRound"; readonly player: PlayerRef; readonly cardType: string; readonly atMost: number }
+  /**
+   * Compares two live values: "if there is 10 or more threat here" (the Wrecking Crew signature side schemes) →
+   * `{ left: { kind: "threat", of: self }, op: "atLeast", right: 10 }`.
+   *
+   * The general numeric comparison, so any `ValueSpec` can be a threshold and the threshold itself can be a value
+   * ("if its remaining hit points are less than the number of counters here"). `counterAtLeast`, `damagedAtLeast`
+   * and `varAtLeast` are the older, narrower spellings of the `atLeast` case and stay as they are; prefer `compare`
+   * for anything new. Both sides are evaluated in this ability's context at the moment the predicate is read.
+   */
+  | { readonly kind: "compare"; readonly left: ValueSpec; readonly op: "atLeast" | "atMost" | "equalTo"; readonly right: ValueSpec };
 
 export type StatusName = "stunned" | "confused" | "tough";
 
@@ -453,6 +543,16 @@ export type EffectSpec =
        * responses included, resolves first. With no activation in progress it resolves at once.
        */
       readonly after?: "currentActivation";
+      /**
+       * "Green Goblin attacks with +X ATK" (Death from Above): a bonus scoped to exactly the attack this effect
+       * initiates, evaluated once when the attack is initiated and carried on that activation, so a second copy of
+       * the card in the same phase does not stack onto the first one's attack.
+       *
+       * Distinct from `modifyAttack.atkBonus`, which changes the activation *already in progress*, and from
+       * `modifyStatUntil`, which changes the enemy's ATK for a whole phase/round no matter how many activations that
+       * covers. A dashed ATK is "an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15), so this does not raise it.
+       */
+      readonly atkBonus?: ValueSpec;
     }
   /** "The villain schemes" / "Ultron schemes": a scheme activation; a confused enemy discards its confusion instead. `bind`: `<bind>.made`, `<bind>.threatPlaced`. */
   | {
@@ -462,6 +562,14 @@ export type EffectSpec =
       readonly bind?: string;
       readonly boost?: false;
       readonly after?: "currentActivation";
+      /**
+       * "Green Goblin schemes with +X SCH" (Death from Above): `enemyAttack.atkBonus` for a scheme activation.
+       *
+       * Not the same as `modifyAttack.threatBonus` ("reduce the amount of threat placed on the scheme by 1"): this is
+       * a bonus to the enemy's SCH, so a dashed SCH stays "an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15) where a
+       * change to the threat placed would still apply.
+       */
+      readonly schBonus?: ValueSpec;
     }
   /** "This card gains surge": the encounter card whose ability this is surges when its reveal finishes. */
   | { readonly kind: "gainSurge" }
@@ -489,6 +597,27 @@ export type EffectSpec =
   /** "Discard cards from the encounter deck until a minion is discarded": the matching card is bound to `bind` (then `putIntoPlay` / `revealCard` it). */
   | { readonly kind: "discardEncounterUntil"; readonly filter: TargetQuery; readonly bind: string }
   /**
+   * "Discard cards from the top of your deck until you discard a Ms. Marvel card, then add that card to your hand"
+   * (Teen Spirit): the player-deck sibling of `discardEncounterUntil`. The matching card is bound to `bind` (and its
+   * count to `<bind>.count`, 0 when none was found) and is left in the discard pile, so a following `moveCards` takes
+   * it from there. `player` naming several players ("each player") searches each of their decks in player order, and
+   * every match goes into the one slot.
+   *
+   * RRG 1.8 "Player Deck" (p. 33) — read on its own, *not* carried over from the encounter-deck rule (p. 17), though
+   * the two agree: "If a player deck empties, the player shuffles their discard pile to make a new deck. That player
+   * immediately deals themself one facedown encounter card", and "if the player's deck empties while the player was
+   * discarding cards from their deck, no further cards are discarded from the newly shuffled deck". So a deck emptied
+   * mid-discard stops the effect, with whatever was found so far; a deck that was *already* empty when the effect
+   * began resets first and the discarding then happens from the new deck, exactly as `discardEncounterCards` does.
+   * A deck and discard pile both empty discard nothing and bind nothing (p. 33: "the deck does not reset until there
+   * is at least one card in the player's discard pile").
+   *
+   * The reset itself is the engine's usual deferred one (`takeTopOfDeck`/`drawCards`): the reshuffle and its dealt
+   * encounter card happen at the next draw from that deck rather than the instant it empties. That is a pre-existing
+   * engine-wide modeling choice, not one this effect makes.
+   */
+  | { readonly kind: "discardDeckUntil"; readonly player: PlayerRef; readonly filter: TargetQuery; readonly bind: string }
+  /**
    * "Discard the top N cards of the encounter deck" (Electro, Lightning Bolt, Shock Therapy). The active villain's
    * deck (§3.2); each card goes to its own deck's discard pile (`home`).
    *
@@ -498,7 +627,12 @@ export type EffectSpec =
    * discard effect with the newly shuffled encounter deck." A deck that was *already* empty when the effect began is
    * reset first (with its acceleration token), and the discarding then happens from the new deck.
    *
-   * `bind` binds the discarded cards to that slot and their number to `<bind>.count`. `forEachDiscarded` runs its
+   * `bind` binds the discarded cards to that slot, their number to `<bind>.count`, the sum of their boost icons
+   * (printed plus modifiers) to `<bind>.boostIcons` and their printed resource icons to `<bind>.physical` /
+   * `.mental` / `.energy` / `.wild` — the same bind shape `moveCards` reports, so "1 indirect damage for each boost
+   * icon discarded this way" reads `<bind>.boostIcons` whichever effect did the discarding. The totals cover exactly
+   * the cards this effect reached: a discard cut short by the empty-deck rule above counts only what it got.
+   * `forEachDiscarded` runs its
    * effects once per discarded card, in discard order, with that card bound to its `slot` ("Each time a Goblin minion
    * is discarded this way, choose …" — the card's own `if` narrows which discards it cares about).
    */
@@ -522,7 +656,21 @@ export type EffectSpec =
    */
   | { readonly kind: "dealIndirectDamage"; readonly to: PlayerRef | "group"; readonly amount: ValueSpec; readonly bind?: string }
   | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
-  | { readonly kind: "discardFromHand"; readonly player: PlayerRef; readonly amount: ValueSpec; readonly random?: boolean }
+  /**
+   * "Discard N cards from your hand" / "Each player must choose and discard 1 resource of any type from their hand
+   * for each boost icon discarded this way" (Power Drain). `player` may name several players ("each player"): each
+   * one chooses out of their own hand, in player order, one choice at a time.
+   *
+   * `amount` is a live `ValueSpec`, so the count can be something only known at resolution time (a summed
+   * `<bind>.boostIcons`). `filter` narrows which hand cards may be discarded: "1 resource of any type" is a card with
+   * a printed resource icon of any of the four types (`anyPrintedResource`) — ruling, Jan 11, 2026 (3), "the
+   * discarded card must have a [] resource icon printed in its bottom-left corner", and RRG 1.8 "Resource" (p. 37)
+   * lists exactly four resource *types*. A player holding fewer matching cards than `amount` discards every matching
+   * card they hold and no more (the same "do what you can" the random form already uses; ruling, Feb 28, 2026 (4)).
+   *
+   * `random` discards at random instead of asking, and honours `filter` the same way.
+   */
+  | { readonly kind: "discardFromHand"; readonly player: PlayerRef; readonly amount: ValueSpec; readonly random?: boolean; readonly filter?: TargetQuery }
   /** Turns the top N encounter cards faceup without revealing them (RRG "Search"). */
   | {
       readonly kind: "revealTopOfEncounterDeck";
@@ -580,6 +728,17 @@ export type EffectSpec =
    */
   | { readonly kind: "dealEncounterCard"; readonly player: PlayerRef; readonly count?: ValueSpec }
   | { readonly kind: "revealEncounterCard"; readonly player: PlayerRef }
+  /**
+   * "Give the villain 1 facedown boost card" (Hired Gun 02007, Intimidation 02035), outside any activation. Cards
+   * come from the active villain's deck (§3.2) and go facedown onto each enemy `enemy` names.
+   *
+   * RRG 1.8 "Boost, Boost Icon" (p. 11): "If an enemy is dealt a boost card outside of its own activation, that
+   * boost card remains facedown on that enemy until that enemy activates", and that enemy "still gets dealt another
+   * boost card at the start of its activation as normal" — so the waiting card is resolved *in addition to* the
+   * automatic one, in the order dealt. Distinct from `modifyAttack.extraBoostCards`, which is "1 additional boost
+   * card **for this activation**" and only applies to the activation already in progress.
+   */
+  | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec }
   | { readonly kind: "addAccelerationToken" }
   | { readonly kind: "removeAccelerationToken" }
   /**
@@ -634,12 +793,37 @@ export type EffectSpec =
   | { readonly kind: "if"; readonly condition: Predicate; readonly then: readonly EffectSpec[]; readonly otherwise?: readonly EffectSpec[] }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
-  /** "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use). */
+  /**
+   * "Reduce the resource cost of the next card that player plays this phase by 1" (lasting, consumed on use).
+   * `cardFilter` narrows which played card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
+   * `cap` pack). Absent = any card (Helicarrier).
+   *
+   * `amount` is **signed**: negative means "costs N additional resources" (Physical Toll, `drs` pack). The price is
+   * floored at 0 either way.
+   *
+   * `duration` `"untilPlayed"` has **no phase or round bound at all** — the change waits however many rounds it
+   * takes for that player to play a matching card ("the *next* event you play", with no "this phase"). Bounding
+   * such a card to the current round would silently stop applying, so it is its own duration
+   * (`LastingDuration.untilCardPlayed`).
+   */
   | {
       readonly kind: "reduceNextCardCost";
       readonly player: PlayerRef;
       readonly amount: ValueSpec;
-      readonly duration: "phase" | "round";
+      readonly duration: "phase" | "round" | "untilPlayed";
+      readonly cardFilter?: TargetQuery;
+    }
+  /**
+   * "Discard this obligation after you play an event" (Physical Toll, `drs` pack): a delayed effect whose timing
+   * point is the next card `player` plays that `cardFilter` matches, rather than the end of a round or an attack.
+   * The sibling of `atEndOfRound`/`atEndOfAttack` for that timing, and the half of a "the next card you play …"
+   * sentence that isn't about cost. Fires once, after that card's play has finished resolving.
+   */
+  | {
+      readonly kind: "afterNextCardPlayed";
+      readonly player: PlayerRef;
+      readonly effects: readonly EffectSpec[];
+      readonly cardFilter?: TargetQuery;
     };
 
 /** A player's own out-of-play zones a selector can read. */

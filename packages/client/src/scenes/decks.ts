@@ -5,13 +5,12 @@
  * same-origin route `vite-marvelcdb-import.ts` adds); save, delete, and a
  * link into the builder to make or edit one.
  *
- * The deck list is a long, potentially-growing list, so it follows the game
- * log's redraw-safe virtualized pattern (`view/log-view.ts` /
- * `scenes/board/log.ts`, generalized for uniform rows in
- * `view/list-scroll.ts`): this scene clears and rebuilds its whole display
- * list on every change (the Title/Game Over pattern), so the scroll position
- * lives in a `ListScroll` field that survives the sweep, and only the rows
- * currently on screen ever become live game objects or focus stops.
+ * The deck list is a long, potentially-growing list (Phase 7 wave 1 doubles
+ * the precon count, and a player's own saved decks grow without bound), so it
+ * is a persistent `McVirtualList` (`ui/virtual-list.ts`) rather than being
+ * drawn inline: it survives this scene's own `#rebuild()` the same way the
+ * import text fields do, and scrolling it (wheel, the scrollbar thumb,
+ * keyboard/pad paging) never triggers a scene rebuild.
  *
  * Every legality/playability fact shown here is `@mc/engine`'s own
  * (`view/deck-list-model.ts`'s `deckOptionsOf`, `view/deck-status.ts` for the
@@ -19,15 +18,16 @@
  */
 
 import Phaser from "phaser";
-import { CORE_DEPS } from "@mc/cards";
-import { CORE_CARDS, CORE_POOL_VERSION, parseMarvelCdbReference, type AnyCard, type Deck, type DeckId } from "@mc/content";
+import { parseMarvelCdbReference, type AnyCard, type Deck, type DeckId } from "@mc/content";
+import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { cardArt } from "../art/card-art.js";
 import { importFromMarvelCdbResponseText, importFromPasteText, type ImportEnv, type ImportOutcome } from "../view/deck-import-model.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { deckStatusOf, type DeckStatusTone } from "../view/deck-status.js";
 import { decksFocusOrder } from "../view/screen-focus.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
-import { ListScroll, thumbOf } from "../view/list-scroll.js";
+import { ListScroll } from "../view/list-scroll.js";
+import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McMultilineInput, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
@@ -44,11 +44,22 @@ export interface DecksSceneData {
 }
 
 const ROW_HEIGHT = 60;
-const CARDS_BY_ID = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id as string, card]));
+const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));
+
+/**
+ * A row's sub-rects, shared between drawing it and answering a keyboard/pad
+ * focus stop's `rect`, so the two can never drift apart. Edit/Delete's rects
+ * are computed unconditionally; only editable rows register stops for them.
+ */
+function rowGeometry(rect: Rect): { readonly card: Rect; readonly edit: Rect; readonly delete: Rect } {
+  const card: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: ROW_HEIGHT - 6 };
+  const edit: Rect = { x: card.x + card.width - 130, y: card.y + card.height - hit.target - 2, width: 60, height: hit.target };
+  const del: Rect = { x: card.x + card.width - 66, y: edit.y, width: 60, height: hit.target };
+  return { card, edit, delete: del };
+}
 
 export class DecksScene extends Phaser.Scene {
   #savedDecks: readonly Deck[] = [];
-  #scroll = new ListScroll();
   #data: DecksSceneData = {};
   /** The banner under the title. A success and a failure look different: an import that worked was drawn in error red. */
   #status: { readonly text: string; readonly tone: "success" | "error" } | null = null;
@@ -60,7 +71,9 @@ export class DecksScene extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
-  #listRect: Rect | null = null;
+  /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
+  #list: McVirtualList | null = null;
+  #listScroll = new ListScroll();
   #focusedOnce = false;
 
   constructor() {
@@ -73,27 +86,29 @@ export class DecksScene extends Phaser.Scene {
     // Title only sends a message here when a deck could not be seated.
     this.#status = data.message ? { text: data.message, tone: "error" } : null;
     this.#savedDecks = [];
-    this.#scroll = new ListScroll();
     this.#busy = false;
     this.#pasteText = "";
     this.#marvelcdbText = "";
+    this.#listScroll = new ListScroll();
     this.#focusedOnce = false;
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
-    this.input.on("wheel", this.#onWheel, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
       artOff();
-      this.input.off("wheel", this.#onWheel, this);
       this.#pasteInput?.destroy();
       this.#pasteInput = null;
       this.#marvelcdbInput?.destroy();
       this.#marvelcdbInput = null;
+      this.#list?.destroy();
+      this.#list = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#pasteInput?.focused ?? false) || (this.#marvelcdbInput?.focused ?? false),
+      onPage: (direction) => this.#list?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
     });
 
     this.#rebuild();
@@ -107,18 +122,25 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #deckOptions(): readonly DeckOption[] {
-    return deckOptionsOf(this.#savedDecks, CORE_CARDS, CORE_POOL_VERSION, CORE_DEPS);
+    return deckOptionsOf(this.#savedDecks, POOL_CARDS, POOL_VERSION, POOL_DEPS);
   }
 
   #rebuild(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
+    // The list is recreated fresh every rebuild, in the normal draw order
+    // (`ui/virtual-list.ts` — reattaching it across a sweep put it ahead of
+    // whatever the scene drew afterward, so a later background panel ended up
+    // on top of it). Its scroll position lives in `#listScroll`, which
+    // survives this regardless.
+    this.#list?.destroy();
+    this.#list = null;
 
     // The two text fields survive the sweep: every object they draw with is
-    // detached first and handed back after, in the same order. The paste field
-    // is a rexUI sizer with children of its own in the display list, so its
-    // root alone is not enough (`McMultilineInput.gameObjects`).
+    // detached first and handed back after, in the same order. The paste
+    // field is a rexUI sizer with children of its own in the display list, so
+    // its root alone is not enough (`McMultilineInput.gameObjects`).
     const kept = [...(this.#pasteInput?.gameObjects ?? []), ...(this.#marvelcdbInput ? [this.#marvelcdbInput.gameObject] : [])];
     for (const node of kept) this.children.remove(node);
     this.children.removeAll(true);
@@ -217,73 +239,69 @@ export class DecksScene extends Phaser.Scene {
     this.#stops.set("new-deck", { rect: newDeckRect, activate: openBuilder });
     y += hit.target + 20;
 
-    // The deck list, virtualized: only the rows in `window` become game
-    // objects or focus stops (see the module doc comment).
+    // The deck list, virtualized: `McVirtualList` owns which rows are live
+    // game objects; every row (on screen or not) still gets a focus stop
+    // below, so keyboard/pad reaches the whole list, not just what's drawn.
     const options = this.#deckOptions();
-    if (!this.#focusedOnce && this.#data.focusDeckId) {
-      const index = options.findIndex((option) => (option.deck.id as string) === this.#data.focusDeckId);
-      if (index >= 0) this.#scroll.scrollBy(index, options.length, 1);
-      this.#focusedOnce = true;
-    }
     label(this, left, y, `decks — ${options.length}`, typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const listTop = y;
     const listHeight = Math.max(ROW_HEIGHT, height - listTop - pad);
     const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
-    this.#listRect = listRect;
-    const rail = this.add.graphics();
-    paintPanel(rail, listRect, "rail", "rest");
 
-    const rowsVisible = Math.max(1, Math.floor((listRect.height - 8) / ROW_HEIGHT));
-    const win = this.#scroll.windowFor(options.length, rowsVisible);
     const editableIds = new Set(options.filter((o) => o.deck.source.kind !== "precon").map((o) => o.deck.id as string));
-
     if (options.length === 0) {
       this.add.text(listRect.x + 10, listRect.y + 10, "No decks yet — import one above or build one.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
     }
 
-    let rowY = listRect.y + 4;
-    for (let i = win.start; i < win.end; i++) {
-      const option = options[i]!;
-      this.#drawRow(left, rowY, column, option, editableIds.has(option.deck.id as string), this.#data.focusDeckId === (option.deck.id as string));
-      rowY += ROW_HEIGHT;
+    const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderRow(rect, options[index]!, editableIds);
+    this.#list = new McVirtualList(this, { rect: listRect, rowHeight: ROW_HEIGHT, count: options.length, renderRow, scroll: this.#listScroll });
+
+    if (!this.#focusedOnce && this.#data.focusDeckId) {
+      const index = options.findIndex((option) => (option.deck.id as string) === this.#data.focusDeckId);
+      if (index >= 0) this.#list.scrollIntoView(index);
+      this.#focusedOnce = true;
     }
 
-    const thumb = thumbOf(win, options.length);
-    if (thumb) {
-      const track: Rect = { x: listRect.x + listRect.width - 6, y: listRect.y, width: 3, height: listRect.height };
-      const tg = this.add.graphics();
-      tg.fillStyle(surface.ink.hex, 0.12).fillRect(track.x, track.y, track.width, track.height);
-      tg.fillStyle(surface.ink.hex, 0.6).fillRect(track.x, track.y + thumb.top * track.height, track.width, Math.max(10, thumb.size * track.height));
-    }
-
-    const canScrollUp = win.start > 0;
-    const canScrollDown = win.end < options.length;
-    if (canScrollUp) {
-      const upRect: Rect = { x: listRect.x, y: listRect.y - 2, width: listRect.width, height: 0 };
-      this.#stops.set("scroll-up", { rect: { ...upRect, height: 4 }, activate: () => this.#scrollBy(-3, options.length, rowsVisible) });
-    }
-    if (canScrollDown) {
-      const downRect: Rect = { x: listRect.x, y: listRect.y + listRect.height - 2, width: listRect.width, height: 4 };
-      this.#stops.set("scroll-down", { rect: downRect, activate: () => this.#scrollBy(3, options.length, rowsVisible) });
-    }
+    const list = this.#list;
+    options.forEach((option, index) => {
+      const deckId = option.deck.id as string;
+      const editable = editableIds.has(deckId);
+      const ensureVisible = (): void => list.scrollIntoView(index);
+      const openEdit = (): void => {
+        this.scene.start(SCENES.deckBuilder, { deck: option.deck } satisfies DeckBuilderSceneData);
+      };
+      const doInspect = (): void => this.#inspect(option);
+      this.#stops.set(`deck:${deckId}`, {
+        rect: () => rowGeometry(list.rectFor(index)).card,
+        activate: editable ? openEdit : doInspect,
+        inspect: doInspect,
+        ensureVisible,
+      });
+      if (!editable) return;
+      this.#stops.set(`deck:${deckId}:edit`, { rect: () => rowGeometry(list.rectFor(index)).edit, activate: openEdit, ensureVisible });
+      this.#stops.set(`deck:${deckId}:delete`, {
+        rect: () => rowGeometry(list.rectFor(index)).delete,
+        activate: () => void this.#delete(option.deck.id),
+        ensureVisible,
+      });
+    });
 
     this.#route?.set(
-      decksFocusOrder({
-        showMarvelCdbImport,
-        visibleDeckIds: options.slice(win.start, win.end).map((o) => o.deck.id as string),
-        editableDeckIds: editableIds,
-        canScrollUp,
-        canScrollDown,
-      }),
+      decksFocusOrder({ showMarvelCdbImport, deckIds: options.map((o) => o.deck.id as string), editableDeckIds: editableIds }),
       this.#stops,
     );
   }
 
-  #drawRow(x: number, y: number, width: number, option: DeckOption, editable: boolean, focused: boolean): void {
-    const rect: Rect = { x: x + 4, y, width: width - 8, height: ROW_HEIGHT - 6 };
+  #renderRow(rect: Rect, option: DeckOption, editableIds: ReadonlySet<string>): VirtualListRow {
+    const editable = editableIds.has(option.deck.id as string);
+    const focused = this.#data.focusDeckId === (option.deck.id as string);
+    const { card, edit: editRect, delete: deleteRect } = rowGeometry(rect);
+    const objects: Phaser.GameObjects.GameObject[] = [];
+
     const g = this.add.graphics();
-    paintPanel(g, rect, "card", focused ? "selected" : "rest");
+    paintPanel(g, card, "card", focused ? "selected" : "rest");
+    objects.push(g);
 
     const status = deckStatusOf(option);
     const tone: Record<DeckStatusTone, number> = {
@@ -292,66 +310,56 @@ export class DecksScene extends Phaser.Scene {
       unscripted: signal.caution.hex,
       poolChanged: signal.cost.hex,
     };
-    const name = this.add.text(rect.x + 10, rect.y + 6, option.deck.name, textStyle(typeRole.rowTitle, surface.ink.hex));
-    fitText(name, rect.width - 160);
+    const name = this.add.text(card.x + 10, card.y + 6, option.deck.name, textStyle(typeRole.rowTitle, surface.ink.hex));
+    fitText(name, card.width - 160);
+    objects.push(name);
     const sourceText = option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built";
-    this.add.text(rect.x + 10, rect.y + 6 + name.height + 2, `${sourceText} · ${option.identityName ?? "unknown identity"}`, textStyle(typeRole.label, surface.ink.hex, ink.meta));
+    objects.push(
+      this.add.text(card.x + 10, card.y + 6 + name.height + 2, `${sourceText} · ${option.identityName ?? "unknown identity"}`, textStyle(typeRole.label, surface.ink.hex, ink.meta)),
+    );
 
     const chipText = label(this, 0, 0, status.text, typeRole.label, surface.paper.hex, 1);
     const chipWidth = Math.ceil(chipText.width) + 12;
     // A saved deck's Edit and Delete buttons take the row's right edge, so its
     // chip sits left of them — drawn at the edge, it was hidden under Edit.
-    const chipRight = editable ? rect.x + rect.width - 130 - 8 : rect.x + rect.width - 10;
+    const chipRight = editable ? card.x + card.width - 130 - 8 : card.x + card.width - 10;
     const chipG = this.add.graphics();
-    chipG.fillStyle(tone[status.tone], 1).fillRect(chipRight - chipWidth, rect.y + 8, chipWidth, 18);
-    chipText.setPosition(chipRight - chipWidth + 6, rect.y + 17).setOrigin(0, 0.5);
+    chipG.fillStyle(tone[status.tone], 1).fillRect(chipRight - chipWidth, card.y + 8, chipWidth, 18);
+    chipText.setPosition(chipRight - chipWidth + 6, card.y + 17).setOrigin(0, 0.5);
+    objects.push(chipG);
     // Created before the chip so it could be measured, which left it under the
-    // chip's fill: a status shown as colour alone. Above it, the words carry it.
-    this.children.bringToTop(chipText);
+    // chip's fill: a status shown as colour alone. Bring it to the top of this
+    // row's own objects (not the whole scene — the row layer stacks by add order).
+    objects.push(chipText);
 
-    const openEdit = (): void => {
-      this.scene.start(SCENES.deckBuilder, { deck: option.deck } satisfies DeckBuilderSceneData);
-    };
-    // Every row — precon included — gets a stop, so its identity can be read
-    // with `I` even though a precon offers no Edit/Delete (the same "still
-    // takes focus, still readable" rule Title gives a blocked hero seat).
-    this.#stops.set(`deck:${option.deck.id as string}`, {
-      rect,
-      activate: editable ? openEdit : () => this.#inspect(option),
-      inspect: () => this.#inspect(option),
-    });
-    if (!editable) return;
+    if (editable) {
+      // `clip`/`suppressClick` read `this.#list` lazily (at click time, not
+      // at row-build time — `this.#list` is still being assigned the first
+      // time a row renders, since `McVirtualList`'s own constructor renders
+      // its first window before returning). A row reparented into the list's
+      // masked layer is still fully hit-testable outside the mask (Phaser
+      // masks are visual only), and a drag that just scrolled the list must
+      // not also fire whatever button it happened to end over.
+      const clip = (): Rect | null => this.#list?.rect ?? null;
+      const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
+      const openEdit = (): void => {
+        this.scene.start(SCENES.deckBuilder, { deck: option.deck } satisfies DeckBuilderSceneData);
+      };
+      const editButton = new McButton(this, { kind: "secondary", label: "Edit", type: typeRole.label, rect: editRect, onClick: openEdit, clip, suppressClick });
+      objects.push(editButton.container);
+      const doDelete = (): void => void this.#delete(option.deck.id);
+      const deleteButton = new McButton(this, { kind: "secondary", label: "Delete", type: typeRole.label, rect: deleteRect, onClick: doDelete, clip, suppressClick });
+      objects.push(deleteButton.container);
+    }
 
-    const editRect: Rect = { x: rect.x + rect.width - 130, y: rect.y + rect.height - hit.target - 2, width: 60, height: hit.target };
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Edit", type: typeRole.label, rect: editRect, onClick: openEdit }));
-    this.#stops.set(`deck:${option.deck.id as string}:edit`, { rect: editRect, activate: openEdit });
-
-    const deleteRect: Rect = { x: rect.x + rect.width - 66, y: editRect.y, width: 60, height: hit.target };
-    const doDelete = (): void => void this.#delete(option.deck.id);
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Delete", type: typeRole.label, rect: deleteRect, onClick: doDelete }));
-    this.#stops.set(`deck:${option.deck.id as string}:delete`, { rect: deleteRect, activate: doDelete });
+    return { objects };
   }
 
   #inspect(option: DeckOption): void {
     const card = CARDS_BY_ID.get(option.deck.identityCardId as string);
     const face = card?.type === "villain" ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const) : ({ kind: "hero" } as const);
-    this.scene.launch(SCENES.inspect, {
-      card: { cardId: option.deck.identityCardId, face },
-      ...(option.blockedReason ? { note: option.blockedReason } : {}),
-    });
-  }
-
-  #scrollBy(rows: number, count: number, rowsVisible: number): void {
-    if (this.#scroll.scrollBy(rows, count, rowsVisible)) this.#rebuild();
-  }
-
-  #onWheel(pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number): void {
-    const rect = this.#listRect;
-    if (!rect || pointer.x < rect.x || pointer.x > rect.x + rect.width || pointer.y < rect.y || pointer.y > rect.y + rect.height) return;
-    const options = this.#deckOptions();
-    const rowsVisible = Math.max(1, Math.floor((rect.height - 8) / ROW_HEIGHT));
-    const lines = Math.trunc(dy / 40);
-    if (lines !== 0) this.#scrollBy(lines, options.length, rowsVisible);
+    const note = option.blockedReason ?? option.warning ?? null;
+    this.scene.launch(SCENES.inspect, { card: { cardId: option.deck.identityCardId, face }, ...(note ? { note } : {}) });
   }
 
   async #delete(id: DeckId): Promise<void> {
@@ -415,7 +423,7 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #importEnv(): ImportEnv {
-    return { pool: CORE_CARDS, poolVersion: CORE_POOL_VERSION, now: () => new Date().toISOString(), newId: () => crypto.randomUUID() };
+    return { pool: POOL_CARDS, poolVersion: POOL_VERSION, now: () => new Date().toISOString(), newId: () => crypto.randomUUID() };
   }
 
   async #applyImport(outcome: ImportOutcome): Promise<void> {

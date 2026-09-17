@@ -22,7 +22,19 @@ export type LastingDuration =
    * long as that event card's play, so a card returned to hand and replayed does not keep the bonus. Ends when that
    * card's `playCard` frame finishes.
    */
-  | { readonly kind: "endOfCardResolution"; readonly instanceId: InstanceId };
+  | { readonly kind: "endOfCardResolution"; readonly instanceId: InstanceId }
+  /**
+   * **No time bound at all**: "The next event you play costs 3 additional resources. Discard this obligation after
+   * you play an event." (Physical Toll, `drs` pack). It ends when `playerId` finishes playing a card `cardFilter`
+   * matches — never at a phase or round boundary, however many rounds that takes.
+   *
+   * RRG 1.8 "Lasting Effects" (p. 26): "A lasting effect expires as soon as the timing point specified by its
+   * duration is reached" — a card that specifies no timing point reaches none, and the same page says the effect
+   * "continues to affect the game … whether or not the card that created the lasting effect is in play". A
+   * `delayedEffects` body with this duration is the "after you play an event, <do this>" half; it fires when the
+   * duration ends, like every other delayed effect.
+   */
+  | { readonly kind: "untilCardPlayed"; readonly playerId: PlayerId; readonly cardFilter?: TargetQuery };
 
 /** The context a lasting effect evaluates its values and queries in (the ability that created it). */
 export interface LastingScope {
@@ -44,8 +56,16 @@ export interface LastingReach {
 
 /** What a lasting effect does. Extend this union for new lasting mechanics. */
 export type LastingEffectBody =
-  /** "Reduce the resource cost of the next card that player plays by N" — consumed by that player's next played card. */
-  | { readonly kind: "costReduction"; readonly playerId: PlayerId; readonly amount: number }
+  /**
+   * "Reduce the resource cost of the next card that player plays by N" — consumed by that player's next played
+   * card. `cardFilter` narrows which card consumes it: "the next Avenger ally played this phase" (Avengers Tower,
+   * `cap` pack) leaves the reduction waiting through any other card that player plays first. Absent = any card
+   * (Helicarrier's unfiltered "the next card").
+   *
+   * `amount` is **signed**: positive reduces, negative increases ("the next event you play costs 3 additional
+   * resources" — Physical Toll, `drs` pack — is `amount: -3`). The pricing path floors the result at 0 either way.
+   */
+  | { readonly kind: "costReduction"; readonly playerId: PlayerId; readonly amount: number; readonly cardFilter?: TargetQuery }
   /** "Until the end of the phase, X gets +N STAT". `amount` is re-evaluated on every read. */
   | (LastingReach & {
       readonly kind: "statModifier";

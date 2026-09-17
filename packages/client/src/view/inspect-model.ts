@@ -18,6 +18,7 @@ import {
   getInstance,
   keywordsOf,
   maxHitPoints,
+  playCostOf,
   printedResources,
   remainingHitPoints,
   type EngineDeps,
@@ -29,7 +30,7 @@ import {
 import { artFor, type ArtSource, type CardFace } from "../art/art-source.js";
 import { abilityActionsFor } from "./highlights.js";
 import { abilityLabelOf } from "./ability-label.js";
-import { cardName } from "./names.js";
+import { cardName, faceUpName } from "./names.js";
 import { faceVisible } from "./visibility.js";
 import { faceOf, printedStatsOf, profileStatTiles, resourceIconList, type StatTile } from "./board-model.js";
 
@@ -58,6 +59,14 @@ export interface InspectModel {
   readonly typeLine: string;
   /** The printed cost, or null for a card that has none. */
   readonly cost: number | null;
+  /**
+   * Why this card does not cost what it prints, named — "Steve Rogers: 3 → 2" — or null when it does.
+   *
+   * The sheet is where a player comes to settle an argument with the table, so it is where the answer to
+   * "why is this cheaper than the pip says?" belongs. Null on a sheet with no game behind it (the Title
+   * screen's pickers), where there is no table to price against.
+   */
+  readonly priceNote: string | null;
   readonly rulesText: string;
   /**
    * The original wording, only when errata changed it. The content package
@@ -108,6 +117,7 @@ export function inspectModel(
       name: cardName(state, instanceId),
       typeLine: "Facedown",
       cost: null,
+      priceNote: null,
       // A hidden card is exactly as informative as the table makes it.
       rulesText: "This card is facedown. Nothing about its face is known to you.",
       printedText: null,
@@ -136,6 +146,7 @@ export function inspectModel(
     name: cardName(state, instanceId),
     typeLine: typeLineOf(card),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
     rulesText: textOf(card).current,
     printedText: errataDiff(card),
     flavor: "flavor" in card && card.flavor ? card.flavor : null,
@@ -164,6 +175,25 @@ export function inspectModel(
     abilities: usableAbilitiesOf(state, instanceId, legal, deps),
     hidden: false,
   };
+}
+
+/**
+ * "Steve Rogers: 3 → 2" — the cards changing this card's price, and the price they change it to. Null when the
+ * table charges exactly what the card prints, which is most cards most of the time.
+ *
+ * Priced for the viewer, since a cost modifier can be one seat's and not another's, and with no attachment host:
+ * an upgrade's host isn't chosen until the play is under way, so a host-conditional price isn't earned yet.
+ */
+function priceNoteFor(state: GameState, perspectiveId: PlayerId, instanceId: InstanceId, deps: EngineDeps): string | null {
+  const price = playCostOf(state, perspectiveId, instanceId, deps);
+  if (!price || price.current === price.printed) return null;
+  const names: string[] = [];
+  for (const { sourceInstanceId } of price.contributions) {
+    if (sourceInstanceId === instanceId) continue;
+    const name = faceUpName(state, sourceInstanceId);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return `${names.length > 0 ? `${names.join(", ")}: ` : ""}${price.printed} → ${price.current}`;
 }
 
 /** Every action ability `legalActions` currently lists for this card, named and priced. */
@@ -234,6 +264,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
       name: "Unknown card",
       typeLine: "",
       cost: null,
+      priceNote: null,
       rulesText: "",
       printedText: null,
       flavor: null,
@@ -255,6 +286,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     name: faceNameOf(card, face),
     typeLine: typeLineOf(card),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
+    priceNote: null,
     rulesText: text.current,
     printedText: text.printed && text.printed !== text.current ? text.printed : null,
     flavor: flavorOf(card, face),

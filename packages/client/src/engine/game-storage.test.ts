@@ -38,6 +38,18 @@ const meta = (id: string, updatedAt: number, overrides: Partial<SaveMeta> = {}):
 
 const command = (n: number): Command => ({ type: "endTurn", playerId: `p${n}` }) as unknown as Command;
 
+/**
+ * A custom-deck seat carrying `CorePlayer.deckId` (docs/phase4-screen-gaps.md §2 S4): opaque
+ * client-side provenance that has to survive the same copy-in/copy-out path as everything else
+ * in `SaveMeta.config`, since this storage never interprets or rewrites `config`.
+ */
+const CONFIG_WITH_DECK_ID: SessionConfig = {
+  scenarioId: "rhino",
+  difficulty: "standard",
+  players: [{ identityCardId: "01010a", deck: [], deckId: "local-deck-42" }],
+  seed: 43523,
+};
+
 describe.each<[string, () => GameStorage]>([
   ["memory", () => new MemoryGameStorage()],
   ["IndexedDB", () => new IdbGameStorage(new IDBFactory())],
@@ -124,5 +136,17 @@ describe.each<[string, () => GameStorage]>([
 
   test("an unknown game loads as null", async () => {
     expect(await make().load("missing")).toBeNull();
+  });
+
+  test("a seat's deckId round-trips through create, load and list, untouched", async () => {
+    const storage = make();
+    await storage.create(meta("g1", 1, { config: CONFIG_WITH_DECK_ID }), BASELINE);
+
+    const loaded = await storage.load("g1");
+    expect(loaded!.meta.config).toEqual(CONFIG_WITH_DECK_ID);
+    expect((loaded!.meta.config.players[0] as { deckId?: string }).deckId).toBe("local-deck-42");
+
+    const listed = await storage.list();
+    expect((listed.find((game) => game.id === "g1")!.config.players[0] as { deckId?: string }).deckId).toBe("local-deck-42");
   });
 });

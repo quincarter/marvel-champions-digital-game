@@ -5,6 +5,7 @@ import type {
   FacedownRole,
   LastingUntil,
   PlayerRef,
+  PlayerZone,
   Predicate,
   ResourceRequirement,
   StatName,
@@ -22,6 +23,7 @@ import {
   you,
   yourIdentity,
   identityOf,
+  theVillain,
   type Amount,
 } from "./values.js";
 
@@ -74,6 +76,11 @@ export const removeThreat = (n: Amount, target: TargetRef, opts: { readonly bind
   ...withBind(opts.bind),
 });
 export const placeDamage = (n: Amount, target: TargetRef): EffectSpec => ({ kind: "placeDamage", target, amount: amount(n) });
+/**
+ * "Set his hit point dial to N instead" (Captain America's Helmet, `cap` pack): sets the remaining-hit-points dial
+ * directly. Not a heal — the card doesn't say "heal" — so it fires no heal event (docs/phase7-wave1.md §3.13).
+ */
+export const setRemainingHitPoints = (n: Amount, target: TargetRef): EffectSpec => ({ kind: "setRemainingHitPoints", target, amount: amount(n) });
 
 /** The "(attack)" body: resolves as an attack by your identity (guard, retaliate, "after X attacks" apply). */
 export const attack = (
@@ -107,6 +114,11 @@ export const stun = (target: TargetRef): EffectSpec => giveStatus(target, "stunn
 export const confuse = (target: TargetRef): EffectSpec => giveStatus(target, "confused");
 /** "Give X a tough status card". */
 export const giveTough = (target: TargetRef): EffectSpec => giveStatus(target, "tough");
+/**
+ * "Remove a [status] card from X" / the removal half of "replace that status card with a different status card"
+ * (Vapors of Valtorr, `drs` pack). One card of that type; a character with none is unaffected.
+ */
+export const removeStatus = (target: TargetRef, status: StatusName): EffectSpec => ({ kind: "removeStatus", target, status });
 export const exhaust = (target: TargetRef): EffectSpec => ({ kind: "exhaust", target });
 export const ready = (target: TargetRef): EffectSpec => ({ kind: "ready", target });
 /** "Discard X" for a card in play. */
@@ -151,14 +163,14 @@ export const forEachPlayer = (players: PlayerRef, ...effects: readonly EffectArg
 export const chooseTarget = (
   slot: string,
   q: TargetQuery,
-  opts: { readonly chooser?: PlayerRef; readonly optional?: boolean; readonly count?: number } = {},
+  opts: { readonly chooser?: PlayerRef; readonly optional?: boolean; readonly count?: Amount } = {},
 ): EffectSpec => ({
   kind: "chooseTarget",
   slot,
   query: q,
   chooser: opts.chooser ?? you,
   ...(opts.optional ? { optional: true } : {}),
-  ...(opts.count !== undefined ? { count: opts.count } : {}),
+  ...(opts.count !== undefined ? { count: amount(opts.count) } : {}),
 });
 export const bindTargets = (slot: string, target: TargetRef): EffectSpec => ({ kind: "bindTargets", slot, target });
 
@@ -166,21 +178,34 @@ export const bindTargets = (slot: string, target: TargetRef): EffectSpec => ({ k
 // Enemy actions, attack/scheme modification, prevention and cancellation
 // ---------------------------------------------------------------------------
 
+/**
+ * "Rhino attacks you" / "Green Goblin attacks with +X ATK" (Death from Above).
+ *
+ * `atkBonus` is scoped to exactly the attack this call initiates — use it, never a `modifyStat(..., "endOfPhase")`
+ * ahead of the call, which would also buff any *other* activation in the same phase (a second copy of the card, a
+ * surge chain, another player's reveal).
+ */
 export const enemyAttack = (
   enemies: TargetRef,
-  opts: { readonly against?: PlayerRef; readonly bind?: string; readonly additionalResolution?: boolean } = {},
+  opts: { readonly against?: PlayerRef; readonly bind?: string; readonly additionalResolution?: boolean; readonly atkBonus?: Amount } = {},
 ): EffectSpec => ({
   kind: "enemyAttack",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
   ...(opts.additionalResolution ? { additionalResolution: true } : {}),
+  ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
 });
-export const enemyScheme = (enemies: TargetRef, opts: { readonly against?: PlayerRef; readonly bind?: string } = {}): EffectSpec => ({
+/** "The villain schemes" / "Green Goblin schemes with +X SCH" — `enemyAttack`'s `atkBonus`, for a scheme activation. */
+export const enemyScheme = (
+  enemies: TargetRef,
+  opts: { readonly against?: PlayerRef; readonly bind?: string; readonly schBonus?: Amount } = {},
+): EffectSpec => ({
   kind: "enemyScheme",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
+  ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
 });
 export const modifyAttack = (change: { readonly overkill?: boolean; readonly extraBoostCards?: number; readonly atkBonus?: Amount; readonly threatBonus?: Amount }): EffectSpec => ({
   kind: "modifyAttack",
@@ -224,19 +249,58 @@ export const modifyStatOf = (stat: StatName | "hp" | "handSize", n: Amount, affe
   until,
 });
 export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil): EffectSpec => ({ kind: "grantTraitUntil", trait: t, target, until });
-export const reduceNextCardCost = (player: PlayerRef, n: Amount, duration: "phase" | "round"): EffectSpec => ({
+/**
+ * "Reduce the cost of the next card that player plays this phase/round by N." `cardFilter` narrows which played
+ * card consumes it — "the next Avenger ally played this phase" (Avengers Tower, `cap` pack): `{ trait: AVENGER,
+ * categories: ["ally"] }`. Omit for the unfiltered "next card" (Helicarrier).
+ */
+export const reduceNextCardCost = (player: PlayerRef, n: Amount, duration: NextCardCostDuration, cardFilter?: TargetQuery): EffectSpec => ({
   kind: "reduceNextCardCost",
   player,
   amount: amount(n),
   duration,
+  ...(cardFilter ? { cardFilter } : {}),
+});
+/**
+ * How long a "the next card you play …" cost change waits. `"untilPlayed"` is the unbounded form — no phase or
+ * round limit at all, however many rounds it takes ("The **next** event you play costs 3 additional resources",
+ * Physical Toll, `drs` pack). Use `"phase"`/`"round"` only when the card prints that bound.
+ */
+export type NextCardCostDuration = "phase" | "round" | "untilPlayed";
+/**
+ * "The next [card] you play costs N additional resources" (Physical Toll, `drs` pack) — the mirror of
+ * `reduceNextCardCost`, which the engine stores as the same signed lasting effect. The price is floored at 0.
+ */
+export const increaseNextCardCost = (player: PlayerRef, n: number, duration: NextCardCostDuration, cardFilter?: TargetQuery): EffectSpec => ({
+  kind: "reduceNextCardCost",
+  player,
+  amount: amount(-n),
+  duration,
+  ...(cardFilter ? { cardFilter } : {}),
+});
+/**
+ * "Discard this obligation after you play an event" (Physical Toll, `drs` pack): a delayed effect whose timing
+ * point is the next matching card that player plays, the sibling of `atEndOfRound`/`atEndOfAttack`. Fires once,
+ * after that card's play has finished resolving, whatever round that is.
+ */
+export const afterNextCardPlayed = (player: PlayerRef, cardFilter: TargetQuery | undefined, ...effects: readonly EffectSpec[]): EffectSpec => ({
+  kind: "afterNextCardPlayed",
+  player,
+  effects,
+  ...(cardFilter ? { cardFilter } : {}),
 });
 
 // ---------------------------------------------------------------------------
 // Cards outside play, form, sequences
 // ---------------------------------------------------------------------------
 
+/**
+ * A player's own zone(s): "your deck", "your discard pile", or several searched as one pool ("search your deck
+ * **and** discard pile for a Doctor Strange card" — Mystical Studies, For Asgard!, Agent Coulson, Hail Hydra!;
+ * docs/phase7-wave1.md §3.16). `z` is one zone or a list.
+ */
 export const zone = (
-  z: "hand" | "deck" | "discard",
+  z: PlayerZone | readonly PlayerZone[],
   player: PlayerRef = you,
   opts: { readonly filter?: TargetQuery; readonly top?: Amount; readonly topmostOnly?: boolean; readonly random?: Amount } = {},
 ): CardSelector => ({
@@ -291,12 +355,30 @@ export const chooseCards = (
 export const shuffleDeck = (player: PlayerRef = you): EffectSpec => ({ kind: "shuffleDeck", player });
 export const changeForm = (player: PlayerRef = you, to?: "hero" | "alterEgo"): EffectSpec => ({ kind: "changeForm", player, ...(to ? { to } : {}) });
 export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({ kind: "resolveSpecials", cards: cardsQuery });
-export const discardFromHand = (n: Amount, player: PlayerRef = you, opts: { readonly random?: boolean } = {}): EffectSpec => ({
+/**
+ * "Discard N cards from your hand". `player` may be `eachPlayer`: each chooses from their own hand, in player order.
+ *
+ * `filter` narrows which hand cards count: "1 resource of any type" (Power Drain) is `{ filter: ANY_RESOURCE }`, a
+ * card with a printed resource icon of any of the four types. A player holding fewer matching cards than `n`
+ * discards every matching one they hold.
+ */
+export const discardFromHand = (
+  n: Amount,
+  player: PlayerRef = you,
+  opts: { readonly random?: boolean; readonly filter?: TargetQuery } = {},
+): EffectSpec => ({
   kind: "discardFromHand",
   player,
   amount: amount(n),
   ...(opts.random ? { random: true } : {}),
+  ...(opts.filter ? { filter: opts.filter } : {}),
 });
+
+/**
+ * "A resource of any type": a card with a printed resource icon of any of the four types RRG 1.8 "Resource" (p. 37)
+ * lists. Printed icons only — the bottom-left corner, not a resource an ability generates (ruling, Jan 11, 2026 (3)).
+ */
+export const ANY_RESOURCE: TargetQuery = { anyPrintedResource: ["physical", "mental", "energy", "wild"] };
 /** "Discard 1 card at random from your hand". */
 export const discardAtRandom = (n: Amount = 1, player: PlayerRef = you): EffectSpec => discardFromHand(n, player, { random: true });
 export const putIntoPlay = (card: TargetRef, controller: PlayerRef = you): EffectSpec => ({ kind: "putIntoPlay", card, controller });
@@ -319,6 +401,17 @@ export const selectCards = (slot: string, from: CardSelector): EffectSpec => ({ 
 export const revealCard = (target: TargetRef, player: PlayerRef = you): EffectSpec => ({ kind: "revealCard", cards: target, player });
 export const shuffleEncounterDeck = (): EffectSpec => ({ kind: "shuffleEncounterDeck" });
 export const discardEncounterUntil = (filter: TargetQuery, bind: string): EffectSpec => ({ kind: "discardEncounterUntil", filter, bind });
+/**
+ * "Discard cards from the top of your deck until you discard a Ms. Marvel card, then add that card to your hand"
+ * (Teen Spirit): follow it with `moveCards(cards(chosen(bind)), "hand")`. The match is left in the discard pile, and
+ * nothing is bound when the deck runs out first (RRG 1.8 "Player Deck", p. 33 — see `EffectSpec.discardDeckUntil`).
+ */
+export const discardDeckUntil = (filter: TargetQuery, bind: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "discardDeckUntil",
+  player,
+  filter,
+  bind,
+});
 export const tuckCards = (from: CardSelector, under: TargetRef, facedown = false): EffectSpec => ({
   kind: "tuckCards",
   cards: from,
@@ -328,6 +421,14 @@ export const tuckCards = (from: CardSelector, under: TargetRef, facedown = false
 export const assignDamage = (n: Amount, among: TargetQuery, chooser: PlayerRef = you): EffectSpec => ({ kind: "assignDamage", amount: amount(n), among, chooser });
 export const dealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "dealEncounterCard", player });
 export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ kind: "revealEncounterCard", player });
+/**
+ * "Give the villain 1 facedown boost card" (Hired Gun 02007, Intimidation 02035): dealt outside an activation, it
+ * stays facedown on that enemy and is flipped at its next activation, before and in addition to the automatic one
+ * (RRG 1.8 "Boost, Boost Icon", p. 11). Not "1 additional boost card **for this activation**" — that is
+ * `modifyAttack({ extraBoostCards })`, and the validator rejects this builder inside a Boost ability.
+ */
+export const giveBoostCard = (enemy: TargetRef = theVillain, count: Amount = 1): EffectSpec =>
+  count === 1 ? { kind: "giveBoostCard", enemy } : { kind: "giveBoostCard", enemy, count: amount(count) };
 export const addAccelerationToken = (): EffectSpec => ({ kind: "addAccelerationToken" });
 /** "Either spend … resources or …": follow with `ifThen(not(made(bind)), …)`. */
 export const spendResources = (resources: ResourceRequirement, bind: string, player: PlayerRef = you): EffectSpec => ({

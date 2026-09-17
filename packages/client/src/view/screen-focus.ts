@@ -11,22 +11,32 @@
 export interface TitleFocusInput {
   /** A saved game is offered as "Continue". */
   readonly continuable: boolean;
+  /** Every scenario row, in roster order — already filtered by the search field (docs/phase4-screen-gaps.md §2 "S8"); empty means the search matched nothing. */
   readonly scenarioIds: readonly string[];
   readonly difficulties: readonly string[];
   /**
    * Every seat option's deck id, precons and saved decks alike (PLAN.md
-   * Phase 9, "seats become any legal deck") — still keyed `hero:<deckId>`,
-   * since the control each one takes focus on is still one hero seat tile.
+   * Phase 9, "seats become any legal deck"; S8's search), already filtered by
+   * the hero search field — still keyed `hero:<deckId>`, since the control
+   * each one takes focus on is still one hero seat row. The Heroes list is a
+   * `McVirtualList` (wave 1 more than doubles the precon count), so a seat
+   * off-screen still gets a stop; it scrolls into view when it takes focus.
    */
   readonly deckIds: readonly string[];
   /** The link to the Decks screen (PLAN.md Phase 9) — see `scenes/decks.ts`. Optional only so `titleFocusOrder`'s existing callers/tests don't have to name it. */
   readonly manageDecks?: boolean;
+  /** S8's quick-filter chip ids for the Scenario roster (e.g. `product:core`), between the search field and the rows. */
+  readonly scenarioChipIds?: readonly string[];
+  /** S8's quick-filter chip ids for the Heroes roster (e.g. `aspect:justice`, `source:precon`, `playable-now`), between the search field and the seats. */
+  readonly heroChipIds?: readonly string[];
 }
 
 /**
  * The Title screen, top to bottom: Continue (when there is a game to pick up),
- * each scenario, each difficulty, each hero seat, "Manage decks", the seed
- * field, New seed, and Start game.
+ * the scenario search field, its quick-filter chips, each scenario (or
+ * "Clear" when the search matched none), each difficulty, the hero search
+ * field, its quick-filter chips, each hero seat (or "Clear"), "Manage decks",
+ * the seed field, New seed, and Start game.
  *
  * A hero that can't be seated (already at the table, or an unseatable deck)
  * still takes focus: its reason is read with `I`, the same rule that gives an
@@ -35,9 +45,13 @@ export interface TitleFocusInput {
 export function titleFocusOrder(input: TitleFocusInput): readonly string[] {
   return [
     ...(input.continuable ? ["continue"] : []),
-    ...input.scenarioIds.map((id) => `scenario:${id}`),
+    "scenario-search",
+    ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
+    ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
     ...input.difficulties.map((id) => `difficulty:${id}`),
-    ...input.deckIds.map((id) => `hero:${id}`),
+    "hero-search",
+    ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
+    ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
     ...(input.manageDecks ? ["manage-decks"] : []),
     "seed",
     "new-seed",
@@ -48,24 +62,18 @@ export function titleFocusOrder(input: TitleFocusInput): readonly string[] {
 export interface DecksFocusInput {
   /** Import by MarvelCDB URL/id is dev/preview-only (PLAN.md Phase 9); paste always shows. */
   readonly showMarvelCdbImport: boolean;
-  /** Deck rows currently on screen (the virtualized list's visible window), in order. */
-  readonly visibleDeckIds: readonly string[];
+  /** Every deck row, in list order — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
+  readonly deckIds: readonly string[];
   /** A row whose deck can be edited/deleted (a saved deck) gets those two extra stops; a precon's row does not. */
   readonly editableDeckIds: ReadonlySet<string>;
-  /** The list can be scrolled further in that direction. */
-  readonly canScrollUp: boolean;
-  readonly canScrollDown: boolean;
 }
 
 /**
  * The Decks screen: Back, the paste importer, the MarvelCDB importer (dev
- * only), New deck, a scroll-up stepper when the list is scrolled down, each
- * visible deck row (and its Edit/Delete when it has them), then scroll-down.
- *
- * Only the *visible* rows of the virtualized deck list ever take a stop —
- * exactly the rows that have a live control to focus (`view/list-scroll.ts`);
- * the scroll steppers are how a keyboard/pad user reaches the rest, the same
- * job the log's "newer" chip does for the game log.
+ * only), New deck, then every deck row (and its Edit/Delete when it has
+ * them) — the whole list, not only whatever the virtualized panel currently
+ * draws. Moving focus onto a row scrolls it into view (`scenes/decks.ts`'s
+ * `ensureVisible`), the same way a mouse would have to scroll to it first.
  */
 export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
   return [
@@ -74,11 +82,9 @@ export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
     "paste-import",
     ...(input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
     "new-deck",
-    ...(input.canScrollUp ? ["scroll-up"] : []),
-    ...input.visibleDeckIds.flatMap((id) =>
+    ...input.deckIds.flatMap((id) =>
       input.editableDeckIds.has(id) ? [`deck:${id}`, `deck:${id}:edit`, `deck:${id}:delete`] : [`deck:${id}`],
     ),
-    ...(input.canScrollDown ? ["scroll-down"] : []),
   ];
 }
 
@@ -87,17 +93,14 @@ export interface DeckBuilderFocusInput {
   readonly identityChosen: boolean;
   readonly identityIds: readonly string[];
   readonly aspectIds: readonly string[];
-  readonly visiblePoolCardIds: readonly string[];
-  readonly canScrollUp: boolean;
-  readonly canScrollDown: boolean;
+  /** Every pool card in filter order — not just the ones currently on screen (see `DecksFocusInput.deckIds`). */
+  readonly poolCardIds: readonly string[];
 }
 
 /**
  * The deck builder: Back first, then either the identity picker alone, or —
- * once an identity is chosen — the aspect picker, the name field, and the
- * pool browser's visible rows (each row both adds and removes, one stop each,
- * the same "only visible rows take a stop" rule `decksFocusOrder` uses), then
- * Save.
+ * once an identity is chosen — the aspect picker, the name field, and every
+ * pool row (each row both adds and removes, one stop each), then Save.
  */
 export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly string[] {
   if (!input.identityChosen) return ["back", ...input.identityIds.map((id) => `identity:${id}`)];
@@ -106,9 +109,7 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
     ...input.aspectIds.map((id) => `aspect:${id}`),
     "name",
     "filter-text",
-    ...(input.canScrollUp ? ["scroll-up"] : []),
-    ...input.visiblePoolCardIds.map((id) => `card:${id}`),
-    ...(input.canScrollDown ? ["scroll-down"] : []),
+    ...input.poolCardIds.map((id) => `card:${id}`),
     "save",
   ];
 }

@@ -280,6 +280,40 @@ function longTableZones(viewport: Rect, formFactor: FormFactor, options: LayoutO
   };
 }
 
+/** Below this a compact villain panel stops reading as a panel at all — no room for a thumb plus a name. */
+const VILLAIN_COMPACT_MIN_WIDTH = 74;
+/** A compact villain panel's own minimum height, once wrapping into more than one row shrinks it. */
+const VILLAIN_COMPACT_MIN_HEIGHT = 56;
+
+/**
+ * Where each villain's compact panel sits in the enemies band — The Wrecking Crew's four villains, or any later
+ * scenario with more than one (`BoardModel.villains`). A single villain never calls this: `zones.ts` keeps its own
+ * unchanged, full-size panel for that case, so every scenario before The Wrecking Crew looks exactly as it did.
+ *
+ * As many as fit across one row at `VILLAIN_COMPACT_MIN_WIDTH`; past that it wraps into more rows rather than
+ * shrinking panels below where a name and its stats stop being legible — the same "crowd, don't vanish" rule
+ * `cardRow` uses for the minions under it. Rows split as evenly as the count allows (four villains at three per row
+ * would leave one alone on its own row for no reason), so a phone's narrow width and a tabletop's short height each
+ * still get a legible grid instead of one badly-fit line or an unreadable four-wide squeeze.
+ */
+export function villainRowSlots(rect: Rect, count: number, gap = 8): readonly Rect[] {
+  if (count <= 0) return [];
+  const perRow = Math.max(1, Math.min(count, Math.floor((rect.width + gap) / (VILLAIN_COMPACT_MIN_WIDTH + gap))));
+  const rows = Math.ceil(count / perRow);
+  const rowHeight = Math.max(VILLAIN_COMPACT_MIN_HEIGHT, (rect.height - gap * (rows - 1)) / rows);
+
+  const slots: Rect[] = [];
+  for (let row = 0; row < rows; row++) {
+    const rowStart = row * perRow;
+    const inRow = Math.min(perRow, count - rowStart);
+    const width = (rect.width - gap * (inRow - 1)) / inRow;
+    for (let col = 0; col < inRow; col++) {
+      slots.push({ x: rect.x + col * (width + gap), y: rect.y + row * (rowHeight + gap), width, height: rowHeight });
+    }
+  }
+  return slots;
+}
+
 /**
  * A card slot, tagged with which shape it got.
  *
@@ -402,6 +436,8 @@ export interface StatBlock {
   readonly hp: Rect | null;
   /** How much of the host rect the block occupies, so content above it can stop short. */
   readonly height: number;
+  /** The block's own top edge, so a caller can check "does my content clear it?" without redoing this math. */
+  readonly top: number;
 }
 
 /** A badge never grows past this, however wide the panel; past it the number just floats in colour. */
@@ -425,16 +461,33 @@ export function badgeExtent(size: number): { readonly above: number; readonly be
  * Badges share the width evenly up to `BADGE_MAX`, so three hero stats in a
  * ~110px column come out around 34px each — larger than the old 17px numbers
  * in 25px boxes, whose labels overlapped into "TH|AT|DE".
+ *
+ * The badge size also shrinks toward `BADGE_FLOOR` when `rect.height` can't
+ * hold a `BADGE_MAX` row plus the HP plate — `cardStatColumn` already does
+ * this for a card-shaped panel. Without it, a caller passing the panel's
+ * *full* column height (rather than what's left under the name/subtitle it
+ * already drew) got a badge row bottom-pinned so tall it started above where
+ * the header text ended: the villain panel's fixed 128px height gave a
+ * two-stat row + HP plate no room to sit under "Villain · Stage II" without
+ * the badges being drawn — later, and so on top — right over it.
  */
 export function statBlockLayout(rect: Rect, count: number, withHp: boolean): StatBlock {
   const hpHeight = withHp ? Math.max(24, Math.min(38, Math.round(rect.width * 0.26))) : 0;
-  const size =
+  let size =
     count > 0 ? Math.max(BADGE_FLOOR, Math.min(BADGE_MAX, Math.floor((rect.width - BADGE_GAP * (count - 1)) / count))) : 0;
+  const requiredHeight = (candidate: number): number => {
+    if (count === 0) return hpHeight;
+    const { above, below } = badgeExtent(candidate);
+    return Math.ceil(above + below) + (withHp ? BADGE_GAP : 0) + hpHeight;
+  };
+  while (size > BADGE_FLOOR && requiredHeight(size) > rect.height) size -= 1;
   const { above, below } = badgeExtent(size);
   const rowHeight = count > 0 ? Math.ceil(above + below) : 0;
   const hpGap = withHp && count > 0 ? BADGE_GAP : 0;
   const height = rowHeight + hpGap + hpHeight;
-  const top = rect.y + rect.height - height;
+  // Clamped at `rect.y`: past the floor there is nothing left to shrink, and
+  // the block staying inside `rect` at least keeps it off whatever is above `rect` entirely.
+  const top = Math.max(rect.y, rect.y + rect.height - height);
   const rowWidth = count * size + BADGE_GAP * Math.max(0, count - 1);
   const startX = rect.x + (rect.width - rowWidth) / 2;
   const badges = Array.from({ length: count }, (_unused, index) => ({
@@ -443,7 +496,7 @@ export function statBlockLayout(rect: Rect, count: number, withHp: boolean): Sta
     size,
   }));
   const hp = withHp ? { x: rect.x, y: top + rowHeight + hpGap, width: rect.width, height: hpHeight } : null;
-  return { badges, hp, height };
+  return { badges, hp, height, top };
 }
 
 /**
@@ -476,5 +529,5 @@ export function cardStatColumn(inner: Rect, count: number, withHp: boolean): Sta
     size,
   }));
   const hp = withHp ? { x: inner.x, y: hpTop, width: inner.width, height: hpHeight } : null;
-  return { badges, hp, height: inner.y + inner.height - startTop };
+  return { badges, hp, height: inner.y + inner.height - startTop, top: startTop };
 }

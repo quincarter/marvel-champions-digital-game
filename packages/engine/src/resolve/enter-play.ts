@@ -5,8 +5,23 @@ import { addCounters, giveStatus } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf } from "../keywords.js";
 import { cardOf, getInstance, getPlayer, mustCardOf, mustPlayer } from "../query.js";
-import { allyLimitFor } from "../rules.js";
+import { allyLimitFor, BASE_ALLY_LIMIT } from "../rules.js";
 import { controllerOf, restrictedCardsOf } from "../select.js";
+
+/**
+ * RRG 1.8 "Ally Limit" (p. 7): "if a player **ever** controls a number of allies greater than their ally limit in play,
+ * they must immediately choose and discard". An ally entering play is only one way over the limit
+ * (`applyEnterPlayKeywords`). The limit can also drop with no ally entering: a card that raises it leaves play, or a
+ * conditional increase stops applying (Avengers Tower, once one of your allies loses the Avenger trait). `runFlow` runs
+ * this between frames, through `checkStateTriggers`. Returns true when it asked a player to discard.
+ */
+export function checkAllyLimits(ctx: Ctx): boolean {
+  if (ctx.state.pendingChoice) return false;
+  for (const player of ctx.state.players) {
+    if (checkAllyLimit(ctx, player.playerId)) return true;
+  }
+  return false;
+}
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { announce } from "./frames.js";
@@ -28,14 +43,18 @@ export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
 /**
  * RRG "Ally Limit": allies may be played past the limit, but the controller then
  * immediately discards down to it — before abilities that resolve on entering play.
+ * Returns true when it asked the player to discard.
  */
-function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): void {
-  if (!playerId || ctx.state.pendingChoice) return;
+function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
+  if (!playerId || ctx.state.pendingChoice) return false;
   const allies = mustPlayer(ctx.state, playerId).playArea.filter(
     (id) => cardOf(ctx.state, id)?.type === "ally" && controllerOf(ctx.state, id) === playerId,
   );
+  // Every ally limit rule is an increase on the base of three, so three allies or fewer is never over the limit.
+  // Skipping the rule scan keeps this cheap when it runs between frames.
+  if (allies.length <= BASE_ALLY_LIMIT) return false;
   const limit = allyLimitFor(ctx.state, ctx.deps, playerId);
-  if (allies.length <= limit) return;
+  if (allies.length <= limit) return false;
   requestChoice(ctx, {
     playerId,
     prompt: { kind: "discardOverAllyLimit", limit },
@@ -43,6 +62,7 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): void {
     minSelections: allies.length - limit,
     maxSelections: allies.length - limit,
   });
+  return true;
 }
 
 /**

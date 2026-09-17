@@ -47,7 +47,12 @@ export type CardFace =
   | { readonly kind: "alterEgo" }
   | { readonly kind: "villainStage"; readonly sideIndex: number; readonly stageIndex: number }
   /** A main scheme stage. The B side carries the threat values the table shows. */
-  | { readonly kind: "mainSchemeStage"; readonly stageIndex: number; readonly side: "A" | "B" };
+  | { readonly kind: "mainSchemeStage"; readonly stageIndex: number; readonly side: "A" | "B" }
+  /**
+   * The back of a double-sided encounter card that has been flipped — Criminal Enterprise showing State of
+   * Madness. Not a `back`: the face is fully visible at the table, it is simply the other one.
+   */
+  | { readonly kind: "flipSide" };
 
 export interface ArtSource {
   /** Stable Phaser texture key. Derived from the path, so two cards sharing art share a texture. */
@@ -97,6 +102,8 @@ function imageRefFor(card: AnyCard, face: CardFace): ImageRef | undefined {
       if (!stage) return card.images?.front;
       return (face.side === "A" ? stage.aSide.image : stage.image) ?? card.images?.front;
     }
+    case "flipSide":
+      return "flipSide" in card && card.flipSide ? (card.flipSide.image ?? card.images?.back ?? card.images?.front) : card.images?.front;
     default:
       return card.images?.front;
   }

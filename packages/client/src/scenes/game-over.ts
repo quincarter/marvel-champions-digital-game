@@ -20,7 +20,7 @@
  */
 
 import Phaser from "phaser";
-import { CORE_DEPS } from "@mc/cards";
+import { POOL_DEPS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
@@ -90,7 +90,7 @@ export class GameOverScene extends Phaser.Scene {
         this.scene.start(SCENES.title),
       );
     } else {
-      const model = gameOverModel(game, record, config, CORE_DEPS);
+      const model = gameOverModel(game, record, config, POOL_DEPS);
       const formFactor = formFactorFor(width, height);
       const tall = formFactor === "phone" || formFactor === "tabletPortrait";
       if (tall) this.#drawTall(model, config, width, height);

@@ -74,3 +74,32 @@ test("a re-titled alter-ego of the same hero may share the table", () => {
   );
   expect(result.ok).toBe(true);
 });
+
+/**
+ * `CorePlayer.deckId` (docs/phase4-screen-gaps.md §2 S4): a client-only attribution id, never a
+ * rules input. `coreScenario` maps a custom seat's fields by name into `PlayerSetup`
+ * (`identityCardId`, `deck`, `aspects`), so `deckId` never reaches it — these prove that directly,
+ * rather than trusting the doc comment alone.
+ */
+describe("CorePlayer.deckId never reaches the engine", () => {
+  const spiderMan = CORE_STARTER_DECKS.find((d) => d.id === "core-spider-man-justice")!;
+  const deckList = spiderMan.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId));
+  const seatWithout = { identityCardId: spiderMan.identityCardId, deck: deckList, aspects: spiderMan.aspects };
+  const seatWith = { ...seatWithout, deckId: "local-deck-42" };
+
+  test("coreScenario's GameSetupConfig is byte-identical whether the seat carries a deckId or not", () => {
+    const withoutId = coreScenario("rhino", { players: [seatWithout], seed: 99 });
+    const withId = coreScenario("rhino", { players: [seatWith], seed: 99 });
+    expect(withId).toEqual(withoutId);
+  });
+
+  test("createGame's resulting state and events are byte-identical whether the seat carries a deckId or not", () => {
+    const withoutId = createGame(coreScenario("rhino", { players: [seatWithout], seed: 99 }), CORE_DEPS);
+    const withId = createGame(coreScenario("rhino", { players: [seatWith], seed: 99 }), CORE_DEPS);
+    expect(withoutId.ok).toBe(true);
+    expect(withId.ok).toBe(true);
+    if (!withoutId.ok || !withId.ok) return;
+    expect(withId.state).toEqual(withoutId.state);
+    expect(withId.events).toEqual(withoutId.events);
+  });
+});

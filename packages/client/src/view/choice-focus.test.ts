@@ -1,9 +1,33 @@
 import { describe, expect, test } from "vitest";
 import type { PendingChoice } from "@mc/engine";
-import { cardChoiceDisplayOrder, choiceFocusKey, choiceFocusOrder, sameChoiceTarget } from "./choice-focus.js";
+import {
+  canConfirmChoice,
+  cardChoiceDisplayOrder,
+  choiceFocusKey,
+  choiceFocusOrder,
+  initialChoiceSelection,
+  sameChoiceTarget,
+} from "./choice-focus.js";
 import { stepFocus } from "./focus.js";
 
 const options = ["a", "b", "c", "d"].map((optionId) => ({ optionId, label: optionId, ref: { kind: "none" } })) as unknown as PendingChoice["options"];
+
+describe("choice sheet Confirm", () => {
+  const one = options.slice(0, 1);
+
+  test("a lone option starts selected, so Confirm means 'yes, this one'", () => {
+    expect(initialChoiceSelection({ options: one, maxSelections: 1 })).toEqual(["a"]);
+    expect(initialChoiceSelection({ options, maxSelections: 1 })).toEqual([]);
+    expect(initialChoiceSelection({ options: one, maxSelections: 0 })).toEqual([]);
+  });
+
+  test("with Decline on the sheet, Confirm needs a pick — it is never a second Decline", () => {
+    expect(canConfirmChoice({ options: one, minSelections: 0, maxSelections: 1 }, 0)).toBe(false);
+    expect(canConfirmChoice({ options: one, minSelections: 0, maxSelections: 1 }, 1)).toBe(true);
+    expect(canConfirmChoice({ options, minSelections: 2, maxSelections: 3 }, 1)).toBe(false);
+    expect(canConfirmChoice({ options, minSelections: 2, maxSelections: 3 }, 2)).toBe(true);
+  });
+});
 
 describe("choice sheet focus", () => {
   test("a card choice is walked in the order it is drawn: picks first, in pick order, then the stack", () => {

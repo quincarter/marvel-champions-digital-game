@@ -46,9 +46,9 @@
  */
 
 import Phaser from "phaser";
-import { CORE_DEPS } from "@mc/cards";
 import type { InstanceId } from "@mc/engine";
-import { CORE_CARDS, type AnyCard, type CardId } from "@mc/content";
+import type { AnyCard, CardId } from "@mc/content";
+import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import type { CardFace } from "../art/art-source.js";
 import { appSession } from "../session.js";
@@ -58,6 +58,7 @@ import { McButton, McScrollPanel, label, paintDotGrid } from "../ui/widgets.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { cardInspectModel, inspectModel, type InspectModel } from "../view/inspect-model.js";
 import type { GamepadIntent } from "../view/gamepad.js";
+import { PressArm } from "../view/press-arm.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { SCENES } from "./keys.js";
 
@@ -100,8 +101,16 @@ export class InspectOverlay extends Phaser.Scene {
   #note: string | undefined = undefined;
   #buttons: McButton[] = [];
   #unsubscribe: (() => void) | null = null;
-  /** True once a press has *started* on this sheet, so its release may dismiss. */
-  #armed = false;
+  /**
+   * Arms a dismiss on this sheet's own down+up (`view/press-arm.ts`), shared
+   * by the scrim and the card panel: the gesture that *opened* the sheet
+   * (a right-click or a hold) began on whatever card was under it, before
+   * this scrim existed, so its matching pointerup never counts as a down
+   * seen here — the sheet would otherwise vanish the instant you let go of
+   * the press that opened it. The sheet's buttons (`McButton`) carry their
+   * own `PressArm` for the identical reason.
+   */
+  #dismissArm = new PressArm();
   /** What the sheet's primary button does this rebuild — what Enter presses. Null when there is none. */
   #primaryAction: (() => void) | null = null;
 
@@ -202,7 +211,7 @@ export class InspectOverlay extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.children.removeAll(true);
-    this.#armed = false;
+    this.#dismissArm = new PressArm();
     this.#primaryAction = null;
 
     const { width, height } = this.scale.gameSize;
@@ -220,10 +229,10 @@ export class InspectOverlay extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive()
       .on("pointerdown", () => {
-        this.#armed = true;
+        this.#dismissArm.down();
       })
       .on("pointerup", () => {
-        if (this.#armed) this.#close();
+        if (this.#dismissArm.up()) this.#close();
       });
 
     // Phone stacks the two panels; anything wider sets them side by side.
@@ -267,7 +276,7 @@ export class InspectOverlay extends Phaser.Scene {
     const { store } = appSession();
     const state = store.state;
     if (!state.game || state.perspectiveId === null || !this.#instanceId) return null;
-    return inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, CORE_DEPS);
+    return inspectModel(state.game, this.#instanceId, state.legal?.actions ?? null, state.perspectiveId, POOL_DEPS);
   }
 
   /** The card face: everything `@mc/content` prints on it. */
@@ -284,10 +293,10 @@ export class InspectOverlay extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive()
       .on("pointerdown", () => {
-        this.#armed = true;
+        this.#dismissArm.down();
       })
       .on("pointerup", () => {
-        if (this.#armed) this.#close();
+        if (this.#dismissArm.up()) this.#close();
       });
 
     // Header: cost chip, name, type line.
@@ -455,6 +464,15 @@ export class InspectOverlay extends Phaser.Scene {
       this.children.bringToTop(text);
       y += box.height + 18;
     }
+    // The price the table is actually charging, when it isn't the one on the card. Sits above "legal targets"
+    // because it changes what the player can afford this turn, which is the decision in front of them.
+    if (model.priceNote) {
+      label(this, rect.x + 18, y, "cost right now", typeRole.label, surface.paper.hex, ink.meta);
+      const note = this.add
+        .text(rect.x + 18, y + 16, model.priceNote, textStyle(typeRole.body, surface.paper.hex))
+        .setWordWrapWidth(inner);
+      y += 16 + note.height + 16;
+    }
     if (model.status.targets.length > 0) {
       label(this, rect.x + 18, y, "legal targets", typeRole.label, surface.paper.hex, ink.meta);
       const targets = this.add
@@ -595,4 +613,4 @@ export class InspectOverlay extends Phaser.Scene {
 }
 
 /** Every Core card by id, for the sheets opened before a game exists. */
-const CARDS_BY_ID = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id as string, card]));
+const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));

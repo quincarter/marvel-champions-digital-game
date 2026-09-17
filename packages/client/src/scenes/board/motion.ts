@@ -272,6 +272,22 @@ function pileAnchor(zone: ZoneId, layout: BoardLayout, perspectiveId: PlayerId, 
       return zone.playerId === perspectiveId ? layout.zones.playArea : layout.zones.team;
     case "identity":
       return zone.playerId === perspectiveId ? layout.zones.me : layout.zones.team;
+    // A separate deck (Doctor Strange's Invocation deck) is drawn as its own
+    // box beside the play area whenever the identity has one (`zones.ts`'s
+    // `drawSeparateDecks`), so a card leaving or landing there flies to that
+    // box the same way a player's own deck/discard does — falling back to
+    // the play area only for a draw where it wasn't on screen (a hidden
+    // phone tab).
+    case "separateDeck":
+    case "separateDiscard":
+      return zone.playerId === perspectiveId
+        ? (frame.pileRects.get(pileKey(zone.kind, zone.playerId, zone.name)) ?? layout.zones.playArea)
+        : layout.zones.team;
+    // Tucked (Open the Dark Dimension holding the Invocation deck's top card,
+    // Highway Robbery holding a hand card): out of play and never drawn as
+    // its own card, but the scheme or character holding it *is* drawn, so a
+    // card flies onto its host the same way an attachment or a boost does.
+    case "tucked":
     case "attachment":
     case "boost":
       return frame.hitRects.get(zone.hostInstanceId) ?? null;
