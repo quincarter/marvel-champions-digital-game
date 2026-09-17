@@ -151,6 +151,10 @@ export { faceHidden, faceVisible, offeredByOpenChoice, zoneHidden } from "./visi
 export type { CounterSnapshot, OutcomePreview, PreviewCounter, PreviewStop } from "./preview.js";
 export { preview } from "./preview.js";
 
+/** The defend prompt's options as damage ranges over the facedown boost cards, plus the attack arithmetic they share. */
+export type { BoostBound, BoostScope, DefendBand, DefendOptionPreview, PlannedAttack } from "./defend-preview.js";
+export { defendPreview, plannedAttackDamage } from "./defend-preview.js";
+
 export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
 export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 

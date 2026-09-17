@@ -120,6 +120,33 @@ describe("game log", () => {
   });
 
   /**
+   * The scheme half of the villain's breakdown (`schemeResolved`, RRG 1.8 "Scheme (Enemy Activation)", p. 39 and
+   * "Boost", p. 11), worded the same way the attack half already is: total first, then each term.
+   */
+  test("a scheme activation reads like the attack breakdown, with the threat term only when something changed it", () => {
+    const villain = activeVillain(played.state).instanceId;
+    const scheme = played.state.mainScheme.instanceId;
+
+    const plain = logLine(
+      { type: "schemeResolved", enemyInstanceId: villain, schemeInstanceId: scheme, baseSch: 1, boostIcons: 2, threatBonus: 0, threatPlaced: 3 },
+      played.state,
+      played.viewer,
+      POOL_DEPS,
+    );
+    expect(plain!.text).toContain("schemed for 3 threat");
+    expect(plain!.text).toContain("(SCH 1 + 2 boost)");
+    expect(plain!.voice).toBe("villain");
+
+    const reduced = logLine(
+      { type: "schemeResolved", enemyInstanceId: villain, schemeInstanceId: scheme, baseSch: 1, boostIcons: 2, threatBonus: -1, threatPlaced: 2 },
+      played.state,
+      played.viewer,
+      POOL_DEPS,
+    );
+    expect(reduced!.text).toContain("(SCH 1 + 2 boost − 1 threat)");
+  });
+
+  /**
    * RRG 1.8 "Unique Icon". The board shows no change when an entry is refused,
    * so the log line is the only thing that stops it reading as a bug — the same
    * reason `threatRemovalBlocked` earns a line.

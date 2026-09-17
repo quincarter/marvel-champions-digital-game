@@ -207,6 +207,14 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
         text: `${card(event.enemyInstanceId)} hit ${card(event.targetInstanceId)} for ${event.damageDealt} (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
         voice: "villain",
       };
+    // The scheme half of the same breakdown, worded the same way. The third term only appears when something actually
+    // changed the threat ("reduce the amount of threat placed … by 1"); an attack always has a defense term, a scheme
+    // has no equivalent that is always present.
+    case "schemeResolved":
+      return {
+        text: `${card(event.enemyInstanceId)} schemed for ${event.threatPlaced} threat on ${card(event.schemeInstanceId)} (SCH ${event.baseSch} + ${event.boostIcons} boost${event.threatBonus === 0 ? "" : ` ${event.threatBonus < 0 ? "−" : "+"} ${Math.abs(event.threatBonus)} threat`}).`,
+        voice: "villain",
+      };
     case "characterDefeated":
       return { text: `${card(event.instanceId)} was defeated.`, voice: "player" };
     case "schemeDefeated":

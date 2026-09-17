@@ -2,6 +2,7 @@
 
 import type { EngineDeps } from "../abilities.js";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame, updateInstance } from "../ctx.js";
+import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { boostIconsFor } from "../modifiers.js";
@@ -104,10 +105,7 @@ function stepBoostCard(
 }
 
 /** An activation's recorded modifications ("gains overkill", "+N ATK", extra boost cards). */
-const activationVars = (ctx: Ctx, eventFrameId: FrameId | null): Vars => {
-  const frame = eventFrameId ? ctx.state.stack.find((f) => f.frameId === eventFrameId) : undefined;
-  return frame?.kind === "event" ? frame.vars : {};
-};
+const activationVars = (ctx: Ctx, eventFrameId: FrameId | null): Vars => activationVarsOf(ctx.state, eventFrameId);
 
 /** Records a defender on the attack procedure and its event, and announces the defense. */
 export function setDefender(ctx: Ctx, frame: Frame<"enemyAttack">, defenderId: InstanceId, defenderPlayer: PlayerId, basic: boolean): void {
@@ -295,35 +293,30 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
     case "dealDamage": {
       frame = defenderLeftPlay(ctx, frame);
       setFrame(ctx, { ...frame, stage: "done" });
-      const enemyProfile = characterProfile(ctx.state, frame.enemyInstanceId, ctx.deps);
-      if (!enemyProfile) return;
+      // RRG 1.8 step 4 (p. 9). The arithmetic and the two rules around it live in `defend-preview.ts`, so the defend
+      // prompt's damage ranges and the damage actually dealt can never drift apart.
+      const planned = plannedAttackDamage(ctx.state, ctx.deps, frame, {
+        boostIcons: frame.boostIcons,
+        defenderInstanceId: frame.defenderInstanceId,
+        basicDefense: frame.basicDefense,
+      });
+      if (!planned) return;
       const vars = activationVars(ctx, frame.eventFrameId);
-      const defenderProfile = frame.defenderInstanceId
-        ? characterProfile(ctx.state, frame.defenderInstanceId, ctx.deps)
-        : undefined;
-      // Only a basic defense by a hero reduces damage by DEF (RRG "Defend, Defense").
-      const reduction = frame.basicDefense && defenderProfile?.kind === "identity" ? defenderProfile.def : 0;
-      // A dashed ATK is an unmodifiable 0 (RRG 1.8 "Dash (Value)"), so "+N ATK for this attack" doesn't raise it, but
-      // boost icons are still added (FAQ "Green Goblin (#1B)", p. 59: a flip mid-attack deals 0 plus the icons).
-      // `atkBonus` covers both a `modifyAttack` on the attack in progress and an `enemyAttack.atkBonus` the effect
-      // that initiated this attack seeded onto it ("attacks with +X ATK").
-      const atk = enemyProfile.atk + (enemyProfile.missing.includes("atk") ? 0 : (vars.atkBonus ?? 0));
       addFrameSlots(ctx, frame.eventFrameId, { target: [frame.targetInstanceId] });
-      const damage = Math.max(0, atk + frame.boostIcons - reduction);
       emit(ctx, {
         type: "attackResolved",
         enemyInstanceId: frame.enemyInstanceId,
         targetInstanceId: frame.targetInstanceId,
-        baseAtk: atk,
+        baseAtk: planned.baseAtk,
         boostIcons: frame.boostIcons,
-        defenseReduction: reduction,
-        damageDealt: damage,
+        defenseReduction: planned.defenseReduction,
+        damageDealt: planned.damage,
       });
       pushEvents(ctx, [
         {
           kind: "dealDamage",
           targetInstanceId: frame.targetInstanceId,
-          amount: damage,
+          amount: planned.damage,
           sourceInstanceId: frame.enemyInstanceId,
           fromAttack: true,
           parentFrameId: frame.eventFrameId,
@@ -388,11 +381,24 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       // 0" (RRG 1.8 "Dash (Value)", p. 15); `threatBonus` ("reduce the amount of threat placed … by 1") changes the
       // threat itself and applies either way. The two are deliberately separate keys.
       const sch = profile.sch + (profile.missing.includes("sch") ? 0 : (vars.schBonus ?? 0));
+      // RRG 1.8 "Scheme (Enemy Activation)" step 3 places it on the main scheme unless a constant ability redirects it.
+      const schemeInstanceId = schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ?? ctx.state.mainScheme.instanceId;
+      const threatBonus = vars.threatBonus ?? 0;
+      const amount = Math.max(0, sch + frame.boostIcons + threatBonus);
+      // The mirror of `attackResolved`: every term of the total separately, so nothing downstream has to re-derive it.
+      emit(ctx, {
+        type: "schemeResolved",
+        enemyInstanceId: frame.enemyInstanceId,
+        schemeInstanceId,
+        baseSch: sch,
+        boostIcons: frame.boostIcons,
+        threatBonus,
+        threatPlaced: amount,
+      });
       pushEvent(ctx, {
         kind: "placeThreat",
-        // RRG 1.8 "Scheme (Enemy Activation)" step 3 places it on the main scheme unless a constant ability redirects it.
-        schemeInstanceId: schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ?? ctx.state.mainScheme.instanceId,
-        amount: Math.max(0, sch + frame.boostIcons + (vars.threatBonus ?? 0)),
+        schemeInstanceId,
+        amount,
         sourceInstanceId: frame.enemyInstanceId,
         parentFrameId: frame.eventFrameId,
       });
