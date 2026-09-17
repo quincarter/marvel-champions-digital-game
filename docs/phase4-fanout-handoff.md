@@ -14,8 +14,9 @@ Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps
 | **S5** Engine queries: `stackEntries`, `preview()`, `schemeResolved`, `plannedAttackDamage` + `defendPreview`, `explainQuery` + `choiceExclusions`, and the `concede` command / `conceded` outcome | `game-rules-architect` | `.claude/worktrees/agent-a60d2333f66c689c0` | `worktree-agent-a60d2333f66c689c0` | Commits as it goes (`f92c5c5` = steps 1–2). |
 | **W2** Title menu + setup flow (Scenario select, Take your seats, Table setup) | `game-client-engineer` | `.claude/worktrees/agent-a823678c74b964cea` | `worktree-agent-a823678c74b964cea` | Commits at the end. |
 | **W4** Pause & Rules, Settings, menu button, and S7's read-only replay board if it fits | `game-client-engineer` | `.claude/worktrees/agent-a7a89ad77a61b012c` | `worktree-agent-a7a89ad77a61b012c` | Commits at the end. |
+| **W9** Decks & Collection layout (launched after W1 landed) | `game-client-engineer` | `.claude/worktrees/agent-a3784f22ee36a3677` | `worktree-agent-a3784f22ee36a3677` | Commits at the end. Must contain W1's `e3ea573`. |
 
-The three worktree agents were told **not** to edit `docs/phase4-screen-gaps.md`; each ends its report with a paste-ready "Landed" note. If a report was lost, reconstruct the note from the branch's diff.
+The worktree agents were told **not** to edit `docs/phase4-screen-gaps.md`; each ends its report with a paste-ready "Landed" note. If a report was lost, reconstruct the note from the branch's diff.
 
 ### Picking up an interrupted agent
 
@@ -41,7 +42,6 @@ Launch after wave 1 is merged, from the integration branch:
 - **W5** Targeting panel and **W6** Defend choice (after S5: `preview`, `choiceExclusions`, `defendPreview`, `stackEntries`).
 - **W7** Villain phase breakdown (after S5's `schemeResolved`).
 - **W8** Board/Inspect/Game Over follow-ups (menu button comes with W4; "Watch the replay" needs W4's read-only board).
-- **W9** Decks & Collection layout (after W1, which edits `scenes/decks.ts`).
 - Then a `rules-qa-engineer` pass over S5.11's test list.
 
 ## §4 decisions taken for this run
