@@ -19,8 +19,8 @@
  */
 
 import Phaser from "phaser";
-import type { AnyCard, Deck, HeroIdentityCard } from "@mc/content";
-import { POOL_CARDS, POOL_VERSION } from "../content/pool.js";
+import type { AnyCard, CardType, Deck, HeroIdentityCard } from "@mc/content";
+import { POOL_CARDS, POOL_STARTER_DECKS, POOL_VERSION } from "../content/pool.js";
 import {
   SELECTABLE_ASPECTS,
   addCard,
@@ -30,10 +30,14 @@ import {
   legalityOf,
   newDeck,
   removeCard,
+  resetToIdentitySet,
+  resetToPrecon,
   setAspects,
   setName,
   type PoolFilter,
 } from "../view/deck-builder-model.js";
+import { costCurveBars, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
+import { CHIP_GAP, chipStripHeight, wrapChipsToRows } from "../view/chip-layout.js";
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
@@ -53,6 +57,25 @@ const IDENTITY_ROW_HEIGHT = hit.target;
 const CARD_ROW_HEIGHT = 56;
 const POOL: readonly AnyCard[] = POOL_CARDS;
 const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
+
+/**
+ * W1's type filter chips (docs/phase4-screen-gaps.md §3): "All" plus every `PoolFilter.type` the pool actually
+ * holds player-deck cards of. `null` means "All" — no filter. `text` duplicates `label` to satisfy
+ * `view/chip-layout.ts`'s `ChipLabel` (its wrap math reads a chip's display text under that name).
+ */
+const TYPE_FILTERS: readonly { readonly id: string; readonly label: string; readonly text: string; readonly type: CardType | null }[] = (
+  [
+    { id: "all", label: "All", type: null },
+    { id: "ally", label: "Ally", type: "ally" },
+    { id: "event", label: "Event", type: "event" },
+    { id: "upgrade", label: "Upgrade", type: "upgrade" },
+    { id: "support", label: "Support", type: "support" },
+    { id: "resource", label: "Resource", type: "resource" },
+  ] as const
+).map((chip) => ({ ...chip, text: chip.label }));
+
+/** How many of the grouped deck list's own entry lines (headers not counted) show before folding the rest into one "+ N more" line — matches D04's own panel. */
+const STATS_LIST_ENTRY_CAP = 10;
 
 export class DeckBuilderScene extends Phaser.Scene {
   #identity: HeroIdentityCard | null = null;
@@ -139,7 +162,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     if (!this.#identity) {
       this.#drawIdentityPicker(left, y, column);
       this.#route?.set(
-        deckBuilderFocusOrder({ identityChosen: false, identityIds: IDENTITIES.map((identity) => identity.id as string), aspectIds: [], poolCardIds: [] }),
+        deckBuilderFocusOrder({
+          identityChosen: false,
+          identityIds: IDENTITIES.map((identity) => identity.id as string),
+          aspectIds: [],
+          typeFilterIds: [],
+          poolCardIds: [],
+        }),
         this.#stops,
       );
       return;
@@ -167,6 +196,29 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#stops.set(`aspect:${aspect}`, { rect, activate: toggle });
     });
     y += hit.target + 16;
+
+    // Type filter chips (W1, docs/phase4-screen-gaps.md §3): "All, Ally, Event, Upgrade, Support, Resource", wired
+    // to `PoolFilter.type` — wrapped to the column width the same way Title's own quick-filter chips are (S8,
+    // `view/chip-layout.ts`), so a narrow phone column never truncates a label.
+    label(this, left, y, "filter", typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    const typeChipRows = wrapChipsToRows(TYPE_FILTERS, column);
+    const activeTypeFilterId = TYPE_FILTERS.find((f) => f.type === (this.#filter.type ?? null))?.id ?? "all";
+    typeChipRows.forEach((row, rowIndex) => {
+      const cellWidth = (column - (row.length - 1) * CHIP_GAP) / row.length;
+      row.forEach((chip, index) => {
+        const rect: Rect = { x: left + index * (cellWidth + CHIP_GAP), y: y + rowIndex * (hit.target + CHIP_GAP), width: cellWidth, height: hit.target };
+        const selected = chip.id === activeTypeFilterId;
+        const applyFilter = (): void => {
+          this.#filter = { ...this.#filter, type: chip.type };
+          this.#listScroll.reset();
+          this.#rebuild();
+        };
+        this.#buttons.push(new McButton(this, { kind: "secondary", label: chip.label, type: typeRole.label, rect, selected, onClick: applyFilter }));
+        this.#stops.set(`type:${chip.id}`, { rect, activate: applyFilter });
+      });
+    });
+    y += chipStripHeight(typeChipRows.length) + 16;
 
     // Name.
     label(this, left, y, "deck name", typeRole.label, surface.ink.hex, ink.label);
@@ -199,6 +251,36 @@ export class DeckBuilderScene extends Phaser.Scene {
       const statusLine = this.add.text(left, y, this.#status, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(column);
       y += statusLine.height + 8;
     }
+
+    // Stats panel (W1, D04): cost curve, then the deck list grouped Hero / aspect / Basic with a "+ N more"
+    // overflow. Every number here is `view/deck-stats.ts`'s own — this scene only draws it.
+    y = this.#drawStatsPanel(left, y, column, deck);
+
+    // Preconstructed / Clear (W1).
+    const resetRowGap = 8;
+    const resetCellWidth = (column - resetRowGap) / 2;
+    const preconRect: Rect = { x: left, y, width: resetCellWidth, height: hit.target };
+    const clearRect: Rect = { x: left + resetCellWidth + resetRowGap, y, width: resetCellWidth, height: hit.target };
+    const precon = resetToPrecon(deck, this.#identity, POOL_STARTER_DECKS);
+    const doPrecon = (): void => {
+      if (precon) this.#setDeck(precon);
+    };
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Preconstructed",
+        type: typeRole.label,
+        rect: preconRect,
+        enabled: precon !== null,
+        ...(precon === null ? { reason: "This hero has no published precon to reset to." } : {}),
+        onClick: doPrecon,
+      }),
+    );
+    this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
+    const doClear = (): void => this.#setDeck(resetToIdentitySet(deck, this.#identity!, POOL));
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Clear", type: typeRole.label, rect: clearRect, onClick: doClear }));
+    this.#stops.set("clear", { rect: clearRect, activate: doClear });
+    y += hit.target + 16;
 
     // Save.
     const saveRect: Rect = { x: left, y, width: column, height: hit.primary };
@@ -259,10 +341,65 @@ export class DeckBuilderScene extends Phaser.Scene {
         identityChosen: true,
         identityIds: [],
         aspectIds: [...SELECTABLE_ASPECTS],
+        typeFilterIds: TYPE_FILTERS.map((f) => f.id),
         poolCardIds: pool.map((card) => card.id as string),
       }),
       this.#stops,
     );
+  }
+
+  /** The cost curve and the grouped deck list (Hero / aspect / Basic), capped with a "+ N more" overflow — D04's stats panel. Returns the next free `y`. */
+  #drawStatsPanel(left: number, top: number, column: number, deck: Deck): number {
+    let y = top;
+    const stats = deckStatsOf(deck, POOL);
+
+    label(this, left, y, "cost curve", typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    const chartHeight = 74;
+    const bars = costCurveBars(stats);
+    const gap = 6;
+    const barWidth = (column - gap * (bars.length - 1)) / bars.length;
+    const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
+    bars.forEach((bar, index) => {
+      const barHeight = Math.max(2, Math.round((bar.count / maxCount) * (chartHeight - 16)));
+      const x = left + index * (barWidth + gap);
+      const g = this.add.graphics();
+      g.fillStyle(index === bars.length - 1 ? signal.spent.hex : signal.cost.hex, 1);
+      g.fillRect(x, y + (chartHeight - 16 - barHeight), barWidth, barHeight);
+      label(this, x + barWidth / 2, y + chartHeight - 10, bar.label, typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
+    });
+    y += chartHeight + 16;
+
+    label(this, left, y, "your deck", typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    const groups = deckListGroupsOf(deck, POOL);
+    let shown = 0;
+    let overflow = 0;
+    for (const group of groups) {
+      const remainingRoom = STATS_LIST_ENTRY_CAP - shown;
+      if (remainingRoom <= 0) {
+        overflow += group.entries.length;
+        continue;
+      }
+      const visible: readonly DeckListEntry[] = group.entries.slice(0, remainingRoom);
+      overflow += group.entries.length - visible.length;
+      shown += visible.length;
+      if (visible.length === 0) continue;
+      label(this, left, y, `${group.label} · ${group.count}`, typeRole.label, surface.ink.hex, ink.meta);
+      y += 14;
+      for (const entry of visible) {
+        const line = this.add.text(left, y, entry.name, textStyle(typeRole.body, surface.ink.hex));
+        fitText(line, column - 40);
+        label(this, left + column - 4, y, String(entry.quantity), typeRole.label, surface.ink.hex, ink.secondary).setOrigin(1, 0);
+        y += 16;
+      }
+      y += 4;
+    }
+    if (overflow > 0) {
+      this.add.text(left, y, `+ ${overflow} more`, textStyle(typeRole.body, surface.ink.hex, ink.meta));
+      y += 18;
+    }
+    return y + 8;
   }
 
   #drawIdentityPicker(left: number, y: number, column: number): void {

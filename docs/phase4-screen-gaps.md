@@ -32,7 +32,7 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 | D01, P01 | Title | ⚠️ | `scenes/title.ts` is the title *and* all of setup on one page. | W2 |
 | D02, P02 | Scenario select | ❌ | A row of villain thumbnails on Title. | W2 |
 | D03, P03, T-P02 | Hero select ("Take your seats") | ❌ | A tile grid on Title, "Heroes — N seats, all played by you". | W2 |
-| D04, P04 | Deck builder / Deck check | ⚠️ | `scenes/deck-builder.ts`: identity, aspect, name, text search, add/remove, live legality. No deck analysis. Not a step in the setup flow. | W1 |
+| D04, P04 | Deck builder / Deck check | ⚠️ | `scenes/deck-builder.ts`: identity, aspect, type filter chips, name, text search, add/remove, live legality chip, cost curve, grouped deck list with overflow, Preconstructed/Clear. `scenes/deck-check.ts` (new, W1): Curve/Cards/Aspect tabs, deck list with quantities, Edit deck, Start game ▸ (drawn unavailable — no setup flow yet, W2). Neither is yet a step in the setup flow; deck advice not built (§4 unsettled). | W1 |
 | D05, P12 | Table setup | ❌ | Standard/Expert and a seed field on Title. | W2 |
 | D06, P13, L05 | Setup deal & mulligan | ❌ | The mulligan is a generic pending choice in `scenes/choice.ts` over the board. | W3 |
 | D07, Board canvases, L01, T-P01 | Board | ✅ | Long table and phone tabs. Small chrome gaps. | W8 |
@@ -43,7 +43,7 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 | D12, P10, P11, P17, L08 | Game over | ✅ | Wide and tall layouts, stats, turning points, seats, MVP, both rematches. | W8 |
 | D13, P16, L07 | Pause & Rules | ❌ | Nothing. The board has no menu button. | W4 |
 | — (P16, L07, D01) | Settings | ❌ | `settings.ts` holds `reducedMotion` and `textResolution`; no screen shows them. | W4 |
-| D14 | Decks & Collection | ⚠️ | `scenes/decks.ts`: deck list, paste and MarvelCDB import, edit, delete. | W1, W9 |
+| D14 | Decks & Collection | ⚠️ | `scenes/decks.ts`: deck list, paste and MarvelCDB import, edit, delete, and (W1) a "Check" button on every row into Deck check. Still a single list, not D14's two-pane layout. | W1, W9 |
 | D01 | Campaign | ⛔ | Drawn locked in the mocks. Out of scope (PLAN.md Phase 4). | — |
 
 `SCENES.setup` is already reserved in `scenes/keys.ts` with no scene behind it.
@@ -260,15 +260,23 @@ Canvases: P04 (Deck check), D04 (Deck builder), D14 (right-hand stats panel).
 Already there: `scenes/deck-builder.ts`, `view/deck-builder-model.ts` (`legalityOf`, `browsablePool`). `PoolFilter` already supports `type`, `trait` and `maxCost`, but the scene wires only the text search.
 
 - [x] S1, the deck stats view model, with tests against the six Core precons (and a wave 1 precon, and a custom deck — see §2).
-- [ ] **Deck check screen** (P04). Resource curve with average, composition counts, tabs for Curve / Cards / Aspect, the deck list with quantities, "Edit deck", and "Start game ▸". Reached per seat from the setup flow (W2) and from the Decks screen.
-- [ ] **Builder stats panel** (D04). Cost curve, legality chip ("41 CARDS · LEGAL") and the deck list grouped by Hero / aspect / Basic with a "+ N more" overflow.
-- [ ] **Builder filters.** Type filter chips (All, Ally, Event, Upgrade, Support, Resource) wired to `PoolFilter.type`, plus the aspect switcher D04 shows.
-- [ ] Builder "Preconstructed" (reset to this identity's precon) and "Clear" (back to the identity set only).
+- [x] **Deck check screen** (P04). Resource curve with average, composition counts, tabs for Curve / Cards / Aspect, the deck list with quantities, "Edit deck", and "Start game ▸". Reached per seat from the setup flow (W2) and from the Decks screen.
+  - **Landed (`game-client-engineer`, 2026-09-17).** New `scenes/deck-check.ts` and `view/deck-check-layout.ts` (a pure layout — header/tabs/content/footer — with no-overlap tests at 375×812, 440×900, 800×600 and desktop, `view/deck-check-layout.test.ts`). Tabs (Curve/Cards/Aspect) use `McTabs`; Curve shows `costCurveBars`' bar chart plus composition-by-type tiles; Aspect shows composition-by-aspect tiles (both via `view/chip-layout.ts`'s `wrapChipsToRows`, reused rather than re-derived); Cards is a `McVirtualList` over `deckListGroupsOf`'s grouped, quantified entries, each row also a real focus stop (`view/screen-focus.ts`'s new `deckCheckFocusOrder`, scoped to the active tab). Every number is `view/deck-stats.ts`'s own; this scene only draws it.
+    - **The entry point is deliberately caller-agnostic**: `DeckCheckSceneData { deck; returnTo?; onStartGame? }`. `returnTo` (scene + optional data) defaults to the Decks screen, so a caller with only a deck can still open it; `onStartGame` is absent until a setup flow exists to hand the finished lineup to. **How W2 should open it**: `this.scene.start(SCENES.deckCheck, { deck, returnTo: { scene: SCENES.setup, data: {...} }, onStartGame: () => /* hand the seated lineup to the engine */ } satisfies DeckCheckSceneData)` — no change to this file needed. Until then, "Start game ▸" is a real, focusable control drawn unavailable with its reason ("Setup flow isn't built yet — coming with the title-menu rework (W2).") rather than omitted, per §0's "dashed = not yet real".
+    - Reachable today from the Decks screen: every row (precon or saved) grew a "Check" button (`scenes/decks.ts`'s `rowGeometry`, `decksFocusOrder`), calling `#openDeckCheck` with `returnTo: { scene: SCENES.decks }`.
+    - Not done: a step indicator ("Step N of M") — that belongs to the setup flow W2 hasn't built yet, and inventing one here would be decoration with nothing behind it.
+- [x] **Builder stats panel** (D04). Cost curve, legality chip ("41 CARDS · LEGAL") and the deck list grouped by Hero / aspect / Basic with a "+ N more" overflow.
+  - **Landed (`game-client-engineer`, 2026-09-17).** `scenes/deck-builder.ts`'s new `#drawStatsPanel`: a cost-curve bar chart (`costCurveBars`) and the deck list grouped Hero → aspect → Basic (`deckListGroupsOf`, new in `view/deck-stats.ts` alongside `costCurveBars` — both tested in `view/deck-stats.test.ts` against every Core precon), capped at 10 entry lines with one trailing "+ N more" rather than a second scrolling list, since the builder's pool already scrolls below it. The existing legality line stayed prose ("Legal — 41 cards." / the problem list) rather than being restyled into D04's own "41 CARDS · LEGAL" chip — same fact, not worth a second widget for the wording alone.
+    - Not done: D04's three-column desktop layout (aspect/filter rail · pool · stats rail). The builder stays the one stacked column it already was at every width (unchanged architecture); the stats panel sits between the legality line and the new Preconstructed/Clear/Save row instead of its own right-hand rail. The workstream's own "done when" (curve, composition and grouped list at desktop *and* phone) holds regardless, since the single column already runs at every width.
+- [x] **Builder filters.** Type filter chips (All, Ally, Event, Upgrade, Support, Resource) wired to `PoolFilter.type`, plus the aspect switcher D04 shows.
+  - **Landed (`game-client-engineer`, 2026-09-17).** `TYPE_FILTERS` in `scenes/deck-builder.ts`: All/Ally/Event/Upgrade/Support/Resource, each toggling `PoolFilter.type`, wrapped to the column width with `view/chip-layout.ts`'s `wrapChipsToRows` (S8's own wrap math) so a narrow phone column never truncates "Resource". The aspect switcher was already built (S1's "Already there" note above); it sits unchanged just above the new chip row.
+- [x] Builder "Preconstructed" (reset to this identity's precon) and "Clear" (back to the identity set only).
+  - **Landed (`game-client-engineer`, 2026-09-17).** `view/deck-builder-model.ts`'s `resetToPrecon(deck, identity, starterDecks)` (null when the identity has no published precon — Preconstructed then draws unavailable with that reason, "dim, don't hide" rather than being omitted) and `resetToIdentitySet(deck, identity, pool)` (drops every added card back to `requiredIdentitySet`, keeping the deck's own aspects). Both keep the deck's own id/name/source, so neither button hands back "a different deck" — only `cards` (and, for Preconstructed, `aspects`) change. Tested in `view/deck-builder-model.test.ts`, including that Preconstructed's result round-trips to a real, engine-legal Spider-Man precon.
 - [ ] Deck advice ("Light on thwart…"), **only after** §4's decision on advice.
 
-Depends on: nothing hard. W2 is where Deck check sits in the setup flow.
+Depends on: nothing hard. W2 is where Deck check sits in the setup flow — see the Deck check note above for exactly how W2 should open it.
 
-Done when: every Core precon and a custom deck show a curve, composition and grouped list, in the builder and on Deck check, at desktop and phone sizes.
+Done when: every Core precon and a custom deck show a curve, composition and grouped list, in the builder and on Deck check, at desktop and phone sizes. **Verified 2026-09-17**: `pnpm test`/`pnpm typecheck` green (content 268, engine 507, cards 441, client 580 — up from 554; no engine/`@mc/cards`/`@mc/content` change). Not verified by eye in a browser this session — a `vite` run on port 5183 confirmed both new/changed scenes load and transform with no build error, but no visual pass was done; that's still owed.
 
 ### W2. Title menu and the setup flow
 

@@ -33,6 +33,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McMultilineInput, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { deckStorage } from "../session.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
+import type { DeckCheckSceneData } from "./deck-check.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
@@ -48,14 +49,20 @@ const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id a
 
 /**
  * A row's sub-rects, shared between drawing it and answering a keyboard/pad
- * focus stop's `rect`, so the two can never drift apart. Edit/Delete's rects
- * are computed unconditionally; only editable rows register stops for them.
+ * focus stop's `rect`, so the two can never drift apart. Every row gets
+ * "Check" (W1's Deck check screen, docs/phase4-screen-gaps.md §3) — Edit and
+ * Delete's rects are computed unconditionally too, per the original design
+ * here; only editable rows register stops (and draw buttons) for those two.
  */
-function rowGeometry(rect: Rect): { readonly card: Rect; readonly edit: Rect; readonly delete: Rect } {
+function rowGeometry(rect: Rect, editable: boolean): { readonly card: Rect; readonly check: Rect; readonly edit: Rect; readonly delete: Rect } {
   const card: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: ROW_HEIGHT - 6 };
-  const edit: Rect = { x: card.x + card.width - 130, y: card.y + card.height - hit.target - 2, width: 60, height: hit.target };
-  const del: Rect = { x: card.x + card.width - 66, y: edit.y, width: 60, height: hit.target };
-  return { card, edit, delete: del };
+  const y = card.y + card.height - hit.target - 2;
+  const del: Rect = { x: card.x + card.width - 66, y, width: 60, height: hit.target };
+  const edit: Rect = { x: del.x - 64, y, width: 60, height: hit.target };
+  // A precon row has no Edit/Delete, so Check takes the rightmost slot they'd
+  // otherwise occupy rather than floating apart from the row's right edge.
+  const check: Rect = editable ? { x: edit.x - 74, y, width: 70, height: hit.target } : { x: card.x + card.width - 76, y, width: 70, height: hit.target };
+  return { card, check, edit, delete: del };
 }
 
 export class DecksScene extends Phaser.Scene {
@@ -272,16 +279,20 @@ export class DecksScene extends Phaser.Scene {
         this.scene.start(SCENES.deckBuilder, { deck: option.deck } satisfies DeckBuilderSceneData);
       };
       const doInspect = (): void => this.#inspect(option);
+      const doCheck = (): void => this.#openDeckCheck(option.deck);
       this.#stops.set(`deck:${deckId}`, {
-        rect: () => rowGeometry(list.rectFor(index)).card,
+        rect: () => rowGeometry(list.rectFor(index), editable).card,
         activate: editable ? openEdit : doInspect,
         inspect: doInspect,
         ensureVisible,
       });
+      // Every deck row can open Deck check (W1) — precon or saved, legal or not: a blocked deck's own
+      // curve/composition still reads, and the screen itself draws "Start game" unavailable until W2 exists.
+      this.#stops.set(`deck:${deckId}:check`, { rect: () => rowGeometry(list.rectFor(index), editable).check, activate: doCheck, ensureVisible });
       if (!editable) return;
-      this.#stops.set(`deck:${deckId}:edit`, { rect: () => rowGeometry(list.rectFor(index)).edit, activate: openEdit, ensureVisible });
+      this.#stops.set(`deck:${deckId}:edit`, { rect: () => rowGeometry(list.rectFor(index), editable).edit, activate: openEdit, ensureVisible });
       this.#stops.set(`deck:${deckId}:delete`, {
-        rect: () => rowGeometry(list.rectFor(index)).delete,
+        rect: () => rowGeometry(list.rectFor(index), editable).delete,
         activate: () => void this.#delete(option.deck.id),
         ensureVisible,
       });
@@ -296,7 +307,7 @@ export class DecksScene extends Phaser.Scene {
   #renderRow(rect: Rect, option: DeckOption, editableIds: ReadonlySet<string>): VirtualListRow {
     const editable = editableIds.has(option.deck.id as string);
     const focused = this.#data.focusDeckId === (option.deck.id as string);
-    const { card, edit: editRect, delete: deleteRect } = rowGeometry(rect);
+    const { card, check: checkRect, edit: editRect, delete: deleteRect } = rowGeometry(rect, editable);
     const objects: Phaser.GameObjects.GameObject[] = [];
 
     const g = this.add.graphics();
@@ -310,38 +321,47 @@ export class DecksScene extends Phaser.Scene {
       unscripted: signal.caution.hex,
       poolChanged: signal.cost.hex,
     };
+
+    // The chip is measured before the name is capped, so the name's own limit reserves exactly the chip's width —
+    // Check (every row) and, on a saved deck, Edit/Delete too now share the row's right edge, so a fixed guess at
+    // how much room they leave stopped being safe once Check (W1) added a third button to that cluster.
+    const chipText = label(this, 0, 0, status.text, typeRole.label, surface.paper.hex, 1);
+    const chipWidth = Math.ceil(chipText.width) + 12;
+    const chipRight = checkRect.x - 8;
+    const chipG = this.add.graphics();
+    chipG.fillStyle(tone[status.tone], 1).fillRect(chipRight - chipWidth, card.y + 8, chipWidth, 18);
+    chipText.setPosition(chipRight - chipWidth + 6, card.y + 17).setOrigin(0, 0.5);
+
     const name = this.add.text(card.x + 10, card.y + 6, option.deck.name, textStyle(typeRole.rowTitle, surface.ink.hex));
-    fitText(name, card.width - 160);
+    fitText(name, chipRight - chipWidth - 8 - (card.x + 10));
     objects.push(name);
     const sourceText = option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built";
     objects.push(
       this.add.text(card.x + 10, card.y + 6 + name.height + 2, `${sourceText} · ${option.identityName ?? "unknown identity"}`, textStyle(typeRole.label, surface.ink.hex, ink.meta)),
     );
 
-    const chipText = label(this, 0, 0, status.text, typeRole.label, surface.paper.hex, 1);
-    const chipWidth = Math.ceil(chipText.width) + 12;
-    // A saved deck's Edit and Delete buttons take the row's right edge, so its
-    // chip sits left of them — drawn at the edge, it was hidden under Edit.
-    const chipRight = editable ? card.x + card.width - 130 - 8 : card.x + card.width - 10;
-    const chipG = this.add.graphics();
-    chipG.fillStyle(tone[status.tone], 1).fillRect(chipRight - chipWidth, card.y + 8, chipWidth, 18);
-    chipText.setPosition(chipRight - chipWidth + 6, card.y + 17).setOrigin(0, 0.5);
     objects.push(chipG);
-    // Created before the chip so it could be measured, which left it under the
-    // chip's fill: a status shown as colour alone. Bring it to the top of this
-    // row's own objects (not the whole scene — the row layer stacks by add order).
+    // The chip's own text was created before the name (so its width could be measured), which left it under
+    // whatever the name/subtitle drew next: a status shown as colour alone. Bring it to the top of this row's own
+    // objects (not the whole scene — the row layer stacks by add order).
     objects.push(chipText);
 
+    // `clip`/`suppressClick` read `this.#list` lazily (at click time, not at
+    // row-build time — `this.#list` is still being assigned the first time a
+    // row renders, since `McVirtualList`'s own constructor renders its first
+    // window before returning). A row reparented into the list's masked layer
+    // is still fully hit-testable outside the mask (Phaser masks are visual
+    // only), and a drag that just scrolled the list must not also fire
+    // whatever button it happened to end over.
+    const clip = (): Rect | null => this.#list?.rect ?? null;
+    const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
+
+    // Every row — precon or saved — can open Deck check (W1).
+    const openCheck = (): void => this.#openDeckCheck(option.deck);
+    const checkButton = new McButton(this, { kind: "secondary", label: "Check", type: typeRole.label, rect: checkRect, onClick: openCheck, clip, suppressClick });
+    objects.push(checkButton.container);
+
     if (editable) {
-      // `clip`/`suppressClick` read `this.#list` lazily (at click time, not
-      // at row-build time — `this.#list` is still being assigned the first
-      // time a row renders, since `McVirtualList`'s own constructor renders
-      // its first window before returning). A row reparented into the list's
-      // masked layer is still fully hit-testable outside the mask (Phaser
-      // masks are visual only), and a drag that just scrolled the list must
-      // not also fire whatever button it happened to end over.
-      const clip = (): Rect | null => this.#list?.rect ?? null;
-      const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
       const openEdit = (): void => {
         this.scene.start(SCENES.deckBuilder, { deck: option.deck } satisfies DeckBuilderSceneData);
       };
@@ -353,6 +373,11 @@ export class DecksScene extends Phaser.Scene {
     }
 
     return { objects };
+  }
+
+  /** Opens Deck check (W1) over this deck, returning here on Back — the Decks screen is the only caller today; W2's setup flow will pass its own `returnTo` once it lands. */
+  #openDeckCheck(deck: Deck): void {
+    this.scene.start(SCENES.deckCheck, { deck, returnTo: { scene: SCENES.decks } } satisfies DeckCheckSceneData);
   }
 
   #inspect(option: DeckOption): void {

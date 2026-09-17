@@ -64,13 +64,13 @@ export interface DecksFocusInput {
   readonly showMarvelCdbImport: boolean;
   /** Every deck row, in list order — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
   readonly deckIds: readonly string[];
-  /** A row whose deck can be edited/deleted (a saved deck) gets those two extra stops; a precon's row does not. */
+  /** A row whose deck can be edited/deleted (a saved deck) gets those two extra stops; a precon's row does not. Every row — editable or not — also gets "Check" (W1's Deck check screen). */
   readonly editableDeckIds: ReadonlySet<string>;
 }
 
 /**
  * The Decks screen: Back, the paste importer, the MarvelCDB importer (dev
- * only), New deck, then every deck row (and its Edit/Delete when it has
+ * only), New deck, then every deck row (Check, and Edit/Delete when it has
  * them) — the whole list, not only whatever the virtualized panel currently
  * draws. Moving focus onto a row scrolls it into view (`scenes/decks.ts`'s
  * `ensureVisible`), the same way a mouse would have to scroll to it first.
@@ -83,7 +83,9 @@ export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
     ...(input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
     "new-deck",
     ...input.deckIds.flatMap((id) =>
-      input.editableDeckIds.has(id) ? [`deck:${id}`, `deck:${id}:edit`, `deck:${id}:delete`] : [`deck:${id}`],
+      input.editableDeckIds.has(id)
+        ? [`deck:${id}`, `deck:${id}:check`, `deck:${id}:edit`, `deck:${id}:delete`]
+        : [`deck:${id}`, `deck:${id}:check`],
     ),
   ];
 }
@@ -93,24 +95,59 @@ export interface DeckBuilderFocusInput {
   readonly identityChosen: boolean;
   readonly identityIds: readonly string[];
   readonly aspectIds: readonly string[];
+  /** W1's type filter chips ("All, Ally, Event, Upgrade, Support, Resource"), by `PoolFilter.type` value (`"all"` for the null/no-filter case). */
+  readonly typeFilterIds: readonly string[];
   /** Every pool card in filter order — not just the ones currently on screen (see `DecksFocusInput.deckIds`). */
   readonly poolCardIds: readonly string[];
 }
 
 /**
  * The deck builder: Back first, then either the identity picker alone, or —
- * once an identity is chosen — the aspect picker, the name field, and every
- * pool row (each row both adds and removes, one stop each), then Save.
+ * once an identity is chosen — the aspect picker, the type filter chips
+ * (W1), the name field, Preconstructed and Clear (W1 — always a stop, even
+ * when Preconstructed has nothing to reset to and is drawn unavailable, the
+ * same "dim, don't hide" rule every disabled control follows), Save, the
+ * pool search field, and every pool row (each row both adds and removes, one
+ * stop each).
  */
 export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly string[] {
   if (!input.identityChosen) return ["back", ...input.identityIds.map((id) => `identity:${id}`)];
   return [
     "back",
     ...input.aspectIds.map((id) => `aspect:${id}`),
+    ...input.typeFilterIds.map((id) => `type:${id}`),
     "name",
+    "preconstructed",
+    "clear",
+    "save",
     "filter-text",
     ...input.poolCardIds.map((id) => `card:${id}`),
-    "save",
+  ];
+}
+
+export interface DeckCheckFocusInput {
+  /** Which of the three tabs is showing — only that tab's own content stops appear (`cardIds` below). */
+  readonly activeTab: "curve" | "cards" | "aspect";
+  /** Every row in the Cards tab's deck list, in list order — only relevant (and only present) while that tab is active. */
+  readonly cardIds: readonly string[];
+}
+
+/**
+ * Deck check (W1): Back, the three tabs, the active tab's own rows (today
+ * only the Cards tab has any — Curve and Aspect are read-only panels), Edit
+ * deck, then Start game — drawn unavailable with its reason until W2 wires a
+ * setup flow to hand the finished game off to, but still a real stop so that
+ * reason can be read (the "dashed = not yet real" rule, docs/phase4-screen-gaps.md §0).
+ */
+export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string[] {
+  return [
+    "back",
+    "tab:curve",
+    "tab:cards",
+    "tab:aspect",
+    ...(input.activeTab === "cards" ? input.cardIds.map((id) => `card:${id}`) : []),
+    "edit-deck",
+    "start",
   ];
 }
 

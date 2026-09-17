@@ -19,6 +19,7 @@ import { VillainPhaseOverlay } from "./scenes/villain-phase.js";
 import { GameOverScene } from "./scenes/game-over.js";
 import { DecksScene } from "./scenes/decks.js";
 import { DeckBuilderScene } from "./scenes/deck-builder.js";
+import { DeckCheckScene } from "./scenes/deck-check.js";
 
 const settings = defaultSettings();
 
@@ -45,7 +46,7 @@ const game = new Phaser.Game({
   // app's one DOM element (PLAN.md Phase 4). Phaser 4 only creates the DOM
   // container Phaser.GameObjects.DOMElement needs when asked to.
   dom: { createContainer: true },
-  scene: [BootScene, TitleScene, BoardScene, DecksScene, DeckBuilderScene, ChoiceOverlay, InspectOverlay, VillainPhaseOverlay, GameOverScene],
+  scene: [BootScene, TitleScene, BoardScene, DecksScene, DeckBuilderScene, DeckCheckScene, ChoiceOverlay, InspectOverlay, VillainPhaseOverlay, GameOverScene],
 });
 
 // Right-click is the desktop Inspect gesture, so the browser's own menu has to

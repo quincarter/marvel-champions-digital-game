@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { stepKey } from "./focus.js";
-import { deckBuilderFocusOrder, decksFocusOrder, titleFocusOrder, villainPhaseFocusOrder } from "./screen-focus.js";
+import { deckBuilderFocusOrder, deckCheckFocusOrder, decksFocusOrder, titleFocusOrder, villainPhaseFocusOrder } from "./screen-focus.js";
 
 describe("screen focus routes", () => {
   test("the Title screen reads top to bottom, with Continue first only when there is a game to continue", () => {
@@ -69,7 +69,7 @@ describe("screen focus routes", () => {
     expect(order).toEqual(["scenario-search", "scenario:breakout", "difficulty:standard", "difficulty:expert", "difficulty:extreme", "hero-search", "hero:a", "seed", "new-seed", "start"]);
   });
 
-  test("the Decks screen gives every deck row a stop, not just the ones currently on screen", () => {
+  test("the Decks screen gives every deck row a stop, not just the ones currently on screen — every row also gets Check", () => {
     const base = {
       showMarvelCdbImport: false,
       deckIds: ["p1", "s1", "s2"],
@@ -81,10 +81,13 @@ describe("screen focus routes", () => {
       "paste-import",
       "new-deck",
       "deck:p1",
+      "deck:p1:check",
       "deck:s1",
+      "deck:s1:check",
       "deck:s1:edit",
       "deck:s1:delete",
       "deck:s2",
+      "deck:s2:check",
       "deck:s2:edit",
       "deck:s2:delete",
     ]);
@@ -97,6 +100,7 @@ describe("screen focus routes", () => {
       identityChosen: false,
       identityIds: ["hero-a", "hero-b"],
       aspectIds: ["justice"],
+      typeFilterIds: [],
       poolCardIds: ["c1"],
     });
     expect(picking).toEqual(["back", "identity:hero-a", "identity:hero-b"]);
@@ -105,9 +109,43 @@ describe("screen focus routes", () => {
       identityChosen: true,
       identityIds: ["hero-a"],
       aspectIds: ["justice", "aggression"],
+      typeFilterIds: ["all", "ally", "event", "upgrade", "support", "resource"],
       poolCardIds: ["c1", "c2", "c3"],
     });
-    expect(building).toEqual(["back", "aspect:justice", "aspect:aggression", "name", "filter-text", "card:c1", "card:c2", "card:c3", "save"]);
+    expect(building).toEqual([
+      "back",
+      "aspect:justice",
+      "aspect:aggression",
+      "type:all",
+      "type:ally",
+      "type:event",
+      "type:upgrade",
+      "type:support",
+      "type:resource",
+      "name",
+      "preconstructed",
+      "clear",
+      "save",
+      "filter-text",
+      "card:c1",
+      "card:c2",
+      "card:c3",
+    ]);
+  });
+
+  test("Deck check: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
+    expect(deckCheckFocusOrder({ activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
+    expect(deckCheckFocusOrder({ activeTab: "cards", cardIds: ["c1", "c2"] })).toEqual([
+      "back",
+      "tab:curve",
+      "tab:cards",
+      "tab:aspect",
+      "card:c1",
+      "card:c2",
+      "edit-deck",
+      "start",
+    ]);
+    expect(deckCheckFocusOrder({ activeTab: "aspect", cardIds: ["c1"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
   });
 
   test("the walkthrough offers Continue first once the phase is over", () => {

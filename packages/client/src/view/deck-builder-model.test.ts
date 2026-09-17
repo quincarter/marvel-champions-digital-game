@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { CORE_CARDS, WAVE1_CARDS, cardId, type Deck } from "@mc/content";
+import { CORE_CARDS, CORE_STARTER_DECKS, WAVE1_CARDS, cardId, deckFromStarterDeck, type Deck } from "@mc/content";
 import {
   addCard,
   aspectCountFor,
@@ -8,6 +8,8 @@ import {
   legalityOf,
   newDeck,
   removeCard,
+  resetToIdentitySet,
+  resetToPrecon,
   setAspects,
   setName,
 } from "./deck-builder-model.js";
@@ -130,6 +132,43 @@ describe("addCard / removeCard", () => {
     expect(deck.cards).toEqual([]);
     deck = removeCard(deck, cardId("01088"));
     expect(deck.cards).toEqual([]);
+  });
+});
+
+describe("resetToIdentitySet", () => {
+  test("drops every added card, keeping only the identity's signature set and everything else about the deck", () => {
+    let deck = newDeck(spiderMan, CORE_CARDS, "id-1", "poolv1", NOW);
+    deck = setAspects(deck, ["justice"]);
+    deck = addCard(deck, cardId("01088")); // Energy — not part of the signature set
+    const cleared = resetToIdentitySet(deck, spiderMan, CORE_CARDS);
+    expect(cleared.cards).toEqual(SPIDER_MAN_SIGNATURE);
+    expect(cleared.id).toBe(deck.id);
+    expect(cleared.aspects).toEqual(["justice"]); // aspect choice survives a Clear
+  });
+});
+
+describe("resetToPrecon", () => {
+  test("resets aspects and cards to the identity's real precon, keeping the deck's own id/name", () => {
+    let deck = newDeck(spiderMan, CORE_CARDS, "id-1", "poolv1", NOW);
+    deck = setName(deck, "My Spider-Man");
+    deck = setAspects(deck, ["aggression"]); // the wrong aspect on purpose — Preconstructed should overwrite it
+    deck = addCard(deck, cardId("01088"));
+
+    const reset = resetToPrecon(deck, spiderMan, CORE_STARTER_DECKS)!;
+    expect(reset).not.toBeNull();
+    expect(reset.id).toBe(deck.id);
+    expect(reset.name).toBe("My Spider-Man");
+
+    const starter = CORE_STARTER_DECKS.find((s) => (s.identityCardId as string) === (spiderMan.id as string))!;
+    const precon = deckFromStarterDeck(starter, "poolv1");
+    expect(reset.aspects).toEqual(precon.aspects);
+    expect(reset.cards).toEqual(precon.cards);
+    expect(legalityOf(reset, CORE_CARDS)).toEqual({ ok: true });
+  });
+
+  test("null when the identity has no published precon in the given list", () => {
+    const deck = newDeck(spiderMan, CORE_CARDS, "id-1", "poolv1", NOW);
+    expect(resetToPrecon(deck, spiderMan, [])).toBeNull();
   });
 });
 

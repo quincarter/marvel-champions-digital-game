@@ -1,0 +1,56 @@
+# Phase 4 screen gaps: fan-out handoff
+
+Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps.md), started 2026-09-17. If a session dies (usage limit, crash), this is how to pick up. Delete this file once everything is merged.
+
+## Integration branch
+
+`feature/phase4-screen-gaps`, branched from `main` at `076cf85`, checked out in the main repo directory. Baseline there was green: content 268, engine 507, cards 441, client 554 tests; `pnpm typecheck` clean. Everything below merges into this branch. Nothing has been pushed and no PR is open.
+
+## Wave 1 (launched 2026-09-17)
+
+| Workstream | Agent type | Where it works | Branch | Commits? |
+|---|---|---|---|---|
+| **W1** Deck analysis (Deck check scene, builder stats panel, type/aspect filters, Preconstructed/Clear) | `game-client-engineer` | main repo dir, **uncommitted in the working tree** | `feature/phase4-screen-gaps` | No — told not to commit. Also edits `docs/phase4-screen-gaps.md` directly. |
+| **S5** Engine queries: `stackEntries`, `preview()`, `schemeResolved`, `plannedAttackDamage` + `defendPreview`, `explainQuery` + `choiceExclusions`, and the `concede` command / `conceded` outcome | `game-rules-architect` | `.claude/worktrees/agent-a60d2333f66c689c0` | `worktree-agent-a60d2333f66c689c0` | Commits as it goes (`f92c5c5` = steps 1–2). |
+| **W2** Title menu + setup flow (Scenario select, Take your seats, Table setup) | `game-client-engineer` | `.claude/worktrees/agent-a823678c74b964cea` | `worktree-agent-a823678c74b964cea` | Commits at the end. |
+| **W4** Pause & Rules, Settings, menu button, and S7's read-only replay board if it fits | `game-client-engineer` | `.claude/worktrees/agent-a7a89ad77a61b012c` | `worktree-agent-a7a89ad77a61b012c` | Commits at the end. |
+
+The three worktree agents were told **not** to edit `docs/phase4-screen-gaps.md`; each ends its report with a paste-ready "Landed" note. If a report was lost, reconstruct the note from the branch's diff.
+
+### Picking up an interrupted agent
+
+1. `git -C <worktree> status --short` and `git -C <worktree> log --oneline main..HEAD` to see what exists.
+2. In that worktree: `pnpm install` if needed, then `pnpm typecheck && pnpm test`. If green, commit what's there and treat the workstream as partly landed; compare against its checklist in `phase4-screen-gaps.md` §3 (or S5.10 for the engine).
+3. Start a fresh agent of the same type on the remainder, pointed at the same worktree path (not a new worktree), with the same rules: don't edit the gaps doc, commit on the worktree branch, don't push.
+
+## Merge plan
+
+Order: **W1** (commit the working tree on the integration branch first) → **S5** → **W4** → **W2**. Expected conflicts are small and additive: `scenes/keys.ts`, `view/screen-focus.ts` (+ test), `main.ts` (scene registration), `content/pool.ts` (both W2 and W4 touch it).
+
+After merging, wire the stubs the agents left for each other:
+- Title's **Settings** entry → W4's Settings scene (W2 drew it unavailable with a hook).
+- Seats' **Deck check ▸** link → W1's Deck check scene (W2 routes straight to Table setup for now); Deck check's **Start game ▸** → back into W2's flow.
+- Pause's **Concede** → S5's `concede` command (W4 drew it unavailable behind one function).
+
+Then `pnpm test && pnpm typecheck`, check the new screens in a browser (Vite from Bash — see the worktree-preview memory; agents were given ports 5183/5184/5185), paste the Landed notes into `phase4-screen-gaps.md`, tick boxes, update §1's inventory.
+
+## Wave 2 (not started)
+
+Launch after wave 1 is merged, from the integration branch:
+- **W3** Setup deal & mulligan (after W2).
+- **W5** Targeting panel and **W6** Defend choice (after S5: `preview`, `choiceExclusions`, `defendPreview`, `stackEntries`).
+- **W7** Villain phase breakdown (after S5's `schemeResolved`).
+- **W8** Board/Inspect/Game Over follow-ups (menu button comes with W4; "Watch the replay" needs W4's read-only board).
+- **W9** Decks & Collection layout (after W1, which edits `scenes/decks.ts`).
+- Then a `rules-qa-engineer` pass over S5.11's test list.
+
+## §4 decisions taken for this run
+
+- Concede is an **engine outcome** (S5.9's recommendation).
+- Skipped, boxes left open: advice text, scenario/hero blurbs (data only), auto-resolve/auto-defend, pass-and-play, hex seed display, owned-card tracking. Heroic difficulty is left out.
+
+## Unrelated worktrees (pre-existing, not part of this run)
+
+- `loving-fermi-3a5772` — uncommitted choice/board-model edits, branch has no commits ahead of main.
+- `pensive-heisenberg-8a3e36` — uncommitted Core card-script edits (aggression, She-Hulk), no commits ahead.
+- `refactor-board-scene-d7b5ff` — 2 commits ahead of main ("Refactored board.ts"), unmerged. W4 was told to look at it for a replay seam but not to merge it wholesale.
