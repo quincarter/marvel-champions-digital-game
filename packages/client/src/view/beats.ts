@@ -86,6 +86,21 @@ export function beatsFrom(events: readonly GameEvent[]): readonly Beat[] {
       case "counterRemoved":
         if (event.amount > 0) push(event.instanceId, `−${event.amount} ${event.counterType}`, "damage");
         break;
+      /**
+       * A resolved ability's own effects usually produce their own beats
+       * (damage, threat, a status), but not always — Winds of Watoomb's
+       * Special just draws 3 cards, an event this module has no case for, so
+       * without this a Special that only draws or moves cards fired with no
+       * visible change at all. The anchor is the resolving card itself: an
+       * Invocation card's own instance id, which still resolves to a rect
+       * once it's sitting atop its deck (returned) or its own discard
+       * (`scenes/board/zones.ts`'s `drawSeparateDecks`), so "resolve →
+       * discard / return-to-top" reads as one card's own beat rather than
+       * requiring a special "which pile" case here.
+       */
+      case "abilityResolved":
+        push(event.instanceId, "RESOLVED", "status");
+        break;
       default:
         break;
     }

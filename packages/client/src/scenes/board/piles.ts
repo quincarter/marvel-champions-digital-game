@@ -48,7 +48,13 @@ export function drawMyPiles(ctx: BoardDrawContext, row: HandRowLayout, model: Bo
   }
 }
 
-function drawPile(ctx: BoardDrawContext, box: Rect, name: string, count: number, art: ArtSource | null): void {
+/**
+ * One pile box: a facedown stack (no `art`, or a card back) or a faceup top
+ * card, a name label, and a count chip. Shared with `zones.ts`'s separate-deck
+ * piles (Doctor Strange's Invocation deck), which are drawn the same way —
+ * a stack with a count, whether its top card happens to be visible or not.
+ */
+export function drawPile(ctx: BoardDrawContext, box: Rect, name: string, count: number, art: ArtSource | null): void {
   const { scene } = ctx;
   const g = scene.add.graphics();
   if (count === 0) {

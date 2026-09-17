@@ -20,6 +20,7 @@
  * didn't accidentally widen that net to catch ordinary Core saves too.
  */
 import { describe, expect, test } from "vitest";
+import { CORE_STARTER_DECKS } from "@mc/content";
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
 import { MemoryGameStorage, type SaveMeta } from "./game-storage.js";
 import { EngineSessionCore } from "./session-core.js";
@@ -86,5 +87,53 @@ describe("EngineSessionCore save compatibility", () => {
     const resumed = await second.resume((saveMeta as SaveMeta).id);
 
     expect(resumed.snapshot.state).toEqual(beforeReload);
+  });
+});
+
+/**
+ * `CorePlayer.deckId` (docs/phase4-screen-gaps.md §2 S4): an optional field added to the
+ * custom-deck seat shape for save attribution. It has to be additive in every sense that matters
+ * to a save on disk: a config saved before this field existed still loads and replays, and its
+ * presence or value can never change what the engine does with an otherwise-identical seat.
+ */
+describe("EngineSessionCore and CorePlayer.deckId", () => {
+  const spiderMan = CORE_STARTER_DECKS.find((d) => d.id === "core-spider-man-justice")!;
+  const spiderManDeckList = spiderMan.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId));
+
+  const CUSTOM_SEAT_CONFIG_OLD_SHAPE: SessionConfig = {
+    scenarioId: "rhino",
+    difficulty: "standard",
+    // The pre-S4 shape: no `deckId` at all, exactly what every custom-deck seat saved before this
+    // change looks like on disk.
+    players: [{ identityCardId: spiderMan.identityCardId, deck: spiderManDeckList, aspects: spiderMan.aspects }],
+    seed: 2026,
+  };
+
+  test("an old-shape custom-deck seat (no deckId at all) still starts, saves and resumes cleanly", async () => {
+    const storage = new MemoryGameStorage();
+    const first = new EngineSessionCore({ storage });
+    const started = await first.start(CUSTOM_SEAT_CONFIG_OLD_SHAPE);
+    const toAct = started.snapshot.legal!.playerId;
+    const dispatched = first.dispatch(anyLegalCommand(first.legalActions(toAct), toAct));
+    expect(dispatched.ok).toBe(true);
+    const beforeReload = dispatched.ok ? dispatched.snapshot.state : null;
+
+    const saveMeta = await storage.latestActive();
+    expect(saveMeta).not.toBeNull();
+    const second = new EngineSessionCore({ storage });
+    const resumed = await second.resume((saveMeta as SaveMeta).id);
+
+    expect(resumed.snapshot.state).toEqual(beforeReload);
+  });
+
+  test("the engine's state and events are byte-identical whether the seat carries a deckId or not", async () => {
+    const withoutId = await new EngineSessionCore().start(CUSTOM_SEAT_CONFIG_OLD_SHAPE);
+    const withId = await new EngineSessionCore().start({
+      ...CUSTOM_SEAT_CONFIG_OLD_SHAPE,
+      players: [{ ...CUSTOM_SEAT_CONFIG_OLD_SHAPE.players[0], deckId: "local-deck-42" } as SessionConfig["players"][number]],
+    });
+
+    expect(withId.snapshot.state).toEqual(withoutId.snapshot.state);
+    expect(withId.snapshot.events).toEqual(withoutId.snapshot.events);
   });
 });

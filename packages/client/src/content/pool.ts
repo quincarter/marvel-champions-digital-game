@@ -12,13 +12,23 @@
  */
 import { WAVE1_DEPS, wave1Scenario, type Wave1ScenarioOptions } from "@mc/cards";
 import {
+  BKW_PACK,
+  CAP_PACK,
+  CORE_PACK,
   CORE_SCENARIOS,
   CORE_STARTER_DECKS,
+  DRS_PACK,
+  GOB_PACK,
+  HLK_PACK,
+  MSM_PACK,
+  THOR_PACK,
+  TWC_PACK,
   WAVE1_CARDS,
   WAVE1_SCENARIOS,
   WAVE1_STARTER_DECKS,
   poolVersionOf,
   type AnyCard,
+  type Pack,
   type Scenario,
   type StarterDeck,
 } from "@mc/content";
@@ -38,6 +48,20 @@ export const POOL_STARTER_DECKS: readonly StarterDeck[] = [...CORE_STARTER_DECKS
 
 /** This build's pool version — bumps whenever `POOL_CARDS` changes shape, which retires an older save/deck against it. */
 export const POOL_VERSION: string = poolVersionOf(POOL_CARDS);
+
+/**
+ * Every physical product's own display name, by `Pack.code` (`Scenario.packCode`) — Core plus all eight wave 1
+ * packs, not only the two that define a scenario today, so a Title row naming a future scenario pack's own product
+ * doesn't need this list touched again. `@mc/content` has no aggregated "every pack" export yet (PLAN.md Phase 7:
+ * each pack module exports its own `*_PACK` constant), so this is that aggregate, scoped to what the app's pool
+ * actually knows.
+ */
+export const POOL_PACKS: readonly Pack[] = [CORE_PACK, GOB_PACK, TWC_PACK, CAP_PACK, MSM_PACK, THOR_PACK, BKW_PACK, DRS_PACK, HLK_PACK];
+
+/** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
+export function packNameOf(code: string): string {
+  return POOL_PACKS.find((pack) => (pack.code as string) === code)?.name ?? code;
+}
 
 /** The app's one scenario builder: Core scenarios and wave 1 scenarios alike. */
 export const buildScenario = wave1Scenario;

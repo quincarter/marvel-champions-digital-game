@@ -7,6 +7,7 @@
 import { POOL_DEPS } from "../../content/pool.js";
 import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { ink } from "../../tokens.js";
+import type { DiscardChoiceState } from "../../view/discard-choice-model.js";
 import type { FocusTarget } from "../../view/focus.js";
 import type { BasicAction } from "../../view/highlights.js";
 import type { PaymentState } from "../../view/payment-model.js";
@@ -22,6 +23,13 @@ export type Selection =
    * "PAYING 1 / 3" bar above a hand you tap), so it lives on the Board.
    */
   | { readonly kind: "paying"; readonly payment: PaymentState }
+  /**
+   * A card or ability whose cost is "discard N cards from your hand" (Shield
+   * Toss, `03006`) is chosen; now pick which — and for a cost like Shield
+   * Toss's with no printed cap, how many. Modeled the same way as `paying`:
+   * a mode over the hand, never a dialog (`view/discard-choice-model.ts`).
+   */
+  | { readonly kind: "choosingDiscard"; readonly choice: DiscardChoiceState }
   /**
    * A "play under any player's control" card is chosen; now pick whose control
    * it enters play under. The engine lists every seat it may legally go to
@@ -43,6 +51,10 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
       return "selected";
     }
     return sources.some((source) => source.instanceId === id) ? "rest" : "unavailable";
+  }
+  if (selection.kind === "choosingDiscard") {
+    if (selection.choice.picked.includes(id)) return "selected";
+    return selection.choice.candidates.includes(id) ? "rest" : "unavailable";
   }
   return "rest";
 }

@@ -14,8 +14,6 @@ export interface TitleFocusInput {
   /** Every scenario row, in roster order — already filtered by the search field (docs/phase4-screen-gaps.md §2 "S8"); empty means the search matched nothing. */
   readonly scenarioIds: readonly string[];
   readonly difficulties: readonly string[];
-  /** Breakout's per-villain A/B override row (PLAN.md Phase 7 wave 1), shown only for a multi-villain scenario at standard/expert. */
-  readonly villainVersionIds?: readonly string[];
   /**
    * Every seat option's deck id, precons and saved decks alike (PLAN.md
    * Phase 9, "seats become any legal deck"; S8's search), already filtered by
@@ -27,14 +25,18 @@ export interface TitleFocusInput {
   readonly deckIds: readonly string[];
   /** The link to the Decks screen (PLAN.md Phase 9) — see `scenes/decks.ts`. Optional only so `titleFocusOrder`'s existing callers/tests don't have to name it. */
   readonly manageDecks?: boolean;
+  /** S8's quick-filter chip ids for the Scenario roster (e.g. `product:core`), between the search field and the rows. */
+  readonly scenarioChipIds?: readonly string[];
+  /** S8's quick-filter chip ids for the Heroes roster (e.g. `aspect:justice`, `source:precon`, `playable-now`), between the search field and the seats. */
+  readonly heroChipIds?: readonly string[];
 }
 
 /**
  * The Title screen, top to bottom: Continue (when there is a game to pick up),
- * the scenario search field, each scenario (or "Clear" when the search
- * matched none), each difficulty, Breakout's villain-version row when it
- * applies, the hero search field, each hero seat (or "Clear"), "Manage
- * decks", the seed field, New seed, and Start game.
+ * the scenario search field, its quick-filter chips, each scenario (or
+ * "Clear" when the search matched none), each difficulty, the hero search
+ * field, its quick-filter chips, each hero seat (or "Clear"), "Manage decks",
+ * the seed field, New seed, and Start game.
  *
  * A hero that can't be seated (already at the table, or an unseatable deck)
  * still takes focus: its reason is read with `I`, the same rule that gives an
@@ -44,10 +46,11 @@ export function titleFocusOrder(input: TitleFocusInput): readonly string[] {
   return [
     ...(input.continuable ? ["continue"] : []),
     "scenario-search",
+    ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
     ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
     ...input.difficulties.map((id) => `difficulty:${id}`),
-    ...(input.villainVersionIds ?? []).map((id) => `villain-version:${id}`),
     "hero-search",
+    ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
     ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
     ...(input.manageDecks ? ["manage-decks"] : []),
     "seed",

@@ -543,6 +543,16 @@ export type EffectSpec =
        * responses included, resolves first. With no activation in progress it resolves at once.
        */
       readonly after?: "currentActivation";
+      /**
+       * "Green Goblin attacks with +X ATK" (Death from Above): a bonus scoped to exactly the attack this effect
+       * initiates, evaluated once when the attack is initiated and carried on that activation, so a second copy of
+       * the card in the same phase does not stack onto the first one's attack.
+       *
+       * Distinct from `modifyAttack.atkBonus`, which changes the activation *already in progress*, and from
+       * `modifyStatUntil`, which changes the enemy's ATK for a whole phase/round no matter how many activations that
+       * covers. A dashed ATK is "an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15), so this does not raise it.
+       */
+      readonly atkBonus?: ValueSpec;
     }
   /** "The villain schemes" / "Ultron schemes": a scheme activation; a confused enemy discards its confusion instead. `bind`: `<bind>.made`, `<bind>.threatPlaced`. */
   | {
@@ -552,6 +562,14 @@ export type EffectSpec =
       readonly bind?: string;
       readonly boost?: false;
       readonly after?: "currentActivation";
+      /**
+       * "Green Goblin schemes with +X SCH" (Death from Above): `enemyAttack.atkBonus` for a scheme activation.
+       *
+       * Not the same as `modifyAttack.threatBonus` ("reduce the amount of threat placed on the scheme by 1"): this is
+       * a bonus to the enemy's SCH, so a dashed SCH stays "an unmodifiable 0" (RRG 1.8 "Dash (Value)", p. 15) where a
+       * change to the threat placed would still apply.
+       */
+      readonly schBonus?: ValueSpec;
     }
   /** "This card gains surge": the encounter card whose ability this is surges when its reveal finishes. */
   | { readonly kind: "gainSurge" }
@@ -578,6 +596,27 @@ export type EffectSpec =
   | { readonly kind: "shuffleEncounterDeck" }
   /** "Discard cards from the encounter deck until a minion is discarded": the matching card is bound to `bind` (then `putIntoPlay` / `revealCard` it). */
   | { readonly kind: "discardEncounterUntil"; readonly filter: TargetQuery; readonly bind: string }
+  /**
+   * "Discard cards from the top of your deck until you discard a Ms. Marvel card, then add that card to your hand"
+   * (Teen Spirit): the player-deck sibling of `discardEncounterUntil`. The matching card is bound to `bind` (and its
+   * count to `<bind>.count`, 0 when none was found) and is left in the discard pile, so a following `moveCards` takes
+   * it from there. `player` naming several players ("each player") searches each of their decks in player order, and
+   * every match goes into the one slot.
+   *
+   * RRG 1.8 "Player Deck" (p. 33) — read on its own, *not* carried over from the encounter-deck rule (p. 17), though
+   * the two agree: "If a player deck empties, the player shuffles their discard pile to make a new deck. That player
+   * immediately deals themself one facedown encounter card", and "if the player's deck empties while the player was
+   * discarding cards from their deck, no further cards are discarded from the newly shuffled deck". So a deck emptied
+   * mid-discard stops the effect, with whatever was found so far; a deck that was *already* empty when the effect
+   * began resets first and the discarding then happens from the new deck, exactly as `discardEncounterCards` does.
+   * A deck and discard pile both empty discard nothing and bind nothing (p. 33: "the deck does not reset until there
+   * is at least one card in the player's discard pile").
+   *
+   * The reset itself is the engine's usual deferred one (`takeTopOfDeck`/`drawCards`): the reshuffle and its dealt
+   * encounter card happen at the next draw from that deck rather than the instant it empties. That is a pre-existing
+   * engine-wide modeling choice, not one this effect makes.
+   */
+  | { readonly kind: "discardDeckUntil"; readonly player: PlayerRef; readonly filter: TargetQuery; readonly bind: string }
   /**
    * "Discard the top N cards of the encounter deck" (Electro, Lightning Bolt, Shock Therapy). The active villain's
    * deck (§3.2); each card goes to its own deck's discard pile (`home`).
@@ -617,7 +656,21 @@ export type EffectSpec =
    */
   | { readonly kind: "dealIndirectDamage"; readonly to: PlayerRef | "group"; readonly amount: ValueSpec; readonly bind?: string }
   | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
-  | { readonly kind: "discardFromHand"; readonly player: PlayerRef; readonly amount: ValueSpec; readonly random?: boolean }
+  /**
+   * "Discard N cards from your hand" / "Each player must choose and discard 1 resource of any type from their hand
+   * for each boost icon discarded this way" (Power Drain). `player` may name several players ("each player"): each
+   * one chooses out of their own hand, in player order, one choice at a time.
+   *
+   * `amount` is a live `ValueSpec`, so the count can be something only known at resolution time (a summed
+   * `<bind>.boostIcons`). `filter` narrows which hand cards may be discarded: "1 resource of any type" is a card with
+   * a printed resource icon of any of the four types (`anyPrintedResource`) — ruling, Jan 11, 2026 (3), "the
+   * discarded card must have a [] resource icon printed in its bottom-left corner", and RRG 1.8 "Resource" (p. 37)
+   * lists exactly four resource *types*. A player holding fewer matching cards than `amount` discards every matching
+   * card they hold and no more (the same "do what you can" the random form already uses; ruling, Feb 28, 2026 (4)).
+   *
+   * `random` discards at random instead of asking, and honours `filter` the same way.
+   */
+  | { readonly kind: "discardFromHand"; readonly player: PlayerRef; readonly amount: ValueSpec; readonly random?: boolean; readonly filter?: TargetQuery }
   /** Turns the top N encounter cards faceup without revealing them (RRG "Search"). */
   | {
       readonly kind: "revealTopOfEncounterDeck";

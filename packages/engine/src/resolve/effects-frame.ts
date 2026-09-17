@@ -16,6 +16,7 @@ import {
   controllerOf,
   type EffectContext,
   evaluate,
+  matchesQuery,
   resolvePlayers,
   resolveRef,
   resolveValue,
@@ -70,38 +71,63 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     });
     return;
   }
-  if (effect.kind === "discardFromHand" && effect.random !== true) {
-    const [playerId] = resolvePlayers(ctx.state, effect.player, context);
-    const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
-    const amount = Math.min(resolveValue(ctx.state, effect.amount, context), player?.hand.length ?? 0);
-    if (!playerId || !player || amount <= 0) {
-      setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
-      return;
-    }
-    if (frame.answer === null) {
-      requestChoice(ctx, {
-        playerId,
-        prompt: { kind: "chooseTarget", slot: "discard", abilityId: null },
-        options: player.hand.map((id) => ({
-          optionId: id,
-          label: mustCardOf(ctx.state, id).name,
-          ref: { kind: "card", instanceId: id },
-        })),
-        minSelections: amount,
-        maxSelections: amount,
-        frameId: frame.frameId,
-      });
-      return;
-    }
-    for (const optionId of frame.answer) discardFromHand(ctx, playerId, asInstanceId(optionId));
-    setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
-    return;
-  }
+  if (effect.kind === "discardFromHand" && effect.random !== true) return executeDiscardFromHand(ctx, frame, effect, context);
 
   if ((effect.kind === "enemyAttack" || effect.kind === "enemyScheme") && orderEnemies(ctx, frame, effect, context)) return;
 
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
+}
+
+const DISCARD_HAND = "_discardHand.";
+
+/**
+ * "Discard N cards from your hand" / "Each player must choose and discard 1 resource of any type from their hand"
+ * (Power Drain): one choice per player, in player order, tracked in the frame's vars (`_discardHand.index`) exactly
+ * the way `dealIndirectDamage` tracks its assigners, so the resolution is one choice at a time and replays
+ * deterministically.
+ *
+ * `filter` narrows the candidates to the cards the text names ("a resource of any type" → a printed resource icon of
+ * any of the four types; ruling, Jan 11, 2026 (3)). A player is asked for at most as many as they actually hold that
+ * match: "must … discard" is satisfied by discarding every matching card when they hold fewer than the count, and a
+ * player who holds none is skipped without a choice. That is the same "do what you can" the random form has always
+ * used (`discardRandomFromHand`; ruling, Feb 28, 2026 (4), a hand of one still discards it).
+ */
+function executeDiscardFromHand(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "discardFromHand" }>,
+  context: EffectContext,
+): void {
+  const { filter } = effect;
+  const players = resolvePlayers(ctx.state, effect.player, context).filter((id) => getPlayer(ctx.state, id)?.eliminated === false);
+  const vars: Record<string, number> = { ...frame.vars };
+  let index = vars[`${DISCARD_HAND}index`] ?? 0;
+  if (frame.answer !== null) {
+    const answering = players[index];
+    if (answering) for (const optionId of frame.answer) discardFromHand(ctx, answering, asInstanceId(optionId));
+    index += 1;
+  }
+  for (; index < players.length; index++) {
+    const playerId = players[index];
+    const player = playerId ? getPlayer(ctx.state, playerId) : undefined;
+    if (!playerId || !player) continue;
+    const candidates = filter ? player.hand.filter((id) => matchesQuery(ctx.state, id, filter, context)) : player.hand;
+    const amount = Math.min(resolveValue(ctx.state, effect.amount, context, ctx.deps), candidates.length);
+    if (amount <= 0) continue;
+    setFrame(ctx, { ...frame, answer: null, vars: { ...vars, [`${DISCARD_HAND}index`]: index } });
+    requestChoice(ctx, {
+      playerId,
+      prompt: { kind: "chooseTarget", slot: "discard", abilityId: null },
+      options: cardOptions(ctx, candidates),
+      minSelections: amount,
+      maxSelections: amount,
+      frameId: frame.frameId,
+    });
+    return;
+  }
+  const cleaned = Object.fromEntries(Object.entries(vars).filter(([key]) => !key.startsWith(DISCARD_HAND)));
+  setFrame(ctx, { ...frame, answer: null, vars: cleaned, cursor: frame.cursor + 1 });
 }
 
 const ENEMY_ORDER_SLOT = "_enemyOrder";

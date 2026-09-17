@@ -237,7 +237,9 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
       scope.vars.add(`${effect.slot}.count`);
       return;
     case "discardEncounterUntil":
+    case "discardDeckUntil":
       scope.slots.add(effect.bind);
+      scope.vars.add(`${effect.bind}.count`);
       return;
     case "moveCards":
     case "enemyAttack":

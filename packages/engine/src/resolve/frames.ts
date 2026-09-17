@@ -13,13 +13,19 @@ export type Frame<K extends StackFrame["kind"]> = Extract<StackFrame, { kind: K 
 
 export const base = (ctx: Ctx) => ({ frameId: nextFrameId(ctx), answer: null }) as const;
 
-export const eventFrame = (ctx: Ctx, event: TriggerEvent, reportTo: ReportTarget | null = null): StackFrame => ({
+/**
+ * `vars` seeds the frame's activation record. An enemy attack/scheme reads its modifications (`atkBonus`, `schBonus`,
+ * `overkill`, `extraBoost`, `threatBonus`) off the event frame, and `modifyAttack` adds to them while the activation
+ * is in progress; seeding them here is how an effect that *initiates* an activation scopes a bonus to exactly it
+ * ("Green Goblin attacks with +X ATK").
+ */
+export const eventFrame = (ctx: Ctx, event: TriggerEvent, reportTo: ReportTarget | null = null, vars: Vars = {}): StackFrame => ({
   ...base(ctx),
   kind: "event",
   event,
   stage: isAnnouncement(event) ? "responses" : "interrupts",
   cancelled: false,
-  vars: {},
+  vars,
   slots: {},
   reportTo,
   endEffects: [],
@@ -64,10 +70,11 @@ export function addFrameSlots(ctx: Ctx, frameId: FrameId | null | undefined, del
  * first. `pushFrames` prepends, so anything that queues per-target events in a
  * loop has to build the whole batch before pushing or it resolves backwards.
  */
-export function pushEvents(ctx: Ctx, events: readonly TriggerEvent[], reportTo: ReportTarget | null = null): void {
+export function pushEvents(ctx: Ctx, events: readonly TriggerEvent[], reportTo: ReportTarget | null = null, vars: Vars = {}): void {
   pushFrames(
     ctx,
-    events.map((event) => eventFrame(ctx, event, reportTo)),
+    // Each event gets its own copy of `vars`: "each enemy attacks with +X ATK" is +X per attack, never cumulative.
+    events.map((event) => eventFrame(ctx, event, reportTo, { ...vars })),
   );
 }
 

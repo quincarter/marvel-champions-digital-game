@@ -52,6 +52,10 @@ export function abilityShortLabelOf(
 ): string | null {
   const printed = activeAbilityRefs(state, instanceId).find((ref) => ref.id === abilityId)?.label;
   if (printed) return printed;
+  // RRG "Special": a card's own printed sub-heading is literally the word "Special" (Invocation cards, Wakanda
+  // Forever!'s targets) — never named on the `AbilityReference` itself (there is nothing else to call it), so this
+  // is the one case where the label isn't traced back to printed data via `.label`/`AbilityCost`.
+  if (deps.abilities[abilityId]?.trigger.kind === "special") return "Special";
   return costPhrase(deps.abilities[abilityId]?.cost);
 }
 

@@ -1,4 +1,4 @@
-import { activeVillain, mainSchemeValue, type Command, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
+import { activeVillain, characterProfile, mainSchemeValue, type Command, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
 import { applyOk, endTurn, firstLegal, identityOf, inst, P1, P2, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
@@ -68,14 +68,45 @@ describe("Death from Above", () => {
   // the same hazard `risky-business.test.ts`'s Oscorp Manufacturing test comment documents.
   it("When Revealed (Alter-Ego): Green Goblin schemes with +X SCH (X = the villain's stage number = 1, so SCH 1+1=2)", () => {
     const { events } = driveEvents(stackEncounterDeck(spiderManVsMutagenFormula(), "02023", "02029"), endTurn());
+    // `enemyScheme`'s own `schBonus` (docs/phase7-wave1-scripting.md §6) echoes the bonus it carried in the
+    // event's own `results`, alongside the threat actually placed.
     expect(events).toContainEqual(
-      expect.objectContaining({ type: "triggerEvent", phase: "resolved", event: expect.objectContaining({ kind: "enemyScheme", results: { threatPlaced: 2 } }) }),
+      expect.objectContaining({
+        type: "triggerEvent",
+        phase: "resolved",
+        event: expect.objectContaining({ kind: "enemyScheme", results: { threatPlaced: 2, schBonus: 1 } }),
+      }),
     );
   });
 
   it("When Revealed (Hero): Green Goblin attacks with +X ATK (X = the villain's stage number = 1, so ATK 2+1=3)", () => {
     const { events } = driveEvents(stackEncounterDeck(spiderManVsMutagenFormula(), "02023", "02029"), toHero(), endTurn());
     expect(events).toContainEqual(expect.objectContaining({ type: "attackResolved", baseAtk: 3, damageDealt: 3 }));
+  });
+
+  /**
+   * Regression test for the `modifyStat(..., theVillain, "endOfPhase")` stand-in this card used before `enemyScheme`/
+   * `enemyAttack` grew their own `schBonus`/`atkBonus` (docs/phase7-wave1-scripting.md §6): that stand-in buffed
+   * every *other* activation in the same villain phase too, so a second copy revealed the same phase stacked to
+   * +2X instead of getting its own independent +X. Two players (each dealt their own encounter card during "deal
+   * encounter cards") reveal a copy each, alter-ego, in the same villain phase.
+   */
+  it("two copies revealed in the same villain phase each get their own independent +X SCH, and the villain's printed SCH is unmodified afterward", () => {
+    const start = spiderManVsMutagenFormula([{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }]);
+    const villain = activeVillain(start).instanceId;
+    const printedSch = characterProfile(start, villain, GOB_DEPS)!.sch;
+    // Two players means two separate "the villain schemes against you" steps, each drawing its own boost card
+    // ahead of "deal encounter cards" — two fillers ("02023") are needed so neither consumes a stacked Death from
+    // Above copy before it can be dealt. Both players must end their own turn before the (shared) villain phase
+    // begins.
+    const { events, state: after } = driveEvents(stackEncounterDeck(start, "02023", "02023", "02029", "02029"), endTurn(P1), endTurn(P2));
+    const schBonusEvents = events.filter(
+      (e): e is GameEvent & { readonly event: { readonly kind: "enemyScheme"; readonly results: { readonly schBonus?: number } } } =>
+        e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "enemyScheme" && e.event.results?.schBonus !== undefined,
+    );
+    expect(schBonusEvents).toHaveLength(2); // one per copy, not one at +1 and a second stacked to +2
+    for (const e of schBonusEvents) expect(e.event.results.schBonus).toBe(1);
+    expect(characterProfile(after, villain, GOB_DEPS)!.sch).toBe(printedSch);
   });
 });
 

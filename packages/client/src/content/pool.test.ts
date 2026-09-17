@@ -8,7 +8,7 @@
 import { describe, expect, test } from "vitest";
 import { CORE_SCENARIOS, CORE_STARTER_DECKS, WAVE1_SCENARIOS, WAVE1_STARTER_DECKS, poolVersionOf } from "@mc/content";
 import { createGame } from "@mc/engine";
-import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_STARTER_DECKS, POOL_VERSION, buildScenario } from "./pool.js";
+import { POOL_CARDS, POOL_DEPS, POOL_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS, POOL_VERSION, buildScenario, packNameOf } from "./pool.js";
 
 describe("POOL_CARDS", () => {
   test("is Core plus every wave 1 pack — noticeably more than Core alone", () => {
@@ -33,6 +33,25 @@ describe("POOL_STARTER_DECKS", () => {
 describe("POOL_VERSION", () => {
   test("is poolVersionOf(POOL_CARDS) — not Core's own version", () => {
     expect(POOL_VERSION).toBe(poolVersionOf(POOL_CARDS));
+  });
+});
+
+describe("packNameOf", () => {
+  test("names every scenario pack code the pool's scenarios actually use", () => {
+    for (const scenario of POOL_SCENARIOS) {
+      expect(packNameOf(scenario.packCode as string), scenario.packCode as string).not.toBe(scenario.packCode as string);
+    }
+    expect(packNameOf("twc")).toBe("The Wrecking Crew");
+    expect(packNameOf("core")).toBe("Core Set");
+  });
+
+  test("falls back to the code itself for one the pool doesn't know", () => {
+    expect(packNameOf("nope")).toBe("nope");
+  });
+
+  test("POOL_PACKS covers Core and every wave 1 pack, with no duplicate codes", () => {
+    expect(POOL_PACKS.length).toBe(9);
+    expect(new Set(POOL_PACKS.map((p) => p.code as string)).size).toBe(9);
   });
 });
 

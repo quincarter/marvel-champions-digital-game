@@ -118,6 +118,34 @@ const statusOf = (state: GameState): SaveStatus =>
 
 const describeCause = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
 
+/** What rebuilding a stored game's replay baseline produces. */
+export interface ReplayBaseline {
+  /** The stored baseline with a freshly-built card pool re-attached. */
+  readonly initialState: GameState;
+  /** Setup's own events, not stored — a fresh setup emits the same ones deterministically. */
+  readonly setupEvents: readonly GameEvent[];
+}
+
+/**
+ * Rebuilds a stored game's replay baseline: the same scenario-construction
+ * path `resume` uses, so `resume` and a read-only replay (S7, `view/replay-
+ * cursor.ts`) can never disagree about what a saved log's baseline is. The
+ * card pool isn't stored (`game-storage.ts`), so this always sets the
+ * scenario up fresh to get one and attaches it to the *stored* state — the
+ * stored commands still replay against the stored baseline, never a freshly
+ * generated one.
+ *
+ * Throws `SetupError` if the scenario itself can no longer be set up (a
+ * config referencing content that no longer exists).
+ */
+export function rebuildBaseline(config: SessionConfig, storedInitialState: StateWithoutPool): ReplayBaseline {
+  const fresh = createGame(scenarioFor(config), POOL_DEPS);
+  if (!fresh.ok) {
+    throw new SetupError({ ...fresh.error, message: `this saved game can no longer be set up: ${fresh.error.message}` });
+  }
+  return { initialState: { ...storedInitialState, cardPool: fresh.state.cardPool }, setupEvents: fresh.events };
+}
+
 export class EngineSessionCore {
   #session: GameSession | null = null;
   /** The command count, which is also the version every update is stamped with. */
@@ -205,16 +233,17 @@ export class EngineSessionCore {
       );
     }
 
-    const fresh = createGame(scenarioFor(stored.meta.config), POOL_DEPS);
-    if (!fresh.ok) {
+    let baseline: ReplayBaseline;
+    try {
+      baseline = rebuildBaseline(stored.meta.config, stored.initialState);
+    } catch (cause) {
       await storage.setStatus(gameId, "incompatible");
-      throw new SetupError({ ...fresh.error, message: `this saved game can no longer be set up: ${fresh.error.message}` });
+      throw cause;
     }
-
-    const initialState: GameState = { ...stored.initialState, cardPool: fresh.state.cardPool };
+    const { initialState } = baseline;
     // Setup's own events aren't stored; setup is deterministic from the config,
     // so a fresh setup emits the same ones (the scheme's starting threat among them).
-    let record = recordEvents(emptyRecord(), fresh.events, initialState);
+    let record = recordEvents(emptyRecord(), baseline.setupEvents, initialState);
     let state = initialState;
     for (const [index, command] of stored.commands.entries()) {
       const result = applyCommand(state, command, POOL_DEPS);
@@ -236,7 +265,7 @@ export class EngineSessionCore {
     this.#writes = Promise.resolve();
     this.#saveError = null;
     // No events: a resumed game arrives at its position; it doesn't re-animate getting there.
-    return { cardPool: fresh.state.cardPool, snapshot: this.#snapshot([]) };
+    return { cardPool: initialState.cardPool, snapshot: this.#snapshot([]) };
   }
 
   dispatch(command: Command): CoreDispatch {

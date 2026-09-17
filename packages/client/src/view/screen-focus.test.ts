@@ -43,17 +43,30 @@ describe("screen focus routes", () => {
     ]);
   });
 
-  test("Breakout's villain-version stops sit between difficulty and the hero search", () => {
-    const input = {
-      continuable: false,
-      scenarioIds: ["breakout"],
-      difficulties: ["standard", "expert", "extreme"],
-      villainVersionIds: ["wrecker", "thunderball"],
-      deckIds: ["a"],
-    };
+  test("quick-filter chip stops sit between each search field and its rows, and are absent when there are none", () => {
+    const input = { continuable: false, scenarioIds: ["rhino"], difficulties: ["standard"], deckIds: ["a"] };
+    expect(titleFocusOrder(input)).not.toContain("scenario-chip:product:core");
+    expect(titleFocusOrder(input)).not.toContain("hero-chip:aspect:justice");
+    const withChips = titleFocusOrder({ ...input, scenarioChipIds: ["product:core"], heroChipIds: ["aspect:justice", "playable-now"] });
+    expect(withChips).toEqual([
+      "scenario-search",
+      "scenario-chip:product:core",
+      "scenario:rhino",
+      "difficulty:standard",
+      "hero-search",
+      "hero-chip:aspect:justice",
+      "hero-chip:playable-now",
+      "hero:a",
+      "seed",
+      "new-seed",
+      "start",
+    ]);
+  });
+
+  test("Breakout's own difficulty stops (including extreme) sit in the normal difficulty row — no separate per-villain row", () => {
+    const input = { continuable: false, scenarioIds: ["breakout"], difficulties: ["standard", "expert", "extreme"], deckIds: ["a"] };
     const order = titleFocusOrder(input);
-    expect(order.indexOf("difficulty:extreme")).toBeLessThan(order.indexOf("villain-version:wrecker"));
-    expect(order.indexOf("villain-version:thunderball")).toBeLessThan(order.indexOf("hero-search"));
+    expect(order).toEqual(["scenario-search", "scenario:breakout", "difficulty:standard", "difficulty:expert", "difficulty:extreme", "hero-search", "hero:a", "seed", "new-seed", "start"]);
   });
 
   test("the Decks screen gives every deck row a stop, not just the ones currently on screen", () => {

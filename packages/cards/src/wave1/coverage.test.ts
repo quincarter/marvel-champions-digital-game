@@ -65,13 +65,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "not started">> = {
  * (docs/phase7-wave1-scripting.md §4, "missing primitive → record and skip"). Pinned exactly: a scripted pack must
  * resolve every other ref, and each listed ref must still be unresolved, so an entry can't go stale.
  */
-const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // Power Drain: a per-player hand discard needs both a live count and a resource-type filter, which no existing
-  // primitive combines (see `gob/power-drain.ts`'s doc comment for the exact shape proposed).
-  gob: ["02041.when-defeated"],
-  // Teen Spirit: discard from a player deck until a match (no player-deck `discardEncounterUntil`).
-  msm: ["05001b.teen-spirit"],
-};
+const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {};
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
   { code: "gob", cards: GOB_CARDS },

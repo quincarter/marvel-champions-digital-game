@@ -1,4 +1,28 @@
-import { after, boost, boostIconsOn, cards, chosen, defineAbilities, forcedResponse, heal, ifThen, perHero, putIntoPlay, query, selectCards, surge, theVillain, varAtLeast, varOf, whenRevealed, you } from "../../dsl/index.js";
+import {
+  ANY_RESOURCE,
+  after,
+  boost,
+  boostIconsOn,
+  cards,
+  chosen,
+  defineAbilities,
+  discardFromHand,
+  eachPlayer,
+  forcedResponse,
+  heal,
+  ifThen,
+  perHero,
+  putIntoPlay,
+  query,
+  selectCards,
+  surge,
+  theVillain,
+  varAtLeast,
+  varOf,
+  whenDefeated,
+  whenRevealed,
+  you,
+} from "../../dsl/index.js";
 import { dealIndirectDamage, discardEncounterCards } from "./local.js";
 
 /**
@@ -6,6 +30,18 @@ import { dealIndirectDamage, discardEncounterCards } from "./local.js";
  * (02043, treachery), Lightning Bolt (02044, treachery), Shock Therapy (02045, treachery).
  */
 export const POWER_DRAIN = defineAbilities({
+  // Power Drain — When Defeated: Discard 2 cards from the encounter deck. Each player must choose and discard 1
+  // resource of any type from their hand for each boost icon discarded this way. `discardFromHand`'s `filter`
+  // (wave B primitives batch, docs/phase7-wave1-scripting.md §6) now walks every player `eachPlayer` names, one
+  // choice at a time in player order, so no `forEachPlayer` wrapper is needed here. "A resource of any type" is a
+  // card with a printed resource icon of any of the four types RRG 1.8 "Resource" (p. 37) lists — `ANY_RESOURCE`
+  // — not a card of the `resource` *type*: ruling, Jan 11, 2026 (3), "the discarded card must have a resource icon
+  // printed in its bottom-left corner", the same reading Tombstone (02047) uses.
+  "02041.when-defeated": whenDefeated(
+    discardEncounterCards(2, { bind: "pd" }),
+    discardFromHand(varOf("pd.boostIcons"), eachPlayer, { filter: ANY_RESOURCE }),
+  ),
+
   // Electro — [star] Forced Response: After Electro attacks you, discard 1 card from the encounter deck. Take 1
   // indirect damage for each boost icon discarded this way (exactly 1 card, so no sum is needed).
   "02042.electro-forced-response": forcedResponse(
@@ -52,18 +88,7 @@ export const POWER_DRAIN = defineAbilities({
  * (02043) above depend on, so swapping onto `moveCards` for the sum would have been a real behavior change, not an
  * equivalent rephrasing). Both are scripted above now.
  *
- * **Still skipped: `02041.when-defeated` (Power Drain)**, current text unchanged from printed: "When Defeated:
- * Discard 2 cards from the encounter deck. Each player must choose and discard 1 resource of any type from their
- * hand for each boost icon discarded this way." This needs a *second*, independent primitive the boost-icon-sum
- * batch didn't add: a per-player hand discard whose **count is a live value** (the summed boost icons, known only
- * at resolution time) **and** whose candidates are filtered to resource-type cards. `chooseCards`'s `min`/`max`
- * (`packages/engine/src/spec.ts`) are plain `number`s, not a `ValueSpec`, so a dynamically-computed count can't be
- * expressed there. `EffectSpec.discardFromHand` does take a live `ValueSpec` amount and already opens a real
- * "which cards" choice (`packages/engine/src/resolve/effects-frame.ts`), which is the closer of the two existing
- * primitives — but it lists every hand card as a candidate, with no filter, so it can't restrict to "a resource of
- * any type" either. Closest existing primitive: `EffectSpec.discardFromHand`. Proposed shape: an optional
- * `filter?: TargetQuery` on `discardFromHand`, checked the same way `zone(...).filter` already is, so
- * `discardFromHand(varOf("pd.boostIcons"), thatPlayer, { filter: { anyPrintedResource: [...] } })` reads the whole
- * sentence in one `forEachPlayer`. Flagged for `game-rules-architect`.
+ * **`02041.when-defeated` (Power Drain)** was the pack's last skip in this module until `discardFromHand`'s own
+ * `filter` and its per-player walk (wave B primitives batch, docs/phase7-wave1-scripting.md §6) landed 2026-09-17;
+ * scripted above.
  */
-export const POWER_DRAIN_SKIPPED = ["02041.when-defeated"] as const;

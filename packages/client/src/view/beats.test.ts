@@ -51,6 +51,16 @@ describe("beatsFrom", () => {
     expect(beats[0]!.anchor).toBe("hero-1");
   });
 
+  test("anchors a resolved ability on the card whose ability it is — an Invocation Special with no other beat-worthy event still shows something", () => {
+    const beats = beatsFrom([
+      { type: "abilityResolved", instanceId: id("invocation-1"), abilityId: "09036.winds-of-watoomb-special" as never, controllerId: "p1" as never },
+    ]);
+    expect(beats).toHaveLength(1);
+    expect(beats[0]!.anchor).toBe("invocation-1");
+    expect(beats[0]!.text).toBe("RESOLVED");
+    expect(beats[0]!.tone).toBe("status");
+  });
+
   test("stays quiet about the engine talking to itself", () => {
     const events: GameEvent[] = [
       { type: "framePopped", frameId: "f1" as never, frame: "ability" as never },

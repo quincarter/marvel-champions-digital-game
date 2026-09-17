@@ -26,6 +26,11 @@ import { dimAlpha, targetState } from "./selection.js";
  */
 const MIN_PANEL_TEXT_WIDTH = 104;
 
+/** "1 time" / "2 time, 1 snoop" — every counter kind on the card itself, in one short line. */
+function counterLine(counters: CharacterPanel["counters"]): string {
+  return counters.map((counter) => `${counter.count} ${counter.name}`).join(", ");
+}
+
 /** Which starburst each stat tile draws as. */
 const BADGE_STAT: Record<Exclude<StatTile["label"], "HP">, StatKey> = {
   THW: "thw",
@@ -80,18 +85,6 @@ export function drawCharacter(ctx: BoardDrawContext, rect: Rect, panel: Characte
 
   const left = rect.x + 8 + (artWidth > 0 ? artWidth + 6 : 0);
   const textWidth = Math.max(40, rect.x + rect.width - 8 - left);
-  /**
-   * Stats in a row beside the card, the HP plate under them, pinned to the foot
-   * of the text column — never over the card on a wide panel. An identity's scan
-   * is shown whole so its rules text can be read, and badges stacked over its
-   * printed icons covered that text ("Spider-Sense — Interrupt…"). Laid out
-   * before anything above it is placed, so the chips know where to stop.
-   */
-  const statBlock = statBlockLayout(
-    { x: left, y: rect.y, width: textWidth, height: rect.height - 8 },
-    panel.stats.filter((tile) => tile.label !== "HP").length,
-    panel.hp !== null,
-  );
   let top = rect.y + 6;
 
   const name = scene.add
@@ -120,11 +113,34 @@ export function drawCharacter(ctx: BoardDrawContext, rect: Rect, panel: Characte
     label(scene, left, top, `boost ?? ×${panel.boostCount}`, typeRole.label, surface.ink.hex, ink.meta * dim);
     top += 14;
   }
+  if (panel.counters.length > 0) {
+    label(scene, left, top, counterLine(panel.counters), typeRole.label, surface.ink.hex, ink.meta * dim);
+    top += 14;
+  }
   const abilityLine = controller.abilityLine(panel.instanceId);
   if (abilityLine) {
     drawFootStrip(scene, { x: left, y: top, width: textWidth, height: 18 }, abilityLine, "ability", dim);
     top += 22;
   }
+
+  /**
+   * Stats in a row beside the card, the HP plate under them, pinned to the foot
+   * of the text column — never over the card on a wide panel. An identity's scan
+   * is shown whole so its rules text can be read, and badges stacked over its
+   * printed icons covered that text ("Spider-Sense — Interrupt…").
+   *
+   * Laid out here, against what's actually left below the header (`top`) rather
+   * than the column's full height from `rect.y` — a villain's fixed, short
+   * panel height gave a max-size two-stat badge row + HP plate no room to sit
+   * under "Villain · Stage II" without also reaching up over it, and since this
+   * used to be laid out (and drawn) before the header, the badges painted right
+   * over that subtitle.
+   */
+  const statBlock = statBlockLayout(
+    { x: left, y: top, width: textWidth, height: Math.max(0, rect.y + rect.height - 8 - top) },
+    panel.stats.filter((tile) => tile.label !== "HP").length,
+    panel.hp !== null,
+  );
 
   /**
    * Attachments hanging off this card — an upgrade on your identity, a
@@ -153,7 +169,7 @@ export function drawCharacter(ctx: BoardDrawContext, rect: Rect, panel: Characte
    */
   const chipTargets: { readonly rect: Rect; readonly instanceId: InstanceId }[] = [];
   for (const attachment of panel.attachments.slice(0, 4)) {
-    if (top + 16 > rect.y + rect.height - 8 - statBlock.height - 4) break;
+    if (top + 16 > statBlock.top - 4) break;
     const usable = controller.selection.kind === "idle" && (ctx.marks?.usableAbilities.has(attachment.instanceId) ?? false);
     const chip: Rect = { x: left, y: top, width: textWidth, height: 16 };
     const cg = scene.add.graphics();
@@ -233,6 +249,12 @@ function drawCardShapedPanel(ctx: BoardDrawContext, rect: Rect, panel: Character
   const abilityLine = rect.height >= 40 ? controller.abilityLine(panel.instanceId) : null;
   const strips: { readonly text: string; readonly tone: FootTone }[] = [];
   if (panel.ownerName && rect.height >= 40) strips.push({ text: `from ${panel.ownerName}`, tone: "note" });
+  // Counters the card itself holds — Quinjet's time counters (`03019`), the
+  // reason it has a support-shaped slot in the play area at all: "put an
+  // Avenger ally into play with cost <= the number of time counters on
+  // Quinjet" reads as broken when nothing on the table ever says how many
+  // there are (PLAN.md Phase 7, "the board has to show counters on a support").
+  if (panel.counters.length > 0 && rect.height >= 40) strips.push({ text: counterLine(panel.counters), tone: "note" });
   if (abilityLine) strips.push({ text: abilityLine, tone: "ability" });
   const stripHeight = Math.min(20, Math.max(14, Math.round(inner.height * 0.1)));
   const reserved = strips.length * stripHeight;

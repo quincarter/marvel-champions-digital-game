@@ -10,6 +10,7 @@ import {
   chooseCards,
   chosen,
   defineAbilities,
+  discardDeckUntil,
   draw,
   eventTarget,
   exhaustThis,
@@ -19,6 +20,7 @@ import {
   instead,
   interrupt,
   moveCards,
+  oncePerRound,
   preventDamage,
   query,
   reduceNextCardCost,
@@ -84,21 +86,13 @@ const afterYouPlay = (traits: readonly Trait[]): EventPattern => ({ on: "cardPla
  * Me! 05013, The Power of Protection 05016, Energy 05019, Genius 05020, Strength 05021, Avengers Mansion 05022) are
  * aliased from Core by `../reprints.ts`, not scripted here — see `docs/phase7-wave1-scripting.md`.
  *
- * **One identity ability is still intentionally unscripted** (a missing engine primitive — docs/phase7-wave1-scripting.md
- * §4, "record and skip"). "Morphogenetics" (05001a) was a second skip for the same reason until `TargetQuery.anyTrait`
- * landed 2026-09-15; it's now scripted below (`afterYouPlay`, above).
- *
- * - **"Teen Spirit" (05001b)** — Action: Discard cards from the top of your deck until you discard a Ms. Marvel
- *   card, then add that card to your hand. (Limit once per round.) `EffectSpec discardEncounterUntil` (spec.ts) —
- *   the only "discard from the top until a match" primitive that exists — reads only the active villain's
- *   encounter deck (`apply-effect.ts`'s `discardEncounterUntil` case calls `activeEncounterDeckId`/
- *   `encounterDeckOf` directly); there is no equivalent over a player's own deck. Closest existing primitive:
- *   `discardEncounterUntil { filter, bind }`. Proposed shape: `discardDeckUntil { player, filter, bind }` — same
- *   "discard from the top, stop at (and include) the first match, bound to `bind`, bounded by deck+discard length
- *   so a deck with no match can't loop forever" semantics, over `zone("deck", player)` instead of the encounter
- *   deck (RRG 1.8 "Deck", p. 15, governs a player deck's own reshuffle-on-empty the same way). **Verified
- *   2026-09-16 (wave B primitives batch)**: `discardDeckUntil` was not among the 12 primitives that batch landed;
- *   still unresolved, unchanged from this description.
+ * **No identity ability is unscripted any longer.** "Morphogenetics" (05001a) was a skip until `TargetQuery.anyTrait`
+ * landed 2026-09-15; "Teen Spirit" (05001b) was the pack's last skip until `discardDeckUntil` (`dsl/effects.ts`,
+ * engine `spec.ts`/`apply-effect.ts`) landed 2026-09-17 — the player-deck analog of `discardEncounterUntil`. "A
+ * Ms. Marvel card" is `{ identitySetOf: you }` (RRG 1.8 "Identity-Specific Card", p. 23): it matches her signature
+ * allies/events/upgrades/supports, not a basic/aspect card played alongside them. The match is left in the discard
+ * pile by `discardDeckUntil` itself; `moveCards` picks it up from there. Nothing is bound (so `moveCards` is a
+ * no-op) when the deck (and discard pile) hold no match.
  *
  * **"Embiggen!" (05010)** was a third skip for the same reason (a confirmed engine bug: the `attack` effect ignored
  * `cardEffectBonus`) until the 2026-09-15 fix (`packages/engine/src/resolve/apply-effect.ts`'s `"attack"` case now
@@ -106,7 +100,13 @@ const afterYouPlay = (traits: readonly Trait[]): EventPattern => ({ on: "cardPla
  * it's now scripted below, identically to Shrink's own interrupt over `threatRemoved`.
  */
 export const MSM_KIT = defineAbilities({
-  // "05001b.teen-spirit" — intentionally absent; see the module doc comment above.
+  // Teen Spirit — Action: Discard cards from the top of your deck until you discard a Ms. Marvel card, then add
+  // that card to your hand. (Limit once per round.)
+  "05001b.teen-spirit": alterEgoAction(
+    { limit: oncePerRound },
+    discardDeckUntil({ identitySetOf: you }, "found"),
+    moveCards(cards(chosen("found")), "hand"),
+  ),
 
   // Morphogenetics — Response: After you play an Attack, Thwart, or Defense event, exhaust Ms. Marvel → return
   // that event to your hand.

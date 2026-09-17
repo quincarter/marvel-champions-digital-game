@@ -11,7 +11,7 @@ import type { GameState, InstanceId, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { boardModel, characterPanel, deckAspect, faceOf } from "./board-model.js";
+import { boardModel, characterPanel, deckAspect, faceOf, schemePanel } from "./board-model.js";
 import { artFor, CARD_BACKS } from "../art/art-source.js";
 import { highlights } from "./highlights.js";
 
@@ -408,4 +408,37 @@ describe("facedown minions", () => {
     expect(panel.stats.length).toBeGreaterThan(0);
     for (const tile of panel.stats) expect(tile.bonus).toBe(0);
   }, 120_000);
+});
+
+describe("a card tucked under a scheme", () => {
+  /**
+   * RRG "Tuck": Highway Robbery (`01166`, Core) and Doctor Strange's Open the
+   * Dark Dimension (`09029`, wave 1) both place a card facedown under a side
+   * scheme. `CardInstance.tucked` already tracked this; nothing on the board
+   * ever read it, so a card genuinely in play (out of the deck, out of the
+   * discard) was invisible everywhere (PLAN.md Phase 7's Invocation-deck
+   * bug report: "a card held under Open the Dark Dimension shown as held
+   * there"). Only the *count* is shown — a tucked card is hidden information
+   * (`view/visibility.ts`), the same "present, not named" treatment
+   * `boostCount` already gives a facedown boost card — so this is exercised
+   * with a synthetic instance rather than a real reveal, the same way
+   * `packages/engine/src/separate-deck.test.ts` proves the engine half with
+   * a synthetic "Open the Dark Dimension" fixture.
+   */
+  test("schemePanel reports how many cards are tucked under it, without naming them", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 2 });
+    const state = store.state.game!;
+    const schemeId = state.mainScheme.instanceId;
+    const hiddenId = state.players[0]!.deck[0]!;
+    const tucked: GameState = {
+      ...state,
+      instances: { ...state.instances, [schemeId]: { ...state.instances[schemeId]!, tucked: [hiddenId] } },
+    };
+    const panel = schemePanel(tucked, schemeId, CORE_DEPS, true);
+    expect(panel.tuckedCount).toBe(1);
+    expect(panel.subtitle).toContain("1 tucked");
+    // Hidden information stays hidden: nothing on the panel names the card.
+    expect(JSON.stringify(panel)).not.toContain(hiddenId as unknown as string);
+  });
 });

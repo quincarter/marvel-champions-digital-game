@@ -13,7 +13,7 @@
  */
 
 import Phaser from "phaser";
-import type { ChoiceRef, GameState, InstanceId, PendingChoice, PlayerId } from "@mc/engine";
+import { cardOf, type ChoiceRef, type GameState, type InstanceId, type PendingChoice, type PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
@@ -25,6 +25,7 @@ import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
+import { choiceHeaderInstanceId, choiceHeaderText } from "../view/choice-source.js";
 import { seatIdentityName } from "../view/names.js";
 import {
   canConfirmChoice,
@@ -191,11 +192,27 @@ export class ChoiceOverlay extends Phaser.Scene {
       titleRight = nameRight - 120;
     }
 
+    // Which card (and, where it can be pinned down, which ability) is actually asking — "Crimson Bands of Cyttorak
+    // — Special: choose a target" rather than a bare, anonymous "Choose a target" (`view/choice-source.ts`'s own
+    // doc comment covers what is and isn't derivable, and the one real engine gap it found doing this without
+    // touching the engine). A thumb on the left mirrors the decider's own thumb on the right.
+    let titleLeft = bar.x + 10;
+    const sourceInstanceId = state.game ? choiceHeaderInstanceId(state.game, choice) : null;
+    if (sourceInstanceId !== null && state.game) {
+      const source = artFor(cardOf(state.game, sourceInstanceId), faceOf(state.game, sourceInstanceId));
+      if (source) {
+        const thumb: Rect = { x: titleLeft, y: bar.y + 5, width: 32, height: bar.height - 10 };
+        const key = cardArt(this).request(this, source);
+        if (drawArt(this, key, thumb, { fit: "cover" })) titleLeft = thumb.x + thumb.width + 8;
+      }
+    }
+
+    const titleText = state.game ? choiceHeaderText(state.game, choice, POOL_DEPS, promptTitle(choice.prompt.kind)) : promptTitle(choice.prompt.kind);
     const title = this.add
-      .text(bar.x + 10, bar.y + bar.height / 2, promptTitle(choice.prompt.kind), textStyle(typeRole.barTitle, surface.paper.hex))
+      .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
-    fitText(title, Math.max(60, titleRight - (bar.x + 10)), typeRole.barTitle.size);
+    fitText(title, Math.max(60, titleRight - titleLeft), typeRole.barTitle.size);
 
     // Why this player is the one deciding. The villain-phase screen's
     // "auto-advance paused" wording belongs to that screen, not here.

@@ -178,21 +178,34 @@ export const bindTargets = (slot: string, target: TargetRef): EffectSpec => ({ k
 // Enemy actions, attack/scheme modification, prevention and cancellation
 // ---------------------------------------------------------------------------
 
+/**
+ * "Rhino attacks you" / "Green Goblin attacks with +X ATK" (Death from Above).
+ *
+ * `atkBonus` is scoped to exactly the attack this call initiates — use it, never a `modifyStat(..., "endOfPhase")`
+ * ahead of the call, which would also buff any *other* activation in the same phase (a second copy of the card, a
+ * surge chain, another player's reveal).
+ */
 export const enemyAttack = (
   enemies: TargetRef,
-  opts: { readonly against?: PlayerRef; readonly bind?: string; readonly additionalResolution?: boolean } = {},
+  opts: { readonly against?: PlayerRef; readonly bind?: string; readonly additionalResolution?: boolean; readonly atkBonus?: Amount } = {},
 ): EffectSpec => ({
   kind: "enemyAttack",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
   ...(opts.additionalResolution ? { additionalResolution: true } : {}),
+  ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
 });
-export const enemyScheme = (enemies: TargetRef, opts: { readonly against?: PlayerRef; readonly bind?: string } = {}): EffectSpec => ({
+/** "The villain schemes" / "Green Goblin schemes with +X SCH" — `enemyAttack`'s `atkBonus`, for a scheme activation. */
+export const enemyScheme = (
+  enemies: TargetRef,
+  opts: { readonly against?: PlayerRef; readonly bind?: string; readonly schBonus?: Amount } = {},
+): EffectSpec => ({
   kind: "enemyScheme",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
+  ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
 });
 export const modifyAttack = (change: { readonly overkill?: boolean; readonly extraBoostCards?: number; readonly atkBonus?: Amount; readonly threatBonus?: Amount }): EffectSpec => ({
   kind: "modifyAttack",
@@ -342,12 +355,30 @@ export const chooseCards = (
 export const shuffleDeck = (player: PlayerRef = you): EffectSpec => ({ kind: "shuffleDeck", player });
 export const changeForm = (player: PlayerRef = you, to?: "hero" | "alterEgo"): EffectSpec => ({ kind: "changeForm", player, ...(to ? { to } : {}) });
 export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({ kind: "resolveSpecials", cards: cardsQuery });
-export const discardFromHand = (n: Amount, player: PlayerRef = you, opts: { readonly random?: boolean } = {}): EffectSpec => ({
+/**
+ * "Discard N cards from your hand". `player` may be `eachPlayer`: each chooses from their own hand, in player order.
+ *
+ * `filter` narrows which hand cards count: "1 resource of any type" (Power Drain) is `{ filter: ANY_RESOURCE }`, a
+ * card with a printed resource icon of any of the four types. A player holding fewer matching cards than `n`
+ * discards every matching one they hold.
+ */
+export const discardFromHand = (
+  n: Amount,
+  player: PlayerRef = you,
+  opts: { readonly random?: boolean; readonly filter?: TargetQuery } = {},
+): EffectSpec => ({
   kind: "discardFromHand",
   player,
   amount: amount(n),
   ...(opts.random ? { random: true } : {}),
+  ...(opts.filter ? { filter: opts.filter } : {}),
 });
+
+/**
+ * "A resource of any type": a card with a printed resource icon of any of the four types RRG 1.8 "Resource" (p. 37)
+ * lists. Printed icons only — the bottom-left corner, not a resource an ability generates (ruling, Jan 11, 2026 (3)).
+ */
+export const ANY_RESOURCE: TargetQuery = { anyPrintedResource: ["physical", "mental", "energy", "wild"] };
 /** "Discard 1 card at random from your hand". */
 export const discardAtRandom = (n: Amount = 1, player: PlayerRef = you): EffectSpec => discardFromHand(n, player, { random: true });
 export const putIntoPlay = (card: TargetRef, controller: PlayerRef = you): EffectSpec => ({ kind: "putIntoPlay", card, controller });
@@ -370,6 +401,17 @@ export const selectCards = (slot: string, from: CardSelector): EffectSpec => ({ 
 export const revealCard = (target: TargetRef, player: PlayerRef = you): EffectSpec => ({ kind: "revealCard", cards: target, player });
 export const shuffleEncounterDeck = (): EffectSpec => ({ kind: "shuffleEncounterDeck" });
 export const discardEncounterUntil = (filter: TargetQuery, bind: string): EffectSpec => ({ kind: "discardEncounterUntil", filter, bind });
+/**
+ * "Discard cards from the top of your deck until you discard a Ms. Marvel card, then add that card to your hand"
+ * (Teen Spirit): follow it with `moveCards(cards(chosen(bind)), "hand")`. The match is left in the discard pile, and
+ * nothing is bound when the deck runs out first (RRG 1.8 "Player Deck", p. 33 — see `EffectSpec.discardDeckUntil`).
+ */
+export const discardDeckUntil = (filter: TargetQuery, bind: string, player: PlayerRef = you): EffectSpec => ({
+  kind: "discardDeckUntil",
+  player,
+  filter,
+  bind,
+});
 export const tuckCards = (from: CardSelector, under: TargetRef, facedown = false): EffectSpec => ({
   kind: "tuckCards",
   cards: from,

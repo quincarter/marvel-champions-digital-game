@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import { activeVillain, remainingHitPoints, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { activeVillain, applyCommand, remainingHitPoints, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -13,6 +13,7 @@ import {
   picking,
   play,
   playerOf,
+  putOnTopOfDeck,
   settle,
   settleUntil,
   toHero,
@@ -78,6 +79,66 @@ describe("Ms. Marvel kit", () => {
     expect(playerOf(after, P1).hand).toContain(bigHands);
     expect(playerOf(after, P1).discard).not.toContain(bigHands);
     expect(inst(after, identity).exhausted).toBe(true);
+  });
+
+  it('"Teen Spirit": discards down to the first Ms. Marvel card and only that one goes to hand', () => {
+    const start = msmVsRhino();
+    // Nova (05012, protection ally) and Energy (05019, basic resource) print no [Ms. Marvel] set icon, so neither
+    // is "a Ms. Marvel card" even though both are real cards from her own precon; Red Dagger (05002, aspect
+    // "hero:05001a") is her signature ally and is the one the search should stop on.
+    const stacked = putOnTopOfDeck(start, P1, "05012", "05019", "05002");
+    const [nova, energy, redDagger] = stacked.ids as [InstanceId, InstanceId, InstanceId];
+    const deckBefore = playerOf(stacked.state, P1).deck;
+    const identity = identityOf(stacked.state);
+    const after = runMsm(stacked.state, use(P1, identity, "05001b.teen-spirit"));
+    expect(playerOf(after, P1).hand).toContain(redDagger);
+    expect(playerOf(after, P1).discard).toEqual(expect.arrayContaining([nova, energy]));
+    expect(playerOf(after, P1).discard).not.toContain(redDagger);
+    // The search stops at the match: everything under it is still untouched, at the top of the deck.
+    expect(playerOf(after, P1).deck).toEqual(deckBefore.slice(3));
+  });
+
+  it('"Teen Spirit": limit once per round', () => {
+    const start = msmVsRhino();
+    const stacked = putOnTopOfDeck(start, P1, "05002");
+    const [redDagger] = stacked.ids as [InstanceId];
+    const identity = identityOf(stacked.state);
+    const after = runMsm(stacked.state, use(P1, identity, "05001b.teen-spirit"));
+    expect(playerOf(after, P1).hand).toContain(redDagger);
+    // Put another signature card back on top and try again the same round: rejected by "Limit once per round."
+    const given = putOnTopOfDeck(after, P1, "05003");
+    const rejected = applyCommand(given.state, use(P1, identity, "05001b.teen-spirit"), MSM_DEPS);
+    expect(rejected.ok).toBe(false);
+  });
+
+  it('"Teen Spirit": an Alter-Ego action, illegal in hero form', () => {
+    const start = msmVsRhino();
+    const hero = runMsm(start, toHero());
+    const identity = identityOf(hero);
+    const rejected = applyCommand(hero, use(P1, identity, "05001b.teen-spirit"), MSM_DEPS);
+    expect(rejected.ok).toBe(false);
+  });
+
+  it('"Teen Spirit": stops when the deck empties mid-discard, never reaching a match already in the discard pile', () => {
+    const start = msmVsRhino();
+    // Every other copy of a Ms. Marvel signature card (the "msm-protection" starter runs more than one copy of
+    // Big Hands/Sneak By/Wiggle Room) moves out of the deck's way into hand...
+    const cleared = moveToHand(
+      start,
+      P1,
+      "05003", "05003", "05003",
+      "05004", "05004", "05004",
+      "05005", "05005",
+      "05006", "05007", "05008", "05009", "05010", "05011",
+    ).state;
+    // ...and the one remaining match (Red Dagger) sits in the discard pile the whole time, never reachable this way
+    // once the (now matchless) deck runs out (RRG 1.8 "Player Deck", p. 33).
+    const { state: withDiscard, id: redDagger } = moveToDiscard(cleared, P1, "05002");
+    const identity = identityOf(withDiscard);
+    const after = runMsm(withDiscard, use(P1, identity, "05001b.teen-spirit"));
+    expect(playerOf(after, P1).hand).not.toContain(redDagger);
+    expect(playerOf(after, P1).discard).toContain(redDagger);
+    expect(playerOf(after, P1).deck).toEqual([]);
   });
 
   it("Red Dagger: an Interrupt that replaces his own defeat, paid with 2 resources of different types", () => {

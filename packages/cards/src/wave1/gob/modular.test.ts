@@ -1,5 +1,6 @@
-import { activeVillain, applyCommand, type Command, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
-import { applyOk, endTurn, firstLegal, identityOf, inst, moveToHand, P1, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { cardId } from "@mc/content";
+import { activeEncounterDeck, activeVillain, applyCommand, type Command, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
+import { applyOk, endTurn, firstLegal, identityOf, inst, moveToHand, P1, patchInstance, payWith, picking, play as playCommand, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
 
@@ -137,6 +138,37 @@ describe("Power Drain", () => {
     // reaches solo.
     const after = play(stackEncounterDeck(damaged, "02012", "02045", "02042"), endTurn());
     expect(inst(after, villain).damage).toBe(3); // 5 - 2 healed
+  });
+
+  it("Power Drain (the side scheme itself): When Defeated, discards 2 encounter cards, then each player discards 1 resource per boost icon discarded that way", () => {
+    const start = spiderManVsRiskyBusiness(["power_drain"]);
+    // 02012 is Norman's own boost-card draw; Power Drain (02041, starting threat 0 + 2/player = 2 solo) is this
+    // round's encounter card dealt to P1, entering play as a side scheme with no ability of its own until defeated;
+    // Electro (02042, 2 boost icons) and Electromagnetic Pulse (02043, 2 boost icons) wait right behind it,
+    // untouched by anything else, to be the exact 2 cards its own "When Defeated" discards.
+    const round1 = play(stackEncounterDeck(start, "02012", "02041", "02042", "02043"), endTurn());
+    const powerDrain = Object.keys(round1.instances).find((id) => round1.instances[id as never]?.cardId === "02041") as InstanceId;
+    expect(powerDrain).toBeDefined();
+    expect(round1.villainArea).toContain(powerDrain);
+    expect(inst(round1, powerDrain).threat).toBe(2);
+
+    // Round 2, hero form: "For Justice!" (01060, Hero Action (thwart): remove 3 threat from a scheme) is enough on
+    // its own to defeat the 2-threat side scheme outright.
+    const given = moveToHand(round1, P1, "01060");
+    const [forJustice] = given.ids as [InstanceId];
+    const hero = runGob(given.state, toHero());
+    const midPlay = runGob(hero, playCommand(P1, forJustice, payWith(hero, P1, 2, [forJustice])));
+    // Every printed player card carries a resource icon, so `ANY_RESOURCE` matches every hand card here — the
+    // final hand size is exactly `min(handAtPromptTime, 4)` fewer (2 boost icons summed across the 2 discards).
+    const handAtPromptTime = playerOf(midPlay, P1).hand.length;
+    // Settle "a scheme" (choose Power Drain, the only side scheme in play, over the main scheme) then the
+    // "discard 1 resource of any type" choice (any legal pick proves the count, not which specific cards).
+    const after = settle(midPlay, picking(powerDrain), undefined, GOB_DEPS);
+
+    expect(after.villainArea).not.toContain(powerDrain); // the side scheme itself is defeated and leaves play
+    const discardedCardIds = activeEncounterDeck(after).discard.map((id) => inst(after, id).cardId);
+    expect(discardedCardIds).toEqual(expect.arrayContaining([cardId("02042"), cardId("02043")]));
+    expect(playerOf(after, P1).hand.length).toBe(Math.max(0, handAtPromptTime - 4));
   });
 });
 

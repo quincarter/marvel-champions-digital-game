@@ -305,6 +305,8 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       const reduction = frame.basicDefense && defenderProfile?.kind === "identity" ? defenderProfile.def : 0;
       // A dashed ATK is an unmodifiable 0 (RRG 1.8 "Dash (Value)"), so "+N ATK for this attack" doesn't raise it, but
       // boost icons are still added (FAQ "Green Goblin (#1B)", p. 59: a flip mid-attack deals 0 plus the icons).
+      // `atkBonus` covers both a `modifyAttack` on the attack in progress and an `enemyAttack.atkBonus` the effect
+      // that initiated this attack seeded onto it ("attacks with +X ATK").
       const atk = enemyProfile.atk + (enemyProfile.missing.includes("atk") ? 0 : (vars.atkBonus ?? 0));
       addFrameSlots(ctx, frame.eventFrameId, { target: [frame.targetInstanceId] });
       const damage = Math.max(0, atk + frame.boostIcons - reduction);
@@ -381,11 +383,16 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       setFrame(ctx, { ...frame, stage: "done" });
       const profile = characterProfile(ctx.state, frame.enemyInstanceId, ctx.deps);
       if (!profile) return;
+      const vars = activationVars(ctx, frame.eventFrameId);
+      // "Schemes with +X SCH" (`enemyScheme.schBonus`) raises the enemy's SCH, so a dashed SCH stays "an unmodifiable
+      // 0" (RRG 1.8 "Dash (Value)", p. 15); `threatBonus` ("reduce the amount of threat placed … by 1") changes the
+      // threat itself and applies either way. The two are deliberately separate keys.
+      const sch = profile.sch + (profile.missing.includes("sch") ? 0 : (vars.schBonus ?? 0));
       pushEvent(ctx, {
         kind: "placeThreat",
         // RRG 1.8 "Scheme (Enemy Activation)" step 3 places it on the main scheme unless a constant ability redirects it.
         schemeInstanceId: schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ?? ctx.state.mainScheme.instanceId,
-        amount: Math.max(0, profile.sch + frame.boostIcons + (activationVars(ctx, frame.eventFrameId).threatBonus ?? 0)),
+        amount: Math.max(0, sch + frame.boostIcons + (vars.threatBonus ?? 0)),
         sourceInstanceId: frame.enemyInstanceId,
         parentFrameId: frame.eventFrameId,
       });

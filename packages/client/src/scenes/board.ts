@@ -186,7 +186,7 @@ export class BoardScene extends Phaser.Scene {
       // A resumed game arrives mid-round with no events saying which round, so
       // an empty log starts counting from the state's round rather than "R0".
       if (this.#log.round === 0) this.#log = { ...this.#log, round: state.game.round };
-      this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId);
+      this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId, POOL_DEPS);
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
       // A hero going down is the one change nobody may miss. The last one

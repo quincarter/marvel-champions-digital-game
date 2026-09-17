@@ -27,7 +27,6 @@ import {
   ifThen,
   isAlterEgo,
   modifyAttack,
-  modifyStat,
   moveCards,
   not,
   option,
@@ -181,16 +180,14 @@ export const MUTAGEN_FORMULA = defineAbilities({
   ),
 
   // Death from Above — When Revealed (Alter-Ego): Green Goblin schemes with +X SCH, where X is the villain's stage
-  // number. `modifyStat`'s `until` has no "end of this scheme/attack activation" option (`LastingUntil` is only
-  // "endOfPhase"/"endOfRound"/"endOfAttack") — and `until: "endOfAttack"` specifically only takes effect while an
-  // attack activation is already in progress (`resolve/apply-effect.ts`'s `modifyStatUntil` case silently drops it
-  // otherwise: "if (... (effect.until === 'endOfAttack' && !activation)) return;"), which is never true here since
-  // this bonus must apply *before* the attack/scheme it's meant to buff even starts. `until: "endOfPhase"` has no
-  // such precondition and is a safe over-approximation for both branches: nothing else reads the villain's SCH/ATK
-  // between this bonus and the `enemyScheme`/`enemyAttack` call two effects later in the same sequence.
-  "02029.when-revealed-alter-ego": whenRevealedAlterEgo(modifyStat("sch", villainStageNumberOf(theVillain), theVillain, "endOfPhase"), enemyScheme(theVillain, { against: you })),
+  // number. `enemyScheme`'s own `schBonus` (docs/phase7-wave1-scripting.md §6) carries the bonus with exactly the
+  // activation this effect initiates, evaluated once. **Not** `modifyStat(..., theVillain, "endOfPhase")` — the
+  // previous stand-in here, which was a proven bug: it buffed every *other* activation in the same phase too, so
+  // two copies of this card revealed in one phase (2+ players, or a surge chain) made the second activation +2X,
+  // and a copy revealed in the player phase left the villain buffed into the villain phase.
+  "02029.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(theVillain, { against: you, schBonus: villainStageNumberOf(theVillain) })),
   // When Revealed (Hero): Green Goblin attacks with +X ATK, X = the villain's stage number.
-  "02029.when-revealed-hero": whenRevealedHero(modifyStat("atk", villainStageNumberOf(theVillain), theVillain, "endOfPhase"), enemyAttack(theVillain, { against: you })),
+  "02029.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you, atkBonus: villainStageNumberOf(theVillain) })),
 
   // I See You — When Revealed: Green Goblin attacks you. If you are in alter-ego form, do not give the villain a
   // boost card for this activation (`EffectSpec.enemyAttack.boost: false`, documented against this exact card).

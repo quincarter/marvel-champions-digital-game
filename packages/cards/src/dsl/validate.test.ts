@@ -1,8 +1,8 @@
 import type { AbilityDefinition } from "@mc/engine";
 import { action, boost, discardFromHandCost, discardRandomFromHandCost, discardThis, exhaustCardsCost, returnToHandCost, whenRevealed } from "./abilities.js";
-import { chooseOne, dealDamage, draw, giveBoostCard } from "./effects.js";
+import { ANY_RESOURCE, cards, chooseOne, dealDamage, discardDeckUntil, discardFromHand, draw, encounterCards, enemyAttack, enemyScheme, giveBoostCard, moveCards, selectCards } from "./effects.js";
 import { validateDefinition } from "./validate.js";
-import { countOf, defendingCharacter, each, handCountOf, query, scaled, sum, varOf } from "./values.js";
+import { chosen, countOf, defendingCharacter, each, eachPlayer, handCountOf, query, scaled, sum, theVillain, varOf, you } from "./values.js";
 
 const drawN = draw(varOf("n"));
 
@@ -112,5 +112,58 @@ describe("defendingCharacter: the defender of the attack in progress (Energy Pro
   it("is a plain ref a Boost ability can target without binding anything", () => {
     expect(defendingCharacter).toEqual({ kind: "defendingCharacter" });
     expect(validateDefinition(boost(dealDamage(1, defendingCharacter)))).toEqual([]);
+  });
+});
+
+describe("wave 1 closing batch: the three new builders", () => {
+  it("`discardDeckUntil` binds its slot and `<bind>.count` for the effects that follow (Teen Spirit)", () => {
+    const teenSpirit = action(
+      discardDeckUntil(query("ally", { identitySetOf: you }), "found"),
+      moveCards(cards(chosen("found")), "hand"),
+      draw(varOf("found.count")),
+    );
+    expect(validateDefinition(teenSpirit)).toEqual([]);
+    expect(discardDeckUntil(query("ally"), "found")).toEqual({
+      kind: "discardDeckUntil",
+      player: you,
+      filter: { categories: ["ally"] },
+      bind: "found",
+    });
+    // The slot is only readable after it is bound.
+    expect(validateDefinition(action(moveCards(cards(chosen("found")), "hand"))).join("\n")).toMatch(/slot "found"/);
+  });
+
+  it("`discardFromHand` takes a filter, and `ANY_RESOURCE` is the four printed resource types (Power Drain)", () => {
+    expect(ANY_RESOURCE).toEqual({ anyPrintedResource: ["physical", "mental", "energy", "wild"] });
+    // `discardEncounterCards` and its summed `<bind>.boostIcons` live in `wave1/gob/local.ts`, so the live count is
+    // stood in for here by any other bound var; what matters is that the filter and the live amount validate together.
+    const powerDrain = action(
+      selectCards("pd", encounterCards(["discard"])),
+      discardFromHand(varOf("pd.count"), eachPlayer, { filter: ANY_RESOURCE }),
+    );
+    expect(validateDefinition(powerDrain)).toEqual([]);
+    expect(discardFromHand(1, eachPlayer, { filter: ANY_RESOURCE })).toEqual({
+      kind: "discardFromHand",
+      player: eachPlayer,
+      amount: { kind: "const", value: 1 },
+      filter: ANY_RESOURCE,
+    });
+  });
+
+  it("`enemyAttack`/`enemyScheme` carry a bonus scoped to the activation they start (Death from Above)", () => {
+    const stageNumber = { kind: "villainStageNumber", of: theVillain } as const;
+    expect(enemyAttack(theVillain, { against: you, atkBonus: stageNumber })).toEqual({
+      kind: "enemyAttack",
+      enemies: theVillain,
+      against: you,
+      atkBonus: stageNumber,
+    });
+    expect(enemyScheme(theVillain, { against: you, schBonus: 2 })).toEqual({
+      kind: "enemyScheme",
+      enemies: theVillain,
+      against: you,
+      schBonus: { kind: "const", value: 2 },
+    });
+    expect(validateDefinition(whenRevealed(enemyAttack(theVillain, { against: you, atkBonus: stageNumber })))).toEqual([]);
   });
 });

@@ -329,8 +329,16 @@ export function applyEffect(
       return;
     }
     case "discardFromHand": {
+      // Only the `random` form lands here; the choosing form stops for a choice per player in `effects-frame.ts`.
       const amount = value(effect.amount);
-      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) discardRandomFromHand(ctx, playerId, amount);
+      const filter = effect.filter;
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        // A filter narrows the pool the random pick draws from, by excluding everything that doesn't match.
+        const excluded = filter
+          ? mustPlayer(ctx.state, playerId).hand.filter((id) => !matchesQuery(ctx.state, id, filter, context))
+          : [];
+        discardRandomFromHand(ctx, playerId, amount, excluded);
+      }
       return;
     }
     case "revealTopOfEncounterDeck": {
@@ -815,7 +823,17 @@ export function applyEffect(
           );
         }
       }
-      pushEvents(ctx, events, reportTo(effect.bind));
+      // "Green Goblin attacks with +X ATK" / "schemes with +X SCH": evaluated once, now, and carried by each
+      // activation this effect initiates, so it applies to exactly those and never leaks into a later one.
+      const bonus =
+        effect.kind === "enemyAttack"
+          ? effect.atkBonus
+            ? { atkBonus: value(effect.atkBonus) }
+            : {}
+          : effect.schBonus
+            ? { schBonus: value(effect.schBonus) }
+            : {};
+      pushEvents(ctx, events, reportTo(effect.bind), bonus);
       return;
     }
     case "selectCards": {
@@ -858,6 +876,39 @@ export function applyEffect(
       const bind = effect.bind;
       updateFrame(ctx, frame.frameId, (f) =>
         f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [bind]: found ? [found] : [] }, vars: { ...f.vars, [`${bind}.count`]: found ? 1 : 0 } } : f,
+      );
+      return;
+    }
+    case "discardDeckUntil": {
+      // RRG 1.8 "Player Deck" (p. 33), read on its own rather than carried over from the encounter deck (p. 17): "if
+      // the player's deck empties while the player was discarding cards from their deck, no further cards are
+      // discarded from the newly shuffled deck". A deck that was already empty when the effect began is reset first
+      // (`takeTopOfDeck`) and the discarding happens from the new deck — the same split `discardEncounterCards` makes.
+      const bind = effect.bind;
+      // One player per "your deck"; several ("each player") each search their own deck, in player order, and every
+      // match lands in the one slot, so `<bind>.count` is how many were found.
+      const found: InstanceId[] = [];
+      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
+        const player = getPlayer(ctx.state, playerId);
+        if (!player || player.eliminated) continue;
+        // Bounded by the cards that exist, so a deck with no match can't loop forever.
+        const limit = player.deck.length + player.discard.length;
+        let discarded = 0;
+        for (let i = 0; i < limit; i++) {
+          if (discarded > 0 && mustPlayer(ctx.state, playerId).deck.length === 0) break;
+          const id = takeTopOfDeck(ctx, playerId);
+          if (!id) break;
+          // The log already carries each move as `cardMoved`, the same record `discardEncounterUntil` leaves.
+          moveCard(ctx, id, { kind: "discard", playerId }, "top");
+          discarded++;
+          if (matchesQuery(ctx.state, id, effect.filter, context)) {
+            found.push(id);
+            break;
+          }
+        }
+      }
+      updateFrame(ctx, frame.frameId, (f) =>
+        f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [bind]: found }, vars: { ...f.vars, [`${bind}.count`]: found.length } } : f,
       );
       return;
     }

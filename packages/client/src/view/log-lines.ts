@@ -14,7 +14,8 @@
  * The full trace is still in the session log for replay.
  */
 
-import type { GameEvent, GameState, PlayerId } from "@mc/engine";
+import type { EngineDeps, GameEvent, GameState, PlayerId } from "@mc/engine";
+import { abilityShortLabelOf } from "./ability-label.js";
 import { cardName, seatName } from "./names.js";
 
 export type StatusName = "stunned" | "confused" | "tough";
@@ -66,6 +67,7 @@ export function appendEvents(
   events: readonly GameEvent[],
   state: GameState,
   perspectiveId: PlayerId | null,
+  deps: EngineDeps,
   /** Caps the retained lines so the list never grows without bound. */
   limit = 400,
 ): LogState {
@@ -79,7 +81,7 @@ export function appendEvents(
       round = event.round;
       beat = 0;
     }
-    const described = describe(event, state, perspectiveId);
+    const described = describe(event, state, perspectiveId, deps);
     if (!described) continue;
     beat += 1;
     lines.push({
@@ -101,11 +103,11 @@ export function appendEvents(
 }
 
 /** Exposed for tests: one event's line, or null if it isn't player-readable. */
-export function logLine(event: GameEvent, state: GameState, perspectiveId: PlayerId | null): Beat | null {
-  return describe(event, state, perspectiveId);
+export function logLine(event: GameEvent, state: GameState, perspectiveId: PlayerId | null, deps: EngineDeps): Beat | null {
+  return describe(event, state, perspectiveId, deps);
 }
 
-function describe(event: GameEvent, state: GameState, viewer: PlayerId | null): Beat | null {
+function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, deps: EngineDeps): Beat | null {
   const who = (id: PlayerId): string => seatName(state, id, viewer);
   /** "You draw" vs "Spider-Man draws": the second person takes no -s. */
   const verb = (id: PlayerId, plural: string, singular: string): string => (id === viewer ? plural : singular);
@@ -211,6 +213,11 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null): 
       return { text: `${card(event.instanceId)} was cleared.`, voice: "player" };
     case "villainStageAdvanced":
       return { text: `The villain advances to stage ${event.stageIndex + 1}.`, voice: "villain" };
+    // The Wrecking Crew's active counter moving to another villain (`state.activeVillainId`) is otherwise silent —
+    // no damage, threat or status marks it — so without a line here the board's other three panels lit up ACTIVE
+    // for no reason the log ever gave.
+    case "activeVillainChanged":
+      return { text: `The active villain is now ${card(event.to)}.`, voice: "villain" };
     case "mainSchemeAdvanced":
       return { text: `The main scheme advances to stage ${event.stageIndex + 1}.`, voice: "villain" };
     case "mainSchemeCompleted":
@@ -236,6 +243,34 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null): 
         text: outcomeText(event.outcome),
         voice: event.outcome.result === "win" ? "win" : "loss",
       };
+    /**
+     * The engine emits one of these for *every* resolved ability — a
+     * "when revealed" on an encounter card, a constant's own resource
+     * ability, a forced interrupt — most of which is exactly the bookkeeping
+     * this switch otherwise stays quiet about, and whose own effects already
+     * speak for themselves elsewhere (damage, threat, a status). Reported
+     * (2026-09-16): Doctor Strange's Invocation cards resolved with nothing
+     * in the log to say so ("the Special doesn't seem to be firing, or I
+     * can't tell") — Spell Mastery pays an Invocation card's cost and
+     * resolves its "Special" with no event of its own besides this one, so
+     * without a line here the whole action was silent.
+     *
+     * The filter, found by scanning a real Doctor Strange playthrough
+     * (`abilityLabelOf`'s own test file runs the same real-content check):
+     * only an ability with something to actually say — a printed sub-ability
+     * name ("Spell Mastery", "Natural Talent") or a `special` trigger (every
+     * Invocation card's "Special", always worth naming even with no printed
+     * label of its own) — gets a line. Every other resolution (when-revealed,
+     * an unlabeled forced interrupt/response, a plain action with no printed
+     * name) stays quiet, the same as before this case existed: `card()`
+     * alone, with no ability name attached, would only repeat information
+     * already on the board with nothing new to say.
+     */
+    case "abilityResolved": {
+      const short = abilityShortLabelOf(state, event.instanceId, event.abilityId, deps);
+      if (!short) return null;
+      return { text: `${card(event.instanceId)} — ${short}.`, voice: "player" };
+    }
 
     // Bookkeeping the player never reads: the stack, timing windows, trigger
     // announcements, per-card zone moves, and choice plumbing. The Inspect
