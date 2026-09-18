@@ -90,4 +90,51 @@ describe("setupWalkthroughLayout", () => {
     expect(layout.otherSeats).toHaveLength(0);
     expect(layout.revealedPanel).not.toBeNull();
   });
+
+  test("fidelity pass (2026-09-18): other seats sit side by side in one row on tablet-portrait/desktop, same height, none overlapping", () => {
+    const desktop = setupWalkthroughLayout({ width: 1440, height: 900, otherSeatCount: 3, seatCount: 4 });
+    expect(desktop.otherSeats).toHaveLength(3);
+    const heights = new Set(desktop.otherSeats.map((rect) => Math.round(rect.height)));
+    expect(heights.size).toBe(1);
+    // Side by side: every seat's row shares the same y, and none starts before the previous one ends.
+    const ys = new Set(desktop.otherSeats.map((rect) => Math.round(rect.y)));
+    expect(ys.size).toBe(1);
+    for (let i = 1; i < desktop.otherSeats.length; i++) {
+      expect(desktop.otherSeats[i]!.x).toBeGreaterThanOrEqual(desktop.otherSeats[i - 1]!.x + desktop.otherSeats[i - 1]!.width);
+    }
+  });
+
+  test("fidelity pass: other seats stack full-width on phone instead (no room for a row of three)", () => {
+    const phone = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 3, seatCount: 4 });
+    expect(phone.otherSeats).toHaveLength(3);
+    const xs = new Set(phone.otherSeats.map((rect) => Math.round(rect.x)));
+    expect(xs.size).toBe(1);
+    for (let i = 1; i < phone.otherSeats.length; i++) {
+      expect(phone.otherSeats[i]!.y).toBeGreaterThanOrEqual(phone.otherSeats[i - 1]!.y + phone.otherSeats[i - 1]!.height);
+    }
+  });
+
+  test("fidelity pass: the commit row is pinned to the bottom of the viewport on phone, not inline after the hand", () => {
+    const phone = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 1, seatCount: 2 });
+    expect(phone.commitSticky).toBe(true);
+    expect(phone.commitRow.y + phone.commitRow.height).toBeLessThanOrEqual(844.5);
+    expect(phone.commitRow.y + phone.commitRow.height).toBeGreaterThan(800);
+
+    const desktop = setupWalkthroughLayout({ width: 1440, height: 900, otherSeatCount: 1, seatCount: 2 });
+    expect(desktop.commitSticky).toBe(false);
+  });
+
+  test("fidelity pass: the revealed-card panel is short when nothing has been revealed yet, tall once something has", () => {
+    const empty = setupWalkthroughLayout({ width: 1440, height: 900, otherSeatCount: 1, seatCount: 2, hasRevealedCard: false });
+    const full = setupWalkthroughLayout({ width: 1440, height: 900, otherSeatCount: 1, seatCount: 2, hasRevealedCard: true });
+    expect(empty.revealedPanel!.height).toBeLessThan(full.revealedPanel!.height);
+    // The log panel absorbs the room the short panel frees up.
+    expect(empty.logPanel!.height).toBeGreaterThan(full.logPanel!.height);
+  });
+
+  test("fidelity pass: titleRow sits inside the header bar, clear of its very top edge", () => {
+    const layout = setupWalkthroughLayout({ width: 1440, height: 900, otherSeatCount: 1, seatCount: 2 });
+    expect(layout.titleRow.y).toBeGreaterThan(0);
+    expect(layout.titleRow.y + layout.titleRow.height).toBeLessThanOrEqual(layout.headerBar.height);
+  });
 });

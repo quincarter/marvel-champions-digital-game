@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { CORE_CARDS } from "@mc/content";
 import { CORE_DEPS, coreScenario } from "@mc/cards";
 import { applyCommand, createGame, playerId, type GameState } from "@mc/engine";
-import { advanceSetupWalkthroughLog, emptySetupWalkthroughLog, setupWalkthroughViewOf, type SetupWalkthroughLog } from "./setup-walkthrough.js";
+import { advanceSetupWalkthroughLog, emptySetupWalkthroughLog, setupWalkthroughViewOf, staticSetupLines, type SetupWalkthroughLog } from "./setup-walkthrough.js";
 
 const CARDS_BY_ID = new Map(CORE_CARDS.map((card) => [card.id as string, card]));
 
@@ -117,6 +117,47 @@ describe("setupWalkthroughViewOf: revealed setup cards", () => {
     const { state, log } = fourSeatGame();
     expect(setupWalkthroughViewOf(state, log, CORE_DEPS, CARDS_BY_ID).revealedCard).toBeNull();
     expect(log.revealedInstanceIds).toHaveLength(0);
+  });
+});
+
+describe("staticSetupLines (fidelity pass, 2026-09-18): the setup log's own prefix, built from state facts, not fabricated events", () => {
+  test("names the seed, the villain's stage and HP, the main scheme's starting threat, the obligation count and every seat's opening hand size", () => {
+    const { state, log } = fourSeatGame();
+    const lines = staticSetupLines(state, CORE_DEPS, CARDS_BY_ID, log.seed);
+    const texts = lines.map((line) => line.text);
+    expect(texts.some((text) => text.startsWith("Seed ") && text.includes("encounter deck shuffled"))).toBe(true);
+    expect(texts.some((text) => /^Rhino placed at stage 1 — \d+ HP$/.test(text))).toBe(true);
+    expect(texts.some((text) => /starting threat$/.test(text))).toBe(true);
+    expect(texts.some((text) => text === "4 obligations shuffled into the encounter deck")).toBe(true);
+    expect(texts.some((text) => /^Opening hands dealt: \d+ \/ \d+ \/ \d+ \/ \d+$/.test(text))).toBe(true);
+  });
+
+  test("the seed line is omitted when no seed has been seen yet (never happens in practice, but must not crash or invent one)", () => {
+    const { state } = fourSeatGame();
+    const lines = staticSetupLines(state, CORE_DEPS, CARDS_BY_ID, null);
+    expect(lines.some((line) => line.text.startsWith("Seed "))).toBe(false);
+  });
+
+  test("advanceSetupWalkthroughLog captures the real gameCreated event's seed, once, and keeps it across later calls", () => {
+    const { state, log } = fourSeatGame();
+    expect(log.seed).not.toBeNull();
+    const again = advanceSetupWalkthroughLog(log, [], state, null, CORE_DEPS);
+    expect(again.seed).toBe(log.seed);
+  });
+
+  test("setupWalkthroughViewOf's setupLog leads with the static facts, then any real events folded in since", () => {
+    const { state, log } = fourSeatGame();
+    const view = setupWalkthroughViewOf(state, log, CORE_DEPS, CARDS_BY_ID);
+    const staticCount = staticSetupLines(state, CORE_DEPS, CARDS_BY_ID, log.seed).length;
+    expect(view.setupLog.slice(0, staticCount).map((line) => line.text)).toEqual(staticSetupLines(state, CORE_DEPS, CARDS_BY_ID, log.seed).map((line) => line.text));
+    // Rhino has no setup-time reveal, so nothing else has happened yet: the static prefix is the whole log.
+    expect(view.setupLog).toHaveLength(staticCount);
+  });
+
+  test("the header's step caption names the current step in words, not just its number", () => {
+    const { state, log } = fourSeatGame();
+    const view = setupWalkthroughViewOf(state, log, CORE_DEPS, CARDS_BY_ID);
+    expect(view.stepLabel).toBe("Step 4 of 5 · opening hands — mulligan");
   });
 });
 

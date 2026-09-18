@@ -28,14 +28,39 @@
  * not this scene's to answer — it launches the ordinary `ChoiceOverlay` on
  * top, exactly the way `BoardScene#syncChoiceOverlay` does, so no rule is
  * restated for a decision this screen doesn't otherwise know about.
+ *
+ * **Fidelity pass (2026-09-18), against D06/P13/L05 directly rather than the
+ * structure alone:** section headers ("YOUR OPENING HAND — <hero>", "OTHER
+ * SEATS") are a Bangers line with a rule running to the column's own right
+ * edge (`#sectionHeader`), not a small grey label. The header's title and its
+ * "Step N of M · …" caption sit inline on one line, not a title clipped at
+ * the viewport's top edge beside a small badge in the far corner. Checklist
+ * chips are uppercase and letter-spaced with a real state matrix (`CHIP_SKIN`):
+ * a green-outlined dark wash for done, solid Hero Red for the one in
+ * progress, a dim outline for what's ahead. The commit row is two compact
+ * controls — "Mulligan N"/"Keep all N" — beside the mulligan rule's own
+ * helper text, not two parchment slabs spanning the column; a card marked for
+ * mulligan gets a dim wash under its art plus the same red tag the tile's
+ * "DOWNTIME" card shows. Other seats are a side-by-side row of compact cards
+ * on tablet-portrait/desktop (a monogram square, name, status, and a row of
+ * facedown hand slots — dashed red for however many were just redrawn),
+ * stacked only on phone. The sidebar's "Setup card revealed" panel is paper
+ * with a red label and a Bangers name, and collapses to one line before
+ * anything has been revealed; "Setup log" is an ink panel with a light
+ * outline and paper-toned lines, reusing none of `LogPanel`'s parchment rail
+ * skin (built for the Board's own paper-toned frame, not this screen's ink
+ * ground). Phone pins the commit row to the bottom of the viewport, like the
+ * Board's action bar, with "Keep all" on the left and "Mulligan" on the right
+ * (P13's own order — the opposite of D06's, which is followed everywhere
+ * else); the per-seat paged carousel P13 draws is still out of scope.
  */
 
 import Phaser from "phaser";
 import type { InstanceId, PendingChoice } from "@mc/engine";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
-import { accent, dotGrid, ink, surface, typeRole } from "../tokens.js";
+import { accent, dotGrid, ink, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McSelectionRing, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { McButton, McSelectionRing, dashedRect, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt, type CardArt } from "../art/card-art.js";
 import { canConfirmChoice, cardChoiceDisplayOrder, initialChoiceSelection } from "../view/choice-focus.js";
 import { wrapChipsToRows } from "../view/chip-layout.js";
@@ -48,25 +73,45 @@ import {
   advanceSetupWalkthroughLog,
   emptySetupWalkthroughLog,
   setupWalkthroughViewOf,
-  type SetupChecklistItem,
   type SetupSeatStatus,
   type SetupWalkthroughLog,
   type SetupWalkthroughView,
 } from "../view/setup-walkthrough.js";
 import { CHECKLIST_HEIGHT, setupWalkthroughLayout, type SetupWalkthroughLayout } from "../view/setup-walkthrough-layout.js";
+import type { LogLine } from "../view/log-lines.js";
 import type { HandCardView } from "../view/board-model.js";
 import type { SessionState } from "../store/session-store.js";
 import { appSession } from "../session.js";
-import { LogPanel } from "./board/log.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { SCENES } from "./keys.js";
 
-const STEP_STATE_INK: Readonly<Record<"done" | "current" | "pending", { readonly ground: number; readonly text: number }>> = {
-  done: { ground: 0x1f3a2c, text: surface.paper.hex },
-  current: { ground: accent.heroRed.hex, text: surface.paper.hex },
-  pending: { ground: surface.ink.hex, text: surface.paper.hex },
+/**
+ * The checklist's state matrix (fidelity pass): a green-outlined dark wash for a done step ("done fill"/"done
+ * stroke" sampled off D06's own chips — the stroke lands exactly on `signal.heal`), solid Hero Red for the one in
+ * progress, a dim paper-on-ink outline for what's still ahead.
+ */
+const CHIP_SKIN: Readonly<Record<"done" | "current" | "pending", { readonly fill: number; readonly fillAlpha: number; readonly stroke: number; readonly strokeAlpha: number; readonly text: number; readonly textAlpha: number }>> = {
+  done: { fill: 0x1c281c, fillAlpha: 1, stroke: signal.heal.hex, strokeAlpha: 1, text: surface.paper.hex, textAlpha: 1 },
+  current: { fill: accent.heroRed.hex, fillAlpha: 1, stroke: accent.heroRed.hex, strokeAlpha: 1, text: surface.paper.hex, textAlpha: 1 },
+  pending: { fill: surface.ink.hex, fillAlpha: 1, stroke: surface.paper.hex, strokeAlpha: 0.3, text: surface.paper.hex, textAlpha: ink.label },
 };
+const CHIP_TYPE: TypeSpec = { ...typeRole.label, size: 10 };
+/** Section headers ("YOUR OPENING HAND — <hero>", "OTHER SEATS", "SETUP LOG"): Bangers, then a rule to the column's own right edge. */
+const SECTION_HEADER_TYPE: TypeSpec = typeRole.barTitle;
+/** The header's inline step caption, beside the Bangers title. */
+const STEP_CAPTION_TYPE: TypeSpec = { family: typeRole.body.family, size: 14, weight: 700, lineHeight: 1.3, letterSpacing: 0, uppercase: false };
+/** A colour for a seat's monogram square, cycling by seat index. Never Hero Red: that's the screen's one action colour. */
+const MONOGRAM_PALETTE: readonly number[] = [statHue.thw.hex, statHue.def.hex, statHue.sch.hex, statHue.rec.hex];
+const OTHER_SEAT_SLOT_WIDTH = 16;
+const OTHER_SEAT_SLOT_HEIGHT = 22;
+
+/** "She-Hulk" → "SH", "Ms. Marvel" → "MM", "Captain Marvel" → "CM": first letter of each of the first two words, or the first two letters of one. */
+function initialsOf(name: string): string {
+  const words = name.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return (words[0]!.charAt(0) + words[1]!.charAt(0)).toUpperCase();
+  return name.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "?";
+}
 
 export class SetupDealScene extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
@@ -84,7 +129,7 @@ export class SetupDealScene extends Phaser.Scene {
   #route: readonly string[] = [];
   #focusRects = new Map<string, Rect>();
   #focusRing: McSelectionRing | null = null;
-  readonly #logPanel = new LogPanel(() => this.#draw());
+  #logScrollTop = 0;
 
   get #art(): CardArt {
     return cardArt(this);
@@ -102,7 +147,7 @@ export class SetupDealScene extends Phaser.Scene {
     this.#selected = [];
     this.#choiceId = null;
     this.#focus = null;
-    this.#logPanel.reset();
+    this.#logScrollTop = 0;
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
 
     const { store } = appSession();
@@ -110,7 +155,6 @@ export class SetupDealScene extends Phaser.Scene {
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
-    this.input.on("wheel", this.#logPanel.onWheel, this.#logPanel);
 
     const binding = {
       blocked: () => this.#choiceOpen || this.scene.isActive(SCENES.inspect),
@@ -123,7 +167,6 @@ export class SetupDealScene extends Phaser.Scene {
       this.scale.off("resize", onResize, this);
       this.#artUnsubscribe?.();
       this.#artUnsubscribe = null;
-      this.input.off("wheel", this.#logPanel.onWheel, this.#logPanel);
       this.#focusRing?.destroy();
       this.#focusRing = null;
       this.#unsubscribe?.();
@@ -185,7 +228,6 @@ export class SetupDealScene extends Phaser.Scene {
     this.#focusRing = null;
     this.#focusRects.clear();
     this.children.removeAll(true);
-    this.#logPanel.hide();
 
     const { width, height } = this.scale.gameSize;
     const otherSeatCount = view.decidingPlayerId ? view.seats.length - 1 : view.seats.length;
@@ -197,7 +239,14 @@ export class SetupDealScene extends Phaser.Scene {
       view.checklist.map((item) => ({ id: item.key, text: item.label, item })),
       width - pad * 2,
     );
-    const layout = setupWalkthroughLayout({ width, height, otherSeatCount, seatCount: view.seats.length, checklistRows: checklistRows.length });
+    const layout = setupWalkthroughLayout({
+      width,
+      height,
+      otherSeatCount,
+      seatCount: view.seats.length,
+      checklistRows: checklistRows.length,
+      hasRevealedCard: view.revealedCard !== null,
+    });
 
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
 
@@ -214,33 +263,54 @@ export class SetupDealScene extends Phaser.Scene {
     this.#drawFocusRing();
   }
 
+  /** Title inline with "Step N of M · …" (fidelity pass): the caption follows the title's own measured width, so it always sits right beside it rather than a fixed far-corner box. */
   #drawHeader(layout: SetupWalkthroughLayout, view: SetupWalkthroughView): void {
     const barG = this.add.graphics();
     barG.fillStyle(surface.ink.hex, 1).fillRect(layout.headerBar.x, layout.headerBar.y, layout.headerBar.width, layout.headerBar.height);
-    const title = this.add
-      .text(layout.title.x, layout.title.y + layout.title.height / 2, "Setting up the table", textStyle(typeRole.screenTitle, surface.paper.hex))
-      .setOrigin(0, 0.5);
-    fitText(title, layout.title.width, typeRole.screenTitle.size);
-    label(this, layout.step.x + layout.step.width, layout.step.y + layout.step.height / 2, view.stepLabel, typeRole.label, surface.paper.hex, ink.label).setOrigin(1, 0.5);
+
+    const { titleRow } = layout;
+    const title = this.add.text(titleRow.x, titleRow.y + titleRow.height / 2, "Setting up the table", textStyle(typeRole.screenTitle, surface.paper.hex)).setOrigin(0, 0.5);
+    fitText(title, titleRow.width * 0.62, typeRole.screenTitle.size);
+
+    const captionX = titleRow.x + title.width + 16;
+    const captionWidth = titleRow.x + titleRow.width - captionX;
+    if (captionWidth > 40) {
+      const caption = this.add
+        .text(captionX, titleRow.y + titleRow.height / 2, view.stepLabel, textStyle(STEP_CAPTION_TYPE, surface.paper.hex, ink.secondary))
+        .setOrigin(0, 0.5);
+      fitText(caption, captionWidth, STEP_CAPTION_TYPE.size);
+    }
+  }
+
+  /** A Bangers section label with a rule running to the column's own right edge (D06's "YOUR OPENING HAND — …"/"OTHER SEATS"). */
+  #sectionHeader(x: number, y: number, width: number, text: string): void {
+    const title = this.add.text(x, y, text, textStyle(SECTION_HEADER_TYPE, surface.paper.hex)).setOrigin(0, 0.5);
+    fitText(title, width * 0.7, SECTION_HEADER_TYPE.size);
+    const ruleX = x + title.width + 12;
+    if (ruleX < x + width) {
+      const rule = this.add.graphics();
+      rule.fillStyle(surface.paper.hex, 0.3).fillRect(ruleX, y, x + width - ruleX, 1);
+    }
   }
 
   /** `rows` is `wrapChipsToRows`' own split of the checklist's five labels, at the actual viewport width (`#draw`) — a narrow phone gets two rows instead of five truncated chips. */
-  #drawChecklist(layout: SetupWalkthroughLayout, rows: readonly (readonly { readonly id: string; readonly text: string; readonly item: SetupChecklistItem }[])[]): void {
+  #drawChecklist(layout: SetupWalkthroughLayout, rows: readonly (readonly { readonly id: string; readonly text: string; readonly item: { readonly state: "done" | "current" | "pending"; readonly label: string } }[])[]): void {
     rows.forEach((row, rowIndex) => {
       const rowY = layout.checklist.y + rowIndex * (CHECKLIST_HEIGHT + 6);
       const cellWidth = (layout.checklist.width - (row.length - 1) * 8) / row.length;
       row.forEach((cell, index) => {
         const item = cell.item;
         const rect: Rect = { x: layout.checklist.x + index * (cellWidth + 8), y: rowY, width: cellWidth, height: CHECKLIST_HEIGHT };
-        const skin = STEP_STATE_INK[item.state];
+        const skin = CHIP_SKIN[item.state];
         const g = this.add.graphics();
-        g.fillStyle(skin.ground, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-        g.lineStyle(1, surface.paper.hex, item.state === "current" ? 1 : 0.25).strokeRect(rect.x, rect.y, rect.width, rect.height);
+        g.fillStyle(skin.fill, skin.fillAlpha).fillRect(rect.x, rect.y, rect.width, rect.height);
+        g.lineStyle(2, skin.stroke, skin.strokeAlpha).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
         const prefix = item.state === "done" ? "✓ " : item.state === "current" ? "▸ " : "";
         const text = this.add
-          .text(rect.x + 8, rect.y + rect.height / 2, `${prefix}${item.label}`, { ...textStyle(typeRole.label, skin.text), fontStyle: item.state === "current" ? "bold" : "normal" })
-          .setOrigin(0, 0.5);
-        fitText(text, rect.width - 16, typeRole.label.size);
+          .text(rect.x + 10, rect.y + rect.height / 2, `${prefix}${item.label}`, { ...textStyle(CHIP_TYPE, skin.text, skin.textAlpha), fontStyle: "800" })
+          .setOrigin(0, 0.5)
+          .setLetterSpacing(CHIP_TYPE.letterSpacing);
+        fitText(text, rect.width - 18, CHIP_TYPE.size);
       });
     });
   }
@@ -251,24 +321,24 @@ export class SetupDealScene extends Phaser.Scene {
     const others = view.seats.filter((seat) => seat.playerId !== view.decidingPlayerId);
 
     if (decider && mulliganChoice) {
-      label(this, layout.handLabel.x, layout.handLabel.y, `Your opening hand — ${decider.name}`, typeRole.label, surface.paper.hex, ink.label);
+      this.#sectionHeader(layout.handLabel.x, layout.handLabel.y + layout.handLabel.height / 2, layout.handLabel.width, `Your opening hand — ${decider.name}`);
       this.#drawOpeningHand(layout.handRow, decider);
-      this.#drawCommit(layout.commitRow, decider, mulliganChoice);
+      this.#drawCommit(layout.commitRow, decider, mulliganChoice, layout.formFactor === "phone");
     } else {
-      label(this, layout.handLabel.x, layout.handLabel.y, "Opening hands", typeRole.label, surface.paper.hex, ink.label);
+      this.#sectionHeader(layout.handLabel.x, layout.handLabel.y + layout.handLabel.height / 2, layout.handLabel.width, "Opening hands");
       this.add
         .text(layout.handRow.x, layout.handRow.y, "Waiting on another decision before the mulligan continues…", textStyle(typeRole.body, surface.paper.hex, ink.secondary))
         .setWordWrapWidth(layout.handRow.width);
     }
 
-    label(this, layout.otherSeatsLabel.x, layout.otherSeatsLabel.y, "Other seats", typeRole.label, surface.paper.hex, ink.label);
+    this.#sectionHeader(layout.otherSeatsLabel.x, layout.otherSeatsLabel.y + layout.otherSeatsLabel.height / 2, layout.otherSeatsLabel.width, "Other seats");
     others.forEach((seat, index) => {
       const rect = layout.otherSeats[index];
-      if (rect) this.#drawOtherSeatRow(rect, seat);
+      if (rect) this.#drawOtherSeatCard(rect, seat);
     });
 
     if (layout.revealedPanel) this.#drawRevealedCard(layout.revealedPanel, view);
-    if (layout.logPanel) this.#logPanel.draw(this, layout.logPanel, this.#log.log);
+    if (layout.logPanel) this.#drawSetupLog(layout.logPanel, view.setupLog);
   }
 
   /** Tablet landscape (L05): one column per seat, every hand visible at once. */
@@ -289,7 +359,7 @@ export class SetupDealScene extends Phaser.Scene {
         .setOrigin(0, 0.5)
         .setWordWrapWidth(layout.footerNote.width);
     }
-    if (layout.footerCommit && decider && mulliganChoice) this.#drawCommit(layout.footerCommit, decider, mulliganChoice);
+    if (layout.footerCommit && decider && mulliganChoice) this.#drawCommit(layout.footerCommit, decider, mulliganChoice, false);
   }
 
   #drawSeatColumn(rect: Rect, seat: SetupSeatStatus, isDeciding: boolean): void {
@@ -369,6 +439,7 @@ export class SetupDealScene extends Phaser.Scene {
     }
   }
 
+  /** A card marked for mulligan gets a dim wash under its art, a red outline (`paintPanel`'s own "selected" skin already draws that), and a red "MULLIGAN" tag near the bottom — D06's "DOWNTIME" card. */
   #drawMulliganCard(slot: Rect, card: HandCardView): void {
     const picked = this.#selected.includes(card.instanceId);
     this.#focusRects.set(`option:${card.instanceId}`, slot);
@@ -377,7 +448,8 @@ export class SetupDealScene extends Phaser.Scene {
     paintPanel(g, slot, "card", picked ? "selected" : "rest");
     const inner: Rect = { x: slot.x + 3, y: slot.y + 3, width: slot.width - 6, height: slot.height - 6 };
     const key = this.#art.request(this, card.art);
-    if (!drawArt(this, key, inner, { fit: "contain" })) {
+    const drawn = drawArt(this, key, inner, { fit: "contain" });
+    if (!drawn) {
       this.add
         .text(inner.x + inner.width / 2, inner.y + inner.height / 2, card.name, textStyle(typeRole.rowTitle, surface.ink.hex))
         .setOrigin(0.5)
@@ -385,13 +457,20 @@ export class SetupDealScene extends Phaser.Scene {
         .setMaxLines(3);
     }
     if (picked) {
-      const band: Rect = { x: inner.x, y: inner.y + inner.height - 22, width: inner.width, height: 22 };
+      // The dim wash: this card leaves the hand, so its art reads as already half-gone.
+      const dim = this.add.graphics();
+      dim.fillStyle(surface.ink.hex, 0.55).fillRect(inner.x, inner.y, inner.width, inner.height);
+
+      const tagWidth = Math.min(inner.width - 8, 96);
+      const tagHeight = 20;
+      const band: Rect = { x: inner.x + (inner.width - tagWidth) / 2, y: inner.y + inner.height - tagHeight - 6, width: tagWidth, height: tagHeight };
       const bandG = this.add.graphics();
       bandG.fillStyle(accent.heroRed.hex, 1).fillRect(band.x, band.y, band.width, band.height);
-      this.add
+      const tagText = this.add
         .text(band.x + band.width / 2, band.y + band.height / 2, "MULLIGAN", textStyle(typeRole.label, surface.paper.hex))
         .setOrigin(0.5)
         .setLetterSpacing(typeRole.label.letterSpacing);
+      fitText(tagText, band.width - 6, typeRole.label.size);
     }
 
     addTapTarget(this, slot, {
@@ -400,44 +479,76 @@ export class SetupDealScene extends Phaser.Scene {
     });
   }
 
-  #drawOtherSeatRow(rect: Rect, seat: SetupSeatStatus): void {
+  /** A compact seat card: a coloured monogram square, the seat's name, its status, and a row of facedown hand slots (dashed red for however many were just redrawn). */
+  #drawOtherSeatCard(rect: Rect, seat: SetupSeatStatus, index = 0): void {
     const g = this.add.graphics();
     paintPanel(g, rect, "onInk", "rest");
-    this.add.text(rect.x + 10, rect.y + 8, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex));
-    label(this, rect.x + rect.width - 10, rect.y + 8, seat.statusLabel.toUpperCase(), typeRole.label, surface.paper.hex, ink.secondary).setOrigin(1, 0);
-    if (seat.subtitle) {
-      this.add
-        .text(rect.x + 10, rect.y + rect.height - 8, seat.subtitle, textStyle(typeRole.label, surface.paper.hex, ink.label))
-        .setOrigin(0, 1)
-        .setWordWrapWidth(rect.width - 20)
-        .setMaxLines(1);
+
+    const monoSize = Math.min(28, rect.height - 16);
+    const monoRect: Rect = { x: rect.x + 8, y: rect.y + 8, width: monoSize, height: monoSize };
+    const monoColor = MONOGRAM_PALETTE[Math.abs(hashOf(seat.playerId as unknown as string)) % MONOGRAM_PALETTE.length]!;
+    const monoG = this.add.graphics();
+    monoG.fillStyle(monoColor, 1).fillRect(monoRect.x, monoRect.y, monoRect.width, monoRect.height);
+    monoG.lineStyle(1.5, surface.ink.hex, 1).strokeRect(monoRect.x, monoRect.y, monoRect.width, monoRect.height);
+    this.add
+      .text(monoRect.x + monoRect.width / 2, monoRect.y + monoRect.height / 2, initialsOf(seat.name), textStyle({ ...typeRole.rowTitle, size: 11 }, surface.paper.hex))
+      .setOrigin(0.5);
+
+    const textLeft = monoRect.x + monoRect.width + 8;
+    this.add.text(textLeft, rect.y + 8, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex)).setMaxLines(1);
+    label(this, textLeft, rect.y + 8 + 16, seat.statusLabel.toUpperCase(), typeRole.label, surface.paper.hex, seat.state === "waiting" ? ink.secondary : 1);
+
+    const slotsTop = monoRect.y + monoRect.height + 10;
+    const count = Math.max(0, seat.handSize);
+    const gap = 3;
+    const available = rect.width - 16;
+    const slotWidth = count > 0 ? Math.max(9, Math.min(OTHER_SEAT_SLOT_WIDTH, (available - gap * (count - 1)) / count)) : OTHER_SEAT_SLOT_WIDTH;
+    const slotHeight = Math.min(OTHER_SEAT_SLOT_HEIGHT, rect.y + rect.height - slotsTop - 4);
+    if (slotHeight > 8) {
+      const redrawn = seat.state === "mulliganed" ? (seat.mulliganedCount ?? 0) : 0;
+      for (let i = 0; i < count; i++) {
+        const sx = rect.x + 8 + i * (slotWidth + gap);
+        const isRedrawn = i >= count - redrawn;
+        const slotRect: Rect = { x: sx, y: slotsTop, width: slotWidth, height: slotHeight };
+        if (isRedrawn) {
+          dashedRect(this.add.graphics(), slotRect, 1.5);
+          this.add.graphics().lineStyle(1.5, accent.heroRed.hex, 1).strokeRect(slotRect.x, slotRect.y, slotRect.width, slotRect.height);
+        } else {
+          const slotG = this.add.graphics();
+          slotG.fillStyle(surface.void.hex, 1).fillRect(slotRect.x, slotRect.y, slotRect.width, slotRect.height);
+          slotG.lineStyle(1, surface.paper.hex, 0.3).strokeRect(slotRect.x, slotRect.y, slotRect.width, slotRect.height);
+        }
+      }
     }
+    void index;
   }
 
   #drawRevealedCard(rect: Rect, view: SetupWalkthroughView): void {
     const g = this.add.graphics();
     paintPanel(g, rect, "card", "rest");
-    label(this, rect.x + 10, rect.y + 8, "Setup card revealed", typeRole.label, surface.ink.hex, ink.label);
+    label(this, rect.x + 10, rect.y + 8, "Setup card revealed", typeRole.label, accent.heroRed.hex, 1);
 
     if (!view.revealedCard) {
       this.add
-        .text(rect.x + 10, rect.y + 30, "No setup card has been revealed yet this game.", textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .text(rect.x + 10, rect.y + 8 + 16, "No setup card revealed yet.", textStyle(typeRole.body, surface.ink.hex, ink.secondary))
         .setWordWrapWidth(rect.width - 20);
       return;
     }
     const card = view.revealedCard;
-    const artHeight = Math.min(rect.height * 0.4, 100);
-    const artRect: Rect = { x: rect.x + 10, y: rect.y + 28, width: rect.width - 20, height: artHeight };
-    const key = this.#art.request(this, card.art);
-    if (!drawArt(this, key, artRect, { fit: "contain" })) {
-      const ground = this.add.graphics();
-      ground.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
+    const nameY = rect.y + 8 + 16;
+    const name = this.add.text(rect.x + 10, nameY, card.name, textStyle(typeRole.barTitle, surface.ink.hex));
+    fitText(name, rect.width - 20, typeRole.barTitle.size);
+    let y = nameY + name.height + 4;
+    const artHeight = Math.min((rect.y + rect.height - y) * 0.5, 90);
+    if (artHeight > 30) {
+      const artRect: Rect = { x: rect.x + 10, y, width: rect.width - 20, height: artHeight };
+      const key = this.#art.request(this, card.art);
+      if (!drawArt(this, key, artRect, { fit: "contain" })) {
+        const ground = this.add.graphics();
+        ground.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
+      }
+      y = artRect.y + artRect.height + 6;
     }
-    let y = artRect.y + artRect.height + 6;
-    const name = this.add.text(rect.x + 10, y, card.name, textStyle(typeRole.rowTitle, surface.ink.hex));
-    y += name.height + 2;
-    label(this, rect.x + 10, y, card.typeLine, typeRole.label, surface.ink.hex, ink.label);
-    y += 16;
     const rulesHeight = Math.max(0, rect.y + rect.height - y - 8);
     if (rulesHeight > 14) {
       this.add
@@ -451,38 +562,89 @@ export class SetupDealScene extends Phaser.Scene {
     });
   }
 
-  /** "Mulligan N" / "Keep all N" — the same commit rule `view/choice-focus.ts` already governs, worded for this screen. */
-  #drawCommit(rect: Rect, decider: SetupSeatStatus, choice: PendingChoice): void {
+  /** "SETUP LOG": an ink panel with a light outline and paper-toned lines — never `LogPanel`'s parchment rail, which is built for the Board's own paper-toned frame. */
+  #drawSetupLog(rect: Rect, lines: readonly LogLine[]): void {
+    const g = this.add.graphics();
+    g.lineStyle(1, surface.paper.hex, 0.25).strokeRect(rect.x + 0.5, rect.y + 0.5, rect.width - 1, rect.height - 1);
+    const header = this.add.text(rect.x + 10, rect.y + 8, "Setup log", textStyle(typeRole.barTitle, surface.paper.hex));
+    fitText(header, rect.width - 20, typeRole.barTitle.size);
+
+    const top = rect.y + 8 + header.height + 6;
+    const bottom = rect.y + rect.height - 8;
+    const lineGap = 6;
+    let y = top;
+    let shown = 0;
+    for (const line of lines) {
+      const text = this.add
+        .text(rect.x + 10, y, line.text, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+        .setWordWrapWidth(rect.width - 20);
+      if (y + text.height > bottom) {
+        text.destroy();
+        break;
+      }
+      y += text.height + lineGap;
+      shown += 1;
+    }
+    const hidden = lines.length - shown;
+    if (hidden > 0 && y < bottom) {
+      label(this, rect.x + 10, y, `+${hidden} more`, typeRole.label, surface.paper.hex, ink.meta);
+    }
+  }
+
+  /** "Mulligan N" / "Keep all N" — compact controls, not two column-spanning slabs, plus the mulligan rule's own helper text beside them where there's room (D06). Phone (P13) swaps the order: "Keep all" left, "Mulligan" right, since that's what the phone tile itself draws. */
+  #drawCommit(rect: Rect, decider: SetupSeatStatus, choice: PendingChoice, phoneOrder: boolean): void {
     const canCommit = canConfirmChoice(choice, this.#selected.length);
-    const halfWidth = (rect.width - 12) / 2;
     const mulliganLabel = this.#selected.length > 0 ? `Mulligan ${this.#selected.length}` : "Mulligan";
+    const keepLabel = `Keep all ${decider.handSize}`;
+
+    const mulliganWidth = Math.min(200, rect.width * 0.4);
+    const keepWidth = Math.min(150, rect.width * 0.32);
+    const gap = 12;
+
+    const mulliganRect: Rect = phoneOrder
+      ? { x: rect.x + keepWidth + gap, y: rect.y, width: mulliganWidth, height: rect.height }
+      : { x: rect.x, y: rect.y, width: mulliganWidth, height: rect.height };
+    const keepRect: Rect = phoneOrder
+      ? { x: rect.x, y: rect.y, width: keepWidth, height: rect.height }
+      : { x: rect.x + mulliganWidth + gap, y: rect.y, width: keepWidth, height: rect.height };
 
     this.#buttons.push(
       new McButton(this, {
         kind: "primary",
         label: mulliganLabel,
         type: typeRole.barTitle,
-        rect: { x: rect.x, y: rect.y, width: halfWidth, height: rect.height },
+        rect: mulliganRect,
         enabled: canCommit && this.#selected.length > 0,
         reason: "choose at least one card to mulligan",
         onClick: () => void this.#confirm(),
       }),
     );
-    this.#focusRects.set("confirm", { x: rect.x, y: rect.y, width: halfWidth, height: rect.height });
+    this.#focusRects.set("confirm", mulliganRect);
 
     this.#buttons.push(
       new McButton(this, {
         kind: "quiet",
-        label: `Keep all ${decider.handSize}`,
+        label: keepLabel,
         type: typeRole.barTitle,
-        rect: { x: rect.x + halfWidth + 12, y: rect.y, width: halfWidth, height: rect.height },
+        rect: keepRect,
         onClick: () => {
           this.#selected = [];
           void this.#confirm();
         },
       }),
     );
-    this.#focusRects.set("decline", { x: rect.x + halfWidth + 12, y: rect.y, width: halfWidth, height: rect.height });
+    this.#focusRects.set("decline", keepRect);
+
+    if (!phoneOrder) {
+      const noteX = rect.x + mulliganWidth + gap + keepWidth + 16;
+      const noteWidth = rect.x + rect.width - noteX;
+      if (noteWidth > 100) {
+        this.add
+          .text(noteX, rect.y + rect.height / 2, "One mulligan per player: discard any number, draw back up, shuffle the discards in.", textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+          .setOrigin(0, 0.5)
+          .setWordWrapWidth(noteWidth);
+      }
+    }
   }
 
   #toggle(instanceId: InstanceId): void {
@@ -565,4 +727,11 @@ export class SetupDealScene extends Phaser.Scene {
     this.#focusRing = new McSelectionRing(this);
     this.#focusRing.show(rect, "static", true);
   }
+}
+
+/** A small, stable string hash for picking a monogram colour deterministically from a player id — never `Math.random`, so a seat's colour doesn't change between redraws. */
+function hashOf(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) hash = (hash * 31 + value.charCodeAt(i)) | 0;
+  return hash;
 }

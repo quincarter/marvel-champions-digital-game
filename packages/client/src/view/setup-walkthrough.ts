@@ -48,7 +48,7 @@ import {
   type PlayerId,
 } from "@mc/engine";
 import type { ArtSource } from "../art/art-source.js";
-import { deckAspect, handCardView, schemePanel, type HandCardView } from "./board-model.js";
+import { characterPanel, deckAspect, handCardView, schemePanel, type HandCardView } from "./board-model.js";
 import { inspectModel } from "./inspect-model.js";
 import { appendEvents, emptyLog, type LogLine, type LogState } from "./log-lines.js";
 import { playerName } from "./names.js";
@@ -109,12 +109,19 @@ export interface SetupWalkthroughLog {
   readonly revealedInstanceIds: readonly InstanceId[];
   /** How many cards each seat actually discarded for its mulligan, once that seat's `resolveChoice` has landed. */
   readonly mulliganedCounts: Readonly<Partial<Record<PlayerId, number>>>;
+  /**
+   * The shuffle key `gameCreated` names — a real event, not a fabricated one — for the "Seed …" line
+   * `staticSetupLines` prepends. Null until that event has been seen (never, in practice: it is always
+   * the very first event of the very first command, so it is set on the first `advanceSetupWalkthroughLog` call).
+   */
+  readonly seed: number | null;
 }
 
 export const emptySetupWalkthroughLog = (): SetupWalkthroughLog => ({
   log: emptyLog(),
   revealedInstanceIds: [],
   mulliganedCounts: {},
+  seed: null,
 });
 
 /**
@@ -143,7 +150,8 @@ export function advanceSetupWalkthroughLog(
     discardedByPlayer.set(event.playerId, (discardedByPlayer.get(event.playerId) ?? 0) + 1);
   }
   const mulliganedCounts = discardedByPlayer.size === 0 ? accumulator.mulliganedCounts : { ...accumulator.mulliganedCounts, ...Object.fromEntries(discardedByPlayer) };
-  return { log, revealedInstanceIds, mulliganedCounts };
+  const seed = accumulator.seed ?? events.find((event): event is Extract<GameEvent, { type: "gameCreated" }> => event.type === "gameCreated")?.seed ?? null;
+  return { log, revealedInstanceIds, mulliganedCounts, seed };
 }
 
 /** The setup steps this screen tracks, in the order `GameStep`'s own "setup" kinds run. */
@@ -213,6 +221,39 @@ function seatStatusOf(state: GameState, accumulator: SetupWalkthroughLog, deps: 
   };
 }
 
+/**
+ * The setup log's own prefix (fidelity pass, 2026-09-18): the facts a real
+ * table would read straight off what's on it the moment "Deal it out" lands —
+ * the seed, the villain's stage and HP, the main scheme's starting threat, how
+ * many obligations were shuffled in, and every seat's dealt hand size. None of
+ * this is a fabricated event: it is `GameState` (and one real `gameCreated`
+ * event's `seed`, threaded through the accumulator) worded as the log's own
+ * beat lines, the same way every other line here is a fact about the state,
+ * not a new one invented for the screen. Real events the accumulator has
+ * folded since (an encounter reveal, a later mulligan) are appended after
+ * these, never before — this is the table as it was dealt, and the log is the
+ * table as it has changed since.
+ */
+export function staticSetupLines(state: GameState, deps: EngineDeps, cardsById: ReadonlyMap<string, AnyCard>, seed: number | null): readonly LogLine[] {
+  const villain = activeVillain(state);
+  const villainPanel = characterPanel(state, villain.instanceId, deps);
+  const deckSize = state.encounterDecks[villain.encounterDeckId]?.deck.length ?? 0;
+  const scheme = schemePanel(state, state.mainScheme.instanceId, deps, true);
+  const mainSchemeName = cardOf(state, state.mainScheme.instanceId)?.name ?? "the main scheme";
+  const obligationCount = playerOrder(state).filter((player) => obligationNoteOf(state, player.playerId, cardsById) !== null).length;
+  const handSizes = playerOrder(state).map((player) => getPlayer(state, player.playerId)?.hand.length ?? 0);
+
+  const texts = [
+    seed !== null ? `Seed ${seed} · encounter deck shuffled (${deckSize})` : null,
+    `${villainPanel.name} placed at stage ${villain.stageIndex + 1}${villainPanel.hp ? ` — ${villainPanel.hp.max} HP` : ""}`,
+    `${mainSchemeName} — ${scheme.threat} starting threat`,
+    obligationCount > 0 ? `${obligationCount} obligation${obligationCount === 1 ? "" : "s"} shuffled into the encounter deck` : null,
+    `Opening hands dealt: ${handSizes.join(" / ")}`,
+  ].filter((text): text is string => text !== null);
+
+  return texts.map((text, index) => ({ id: `setup-fact-${index}`, ref: "Setup", round: 0, text, tags: [], voice: "scenario" as const }));
+}
+
 function revealedCardOf(state: GameState, accumulator: SetupWalkthroughLog, deps: EngineDeps): SetupRevealedCard | null {
   const instanceId = accumulator.revealedInstanceIds.at(-1);
   if (instanceId === undefined) return null;
@@ -228,7 +269,10 @@ export function setupWalkthroughViewOf(state: GameState, accumulator: SetupWalkt
   const currentIndex = checklist.findIndex((item) => item.state === "current");
   const doneCount = checklist.filter((item) => item.state === "done").length;
   const stepIndex = currentIndex >= 0 ? currentIndex : doneCount;
-  const stepLabel = `Step ${Math.min(stepIndex + 1, checklist.length)} of ${checklist.length}`;
+  const current = currentIndex >= 0 ? checklist[currentIndex] : null;
+  // "Step 5 of 6 · opening hands — mulligan": the header's inline caption (fidelity pass, 2026-09-18, D06) —
+  // the current step's own checklist label, lowercased, or a wrap-up note once every step is done.
+  const stepLabel = `Step ${Math.min(stepIndex + 1, checklist.length)} of ${checklist.length} · ${current ? current.label.toLowerCase() : "handing off to the board"}`;
 
   const villainName = cardOf(state, activeVillain(state).instanceId)?.name ?? "the villain";
   const mainSchemeName = cardOf(state, state.mainScheme.instanceId)?.name ?? "the main scheme";
@@ -246,7 +290,7 @@ export function setupWalkthroughViewOf(state: GameState, accumulator: SetupWalkt
     decidingPlayerId,
     seats,
     revealedCard: revealedCardOf(state, accumulator, deps),
-    setupLog: accumulator.log.lines,
+    setupLog: [...staticSetupLines(state, deps, cardsById, accumulator.seed), ...accumulator.log.lines],
     complete: state.step.phase !== "setup",
   };
 }
