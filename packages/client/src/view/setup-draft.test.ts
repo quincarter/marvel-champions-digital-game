@@ -1,8 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { CORE_SCENARIOS, WAVE1_SCENARIOS } from "@mc/content";
+import { CORE_SCENARIOS, WAVE1_SCENARIOS, deckId, type Deck } from "@mc/content";
+import { MemoryGameStorage } from "../engine/game-storage.js";
+import { EngineSessionCore } from "../engine/session-core.js";
 import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
-import { corePlayerFromDeck } from "./deck-seat.js";
-import { deckOptionsOf, preconDecks } from "./deck-list-model.js";
+import { corePlayerForSeat, corePlayerFromDeck } from "./deck-seat.js";
+import { deckOptionOf, deckOptionsOf, preconDecks } from "./deck-list-model.js";
+import { rollFirstPlayerIndex } from "./seed.js";
 import {
   addSeat,
   clearHeroFilter,
@@ -20,6 +23,7 @@ import {
   setSeed,
   toSessionConfig,
   withSeatOne,
+  usePreconstructedForAllSeats,
 } from "./setup-draft.js";
 
 const RHINO = CORE_SCENARIOS.find((s) => (s.id as string) === "rhino")!;
@@ -179,5 +183,65 @@ describe("toSessionConfig", () => {
     const config = toSessionConfig(draft, [{ starterDeckId: "core-spider-man-justice" }]);
     expect(config.modularSetIds).toEqual(["masters_of_evil"]);
     expect(config.firstPlayerIndex).toBe(1);
+  });
+});
+
+describe("usePreconstructedForAllSeats", () => {
+  test("swaps a custom deck for its identity's own precon", () => {
+    const options = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    const spiderManPrecon = options.find((o) => (o.deck.id as string) === "precon:core-spider-man-justice")!;
+    const customSpiderMan: Deck = { ...spiderManPrecon.deck, id: deckId("user-built-spidey"), name: "My Spidey", source: { kind: "userBuilt", createdAt: "2026-01-01" } };
+    const customOption = deckOptionOf(customSpiderMan, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    const allOptions = [...options, customOption];
+
+    let draft = initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: customOption.deck.id as string, seed: 1 });
+    draft = usePreconstructedForAllSeats(draft, allOptions);
+    expect(draft.seats).toEqual(["precon:core-spider-man-justice"]);
+  });
+
+  test("leaves a seat unchanged when its identity has no precon", () => {
+    const options = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    const draft = initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: "no-such-deck", seed: 1 });
+    expect(usePreconstructedForAllSeats(draft, options).seats).toEqual(["no-such-deck"]);
+  });
+});
+
+describe("the full W2 setup flow (view-model level: scenes aren't unit-tested in this package)", () => {
+  test("a 1–4 seat game with a non-recommended modular and a non-default first player starts and its save replays", async () => {
+    const options = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    const seatDeckIds = ["precon:core-spider-man-justice", "precon:core-she-hulk-aggression", "precon:core-iron-man-aggression", "precon:core-black-panther-protection"];
+
+    let draft = initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: seatDeckIds[0]!, seed: 2026 });
+    for (const seatId of seatDeckIds.slice(1)) draft = addSeat(draft, seatId);
+    expect(draft.seats).toEqual(seatDeckIds);
+
+    // Rhino's own recommended set is Bomb Scare; pick something else.
+    draft = setModularSetIds(draft, ["masters_of_evil"]);
+    expect(draft.modularSetIds).not.toEqual(RHINO.recommendedModularSetIds);
+
+    // "Random" first player, rolled from the seed rather than the engine's own default seat 0.
+    const rolled = rollFirstPlayerIndex(draft.seed, draft.seats.length);
+    draft = setFirstPlayerIndex(draft, rolled);
+    expect(draft.firstPlayerIndex).not.toBeNull();
+
+    const players = draft.seats.map((deckId) => {
+      const option = options.find((o) => (o.deck.id as string) === deckId)!;
+      return corePlayerForSeat(option);
+    });
+    const config = toSessionConfig(draft, players);
+    expect(config.modularSetIds).toEqual(["masters_of_evil"]);
+    expect(config.firstPlayerIndex).toBe(rolled);
+    expect(config.players.length).toBe(4);
+
+    const storage = new MemoryGameStorage();
+    const first = new EngineSessionCore({ storage });
+    const started = await first.start(config);
+    expect(started.snapshot.legal).not.toBeNull();
+
+    const saveMeta = await storage.latestActive();
+    expect(saveMeta).not.toBeNull();
+    const second = new EngineSessionCore({ storage });
+    const resumed = await second.resume(saveMeta!.id);
+    expect(resumed.snapshot.state).toEqual(started.snapshot.state);
   });
 });

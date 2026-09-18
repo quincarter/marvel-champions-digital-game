@@ -12,6 +12,9 @@ import { cssOf, setTextResolution } from "./ui/theme.js";
 import { appSession } from "./session.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
+import { ScenarioSelectScene } from "./scenes/scenario-select.js";
+import { SeatsScene } from "./scenes/seats.js";
+import { TableSetupScene } from "./scenes/table-setup.js";
 import { BoardScene } from "./scenes/board.js";
 import { ChoiceOverlay } from "./scenes/choice.js";
 import { InspectOverlay } from "./scenes/inspect.js";
@@ -55,6 +58,9 @@ const game = new Phaser.Game({
   scene: [
     BootScene,
     TitleScene,
+    ScenarioSelectScene,
+    SeatsScene,
+    TableSetupScene,
     BoardScene,
     DecksScene,
     DeckBuilderScene,

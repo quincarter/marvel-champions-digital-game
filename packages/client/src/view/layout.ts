@@ -23,6 +23,11 @@ export interface Rect {
   readonly height: number;
 }
 
+/** True when two rects share any pixel — the no-overlap check every layout's own test uses (S8, docs/phase4-screen-gaps.md §2). */
+export function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
 export type FormFactor = "phone" | "tabletPortrait" | "tabletLandscape" | "desktop";
 
 /** The phone board's zone tabs, in the order the design canvas lists them. */
