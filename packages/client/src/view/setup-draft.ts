@@ -38,6 +38,7 @@
 import type { Scenario } from "@mc/content";
 import type { CorePlayer } from "@mc/cards";
 import type { SessionConfig } from "../engine/host.js";
+import type { DeckOption } from "./deck-list-model.js";
 import { EMPTY_ROSTER_FILTER, type RosterFilter } from "./roster-filter.js";
 import { rollSeed } from "./seed.js";
 
@@ -148,6 +149,36 @@ export function addSeat(draft: SetupDraft, deckId: string, maxSeats = 4): SetupD
 export function removeSeat(draft: SetupDraft, deckId: string): SetupDraft {
   if (draft.seats.length <= 1) return draft;
   return { ...draft, seats: draft.seats.filter((id) => id !== deckId) };
+}
+
+/**
+ * "Play this deck ▸" (W9, docs/phase4-screen-gaps.md §3): seats `deckId` in seat 1, dropping every other seat —
+ * the same "one seat to start" shape `initialSetupDraft` itself gives a fresh visit. This is the whole hook a
+ * caller outside the setup flow needs to preselect a deck: build (or take) a draft, call this, hand the result to
+ * whatever reads `SetupDraft` next. Deliberately not "insert at seat 1, keep the rest" — a deck picked from the
+ * Decks screen is a fresh "play this" intent, not an addition to whatever seats happened to be there before.
+ */
+export function withSeatOne(draft: SetupDraft, deckId: string): SetupDraft {
+  return { ...draft, seats: [deckId] };
+}
+
+/**
+ * "Use preconstructed for all seats" (docs/phase4-screen-gaps.md §3 W2, D03):
+ * swaps every seated custom/imported deck for its own identity's precon, when
+ * one exists in `deckOptions`. A seat whose identity has no precon (or that's
+ * already a precon) is left as it is — this never drops a seat or changes
+ * *who* is seated, only *which deck* each identity plays.
+ */
+export function usePreconstructedForAllSeats(draft: SetupDraft, deckOptions: readonly DeckOption[]): SetupDraft {
+  const byDeckId = new Map(deckOptions.map((option) => [option.deck.id as string, option]));
+  const precons = deckOptions.filter((option) => option.deck.source.kind === "precon");
+  const seats = draft.seats.map((deckId) => {
+    const seated = byDeckId.get(deckId);
+    if (!seated) return deckId;
+    const precon = precons.find((option) => (option.deck.identityCardId as string) === (seated.deck.identityCardId as string));
+    return precon ? (precon.deck.id as string) : deckId;
+  });
+  return { ...draft, seats };
 }
 
 /**

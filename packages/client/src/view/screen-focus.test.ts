@@ -6,8 +6,12 @@ import {
   decksFocusOrder,
   pauseFocusOrder,
   rulesFocusOrder,
+  scenarioSelectFocusOrder,
+  seatsFocusOrder,
   settingsFocusOrder,
+  tableSetupFocusOrder,
   titleFocusOrder,
+  titleMenuFocusOrder,
   villainPhaseFocusOrder,
 } from "./screen-focus.js";
 
@@ -78,30 +82,54 @@ describe("screen focus routes", () => {
     expect(order).toEqual(["scenario-search", "scenario:breakout", "difficulty:standard", "difficulty:expert", "difficulty:extreme", "hero-search", "hero:a", "seed", "new-seed", "start"]);
   });
 
-  test("the Decks screen gives every deck row a stop, not just the ones currently on screen — every row also gets Check", () => {
+  test("the Decks screen (W9): wide reaches the list and the selected deck's stats-pane actions in one route", () => {
     const base = {
       showMarvelCdbImport: false,
       deckIds: ["p1", "s1", "s2"],
-      editableDeckIds: new Set(["s1", "s2"]),
+      chipIds: ["aspect:justice", "legal-only"],
+      wide: true,
+      activeTab: "decks" as const,
+      hasSelection: true,
+      editable: true,
     };
     expect(decksFocusOrder(base)).toEqual([
       "back",
+      "deck-search",
+      "deck-chip:aspect:justice",
+      "deck-chip:legal-only",
+      "deck:p1",
+      "deck:s1",
+      "deck:s2",
       "paste-field",
       "paste-import",
       "new-deck",
-      "deck:p1",
-      "deck:p1:check",
-      "deck:s1",
-      "deck:s1:check",
-      "deck:s1:edit",
-      "deck:s1:delete",
-      "deck:s2",
-      "deck:s2:check",
-      "deck:s2:edit",
-      "deck:s2:delete",
+      "stats-check",
+      "stats-duplicate",
+      "stats-export",
+      "stats-edit",
+      "stats-delete",
+      "stats-play",
     ]);
     expect(decksFocusOrder({ ...base, showMarvelCdbImport: true })).toContain("marvelcdb-field");
     expect(decksFocusOrder({ ...base, showMarvelCdbImport: true })).toContain("marvelcdb-import");
+    // A precon (or any non-editable deck) selected: no Edit/Delete stop.
+    expect(decksFocusOrder({ ...base, editable: false })).not.toContain("stats-edit");
+    expect(decksFocusOrder({ ...base, editable: false })).not.toContain("stats-delete");
+    // Nothing selected yet: the stats pane contributes no stops at all.
+    expect(decksFocusOrder({ ...base, hasSelection: false })).not.toContain("stats-play");
+  });
+
+  test("the Decks screen: narrow reaches only the active tab's own group, behind Back and the tab strip", () => {
+    const base = {
+      showMarvelCdbImport: false,
+      deckIds: ["p1"],
+      chipIds: [],
+      wide: false,
+      hasSelection: true,
+      editable: false,
+    };
+    expect(decksFocusOrder({ ...base, activeTab: "decks" })).toEqual(["back", "tab:decks", "tab:stats", "deck-search", "deck:p1", "paste-field", "paste-import", "new-deck"]);
+    expect(decksFocusOrder({ ...base, activeTab: "stats" })).toEqual(["back", "tab:decks", "tab:stats", "stats-check", "stats-duplicate", "stats-export", "stats-play"]);
   });
 
   test("the deck builder shows only the identity picker until one is chosen, then the rest", () => {
@@ -202,6 +230,62 @@ describe("screen focus routes", () => {
   test("Settings reads Back then one stop per row", () => {
     expect(settingsFocusOrder(["reduced-motion", "large-card-text", "sound"])).toEqual(["back", "row:reduced-motion", "row:large-card-text", "row:sound"]);
     expect(settingsFocusOrder([])).toEqual(["back"]);
+  });
+
+  test("the Title menu (W2's D01) is Continue (when there's one), New game, Decks, Campaign, Settings", () => {
+    expect(titleMenuFocusOrder({ continuable: false })).toEqual(["new-game", "decks", "campaign", "settings"]);
+    expect(titleMenuFocusOrder({ continuable: true })).toEqual(["continue", "new-game", "decks", "campaign", "settings"]);
+  });
+
+  test("Scenario select: Back, search, chips, rows (or Clear), then next", () => {
+    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino", "klaw"] })).toEqual(["back", "scenario-search", "scenario:rhino", "scenario:klaw", "next"]);
+    expect(scenarioSelectFocusOrder({ scenarioIds: [] })).toEqual(["back", "scenario-search", "scenario-clear", "next"]);
+    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino"], scenarioChipIds: ["product:core"] })).toEqual([
+      "back",
+      "scenario-search",
+      "scenario-chip:product:core",
+      "scenario:rhino",
+      "next",
+    ]);
+  });
+
+  test("Take your seats: Back, use-preconstructed, search, chips, rows (or Clear), then deck check (the one red CTA)", () => {
+    expect(seatsFocusOrder({ deckIds: ["a", "b"] })).toEqual(["back", "use-preconstructed", "hero-search", "hero:a", "hero:b", "deck-check"]);
+    expect(seatsFocusOrder({ deckIds: [] })).toEqual(["back", "use-preconstructed", "hero-search", "hero-clear", "deck-check"]);
+    expect(seatsFocusOrder({ deckIds: ["a"], heroChipIds: ["aspect:justice"] })).toEqual([
+      "back",
+      "use-preconstructed",
+      "hero-search",
+      "hero-chip:aspect:justice",
+      "hero:a",
+      "deck-check",
+    ]);
+  });
+
+  test("Table setup: Back, difficulty, modular sets, first-player options, seed, reroll, then Deal it out", () => {
+    const order = tableSetupFocusOrder({
+      difficulties: ["standard", "expert"],
+      modularSetIds: ["bomb_scare", "masters_of_evil"],
+      firstPlayerOptionIds: ["0", "1", "random"],
+    });
+    expect(order).toEqual([
+      "back",
+      "difficulty:standard",
+      "difficulty:expert",
+      "modular:bomb_scare",
+      "modular:masters_of_evil",
+      "first-player:0",
+      "first-player:1",
+      "first-player:random",
+      "seed",
+      "reroll",
+      "deal-it-out",
+    ]);
+  });
+
+  test("Table setup with no modular sets (Breakout) simply omits that stretch", () => {
+    const order = tableSetupFocusOrder({ difficulties: ["standard"], modularSetIds: [], firstPlayerOptionIds: ["0", "random"] });
+    expect(order).toEqual(["back", "difficulty:standard", "first-player:0", "first-player:random", "seed", "reroll", "deal-it-out"]);
   });
 
   test("stepping a key route wraps, and starts from either end", () => {

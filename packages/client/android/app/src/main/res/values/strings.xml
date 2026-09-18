@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Marvel Champions</string>
+    <string name="title_activity_main">Marvel Champions</string>
+    <string name="package_name">com.quincarter.marvelchampions</string>
+    <string name="custom_url_scheme">com.quincarter.marvelchampions</string>
+</resources>

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { rectsOverlap } from "./title-layout.js";
+import { rectsOverlap } from "./layout.js";
 import { deckCheckLayout, deckCheckLayoutRects } from "./deck-check-layout.js";
 
 /** docs/phase4-screen-gaps.md §0/§3: checked at portrait phone (~440×900), 800×600 and desktop sizes. */

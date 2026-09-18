@@ -23,6 +23,8 @@ import Phaser from "phaser";
 import { POOL_DEPS } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
+import { coverFit, type Picture } from "../art/pictures.js";
+import { ART_CATALOG, outcomeArtFor } from "../art/scenario-art.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, fitText, label, paintDotGrid } from "../ui/widgets.js";
@@ -50,6 +52,14 @@ export class GameOverScene extends Phaser.Scene {
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
   #order: string[] = [];
+  /**
+   * The end-of-game scene for this result (`art/scenario-art.ts`), picked once
+   * per visit: `#draw` re-runs on every resize and art arrival, and a fresh
+   * pick each time would flicker between variants. Null when `art/` has none.
+   */
+  #outcomeArt: Picture | null = null;
+  /** The picture key whose load is in flight, so a redraw while waiting doesn't queue it twice. */
+  #loadingArt: string | null = null;
 
   constructor() {
     super(SCENES.gameOver);
@@ -69,6 +79,8 @@ export class GameOverScene extends Phaser.Scene {
       this.#buttons = [];
     });
     this.#route = new FocusRoute(this);
+    const { game, config } = appSession().store.state;
+    this.#outcomeArt = game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
     this.#draw();
   }
 
@@ -194,21 +206,48 @@ export class GameOverScene extends Phaser.Scene {
       .setWordWrapWidth(sideWidth);
   }
 
+  /**
+   * Covers `panel` with a picture from `art/`, loading it first if this is its first showing. The picture is
+   * drawn only by the `#draw` that finds it ready, so one that arrives late redraws rather than landing on top.
+   */
+  #drawOutcomeArt(picture: Picture, panel: Rect): void {
+    if (!this.textures.exists(picture.key)) {
+      if (this.#loadingArt === picture.key) return;
+      this.#loadingArt = picture.key;
+      this.load.image(picture.key, picture.url);
+      this.load.once(`filecomplete-image-${picture.key}`, () => {
+        if (this.sys.isActive()) this.#draw();
+      });
+      this.load.start();
+      return;
+    }
+    const fit = coverFit(this.textures.get(picture.key).getSourceImage() as { width: number; height: number }, panel);
+    this.add
+      .image(panel.x + panel.width / 2, panel.y + panel.height / 2, picture.key)
+      .setScale(fit.scale)
+      .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight);
+  }
+
   /** Screens - Phone P11 (loss) / P17 (win). */
   #drawTall(model: GameOverModel, config: SessionConfig | null, width: number, height: number): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const accentHue = model.tone === "win" ? signal.caution.hex : accent.heroRed.hex;
     const pad = 16;
 
-    // The villain's card, whole, in a band across the top.
+    // The art window across the top (P11 "Defeat art" / P17): this result's scene from `art/`, edge to edge;
+    // or, when `art/` has none for it, the villain's card, whole.
     const bandHeight = Math.round(Math.min(250, height * 0.3));
     const band = this.add.graphics();
     band.fillStyle(surface.void.hex, 1).fillRect(0, 0, width, bandHeight);
-    const { store } = appSession();
-    const game = store.state.game!;
-    const villain = game.cardPool[game.instances[model.villainInstanceId]?.cardId ?? ""];
-    const key = cardArt(this).request(this, artFor(villain, faceOf(game, model.villainInstanceId)));
-    drawArt(this, key, { x: pad, y: 10, width: width - pad * 2, height: bandHeight - 20 }, { fit: "contain" });
+    if (this.#outcomeArt) {
+      this.#drawOutcomeArt(this.#outcomeArt, { x: 0, y: 0, width, height: bandHeight });
+    } else {
+      const { store } = appSession();
+      const game = store.state.game!;
+      const villain = game.cardPool[game.instances[model.villainInstanceId]?.cardId ?? ""];
+      const key = cardArt(this).request(this, artFor(villain, faceOf(game, model.villainInstanceId)));
+      drawArt(this, key, { x: pad, y: 10, width: width - pad * 2, height: bandHeight - 20 }, { fit: "contain" });
+    }
     band.fillStyle(accentHue, 1).fillRect(0, bandHeight, width, 3);
 
     paintDotGrid(this, { x: 0, y: bandHeight + 3, width, height: height - bandHeight - 3 }, "ink", dotGrid.onInk);

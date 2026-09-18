@@ -10,18 +10,6 @@
       the design system's canvas-behind-screens colour, so the page never
       flashes white before the game boots.
     -->
-    <!--
-      The three families from Components.dc.html. Loaded as a stylesheet here
-      rather than through Phaser's loader, which loads font *files*, not a
-      Google Fonts CSS document. The Boot scene waits on `document.fonts`
-      before drawing, so no screen is ever laid out in a fallback face.
-    -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Bangers&family=IBM+Plex+Mono:wght@400&family=Public+Sans:wght@400;700;800&display=block"
-    />
     <style>
       html,
       body {
@@ -32,9 +20,19 @@
         background: #0e0c0a;
         color-scheme: dark;
       }
+      /*
+        The game sits inside the safe area, so a notch, a Dynamic Island or the
+        home indicator never covers a control; VOID fills the insets. With
+        Phaser's RESIZE scale mode the canvas takes this box's size, so scenes
+        lay out against the safe rect with no inset logic of their own. Every
+        inset is 0 on desktop, so this is the whole-window box there.
+      */
       #game {
-        width: 100%;
-        height: 100%;
+        position: fixed;
+        top: env(safe-area-inset-top, 0px);
+        right: env(safe-area-inset-right, 0px);
+        bottom: env(safe-area-inset-bottom, 0px);
+        left: env(safe-area-inset-left, 0px);
       }
       canvas {
         display: block;

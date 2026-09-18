@@ -10,16 +10,35 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "tauri": "tauri",
+    "desktop:dev": "tauri dev",
+    "desktop:build": "tauri build",
+    "cap": "cap",
+    "mobile:sync": "pnpm build && cap sync",
+    "ios": "pnpm mobile:sync && cap run ios",
+    "android": "pnpm mobile:sync && cap run android",
+    "ios:open": "pnpm mobile:sync && cap open ios",
+    "android:open": "pnpm mobile:sync && cap open android"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "@capacitor/ios": "^8.5.2",
+    "@fontsource/bangers": "^5.3.0",
+    "@fontsource/ibm-plex-mono": "^5.3.0",
+    "@fontsource/public-sans": "^5.3.0",
     "@mc/cards": "workspace:*",
     "@mc/content": "workspace:*",
     "@mc/engine": "workspace:*",
+    "@tauri-apps/api": "^2.11.1",
+    "@tauri-apps/plugin-http": "^2.6.1",
     "phaser": "^4.2.1",
     "phaser4-rex-plugins": "^4.2.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
+    "@tauri-apps/cli": "^2.11.4",
     "fake-indexeddb": "^6.2.5",
     "vite": "^8.3.0"
   }

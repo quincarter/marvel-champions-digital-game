@@ -24,7 +24,6 @@ import {
   MSM_PACK,
   THOR_PACK,
   TWC_PACK,
-  WAVE1_CARDS,
   WAVE1_ENCOUNTER_SETS,
   WAVE1_SCENARIOS,
   WAVE1_STARTER_DECKS,
@@ -36,18 +35,41 @@ import {
   type StarterDeck,
 } from "@mc/content";
 import type { EngineDeps } from "@mc/engine";
+import { POOL_CARDS } from "./pool-cards.js";
 
-/** Every card the app knows about: Core plus the eight wave 1 packs. */
-export const POOL_CARDS: readonly AnyCard[] = WAVE1_CARDS;
+// Defined in `pool-cards.ts` so the build can read it without the rules engine; re-exported so this stays the one import site.
+export { POOL_CARDS };
+
+/** Every card in `POOL_CARDS`, by id — the one lookup every setup screen needs (a scenario's villain/main scheme, a deck's identity, a seat's hero). Built once, from the pool alone, so no screen keeps its own copy. */
+export const CARDS_BY_ID: ReadonlyMap<string, AnyCard> = new Map(POOL_CARDS.map((card) => [card.id as string, card]));
+
+/** Every encounter set the app's pool knows (Core's plus every wave 1 pack's), for a screen that names one (a scenario's own sets, a modular set picker, an encounter deck preview). `WAVE1_ENCOUNTER_SETS` deliberately excludes Core's own sets (`@mc/content`'s own doc comment), so both are combined here. */
+export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [...CORE_ENCOUNTER_SETS, ...WAVE1_ENCOUNTER_SETS];
+
+/**
+ * The five Core modular encounter sets a table setup may pick between
+ * (docs/phase4-screen-gaps.md §5): every other Core encounter set is a
+ * villain's own set, a nemesis set, or a difficulty set (Standard/Expert), not
+ * a modular a scenario picks at setup. Wave 1's own scenarios (Green Goblin's
+ * Risky Business/Mutagen Formula) each recommend a set of their own
+ * ("power_drain", "goblin_gimmicks") that isn't one of these five — those stay
+ * pickable too, via `view/modular-sets.ts`'s `modularSetCandidatesFor`, which
+ * adds a scenario's own recommended set(s) to this fixed list rather than
+ * replacing it.
+ */
+export const CORE_MODULAR_SET_IDS: readonly string[] = [
+  "bomb_scare",
+  "masters_of_evil",
+  "under_attack",
+  "legions_of_hydra",
+  "the_doomsday_chair",
+];
 
 /** Every ability script for `POOL_CARDS` (Core's own scripts included — `WAVE1_DEPS` starts from `CORE_ABILITIES`). */
 export const POOL_DEPS: EngineDeps = WAVE1_DEPS;
 
 /** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout). */
 export const POOL_SCENARIOS: readonly Scenario[] = [...CORE_SCENARIOS, ...WAVE1_SCENARIOS];
-
-/** Every encounter set in the app's pool, Core's three villain sets included (`WAVE1_ENCOUNTER_SETS` deliberately omits them). Display names for `view/scenario-card-list.ts` and `view/encounter-preview.ts`. */
-export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [...CORE_ENCOUNTER_SETS, ...WAVE1_ENCOUNTER_SETS];
 
 /** Every starter deck, Core's six precons first, then the six wave 1 hero packs'. */
 export const POOL_STARTER_DECKS: readonly StarterDeck[] = [...CORE_STARTER_DECKS, ...WAVE1_STARTER_DECKS];
