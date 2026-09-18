@@ -158,18 +158,23 @@ export { defendPreview, plannedAttackDamage } from "./defend-preview.js";
 export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
 export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 
-export type { EffectContext } from "./select.js";
+export type { EffectContext, QueryExclusion } from "./select.js";
 export {
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
   categoriesOf,
   controllerOf,
+  explainQuery,
   matchesQuery,
   resolveValue,
   selectTargets,
   traitsOf,
 } from "./select.js";
+
+/** "Why not the others?" — the cards an open choice left out, each with the clause that excluded it. */
+export type { ChoiceExclusion, ExclusionCode } from "./why-not.js";
+export { choiceExclusions } from "./why-not.js";
 
 /** RRG "Unique Icon": the match predicate and the in-play scan, for a client that wants to grey a card itself. */
 export type { UniqueNames } from "./unique.js";

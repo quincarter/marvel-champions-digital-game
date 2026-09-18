@@ -179,111 +179,165 @@ export function cardsInPlay(state: GameState): readonly InstanceId[] {
   return ids;
 }
 
-export function matchesQuery(
+/**
+ * Which clause of a `TargetQuery` rejected a card.
+ *
+ * These are clause names, not player-facing copy: the engine has no wording for them (unlike `EngineError.message`,
+ * which is written for exactly that), so a client keeps its own code→wording table. They exist so "why isn't that a
+ * legal target?" can be answered by the filter that actually ran, rather than by a second implementation of it.
+ */
+export type QueryExclusion =
+  | "unknownCard"
+  | "wrongSelf"
+  | "wrongCategory"
+  | "wrongController"
+  | "notEngagedWithYou"
+  | "notEngaged"
+  | "missingTrait"
+  | "hasExcludedTrait"
+  | "wrongName"
+  | "wrongFacedown"
+  | "notHostOfSelf"
+  | "notAttachedToHost"
+  | "wrongOwner"
+  | "missingPrintedResource"
+  | "wrongAspect"
+  | "exhausted"
+  | "ready"
+  | "noThreat"
+  | "hasThreat"
+  | "notDamaged"
+  | "damaged"
+  | "missingStatus"
+  | "hasStatus"
+  | "printedHpTooHigh"
+  | "printedCostTooHigh"
+  | "cannotBeAttacked"
+  | "alreadyChosen"
+  | "notInSlot"
+  | "wrongSignatureSideScheme"
+  | "notEngagedWithPlayer"
+  | "wrongIdentitySet";
+
+/**
+ * The single implementation of "does this card match this query?", reported as *which clause said no*.
+ *
+ * `matchesQuery` is this function asked whether it found anything, so the filter that selects targets and the
+ * explanation of why a card was not selected can never drift apart (see `why-not.ts`). Clauses are checked in the
+ * order they are written; the first one that rejects is the one reported.
+ */
+export function explainQuery(
   state: GameState,
   id: InstanceId,
   query: TargetQuery,
   context: EffectContext,
-): boolean {
+): QueryExclusion | null {
   const instance = getInstance(state, id);
-  if (!instance) return false;
+  if (!instance) return "unknownCard";
   if (query.self !== undefined) {
     const isSelf = context.selfInstanceId === id;
-    if (query.self !== isSelf) return false;
+    if (query.self !== isSelf) return "wrongSelf";
   }
   if (query.categories) {
     const categories = categoriesOf(state, id);
-    if (!query.categories.some((category) => categories.includes(category))) return false;
+    if (!query.categories.some((category) => categories.includes(category))) return "wrongCategory";
   }
   if (query.controller) {
     const controller = controllerOf(state, id);
-    if (query.controller === "encounter" && controller !== null) return false;
-    if (query.controller === "you" && controller !== context.controllerId) return false;
+    if (query.controller === "encounter" && controller !== null) return "wrongController";
+    if (query.controller === "you" && controller !== context.controllerId) return "wrongController";
     if (query.controller === "other" && (controller === null || controller === context.controllerId)) {
-      return false;
+      return "wrongController";
     }
   }
-  if (query.engagedWith === "you" && instance.engagedWith !== context.controllerId) return false;
-  if (query.engagedWith === "any" && instance.engagedWith === null) return false;
-  if (query.trait && !traitsOf(state, id, context.deps).includes(query.trait)) return false;
-  if (query.withoutTrait && traitsOf(state, id, context.deps).includes(query.withoutTrait)) return false;
+  if (query.engagedWith === "you" && instance.engagedWith !== context.controllerId) return "notEngagedWithYou";
+  if (query.engagedWith === "any" && instance.engagedWith === null) return "notEngaged";
+  if (query.trait && !traitsOf(state, id, context.deps).includes(query.trait)) return "missingTrait";
+  if (query.withoutTrait && traitsOf(state, id, context.deps).includes(query.withoutTrait)) return "hasExcludedTrait";
   if (query.anyTrait) {
     const traits = traitsOf(state, id, context.deps);
-    if (!query.anyTrait.some((wanted) => traits.includes(wanted))) return false;
+    if (!query.anyTrait.some((wanted) => traits.includes(wanted))) return "missingTrait";
   }
   // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
-  if (query.name !== undefined && currentName(state, id) !== query.name) return false;
-  if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return false;
+  if (query.name !== undefined && currentName(state, id) !== query.name) return "wrongName";
+  if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return "wrongFacedown";
   if (query.hostOfSelf !== undefined) {
     const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
-    if ((host === id) !== query.hostOfSelf) return false;
+    if ((host === id) !== query.hostOfSelf) return "notHostOfSelf";
   }
   // "A Weapon upgrade **on your hero**": the candidate is attached to one of the cards the ref names. The mirror of
   // `hostOfSelf`, which asks whether the candidate *is* this card's host.
   if (query.host !== undefined) {
     const attachedTo = instance.attachedTo;
-    if (attachedTo === null || !resolveRef(state, query.host, context).includes(attachedTo)) return false;
+    if (attachedTo === null || !resolveRef(state, query.host, context).includes(attachedTo)) return "notAttachedToHost";
   }
-  if (query.owner === "you" && instance.ownerId !== context.controllerId) return false;
+  if (query.owner === "you" && instance.ownerId !== context.controllerId) return "wrongOwner";
   if (query.printedResource !== undefined) {
     const card = cardOf(state, id);
-    if (!card || printedResources(card)[query.printedResource] <= 0) return false;
+    if (!card || printedResources(card)[query.printedResource] <= 0) return "missingPrintedResource";
   }
   if (query.anyPrintedResource !== undefined) {
     const card = cardOf(state, id);
     const pool = card ? printedResources(card) : null;
-    if (!pool || !query.anyPrintedResource.some((type) => pool[type] > 0)) return false;
+    if (!pool || !query.anyPrintedResource.some((type) => pool[type] > 0)) return "missingPrintedResource";
   }
   if (query.aspect !== undefined) {
     const card = cardOf(state, id);
-    if (!card || !("aspect" in card) || card.aspect !== query.aspect) return false;
+    if (!card || !("aspect" in card) || card.aspect !== query.aspect) return "wrongAspect";
   }
-  if (query.exhausted !== undefined && instance.exhausted !== query.exhausted) return false;
-  if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat) return false;
-  if (query.damaged !== undefined && instance.damage > 0 !== query.damaged) return false;
-  if (query.hasStatus && instance.statuses[query.hasStatus] <= 0) return false;
+  if (query.exhausted !== undefined && instance.exhausted !== query.exhausted) return query.exhausted ? "ready" : "exhausted";
+  if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat) return query.hasThreat ? "noThreat" : "hasThreat";
+  if (query.damaged !== undefined && instance.damage > 0 !== query.damaged) return query.damaged ? "notDamaged" : "damaged";
+  if (query.hasStatus && instance.statuses[query.hasStatus] <= 0) return "missingStatus";
   // "A status card in play": a character carrying at least one of any type (RRG 1.8 "Status Cards", p. 42 lists
   // exactly three). Counts the cards present, so a steady character's second stunned card still reads as "has one".
   if (query.hasAnyStatus !== undefined) {
     const any = STATUS_NAMES.some((status) => instance.statuses[status] > 0);
-    if (any !== query.hasAnyStatus) return false;
+    if (any !== query.hasAnyStatus) return query.hasAnyStatus ? "missingStatus" : "hasStatus";
   }
   if (query.maxPrintedHp !== undefined) {
     const card = cardOf(state, id);
     const hp = card && "hp" in card ? (card.hp as number) : undefined;
-    if (hp === undefined || hp > query.maxPrintedHp) return false;
+    if (hp === undefined || hp > query.maxPrintedHp) return "printedHpTooHigh";
   }
   if (query.maxPrintedCost !== undefined) {
     const card = cardOf(state, id);
     const cost = card && "cost" in card ? card.cost : 0;
     const bound = typeof query.maxPrintedCost === "number" ? query.maxPrintedCost : resolveValue(state, query.maxPrintedCost, context);
-    if (cost > bound) return false;
+    if (cost > bound) return "printedCostTooHigh";
   }
   if (query.attackableBy) {
     const [attacker] = resolveRef(state, query.attackableBy, context);
-    if (!attacker || !canAttack(state, attacker, id, context.deps)) return false;
+    if (!attacker || !canAttack(state, attacker, id, context.deps)) return "cannotBeAttacked";
   }
-  if (query.excludeSlots?.some((slot) => (context.bindings[slot] ?? []).includes(id))) return false;
-  if (query.inSlot !== undefined && !(context.bindings[query.inSlot] ?? []).includes(id)) return false;
+  if (query.excludeSlots?.some((slot) => (context.bindings[slot] ?? []).includes(id))) return "alreadyChosen";
+  if (query.inSlot !== undefined && !(context.bindings[query.inSlot] ?? []).includes(id)) return "notInSlot";
   if (query.controlledBy) {
     const controller = controllerOf(state, id);
-    if (controller === null || !resolvePlayers(state, query.controlledBy, context).includes(controller)) return false;
+    if (controller === null || !resolvePlayers(state, query.controlledBy, context).includes(controller)) return "wrongController";
   }
   if (query.signatureSideScheme !== undefined && state.villains.some((villain) => villain.signatureSideSchemeId === id) !== query.signatureSideScheme) {
-    return false;
+    return "wrongSignatureSideScheme";
   }
   if (query.engagedWithPlayer) {
-    if (instance.engagedWith === null || !resolvePlayers(state, query.engagedWithPlayer, context).includes(instance.engagedWith)) return false;
+    if (instance.engagedWith === null || !resolvePlayers(state, query.engagedWithPlayer, context).includes(instance.engagedWith)) return "notEngagedWithPlayer";
   }
   if (query.identitySetOf) {
     // RRG 1.8 "Identity-Specific Card" (p. 23): the set icon, carried as `aspect: "hero:<identity card id>"`.
     const card = cardOf(state, id);
     const aspect = card && "aspect" in card ? String(card.aspect) : null;
     const identities = resolvePlayers(state, query.identitySetOf, context).map((playerId) => getPlayer(state, playerId)?.identity.cardId);
-    if (!aspect || !identities.some((cardId) => cardId !== undefined && aspect === `hero:${cardId}`)) return false;
+    if (!aspect || !identities.some((cardId) => cardId !== undefined && aspect === `hero:${cardId}`)) return "wrongIdentitySet";
   }
-  return true;
+  return null;
 }
+
+export const matchesQuery = (
+  state: GameState,
+  id: InstanceId,
+  query: TargetQuery,
+  context: EffectContext,
+): boolean => explainQuery(state, id, query, context) === null;
 
 const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps): boolean =>
   cardsInPlay(state).some(
