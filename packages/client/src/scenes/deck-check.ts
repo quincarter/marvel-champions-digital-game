@@ -40,10 +40,12 @@ export interface DeckCheckSceneData {
   /** Where Back returns — defaults to the Decks screen, so a caller that only has a deck can still open this. */
   readonly returnTo?: { readonly scene: SceneKey; readonly data?: object };
   /**
-   * "Start game ▸"'s handler, supplied only once a setup flow exists to hand the finished lineup off to (W2).
-   * Absent today: this screen draws Start game unavailable with its reason rather than omitting it.
+   * "Start game ▸"'s handler; W2's Seats supplies one that continues to Table setup. It receives *this* scene so
+   * the handler can `from.scene.start(...)` and thereby stop Deck check — a closure over the caller's own (already
+   * stopped) scene would start the next screen underneath this one. Absent: Start game draws unavailable with its
+   * reason rather than being omitted.
    */
-  readonly onStartGame?: () => void;
+  readonly onStartGame?: (from: Phaser.Scene) => void;
 }
 
 type DeckCheckTab = "curve" | "cards" | "aspect";
@@ -57,7 +59,7 @@ const CURVE_CHART_HEIGHT = 120;
 export class DeckCheckScene extends Phaser.Scene {
   #deck!: Deck;
   #returnTo!: { readonly scene: SceneKey; readonly data?: object };
-  #onStartGame: (() => void) | undefined;
+  #onStartGame: ((from: Phaser.Scene) => void) | undefined;
   #activeTab: DeckCheckTab = "curve";
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
@@ -175,10 +177,10 @@ export class DeckCheckScene extends Phaser.Scene {
         rect: layout.startGame,
         enabled: canStart,
         ...(canStart ? {} : { reason: "Setup flow isn't built yet — coming with the title-menu rework (W2)." }),
-        onClick: () => this.#onStartGame?.(),
+        onClick: () => this.#onStartGame?.(this),
       }),
     );
-    this.#stops.set("start", { rect: layout.startGame, activate: () => this.#onStartGame?.() });
+    this.#stops.set("start", { rect: layout.startGame, activate: () => this.#onStartGame?.(this) });
 
     this.#route?.set(deckCheckFocusOrder({ activeTab: this.#activeTab, cardIds }), this.#stops);
   }

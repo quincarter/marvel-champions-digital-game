@@ -51,12 +51,12 @@ export interface SeatsData {
  * seated deck to check (or before the deck list has loaded), it goes straight to Table setup.
  */
 function goToDeckCheckOrTableSetup(scene: Phaser.Scene, draft: SetupDraft, deckOptions: readonly DeckOption[]): void {
-  const toTableSetup = (): void => {
-    scene.scene.start(SCENES.setup, { draft } satisfies TableSetupData);
+  const toTableSetup = (from: Phaser.Scene): void => {
+    from.scene.start(SCENES.setup, { draft } satisfies TableSetupData);
   };
   const seated = deckOptions.find((option) => (option.deck.id as string) === draft.seats[0]);
   if (!seated) {
-    toTableSetup();
+    toTableSetup(scene);
     return;
   }
   scene.scene.start(SCENES.deckCheck, {
