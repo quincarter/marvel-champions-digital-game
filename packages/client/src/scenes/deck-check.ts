@@ -236,7 +236,13 @@ export class DeckCheckScene extends Phaser.Scene {
     }
 
     const renderRow = (index: number, rowRect: Rect): VirtualListRow => this.#renderCardsRow(rowRect, rows[index]!);
-    this.#list = new McVirtualList(this, { rect, rowHeight: ROW_HEIGHT, count: rows.length, renderRow, scroll: this.#listScroll });
+    // A card row has no button of its own, so the pointer reaches it only through `onRowActivate` — the same
+    // Inspect the keyboard's Enter opens below. Without this a card could be read by keyboard and not by tap.
+    const onRowActivate = (index: number): void => {
+      const row = rows[index];
+      if (row?.kind === "card") this.#inspect(row.entry);
+    };
+    this.#list = new McVirtualList(this, { rect, rowHeight: ROW_HEIGHT, count: rows.length, renderRow, scroll: this.#listScroll, onRowActivate });
     const list = this.#list;
     rows.forEach((row, index) => {
       if (row.kind !== "card") return;
