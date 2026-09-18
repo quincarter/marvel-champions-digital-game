@@ -18,6 +18,7 @@ Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps
 | **W5** Targeting panel (wave 2, launched after S5 merged) | `game-client-engineer` | `.claude/worktrees/agent-a79c9a010099fa40d` | `worktree-agent-a79c9a010099fa40d` | Commits at the end. Must contain `578fab8`. |
 | **W6** Defend choice (wave 2) | `game-client-engineer` | `.claude/worktrees/agent-a1f59c5d76777c36c` | `worktree-agent-a1f59c5d76777c36c` | Commits at the end. Must contain `578fab8`. |
 | **W7** Villain phase breakdown (wave 2) | `game-client-engineer` | `.claude/worktrees/agent-a604b8b968959cb52` | `worktree-agent-a604b8b968959cb52` | Commits at the end. Must contain `578fab8`. |
+| **W1+W4 fidelity pass** (Deck check, builder, Pause, Rules, Settings, menu button vs D04/P04/D13/P16/L07) | `game-client-engineer` | `.claude/worktrees/agent-ad47bbda9045a2306` | `worktree-agent-ad47bbda9045a2306` | Commits at the end. Must contain `38c5aea`. |
 
 The worktree agents were told **not** to edit `docs/phase4-screen-gaps.md`; each ends its report with a paste-ready "Landed" note. If a report was lost, reconstruct the note from the branch's diff.
 
@@ -52,7 +53,7 @@ Then `pnpm test && pnpm typecheck`, check the new screens in a browser (Vite fro
 
 W5, W6, W7 launched 2026-09-17 evening (table above). Still to launch, from the integration branch:
 - **W3** Setup deal & mulligan (after W2).
-- **W1 fidelity pass** (after W9 lands, since W9 factors a shared stats widget out of W1's code) and **W4 fidelity pass** (Pause/Rules/Settings vs D13/P16/L07; can run any time nothing else touches those scenes).
+- ~~W1 + W4 fidelity passes~~ — launched as one agent (table above).
 - **W8** Board/Inspect/Game Over follow-ups (menu button comes with W4; "Watch the replay" needs W4's read-only board).
 - Then a `rules-qa-engineer` pass over S5.11's test list.
 
