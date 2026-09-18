@@ -29,6 +29,19 @@ describe("seatsLayout", () => {
     });
   }
 
+  test("wide lays out one row of four seat slots; narrow lays out a 2×2 grid (a 4-across row left no room for a seat card's own content at phone width)", () => {
+    const wideLayout = seatsLayout({ width: 1440, height: 900, chipRows: 1, detailLines: 4 });
+    const wideYs = new Set(wideLayout.seatSlots.map((s) => s.y));
+    expect(wideYs.size).toBe(1);
+
+    const narrowLayout = seatsLayout({ width: 390, height: 844, chipRows: 1, detailLines: 4 });
+    const narrowYs = new Set(narrowLayout.seatSlots.map((s) => s.y));
+    expect(narrowYs.size).toBe(2);
+    // Each narrow seat card is wider than a 4-across row of the same overall width would have given it.
+    const fourAcrossWidth = (390 - 2 * 16) / 4;
+    expect(narrowLayout.seatSlots[0]!.width).toBeGreaterThan(fourAcrossWidth);
+  });
+
   test("exactly four seat slots, every one within the shelves column", () => {
     const layout = seatsLayout({ width: 1280, height: 1000, chipRows: 1, detailLines: 4 });
     expect(layout.seatSlots.length).toBe(MAX_SEATS);

@@ -25,7 +25,7 @@ import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { accent, dotGrid, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, dashedRect, label, paintDotGrid } from "../ui/widgets.js";
+import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
 import { McVirtualList } from "../ui/virtual-list.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
@@ -213,18 +213,22 @@ export class SeatsScene extends Phaser.Scene {
     const back = (): void => this.#back();
     this.#buttons.push(new McButton(this, { kind: "onInk", label: `◂ ${scenario?.name ?? "Back"}`, type: typeRole.backLabel, rect: layout.back, onClick: back }));
     this.#stops.set("back", { rect: layout.back, activate: back });
-    this.add.text(layout.back.x + layout.back.width + 16, layout.headerBar.height / 2, "Take your seats", textStyle(typeRole.pageTitle, surface.paper.hex)).setOrigin(0, 0.5);
-    this.add
+    const titleX = layout.back.x + layout.back.width + 16;
+    const title = this.add.text(titleX, layout.headerBar.height / 2, "Take your seats", textStyle(typeRole.pageTitle, surface.paper.hex)).setOrigin(0, 0.5);
+    fitText(title, layout.step.x - titleX - 12, typeRole.pageTitle.size);
+    const stepText = this.add
       .text(layout.step.x + layout.step.width, layout.headerBar.height / 2, `STEP 2 OF 4 · ${this.#draft.seats.length} SEAT${this.#draft.seats.length === 1 ? "" : "S"} FILLED`, textStyle(typeRole.label, surface.paper.hex, ink.label))
       .setOrigin(1, 0.5);
+    fitText(stepText, layout.step.width, typeRole.label.size);
 
     // The four selectable seat cards (the active-seat model, docs/phase4-screen-gaps.md §3 W2b's own bug fix).
     const deckOptionsById = new Map(deckOptions.map((o) => [o.deck.id as string, o]));
     const slots = seatSlotsOf(this.#draft.seats, deckOptions, CARDS_BY_ID, MAX_SEATS, this.#draft.activeSeatIndex);
     slots.forEach((slot, index) => this.#drawSeatCard(layout.seatSlots[index]!, slot, index, slot.deckId ? deckOptionsById.get(slot.deckId) : undefined));
 
-    label(this, layout.rosterHeader.x, layout.rosterHeader.y + layout.rosterHeader.height / 2, `Heroes — seat ${this.#draft.activeSeatIndex + 1} of ${MAX_SEATS}, all played by you`, typeRole.label, surface.ink.hex, ink.label);
-    (this.children.list.at(-1) as Phaser.GameObjects.Text)?.setOrigin(0, 0.5);
+    const rosterLabel = label(this, layout.rosterHeader.x, layout.rosterHeader.y + layout.rosterHeader.height / 2, `Heroes — seat ${this.#draft.activeSeatIndex + 1} of ${MAX_SEATS}`, typeRole.label, surface.ink.hex, ink.label);
+    rosterLabel.setOrigin(0, 0.5);
+    fitText(rosterLabel, layout.usePreconstructed.x - layout.rosterHeader.x - 12, typeRole.label.size);
     const usePreconstructed = (): void => {
       this.#draft = usePreconstructedForAllSeats(this.#draft, deckOptions);
       this.#rebuild();
@@ -373,7 +377,9 @@ export class SeatsScene extends Phaser.Scene {
       face.lineStyle(1.5, surface.ink.hex, ink.label).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
     }
 
-    const thumbSize = rect.height - 16;
+    // Capped relative to the card's own width too, not just its height — at a 2×2 grid's ~180px card, a
+    // height-driven thumbnail (99px) left less than half the card for any text at all.
+    const thumbSize = Math.min(rect.height - 16, rect.width * 0.42);
     const thumbRect: Rect = { x: rect.x + 8, y: rect.y + 8, width: thumbSize, height: thumbSize };
     if (slot.deckId && option) {
       const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
@@ -388,11 +394,16 @@ export class SeatsScene extends Phaser.Scene {
 
     const textX = thumbRect.x + thumbRect.width + 10;
     const textWidth = rect.x + rect.width - textX - 8;
-    label(this, textX, rect.y + 8, `SEAT ${index + 1}${index === 0 ? " · YOU" : ""}`, typeRole.label, accent.heroRed.hex, 1);
+    // The close button sits top-right of the whole card — only the top two lines (the seat label, the name) need
+    // to leave room for it; the meta line at the card's own foot is well clear (second-pass fidelity pass:
+    // "SPIDER-MAN" read as "SPIDER-MA" with the "✕" sitting on top of the rest).
+    const topLineWidth = slot.deckId ? textWidth - CLOSE_SIZE - 8 : textWidth;
+    const seatLabel = label(this, textX, rect.y + 8, `SEAT ${index + 1}${index === 0 ? " · YOU" : ""}`, typeRole.label, accent.heroRed.hex, 1);
+    fitText(seatLabel, topLineWidth, typeRole.label.size);
     if (slot.deckId) {
-      const name = this.add.text(textX, rect.y + 22, slot.identityName ?? "?", textStyle(typeRole.sectionHeader, surface.ink.hex));
+      const name = this.add.text(textX, rect.y + 26, slot.identityName ?? "?", textStyle(typeRole.sectionHeader, surface.ink.hex));
       name.setFontSize(18);
-      name.setWordWrapWidth(textWidth);
+      fitText(name, topLineWidth, 18);
       const meta = this.add.text(textX, rect.y + rect.height - 34, `${slot.aspectLabel ?? ""} · ${slot.hp ?? "—"} HP · hand ${slot.handSize ?? "—"}`, textStyle(typeRole.label, surface.ink.hex, ink.label));
       meta.setWordWrapWidth(textWidth);
       const closeRect: Rect = { x: rect.x + rect.width - CLOSE_SIZE - 4, y: rect.y + 4, width: CLOSE_SIZE, height: CLOSE_SIZE };

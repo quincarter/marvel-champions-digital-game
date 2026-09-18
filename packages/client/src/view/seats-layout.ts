@@ -110,9 +110,18 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   const bodyTop = HEADER_HEIGHT + gutter;
   const bodyBottom = height - gutter;
 
-  const slotWidth = (shelvesWidth - (MAX_SEATS - 1) * 6) / MAX_SEATS;
-  const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => ({ x: left + i * (slotWidth + 6), y: bodyTop, width: slotWidth, height: SEAT_SLOT_HEIGHT }));
-  let y = bodyTop + SEAT_SLOT_HEIGHT + smallGap;
+  // Wide: one row of four. Narrow: 2×2 — four seat cards squeezed to ~85px wide each at phone width left no room
+  // for the portrait thumbnail plus any text at all (second-pass fidelity pass: the name/meta text overlapped
+  // between cards). A 2×2 grid keeps each card wide enough for its own content at every width.
+  const seatCols = wide ? MAX_SEATS : 2;
+  const seatRows = MAX_SEATS / seatCols;
+  const slotWidth = (shelvesWidth - (seatCols - 1) * 6) / seatCols;
+  const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => {
+    const col = i % seatCols;
+    const row = Math.floor(i / seatCols);
+    return { x: left + col * (slotWidth + 6), y: bodyTop + row * (SEAT_SLOT_HEIGHT + 6), width: slotWidth, height: SEAT_SLOT_HEIGHT };
+  });
+  let y = bodyTop + seatRows * SEAT_SLOT_HEIGHT + (seatRows - 1) * 6 + smallGap;
 
   const usePreconstructedWidth = Math.min(230, shelvesWidth * 0.5);
   const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: ROSTER_HEADER_HEIGHT };

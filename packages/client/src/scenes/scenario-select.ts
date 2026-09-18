@@ -16,7 +16,7 @@ import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { dotGrid, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, label, paintDotGrid } from "../ui/widgets.js";
+import { McButton, McTextInput, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
 import { McVirtualList } from "../ui/virtual-list.js";
 import { scenarioDetailLines, scenarioDetailOf, type ScenarioDetail } from "../view/scenario-detail.js";
@@ -174,9 +174,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const back = (): void => this.#back();
     this.#buttons.push(new McButton(this, { kind: "onInk", label: "◂ Back", type: typeRole.backLabel, rect: layout.back, onClick: back }));
     this.#stops.set("back", { rect: layout.back, activate: back });
-    this.add
-      .text(layout.back.x + layout.back.width + 16, layout.headerBar.height / 2, "Choose a scenario", textStyle(typeRole.pageTitle, surface.paper.hex))
-      .setOrigin(0, 0.5);
+    const titleX = layout.back.x + layout.back.width + 16;
+    const title = this.add.text(titleX, layout.headerBar.height / 2, "Choose a scenario", textStyle(typeRole.pageTitle, surface.paper.hex)).setOrigin(0, 0.5);
+    fitText(title, layout.step.x - titleX - 12, typeRole.pageTitle.size);
     this.add.text(layout.step.x + layout.step.width, layout.headerBar.height / 2, "STEP 1 OF 4", textStyle(typeRole.label, surface.paper.hex, ink.label)).setOrigin(1, 0.5);
 
     this.#searchInput = drawSearchField(
