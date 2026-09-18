@@ -6,6 +6,14 @@
  * (PLAN.md Phase 4). Physics is not configured — the game has none.
  */
 
+// The three families, bundled rather than linked from Google Fonts, so a
+// packaged app (Tauri/Capacitor) draws in its own faces offline and never races
+// a CDN. Exactly the faces `WEB_FONTS` (tokens.ts) waits for.
+import "@fontsource/bangers/400.css";
+import "@fontsource/public-sans/400.css";
+import "@fontsource/public-sans/700.css";
+import "@fontsource/public-sans/800.css";
+import "@fontsource/ibm-plex-mono/400.css";
 import Phaser from "phaser";
 import { surface } from "./tokens.js";
 import { cssOf, setTextResolution } from "./ui/theme.js";

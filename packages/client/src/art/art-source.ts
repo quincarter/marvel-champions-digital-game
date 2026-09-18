@@ -19,8 +19,11 @@
 
 import type { AnyCard, ArtRef, ImageRef } from "@mc/content";
 
-/** Must match `CARD_ART_ROUTE` in vite-card-art.ts. */
-const ROUTE = "/card-art/";
+/**
+ * Must match `CARD_ART_ROUTE` in vite-card-art.ts. A packaged app has no such
+ * route; `platform/native-art.ts` answers the same paths there.
+ */
+export const CARD_ART_ROUTE = "/card-art/";
 
 /**
  * Which card back a hidden card shows.
@@ -115,7 +118,7 @@ function imageRefFor(card: AnyCard, face: CardFace): ImageRef | undefined {
  */
 function source(refPath: string): ArtSource {
   const clean = refPath.replace(/^\/+/, "");
-  return { key: `art:${clean}`, url: `${ROUTE}${clean}` };
+  return { key: `art:${clean}`, url: `${CARD_ART_ROUTE}${clean}` };
 }
 
 /**
