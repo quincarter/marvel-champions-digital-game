@@ -193,8 +193,14 @@ export function nextFrameId(ctx: Ctx): FrameId {
   return id;
 }
 
-/** The card a frame is resolving, if it has one — used to spot a peril card on the stack. */
-function frameCardId(frame: StackFrame): InstanceId | null {
+/**
+ * The card a frame is *resolving*, if it has one — used to spot a peril card on the stack, and read by `stack-view.ts`.
+ *
+ * Deliberately narrow: an `enemyAttack`/`enemyScheme` procedure frame has an enemy, but that enemy is not a card
+ * being resolved by a player, and widening this would silently change `perilOnStack` (RRG 1.8 "Peril", p. 32: the
+ * restriction belongs to the player resolving the *card*). `stack-view.ts` adds the enemy on top of this for display.
+ */
+export function frameCardId(frame: StackFrame): InstanceId | null {
   switch (frame.kind) {
     case "reveal":
     case "playCard":

@@ -49,6 +49,14 @@ export type GameEvent =
   /** The declared defender left play before damage: the attack is undefended and targets that player's identity (RRG 1.8 p. 9 step 5). */
   | { readonly type: "defenderLeftPlay"; readonly enemyInstanceId: InstanceId; readonly defenderInstanceId: InstanceId; readonly targetInstanceId: InstanceId }
   | { readonly type: "attackResolved"; readonly enemyInstanceId: InstanceId; readonly targetInstanceId: InstanceId; readonly baseAtk: number; readonly boostIcons: number; readonly defenseReduction: number; readonly damageDealt: number }
+  /**
+   * The scheme half of `attackResolved`: how an activation's threat total was arrived at, each term separately, so a
+   * client can show "SCH 1 + 2 boost" rather than one number (RRG 1.8 "Scheme (Enemy Activation)", p. 39, and "Boost",
+   * p. 11). `baseSch` already includes an `schBonus` on this activation; `threatBonus` is a change to the *threat*
+   * rather than to SCH ("reduce the amount of threat placed … by 1"), which is why it is a separate term.
+   * `threatPlaced` is what the following `threatPlaced` event carries, floored at 0.
+   */
+  | { readonly type: "schemeResolved"; readonly enemyInstanceId: InstanceId; readonly schemeInstanceId: InstanceId; readonly baseSch: number; readonly boostIcons: number; readonly threatBonus: number; readonly threatPlaced: number }
   | { readonly type: "characterDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }

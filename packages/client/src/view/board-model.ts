@@ -507,7 +507,8 @@ const VILLAIN_STEPS = ["placeThreat", "enemyActivations", "dealEncounterCards", 
 
 function stepLabel(state: GameState, perspectiveId: PlayerId): string {
   const { step } = state;
-  if (state.outcome) return state.outcome.result === "win" ? "Victory" : "Defeat";
+  // Three outcomes, not two: a conceded game is neither a win nor a defeat (see `GameOutcome`).
+  if (state.outcome) return state.outcome.result === "win" ? "Victory" : state.outcome.result === "conceded" ? "Conceded" : "Defeat";
   switch (step.phase) {
     case "setup":
       return step.kind === "mulligan" ? "Setup — mulligan" : "Setup — draw starting hands";

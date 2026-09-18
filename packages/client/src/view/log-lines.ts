@@ -207,6 +207,14 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
         text: `${card(event.enemyInstanceId)} hit ${card(event.targetInstanceId)} for ${event.damageDealt} (ATK ${event.baseAtk} + ${event.boostIcons} boost − ${event.defenseReduction} defense).`,
         voice: "villain",
       };
+    // The scheme half of the same breakdown, worded the same way. The third term only appears when something actually
+    // changed the threat ("reduce the amount of threat placed … by 1"); an attack always has a defense term, a scheme
+    // has no equivalent that is always present.
+    case "schemeResolved":
+      return {
+        text: `${card(event.enemyInstanceId)} schemed for ${event.threatPlaced} threat on ${card(event.schemeInstanceId)} (SCH ${event.baseSch} + ${event.boostIcons} boost${event.threatBonus === 0 ? "" : ` ${event.threatBonus < 0 ? "−" : "+"} ${Math.abs(event.threatBonus)} threat`}).`,
+        voice: "villain",
+      };
     case "characterDefeated":
       return { text: `${card(event.instanceId)} was defeated.`, voice: "player" };
     case "schemeDefeated":
@@ -241,7 +249,9 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
     case "gameEnded":
       return {
         text: outcomeText(event.outcome),
-        voice: event.outcome.result === "win" ? "win" : "loss",
+        // A concession is neither a win nor a defeat (the RRG has no concede rule; see `GameOutcome`), so it takes
+        // the neutral voice rather than being coloured as a loss.
+        voice: event.outcome.result === "win" ? "win" : event.outcome.result === "conceded" ? "scenario" : "loss",
       };
     /**
      * The engine emits one of these for *every* resolved ability — a
@@ -303,6 +313,8 @@ const outcomeText = (outcome: { readonly result: string; readonly reason: string
       return "Every villain is defeated. You win.";
     case "mainSchemeCompleted":
       return "The main scheme completed. You lose.";
+    case "playerConceded":
+      return "The game was conceded.";
     default:
       return "Every hero is defeated. You lose.";
   }

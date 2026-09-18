@@ -246,7 +246,17 @@ export type GameOutcome =
   /** Several villains, and the last undefeated one fell (The Wrecking Crew insert: "If the players defeat all 4 villains, they win the game!"). */
   | { readonly result: "win"; readonly reason: "allVillainsDefeated" }
   | { readonly result: "loss"; readonly reason: "mainSchemeCompleted" }
-  | { readonly result: "loss"; readonly reason: "allPlayersDefeated" };
+  | { readonly result: "loss"; readonly reason: "allPlayersDefeated" }
+  /**
+   * A player gave up (the `concede` command). A third result kind rather than a widened `loss`: the RRG has no
+   * concede rule, so calling a concession a defeat would import a rules meaning the game does not have — and would
+   * quietly turn it into a loss in a win/loss record. Readers that only distinguish "win" from "not win" are
+   * unaffected; readers that record a result should treat this as played-but-unresolved.
+   *
+   * It carries a `reason` like every other outcome so `GameOutcome.reason` stays total for the readers that switch
+   * on it, plus `byPlayerId` for the seat that gave up.
+   */
+  | { readonly result: "conceded"; readonly reason: "playerConceded"; readonly byPlayerId: PlayerId };
 
 export interface GameState {
   readonly round: number;

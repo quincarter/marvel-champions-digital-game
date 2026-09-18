@@ -114,7 +114,15 @@ const scenarioFor = (config: SessionConfig) =>
   });
 
 const statusOf = (state: GameState): SaveStatus =>
-  state.outcome ? (state.outcome.result === "win" ? "won" : "lost") : "active";
+  state.outcome
+    ? state.outcome.result === "win"
+      ? "won"
+      : // A concession is a real, finished session that resolved to neither a win nor a loss, which is exactly what
+        // `abandoned` already means to `view/results-history.ts`: played, but not a result.
+        state.outcome.result === "conceded"
+        ? "abandoned"
+        : "lost"
+    : "active";
 
 const describeCause = (cause: unknown): string => (cause instanceof Error ? cause.message : String(cause));
 
