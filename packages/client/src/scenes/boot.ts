@@ -42,7 +42,11 @@ import type { TableSetupData } from "./table-setup.js";
  * `store.start`/`toSessionConfig` path Table setup uses, then jump: `board`
  * alone, `pause` launches the Pause overlay over it, `rules`/`settings` skip
  * straight past Pause to the overlay itself (`initialTab`/`initialQuery` via
- * `?tab=`/`?q=`, mirroring `RulesSceneData`).
+ * `?tab=`/`?q=`, mirroring `RulesSceneData`). `setup-deal` (W3,
+ * docs/phase4-screen-gaps.md §3) starts a real **four**-seat Rhino game
+ * instead — one seat alone can't show the checklist's "other seats" section
+ * or the tablet-landscape all-seats-at-once layout — and jumps straight to
+ * `TableSetupScene`'s own hand-off target, `SCENES.setupDeal`, mid-mulligan.
  */
 async function devScreenJump(): Promise<{ readonly key: string; readonly data?: object } | null> {
   const params = new URLSearchParams(location.search);
@@ -81,6 +85,11 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.board, data: {} };
   }
 
+  if (screen === "setup-deal") {
+    await startDevSetupGame();
+    return { key: SCENES.setupDeal, data: {} };
+  }
+
   return null;
 }
 
@@ -99,6 +108,21 @@ async function startDevGame(): Promise<void> {
   const seat = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS)[0]!;
   const draft = initialSetupDraft({ scenarioId: scenario.id as string, seatDeckId: seat.deck.id as string, seed: rollSeed() });
   await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)]));
+}
+
+/**
+ * A real four-seat Rhino game (four distinct precon identities, so `createGame`'s "one copy of each unique card"
+ * rule doesn't reject the seating), left exactly where `store.start` stops on its own: the first seat's mulligan
+ * `PendingChoice` (`view/setup-walkthrough.ts`'s own doc comment covers why the flow always pauses there).
+ */
+async function startDevSetupGame(): Promise<void> {
+  const { store } = appSession();
+  if (store.state.game) return;
+  const scenario = POOL_SCENARIOS[0]!;
+  const options = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS);
+  const seats = options.filter((option, index, all) => all.findIndex((other) => other.identityName === option.identityName) === index).slice(0, 4);
+  const draft = initialSetupDraft({ scenarioId: scenario.id as string, seatDeckId: seats[0]!.deck.id as string, seed: rollSeed() });
+  await store.start(toSessionConfig(draft, seats.map(corePlayerForSeat)));
 }
 
 export class BootScene extends Phaser.Scene {
