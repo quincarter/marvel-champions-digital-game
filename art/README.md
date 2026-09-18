@@ -23,6 +23,10 @@ lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
 A concession shows `outcomes/defeat`, never a `villain-wins` scene: the team
 stopped, the villain didn't beat them.
 
+Game Over shows the scene on every layout: edge to edge in the art window at
+the top on phone and tablet-portrait, and as a full-bleed backdrop under a wash
+of the result's colour (red for a loss, green for a win) on desktop.
+
 `packages/client/src/art/scenario-art.test.ts` fails if a file here fits no slot
 (a typo like `villian.jpg`) or a scenario folder isn't a real scenario id.
 

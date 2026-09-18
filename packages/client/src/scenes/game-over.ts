@@ -39,6 +39,8 @@ import { SCENES } from "./keys.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
+/** How much of the ground colour sits over the wide layout's backdrop picture: enough that the result still reads as red or green and paper text holds its contrast. */
+const BACKDROP_WASH = 0.74;
 
 export class GameOverScene extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -118,6 +120,12 @@ export class GameOverScene extends Phaser.Scene {
   #drawWide(model: GameOverModel, config: SessionConfig | null, width: number, height: number): void {
     const ground = model.tone === "win" ? signal.heal.hex : accent.heroRed.hex;
     this.cameras.main.setBackgroundColor(cssOf(ground));
+    // D12 draws no art window: its ground colour *is* the result (red for a loss, green for a win). So the
+    // result's scene goes behind everything, under a wash of that same ground — the tint keeps its meaning and
+    // the paper text its contrast, and the composition is otherwise exactly D12's.
+    if (this.#outcomeArt && this.#drawOutcomeArt(this.#outcomeArt, { x: 0, y: 0, width, height })) {
+      this.add.rectangle(0, 0, width, height, ground, BACKDROP_WASH).setOrigin(0, 0);
+    }
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", GROUND_DOTS);
 
     const pad = Math.round(Math.min(48, width * 0.034));
@@ -209,23 +217,25 @@ export class GameOverScene extends Phaser.Scene {
   /**
    * Covers `panel` with a picture from `art/`, loading it first if this is its first showing. The picture is
    * drawn only by the `#draw` that finds it ready, so one that arrives late redraws rather than landing on top.
+   * True when it drew, so a caller can layer over it only once there is something to layer over.
    */
-  #drawOutcomeArt(picture: Picture, panel: Rect): void {
+  #drawOutcomeArt(picture: Picture, panel: Rect): boolean {
     if (!this.textures.exists(picture.key)) {
-      if (this.#loadingArt === picture.key) return;
+      if (this.#loadingArt === picture.key) return false;
       this.#loadingArt = picture.key;
       this.load.image(picture.key, picture.url);
       this.load.once(`filecomplete-image-${picture.key}`, () => {
         if (this.sys.isActive()) this.#draw();
       });
       this.load.start();
-      return;
+      return false;
     }
     const fit = coverFit(this.textures.get(picture.key).getSourceImage() as { width: number; height: number }, panel);
     this.add
       .image(panel.x + panel.width / 2, panel.y + panel.height / 2, picture.key)
       .setScale(fit.scale)
       .setCrop(fit.cropX, fit.cropY, fit.cropWidth, fit.cropHeight);
+    return true;
   }
 
   /** Screens - Phone P11 (loss) / P17 (win). */
