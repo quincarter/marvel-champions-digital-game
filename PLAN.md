@@ -1006,6 +1006,14 @@ Findings:
   - *Adam Warlock is not missing from the refetch.* MarvelCDB's own pack index (63 packs) doesn't list him.
   - The agent briefly wrote into `src/data/core` and reverted it with `git checkout`. It was confirmed identical to what's committed afterwards.
 
+### Wave 2 scope decided (2026-09-18)
+
+- **Scripted: cycle 1, in release order.** The Rise of Red Skull box (`trors`: Hawkeye, Spider-Woman and five scenarios), The Once and Future Kang (`toafk`), and the Ant-Man, Wasp, Quicksilver and Scarlet Witch hero packs (`ant`, `wsp`, `qsv`, `scw`).
+- **Data only: every remaining pack.** The other ~48 packs become card data that the builder can show and `validateDeck` can judge, marked not playable yet, as wave 1 did.
+- **Campaign mode comes later.** Every cycle 1 scenario plays standalone. The campaign log, state carried between scenarios, reward cards in play, and expert campaign setup are a later step; campaign cards are ingested as data now.
+- **Survey at the start (`survey.ts`, cycle 1 packs):** none of the 6 normalize. There are 94 issues: 30 attachment host rules the parser can't read, 20 records that never become a card, 12 unknown `campaign` factions (trors), 7 missing art references, Ant-Man's and Wasp's third hero faces, 4 missing `deck_limit`s, and Kang's stage names and main-scheme threat.
+- **Order:** the rules architect does the cycle 1 schema and `docs/phase7-wave2.md` while the data pipeline does schema-neutral parser work across all packs. Then cycle 1 curation and emission, then the remaining packs as data, then cycle 1 scripting, then rules QA and client wiring.
+
 ## Phase 8 — Polish
 
 - [ ] Tutorial/onboarding flow for players unfamiliar with the paper game.
