@@ -229,11 +229,23 @@ export class RulesOverlay extends Phaser.Scene {
 
     const showScopeToggle = game !== null;
     if (showScopeToggle) {
-      const toggleWidth = 150;
+      // Toggle width scales down on a narrow screen instead of a fixed 150px overflowing past the
+      // scope row's own left edge into the caption (found on a 390px phone in a real headless-Chrome
+      // pass) — never so narrow either label has to clip.
       const gap = 4;
+      const toggleWidth = Math.max(70, Math.min(150, (layout.scope.width - 32 - gap) / 2));
       const allRect: Rect = { x: layout.scope.x + layout.scope.width - toggleWidth * 2 - gap, y: layout.scope.y + (layout.scope.height - 26) / 2, width: toggleWidth, height: 26 };
       const tableRect: Rect = { x: allRect.x + toggleWidth + gap, y: allRect.y, width: toggleWidth, height: 26 };
-      label(this, layout.scope.x + 16, layout.scope.y + layout.scope.height / 2, this.#scope === "table" ? "Filtered to what's on your table" : "Showing all rules, not just the table", typeRole.label, surface.paper.hex, ink.secondary).setOrigin(0, 0.5).setFontSize(10);
+      // The caption only draws if there's real room left of the buttons — on a phone the two
+      // buttons alone (their own fill already says which is active) carry the meaning; a caption
+      // squeezed into a sliver would only ever run under them, which is the bug this guards against.
+      const captionWidth = allRect.x - (layout.scope.x + 16) - 12;
+      if (captionWidth > 90) {
+        const caption = label(this, layout.scope.x + 16, layout.scope.y + layout.scope.height / 2, this.#scope === "table" ? "Filtered to what's on your table" : "Showing all rules, not just the table", typeRole.label, surface.paper.hex, ink.secondary)
+          .setOrigin(0, 0.5)
+          .setFontSize(10);
+        fitText(caption, captionWidth, 10);
+      }
       // Custom-painted rather than `McButton`'s `onInk`/`primary` skins, whose own "selected" state
       // is Hero Red — this screen has no forward action to spend that on ("one red per screen", and
       // this one needs none), so the active option is a solid paper pill instead and the inactive one
@@ -241,7 +253,8 @@ export class RulesOverlay extends Phaser.Scene {
       this.#drawScopeOption(allRect, "All rules", this.#scope === "all", () => this.#setScope("all"), stops, "scope:all");
       this.#drawScopeOption(tableRect, "On your table", this.#scope === "table", () => this.#setScope("table"), stops, "scope:table");
     } else {
-      label(this, layout.scope.x + 16, layout.scope.y + layout.scope.height / 2, "Showing the card pool — no game in progress.", typeRole.label, surface.paper.hex, ink.secondary).setOrigin(0, 0.5).setFontSize(10);
+      const caption = label(this, layout.scope.x + 16, layout.scope.y + layout.scope.height / 2, "Showing the card pool — no game in progress.", typeRole.label, surface.paper.hex, ink.secondary).setOrigin(0, 0.5).setFontSize(10);
+      fitText(caption, layout.scope.width - 32, 10);
     }
 
     this.#tabsWidget = new McTabs(this, {
