@@ -51,6 +51,7 @@ import { drawHand, HandScroll } from "./board/hand.js";
 import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes } from "./board/schemes.js";
+import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
@@ -78,6 +79,8 @@ export class BoardScene extends Phaser.Scene {
   /** Card scans, shared with every overlay above this scene. */
   #artCache: CardArt | null = null;
   #artUnsubscribe: (() => void) | null = null;
+  /** The targeting panel's own hovered tile (docs/phase4-screen-gaps.md §3 "W5") — separate from `#focus`, since a mouse player hovers without ever taking keyboard focus. */
+  #targetingHoverId: InstanceId | null = null;
 
   readonly #controller = new BoardController({
     model: () => this.#model,
@@ -93,6 +96,18 @@ export class BoardScene extends Phaser.Scene {
   get #art(): CardArt {
     this.#artCache ??= cardArt(this);
     return this.#artCache;
+  }
+
+  /** Built fresh each draw: a live view onto `#targetingHoverId` for `drawTargetingPanel`. */
+  get #targetingHover(): TargetingHover {
+    return {
+      hoveredId: this.#targetingHoverId,
+      setHovered: (id) => {
+        if (this.#targetingHoverId === id) return;
+        this.#targetingHoverId = id;
+        this.#draw();
+      },
+    };
   }
 
   constructor() {
@@ -340,6 +355,7 @@ export class BoardScene extends Phaser.Scene {
     if (zones.team) drawTeam(ctx, zones.team, model);
     drawHand(ctx, zones.hand!, model);
     drawActionBar(ctx, zones.actionBar!, model);
+    this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height });
     this.#drawTargetRings();
     this.#drawFocusRing();
     // Turns the moves of a fresh state (if any landed) into travels, now that
@@ -368,6 +384,19 @@ export class BoardScene extends Phaser.Scene {
         this.#draw();
       },
     });
+  }
+
+  /**
+   * The targeting panel (docs/phase4-screen-gaps.md §3 "W5"): drawn over the whole table whenever the controller is
+   * in target-select mode, so the "Choose a target" title bar, each option's outcome, "why not the others?" and the
+   * tablet inspector rail sit over the same board a plain pulsing ring used to be the only affordance for.
+   */
+  #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect): void {
+    if (this.#controller.selection.kind !== "targeting") return;
+    const panel = this.#controller.targetingPanel();
+    if (!panel) return;
+    const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
+    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused);
   }
 
   /** Pulsing rings on the valid targets while a target is being chosen. */

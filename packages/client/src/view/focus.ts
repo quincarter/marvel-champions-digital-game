@@ -18,7 +18,9 @@ import type { BasicAction, Highlights } from "./highlights.js";
 
 export type FocusTarget =
   | { readonly kind: "card"; readonly instanceId: InstanceId }
-  | { readonly kind: "basic"; readonly action: BasicAction };
+  | { readonly kind: "basic"; readonly action: BasicAction }
+  /** The targeting panel's own "Cancel · Esc" (docs/phase4-screen-gaps.md §3 "W5") — Escape already backs out from anywhere, so this is only the tab stop for the pointer/pad control that does the same thing. */
+  | { readonly kind: "cancel" };
 
 /** What the board is currently asking for, which changes what is worth focusing. */
 export type FocusMode =
@@ -39,7 +41,8 @@ const BASICS: readonly BasicAction[] = ["attack", "thwart", "recover", "changeFo
  */
 export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly FocusTarget[] {
   if (mode.kind === "targeting") {
-    return mode.targets.map((instanceId) => ({ kind: "card", instanceId }));
+    // Cancel is last: browse the options first, and reaching for "back out" is the natural end of that scan.
+    return [...mode.targets.map((instanceId) => ({ kind: "card" as const, instanceId })), { kind: "cancel" as const }];
   }
   if (mode.kind === "paying") {
     return mode.sources.map((instanceId) => ({ kind: "card", instanceId }));
@@ -85,5 +88,7 @@ export function stepKey(order: readonly string[], current: string | null, delta:
 /** True when two focus targets name the same thing, so focus survives a redraw. */
 export function sameTarget(a: FocusTarget | null, b: FocusTarget | null): boolean {
   if (!a || !b || a.kind !== b.kind) return false;
-  return a.kind === "card" && b.kind === "card" ? a.instanceId === b.instanceId : a.kind === "basic" && b.kind === "basic" && a.action === b.action;
+  if (a.kind === "card" && b.kind === "card") return a.instanceId === b.instanceId;
+  if (a.kind === "basic" && b.kind === "basic") return a.action === b.action;
+  return a.kind === "cancel" && b.kind === "cancel";
 }
