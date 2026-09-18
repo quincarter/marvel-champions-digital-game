@@ -1,9 +1,9 @@
 import { describe, expect, test } from "vitest";
 import type { GameState } from "@mc/engine";
-import { POOL_DEPS } from "../content/pool.js";
+import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { everyGlossaryEntry, rulesGlossaryOf, villainPhaseOrder } from "./rules-reference.js";
+import { cardKeywordNames, everyGlossaryEntry, rulesGlossaryOf, rulesGlossaryPoolOf, villainPhaseOrder } from "./rules-reference.js";
 
 describe("rulesGlossaryOf", () => {
   test("always includes the three table-state entries `@mc/content` doesn't carry", async () => {
@@ -56,6 +56,87 @@ describe("rulesGlossaryOf", () => {
     const quickstrike = everyGlossaryEntry().find((entry) => entry.id === "quickstrike");
     expect(quickstrike?.conflict).toBeDefined();
   });
+
+  test("every entry's cardRefs, when non-empty, point at real cards in the table's own cardPool", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    const state = store.state.game!;
+    for (const entry of rulesGlossaryOf(state, POOL_DEPS)) {
+      for (const ref of entry.cardRefs) {
+        expect(state.cardPool[ref.cardId]).toBeDefined();
+        expect(ref.instanceId).toBeDefined();
+        expect(ref.name.length).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  test("the three table-state entries never carry a card association", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    const entries = rulesGlossaryOf(store.state.game!, POOL_DEPS);
+    for (const id of ["exhausted", "ready", "facedownBoostCard"]) {
+      expect(entries.find((e) => e.id === id)?.cardRefs).toEqual([]);
+    }
+  });
+
+  // A query matching only an associated card's own name (not the term or definition) is exercised
+  // below, against `rulesGlossaryPoolOf` — the two functions share `filterByQuery`, and a fresh
+  // Rhino/Spider-Man table's stage-1 villain and unmodified hero face print no keywords at all yet,
+  // so there is nothing with a `cardRefs` entry to search by name until the game has actually moved.
+});
+
+describe("cardKeywordNames", () => {
+  test("finds a printed keyword on an ordinary encounter card", () => {
+    const hydraMercenary = POOL_CARDS.find((card) => card.name === "Hydra Mercenary");
+    expect(hydraMercenary).toBeDefined();
+    expect(cardKeywordNames(hydraMercenary!).has("guard")).toBe(true);
+  });
+
+  test("a card with no keywords field, or an empty one, has no names", () => {
+    const resource = POOL_CARDS.find((card) => card.type === "resource");
+    expect(resource).toBeDefined();
+    expect(cardKeywordNames(resource!).size).toBe(0);
+  });
+});
+
+describe("rulesGlossaryPoolOf", () => {
+  test("associates a printed keyword with every pool card that carries it, by cardId (no instanceId)", () => {
+    const guard = rulesGlossaryPoolOf(POOL_CARDS).find((entry) => entry.id === "guard");
+    expect(guard).toBeDefined();
+    expect(guard!.cardRefs.some((ref) => ref.name === "Hydra Mercenary")).toBe(true);
+    for (const ref of guard!.cardRefs) expect(ref.instanceId).toBeUndefined();
+  });
+
+  test("every entry appears exactly once, keyword and status ids alike, sorted by display name", () => {
+    const entries = rulesGlossaryPoolOf(POOL_CARDS);
+    const ids = entries.map((e) => e.id);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(entries.map((e) => e.id)).toContain("tough");
+    const sorted = [...entries].sort((a, b) => a.displayName.localeCompare(b.displayName));
+    expect(entries).toEqual(sorted);
+  });
+
+  test("the three status entries carry no cards — a status is never printed", () => {
+    const entries = rulesGlossaryPoolOf(POOL_CARDS);
+    for (const id of ["stunned", "confused", "tough"]) {
+      expect(entries.find((e) => e.id === id)?.cardRefs).toEqual([]);
+    }
+  });
+
+  test("search matches a card name too, not just the term or definition", () => {
+    const byCardName = rulesGlossaryPoolOf(POOL_CARDS, "Hydra Mercenary");
+    expect(byCardName.map((e) => e.id)).toContain("guard");
+  });
 });
 
 describe("villainPhaseOrder", () => {
@@ -85,5 +166,15 @@ describe("villainPhaseOrder", () => {
     const state = { step: { phase: "villain", kind: "dealEncounterCards" } } as unknown as GameState;
     const steps = villainPhaseOrder(state);
     expect(steps.filter((step) => step.current).map((step) => step.id)).toEqual(["dealEncounterCards"]);
+  });
+
+  test("steps 1/2 point at the main scheme/villain, 3/4 at the encounter card back, and 5/6 at no art", () => {
+    const steps = villainPhaseOrder();
+    expect(steps.find((s) => s.id === "placeThreat")?.art).toBe("mainScheme");
+    expect(steps.find((s) => s.id === "enemyActivations")?.art).toBe("villain");
+    expect(steps.find((s) => s.id === "dealEncounterCards")?.art).toBe("encounterBack");
+    expect(steps.find((s) => s.id === "revealEncounterCards")?.art).toBe("encounterBack");
+    expect(steps.find((s) => s.id === "passFirstPlayer")?.art).toBeNull();
+    expect(steps.find((s) => s.id === "endOfRound")?.art).toBeNull();
   });
 });

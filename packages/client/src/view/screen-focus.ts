@@ -225,11 +225,26 @@ export function pauseFocusOrder(input: {
 }
 
 /**
- * Rules Reference: the three tabs, then the glossary's search field (glossary
- * tab only), then whatever rows the active tab is showing.
+ * Rules Reference (full-screen redesign, owner feedback 2026-09-18): Back, the scope
+ * toggle ("All rules" / "On your table" — only a stop with a live game to scope against,
+ * `showScopeToggle`), the three tabs, then the glossary's search field (glossary tab
+ * only), then whatever rows the active tab is showing — the glossary's own entry (and
+ * card-thumbnail) stops, the villain phase's step stops, or the card list's per-card
+ * stops, whichever tab `rowIds` was built for.
  */
-export function rulesFocusOrder(input: { readonly tabIds: readonly string[]; readonly showSearch: boolean; readonly rowIds: readonly string[] }): readonly string[] {
-  return ["back", ...input.tabIds.map((id) => `tab:${id}`), ...(input.showSearch ? ["search"] : []), ...input.rowIds.map((id) => `row:${id}`)];
+export function rulesFocusOrder(input: {
+  readonly tabIds: readonly string[];
+  readonly showScopeToggle: boolean;
+  readonly showSearch: boolean;
+  readonly rowIds: readonly string[];
+}): readonly string[] {
+  return [
+    "back",
+    ...(input.showScopeToggle ? ["scope:table", "scope:all"] : []),
+    ...input.tabIds.map((id) => `tab:${id}`),
+    ...(input.showSearch ? ["search"] : []),
+    ...input.rowIds.map((id) => `row:${id}`),
+  ];
 }
 
 /** Settings: Back, then one stop per toggle row, in the order they're drawn. */

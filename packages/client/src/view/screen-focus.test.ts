@@ -241,9 +241,11 @@ describe("screen focus routes", () => {
     expect(order.slice(-2)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
   });
 
-  test("Rules Reference reads Back, tabs, search (glossary only), then rows", () => {
-    expect(rulesFocusOrder({ tabIds: ["glossary", "villainPhase", "cardList"], showSearch: true, rowIds: ["guard", "peril"] })).toEqual([
+  test("Rules Reference reads Back, the scope toggle (only with a game), tabs, search (glossary only), then rows", () => {
+    expect(rulesFocusOrder({ tabIds: ["glossary", "villainPhase", "cardList"], showScopeToggle: true, showSearch: true, rowIds: ["guard", "peril"] })).toEqual([
       "back",
+      "scope:table",
+      "scope:all",
       "tab:glossary",
       "tab:villainPhase",
       "tab:cardList",
@@ -251,7 +253,7 @@ describe("screen focus routes", () => {
       "row:guard",
       "row:peril",
     ]);
-    expect(rulesFocusOrder({ tabIds: ["glossary"], showSearch: false, rowIds: [] })).toEqual(["back", "tab:glossary"]);
+    expect(rulesFocusOrder({ tabIds: ["glossary"], showScopeToggle: false, showSearch: false, rowIds: [] })).toEqual(["back", "tab:glossary"]);
   });
 
   test("Settings reads Back then one stop per row", () => {
