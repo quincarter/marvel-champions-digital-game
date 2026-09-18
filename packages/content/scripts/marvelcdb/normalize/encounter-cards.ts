@@ -13,12 +13,17 @@ export function normalizeEncounterCard(
 ): void {
   const { errors, curation } = ctx;
   const { r, p, parsed, set, common, abilities } = rec;
-  if (r.faction_code !== "encounter") errors.push(`${r.code}: ${r.type_code} with faction ${r.faction_code}`);
+  // A campaign-specific obligation (wave 2, docs/phase7-wave2.md §1.4/§5.1 — The Rise of Red Skull's Hydra
+  // Campaign story obligations, e.g. Zola's Algorithm 04163) is faction "campaign", not "encounter": it belongs
+  // to no hero kit, but to a `campaignSpecific` `EncounterSet` (`expcamp`) instead.
+  const isCampaignObligation = r.type_code === "obligation" && r.faction_code === "campaign";
+  if (r.faction_code !== "encounter" && !isCampaignObligation) errors.push(`${r.code}: ${r.type_code} with faction ${r.faction_code}`);
   expectNoPlayerData(ctx, p, parsed);
   const encounterCommon = {
-    // Obligations belong to a hero kit, not an encounter set; they reach the
-    // encounter deck through HeroIdentityCard.obligationCardId.
-    encounterSetIds: r.type_code === "obligation" ? [] : [brand("encounterSet", set)],
+    // An ordinary obligation belongs to a hero kit, not an encounter set; it reaches the encounter deck through
+    // HeroIdentityCard.obligationCardId. A campaign-specific obligation has no hero kit and belongs to its own
+    // (campaign-specific) encounter set instead, like any other encounter card.
+    encounterSetIds: r.type_code === "obligation" && !isCampaignObligation ? [] : [brand("encounterSet", set)],
     boostIcons: p.boost,
     traits: p.traits,
     keywords: parsed.keywords,

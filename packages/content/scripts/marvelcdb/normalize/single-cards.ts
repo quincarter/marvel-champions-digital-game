@@ -26,7 +26,7 @@ export function normalizeSingleCards(ctx: NormalizeContext, separateDeckOfCode: 
       common: baseFields(ctx, p, r.code, [r.code]),
       abilities: abilityRefs(ctx, r.code, p.name, parsed.abilities),
     };
-    if (PLAYER_TYPES.has(r.type_code)) normalizePlayerCard(ctx, rec, separateDeckOfCode.get(r.code));
+    if (PLAYER_TYPES.has(r.type_code)) normalizePlayerCard(ctx, rec, separateDeckOfCode.get(r.code), flipSide, flipParts);
     else normalizeEncounterCard(ctx, rec, flipSide, flipParts);
   }
 }

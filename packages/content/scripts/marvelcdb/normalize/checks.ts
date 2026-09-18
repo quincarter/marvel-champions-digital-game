@@ -19,7 +19,8 @@ export function checkStaleCuration(ctx: NormalizeContext): void {
 /** Step 11: every non-aggregate record became part of a card, and every printed face has an artwork reference. */
 export function checkCoverage(ctx: NormalizeContext): void {
   const { errors } = ctx;
-  const allCodes = [...ctx.byCode.keys()].filter((c) => !ctx.isAggregate(c));
+  const dropped = new Set(ctx.dropped.map((d) => d.marvelcdbCode));
+  const allCodes = [...ctx.byCode.keys()].filter((c) => !ctx.isAggregate(c) && !dropped.has(c));
   const covered = new Set(ctx.provenance.flatMap((p) => p.marvelcdbCodes));
   for (const c of allCodes) if (!covered.has(c)) errors.push(`MarvelCDB record ${c} was not turned into any card`);
 
