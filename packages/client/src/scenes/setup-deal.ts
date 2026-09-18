@@ -331,7 +331,10 @@ export class SetupDealScene extends Phaser.Scene {
         .setWordWrapWidth(layout.handRow.width);
     }
 
-    this.#sectionHeader(layout.otherSeatsLabel.x, layout.otherSeatsLabel.y + layout.otherSeatsLabel.height / 2, layout.otherSeatsLabel.width, "Other seats");
+    // A solo game has no other seats, and a header over nothing reads as a bug.
+    if (others.length > 0) {
+      this.#sectionHeader(layout.otherSeatsLabel.x, layout.otherSeatsLabel.y + layout.otherSeatsLabel.height / 2, layout.otherSeatsLabel.width, "Other seats");
+    }
     others.forEach((seat, index) => {
       const rect = layout.otherSeats[index];
       if (rect) this.#drawOtherSeatCard(rect, seat);

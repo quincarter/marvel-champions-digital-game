@@ -16,7 +16,7 @@ W2b, W9b and W3 all died at a usage limit with their work uncommitted (W9b had w
 |---|---|---|
 | **W2b** Scenario select + Take your seats (D02/D03, active seat, pack shelves) | `.claude/worktrees/agent-a1b268130fd6da484` | Vite 5193, CDP 9593, `w2b/` |
 | **W9b** Decks & Collection (D14) | `.claude/worktrees/agent-a6bd48ad5d833aade` | Vite 5194, CDP 9594, `w9b/` |
-| **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | Vite 5191, CDP 9591, `w3/` |
+| **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | **Done and merged 2026-09-18** after a second pass against the D06 tile (client → 1053) |
 
 Also landed on the integration branch from the main session: `e04c10c`, the phone long-press fix (one shared hold gesture, `view/hold-gesture.ts` + `ui/hold-target.ts`). Measuring note for next time: the in-app browser pane throttles to 1 fps when hidden, so time things in headless Chrome over CDP with `--use-angle=metal` and `Input.dispatchTouchEvent` instead.
 
