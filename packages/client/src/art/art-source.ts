@@ -7,11 +7,18 @@
  * card, so this module is the one place that knows how to ask.
  *
  * Two kinds of reference, in the order the content package says to prefer them
- * (`schema/ids.ts`): a card's `ArtRef` is a key into the gitignored local asset
- * folder and wins; its `ImageRef` is what the source publishes and is the
- * fallback. Both resolve to a path under this app's own origin, because the
- * upstream host sends no CORS header and WebGL will not take a tainted image as
- * a texture — `vite-card-art.ts` is the server half of that.
+ * (`schema/ids.ts`): a card's `ArtRef` wins, and its `ImageRef` (the path the
+ * source publishes the scan under) is the fallback. Both resolve to the same
+ * place: a file under the repo's `assets/card-art/`, served from this app's own
+ * origin at `/card-art/<path>`. Same-origin matters because WebGL will not take
+ * a cross-origin image as a texture.
+ *
+ * The scans are a **build input**, never fetched at runtime. The content
+ * scripts put them in `assets/card-art/`; `vite-card-art.ts` serves that folder
+ * in dev and copies the pool's share of it into `dist/card-art/` at build, so a
+ * web deploy and both native shells (Tauri and Capacitor wrap the same `dist/`)
+ * load art as plain static files. `allArtFor` below is what decides which files
+ * that is, so the bundle and the loader cannot disagree.
  *
  * Nothing here loads anything: it returns a URL and a stable texture key, so it
  * is testable without a canvas and without the network.
@@ -19,10 +26,7 @@
 
 import type { AnyCard, ArtRef, ImageRef } from "@mc/content";
 
-/**
- * Must match `CARD_ART_ROUTE` in vite-card-art.ts. A packaged app has no such
- * route; `platform/native-art.ts` answers the same paths there.
- */
+/** The URL prefix every scan is served under. `vite-card-art.ts` imports this, so the two cannot drift. */
 export const CARD_ART_ROUTE = "/card-art/";
 
 /**
@@ -122,12 +126,47 @@ function source(refPath: string): ArtSource {
 }
 
 /**
- * The three card backs, from the gitignored local asset folder like every other
- * scan. They are not `ImageRef`s: no card names them, because in the physical
- * game the back is a property of the deck a card came from, not of the card.
+ * The three card backs, from `assets/card-art/` like every other scan. They are
+ * not `ImageRef`s: no card names them, because in the physical game the back is
+ * a property of the deck a card came from, not of the card.
  */
 export const CARD_BACKS: Readonly<Record<CardBack, ArtSource>> = {
   player: source("bundles/cards/marvel-player-back.webp"),
   encounter: source("bundles/cards/marvel-encounter-back.webp"),
   villain: source("bundles/cards/marvel-villain-back.webp"),
 };
+
+
+/** The path under `assets/card-art/` (and under `/card-art/` when served) an `ArtSource` names. */
+export function artPathOf(art: ArtSource): string {
+  return art.url.slice(CARD_ART_ROUTE.length);
+}
+
+/**
+ * Every picture this card can ever ask for, across all of its printed faces —
+ * both faces of an identity, every stage of every side of a villain, the A and
+ * B side of every main scheme stage, a flip side, and the plain front (which a
+ * list or Inspect may ask of any card).
+ *
+ * It asks `artFor` rather than reading the refs itself, so it is by
+ * construction the same answer the table gets. The build uses it to decide
+ * which scans go into `dist/` (`vite-card-art.ts`); deduplicated by texture key.
+ */
+export function allArtFor(card: AnyCard): readonly ArtSource[] {
+  const faces: CardFace[] = [{ kind: "front" }];
+  if (card.type === "hero_identity") faces.push({ kind: "hero" }, { kind: "alterEgo" });
+  if (card.type === "villain") {
+    card.sides.forEach((side, sideIndex) => side.stages.forEach((_, stageIndex) => faces.push({ kind: "villainStage", sideIndex, stageIndex })));
+  }
+  if (card.type === "main_scheme") {
+    card.stages.forEach((_, stageIndex) => faces.push({ kind: "mainSchemeStage", stageIndex, side: "A" }, { kind: "mainSchemeStage", stageIndex, side: "B" }));
+  }
+  if ("flipSide" in card && card.flipSide) faces.push({ kind: "flipSide" });
+
+  const byKey = new Map<string, ArtSource>();
+  for (const face of faces) {
+    const art = artFor(card, face);
+    if (art) byKey.set(art.key, art);
+  }
+  return [...byKey.values()];
+}

@@ -24,7 +24,6 @@ import {
   MSM_PACK,
   THOR_PACK,
   TWC_PACK,
-  WAVE1_CARDS,
   WAVE1_ENCOUNTER_SETS,
   WAVE1_SCENARIOS,
   WAVE1_STARTER_DECKS,
@@ -36,9 +35,10 @@ import {
   type StarterDeck,
 } from "@mc/content";
 import type { EngineDeps } from "@mc/engine";
+import { POOL_CARDS } from "./pool-cards.js";
 
-/** Every card the app knows about: Core plus the eight wave 1 packs. */
-export const POOL_CARDS: readonly AnyCard[] = WAVE1_CARDS;
+// Defined in `pool-cards.ts` so the build can read it without the rules engine; re-exported so this stays the one import site.
+export { POOL_CARDS };
 
 /** Every card in `POOL_CARDS`, by id — the one lookup every setup screen needs (a scenario's villain/main scheme, a deck's identity, a seat's hero). Built once, from the pool alone, so no screen keeps its own copy. */
 export const CARDS_BY_ID: ReadonlyMap<string, AnyCard> = new Map(POOL_CARDS.map((card) => [card.id as string, card]));

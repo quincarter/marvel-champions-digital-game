@@ -30,8 +30,6 @@
 
 import type Phaser from "phaser";
 import type { Rect } from "../view/layout.js";
-import { nativeArtResolver, type ArtUrlResolver } from "../platform/native-art.js";
-import { detectPlatform } from "../platform/platform.js";
 import { CARD_BACKS, type ArtSource } from "./art-source.js";
 
 /**
@@ -78,9 +76,7 @@ const PINNED_KEYS: ReadonlySet<string> = new Set(Object.values(CARD_BACKS).map((
 export function cardArt(scene: Phaser.Scene): CardArt {
   const existing = caches.get(scene.game);
   if (existing) return existing;
-  const platform = detectPlatform();
-  // A packaged app has no `/card-art/*` route to load from; see native-art.ts.
-  const created = new CardArt(platform === "web" ? undefined : nativeArtResolver(platform));
+  const created = new CardArt();
   caches.set(scene.game, created);
   return created;
 }
@@ -98,11 +94,6 @@ export function cardArt(scene: Phaser.Scene): CardArt {
  * loader (don't ask twice) and what came back 404 (don't ask again, ever).
  */
 export class CardArt {
-  /**
-   * Turns an `ArtSource` URL into one the loader can fetch, in a shell with no
-   * `/card-art/*` route. Absent on the web, where the URL is loaded as is.
-   */
-  readonly #resolveUrl: ArtUrlResolver | undefined;
   /** Keys already handed to the loader, so one scan is fetched once. */
   readonly #requested = new Set<string>();
   /** Keys the server has no scan for. The generated frame is the answer for these. */
@@ -133,10 +124,6 @@ export class CardArt {
   /** Tick a key was last asked for, by *any* scene. Lower = colder = evicted first. */
   readonly #lastUsed = new Map<string, number>();
   #tick = 0;
-
-  constructor(resolveUrl?: ArtUrlResolver) {
-    this.#resolveUrl = resolveUrl;
-  }
 
   /** Called when art arrives, so the board can redraw with it. */
   onArrived(listener: () => void): () => void {
@@ -203,33 +190,11 @@ export class CardArt {
 
     for (const source of batch) {
       this.#inflight.set(source.key, scene);
-      if (this.#resolveUrl) this.#loadResolved(scene, source, this.#resolveUrl);
-      else scene.load.image(source.key, source.url);
+      scene.load.image(source.key, source.url);
     }
     // Files added while a run is in flight are picked up by that run; starting
     // a second one would be the race, not the fix.
-    if (!this.#resolveUrl && !scene.load.isLoading()) scene.load.start();
-  }
-
-  /**
-   * The native-shell path: resolve first, then load. The key stays in flight
-   * across the wait, so it is neither asked for twice nor lost — and if the
-   * scene shut down meanwhile, its shutdown hook has already un-requested the
-   * key, which is how this recognises the answer as stale.
-   */
-  #loadResolved(scene: Phaser.Scene, source: ArtSource, resolve: ArtUrlResolver): void {
-    void resolve(source.url).then((url) => {
-      if (this.#inflight.get(source.key) !== scene) return;
-      if (url === null) {
-        // The same outcome as a 404 from the dev route.
-        this.#inflight.delete(source.key);
-        this.#missing.add(source.key);
-        this.#notify(scene);
-        return;
-      }
-      scene.load.image(source.key, url);
-      if (!scene.load.isLoading()) scene.load.start();
-    });
+    if (!scene.load.isLoading()) scene.load.start();
   }
 
   /**

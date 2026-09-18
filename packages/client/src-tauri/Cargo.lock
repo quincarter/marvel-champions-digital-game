@@ -1959,14 +1959,12 @@ name = "marvel-champions"
 version = "0.1.0"
 dependencies = [
  "log",
- "percent-encoding",
  "serde",
  "serde_json",
  "tauri",
  "tauri-build",
  "tauri-plugin-http",
  "tauri-plugin-log",
- "tokio",
 ]
 
 [[package]]

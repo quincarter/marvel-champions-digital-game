@@ -71,11 +71,8 @@ class FakeLoader {
   readonly #events = new FakeEmitter();
   readonly #queue: { key: string; url: string }[] = [];
   #loading = false;
-  /** Every URL handed to `image`, in order. */
-  readonly urls: string[] = [];
   constructor(private readonly textures: FakeTextures) {}
   image(key: string, url: string): void {
-    this.urls.push(url);
     this.#queue.push({ key, url });
   }
   isLoading(): boolean {
@@ -288,71 +285,5 @@ describe("CardArt residency budget", () => {
     // 500 distinct scans at ~2.9 MB each is ~1.4 GB unbounded; capped residency
     // must stay at or under budget regardless of how many keys were ever asked for.
     expect(art.residentBytes()).toBeLessThanOrEqual(256 * 1024 * 1024);
-  });
-});
-
-/** A resolver whose answers the test releases by hand, so the wait is observable. */
-function deferredResolver() {
-  const waiting = new Map<string, (url: string | null) => void>();
-  const calls: string[] = [];
-  const resolve = (url: string): Promise<string | null> => {
-    calls.push(url);
-    return new Promise((done) => waiting.set(url, done));
-  };
-  const answer = async (url: string, result: string | null): Promise<void> => {
-    waiting.get(url)!(result);
-    await Promise.resolve();
-    await Promise.resolve();
-  };
-  return { resolve, answer, calls };
-}
-
-describe("CardArt in a native shell (resolved URLs)", () => {
-  it("loads the resolved URL, not the /card-art route, once resolution answers", async () => {
-    const { resolve, answer, calls } = deferredResolver();
-    const art = new CardArt(resolve);
-    const scene = new FakeScene() as unknown as import("phaser").Scene;
-    const raw = scene as unknown as FakeScene;
-    raw.textures.stage("a", { width: 10, height: 10 });
-
-    expect(art.request(scene, source("a"))).toBeNull();
-    expect(calls).toEqual(["/card-art/a.png"]);
-    expect(raw.load.urls).toEqual([]);
-
-    // Asked again while resolving: still one fetch.
-    art.request(scene, source("a"));
-    expect(calls).toHaveLength(1);
-
-    await answer("/card-art/a.png", "blob:a");
-    expect(raw.load.urls).toEqual(["blob:a"]);
-    expect(art.request(scene, source("a"))).toBe("a");
-  });
-
-  it("treats an unresolvable URL as missing, like a 404 from the dev route", async () => {
-    const { resolve, answer, calls } = deferredResolver();
-    const art = new CardArt(resolve);
-    const scene = new FakeScene() as unknown as import("phaser").Scene;
-
-    art.request(scene, source("a"));
-    await answer("/card-art/a.png", null);
-    expect(art.isMissing("a")).toBe(true);
-    art.request(scene, source("a"));
-    expect(calls).toHaveLength(1);
-  });
-
-  it("drops an answer that arrives after its scene shut down, and asks again from a live one", async () => {
-    const { resolve, answer, calls } = deferredResolver();
-    const art = new CardArt(resolve);
-    const closing = new FakeScene();
-    art.request(closing as unknown as import("phaser").Scene, source("a"));
-    closing.shutdown();
-    await answer("/card-art/a.png", "blob:a");
-    expect(closing.load.urls).toEqual([]);
-    expect(art.isMissing("a")).toBe(false);
-
-    const live = new FakeScene();
-    live.textures.stage("a", { width: 10, height: 10 });
-    art.request(live as unknown as import("phaser").Scene, source("a"));
-    expect(calls).toHaveLength(2);
   });
 });
