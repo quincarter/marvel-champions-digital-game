@@ -38,7 +38,7 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 | D06, P13, L05 | Setup deal & mulligan | ❌ | The mulligan is a generic pending choice in `scenes/choice.ts` over the board. | W3 |
 | D07, Board canvases, L01, T-P01 | Board | ✅ | Long table and phone tabs. Small chrome gaps. | W8 |
 | D08, P14 | Inspect | ✅ | `scenes/inspect.ts`. No per-game history. | W8 |
-| D09, L06 | Targeting | ⚠️ | Target mode dims and highlights. The prompt is one line in the action bar. | W5 |
+| D09, L06 | Targeting | ⚠️ | `scenes/board/targeting-panel.ts` over `preview()`/`choiceExclusions`: outcomes, "why not", tablet rail. Phone does not yet follow P06's in-tab composition. | W5 |
 | D10, P15 | Pending choice: defend | ✅ | `scenes/choice.ts`'s `declareDefender` branch over `defendPreview`/`stackEntries`. | W6 |
 | D11, P09, L02 | Villain phase | ✅ | `scenes/villain-phase.ts`: step strip, "happening now" breakdown, queue, threat callout, inline interrupt, tablet team rail. | W7 |
 | D12, P10, P11, P17, L08 | Game over | ✅ | Wide and tall layouts, stats, turning points, seats, MVP, both rematches. | W8 |
@@ -359,9 +359,11 @@ Canvases: D09, L06.
 
 Already there: target-select mode in `scenes/board/controller.ts`, dimming, `view/highlights.ts` (blocked targets with the engine's reasons), and the action bar's prompt line.
 
-- [ ] A targeting panel: title and source ("Photon Blast — deal 5 damage to an enemy"), Cancel · Esc, the legal target list with each target's outcome (S5), and the hovered target's confirm line.
-- [ ] "Why not the others?", grouped by the engine's reason.
-- [ ] The tablet inspector rail (L06), which shows the source card beside the target list.
+- [x] A targeting panel: title and source ("Photon Blast — deal 5 damage to an enemy"), Cancel · Esc, the legal target list with each target's outcome (S5), and the hovered target's confirm line.
+- [x] "Why not the others?", grouped by the engine's reason.
+- [x] The tablet inspector rail (L06), which shows the source card beside the target list.
+- **Landed (`game-client-engineer`, 2026-09-18; merged into `feature/native-packaging`).** A panel over the board's target-select mode: a title bar with the source's own label ("Spider-Man — Attack 2") and Cancel · Esc; each legal target's outcome from the engine's `preview()`, worded in `view/log-lines.ts`'s phrasing (`view/targeting-panel.ts`'s `targetingPanelOf`/`outcomeLines`); the hovered or focused target's confirm line; "Why not the others?" grouped by `LegalAction.blockedTargets`' message or `choiceExclusions`' `ExclusionCode`, worded through a new `EXCLUSION_WORDING` table in `view/highlights.ts` (the engine returns codes, not sentences); and the tablet-landscape inspector rail (L06) with the source card beside the list. `scenes/board/targeting-panel.ts` draws it; `scenes/board/controller.ts#targetingPanel()`/`sourceOf` build it from live `GameState`; `view/targeting-layout.ts` (20 tests) is the pure breakpoint layout — desktop keeps the "why not" side column, tablet landscape swaps it for the rail and moves "why not" under the targets, phone and tablet-portrait stack full-width rows with no rail. Cancel and each target are real focus stops (`view/focus.ts`'s new `{kind:"cancel"}`). The panel computes no rule. **Fidelity pass** over a real Klaw/Spider-Man game in CDP-driven headless Chrome at the four sizes, which found and fixed: tiles and the rail drew placeholder boxes instead of real scans (now the shared `CardArt` cache); the "why not" panel always filled the side column rather than its own content; and the title bar's source label word-wrapped into a hidden second line on phone, silently dropping its stat (now shrink-then-ellipsize via `fitText`). Only the desktop shot was re-taken after merging the new setup flow; the other three predate it, and the merge touched none of the panel's files.
+  - **Remaining, flagged rather than silently matched:** (1) **Phone (P06) is the largest gap** — P06 keeps targeting inside the zone-tab chrome (a "CHOOSE A TARGET / CANCEL" bar replacing the action bar, enemy tiles gaining "TAP TO TARGET" in place); this build draws the same full-screen scrim and panel as every other size, single-column. Matching it means reworking the phone tab chrome itself. (2) L06's rail is a compact summary plus "Tap to read the full card ▸" into the existing Inspect overlay, not inline full rules text, and confirmation is tap-the-tile everywhere rather than L06's bottom Cancel / "HIT <TARGET>" buttons. (3) Target tiles keep true card aspect ratio, where D09's read shorter and wider. (4) L06's red "PHOTON BLAST · 6 DMG" source pill is plain text here.
 
 Depends on: S5 for outcomes. The panel and "why not" can land first with names only.
 
