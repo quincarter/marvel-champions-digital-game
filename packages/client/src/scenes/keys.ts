@@ -10,6 +10,9 @@ export const SCENES = {
   scenarioSelect: "ScenarioSelect",
   seats: "Seats",
   setup: "Setup",
+  // W3 (docs/phase4-screen-gaps.md §3): the one-time setup deal & mulligan screen Table setup's
+  // "Deal it out" routes into, before handing off to the Board once round 1 actually begins.
+  setupDeal: "SetupDeal",
   board: "Board",
   gameOver: "GameOver",
   // PLAN.md Phase 9: precons, MarvelCDB import, and the in-app deck builder.

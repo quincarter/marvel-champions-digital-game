@@ -277,3 +277,26 @@ export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly stri
     "deal-it-out",
   ];
 }
+
+export interface SetupWalkthroughFocusInput {
+  /**
+   * The deciding seat's own hand, already in display order
+   * (`view/choice-focus.ts`'s `cardChoiceDisplayOrder`, the same one the
+   * generic sheet walks) — empty while no seat's mulligan is the open choice
+   * (a different decision during setup has the choice instead, and the
+   * generic `ChoiceOverlay` owns focus for that one).
+   */
+  readonly optionIds: readonly string[];
+}
+
+/**
+ * Setup deal & mulligan (W3, docs/phase4-screen-gaps.md §3 — D06, P13, L05):
+ * the deciding seat's own hand, then "Mulligan" then "Keep all". Unlike the
+ * generic sheet's `choiceFocusOrder` — which only adds a "decline" stop when
+ * `PendingChoice.minSelections` allows it — a mulligan's `minSelections` is
+ * always 0 (RRG 1.8 Appendix II step 15: "discard any number of cards,
+ * including none"), so "Keep all" is always legal and always its own stop.
+ */
+export function setupWalkthroughFocusOrder(input: SetupWalkthroughFocusInput): readonly string[] {
+  return [...input.optionIds.map((id) => `option:${id}`), "confirm", "decline"];
+}

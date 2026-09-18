@@ -294,6 +294,8 @@ export class TableSetupScene extends Phaser.Scene {
       return;
     }
     this.scale.off("resize", this.#rebuild, this);
-    this.scene.start(SCENES.board);
+    // W3 (docs/phase4-screen-gaps.md §3): "Deal it out" routes through the dedicated setup deal & mulligan screen,
+    // never straight to the Board — that scene hands off to the Board itself once `state.step.phase` leaves "setup".
+    this.scene.start(SCENES.setupDeal);
   }
 }
