@@ -11,7 +11,7 @@ Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps
 | Workstream | Agent type | Where it works | Branch | Commits? |
 |---|---|---|---|---|
 | **W1** Deck analysis (Deck check scene, builder stats panel, type/aspect filters, Preconstructed/Clear) | `game-client-engineer` | main repo dir, **uncommitted in the working tree** | `feature/phase4-screen-gaps` | **Done and committed** on the integration branch (client 554 → 580 tests). Browser check still owed. |
-| **S5** Engine queries: `stackEntries`, `preview()`, `schemeResolved`, `plannedAttackDamage` + `defendPreview`, `explainQuery` + `choiceExclusions`, and the `concede` command / `conceded` outcome | `game-rules-architect` | `.claude/worktrees/agent-a60d2333f66c689c0` | `worktree-agent-a60d2333f66c689c0` | Commits as it goes (`f92c5c5` = steps 1–2). |
+| **S5** Engine queries: `stackEntries`, `preview()`, `schemeResolved`, `plannedAttackDamage` + `defendPreview`, `explainQuery` + `choiceExclusions`, and the `concede` command / `conceded` outcome | `game-rules-architect` | `.claude/worktrees/agent-a60d2333f66c689c0` | `worktree-agent-a60d2333f66c689c0` | **Done and merged** into the integration branch (engine 507 → 556). Concede wired into Pause. |
 | **W2** Title menu + setup flow (Scenario select, Take your seats, Table setup) | `game-client-engineer` | `.claude/worktrees/agent-a823678c74b964cea` | `worktree-agent-a823678c74b964cea` | Commits at the end. |
 | **W4** Pause & Rules, Settings, menu button, and S7's read-only replay board if it fits | `game-client-engineer` | `.claude/worktrees/agent-a7a89ad77a61b012c` | `worktree-agent-a7a89ad77a61b012c` | **Merged into the integration branch** (client 580 → 625 tests). Fidelity pass against D13/P16/L07 still owed. |
 | **W9** Decks & Collection layout (launched after W1 landed) | `game-client-engineer` | `.claude/worktrees/agent-a3784f22ee36a3677` | `worktree-agent-a3784f22ee36a3677` | Commits at the end. Must contain W1's `e3ea573`. |
@@ -30,7 +30,7 @@ The user flagged that the built screens carry the fonts and componentry from the
 
 ## Status after the usage-limit cut-off (2026-09-17 evening)
 
-- **S5**: steps 1–4 committed, step 5 uncommitted mid-tests, step 6 not started. Resumed by message with the same brief.
+- **S5**: all six steps done and merged; its Implemented note is in the gaps doc. Pause's Concede is wired to the real command.
 - **W4**: merged into the integration branch (conflicts in `main.ts`/`screen-focus.test.ts` were additive); report lost — its commit message is the report. Concede dispatch is isolated behind `PauseOverlay#dispatchConcede`; Settings is its own scene/key; the replay board was assessed as not safely landable and the "jump to a moment" list is drawn unavailable.
 - **W2**: uncommitted, mid-write (`scenes/table-setup.ts` has two undefined names: `CARDS_BY_ID_ARRAY`, `DEFAULT_DEPS_PLACEHOLDER`); client tests 647 green, typecheck fails only there. Resumed by message with the design-fidelity brief.
 - **W9**: worktree created and W1 merged in, no work yet. Restarted with the design-fidelity brief.
@@ -42,7 +42,6 @@ Order: **W1** (commit the working tree on the integration branch first) → **S5
 After merging, wire the stubs the agents left for each other:
 - Title's **Settings** entry → W4's Settings scene (W2 drew it unavailable with a hook).
 - Seats' **Deck check ▸** link → W1's Deck check scene (W2 routes straight to Table setup for now); Deck check's **Start game ▸** → back into W2's flow.
-- Pause's **Concede** → S5's `concede` command (W4 drew it unavailable behind one function).
 
 Then `pnpm test && pnpm typecheck`, check the new screens in a browser (Vite from Bash — see the worktree-preview memory; agents were given ports 5183/5184/5185), paste the Landed notes into `phase4-screen-gaps.md`, tick boxes, update §1's inventory.
 

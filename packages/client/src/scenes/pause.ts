@@ -10,30 +10,11 @@
  * top to bottom: the status line, Resume, Save & quit, Rules reference,
  * Settings, "Jump to a moment", and Concede.
  *
- * ---------------------------------------------------------------------------
- * CONCEDE — WHERE TO ENABLE IT ONCE THE ENGINE COMMAND LANDS
- * ---------------------------------------------------------------------------
- * `docs/phase4-screen-gaps.md` §2 "S5.9" designs `{ type: "concede"; playerId }`
- * on the engine's `Command` union and a third `GameOutcome` result kind — both
- * landing in a parallel worktree, not present here. Rather than special-case
- * that gap all over this file, it is isolated behind exactly one function,
- * `#dispatchConcede`, below. Today it always resolves to
- * `CONCEDE_UNAVAILABLE_REASON` without touching the store; the confirm sheet,
- * the button and the focus route around it are otherwise the real, finished
- * UI. **Enabling it is a two-line change to that one function once `Command`
- * gains the variant:**
- *
- *   async #dispatchConcede(): Promise<string | null> {
- *     const playerId = appSession().store.state.perspectiveId;
- *     if (!playerId) return CONCEDE_UNAVAILABLE_REASON;
- *     await appSession().store.dispatch({ type: "concede", playerId });
- *     return null;
- *   }
- *
- * No other change is needed anywhere in this file: `#confirmConcede`, the
- * layout, and the focus route already treat "no reason" as "it happened" (the
- * store's own state update closes the game the normal way, same as any other
- * command).
+ * Concede dispatches the engine's `concede` command (`docs/phase4-screen-gaps.md`
+ * §2 S5.9: any seated player may concede for the whole table; the outcome is
+ * `{ result: "conceded" }`, never a loss). The store's own state update then
+ * ends the game the normal way, same as any other command, and the Board hands
+ * off to Game Over — so on success this overlay only has to get out of the way.
  */
 import Phaser from "phaser";
 import { POOL_SCENARIOS } from "../content/pool.js";
@@ -48,14 +29,6 @@ import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
-
-/**
- * The engine has no `concede` command yet (see this file's own header). Kept
- * as a named constant so `#dispatchConcede`'s "enable it" comment above can
- * point at deleting exactly this, and so the confirm sheet's own copy and the
- * button's `reason` never drift apart.
- */
-const CONCEDE_UNAVAILABLE_REASON = "Concede isn't wired to the engine yet (docs/phase4-screen-gaps.md S5.9)";
 
 export class PauseOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
@@ -105,15 +78,20 @@ export class PauseOverlay extends Phaser.Scene {
     this.scene.start(SCENES.title);
   }
 
-  /** See this file's own header comment for exactly what changes here once `concede` lands. */
-  async #dispatchConcede(): Promise<string | null> {
-    return CONCEDE_UNAVAILABLE_REASON;
+  /** True when the engine accepted the concession; the store then carries the outcome. */
+  async #dispatchConcede(): Promise<boolean> {
+    const { store } = appSession();
+    const playerId = store.state.perspectiveId;
+    if (!playerId) return false;
+    return store.dispatch({ type: "concede", playerId });
   }
 
   async #onConcedeConfirmed(): Promise<void> {
-    const reason = await this.#dispatchConcede();
-    if (reason) return; // Not wired yet; the button already shows why and stays put.
+    const conceded = await this.#dispatchConcede();
     this.#setConfirmingConcede(false);
+    // The engine's refusal (already over, no seat) is in `store.state.error`,
+    // which the Board shows; the overlay stays open so the player sees it.
+    if (conceded) this.#resume();
   }
 
   #draw(): void {
@@ -211,8 +189,6 @@ export class PauseOverlay extends Phaser.Scene {
         label: "Yes, concede",
         type: typeRole.label,
         rect: yesRect,
-        enabled: false,
-        reason: CONCEDE_UNAVAILABLE_REASON,
         onClick: () => void this.#onConcedeConfirmed(),
       }),
     );
