@@ -10,7 +10,38 @@
 import Phaser from "phaser";
 import { surface, typeRole, WEB_FONTS } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { POOL_SCENARIOS } from "../content/pool.js";
+import { preconDecks } from "../view/deck-list-model.js";
+import { POOL_VERSION } from "../content/pool.js";
+import { initialSetupDraft } from "../view/setup-draft.js";
+import { rollSeed } from "../view/seed.js";
 import { SCENES } from "./keys.js";
+import type { ScenarioSelectData } from "./scenario-select.js";
+import type { SeatsData } from "./seats.js";
+import type { TableSetupData } from "./table-setup.js";
+
+/**
+ * Dev-only screenshot entry point: `?screen=scenario-select|seats|table-setup`
+ * jumps straight past Title with a fresh default `SetupDraft`, for visual QA
+ * against the design canvases (docs/design-reference.md) without scripting a
+ * click-through of the whole setup flow. Never reachable in a normal session
+ * — Title's own "New game" is still the only in-game way to reach these
+ * scenes — and harmless if left in a production build (an unrecognized or
+ * absent `screen` param falls through to Title as usual).
+ */
+function devScreenJump(): { readonly key: string; readonly data: object } | null {
+  const screen = new URLSearchParams(location.search).get("screen");
+  if (!screen) return null;
+  const draft = initialSetupDraft({
+    scenarioId: POOL_SCENARIOS[0]!.id as string,
+    seatDeckId: preconDecks(POOL_VERSION)[0]!.id as string,
+    seed: rollSeed(),
+  });
+  if (screen === "scenario-select") return { key: SCENES.scenarioSelect, data: { draft } satisfies ScenarioSelectData };
+  if (screen === "seats") return { key: SCENES.seats, data: { draft } satisfies SeatsData };
+  if (screen === "table-setup") return { key: SCENES.setup, data: { draft } satisfies TableSetupData };
+  return null;
+}
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -25,7 +56,11 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setLetterSpacing(typeRole.label.letterSpacing);
 
-    void this.#awaitFonts().then(() => this.scene.start(SCENES.title));
+    void this.#awaitFonts().then(() => {
+      const jump = devScreenJump();
+      if (jump) this.scene.start(jump.key, jump.data);
+      else this.scene.start(SCENES.title);
+    });
   }
 
   /**

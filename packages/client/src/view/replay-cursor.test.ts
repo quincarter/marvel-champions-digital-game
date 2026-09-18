@@ -238,5 +238,5 @@ describe("ReplayCursor", () => {
     // destination) keeps a full one-at-a-time walk of the log within a small
     // constant multiple of its length.
     expect(cursor.applyCount).toBeLessThan(cursor.length * 4);
-  });
+  }, 30_000); // Call-count assertion, not a timing one: a 200+ command walk exceeds vitest's 5 s default on a loaded machine.
 });

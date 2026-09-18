@@ -27,6 +27,8 @@ import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceHeaderInstanceId, choiceHeaderText } from "../view/choice-source.js";
 import { seatIdentityName } from "../view/names.js";
+import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice.js";
+import { defendChoiceLayout, defendOptionSlots } from "../view/defend-choice-layout.js";
 import {
   canConfirmChoice,
   cardChoiceDisplayOrder,
@@ -130,6 +132,14 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";
+
+    // W6 (docs/phase4-screen-gaps.md): a dedicated presentation for the defend prompt, over the same PendingChoice
+    // and answered with the same `resolveChoice` command the bare list below sends — see `#drawDefendChoice`'s own
+    // doc comment for why this branches before `asCards` rather than becoming a fifth `ChoiceRef` case there.
+    if (choice.prompt.kind === "declareDefender") {
+      this.#drawDefendChoice(choice, state.game, width, height);
+      return;
+    }
 
     // A decision about cards is made on the cards, so it is decided here —
     // before the sheet is sized, because a row of cards needs a wider sheet
@@ -311,6 +321,157 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     this.#drawCommit(sheet, commitTop, choice);
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+  }
+
+  /**
+   * The declareDefender choice's own presentation (W6, docs/phase4-screen-gaps.md): an incoming-attack summary, the
+   * options with what each one would cost (`view/defend-choice.ts`'s `defendChoiceViewOf`, backed by the engine's
+   * `defendPreview`/`stackEntries`/`legalActions` — nothing here computes a rule), the resolution stack with the open
+   * window marked, and who's deciding. It answers with the same `resolveChoice([optionId])` the bare list below sends
+   * — `#toggle`/`#confirm` are shared with it unchanged — so the command log reads no differently than it did before
+   * this screen existed.
+   *
+   * A sibling scene was the other option W6 was told it could take; this stays a branch of `ChoiceOverlay` instead
+   * because everything else the sheet needs — the subscription, the resize listener, card-art loading, Inspect's
+   * toggle-back channel, and the keyboard/pad route (`#onIntent`/`#drawFocusRing`, unchanged below) — already lives
+   * here, and a second scene would have to re-wire all of it rather than reuse it.
+   */
+  #drawDefendChoice(choice: PendingChoice, game: GameState, width: number, height: number): void {
+    const view = defendChoiceViewOf(game, choice, POOL_DEPS, appSession().store.state.perspectiveId, this.#selected);
+    if (!view) return;
+
+    this.#route = choiceFocusOrder(view.options.map((option) => option.optionId), false);
+
+    // Ink void, board dimmed but visible underneath (this class's own doc comment) — the design's own D10/P15
+    // composition is a run of cream cards and an ink rail over a dark ground, never one big white sheet behind them.
+    const scrim = this.add.graphics();
+    scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+
+    const layout = defendChoiceLayout({ x: 0, y: 0, width, height });
+
+    // Header: an ink bar naming the attack, same ground as the generic sheet's own title bar.
+    const headerG = this.add.graphics();
+    headerG.fillStyle(surface.ink.hex, 1).fillRect(layout.header.x, layout.header.y, layout.header.width, layout.header.height);
+    const authorityTag = choice.soleDecider ? "PERIL" : "AUTHORITY: PLAYER";
+    label(this, layout.header.x + layout.header.width - 12, layout.header.y + layout.header.height / 2, authorityTag, typeRole.label, surface.paper.hex, ink.secondary).setOrigin(1, 0.5);
+    const headerTitle = this.add
+      .text(layout.header.x + 12, layout.header.y + layout.header.height / 2, `${view.summary.attackerName} attacks ${view.summary.targetName}`, textStyle(typeRole.barTitle, surface.paper.hex))
+      .setOrigin(0, 0.5)
+      .setLetterSpacing(2);
+    fitText(headerTitle, layout.header.width - 140, typeRole.barTitle.size);
+
+    // Incoming attack summary.
+    const summaryG = this.add.graphics();
+    paintPanel(summaryG, layout.summary, "card", "rest");
+    let sy = layout.summary.y + 10;
+    this.add.text(layout.summary.x + 12, sy, `Base ATK ${view.summary.baseAtk} · ${view.summary.facedownCount} boost card${view.summary.facedownCount === 1 ? "" : "s"} facedown`, textStyle(typeRole.rowTitle, surface.ink.hex));
+    sy += 20;
+    for (const note of view.summary.forcedNotes) {
+      const t = this.add.text(layout.summary.x + 12, sy, note, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(layout.summary.width - 24);
+      sy += t.height + 4;
+    }
+    if (view.summary.boostAbilityNote) {
+      const t = this.add.text(layout.summary.x + 12, sy, view.summary.boostAbilityNote, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(layout.summary.width - 24);
+      sy += t.height + 4;
+    }
+    const eventsLine = this.add
+      .text(layout.summary.x + 12, sy, `Play a defense event: ${view.defenseEventsNote}`, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+      .setWordWrapWidth(layout.summary.width - 24);
+    sy += eventsLine.height + 4;
+    this.add.text(layout.summary.x + 12, sy, view.rangeCaveat, textStyle(typeRole.label, surface.ink.hex, ink.label)).setWordWrapWidth(layout.summary.width - 24);
+
+    // Options.
+    const slots = defendOptionSlots(layout.options, view.options.length, layout.formFactor);
+    view.options.forEach((option, index) => {
+      const slot = slots[index];
+      if (slot) this.#drawDefendOption(slot, option);
+    });
+
+    // The stack, "← here" on the open window.
+    const stackG = this.add.graphics();
+    paintPanel(stackG, layout.stack, "onInk", "rest");
+    label(this, layout.stack.x + 10, layout.stack.y + 8, "the stack", typeRole.label, surface.paper.hex, ink.body);
+    let rowY = layout.stack.y + 24;
+    for (const row of view.stack) {
+      const text = row.openWindow ? `${row.label} ← here` : row.label;
+      const style = row.openWindow ? textStyle(typeRole.body, accent.heroRed.hex, 1) : textStyle(typeRole.body, surface.paper.hex, ink.secondary);
+      const t = this.add.text(layout.stack.x + 10, rowY, text, style).setWordWrapWidth(layout.stack.width - 20);
+      rowY += t.height + 4;
+      if (rowY > layout.stack.y + layout.stack.height) break;
+    }
+
+    // Waiting on — light on the dark scrim, not the summary/option cards' dark-on-cream (this text sits directly on
+    // the dimmed board, per the design's own D10 "WAITING ON" copy, which is likewise plain light text on the void).
+    this.add
+      .text(layout.waitingOn.x, layout.waitingOn.y, view.waitingOn, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+      .setWordWrapWidth(layout.waitingOn.width)
+      .setMaxLines(2);
+
+    // One red commit, labeled with the current pick.
+    const picked = view.options.find((option) => option.selected) ?? null;
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: picked ? `Confirm — ${picked.title}` : "Confirm",
+        type: typeRole.barTitle,
+        rect: layout.commit,
+        enabled: this.#selected.length === 1,
+        reason: "choose one option to continue",
+        onClick: () => void this.#confirm(),
+      }),
+    );
+    this.#focusRects.set(choiceFocusKey({ kind: "confirm" }), layout.commit);
+    this.#drawFocusRing();
+
+    this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+  }
+
+  /**
+   * One defend option, drawn as a card: title, what it costs, and its consequences — tap to select, Confirm to answer.
+   *
+   * `defendOptionSlots` reserves a full, non-overlapping cell per option so the layout never depends on how much any
+   * one option has to say, but the card itself is only ever drawn (and only ever clickable) at its own content
+   * height, top-aligned in that cell — a two-option defend (the common case) leaving most of a tall cell empty would
+   * otherwise draw an oversized card with a large dead-looking blank lower half, which the design canvases never show.
+   */
+  #drawDefendOption(fullSlot: Rect, option: DefendOptionView): void {
+    const slot: Rect = { ...fullSlot, height: Math.min(fullSlot.height, 190) };
+    this.#focusRects.set(choiceFocusKey({ kind: "option", optionId: option.optionId }), slot);
+
+    const g = this.add.graphics();
+    paintPanel(g, slot, "card", option.selected ? "selected" : "rest");
+
+    let y = slot.y + 8;
+    const title = this.add.text(slot.x + 10, y, option.title, textStyle(typeRole.rowTitle, surface.ink.hex));
+    fitText(title, slot.width - 20, typeRole.rowTitle.size);
+    y += title.height + 4;
+
+    const costLine =
+      option.kind === "decline"
+        ? "Stays ready."
+        : `Exhausts ${option.exhaustsNames.join(", ")}${option.defenseReduction > 0 ? ` · DEF ${option.defenseReduction}` : ""}.`;
+    const cost = this.add.text(slot.x + 10, y, costLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary)).setWordWrapWidth(slot.width - 20);
+    y += cost.height + 6;
+
+    const damage = this.add.text(slot.x + 10, y, option.damageHeadline, {
+      ...textStyle(typeRole.stat, accent.heroRed.hex),
+    });
+    y += damage.height + 4;
+
+    if (option.hpAfter) {
+      const hp = this.add.text(slot.x + 10, y, option.hpAfter, textStyle(typeRole.label, surface.ink.hex, ink.secondary));
+      y += hp.height + 4;
+    }
+
+    if (option.consequences.length > 0 && y < slot.y + slot.height - 12) {
+      this.add
+        .text(slot.x + 10, y, option.consequences.join(" "), textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .setWordWrapWidth(slot.width - 20)
+        .setMaxLines(Math.max(1, Math.floor((slot.y + slot.height - y - 8) / 16)));
+    }
+
+    const zone = this.add.zone(slot.x, slot.y, slot.width, slot.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    zone.on("pointerup", () => this.#toggle(option.optionId, 1));
   }
 
   /**

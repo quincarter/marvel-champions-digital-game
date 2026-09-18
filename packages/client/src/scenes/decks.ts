@@ -3,8 +3,9 @@
  * docs/phase4-screen-gaps.md §3, D14): every precon plus every saved or
  * imported deck, each with its legality/playability status; a searchable,
  * filterable list (S8) beside the selected deck's stats (S1); import by paste
- * (works everywhere) and by MarvelCDB URL/id (dev/preview only, behind the
- * same-origin route `vite-marvelcdb-import.ts` adds); save, delete, and a
+ * (works everywhere) and by MarvelCDB URL/id (dev/preview through the
+ * same-origin route `vite-marvelcdb-import.ts` adds, and in a packaged app
+ * through native HTTP — `platform/deck-fetch.ts`); save, delete, and a
  * link into the builder to make or edit one.
  *
  * **The composition, read off D14** (`ScreensDesktop_12`/`_13`.png,
@@ -67,6 +68,7 @@ import type { DeckCheckSceneData } from "./deck-check.js";
 import type { TitleSceneData } from "./title.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { fetchMarvelCdbDeck } from "../platform/deck-fetch.js";
 
 /** What a caller (Title, on an `illegal_deck` refusal) hands over on launch. */
 export interface DecksSceneData {
@@ -689,13 +691,12 @@ export class DecksScene extends Phaser.Scene {
     this.#busy = true;
     this.#rebuild();
     try {
-      // The literal path has to match `MARVELCDB_IMPORT_ROUTE` in
-      // `vite-marvelcdb-import.ts` (a root-level Vite plugin file, not part of
-      // this `src/` bundle, so its constant isn't imported here) — a 404 on a
-      // production build is the designed fallback, not a bug (see that file).
-      const response = await fetch(`/api/marvelcdb-import/${ref.kind}/${ref.id}`);
-      const text = await response.text();
-      if (!response.ok) {
+      // The dev/preview route on the web, native HTTP in a packaged app — a
+      // 404 on a production web build is the designed fallback, not a bug
+      // (see `vite-marvelcdb-import.ts`).
+      const response = await fetchMarvelCdbDeck(ref.kind, ref.id);
+      const text = response.body;
+      if (response.status !== 200) {
         // A production deploy has no `vite-marvelcdb-import.ts` route at all
         // (dev/preview only) and 404s here with no JSON body — the one case
         // this build genuinely cannot tell apart from "MarvelCDB has nothing

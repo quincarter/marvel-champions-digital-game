@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { rectsOverlap } from "./title-layout.js";
+import { rectsOverlap } from "./layout.js";
 import { rulesLayout, type RulesTab } from "./rules-layout.js";
 
 const SIZES = [

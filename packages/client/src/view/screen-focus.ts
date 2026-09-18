@@ -210,3 +210,70 @@ export function rulesFocusOrder(input: { readonly tabIds: readonly string[]; rea
 export function settingsFocusOrder(rowIds: readonly string[]): readonly string[] {
   return ["back", ...rowIds.map((id) => `row:${id}`)];
 }
+
+/**
+ * The Title menu (docs/phase4-screen-gaps.md §3 W2, D01): Continue (when
+ * there's a game to pick up), New game, Decks & Collection, Campaign
+ * (drawn locked) and Settings (drawn unavailable until W4 lands it) — both
+ * still take focus so their reason reads with `I`, the same rule
+ * `titleFocusOrder` already applies to a blocked hero seat.
+ */
+export function titleMenuFocusOrder(input: { readonly continuable: boolean }): readonly string[] {
+  return [...(input.continuable ? ["continue"] : []), "new-game", "decks", "campaign", "settings"];
+}
+
+export interface ScenarioSelectFocusInput {
+  /** Every scenario row, in roster order — already filtered by the search field (S8); empty means the search matched nothing. */
+  readonly scenarioIds: readonly string[];
+  readonly scenarioChipIds?: readonly string[];
+}
+
+/** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario row (or "Clear"), then "Choose heroes ▸". */
+export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): readonly string[] {
+  return [
+    "back",
+    "scenario-search",
+    ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
+    ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
+    "next",
+  ];
+}
+
+export interface SeatsFocusInput {
+  /** Every seat option's deck id, already filtered by the hero search field (S8) — still keyed `hero:<deckId>`, matching `titleFocusOrder`'s own convention. */
+  readonly deckIds: readonly string[];
+  readonly heroChipIds?: readonly string[];
+}
+
+/** Take your seats (D03): Back, "Use preconstructed for all seats", the search field, its chips, each roster row (or "Clear"), "Deck check ▸", then "Take these seats ▸". */
+export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
+  return [
+    "back",
+    "use-preconstructed",
+    "hero-search",
+    ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
+    ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
+    "deck-check",
+  ];
+}
+
+export interface TableSetupFocusInput {
+  readonly difficulties: readonly string[];
+  /** Every modular set candidate's own id (`view/modular-sets.ts`'s `modularSetCandidateIdsFor`) — empty for a scenario that uses none (Breakout). */
+  readonly modularSetIds: readonly string[];
+  /** One stop per seat index plus "Random" (`view/seed.ts`'s `rollFirstPlayerIndex`). */
+  readonly firstPlayerOptionIds: readonly string[];
+}
+
+/** Table setup (D05): Back, difficulty, the modular set picker, seating/first player, the seed field, Reroll, then "Deal it out". */
+export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly string[] {
+  return [
+    "back",
+    ...input.difficulties.map((id) => `difficulty:${id}`),
+    ...input.modularSetIds.map((id) => `modular:${id}`),
+    ...input.firstPlayerOptionIds.map((id) => `first-player:${id}`),
+    "seed",
+    "reroll",
+    "deal-it-out",
+  ];
+}

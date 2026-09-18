@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { rectsOverlap } from "./title-layout.js";
+import { rectsOverlap } from "./layout.js";
 import { pauseLayout, pauseLayoutRects } from "./pause-layout.js";
 
 /** docs/phase4-screen-gaps.md §0/§5: phone, tablet portrait/landscape and desktop, plus the two legacy sizes this layout was already checked at. */
