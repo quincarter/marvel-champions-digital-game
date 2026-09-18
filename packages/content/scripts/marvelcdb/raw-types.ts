@@ -34,6 +34,13 @@ export interface RawCard {
   readonly linked_to_code?: string | null;
   readonly linked_card?: RawCard | null;
   readonly duplicated_by?: readonly string[] | null;
+  /**
+   * The code of the card this one is a reprint of (e.g. The Rise of Red Skull's Avengers Tower, 04021, names
+   * Captain America's 03024) — the inverse of `duplicated_by`. Recorded on `CardProvenance.duplicateOfCardId` so
+   * a MarvelCDB decklist naming either code can resolve to the same card (Phase 9 deck import); ingestion itself
+   * still emits the reprint as its own card, matching the wave 1 reprint-art policy.
+   */
+  readonly duplicate_of_code?: string | null;
 
   readonly text?: string | null;
   readonly real_text?: string | null;

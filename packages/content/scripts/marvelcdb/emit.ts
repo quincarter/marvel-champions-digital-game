@@ -36,6 +36,12 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   sharedTrait: "trait",
   requiresIdentityTrait: "trait",
   requiresControlledCharacterTrait: "trait",
+  // `HostQualifiers.trait`/`withoutTrait` (`AttachmentHost`'s `qualified`/`superlative` kinds, wave 2).
+  trait: "trait",
+  withoutTrait: "trait",
+  // `SpecificSet.encounterSetId` (wave 2 scenario-/campaign-specific player cards) — singular, distinct from the
+  // already-branded plural `encounterSetIds`.
+  encounterSetId: "encounterSetId",
   obligationCardId: "cardId",
   villainCardId: "cardId",
   mainSchemeCardId: "cardId",
@@ -43,6 +49,7 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   nemesisOfIdentityId: "cardId",
   signatureSideSchemeCardId: "cardId",
   cardId: "cardId",
+  duplicateOfCardId: "cardId",
   scenarioIds: "scenarioId",
   image: "imageRef",
 };

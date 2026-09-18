@@ -43,6 +43,10 @@ import { THOR_CURATION } from "./marvelcdb/curation/thor.ts";
 import { BKW_CURATION } from "./marvelcdb/curation/bkw.ts";
 import { DRS_CURATION } from "./marvelcdb/curation/drs.ts";
 import { HLK_CURATION } from "./marvelcdb/curation/hlk.ts";
+import { SCW_CURATION } from "./marvelcdb/curation/scw.ts";
+import { ANT_CURATION } from "./marvelcdb/curation/ant.ts";
+import { WSP_CURATION } from "./marvelcdb/curation/wsp.ts";
+import { TRORS_CURATION } from "./marvelcdb/curation/trors.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -60,6 +64,10 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   bkw: BKW_CURATION,
   drs: DRS_CURATION,
   hlk: HLK_CURATION,
+  scw: SCW_CURATION,
+  ant: ANT_CURATION,
+  wsp: WSP_CURATION,
+  trors: TRORS_CURATION,
 };
 
 interface RawCache {

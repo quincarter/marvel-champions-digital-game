@@ -3,7 +3,7 @@
  * us (or gives us wrong). Every entry cites the evidence it rests on, so a
  * reviewer can re-check it without re-deriving it.
  */
-import type { CoreAspect } from "../../../src/schema/index.ts";
+import type { CoreAspect, SpecialCost } from "../../../src/schema/index.ts";
 
 /**
  * A correction to MarvelCDB's transcription of the *physical card*. Applies to
@@ -26,6 +26,14 @@ export interface Correction {
   readonly attack?: number;
   /** MarvelCDB fields with no printed counterpart on this card type — ignored, with the reason recorded. */
   readonly ignoreFields?: readonly string[];
+  /**
+   * Confirms a printed dash cost from the card image (wave 2, docs/phase7-wave2.md §1.3/§5.1): MarvelCDB sends
+   * no `cost` at all for a card that "cannot be played and can only enter play through other means" (RRG 1.8
+   * "Dash (Value)", p. 15), which is otherwise indistinguishable from a data error. A printed cost of "X" (RRG
+   * 1.8 "Non-Numerical Variable", p. 30) never needs this — MarvelCDB's `cost: -1` is unambiguous and is read
+   * automatically, with no correction.
+   */
+  readonly specialCost?: SpecialCost;
 }
 
 /**
@@ -111,6 +119,22 @@ export interface SeparateDeckCuration {
   readonly cardCodes: readonly string[];
 }
 
+/**
+ * A MarvelCDB record that is not a printed card at all — a spurious duplicate in the raw feed, not a printed-card
+ * correction (`Correction`) or a card this pack simply doesn't cover. Distinct from a MarvelCDB *aggregate*
+ * record (`flatten.ts`'s `isAggregate`, a structural bare-code/suffixed-variants pattern): this is a hand-verified
+ * one-off, so every entry must cite the evidence it rests on, same as a `Correction`.
+ *
+ * Example: The Rise of Red Skull's `10098` ("Shang-Chi", `faction_code: "hero"`, `card_set_code: "taskmaster"`,
+ * `deck_limit: 1`) duplicates the real Captive ally `04098` under a code in Hulk's (`10xxx`) range, and is not a
+ * printed card (docs/phase7-wave2.md §5.2).
+ */
+export interface IgnoredRecord {
+  readonly code: string;
+  readonly reason: string;
+  readonly evidence: string;
+}
+
 export interface PackCuration {
   readonly packCode: string;
   readonly cycle: { readonly id: string; readonly name: string; readonly order: number };
@@ -129,4 +153,6 @@ export interface PackCuration {
   readonly starterDecks: readonly StarterDeckCuration[];
   /** Player cards that belong to an identity's separate deck rather than a player deck. */
   readonly separateDecks?: readonly SeparateDeckCuration[];
+  /** MarvelCDB records to drop entirely — not a printed card (see `IgnoredRecord`). Absent = none. */
+  readonly ignoredRecords?: readonly IgnoredRecord[];
 }

@@ -49,6 +49,13 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
   const flat = flatten(raw, errors);
   const heroBySet = new Map<string, RawCard>();
   for (const r of flat.topLevel) if (r.type_code === "hero" && r.card_set_code) heroBySet.set(r.card_set_code, r);
+  const handled = new Set<string>();
+  // A record curation has hand-verified isn't a printed card at all (`IgnoredRecord`) is dropped up front, the
+  // same way a MarvelCDB aggregate is — `checkCoverage` exempts it via `ctx.dropped`, not by lowering the bar.
+  for (const ignored of curation.ignoredRecords ?? []) {
+    handled.add(ignored.code);
+    flat.dropped.push({ marvelcdbCode: ignored.code, reason: `${ignored.reason} [evidence: ${ignored.evidence}]` });
+  }
   return {
     ...flat,
     curation,
@@ -60,7 +67,7 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     heroBySet,
     cards: [],
     provenance: [],
-    handled: new Set(),
+    handled,
     prepared: new Map(),
     usedCorrections: new Set(),
     usedErrata: new Set(),
@@ -101,11 +108,15 @@ export function abilityRefs(ctx: NormalizeContext, code: string, cardName: strin
 export function record(ctx: NormalizeContext, card: AnyCard, cardSetCode: string, parts: readonly Prepared[]): void {
   ctx.cards.push(card);
   const note = ctx.curation.cardNotes[card.id];
+  // MarvelCDB's `duplicate_of_code` on a verbatim reprint (see `RawCard`'s doc comment) — recorded, not resolved
+  // against the reprint's pack, since that pack isn't loaded here; a consumer treats it as a hint.
+  const duplicateOf = parts.map((p) => p.raw.duplicate_of_code).find((c): c is string => Boolean(c));
   ctx.provenance.push({
     cardId: card.id,
     cardSetCode,
     marvelcdbCodes: parts.map((p) => p.raw.code),
     corrections: [...parts.flatMap((p) => p.notes), ...(note ? [`data decision: ${note}`] : [])],
+    ...(duplicateOf ? { duplicateOfCardId: brand("card", duplicateOf) } : {}),
   });
 }
 

@@ -36,6 +36,10 @@ import { THOR_CURATION } from "./curation/thor.ts";
 import { BKW_CURATION } from "./curation/bkw.ts";
 import { DRS_CURATION } from "./curation/drs.ts";
 import { HLK_CURATION } from "./curation/hlk.ts";
+import { SCW_CURATION } from "./curation/scw.ts";
+import { ANT_CURATION } from "./curation/ant.ts";
+import { WSP_CURATION } from "./curation/wsp.ts";
+import { TRORS_CURATION } from "./curation/trors.ts";
 import type { PackCuration } from "./curation/types.ts";
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -52,6 +56,10 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   bkw: BKW_CURATION,
   drs: DRS_CURATION,
   hlk: HLK_CURATION,
+  scw: SCW_CURATION,
+  ant: ANT_CURATION,
+  wsp: WSP_CURATION,
+  trors: TRORS_CURATION,
 };
 
 interface RawCache {
@@ -90,7 +98,11 @@ const CATEGORIES: readonly Category[] = [
   { label: "deck_limit missing/invalid", re: /deck_limit .* invalid/ },
   { label: "Max N per deck text vs deck_limit mismatch", re: /Max .* per deck but deck_limit/ },
   { label: "attach rule shape not recognized by the parser", re: /(second attach rule|unrecognized attach rule|attach rule on a|attachment without an attach rule|player card attaches to a villain by name|attaches to a villain by name is not this set's villain)/ },
+  { label: "ifAble attach host: one side didn't parse", re: /ifAble attach host: could not parse/ },
+  { label: "Requirement keyword needs more than one resource icon (schema gap)", re: /Requirement keyword needs more than one resource icon/ },
+  { label: "Discount keyword needs a target-trait qualifier (schema gap)", re: /Discount keyword needs a target-trait qualifier/ },
   { label: "play/deck restriction text on a non-player card", re: /play\/deck restriction on a non-player card/ },
+  { label: "campaign-specific obligation (schema gap — ObligationCard has no specificTo)", re: /obligation with faction campaign/ },
   { label: "unknown text token (icon/markup the text normalizer doesn't map)", re: /unknown text token/ },
   { label: "boost_star flag vs Boost ability text mismatch", re: /boost_star=.* but text/ },
   { label: "MarvelCDB record never turned into a card (falls out of every code path)", re: /was not turned into any card/ },
