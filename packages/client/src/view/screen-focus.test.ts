@@ -1,6 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { stepKey } from "./focus.js";
-import { deckBuilderFocusOrder, deckCheckFocusOrder, decksFocusOrder, titleFocusOrder, villainPhaseFocusOrder } from "./screen-focus.js";
+import {
+  deckBuilderFocusOrder,
+  deckCheckFocusOrder,
+  decksFocusOrder,
+  pauseFocusOrder,
+  rulesFocusOrder,
+  settingsFocusOrder,
+  titleFocusOrder,
+  villainPhaseFocusOrder,
+} from "./screen-focus.js";
 
 describe("screen focus routes", () => {
   test("the Title screen reads top to bottom, with Continue first only when there is a game to continue", () => {
@@ -151,6 +160,43 @@ describe("screen focus routes", () => {
   test("the walkthrough offers Continue first once the phase is over", () => {
     expect(villainPhaseFocusOrder(false)).toEqual(["skip"]);
     expect(villainPhaseFocusOrder(true)).toEqual(["continue", "skip"]);
+  });
+
+  test("Pause reads Resume, Save & quit, Rules, Settings, then moments, then Concede last", () => {
+    expect(pauseFocusOrder({ momentIds: [], confirmingConcede: false })).toEqual(["resume", "save-quit", "rules", "settings", "concede"]);
+    expect(pauseFocusOrder({ momentIds: ["m1", "m2"], confirmingConcede: false })).toEqual([
+      "resume",
+      "save-quit",
+      "rules",
+      "settings",
+      "moment:m1",
+      "moment:m2",
+      "concede",
+    ]);
+  });
+
+  test("Pause's concede confirm replaces the single Concede stop with its own two controls", () => {
+    const order = pauseFocusOrder({ momentIds: [], confirmingConcede: true });
+    expect(order).not.toContain("concede");
+    expect(order.slice(-2)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
+  });
+
+  test("Rules Reference reads Back, tabs, search (glossary only), then rows", () => {
+    expect(rulesFocusOrder({ tabIds: ["glossary", "villainPhase", "cardList"], showSearch: true, rowIds: ["guard", "peril"] })).toEqual([
+      "back",
+      "tab:glossary",
+      "tab:villainPhase",
+      "tab:cardList",
+      "search",
+      "row:guard",
+      "row:peril",
+    ]);
+    expect(rulesFocusOrder({ tabIds: ["glossary"], showSearch: false, rowIds: [] })).toEqual(["back", "tab:glossary"]);
+  });
+
+  test("Settings reads Back then one stop per row", () => {
+    expect(settingsFocusOrder(["reduced-motion", "large-card-text", "sound"])).toEqual(["back", "row:reduced-motion", "row:large-card-text", "row:sound"]);
+    expect(settingsFocusOrder([])).toEqual(["back"]);
   });
 
   test("stepping a key route wraps, and starts from either end", () => {

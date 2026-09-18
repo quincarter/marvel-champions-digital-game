@@ -5,12 +5,20 @@
 import type Phaser from "phaser";
 import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
-import { McTabs } from "../../ui/widgets.js";
+import { McButton, McTabs } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
 
+export interface ChromeOptions {
+  readonly notSaving?: boolean;
+  /** Opens the Pause overlay (docs/phase4-screen-gaps.md §3 "W4"). Every board layout gets this button. */
+  readonly onMenu: () => void;
+  /** The menu button is a real `McButton` (it needs a click/hover/focus state), so it's handed back for the caller's own frame bookkeeping — same reason `drawActionBar` pushes onto `ctx.frame.buttons` instead of owning its own list. */
+  readonly buttons: McButton[];
+}
+
 /**
- * Round chip, phase toggle and the current step, on the ink chrome bar.
+ * Round chip, phase toggle, the current step, and the MENU/≡ button, on the ink chrome bar.
  *
  * The phase toggle is the first thing to go when the bar is narrow: it says
  * the same thing the step label already says, and two overlapping labels say
@@ -19,10 +27,30 @@ import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
  * `notSaving` puts a standing "NOT SAVING" chip at the right edge, ahead of
  * the 1st-player mark, which it displaces: once a save has failed the game
  * may not survive a refresh, and that stays true for the rest of the session.
+ *
+ * The menu button sits at the very right edge, ahead of even the "NOT SAVING"
+ * chip and the 1st-player mark — pausing has to stay reachable regardless of
+ * how much else the bar is showing. It reads "MENU" on the long table
+ * (`rect.width >= 640`, the same breakpoint the phase toggle uses) and "≡" on
+ * the phone board, matching `Board - Long Table.dc.html` / `Board - Phone.dc.html`.
  */
-export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, notSaving = false): void {
+export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, options: ChromeOptions): void {
   const g = scene.add.graphics();
   g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+
+  const wide = rect.width >= 640;
+  const menuWidth = wide ? 76 : 40;
+  const menuRect: Rect = { x: rect.x + rect.width - 8 - menuWidth, y: rect.y + 5, width: menuWidth, height: rect.height - 10 };
+  options.buttons.push(
+    new McButton(scene, {
+      kind: "onInk",
+      label: wide ? "MENU" : "≡",
+      type: typeRole.label,
+      rect: menuRect,
+      enabled: true,
+      onClick: options.onMenu,
+    }),
+  );
 
   // The live round chip is the one red besides the forward action.
   const chip: Rect = { x: rect.x + 8, y: rect.y + 5, width: 54, height: rect.height - 10 };
@@ -33,7 +61,7 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, n
     .setOrigin(0.5);
 
   let left = chip.x + chip.width + 10;
-  const showToggle = rect.width >= 640;
+  const showToggle = wide;
   if (showToggle) {
     // Two-state phase toggle: whichever side's clock is running is filled.
     (["player", "villain"] as const).forEach((phase, index) => {
@@ -50,12 +78,13 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, n
     left += 86 * 2 + 18;
   }
 
+  const notSaving = options.notSaving ?? false;
   const firstPlayer = !notSaving && model.firstPlayerId === model.perspectiveId && rect.width >= 520;
-  let rightEdge = rect.x + rect.width - (firstPlayer ? 86 : 10);
+  let rightEdge = menuRect.x - 10 - (firstPlayer ? 86 : 0);
   if (notSaving) {
     // A glyph as well as the hue, so the warning never rests on colour alone.
     const warning = scene.add
-      .text(rect.x + rect.width - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.ink.hex))
+      .text(menuRect.x - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.ink.hex))
       .setOrigin(1, 0.5)
       .setLetterSpacing(typeRole.label.letterSpacing)
       .setPadding(6, 3, 6, 3)
@@ -70,7 +99,7 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, n
 
   if (firstPlayer) {
     scene.add
-      .text(rect.x + rect.width - 10, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
+      .text(menuRect.x - 10, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
       .setOrigin(1, 0.5)
       .setLetterSpacing(typeRole.label.letterSpacing);
   }
