@@ -91,6 +91,12 @@ export class WorkerEngineHost implements EngineHost {
     return response.meta;
   }
 
+  async listSaves(): Promise<readonly SaveMeta[]> {
+    const response = await this.#request({ kind: "listSaves", id: this.#id() });
+    if (response.kind !== "listSaves") throw new Error(`unexpected reply ${response.kind}`);
+    return response.saves;
+  }
+
   dispose(): void {
     this.#worker.removeEventListener("message", this.#onMessage);
     this.#worker.removeEventListener("error", this.#onError);

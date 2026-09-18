@@ -36,7 +36,7 @@ import {
   setName,
   type PoolFilter,
 } from "../view/deck-builder-model.js";
-import { costCurveBars, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
+import { costCurveBars, deckListGroupsOf, deckStatsOf } from "../view/deck-stats.js";
 import { CHIP_GAP, chipStripHeight, wrapChipsToRows } from "../view/chip-layout.js";
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
@@ -45,6 +45,7 @@ import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
 import { deckStorage } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -348,7 +349,11 @@ export class DeckBuilderScene extends Phaser.Scene {
     );
   }
 
-  /** The cost curve and the grouped deck list (Hero / aspect / Basic), capped with a "+ N more" overflow — D04's stats panel. Returns the next free `y`. */
+  /**
+   * The cost curve and the grouped deck list (Hero / aspect / Basic), capped with a "+ N more" overflow — D04's
+   * stats panel, shared with Deck check and W9's Decks & Collection stats pane (`ui/deck-stats-widgets.ts`). Returns
+   * the next free `y`.
+   */
   #drawStatsPanel(left: number, top: number, column: number, deck: Deck): number {
     let y = top;
     const stats = deckStatsOf(deck, POOL);
@@ -356,50 +361,13 @@ export class DeckBuilderScene extends Phaser.Scene {
     label(this, left, y, "cost curve", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const chartHeight = 74;
-    const bars = costCurveBars(stats);
-    const gap = 6;
-    const barWidth = (column - gap * (bars.length - 1)) / bars.length;
-    const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
-    bars.forEach((bar, index) => {
-      const barHeight = Math.max(2, Math.round((bar.count / maxCount) * (chartHeight - 16)));
-      const x = left + index * (barWidth + gap);
-      const g = this.add.graphics();
-      g.fillStyle(index === bars.length - 1 ? signal.spent.hex : signal.cost.hex, 1);
-      g.fillRect(x, y + (chartHeight - 16 - barHeight), barWidth, barHeight);
-      label(this, x + barWidth / 2, y + chartHeight - 10, bar.label, typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
-    });
+    drawCostCurveBars(this, { x: left, y, width: column, height: chartHeight }, costCurveBars(stats));
     y += chartHeight + 16;
 
     label(this, left, y, "your deck", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const groups = deckListGroupsOf(deck, POOL);
-    let shown = 0;
-    let overflow = 0;
-    for (const group of groups) {
-      const remainingRoom = STATS_LIST_ENTRY_CAP - shown;
-      if (remainingRoom <= 0) {
-        overflow += group.entries.length;
-        continue;
-      }
-      const visible: readonly DeckListEntry[] = group.entries.slice(0, remainingRoom);
-      overflow += group.entries.length - visible.length;
-      shown += visible.length;
-      if (visible.length === 0) continue;
-      label(this, left, y, `${group.label} · ${group.count}`, typeRole.label, surface.ink.hex, ink.meta);
-      y += 14;
-      for (const entry of visible) {
-        const line = this.add.text(left, y, entry.name, textStyle(typeRole.body, surface.ink.hex));
-        fitText(line, column - 40);
-        label(this, left + column - 4, y, String(entry.quantity), typeRole.label, surface.ink.hex, ink.secondary).setOrigin(1, 0);
-        y += 16;
-      }
-      y += 4;
-    }
-    if (overflow > 0) {
-      this.add.text(left, y, `+ ${overflow} more`, textStyle(typeRole.body, surface.ink.hex, ink.meta));
-      y += 18;
-    }
-    return y + 8;
+    return drawGroupedCardList(this, left, y, column, groups, STATS_LIST_ENTRY_CAP);
   }
 
   #drawIdentityPicker(left: number, y: number, column: number): void {

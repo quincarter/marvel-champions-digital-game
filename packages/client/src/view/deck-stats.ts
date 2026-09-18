@@ -163,6 +163,30 @@ export function costCurveBars(stats: DeckStats, capAt = 4): readonly CostCurveBa
   return [...bars, { label: `${capAt}+`, count: overflow }];
 }
 
+/** A player-facing label for each `PlayerCardType`'s composition tile ("Events", "Allies" …) — shared by every screen that shows composition-by-type (W1's Deck check and builder panel, W9's Decks & Collection stats pane), so the wording can't drift between them. */
+const TYPE_TILE_LABELS: Readonly<Record<PlayerCardType, string>> = {
+  resource: "Resources",
+  ally: "Allies",
+  event: "Events",
+  upgrade: "Upgrades",
+  support: "Supports",
+  player_side_scheme: "Side schemes",
+};
+
+/** One composition-by-type tile ("Events 21", D14's own wording). */
+export interface CompositionTile {
+  readonly id: PlayerCardType;
+  readonly label: string;
+  readonly count: number;
+}
+
+/** `stats.countsByType`, worded and ordered for a composition tile row — every non-empty type, in `TYPE_TILE_LABELS`' own order. */
+export function compositionTilesOf(stats: DeckStats): readonly CompositionTile[] {
+  return (Object.keys(TYPE_TILE_LABELS) as PlayerCardType[])
+    .filter((type) => (stats.countsByType[type] ?? 0) > 0)
+    .map((type) => ({ id: type, label: TYPE_TILE_LABELS[type], count: stats.countsByType[type]! }));
+}
+
 /** One line of a grouped deck list: a card's display name, type and printed cost (null for a resource), plus how many copies are in the deck. */
 export interface DeckListEntry {
   readonly cardId: CardId;

@@ -151,6 +151,17 @@ export function removeSeat(draft: SetupDraft, deckId: string): SetupDraft {
 }
 
 /**
+ * "Play this deck ▸" (W9, docs/phase4-screen-gaps.md §3): seats `deckId` in seat 1, dropping every other seat —
+ * the same "one seat to start" shape `initialSetupDraft` itself gives a fresh visit. This is the whole hook a
+ * caller outside the setup flow needs to preselect a deck: build (or take) a draft, call this, hand the result to
+ * whatever reads `SetupDraft` next. Deliberately not "insert at seat 1, keep the rest" — a deck picked from the
+ * Decks screen is a fresh "play this" intent, not an addition to whatever seats happened to be there before.
+ */
+export function withSeatOne(draft: SetupDraft, deckId: string): SetupDraft {
+  return { ...draft, seats: [deckId] };
+}
+
+/**
  * The draft as the `SessionConfig` `EngineSessionCore.start`/`resume` take —
  * the same shape, and the same optional-field omissions, `TitleScene#start`
  * builds by hand today: no `modularSetIds`/`firstPlayerIndex` unless set.

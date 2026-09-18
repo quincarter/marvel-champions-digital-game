@@ -1,45 +1,76 @@
 /**
- * The Decks screen (PLAN.md Phase 9): every precon, plus every saved or
- * imported deck, each with its legality/playability status; import by paste
+ * The Decks & Collection screen (PLAN.md Phase 9 / W9,
+ * docs/phase4-screen-gaps.md §3, D14): every precon plus every saved or
+ * imported deck, each with its legality/playability status; a searchable,
+ * filterable list (S8) beside the selected deck's stats (S1); import by paste
  * (works everywhere) and by MarvelCDB URL/id (dev/preview only, behind the
  * same-origin route `vite-marvelcdb-import.ts` adds); save, delete, and a
  * link into the builder to make or edit one.
  *
- * The deck list is a long, potentially-growing list (Phase 7 wave 1 doubles
- * the precon count, and a player's own saved decks grow without bound), so it
- * is a persistent `McVirtualList` (`ui/virtual-list.ts`) rather than being
- * drawn inline: it survives this scene's own `#rebuild()` the same way the
- * import text fields do, and scrolling it (wheel, the scrollbar thumb,
- * keyboard/pad paging) never triggers a scene rebuild.
+ * **The composition, read off D14** (`ScreensDesktop_12`/`_13`.png,
+ * docs/design-reference.md): see `view/decks-layout.ts`'s own header comment
+ * for the full reasoning. In short: an ink chrome bar over a paper ground,
+ * then two panes on a wide screen — the deck list (with its own search field,
+ * quick-filter chips, the import/export boxes and "New deck" folded in below
+ * it) beside a dark ink sidebar holding the *selected* deck's stats, record,
+ * "recently changed" note and its actions (Check, Duplicate, Export,
+ * Edit/Delete when it's editable, and a red "Play this deck ▸"). Narrow
+ * screens get the same two groups behind a "Decks"/"Stats" tab strip instead
+ * of a second column (`decksLayout`'s own doc comment explains why a stacked
+ * single column isn't used). **Not built**: D14's own middle "Card pool"
+ * column (a second, live-editing card grid) — that's the deck builder's job
+ * (`scenes/deck-builder.ts`, reached from "Edit"), not a second copy of it
+ * here; and the deck note / owned-card tracking, left unticked per
+ * docs/phase4-screen-gaps.md §4 pending the advice/collection decisions.
  *
- * Every legality/playability fact shown here is `@mc/engine`'s own
+ * A row's tap **selects** it (updates the stats pane) rather than
+ * immediately navigating away — every action that changes or leaves the
+ * screen (Edit, Check, Duplicate, Export, Delete, Play) lives in the stats
+ * pane instead, acting on whichever deck is currently selected. This is a
+ * deliberate change from this screen's previous shape (a tap on an editable
+ * row used to open the builder immediately): with a stats pane to show, a
+ * plain "look at this deck" action belongs on the row, and there's no longer
+ * room on a card-sized row for four separate buttons.
+ *
+ * Every legality/playability/record fact shown here is `@mc/engine`'s own
  * (`view/deck-list-model.ts`'s `deckOptionsOf`, `view/deck-status.ts` for the
- * chip's words) — this scene never decides whether a deck is legal.
+ * chip's words, `view/results-history.ts` for the record) — this scene never
+ * decides whether a deck is legal or what its record is.
  */
 
 import Phaser from "phaser";
 import { parseMarvelCdbReference, type AnyCard, type Deck, type DeckId } from "@mc/content";
+import { DECK_MIN_CARDS } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { cardArt } from "../art/card-art.js";
-import { importFromMarvelCdbResponseText, importFromPasteText, type ImportEnv, type ImportOutcome } from "../view/deck-import-model.js";
+import { duplicateDeck } from "../view/deck-builder-model.js";
+import { exportDecklistText, importFromMarvelCdbResponseText, importFromPasteText, type ImportEnv, type ImportOutcome } from "../view/deck-import-model.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
+import { sortByRecency } from "../view/deck-recency.js";
+import { compositionTilesOf, costCurveBars, deckStatsOf } from "../view/deck-stats.js";
 import { deckStatusOf, type DeckStatusTone } from "../view/deck-status.js";
+import { decksLayout, type DecksTab } from "../view/decks-layout.js";
+import { deckSourcesOf, heroAspectsOf, heroRosterMatches, withSelectionPinned, type DeckSourceKind, type RosterFilter } from "../view/roster-filter.js";
 import { decksFocusOrder } from "../view/screen-focus.js";
-import { formFactorFor, type Rect } from "../view/layout.js";
+import { deckKeyToString, resultsHistoryOf, type DeckKey, type ResultsHistory } from "../view/results-history.js";
+import { CHIP_GAP, wrapChipsToRows } from "../view/chip-layout.js";
+import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { compositionTileDefs, drawCompositionTiles, drawCostCurveBars } from "../ui/deck-stats-widgets.js";
+import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McMultilineInput, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
-import { deckStorage } from "../session.js";
+import { McButton, McMultilineInput, McTabs, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { appSession, deckStorage } from "../session.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
+import type { TitleSceneData } from "./title.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 
 /** What a caller (Title, on an `illegal_deck` refusal) hands over on launch. */
 export interface DecksSceneData {
-  /** Scrolled into view and named in `message` — the deck `createGame` just refused. */
+  /** Selected and scrolled into view; named in `message` — the deck `createGame` just refused. */
   readonly focusDeckId?: string | null;
   readonly message?: string | null;
 }
@@ -47,35 +78,33 @@ export interface DecksSceneData {
 const ROW_HEIGHT = 60;
 const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));
 
-/**
- * A row's sub-rects, shared between drawing it and answering a keyboard/pad
- * focus stop's `rect`, so the two can never drift apart. Every row gets
- * "Check" (W1's Deck check screen, docs/phase4-screen-gaps.md §3) — Edit and
- * Delete's rects are computed unconditionally too, per the original design
- * here; only editable rows register stops (and draw buttons) for those two.
- */
-function rowGeometry(rect: Rect, editable: boolean): { readonly card: Rect; readonly check: Rect; readonly edit: Rect; readonly delete: Rect } {
-  const card: Rect = { x: rect.x + 4, y: rect.y, width: rect.width - 8, height: ROW_HEIGHT - 6 };
-  const y = card.y + card.height - hit.target - 2;
-  const del: Rect = { x: card.x + card.width - 66, y, width: 60, height: hit.target };
-  const edit: Rect = { x: del.x - 64, y, width: 60, height: hit.target };
-  // A precon row has no Edit/Delete, so Check takes the rightmost slot they'd
-  // otherwise occupy rather than floating apart from the row's right edge.
-  const check: Rect = editable ? { x: edit.x - 74, y, width: 70, height: hit.target } : { x: card.x + card.width - 76, y, width: 70, height: hit.target };
-  return { card, check, edit, delete: del };
+const SOURCE_LABEL: Readonly<Record<DeckSourceKind, string>> = { precon: "Precon", imported: "Imported", userBuilt: "Built" };
+
+/** One row of the deck list: a group header ("Preconstructed" / "Your decks · recently changed first" — never a focus stop) or a deck row. */
+type DeckRow = { readonly kind: "header"; readonly label: string } | { readonly kind: "deck"; readonly option: DeckOption };
+
+/** `deck`'s namespaced record key — the same one `view/results-history.ts` keys `DeckRecord` by. */
+function keyOf(deck: Deck): DeckKey {
+  return deck.source.kind === "precon" ? { kind: "starter", starterDeckId: deck.source.starterDeckId as string } : { kind: "custom", deckId: deck.id as string };
 }
 
 export class DecksScene extends Phaser.Scene {
   #savedDecks: readonly Deck[] = [];
   #data: DecksSceneData = {};
-  /** The banner under the title. A success and a failure look different: an import that worked was drawn in error red. */
+  /** The banner under the header. A success and a failure look different: an import that worked was drawn in error red. */
   #status: { readonly text: string; readonly tone: "success" | "error" } | null = null;
   #busy = false;
   #pasteText = "";
   #marvelcdbText = "";
   #pasteInput: McMultilineInput | null = null;
   #marvelcdbInput: McTextInput | null = null;
+  #searchInput: McTextInput | null = null;
+  #filter: RosterFilter = { text: "" };
+  #selectedDeckId: string | null = null;
+  #activeTab: DecksTab = "decks";
+  #history: ResultsHistory | null = null;
   #buttons: McButton[] = [];
+  #tabs: McTabs | null = null;
   #route: FocusRoute | null = null;
   #stops = new Map<string, FocusStop>();
   /** The list itself is recreated every rebuild (`ui/virtual-list.ts`); only its scroll position persists, in this field. */
@@ -96,6 +125,10 @@ export class DecksScene extends Phaser.Scene {
     this.#busy = false;
     this.#pasteText = "";
     this.#marvelcdbText = "";
+    this.#filter = { text: "" };
+    this.#selectedDeckId = data.focusDeckId ?? null;
+    this.#activeTab = "decks";
+    this.#history = null;
     this.#listScroll = new ListScroll();
     this.#focusedOnce = false;
 
@@ -109,11 +142,15 @@ export class DecksScene extends Phaser.Scene {
       this.#pasteInput = null;
       this.#marvelcdbInput?.destroy();
       this.#marvelcdbInput = null;
+      this.#searchInput?.destroy();
+      this.#searchInput = null;
+      this.#tabs?.destroy();
+      this.#tabs = null;
       this.#list?.destroy();
       this.#list = null;
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#pasteInput?.focused ?? false) || (this.#marvelcdbInput?.focused ?? false),
+      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#pasteInput?.focused ?? false) || (this.#marvelcdbInput?.focused ?? false) || (this.#searchInput?.focused ?? false),
       onPage: (direction) => this.#list?.scrollByPage(direction),
       onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
     });
@@ -126,16 +163,26 @@ export class DecksScene extends Phaser.Scene {
         this.#savedDecks = decks;
         this.#rebuild();
       });
+    void appSession()
+      .store.listSaves()
+      .then((saves) => {
+        if (!this.sys.isActive()) return;
+        this.#history = resultsHistoryOf(saves);
+        this.#rebuild();
+      });
   }
 
+  /** Precons (fixed order) plus saved decks, most recently changed first (W9's "Recently changed") — `deckOptionsOf` already puts precons ahead of whatever list it's given. */
   #deckOptions(): readonly DeckOption[] {
-    return deckOptionsOf(this.#savedDecks, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+    return deckOptionsOf(sortByRecency(this.#savedDecks), POOL_CARDS, POOL_VERSION, POOL_DEPS);
   }
 
   #rebuild(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
+    this.#tabs?.destroy();
+    this.#tabs = null;
     // The list is recreated fresh every rebuild, in the normal draw order
     // (`ui/virtual-list.ts` — reattaching it across a sweep put it ahead of
     // whatever the scene drew afterward, so a later background panel ended up
@@ -144,42 +191,193 @@ export class DecksScene extends Phaser.Scene {
     this.#list?.destroy();
     this.#list = null;
 
-    // The two text fields survive the sweep: every object they draw with is
-    // detached first and handed back after, in the same order. The paste
-    // field is a rexUI sizer with children of its own in the display list, so
-    // its root alone is not enough (`McMultilineInput.gameObjects`).
-    const kept = [...(this.#pasteInput?.gameObjects ?? []), ...(this.#marvelcdbInput ? [this.#marvelcdbInput.gameObject] : [])];
+    const { width, height } = this.scale.gameSize;
+    const layout = decksLayout({ width, height });
+
+    // The three list-pane DOM text fields (search, paste, MarvelCDB) belong to whatever draws `listPane`/`content`
+    // on this pass — wide always draws them; narrow only while the "Decks" tab is active. They aren't Phaser
+    // display-list objects (`McTextInput`/`McMultilineInput` are DOM-backed rexUI), so switching to the "Stats" tab
+    // and never destroying them would leave them floating over the stats pane forever, invisible to
+    // `children.removeAll(true)` below — found in the browser switching tabs at a narrow width.
+    const showListFields = layout.wide || this.#activeTab === "decks";
+    if (!showListFields) {
+      this.#searchInput?.destroy();
+      this.#searchInput = null;
+      this.#pasteInput?.destroy();
+      this.#pasteInput = null;
+      this.#marvelcdbInput?.destroy();
+      this.#marvelcdbInput = null;
+    }
+
+    // The surviving DOM text fields survive the sweep: every object they draw with is detached first and handed
+    // back after, in the same order. The paste field is a rexUI sizer with children of its own in the display
+    // list, so its root alone is not enough (`McMultilineInput.gameObjects`).
+    const kept = [...(this.#pasteInput?.gameObjects ?? []), ...(this.#marvelcdbInput ? [this.#marvelcdbInput.gameObject] : []), ...(this.#searchInput ? [this.#searchInput.gameObject] : [])];
     for (const node of kept) this.children.remove(node);
     this.children.removeAll(true);
     for (const node of kept) this.children.add(node);
 
-    const { width, height } = this.scale.gameSize;
-    const phone = formFactorFor(width, height) === "phone";
-    const pad = phone ? 16 : 40;
-    const column = Math.min(width - pad * 2, 720);
-    const left = (width - column) / 2;
-    paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper);
+    paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", { spacing: 6, radius: 1, alpha: 0.1 });
 
-    let y = pad;
-    this.add.text(left, y, "DECKS", { ...textStyle(typeRole.screenTitle, surface.ink.hex), fontSize: phone ? "32px" : "44px" }).setLetterSpacing(2);
-    const backRect: Rect = { x: left + column - 100, y: y + 4, width: 100, height: hit.target };
-    const goBack = (): void => {
-      this.scene.start(SCENES.title);
-    };
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Back", type: typeRole.rowTitle, rect: backRect, onClick: goBack }));
+    // The ink chrome bar behind Back and the title, over the paper ground everything else draws on.
+    const chrome = this.add.graphics();
+    paintPanel(chrome, { x: 0, y: 0, width, height: layout.header.y + layout.header.height + 16 }, "onInk", "rest");
+
+    const backRect: Rect = { x: layout.header.x, y: layout.header.y, width: 100, height: layout.header.height };
+    const goBack = (): void => { this.scene.start(SCENES.title); };
+    this.#buttons.push(new McButton(this, { kind: "onInk", label: "◂ Title", type: typeRole.rowTitle, rect: backRect, onClick: goBack }));
     this.#stops.set("back", { rect: backRect, activate: goBack });
-    y += (phone ? 32 : 44) + 16;
+    const title = this.add.text(backRect.x + backRect.width + 12, layout.header.y + layout.header.height / 2, "DECKS & COLLECTION", textStyle(typeRole.barTitle, surface.paper.hex));
+    title.setOrigin(0, 0.5).setLetterSpacing(typeRole.barTitle.letterSpacing);
+    fitText(title, layout.header.width - backRect.width - 24);
+
+    const allOptions = this.#deckOptions();
+    if (this.#selectedDeckId === null || !allOptions.some((o) => (o.deck.id as string) === this.#selectedDeckId)) {
+      const wanted = !this.#focusedOnce ? this.#data.focusDeckId : null;
+      this.#selectedDeckId = (wanted && allOptions.some((o) => (o.deck.id as string) === wanted) ? wanted : (allOptions[0]?.deck.id as string | undefined)) ?? null;
+    }
+    const selected = allOptions.find((o) => (o.deck.id as string) === this.#selectedDeckId) ?? null;
+
+    if (layout.wide) {
+      const deckIds = this.#drawListPane(layout.listPane!, allOptions);
+      this.#drawStatsPane(layout.statsPane!, selected);
+      this.#route?.set(
+        decksFocusOrder({
+          showMarvelCdbImport: true,
+          deckIds,
+          chipIds: this.#chipDefs(allOptions).map((c) => c.id),
+          wide: true,
+          activeTab: this.#activeTab,
+          hasSelection: selected !== null,
+          editable: selected !== null && selected.deck.source.kind !== "precon",
+        }),
+        this.#stops,
+      );
+    } else {
+      this.#tabs = new McTabs(this, {
+        rect: layout.tabs!,
+        tabs: [
+          { id: "decks", label: "Decks" },
+          { id: "stats", label: "Stats" },
+        ],
+        activeId: this.#activeTab,
+        onSelect: (id) => this.#setTab(id as DecksTab),
+      });
+      this.#stops.set("tab:decks", { rect: { ...layout.tabs!, width: layout.tabs!.width / 2 }, activate: () => this.#setTab("decks") });
+      this.#stops.set("tab:stats", { rect: { ...layout.tabs!, x: layout.tabs!.x + layout.tabs!.width / 2, width: layout.tabs!.width / 2 }, activate: () => this.#setTab("stats") });
+
+      const deckIds = this.#activeTab === "decks" ? this.#drawListPane(layout.content!, allOptions) : [];
+      if (this.#activeTab === "stats") this.#drawStatsPane(layout.content!, selected);
+      this.#route?.set(
+        decksFocusOrder({
+          showMarvelCdbImport: true,
+          deckIds,
+          chipIds: this.#activeTab === "decks" ? this.#chipDefs(allOptions).map((c) => c.id) : [],
+          wide: false,
+          activeTab: this.#activeTab,
+          hasSelection: selected !== null,
+          editable: selected !== null && selected.deck.source.kind !== "precon",
+        }),
+        this.#stops,
+      );
+    }
+  }
+
+  #setTab(tab: DecksTab): void {
+    if (tab === this.#activeTab) return;
+    this.#activeTab = tab;
+    this.#listScroll.reset();
+    this.#rebuild();
+  }
+
+  // ------------------------------------------------------------------------------------------------------------
+  // The deck list pane: search, quick-filter chips (S8), the virtualized list (grouped: Preconstructed, then
+  // saved/imported decks — recently changed first, W9), then Import/Export and New deck. Returns the deck ids
+  // actually offered as rows, in list order, for the focus route.
+  // ------------------------------------------------------------------------------------------------------------
+  #drawListPane(rect: Rect, allOptions: readonly DeckOption[]): readonly string[] {
+    const left = rect.x;
+    const column = rect.width;
+    let y = rect.y;
 
     if (this.#status) {
-      const banner = this.add
-        .text(left, y, this.#status.text, textStyle(typeRole.body, this.#status.tone === "error" ? accent.redDeep.hex : signal.heal.hex))
-        .setWordWrapWidth(column);
-      y += banner.height + 12;
+      const banner = this.add.text(left, y, this.#status.text, textStyle(typeRole.body, this.#status.tone === "error" ? accent.redDeep.hex : signal.heal.hex)).setWordWrapWidth(column);
+      y += banner.height + 10;
     }
 
-    // Import: paste always works; MarvelCDB by URL/id only where the
-    // dev/preview same-origin route exists (PLAN.md Phase 9, "Decided
-    // 2026-09-13" — a production build has no such route).
+    const searchRect: Rect = { x: left, y, width: column, height: hit.target };
+    if (this.#searchInput) this.#searchInput.layout(searchRect);
+    else {
+      this.#searchInput = new McTextInput(this, {
+        rect: searchRect,
+        value: this.#filter.text,
+        placeholder: "search decks, heroes, aspects…",
+        onChange: (value) => {
+          this.#filter = { ...this.#filter, text: value };
+          this.#rebuild();
+        },
+      });
+    }
+    this.#stops.set("deck-search", { rect: searchRect, activate: () => this.#searchInput?.focus() });
+    y += hit.target + 8;
+
+    const chipDefs = this.#chipDefs(allOptions);
+    const chipRows = wrapChipsToRows(chipDefs, column);
+    chipRows.forEach((row, rowIndex) => {
+      const rowRect: Rect = { x: left, y: y + rowIndex * (hit.target + CHIP_GAP), width: column, height: hit.target };
+      const cellWidth = (rowRect.width - (row.length - 1) * CHIP_GAP) / row.length;
+      row.forEach((chip, index) => {
+        const cell: Rect = { x: rowRect.x + index * (cellWidth + CHIP_GAP), y: rowRect.y, width: cellWidth, height: rowRect.height };
+        this.#buttons.push(new McButton(this, { kind: "secondary", label: chip.text, type: typeRole.label, rect: cell, selected: chip.selected, onClick: chip.onClick }));
+        this.#stops.set(`deck-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
+      });
+    });
+    y += (chipRows.length === 0 ? 0 : chipRows.length * hit.target + (chipRows.length - 1) * CHIP_GAP) + 12;
+
+    // Reserve fixed room at the bottom for Import/Export and New deck, so the list gets exactly whatever's left.
+    const pasteBlockHeight = 16 + 110;
+    const mcdbBlockHeight = 16 + hit.target;
+    const newDeckHeight = hit.target;
+    const bottomReserved = pasteBlockHeight + 12 + mcdbBlockHeight + 12 + newDeckHeight;
+    const listTop = y;
+    const listHeight = Math.max(ROW_HEIGHT, rect.y + rect.height - bottomReserved - 12 - listTop);
+    const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
+
+    const rows = this.#buildRows(allOptions);
+    const deckIds = rows.filter((r): r is Extract<DeckRow, { kind: "deck" }> => r.kind === "deck").map((r) => r.option.deck.id as string);
+
+    if (deckIds.length === 0) {
+      this.add.text(listRect.x + 10, listRect.y + 10, "No decks match this search.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
+      const clearRect: Rect = { x: listRect.x + 10, y: listRect.y + 34, width: 100, height: hit.target };
+      const doClear = (): void => {
+        this.#filter = { text: "" };
+        this.#rebuild();
+      };
+      this.#buttons.push(new McButton(this, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: doClear }));
+      this.#stops.set("deck-clear", { rect: clearRect, activate: doClear });
+    } else {
+      const renderRow = (index: number, rowRect: Rect): VirtualListRow => this.#renderDeckRow(rowRect, rows[index]!);
+      this.#list = new McVirtualList(this, { rect: listRect, rowHeight: ROW_HEIGHT, count: rows.length, renderRow, scroll: this.#listScroll });
+      const list = this.#list;
+      if (!this.#focusedOnce && this.#data.focusDeckId) {
+        const index = rows.findIndex((row) => row.kind === "deck" && (row.option.deck.id as string) === this.#data.focusDeckId);
+        if (index >= 0) list.scrollIntoView(index);
+        this.#focusedOnce = true;
+      }
+      rows.forEach((row, index) => {
+        if (row.kind !== "deck") return;
+        const deckId = row.option.deck.id as string;
+        const ensureVisible = (): void => list.scrollIntoView(index);
+        const select = (): void => {
+          this.#selectedDeckId = deckId;
+          this.#rebuild();
+        };
+        const doInspect = (): void => this.#inspect(row.option);
+        this.#stops.set(`deck:${deckId}`, { rect: () => list.rectFor(index), activate: select, inspect: doInspect, ensureVisible });
+      });
+    }
+    y = listRect.y + listRect.height + 12;
+
     label(this, left, y, "paste a decklist", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const pasteRect: Rect = { x: left, y, width: column - 116, height: 110 };
@@ -197,137 +395,123 @@ export class DecksScene extends Phaser.Scene {
     this.#stops.set("paste-field", { rect: pasteRect, activate: () => this.#pasteInput?.focus() });
     const pasteImportRect: Rect = { x: left + column - 106, y, width: 106, height: hit.target };
     const doPasteImport = (): void => void this.#importPaste();
-    this.#buttons.push(
-      new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import", type: typeRole.rowTitle, rect: pasteImportRect, enabled: !this.#busy, onClick: doPasteImport }),
-    );
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import", type: typeRole.rowTitle, rect: pasteImportRect, enabled: !this.#busy, onClick: doPasteImport }));
     this.#stops.set("paste-import", { rect: pasteImportRect, activate: doPasteImport });
     y += 110 + 16;
 
-    // Always shown, not gated on `import.meta.env.DEV`: `vite preview` serves
-    // the same production bundle a real deploy would, so nothing at runtime
-    // can tell the two apart, and the route exists in both dev and preview
-    // (`vite-marvelcdb-import.ts`'s `configureServer`/`configurePreviewServer`).
-    // A genuine production deploy 404s instead — the designed fallback, shown
-    // as a message rather than by hiding the field ahead of time.
-    const showMarvelCdbImport = true;
-    if (showMarvelCdbImport) {
-      label(this, left, y, "import from marvelcdb (by url or id)", typeRole.label, surface.ink.hex, ink.label);
-      y += 16;
-      const mcdbFieldRect: Rect = { x: left, y, width: column - 116, height: hit.target };
-      if (this.#marvelcdbInput) this.#marvelcdbInput.layout(mcdbFieldRect);
-      else {
-        this.#marvelcdbInput = new McTextInput(this, {
-          rect: mcdbFieldRect,
-          value: this.#marvelcdbText,
-          type: typeRole.mono,
-          placeholder: "marvelcdb.com/decklist/view/1234/... or a bare id",
-          onChange: (value) => {
-            this.#marvelcdbText = value;
-          },
-        });
-      }
-      this.#stops.set("marvelcdb-field", { rect: mcdbFieldRect, activate: () => this.#marvelcdbInput?.focus() });
-      const mcdbImportRect: Rect = { x: left + column - 106, y, width: 106, height: hit.target };
-      const doMcdbImport = (): void => void this.#importMarvelCdb();
-      this.#buttons.push(
-        new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import", type: typeRole.rowTitle, rect: mcdbImportRect, enabled: !this.#busy, onClick: doMcdbImport }),
-      );
-      this.#stops.set("marvelcdb-import", { rect: mcdbImportRect, activate: doMcdbImport });
-      y += hit.target + 16;
+    // Always shown, not gated on `import.meta.env.DEV`: `vite preview` serves the same production bundle a real
+    // deploy would (see the old note this file carried, unchanged): a genuine production deploy 404s instead.
+    label(this, left, y, "import from marvelcdb (by url or id)", typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    const mcdbFieldRect: Rect = { x: left, y, width: column - 116, height: hit.target };
+    if (this.#marvelcdbInput) this.#marvelcdbInput.layout(mcdbFieldRect);
+    else {
+      this.#marvelcdbInput = new McTextInput(this, {
+        rect: mcdbFieldRect,
+        value: this.#marvelcdbText,
+        type: typeRole.mono,
+        placeholder: "marvelcdb.com/decklist/view/1234/... or a bare id",
+        onChange: (value) => {
+          this.#marvelcdbText = value;
+        },
+      });
     }
+    this.#stops.set("marvelcdb-field", { rect: mcdbFieldRect, activate: () => this.#marvelcdbInput?.focus() });
+    const mcdbImportRect: Rect = { x: left + column - 106, y, width: 106, height: hit.target };
+    const doMcdbImport = (): void => void this.#importMarvelCdb();
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import", type: typeRole.rowTitle, rect: mcdbImportRect, enabled: !this.#busy, onClick: doMcdbImport }));
+    this.#stops.set("marvelcdb-import", { rect: mcdbImportRect, activate: doMcdbImport });
+    y += hit.target + 16;
 
-    // Not the primary red: this is a management screen with no single forward
-    // action ("one red per screen" — Title's "Start game" already owns it).
     const newDeckRect: Rect = { x: left, y, width: column, height: hit.target };
-    const openBuilder = (): void => {
-      this.scene.start(SCENES.deckBuilder, {} satisfies DeckBuilderSceneData);
-    };
+    const openBuilder = (): void => { this.scene.start(SCENES.deckBuilder, {} satisfies DeckBuilderSceneData); };
     this.#buttons.push(new McButton(this, { kind: "secondary", label: "New deck…", type: typeRole.rowTitle, rect: newDeckRect, onClick: openBuilder }));
     this.#stops.set("new-deck", { rect: newDeckRect, activate: openBuilder });
-    y += hit.target + 20;
 
-    // The deck list, virtualized: `McVirtualList` owns which rows are live
-    // game objects; every row (on screen or not) still gets a focus stop
-    // below, so keyboard/pad reaches the whole list, not just what's drawn.
-    const options = this.#deckOptions();
-    label(this, left, y, `decks — ${options.length}`, typeRole.label, surface.ink.hex, ink.label);
-    y += 16;
-    const listTop = y;
-    const listHeight = Math.max(ROW_HEIGHT, height - listTop - pad);
-    const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
-
-    const editableIds = new Set(options.filter((o) => o.deck.source.kind !== "precon").map((o) => o.deck.id as string));
-    if (options.length === 0) {
-      this.add.text(listRect.x + 10, listRect.y + 10, "No decks yet — import one above or build one.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
-    }
-
-    const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderRow(rect, options[index]!, editableIds);
-    this.#list = new McVirtualList(this, { rect: listRect, rowHeight: ROW_HEIGHT, count: options.length, renderRow, scroll: this.#listScroll });
-
-    if (!this.#focusedOnce && this.#data.focusDeckId) {
-      const index = options.findIndex((option) => (option.deck.id as string) === this.#data.focusDeckId);
-      if (index >= 0) this.#list.scrollIntoView(index);
-      this.#focusedOnce = true;
-    }
-
-    const list = this.#list;
-    options.forEach((option, index) => {
-      const deckId = option.deck.id as string;
-      const editable = editableIds.has(deckId);
-      const ensureVisible = (): void => list.scrollIntoView(index);
-      const openEdit = (): void => {
-        this.scene.start(SCENES.deckBuilder, { deck: option.deck } satisfies DeckBuilderSceneData);
-      };
-      const doInspect = (): void => this.#inspect(option);
-      const doCheck = (): void => this.#openDeckCheck(option.deck);
-      this.#stops.set(`deck:${deckId}`, {
-        rect: () => rowGeometry(list.rectFor(index), editable).card,
-        activate: editable ? openEdit : doInspect,
-        inspect: doInspect,
-        ensureVisible,
-      });
-      // Every deck row can open Deck check (W1) — precon or saved, legal or not: a blocked deck's own
-      // curve/composition still reads, and the screen itself draws "Start game" unavailable until W2 exists.
-      this.#stops.set(`deck:${deckId}:check`, { rect: () => rowGeometry(list.rectFor(index), editable).check, activate: doCheck, ensureVisible });
-      if (!editable) return;
-      this.#stops.set(`deck:${deckId}:edit`, { rect: () => rowGeometry(list.rectFor(index), editable).edit, activate: openEdit, ensureVisible });
-      this.#stops.set(`deck:${deckId}:delete`, {
-        rect: () => rowGeometry(list.rectFor(index), editable).delete,
-        activate: () => void this.#delete(option.deck.id),
-        ensureVisible,
-      });
-    });
-
-    this.#route?.set(
-      decksFocusOrder({ showMarvelCdbImport, deckIds: options.map((o) => o.deck.id as string), editableDeckIds: editableIds }),
-      this.#stops,
-    );
+    return deckIds;
   }
 
-  #renderRow(rect: Rect, option: DeckOption, editableIds: ReadonlySet<string>): VirtualListRow {
-    const editable = editableIds.has(option.deck.id as string);
-    const focused = this.#data.focusDeckId === (option.deck.id as string);
-    const { card, check: checkRect, edit: editRect, delete: deleteRect } = rowGeometry(rect, editable);
-    const objects: Phaser.GameObjects.GameObject[] = [];
+  /** S8's quick-filter chips for this list: aspect, source, and "Legal only" (this screen's own version of "playable now" — a deck's own legality, not a seating question). */
+  #chipDefs(allOptions: readonly DeckOption[]): readonly { readonly id: string; readonly text: string; readonly selected: boolean; readonly onClick: () => void }[] {
+    const decks = allOptions.map((o) => o.deck);
+    const defs: { id: string; text: string; selected: boolean; onClick: () => void }[] = [];
+    for (const aspect of heroAspectsOf(decks)) {
+      defs.push({
+        id: `aspect:${aspect}`,
+        text: aspect,
+        selected: this.#filter.aspect === aspect,
+        onClick: () => {
+          this.#filter = { ...this.#filter, aspect: this.#filter.aspect === aspect ? null : aspect };
+          this.#rebuild();
+        },
+      });
+    }
+    for (const source of deckSourcesOf(decks)) {
+      defs.push({
+        id: `source:${source}`,
+        text: SOURCE_LABEL[source],
+        selected: this.#filter.source === source,
+        onClick: () => {
+          this.#filter = { ...this.#filter, source: this.#filter.source === source ? null : source };
+          this.#rebuild();
+        },
+      });
+    }
+    defs.push({
+      id: "legal-only",
+      text: "Legal only",
+      selected: this.#filter.playableOnly === true,
+      onClick: () => {
+        this.#filter = { ...this.#filter, playableOnly: !this.#filter.playableOnly };
+        this.#rebuild();
+      },
+    });
+    return defs;
+  }
 
+  /** `allOptions` grouped into Preconstructed / Your decks (recently changed first), filtered by search + chips, with the selected deck pinned into view even if the filter would otherwise hide it. */
+  #buildRows(allOptions: readonly DeckOption[]): readonly DeckRow[] {
+    const identityOf = (option: DeckOption): AnyCard | undefined => CARDS_BY_ID.get(option.deck.identityCardId as string);
+    const matches = (option: DeckOption): boolean => heroRosterMatches(option.deck, identityOf(option), this.#filter, option.blockedReason);
+    const isSelected = (option: DeckOption): boolean => (option.deck.id as string) === this.#selectedDeckId;
+
+    const precons = allOptions.filter((o) => o.deck.source.kind === "precon");
+    const saved = allOptions.filter((o) => o.deck.source.kind !== "precon");
+    const filteredPrecons = withSelectionPinned(precons, matches, isSelected);
+    const filteredSaved = withSelectionPinned(saved, matches, isSelected);
+
+    const rows: DeckRow[] = [];
+    if (filteredPrecons.length > 0) {
+      rows.push({ kind: "header", label: "Preconstructed" });
+      for (const option of filteredPrecons) rows.push({ kind: "deck", option });
+    }
+    if (filteredSaved.length > 0) {
+      rows.push({ kind: "header", label: "Your decks · recently changed first" });
+      for (const option of filteredSaved) rows.push({ kind: "deck", option });
+    }
+    return rows;
+  }
+
+  #renderDeckRow(rect: Rect, row: DeckRow): VirtualListRow {
+    if (row.kind === "header") {
+      const text = label(this, rect.x + 4, rect.y + rect.height / 2, row.label, typeRole.label, surface.ink.hex, ink.label);
+      text.setOrigin(0, 0.5);
+      return { objects: [text] };
+    }
+
+    const option = row.option;
+    const selected = (option.deck.id as string) === this.#selectedDeckId;
+    const card: Rect = { x: rect.x + 4, y: rect.y + 2, width: rect.width - 8, height: rect.height - 4 };
+    const objects: Phaser.GameObjects.GameObject[] = [];
     const g = this.add.graphics();
-    paintPanel(g, card, "card", focused ? "selected" : "rest");
+    paintPanel(g, card, "card", selected ? "selected" : "rest");
     objects.push(g);
 
     const status = deckStatusOf(option);
-    const tone: Record<DeckStatusTone, number> = {
-      legal: signal.heal.hex,
-      illegal: accent.heroRed.hex,
-      unscripted: signal.caution.hex,
-      poolChanged: signal.cost.hex,
-    };
-
-    // The chip is measured before the name is capped, so the name's own limit reserves exactly the chip's width —
-    // Check (every row) and, on a saved deck, Edit/Delete too now share the row's right edge, so a fixed guess at
-    // how much room they leave stopped being safe once Check (W1) added a third button to that cluster.
+    const tone: Record<DeckStatusTone, number> = { legal: signal.heal.hex, illegal: accent.heroRed.hex, unscripted: signal.caution.hex, poolChanged: signal.cost.hex };
     const chipText = label(this, 0, 0, status.text, typeRole.label, surface.paper.hex, 1);
     const chipWidth = Math.ceil(chipText.width) + 12;
-    const chipRight = checkRect.x - 8;
+    const chipRight = card.x + card.width - 8;
     const chipG = this.add.graphics();
     chipG.fillStyle(tone[status.tone], 1).fillRect(chipRight - chipWidth, card.y + 8, chipWidth, 18);
     chipText.setPosition(chipRight - chipWidth + 6, card.y + 17).setOrigin(0, 0.5);
@@ -335,49 +519,142 @@ export class DecksScene extends Phaser.Scene {
     const name = this.add.text(card.x + 10, card.y + 6, option.deck.name, textStyle(typeRole.rowTitle, surface.ink.hex));
     fitText(name, chipRight - chipWidth - 8 - (card.x + 10));
     objects.push(name);
-    const sourceText = option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built";
-    objects.push(
-      this.add.text(card.x + 10, card.y + 6 + name.height + 2, `${sourceText} · ${option.identityName ?? "unknown identity"}`, textStyle(typeRole.label, surface.ink.hex, ink.meta)),
-    );
-
-    objects.push(chipG);
-    // The chip's own text was created before the name (so its width could be measured), which left it under
-    // whatever the name/subtitle drew next: a status shown as colour alone. Bring it to the top of this row's own
-    // objects (not the whole scene — the row layer stacks by add order).
-    objects.push(chipText);
-
-    // `clip`/`suppressClick` read `this.#list` lazily (at click time, not at
-    // row-build time — `this.#list` is still being assigned the first time a
-    // row renders, since `McVirtualList`'s own constructor renders its first
-    // window before returning). A row reparented into the list's masked layer
-    // is still fully hit-testable outside the mask (Phaser masks are visual
-    // only), and a drag that just scrolled the list must not also fire
-    // whatever button it happened to end over.
-    const clip = (): Rect | null => this.#list?.rect ?? null;
-    const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
-
-    // Every row — precon or saved — can open Deck check (W1).
-    const openCheck = (): void => this.#openDeckCheck(option.deck);
-    const checkButton = new McButton(this, { kind: "secondary", label: "Check", type: typeRole.label, rect: checkRect, onClick: openCheck, clip, suppressClick });
-    objects.push(checkButton.container);
-
-    if (editable) {
-      const openEdit = (): void => {
-        this.scene.start(SCENES.deckBuilder, { deck: option.deck } satisfies DeckBuilderSceneData);
-      };
-      const editButton = new McButton(this, { kind: "secondary", label: "Edit", type: typeRole.label, rect: editRect, onClick: openEdit, clip, suppressClick });
-      objects.push(editButton.container);
-      const doDelete = (): void => void this.#delete(option.deck.id);
-      const deleteButton = new McButton(this, { kind: "secondary", label: "Delete", type: typeRole.label, rect: deleteRect, onClick: doDelete, clip, suppressClick });
-      objects.push(deleteButton.container);
-    }
-
+    objects.push(this.add.text(card.x + 10, card.y + 6 + name.height + 2, `${SOURCE_LABEL[option.deck.source.kind]} · ${option.identityName ?? "unknown identity"}`, textStyle(typeRole.label, surface.ink.hex, ink.meta)));
+    objects.push(chipG, chipText);
     return { objects };
   }
 
-  /** Opens Deck check (W1) over this deck, returning here on Back — the Decks screen is the only caller today; W2's setup flow will pass its own `returnTo` once it lands. */
+  // ------------------------------------------------------------------------------------------------------------
+  // The stats pane: the selected deck's curve, composition, legality, record and last played (S4), a "recently
+  // changed" note (honest and minimal — see `view/deck-recency.ts`), and its actions.
+  // ------------------------------------------------------------------------------------------------------------
+  #drawStatsPane(rect: Rect, option: DeckOption | null): void {
+    const bg = this.add.graphics();
+    paintPanel(bg, rect, "onInk", "rest");
+
+    const left = rect.x + 16;
+    const column = rect.width - 32;
+    let y = rect.y + 16;
+
+    if (!option) {
+      this.add.text(left, y, "Select a deck to see its stats.", textStyle(typeRole.body, surface.paper.hex, ink.body)).setWordWrapWidth(column);
+      return;
+    }
+
+    const deck = option.deck;
+    const stats = deckStatsOf(deck, POOL_CARDS);
+
+    const name = this.add.text(left, y, deck.name, textStyle(typeRole.barTitle, surface.paper.hex));
+    fitText(name, column);
+    y += name.height + 4;
+    label(this, left, y, `${SOURCE_LABEL[deck.source.kind]} · ${option.identityName ?? "unknown identity"}`, typeRole.label, surface.paper.hex, ink.label);
+    y += 20;
+
+    const status = deckStatusOf(option);
+    label(this, left, y, `${stats.totalCards} CARDS · MINIMUM ${DECK_MIN_CARDS} · ${status.text.toUpperCase()}`, typeRole.label, surface.paper.hex, ink.label);
+    y += 24;
+
+    const avgText = stats.averageCost === null ? "" : ` · avg ${stats.averageCost.toFixed(1)}`;
+    label(this, left, y, `RESOURCE CURVE${avgText}`, typeRole.label, surface.paper.hex, ink.label);
+    y += 16;
+    const chartHeight = 84;
+    drawCostCurveBars(this, { x: left, y, width: column, height: chartHeight }, costCurveBars(stats), true);
+    y += chartHeight + 16;
+
+    y = drawCompositionTiles(this, { x: left, y, width: column, height: hit.target * 2 + CHIP_GAP }, compositionTileDefs(compositionTilesOf(stats)), true) + 8;
+
+    const record = this.#history?.decks.find((r) => deckKeyToString(r.key) === deckKeyToString(keyOf(deck))) ?? null;
+    const recordText =
+      record && record.gamesPlayed > 0
+        ? `Record: ${record.wins}–${record.losses} (${record.gamesPlayed} played) · Last played ${record.lastPlayedAt ? new Date(record.lastPlayedAt).toLocaleDateString() : "—"}`
+        : "Never played.";
+    const recordLine = this.add.text(left, y, recordText, textStyle(typeRole.body, surface.paper.hex, ink.secondary)).setWordWrapWidth(column);
+    y += recordLine.height + 6;
+
+    // "Recently changed" (W9): the minimal honest version — one timestamp, no revision history, and that's said
+    // plainly rather than pretending to a diff the client doesn't have.
+    const changedText = deck.updatedAt ? `Last changed ${new Date(deck.updatedAt).toLocaleDateString()}` : "No change history recorded for this deck.";
+    label(this, left, y, changedText, typeRole.label, surface.paper.hex, ink.meta);
+    y += 24;
+
+    const editable = deck.source.kind !== "precon";
+    const actionDefs: { readonly id: string; readonly text: string; readonly onClick: () => void }[] = [
+      { id: "check", text: "Check", onClick: () => this.#openDeckCheck(deck) },
+      { id: "duplicate", text: "Duplicate", onClick: () => this.#duplicate(deck) },
+      { id: "export", text: "Export", onClick: () => this.#exportToClipboard(deck) },
+      ...(editable ? [{ id: "edit", text: "Edit", onClick: () => this.scene.start(SCENES.deckBuilder, { deck } satisfies DeckBuilderSceneData) }] : []),
+      ...(editable ? [{ id: "delete", text: "Delete", onClick: () => void this.#delete(deck.id) }] : []),
+    ];
+    const actionRows = wrapChipsToRows(actionDefs, column);
+    actionRows.forEach((row, rowIndex) => {
+      const cellWidth = (column - (row.length - 1) * CHIP_GAP) / row.length;
+      row.forEach((action, index) => {
+        const cell: Rect = { x: left + index * (cellWidth + CHIP_GAP), y: y + rowIndex * (hit.target + CHIP_GAP), width: cellWidth, height: hit.target };
+        this.#buttons.push(new McButton(this, { kind: "onInk", label: action.text, type: typeRole.label, rect: cell, onClick: action.onClick }));
+        this.#stops.set(`stats-${action.id}`, { rect: cell, activate: action.onClick });
+      });
+    });
+    y += actionRows.length * hit.target + Math.max(0, actionRows.length - 1) * CHIP_GAP + 16;
+
+    const playRect: Rect = { x: left, y, width: column, height: hit.primary };
+    const canPlay = option.seatable;
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: "Play this deck ▸",
+        type: typeRole.barTitle,
+        rect: playRect,
+        enabled: canPlay,
+        ...(canPlay ? {} : { reason: option.blockedReason ?? "This deck is not legal." }),
+        onClick: () => this.#playDeck(deck),
+      }),
+    );
+    this.#stops.set("stats-play", { rect: playRect, activate: () => this.#playDeck(deck) });
+  }
+
+  /** "Play this deck ▸" (W9): hands the deck to the existing setup flow with it preselected for seat 1 (`view/setup-draft.ts`'s `withSeatOne`, applied inside `TitleScene#create` — see `scenes/title.ts`'s `TitleSceneData`). */
+  #playDeck(deck: Deck): void {
+    this.scene.start(SCENES.title, { initialSeatDeckId: deck.id as string, initialSeatDeck: deck } satisfies TitleSceneData);
+  }
+
+  /** Opens Deck check (W1) over this deck, returning here on Back. */
   #openDeckCheck(deck: Deck): void {
     this.scene.start(SCENES.deckCheck, { deck, returnTo: { scene: SCENES.decks } } satisfies DeckCheckSceneData);
+  }
+
+  #duplicate(deck: Deck): void {
+    if (this.#busy) return;
+    this.#busy = true;
+    void (async () => {
+      const now = new Date().toISOString();
+      const copy = duplicateDeck(deck, crypto.randomUUID(), now);
+      await deckStorage().put(copy);
+      this.#savedDecks = await deckStorage().list();
+      this.#selectedDeckId = copy.id as string;
+      this.#status = { text: `Duplicated as "${copy.name}".`, tone: "success" };
+      this.#busy = false;
+      this.#rebuild();
+    })();
+  }
+
+  #exportToClipboard(deck: Deck): void {
+    const text = exportDecklistText(deck, POOL_CARDS);
+    const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
+    if (!clipboard?.writeText) {
+      this.#status = { text: "Clipboard access isn't available here — open this deck in the builder to read its cards instead.", tone: "error" };
+      this.#rebuild();
+      return;
+    }
+    clipboard.writeText(text).then(
+      () => {
+        this.#status = { text: `Copied "${deck.name}"'s decklist to the clipboard.`, tone: "success" };
+        this.#rebuild();
+      },
+      () => {
+        this.#status = { text: "Couldn't copy to the clipboard.", tone: "error" };
+        this.#rebuild();
+      },
+    );
   }
 
   #inspect(option: DeckOption): void {
@@ -465,6 +742,7 @@ export class DecksScene extends Phaser.Scene {
     this.#marvelcdbInput?.setValue("");
     this.#status = { text: `Imported "${outcome.deck.name}".`, tone: "success" };
     this.#savedDecks = await deckStorage().list();
+    this.#selectedDeckId = outcome.deck.id as string;
     this.#busy = false;
     this.#rebuild();
   }

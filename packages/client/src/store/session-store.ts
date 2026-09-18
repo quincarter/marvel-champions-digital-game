@@ -121,6 +121,15 @@ export class SessionStore {
     }
   }
 
+  /** Every saved game (W9's per-deck record and last played, `view/results-history.ts`). A storage failure is treated as "none recorded". */
+  async listSaves(): Promise<readonly SaveMeta[]> {
+    try {
+      return await this.#host.listSaves();
+    } catch {
+      return [];
+    }
+  }
+
   /**
    * The single door out. A rejected command is reported and changes nothing —
    * the engine is the judge, so the client shows its message rather than

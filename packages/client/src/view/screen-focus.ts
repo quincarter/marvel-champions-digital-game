@@ -62,32 +62,45 @@ export function titleFocusOrder(input: TitleFocusInput): readonly string[] {
 export interface DecksFocusInput {
   /** Import by MarvelCDB URL/id is dev/preview-only (PLAN.md Phase 9); paste always shows. */
   readonly showMarvelCdbImport: boolean;
-  /** Every deck row, in list order — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
+  /** Every deck row, in list order (headers excluded — they aren't stops) — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
   readonly deckIds: readonly string[];
-  /** A row whose deck can be edited/deleted (a saved deck) gets those two extra stops; a precon's row does not. Every row — editable or not — also gets "Check" (W1's Deck check screen). */
-  readonly editableDeckIds: ReadonlySet<string>;
+  /** S8's quick-filter chip ids (aspect, source, "Legal only"), between the search field and the list. */
+  readonly chipIds: readonly string[];
+  /**
+   * W9 (docs/phase4-screen-gaps.md §3): wide two-pane layout reaches the list and the selected deck's stats pane
+   * both, in one route; narrow single-column layout reaches only whichever of "Decks"/"Stats" `activeTab` names —
+   * the same tab-scoped pattern `deckCheckFocusOrder` already uses for its own tabs.
+   */
+  readonly wide: boolean;
+  readonly activeTab: "decks" | "stats";
+  /** Whether a deck is currently selected — with none, the stats pane has no deck to act on and contributes no stops. */
+  readonly hasSelection: boolean;
+  /** Whether the *selected* deck can be edited/deleted (a saved deck, not a precon). */
+  readonly editable: boolean;
 }
 
 /**
- * The Decks screen: Back, the paste importer, the MarvelCDB importer (dev
- * only), New deck, then every deck row (Check, and Edit/Delete when it has
- * them) — the whole list, not only whatever the virtualized panel currently
- * draws. Moving focus onto a row scrolls it into view (`scenes/decks.ts`'s
- * `ensureVisible`), the same way a mouse would have to scroll to it first.
+ * The Decks screen: Back, then — wide — the search field, its quick-filter chips, every deck row, the paste
+ * importer, the MarvelCDB importer (dev only) and New deck, followed by the selected deck's stats-pane actions
+ * (Check, Duplicate, Export, Edit/Delete when it's editable, Play this deck ▸); narrow shows the same two groups
+ * behind a "Decks"/"Stats" tab strip instead, one group at a time. Moving focus onto a deck row scrolls it into
+ * view (`scenes/decks.ts`'s `ensureVisible`), the same way a mouse would have to scroll to it first.
  */
 export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
-  return [
-    "back",
+  const listGroup = [
+    "deck-search",
+    ...input.chipIds.map((id) => `deck-chip:${id}`),
+    ...input.deckIds.map((id) => `deck:${id}`),
     "paste-field",
     "paste-import",
     ...(input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
     "new-deck",
-    ...input.deckIds.flatMap((id) =>
-      input.editableDeckIds.has(id)
-        ? [`deck:${id}`, `deck:${id}:check`, `deck:${id}:edit`, `deck:${id}:delete`]
-        : [`deck:${id}`, `deck:${id}:check`],
-    ),
   ];
+  const statsGroup = input.hasSelection
+    ? ["stats-check", "stats-duplicate", "stats-export", ...(input.editable ? ["stats-edit", "stats-delete"] : []), "stats-play"]
+    : [];
+  if (input.wide) return ["back", ...listGroup, ...statsGroup];
+  return ["back", "tab:decks", "tab:stats", ...(input.activeTab === "decks" ? listGroup : statsGroup)];
 }
 
 export interface DeckBuilderFocusInput {
