@@ -276,15 +276,43 @@ describe("screen focus routes", () => {
     ]);
   });
 
-  test("Take your seats: Back, use-preconstructed, search, chips, rows (or Clear), then deck check (the one red CTA)", () => {
-    expect(seatsFocusOrder({ deckIds: ["a", "b"] })).toEqual(["back", "use-preconstructed", "hero-search", "hero:a", "hero:b", "deck-check"]);
-    expect(seatsFocusOrder({ deckIds: [] })).toEqual(["back", "use-preconstructed", "hero-search", "hero-clear", "deck-check"]);
-    expect(seatsFocusOrder({ deckIds: ["a"], heroChipIds: ["aspect:justice"] })).toEqual([
+  test("Take your seats: Back, each seat card, use-preconstructed, search, chips, rows (or Clear), then play/deck check", () => {
+    expect(seatsFocusOrder({ seatCount: 4, deckIds: ["a", "b"] })).toEqual([
       "back",
+      "seat:0",
+      "seat:1",
+      "seat:2",
+      "seat:3",
+      "use-preconstructed",
+      "hero-search",
+      "hero:a",
+      "hero:b",
+      "play",
+      "deck-check",
+    ]);
+    expect(seatsFocusOrder({ seatCount: 4, deckIds: [] })).toEqual([
+      "back",
+      "seat:0",
+      "seat:1",
+      "seat:2",
+      "seat:3",
+      "use-preconstructed",
+      "hero-search",
+      "hero-clear",
+      "play",
+      "deck-check",
+    ]);
+    expect(seatsFocusOrder({ seatCount: 4, deckIds: ["a"], heroChipIds: ["aspect:justice"] })).toEqual([
+      "back",
+      "seat:0",
+      "seat:1",
+      "seat:2",
+      "seat:3",
       "use-preconstructed",
       "hero-search",
       "hero-chip:aspect:justice",
       "hero:a",
+      "play",
       "deck-check",
     ]);
   });

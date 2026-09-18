@@ -1,38 +1,43 @@
 /**
- * Take your seats (docs/phase4-screen-gaps.md §3 W2, D03/P03/T-P02),
- * composition read off `docs/design-renders/ScreensDesktop_02-03.png` and
- * `ScreensPhone_00.png`:
+ * Take your seats (docs/phase4-screen-gaps.md §3 W2/W2b, D03/P03/T-P02),
+ * composition read off `docs/design-renders/ScreensDesktop_02-03.png`,
+ * `ScreensTablet_01-02.png` and `ScreensPhone_00.png`, rebuilt 2026-09-18 and
+ * revised the same day for the owner's second-pass notes (real gutters, a
+ * fixed ~300px full-height side panel, taller seat cards, "Use
+ * preconstructed" folded into the roster's own header row instead of its own
+ * full-width strip):
  *
- * The same full-width **ink** header bar as Scenario select — Back (labelled
- * with the chosen scenario's own name, e.g. "◂ Klaw", matching the mock) and
- * "TAKE YOUR SEATS" on the left, the step count on the right. Below it, a
- * **paper** body: up to four fixed seat-slot cards in one row (bordered
- * boxes, the occupied seat's own red border), a small quiet "Use
- * preconstructed for all seats" link, the searchable/scrollable deck roster
- * (S8), then a dark **ink** hero-detail panel (stats, obligation, nemesis
- * set — data only). The one red action at the screen's own foot is "Deck
- * check ▸" (docs/phase4-screen-gaps.md §3 W2's own wording — the mock's "Build
- * decks ▸" plays the same role), not a generic "Take these seats"; it is the
- * hook this build routes straight to Table setup until W1's Deck check scene
- * lands (`scenes/seats.ts`'s `goToDeckCheckOrTableSetup`).
+ * The same full-width **ink** header bar as Scenario select — Back (Bangers,
+ * labelled with the chosen scenario's own name) and the Bangers page title on
+ * the left, the step count on the right.
  *
- * The four seat slots are one row of equal-width cards rather than a 2×2
- * grid: at the column's own 640px cap that's 150px per slot, enough for a
- * name and three stat numbers even at phone width, and it keeps the roster
- * below it starting at the same fixed y at every seat count (1–4), so the
- * list doesn't jump around as seats are added or removed.
+ * **Wide (desktop/tabletLandscape): two columns.** On the left: four
+ * equal-width, individually-selectable seat cards in one row (115px tall —
+ * a portrait thumbnail, the seat label, the hero name, a meta line), a
+ * `rosterHeader` row (the "HEROES — SEAT N OF 4" label on the left, the small
+ * quiet "Use preconstructed for all seats" button right-aligned on the same
+ * line), then the search field, the aspect/source chip strip, and the
+ * pack-shelf hero roster (no boxed background of its own). On the right: a
+ * **full-height ink** hero-detail panel, `DETAIL_WIDTH` wide, inset `GUTTER`,
+ * with two actions pinned at its own foot.
+ *
+ * **Narrow (phone/tabletPortrait): one column**, stacked exactly as D02's own
+ * narrow layout does.
  */
 import { hit } from "../tokens.js";
-import type { Rect } from "./layout.js";
-import { rosterBlockAt } from "./roster-block-layout.js";
-import { LABEL_ROOM, setupColumnWidth, setupMetrics } from "./setup-metrics.js";
+import { chipStripHeight } from "./chip-layout.js";
+import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 export const MAX_SEATS = 4;
-export const SEAT_SLOT_HEIGHT = 64;
-export const MAX_LIST_ROWS = 4;
-export const MIN_LIST_ROWS = 1;
+export const SEAT_SLOT_HEIGHT = 115;
 export const DETAIL_LINE_HEIGHT = 20;
 export const HEADER_HEIGHT = 64;
+export const GUTTER = 24;
+export const DETAIL_WIDTH = 300;
+export const ROSTER_HEADER_HEIGHT = 26;
+export const FOOTER_HEIGHT = 18;
+const SHELVES_MIN_HEIGHT = 160;
+const CTA_GAP = 10;
 
 export interface SeatsLayoutInput {
   readonly width: number;
@@ -42,92 +47,120 @@ export interface SeatsLayoutInput {
 }
 
 export interface SeatsLayout {
-  readonly pad: number;
-  readonly left: number;
-  readonly column: number;
+  readonly formFactor: FormFactor;
+  readonly wide: boolean;
   readonly headerBar: Rect;
   readonly back: Rect;
   readonly step: Rect;
   readonly seatSlots: readonly Rect[];
+  /** The "HEROES — SEAT N OF 4" / "Use preconstructed" row above the search field. */
+  readonly rosterHeader: Rect;
+  /** The small quiet "Use preconstructed for all seats" button, right-aligned within `rosterHeader`. */
   readonly usePreconstructed: Rect;
   readonly search: Rect;
   readonly chips: Rect;
-  readonly list: Rect;
-  readonly listRows: number;
+  readonly shelves: Rect;
   readonly detail: Rect;
-  readonly detailLines: number;
+  /** The quiet "Play N heroes ▸" action, beside `deckCheck`. */
+  readonly play: Rect;
+  /** The primary "Deck check ▸" action. */
   readonly deckCheck: Rect;
-  readonly next: Rect;
 }
 
+/**
+ * Every top-level region, for a no-overlap test. `play`/`deckCheck` are deliberately excluded: on a wide layout
+ * they are pinned *inside* `detail`'s own foot by design, and on a narrow one they're the bottom-most row, already
+ * guaranteed clear by construction. `usePreconstructed` is excluded too — it's inside `rosterHeader` by design.
+ */
 export function seatsLayoutRects(layout: SeatsLayout): readonly Rect[] {
-  return [layout.back, layout.step, ...layout.seatSlots, layout.usePreconstructed, layout.search, layout.chips, layout.list, layout.detail, layout.next];
+  return [layout.back, layout.step, ...layout.seatSlots, layout.rosterHeader, layout.search, layout.chips, layout.shelves, layout.detail];
 }
 
-function layoutAt(input: SeatsLayoutInput, listRows: number, detailLines: number): SeatsLayout {
+/**
+ * The detail panel's own width, exposed so a caller can measure its hero-detail text's *real* wrapped line count
+ * against this exact width before calling `seatsLayout` — see `view/scenario-select-layout.ts`'s own
+ * `detailPanelWidthFor` (the identical fix, for the identical reason).
+ */
+export function detailPanelWidthFor(width: number, height: number): number {
+  const formFactor = formFactorFor(width, height);
+  const wide = formFactor === "desktop" || formFactor === "tabletLandscape";
+  const gutter = formFactor === "phone" ? 16 : GUTTER;
+  return wide ? DETAIL_WIDTH : width - gutter * 2;
+}
+
+export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   const { width, height } = input;
-  const { pad, gap, smallGap } = setupMetrics(width, height);
-  const column = setupColumnWidth(width, height);
-  const left = (width - column) / 2;
+  const formFactor = formFactorFor(width, height);
+  const wide = formFactor === "desktop" || formFactor === "tabletLandscape";
+  const gutter = formFactor === "phone" ? 16 : GUTTER;
+  const gap = gutter;
+  const smallGap = 8;
 
   const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
   const headerPad = 16;
-  const backWidth = 70;
+  const backWidth = 90;
   const stepWidth = Math.min(160, Math.max(90, width * 0.32));
   const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
   const step: Rect = { x: width - headerPad - stepWidth, y: (HEADER_HEIGHT - hit.target) / 2, width: stepWidth, height: hit.target };
 
-  let y = HEADER_HEIGHT + pad;
-  const slotWidth = (column - (MAX_SEATS - 1) * 6) / MAX_SEATS;
-  const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => ({ x: left + i * (slotWidth + 6), y, width: slotWidth, height: SEAT_SLOT_HEIGHT }));
-  y += SEAT_SLOT_HEIGHT + smallGap;
+  const left = gutter;
+  const detailWidth = detailPanelWidthFor(width, height);
+  const shelvesWidth = wide ? width - gutter * 2 - gap - detailWidth : width - gutter * 2;
 
-  const usePreconstructed: Rect = { x: left, y, width: column, height: 20 };
-  y += 20 + gap;
+  const bodyTop = HEADER_HEIGHT + gutter;
+  const bodyBottom = height - gutter;
 
-  // Room for the "Heroes — N seats..." section label drawn just above the search field (`scenes/seats.ts`).
-  y += LABEL_ROOM;
-  const block = rosterBlockAt({ x: left, y, width: column, chipRows: input.chipRows, listRows, smallGap });
-  y = block.bottom + gap;
+  // Wide: one row of four. Narrow: 2×2 — four seat cards squeezed to ~85px wide each at phone width left no room
+  // for the portrait thumbnail plus any text at all (second-pass fidelity pass: the name/meta text overlapped
+  // between cards). A 2×2 grid keeps each card wide enough for its own content at every width.
+  const seatCols = wide ? MAX_SEATS : 2;
+  const seatRows = MAX_SEATS / seatCols;
+  const slotWidth = (shelvesWidth - (seatCols - 1) * 6) / seatCols;
+  const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => {
+    const col = i % seatCols;
+    const row = Math.floor(i / seatCols);
+    return { x: left + col * (slotWidth + 6), y: bodyTop + row * (SEAT_SLOT_HEIGHT + 6), width: slotWidth, height: SEAT_SLOT_HEIGHT };
+  });
+  let y = bodyTop + seatRows * SEAT_SLOT_HEIGHT + (seatRows - 1) * 6 + smallGap;
 
-  const detailHeight = Math.max(DETAIL_LINE_HEIGHT, detailLines * DETAIL_LINE_HEIGHT) + 16;
-  const detail: Rect = { x: left, y, width: column, height: detailHeight };
-  y += detailHeight + gap;
+  const usePreconstructedWidth = Math.min(230, shelvesWidth * 0.5);
+  const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: ROSTER_HEADER_HEIGHT };
+  const usePreconstructed: Rect = { x: rosterHeader.x + rosterHeader.width - usePreconstructedWidth, y: rosterHeader.y, width: usePreconstructedWidth, height: ROSTER_HEADER_HEIGHT };
+  y += ROSTER_HEADER_HEIGHT + smallGap;
 
-  // Kept for the deck-check hook's own focus stop even though it now shares the primary CTA's row visually — see `scenes/seats.ts`.
-  const deckCheck: Rect = { x: left, y, width: column, height: hit.primary };
-  const next: Rect = deckCheck;
+  const search: Rect = { x: left, y, width: shelvesWidth, height: hit.target };
+  y += hit.target + smallGap;
+  const chipsHeight = chipStripHeight(input.chipRows);
+  const chips: Rect = { x: left, y, width: shelvesWidth, height: chipsHeight };
+  y += chipsHeight + smallGap;
 
-  return {
-    pad,
-    left,
-    column,
-    headerBar,
-    back,
-    step,
-    seatSlots,
-    usePreconstructed,
-    search: block.search,
-    chips: block.chips,
-    list: block.list,
-    listRows,
-    detail,
-    detailLines,
-    deckCheck,
-    next,
-  };
-}
+  const ctaHeight = hit.primary;
+  const ctaWidth = (shelvesWidth - CTA_GAP) / 2;
 
-export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
-  const trial = layoutAt(input, MAX_LIST_ROWS, input.detailLines);
-  const overflow = trial.next.y + trial.next.height - input.height;
-  if (overflow <= 0) return trial;
-  const rowsToCut = Math.ceil(overflow / hit.target);
-  const rows = Math.max(MIN_LIST_ROWS, MAX_LIST_ROWS - rowsToCut);
-  const afterRows = layoutAt(input, rows, input.detailLines);
-  const stillOver = afterRows.next.y + afterRows.next.height - input.height;
-  if (stillOver <= 0) return afterRows;
-  const linesToCut = Math.ceil(stillOver / DETAIL_LINE_HEIGHT);
-  const lines = Math.max(1, input.detailLines - linesToCut);
-  return layoutAt(input, rows, lines);
+  if (wide) {
+    const detailHeight = bodyBottom - bodyTop;
+    const shelves: Rect = { x: left, y, width: shelvesWidth, height: Math.max(SHELVES_MIN_HEIGHT, bodyBottom - y) };
+    const detail: Rect = { x: left + shelvesWidth + gap, y: bodyTop, width: detailWidth, height: detailHeight };
+    // Wide keeps the two actions stacked (quiet above primary) rather than squeezed side by side in a ~300px
+    // panel, where neither label would read — the panel is narrower than the roster column the phone/tablet
+    // pair shares the row across.
+    const stacked = detail.width - 32;
+    const ctaBlockHeight = ctaHeight * 2 + 8 + FOOTER_HEIGHT + 4;
+    const play: Rect = { x: detail.x + 16, y: detail.y + detail.height - 16 - ctaBlockHeight, width: stacked, height: ctaHeight };
+    const deckCheck: Rect = { x: detail.x + 16, y: play.y + ctaHeight + 8, width: stacked, height: ctaHeight };
+    return { formFactor, wide, headerBar, back, step, seatSlots, rosterHeader, usePreconstructed, search, chips, shelves, detail, play, deckCheck };
+  }
+
+  // Clamped so `shelves` can never be squeezed below `SHELVES_MIN_HEIGHT` by an oversized detail panel — see
+  // `view/scenario-select-layout.ts`'s identical fix and its own comment for why this has to account for every
+  // fixed element between the detail block and the body's own bottom edge, not just the gap immediately below it.
+  const rawDetailHeight = Math.max(DETAIL_LINE_HEIGHT, input.detailLines * DETAIL_LINE_HEIGHT) + 16;
+  const maxDetailHeight = Math.max(DETAIL_LINE_HEIGHT + 16, bodyBottom - y - SHELVES_MIN_HEIGHT - gap - ctaHeight);
+  const detailHeight = Math.min(rawDetailHeight, maxDetailHeight);
+  const deckCheck: Rect = { x: left + ctaWidth + CTA_GAP, y: bodyBottom - ctaHeight, width: ctaWidth, height: ctaHeight };
+  const play: Rect = { x: left, y: bodyBottom - ctaHeight, width: ctaWidth, height: ctaHeight };
+  const detail: Rect = { x: left, y: play.y - gap - detailHeight, width: detailWidth, height: detailHeight };
+  const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, detail.y - gap - y);
+  const shelves: Rect = { x: left, y, width: shelvesWidth, height: shelvesHeight };
+  return { formFactor, wide, headerBar, back, step, seatSlots, rosterHeader, usePreconstructed, search, chips, shelves, detail, play, deckCheck };
 }

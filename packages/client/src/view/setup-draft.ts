@@ -56,7 +56,18 @@ export interface SetupDraft {
   readonly seed: number;
   readonly scenarioFilter: RosterFilter;
   readonly heroFilter: RosterFilter;
+  /**
+   * The active-seat model (docs/phase4-screen-gaps.md §3, "Reopened — W2b"): which of up to `MAX_SEATS` seat
+   * slots the next roster pick targets. `seats` stays compact (no gaps — see that field's own doc comment and
+   * `assignToActiveSeat`'s), so an index of `seats.length` names "the one empty seat past the last filled one",
+   * never a seat further out. Persisted on the draft (not scene-local state) so it survives a trip to Deck check
+   * and back, per the brief.
+   */
+  readonly activeSeatIndex: number;
 }
+
+/** RRG: 1–4 players. */
+export const MAX_SEATS = 4;
 
 export interface InitialSetupDraftOptions {
   readonly scenarioId: string;
@@ -75,6 +86,7 @@ export function initialSetupDraft(options: InitialSetupDraftOptions): SetupDraft
     seed: options.seed,
     scenarioFilter: EMPTY_ROSTER_FILTER,
     heroFilter: EMPTY_ROSTER_FILTER,
+    activeSeatIndex: 0,
   };
 }
 
@@ -136,11 +148,12 @@ export function clearHeroFilter(draft: SetupDraft): SetupDraft {
  */
 export function pruneSeats(draft: SetupDraft, availableDeckIds: ReadonlySet<string>, fallbackDeckId: string): SetupDraft {
   const seats = draft.seats.filter((id) => availableDeckIds.has(id));
-  return { ...draft, seats: seats.length > 0 ? seats : [fallbackDeckId] };
+  const kept = seats.length > 0 ? seats : [fallbackDeckId];
+  return { ...draft, seats: kept, activeSeatIndex: Math.min(draft.activeSeatIndex, kept.length) };
 }
 
 /** Seats `deckId`, up to `maxSeats` (RRG: 1–4 players). A no-op if it's already seated or the table is full — legality (is this deck blocked?) is the caller's job (`view/seats.ts`), checked before this is called. */
-export function addSeat(draft: SetupDraft, deckId: string, maxSeats = 4): SetupDraft {
+export function addSeat(draft: SetupDraft, deckId: string, maxSeats = MAX_SEATS): SetupDraft {
   if (draft.seats.includes(deckId) || draft.seats.length >= maxSeats) return draft;
   return { ...draft, seats: [...draft.seats, deckId] };
 }
@@ -148,7 +161,87 @@ export function addSeat(draft: SetupDraft, deckId: string, maxSeats = 4): SetupD
 /** Removes `deckId`'s seat, unless it's the only one left (a game needs at least one player). */
 export function removeSeat(draft: SetupDraft, deckId: string): SetupDraft {
   if (draft.seats.length <= 1) return draft;
-  return { ...draft, seats: draft.seats.filter((id) => id !== deckId) };
+  const seats = draft.seats.filter((id) => id !== deckId);
+  return { ...draft, seats, activeSeatIndex: Math.min(draft.activeSeatIndex, seats.length) };
+}
+
+/**
+ * The active-seat model (docs/phase4-screen-gaps.md §3 W2, "Reopened — W2b" — the owner's reported bug that only
+ * seat 1 could ever be selected). Exactly one seat is active at a time; clicking, tapping or focus-activating a
+ * seat card calls `setActiveSeat`, and choosing a roster card calls `assignToActiveSeat`. Kept as three small pure
+ * functions (rather than folded into `addSeat`/`removeSeat`) because they answer a different question — *which*
+ * seat a pick lands in — not just "is a deck seated".
+ */
+
+/** The one empty seat past the last filled one, or `null` when the table is already full. `seats` stays compact (no gaps), so this is always `seats.length` or nothing — never a seat further out. */
+export function nextEmptySeat(draft: SetupDraft, maxSeats = MAX_SEATS): number | null {
+  return draft.seats.length < maxSeats ? draft.seats.length : null;
+}
+
+/**
+ * Whether seat `index` can become the active seat (docs/phase4-screen-gaps.md §3, second W2b pass, item 3): a
+ * filled seat, or the *one* empty seat past the last filled one — never an empty seat further out. `seats` can't
+ * hold a gap, so clicking a later empty seat card (seat 4, say, with only seat 1 filled) would silently redirect
+ * `setActiveSeat`'s own clamp to `nextEmptySeat` (seat 2) instead — a pick then lands somewhere other than the
+ * card the player clicked. Marking every seat past `nextEmptySeat` as unselectable (dimmed, "Fill seat N first" —
+ * `scenes/seats.ts`) is the chosen fix over "keep it clickable and visibly redirect": it can't happen at all,
+ * rather than relying on a player to notice which card actually lit up.
+ */
+export function seatIsSelectable(draft: SetupDraft, index: number): boolean {
+  return index <= draft.seats.length;
+}
+
+/**
+ * Makes `index` the active seat — a seat card being clicked, tapped, or given focus and activated. Clamped to a
+ * seat that actually exists, or to the one empty seat past the end (`nextEmptySeat`): a click on an empty seat
+ * card further out than that (there is no such card today — the seat row is fixed at `maxSeats` cards — but a
+ * future layout could offer one) still lands on the seat that would actually be filled next, since `seats` cannot
+ * hold a gap.
+ */
+export function setActiveSeat(draft: SetupDraft, index: number, maxSeats = MAX_SEATS): SetupDraft {
+  const activeSeatIndex = Math.max(0, Math.min(index, Math.min(draft.seats.length, maxSeats - 1)));
+  return { ...draft, activeSeatIndex };
+}
+
+/**
+ * Assigns `deckId` to the active seat — replacing whatever was there if the active seat is already filled, or
+ * filling the one empty seat past the end if it is that. Then the active seat advances to the next empty seat, if
+ * there is one (per the brief, this happens whether the pick replaced an occupied seat or filled an empty one —
+ * either way the natural next step is "pick for the next open chair"). A no-op if the active seat is somehow past
+ * `maxSeats` with the table already full. Legality (is this deck blocked here — already seated elsewhere, a
+ * duplicate identity, an illegal deck) is the caller's job, exactly as `addSeat` already documents: `view/seats.ts`
+ * computes `blockedBy` and the scene checks it before calling this.
+ */
+export function assignToActiveSeat(draft: SetupDraft, deckId: string, maxSeats = MAX_SEATS): SetupDraft {
+  const index = Math.min(draft.activeSeatIndex, maxSeats - 1);
+  let seats: readonly string[];
+  if (index < draft.seats.length) {
+    seats = draft.seats.map((id, i) => (i === index ? deckId : id));
+  } else if (draft.seats.length < maxSeats) {
+    seats = [...draft.seats, deckId];
+  } else {
+    return draft;
+  }
+  const activeSeatIndex = seats.length < maxSeats ? seats.length : index;
+  return { ...draft, seats, activeSeatIndex };
+}
+
+/**
+ * Clears the seat at `index` (a small ✕ on the seat card, or Backspace/Delete on a focused seat) — never below one
+ * seat. Later seats shift down to fill the gap: `seats` is the compact list the engine consumes as player order
+ * (seat *position*, not a fixed seat number, is what a deck id occupies), the same compacting `removeSeat` already
+ * does by deck id, generalized here to "by position" so an empty seat can be cleared too (`removeSeat` only knows
+ * how to remove a deck it can name).
+ */
+export function clearSeat(draft: SetupDraft, index: number, maxSeats = MAX_SEATS): SetupDraft {
+  if (draft.seats.length <= 1 || index < 0 || index >= draft.seats.length) return draft;
+  const seats = draft.seats.filter((_, i) => i !== index);
+  // Everything after the removed seat shifted down one position with it, so the active seat shifts too when it
+  // pointed past the removed one — otherwise it would silently land on a different deck than the player was
+  // looking at.
+  const shifted = draft.activeSeatIndex > index ? draft.activeSeatIndex - 1 : draft.activeSeatIndex;
+  const activeSeatIndex = Math.max(0, Math.min(shifted, Math.min(seats.length, maxSeats - 1)));
+  return { ...draft, seats, activeSeatIndex };
 }
 
 /**
@@ -159,7 +252,24 @@ export function removeSeat(draft: SetupDraft, deckId: string): SetupDraft {
  * Decks screen is a fresh "play this" intent, not an addition to whatever seats happened to be there before.
  */
 export function withSeatOne(draft: SetupDraft, deckId: string): SetupDraft {
-  return { ...draft, seats: [deckId] };
+  return { ...draft, seats: [deckId], activeSeatIndex: 0 };
+}
+
+/**
+ * Which deck "Deck check ▸" should open (docs/phase4-screen-gaps.md §3, second W2b pass, item 1 — the owner's bug
+ * report that the button silently jumped to Table setup): the active seat's own deck when it's filled, or — since
+ * the active seat auto-advances to the next empty slot right after a pick — the most recently filled seat
+ * otherwise. "Most recently filled" isn't a timestamp this module tracks; it's simply the last entry in `seats`,
+ * which is exactly right for the common flow (fill seat 1, active advances to 2, fill 2, active advances to 3,
+ * …) and is never wrong in the sense that matters: it always names a real, currently-seated deck, never Table
+ * setup. Null only when the table has no seats at all, which `pruneSeats`'s own fallback never actually allows —
+ * kept for honesty rather than assumed away, so a caller can still draw "Pick a hero first" instead of a crash.
+ * "Play N heroes ▸" is the only control that ever goes to Table setup without checking a deck first.
+ */
+export function deckCheckDeckId(draft: SetupDraft): string | null {
+  if (draft.seats.length === 0) return null;
+  const index = draft.activeSeatIndex < draft.seats.length ? draft.activeSeatIndex : draft.seats.length - 1;
+  return draft.seats[index] ?? null;
 }
 
 /**

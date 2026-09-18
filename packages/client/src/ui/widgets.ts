@@ -34,7 +34,8 @@ export function paintPanel(g: Phaser.GameObjects.Graphics, rect: Rect, kind: Wid
 }
 
 /** A dashed outline: the system's mark for a slot that isn't filled yet. */
-export function dashedRect(g: Phaser.GameObjects.Graphics, rect: Rect, width: number): void {
+/** Defaults to the "quiet" skin's own ink stroke (the design system's ordinary "slot not filled" mark); a caller with something more specific to say — the active-but-still-empty seat card's red "SEAT N · PICKING" border (`scenes/seats.ts`) — passes its own colour instead. */
+export function dashedRect(g: Phaser.GameObjects.Graphics, rect: Rect, width: number, color: number = skin("quiet", "rest").stroke): void {
   const step = border.dashSegment + border.dashGap;
   const line = (x1: number, y1: number, x2: number, y2: number): void => {
     const length = Math.hypot(x2 - x1, y2 - y1);
@@ -45,7 +46,7 @@ export function dashedRect(g: Phaser.GameObjects.Graphics, rect: Rect, width: nu
       g.lineBetween(x1 + dx * at, y1 + dy * at, x1 + dx * end, y1 + dy * end);
     }
   };
-  g.lineStyle(width, skin("quiet", "rest").stroke, 1);
+  g.lineStyle(width, color, 1);
   line(rect.x, rect.y, rect.x + rect.width, rect.y);
   line(rect.x + rect.width, rect.y, rect.x + rect.width, rect.y + rect.height);
   line(rect.x + rect.width, rect.y + rect.height, rect.x, rect.y + rect.height);

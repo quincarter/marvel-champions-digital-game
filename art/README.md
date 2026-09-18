@@ -12,10 +12,14 @@ list to edit. Formats: `png`, `jpg`, `jpeg`, `webp`, `avif`.
 | `scenarios/<scenarioId>/` | `villain-loses.<ext>` | Game Over, when the players beat it |
 | `outcomes/` | `defeat.<ext>` | Game Over for any loss with no scene of its own, and for a concession |
 | `outcomes/` | `victory.<ext>` | Game Over for any win with no scene of its own |
+| `packs/<packCode>/` | `cover.<ext>` | OPTIONAL: a pack's shelf-header thumbnail on Scenario select and Take your seats (W2b's pack shelves) |
 
 `<scenarioId>` is the content package's `Scenario.id`, so the folder name is the
 lookup: `rhino`, `klaw`, `ultron`, `risky-business`, `mutagen-formula`,
-`breakout` (the Wrecking Crew's scenario).
+`breakout` (the Wrecking Crew's scenario). `<packCode>` is `Pack.code`
+(`POOL_PACKS` in `packages/client/src/content/pool.ts`, e.g. `core`, `twc`) the
+same way — no pack ships a cover yet, and a shelf header draws fine without
+one (just the pack's name and a rule, no thumbnail).
 
 **Several pictures for one slot:** add a suffix — `villain.jpg`,
 `villain-2.jpg`, `villain-3.png` — and one is picked at random.

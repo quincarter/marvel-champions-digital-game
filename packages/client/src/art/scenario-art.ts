@@ -7,12 +7,14 @@
  *   art/scenarios/<scenarioId>/villain-loses.<ext>   shown when the players beat it
  *   art/outcomes/defeat.<ext>                        any loss with no scene of its own
  *   art/outcomes/victory.<ext>                       any win with no scene of its own
+ *   art/packs/<packCode>/cover.<ext>                 OPTIONAL: a pack's shelf-header thumbnail (W2b)
  *
  * `<scenarioId>` is the content package's own `Scenario.id` (`rhino`, `klaw`,
  * `ultron`, `risky-business`, `mutagen-formula`, `breakout`), so there is no
  * table mapping scenarios to files — the folder name *is* the lookup. A slot
  * may hold several pictures: `villain.jpg`, `villain-2.jpg`, `villain-3.png`;
- * one is picked at random.
+ * one is picked at random. `<packCode>` is `Pack.code` (`POOL_PACKS`, e.g.
+ * `core`, `twc`) the same way.
  *
  * The parsing and the lookups are pure functions over a path → URL map, so
  * they are tested without the glob.
@@ -22,13 +24,17 @@ import { pickPicture, type Picture } from "./pictures.js";
 /** Longest first: `villain-wins-2` must match `villain-wins`, not read as a variant of `villain`. */
 const SCENARIO_SLOTS = ["villain-wins", "villain-loses", "villain"] as const;
 const OUTCOME_SLOTS = ["defeat", "victory"] as const;
+const PACK_SLOTS = ["cover"] as const;
 export type ScenarioArtSlot = (typeof SCENARIO_SLOTS)[number];
 export type OutcomeArtSlot = (typeof OUTCOME_SLOTS)[number];
+export type PackArtSlot = (typeof PACK_SLOTS)[number];
 
 export interface ArtCatalog {
   readonly scenarios: ReadonlyMap<string, Readonly<Record<ScenarioArtSlot, readonly Picture[]>>>;
   readonly outcomes: Readonly<Record<OutcomeArtSlot, readonly Picture[]>>;
-  /** Files under `art/scenarios/` or `art/outcomes/` whose name fits no slot — a typo, by any other name. */
+  /** A pack's own cover art (W2b's shelf-header thumbnail), by `Pack.code` — optional; most packs have none yet. */
+  readonly packs: ReadonlyMap<string, Readonly<Record<PackArtSlot, readonly Picture[]>>>;
+  /** Files under `art/scenarios/`, `art/outcomes/` or `art/packs/` whose name fits no slot — a typo, by any other name. */
   readonly unrecognized: readonly string[];
 }
 
@@ -44,6 +50,7 @@ function slotOf<S extends string>(stem: string, slots: readonly S[]): S | null {
 export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCatalog {
   const scenarios = new Map<string, Record<ScenarioArtSlot, Picture[]>>();
   const outcomes: Record<OutcomeArtSlot, Picture[]> = { defeat: [], victory: [] };
+  const packs = new Map<string, Record<PackArtSlot, Picture[]>>();
   const unrecognized: string[] = [];
 
   for (const fullPath of Object.keys(files).sort()) {
@@ -67,16 +74,31 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
       const slot = slotOf(stem, OUTCOME_SLOTS);
       if (slot) outcomes[slot].push(picture);
       else unrecognized.push(underArt);
+    } else if (parts[0] === "packs" && parts.length === 3) {
+      const slot = slotOf(stem, PACK_SLOTS);
+      if (!slot) {
+        unrecognized.push(underArt);
+        continue;
+      }
+      const packCode = parts[1]!;
+      const entry = packs.get(packCode) ?? { cover: [] };
+      entry[slot].push(picture);
+      packs.set(packCode, entry);
     } else {
       unrecognized.push(underArt);
     }
   }
-  return { scenarios, outcomes, unrecognized };
+  return { scenarios, outcomes, packs, unrecognized };
 }
 
 /** The villain's own artwork for a scenario, or null when there is none. */
 export function villainArtFor(catalog: ArtCatalog, scenarioId: string, random: () => number = Math.random): Picture | null {
   return pickPicture(catalog.scenarios.get(scenarioId)?.villain ?? [], null, random);
+}
+
+/** A pack's own cover art (W2b's shelf-header thumbnail), or null when this pack has none — the common case today, since no pack ships one yet. */
+export function packCoverFor(catalog: ArtCatalog, packCode: string, random: () => number = Math.random): Picture | null {
+  return pickPicture(catalog.packs.get(packCode)?.cover ?? [], null, random);
 }
 
 /**
@@ -99,11 +121,12 @@ export function outcomeArtFor(
   return pickPicture(own && own.length > 0 ? own : generic, null, random);
 }
 
-// Two literal patterns (a glob pattern cannot be built from a variable) covering the two conventions above.
+// Three literal patterns (a glob pattern cannot be built from a variable) covering the three conventions above.
 const files = {
   ...(import.meta.glob("../../../../art/scenarios/*/*.{png,jpg,jpeg,webp,avif}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
   ...(import.meta.glob("../../../../art/outcomes/*.{png,jpg,jpeg,webp,avif}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
+  ...(import.meta.glob("../../../../art/packs/*/*.{png,jpg,jpeg,webp,avif}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
 };
 
-/** Everything in `art/scenarios/` and `art/outcomes/`. */
+/** Everything in `art/scenarios/`, `art/outcomes/` and `art/packs/`. */
 export const ART_CATALOG: ArtCatalog = parseArtCatalog(files);

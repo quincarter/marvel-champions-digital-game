@@ -249,12 +249,17 @@ export function titleMenuFocusOrder(input: { readonly continuable: boolean }): r
 }
 
 export interface ScenarioSelectFocusInput {
-  /** Every scenario row, in roster order — already filtered by the search field (S8); empty means the search matched nothing. */
+  /**
+   * Every scenario card, in the pack-shelf roster's own reading order (shelf by shelf, left to right within a
+   * shelf — `view/roster-shelves.ts`'s `flattenShelves`); already filtered by the search field and product chips
+   * (S8). Empty means the search matched nothing. `view/shelf-nav.ts`'s own doc comment explains why this stays a
+   * flat route rather than a real 2-axis one this pass.
+   */
   readonly scenarioIds: readonly string[];
   readonly scenarioChipIds?: readonly string[];
 }
 
-/** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario row (or "Clear"), then "Choose heroes ▸". */
+/** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
 export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): readonly string[] {
   return [
     "back",
@@ -266,19 +271,27 @@ export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): reado
 }
 
 export interface SeatsFocusInput {
-  /** Every seat option's deck id, already filtered by the hero search field (S8) — still keyed `hero:<deckId>`, matching `titleFocusOrder`'s own convention. */
+  /** How many seat cards to route focus through — always `MAX_SEATS` (`view/seats-layout.ts`), listed for clarity at the call site rather than hardcoded here. */
+  readonly seatCount: number;
+  /** Every seat option's deck id, in the pack-shelf roster's own reading order (`flattenShelves`) — still keyed `hero:<deckId>`, matching `titleFocusOrder`'s own convention. */
   readonly deckIds: readonly string[];
   readonly heroChipIds?: readonly string[];
 }
 
-/** Take your seats (D03): Back, "Use preconstructed for all seats", the search field, its chips, each roster row (or "Clear"), "Deck check ▸", then "Take these seats ▸". */
+/**
+ * Take your seats (D03): Back, each seat card (clicking/activating one makes it active,
+ * docs/phase4-screen-gaps.md §3 W2b), "Use preconstructed for all seats", the search field, its chips, each
+ * roster card (or "Clear"), then "Play N heroes ▸" / "Deck check ▸".
+ */
 export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
   return [
     "back",
+    ...Array.from({ length: input.seatCount }, (_, i) => `seat:${i}`),
     "use-preconstructed",
     "hero-search",
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
     ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
+    "play",
     "deck-check",
   ];
 }
