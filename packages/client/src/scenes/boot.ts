@@ -19,6 +19,7 @@ import { appSession } from "../session.js";
 import { SCENES } from "./keys.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
+import type { DecksSceneData } from "./decks.js";
 import type { RulesSceneData } from "./rules.js";
 import type { RulesTab } from "../view/rules-layout.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
@@ -35,7 +36,8 @@ import type { TableSetupData } from "./table-setup.js";
  *
  * `scenario-select` / `seats` / `table-setup` jump with a fresh default
  * `SetupDraft` (no live game). `deck-check` / `deck-builder` load the first
- * precon deck straight into the scene (no live game either). `board` /
+ * precon deck straight into the scene (no live game either). `decks` (D14)
+ * jumps with no data — it builds its own deck list from storage. `board` /
  * `pause` / `rules` / `settings` need one, since D13/P16/L07's status line and
  * glossary/card-list content only mean anything against a real table — those
  * four start a real one-seat Rhino/Spider-Man game through the same
@@ -69,6 +71,8 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     if (screen === "deck-check") return { key: SCENES.deckCheck, data: { deck } satisfies DeckCheckSceneData };
     return { key: SCENES.deckBuilder, data: { deck } satisfies DeckBuilderSceneData };
   }
+
+  if (screen === "decks") return { key: SCENES.decks, data: {} satisfies DecksSceneData };
 
   if (screen === "board" || screen === "pause" || screen === "rules" || screen === "settings") {
     await startDevGame();

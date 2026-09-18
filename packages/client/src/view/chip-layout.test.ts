@@ -49,10 +49,14 @@ describe("wrapChipsToRows", () => {
     expect(rows.flat()).toEqual(chips);
   });
 
-  test("the real hero chip set fits on one row at the content column's own cap (640) — every non-phone width", () => {
+  test("the real hero chip set wraps to two rows at the content column's own cap (640), and neither row truncates", () => {
+    // Was asserted at 1 row before `CHIP_MIN_CHAR_WIDTH_PX`'s 2026-09 fix (4.6 → 7.0): the old estimate left out
+    // `typeRole.label.letterSpacing`, so it under-counted every chip and let this row through at a width real
+    // rendering would have truncated at. Two rows, uncramped, is the honest fit at this width.
     const chips = realHeroChips();
     const rows = wrapChipsToRows(chips, 640);
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(chipRowFits(row, 640)).toBe(true);
   });
 
   test("a handful of scenario product chips (three packs) fit one row even at phone width", () => {
