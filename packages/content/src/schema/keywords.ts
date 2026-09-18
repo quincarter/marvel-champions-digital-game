@@ -38,6 +38,12 @@ import type { ResourceIconType, Trait } from "./common.js";
  *   against a printed card before ingesting one.
  * - No wave 1 card prints Team-Up, Teamwork, Requirement, Find or Discount. The
  *   Thor Hero Pack's "Teamwork" (06032) is an event's title, not the keyword.
+ *
+ * Checked for Phase 7 wave 2, cycle 1 (docs/phase7-wave2.md §1.8): cycle 1 prints Incite X, Permanent, Piercing,
+ * Ranged, Setup, Villainous and Team-Up, plus Core keywords. No shape here changes. Team-Up's two names are the
+ * printed "Team-Up (Ant-Man and Wasp)." / "Team-Up (Quicksilver and Scarlet Witch)." (12020, 13020, 14018, 15018).
+ * Its play half ("cannot be played unless both of the named friendly characters (identity or ally) are in play",
+ * RRG 1.8 "Team-Up", p. 43) is not enforced by the engine yet.
  */
 export type KeywordName =
   | "guard"

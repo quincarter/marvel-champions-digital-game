@@ -39,6 +39,12 @@ import type { Trait } from "../common.js";
  *   (Goblin Glider), and later packs' "the minion with the most remaining hit points", "the enemy with the
  *   lowest ATK". Ties are chosen as for `minionWithHighestPrintedHp`.
  *
+ * Phase 7 wave 2 kind:
+ * - `ifAble`: "Attach to Yellowjacket, if able. If you cannot, attach to the villain." (Size Increase; Beetle Armor
+ *   MK IV, Vibration Resistance) and "Attach to Crossfire. Otherwise, attach to the villain." (Crossfire's Rifle).
+ *   `preferred` is tried first; only when it yields no legal host is `otherwise` tried. Both are evaluated when the
+ *   card would be attached (RRG 1.8 "Attach To", p. 8). Neither may itself be `ifAble`.
+ *
  * A kind the engine cannot resolve yields no legal host, so the attachment is discarded. Card data that uses
  * a kind the engine does not resolve yet must not be marked playable (docs/phase7-wave1.md §3.1).
  */
@@ -64,7 +70,8 @@ export type AttachmentHost =
       readonly among: SuperlativeHostPool;
       readonly order: "highest" | "lowest";
       readonly measure: HostMeasure;
-    } & HostQualifiers);
+    } & HostQualifiers)
+  | { readonly kind: "ifAble"; readonly preferred: AttachmentHost; readonly otherwise: AttachmentHost };
 
 export type AttachmentHostKind = AttachmentHost["kind"];
 
@@ -86,6 +93,7 @@ export const ATTACHMENT_HOST_KINDS: readonly AttachmentHostKind[] = [
   "namedCard",
   "minionWithHighestPrintedHp",
   "superlative",
+  "ifAble",
 ];
 
 /** The card categories a `qualified` host narrows. `character` is any character in play. */
