@@ -261,6 +261,14 @@ export class McShelfRoster<T> {
       const overflow = contentWidth > innerWidth;
       const clip = (): Rect => this.#rect;
       const suppressClick = (): boolean => this.isDragSuppressingClick;
+      // Reparented into `#layer` (the masked container every card/header row already lives in), not left on the
+      // scene root the way a bare `new McButton(this.#scene, ...)` defaults to: a shelf only partly inside the
+      // vertical scroll window (`windowFor` includes a partially-visible row so scrolling reads smoothly) still
+      // built a chevron at its own true, un-clipped position, which drew straight through whatever sits below the
+      // roster's own rect — a "quiet"/`unavailable` chevron is the system's *dashed*-border state, so a
+      // half-visible shelf's own disabled left chevron rendered as a stray dashed box bleeding into the panel
+      // underneath (2026-09-18 fidelity pass: read at first as the roster overlapping the stat strip below it,
+      // but no *card* ever left its clip — only this un-masked control did).
       const chevronLeft = overflow
         ? new McButton(this.#scene, {
             kind: "quiet",
@@ -273,6 +281,7 @@ export class McShelfRoster<T> {
             suppressClick,
           })
         : null;
+      if (chevronLeft) this.#layer.add(chevronLeft.container);
       const chevronRight = overflow
         ? new McButton(this.#scene, {
             kind: "quiet",
@@ -285,6 +294,7 @@ export class McShelfRoster<T> {
             suppressClick,
           })
         : null;
+      if (chevronRight) this.#layer.add(chevronRight.container);
 
       this.#live.set(shelfIndex, { index: shelfIndex, shelf: shelf as Shelf<unknown>, headerRow, cardRows, chevronLeft, chevronRight });
     }

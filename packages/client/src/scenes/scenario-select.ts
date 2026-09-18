@@ -21,7 +21,8 @@ import { wrapChipsToRows } from "../view/chip-layout.js";
 import { shelvesOf, flattenShelves, type ShelfCandidate } from "../view/roster-shelves.js";
 import { setScenario, setScenarioFilter, clearScenarioFilter, type SetupDraft } from "../view/setup-draft.js";
 import { scenarioSelectFocusOrder } from "../view/screen-focus.js";
-import { scenarioSelectLayout } from "../view/scenario-select-layout.js";
+import { scenarioSelectLayout, detailPanelWidthFor } from "../view/scenario-select-layout.js";
+import { estimateWrappedLines } from "../view/layout.js";
 import { drawChipStrip, drawSearchField, drawShelfRosterPanel, renderShelfCard, renderShelfHeader } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -32,6 +33,10 @@ export interface ScenarioSelectData {
 }
 
 const CARD_METRICS = { cardWidth: 160, cardHeight: 220, cardGap: 10, headerHeight: 24, headerToCardsGap: 6, shelfGap: 16 };
+/** Matches `view/layout.ts`'s own `toggleRowHeight` constants — a conservative per-character estimate for `typeRole.body` at 11px, so a detail line's *real* wrapped height is known before a live text object exists to measure it. */
+const DETAIL_CHAR_WIDTH = 5.4;
+const DETAIL_LINE_PX = 15;
+const DETAIL_TEXT_PAD = 24;
 
 export class ScenarioSelectScene extends Phaser.Scene {
   #draft!: SetupDraft;
@@ -119,8 +124,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const currentScenario = scenario ?? POOL_SCENARIOS[0]!;
     const detail = scenarioDetailOf(currentScenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     const detailLines = scenarioDetailLines(detail);
+    // The real wrapped line count against the panel's own text width, not the raw string count — a fixed
+    // per-string budget clipped the first line that ran long against a ~300px side panel (2026-09-18 fidelity pass).
+    const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
+    const detailWrappedLines = detailLines.reduce((sum, line) => sum + estimateWrappedLines(line, detailTextWidth, DETAIL_CHAR_WIDTH), 0);
 
-    const layout = scenarioSelectLayout({ width, height, chipRows: wrapChipsToRows(chipDefs, width).length, detailLines: detailLines.length });
+    const layout = scenarioSelectLayout({ width, height, chipRows: wrapChipsToRows(chipDefs, width).length, detailLines: detailWrappedLines });
     const chipRows = wrapChipsToRows(chipDefs, layout.chips.width);
 
     // Ground: paper body under a full-width ink header bar (docs/design-renders/ScreensDesktop_01-02.png).
@@ -180,13 +189,17 @@ export class ScenarioSelectScene extends Phaser.Scene {
     });
 
     // Stat strip (D02's own band below the roster): main scheme, starting threat, villain HP (stage I), encounter sets — the same `detail` the ink panel already computed, so the two can't disagree.
-    this.#drawStatStrip(layout.statStrip, detail);
+    this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
 
-    // The "stage panel" — full-height dark, matching D02's own scenario-stages sidebar.
+    // The "stage panel" — full-height dark, matching D02's own scenario-stages sidebar. Each line wraps to its
+    // own width and the cursor advances by its *real* wrapped height, so a long line (a multi-villain "Villain:"
+    // line, say) pushes the next one down instead of running under it.
     this.add.rectangle(layout.detail.x, layout.detail.y, layout.detail.width, layout.detail.height, surface.ink.hex).setOrigin(0, 0);
-    detailLines.forEach((line, index) => {
-      this.add.text(layout.detail.x + 12, layout.detail.y + 8 + index * 20, line, textStyle(typeRole.body, surface.paper.hex));
-    });
+    let detailCursorY = layout.detail.y + 8;
+    for (const line of detailLines) {
+      this.add.text(layout.detail.x + 12, detailCursorY, line, textStyle(typeRole.body, surface.paper.hex)).setWordWrapWidth(detailTextWidth);
+      detailCursorY += estimateWrappedLines(line, detailTextWidth, DETAIL_CHAR_WIDTH) * DETAIL_LINE_PX;
+    }
 
     const next = (): void => {
       this.scale.off("resize", this.#rebuild, this);
@@ -218,11 +231,24 @@ export class ScenarioSelectScene extends Phaser.Scene {
     });
   }
 
-  /** The band under the roster (D02): main scheme, starting threat, stage I HP, and the fixed encounter sets — all read off the same `ScenarioDetail` the ink panel draws, so the two can never disagree. */
-  #drawStatStrip(rect: import("../view/layout.js").Rect, detail: ScenarioDetail): void {
+  /**
+   * The band under the roster (D02): main scheme, starting threat, stage I HP, and the fixed encounter sets — all
+   * read off the same `ScenarioDetail` the ink panel draws, so the two can never disagree.
+   *
+   * Deliberately **not** the roster's own "rail" (parchment) ground — a plain paper ground with its own
+   * top/bottom rules is what D02 draws anyway, so the strip is a divider band, not a second recessed panel.
+   *
+   * **`rows`** (`ScenarioSelectLayout.statStripRows`) lays four cells out across one row when there's room
+   * (wide) or 2×2 when there isn't (narrow): at four-across, a ~360px phone column gives each cell ~90px, nowhere
+   * near enough for "Starting threat" or "Villain HP · stage I" even in the label's own 9px caps, so adjacent
+   * cells' text ran into each other (2026-09-18 fidelity pass — it read as the roster's own last shelf overlapping
+   * this strip, but no rect ever actually overlapped; it was this strip's own cells overlapping *themselves*).
+   */
+  #drawStatStrip(rect: import("../view/layout.js").Rect, detail: ScenarioDetail, rows: 1 | 2): void {
     const g = this.add.graphics();
-    g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    g.lineStyle(1, surface.ink.hex, ink.meta).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    g.lineStyle(2, surface.ink.hex, ink.meta);
+    g.lineBetween(rect.x, rect.y, rect.x + rect.width, rect.y);
+    g.lineBetween(rect.x, rect.y + rect.height, rect.x + rect.width, rect.y + rect.height);
     const firstStage = detail.stages[0];
     const cells: readonly { readonly label: string; readonly value: string }[] = [
       { label: "Main scheme", value: detail.mainSchemeName },
@@ -230,11 +256,18 @@ export class ScenarioSelectScene extends Phaser.Scene {
       { label: "Villain HP · stage I", value: firstStage ? formatScaling(firstStage.hp) : "—" },
       { label: "Encounter sets", value: detail.fixedEncounterSetNames.join(", ") || "none" },
     ];
-    const cellWidth = rect.width / cells.length;
+    const perRow = Math.ceil(cells.length / rows);
+    const cellWidth = rect.width / perRow;
+    const rowHeight = rect.height / rows;
     cells.forEach((cell, index) => {
-      const x = rect.x + index * cellWidth + 10;
-      label(this, x, rect.y + 8, cell.label, typeRole.label, surface.ink.hex, ink.label);
-      this.add.text(x, rect.y + 24, cell.value, textStyle(typeRole.rowTitle, surface.ink.hex)).setWordWrapWidth(cellWidth - 16);
+      const col = index % perRow;
+      const row = Math.floor(index / perRow);
+      const x = rect.x + col * cellWidth;
+      const y = rect.y + row * rowHeight;
+      if (col > 0) g.lineStyle(1, surface.ink.hex, ink.disabled).lineBetween(x, y + 6, x, y + rowHeight - 6);
+      if (row > 0) g.lineStyle(1, surface.ink.hex, ink.disabled).lineBetween(x, y, x + cellWidth, y);
+      label(this, x + 10, y + 8, cell.label, typeRole.label, surface.ink.hex, ink.label);
+      this.add.text(x + 10, y + 24, cell.value, textStyle(typeRole.rowTitle, surface.ink.hex)).setWordWrapWidth(cellWidth - 16);
     });
   }
 

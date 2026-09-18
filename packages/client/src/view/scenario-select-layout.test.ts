@@ -76,6 +76,19 @@ describe("scenarioSelectLayout", () => {
     expect(tall.shelves.height).toBeGreaterThanOrEqual(short.shelves.height);
   });
 
+  test("statStripRows is 1 (wide, four cells across) or 2 (narrow, 2×2) — narrow cells don't fit 'Starting threat'/'Villain HP · stage I' four across (2026-09-18 fidelity pass)", () => {
+    expect(scenarioSelectLayout({ width: 1440, height: 900, chipRows: 1, detailLines: 4 }).statStripRows).toBe(1);
+    expect(scenarioSelectLayout({ width: 1024, height: 768, chipRows: 1, detailLines: 4 }).statStripRows).toBe(1);
+    expect(scenarioSelectLayout({ width: 390, height: 844, chipRows: 1, detailLines: 4 }).statStripRows).toBe(2);
+    expect(scenarioSelectLayout({ width: 768, height: 1024, chipRows: 1, detailLines: 4 }).statStripRows).toBe(2);
+  });
+
+  test("a 2-row stat strip is twice as tall as a 1-row one", () => {
+    const narrow = scenarioSelectLayout({ width: 390, height: 844, chipRows: 1, detailLines: 4 });
+    const wide = scenarioSelectLayout({ width: 1440, height: 900, chipRows: 1, detailLines: 4 });
+    expect(narrow.statStrip.height).toBeCloseTo(wide.statStrip.height * 2, 0);
+  });
+
   test("the stat strip sits below the shelves and above the CTA area, spanning the shelves column", () => {
     const layout = scenarioSelectLayout({ width: 1440, height: 900, chipRows: 1, detailLines: 4 });
     expect(layout.statStrip.y).toBeGreaterThanOrEqual(layout.shelves.y + layout.shelves.height);

@@ -32,6 +32,7 @@ import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
 import { setupMetrics } from "./setup-metrics.js";
 
 export const HEADER_HEIGHT = 64;
+/** One row's height. Narrow layouts get two rows (`statStripRows`) — the four cells' labels ("Starting threat", "Villain HP · stage I") don't fit four across a ~360px phone column (2026-09-18 fidelity pass: they ran into each other). */
 export const STAT_STRIP_HEIGHT = 56;
 export const DETAIL_LINE_HEIGHT = 20;
 const DETAIL_WIDTH_MIN = 260;
@@ -57,6 +58,8 @@ export interface ScenarioSelectLayout {
   /** The pack-shelf roster's own viewport. */
   readonly shelves: Rect;
   readonly statStrip: Rect;
+  /** 1 (wide: four cells across) or 2 (narrow: 2×2 — `scenes/scenario-select.ts#drawStatStrip` reads this to lay its own cells out, so the two can't disagree about how tall the strip needs to be). */
+  readonly statStripRows: 1 | 2;
   /** The full-height (wide) or sized-to-content (narrow) ink stages panel. */
   readonly detail: Rect;
   readonly next: Rect;
@@ -70,6 +73,22 @@ export interface ScenarioSelectLayout {
  */
 export function scenarioSelectLayoutRects(layout: ScenarioSelectLayout): readonly Rect[] {
   return [layout.back, layout.step, layout.search, layout.chips, layout.shelves, layout.statStrip, layout.detail];
+}
+
+/**
+ * The detail panel's own width, exposed so a caller can measure its detail text's *real* wrapped line count
+ * against this exact width before calling `scenarioSelectLayout` (`view/layout.ts`'s `estimateWrappedLines`,
+ * the same "count first, lay out second" rule `wrapChipsToRows` already established) — a fixed-height-per-line
+ * detail block sized only by *how many strings* `scenarioDetailLines` returned, never how many of *those* wrap,
+ * clipped the first line that ran long against this panel's ~300px width (2026-09-18 fidelity pass).
+ */
+export function detailPanelWidthFor(width: number, height: number): number {
+  const formFactor = formFactorFor(width, height);
+  const wide = formFactor === "desktop" || formFactor === "tabletLandscape";
+  const { pad } = setupMetrics(width, height);
+  const maxColumn = wide ? 1200 : 640;
+  const column = Math.min(width - pad * 2, maxColumn);
+  return wide ? Math.min(DETAIL_WIDTH_MAX, Math.max(DETAIL_WIDTH_MIN, column * 0.26)) : column;
 }
 
 export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): ScenarioSelectLayout {
@@ -89,7 +108,7 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
   const column = Math.min(width - pad * 2, maxColumn);
   const left = (width - column) / 2;
 
-  const detailWidth = wide ? Math.min(DETAIL_WIDTH_MAX, Math.max(DETAIL_WIDTH_MIN, column * 0.26)) : column;
+  const detailWidth = detailPanelWidthFor(width, height);
   const shelvesWidth = wide ? column - gap - detailWidth : column;
 
   const bodyTop = HEADER_HEIGHT + pad;
@@ -102,20 +121,22 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
   y += chipsHeight + smallGap;
 
   const detailHeight = wide ? bodyBottom - bodyTop : Math.max(DETAIL_LINE_HEIGHT, input.detailLines * DETAIL_LINE_HEIGHT) + 16;
+  const statStripRows: 1 | 2 = wide ? 1 : 2;
+  const statStripHeight = STAT_STRIP_HEIGHT * statStripRows;
 
   if (wide) {
-    const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, bodyBottom - y - gap - STAT_STRIP_HEIGHT);
+    const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, bodyBottom - y - gap - statStripHeight);
     const shelves: Rect = { x: left, y, width: shelvesWidth, height: shelvesHeight };
-    const statStrip: Rect = { x: left, y: shelves.y + shelves.height + gap, width: shelvesWidth, height: STAT_STRIP_HEIGHT };
+    const statStrip: Rect = { x: left, y: shelves.y + shelves.height + gap, width: shelvesWidth, height: statStripHeight };
     const detail: Rect = { x: left + shelvesWidth + gap, y: bodyTop, width: detailWidth, height: detailHeight };
     const next: Rect = { x: detail.x + 12, y: detail.y + detail.height - 12 - hit.primary, width: detail.width - 24, height: hit.primary };
-    return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, detail, next };
+    return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail, next };
   }
 
   const next: Rect = { x: left, y: bodyBottom - hit.primary, width: column, height: hit.primary };
   const detail: Rect = { x: left, y: next.y - gap - detailHeight, width: column, height: detailHeight };
-  const statStrip: Rect = { x: left, y: detail.y - gap - STAT_STRIP_HEIGHT, width: column, height: STAT_STRIP_HEIGHT };
+  const statStrip: Rect = { x: left, y: detail.y - gap - statStripHeight, width: column, height: statStripHeight };
   const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, statStrip.y - gap - y);
   const shelves: Rect = { x: left, y, width: shelvesWidth, height: shelvesHeight };
-  return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, detail, next };
+  return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail, next };
 }

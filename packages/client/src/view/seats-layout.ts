@@ -78,6 +78,21 @@ export function seatsLayoutRects(layout: SeatsLayout): readonly Rect[] {
   return [layout.back, layout.step, ...layout.seatSlots, layout.usePreconstructed, layout.search, layout.chips, layout.shelves, layout.detail];
 }
 
+/**
+ * The detail panel's own width, exposed so a caller can measure its hero-detail text's *real* wrapped line count
+ * against this exact width before calling `seatsLayout` — see `view/scenario-select-layout.ts`'s own
+ * `detailPanelWidthFor` (the identical fix, needed for the identical reason: a long obligation/nemesis-set name
+ * clipping against the ~300px side panel, 2026-09-18 fidelity pass).
+ */
+export function detailPanelWidthFor(width: number, height: number): number {
+  const formFactor = formFactorFor(width, height);
+  const wide = formFactor === "desktop" || formFactor === "tabletLandscape";
+  const { pad } = setupMetrics(width, height);
+  const maxColumn = wide ? 1200 : 640;
+  const column = Math.min(width - pad * 2, maxColumn);
+  return wide ? Math.min(DETAIL_WIDTH_MAX, Math.max(DETAIL_WIDTH_MIN, column * 0.26)) : column;
+}
+
 export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   const { width, height } = input;
   const formFactor = formFactorFor(width, height);
@@ -95,7 +110,7 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   const column = Math.min(width - pad * 2, maxColumn);
   const left = (width - column) / 2;
 
-  const detailWidth = wide ? Math.min(DETAIL_WIDTH_MAX, Math.max(DETAIL_WIDTH_MIN, column * 0.26)) : column;
+  const detailWidth = detailPanelWidthFor(width, height);
   const shelvesWidth = wide ? column - gap - detailWidth : column;
 
   const bodyTop = HEADER_HEIGHT + pad;

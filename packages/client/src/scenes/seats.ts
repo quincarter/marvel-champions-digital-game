@@ -40,7 +40,8 @@ import {
   type SetupDraft,
 } from "../view/setup-draft.js";
 import { seatsFocusOrder } from "../view/screen-focus.js";
-import { seatsLayout, MAX_SEATS } from "../view/seats-layout.js";
+import { seatsLayout, detailPanelWidthFor, MAX_SEATS } from "../view/seats-layout.js";
+import { estimateWrappedLines } from "../view/layout.js";
 import { drawChipStrip, drawSearchField, drawShelfRosterPanel, renderShelfCard, renderShelfHeader } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -56,6 +57,10 @@ export interface SeatsData {
 }
 
 const CARD_METRICS = { cardWidth: 140, cardHeight: 200, cardGap: 10, headerHeight: 24, headerToCardsGap: 6, shelfGap: 16 };
+/** Matches `scenes/scenario-select.ts`'s own constants — the identical wrapped-detail-line fix. */
+const DETAIL_CHAR_WIDTH = 5.4;
+const DETAIL_LINE_PX = 15;
+const DETAIL_TEXT_PAD = 24;
 
 /**
  * "Deck check ▸" opens W1's Deck check over the **active seat's own deck** (docs/phase4-screen-gaps.md §3 W1:
@@ -161,8 +166,10 @@ export class SeatsScene extends Phaser.Scene {
     const activeDeckId = this.#draft.seats[this.#draft.activeSeatIndex];
     const detailOption = activeDeckId ? deckOptions.find((o) => (o.deck.id as string) === activeDeckId) : undefined;
     const detailLines = detailOption ? this.#detailLinesFor(detailOption) : ["Select a hero for this seat below."];
+    const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
+    const detailWrappedLines = detailLines.reduce((sum, line) => sum + estimateWrappedLines(line, detailTextWidth, DETAIL_CHAR_WIDTH), 0);
 
-    const layout = seatsLayout({ width, height, chipRows: wrapChipsToRows(chipDefs, width).length, detailLines: detailLines.length });
+    const layout = seatsLayout({ width, height, chipRows: wrapChipsToRows(chipDefs, width).length, detailLines: detailWrappedLines });
     const chipRows = wrapChipsToRows(chipDefs, layout.chips.width);
 
     // Ground: paper body under the same full-width ink header bar Scenario select uses.
@@ -262,11 +269,15 @@ export class SeatsScene extends Phaser.Scene {
       stops: this.#stops,
     });
 
-    // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick.
+    // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick. Each line wraps to
+    // its own width and the cursor advances by its real wrapped height (a long obligation/nemesis-set name should
+    // push the next line down, not run under it).
     this.add.rectangle(layout.detail.x, layout.detail.y, layout.detail.width, layout.detail.height, surface.ink.hex).setOrigin(0, 0);
-    detailLines.forEach((line, index) => {
-      this.add.text(layout.detail.x + 12, layout.detail.y + 8 + index * 20, line, textStyle(typeRole.body, surface.paper.hex));
-    });
+    let detailCursorY = layout.detail.y + 8;
+    for (const line of detailLines) {
+      this.add.text(layout.detail.x + 12, detailCursorY, line, textStyle(typeRole.body, surface.paper.hex)).setWordWrapWidth(detailTextWidth);
+      detailCursorY += estimateWrappedLines(line, detailTextWidth, DETAIL_CHAR_WIDTH) * DETAIL_LINE_PX;
+    }
 
     // The two actions at the panel's own foot (D03/P03): a quiet "Play N heroes ▸" straight to Table setup, and
     // the primary "Deck check ▸" for the active seat's own deck.
