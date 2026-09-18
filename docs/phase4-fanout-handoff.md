@@ -4,7 +4,22 @@ Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps
 
 ## Integration branch
 
-`feature/phase4-screen-gaps`, branched from `main` at `076cf85`, checked out in the main repo directory. Baseline there was green: content 268, engine 507, cards 441, client 554 tests; `pnpm typecheck` clean. Everything below merges into this branch. Nothing has been pushed and no PR is open.
+**`feature/native-packaging`** (as of 2026-09-18), checked out in the main repo directory and open as PR #4 against `main`. It is `feature/phase4-screen-gaps` plus the Phase 8 native-packaging work (Tauri + Capacitor) — the two were developed on one branch by accident and are staying together. Everything below merges into it. `feature/phase4-screen-gaps` is an ancestor and can be ignored.
+
+Local commits not yet pushed to the PR (2026-09-18): `158126c` (card art bundled at build time; the Rust `cardart://` protocol and the runtime resolver removed) and `b689ba1` (`art/` reorganised by convention; outcome art on Game Over's tall layout).
+
+## State on 2026-09-18, after a second usage-limit cut-off
+
+A new session cannot message the old agents — `SendMessage` fails with "No transcript found" across sessions — so interrupted work is continued by a **fresh agent pointed at the existing worktree**, briefed on what is already uncommitted there (step 3 below). Launched that way on 2026-09-18, each told to `git merge feature/native-packaging` before committing:
+
+| Workstream | Worktree | State when relaunched |
+|---|---|---|
+| **W5** Targeting panel | `.claude/worktrees/agent-a79c9a010099fa40d` | 11 files uncommitted; was at its final phone screenshot |
+| **W7** Villain phase breakdown | `.claude/worktrees/agent-a604b8b968959cb52` | 15 files uncommitted; was finishing tablet-portrait/phone checks. Touches `packages/engine/src/index.ts` — should be an added export only |
+| **W1+W4 fidelity pass** | `.claude/worktrees/agent-ad47bbda9045a2306` | ~18 files uncommitted; restructuring done, **no visual comparison yet** |
+| **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | Nothing written. **Not relaunched yet** — held until one of the above lands, since five concurrent agents hit the limit twice |
+
+Still to launch after those: **W3**, **W8**, then the `rules-qa-engineer` pass over S5.11.
 
 ## Wave 1 (launched 2026-09-17)
 
