@@ -17,6 +17,16 @@
  * `costCurveBars`, `deckListGroupsOf`) — this scene only draws what that
  * module already computed, the same "client renders, never computes" rule
  * `deck-builder.ts` follows for legality.
+ *
+ * **Fidelity pass (2026-09-17), against P04.** The header is now a full-bleed
+ * ink title bar (it was plain text on the page's own paper ground before —
+ * every other screen's header in this app is a dark bar), and each Cards-tab
+ * row now draws the colored cost badge P04's own rows draw
+ * (`ui/deck-stats-widgets.ts`'s `cardTypeBadgeColor` — see that function's own
+ * comment for the one-color-per-broad-type simplification it makes, and why).
+ * `view/deck-check-layout.ts` itself didn't need to change: P04's shape —
+ * header / tabs / scrolling content / footer, one column at every size — was
+ * already right.
  */
 import Phaser from "phaser";
 import type { Deck } from "@mc/content";
@@ -30,7 +40,7 @@ import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
-import { compositionTileDefs, drawCompositionTiles, drawCostCurveBars } from "../ui/deck-stats-widgets.js";
+import { cardTypeBadgeColor, compositionTileDefs, drawCompositionTiles, drawCostCurveBars } from "../ui/deck-stats-widgets.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import { SCENES, type SceneKey } from "./keys.js";
@@ -121,7 +131,11 @@ export class DeckCheckScene extends Phaser.Scene {
     const stats = deckStatsOf(this.#deck, POOL_CARDS);
     const groups = deckListGroupsOf(this.#deck, POOL_CARDS);
 
-    // Header: Back, and the deck's own name and count.
+    // Header: a full-bleed ink bar (P04/D04 both draw the deck name on a dark
+    // title bar, not on the page's own paper ground), Back and the deck's own
+    // name and count in it.
+    const headerBar = this.add.graphics();
+    headerBar.fillStyle(surface.ink.hex, 1).fillRect(0, layout.header.y, width, layout.header.height);
     const backRect: Rect = { x: layout.header.x, y: layout.header.y, width: 90, height: layout.header.height };
     const goBack = (): void => {
       this.scene.start(this.#returnTo.scene, this.#returnTo.data);
@@ -132,7 +146,7 @@ export class DeckCheckScene extends Phaser.Scene {
       backRect.x + backRect.width + 12,
       layout.header.y + layout.header.height / 2,
       `${this.#deck.name} · ${stats.totalCards}`,
-      textStyle(typeRole.barTitle, surface.ink.hex),
+      textStyle(typeRole.barTitle, surface.paper.hex),
     );
     title.setOrigin(0, 0.5).setLetterSpacing(typeRole.barTitle.letterSpacing);
     fitText(title, layout.header.width - backRect.width - 24);
@@ -247,9 +261,25 @@ export class DeckCheckScene extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, inner, "card", "rest");
     objects.push(g);
-    const name = this.add.text(inner.x + 10, inner.y + inner.height / 2, row.entry.name, textStyle(typeRole.body, surface.ink.hex));
+
+    // The colored cost badge P04's own card rows draw (`ui/deck-stats-widgets.ts`'s
+    // `cardTypeBadgeColor` — a resource card has no printed cost, so it draws
+    // blank rather than "null").
+    const badgeSize = inner.height - 10;
+    const badgeRect: Rect = { x: inner.x + 5, y: inner.y + 5, width: badgeSize, height: badgeSize };
+    const badge = this.add.graphics();
+    badge.fillStyle(cardTypeBadgeColor(row.entry.type), 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
+    objects.push(badge);
+    if (row.entry.cost !== null) {
+      const costText = label(this, badgeRect.x + badgeRect.width / 2, badgeRect.y + badgeRect.height / 2, String(row.entry.cost), typeRole.rowTitle, surface.paper.hex);
+      costText.setOrigin(0.5);
+      objects.push(costText);
+    }
+
+    const nameLeft = badgeRect.x + badgeRect.width + 10;
+    const name = this.add.text(nameLeft, inner.y + inner.height / 2, row.entry.name, textStyle(typeRole.body, surface.ink.hex));
     name.setOrigin(0, 0.5);
-    fitText(name, inner.width - 60);
+    fitText(name, inner.width - (nameLeft - inner.x) - 50);
     objects.push(name);
     const qty = label(this, inner.x + inner.width - 14, inner.y + inner.height / 2, `×${row.entry.quantity}`, typeRole.rowTitle, surface.ink.hex, ink.secondary);
     qty.setOrigin(1, 0.5);

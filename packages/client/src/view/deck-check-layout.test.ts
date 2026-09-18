@@ -2,11 +2,14 @@ import { describe, expect, test } from "vitest";
 import { rectsOverlap } from "./title-layout.js";
 import { deckCheckLayout, deckCheckLayoutRects } from "./deck-check-layout.js";
 
-/** docs/phase4-screen-gaps.md §0/§3: checked at portrait phone (~440×900), 800×600 and desktop sizes. */
+/** docs/phase4-screen-gaps.md §0/§5: phone, tablet portrait/landscape and desktop, plus the legacy sizes this layout was already checked at. */
 const VIEWPORTS = [
   { name: "375×812", width: 375, height: 812 },
-  { name: "portrait phone", width: 440, height: 900 },
+  { name: "phone (390×844)", width: 390, height: 844 },
+  { name: "portrait phone (legacy)", width: 440, height: 900 },
   { name: "800×600", width: 800, height: 600 },
+  { name: "tablet portrait (768×1024)", width: 768, height: 1024 },
+  { name: "tablet landscape (1024×768)", width: 1024, height: 768 },
   { name: "desktop", width: 1440, height: 900 },
 ];
 

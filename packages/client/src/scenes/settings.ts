@@ -1,13 +1,22 @@
 /**
  * Settings (docs/phase4-screen-gaps.md §3 "W4"; design canvases D13, P16, L07).
  *
+ * **Composition (fidelity pass, 2026-09-17).** The canvases never draw Settings
+ * as its own full screen — D13/P16/L07 show its rows inline, under a "TABLE"
+ * heading, inside Pause (`scenes/pause.ts` now draws that same group directly).
+ * This overlay is the *standalone* door to the identical rows for a caller with
+ * no paused game to attach them to (Title, once W2 lands its entry) — same ink
+ * title bar with a boxed ✕, same row shape (title, one-line detail, a toggle
+ * on the right) as Pause's own "Table" column, both built from one shared,
+ * tested row list (`view/settings-rows.ts`) so the wording can never drift
+ * between the two places it's drawn.
+ *
  * **Entry point.** `scene.launch(SCENES.settings)` from whatever scene wants it
- * — Pause launches it this way already (`scenes/pause.ts`). Title's own rewrite
- * (W2, a parallel worktree) should do the same from its menu: this file and
- * `SCENES.settings` are registered and ready; nothing in `scenes/title.ts`
- * needed to change for that. `#back` always just `this.scene.stop()`s this
- * overlay, so it returns to whichever scene launched it — Board-under-Pause or
- * Title, without this scene needing to know or care which.
+ * — Pause still offers it too, alongside its own inline Table group, as a way to
+ * reach the same rows full-screen. Title's own rewrite (W2, a parallel worktree)
+ * should launch it the same way. `#back`/the ✕ always just `this.scene.stop()`s
+ * this overlay, so it returns to whichever scene launched it without needing to
+ * know or care which.
  *
  * Every setting here is a client-only presentation preference
  * (`settings.ts`'s own doc comment: "nothing here reaches the engine"), read
@@ -16,9 +25,10 @@
  * them does.
  */
 import Phaser from "phaser";
-import { SHARP_TEXT_RESOLUTION_CEILING } from "../settings.js";
+import { setTextResolution } from "../ui/theme.js";
+import { nextSettingsAfterToggle, settingsRowInfoOf, type SettingsRowInfo } from "../view/settings-rows.js";
 import { ink, surface, typeRole } from "../tokens.js";
-import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
+import { caseOf, textStyle } from "../ui/theme.js";
 import { McButton, label } from "../ui/widgets.js";
 import { settingsLayout } from "../view/settings-layout.js";
 import { settingsFocusOrder } from "../view/screen-focus.js";
@@ -26,15 +36,6 @@ import type { Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
-
-interface ToggleRow {
-  readonly id: string;
-  readonly title: string;
-  readonly detail: string;
-  readonly on: boolean;
-  readonly unavailable?: string;
-  readonly toggle: () => void;
-}
 
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -56,51 +57,13 @@ export class SettingsOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  #rows(): readonly ToggleRow[] {
+  #toggle(row: SettingsRowInfo): void {
+    if (row.id === "sound") return; // Drawn unavailable; nothing to toggle.
     const { settings } = appSession();
-    const sharpResolution = Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, globalThis.devicePixelRatio || 1));
-    return [
-      {
-        id: "reduced-motion",
-        title: "Reduced motion",
-        detail: "Skip travel animation and auto-advancing reveals; beats and state changes still appear, just without the motion.",
-        on: settings.reducedMotion,
-        toggle: () => {
-          appSession().settings = { ...settings, reducedMotion: !settings.reducedMotion };
-          this.#draw();
-        },
-      },
-      {
-        id: "sharper-text",
-        title: "Sharper text",
-        detail: "Renders text at the screen's own pixel density. Off trades a little crispness for less texture memory.",
-        on: settings.textResolution > 1,
-        toggle: () => {
-          const next = settings.textResolution > 1 ? 1 : sharpResolution;
-          setTextResolution(next);
-          appSession().settings = { ...settings, textResolution: next };
-          this.#draw();
-        },
-      },
-      {
-        id: "large-card-text",
-        title: "Large card text",
-        detail: "Reads a card's full rules text larger in the Inspect sheet — the screen whose whole job is reading a card closely.",
-        on: settings.largeCardText,
-        toggle: () => {
-          appSession().settings = { ...settings, largeCardText: !settings.largeCardText };
-          this.#draw();
-        },
-      },
-      {
-        id: "sound",
-        title: "Sound",
-        detail: "Not built yet.",
-        on: false,
-        unavailable: "Sound isn't built yet (PLAN.md Phase 8).",
-        toggle: () => undefined,
-      },
-    ];
+    const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
+    if (row.id === "sharper-text") setTextResolution(next.textResolution);
+    appSession().settings = next;
+    this.#draw();
   }
 
   #draw(): void {
@@ -109,27 +72,31 @@ export class SettingsOverlay extends Phaser.Scene {
     this.children.removeAll(true);
 
     const { width, height } = this.scale.gameSize;
-    const rows = this.#rows();
+    const rows = settingsRowInfoOf(appSession().settings);
     const layout = settingsLayout({ x: 0, y: 0, width, height }, rows.length);
 
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.void.hex, 0.55).fillRect(0, 0, width, height);
+    scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
     const panel = this.add.graphics();
     panel.fillStyle(surface.ink.hex, 1).fillRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
     panel.lineStyle(4, surface.paper.hex, 1).strokeRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
+    const rule = this.add.graphics();
+    rule.fillStyle(surface.paper.hex, 0.4).fillRect(layout.header.x, layout.header.y + layout.header.height - 2, layout.header.width, 2);
 
     const stops = new Map<string, FocusStop>();
-    const backRect: Rect = { x: layout.header.x + 12, y: layout.header.y + 10, width: 90, height: 32 };
-    this.#buttons.push(new McButton(this, { kind: "quiet", label: "◂ Back", type: typeRole.label, rect: backRect, onClick: () => this.scene.stop() }));
-    stops.set("back", { rect: backRect, activate: () => this.scene.stop() });
-    this.add.text(backRect.x + backRect.width + 12, layout.header.y + 12, caseOf(typeRole.barTitle, "Settings"), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "22px" });
+    const closeSize = 32;
+    const closeRect: Rect = { x: layout.header.x + layout.header.width - closeSize - 16, y: layout.header.y + (layout.header.height - closeSize) / 2, width: closeSize, height: closeSize };
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: "✕", type: typeRole.rowTitle, rect: closeRect, onClick: () => this.scene.stop() }));
+    stops.set("back", { rect: closeRect, activate: () => this.scene.stop() });
+    this.add.text(layout.header.x + 16, layout.header.y + layout.header.height / 2, caseOf(typeRole.barTitle, "Settings"), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "24px" }).setOrigin(0, 0.5);
 
+    label(this, layout.tableHeading.x, layout.tableHeading.y, "Table", typeRole.label, surface.paper.hex, ink.secondary);
     rows.forEach((row, index) => this.#drawRow(layout.rows[index]!, row, stops));
 
     this.#route?.set(settingsFocusOrder(rows.map((row) => row.id)), stops);
   }
 
-  #drawRow(rect: Rect, row: ToggleRow, stops: Map<string, FocusStop>): void {
+  #drawRow(rect: Rect, row: SettingsRowInfo, stops: Map<string, FocusStop>): void {
     label(this, rect.x, rect.y + 2, row.title, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(12);
     this.add
       .text(rect.x, rect.y + 20, row.unavailable ?? row.detail, textStyle(typeRole.body, surface.paper.hex, row.unavailable ? 0.55 : 0.8))
@@ -137,6 +104,7 @@ export class SettingsOverlay extends Phaser.Scene {
       .setWordWrapWidth(rect.width - 100);
 
     const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y, width: 84, height: 32 };
+    const activate = (): void => this.#toggle(row);
     this.#buttons.push(
       new McButton(this, {
         kind: row.on ? "secondary" : "quiet",
@@ -146,9 +114,9 @@ export class SettingsOverlay extends Phaser.Scene {
         enabled: row.unavailable === undefined,
         ...(row.unavailable ? { reason: row.unavailable } : {}),
         selected: row.on,
-        onClick: row.toggle,
+        onClick: activate,
       }),
     );
-    stops.set(`row:${row.id}`, { rect, activate: row.toggle });
+    stops.set(`row:${row.id}`, { rect, activate });
   }
 }

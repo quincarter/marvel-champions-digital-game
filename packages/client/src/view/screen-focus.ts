@@ -173,21 +173,28 @@ export function villainPhaseFocusOrder(finished: boolean): readonly string[] {
 }
 
 /**
- * Pause (docs/phase4-screen-gaps.md §3 "W4"): Resume first (the control a
- * player pressing Escape almost always wants), then Save & quit, Rules
- * reference, Settings, then every visible "jump to a moment" row (empty until
- * S7's read-only board lands — see `scenes/pause.ts`), then Concede last. When
- * the concede confirm is open, its own two controls replace the single
- * Concede stop so Enter can't fire the real button by accident mid-confirm.
+ * Pause (docs/phase4-screen-gaps.md §3 "W4"; fidelity pass 2026-09-17, matching
+ * D13/P16/L07's overlay sheet): the boxed ✕ first (top of the title bar, reads
+ * before anything else), then the search field, the "Quick reference" rows
+ * (Villain phase order / Keyword glossary / Scenario card list / Jump into the
+ * log — the last dashed-unavailable until S7's read-only board lands), then the
+ * "Table" rows (the same shared list `scenes/settings.ts` draws), then the
+ * footer's three buttons in the order the sheet draws them left to right —
+ * Save & quit, Concede, Resume. When the concede confirm is open, its own two
+ * controls replace those three so Enter can't fire Resume or a stray Concede
+ * tap by accident mid-confirm.
  */
-export function pauseFocusOrder(input: { readonly momentIds: readonly string[]; readonly confirmingConcede: boolean }): readonly string[] {
+export function pauseFocusOrder(input: {
+  readonly quickReferenceIds: readonly string[];
+  readonly tableRowIds: readonly string[];
+  readonly confirmingConcede: boolean;
+}): readonly string[] {
   return [
-    "resume",
-    "save-quit",
-    "rules",
-    "settings",
-    ...input.momentIds.map((id) => `moment:${id}`),
-    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
+    "close",
+    "search",
+    ...input.quickReferenceIds.map((id) => `quick:${id}`),
+    ...input.tableRowIds.map((id) => `table:${id}`),
+    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["save-quit", "concede", "resume"]),
   ];
 }
 
