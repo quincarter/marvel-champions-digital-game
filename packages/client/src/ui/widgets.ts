@@ -719,6 +719,23 @@ export class McTextInput {
      */
     this.#input.setOrigin(0, 0);
 
+    /**
+     * A DOM element is not in the canvas, so it is not under anything drawn
+     * there: Phaser's DOM container sits over the whole canvas, and an overlay
+     * scene launched on top of this one covered everything *except* this field
+     * — Pause's search box showed through the Rules reference. So the field
+     * hides itself while any scene is running above its own, and comes back
+     * when that scene closes.
+     */
+    const syncCovered = (): void => {
+      const running = scene.scene.manager.getScenes(true);
+      const covered = running.indexOf(scene) < running.length - 1;
+      if (this.#input.visible === covered) this.#input.setVisible(!covered);
+      if (covered && this.#input.isFocused) this.#input.setBlur();
+    };
+    scene.events.on("update", syncCovered);
+    this.#input.once("destroy", () => scene.events.off("update", syncCovered));
+
     this.#input.on("textchange", () => {
       const raw = this.#input.text;
       const filtered = this.#numeric ? raw.replace(/[^0-9]/g, "") : raw;
