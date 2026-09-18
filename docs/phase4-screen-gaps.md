@@ -44,7 +44,7 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 | D12, P10, P11, P17, L08 | Game over | ✅ | Wide and tall layouts, stats, turning points, seats, MVP, both rematches. | W8 |
 | D13, P16, L07 | Pause & Rules | ❌ | Nothing. The board has no menu button. | W4 |
 | — (P16, L07, D01) | Settings | ❌ | `settings.ts` holds `reducedMotion` and `textResolution`; no screen shows them. | W4 |
-| D14 | Decks & Collection | ⚠️ | `scenes/decks.ts` works (select, stats, record, duplicate/export/play, import), but draws search + chips + list rows with the import boxes stacked beneath. D14's Bangers deck cards, card-pool grid, Import/Export box and rail foot are not built. Reopened 2026-09-18 as W9b. | W1, W9, W9b |
+| D14 | Decks & Collection | ✅ | `scenes/decks.ts` rebuilt to D14's three columns (W9b): Bangers deck cards, card-pool grid with real scans, ink stats rail ending in Duplicate + "Play this deck ▸". Verified by the main session with real clicks. Not built: a hover ring on pool cells; deck note and owned-card tracking stay skipped per §4. | W9b |
 | D01 | Campaign | ⛔ | Drawn locked in the mocks. Out of scope (PLAN.md Phase 4). | — |
 
 `SCENES.setup` is Table setup; `SCENES.scenarioSelect` and `SCENES.seats` are the two steps before it.
@@ -444,6 +444,8 @@ Already there: `scenes/decks.ts`, `view/deck-list-model.ts`, `view/deck-status.t
 - **Process lesson, applies to every screen workstream:** agents had been verifying by driving the app programmatically, which cannot catch a missing pointer path. Interactions must be exercised with real pointer events (`Input.dispatchMouseEvent` over CDP), and the main session clicks through a screen itself before merging or ticking it.
 
 Depends on: S1, S4.
+
+**W9b landed (2026-09-18, two passes against the D14 tile).** `scenes/decks.ts`, `view/decks-layout.ts`, new `view/deck-pool-grid.ts`. Three columns on desktop (≥1280px); phone and both tablet orientations use a Decks / Cards / Stats tab strip. The deck list owns its column (filters collapse behind a toggle, Import/Export is a compact accordion pinned at the bottom). `view/chip-layout.ts`'s width estimate now counts label letter-spacing, which was the cause of the truncated aspect chips. Every deck row and pool cell has `onRowActivate`. The main session clicked through it at 1440×900: deck selection drives the stats rail and the pool's aspect chip, a pool card opens Inspect, and Check, Duplicate and Play this deck respond.
 
 ## 4. Decisions to settle
 

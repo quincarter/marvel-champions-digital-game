@@ -151,7 +151,12 @@ function cardTitleOf(option: DeckOption): string {
 function deckMetaLine(option: DeckOption): string {
   const stats = deckStatsOf(option.deck, POOL_CARDS);
   const status = deckStatusOf(option).text.toLowerCase();
-  if (option.deck.source.kind === "precon") return `${option.deck.name} · ${stats.totalCards} cards · ${status}`;
+  if (option.deck.source.kind === "precon") {
+    // The title already says hero and aspect; keep only what the printed name adds ("Core Set starter deck"),
+    // so the count and legality always fit on the one line D14 gives them.
+    const product = option.deck.name.includes("—") ? option.deck.name.slice(option.deck.name.indexOf("—") + 1).trim() : option.deck.name;
+    return `${product} · ${stats.totalCards} cards · ${status}`;
+  }
   return `${option.identityName ?? "unknown identity"} · ${stats.totalCards} cards · ${status} · ${SOURCE_LABEL[option.deck.source.kind].toLowerCase()}`;
 }
 
@@ -698,7 +703,10 @@ export class DecksScene extends Phaser.Scene {
     const name = this.add.text(card.x + 10, card.y + 8, caseOf(CARD_TITLE_TYPE, cardTitleOf(option)), textStyle(CARD_TITLE_TYPE, titleColor)).setLetterSpacing(CARD_TITLE_TYPE.letterSpacing);
     fitText(name, card.width - 20, CARD_TITLE_TYPE.size);
     objects.push(name);
-    objects.push(this.add.text(card.x + 10, card.y + 8 + name.height + 3, deckMetaLine(option), textStyle(typeRole.label, metaColor, metaAlpha)).setWordWrapWidth(card.width - 20));
+    const meta = this.add.text(card.x + 10, card.y + 8 + name.height + 3, deckMetaLine(option), textStyle(typeRole.label, metaColor, metaAlpha));
+    // One line, shrunk or clipped to fit: a wrapped meta line ran into the selected card's record line.
+    fitText(meta, card.width - 20, typeRole.label.size);
+    objects.push(meta);
 
     // Only the *selected* row shows its record (D14's own placement, `#s14`: the "Last played · record" line sits
     // inside the deck row, not the stats rail).
@@ -742,7 +750,7 @@ export class DecksScene extends Phaser.Scene {
     const exportRect: Rect = { x: left + (buttonWidth + buttonGap) * 2, y, width: buttonWidth, height: COMPACT_ROW };
     this.#buttons.push(new McButton(this, { kind: "secondary", label: "Paste", type: typeRole.label, rect: pasteToggleRect, selected: this.#importExportOpen === "paste", onClick: () => toggle("paste") }));
     this.#stops.set("ie-paste-toggle", { rect: pasteToggleRect, activate: () => toggle("paste") });
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "MarvelCDB", type: typeRole.label, rect: mcdbToggleRect, selected: this.#importExportOpen === "marvelcdb", onClick: () => toggle("marvelcdb") }));
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: "CDB link", type: typeRole.label, rect: mcdbToggleRect, selected: this.#importExportOpen === "marvelcdb", onClick: () => toggle("marvelcdb") }));
     this.#stops.set("ie-marvelcdb-toggle", { rect: mcdbToggleRect, activate: () => toggle("marvelcdb") });
     const doExport = (): void => {
       if (selected) this.#exportToClipboard(selected.deck);
@@ -964,7 +972,8 @@ export class DecksScene extends Phaser.Scene {
       const caption = entry !== null ? `${typeLabel} · ${inDeckQuantity} of ${entry} in deck` : typeLabel;
       // `label()` (not a bare `this.add.text`) so `typeRole.label`'s own uppercase rule actually applies —
       // "EVENT · 2 OF 3 IN DECK", not the lowercase caption this cell used to draw (2026-09-18 fidelity pass, point 4).
-      objects.push(label(this, cardRect.x + 8, ruleY + 6 + name.height + 3, caption, typeRole.label, surface.ink.hex, ink.meta));
+      // Wrapped inside the cell, as D14 draws it; unwrapped it ran under the next card.
+      objects.push(label(this, cardRect.x + 8, ruleY + 6 + name.height + 3, caption, typeRole.label, surface.ink.hex, ink.meta).setWordWrapWidth(cardRect.width - 16));
     }
     return { objects };
   }
