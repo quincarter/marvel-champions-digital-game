@@ -22,6 +22,7 @@ Inventory taken 2026-09-13 against `feature/phase7-8-9`.
 - **Hidden information stays hidden.** Previews and advice must use only what the deciding player may see (`view/visibility.ts`). A facedown boost card is a range, never a peeked value.
 - **"Seat · AI" is "Seat · you"** (PLAN.md Phase 4, hero seats). Hero AI is Phase 8 backlog.
 - New view models are plain TypeScript with Vitest tests, and scenes stay thin (PLAN.md Phase 4).
+- **Match the canvases' look, not just their parts (added 2026-09-17).** Every screen workstream reads the rendered canvases for its screens (all three form factors) before building and finishes with side-by-side screenshots — [design-reference.md](design-reference.md) has the renders, a tile index and the procedure. The tokens and `Mc*` widgets already exist; what has been missing is each screen's composition (grounds, split, hierarchy, density).
 
 ## 1. Inventory
 

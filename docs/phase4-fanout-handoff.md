@@ -24,6 +24,17 @@ The worktree agents were told **not** to edit `docs/phase4-screen-gaps.md`; each
 2. In that worktree: `pnpm install` if needed, then `pnpm typecheck && pnpm test`. If green, commit what's there and treat the workstream as partly landed; compare against its checklist in `phase4-screen-gaps.md` §3 (or S5.10 for the engine).
 3. Start a fresh agent of the same type on the remainder, pointed at the same worktree path (not a new worktree), with the same rules: don't edit the gaps doc, commit on the worktree branch, don't push.
 
+## Design fidelity (added 2026-09-17, after the first wave was cut off)
+
+The user flagged that the built screens carry the fonts and componentry from the canvases but not their look and feel. Cause: no agent could *see* the `.dc.html` canvases. Fix: `scripts/render-design-canvases.sh` → `docs/design-renders/` (gitignored, regenerate per checkout) and the procedure in `docs/design-reference.md`. Every remaining and resumed workstream is briefed with it. **W1 and W4 landed before this existed and each owes a fidelity pass** (their screens vs. D04/P04/D14 and D13/P16/L07) — schedule those as follow-ups after their merges, before wave 2.
+
+## Status after the usage-limit cut-off (2026-09-17 evening)
+
+- **S5**: steps 1–4 committed, step 5 uncommitted mid-tests, step 6 not started. Resumed by message with the same brief.
+- **W4**: fully committed (`54d7516`), report lost — its commit message is the report. Concede dispatch is isolated behind `PauseOverlay#dispatchConcede`; Settings is its own scene/key; the replay board was assessed as not safely landable and the "jump to a moment" list is drawn unavailable.
+- **W2**: uncommitted, mid-write (`scenes/table-setup.ts` has two undefined names: `CARDS_BY_ID_ARRAY`, `DEFAULT_DEPS_PLACEHOLDER`); client tests 647 green, typecheck fails only there. Resumed by message with the design-fidelity brief.
+- **W9**: worktree created and W1 merged in, no work yet. Restarted with the design-fidelity brief.
+
 ## Merge plan
 
 Order: **W1** (commit the working tree on the integration branch first) → **S5** → **W4** → **W2**. Expected conflicts are small and additive: `scenes/keys.ts`, `view/screen-focus.ts` (+ test), `main.ts` (scene registration), `content/pool.ts` (both W2 and W4 touch it).
