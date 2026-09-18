@@ -14,11 +14,13 @@ W2b, W9b and W3 all died at a usage limit with their work uncommitted (W9b had w
 
 | Workstream | Worktree | Ports / scratchpad |
 |---|---|---|
-| **W2b** Scenario select + Take your seats (D02/D03, active seat, pack shelves) | `.claude/worktrees/agent-a1b268130fd6da484` | Vite 5193, CDP 9593, `w2b/` |
+| **W2b** Scenario select + Take your seats (D02/D03, active seat, pack shelves) | `.claude/worktrees/agent-a1b268130fd6da484` | **Done and merged 2026-09-18** after three passes (client → 1169); clicked through by the main session |
 | **W9b** Decks & Collection (D14) | `.claude/worktrees/agent-a6bd48ad5d833aade` | **Done and merged 2026-09-18** after a second pass against the D14 tile; clicked through by the main session |
 | **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | **Done and merged 2026-09-18** after a second pass against the D06 tile (client → 1053) |
 
 Also landed on the integration branch from the main session: `e04c10c`, the phone long-press fix (one shared hold gesture, `view/hold-gesture.ts` + `ui/hold-target.ts`). Measuring note for next time: the in-app browser pane throttles to 1 fps when hidden, so time things in headless Chrome over CDP with `--use-angle=metal` and `Input.dispatchTouchEvent` instead.
+
+**Rules reference redesign** (owner request 2026-09-18: full-screen popover with card art) is running in a fresh isolated worktree, ports 5195/9595, scratchpad `rules/`. Known follow-ups seen while clicking: Deck check (D04) is a narrow centred column with blue curve bars; phone Table setup has three red fills.
 
 ## State on 2026-09-18, after a second usage-limit cut-off
 
