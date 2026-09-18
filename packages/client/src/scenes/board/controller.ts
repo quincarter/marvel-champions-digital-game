@@ -9,10 +9,11 @@
 
 import { POOL_DEPS } from "../../content/pool.js";
 import type { AbilityId } from "@mc/content";
-import type { Command, InstanceId, LegalAction, PlayerId } from "@mc/engine";
+import type { Command, GameState, InstanceId, LegalAction, PlayerId } from "@mc/engine";
 import { appSession } from "../../session.js";
 import { abilityLabelOf, abilityShortLabelOf } from "../../view/ability-label.js";
 import type { BoardModel } from "../../view/board-model.js";
+import { characterPanel } from "../../view/board-model.js";
 import {
   beginDiscardChoice,
   discardChoiceView as buildDiscardChoiceView,
@@ -23,6 +24,7 @@ import { focusOrder, type FocusTarget } from "../../view/focus.js";
 import { abilityActionsFor, type BasicAction, type Highlights, type UsableAbilityAction } from "../../view/highlights.js";
 import { cardName, seatIdentityName } from "../../view/names.js";
 import { beginPayment, paymentView, togglePayment, type PaymentView } from "../../view/payment-model.js";
+import { targetingPanelOf, type TargetingPanel, type TargetingSource } from "../../view/targeting-panel.js";
 import { BASIC_TO_KIND, retarget, type Selection } from "./selection.js";
 
 /** What the controller reads from, and asks of, the scene that owns it. */
@@ -50,6 +52,38 @@ function withController(command: Command, controllerId: PlayerId | null): Comman
   if (command.type !== "playCard" || controllerId === null) return command;
   const { controllerId: _example, ...rest } = command;
   return controllerId === command.playerId ? rest : { ...rest, controllerId };
+}
+
+/**
+ * The targeting panel's source (docs/phase4-screen-gaps.md §3 "W5"): "Photon Blast — deal 5 damage to an enemy" for
+ * an ability, or the same shape for a basic action — who's doing it, and its printed stat — plus the card the
+ * tablet inspector rail (L06) shows beside the target list. `abilityLabelOf` already carries a card's own name plus
+ * its printed cost/label (`view/ability-label.ts`); a basic action has no card of its own, so this reads the
+ * attacker's or thwarter's printed ATK/THW off the same `characterPanel` the board's own panels read, and the rail
+ * shows that character's own card instead of a card that doesn't exist.
+ *
+ * Every `ActionRef` kind `BoardController` ever opens target-select mode for — `basicAttack`, `basicThwart`,
+ * `useAbility` — names an instance, so this never falls back to a sourceless label in practice; the fallback exists
+ * only so this stays total over `ActionRef` without a runtime throw if that ever changes.
+ */
+function sourceOf(state: GameState, action: LegalAction): TargetingSource {
+  const { action: ref } = action;
+  if (ref.kind === "basicAttack") {
+    return { label: `${cardName(state, ref.instanceId)} — Attack${statSuffix(state, ref.instanceId, "ATK")}`, name: cardName(state, ref.instanceId), instanceId: ref.instanceId };
+  }
+  if (ref.kind === "basicThwart") {
+    return { label: `${cardName(state, ref.instanceId)} — Thwart${statSuffix(state, ref.instanceId, "THW")}`, name: cardName(state, ref.instanceId), instanceId: ref.instanceId };
+  }
+  if (ref.kind === "useAbility") {
+    return { label: abilityLabelOf(state, ref.instanceId, ref.abilityId, POOL_DEPS), name: cardName(state, ref.instanceId), instanceId: ref.instanceId };
+  }
+  const instanceId = "instanceId" in ref ? ref.instanceId : action.targets[0]!;
+  return { label: "Choose a target", name: cardName(state, instanceId), instanceId };
+}
+
+function statSuffix(state: GameState, instanceId: InstanceId, label: "ATK" | "THW"): string {
+  const value = characterPanel(state, instanceId, POOL_DEPS).stats.find((stat) => stat.label === label)?.value;
+  return value && value !== "—" ? ` ${value}` : "";
 }
 
 export class BoardController {
@@ -132,9 +166,28 @@ export class BoardController {
     return focusOrder({ kind: "idle", hand: model.hand.map((card) => card.instanceId) }, marks);
   }
 
+  /**
+   * The targeting panel (docs/phase4-screen-gaps.md §3 "W5"): each legal target's outcome and why every other card
+   * in play isn't one, or null outside target-select mode. Built fresh on every call rather than cached on the
+   * selection, since a preview must always reflect the state as it is right now (`preview()`'s own doc comment) —
+   * cheap enough to do so, at well under a millisecond per candidate target.
+   */
+  targetingPanel(): TargetingPanel | null {
+    if (this.#selection.kind !== "targeting") return null;
+    const { game } = appSession().store.state;
+    if (!game) return null;
+    const { action } = this.#selection;
+    return targetingPanelOf(game, action, sourceOf(game, action), (target) => retarget(action.example, target), POOL_DEPS);
+  }
+
   /** Acts on the focused target, meaning whatever a tap or a press on it would mean right now. */
   activate(focus: FocusTarget): void {
     if (this.#readOnly) return;
+    // The targeting panel's own "Cancel · Esc" control, reached by tab as well as by Escape.
+    if (focus.kind === "cancel") {
+      this.cancel();
+      return;
+    }
     if (focus.kind === "basic") {
       if (focus.action === "endTurn") void this.dispatchExample("endTurn");
       else this.chooseBasic(focus.action);
