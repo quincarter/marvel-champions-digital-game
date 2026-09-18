@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { REFERENCE_VIEWPORTS } from "./layout.js";
-import { rectsOverlap } from "./title-layout.js";
+import { REFERENCE_VIEWPORTS, rectsOverlap } from "./layout.js";
 import { targetingLayout } from "./targeting-layout.js";
 
 const SIZES = [
