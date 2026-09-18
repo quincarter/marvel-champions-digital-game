@@ -326,6 +326,23 @@ export function label(
   return object;
 }
 
+/**
+ * A section heading with a full-bleed rule filling the rest of its row
+ * ("YOUR DECKS ────", "CARD POOL ────" — D14's own header shape, `Marvel
+ * Champions game screens/Screens - Desktop.dc.html`'s `#s14`: a Bangers label
+ * beside `<span style="flex:1;height:3px;background:#14110E">`). Returns the
+ * next free `y`.
+ */
+export function sectionHeader(scene: Phaser.Scene, x: number, y: number, width: number, text: string, color: number = surface.ink.hex): number {
+  const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setLetterSpacing(typeRole.barTitle.letterSpacing).setFontSize(19);
+  const ruleX = x + heading.width + 10;
+  if (ruleX < x + width) {
+    const rule = scene.add.graphics();
+    rule.fillStyle(color, 1).fillRect(ruleX, y + heading.height / 2 - 1.5, x + width - ruleX, 3);
+  }
+  return y + heading.height + 12;
+}
+
 export interface McTabsOptions {
   readonly rect: Rect;
   readonly tabs: readonly { readonly id: string; readonly label: string; readonly badge?: number }[];

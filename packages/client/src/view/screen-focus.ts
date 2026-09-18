@@ -62,45 +62,55 @@ export function titleFocusOrder(input: TitleFocusInput): readonly string[] {
 export interface DecksFocusInput {
   /** Import by MarvelCDB URL/id is dev/preview-only (PLAN.md Phase 9); paste always shows. */
   readonly showMarvelCdbImport: boolean;
-  /** Every deck row, in list order (headers excluded — they aren't stops) — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
+  /** Every deck row, in list order (group headers and the trailing "+ New deck" tile excluded — see `newDeck` below) — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
   readonly deckIds: readonly string[];
   /** S8's quick-filter chip ids (aspect, source, "Legal only"), between the search field and the list. */
   readonly chipIds: readonly string[];
+  /** W9b/D14: every card in the *selected* deck's own browsable pool, in grid order — not just the ones currently on screen (same "off-screen is still a stop" rule as `deckIds`). Empty with no deck selected. */
+  readonly poolCardIds: readonly string[];
+  /** D14's own pool filter chips (the deck's aspect(s), Basic, Hero, Cost sort), between the pool header and its grid. */
+  readonly poolChipIds: readonly string[];
   /**
-   * W9 (docs/phase4-screen-gaps.md §3): wide two-pane layout reaches the list and the selected deck's stats pane
-   * both, in one route; narrow single-column layout reaches only whichever of "Decks"/"Stats" `activeTab` names —
-   * the same tab-scoped pattern `deckCheckFocusOrder` already uses for its own tabs.
+   * W9b (docs/phase4-screen-gaps.md §3): wide three-pane layout reaches the list, the card pool, and the selected
+   * deck's stats pane, all in one route; narrow single-column layout reaches only whichever of
+   * "Decks"/"Cards"/"Stats" `activeTab` names — the same tab-scoped pattern `deckCheckFocusOrder` already uses for
+   * its own tabs.
    */
   readonly wide: boolean;
-  readonly activeTab: "decks" | "stats";
-  /** Whether a deck is currently selected — with none, the stats pane has no deck to act on and contributes no stops. */
+  readonly activeTab: "decks" | "cards" | "stats";
+  /** Whether a deck is currently selected — with none, the pool grid and the stats pane have nothing to act on and contribute no stops. */
   readonly hasSelection: boolean;
   /** Whether the *selected* deck can be edited/deleted (a saved deck, not a precon). */
   readonly editable: boolean;
 }
 
 /**
- * The Decks screen: Back, then — wide — the search field, its quick-filter chips, every deck row, the paste
- * importer, the MarvelCDB importer (dev only) and New deck, followed by the selected deck's stats-pane actions
- * (Check, Duplicate, Export, Edit/Delete when it's editable, Play this deck ▸); narrow shows the same two groups
- * behind a "Decks"/"Stats" tab strip instead, one group at a time. Moving focus onto a deck row scrolls it into
- * view (`scenes/decks.ts`'s `ensureVisible`), the same way a mouse would have to scroll to it first.
+ * The Decks screen (W9b, D14): Back, then — wide — the search field, its quick-filter chips, every deck row, "+ New
+ * deck", the paste importer, the MarvelCDB importer (dev only) and Export (only once a deck is selected, to export),
+ * then the card pool's own filter chips and every pool card, then the selected deck's stats-pane actions (Check,
+ * Edit/Delete when it's editable, Duplicate, Play this deck ▸). Narrow shows the same three groups behind a
+ * "Decks"/"Cards"/"Stats" tab strip instead, one group at a time. Moving focus onto a deck row or a pool card
+ * scrolls it into view (`scenes/decks.ts`'s `ensureVisible`), the same way a mouse would have to scroll to it first.
  */
 export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
   const listGroup = [
     "deck-search",
     ...input.chipIds.map((id) => `deck-chip:${id}`),
     ...input.deckIds.map((id) => `deck:${id}`),
+    "new-deck",
     "paste-field",
     "paste-import",
     ...(input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
-    "new-deck",
+    ...(input.hasSelection ? ["export-deck"] : []),
   ];
+  const poolGroup = input.hasSelection ? [...input.poolChipIds.map((id) => `pool-chip:${id}`), ...input.poolCardIds.map((id) => `pool-card:${id}`)] : [];
   const statsGroup = input.hasSelection
-    ? ["stats-check", "stats-duplicate", "stats-export", ...(input.editable ? ["stats-edit", "stats-delete"] : []), "stats-play"]
+    ? ["stats-check", ...(input.editable ? ["stats-edit", "stats-delete"] : []), "stats-duplicate", "stats-play"]
     : [];
-  if (input.wide) return ["back", ...listGroup, ...statsGroup];
-  return ["back", "tab:decks", "tab:stats", ...(input.activeTab === "decks" ? listGroup : statsGroup)];
+  if (input.wide) return ["back", ...listGroup, ...poolGroup, ...statsGroup];
+  const tabs = ["tab:decks", "tab:cards", "tab:stats"];
+  const activeGroup = input.activeTab === "decks" ? listGroup : input.activeTab === "cards" ? poolGroup : statsGroup;
+  return ["back", ...tabs, ...activeGroup];
 }
 
 export interface DeckBuilderFocusInput {
