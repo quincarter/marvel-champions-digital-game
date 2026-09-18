@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import type { FormFactor, Rect } from "./layout.js";
-import { formFactorFor } from "./layout.js";
-import { rectsOverlap } from "./title-layout.js";
+import { formFactorFor, rectsOverlap } from "./layout.js";
 import { villainPhaseLayout, type VillainPhaseLayout } from "./villain-phase-layout.js";
 
 /** docs/phase4-screen-gaps.md §3 "W7": checked at phone, both tablet orientations and desktop. */
