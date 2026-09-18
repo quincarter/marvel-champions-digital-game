@@ -1,37 +1,47 @@
 /**
- * Take your seats (docs/phase4-screen-gaps.md §3 W2, D03/P03/T-P02): up to
- * four fixed seat slots above a searchable/scrollable roster (S8) of every
- * precon, saved and imported deck, a hero detail panel (obligation, nemesis
- * set), "Use preconstructed for all seats", a "Deck check ▸" hook (routed
- * straight to Table setup until W1's Deck check scene lands), and "Take these
- * seats ▸".
+ * Take your seats (docs/phase4-screen-gaps.md §3 W2/W2b, D03/P03/T-P02): four
+ * selectable seat cards over an **active-seat model** — clicking a seat makes
+ * it active, and the pack-shelf hero roster (S8, the owner's pack-shelves
+ * decision) picks a hero *for the active seat* (`view/setup-draft.ts`'s
+ * `setActiveSeat`/`assignToActiveSeat`) — a hero detail panel (obligation,
+ * nemesis), "Use preconstructed for all seats", "Play N heroes ▸" straight to
+ * Table setup, and "Deck check ▸" into W1's Deck check for the *active*
+ * seat's own deck (Back returns here, "Start game ▸" continues to Table
+ * setup).
+ *
+ * **The bug this rebuild fixes:** the previous version hardcoded seat 1 both
+ * in what the roster clicked into (`onClick` always called `addSeat`/`removeSeat`
+ * by deck id, with no notion of "which seat") and in what "Deck check ▸"
+ * opened (`draft.seats[0]`, unconditionally). Every seat is now a real,
+ * independently selectable and deck-checkable target.
  */
 import Phaser from "phaser";
 import type { CardId, Deck } from "@mc/content";
-import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
+import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_PACKS, POOL_SCENARIOS, POOL_VERSION, packNameOf } from "../content/pool.js";
+import { artFor } from "../art/art-source.js";
+import { cardArt, drawArt } from "../art/card-art.js";
 import { dotGrid, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
-import { McVirtualList } from "../ui/virtual-list.js";
-import { ListScroll } from "../view/list-scroll.js";
+import { McButton, McTextInput, label, paintDotGrid } from "../ui/widgets.js";
+import { McShelfRoster } from "../ui/shelf-roster.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
-import { heroAspectsOf, heroRosterMatches, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
+import { heroAspectsOf, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
 import { wrapChipsToRows } from "../view/chip-layout.js";
-import { seatOptions, type SeatOption } from "../view/seats.js";
-import { heroCandidateDetailOf, seatSlotsOf } from "../view/seat-slots.js";
+import { shelvesOf, flattenShelves, type ShelfCandidate } from "../view/roster-shelves.js";
+import { seatOptions } from "../view/seats.js";
+import { activeSeatRosterOf, heroCandidateDetailOf, seatSlotsOf } from "../view/seat-slots.js";
 import {
-  addSeat,
+  assignToActiveSeat,
   clearHeroFilter,
   pruneSeats,
-  removeSeat,
+  setActiveSeat,
   setHeroFilter,
   usePreconstructedForAllSeats,
   type SetupDraft,
 } from "../view/setup-draft.js";
-import { LABEL_ROOM, setupColumnWidth } from "../view/setup-metrics.js";
 import { seatsFocusOrder } from "../view/screen-focus.js";
-import { seatsLayout } from "../view/seats-layout.js";
-import { drawChipStrip, drawRosterList, drawSearchField, type RosterRow } from "./roster-panel.js";
+import { seatsLayout, MAX_SEATS } from "../view/seats-layout.js";
+import { drawChipStrip, drawSearchField, drawShelfRosterPanel, renderShelfCard, renderShelfHeader } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
@@ -45,16 +55,20 @@ export interface SeatsData {
   readonly seedDecks?: readonly Deck[];
 }
 
+const CARD_METRICS = { cardWidth: 140, cardHeight: 200, cardGap: 10, headerHeight: 24, headerToCardsGap: 6, shelfGap: 16 };
+
 /**
- * "Deck check ▸" opens W1's Deck check over seat 1's deck (docs/phase4-screen-gaps.md §3 W1: "reached per seat
- * from the setup flow"), with Back returning here and its "Start game ▸" continuing to Table setup. With no
- * seated deck to check (or before the deck list has loaded), it goes straight to Table setup.
+ * "Deck check ▸" opens W1's Deck check over the **active seat's own deck** (docs/phase4-screen-gaps.md §3 W1:
+ * "reached per seat from the setup flow" — the bug this rebuild fixes was hardcoding seat 1 here), with Back
+ * returning here and its "Start game ▸" continuing to Table setup. With no seated deck at the active seat (or
+ * before the deck list has loaded), it goes straight to Table setup.
  */
 function goToDeckCheckOrTableSetup(scene: Phaser.Scene, draft: SetupDraft, deckOptions: readonly DeckOption[]): void {
   const toTableSetup = (from: Phaser.Scene): void => {
     from.scene.start(SCENES.setup, { draft } satisfies TableSetupData);
   };
-  const seated = deckOptions.find((option) => (option.deck.id as string) === draft.seats[0]);
+  const activeDeckId = draft.seats[draft.activeSeatIndex];
+  const seated = activeDeckId ? deckOptions.find((option) => (option.deck.id as string) === activeDeckId) : undefined;
   if (!seated) {
     toTableSetup(scene);
     return;
@@ -69,13 +83,10 @@ function goToDeckCheckOrTableSetup(scene: Phaser.Scene, draft: SetupDraft, deckO
 export class SeatsScene extends Phaser.Scene {
   #draft!: SetupDraft;
   #savedDecks: readonly Deck[] = [];
-  /** Which roster row's stats/obligation/nemesis the detail panel shows — the last one clicked, defaulting to the first seated deck. */
-  #detailDeckId: string | null = null;
   #buttons: McButton[] = [];
   #stops = new Map<string, FocusStop>();
   #searchInput: McTextInput | null = null;
-  #list: McVirtualList | null = null;
-  #scroll = new ListScroll();
+  #roster: McShelfRoster<DeckOption> | null = null;
   #route: FocusRoute | null = null;
 
   constructor() {
@@ -87,7 +98,6 @@ export class SeatsScene extends Phaser.Scene {
   init(data: SeatsData): void {
     this.#draft = data.draft;
     this.#seedDecks = data.seedDecks ?? [];
-    this.#detailDeckId = data.draft.seats[0] ?? null;
   }
 
   create(): void {
@@ -97,14 +107,14 @@ export class SeatsScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
       this.#searchInput?.destroy();
       this.#searchInput = null;
-      this.#list?.destroy();
-      this.#list = null;
+      this.#roster?.destroy();
+      this.#roster = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
       onCancel: () => this.#back(),
-      onPage: (direction) => this.#list?.scrollByPage(direction),
-      onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
+      onPage: (direction) => this.#roster?.scrollByPage(direction),
+      onHomeEnd: (edge) => (edge === "home" ? this.#roster?.scrollToStart() : this.#roster?.scrollToEnd()),
     });
     this.game.events.on("mc-choice-toggle", this.#onInspectChoose, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -134,8 +144,8 @@ export class SeatsScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
-    this.#list?.destroy();
-    this.#list = null;
+    this.#roster?.destroy();
+    this.#roster = null;
 
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
@@ -145,18 +155,15 @@ export class SeatsScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const deckOptions = this.#deckOptions();
     this.#draft = pruneSeats(this.#draft, new Set(deckOptions.map((o) => o.deck.id as string)), deckOptions[0]?.deck.id as string);
-    if (this.#detailDeckId === null || !deckOptions.some((o) => (o.deck.id as string) === this.#detailDeckId)) {
-      this.#detailDeckId = this.#draft.seats[0] ?? deckOptions[0]?.deck.id ?? null;
-    }
 
-    const chipColumn = setupColumnWidth(width, height);
     const chipDefs = this.#heroChipDefs(deckOptions);
-    const chipRows = wrapChipsToRows(chipDefs, chipColumn);
 
-    const detailOption = deckOptions.find((o) => (o.deck.id as string) === this.#detailDeckId);
-    const detailLines = detailOption ? this.#detailLinesFor(detailOption) : ["Select a hero to see their details."];
+    const activeDeckId = this.#draft.seats[this.#draft.activeSeatIndex];
+    const detailOption = activeDeckId ? deckOptions.find((o) => (o.deck.id as string) === activeDeckId) : undefined;
+    const detailLines = detailOption ? this.#detailLinesFor(detailOption) : ["Select a hero for this seat below."];
 
-    const layout = seatsLayout({ width, height, chipRows: chipRows.length, detailLines: detailLines.length });
+    const layout = seatsLayout({ width, height, chipRows: wrapChipsToRows(chipDefs, width).length, detailLines: detailLines.length });
+    const chipRows = wrapChipsToRows(chipDefs, layout.chips.width);
 
     // Ground: paper body under the same full-width ink header bar Scenario select uses.
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
@@ -174,17 +181,25 @@ export class SeatsScene extends Phaser.Scene {
       .text(layout.step.x + layout.step.width, layout.headerBar.height / 2, `STEP 2 OF 4 · ${this.#draft.seats.length} SEAT${this.#draft.seats.length === 1 ? "" : "S"} FILLED`, textStyle(typeRole.label, surface.paper.hex, ink.label))
       .setOrigin(1, 0.5);
 
-    const seating = new Map(seatOptions(deckOptions, this.#draft.seats, CARDS_BY_ID).map((o) => [o.deckId, o]));
-    const slots = seatSlotsOf(this.#draft.seats, deckOptions, CARDS_BY_ID);
+    // The four selectable seat cards (the active-seat model, docs/phase4-screen-gaps.md §3 W2b's own bug fix):
+    // clicking one makes it active, ringed with the `card` skin's own `selected` state.
+    const slots = seatSlotsOf(this.#draft.seats, deckOptions, CARDS_BY_ID, MAX_SEATS, this.#draft.activeSeatIndex);
     slots.forEach((slot, index) => {
       const rect = layout.seatSlots[index]!;
-      const g = this.add.graphics();
-      const occupiedState = slot.deckId ? (index === 0 ? "selected" : "rest") : "unavailable";
-      paintPanel(g, rect, "card", occupiedState);
-      const text = slot.deckId
-        ? `SEAT ${index + 1}${index === 0 ? " · YOU" : ""}\n${slot.identityName ?? "?"}\n${slot.aspectLabel ?? ""} · HP ${slot.hp ?? "—"} · hand ${slot.handSize ?? "—"}`
-        : `SEAT ${index + 1}\nEmpty — tap a hero below`;
-      this.add.text(rect.x + 6, rect.y + 6, text, textStyle(typeRole.label, surface.ink.hex, slot.deckId ? 1 : ink.meta)).setWordWrapWidth(rect.width - 12);
+      const heading = `SEAT ${index + 1}${index === 0 ? " · YOU" : ""}`;
+      const body = slot.deckId
+        ? `${slot.identityName ?? "?"}\n${slot.aspectLabel ?? ""} · HP ${slot.hp ?? "—"} · hand ${slot.handSize ?? "—"}`
+        : "Empty — pick a hero below";
+      const selectSeat = (): void => {
+        this.#draft = setActiveSeat(this.#draft, index);
+        this.#rebuild();
+      };
+      // `McButton` itself paints the `card` skin's panel (selected = the active seat's own red ring); the
+      // heading/body text is drawn on top of it, since a seat card needs more than one line of label.
+      this.#buttons.push(new McButton(this, { kind: "card", label: "", type: typeRole.label, rect, selected: slot.active, onClick: selectSeat }));
+      label(this, rect.x + 6, rect.y + 6, heading, typeRole.label, surface.ink.hex, slot.deckId ? 1 : ink.meta);
+      this.add.text(rect.x + 6, rect.y + 22, body, textStyle(typeRole.label, surface.ink.hex, slot.deckId ? 1 : ink.meta)).setWordWrapWidth(rect.width - 12);
+      this.#stops.set(`seat:${index}`, { rect, activate: selectSeat });
     });
 
     const usePreconstructed = (): void => {
@@ -194,8 +209,15 @@ export class SeatsScene extends Phaser.Scene {
     this.#buttons.push(new McButton(this, { kind: "quiet", label: "Use preconstructed for all seats", type: typeRole.label, rect: layout.usePreconstructed, onClick: usePreconstructed }));
     this.#stops.set("use-preconstructed", { rect: layout.usePreconstructed, activate: usePreconstructed });
 
-    label(this, layout.left, layout.search.y - LABEL_ROOM, `Heroes — ${this.#draft.seats.length} seat${this.#draft.seats.length === 1 ? "" : "s"}, all played by you`, typeRole.label, surface.ink.hex, ink.label);
-    const rows = this.#rows(deckOptions, seating);
+    label(
+      this,
+      layout.search.x,
+      layout.search.y - 16,
+      `Heroes — seat ${this.#draft.activeSeatIndex + 1} of ${MAX_SEATS}, all played by you`,
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    );
     this.#searchInput = drawSearchField(
       this,
       layout.search,
@@ -204,42 +226,88 @@ export class SeatsScene extends Phaser.Scene {
       "search heroes, aspects, decks…",
       (value) => {
         this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, text: value });
-        this.#scroll.reset();
         this.#rebuild();
       },
       this.#searchInput,
       this.#stops,
     );
     drawChipStrip(this, layout.chips, chipRows, "hero-chip", this.#buttons, this.#stops);
-    this.#list = drawRosterList(
-      this,
-      layout.list,
-      rows,
-      this.#scroll,
-      "hero",
-      () => {
+
+    const seating = new Map(seatOptions(deckOptions, this.#draft.seats, CARDS_BY_ID).map((o) => [o.deckId, o]));
+    const active = new Map(activeSeatRosterOf(seatOptions(deckOptions, this.#draft.seats, CARDS_BY_ID), this.#draft.seats, this.#draft.activeSeatIndex).map((e) => [e.deckId, e]));
+    const shelves = this.#shelves(deckOptions, seating, active);
+    this.#roster = drawShelfRosterPanel({
+      scene: this,
+      rect: layout.shelves,
+      shelves,
+      metrics: CARD_METRICS,
+      screen: "seats",
+      focusPrefix: "hero",
+      idOf: (o) => o.deck.id as string,
+      renderHeader: (shelf, rect) => renderShelfHeader(this, shelf, rect, null, () => this.#roster?.refreshVisible()),
+      renderCard: (option, _shelfIndex, _itemIndex, rect) => this.#renderHeroCard(option, active, rect),
+      onCardActivate: (option) => {
+        const entry = active.get(option.deck.id as string);
+        if (entry?.blockedBy) return;
+        this.#draft = assignToActiveSeat(this.#draft, option.deck.id as string);
+        this.#rebuild();
+      },
+      inspect: (option) => this.#inspectOption(option, active),
+      onClear: () => {
         this.#draft = clearHeroFilter(this.#draft);
         this.#searchInput?.setValue("");
         this.#rebuild();
       },
-      this.#buttons,
-      this.#stops,
-      (row) => this.#inspectRow(row),
-    );
+      buttons: this.#buttons,
+      stops: this.#stops,
+    });
 
-    // The hero-detail panel — dark, matching D03's own sidebar, rather than plain text on the paper ground.
+    // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick.
     this.add.rectangle(layout.detail.x, layout.detail.y, layout.detail.width, layout.detail.height, surface.ink.hex).setOrigin(0, 0);
     detailLines.forEach((line, index) => {
       this.add.text(layout.detail.x + 12, layout.detail.y + 8 + index * 20, line, textStyle(typeRole.body, surface.paper.hex));
     });
 
-    // One red CTA (docs/design-renders/ScreensPhone_00.png's own "DECK CHECK ▸"): this build's hook routes it
-    // straight to Table setup until W1's Deck check scene lands (`goToDeckCheckOrTableSetup`).
-    const deckCheck = (): void => goToDeckCheckOrTableSetup(this, this.#draft, this.#deckOptions());
+    // The two actions at the panel's own foot (D03/P03): a quiet "Play N heroes ▸" straight to Table setup, and
+    // the primary "Deck check ▸" for the active seat's own deck.
+    const play = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      this.scene.start(SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
+    };
+    this.#buttons.push(
+      new McButton(this, { kind: "secondary", label: `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`, type: typeRole.barTitle, rect: layout.play, onClick: play }),
+    );
+    this.#stops.set("play", { rect: layout.play, activate: play });
+
+    const deckCheck = (): void => {
+      this.scale.off("resize", this.#rebuild, this);
+      goToDeckCheckOrTableSetup(this, this.#draft, this.#deckOptions());
+    };
     this.#buttons.push(new McButton(this, { kind: "primary", label: "Deck check ▸", type: typeRole.barTitle, rect: layout.deckCheck, onClick: deckCheck }));
     this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
 
-    this.#route?.set(seatsFocusOrder({ deckIds: rows.map((r) => r.id), heroChipIds: chipDefs.map((c) => c.id) }), this.#stops);
+    this.#route?.set(
+      seatsFocusOrder({ seatCount: MAX_SEATS, deckIds: flattenShelves(shelves).map((o) => o.deck.id as string), heroChipIds: chipDefs.map((c) => c.id) }),
+      this.#stops,
+    );
+  }
+
+  #renderHeroCard(option: DeckOption, active: ReadonlyMap<string, import("../view/seat-slots.js").ActiveSeatRosterEntry>, rect: import("../view/layout.js").Rect): ReturnType<typeof renderShelfCard> {
+    const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
+    const source = identity ? artFor(identity, { kind: "hero" }) : null;
+    const artKey = cardArt(this).request(this, source);
+    const entry = active.get(option.deck.id as string);
+    const sourceText = option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built";
+    const tag = entry?.isActiveSeat ? `SEAT ${this.#draft.activeSeatIndex + 1}` : entry?.seatIndex !== null && entry?.seatIndex !== undefined ? `SEAT ${entry.seatIndex + 1}` : null;
+    return renderShelfCard(this, rect, {
+      artKey,
+      title: option.deck.name.split(" — ")[0]!,
+      subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
+      blockedBy: entry?.blockedBy ?? null,
+      warning: entry?.warning ?? null,
+      tag,
+      selected: entry?.isActiveSeat ?? false,
+    });
   }
 
   #detailLinesFor(option: DeckOption): readonly string[] {
@@ -252,33 +320,41 @@ export class SeatsScene extends Phaser.Scene {
     ];
   }
 
-  #rows(deckOptions: readonly DeckOption[], seating: ReadonlyMap<string, SeatOption>): readonly RosterRow[] {
-    return withSelectionPinned(
+  #shelves(
+    deckOptions: readonly DeckOption[],
+    seating: ReadonlyMap<string, import("../view/seats.js").SeatOption>,
+    active: ReadonlyMap<string, import("../view/seat-slots.js").ActiveSeatRosterEntry>,
+  ): readonly import("../view/roster-shelves.js").Shelf<DeckOption>[] {
+    const candidates: ShelfCandidate<DeckOption>[] = withSelectionPinned(
       deckOptions,
-      (option) => heroRosterMatches(option.deck, CARDS_BY_ID.get(option.deck.identityCardId as string), this.#draft.heroFilter, seating.get(option.deck.id as string)?.blockedBy ?? null),
-      (option) => this.#draft.seats.includes(option.deck.id as string),
+      () => true,
+      (option) => active.get(option.deck.id as string)?.isActiveSeat ?? false,
     ).map((option) => {
-      const deckId = option.deck.id as string;
-      const seated = this.#draft.seats.includes(deckId);
-      const blockedBy = seating.get(deckId)?.blockedBy ?? null;
-      const warning = seating.get(deckId)?.warning ?? null;
-      const sourceText = option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built";
+      const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
+      const hero = identity?.type === "hero_identity" ? identity : undefined;
+      const packCode = option.deck.source.kind === "precon" ? (option.deck.source.packCode as string) : null;
+      const chipsOk = this.#heroPassesChips(option, seating.get(option.deck.id as string)?.blockedBy ?? null);
       return {
-        id: deckId,
-        title: option.deck.name.split(" — ")[0]!,
-        subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
-        selected: seated,
-        blockedBy,
-        warning,
-        onClick: () => {
-          this.#detailDeckId = deckId;
-          this.#draft = seated ? removeSeat(this.#draft, deckId) : blockedBy ? this.#draft : addSeat(this.#draft, deckId);
-          this.#rebuild();
-        },
-        inspectCardId: option.deck.identityCardId,
-        chooseLabel: seated ? "Remove this seat" : "Take this seat",
+        item: option,
+        packCode,
+        searchHaystacks: [option.deck.name, hero?.hero.faceName, hero?.alterEgo.faceName, ...option.deck.aspects, option.deck.source.kind],
+        passesChips: chipsOk,
       };
     });
+    return shelvesOf(
+      candidates,
+      POOL_PACKS.map((p) => p.code as string),
+      packNameOf,
+      this.#draft.heroFilter.text,
+    );
+  }
+
+  #heroPassesChips(option: DeckOption, blockedBy: string | null): boolean {
+    const filter = this.#draft.heroFilter;
+    if (filter.aspect && !option.deck.aspects.includes(filter.aspect)) return false;
+    if (filter.source && option.deck.source.kind !== filter.source) return false;
+    if (filter.playableOnly && blockedBy !== null) return false;
+    return true;
   }
 
   #heroChipDefs(deckOptions: readonly DeckOption[]): readonly { id: string; text: string; selected: boolean; onClick: () => void }[] {
@@ -288,7 +364,6 @@ export class SeatsScene extends Phaser.Scene {
       selected: this.#draft.heroFilter.aspect === aspect,
       onClick: () => {
         this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, aspect: this.#draft.heroFilter.aspect === aspect ? null : aspect });
-        this.#scroll.reset();
         this.#rebuild();
       },
     }));
@@ -303,7 +378,6 @@ export class SeatsScene extends Phaser.Scene {
       selected: this.#draft.heroFilter.source === kind,
       onClick: () => {
         this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, source: this.#draft.heroFilter.source === kind ? null : kind });
-        this.#scroll.reset();
         this.#rebuild();
       },
     }));
@@ -313,7 +387,6 @@ export class SeatsScene extends Phaser.Scene {
       selected: this.#draft.heroFilter.playableOnly === true,
       onClick: () => {
         this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, playableOnly: !this.#draft.heroFilter.playableOnly });
-        this.#scroll.reset();
         this.#rebuild();
       },
     };
@@ -322,18 +395,19 @@ export class SeatsScene extends Phaser.Scene {
 
   #onInspectChoose(rowId: string): void {
     const deckOptions = this.#deckOptions();
+    const option = deckOptions.find((o) => (o.deck.id as string) === rowId);
     const seating = new Map(seatOptions(deckOptions, this.#draft.seats, CARDS_BY_ID).map((o) => [o.deckId, o]));
-    const row = this.#rows(deckOptions, seating).find((r) => r.id === rowId);
-    if (row && !row.blockedBy) row.onClick();
+    if (option && !seating.get(rowId)?.blockedBy) {
+      this.#draft = assignToActiveSeat(this.#draft, rowId);
+      this.#rebuild();
+    }
   }
 
-  #inspectRow(row: RosterRow): void {
-    if (!row.inspectCardId) return;
-    const card = CARDS_BY_ID.get(row.inspectCardId as string);
-    const face = card?.type === "villain" ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const) : ({ kind: "hero" } as const);
+  #inspectOption(option: DeckOption, active: ReadonlyMap<string, import("../view/seat-slots.js").ActiveSeatRosterEntry>): void {
+    const entry = active.get(option.deck.id as string);
     this.scene.launch(SCENES.inspect, {
-      card: { cardId: row.inspectCardId as CardId, face },
-      ...(row.blockedBy ? { note: row.blockedBy } : { choice: { optionId: row.id, label: row.chooseLabel } }),
+      card: { cardId: option.deck.identityCardId as CardId, face: { kind: "hero" } },
+      ...(entry?.blockedBy ? { note: entry.blockedBy } : { choice: { optionId: option.deck.id as string, label: entry?.isActiveSeat ? "Already this seat's pick" : "Take this seat" } }),
     });
   }
 }

@@ -15,14 +15,19 @@
  */
 import type Phaser from "phaser";
 import type { CardId } from "@mc/content";
+import { drawArt } from "../art/card-art.js";
+import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintPanel } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
+import { McShelfRoster, type ShelfRosterMetrics } from "../ui/shelf-roster.js";
 import type { ListScroll } from "../view/list-scroll.js";
 import { CHIP_GAP } from "../view/chip-layout.js";
 import type { Rect } from "../view/layout.js";
 import { ROSTER_ROW_HEIGHT } from "../view/roster-block-layout.js";
+import type { Shelf } from "../view/roster-shelves.js";
+import { shelfScrollCacheFor, type ShelfScreen } from "../view/shelf-scroll-cache.js";
 import type { FocusStop } from "./focus-route.js";
 
 /** One roster row, common to every roster this panel draws. */
@@ -188,4 +193,150 @@ export function drawRosterList(
     });
   });
   return list;
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// The pack-shelf roster (docs/phase4-screen-gaps.md §3 W2b, the owner's decision 2026-09-18): the same searchable,
+// scrollable roster idea, but grouped into one horizontally-scrolling shelf per pack (`ui/shelf-roster.ts`'s
+// `McShelfRoster` over `view/roster-shelves.ts`'s `shelvesOf`), with a tall art card per item rather than a
+// compact list row. Scenario select and Take your seats both draw this; only what art each item shows differs,
+// so that stays a caller-supplied `artKey`/`artFit` rather than a second copy of the card chrome.
+// ---------------------------------------------------------------------------------------------------------------
+
+const SHELF_CARD_TEXT_BAND = 54;
+
+export interface ShelfCardOptions {
+  /** A texture key already resolved by the caller (`art/card-art.ts`'s `drawArt`, or a `Picture`'s own key once `ensurePictureLoaded` says it's ready) — null draws the plain parchment placeholder every card falls back to while its art is missing or still loading. */
+  readonly artKey: string | null;
+  readonly artFit?: "contain" | "cover";
+  readonly title: string;
+  /** The blocked reason or a warning wins over this when either is set (matching `renderRosterRow`'s own precedence). */
+  readonly subtitle: string;
+  readonly blockedBy: string | null;
+  readonly warning: string | null;
+  /** A small tag in the card's own top-left corner — "SELECTED" or "SEAT 2" (`renderRosterRow`'s own tag, generalized to a caller-chosen word since a hero card's tag names a seat, not just "selected"). Null draws none. */
+  readonly tag: string | null;
+  readonly selected: boolean;
+}
+
+/** One roster item as D02/D03's own tall "entity card": most of the card's own height is the art window, a text band along the bottom carries the title and subtitle, and a selected/blocked card reads exactly like `renderRosterRow`'s list row did (the `card` skin's own selected/unavailable state, a corner tag). */
+export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfCardOptions): VirtualListRow {
+  const objects: Phaser.GameObjects.GameObject[] = [];
+  const g = scene.add.graphics();
+  const state = options.blockedBy ? "unavailable" : options.selected ? "selected" : "rest";
+  paintPanel(g, rect, "card", state);
+  objects.push(g);
+
+  const artRect: Rect = { x: rect.x + 4, y: rect.y + 4, width: rect.width - 8, height: rect.height - SHELF_CARD_TEXT_BAND - 4 };
+  const art = options.artKey ? drawArt(scene, options.artKey, artRect, { fit: options.artFit ?? "contain" }) : null;
+  if (art) objects.push(art);
+  else {
+    const placeholder = scene.add.graphics();
+    placeholder.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
+    placeholder.lineStyle(1, surface.ink.hex, ink.meta).strokeRect(artRect.x, artRect.y, artRect.width, artRect.height);
+    objects.push(placeholder);
+  }
+
+  const textY = artRect.y + artRect.height + 4;
+  const textWidth = rect.width - 12;
+  const dim = options.blockedBy ? ink.illegal : 1;
+  const title = scene.add.text(rect.x + 6, textY, options.title, textStyle(typeRole.rowTitle, surface.ink.hex, dim));
+  fitText(title, textWidth);
+  objects.push(title);
+  const subtitleText = options.blockedBy ?? options.warning ?? options.subtitle;
+  const subtitleColor = options.blockedBy ? accent.heroRed.hex : options.warning ? signal.caution.hex : surface.ink.hex;
+  const subtitle = label(scene, rect.x + 6, textY + title.height + 2, subtitleText, typeRole.label, subtitleColor, options.blockedBy || options.warning ? 1 : ink.label * dim);
+  fitText(subtitle, textWidth);
+  objects.push(subtitle);
+
+  if (options.tag) {
+    const tagWidth = Math.min(rect.width - 8, options.tag.length * 6 + 16);
+    const tag = scene.add.graphics();
+    tag.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x, rect.y, tagWidth, 16);
+    objects.push(tag);
+    objects.push(label(scene, rect.x + 4, rect.y + 2, options.tag, typeRole.label, surface.paper.hex, 1));
+  }
+  return { objects };
+}
+
+/** A shelf's own header row: the pack's name, a rule, its item count, and its cover art thumbnail when one exists (`art/scenario-art.ts`'s `packCoverFor`) — plain text otherwise, per `art/README.md`'s "a shelf header draws fine without one". */
+export function renderShelfHeader(scene: Phaser.Scene, shelf: Shelf<unknown>, rect: Rect, cover: Picture | null, onCoverReady: () => void): VirtualListRow {
+  const objects: Phaser.GameObjects.GameObject[] = [];
+  let textX = rect.x;
+  if (cover) {
+    const coverSize = rect.height - 6;
+    const key = ensurePictureLoaded(scene, cover, onCoverReady);
+    const coverRect: Rect = { x: rect.x, y: rect.y + 3, width: coverSize, height: coverSize };
+    const image = key ? drawArt(scene, key, coverRect, { fit: "cover" }) : null;
+    if (image) {
+      objects.push(image);
+      textX = rect.x + coverSize + 10;
+    }
+  }
+  const title = scene.add.text(textX, rect.y + rect.height / 2, `${shelf.title} — ${shelf.items.length}`, textStyle(typeRole.rowTitle, surface.ink.hex)).setOrigin(0, 0.5);
+  objects.push(title);
+  const rule = scene.add.graphics();
+  rule.lineStyle(2, surface.ink.hex, ink.meta).lineBetween(textX + title.width + 10, rect.y + rect.height / 2, rect.x + rect.width, rect.y + rect.height / 2);
+  objects.push(rule);
+  return { objects };
+}
+
+export interface ShelfRosterPanelOptions<T> {
+  readonly scene: Phaser.Scene;
+  readonly rect: Rect;
+  readonly shelves: readonly Shelf<T>[];
+  readonly metrics: ShelfRosterMetrics;
+  /** Which screen's scroll-position cache to use (`view/shelf-scroll-cache.ts`) — a scene is destroyed and recreated on every trip to Deck check and back, so scroll position is kept outside it. */
+  readonly screen: ShelfScreen;
+  readonly renderCard: (item: T, shelfIndex: number, itemIndex: number, rect: Rect) => VirtualListRow;
+  readonly renderHeader: (shelf: Shelf<T>, rect: Rect) => VirtualListRow;
+  readonly onCardActivate: (item: T, shelfIndex: number, itemIndex: number) => void;
+  readonly focusPrefix: string;
+  readonly idOf: (item: T) => string;
+  readonly inspect?: (item: T) => void;
+  readonly onClear: () => void;
+  readonly buttons: McButton[];
+  readonly stops: Map<string, FocusStop>;
+}
+
+/**
+ * One pack-shelf roster: the `McShelfRoster` widget itself, an empty-result message with Clear when every shelf
+ * was filtered away, and one focus stop per card — the shelf-and-item-index pair a stop's `rect`/`ensureVisible`
+ * need is closed over here once, rather than every caller re-deriving it from `shelves` by hand.
+ *
+ * Returns the roster widget so the caller can `refreshVisible()` it when art arrives, or null when there was
+ * nothing to build (the empty-result message was drawn instead).
+ */
+export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): McShelfRoster<T> | null {
+  const { scene, rect, shelves, metrics, screen, renderCard, renderHeader, onCardActivate, focusPrefix, idOf, inspect, onClear, buttons, stops } = options;
+  if (shelves.length === 0) {
+    scene.add.text(rect.x + 10, rect.y + 10, "No matches.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
+    const clearRect: Rect = { x: rect.x + 10, y: rect.y + 34, width: 100, height: hit.target };
+    buttons.push(new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }));
+    stops.set(`${focusPrefix}-clear`, { rect: clearRect, activate: onClear });
+    return null;
+  }
+  const cache = shelfScrollCacheFor(screen);
+  const roster = new McShelfRoster<T>(scene, {
+    rect,
+    shelves,
+    metrics,
+    renderHeader,
+    renderCard,
+    onCardActivate,
+    verticalScroll: cache.vertical,
+    horizontalScrollFor: (shelfId) => cache.horizontalFor(shelfId),
+  });
+  shelves.forEach((shelf, shelfIndex) => {
+    shelf.items.forEach((item, itemIndex) => {
+      const id = idOf(item);
+      stops.set(`${focusPrefix}:${id}`, {
+        rect: () => roster.rectFor(shelfIndex, itemIndex),
+        activate: () => onCardActivate(item, shelfIndex, itemIndex),
+        ...(inspect ? { inspect: () => inspect(item) } : {}),
+        ensureVisible: () => roster.scrollIntoView(shelfIndex, itemIndex),
+      });
+    });
+  });
+  return roster;
 }
