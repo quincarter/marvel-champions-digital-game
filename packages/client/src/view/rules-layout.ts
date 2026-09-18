@@ -9,7 +9,14 @@ import { overlayPanelLayout } from "./overlay-layout.js";
 
 export type RulesTab = "glossary" | "villainPhase" | "cardList";
 
-const HEADER_HEIGHT = 56;
+/**
+ * Fidelity pass, 2026-09-17: was 56, which only left room for "‹ Back" and
+ * the "Rules reference" title — the "Filtered to what's on your table"
+ * caption below them (`scenes/rules.ts`) had nowhere to go but directly
+ * behind the Back button, which then visually clipped it. Tall enough for
+ * all three lines.
+ */
+const HEADER_HEIGHT = 66;
 const TABS_HEIGHT = hit.target;
 const SEARCH_HEIGHT = hit.target;
 const GAP = 8;

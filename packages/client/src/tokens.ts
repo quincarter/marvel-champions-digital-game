@@ -138,8 +138,8 @@ export const font = {
 } as const;
 
 /**
- * The faces the Boot scene waits for before drawing. The stylesheet is linked
- * from `index.html`; these are the `document.fonts.load` specifiers, which need
+ * The faces the Boot scene waits for before drawing. They are bundled
+ * (`@fontsource/*`, imported by `main.ts`); these are the `document.fonts.load` specifiers, which need
  * a size and a weight to identify a face.
  */
 export const WEB_FONTS = [

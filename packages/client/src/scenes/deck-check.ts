@@ -17,20 +17,30 @@
  * `costCurveBars`, `deckListGroupsOf`) — this scene only draws what that
  * module already computed, the same "client renders, never computes" rule
  * `deck-builder.ts` follows for legality.
+ *
+ * **Fidelity pass (2026-09-17), against P04.** The header is now a full-bleed
+ * ink title bar (it was plain text on the page's own paper ground before —
+ * every other screen's header in this app is a dark bar), and each Cards-tab
+ * row now draws the colored cost badge P04's own rows draw
+ * (`ui/deck-stats-widgets.ts`'s `cardTypeBadgeColor` — see that function's own
+ * comment for the one-color-per-broad-type simplification it makes, and why).
+ * `view/deck-check-layout.ts` itself didn't need to change: P04's shape —
+ * header / tabs / scrolling content / footer, one column at every size — was
+ * already right.
  */
 import Phaser from "phaser";
 import type { Deck } from "@mc/content";
 import { POOL_CARDS } from "../content/pool.js";
-import { costCurveBars, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
+import { compositionTilesOf, costCurveBars, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
 import { deckCheckFocusOrder } from "../view/screen-focus.js";
 import { deckCheckLayout } from "../view/deck-check-layout.js";
-import { wrapChipsToRows, CHIP_GAP } from "../view/chip-layout.js";
 import type { Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { cardTypeBadgeColor, compositionTileDefs, drawCompositionTiles, drawCostCurveBars } from "../ui/deck-stats-widgets.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import { SCENES, type SceneKey } from "./keys.js";
@@ -40,10 +50,12 @@ export interface DeckCheckSceneData {
   /** Where Back returns — defaults to the Decks screen, so a caller that only has a deck can still open this. */
   readonly returnTo?: { readonly scene: SceneKey; readonly data?: object };
   /**
-   * "Start game ▸"'s handler, supplied only once a setup flow exists to hand the finished lineup off to (W2).
-   * Absent today: this screen draws Start game unavailable with its reason rather than omitting it.
+   * "Start game ▸"'s handler; W2's Seats supplies one that continues to Table setup. It receives *this* scene so
+   * the handler can `from.scene.start(...)` and thereby stop Deck check — a closure over the caller's own (already
+   * stopped) scene would start the next screen underneath this one. Absent: Start game draws unavailable with its
+   * reason rather than being omitted.
    */
-  readonly onStartGame?: () => void;
+  readonly onStartGame?: (from: Phaser.Scene) => void;
 }
 
 type DeckCheckTab = "curve" | "cards" | "aspect";
@@ -57,7 +69,7 @@ const CURVE_CHART_HEIGHT = 120;
 export class DeckCheckScene extends Phaser.Scene {
   #deck!: Deck;
   #returnTo!: { readonly scene: SceneKey; readonly data?: object };
-  #onStartGame: (() => void) | undefined;
+  #onStartGame: ((from: Phaser.Scene) => void) | undefined;
   #activeTab: DeckCheckTab = "curve";
   #buttons: McButton[] = [];
   #tabs: McTabs | null = null;
@@ -121,7 +133,11 @@ export class DeckCheckScene extends Phaser.Scene {
     const stats = deckStatsOf(this.#deck, POOL_CARDS);
     const groups = deckListGroupsOf(this.#deck, POOL_CARDS);
 
-    // Header: Back, and the deck's own name and count.
+    // Header: a full-bleed ink bar (P04/D04 both draw the deck name on a dark
+    // title bar, not on the page's own paper ground), Back and the deck's own
+    // name and count in it.
+    const headerBar = this.add.graphics();
+    headerBar.fillStyle(surface.ink.hex, 1).fillRect(0, layout.header.y, width, layout.header.height);
     const backRect: Rect = { x: layout.header.x, y: layout.header.y, width: 90, height: layout.header.height };
     const goBack = (): void => {
       this.scene.start(this.#returnTo.scene, this.#returnTo.data);
@@ -132,7 +148,7 @@ export class DeckCheckScene extends Phaser.Scene {
       backRect.x + backRect.width + 12,
       layout.header.y + layout.header.height / 2,
       `${this.#deck.name} · ${stats.totalCards}`,
-      textStyle(typeRole.barTitle, surface.ink.hex),
+      textStyle(typeRole.barTitle, surface.paper.hex),
     );
     title.setOrigin(0, 0.5).setLetterSpacing(typeRole.barTitle.letterSpacing);
     fitText(title, layout.header.width - backRect.width - 24);
@@ -175,10 +191,10 @@ export class DeckCheckScene extends Phaser.Scene {
         rect: layout.startGame,
         enabled: canStart,
         ...(canStart ? {} : { reason: "Setup flow isn't built yet — coming with the title-menu rework (W2)." }),
-        onClick: () => this.#onStartGame?.(),
+        onClick: () => this.#onStartGame?.(this),
       }),
     );
-    this.#stops.set("start", { rect: layout.startGame, activate: () => this.#onStartGame?.() });
+    this.#stops.set("start", { rect: layout.startGame, activate: () => this.#onStartGame?.(this) });
 
     this.#route?.set(deckCheckFocusOrder({ activeTab: this.#activeTab, cardIds }), this.#stops);
   }
@@ -192,58 +208,18 @@ export class DeckCheckScene extends Phaser.Scene {
     label(this, chartRect.x + 12, chartRect.y + 10, `RESOURCE CURVE · ${avgText}`, typeRole.label, surface.ink.hex, ink.label);
 
     const bars = costCurveBars(stats);
-    const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
-    const barAreaTop = chartRect.y + 34;
-    const barAreaHeight = chartRect.height - 34 - 22;
-    const gap = 8;
-    const barWidth = (chartRect.width - 24 - gap * (bars.length - 1)) / bars.length;
-    bars.forEach((bar, index) => {
-      const barHeight = Math.round((bar.count / maxCount) * barAreaHeight);
-      const x = chartRect.x + 12 + index * (barWidth + gap);
-      const g = this.add.graphics();
-      g.fillStyle(index === bars.length - 1 ? signal.spent.hex : signal.cost.hex, 1);
-      g.fillRect(x, barAreaTop + (barAreaHeight - barHeight), barWidth, Math.max(2, barHeight));
-      g.lineStyle(2, surface.ink.hex, 1).strokeRect(x, barAreaTop + (barAreaHeight - barHeight), barWidth, Math.max(2, barHeight));
-      label(this, x + barWidth / 2, barAreaTop + barAreaHeight + 6, bar.label, typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
-    });
+    drawCostCurveBars(this, { x: chartRect.x + 12, y: chartRect.y + 34, width: chartRect.width - 24, height: chartRect.height - 34 - 6 }, bars);
 
-    // Composition tiles, one per non-empty card type, wrapped to the column width — `view/chip-layout.ts` reused for
-    // the wrap math, same as Title's quick-filter chips (S8).
-    const typeLabels: Readonly<Record<string, string>> = {
-      resource: "Resources",
-      ally: "Allies",
-      event: "Events",
-      upgrade: "Upgrades",
-      support: "Supports",
-      player_side_scheme: "Side schemes",
-    };
-    const tileDefs = Object.entries(stats.countsByType)
-      .filter(([, count]) => (count ?? 0) > 0)
-      .map(([type, count]) => ({ id: type, text: `${typeLabels[type] ?? type} ${count}` }));
+    // Composition tiles, one per non-empty card type — `ui/deck-stats-widgets.ts`, shared with the builder's own
+    // stats panel and W9's Decks & Collection stats pane.
     const tileTop = chartRect.y + chartRect.height + 12;
-    this.#drawTileRow({ x: rect.x, y: tileTop, width: rect.width, height: rect.y + rect.height - tileTop }, tileDefs);
+    drawCompositionTiles(this, { x: rect.x, y: tileTop, width: rect.width, height: rect.y + rect.height - tileTop }, compositionTileDefs(compositionTilesOf(stats)));
   }
 
   #drawAspectTab(rect: Rect, groups: ReturnType<typeof deckListGroupsOf>): void {
     label(this, rect.x, rect.y, "COMPOSITION BY ASPECT", typeRole.label, surface.ink.hex, ink.label);
     const tileDefs = groups.map((g) => ({ id: g.key, text: `${g.label} ${g.count}` }));
-    this.#drawTileRow({ x: rect.x, y: rect.y + 16, width: rect.width, height: rect.height - 16 }, tileDefs);
-  }
-
-  /** A wrapped row of label+count tiles — composition-by-type (Curve tab) and composition-by-aspect (Aspect tab) both use this. */
-  #drawTileRow(rect: Rect, defs: readonly { readonly id: string; readonly text: string }[]): void {
-    const rows = wrapChipsToRows(defs, rect.width);
-    let y = rect.y;
-    for (const row of rows) {
-      const cellWidth = (rect.width - (row.length - 1) * CHIP_GAP) / Math.max(1, row.length);
-      row.forEach((tile, index) => {
-        const tileRect: Rect = { x: rect.x + index * (cellWidth + CHIP_GAP), y, width: cellWidth, height: hit.target };
-        const g = this.add.graphics();
-        paintPanel(g, tileRect, "card", "rest");
-        label(this, tileRect.x + tileRect.width / 2, tileRect.y + tileRect.height / 2, tile.text, typeRole.rowTitle, surface.ink.hex, ink.body).setOrigin(0.5);
-      });
-      y += hit.target + CHIP_GAP;
-    }
+    drawCompositionTiles(this, { x: rect.x, y: rect.y + 16, width: rect.width, height: rect.height - 16 }, tileDefs);
   }
 
   /** Builds the Cards tab's flat row list (a header per non-empty group, then its cards) and draws it as a virtualized list. Returns the card ids, in row order, for the focus route. */
@@ -287,9 +263,25 @@ export class DeckCheckScene extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, inner, "card", "rest");
     objects.push(g);
-    const name = this.add.text(inner.x + 10, inner.y + inner.height / 2, row.entry.name, textStyle(typeRole.body, surface.ink.hex));
+
+    // The colored cost badge P04's own card rows draw (`ui/deck-stats-widgets.ts`'s
+    // `cardTypeBadgeColor` — a resource card has no printed cost, so it draws
+    // blank rather than "null").
+    const badgeSize = inner.height - 10;
+    const badgeRect: Rect = { x: inner.x + 5, y: inner.y + 5, width: badgeSize, height: badgeSize };
+    const badge = this.add.graphics();
+    badge.fillStyle(cardTypeBadgeColor(row.entry.type), 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
+    objects.push(badge);
+    if (row.entry.cost !== null) {
+      const costText = label(this, badgeRect.x + badgeRect.width / 2, badgeRect.y + badgeRect.height / 2, String(row.entry.cost), typeRole.rowTitle, surface.paper.hex);
+      costText.setOrigin(0.5);
+      objects.push(costText);
+    }
+
+    const nameLeft = badgeRect.x + badgeRect.width + 10;
+    const name = this.add.text(nameLeft, inner.y + inner.height / 2, row.entry.name, textStyle(typeRole.body, surface.ink.hex));
     name.setOrigin(0, 0.5);
-    fitText(name, inner.width - 60);
+    fitText(name, inner.width - (nameLeft - inner.x) - 50);
     objects.push(name);
     const qty = label(this, inner.x + inner.width - 14, inner.y + inner.height / 2, `×${row.entry.quantity}`, typeRole.rowTitle, surface.ink.hex, ink.secondary);
     qty.setOrigin(1, 0.5);

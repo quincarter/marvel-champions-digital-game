@@ -26,3 +26,15 @@ export function parseSeed(input: string): number | null {
   if (!Number.isSafeInteger(value)) return null;
   return value;
 }
+
+/**
+ * Table setup's "Random" first-player option (docs/phase4-screen-gaps.md §3
+ * W2, D05): rolled from the seed, not `Math.random()`, so pressing "Random"
+ * against the same seed and seat count always lands on the same seat — the
+ * pick itself is what has to replay, since `SessionConfig.firstPlayerIndex`
+ * is a plain number once chosen, not a "random" the engine re-rolls.
+ */
+export function rollFirstPlayerIndex(seed: number, seatCount: number): number {
+  if (seatCount <= 0) return 0;
+  return seed % seatCount;
+}

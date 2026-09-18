@@ -30,24 +30,24 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 
 | Canvas | Screen | Status | Today | Workstream |
 |---|---|---|---|---|
-| D01, P01 | Title | ⚠️ | `scenes/title.ts` is the title *and* all of setup on one page. | W2 |
-| D02, P02 | Scenario select | ❌ | A row of villain thumbnails on Title. | W2 |
-| D03, P03, T-P02 | Hero select ("Take your seats") | ❌ | A tile grid on Title, "Heroes — N seats, all played by you". | W2 |
+| D01, P01 | Title | ✅ | `scenes/title.ts`: the D01 menu. | W2 |
+| D02, P02 | Scenario select | ✅ | `scenes/scenario-select.ts`. List rows, not a card grid; no record line yet. | W2 |
+| D03, P03, T-P02 | Hero select ("Take your seats") | ✅ | `scenes/seats.ts`. | W2 |
 | D04, P04 | Deck builder / Deck check | ⚠️ | `scenes/deck-builder.ts`: identity, aspect, type filter chips, name, text search, add/remove, live legality chip, cost curve, grouped deck list with overflow, Preconstructed/Clear. `scenes/deck-check.ts` (new, W1): Curve/Cards/Aspect tabs, deck list with quantities, Edit deck, Start game ▸ (drawn unavailable — no setup flow yet, W2). Neither is yet a step in the setup flow; deck advice not built (§4 unsettled). | W1 |
-| D05, P12 | Table setup | ❌ | Standard/Expert and a seed field on Title. | W2 |
+| D05, P12 | Table setup | ✅ | `scenes/table-setup.ts`. | W2 |
 | D06, P13, L05 | Setup deal & mulligan | ❌ | The mulligan is a generic pending choice in `scenes/choice.ts` over the board. | W3 |
 | D07, Board canvases, L01, T-P01 | Board | ✅ | Long table and phone tabs. Small chrome gaps. | W8 |
 | D08, P14 | Inspect | ✅ | `scenes/inspect.ts`. No per-game history. | W8 |
 | D09, L06 | Targeting | ⚠️ | Target mode dims and highlights. The prompt is one line in the action bar. | W5 |
-| D10, P15 | Pending choice: defend | ⚠️ | A generic option sheet with an authority label. | W6 |
+| D10, P15 | Pending choice: defend | ✅ | `scenes/choice.ts`'s `declareDefender` branch over `defendPreview`/`stackEntries`. | W6 |
 | D11, P09, L02 | Villain phase | ✅ | `scenes/villain-phase.ts`: step strip and phase log. | W7 |
 | D12, P10, P11, P17, L08 | Game over | ✅ | Wide and tall layouts, stats, turning points, seats, MVP, both rematches. | W8 |
 | D13, P16, L07 | Pause & Rules | ❌ | Nothing. The board has no menu button. | W4 |
 | — (P16, L07, D01) | Settings | ❌ | `settings.ts` holds `reducedMotion` and `textResolution`; no screen shows them. | W4 |
-| D14 | Decks & Collection | ⚠️ | `scenes/decks.ts`: deck list, paste and MarvelCDB import, edit, delete, and (W1) a "Check" button on every row into Deck check. Still a single list, not D14's two-pane layout. | W1, W9 |
+| D14 | Decks & Collection | ✅ | `scenes/decks.ts`: two-pane list + stats (tabs on narrow), S8 filters, S4 record, duplicate/export/play, import, Check into Deck check. | W1, W9 |
 | D01 | Campaign | ⛔ | Drawn locked in the mocks. Out of scope (PLAN.md Phase 4). | — |
 
-`SCENES.setup` is already reserved in `scenes/keys.ts` with no scene behind it.
+`SCENES.setup` is Table setup; `SCENES.scenarioSelect` and `SCENES.seats` are the two steps before it.
 
 ## 2. Shared prerequisites
 
@@ -283,6 +283,8 @@ Already there: `scenes/deck-builder.ts`, `view/deck-builder-model.ts` (`legality
   - **Landed (`game-client-engineer`, 2026-09-17).** `view/deck-builder-model.ts`'s `resetToPrecon(deck, identity, starterDecks)` (null when the identity has no published precon — Preconstructed then draws unavailable with that reason, "dim, don't hide" rather than being omitted) and `resetToIdentitySet(deck, identity, pool)` (drops every added card back to `requiredIdentitySet`, keeping the deck's own aspects). Both keep the deck's own id/name/source, so neither button hands back "a different deck" — only `cards` (and, for Preconstructed, `aspects`) change. Tested in `view/deck-builder-model.test.ts`, including that Preconstructed's result round-trips to a real, engine-legal Spider-Man precon.
 - [ ] Deck advice ("Light on thwart…"), **only after** §4's decision on advice.
 
+- **Fidelity pass (`game-client-engineer`, 2026-09-18).** Compared against P04/D04 in headless Chrome over CDP at 1440×900, 1024×768, 768×1024, 390×844. The builder now has D04's three-column desktop split (aspect/filter/cost-curve rail · card pool · "Your deck" ink rail). Deck check stays P04's single centred column (~640px cap) at every width — deliberately: no wider canvas exists for it. **Remaining:** the "UPGRADE" filter chip truncates to "UPGR…" in the builder's left rail (`view/chip-layout.ts`'s width estimate — the same cross-cutting issue W9 flagged); card-cost badges are coloured by broad type, not the canvas's per-cost hues.
+
 Depends on: nothing hard. W2 is where Deck check sits in the setup flow — see the Deck check note above for exactly how W2 should open it.
 
 Done when: every Core precon and a custom deck show a curve, composition and grouped list, in the builder and on Deck check, at desktop and phone sizes. **Verified 2026-09-17**: `pnpm test`/`pnpm typecheck` green (content 268, engine 507, cards 441, client 580 — up from 554; no engine/`@mc/cards`/`@mc/content` change). Not verified by eye in a browser this session — a `vite` run on port 5183 confirmed both new/changed scenes load and transform with no build error, but no visual pass was done; that's still owed.
@@ -295,19 +297,18 @@ This reverses the Phase 4 decision to fold Scenario → Heroes → Deck into one
 
 Already there: all the setup decisions on `scenes/title.ts`, `view/seats.ts` (seat blocking with the engine's reasons), `view/deck-list-model.ts` (`deckOptionsOf`), `view/seed.ts`, `titleFocusOrder`.
 
-- [x] S2, the setup draft state (see §2). `TitleScene` itself is not yet split into Scenario select / Take your seats / Table setup — the rest of this workstream is still open.
-- [ ] **Title as a menu** (D01). Continue card (scenario · difficulty · round · heroes, from the existing `continueLabel`), New game, Decks & Collection, Campaign (drawn locked), Settings (W4; drawn unavailable until then). Footer: card-pool coverage ("233 / 233 Core cards live", from the ability registry) and build version.
-- [ ] **Scenario select** (D02). A searchable, scrollable roster (S8) of every scenario in the pool, not a fixed row of thumbnails. Each row is a card with villain art. Detail panel: main scheme, threat per player, villain HP per player per stage, encounter sets, a stage-by-stage row. Step indicator ("Step 1 of 4"), Back, "Choose heroes ▸". The record line waits on S4. Blurbs wait on §4.
-- [ ] **Take your seats** (D03, P03, T-P02). Up to 4 seat slots, each with identity, aspect, HP and hand size, plus an empty-seat state ("Tap a hero for seat 4"). A searchable, scrollable roster (S8) of every precon, saved and imported deck, with THW/ATK/DEF. A blocked deck is dimmed in place with the engine's reason. The seat slots stay fixed above the roster while it scrolls. Hero detail panel: the identity's **obligation** and **nemesis set** (`HeroIdentityCard.obligationCardId`, `nemesisEncounterSetId`). "Use preconstructed for all seats". "Build decks ▸" / "Deck check ▸" into W1.
-- [x] S3, the encounter deck preview (see §2). Not yet drawn anywhere — Table setup itself is still open.
-- [ ] **Table setup** (D05, P12).
-  - Difficulty: Standard and Expert, from `Scenario.villainStages`.
-  - Modular set picker: every Core modular, the scenario's recommended set preselected, the count from `Scenario.modularSetCount` when set. See §5 on "required · locked".
-  - Seating and first player, sent as `firstPlayerIndex`, with a Random option that rolls from the seed so the game still replays.
-  - "The encounter deck you're building" (S3) and "The game you'll get" (villain total HP, starting threat, deck size, obligations).
-  - Seed with Reroll, and "Deal it out".
-- [ ] Focus routes for every new screen, following `view/screen-focus.ts`.
-- [ ] Retire the setup half of `scenes/title.ts` once the flow covers it. The fastest path must stay fast: New game → accept every default → a game in the same number of presses as today's "Start game", or close to it.
+- [x] S2, the setup draft state (see §2).
+- [x] **Title as a menu** (D01). Continue card, New game, Decks & Collection, Campaign (drawn locked), Settings (opens W4's overlay), footer with card-pool coverage and build version.
+- [x] **Scenario select** (D02) on S8's roster, with a data-only detail panel (§4: no blurbs). The record line (S4's `resultsHistoryOf`) is not wired yet — small follow-up.
+- [x] **Take your seats** (D03, P03, T-P02). Seat slots, roster with blocked reasons, hero detail panel (obligation, nemesis), "Use preconstructed for all seats", "Deck check ▸" into W1's Deck check (seat 1's deck; Back returns here, "Start game ▸" continues to Table setup).
+- [x] S3, the encounter deck preview (see §2), drawn on Table setup.
+- [x] **Table setup** (D05, P12): difficulty from `Scenario.villainStages`, modular picker (recommended preselected, never locked), seating/first player with a seed-deterministic Random, encounter deck preview, "The game you'll get", seed + Reroll, "Deal it out".
+- [x] Focus routes for every new screen.
+- [x] Retire the setup half of `scenes/title.ts`.
+- **Landed (`game-client-engineer`, 2026-09-17; merged into `feature/phase4-screen-gaps`).** Title (`scenes/title.ts`, `view/title-menu-layout.ts`): split ink art panel / red rule / paper menu panel on tablet and desktop, one ink ground on phone, per D01/P01; card-pool coverage from `view/card-pool-coverage.ts`. Scenario select (`scenes/scenario-select.ts`, `view/scenario-select-layout.ts`, `view/scenario-detail.ts`): ink header bar (Back, title, step), paper body, card-styled roster rows, dark stage/detail panel, red "Choose heroes ▸". Take your seats (`scenes/seats.ts`, `view/seats-layout.ts`, `view/seat-slots.ts`): four fixed seat-slot cards, the roster (blocked decks dimmed via `view/seats.ts`), a dark hero-detail panel, `usePreconstructedForAllSeats` (`view/setup-draft.ts`). Table setup (`scenes/table-setup.ts`, `view/table-setup-layout.ts`, `view/modular-sets.ts`, `view/table-setup-preview.ts`, `rollFirstPlayerIndex` in `view/seed.ts`): paper body beside a persistent ink sidebar on tablet/desktop, stacked ink-only on phone. Shared: `scenes/roster-panel.ts`, `view/roster-block-layout.ts`, `view/scaling-text.ts`, `view/setup-metrics.ts`; `view/title-layout.ts` deleted (`rectsOverlap` moved to `view/layout.ts`). Four new focus orders in `view/screen-focus.ts`. Dev-only `?screen=scenario-select|seats|table-setup` in `scenes/boot.ts` jumps past Title for screenshots.
+  - **Wired at merge time (main session):** Title's Settings launches W4's overlay; Seats' "Deck check ▸" opens W1's Deck check over seat 1's deck (`goToDeckCheckOrTableSetup`), straight to Table setup when nothing is seated yet; W9's "Play this deck ▸" starts Title with `TitleSceneData`, which builds a one-seat draft (`withSeatOne`) and jumps to Seats with the deck seeded (`SeatsData.seedDecks`) so the seat survives the prune before `deckStorage().list()` resolves.
+  - **Fidelity pass** at 1440×900, 1024×768, 768×1024, 390×844 against `ScreensDesktop_00–05`, `ScreensPhone_00/_02`, `ScreensTablet_01`. Three bugs it found, fixed with regression tests: Seats' "HEROES — N seats" label overlapped "USE PRECONSTRUCTED" (missing `LABEL_ROOM`); Table setup's "THE GAME YOU'LL GET" heading overlapped the encounter-deck panel (same); Table setup's selected difficulty/first-player buttons were ink-on-ink on phone (skin now ground-aware). Lesson for the layout tests: they check pairwise overlap of returned rects but never that a `LABEL_ROOM` gap exists or that a control's skin contrasts with its ground. Also: headless Chrome's `--screenshot` floors the viewport at ~500px wide, so phone shots need the DevTools Protocol (`Emulation.setDeviceMetricsOverride`).
+  - **Not done:** a card-*grid* roster on wide screens (the canvases draw tall entity cards beside the detail panel; this build uses one virtualized list of card-styled rows at every size — simpler, reuses S8, but doesn't use a desktop's width); a per-villain breakdown for Breakout in the detail panel (first villain only, others named); the record line on Scenario select; modular-set tile labels truncate at narrow tablet widths; `APP_VERSION` is a hardcoded `"0.0.0"`; phone's "Play N" shortcut (redundant with Deal it out).
 
 Depends on: S2, S3, S8. S4 for the record line. W1 for the Deck check step (the flow can link straight to Table setup until W1 lands).
 
@@ -346,6 +347,8 @@ Canvases: D13, P16, L07.
 - [ ] Pass-and-play handoff, **only after** §4's decision.
 - **Landed (`game-client-engineer`, 2026-09-17; report lost to a usage-limit cut-off, reconstructed from commit `54d7516`).** `scenes/board/chrome.ts` gained the MENU/≡ button and `scenes/board.ts` opens Pause on it or on Escape when no mode or overlay owns input. New overlays `scenes/pause.ts`, `scenes/rules.ts`, `scenes/settings.ts` over new pure view models (`view/pause-model.ts`, `view/rules-reference.ts`, `view/scenario-card-list.ts`) and layouts (`view/overlay-layout.ts`, `view/pause-layout.ts`, `view/rules-layout.ts`, `view/settings-layout.ts`), each Vitest-covered including no-overlap at phone/800×600/desktop, with three new focus orders in `view/screen-focus.ts`. Rules reference: `@mc/content`'s glossary filtered live to the keywords/statuses in play, with search, plus a client-side source for "exhausted"/"ready"/"facedown boost card" (S6 left them out), the villain phase order, and the running game's encounter card list by set. Settings: reduced motion, text resolution ("sharper text"), and a new `largeCardText` setting wired into Inspect's rules text. **Not done:** the read-only replay board — the `appSession()` seam spans 5 files/16 call sites, and the unmerged `claude/refactor-board-scene-d7b5ff` branch was found byte-identical to what main already has (`c0134e2`) and offers no seam — so "jump to a moment" is an honestly-unavailable panel; and the design-fidelity pass against D13/P16/L07 (this landed before [design-reference.md](design-reference.md) existed).
 
+- **Fidelity pass (`game-client-engineer`, 2026-09-18).** Compared against D13/P16/L07 and the board canvases at the four sizes, over a real one-seat game (`scenes/boot.ts`'s dev-only `?screen=` jump now also reaches `deck-check`, `deck-builder`, `board`, `pause`, `rules`, `settings`). Four bugs found from the screenshots and fixed, with regression tests: Pause's and Settings' rows were sized for the shortest detail text, so longer text clipped into the row below (rows now size to their own text — `estimateWrappedLines`/`toggleRowHeight` in `view/layout.ts`); Pause's status line ran under its ✕ at phone width; Rules reference's "Filtered to what's on your table" caption sat behind Back; the phone board's "≡" was an illegible 9px glyph. **Remaining:** the chrome bar omits the difficulty label BoardLongTable draws beside "1ST PLAYER". *Tooling note:* headless Chrome here has no GPU, so Phaser's WebGL context fails and every shot is black unless Chrome is launched with `--use-gl=angle --use-angle=swiftshader --enable-unsafe-swiftshader --ignore-gpu-blocklist`.
+
 Depends on: S6 for the glossary, S7 for log jump. Pause, Resume, Save & quit and Settings can land first.
 
 Done when: every screen that shows a board can pause, read a rule for a keyword on the table, change a setting, and return to the same state.
@@ -368,13 +371,17 @@ Canvases: D10, P15.
 
 Already there: `scenes/choice.ts`, `PendingChoice.authority`, and `decisionLabel` from `view/villain-walkthrough.ts` (which carries the Peril note).
 
-- [ ] Incoming attack summary: attacker, base damage, number of facedown boost cards, and any forced interrupt that changed it.
-- [ ] Option cards with consequences: who exhausts, damage range (S5), whether an ally survives. Defense events playable now are listed with cost and resources available.
-- [ ] The stack, with the open window marked ("← here").
-- [ ] "Waiting on": who decides, and the Peril note.
+- [x] Incoming attack summary: attacker, base damage, number of facedown boost cards, and any forced interrupt that changed it.
+- [x] Option cards with consequences: who exhausts, damage range (S5), whether an ally survives. "Defense events playable now" is live-queried but always empty today (see the note).
+- [x] The stack, with the open window marked ("← here").
+- [x] "Waiting on": who decides, and the Peril note.
 - [ ] "Auto-defend next time this is the only option" and the phone countdown, **only after** §4's decision on auto-resolve.
+- **Landed (`game-client-engineer`, 2026-09-17; merged into `feature/phase4-screen-gaps`).** A dedicated presentation for `declareDefender`, branching inside `scenes/choice.ts` (`#drawDefendChoice`/`#drawDefendOption`) rather than a sibling scene — the subscription, resize handling, card-art loading, Inspect's toggle-back channel and the keyboard/pad route were already there. It answers through the same `#toggle`/`#confirm` → `resolveChoice([optionId])` path, so the command log is unchanged. `view/defend-choice.ts` (`defendChoiceViewOf`, 20 tests) words the engine's `defendPreview`/`stackEntries`/`legalActions`/`decisionLabel` into the incoming-attack summary (attacker, base ATK, exact facedown boost count, any forced-interrupt note read off the `enemyAttack` frame's `vars`), each option's title/exhausts/damage-band range/HP-after/consequences (defeat threshold, Tough, Overkill, Retaliate — each only when a band actually shows it), the stack with "← here", and "waiting on". `view/defend-choice-layout.ts` (42 no-overlap tests at the four sizes): main column + stack/waiting-on/Confirm rail on tablet-landscape/desktop (D10), one stacked column with a full-width Confirm on phone/tablet-portrait (P15). No engine/cards/content change; client 741 → 803.
+  - **"Play a defense event" is honestly always empty today.** `legalActions` reports `{kind:"choice"}` for every player whenever any `PendingChoice` is open, `declareDefender` included, so no ordinary command is independently legal while this choice shows. The section is live code (`defenseEventsNoteOf`) that starts reporting once a defense event can be modelled as an option of this same choice — an engine change to ask `game-rules-architect` for. D10's populated "Energy Barrier" example is that future; P15's own mock shows the empty case.
+  - **Composition.** No single white sheet: cream cards and an ink rail over the dimmed board, per D10/P15 and `ChoiceOverlay`'s "table stays visible underneath" rule. An option card draws at its own content height, top-aligned in its cell.
+  - **Fidelity pass** in the browser: a real Rhino/Spider-Man game driven to a live `declareDefender` via CDP, screenshotted at the four sizes beside `ScreensDesktop_08–09` and `ScreensPhone_02–03`; two issues found and fixed from the shots (an oversized two-option card, a dark-on-dark "waiting on" line). **Remaining:** the option cards still carry a lot of empty height at desktop; no dashed placeholder for a defender that isn't a real option; the header doesn't restate "Villain Phase · Step N of 5" (the chrome bar does); long-press-to-inspect isn't wired on the new option cards.
 
-Depends on: S5 for ranges. The summary, stack and "waiting on" can land first. The stack needs a readable view of the engine's stack frames; ask `game-rules-architect` whether `GameState` already exposes enough.
+Depends on: S5 for ranges — landed.
 
 ### W7. Villain phase
 
@@ -407,13 +414,22 @@ Canvas: D14. This overlaps PLAN.md Phase 9 and should be checked off there as we
 
 Already there: `scenes/decks.ts`, `view/deck-list-model.ts`, `view/deck-status.ts`, `view/deck-import-model.ts`.
 
-- [ ] Two-pane layout on wide screens: deck list beside the card pool and the selected deck's stats (S1).
-- [ ] The deck list uses S8's search and quick filters (aspect, source, legal/blocked).
-- [ ] Per-deck record and last played (needs S4, including its deck-id gap).
-- [ ] "Recently changed" (needs a deck revision history in deck storage).
-- [ ] Duplicate, Export (decklist text, the inverse of paste import), and "Play this deck ▸" (opens W2's Seats with this deck in seat 1).
+- [x] Two-pane layout on wide screens: deck list beside the selected deck's stats (S1). The live card-pool column stays the builder's.
+- [x] The deck list uses S8's search and quick filters (aspect, source, legal/blocked).
+- [x] Per-deck record and last played (needs S4, including its deck-id gap).
+- [x] "Recently changed" — the minimal version: one `updatedAt` per deck, no revision history (see the note).
+- [x] Duplicate, Export (decklist text, the inverse of paste import), and "Play this deck ▸" (opens Title/Seats with this deck in seat 1).
 - [ ] Deck note, **only after** §4's decision on advice.
 - [ ] Owned-card tracking ("226 of 226 cards owned"), **only after** §4's decision.
+- **Landed (`game-client-engineer`, 2026-09-17; merged into `feature/phase4-screen-gaps`).** Two-pane `scenes/decks.ts` on wide screens (`view/decks-layout.ts`): the deck list (search + S8 quick-filter chips for aspect/source/"Legal only", the import/export boxes and "New deck" folded in below it) beside the *selected* deck's stats pane (curve, composition, record, "recently changed", and its actions) on a dark ground, matching D14's grounds/hierarchy — `decks-layout.ts`'s header comment has the composition writeup and what's deliberately not reproduced (D14's live-editing "Card pool" column, which is the builder's job, and owned-card tracking, per §4). Narrow screens get the same two groups behind a "Decks"/"Stats" tab strip. A row's tap now **selects** it; every action (Check, Duplicate, Export, Edit/Delete, Play) moved to the stats pane.
+  - **Search and quick filters (S8)** reuse `view/roster-filter.ts`'s `heroRosterMatches` unchanged; `deckSourcesOf` (new) derives the source chips from the pool.
+  - **Per-deck record and last played (S4)** come from a new `EngineHost#listSaves()`/`SessionStore#listSaves()` (mirrors `latestSave()`) feeding `resultsHistoryOf`, keyed by S4's `DeckKey`. Shown in the stats pane only.
+  - **"Recently changed": the minimal honest version.** `Deck.updatedAt?: string` (`@mc/content`), stamped only where a deck is persisted — `touch`/`duplicateDeck` (`view/deck-builder-model.ts`) and both import functions. Old stored decks without it still load (`view/deck-recency.test.ts`); saved decks sort by it (`sortByRecency`); the pane says "No change history recorded for this deck." **No revision history** — one timestamp, overwritten on save.
+  - **Duplicate, Export, Play this deck ▸.** `duplicateDeck` always yields an editable `userBuilt` copy. `exportDecklistText` (`view/deck-import-model.ts`) is the exact inverse of `parseDecklistText`, round-trip tested against every Core precon; Export copies to the clipboard with an honest failure message when unavailable. "Play this deck ▸" is live: `#playDeck` starts Title with an optional `TitleSceneData` (`initialSeatDeckId`/`initialSeatDeck`) and `view/setup-draft.ts`'s new `withSeatOne` seats exactly that deck; disabled with the engine's reason when the deck isn't legal. *W2's Title rewrite must keep this entry point* (or route it to the new Seats screen).
+  - **Shared stats widget** factored out rather than copied a third time: `ui/deck-stats-widgets.ts`'s `drawCostCurveBars`/`drawCompositionTiles`/`drawGroupedCardList`, now used by `scenes/deck-check.ts`, `scenes/deck-builder.ts` and this screen.
+  - **Fidelity pass** at 1440×900, 1024×768, 768×1024 and 390×844 against `ScreensDesktop_12`/`_13` (headless Chrome over CDP). One bug found and fixed by it: switching to the narrow "Stats" tab left the DOM-backed search/import fields floating over it. **Remaining differences:** D14's three columns are two here (the middle "Card pool" grid is D04's); the owned-card coverage line is skipped (§4); at 390px `Aggression`/`Leadership`/`Protection` chips truncate — `view/chip-layout.ts`'s width estimate is at its margin for 10-character labels and is shared with Title, so it's left for a chip-layout fix.
+  - **Skipped, per §4:** deck note and owned-card tracking.
+  - Tests: `view/decks-layout.test.ts`, `view/deck-recency.test.ts`, `view/deck-builder-model.test.ts`, `view/deck-import-model.test.ts`, `view/roster-filter.test.ts`, `view/screen-focus.test.ts`. Client 580 → 617.
 
 Depends on: S1, S4.
 

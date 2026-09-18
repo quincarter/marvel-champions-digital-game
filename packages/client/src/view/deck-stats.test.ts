@@ -8,7 +8,7 @@ import {
   deckFromStarterDeck,
   type Deck,
 } from "@mc/content";
-import { costCurveBars, deckListGroupsOf, deckStatsOf } from "./deck-stats.js";
+import { compositionTilesOf, costCurveBars, deckListGroupsOf, deckStatsOf } from "./deck-stats.js";
 
 const sumQuantities = (deck: Deck): number => deck.cards.reduce((total, entry) => total + entry.quantity, 0);
 
@@ -62,6 +62,19 @@ describe("deckStatsOf: a wave 1 precon (Doctor Strange)", () => {
     // So they can't have leaked into any of deckStatsOf's own accounting either.
     const stats = deckStatsOf(deck, WAVE1_CARDS);
     expect(stats.totalCards).toBe(sumQuantities(deck));
+  });
+});
+
+describe("compositionTilesOf", () => {
+  test("one tile per non-empty type, worded and summed the same as countsByType", () => {
+    const starter = CORE_STARTER_DECKS[0]!;
+    const deck = deckFromStarterDeck(starter, "poolv1");
+    const stats = deckStatsOf(deck, CORE_CARDS);
+    const tiles = compositionTilesOf(stats);
+    expect(tiles.length).toBeGreaterThan(0);
+    for (const tile of tiles) expect(tile.count).toBe(stats.countsByType[tile.id]);
+    // No zero-count tiles, and no tile for a type this deck has none of.
+    expect(tiles.every((tile) => tile.count > 0)).toBe(true);
   });
 });
 

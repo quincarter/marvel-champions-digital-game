@@ -62,32 +62,45 @@ export function titleFocusOrder(input: TitleFocusInput): readonly string[] {
 export interface DecksFocusInput {
   /** Import by MarvelCDB URL/id is dev/preview-only (PLAN.md Phase 9); paste always shows. */
   readonly showMarvelCdbImport: boolean;
-  /** Every deck row, in list order — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
+  /** Every deck row, in list order (headers excluded — they aren't stops) — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
   readonly deckIds: readonly string[];
-  /** A row whose deck can be edited/deleted (a saved deck) gets those two extra stops; a precon's row does not. Every row — editable or not — also gets "Check" (W1's Deck check screen). */
-  readonly editableDeckIds: ReadonlySet<string>;
+  /** S8's quick-filter chip ids (aspect, source, "Legal only"), between the search field and the list. */
+  readonly chipIds: readonly string[];
+  /**
+   * W9 (docs/phase4-screen-gaps.md §3): wide two-pane layout reaches the list and the selected deck's stats pane
+   * both, in one route; narrow single-column layout reaches only whichever of "Decks"/"Stats" `activeTab` names —
+   * the same tab-scoped pattern `deckCheckFocusOrder` already uses for its own tabs.
+   */
+  readonly wide: boolean;
+  readonly activeTab: "decks" | "stats";
+  /** Whether a deck is currently selected — with none, the stats pane has no deck to act on and contributes no stops. */
+  readonly hasSelection: boolean;
+  /** Whether the *selected* deck can be edited/deleted (a saved deck, not a precon). */
+  readonly editable: boolean;
 }
 
 /**
- * The Decks screen: Back, the paste importer, the MarvelCDB importer (dev
- * only), New deck, then every deck row (Check, and Edit/Delete when it has
- * them) — the whole list, not only whatever the virtualized panel currently
- * draws. Moving focus onto a row scrolls it into view (`scenes/decks.ts`'s
- * `ensureVisible`), the same way a mouse would have to scroll to it first.
+ * The Decks screen: Back, then — wide — the search field, its quick-filter chips, every deck row, the paste
+ * importer, the MarvelCDB importer (dev only) and New deck, followed by the selected deck's stats-pane actions
+ * (Check, Duplicate, Export, Edit/Delete when it's editable, Play this deck ▸); narrow shows the same two groups
+ * behind a "Decks"/"Stats" tab strip instead, one group at a time. Moving focus onto a deck row scrolls it into
+ * view (`scenes/decks.ts`'s `ensureVisible`), the same way a mouse would have to scroll to it first.
  */
 export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
-  return [
-    "back",
+  const listGroup = [
+    "deck-search",
+    ...input.chipIds.map((id) => `deck-chip:${id}`),
+    ...input.deckIds.map((id) => `deck:${id}`),
     "paste-field",
     "paste-import",
     ...(input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
     "new-deck",
-    ...input.deckIds.flatMap((id) =>
-      input.editableDeckIds.has(id)
-        ? [`deck:${id}`, `deck:${id}:check`, `deck:${id}:edit`, `deck:${id}:delete`]
-        : [`deck:${id}`, `deck:${id}:check`],
-    ),
   ];
+  const statsGroup = input.hasSelection
+    ? ["stats-check", "stats-duplicate", "stats-export", ...(input.editable ? ["stats-edit", "stats-delete"] : []), "stats-play"]
+    : [];
+  if (input.wide) return ["back", ...listGroup, ...statsGroup];
+  return ["back", "tab:decks", "tab:stats", ...(input.activeTab === "decks" ? listGroup : statsGroup)];
 }
 
 export interface DeckBuilderFocusInput {
@@ -160,21 +173,28 @@ export function villainPhaseFocusOrder(finished: boolean): readonly string[] {
 }
 
 /**
- * Pause (docs/phase4-screen-gaps.md §3 "W4"): Resume first (the control a
- * player pressing Escape almost always wants), then Save & quit, Rules
- * reference, Settings, then every visible "jump to a moment" row (empty until
- * S7's read-only board lands — see `scenes/pause.ts`), then Concede last. When
- * the concede confirm is open, its own two controls replace the single
- * Concede stop so Enter can't fire the real button by accident mid-confirm.
+ * Pause (docs/phase4-screen-gaps.md §3 "W4"; fidelity pass 2026-09-17, matching
+ * D13/P16/L07's overlay sheet): the boxed ✕ first (top of the title bar, reads
+ * before anything else), then the search field, the "Quick reference" rows
+ * (Villain phase order / Keyword glossary / Scenario card list / Jump into the
+ * log — the last dashed-unavailable until S7's read-only board lands), then the
+ * "Table" rows (the same shared list `scenes/settings.ts` draws), then the
+ * footer's three buttons in the order the sheet draws them left to right —
+ * Save & quit, Concede, Resume. When the concede confirm is open, its own two
+ * controls replace those three so Enter can't fire Resume or a stray Concede
+ * tap by accident mid-confirm.
  */
-export function pauseFocusOrder(input: { readonly momentIds: readonly string[]; readonly confirmingConcede: boolean }): readonly string[] {
+export function pauseFocusOrder(input: {
+  readonly quickReferenceIds: readonly string[];
+  readonly tableRowIds: readonly string[];
+  readonly confirmingConcede: boolean;
+}): readonly string[] {
   return [
-    "resume",
-    "save-quit",
-    "rules",
-    "settings",
-    ...input.momentIds.map((id) => `moment:${id}`),
-    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
+    "close",
+    "search",
+    ...input.quickReferenceIds.map((id) => `quick:${id}`),
+    ...input.tableRowIds.map((id) => `table:${id}`),
+    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["save-quit", "concede", "resume"]),
   ];
 }
 
@@ -189,4 +209,71 @@ export function rulesFocusOrder(input: { readonly tabIds: readonly string[]; rea
 /** Settings: Back, then one stop per toggle row, in the order they're drawn. */
 export function settingsFocusOrder(rowIds: readonly string[]): readonly string[] {
   return ["back", ...rowIds.map((id) => `row:${id}`)];
+}
+
+/**
+ * The Title menu (docs/phase4-screen-gaps.md §3 W2, D01): Continue (when
+ * there's a game to pick up), New game, Decks & Collection, Campaign
+ * (drawn locked) and Settings (drawn unavailable until W4 lands it) — both
+ * still take focus so their reason reads with `I`, the same rule
+ * `titleFocusOrder` already applies to a blocked hero seat.
+ */
+export function titleMenuFocusOrder(input: { readonly continuable: boolean }): readonly string[] {
+  return [...(input.continuable ? ["continue"] : []), "new-game", "decks", "campaign", "settings"];
+}
+
+export interface ScenarioSelectFocusInput {
+  /** Every scenario row, in roster order — already filtered by the search field (S8); empty means the search matched nothing. */
+  readonly scenarioIds: readonly string[];
+  readonly scenarioChipIds?: readonly string[];
+}
+
+/** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario row (or "Clear"), then "Choose heroes ▸". */
+export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): readonly string[] {
+  return [
+    "back",
+    "scenario-search",
+    ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
+    ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
+    "next",
+  ];
+}
+
+export interface SeatsFocusInput {
+  /** Every seat option's deck id, already filtered by the hero search field (S8) — still keyed `hero:<deckId>`, matching `titleFocusOrder`'s own convention. */
+  readonly deckIds: readonly string[];
+  readonly heroChipIds?: readonly string[];
+}
+
+/** Take your seats (D03): Back, "Use preconstructed for all seats", the search field, its chips, each roster row (or "Clear"), "Deck check ▸", then "Take these seats ▸". */
+export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
+  return [
+    "back",
+    "use-preconstructed",
+    "hero-search",
+    ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
+    ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
+    "deck-check",
+  ];
+}
+
+export interface TableSetupFocusInput {
+  readonly difficulties: readonly string[];
+  /** Every modular set candidate's own id (`view/modular-sets.ts`'s `modularSetCandidateIdsFor`) — empty for a scenario that uses none (Breakout). */
+  readonly modularSetIds: readonly string[];
+  /** One stop per seat index plus "Random" (`view/seed.ts`'s `rollFirstPlayerIndex`). */
+  readonly firstPlayerOptionIds: readonly string[];
+}
+
+/** Table setup (D05): Back, difficulty, the modular set picker, seating/first player, the seed field, Reroll, then "Deal it out". */
+export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly string[] {
+  return [
+    "back",
+    ...input.difficulties.map((id) => `difficulty:${id}`),
+    ...input.modularSetIds.map((id) => `modular:${id}`),
+    ...input.firstPlayerOptionIds.map((id) => `first-player:${id}`),
+    "seed",
+    "reroll",
+    "deal-it-out",
+  ];
 }

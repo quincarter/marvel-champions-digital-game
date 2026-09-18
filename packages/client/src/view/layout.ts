@@ -23,6 +23,63 @@ export interface Rect {
   readonly height: number;
 }
 
+/** True when two rects share any pixel — the no-overlap check every layout's own test uses (S8, docs/phase4-screen-gaps.md §2). */
+export function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
+}
+
+/**
+ * How many lines a string wraps to at `widthPx`, without a live Phaser text
+ * object to measure — the same "conservative width estimate, no canvas" call
+ * `chip-layout.ts` makes for a chip label, generalized to a whole sentence: a
+ * greedy word-wrap over `text.length` at `avgCharWidthPx` per character
+ * (never mid-word, so a long single "word" still counts as one line-worth of
+ * its own length rather than being split).
+ *
+ * Exists because a fixed-height row sized for a *short* detail line clips or
+ * collides with whatever sits below it once a longer one wraps twice or three
+ * times (`view/pause-layout.ts` and `view/settings-layout.ts`'s own fidelity
+ * pass notes — a two-line "Jump into the log" reason used to render its
+ * second line through its own row's border; a three-line "Reduced motion"
+ * description used to run into the next row's heading). Rows built from this
+ * estimate size themselves to their own real content instead of a shared
+ * worst case that wastes space under every shorter row.
+ */
+/**
+ * The height a "title, then a detail line, then a toggle on the right" row
+ * needs for its own detail text at `width` — the row shape Pause's inline
+ * "Table" group and the standalone Settings screen both draw (`view/pause-layout.ts`,
+ * `view/settings-layout.ts`, `scenes/pause.ts`'s `#drawTableRow`, `scenes/settings.ts`'s
+ * `#drawRow` — one formula so the two screens can't drift into two different
+ * row heights for what a player sees as the identical row).
+ */
+export function toggleRowHeight(detail: string, width: number): number {
+  const DETAIL_TOP = 20;
+  const DETAIL_LINE_HEIGHT = 14.5;
+  const DETAIL_CHAR_WIDTH = 5.4;
+  const BOTTOM_PADDING = 8;
+  const MIN_HEIGHT = 44;
+  const wrapWidth = Math.max(1, width - 100);
+  const lines = estimateWrappedLines(detail, wrapWidth, DETAIL_CHAR_WIDTH);
+  return Math.max(MIN_HEIGHT, DETAIL_TOP + lines * DETAIL_LINE_HEIGHT + BOTTOM_PADDING);
+}
+
+export function estimateWrappedLines(text: string, widthPx: number, avgCharWidthPx: number): number {
+  const maxChars = Math.max(1, Math.floor(widthPx / avgCharWidthPx));
+  let lines = 1;
+  let lineLength = 0;
+  for (const word of text.split(/\s+/).filter((w) => w.length > 0)) {
+    const needed = lineLength === 0 ? word.length : lineLength + 1 + word.length;
+    if (needed > maxChars && lineLength > 0) {
+      lines += 1;
+      lineLength = word.length;
+    } else {
+      lineLength = needed;
+    }
+  }
+  return lines;
+}
+
 export type FormFactor = "phone" | "tabletPortrait" | "tabletLandscape" | "desktop";
 
 /** The phone board's zone tabs, in the order the design canvas lists them. */

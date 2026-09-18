@@ -10,7 +10,96 @@
 import Phaser from "phaser";
 import { surface, typeRole, WEB_FONTS } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
+import { POOL_CARDS, POOL_DEPS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
+import { deckOptionsOf, preconDecks } from "../view/deck-list-model.js";
+import { corePlayerForSeat } from "../view/deck-seat.js";
+import { initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
+import { rollSeed } from "../view/seed.js";
+import { appSession } from "../session.js";
 import { SCENES } from "./keys.js";
+import type { DeckBuilderSceneData } from "./deck-builder.js";
+import type { DeckCheckSceneData } from "./deck-check.js";
+import type { RulesSceneData } from "./rules.js";
+import type { RulesTab } from "../view/rules-layout.js";
+import type { ScenarioSelectData } from "./scenario-select.js";
+import type { SeatsData } from "./seats.js";
+import type { TableSetupData } from "./table-setup.js";
+
+/**
+ * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
+ * visual QA against the design canvases (docs/design-reference.md) without
+ * scripting a click-through of the whole app. Never reachable in a normal
+ * session — Title's own menu is still the only in-game way to reach any of
+ * these scenes — and harmless if left in a production build (an unrecognized
+ * or absent `screen` param falls through to Title as usual).
+ *
+ * `scenario-select` / `seats` / `table-setup` jump with a fresh default
+ * `SetupDraft` (no live game). `deck-check` / `deck-builder` load the first
+ * precon deck straight into the scene (no live game either). `board` /
+ * `pause` / `rules` / `settings` need one, since D13/P16/L07's status line and
+ * glossary/card-list content only mean anything against a real table — those
+ * four start a real one-seat Rhino/Spider-Man game through the same
+ * `store.start`/`toSessionConfig` path Table setup uses, then jump: `board`
+ * alone, `pause` launches the Pause overlay over it, `rules`/`settings` skip
+ * straight past Pause to the overlay itself (`initialTab`/`initialQuery` via
+ * `?tab=`/`?q=`, mirroring `RulesSceneData`).
+ */
+async function devScreenJump(): Promise<{ readonly key: string; readonly data?: object } | null> {
+  const params = new URLSearchParams(location.search);
+  const screen = params.get("screen");
+  if (!screen) return null;
+
+  if (screen === "scenario-select" || screen === "seats" || screen === "table-setup") {
+    const draft = initialSetupDraft({
+      scenarioId: POOL_SCENARIOS[0]!.id as string,
+      seatDeckId: preconDecks(POOL_VERSION)[0]!.id as string,
+      seed: rollSeed(),
+    });
+    if (screen === "scenario-select") return { key: SCENES.scenarioSelect, data: { draft } satisfies ScenarioSelectData };
+    if (screen === "seats") return { key: SCENES.seats, data: { draft } satisfies SeatsData };
+    return { key: SCENES.setup, data: { draft } satisfies TableSetupData };
+  }
+
+  if (screen === "deck-check" || screen === "deck-builder") {
+    const deck = preconDecks(POOL_VERSION)[0]!;
+    if (screen === "deck-check") return { key: SCENES.deckCheck, data: { deck } satisfies DeckCheckSceneData };
+    return { key: SCENES.deckBuilder, data: { deck } satisfies DeckBuilderSceneData };
+  }
+
+  if (screen === "board" || screen === "pause" || screen === "rules" || screen === "settings") {
+    await startDevGame();
+    if (screen === "settings") return { key: SCENES.settings, data: {} };
+    if (screen === "rules") {
+      const tab = params.get("tab");
+      const query = params.get("q");
+      const data: RulesSceneData = {
+        ...(tab ? { initialTab: tab as RulesTab } : {}),
+        ...(query ? { initialQuery: query } : {}),
+      };
+      return { key: SCENES.rules, data };
+    }
+    return { key: SCENES.board, data: {} };
+  }
+
+  return null;
+}
+
+/**
+ * A real one-seat game (Rhino, standard, Spider-Man's own precon) started
+ * through the exact same `store.start(toSessionConfig(...))` call Table setup
+ * makes — so Pause's status line, the glossary's "N terms on the table" and
+ * the scenario card list all show real numbers rather than the "No game in
+ * progress" placeholder. A no-op if a game is somehow already running (this
+ * only ever runs once, straight out of Boot).
+ */
+async function startDevGame(): Promise<void> {
+  const { store } = appSession();
+  if (store.state.game) return;
+  const scenario = POOL_SCENARIOS[0]!;
+  const seat = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS)[0]!;
+  const draft = initialSetupDraft({ scenarioId: scenario.id as string, seatDeckId: seat.deck.id as string, seed: rollSeed() });
+  await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)]));
+}
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -25,7 +114,26 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setLetterSpacing(typeRole.label.letterSpacing);
 
-    void this.#awaitFonts().then(() => this.scene.start(SCENES.title));
+    void this.#awaitFonts()
+      .then(() => devScreenJump())
+      .then((jump) => {
+        if (!jump) {
+          this.scene.start(SCENES.title);
+          return;
+        }
+        // `pause`'s own screenshot needs the Board running underneath it,
+        // exactly like a real pause — `scene.launch`, never `scene.start`,
+        // so Board keeps drawing (`scenes/pause.ts`'s own doc comment: "the
+        // board keeps running underneath, exactly like every other overlay").
+        if (jump.key === SCENES.rules || jump.key === SCENES.settings) {
+          this.scene.start(SCENES.board);
+          this.scene.launch(jump.key, jump.data);
+        } else {
+          this.scene.start(jump.key, jump.data);
+        }
+        const params = new URLSearchParams(location.search);
+        if (params.get("screen") === "pause") this.scene.launch(SCENES.pause);
+      });
   }
 
   /**

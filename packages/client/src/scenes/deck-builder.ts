@@ -16,6 +16,31 @@
  * the Decks screen's deck list uses: recreated fresh every `#rebuild()` (like
  * every other non-DOM control this scene draws), with only its scroll
  * position (`#listScroll`) surviving that.
+ *
+ * **Composition (fidelity pass, 2026-09-17), against D04.** D04 is a
+ * three-column desktop layout — an aspect/filter rail (ending in the cost
+ * curve) on the left, the card pool in the middle, "Your deck" on an ink
+ * ground on the right — over one legality chip in the header. From
+ * `WIDE_MIN_WIDTH` up this scene now draws exactly that split
+ * (`#rebuildWide`); below it, every control still stacks in the one column
+ * this scene always drew (`#rebuildNarrow`), unchanged. **What stayed a
+ * deviation, deliberately:** D04 has no visible deck-name field or Save
+ * button — its mockup deck is already named by identity+aspect and "saving"
+ * reads as the next setup step ("Table setup ▸"), which doesn't exist yet
+ * (W2). This build still needs to name and persist a deck with no setup flow
+ * to hand it to, so the name field and a real Save button live at the top of
+ * the right (ink) column instead of being dropped — the closest real
+ * equivalent of "the deck's own identity" the mockup shows there. Every
+ * number and legality string is still `view/deck-stats.ts`/`legalityOf`'s
+ * own; this pass only rearranges where they're drawn.
+ *
+ * Unlike the other four W1/W4 screens in this fidelity pass, this scene has
+ * no dedicated `view/*-layout.ts` pure layout module — every rect is computed
+ * inline against a running `y` cursor per column, the same shape this file
+ * already had. A future pass extracting that into a tested pure function
+ * (the way `deck-check-layout.ts` already does for Deck check) is real,
+ * unstarted work; this pass keeps the existing architecture rather than
+ * introducing a new one under time pressure.
  */
 
 import Phaser from "phaser";
@@ -36,7 +61,7 @@ import {
   setName,
   type PoolFilter,
 } from "../view/deck-builder-model.js";
-import { costCurveBars, deckListGroupsOf, deckStatsOf, type DeckListEntry } from "../view/deck-stats.js";
+import { costCurveBars, deckListGroupsOf, deckStatsOf } from "../view/deck-stats.js";
 import { CHIP_GAP, chipStripHeight, wrapChipsToRows } from "../view/chip-layout.js";
 import { deckBuilderFocusOrder } from "../view/screen-focus.js";
 import { formFactorFor, type Rect } from "../view/layout.js";
@@ -45,6 +70,7 @@ import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets.js";
 import { deckStorage } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
@@ -57,6 +83,12 @@ const IDENTITY_ROW_HEIGHT = hit.target;
 const CARD_ROW_HEIGHT = 56;
 const POOL: readonly AnyCard[] = POOL_CARDS;
 const IDENTITIES: readonly HeroIdentityCard[] = identityOptions(POOL);
+
+/** Below this, the three-column desktop split doesn't have room to breathe and the scene stacks into one column instead. */
+const WIDE_MIN_WIDTH = 1000;
+const LEFT_RAIL_WIDTH = 230;
+const RIGHT_RAIL_WIDTH = 300;
+const RAIL_GAP = 24;
 
 /**
  * W1's type filter chips (docs/phase4-screen-gaps.md §3): "All" plus every `PoolFilter.type` the pool actually
@@ -144,8 +176,9 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";
+    const wide = !phone && width >= WIDE_MIN_WIDTH;
     const pad = phone ? 16 : 40;
-    const column = Math.min(width - pad * 2, 720);
+    const column = Math.min(width - pad * 2, wide ? 1200 : 720);
     const left = (width - column) / 2;
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper);
 
@@ -178,14 +211,108 @@ export class DeckBuilderScene extends Phaser.Scene {
     label(this, left, y, `identity — ${this.#identity.name}`, typeRole.label, surface.ink.hex, ink.label);
     y += 20;
 
-    // Aspects: as many as this identity's deckbuilding requires (RRG default 1).
-    const maxAspects = aspectCountFor(this.#identity);
+    const pool = wide ? this.#rebuildWide(left, y, column, deck) : this.#rebuildNarrow(left, y, column, deck);
+
+    this.#route?.set(
+      deckBuilderFocusOrder({
+        identityChosen: true,
+        identityIds: [],
+        aspectIds: [...SELECTABLE_ASPECTS],
+        typeFilterIds: TYPE_FILTERS.map((f) => f.id),
+        poolCardIds: pool.map((card) => card.id as string),
+      }),
+      this.#stops,
+    );
+  }
+
+  /**
+   * The narrow (phone/tablet) layout: everything in the one column D04's own
+   * canvas doesn't have room for below `WIDE_MIN_WIDTH` — aspect, filter
+   * chips, name, legality, the stats panel, Preconstructed/Clear, Save, the
+   * pool search, then the pool list filling whatever height is left. Returns
+   * the browsable pool, for the caller's focus order.
+   */
+  #rebuildNarrow(left: number, top: number, column: number, deck: Deck): readonly AnyCard[] {
+    let y = top;
+    y = this.#drawAspectPicker(left, y, column, deck);
+    y = this.#drawTypeFilters(left, y, column);
+    y = this.#drawNameField(left, y, column, deck);
+    y = this.#drawLegalityLine(left, y, column, deck);
+    y = this.#drawCostCurve(left, y, column, deck, false);
+    y = this.#drawYourDeckList(left, y, column, deck, false);
+    y = this.#drawPreconClearSave(left, y, column, deck);
+
+    const { height } = this.scale.gameSize;
+    const pad = 16;
+    label(this, left, y, "search the pool", typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    y = this.#drawFilterInput(left, y, column, deck);
+    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter);
+    label(this, left, y, `pool — ${pool.length} card${pool.length === 1 ? "" : "s"}`, typeRole.label, surface.ink.hex, ink.label);
+    y += 16;
+    const listRect: Rect = { x: left, y, width: column, height: Math.max(CARD_ROW_HEIGHT, height - y - pad) };
+    this.#drawPoolList(listRect, deck, pool);
+    return pool;
+  }
+
+  /**
+   * The wide (desktop) layout (D04): a left aspect/filter/cost-curve rail, the
+   * card pool in the middle, "Your deck" on its own ink ground on the right.
+   * Returns the browsable pool, for the caller's focus order.
+   */
+  #rebuildWide(left: number, top: number, column: number, deck: Deck): readonly AnyCard[] {
+    const { height } = this.scale.gameSize;
+    const pad = 40;
+    const bottom = height - pad;
+
+    const leftX = left;
+    const midX = leftX + LEFT_RAIL_WIDTH + RAIL_GAP;
+    const midWidth = Math.max(240, column - LEFT_RAIL_WIDTH - RIGHT_RAIL_WIDTH - RAIL_GAP * 2);
+    const rightX = midX + midWidth + RAIL_GAP;
+
+    // Left rail: aspect, filter, cost curve.
+    let leftY = top;
+    leftY = this.#drawAspectPicker(leftX, leftY, LEFT_RAIL_WIDTH, deck);
+    leftY = this.#drawTypeFilters(leftX, leftY, LEFT_RAIL_WIDTH);
+    label(this, leftX, leftY, "cost curve", typeRole.label, surface.ink.hex, ink.label);
+    leftY += 16;
+    this.#drawCostCurve(leftX, leftY, LEFT_RAIL_WIDTH, deck, true);
+
+    // Right rail: name, legality, Your deck, Preconstructed/Clear, Save — one ink ground panel behind all of it.
+    const rightPanel = this.add.graphics();
+    paintPanel(rightPanel, { x: rightX, y: top - 8, width: RIGHT_RAIL_WIDTH, height: bottom - top + 8 }, "onInk", "rest");
+    let rightY = top + 8;
+    rightY = this.#drawNameField(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
+    rightY = this.#drawLegalityLine(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
+    rightY += 4;
+    rightY = this.#drawYourDeckList(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
+    this.#drawPreconClearSave(rightX + 12, bottom - hit.target * 2 - 24, RIGHT_RAIL_WIDTH - 24, deck, true);
+
+    // Middle: the pool, search field above it.
+    let midY = top;
+    label(this, midX, midY, "card pool", typeRole.label, surface.ink.hex, ink.label);
+    midY += 16;
+    midY = this.#drawFilterInput(midX, midY, midWidth, deck);
+    const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter);
+    label(this, midX, midY, `${pool.length} card${pool.length === 1 ? "" : "s"}`, typeRole.label, surface.ink.hex, ink.meta);
+    midY += 16;
+    const listRect: Rect = { x: midX, y: midY, width: midWidth, height: Math.max(CARD_ROW_HEIGHT, bottom - midY) };
+    this.#drawPoolList(listRect, deck, pool);
+    return pool;
+  }
+
+  #drawAspectPicker(left: number, top: number, column: number, deck: Deck): number {
+    let y = top;
+    const maxAspects = aspectCountFor(this.#identity!);
     label(this, left, y, `aspect (choose ${maxAspects})`, typeRole.label, surface.ink.hex, ink.label);
     y += 16;
-    const aspectCols = SELECTABLE_ASPECTS.length;
+    const aspectCols = column >= 420 ? SELECTABLE_ASPECTS.length : 2;
+    const aspectRows = Math.ceil(SELECTABLE_ASPECTS.length / aspectCols);
     const aspectCellWidth = (column - (aspectCols - 1) * 6) / aspectCols;
     SELECTABLE_ASPECTS.forEach((aspect, index) => {
-      const rect: Rect = { x: left + index * (aspectCellWidth + 6), y, width: aspectCellWidth, height: hit.target };
+      const row = Math.floor(index / aspectCols);
+      const col = index % aspectCols;
+      const rect: Rect = { x: left + col * (aspectCellWidth + 6), y: y + row * (hit.target + 6), width: aspectCellWidth, height: hit.target };
       const selected = deck.aspects.includes(aspect);
       const toggle = (): void => {
         if (selected) this.#setDeck(setAspects(deck, deck.aspects.filter((a) => a !== aspect)));
@@ -195,11 +322,11 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#buttons.push(new McButton(this, { kind: "secondary", label: aspect, type: typeRole.label, rect, selected, onClick: toggle }));
       this.#stops.set(`aspect:${aspect}`, { rect, activate: toggle });
     });
-    y += hit.target + 16;
+    return y + aspectRows * (hit.target + 6) + 10;
+  }
 
-    // Type filter chips (W1, docs/phase4-screen-gaps.md §3): "All, Ally, Event, Upgrade, Support, Resource", wired
-    // to `PoolFilter.type` — wrapped to the column width the same way Title's own quick-filter chips are (S8,
-    // `view/chip-layout.ts`), so a narrow phone column never truncates a label.
+  #drawTypeFilters(left: number, top: number, column: number): number {
+    let y = top;
     label(this, left, y, "filter", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const typeChipRows = wrapChipsToRows(TYPE_FILTERS, column);
@@ -218,10 +345,12 @@ export class DeckBuilderScene extends Phaser.Scene {
         this.#stops.set(`type:${chip.id}`, { rect, activate: applyFilter });
       });
     });
-    y += chipStripHeight(typeChipRows.length) + 16;
+    return y + chipStripHeight(typeChipRows.length) + 16;
+  }
 
-    // Name.
-    label(this, left, y, "deck name", typeRole.label, surface.ink.hex, ink.label);
+  #drawNameField(left: number, top: number, column: number, deck: Deck, onDark = false): number {
+    let y = top;
+    label(this, left, y, "deck name", typeRole.label, onDark ? surface.paper.hex : surface.ink.hex, onDark ? ink.secondary : ink.label);
     y += 16;
     const nameRect: Rect = { x: left, y, width: column, height: hit.target };
     if (this.#nameInput) this.#nameInput.layout(nameRect);
@@ -234,40 +363,62 @@ export class DeckBuilderScene extends Phaser.Scene {
       });
     }
     this.#stops.set("name", { rect: nameRect, activate: () => this.#nameInput?.focus() });
-    y += hit.target + 16;
+    return y + hit.target + 16;
+  }
 
-    // Legality, live from the engine — never recomputed here beyond calling it.
+  #drawLegalityLine(left: number, top: number, column: number, deck: Deck, onDark = false): number {
+    let y = top;
     const verdict = legalityOf(deck, POOL);
     const cardCount = deck.cards.reduce((n, c) => n + c.quantity, 0);
     const legalityText = verdict.ok
       ? `Legal — ${cardCount} cards.`
       : `${verdict.problems.length} problem${verdict.problems.length === 1 ? "" : "s"}: ${verdict.problems.map((p) => p.message).join(" ")}`;
-    const legalityLine = this.add
-      .text(left, y, legalityText, textStyle(typeRole.body, verdict.ok ? signal.heal.hex : accent.redDeep.hex))
-      .setWordWrapWidth(column);
+    const color = verdict.ok ? signal.heal.hex : accent.redDeep.hex;
+    const legalityLine = this.add.text(left, y, legalityText, textStyle(typeRole.body, onDark ? surface.paper.hex : color)).setWordWrapWidth(column);
+    if (onDark && verdict.ok) legalityLine.setColor(cssOf(signal.heal.hex));
     y += legalityLine.height + 12;
 
     if (this.#status) {
-      const statusLine = this.add.text(left, y, this.#status, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(column);
+      const statusLine = this.add.text(left, y, this.#status, textStyle(typeRole.body, onDark ? surface.paper.hex : surface.ink.hex, ink.secondary)).setWordWrapWidth(column);
       y += statusLine.height + 8;
     }
+    return y;
+  }
 
-    // Stats panel (W1, D04): cost curve, then the deck list grouped Hero / aspect / Basic with a "+ N more"
-    // overflow. Every number here is `view/deck-stats.ts`'s own — this scene only draws it.
-    y = this.#drawStatsPanel(left, y, column, deck);
+  /**
+   * The cost curve chart alone (D04's own left-rail placement, wide layout) —
+   * split out of what used to be one combined "stats panel" so the wide
+   * layout can put it in the left rail while "Your deck" (`#drawYourDeckList`)
+   * goes in the right one; the narrow layout still calls both back to back,
+   * in the same order as before.
+   */
+  #drawCostCurve(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
+    const stats = deckStatsOf(deck, POOL);
+    const chartHeight = 74;
+    drawCostCurveBars(this, { x: left, y: top, width: column, height: chartHeight }, costCurveBars(stats), onDark);
+    return top + chartHeight + 16;
+  }
 
-    // Preconstructed / Clear (W1).
+  /** "Your deck", grouped Hero / aspect / Basic with a "+ N more" overflow (D04's right rail; the narrow layout's own stats panel). */
+  #drawYourDeckList(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
+    label(this, left, top, "your deck", typeRole.label, onDark ? surface.paper.hex : surface.ink.hex, onDark ? ink.secondary : ink.label);
+    const groups = deckListGroupsOf(deck, POOL);
+    return drawGroupedCardList(this, left, top + 16, column, groups, STATS_LIST_ENTRY_CAP, onDark);
+  }
+
+  #drawPreconClearSave(left: number, top: number, column: number, deck: Deck, onDark = false): number {
+    let y = top;
     const resetRowGap = 8;
     const resetCellWidth = (column - resetRowGap) / 2;
     const preconRect: Rect = { x: left, y, width: resetCellWidth, height: hit.target };
     const clearRect: Rect = { x: left + resetCellWidth + resetRowGap, y, width: resetCellWidth, height: hit.target };
-    const precon = resetToPrecon(deck, this.#identity, POOL_STARTER_DECKS);
+    const precon = resetToPrecon(deck, this.#identity!, POOL_STARTER_DECKS);
     const doPrecon = (): void => {
       if (precon) this.#setDeck(precon);
     };
     this.#buttons.push(
       new McButton(this, {
-        kind: "secondary",
+        kind: onDark ? "onInk" : "secondary",
         label: "Preconstructed",
         type: typeRole.label,
         rect: preconRect,
@@ -278,20 +429,19 @@ export class DeckBuilderScene extends Phaser.Scene {
     );
     this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
     const doClear = (): void => this.#setDeck(resetToIdentitySet(deck, this.#identity!, POOL));
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Clear", type: typeRole.label, rect: clearRect, onClick: doClear }));
+    this.#buttons.push(new McButton(this, { kind: onDark ? "onInk" : "secondary", label: "Clear", type: typeRole.label, rect: clearRect, onClick: doClear }));
     this.#stops.set("clear", { rect: clearRect, activate: doClear });
     y += hit.target + 16;
 
-    // Save.
     const saveRect: Rect = { x: left, y, width: column, height: hit.primary };
     const doSave = (): void => void this.#save();
     this.#buttons.push(new McButton(this, { kind: "primary", label: this.#busy ? "Saving…" : "Save deck", type: typeRole.barTitle, rect: saveRect, enabled: !this.#busy, onClick: doSave }));
-    y += hit.primary + 16;
+    this.#stops.set("save", { rect: saveRect, activate: doSave });
+    return y + hit.primary + 16;
+  }
 
-    // Filter.
-    label(this, left, y, "search the pool", typeRole.label, surface.ink.hex, ink.label);
-    y += 16;
-    const filterRect: Rect = { x: left, y, width: column, height: hit.target };
+  #drawFilterInput(left: number, top: number, column: number, deck: Deck): number {
+    const filterRect: Rect = { x: left, y: top, width: column, height: hit.target };
     if (this.#filterInput) this.#filterInput.layout(filterRect);
     else {
       this.#filterInput = new McTextInput(this, {
@@ -307,20 +457,14 @@ export class DeckBuilderScene extends Phaser.Scene {
       });
     }
     this.#stops.set("filter-text", { rect: filterRect, activate: () => this.#filterInput?.focus() });
-    y += hit.target + 16;
+    return top + hit.target + 16;
+  }
 
-    // The pool, virtualized: `McVirtualList` owns which rows are live game
-    // objects; every card still gets a focus stop below regardless of
-    // whether it's currently drawn.
-    const pool = browsablePool(POOL, this.#identity, deck.aspects, this.#filter);
-    label(this, left, y, `pool — ${pool.length} card${pool.length === 1 ? "" : "s"}`, typeRole.label, surface.ink.hex, ink.label);
-    y += 16;
-    const listRect: Rect = { x: left, y, width: column, height: Math.max(CARD_ROW_HEIGHT, height - y - pad) };
-
+  /** The pool, virtualized: `McVirtualList` owns which rows are live game objects; every card still gets a focus stop regardless of whether it's currently drawn. */
+  #drawPoolList(listRect: Rect, deck: Deck, pool: readonly AnyCard[]): void {
     if (pool.length === 0) {
       this.add.text(listRect.x + 10, listRect.y + 10, "No cards match this filter.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
     }
-
     const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderCardRow(rect, deck, pool[index]!);
     this.#list = new McVirtualList(this, { rect: listRect, rowHeight: CARD_ROW_HEIGHT, count: pool.length, renderRow, scroll: this.#listScroll });
     const list = this.#list;
@@ -333,73 +477,6 @@ export class DeckBuilderScene extends Phaser.Scene {
         ensureVisible: () => list.scrollIntoView(index),
       });
     });
-
-    this.#stops.set("save", { rect: saveRect, activate: doSave });
-
-    this.#route?.set(
-      deckBuilderFocusOrder({
-        identityChosen: true,
-        identityIds: [],
-        aspectIds: [...SELECTABLE_ASPECTS],
-        typeFilterIds: TYPE_FILTERS.map((f) => f.id),
-        poolCardIds: pool.map((card) => card.id as string),
-      }),
-      this.#stops,
-    );
-  }
-
-  /** The cost curve and the grouped deck list (Hero / aspect / Basic), capped with a "+ N more" overflow — D04's stats panel. Returns the next free `y`. */
-  #drawStatsPanel(left: number, top: number, column: number, deck: Deck): number {
-    let y = top;
-    const stats = deckStatsOf(deck, POOL);
-
-    label(this, left, y, "cost curve", typeRole.label, surface.ink.hex, ink.label);
-    y += 16;
-    const chartHeight = 74;
-    const bars = costCurveBars(stats);
-    const gap = 6;
-    const barWidth = (column - gap * (bars.length - 1)) / bars.length;
-    const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
-    bars.forEach((bar, index) => {
-      const barHeight = Math.max(2, Math.round((bar.count / maxCount) * (chartHeight - 16)));
-      const x = left + index * (barWidth + gap);
-      const g = this.add.graphics();
-      g.fillStyle(index === bars.length - 1 ? signal.spent.hex : signal.cost.hex, 1);
-      g.fillRect(x, y + (chartHeight - 16 - barHeight), barWidth, barHeight);
-      label(this, x + barWidth / 2, y + chartHeight - 10, bar.label, typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
-    });
-    y += chartHeight + 16;
-
-    label(this, left, y, "your deck", typeRole.label, surface.ink.hex, ink.label);
-    y += 16;
-    const groups = deckListGroupsOf(deck, POOL);
-    let shown = 0;
-    let overflow = 0;
-    for (const group of groups) {
-      const remainingRoom = STATS_LIST_ENTRY_CAP - shown;
-      if (remainingRoom <= 0) {
-        overflow += group.entries.length;
-        continue;
-      }
-      const visible: readonly DeckListEntry[] = group.entries.slice(0, remainingRoom);
-      overflow += group.entries.length - visible.length;
-      shown += visible.length;
-      if (visible.length === 0) continue;
-      label(this, left, y, `${group.label} · ${group.count}`, typeRole.label, surface.ink.hex, ink.meta);
-      y += 14;
-      for (const entry of visible) {
-        const line = this.add.text(left, y, entry.name, textStyle(typeRole.body, surface.ink.hex));
-        fitText(line, column - 40);
-        label(this, left + column - 4, y, String(entry.quantity), typeRole.label, surface.ink.hex, ink.secondary).setOrigin(1, 0);
-        y += 16;
-      }
-      y += 4;
-    }
-    if (overflow > 0) {
-      this.add.text(left, y, `+ ${overflow} more`, textStyle(typeRole.body, surface.ink.hex, ink.meta));
-      y += 18;
-    }
-    return y + 8;
   }
 
   #drawIdentityPicker(left: number, y: number, column: number): void {
