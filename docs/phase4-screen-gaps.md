@@ -39,7 +39,7 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 | D07, Board canvases, L01, T-P01 | Board | ✅ | Long table and phone tabs. Small chrome gaps. | W8 |
 | D08, P14 | Inspect | ✅ | `scenes/inspect.ts`. No per-game history. | W8 |
 | D09, L06 | Targeting | ⚠️ | Target mode dims and highlights. The prompt is one line in the action bar. | W5 |
-| D10, P15 | Pending choice: defend | ⚠️ | A generic option sheet with an authority label. | W6 |
+| D10, P15 | Pending choice: defend | ✅ | `scenes/choice.ts`'s `declareDefender` branch over `defendPreview`/`stackEntries`. | W6 |
 | D11, P09, L02 | Villain phase | ✅ | `scenes/villain-phase.ts`: step strip and phase log. | W7 |
 | D12, P10, P11, P17, L08 | Game over | ✅ | Wide and tall layouts, stats, turning points, seats, MVP, both rematches. | W8 |
 | D13, P16, L07 | Pause & Rules | ❌ | Nothing. The board has no menu button. | W4 |
@@ -367,13 +367,17 @@ Canvases: D10, P15.
 
 Already there: `scenes/choice.ts`, `PendingChoice.authority`, and `decisionLabel` from `view/villain-walkthrough.ts` (which carries the Peril note).
 
-- [ ] Incoming attack summary: attacker, base damage, number of facedown boost cards, and any forced interrupt that changed it.
-- [ ] Option cards with consequences: who exhausts, damage range (S5), whether an ally survives. Defense events playable now are listed with cost and resources available.
-- [ ] The stack, with the open window marked ("← here").
-- [ ] "Waiting on": who decides, and the Peril note.
+- [x] Incoming attack summary: attacker, base damage, number of facedown boost cards, and any forced interrupt that changed it.
+- [x] Option cards with consequences: who exhausts, damage range (S5), whether an ally survives. "Defense events playable now" is live-queried but always empty today (see the note).
+- [x] The stack, with the open window marked ("← here").
+- [x] "Waiting on": who decides, and the Peril note.
 - [ ] "Auto-defend next time this is the only option" and the phone countdown, **only after** §4's decision on auto-resolve.
+- **Landed (`game-client-engineer`, 2026-09-17; merged into `feature/phase4-screen-gaps`).** A dedicated presentation for `declareDefender`, branching inside `scenes/choice.ts` (`#drawDefendChoice`/`#drawDefendOption`) rather than a sibling scene — the subscription, resize handling, card-art loading, Inspect's toggle-back channel and the keyboard/pad route were already there. It answers through the same `#toggle`/`#confirm` → `resolveChoice([optionId])` path, so the command log is unchanged. `view/defend-choice.ts` (`defendChoiceViewOf`, 20 tests) words the engine's `defendPreview`/`stackEntries`/`legalActions`/`decisionLabel` into the incoming-attack summary (attacker, base ATK, exact facedown boost count, any forced-interrupt note read off the `enemyAttack` frame's `vars`), each option's title/exhausts/damage-band range/HP-after/consequences (defeat threshold, Tough, Overkill, Retaliate — each only when a band actually shows it), the stack with "← here", and "waiting on". `view/defend-choice-layout.ts` (42 no-overlap tests at the four sizes): main column + stack/waiting-on/Confirm rail on tablet-landscape/desktop (D10), one stacked column with a full-width Confirm on phone/tablet-portrait (P15). No engine/cards/content change; client 741 → 803.
+  - **"Play a defense event" is honestly always empty today.** `legalActions` reports `{kind:"choice"}` for every player whenever any `PendingChoice` is open, `declareDefender` included, so no ordinary command is independently legal while this choice shows. The section is live code (`defenseEventsNoteOf`) that starts reporting once a defense event can be modelled as an option of this same choice — an engine change to ask `game-rules-architect` for. D10's populated "Energy Barrier" example is that future; P15's own mock shows the empty case.
+  - **Composition.** No single white sheet: cream cards and an ink rail over the dimmed board, per D10/P15 and `ChoiceOverlay`'s "table stays visible underneath" rule. An option card draws at its own content height, top-aligned in its cell.
+  - **Fidelity pass** in the browser: a real Rhino/Spider-Man game driven to a live `declareDefender` via CDP, screenshotted at the four sizes beside `ScreensDesktop_08–09` and `ScreensPhone_02–03`; two issues found and fixed from the shots (an oversized two-option card, a dark-on-dark "waiting on" line). **Remaining:** the option cards still carry a lot of empty height at desktop; no dashed placeholder for a defender that isn't a real option; the header doesn't restate "Villain Phase · Step N of 5" (the chrome bar does); long-press-to-inspect isn't wired on the new option cards.
 
-Depends on: S5 for ranges. The summary, stack and "waiting on" can land first. The stack needs a readable view of the engine's stack frames; ask `game-rules-architect` whether `GameState` already exposes enough.
+Depends on: S5 for ranges — landed.
 
 ### W7. Villain phase
 

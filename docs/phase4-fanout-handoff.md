@@ -16,7 +16,7 @@ Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps
 | **W4** Pause & Rules, Settings, menu button, and S7's read-only replay board if it fits | `game-client-engineer` | `.claude/worktrees/agent-a7a89ad77a61b012c` | `worktree-agent-a7a89ad77a61b012c` | **Merged into the integration branch** (client 580 → 625 tests). Fidelity pass against D13/P16/L07 still owed. |
 | **W9** Decks & Collection layout (launched after W1 landed) | `game-client-engineer` | `.claude/worktrees/agent-a3784f22ee36a3677` | `worktree-agent-a3784f22ee36a3677` | **Done and merged** (client → 668). Touches `scenes/title.ts` additively (`TitleSceneData`/`withSeatOne`) — expect a conflict with W2. |
 | **W5** Targeting panel (wave 2, launched after S5 merged) | `game-client-engineer` | `.claude/worktrees/agent-a79c9a010099fa40d` | `worktree-agent-a79c9a010099fa40d` | Commits at the end. Must contain `578fab8`. |
-| **W6** Defend choice (wave 2) | `game-client-engineer` | `.claude/worktrees/agent-a1f59c5d76777c36c` | `worktree-agent-a1f59c5d76777c36c` | Commits at the end. Must contain `578fab8`. |
+| **W6** Defend choice (wave 2) | `game-client-engineer` | `.claude/worktrees/agent-a1f59c5d76777c36c` | `worktree-agent-a1f59c5d76777c36c` | **Done and merged** (client → 803). |
 | **W7** Villain phase breakdown (wave 2) | `game-client-engineer` | `.claude/worktrees/agent-a604b8b968959cb52` | `worktree-agent-a604b8b968959cb52` | Commits at the end. Must contain `578fab8`. |
 | **W1+W4 fidelity pass** (Deck check, builder, Pause, Rules, Settings, menu button vs D04/P04/D13/P16/L07) | `game-client-engineer` | `.claude/worktrees/agent-ad47bbda9045a2306` | `worktree-agent-ad47bbda9045a2306` | Commits at the end. Must contain `38c5aea`. |
 

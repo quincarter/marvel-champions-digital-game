@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { rectsOverlap } from "./title-layout.js";
+import { rectsOverlap } from "./layout.js";
 import { defendChoiceLayout, defendOptionSlots, type DefendChoiceLayout } from "./defend-choice-layout.js";
 import { REFERENCE_VIEWPORTS, type Rect } from "./layout.js";
 
