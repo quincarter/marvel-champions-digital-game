@@ -8,6 +8,18 @@ Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps
 
 Pushed to PR #4 on 2026-09-18: `158126c` (card art bundled at build time; the Rust `cardart://` protocol and the runtime resolver removed) and `b689ba1` (`art/` reorganised by convention; outcome art on Game Over's tall layout).
 
+## Third cut-off (2026-09-18 afternoon) and relaunch
+
+W2b, W9b and W3 all died at a usage limit with their work uncommitted (W9b had written nothing). The machine was also rebooted; the worktrees survived, the scratchpad did not. All three were relaunched as fresh agents pointed at the **same worktrees** below, each told to commit incrementally so a cut-off loses less, and to `git merge feature/native-packaging` before finishing:
+
+| Workstream | Worktree | Ports / scratchpad |
+|---|---|---|
+| **W2b** Scenario select + Take your seats (D02/D03, active seat, pack shelves) | `.claude/worktrees/agent-a1b268130fd6da484` | Vite 5193, CDP 9593, `w2b/` |
+| **W9b** Decks & Collection (D14) | `.claude/worktrees/agent-a6bd48ad5d833aade` | Vite 5194, CDP 9594, `w9b/` |
+| **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | Vite 5191, CDP 9591, `w3/` |
+
+Also landed on the integration branch from the main session: `e04c10c`, the phone long-press fix (one shared hold gesture, `view/hold-gesture.ts` + `ui/hold-target.ts`). Measuring note for next time: the in-app browser pane throttles to 1 fps when hidden, so time things in headless Chrome over CDP with `--use-angle=metal` and `Input.dispatchTouchEvent` instead.
+
 ## State on 2026-09-18, after a second usage-limit cut-off
 
 A new session cannot message the old agents — `SendMessage` fails with "No transcript found" across sessions — so interrupted work is continued by a **fresh agent pointed at the existing worktree**, briefed on what is already uncommitted there (step 3 below). Launched that way on 2026-09-18, each told to `git merge feature/native-packaging` before committing:
