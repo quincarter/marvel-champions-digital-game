@@ -44,7 +44,7 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 | D12, P10, P11, P17, L08 | Game over | ✅ | Wide and tall layouts, stats, turning points, seats, MVP, both rematches. | W8 |
 | D13, P16, L07 | Pause & Rules | ❌ | Nothing. The board has no menu button. | W4 |
 | — (P16, L07, D01) | Settings | ❌ | `settings.ts` holds `reducedMotion` and `textResolution`; no screen shows them. | W4 |
-| D14 | Decks & Collection | ✅ | `scenes/decks.ts`: two-pane list + stats (tabs on narrow), S8 filters, S4 record, duplicate/export/play, import, Check into Deck check. | W1, W9 |
+| D14 | Decks & Collection | ⚠️ | `scenes/decks.ts` works (select, stats, record, duplicate/export/play, import), but draws search + chips + list rows with the import boxes stacked beneath. D14's Bangers deck cards, card-pool grid, Import/Export box and rail foot are not built. Reopened 2026-09-18 as W9b. | W1, W9, W9b |
 | D01 | Campaign | ⛔ | Drawn locked in the mocks. Out of scope (PLAN.md Phase 4). | — |
 
 `SCENES.setup` is Table setup; `SCENES.scenarioSelect` and `SCENES.seats` are the two steps before it.
@@ -437,6 +437,9 @@ Already there: `scenes/decks.ts`, `view/deck-list-model.ts`, `view/deck-status.t
   - **Fidelity pass** at 1440×900, 1024×768, 768×1024 and 390×844 against `ScreensDesktop_12`/`_13` (headless Chrome over CDP). One bug found and fixed by it: switching to the narrow "Stats" tab left the DOM-backed search/import fields floating over it. **Remaining differences:** D14's three columns are two here (the middle "Card pool" grid is D04's); the owned-card coverage line is skipped (§4); at 390px `Aggression`/`Leadership`/`Protection` chips truncate — `view/chip-layout.ts`'s width estimate is at its margin for 10-character labels and is shared with Title, so it's left for a chip-layout fix.
   - **Skipped, per §4:** deck note and owned-card tracking.
   - Tests: `view/decks-layout.test.ts`, `view/deck-recency.test.ts`, `view/deck-builder-model.test.ts`, `view/deck-import-model.test.ts`, `view/roster-filter.test.ts`, `view/screen-focus.test.ts`. Client 580 → 617.
+
+- **Reopened (main session, 2026-09-18) — W9b.** The owner reported that Decks & Collection does not look like D14 and that no other deck could be selected. Both true. **The click bug is fixed** (`f1c12fd`): rows had no button of their own and "select" was wired only to the keyboard focus stop, with the list built without `onRowActivate`; the same hole in Deck check's Cards tab is fixed too. The D14 tick was premature: the main session compared W9's screenshot with the tile, called it "a real step up", and ticked it. D14 is a big Bangers header; a left column of Bangers **deck cards** under "YOUR DECKS" (the selected one ink-filled, an unfinished one red, a dashed "+ NEW DECK", and a parchment "IMPORT / EXPORT" box at the column's foot); a middle **card pool** grid with filter chips; and the ink stats rail ending in "DUPLICATE" + the red "PLAY THIS DECK ▸". W9b rebuilds it to that.
+- **Process lesson, applies to every screen workstream:** agents had been verifying by driving the app programmatically, which cannot catch a missing pointer path. Interactions must be exercised with real pointer events (`Input.dispatchMouseEvent` over CDP), and the main session clicks through a screen itself before merging or ticking it.
 
 Depends on: S1, S4.
 
