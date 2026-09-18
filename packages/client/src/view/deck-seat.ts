@@ -31,6 +31,7 @@
  */
 import type { CorePlayer } from "@mc/cards";
 import type { Deck } from "@mc/content";
+import type { DeckOption } from "./deck-list-model.js";
 
 export function corePlayerFromDeck(deck: Deck): CorePlayer {
   return {
@@ -39,4 +40,15 @@ export function corePlayerFromDeck(deck: Deck): CorePlayer {
     aspects: deck.aspects,
     deckId: deck.id as string,
   };
+}
+
+/**
+ * A seat option as the `CorePlayer` `buildScenario`/`coreScenario` accept: a
+ * precon stays `{ starterDeckId }` (the shape every existing save/test already
+ * uses), a saved/imported deck goes through `corePlayerFromDeck`. The one
+ * place W2's Seats/Table setup screens (and `scenes/title.ts` before them)
+ * turn "which deck is in this seat" into what setup actually needs.
+ */
+export function corePlayerForSeat(option: DeckOption): CorePlayer {
+  return option.deck.source.kind === "precon" ? { starterDeckId: option.deck.source.starterDeckId as string } : corePlayerFromDeck(option.deck);
 }

@@ -12,6 +12,9 @@ import { cssOf, setTextResolution } from "./ui/theme.js";
 import { defaultSettings } from "./settings.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
+import { ScenarioSelectScene } from "./scenes/scenario-select.js";
+import { SeatsScene } from "./scenes/seats.js";
+import { TableSetupScene } from "./scenes/table-setup.js";
 import { BoardScene } from "./scenes/board.js";
 import { ChoiceOverlay } from "./scenes/choice.js";
 import { InspectOverlay } from "./scenes/inspect.js";
@@ -45,7 +48,20 @@ const game = new Phaser.Game({
   // app's one DOM element (PLAN.md Phase 4). Phaser 4 only creates the DOM
   // container Phaser.GameObjects.DOMElement needs when asked to.
   dom: { createContainer: true },
-  scene: [BootScene, TitleScene, BoardScene, DecksScene, DeckBuilderScene, ChoiceOverlay, InspectOverlay, VillainPhaseOverlay, GameOverScene],
+  scene: [
+    BootScene,
+    TitleScene,
+    ScenarioSelectScene,
+    SeatsScene,
+    TableSetupScene,
+    BoardScene,
+    DecksScene,
+    DeckBuilderScene,
+    ChoiceOverlay,
+    InspectOverlay,
+    VillainPhaseOverlay,
+    GameOverScene,
+  ],
 });
 
 // Right-click is the desktop Inspect gesture, so the browser's own menu has to

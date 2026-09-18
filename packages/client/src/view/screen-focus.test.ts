@@ -1,6 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { stepKey } from "./focus.js";
-import { deckBuilderFocusOrder, decksFocusOrder, titleFocusOrder, villainPhaseFocusOrder } from "./screen-focus.js";
+import {
+  deckBuilderFocusOrder,
+  decksFocusOrder,
+  scenarioSelectFocusOrder,
+  seatsFocusOrder,
+  tableSetupFocusOrder,
+  titleFocusOrder,
+  titleMenuFocusOrder,
+  villainPhaseFocusOrder,
+} from "./screen-focus.js";
 
 describe("screen focus routes", () => {
   test("the Title screen reads top to bottom, with Continue first only when there is a game to continue", () => {
@@ -113,6 +122,62 @@ describe("screen focus routes", () => {
   test("the walkthrough offers Continue first once the phase is over", () => {
     expect(villainPhaseFocusOrder(false)).toEqual(["skip"]);
     expect(villainPhaseFocusOrder(true)).toEqual(["continue", "skip"]);
+  });
+
+  test("the Title menu (W2's D01) is Continue (when there's one), New game, Decks, Campaign, Settings", () => {
+    expect(titleMenuFocusOrder({ continuable: false })).toEqual(["new-game", "decks", "campaign", "settings"]);
+    expect(titleMenuFocusOrder({ continuable: true })).toEqual(["continue", "new-game", "decks", "campaign", "settings"]);
+  });
+
+  test("Scenario select: Back, search, chips, rows (or Clear), then next", () => {
+    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino", "klaw"] })).toEqual(["back", "scenario-search", "scenario:rhino", "scenario:klaw", "next"]);
+    expect(scenarioSelectFocusOrder({ scenarioIds: [] })).toEqual(["back", "scenario-search", "scenario-clear", "next"]);
+    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino"], scenarioChipIds: ["product:core"] })).toEqual([
+      "back",
+      "scenario-search",
+      "scenario-chip:product:core",
+      "scenario:rhino",
+      "next",
+    ]);
+  });
+
+  test("Take your seats: Back, use-preconstructed, search, chips, rows (or Clear), then deck check (the one red CTA)", () => {
+    expect(seatsFocusOrder({ deckIds: ["a", "b"] })).toEqual(["back", "use-preconstructed", "hero-search", "hero:a", "hero:b", "deck-check"]);
+    expect(seatsFocusOrder({ deckIds: [] })).toEqual(["back", "use-preconstructed", "hero-search", "hero-clear", "deck-check"]);
+    expect(seatsFocusOrder({ deckIds: ["a"], heroChipIds: ["aspect:justice"] })).toEqual([
+      "back",
+      "use-preconstructed",
+      "hero-search",
+      "hero-chip:aspect:justice",
+      "hero:a",
+      "deck-check",
+    ]);
+  });
+
+  test("Table setup: Back, difficulty, modular sets, first-player options, seed, reroll, then Deal it out", () => {
+    const order = tableSetupFocusOrder({
+      difficulties: ["standard", "expert"],
+      modularSetIds: ["bomb_scare", "masters_of_evil"],
+      firstPlayerOptionIds: ["0", "1", "random"],
+    });
+    expect(order).toEqual([
+      "back",
+      "difficulty:standard",
+      "difficulty:expert",
+      "modular:bomb_scare",
+      "modular:masters_of_evil",
+      "first-player:0",
+      "first-player:1",
+      "first-player:random",
+      "seed",
+      "reroll",
+      "deal-it-out",
+    ]);
+  });
+
+  test("Table setup with no modular sets (Breakout) simply omits that stretch", () => {
+    const order = tableSetupFocusOrder({ difficulties: ["standard"], modularSetIds: [], firstPlayerOptionIds: ["0", "random"] });
+    expect(order).toEqual(["back", "difficulty:standard", "first-player:0", "first-player:random", "seed", "reroll", "deal-it-out"]);
   });
 
   test("stepping a key route wraps, and starts from either end", () => {
