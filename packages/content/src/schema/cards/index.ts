@@ -8,7 +8,7 @@ export type {
   ResourceCard,
   PlayerSideSchemeCard,
 } from "./player-cards.js";
-export type { PlayRestrictions } from "./player-cards.js";
+export type { PlayRestrictions, SpecialCost, SpecificSet } from "./player-cards.js";
 export type {
   HeroIdentityCard,
   HeroFace,
@@ -18,6 +18,7 @@ export type {
   OffAspectPackage,
 } from "./identity.js";
 export type {
+  CardFlipSide,
   EncounterCard,
   EncounterCardFlipSide,
   MinionCard,

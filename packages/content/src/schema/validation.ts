@@ -24,7 +24,7 @@ import {
   type SuperlativeHostPool,
 } from "./cards/attachment-host.js";
 import type { AbilityReference } from "./abilities.js";
-import type { Scenario, StarterDeck } from "./sets.js";
+import type { Scenario, ScenarioSeparateDeck, StarterDeck } from "./sets.js";
 
 export interface ValidationResult {
   readonly valid: boolean;
@@ -151,6 +151,18 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
         errors.push(`${label} qualified host needs at least one qualifier (an unqualified category uses its plain kind)`);
       }
       break;
+    case "ifAble": {
+      const nested = [h.preferred, h.otherwise] as unknown[];
+      for (const [i, inner] of nested.entries()) {
+        const part = `${label} ifAble ${i === 0 ? "preferred" : "otherwise"}`;
+        if (typeof inner === "object" && inner !== null && (inner as { kind?: unknown }).kind === "ifAble") {
+          errors.push(`${part} host cannot itself be ifAble`);
+        } else {
+          errors.push(...validateAttachmentHost(inner, part));
+        }
+      }
+      break;
+    }
     case "superlative":
       if (!SUPERLATIVE_HOST_POOLS.includes(h.among as SuperlativeHostPool)) {
         errors.push(`${label} superlative host among '${String(h.among)}' is not a known pool`);
@@ -227,17 +239,57 @@ function playerCommonErrors(card: PlayerCard): string[] {
       if (r.requiresControlledCharacterTrait !== undefined && !isNonEmptyString(r.requiresControlledCharacterTrait)) {
         errors.push("playRestrictions.requiresControlledCharacterTrait must be a trait");
       }
+      if (r.maxPerPhase !== undefined && !isPositiveInteger(r.maxPerPhase)) {
+        errors.push("playRestrictions.maxPerPhase must be a positive integer");
+      }
     }
   }
   if ("cost" in card && !isNonNegativeNumber(card.cost)) errors.push(`${card.type} cost must be a non-negative number`);
+  if ("specialCost" in card && card.specialCost !== undefined) {
+    if (card.specialCost !== "X" && card.specialCost !== "dash") errors.push(`${card.type} specialCost must be 'X' or 'dash'`);
+    else if (card.cost !== 0) errors.push(`${card.type} cost is printed ${card.specialCost === "X" ? "X" : "—"}, so its value must be 0`);
+  }
+  errors.push(...wave2PlayerCardErrors(card));
   return errors;
 }
+
+/** Wave 2 player card fields: `printedAspect`, `specificTo`, `flipSide`, and the "none" classification. */
+function wave2PlayerCardErrors(card: PlayerCard): string[] {
+  const errors: string[] = [];
+  const aspect = card.aspect as string;
+  if (card.printedAspect !== undefined) {
+    if (!CHOOSABLE_PRINTED_ASPECTS.includes(card.printedAspect)) {
+      errors.push(`${card.type} printedAspect '${String(card.printedAspect)}' must be Aggression, Justice, Leadership, Protection or 'Pool`);
+    }
+    if (!aspect.startsWith("hero:")) {
+      errors.push(`${card.type} printedAspect is only for an identity-specific card that also prints an aspect; a plain aspect card uses aspect`);
+    }
+  }
+  const specific = card.specificTo;
+  if (specific !== undefined) {
+    if (typeof specific !== "object" || specific === null) errors.push(`${card.type} specificTo must be an object`);
+    else {
+      if (specific.kind !== "scenario" && specific.kind !== "campaign") errors.push(`${card.type} specificTo.kind must be 'scenario' or 'campaign'`);
+      if (!isNonEmptyString(specific.encounterSetId)) errors.push(`${card.type} specificTo must name its encounter set`);
+    }
+  }
+  // RRG 1.8 "Classifications" (p. 12): a player card with no identity, aspect or basic classification is only ever
+  // scenario- or campaign-specific.
+  if (aspect === "none" && specific === undefined) {
+    errors.push(`${card.type} with no aspect classification must say which scenario or campaign set it belongs to (specificTo)`);
+  }
+  errors.push(...flipSideErrors(card, card.type));
+  return errors;
+}
+
+const CHOOSABLE_PRINTED_ASPECTS: readonly string[] = ["aggression", "justice", "leadership", "protection", "pool"];
 
 export function validateAllyCard(card: AllyCard): ValidationResult {
   const errors = [...baseErrors(card), ...playerCommonErrors(card)];
   if (!isPrintedStat(card.atk)) errors.push("ally atk must be a non-negative number, \"X\", or null (printed —)");
   if (!isPrintedStat(card.thw)) errors.push("ally thw must be a non-negative number, \"X\", or null (printed —)");
-  if (!isNonNegativeNumber(card.hp) || card.hp < 1) errors.push("ally hp must be a positive number");
+  // 0 is printed on Ant-Man (12011) and Wasp (13012), which gain hit points from pym counters.
+  if (!isNonNegativeInteger(card.hp)) errors.push("ally hp must be a whole number of at least 0");
   if (
     !card.consequentialDamage ||
     !isNonNegativeNumber(card.consequentialDamage.attack) ||
@@ -282,6 +334,36 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
     }
     errors.push(...keywordListErrors(card.alterEgo.keywords, "alterEgo face"));
     errors.push(...abilityRefErrors(card.alterEgo.abilities, "alterEgo face"));
+  }
+  const extra: unknown = card.additionalHeroForms;
+  if (extra !== undefined) {
+    if (!Array.isArray(extra) || extra.length === 0) errors.push("identity additionalHeroForms must list at least one hero form when present");
+    else {
+      for (const [i, form] of (extra as HeroIdentityCard["hero"][]).entries()) {
+        const label = `additional hero form ${i + 1}`;
+        if (!isNonEmptyString(form?.faceName)) errors.push(`${label} missing faceName`);
+        if (!isCardText(form?.text)) errors.push(`${label} text must have non-empty printed and current strings`);
+        if (!isNonNegativeNumber(form?.handSize) || form.handSize < 1) errors.push(`${label} handSize must be a positive number`);
+        for (const stat of ["atk", "thw", "def"] as const) {
+          if (!isNonNegativeNumber(form?.[stat])) errors.push(`${label} ${stat} must be a non-negative number`);
+        }
+        if (!Array.isArray(form?.traits)) errors.push(`${label} traits must be an array`);
+        errors.push(...keywordListErrors(form?.keywords, label));
+        errors.push(...abilityRefErrors(form?.abilities, label));
+      }
+    }
+  }
+  // Ability ids are unique per card, across every face (see `additionalHeroForms`).
+  const faceRefs = [card.hero?.abilities, card.alterEgo?.abilities, ...(Array.isArray(extra) ? (extra as HeroIdentityCard["hero"][]).map((f) => f?.abilities) : [])];
+  const seenIds = new Set<string>();
+  for (const refs of faceRefs) {
+    if (!Array.isArray(refs)) continue;
+    const ids = new Set((refs as readonly AbilityReference[]).map((ref) => ref?.id));
+    for (const id of ids) {
+      if (typeof id !== "string") continue;
+      if (seenIds.has(id)) errors.push(`identity ability ${id} appears on more than one face; ability ids are unique per card`);
+      seenIds.add(id);
+    }
   }
   if (card.separateDecks !== undefined) {
     if (!Array.isArray(card.separateDecks)) errors.push("identity separateDecks must be an array");
@@ -474,6 +556,27 @@ export function validateMainSchemeCard(card: MainSchemeCard): ValidationResult {
           }
         }
       }
+      const dashed: unknown = stage.dashedValues;
+      if (dashed !== undefined) {
+        if (!Array.isArray(dashed)) errors.push(`${label} dashedValues must be an array`);
+        else {
+          const fields: readonly unknown[] = dashed;
+          if (new Set(fields).size !== fields.length) errors.push(`${label} dashedValues lists a field twice`);
+          for (const field of fields) {
+            if (!MAIN_SCHEME_THREAT_FIELDS.includes(field as MainSchemeThreatField)) {
+              errors.push(`${label} dashedValues lists '${String(field)}', which is not a threat value`);
+              continue;
+            }
+            if (Array.isArray(stage.printedX) && stage.printedX.includes(field as MainSchemeThreatField)) {
+              errors.push(`${label} ${String(field)} cannot be printed both "—" and "X"`);
+            }
+            const value = stage[field as MainSchemeThreatField];
+            if (isScalingValue(value) && (value.base !== 0 || value.perPlayer !== 0)) {
+              errors.push(`${label} ${String(field)} is printed "—", so its value must be { base: 0, perPlayer: 0 }`);
+            }
+          }
+        }
+      }
       if (!isCardText(stage.text)) errors.push(`${label} text must have printed and current strings`);
       errors.push(...abilityRefErrors(stage.abilities, label));
       if (!stage.aSide || typeof stage.aSide !== "object") errors.push(`${label} is missing its aSide`);
@@ -481,6 +584,16 @@ export function validateMainSchemeCard(card: MainSchemeCard): ValidationResult {
         if (!isCardText(stage.aSide.text)) errors.push(`${label} aSide text must have printed and current strings`);
         errors.push(...abilityRefErrors(stage.aSide.abilities, `${label} aSide`));
       }
+    }
+    // Stages sharing a stage number are alternatives (The Once and Future Kang's four stage 3 cards), so each must be
+    // told apart by its letter or its name.
+    const keys = new Set<string>();
+    for (const stage of card.stages) {
+      const key = `${stage.stageNumber}|${stage.stageLetter ?? ""}|${stage.name ?? ""}`;
+      if (keys.has(key)) {
+        errors.push(`main scheme has two stage ${stage.stageNumber}${stage.stageLetter ?? ""} entries with the same name; alternative stages need a stageLetter or a name to tell them apart`);
+      }
+      keys.add(key);
     }
   }
   return result(errors);
@@ -590,7 +703,72 @@ export function validateScenario(scenario: Scenario): ValidationResult {
   if (scenario.modularSetCount !== undefined && !isNonNegativeInteger(scenario.modularSetCount)) {
     errors.push("scenario modularSetCount must be a whole number of at least 0");
   }
+  errors.push(...wave2ScenarioErrors(scenario));
   return result(errors);
+}
+
+const isCardIdList = (value: unknown): boolean => Array.isArray(value) && value.every((id) => isNonEmptyString(id));
+
+/** Wave 2 scenario fields: set-aside and expert villains, victory, separate game areas, separate decks. */
+function wave2ScenarioErrors(scenario: Scenario): string[] {
+  const errors: string[] = [];
+  if (scenario.setAsideVillainCardIds !== undefined) {
+    if (!isCardIdList(scenario.setAsideVillainCardIds)) errors.push("scenario setAsideVillainCardIds must be a list of card ids");
+    else if (scenario.setAsideVillainCardIds.includes(scenario.villainCardId)) {
+      errors.push("scenario setAsideVillainCardIds cannot include the villain that starts in the villain deck");
+    }
+  }
+  const expert = scenario.expertVillains;
+  if (expert !== undefined) {
+    if (!isNonEmptyString(expert.villainCardId)) errors.push("scenario expertVillains must name its villainCardId");
+    if (!isCardIdList(expert.setAsideVillainCardIds)) errors.push("scenario expertVillains.setAsideVillainCardIds must be a list of card ids");
+    if (scenario.multipleVillains !== undefined) errors.push("scenario expertVillains is not defined for a scenario with multipleVillains");
+  }
+  if (scenario.victory !== undefined && scenario.victory !== "finalVillainStage" && scenario.victory !== "cardAbility") {
+    errors.push("scenario victory must be 'finalVillainStage' or 'cardAbility'");
+  }
+  const areas = scenario.separateGameAreas;
+  if (areas !== undefined) {
+    if (areas.isolation !== "areasCannotAffectEachOther") errors.push("scenario separateGameAreas.isolation must be 'areasCannotAffectEachOther'");
+    if (!isPositiveInteger(areas.centralStageNumber)) errors.push("scenario separateGameAreas.centralStageNumber must be a stage number");
+    if (areas.encounterDeck !== "shared") errors.push("scenario separateGameAreas.encounterDeck must be 'shared'");
+    if (areas.environments !== "inEveryArea") errors.push("scenario separateGameAreas.environments must be 'inEveryArea'");
+    if (areas.eachPlayer !== "sameArea") errors.push("scenario separateGameAreas.eachPlayer must be 'sameArea'");
+    if (areas.uniqueness !== "perArea") errors.push("scenario separateGameAreas.uniqueness must be 'perArea'");
+    if (areas.joining !== "sideSchemesAndEngagedMinionsMove") errors.push("scenario separateGameAreas.joining must be 'sideSchemesAndEngagedMinionsMove'");
+    if (scenario.multipleVillains !== undefined) errors.push("scenario separateGameAreas is not defined for a scenario with multipleVillains");
+  }
+  const decks: unknown = scenario.separateDecks;
+  if (decks !== undefined) {
+    if (!Array.isArray(decks)) errors.push("scenario separateDecks must be an array");
+    else {
+      const names = new Set<string>();
+      for (const deck of decks as readonly Partial<ScenarioSeparateDeck>[]) {
+        const label = `scenario separate deck ${isNonEmptyString(deck?.name) ? deck.name : "(unnamed)"}`;
+        if (!isNonEmptyString(deck?.name)) errors.push("scenario separate deck needs a name");
+        else if (names.has(deck.name)) errors.push(`${label} is listed twice`);
+        else names.add(deck.name);
+        const contents = deck?.contents;
+        const sets = contents?.encounterSetIds;
+        if (!contents || (sets === undefined && contents.cardType === undefined)) {
+          errors.push(`${label} contents must name encounter sets, a card type, or both`);
+        } else {
+          if (sets !== undefined && (!Array.isArray(sets) || sets.length === 0 || !sets.every(isNonEmptyString))) {
+            errors.push(`${label} contents.encounterSetIds must list encounter set ids`);
+          }
+          if (contents.cardType !== undefined && contents.cardType !== "side_scheme") errors.push(`${label} contents.cardType must be 'side_scheme'`);
+        }
+        if (deck?.discardPile !== "own" && deck?.discardPile !== "encounter") errors.push(`${label} discardPile must be 'own' or 'encounter'`);
+        if (deck?.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck?.whenEmpty !== "remainsEmpty") {
+          errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'remainsEmpty'`);
+        }
+        if (deck?.whenEmpty === "reshuffleDiscardWithoutPenalty" && deck.discardPile !== "own") {
+          errors.push(`${label} can only reshuffle a discard pile of its own`);
+        }
+      }
+    }
+  }
+  return errors;
 }
 
 export function validateStarterDeck(deck: StarterDeck): ValidationResult {

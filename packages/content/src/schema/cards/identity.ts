@@ -93,6 +93,25 @@ export interface HeroIdentityCard extends BaseCard {
   readonly deckbuilding?: IdentityDeckbuilding;
   /** Decks this identity brings to the game besides its player deck (Doctor Strange's Invocation deck). */
   readonly separateDecks?: readonly IdentitySeparateDeck[];
+  /**
+   * Hero forms printed on the identity besides `hero` (wave 2): the inside face of a foldable "three-sided" identity.
+   *
+   * The Ant-Man Hero Pack insert, "Foldable Cards": "Scott Lang/Ant-Man's identity card is a foldable, 'three-sided'
+   * card. One side is his alter-ego form, one side is his TINY hero form, and the inside of the card is his GIANT hero
+   * form. Changing form with a three-sided card follows the standard rules for changing form found in the Rules
+   * Reference." and "Rules Clarifications": "Scott Lang/Ant-Man can change from alter-ego form to either hero form, from
+   * either hero form to alter-ego form, or from one hero form to the other hero form." Wasp (13001a/b/c) is the same.
+   * RRG 1.8 "Flip" (p. 20): "A foldable, 'three-sided' card is considered to have flipped any time the faceup side of
+   * the card changes."
+   *
+   * `hero` is the outside hero face (MarvelCDB `…a`, linked to the alter-ego `…b`); each entry here is an inside face
+   * (`…c`), which MarvelCDB publishes as a separate, unlinked `hero` record. Hit points stay on the identity: damage
+   * persists across every change of form (RRG 1.8 "Form, Change Form", p. 21). Neither form is a default: a player
+   * changing from alter-ego form chooses which hero form to change to. Ability ids must be unique across all faces.
+   *
+   * Data only until the engine tracks which hero face is up (docs/phase7-wave2.md §3.2).
+   */
+  readonly additionalHeroForms?: readonly (HeroFace & { readonly traits: readonly Trait[] })[];
 }
 
 /**
