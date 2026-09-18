@@ -249,7 +249,9 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
     case "gameEnded":
       return {
         text: outcomeText(event.outcome),
-        voice: event.outcome.result === "win" ? "win" : "loss",
+        // A concession is neither a win nor a defeat (the RRG has no concede rule; see `GameOutcome`), so it takes
+        // the neutral voice rather than being coloured as a loss.
+        voice: event.outcome.result === "win" ? "win" : event.outcome.result === "conceded" ? "scenario" : "loss",
       };
     /**
      * The engine emits one of these for *every* resolved ability — a
@@ -311,6 +313,8 @@ const outcomeText = (outcome: { readonly result: string; readonly reason: string
       return "Every villain is defeated. You win.";
     case "mainSchemeCompleted":
       return "The main scheme completed. You lose.";
+    case "playerConceded":
+      return "The game was conceded.";
     default:
       return "Every hero is defeated. You lose.";
   }

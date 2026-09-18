@@ -61,6 +61,18 @@ export type Command =
     }
   | { readonly type: "basicRecover"; readonly playerId: PlayerId }
   | { readonly type: "endTurn"; readonly playerId: PlayerId }
+  /**
+   * Give up the game, for the whole table. **Not an RRG rule** — the RRG has no concede rule at all, so this is a
+   * digital-implementation affordance and its shape is our decision, written down here rather than implied:
+   *
+   * - It is a *command*, not a client-side flag, because a `GameLog` is `{ initialState, commands }` and `replay()` is
+   *   the only definition of what a saved game was. A client-only "abandoned" marker would replay to a live,
+   *   unfinished game while the save claimed it was over.
+   * - **Any seated, non-eliminated player may concede, and it ends the game for the whole table**, because a co-op
+   *   table shares one outcome. If a future build wants every seat to confirm first, that is a client/netcode wrapper
+   *   that gathers confirmations and then issues this one command — not engine behaviour.
+   */
+  | { readonly type: "concede"; readonly playerId: PlayerId }
   | {
       readonly type: "resolveChoice";
       readonly playerId: PlayerId;
