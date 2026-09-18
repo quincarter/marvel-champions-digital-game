@@ -190,6 +190,11 @@ describe("screen focus routes", () => {
     expect(villainPhaseFocusOrder(true)).toEqual(["continue", "skip"]);
   });
 
+  test("the inline interrupt window's own controls come right after Continue and before Skip", () => {
+    expect(villainPhaseFocusOrder(false, ["a:1"])).toEqual(["interrupt:a:1", "resolve", "skip"]);
+    expect(villainPhaseFocusOrder(false, [])).toEqual(["skip"]);
+  });
+
   test("Pause reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
     expect(pauseFocusOrder({ quickReferenceIds: [], tableRowIds: [], confirmingConcede: false })).toEqual(["close", "search", "save-quit", "concede", "resume"]);
     expect(

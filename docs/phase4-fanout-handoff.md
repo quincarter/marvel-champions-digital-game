@@ -15,7 +15,7 @@ A new session cannot message the old agents — `SendMessage` fails with "No tra
 | Workstream | Worktree | State when relaunched |
 |---|---|---|
 | **W5** Targeting panel | `.claude/worktrees/agent-a79c9a010099fa40d` | 11 files uncommitted; was at its final phone screenshot |
-| **W7** Villain phase breakdown | `.claude/worktrees/agent-a604b8b968959cb52` | 15 files uncommitted; was finishing tablet-portrait/phone checks. Touches `packages/engine/src/index.ts` — should be an added export only |
+| **W7** Villain phase breakdown | `.claude/worktrees/agent-a604b8b968959cb52` | **Done and merged 2026-09-18** (client → 946). Engine change confirmed as one added export (`statusActive`) |
 | **W1+W4 fidelity pass** | `.claude/worktrees/agent-ad47bbda9045a2306` | **Done and merged 2026-09-18** (client → 897) |
 | **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | Nothing written. **Not relaunched yet** — held until one of the above lands, since five concurrent agents hit the limit twice |
 

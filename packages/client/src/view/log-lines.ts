@@ -198,6 +198,13 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
       };
     case "boostCardFlipped":
       return { text: `Boost: ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`, voice: "villain" };
+    // A player card (Attacrobatics, Target Acquired) cancelling all or part of a just-flipped boost card
+    // (RRG 1.8 "Boost", p. 11) — worded so the villain-phase breakdown can show it beside the boost card itself.
+    case "boostCancelled":
+      return {
+        text: event.scope === "ability" ? `${card(event.instanceId)}'s Boost ability is cancelled.` : `${card(event.instanceId)}'s boost icons are cancelled.`,
+        voice: "player",
+      };
     case "defenderDeclared":
       return { text: `${card(event.defenderInstanceId)} defends.`, voice: "player" };
     case "defenseDeclined":

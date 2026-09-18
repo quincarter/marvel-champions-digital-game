@@ -40,7 +40,7 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 | D08, P14 | Inspect | ✅ | `scenes/inspect.ts`. No per-game history. | W8 |
 | D09, L06 | Targeting | ⚠️ | Target mode dims and highlights. The prompt is one line in the action bar. | W5 |
 | D10, P15 | Pending choice: defend | ✅ | `scenes/choice.ts`'s `declareDefender` branch over `defendPreview`/`stackEntries`. | W6 |
-| D11, P09, L02 | Villain phase | ✅ | `scenes/villain-phase.ts`: step strip and phase log. | W7 |
+| D11, P09, L02 | Villain phase | ✅ | `scenes/villain-phase.ts`: step strip, "happening now" breakdown, queue, threat callout, inline interrupt, tablet team rail. | W7 |
 | D12, P10, P11, P17, L08 | Game over | ✅ | Wide and tall layouts, stats, turning points, seats, MVP, both rematches. | W8 |
 | D13, P16, L07 | Pause & Rules | ❌ | Nothing. The board has no menu button. | W4 |
 | — (P16, L07, D01) | Settings | ❌ | `settings.ts` holds `reducedMotion` and `textResolution`; no screen shows them. | W4 |
@@ -389,11 +389,12 @@ Canvases: D11, P09, L02.
 
 Already there: the step strip, the phase log, auto-advance, and pausing on choices.
 
-- [ ] "Happening now" breakdown for an activation: base + boost − defense = damage (or scheme + boost = threat), with the boost cards shown face up once flipped. Every number comes from the engine's events.
-- [ ] "Queued this phase": each seat's pending activations, in the engine's order.
-- [ ] The main scheme threat callout ("11 / 12 threat — one more and the scenario is lost").
-- [ ] The inline interrupt window (P09, L02): when the player has a legal interrupt, show that card with its play button in the walkthrough, alongside "Let it resolve". It dispatches the same answer the choice overlay would.
-- [ ] Tablet (L02): keep the team rail legible behind the walkthrough.
+- [x] "Happening now" breakdown for an activation: base + boost − defense = damage (or scheme + boost = threat), with the boost cards shown face up once flipped. Every number comes from the engine's events.
+- [x] "Queued this phase": each seat's pending activations, in the engine's order.
+- [x] The main scheme threat callout ("11 / 12 threat — one more and the scenario is lost").
+- [x] The inline interrupt window (P09, L02): when the player has a legal interrupt, show that card with its play button in the walkthrough, alongside "Let it resolve". It dispatches the same answer the choice overlay would.
+- [x] Tablet (L02): keep the team rail legible behind the walkthrough.
+- **Landed (`game-client-engineer`, 2026-09-18; merged into `feature/native-packaging`).** "Happening now" reads base/boost/defense/damage off `attackResolved` and SCH/boost/threat off `schemeResolved`; boost cards draw face up from `boostCardFlipped`, with `boostCancelled` worded in `view/log-lines.ts`. "Queued this phase" follows `state.step`'s own order (`view/villain-queue.ts`), marking an activation stun or confuse will cancel via the engine's `statusActive` — the one engine change, a single added export from `packages/engine/src/index.ts`, no logic touched. The threat callout reuses `schemePanel`'s threshold (`view/villain-main-scheme.ts`). The inline interrupt window (`inlineInterruptFor`, `scenes/villain-phase.ts`'s `#drawInterrupt`) dispatches the identical `resolveChoice` the choice sheet would, so the log is unchanged. **Tablet (L02):** a per-seat "TEAM STATUS" panel (`view/villain-team-status.ts`, over the Team tab's own `seatRow`) replaces desktop's phase log on the tablet rail and marks the targeted seat, staying legible behind the interrupt; `view/villain-phase-layout.ts` is now keyed on `FormFactor` rather than a phone boolean. Verified against D11/P09/L02 at 1440×900, 1024×768, 768×1024 and 390×844 in a CDP-driven headless Chrome over a real game (e.g. "RHINO ATTACKS YOU — BASE 2 + BOOST 1 − DEFENSE 0 = DAMAGE 3"). **Remaining:** screenshots used a one-seat game, so the tablet rail shows one row where four seats would fill it (the model is seat-count-agnostic and tested).
 
 Depends on: nothing hard. The breakdown may need event fields the engine doesn't emit yet; check `view/villain-walkthrough.ts` before asking for any.
 
