@@ -116,3 +116,35 @@ describe("flattenShelves", () => {
     expect(flattenShelves(shelves).map((i) => i.id)).toEqual(["d", "u", "g"]);
   });
 });
+
+describe("shelvesOf with a solo shelf", () => {
+  const candidate = (item: string, packCode: string | null): ShelfCandidate<string> => ({ item, packCode, searchHaystacks: [item], passesChips: true });
+  const order = ["core", "cap", "msm", "box2"];
+  const names: Record<string, string> = { core: "Core Set", cap: "Captain America", msm: "Ms. Marvel", box2: "Second Box" };
+  const nameOf = (code: string): string => names[code] ?? code;
+  const solo = { id: "hero-packs", title: "Hero packs" };
+  const all = [candidate("Spider-Man", "core"), candidate("She-Hulk", "core"), candidate("Cap", "cap"), candidate("Kamala", "msm"), candidate("A", "box2"), candidate("B", "box2")];
+
+  it("gathers one-item packs onto one shelf, where the first of them would have been", () => {
+    const shelves = shelvesOf(all, order, nameOf, "", solo);
+    expect(shelves.map((s) => [s.id, s.items])).toEqual([
+      ["core", ["Spider-Man", "She-Hulk"]],
+      ["hero-packs", ["Cap", "Kamala"]],
+      ["box2", ["A", "B"]],
+    ]);
+  });
+
+  it("leaves every pack its own shelf when no solo shelf is asked for", () => {
+    expect(shelvesOf(all, order, nameOf, "").map((s) => s.id)).toEqual(["core", "cap", "msm", "box2"]);
+  });
+
+  it("a box filtered down to one hit stays on its own shelf", () => {
+    const shelves = shelvesOf(all, order, nameOf, "she-hulk", solo);
+    expect(shelves.map((s) => [s.id, s.items])).toEqual([["core", ["She-Hulk"]]]);
+  });
+
+  it("searching a hero pack by its pack name finds its hero on the gathered shelf", () => {
+    const shelves = shelvesOf(all, order, nameOf, "ms. marvel", solo);
+    expect(shelves.map((s) => [s.id, s.items])).toEqual([["hero-packs", ["Kamala"]]]);
+  });
+});

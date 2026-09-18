@@ -21,6 +21,17 @@ import { matchesSearch, normalizeSearch } from "./roster-filter.js";
 /** The synthetic shelf id for decks with no pack (saved and imported decks) — always first, and only shown when non-empty. */
 export const YOUR_DECKS_SHELF_ID = "your-decks";
 
+/**
+ * Where packs that hold a single item are gathered (the owner's call,
+ * 2026-09-18): a hero pack ships one hero, and a shelf per hero pack was a
+ * column of one-card rows — nine headers to show nine cards. Opt-in per roster
+ * through `shelvesOf`'s `soloShelf`.
+ */
+export interface SoloShelf {
+  readonly id: string;
+  readonly title: string;
+}
+
 export interface ShelfCandidate<T> {
   readonly item: T;
   /** The pack this item belongs to (`Scenario.packCode`, or the pack a deck's identity ships in). `null` buckets it into "Your decks" — the shelf for a deck with no pack of its own. */
@@ -49,6 +60,9 @@ export interface Shelf<T> {
  *   deck in The Wrecking Crew even if no single deck's own name mentions it.
  * - A shelf with nothing left (chip-excluded, or filtered out by the query)
  *   is dropped rather than shown empty.
+ * - With `soloShelf`, every pack holding exactly one candidate is gathered onto
+ *   that one shelf (in pack order) instead of getting a shelf of its own; a
+ *   search for such a pack's name still finds its item there.
  * - Shelves are ordered "Your decks" first (only when it survives filtering
  *   with at least one item), then `packOrder`'s own order (release order,
  *   `POOL_PACKS`) — never the order `candidates` happened to arrive in, so
@@ -59,27 +73,52 @@ export function shelvesOf<T>(
   packOrder: readonly string[],
   packName: (packCode: string) => string,
   query: string,
+  soloShelf?: SoloShelf,
 ): readonly Shelf<T>[] {
   const q = normalizeSearch(query.trim());
-  const byShelf = new Map<string, ShelfCandidate<T>[]>();
+
+  // A pack is "solo" by what it *holds*, not by what the chips and the query
+  // have left of it — otherwise filtering a box down to one hit would move
+  // that hit to another shelf under the player's cursor.
+  const packSize = new Map<string, number>();
+  for (const candidate of candidates) {
+    if (candidate.packCode !== null) packSize.set(candidate.packCode, (packSize.get(candidate.packCode) ?? 0) + 1);
+  }
+  const isSolo = (packCode: string): boolean => soloShelf !== undefined && (packSize.get(packCode) ?? 0) === 1;
+
+  const byPack = new Map<string, ShelfCandidate<T>[]>();
   for (const candidate of candidates) {
     if (!candidate.passesChips) continue;
-    const shelfId = candidate.packCode ?? YOUR_DECKS_SHELF_ID;
-    const bucket = byShelf.get(shelfId);
+    const key = candidate.packCode ?? YOUR_DECKS_SHELF_ID;
+    const bucket = byPack.get(key);
     if (bucket) bucket.push(candidate);
-    else byShelf.set(shelfId, [candidate]);
+    else byPack.set(key, [candidate]);
   }
 
-  const order = [YOUR_DECKS_SHELF_ID, ...packOrder];
+  /** What survives the query from one pack: all of it when the pack's own name matches, else its matching items. */
+  const survivors = (packCode: string, title: string | null): readonly T[] => {
+    const bucket = byPack.get(packCode) ?? [];
+    const packNameMatches = q !== "" && title !== null && normalizeSearch(title).includes(q);
+    return (packNameMatches ? bucket : bucket.filter((c) => matchesSearch(c.searchHaystacks, query))).map((c) => c.item);
+  };
+
   const shelves: Shelf<T>[] = [];
-  for (const shelfId of order) {
-    const bucket = byShelf.get(shelfId);
-    if (!bucket || bucket.length === 0) continue;
-    const title = shelfId === YOUR_DECKS_SHELF_ID ? "Your decks" : packName(shelfId);
-    const packNameMatches = q !== "" && shelfId !== YOUR_DECKS_SHELF_ID && normalizeSearch(title).includes(q);
-    const items = (packNameMatches ? bucket : bucket.filter((c) => matchesSearch(c.searchHaystacks, query))).map((c) => c.item);
-    if (items.length > 0) shelves.push({ id: shelfId, title, items });
+  const yours = survivors(YOUR_DECKS_SHELF_ID, null);
+  if (yours.length > 0) shelves.push({ id: YOUR_DECKS_SHELF_ID, title: "Your decks", items: yours });
+
+  let solo: { readonly at: number; readonly items: T[] } | null = null;
+  for (const packCode of packOrder) {
+    const items = survivors(packCode, packName(packCode));
+    if (items.length === 0) continue;
+    if (!isSolo(packCode)) {
+      shelves.push({ id: packCode, title: packName(packCode), items });
+      continue;
+    }
+    // The gathered shelf sits where the first solo pack would have, in release order.
+    solo ??= { at: shelves.length, items: [] };
+    solo.items.push(...items);
   }
+  if (solo && soloShelf) shelves.splice(solo.at, 0, { id: soloShelf.id, title: soloShelf.title, items: solo.items });
   return shelves;
 }
 

@@ -535,6 +535,8 @@ export class SeatsScene extends Phaser.Scene {
       POOL_PACKS.map((p) => p.code as string),
       packNameOf,
       this.#draft.heroFilter.text,
+      // A hero pack ships one hero; a shelf each was a column of one-card rows.
+      { id: "hero-packs", title: "Hero packs" },
     );
   }
 
