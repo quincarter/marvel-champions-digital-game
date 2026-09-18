@@ -14,10 +14,16 @@ A new session cannot message the old agents — `SendMessage` fails with "No tra
 
 | Workstream | Worktree | State when relaunched |
 |---|---|---|
-| **W5** Targeting panel | `.claude/worktrees/agent-a79c9a010099fa40d` | 11 files uncommitted; was at its final phone screenshot |
-| **W7** Villain phase breakdown | `.claude/worktrees/agent-a604b8b968959cb52` | 15 files uncommitted; was finishing tablet-portrait/phone checks. Touches `packages/engine/src/index.ts` — should be an added export only |
+| **W5** Targeting panel | `.claude/worktrees/agent-a79c9a010099fa40d` | **Done and merged 2026-09-18** (client → 984). Phone still owes P06's in-tab composition |
+| **W7** Villain phase breakdown | `.claude/worktrees/agent-a604b8b968959cb52` | **Done and merged 2026-09-18** (client → 946). Engine change confirmed as one added export (`statusActive`) |
 | **W1+W4 fidelity pass** | `.claude/worktrees/agent-ad47bbda9045a2306` | **Done and merged 2026-09-18** (client → 897) |
-| **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | Nothing written. **Not relaunched yet** — held until one of the above lands, since five concurrent agents hit the limit twice |
+| **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | Relaunched 2026-09-18 after the fidelity pass landed; running |
+
+**W2b** (launched 2026-09-18, fresh worktree, agent briefed in-session): rebuilds Scenario select and Take your seats to D02/D03 — Bangers headers, full-width body with full-height ink side panels, the stat strip, four selectable seat cards with the **active-seat model** (the owner's bug: only seat 1 could be selected or deck-checked), "Play N heroes" beside "Deck check ▸", and **pack shelves** with nested search (an owner decision; see the gaps doc). Namespaced: Vite 5193, CDP 9593, scratchpad `w2b/`. The main session verifies it against the tiles before merging — W2's version was ticked done without that, which is how it shipped wrong.
+
+**W9b** (launched 2026-09-18, fresh worktree, agent briefed in-session): rebuilds Decks & Collection to D14 — Bangers header, a left column of Bangers deck cards with a dashed "+ NEW DECK" and a parchment Import/Export box, a middle card-pool grid, and the ink stats rail ending in "DUPLICATE" + "PLAY THIS DECK ▸". Namespaced: Vite 5194, CDP 9594, scratchpad `w9b/`. The click bug the owner hit there is already fixed on the integration branch (`f1c12fd`); W9b must not lose it.
+
+**Before merging W2b, W9b or W3**, the main session opens each screen, clicks every interactive thing with a real pointer, and compares it with its design tile. Three screens were merged and ticked without that and the owner found them wrong.
 
 Still to launch after those: **W3**, **W8**, then the `rules-qa-engineer` pass over S5.11.
 

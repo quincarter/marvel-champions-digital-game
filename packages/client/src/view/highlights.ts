@@ -9,7 +9,7 @@
  * board must not reflow while the player's hand is already moving.
  */
 
-import type { ActionRef, EngineErrorCode, InstanceId, LegalAction, LegalActions, PlayerId } from "@mc/engine";
+import type { ActionRef, EngineErrorCode, ExclusionCode, InstanceId, LegalAction, LegalActions, PlayerId } from "@mc/engine";
 
 /** The five buttons in the design's action bar. */
 export type BasicAction = "attack" | "thwart" | "recover" | "changeForm" | "endTurn";
@@ -151,6 +151,72 @@ export function highlights(actions: LegalActions): Highlights {
 
   return { yourTurn: true, playable, unplayable, usableAbilities, anyTarget, blocked, basics, openChoice: null };
 }
+
+/**
+ * "Why not the others?" wording for `choiceExclusions`' bare `ExclusionCode`s (docs/phase4-screen-gaps.md §2 "S5.6").
+ *
+ * `why-not.ts`'s own doc comment is explicit that these are clause names, not player-facing copy — unlike
+ * `EngineError.message` (what `LegalAction.blockedTargets` already carries for a basic attack/thwart or an ability,
+ * shown verbatim rather than through this table), the engine has no wording for a query clause. So this is the one
+ * small table the design asks for, kept beside the rest of the board's "why not" reading. `view/targeting-panel.ts`
+ * is the only caller today; nothing yet opens a `chooseTarget` through the board's own target-select mode (that
+ * still runs through the generic pending-choice sheet, `scenes/choice.ts`), but the table is written and tested
+ * against the engine's full `ExclusionCode` union so whichever screen wires that up next has nothing left to word.
+ */
+const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
+  unknownCard: "not a real card",
+  wrongSelf: "wrong card for this effect",
+  wrongCategory: "not the right kind of card",
+  wrongController: "controlled by the wrong player",
+  notEngagedWithYou: "not engaged with you",
+  notEngaged: "not engaged with anyone",
+  missingTrait: "missing the required trait",
+  hasExcludedTrait: "has an excluded trait",
+  wrongName: "not the named card",
+  wrongFacedown: "wrong face up or down",
+  notHostOfSelf: "isn't hosting this card",
+  notAttachedToHost: "not attached to the right host",
+  wrongOwner: "not owned by you",
+  missingPrintedResource: "doesn't print the needed resource",
+  wrongAspect: "wrong aspect",
+  exhausted: "already exhausted",
+  ready: "not exhausted",
+  noThreat: "has no threat on it",
+  hasThreat: "already has threat on it",
+  notDamaged: "undamaged",
+  damaged: "already damaged",
+  missingStatus: "doesn't have the needed status",
+  hasStatus: "already carries that status",
+  printedHpTooHigh: "printed HP is too high",
+  printedCostTooHigh: "printed cost is too high",
+  cannotBeAttacked: "can't be attacked right now",
+  alreadyChosen: "already chosen for this cost",
+  notInSlot: "not one of the cards already picked",
+  wrongSignatureSideScheme: "not this villain's signature side scheme",
+  notEngagedWithPlayer: "not engaged with the right player",
+  wrongIdentitySet: "not from this identity's set",
+  notInPlay: "not in play",
+  alterEgoForm: "in alter-ego form",
+  notHeroOrAlly: "not a hero or ally",
+  defenderAlreadyDeclared: "someone else already declared as defender",
+  mustDefendWithAlly: "a ready ally must defend instead",
+};
+
+/** `EXCLUSION_WORDING`, defaulting honestly rather than throwing on a code this table hasn't been kept in sync with. */
+export function exclusionWording(code: ExclusionCode): string {
+  return EXCLUSION_WORDING[code] ?? "not a legal target";
+}
+
+/**
+ * Test-only: the full set of codes `EXCLUSION_WORDING` is keyed on (`Object.keys` loses nothing — the type checker
+ * already rejects a `Record<ExclusionCode, string>` missing one), plus `exclusionWording` itself, so
+ * `targeting-panel.test.ts` can assert every real code gets a real entry rather than the honest-default fallback,
+ * without hand-copying the `ExclusionCode` union into a second file.
+ */
+export const EXCLUSION_TEST_ONLY = {
+  codes: Object.keys(EXCLUSION_WORDING) as readonly ExclusionCode[],
+  wording: exclusionWording,
+};
 
 const EMPTY: Highlights = {
   yourTurn: false,

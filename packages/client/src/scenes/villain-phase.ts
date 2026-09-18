@@ -1,6 +1,19 @@
 /**
  * The villain phase, drawn as the design's auto-advancing walkthrough
- * (PLAN.md Phase 4, "villain phase as a walkthrough").
+ * (PLAN.md Phase 4, "villain phase as a walkthrough"; docs/phase4-screen-gaps.md
+ * §3 "W7").
+ *
+ * ---------------------------------------------------------------------------
+ * COMPOSITION (D11, P09, L02 — docs/design-reference.md)
+ * ---------------------------------------------------------------------------
+ * A full-bleed ink panel, not a centered card. Desktop and tablet landscape:
+ * header (title + Skip), subtitle, the five-step strip, then a two-column
+ * split down to the footer — a wide main column ("happening now"'s
+ * breakdown, the boost cards it revealed, and "queued this phase") beside a
+ * narrower rail (the main-scheme threat callout, then the phase log). Phone
+ * collapses the step strip to one compact line and stacks every section in
+ * one column instead. `view/villain-phase-layout.ts` owns the actual
+ * geometry; this scene only reads it.
  *
  * ---------------------------------------------------------------------------
  * BOARD CONTRACT (read this before wiring the launch call)
@@ -38,16 +51,27 @@
  * COEXISTENCE WITH THE PENDING-CHOICE OVERLAY (`scenes/choice.ts`)
  * ---------------------------------------------------------------------------
  * Both overlays run in parallel over Board and may be open at once — most of
- * this screen's pauses *are* an open `PendingChoice`. `ChoiceOverlay` is the
- * one that actually collects the answer; this screen only narrates. So:
- *  - This screen never renders its own answer controls. When paused, it shows
- *    the same "Auto-advance paused ..." label the choice sheet also has
- *    available (`decisionLabel`/`pauseFor` share their reasoning), and defers.
- *  - Whenever a `pendingChoice` is open and `ChoiceOverlay` is running, this
- *    scene calls `this.scene.bringToTop(SCENES.choice)` on every state update.
- *    That makes the choice sheet win the top z-order regardless of which
- *    overlay Board happened to `launch` more recently, so the thing the player
- *    must act on is never hidden behind the thing that's just narrating.
+ * this screen's pauses *are* an open `PendingChoice`. `ChoiceOverlay` is
+ * normally the one that actually collects the answer; this screen only
+ * narrates, and shows the same "Auto-advance paused ..." label the choice
+ * sheet also has available (`decisionLabel`/`pauseFor` share their
+ * reasoning). Whenever a `pendingChoice` is open and `ChoiceOverlay` is
+ * running, this scene calls `this.scene.bringToTop(SCENES.choice)` on every
+ * state update, so the thing the player must act on is never hidden behind
+ * the thing that's just narrating.
+ *
+ * The one exception is the inline interrupt window (D11/P09/L02,
+ * `inlineInterruptFor`): when the open choice is the viewer's own
+ * `chooseTriggers` and there is something legal to interrupt with, this
+ * screen draws that card and its own "Play"/"Let it resolve" controls
+ * *itself*, dispatching through `resolveChoice` exactly as the choice sheet
+ * would (same option ids, same call) — so the log reads no differently
+ * whichever surface answered it. In that one case this scene brings *itself*
+ * to the top instead of the choice sheet, so its own buttons are the ones
+ * that receive the click; the choice sheet is still running underneath
+ * (unchanged, and still reachable the moment this screen closes) but this
+ * panel's own background covers it, the same way any two full-bleed overlays
+ * would.
  *
  * SKIP / DISMISS
  * ---------------------------------------------------------------------------
@@ -83,14 +107,30 @@
  */
 
 import Phaser from "phaser";
+import { cardOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
-import { McButton, fitText, label } from "../ui/widgets.js";
+import { McButton, fitText, label, paintPanel } from "../ui/widgets.js";
+import { inspectModel } from "../view/inspect-model.js";
 import type { Rect } from "../view/layout.js";
 import { formFactorFor } from "../view/layout.js";
+import { cardName, seatName } from "../view/names.js";
 import { revealOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
-import { appendWalkthrough, emptyWalkthrough, type StepStatus, type Walkthrough } from "../view/villain-walkthrough.js";
+import { villainPhaseLayout } from "../view/villain-phase-layout.js";
+import { mainSchemeCalloutOf, type MainSchemeCallout } from "../view/villain-main-scheme.js";
+import { queuedActivationsOf, type QueuedSeat } from "../view/villain-queue.js";
+import { teamStatusOf, type TeamStatusRow } from "../view/villain-team-status.js";
+import {
+  appendWalkthrough,
+  emptyWalkthrough,
+  inlineInterruptFor,
+  type ActivationBeat,
+  type InlineInterruptOption,
+  type Pause,
+  type StepStatus,
+  type Walkthrough,
+} from "../view/villain-walkthrough.js";
 import { villainPhaseFocusOrder } from "../view/screen-focus.js";
 import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
@@ -111,6 +151,67 @@ const REVEAL_INTERVAL_MS = 550;
 const AUTO_CLOSE_DELAY_MS = 2600;
 
 const totalBeatsOf = (walkthrough: Walkthrough): number => walkthrough.steps.reduce((sum, step) => sum + step.beats.length, 0);
+
+/** "Klaw attacks Captain Marvel" / "Klaw schemes against Black Panther" — read straight off the activation the events named. */
+function activationHeadline(activation: ActivationBeat, state: GameState, viewer: PlayerId | null): string {
+  const enemy = cardName(state, activation.enemyInstanceId);
+  return activation.kind === "attack"
+    ? `${enemy} attacks ${seatName(state, activation.attackedPlayerId, viewer)}`
+    : `${enemy} schemes against ${seatName(state, activation.playerId, viewer)}`;
+}
+
+/** Which seat the current activation is aimed at ("SEAT 3 · TARGETED", L02) — null outside an activation. */
+function activationTargetOf(activation: ActivationBeat | null): PlayerId | null {
+  if (!activation) return null;
+  return activation.kind === "attack" ? activation.attackedPlayerId : activation.playerId;
+}
+
+/** "Black Panther — Klaw activates · Weapons Runner activates (will be cancelled by stun)". */
+function queuedSeatLine(seat: QueuedSeat, state: GameState, viewer: PlayerId | null): string {
+  const parts = seat.activations.map((a) => {
+    const name = cardName(state, a.instanceId);
+    return a.cancelledBy ? `${name} (will be cancelled by ${a.cancelledBy})` : name;
+  });
+  return `${seatName(state, seat.playerId, viewer)} — ${parts.join(" · ")}`;
+}
+
+interface BreakdownCell {
+  readonly label: string;
+  readonly value: string;
+  readonly emphasis?: boolean;
+}
+
+/** `base + boost − defense = damage`, or `SCH + boost (± threat mod) = threat` — every number `resolved`'s own. */
+function breakdownOf(activation: ActivationBeat): { readonly cells: readonly BreakdownCell[]; readonly ops: readonly string[] } | null {
+  const boostLabel = `BOOST${activation.boosts.length > 1 ? ` ×${activation.boosts.length}` : ""}`;
+  if (activation.kind === "attack") {
+    const r = activation.resolved;
+    if (!r) return null;
+    return {
+      cells: [
+        { label: "BASE", value: String(r.baseAtk) },
+        { label: boostLabel, value: String(r.boostIcons) },
+        { label: "DEFENSE", value: String(r.defenseReduction) },
+        { label: "DAMAGE", value: String(r.damageDealt), emphasis: true },
+      ],
+      ops: ["+", "−", "="],
+    };
+  }
+  const r = activation.resolved;
+  if (!r) return null;
+  const cells: BreakdownCell[] = [
+    { label: "SCH", value: String(r.baseSch) },
+    { label: boostLabel, value: String(r.boostIcons) },
+  ];
+  const ops: string[] = ["+"];
+  if (r.threatBonus !== 0) {
+    cells.push({ label: "THREAT MOD", value: `${r.threatBonus > 0 ? "+" : "−"}${Math.abs(r.threatBonus)}` });
+    ops.push(r.threatBonus > 0 ? "+" : "−");
+  }
+  cells.push({ label: "THREAT", value: String(r.threatPlaced), emphasis: true });
+  ops.push("=");
+  return { cells, ops };
+}
 
 export class VillainPhaseOverlay extends Phaser.Scene {
   #walkthrough: Walkthrough = emptyWalkthrough(1);
@@ -171,6 +272,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.scene.stop();
   }
 
+  /** Submits an inline interrupt answer exactly as the choice overlay would (`resolveChoice`) — an empty selection is "let it resolve". */
+  #resolve(selectedOptionIds: readonly string[]): void {
+    void appSession().store.resolveChoice(selectedOptionIds);
+  }
+
   #onState(state: SessionState): void {
     if (!state.game || state.game.outcome) {
       // No game, or the game just ended: Game Over owns the screen from here.
@@ -191,10 +297,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     this.#latest = state;
     this.#syncTiming();
 
-    // The pending-choice overlay is what actually collects an answer; it must
-    // never be hidden behind this screen while one is open.
+    // The pending-choice overlay normally wins the top z-order so the thing
+    // the player must act on is never hidden behind the thing that's just
+    // narrating — except the one case this screen answers inline itself
+    // (see the class doc comment), where this screen stays on top instead so
+    // its own "Play"/"Let it resolve" controls are the ones that get the
+    // click.
     if (state.game.pendingChoice && this.scene.isActive(SCENES.choice)) {
-      this.scene.bringToTop(SCENES.choice);
+      const inline = inlineInterruptFor(state.game.pendingChoice, state.perspectiveId);
+      if (inline) this.scene.bringToTop();
+      else this.scene.bringToTop(SCENES.choice);
     }
 
     this.#draw();
@@ -246,103 +358,79 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #draw(): void {
     const state = this.#latest;
     if (!state?.game) return;
+    const game = state.game;
+    const viewer = state.perspectiveId;
+    // `inspectModel` wants a real seat; every render past setup has one, and
+    // the rare moment it doesn't (no perspective assigned yet) falls back to
+    // whoever's actually deciding right now rather than throwing.
+    const viewerId: PlayerId = viewer ?? game.firstPlayerId;
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.children.removeAll(true);
 
     const { width, height } = this.scale.gameSize;
-    const phone = formFactorFor(width, height) === "phone";
-    const margin = phone ? 8 : 28;
-    const panel: Rect = { x: margin, y: margin, width: width - margin * 2, height: height - margin * 2 };
-    const pad = phone ? 12 : 24;
+    const formFactor = formFactorFor(width, height);
+    const phone = formFactor === "phone";
+    const layout = villainPhaseLayout({ x: 0, y: 0, width, height }, formFactor);
 
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
 
     const g = this.add.graphics();
-    g.fillStyle(surface.ink.hex, 1).fillRect(panel.x, panel.y, panel.width, panel.height);
+    g.fillStyle(surface.ink.hex, 1).fillRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
     g.lineStyle(border.object, surface.paper.hex, 1);
-    g.strokeRect(panel.x, panel.y, panel.width, panel.height);
+    g.strokeRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
 
     const reveal = revealOf(this.#walkthrough, this.#revealed);
-    let cursorY = panel.y + pad;
 
     // Header: title, skip control.
-    const skipWidth = 96;
     const title = this.add
-      .text(panel.x + pad, cursorY, `VILLAIN PHASE — ROUND ${this.#walkthrough.round}`, textStyle({ ...typeRole.screenTitle }, accent.heroRed.hex))
+      .text(layout.title.x, layout.title.y, `VILLAIN PHASE — ROUND ${this.#walkthrough.round}`, textStyle({ ...typeRole.screenTitle }, accent.heroRed.hex))
       .setOrigin(0, 0)
       .setLetterSpacing(1);
-    fitText(title, panel.width - pad * 2 - skipWidth - 12, phone ? 22 : 34);
+    fitText(title, layout.title.width, phone ? 22 : 34);
 
-    const skipRect: Rect = { x: panel.x + panel.width - pad - skipWidth, y: cursorY, width: skipWidth, height: hit.target };
-    this.#buttons.push(
-      new McButton(this, {
-        kind: "onInk",
-        label: "Skip",
-        type: typeRole.label,
-        rect: skipRect,
-        onClick: () => this.#skip(),
-      }),
-    );
+    this.#buttons.push(new McButton(this, { kind: "onInk", label: "Skip", type: typeRole.label, rect: layout.skip, onClick: () => this.#skip() }));
 
-    cursorY += Math.max(title.height, hit.target) + 6;
-    label(this, panel.x + pad, cursorY, this.#subtitle(reveal), typeRole.label, surface.paper.hex, ink.secondary);
-    cursorY += 20;
+    label(this, layout.subtitle.x, layout.subtitle.y, this.#subtitle(reveal), typeRole.label, surface.paper.hex, ink.secondary);
 
-    // Step strip: full chips on wide layouts, a single compact line on phone —
-    // five bordered chips at 390px are too narrow to read (Board - Phone's own
-    // reasoning for the tab rail applies here too).
-    if (!phone) {
-      const stripHeight = 58;
-      this.#drawStepStrip({ x: panel.x + pad, y: cursorY, width: panel.width - pad * 2, height: stripHeight }, reveal.steps);
-      cursorY += stripHeight + 14;
+    if (!phone) this.#drawStepStrip(layout.stepStrip, reveal.steps);
+    else this.#drawStepLine(layout.stepLine, reveal.steps);
+
+    const pause = reveal.current?.pause ?? null;
+    const inline = pause && game.pendingChoice ? inlineInterruptFor(game.pendingChoice, viewer) : null;
+
+    const stops = new Map<string, FocusStop>([["skip", { rect: layout.skip, activate: () => this.#skip() }]]);
+    let finished: boolean;
+
+    if (inline) {
+      // The inline interrupt window takes over the whole main column (and, on
+      // phone, the rail too — P09's "full-bleed interrupt") rather than
+      // fighting the breakdown/queued layout for room it doesn't have.
+      const mergedBottom = phone ? layout.phaseLog.y + layout.phaseLog.height : layout.queued.y + layout.queued.height;
+      const merged: Rect = { x: layout.happeningNow.x, y: layout.happeningNow.y, width: layout.happeningNow.width, height: mergedBottom - layout.happeningNow.y };
+      this.#drawInterrupt(merged, inline, game, viewerId, pause!, stops);
+      if (!phone) {
+        // L02's own point: the team rail stays legible behind the interrupt.
+        this.#drawTeamStatus(layout.teamStatus, teamStatusOf(game, POOL_DEPS, activationTargetOf(reveal.current?.activation ?? null)), viewer);
+        this.#drawMainScheme(layout.mainScheme, mainSchemeCalloutOf(game, POOL_DEPS));
+        this.#drawPhaseLog(layout.phaseLog, reveal);
+      }
+      finished = this.#drawFooter(layout.footer, reveal);
     } else {
-      const activeIndex = reveal.steps.findIndex((step) => step.revealStatus === "active");
-      const doneCount = reveal.steps.filter((step) => step.revealStatus === "done").length;
-      const stepNumber = activeIndex >= 0 ? activeIndex + 1 : Math.min(5, Math.max(1, doneCount));
-      const current = reveal.steps[stepNumber - 1];
-      label(
-        this,
-        panel.x + pad,
-        cursorY,
-        `Step ${stepNumber} of 5 — ${current?.title ?? ""}`,
-        typeRole.label,
-        surface.paper.hex,
-        ink.body,
-      );
-      cursorY += 20;
+      this.#drawHappeningNow(layout.happeningNow, reveal, game, viewer);
+      this.#drawBoosts(layout.boosts, reveal.current?.activation ?? null, game, viewerId);
+      this.#drawQueued(layout.queued, queuedActivationsOf(game, POOL_DEPS), game, viewer);
+      this.#drawTeamStatus(layout.teamStatus, teamStatusOf(game, POOL_DEPS, activationTargetOf(reveal.current?.activation ?? null)), viewer);
+      this.#drawMainScheme(layout.mainScheme, mainSchemeCalloutOf(game, POOL_DEPS));
+      this.#drawPhaseLog(layout.phaseLog, reveal);
+      finished = this.#drawFooter(layout.footer, reveal);
     }
-
-    // Happening now / pause banner. Taller than a plain beat needs, because a
-    // pause also carries an "Options: ..." line naming what is actually on
-    // offer (see `#drawHappeningNow`).
-    const nowHeight = phone ? 128 : 168;
-    const nowRect: Rect = { x: panel.x + pad, y: cursorY, width: panel.width - pad * 2, height: nowHeight };
-    this.#drawHappeningNow(nowRect, reveal);
-    cursorY += nowHeight + 12;
-
-    // Phase log: whatever vertical room is left, above the footer.
-    const footerHeight = hit.primary + 8;
-    const logHeight = panel.y + panel.height - pad - footerHeight - cursorY;
-    if (logHeight > 40) {
-      this.#drawPhaseLog({ x: panel.x + pad, y: cursorY, width: panel.width - pad * 2, height: logHeight }, reveal);
-    }
-
-    // Footer.
-    const footerRect: Rect = {
-      x: panel.x + pad,
-      y: panel.y + panel.height - pad - hit.primary,
-      width: panel.width - pad * 2,
-      height: hit.primary,
-    };
-    const finished = this.#drawFooter(footerRect, reveal);
 
     // Last, so the focus ring sits over the button it frames.
-    const stops = new Map<string, FocusStop>([["skip", { rect: skipRect, activate: () => this.#skip() }]]);
-    if (finished) stops.set("continue", { rect: footerRect, activate: () => this.scene.stop() });
-    this.#route?.set(villainPhaseFocusOrder(finished), stops);
+    if (finished) stops.set("continue", { rect: layout.footer, activate: () => this.scene.stop() });
+    this.#route?.set(villainPhaseFocusOrder(finished, inline?.map((o) => o.optionId) ?? []), stops);
   }
 
   #subtitle(reveal: Reveal): string {
@@ -377,37 +465,40 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     });
   }
 
-  #drawHappeningNow(rect: Rect, reveal: Reveal): void {
+  /** Phone's compact one-line stand-in for the step strip — five bordered chips don't fit at 390px. */
+  #drawStepLine(rect: Rect, steps: readonly RevealedStep[]): void {
+    const activeIndex = steps.findIndex((step) => step.revealStatus === "active");
+    const doneCount = steps.filter((step) => step.revealStatus === "done").length;
+    const stepNumber = activeIndex >= 0 ? activeIndex + 1 : Math.min(steps.length, Math.max(1, doneCount));
+    const current = steps[stepNumber - 1];
+    label(this, rect.x, rect.y, `Step ${stepNumber} of ${steps.length} — ${current?.title ?? ""}`, typeRole.label, surface.paper.hex, ink.body);
+  }
+
+  /**
+   * "Happening now": the activation the current beat belongs to, as a
+   * headline plus the base/boost/defense/damage (or SCH/boost/threat)
+   * breakdown once it has actually resolved — every number read off
+   * `activation.resolved`, never recomputed. Falls back to the plain
+   * pause/narration text outside an activation (step 1, 3-5, or before the
+   * phase has produced anything yet).
+   */
+  #drawHappeningNow(rect: Rect, reveal: Reveal, state: GameState, viewer: PlayerId | null): void {
     const pause = reveal.current?.pause ?? null;
+    const activation = reveal.current?.activation ?? null;
 
     const g = this.add.graphics();
     g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(border.object, pause ? signal.caution.hex : surface.ink.hex, 1);
     g.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
-    label(
-      this,
-      rect.x + 14,
-      rect.y + 12,
-      pause ? "Auto-advance paused" : "Happening now",
-      typeRole.label,
-      pause ? signal.caution.hex : accent.heroRed.hex,
-      1,
-    );
-
-    const body = reveal.current?.text ?? (reveal.total === 0 ? "The villain phase is starting…" : "");
-    const bodyText = this.add
-      .text(rect.x + 14, rect.y + 30, body, textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex))
-      .setOrigin(0, 0)
-      .setWordWrapWidth(rect.width - 28)
-      .setMaxLines(pause ? 2 : 3);
+    label(this, rect.x + 14, rect.y + 12, pause ? "Auto-advance paused" : "Happening now", typeRole.label, pause ? signal.caution.hex : accent.heroRed.hex, 1);
 
     if (pause) {
-      // What is actually being offered (the attack it names, the cards it
-      // lists) — straight from `pause.offer` (`view/villain-walkthrough.ts`),
-      // never invented here. The pending-choice sheet still collects the
-      // answer; this only says, before the player opens that sheet, what
-      // there is to decide.
+      const bodyText = this.add
+        .text(rect.x + 14, rect.y + 30, reveal.current?.text ?? "", textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(rect.width - 28)
+        .setMaxLines(2);
       if (pause.offer) {
         this.add
           .text(rect.x + 14, rect.y + 30 + bodyText.height + 4, pause.offer, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
@@ -415,22 +506,230 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           .setWordWrapWidth(rect.width - 28)
           .setMaxLines(2);
       }
-
       label(
         this,
         rect.x + 14,
         rect.y + rect.height - 18,
-        pause.soleDecider
-          ? "Peril — nobody else may act until this is answered."
-          : "The pending-choice sheet has the answer controls.",
+        pause.soleDecider ? "Peril — nobody else may act until this is answered." : "The pending-choice sheet has the answer controls.",
         typeRole.label,
         surface.ink.hex,
         ink.secondary,
       );
+      return;
+    }
+
+    if (!activation) {
+      const body = reveal.current?.text ?? (reveal.total === 0 ? "The villain phase is starting…" : "");
+      this.add
+        .text(rect.x + 14, rect.y + 30, body, textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(rect.width - 28)
+        .setMaxLines(3);
+      return;
+    }
+
+    const headline = this.add
+      .text(rect.x + 14, rect.y + 30, activationHeadline(activation, state, viewer).toUpperCase(), textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(rect.width - 28)
+      .setMaxLines(1);
+    fitText(headline, rect.width - 28, 22);
+
+    let cursorY = rect.y + 30 + headline.height + 8;
+    const breakdown = breakdownOf(activation);
+    if (breakdown) {
+      cursorY += this.#drawBreakdownRow(rect.x + 14, cursorY, rect.width - 28, breakdown);
+    } else {
+      const narration = this.add
+        .text(rect.x + 14, cursorY, reveal.current?.text ?? "", textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(rect.width - 28)
+        .setMaxLines(2);
+      cursorY += narration.height + 4;
+    }
+
+    // RRG "Defend": an ally's DEF never reduces the attack — "readable from
+    // `defenderDeclared`" without waiting for the resolved beat.
+    if (activation.kind === "attack" && activation.defender && !activation.defender.declined && activation.defender.instanceId) {
+      const defenderId = activation.defender.instanceId;
+      if (cardOf(state, defenderId)?.type === "ally") {
+        label(this, rect.x + 14, Math.min(cursorY, rect.y + rect.height - 16), `${cardName(state, defenderId)} defended — no DEF reduction.`, typeRole.label, surface.ink.hex, ink.secondary);
+      }
+    }
+  }
+
+  /** Returns the vertical room the row used, so the caller can stack something under it. */
+  #drawBreakdownRow(x: number, y: number, width: number, breakdown: { readonly cells: readonly BreakdownCell[]; readonly ops: readonly string[] }): number {
+    const { cells, ops } = breakdown;
+    const opWidth = 22;
+    const cellWidth = Math.max(1, (width - opWidth * ops.length) / cells.length);
+    let cx = x;
+    cells.forEach((cell, i) => {
+      label(this, cx, y, cell.label, typeRole.label, surface.ink.hex, ink.secondary);
+      const valueText = this.add
+        .text(cx, y + 15, cell.value, textStyle({ ...typeRole.barTitle, size: 24 }, cell.emphasis ? accent.heroRed.hex : surface.ink.hex))
+        .setOrigin(0, 0);
+      fitText(valueText, cellWidth - 4, 24);
+      cx += cellWidth;
+      if (i < ops.length) {
+        this.add
+          .text(cx + opWidth / 2, y + 19, ops[i]!, textStyle({ ...typeRole.barTitle, size: 18 }, surface.ink.hex, ink.secondary))
+          .setOrigin(0.5, 0);
+        cx += opWidth;
+      }
+    });
+    return 48;
+  }
+
+  /** The boost cards this activation has revealed so far — face up, per `boostCardFlipped` (D11/L02). */
+  #drawBoosts(rect: Rect, activation: ActivationBeat | null, state: GameState, viewerId: PlayerId): void {
+    const boosts = activation?.boosts ?? [];
+    if (boosts.length === 0 || rect.height <= 0) return;
+
+    const gap = 10;
+    const maxShown = Math.min(boosts.length, rect.width > 480 ? 3 : 2);
+    const cardWidth = (rect.width - gap * (maxShown - 1)) / maxShown;
+
+    boosts.slice(0, maxShown).forEach((boost, i) => {
+      const cardRect: Rect = { x: rect.x + i * (cardWidth + gap), y: rect.y, width: cardWidth, height: rect.height };
+      const cg = this.add.graphics();
+      paintPanel(cg, cardRect, "card", "rest");
+
+      label(this, cardRect.x + 10, cardRect.y + 6, `BOOST CARD ${i + 1}`, typeRole.label, surface.ink.hex, ink.label);
+      const model = inspectModel(state, boost.instanceId, null, viewerId, POOL_DEPS);
+      const nameText = this.add
+        .text(cardRect.x + 10, cardRect.y + 20, model.name.toUpperCase(), textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(cardRect.width - 20)
+        .setMaxLines(1);
+      fitText(nameText, cardRect.width - 20, 13);
+
+      const status =
+        boost.cancelled === "icons"
+          ? "Icons cancelled — 0 added."
+          : boost.cancelled === "ability"
+            ? `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"} · Boost ability cancelled.`
+            : `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"}.`;
+      const statusText = this.add
+        .text(cardRect.x + 10, cardRect.y + 20 + nameText.height + 2, status, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(cardRect.width - 20)
+        .setMaxLines(1);
+
+      this.add
+        .text(cardRect.x + 10, statusText.y + statusText.height + 2, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(cardRect.width - 20)
+        .setMaxLines(Math.max(0, Math.floor((cardRect.height - (statusText.y + statusText.height + 2 - cardRect.y)) / 14)));
+    });
+
+    if (boosts.length > maxShown) {
+      label(this, rect.x + rect.width - 70, rect.y + rect.height - 14, `+${boosts.length - maxShown} more`, typeRole.label, surface.ink.hex, ink.secondary);
+    }
+  }
+
+  /** "Queued this phase" (S5.8/§3 W7): the engine's own order, straight off `queuedActivationsOf`. */
+  #drawQueued(rect: Rect, seats: readonly QueuedSeat[], state: GameState, viewer: PlayerId | null): void {
+    if (rect.height <= 0) return;
+    label(this, rect.x, rect.y, "QUEUED THIS PHASE", typeRole.label, surface.paper.hex, ink.label);
+    const top = rect.y + 18;
+
+    if (seats.length === 0) {
+      this.add
+        .text(rect.x, top, "Nothing else queued this phase.", textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+        .setOrigin(0, 0);
+      return;
+    }
+
+    const rowHeight = 20;
+    const rows = Math.max(0, Math.floor((rect.height - 18) / rowHeight));
+    seats.slice(0, rows).forEach((seat, i) => {
+      const y = top + i * rowHeight;
+      this.add
+        .text(rect.x, y, queuedSeatLine(seat, state, viewer), textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(rect.width)
+        .setMaxLines(1);
+    });
+    if (seats.length > rows) {
+      label(this, rect.x, top + rows * rowHeight, `+${seats.length - rows} more seat${seats.length - rows === 1 ? "" : "s"}`, typeRole.label, surface.paper.hex, ink.meta);
+    }
+  }
+
+  /**
+   * "TEAM STATUS" (L02, tablet only — zero height everywhere else, so this is
+   * a no-op on desktop and phone): every seat's HP, with whoever the current
+   * activation targets picked out, the same way a Team tab row would.
+   */
+  #drawTeamStatus(rect: Rect, rows: readonly TeamStatusRow[], viewer: PlayerId | null): void {
+    if (rect.height <= 0) return;
+    label(this, rect.x, rect.y, "TEAM STATUS", typeRole.label, surface.paper.hex, ink.label);
+
+    const rowHeight = 44;
+    const top = rect.y + 18;
+    const rows_ = Math.max(0, Math.floor((rect.height - 18) / rowHeight));
+    rows.slice(0, rows_).forEach((row, i) => {
+      const y = top + i * rowHeight;
+      const g = this.add.graphics();
+      g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, y, rect.width, rowHeight - 6);
+      g.lineStyle(border.control, row.targeted ? accent.heroRed.hex : surface.ink.hex, row.targeted ? 2 : 1);
+      g.strokeRect(rect.x, y, rect.width, rowHeight - 6);
+
+      const seat = row.seat;
+      const isYou = seat.playerId === viewer;
+      const heading = row.targeted ? "TARGETED" : isYou ? "YOU" : null;
+      label(this, rect.x + 8, y + 4, heading ? `${seat.name.toUpperCase()} · ${heading}` : seat.name.toUpperCase(), typeRole.label, surface.ink.hex, row.targeted ? accent.heroRed.hex : ink.secondary);
+
+      if (seat.eliminated) {
+        label(this, rect.x + 8, y + 18, "Defeated", typeRole.label, surface.ink.hex, ink.secondary);
+        return;
+      }
+      if (!seat.hp) return;
+      const barWidth = rect.width - 16 - 44;
+      const barY = y + 22;
+      // `signal.heal` fills proportional to *remaining* HP, matching `McHpPlate`'s own meter (`board/zones.ts`).
+      const ratio = seat.hp.max > 0 ? Math.max(0, Math.min(1, seat.hp.current / seat.hp.max)) : 0;
+      const bg = this.add.graphics();
+      bg.fillStyle(surface.ink.hex, 0.15).fillRect(rect.x + 8, barY, barWidth, 8);
+      bg.fillStyle(signal.heal.hex, 1).fillRect(rect.x + 8, barY, barWidth * ratio, 8);
+      label(this, rect.x + 8 + barWidth + 6, barY - 3, `${seat.hp.current}/${seat.hp.max}`, typeRole.label, surface.ink.hex, ink.secondary);
+    });
+  }
+
+  /** The main-scheme threat callout ("11 / 12 threat — one more and the scenario is lost"): rail top on wide layouts, a slim banner on phone. */
+  #drawMainScheme(rect: Rect, callout: MainSchemeCallout): void {
+    if (rect.height <= 0) return;
+    const g = this.add.graphics();
+    g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    g.lineStyle(border.object, surface.ink.hex, 1);
+    g.strokeRect(rect.x, rect.y, rect.width, rect.height);
+
+    label(this, rect.x + 12, rect.y + 8, "MAIN SCHEME", typeRole.label, surface.ink.hex, ink.label);
+    const lineText = this.add
+      .text(rect.x + 12, rect.y + 22, callout.line.toUpperCase(), textStyle({ ...typeRole.barTitle, size: 20 }, surface.ink.hex))
+      .setOrigin(0, 0);
+    fitText(lineText, rect.width - 24, 20);
+
+    if (callout.panel.target !== null && callout.panel.meterMax) {
+      const barY = rect.y + 22 + lineText.height + 4;
+      const barWidth = rect.width - 24;
+      const ratio = Math.min(1, callout.panel.threat / callout.panel.meterMax);
+      const bg = this.add.graphics();
+      bg.fillStyle(surface.ink.hex, 0.15).fillRect(rect.x + 12, barY, barWidth, 8);
+      bg.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x + 12, barY, barWidth * ratio, 8);
+    }
+
+    if (callout.warning) {
+      this.add
+        .text(rect.x + 12, rect.y + rect.height - 16, callout.warning, textStyle(typeRole.label, accent.heroRed.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(rect.width - 24)
+        .setMaxLines(1);
     }
   }
 
   #drawPhaseLog(rect: Rect, reveal: Reveal): void {
+    if (rect.height <= 0) return;
     label(this, rect.x, rect.y, "PHASE LOG", typeRole.label, surface.paper.hex, ink.label);
 
     const rowHeight = 18;
@@ -450,6 +749,71 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         .setWordWrapWidth(rect.width - 24)
         .setMaxLines(1);
     });
+  }
+
+  /**
+   * The inline interrupt window (D11/P09/L02): the viewer's own legal
+   * interrupt(s), shown as real cards with a play button, plus "Let it
+   * resolve" — both dispatch through `#resolve`, the same `resolveChoice`
+   * the full choice sheet would use for the same option ids.
+   */
+  #drawInterrupt(rect: Rect, options: readonly InlineInterruptOption[], state: GameState, viewerId: PlayerId, pause: Pause, stops: Map<string, FocusStop>): void {
+    const g = this.add.graphics();
+    g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    g.lineStyle(border.object, signal.caution.hex, 1);
+    g.strokeRect(rect.x, rect.y, rect.width, rect.height);
+
+    label(this, rect.x + 14, rect.y + 12, "YOUR INTERRUPT WINDOW", typeRole.label, surface.ink.hex, ink.label);
+    const bodyText = this.add
+      .text(rect.x + 14, rect.y + 28, pause.label, textStyle({ ...typeRole.barTitle, size: 18 }, surface.ink.hex))
+      .setOrigin(0, 0)
+      .setWordWrapWidth(rect.width - 28)
+      .setMaxLines(2);
+
+    const resolveHeight = hit.primary;
+    let cardY = rect.y + 28 + bodyText.height + 12;
+    const roomForCards = Math.max(0, rect.y + rect.height - 12 - resolveHeight - 12 - cardY);
+    const cardHeight = Math.max(80, Math.min(150, roomForCards / Math.max(1, options.length) - 10));
+
+    for (const option of options) {
+      const model = inspectModel(state, option.instanceId, null, viewerId, POOL_DEPS);
+      const cardRect: Rect = { x: rect.x + 14, y: cardY, width: rect.width - 28, height: cardHeight };
+      const cg = this.add.graphics();
+      paintPanel(cg, cardRect, "card", "rest");
+
+      const nameText = this.add
+        .text(cardRect.x + 12, cardRect.y + 10, model.name, textStyle({ ...typeRole.rowTitle, size: 16 }, surface.ink.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(cardRect.width - 200);
+      fitText(nameText, cardRect.width - 200, 16);
+      this.add
+        .text(cardRect.x + 12, cardRect.y + 10 + nameText.height + 2, model.typeLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+        .setOrigin(0, 0);
+      this.add
+        .text(cardRect.x + 12, cardRect.y + 10 + nameText.height + 20, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(cardRect.width - 24)
+        .setMaxLines(Math.max(1, Math.floor((cardHeight - 40) / 15)));
+
+      const buttonWidth = Math.min(180, cardRect.width - 24);
+      const buttonRect: Rect = { x: cardRect.x + cardRect.width - buttonWidth - 12, y: cardRect.y + cardRect.height - hit.target - 8, width: buttonWidth, height: hit.target };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "primary",
+          label: `Play ${model.name}`,
+          type: typeRole.label,
+          rect: buttonRect,
+          onClick: () => this.#resolve([option.optionId]),
+        }),
+      );
+      stops.set(`interrupt:${option.optionId}`, { rect: buttonRect, activate: () => this.#resolve([option.optionId]) });
+
+      cardY += cardHeight + 10;
+    }
+
+    const resolveRect: Rect = { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Let it resolve", type: typeRole.barTitle, rect: resolveRect, onClick: () => this.#resolve([]) }));
+    stops.set("resolve", { rect: resolveRect, activate: () => this.#resolve([]) });
   }
 
   /** Returns true when the phase is over and Continue is showing. */

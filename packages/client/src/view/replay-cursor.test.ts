@@ -1,10 +1,14 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { applyCommands, type Command, type LegalActions, type PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { EngineSessionCore, rebuildBaseline } from "../engine/session-core.js";
 import { MemoryGameStorage } from "../engine/game-storage.js";
 import type { SessionConfig } from "../engine/host.js";
 import { ReplayCursor } from "./replay-cursor.js";
+
+// Every test here replays whole 100-200 command games and asserts on state and call counts, never on time.
+// Under a loaded machine those replays pass vitest's 5 s default, so the file sets its own ceiling.
+vi.setConfig({ testTimeout: 30_000 });
 
 const CORE_CONFIG: SessionConfig = {
   scenarioId: "rhino",
@@ -238,5 +242,5 @@ describe("ReplayCursor", () => {
     // destination) keeps a full one-at-a-time walk of the log within a small
     // constant multiple of its length.
     expect(cursor.applyCount).toBeLessThan(cursor.length * 4);
-  }, 30_000); // Call-count assertion, not a timing one: a 200+ command walk exceeds vitest's 5 s default on a loaded machine.
+  });
 });

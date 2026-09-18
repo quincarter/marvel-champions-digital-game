@@ -15,7 +15,7 @@
  * (docs/phase3-encounter-ai.md).
  */
 
-import type { ChoiceOption, ChoicePrompt, DecisionAuthority, EngineDeps, GameEvent, GameState, PlayerId } from "@mc/engine";
+import type { ChoiceOption, ChoicePrompt, DecisionAuthority, EngineDeps, GameEvent, GameState, InstanceId, PendingChoice, PlayerId } from "@mc/engine";
 import { logLine } from "./log-lines.js";
 import { cardName, playerName, seatName } from "./names.js";
 
@@ -57,11 +57,66 @@ export interface Pause {
   readonly offer: string;
 }
 
+/** One boost card revealed during the activation this beat belongs to (`boostCardFlipped`/`boostCancelled`). */
+export interface BoostCardBeat {
+  readonly instanceId: InstanceId;
+  /** From the *unmodified* flip; `cancelled` says whether the icons still count. */
+  readonly boostIcons: number;
+  /** Set once a `boostCancelled` names this card — "icons" (the icons don't count) or "ability" (its Boost text didn't fire). */
+  readonly cancelled: "icons" | "ability" | null;
+}
+
+/** `attackResolved`'s own terms, once the activation actually resolves. */
+export interface AttackBreakdown {
+  readonly targetInstanceId: InstanceId;
+  readonly baseAtk: number;
+  readonly boostIcons: number;
+  readonly defenseReduction: number;
+  readonly damageDealt: number;
+}
+
+/** `schemeResolved`'s own terms. */
+export interface SchemeBreakdown {
+  readonly schemeInstanceId: InstanceId;
+  readonly baseSch: number;
+  readonly boostIcons: number;
+  readonly threatBonus: number;
+  readonly threatPlaced: number;
+}
+
+/**
+ * The activation the current step is walking, built up one event at a time —
+ * "happening now" reads whichever snapshot is stamped on the beat it is
+ * currently showing, so a boost card that has flipped but whose activation
+ * hasn't resolved yet is already visible, and the breakdown itself only
+ * appears once `attackResolved`/`schemeResolved` actually arrives. Every
+ * number is copied off the event that reported it — nothing here is computed.
+ */
+export type ActivationBeat =
+  | {
+      readonly kind: "attack";
+      readonly enemyInstanceId: InstanceId;
+      readonly attackedPlayerId: PlayerId;
+      readonly boosts: readonly BoostCardBeat[];
+      /** `defenderDeclared`/`defenseDeclined`; null before either has happened. */
+      readonly defender: { readonly instanceId: InstanceId | null; readonly declined: boolean } | null;
+      readonly resolved: AttackBreakdown | null;
+    }
+  | {
+      readonly kind: "scheme";
+      readonly enemyInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly boosts: readonly BoostCardBeat[];
+      readonly resolved: SchemeBreakdown | null;
+    };
+
 export interface WalkthroughBeat {
   readonly id: string;
   readonly text: string;
   /** Set when this beat is where auto-advance stopped. */
   readonly pause: Pause | null;
+  /** The activation this beat belongs to, as far as events have described it so far; null outside one. */
+  readonly activation: ActivationBeat | null;
 }
 
 export type StepStatus = "done" | "active" | "pending";
@@ -84,6 +139,12 @@ export interface Walkthrough {
   readonly pausedAt: Pause | null;
   readonly complete: boolean;
   readonly nextBeatId: number;
+  /**
+   * The activation currently being walked, so it survives across the several
+   * `appendWalkthrough` calls one activation can span (a defend choice pauses
+   * mid-attack; the boosts and the resolution arrive in a later command).
+   */
+  readonly activation: ActivationBeat | null;
 }
 
 export const emptyWalkthrough = (round: number): Walkthrough => ({
@@ -99,6 +160,7 @@ export const emptyWalkthrough = (round: number): Walkthrough => ({
   pausedAt: null,
   complete: false,
   nextBeatId: 1,
+  activation: null,
 });
 
 /**
@@ -119,6 +181,7 @@ export function appendWalkthrough(
   let pausedAt = working.pausedAt;
   let nextBeatId = working.nextBeatId;
   let complete = working.complete;
+  let activation = working.activation;
   /**
    * The round this phase belongs to, frozen when the phase starts.
    *
@@ -139,7 +202,7 @@ export function appendWalkthrough(
 
   const push = (text: string, pause: Pause | null): void => {
     if (!inPhase()) return;
-    beats[activeIndex]!.push({ id: `beat-${nextBeatId++}`, text, pause });
+    beats[activeIndex]!.push({ id: `beat-${nextBeatId++}`, text, pause, activation });
   };
 
   for (const event of events) {
@@ -169,6 +232,7 @@ export function appendWalkthrough(
         beats = working.steps.map(() => []);
         complete = false;
         pausedAt = null;
+        activation = null;
       }
       activeIndex = stepIndex;
       continue;
@@ -186,6 +250,73 @@ export function appendWalkthrough(
       pausedAt = null;
       continue;
     }
+    // The activation accumulator: built up one event at a time so "happening
+    // now" can show a boost card the moment it flips, well before the
+    // activation itself resolves. Stamped onto every beat pushed after it
+    // changes (`push` reads the closed-over `activation`), so a beat always
+    // carries the activation exactly as it stood when that beat was recorded.
+    switch (event.type) {
+      case "enemyActivated":
+        activation =
+          event.activation === "attack"
+            ? { kind: "attack", enemyInstanceId: event.enemyInstanceId, attackedPlayerId: event.playerId, boosts: [], defender: null, resolved: null }
+            : { kind: "scheme", enemyInstanceId: event.enemyInstanceId, playerId: event.playerId, boosts: [], resolved: null };
+        break;
+      case "boostCardFlipped":
+        if (activation && activation.enemyInstanceId === event.enemyInstanceId) {
+          activation = { ...activation, boosts: [...activation.boosts, { instanceId: event.instanceId, boostIcons: event.boostIcons, cancelled: null }] };
+        }
+        break;
+      case "boostCancelled":
+        if (activation) {
+          activation = {
+            ...activation,
+            boosts: activation.boosts.map((b) => (b.instanceId === event.instanceId ? { ...b, cancelled: event.scope } : b)),
+          };
+        }
+        break;
+      case "defenderDeclared":
+        if (activation?.kind === "attack" && activation.enemyInstanceId === event.attackInstanceId) {
+          activation = { ...activation, defender: { instanceId: event.defenderInstanceId, declined: false } };
+        }
+        break;
+      case "defenseDeclined":
+        if (activation?.kind === "attack" && activation.enemyInstanceId === event.attackInstanceId) {
+          activation = { ...activation, defender: { instanceId: null, declined: true } };
+        }
+        break;
+      case "attackResolved":
+        if (activation?.kind === "attack" && activation.enemyInstanceId === event.enemyInstanceId) {
+          activation = {
+            ...activation,
+            resolved: {
+              targetInstanceId: event.targetInstanceId,
+              baseAtk: event.baseAtk,
+              boostIcons: event.boostIcons,
+              defenseReduction: event.defenseReduction,
+              damageDealt: event.damageDealt,
+            },
+          };
+        }
+        break;
+      case "schemeResolved":
+        if (activation?.kind === "scheme" && activation.enemyInstanceId === event.enemyInstanceId) {
+          activation = {
+            ...activation,
+            resolved: {
+              schemeInstanceId: event.schemeInstanceId,
+              baseSch: event.baseSch,
+              boostIcons: event.boostIcons,
+              threatBonus: event.threatBonus,
+              threatPlaced: event.threatPlaced,
+            },
+          };
+        }
+        break;
+      default:
+        break;
+    }
+
     // Everything else reuses the log's wording, so the walkthrough and the log
     // never describe the same beat two different ways.
     const described = logLine(event, state, viewer, deps);
@@ -203,6 +334,7 @@ export function appendWalkthrough(
     pausedAt: complete ? null : pausedAt,
     complete,
     nextBeatId,
+    activation,
   };
 }
 
@@ -299,3 +431,35 @@ interface ChoiceLike {
 }
 
 const lowerFirst = (text: string): string => text.charAt(0).toLowerCase() + text.slice(1);
+
+/** One of the viewer's own cards or in-play abilities, offered by an open `chooseTriggers` window. */
+export interface InlineInterruptOption {
+  readonly optionId: string;
+  readonly instanceId: InstanceId;
+}
+
+/**
+ * The inline interrupt window (D11/P09/L02): when an optional interrupt or
+ * response is open and it is *this* viewer's own decision, the walkthrough can
+ * show each of their legal cards right there, with "Let it resolve" beside it,
+ * instead of only narrating that a pause happened.
+ *
+ * Only `chooseTriggers` qualifies — every other prompt kind is either a
+ * required decision with no "let it resolve" (a defend, an ordering) or not
+ * the viewer's own card to play. Null whenever there is nothing of the
+ * viewer's own to interrupt with, so the walkthrough falls back to the plain
+ * narration (`pauseFor`) exactly as before.
+ *
+ * `optionId` is submitted through the same `resolveChoice([optionId])` the
+ * choice overlay would use for the same option, and an empty selection
+ * (`resolveChoice([])`) is "let it resolve" — `chooseTriggers` is always
+ * parked with `minSelections: 0` (`resolve/window.ts`) for exactly that
+ * reason. Nothing here invents a new answer shape.
+ */
+export function inlineInterruptFor(choice: PendingChoice, viewer: PlayerId | null): readonly InlineInterruptOption[] | null {
+  if (choice.prompt.kind !== "chooseTriggers" || choice.playerId !== viewer) return null;
+  const options = choice.options.flatMap((option) =>
+    option.ref.kind === "card" || option.ref.kind === "ability" ? [{ optionId: option.optionId, instanceId: option.ref.instanceId }] : [],
+  );
+  return options.length > 0 ? options : null;
+}

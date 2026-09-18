@@ -166,10 +166,19 @@ export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string
 
 /**
  * The villain-phase walkthrough: Continue first once the phase has finished,
- * because it is what the player is there to press, then Skip.
+ * because it is what the player is there to press. When the inline interrupt
+ * window (D11/P09/L02) is open, its "Play <card>" buttons and "Let it
+ * resolve" come right after — the decision the player is actually there to
+ * make — ahead of Skip, which never coexists with "finished" (a paused phase
+ * hasn't finished).
  */
-export function villainPhaseFocusOrder(finished: boolean): readonly string[] {
-  return [...(finished ? ["continue"] : []), "skip"];
+export function villainPhaseFocusOrder(finished: boolean, interruptOptionIds: readonly string[] = []): readonly string[] {
+  return [
+    ...(finished ? ["continue"] : []),
+    ...interruptOptionIds.map((id) => `interrupt:${id}`),
+    ...(interruptOptionIds.length > 0 ? ["resolve"] : []),
+    "skip",
+  ];
 }
 
 /**

@@ -58,11 +58,12 @@ describe("focusOrder", () => {
     expect(order.filter((target) => target.kind === "card")).toEqual([{ kind: "card", instanceId: id("a") }]);
   });
 
-  test("narrows to the targets while one is being chosen", () => {
+  test("narrows to the targets while one is being chosen, plus Cancel at the end", () => {
     const order = focusOrder({ kind: "targeting", targets: [id("villain")] }, marksWith(["attack", "endTurn"]));
     // Stepping through an action bar you can't use to reach the one target you
-    // can is worse than no keyboard support.
-    expect(order).toEqual([{ kind: "card", instanceId: id("villain") }]);
+    // can is worse than no keyboard support. Cancel is still reachable by tab,
+    // not only by Escape, since the targeting panel draws it as a real control.
+    expect(order).toEqual([{ kind: "card", instanceId: id("villain") }, { kind: "cancel" }]);
   });
 
   test("narrows to what can pay while a payment is open", () => {
@@ -98,5 +99,7 @@ describe("sameTarget", () => {
     expect(sameTarget({ kind: "card", instanceId: id("a") }, { kind: "card", instanceId: id("b") })).toBe(false);
     expect(sameTarget({ kind: "basic", action: "attack" }, { kind: "card", instanceId: id("a") })).toBe(false);
     expect(sameTarget(null, { kind: "basic", action: "attack" })).toBe(false);
+    expect(sameTarget({ kind: "cancel" }, { kind: "cancel" })).toBe(true);
+    expect(sameTarget({ kind: "cancel" }, { kind: "basic", action: "attack" })).toBe(false);
   });
 });

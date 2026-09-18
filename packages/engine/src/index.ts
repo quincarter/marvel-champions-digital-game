@@ -109,7 +109,7 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
-export { hasKeyword, keywordsOf, printedKeywordsOf } from "./keywords.js";
+export { hasKeyword, keywordsOf, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export type { CostChoices } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
