@@ -19,6 +19,7 @@ import { ribbonHeight, type Rect } from "../view/layout.js";
 import { PressArm } from "../view/press-arm.js";
 // The only rexUI import in the app. See ui/rex.ts for why the components
 // are constructed directly instead of through `RexUIPlugin`.
+import { bindHoldTarget } from "./hold-target.js";
 import { addInputText, addTextArea, addTextAreaInput } from "./rex.js";
 import { caseOf, cssOf, fontFamilyOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
 
@@ -404,13 +405,6 @@ export interface McCardTileOptions {
 }
 
 /**
- * How long a press has to last before it inspects instead of choosing. The same
- * threshold the board and the choice sheet use, so the gesture means one thing
- * everywhere in the app.
- */
-export const INSPECT_HOLD_MS = 420;
-
-/**
  * A card as a choosable thing: the scan above, its name below, one border
  * around both.
  *
@@ -478,34 +472,13 @@ export class McCardTile {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
 
-    let held: Phaser.Time.TimerEvent | null = null;
-    let inspected = false;
-    const cancelHold = (): void => {
-      held?.remove();
-      held = null;
-    };
-    const inspect = (): void => {
-      inspected = true;
-      options.onInspect?.();
-    };
-
-    zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      inspected = false;
-      // A tile you cannot choose can still be read: that is how the player
-      // finds out *why* it is unavailable.
-      if (!options.onInspect) return;
-      if (pointer.rightButtonDown()) {
-        inspect();
-        return;
-      }
-      held = scene.time.delayedCall(INSPECT_HOLD_MS, inspect);
-    });
-    zone.on("pointerout", cancelHold);
-    zone.on("pointerup", () => {
-      cancelHold();
-      // A hold already did something; the release must not also act on it.
-      if (inspected) return;
-      if (enabled) options.onClick();
+    // A tile you cannot choose can still be read: that is how the player
+    // finds out *why* it is unavailable.
+    bindHoldTarget(scene, zone, {
+      onTap: () => {
+        if (enabled) options.onClick();
+      },
+      onInspect: options.onInspect,
     });
     this.#objects.push(zone);
   }

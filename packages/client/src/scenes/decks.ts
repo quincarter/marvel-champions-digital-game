@@ -359,7 +359,20 @@ export class DecksScene extends Phaser.Scene {
       this.#stops.set("deck-clear", { rect: clearRect, activate: doClear });
     } else {
       const renderRow = (index: number, rowRect: Rect): VirtualListRow => this.#renderDeckRow(rowRect, rows[index]!);
-      this.#list = new McVirtualList(this, { rect: listRect, rowHeight: ROW_HEIGHT, count: rows.length, renderRow, scroll: this.#listScroll });
+      // Rows carry no button of their own (every action lives in the stats pane, acting on the selection), so
+      // a tap or click reaches a row only through the list's `onRowActivate`. Without it the keyboard could
+      // select a deck and the pointer could not. Right-click is the desktop Inspect gesture, as everywhere else.
+      const onRowActivate = (index: number, pointer: Phaser.Input.Pointer): void => {
+        const row = rows[index];
+        if (row?.kind !== "deck") return;
+        if (pointer.rightButtonReleased()) {
+          this.#inspect(row.option);
+          return;
+        }
+        this.#selectedDeckId = row.option.deck.id as string;
+        this.#rebuild();
+      };
+      this.#list = new McVirtualList(this, { rect: listRect, rowHeight: ROW_HEIGHT, count: rows.length, renderRow, scroll: this.#listScroll, onRowActivate });
       const list = this.#list;
       if (!this.#focusedOnce && this.#data.focusDeckId) {
         const index = rows.findIndex((row) => row.kind === "deck" && (row.option.deck.id as string) === this.#data.focusDeckId);

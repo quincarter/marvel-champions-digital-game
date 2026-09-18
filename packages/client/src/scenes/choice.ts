@@ -44,12 +44,7 @@ import type { GamepadIntent } from "../view/gamepad.js";
 import { appSession } from "../session.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { SCENES } from "./keys.js";
-
-/**
- * How long a press has to last before it blows the card up instead of picking
- * it. The same threshold the board uses, so the gesture means one thing.
- */
-const INSPECT_HOLD_MS = 420;
+import { bindHoldTarget } from "../ui/hold-target.js";
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
@@ -732,38 +727,20 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
 
-    let held: Phaser.Time.TimerEvent | null = null;
-    let inspected = false;
-    const cancelHold = (): void => {
-      held?.remove();
-      held = null;
-    };
-    const inspect = (): void => {
-      inspected = true;
-      if (!instanceId) return;
-      this.scene.launch(SCENES.inspect, {
-        instanceId,
-        choice: {
-          optionId: option.optionId,
-          label: picked ? "Deselect" : "Select",
-        },
-      });
-    };
-
-    zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      inspected = false;
-      if (pointer.rightButtonDown()) {
-        inspect();
-        return;
-      }
-      held = this.time.delayedCall(INSPECT_HOLD_MS, inspect);
-    });
-    zone.on("pointerout", cancelHold);
-    zone.on("pointerup", () => {
-      cancelHold();
-      // A hold already did something; the release must not also act on it.
-      if (inspected) return;
-      this.#toggle(option.optionId, this.#maxSelections);
+    bindHoldTarget(this, zone, {
+      key: option.optionId as string,
+      onTap: () => this.#toggle(option.optionId, this.#maxSelections),
+      // An option that is not a card has nothing to read; its press is only a tap.
+      onInspect: instanceId
+        ? () =>
+            this.scene.launch(SCENES.inspect, {
+              instanceId,
+              choice: {
+                optionId: option.optionId,
+                label: picked ? "Deselect" : "Select",
+              },
+            })
+        : undefined,
     });
   }
 
