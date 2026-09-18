@@ -146,6 +146,18 @@ describe("game log", () => {
     expect(reduced!.text).toContain("(SCH 1 + 2 boost − 1 threat)");
   });
 
+  /** A player card (Attacrobatics, Target Acquired) cancelling a boost card mid-activation (RRG 1.8 "Boost", p. 11). */
+  test("a cancelled boost card says which part was cancelled", () => {
+    const villain = activeVillain(played.state).instanceId;
+
+    const icons = logLine({ type: "boostCancelled", instanceId: villain, scope: "icons" }, played.state, played.viewer, POOL_DEPS);
+    expect(icons!.text).toContain("boost icons are cancelled");
+    expect(icons!.voice).toBe("player");
+
+    const ability = logLine({ type: "boostCancelled", instanceId: villain, scope: "ability" }, played.state, played.viewer, POOL_DEPS);
+    expect(ability!.text).toContain("Boost ability is cancelled");
+  });
+
   /**
    * RRG 1.8 "Unique Icon". The board shows no change when an entry is refused,
    * so the log line is the only thing that stops it reading as a bug — the same

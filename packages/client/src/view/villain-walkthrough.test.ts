@@ -6,11 +6,11 @@
 
 import { activeVillain } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
-import type { ChoiceOption, ChoicePrompt, GameState, PlayerId } from "@mc/engine";
+import type { ChoiceOption, ChoicePrompt, GameState, PendingChoice, PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { appendWalkthrough, decisionLabel, emptyWalkthrough, pauseFor, VILLAIN_STEPS, type Walkthrough } from "./villain-walkthrough.js";
+import { appendWalkthrough, decisionLabel, emptyWalkthrough, inlineInterruptFor, pauseFor, VILLAIN_STEPS, type Walkthrough } from "./villain-walkthrough.js";
 
 interface Played {
   readonly walkthrough: Walkthrough;
@@ -294,6 +294,37 @@ describe("a defended attack", () => {
       expect(tookLine).toBeUndefined();
     }
   }, 60_000);
+
+  /**
+   * The structured breakdown ("happening now" reads numbers, not just prose)
+   * has to agree with the very same beat's own text — both come from
+   * `attackResolved`, so they can never say two different things.
+   */
+  test("the resolved beat's own activation snapshot carries the same numbers as its text", async () => {
+    const { walkthrough } = await playThroughDefendedAttack();
+    const allBeats = walkthrough.steps.flatMap((step) => step.beats);
+    const resolvedBeat = allBeats.find((beat) => /^Rhino hit /.test(beat.text));
+    expect(resolvedBeat).toBeDefined();
+
+    const activation = resolvedBeat!.activation;
+    expect(activation?.kind).toBe("attack");
+    if (activation?.kind !== "attack") return;
+    expect(activation.resolved).not.toBeNull();
+
+    const match = resolvedBeat!.text.match(/for (\d+) \(ATK (\d+) \+ (\d+) boost − (\d+) defense\)/);
+    expect(match).not.toBeNull();
+    expect(activation.resolved).toEqual({
+      targetInstanceId: activation.resolved!.targetInstanceId,
+      baseAtk: Number(match![2]),
+      boostIcons: Number(match![3]),
+      defenseReduction: Number(match![4]),
+      damageDealt: Number(match![1]),
+    });
+    // A defender was declared for this attack (not declined) — Spider-Man's
+    // own identity, since this test's whole point is a basic defense.
+    expect(activation.defender).toEqual({ instanceId: activation.defender?.instanceId, declined: false });
+    expect(activation.defender?.instanceId).not.toBeNull();
+  }, 60_000);
 });
 
 describe("pauseFor", () => {
@@ -417,5 +448,59 @@ describe("decisionLabel", () => {
   test("addresses another seat in the third person", () => {
     const other = "player-nobody" as PlayerId;
     expect(decisionLabel({ ...choice("player"), playerId: other }, played.state, played.viewer)).toMatch(/decides$/);
+  });
+});
+
+describe("inlineInterruptFor", () => {
+  let played: Played;
+
+  beforeAll(async () => {
+    played = await playThroughVillainPhase();
+  }, 60_000);
+
+  const villainId = () => activeVillain(played.state).instanceId;
+
+  const triggersChoice = (playerId: PlayerId, options: readonly ChoiceOption[]): PendingChoice => ({
+    choiceId: "c1" as never,
+    playerId,
+    prompt: { kind: "chooseTriggers", event: { kind: "enemyAttack" } as never, timing: "response" as never },
+    minSelections: 0,
+    maxSelections: options.length,
+    options,
+    frameId: null,
+    ordered: true,
+    soleDecider: false,
+    authority: "player",
+  });
+
+  test("offers the viewer's own card, by instance, when one is legal to play", () => {
+    const options = inlineInterruptFor(
+      triggersChoice(played.viewer, [{ optionId: "x:ability-1", label: "Energy Barrier", ref: { kind: "ability", instanceId: villainId(), abilityId: "ability-1" as never } }]),
+      played.viewer,
+    );
+
+    expect(options).toEqual([{ optionId: "x:ability-1", instanceId: villainId() }]);
+  });
+
+  test("null when the choice is not the viewer's own — never offers to play another seat's card", () => {
+    const other = "player-not-viewer" as PlayerId;
+    const options = inlineInterruptFor(
+      triggersChoice(other, [{ optionId: "x:ability-1", label: "Energy Barrier", ref: { kind: "ability", instanceId: villainId(), abilityId: "ability-1" as never } }]),
+      played.viewer,
+    );
+
+    expect(options).toBeNull();
+  });
+
+  test("null when there is nothing legal to interrupt with — the window is real but empty", () => {
+    expect(inlineInterruptFor(triggersChoice(played.viewer, []), played.viewer)).toBeNull();
+  });
+
+  test("null for every prompt kind but chooseTriggers — a defend or an ordering has no 'let it resolve'", () => {
+    const declare: PendingChoice = {
+      ...triggersChoice(played.viewer, [{ optionId: "decline", label: "No defense", ref: { kind: "none" } }]),
+      prompt: { kind: "declareDefender", attack: { enemyInstanceId: villainId(), targetPlayerId: played.viewer, targetCharacterInstanceId: villainId() } },
+    };
+    expect(inlineInterruptFor(declare, played.viewer)).toBeNull();
   });
 });

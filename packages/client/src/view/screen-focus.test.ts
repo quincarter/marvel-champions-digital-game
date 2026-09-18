@@ -162,6 +162,11 @@ describe("screen focus routes", () => {
     expect(villainPhaseFocusOrder(true)).toEqual(["continue", "skip"]);
   });
 
+  test("the inline interrupt window's own controls come right after Continue and before Skip", () => {
+    expect(villainPhaseFocusOrder(false, ["a:1"])).toEqual(["interrupt:a:1", "resolve", "skip"]);
+    expect(villainPhaseFocusOrder(false, [])).toEqual(["skip"]);
+  });
+
   test("Pause reads Resume, Save & quit, Rules, Settings, then moments, then Concede last", () => {
     expect(pauseFocusOrder({ momentIds: [], confirmingConcede: false })).toEqual(["resume", "save-quit", "rules", "settings", "concede"]);
     expect(pauseFocusOrder({ momentIds: ["m1", "m2"], confirmingConcede: false })).toEqual([
