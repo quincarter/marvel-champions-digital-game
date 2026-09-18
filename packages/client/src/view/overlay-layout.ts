@@ -25,8 +25,8 @@ export interface OverlayPanelLayout {
   readonly footer: Rect;
 }
 
-export function overlayPanelLayout(bounds: Rect, headerHeight: number, footerHeight: number): OverlayPanelLayout {
-  const width = Math.min(OVERLAY_MAX_WIDTH, bounds.width - OVERLAY_MARGIN * 2);
+export function overlayPanelLayout(bounds: Rect, headerHeight: number, footerHeight: number, maxWidth: number = OVERLAY_MAX_WIDTH): OverlayPanelLayout {
+  const width = Math.min(maxWidth, bounds.width - OVERLAY_MARGIN * 2);
   const height = bounds.height - OVERLAY_MARGIN * 2;
   const panel: Rect = {
     x: bounds.x + (bounds.width - width) / 2,

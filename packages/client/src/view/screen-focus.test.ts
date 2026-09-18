@@ -190,21 +190,16 @@ describe("screen focus routes", () => {
     expect(villainPhaseFocusOrder(true)).toEqual(["continue", "skip"]);
   });
 
-  test("Pause reads Resume, Save & quit, Rules, Settings, then moments, then Concede last", () => {
-    expect(pauseFocusOrder({ momentIds: [], confirmingConcede: false })).toEqual(["resume", "save-quit", "rules", "settings", "concede"]);
-    expect(pauseFocusOrder({ momentIds: ["m1", "m2"], confirmingConcede: false })).toEqual([
-      "resume",
-      "save-quit",
-      "rules",
-      "settings",
-      "moment:m1",
-      "moment:m2",
-      "concede",
-    ]);
+  test("Pause reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
+    expect(pauseFocusOrder({ quickReferenceIds: [], tableRowIds: [], confirmingConcede: false })).toEqual(["close", "search", "save-quit", "concede", "resume"]);
+    expect(
+      pauseFocusOrder({ quickReferenceIds: ["villainPhase", "glossary"], tableRowIds: ["reduced-motion", "sound"], confirmingConcede: false }),
+    ).toEqual(["close", "search", "quick:villainPhase", "quick:glossary", "table:reduced-motion", "table:sound", "save-quit", "concede", "resume"]);
   });
 
-  test("Pause's concede confirm replaces the single Concede stop with its own two controls", () => {
-    const order = pauseFocusOrder({ momentIds: [], confirmingConcede: true });
+  test("Pause's concede confirm replaces the footer's three buttons with its own two controls", () => {
+    const order = pauseFocusOrder({ quickReferenceIds: [], tableRowIds: [], confirmingConcede: true });
+    expect(order).not.toContain("resume");
     expect(order).not.toContain("concede");
     expect(order.slice(-2)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
   });

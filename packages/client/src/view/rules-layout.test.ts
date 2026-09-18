@@ -3,9 +3,13 @@ import { rectsOverlap } from "./layout.js";
 import { rulesLayout, type RulesTab } from "./rules-layout.js";
 
 const SIZES = [
-  { name: "phone", width: 440, height: 900 },
+  { name: "phone (390×844)", width: 390, height: 844 },
+  { name: "phone (legacy)", width: 440, height: 900 },
   { name: "small desktop", width: 800, height: 600 },
-  { name: "desktop", width: 1440, height: 980 },
+  { name: "tablet portrait (768×1024)", width: 768, height: 1024 },
+  { name: "tablet landscape (1024×768)", width: 1024, height: 768 },
+  { name: "desktop (1440×900)", width: 1440, height: 900 },
+  { name: "desktop (legacy)", width: 1440, height: 980 },
 ];
 const TABS: readonly RulesTab[] = ["glossary", "villainPhase", "cardList"];
 

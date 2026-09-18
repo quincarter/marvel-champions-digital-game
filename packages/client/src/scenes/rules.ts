@@ -3,9 +3,22 @@
  * P16, L07): the glossary filtered to the keywords and statuses on the table,
  * with search, plus the villain phase order and the scenario's card list.
  *
- * Launched from Pause over the Board; Back returns to Pause (`this.scene.stop()`
- * — Pause is still running underneath, since it launched this the same way
- * every other overlay in this app is launched).
+ * **Composition (fidelity pass, 2026-09-17).** D13's own right-hand panel is
+ * parchment top to bottom — this scene's body ground moved from ink to paper
+ * to match (`#draw`'s own comment says why the title bar alone stays ink).
+ * The glossary/villain-phase/card-list content is still one scrolling text
+ * block (`McScrollPanel`) rather than D13's grid of individually bordered
+ * keyword tiles: that widget wraps one long run of text, and a masonry grid
+ * of independently-bordered entries at a variable definition length would
+ * need a new virtualization-friendly widget this pass didn't build — recorded
+ * as a real, not a cosmetic, gap in the fidelity report rather than papered
+ * over with a fixed-height truncation that would silently clip a long ruling.
+ *
+ * Launched from Pause over the Board (`RulesSceneData` lets Pause's own "Quick
+ * reference" rows open straight to a tab, and the glossary tab to a starting
+ * query); Back returns to Pause (`this.scene.stop()` — Pause is still running
+ * underneath, since it launched this the same way every other overlay in this
+ * app is launched).
  */
 import Phaser from "phaser";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS } from "../content/pool.js";
@@ -27,6 +40,17 @@ const TABS: readonly { readonly id: RulesTab; readonly label: string }[] = [
   { id: "cardList", label: "Card list" },
 ];
 
+/**
+ * Optional starting point, so Pause's own "Quick reference" rows can jump
+ * straight to the right tab (and, for the glossary, a pre-filled search) —
+ * `scenes/pause.ts`'s own doc comment says which row sets which field.
+ * Absent, this opens exactly as it always has: the glossary tab, no query.
+ */
+export interface RulesSceneData {
+  readonly initialTab?: RulesTab;
+  readonly initialQuery?: string;
+}
+
 export class RulesOverlay extends Phaser.Scene {
   #activeTab: RulesTab = "glossary";
   #query = "";
@@ -40,9 +64,9 @@ export class RulesOverlay extends Phaser.Scene {
     super(SCENES.rules);
   }
 
-  create(): void {
-    this.#activeTab = "glossary";
-    this.#query = "";
+  create(data: RulesSceneData = {}): void {
+    this.#activeTab = data.initialTab ?? "glossary";
+    this.#query = data.initialQuery ?? "";
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
     this.#route = new FocusRoute(this, { onCancel: () => this.scene.stop() });
@@ -80,19 +104,29 @@ export class RulesOverlay extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const layout = rulesLayout({ x: 0, y: 0, width, height }, this.#activeTab);
 
+    // Scrim, then the sheet: an ink title bar (Back, the title, the "filtered
+    // to your table" caption) over a **parchment body** — D13's own right-hand
+    // panel is cream throughout, not ink; the title bar stays ink only because
+    // every overlay in this app puts Back/✕ on one, the same chrome language
+    // Pause and Settings use (`view/pause-layout.ts`'s own doc comment makes
+    // the same call for Pause's sheet, the other direction).
     const scrim = this.add.graphics();
-    scrim.fillStyle(surface.void.hex, 0.55).fillRect(0, 0, width, height);
+    scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
     const panel = this.add.graphics();
-    panel.fillStyle(surface.ink.hex, 1).fillRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
-    panel.lineStyle(4, surface.paper.hex, 1).strokeRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
+    panel.fillStyle(surface.paper.hex, 1).fillRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
+    panel.fillStyle(surface.ink.hex, 1).fillRect(layout.header.x, layout.header.y, layout.header.width, layout.header.height);
+    panel.lineStyle(4, surface.ink.hex, 1).strokeRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
 
     const stops = new Map<string, FocusStop>();
 
     const backRect: Rect = { x: layout.header.x + 12, y: layout.header.y + 10, width: 90, height: 32 };
-    this.#buttons.push(new McButton(this, { kind: "quiet", label: "◂ Back", type: typeRole.label, rect: backRect, onClick: () => this.scene.stop() }));
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: "◂ Back", type: typeRole.label, rect: backRect, onClick: () => this.scene.stop() }));
     stops.set("back", { rect: backRect, activate: () => this.scene.stop() });
     this.add.text(backRect.x + backRect.width + 12, layout.header.y + 12, caseOf(typeRole.barTitle, "Rules reference"), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "22px" });
-    label(this, layout.header.x + 12, layout.header.y + layout.header.height - 20, "Filtered to what's on your table", typeRole.label, surface.paper.hex, ink.secondary).setFontSize(9);
+    // Below the Back button's own bottom edge (fidelity pass, 2026-09-17):
+    // this used to sit at a fixed offset from the header's bottom that put it
+    // directly behind Back, which then visually clipped it.
+    label(this, layout.header.x + 12, backRect.y + backRect.height + 4, "Filtered to what's on your table", typeRole.label, surface.paper.hex, ink.secondary).setFontSize(9);
 
     this.#tabsWidget = new McTabs(this, {
       rect: layout.tabs,
@@ -118,24 +152,24 @@ export class RulesOverlay extends Phaser.Scene {
 
       const entries = game ? rulesGlossaryOf(game, POOL_DEPS, this.#query) : [];
       rowIds.push(...entries.map((entry) => entry.id));
-      this.#scroll = new McScrollPanel(this, { rect: layout.body, text: this.#glossaryText(entries, game !== null), onInk: true });
+      this.#scroll = new McScrollPanel(this, { rect: layout.body, text: this.#glossaryText(entries, game !== null), onInk: false });
     } else if (this.#activeTab === "villainPhase") {
       this.#searchInput?.destroy();
       this.#searchInput = null;
       const steps = villainPhaseOrder(game ?? undefined);
       rowIds.push(...steps.map((step) => step.id));
       const text = steps.map((step) => `${step.label}${step.current ? "  ← here" : ""}\n${step.detail}`).join("\n\n") + "\n\nRRG 1.8 p. 47 \"Villain Phase\".";
-      this.#scroll = new McScrollPanel(this, { rect: layout.body, text, onInk: true });
+      this.#scroll = new McScrollPanel(this, { rect: layout.body, text, onInk: false });
     } else {
       this.#searchInput?.destroy();
       this.#searchInput = null;
       if (!game) {
-        this.#scroll = new McScrollPanel(this, { rect: layout.body, text: "No game in progress.", onInk: true });
+        this.#scroll = new McScrollPanel(this, { rect: layout.body, text: "No game in progress.", onInk: false });
       } else {
         const groups = scenarioCardListOf(game, POOL_ENCOUNTER_SETS);
         rowIds.push(...groups.map((group) => group.setId));
         const text = groups.map((group) => `${group.setName.toUpperCase()}\n${group.cardNames.join(", ")}`).join("\n\n") || "This game has no encounter-side cards to list.";
-        this.#scroll = new McScrollPanel(this, { rect: layout.body, text, onInk: true });
+        this.#scroll = new McScrollPanel(this, { rect: layout.body, text, onInk: false });
       }
     }
     rowIds.forEach((id) => stops.set(`row:${id}`, { rect: layout.body, activate: () => undefined }));

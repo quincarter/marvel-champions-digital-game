@@ -16,12 +16,34 @@
  * what moved here.
  */
 import type Phaser from "phaser";
-import type { CompositionTile, CostCurveBar, DeckListEntry, DeckListGroup } from "../view/deck-stats.js";
+import type { CompositionTile, CostCurveBar, DeckListEntry, DeckListGroup, PlayerCardType } from "../view/deck-stats.js";
 import { CHIP_GAP, wrapChipsToRows } from "../view/chip-layout.js";
 import type { Rect } from "../view/layout.js";
-import { hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { fitText, label, paintPanel } from "./widgets.js";
 import { textStyle } from "./theme.js";
+
+/**
+ * The colored cost badge a card pool/list row draws (the board's own hand and
+ * play-area cards, and D04/P04's card rows): a card's printed cost on a
+ * hue that reads its broad type at a glance. `resource` is blue (the same
+ * hue `signal.cost` already gives every resource pip elsewhere), `event` is
+ * Hero Red (most player events on the table are attack actions; the schema
+ * has no attack/defense subtype to key a second hue off, so this is a
+ * deliberate one-color simplification of the canvases' own richer coding —
+ * see the fidelity report), and everything else (ally/upgrade/support/side
+ * scheme) is ink, matching the dark badge the board renders draw for those.
+ */
+export function cardTypeBadgeColor(type: PlayerCardType): number {
+  switch (type) {
+    case "resource":
+      return signal.cost.hex;
+    case "event":
+      return accent.heroRed.hex;
+    default:
+      return surface.ink.hex;
+  }
+}
 
 /**
  * The bars themselves plus their axis labels, inside `rect` (bar area only —
