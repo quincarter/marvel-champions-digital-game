@@ -73,6 +73,7 @@ import {
   setScenarioFilter,
   setSeed,
   toSessionConfig,
+  withSeatOne,
   type SetupDraft,
 } from "../view/setup-draft.js";
 import { appSession, deckStorage } from "../session.js";
@@ -90,6 +91,23 @@ interface ChipDef {
   readonly text: string;
   readonly selected: boolean;
   readonly onClick: () => void;
+}
+
+/**
+ * What a caller outside the normal Title flow hands over on launch — today
+ * only the Decks screen's "Play this deck ▸" (W9, docs/phase4-screen-gaps.md
+ * §3). Optional and additive: `scene.start(SCENES.title)` with no data at all
+ * still works exactly as before.
+ */
+export interface TitleSceneData {
+  /** Seats this deck alone (`view/setup-draft.ts`'s `withSeatOne`) instead of the usual single-precon default. */
+  readonly initialSeatDeckId?: string;
+  /**
+   * The deck itself, so it's seatable on the very first `#rebuild()` — `#savedDecks` is normally only populated
+   * once `deckStorage().list()` resolves (below), which a caller arriving with a specific deck in hand shouldn't
+   * have to race. Ignored if `initialSeatDeckId` doesn't match its own `id`.
+   */
+  readonly initialSeatDeck?: Deck;
 }
 
 interface RosterRow {
@@ -160,7 +178,7 @@ export class TitleScene extends Phaser.Scene {
     super(SCENES.title);
   }
 
-  create(): void {
+  create(data: TitleSceneData = {}): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     // `this.scale` is the game's own emitter, so it outlives every scene
     // restart. Title is a singleton instance Phaser reuses across every
@@ -206,10 +224,15 @@ export class TitleScene extends Phaser.Scene {
       },
     });
     this.#continuable = null;
-    this.#savedDecks = [];
+    // "Play this deck ▸" (W9): seeded here, ahead of `deckStorage().list()` resolving below, so the very first
+    // `#rebuild()` can already show and seat this deck rather than pruning it away for not being loaded yet.
+    // `deckStorage().list()`'s own answer (which will include it, since it's already persisted) then simply
+    // overwrites this with the full list, same as any other visit.
+    this.#savedDecks = data.initialSeatDeck && data.initialSeatDeck.id === data.initialSeatDeckId ? [data.initialSeatDeck] : [];
     // S8: "the query persists while the player moves between setup steps, and resets on a new setup" — a fresh
     // visit to this scene starts a fresh draft, so both filters (and every other choice) reset with it.
     this.#draft = initialSetupDraft({ scenarioId: POOL_SCENARIOS[0]!.id as string, seatDeckId: DEFAULT_SEAT_DECK_ID, seed: rollSeed() });
+    if (data.initialSeatDeckId) this.#draft = withSeatOne(this.#draft, data.initialSeatDeckId);
     this.#seedText = String(this.#draft.seed);
     this.#scenarioScroll = new ListScroll();
     this.#heroScroll = new ListScroll();

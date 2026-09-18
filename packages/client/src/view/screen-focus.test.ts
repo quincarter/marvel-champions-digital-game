@@ -69,30 +69,54 @@ describe("screen focus routes", () => {
     expect(order).toEqual(["scenario-search", "scenario:breakout", "difficulty:standard", "difficulty:expert", "difficulty:extreme", "hero-search", "hero:a", "seed", "new-seed", "start"]);
   });
 
-  test("the Decks screen gives every deck row a stop, not just the ones currently on screen — every row also gets Check", () => {
+  test("the Decks screen (W9): wide reaches the list and the selected deck's stats-pane actions in one route", () => {
     const base = {
       showMarvelCdbImport: false,
       deckIds: ["p1", "s1", "s2"],
-      editableDeckIds: new Set(["s1", "s2"]),
+      chipIds: ["aspect:justice", "legal-only"],
+      wide: true,
+      activeTab: "decks" as const,
+      hasSelection: true,
+      editable: true,
     };
     expect(decksFocusOrder(base)).toEqual([
       "back",
+      "deck-search",
+      "deck-chip:aspect:justice",
+      "deck-chip:legal-only",
+      "deck:p1",
+      "deck:s1",
+      "deck:s2",
       "paste-field",
       "paste-import",
       "new-deck",
-      "deck:p1",
-      "deck:p1:check",
-      "deck:s1",
-      "deck:s1:check",
-      "deck:s1:edit",
-      "deck:s1:delete",
-      "deck:s2",
-      "deck:s2:check",
-      "deck:s2:edit",
-      "deck:s2:delete",
+      "stats-check",
+      "stats-duplicate",
+      "stats-export",
+      "stats-edit",
+      "stats-delete",
+      "stats-play",
     ]);
     expect(decksFocusOrder({ ...base, showMarvelCdbImport: true })).toContain("marvelcdb-field");
     expect(decksFocusOrder({ ...base, showMarvelCdbImport: true })).toContain("marvelcdb-import");
+    // A precon (or any non-editable deck) selected: no Edit/Delete stop.
+    expect(decksFocusOrder({ ...base, editable: false })).not.toContain("stats-edit");
+    expect(decksFocusOrder({ ...base, editable: false })).not.toContain("stats-delete");
+    // Nothing selected yet: the stats pane contributes no stops at all.
+    expect(decksFocusOrder({ ...base, hasSelection: false })).not.toContain("stats-play");
+  });
+
+  test("the Decks screen: narrow reaches only the active tab's own group, behind Back and the tab strip", () => {
+    const base = {
+      showMarvelCdbImport: false,
+      deckIds: ["p1"],
+      chipIds: [],
+      wide: false,
+      hasSelection: true,
+      editable: false,
+    };
+    expect(decksFocusOrder({ ...base, activeTab: "decks" })).toEqual(["back", "tab:decks", "tab:stats", "deck-search", "deck:p1", "paste-field", "paste-import", "new-deck"]);
+    expect(decksFocusOrder({ ...base, activeTab: "stats" })).toEqual(["back", "tab:decks", "tab:stats", "stats-check", "stats-duplicate", "stats-export", "stats-play"]);
   });
 
   test("the deck builder shows only the identity picker until one is chosen, then the rest", () => {

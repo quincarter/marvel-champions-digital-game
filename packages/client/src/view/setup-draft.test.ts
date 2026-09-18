@@ -19,6 +19,7 @@ import {
   setScenarioFilter,
   setSeed,
   toSessionConfig,
+  withSeatOne,
 } from "./setup-draft.js";
 
 const RHINO = CORE_SCENARIOS.find((s) => (s.id as string) === "rhino")!;
@@ -91,6 +92,14 @@ describe("seats", () => {
     expect(draft.seats).toEqual(["b"]);
     const stillOne = removeSeat(draft, "b");
     expect(stillOne.seats).toEqual(["b"]);
+  });
+
+  test("withSeatOne ('Play this deck ▸', W9) seats exactly one deck, dropping every other seat", () => {
+    let draft = initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: "a", seed: 1 });
+    draft = addSeat(draft, "b");
+    draft = addSeat(draft, "c");
+    const played = withSeatOne(draft, "z");
+    expect(played.seats).toEqual(["z"]);
   });
 
   test("pruneSeats drops a seat whose deck no longer resolves, falling back when that empties the table", () => {

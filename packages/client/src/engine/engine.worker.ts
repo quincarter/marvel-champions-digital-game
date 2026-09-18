@@ -62,6 +62,10 @@ async function handle(request: HostRequest): Promise<void> {
         reply({ kind: "latestSave", id: request.id, meta: await core.latestSave() });
         return;
       }
+      case "listSaves": {
+        reply({ kind: "listSaves", id: request.id, saves: await core.listSaves() });
+        return;
+      }
     }
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);

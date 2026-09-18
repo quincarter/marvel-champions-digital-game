@@ -298,6 +298,18 @@ export class EngineSessionCore {
     }
   }
 
+  /**
+   * Every saved game, for `view/results-history.ts` (S4/W9's per-scenario and per-deck records). Unlike
+   * `latestSave`, this doesn't retire anything: an old-schema `active` save that's merely *listed* here (not
+   * offered as "Continue") stays exactly as `GameStorage.list()` returned it — `latestSave` above is the one place
+   * that decides an unresumable active save is `incompatible`, and it runs on its own schedule regardless of
+   * whether this was ever called.
+   */
+  async listSaves(): Promise<readonly SaveMeta[]> {
+    const storage = this.#storage;
+    return storage ? storage.list() : [];
+  }
+
   save(): SavedGame {
     const { log } = this.#require();
     return { initialState: log.initialState, commands: log.commands };

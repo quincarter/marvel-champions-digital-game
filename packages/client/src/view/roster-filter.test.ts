@@ -1,8 +1,9 @@
 import { describe, expect, test } from "vitest";
-import { CORE_SCENARIOS, WAVE1_SCENARIOS, deckFromStarterDeck } from "@mc/content";
+import { CORE_SCENARIOS, WAVE1_SCENARIOS, deckFromStarterDeck, type Deck } from "@mc/content";
 import { POOL_CARDS, POOL_SCENARIOS, POOL_STARTER_DECKS } from "../content/pool.js";
 import {
   EMPTY_ROSTER_FILTER,
+  deckSourcesOf,
   heroAspectsOf,
   heroRosterMatches,
   matchesSearch,
@@ -171,6 +172,24 @@ describe("heroAspectsOf", () => {
 
   test("empty with no decks", () => {
     expect(heroAspectsOf([])).toEqual([]);
+  });
+});
+
+describe("deckSourcesOf", () => {
+  test("precons only: just 'precon'", () => {
+    const decks = POOL_STARTER_DECKS.map((starter) => deckFromStarterDeck(starter, "poolv1"));
+    expect(deckSourcesOf(decks)).toEqual(["precon"]);
+  });
+
+  test("a mix reports every kind present, precon first", () => {
+    const precon = deckFromStarterDeck(POOL_STARTER_DECKS[0]!, "poolv1");
+    const imported: Deck = { ...precon, id: "d2" as Deck["id"], source: { kind: "imported", site: "marvelcdb", marvelcdbDeckId: null, url: null, importedAt: "now" } };
+    const userBuilt: Deck = { ...precon, id: "d3" as Deck["id"], source: { kind: "userBuilt", createdAt: "now" } };
+    expect(deckSourcesOf([userBuilt, imported, precon])).toEqual(["precon", "imported", "userBuilt"]);
+  });
+
+  test("empty with no decks", () => {
+    expect(deckSourcesOf([])).toEqual([]);
   });
 });
 
