@@ -82,3 +82,37 @@ export function wrapChipsToRows<T extends ChipLabel>(chips: readonly T[], rowWid
 export function chipStripHeight(rowCount: number): number {
   return rowCount <= 0 ? 0 : rowCount * hit.target + (rowCount - 1) * CHIP_GAP;
 }
+
+/** Horizontal padding either side of a compact chip's own label — generous enough that `fitText` never has to shrink it. */
+export const COMPACT_CHIP_PADDING_PX = 20;
+
+/** A compact chip's own width: sized to its label, not stretched to share a row's full width with its neighbours (W2b's roster filter chips, docs/phase4-screen-gaps.md §3 — the design's small pill chips, not a row of 44px-tall full-width buttons). */
+export function compactChipWidth(label: string): number {
+  return minChipCellWidth(label) + COMPACT_CHIP_PADDING_PX;
+}
+
+/**
+ * Packs `chips` into as few rows as possible at each chip's own compact width (`compactChipWidth`), left to right,
+ * wrapping to a new row only when the next chip wouldn't fit — unlike `wrapChipsToRows`, which divides a row
+ * *evenly* among however many chips it decided to put there (right for a difficulty/modular-set choice row of
+ * equal-weight options, wrong for a filter strip where "Core" and "Playable now" are not the same width).
+ */
+export function packCompactChipsToRows<T extends ChipLabel>(chips: readonly T[], rowWidth: number): readonly (readonly T[])[] {
+  const rows: T[][] = [];
+  let current: T[] = [];
+  let currentWidth = 0;
+  for (const chip of chips) {
+    const w = compactChipWidth(chip.text);
+    const needed = currentWidth + (current.length > 0 ? CHIP_GAP : 0) + w;
+    if (current.length > 0 && needed > rowWidth) {
+      rows.push(current);
+      current = [chip];
+      currentWidth = w;
+    } else {
+      current.push(chip);
+      currentWidth = needed;
+    }
+  }
+  if (current.length > 0) rows.push(current);
+  return rows;
+}

@@ -175,6 +175,14 @@ const display = (size: number, lineHeight: number, letterSpacing = 2): TypeSpec 
 export const typeRole = {
   /** Screen titles, hero names. */
   screenTitle: display(64, 0.86),
+  /** A setup-flow page's own title beside its Back button ("CHOOSE A SCENARIO", "TAKE YOUR SEATS" — D02/D03). */
+  pageTitle: display(28, 0.9),
+  /** The Back button's own label, smaller than the page title beside it. */
+  backLabel: display(18, 0.9),
+  /** A shelf/panel section header ("CORE SET", "SCENARIO STAGES", a stage box's "I · KLAW"). */
+  sectionHeader: display(18, 0.9),
+  /** A scenario card's own villain-name footer (D02) — the single largest word on the roster. */
+  villainTitle: display(32, 0.85),
   /** Bar titles, CTA labels, section rules. */
   barTitle: display(22, 0.9),
   /** Every number the player reads at a glance. */

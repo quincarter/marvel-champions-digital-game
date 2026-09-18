@@ -59,9 +59,21 @@ export interface ShelfRosterOptions<T> {
   /** Draws one card at `rect`. */
   readonly renderCard: (item: T, shelfIndex: number, itemIndex: number, rect: Rect) => VirtualListRow;
   readonly onCardActivate: (item: T, shelfIndex: number, itemIndex: number) => void;
+  /**
+   * A tap on the header band itself (drill-in, W2b second pass: "the shelf header ... opens that pack as a full
+   * wrapped grid"). Absent means a header tap does nothing — the caller decides whether drilling in is offered at
+   * all (it isn't, from inside the drilled-in grid itself, which draws no shelves).
+   */
+  readonly onHeaderActivate?: (shelf: Shelf<T>, shelfIndex: number) => void;
   readonly verticalScroll: ListScroll;
   /** Persistent per-shelf horizontal scroll, owned by the caller (`view/shelf-scroll-cache.ts`) so it survives this widget being destroyed and recreated. */
   readonly horizontalScrollFor: (shelfId: string) => ListScroll;
+  /**
+   * Paints the design's recessed "rail" panel behind the shelves. Default true, matching `McVirtualList`'s own
+   * default — but the owner's second-pass brief asks for the roster to "sit directly on the paper ground" with no
+   * boxed background of its own (item 3), which both callers now pass `false` for.
+   */
+  readonly background?: boolean;
 }
 
 interface LiveShelf {
@@ -90,8 +102,10 @@ export class McShelfRoster<T> {
   readonly #renderHeader: (shelf: Shelf<T>, rect: Rect) => VirtualListRow;
   readonly #renderCard: (item: T, shelfIndex: number, itemIndex: number, rect: Rect) => VirtualListRow;
   readonly #onCardActivate: (item: T, shelfIndex: number, itemIndex: number) => void;
+  readonly #onHeaderActivate: ((shelf: Shelf<T>, shelfIndex: number) => void) | undefined;
   readonly #verticalScroll: ListScroll;
   readonly #horizontalScrollFor: (shelfId: string) => ListScroll;
+  readonly #paintBackground: boolean;
   readonly #live = new Map<number, LiveShelf>();
 
   constructor(scene: Phaser.Scene, options: ShelfRosterOptions<T>) {
@@ -102,8 +116,10 @@ export class McShelfRoster<T> {
     this.#renderHeader = options.renderHeader;
     this.#renderCard = options.renderCard;
     this.#onCardActivate = options.onCardActivate;
+    this.#onHeaderActivate = options.onHeaderActivate;
     this.#verticalScroll = options.verticalScroll;
     this.#horizontalScrollFor = options.horizontalScrollFor;
+    this.#paintBackground = options.background ?? true;
 
     this.#background = scene.add.graphics();
     this.#layer = scene.add.container(0, 0);
@@ -216,7 +232,7 @@ export class McShelfRoster<T> {
   #layoutMask(): void {
     this.#maskShape.clear().fillStyle(0xffffff).fillRect(this.#rect.x, this.#rect.y, this.#rect.width, this.#rect.height);
     this.#background.clear();
-    paintPanel(this.#background, this.#rect, "rail", "rest");
+    if (this.#paintBackground) paintPanel(this.#background, this.#rect, "rail", "rest");
   }
 
   #destroyLive(): void {
@@ -367,11 +383,20 @@ export class McShelfRoster<T> {
     if (!result) return;
     if (result.wasTap) {
       if (!pointInRect(pointer.x, pointer.y, this.#rect)) return;
-      const shelfIndex = this.#shelfIndexAtY(pointer.y);
-      if (shelfIndex === null) return;
+      const step = this.#shelfStep();
+      const relativeY = pointer.y - this.#rect.y + this.#verticalScroll.offsetPx;
+      const shelfIndex = Math.floor(relativeY / step);
+      if (shelfIndex < 0 || shelfIndex >= this.#shelves.length) return;
       const shelf = this.#shelves[shelfIndex]!;
-      const hs = this.#horizontalScrollFor(shelf.id);
       const m = this.#metrics;
+      const withinShelf = relativeY - shelfIndex * step;
+      // The header band drills in (W2b second pass) — checked before the card band, which starts only after it.
+      if (withinShelf <= m.headerHeight) {
+        this.#onHeaderActivate?.(shelf, shelfIndex);
+        return;
+      }
+      if (withinShelf > m.headerHeight + m.headerToCardsGap + m.cardHeight) return;
+      const hs = this.#horizontalScrollFor(shelf.id);
       const relativeX = pointer.x - (this.#rect.x + CHEVRON_WIDTH) + hs.offsetPx;
       const itemIndex = Math.floor(relativeX / (m.cardWidth + m.cardGap));
       const withinCard = relativeX - itemIndex * (m.cardWidth + m.cardGap);

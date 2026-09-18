@@ -1,6 +1,5 @@
 import { describe, expect, test } from "vitest";
 import { rectsOverlap } from "./layout.js";
-import { LABEL_ROOM } from "./setup-metrics.js";
 import { MAX_SEATS, seatsLayout, seatsLayoutRects } from "./seats-layout.js";
 
 const SIZES: readonly { readonly width: number; readonly height: number }[] = [
@@ -83,11 +82,14 @@ describe("seatsLayout", () => {
     expect(layout.shelves.height).toBeGreaterThan(0);
   });
 
-  test("the 'Heroes — N seats' label above the search field has room, and doesn't sit inside usePreconstructed's own row", () => {
+  test("'Use preconstructed' sits inside the roster header row, right-aligned, above the search field (second pass item 11: folded into the header line, not its own full-width strip)", () => {
     for (const size of SIZES) {
       const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 6 });
-      const labelTop = layout.search.y - LABEL_ROOM;
-      expect(labelTop).toBeGreaterThanOrEqual(layout.usePreconstructed.y + layout.usePreconstructed.height);
+      expect(layout.usePreconstructed.y).toBe(layout.rosterHeader.y);
+      expect(layout.usePreconstructed.height).toBe(layout.rosterHeader.height);
+      expect(layout.usePreconstructed.x + layout.usePreconstructed.width).toBeCloseTo(layout.rosterHeader.x + layout.rosterHeader.width, 0);
+      expect(layout.usePreconstructed.width).toBeLessThan(layout.rosterHeader.width);
+      expect(layout.rosterHeader.y + layout.rosterHeader.height).toBeLessThanOrEqual(layout.search.y);
     }
   });
 });

@@ -2,37 +2,43 @@
  * Take your seats (docs/phase4-screen-gaps.md §3 W2/W2b, D03/P03/T-P02): four
  * selectable seat cards over an **active-seat model** — clicking a seat makes
  * it active, and the pack-shelf hero roster (S8, the owner's pack-shelves
- * decision) picks a hero *for the active seat* (`view/setup-draft.ts`'s
- * `setActiveSeat`/`assignToActiveSeat`) — a hero detail panel (obligation,
- * nemesis), "Use preconstructed for all seats", "Play N heroes ▸" straight to
- * Table setup, and "Deck check ▸" into W1's Deck check for the *active*
+ * decision, drill-in per the owner's second-pass ask) picks a hero *for the
+ * active seat* (`view/setup-draft.ts`'s `setActiveSeat`/`assignToActiveSeat`)
+ * — a hero detail panel (obligation, nemesis), a small "Use preconstructed
+ * for all seats" on the roster's own header line, "Play N heroes ▸" straight
+ * to Table setup, and "Deck check ▸" into W1's Deck check for the *active*
  * seat's own deck (Back returns here, "Start game ▸" continues to Table
  * setup).
  *
  * **The bug this rebuild fixes:** the previous version hardcoded seat 1 both
- * in what the roster clicked into (`onClick` always called `addSeat`/`removeSeat`
- * by deck id, with no notion of "which seat") and in what "Deck check ▸"
- * opened (`draft.seats[0]`, unconditionally). Every seat is now a real,
- * independently selectable and deck-checkable target.
+ * in what the roster clicked into and in what "Deck check ▸" opened. Every
+ * seat is now a real, independently selectable and deck-checkable target —
+ * including *replacing* an already-seated hero once the table is full, which
+ * needed `seatOptions` to be asked "if I removed the active seat, would this
+ * be legal?" (`#seatOptionsExcludingActive`) rather than "is this legal to
+ * add as a fifth seat?", which always said no once four seats were filled.
  */
 import Phaser from "phaser";
 import type { CardId, Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_PACKS, POOL_SCENARIOS, POOL_VERSION, packNameOf } from "../content/pool.js";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { dotGrid, ink, surface, typeRole } from "../tokens.js";
+import { accent, dotGrid, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, label, paintDotGrid } from "../ui/widgets.js";
+import { McButton, McTextInput, dashedRect, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
+import { McVirtualList } from "../ui/virtual-list.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { heroAspectsOf, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
-import { wrapChipsToRows } from "../view/chip-layout.js";
-import { shelvesOf, flattenShelves, type ShelfCandidate } from "../view/roster-shelves.js";
-import { seatOptions } from "../view/seats.js";
-import { activeSeatRosterOf, heroCandidateDetailOf, seatSlotsOf } from "../view/seat-slots.js";
+import { packCompactChipsToRows } from "../view/chip-layout.js";
+import { shelvesOf, flattenShelves, type Shelf, type ShelfCandidate } from "../view/roster-shelves.js";
+import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../view/shelf-drill.js";
+import { seatOptions, type SeatOption } from "../view/seats.js";
+import { activeSeatRosterOf, aspectLabelOf, heroCandidateDetailOf, seatSlotsOf, type ActiveSeatRosterEntry } from "../view/seat-slots.js";
 import {
   assignToActiveSeat,
   clearHeroFilter,
+  clearSeat,
   pruneSeats,
   setActiveSeat,
   setHeroFilter,
@@ -41,8 +47,9 @@ import {
 } from "../view/setup-draft.js";
 import { seatsFocusOrder } from "../view/screen-focus.js";
 import { seatsLayout, detailPanelWidthFor, MAX_SEATS } from "../view/seats-layout.js";
-import { estimateWrappedLines } from "../view/layout.js";
-import { drawChipStrip, drawSearchField, drawShelfRosterPanel, renderShelfCard, renderShelfHeader } from "./roster-panel.js";
+import { estimateWrappedLines, type Rect } from "../view/layout.js";
+import { ListScroll } from "../view/list-scroll.js";
+import { drawCompactChipStrip, drawPackGrid, drawSearchField, drawShelfRosterPanel, renderShelfCard, renderShelfHeader } from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
@@ -56,11 +63,11 @@ export interface SeatsData {
   readonly seedDecks?: readonly Deck[];
 }
 
-const CARD_METRICS = { cardWidth: 140, cardHeight: 200, cardGap: 10, headerHeight: 24, headerToCardsGap: 6, shelfGap: 16 };
 /** Matches `scenes/scenario-select.ts`'s own constants — the identical wrapped-detail-line fix. */
 const DETAIL_CHAR_WIDTH = 5.4;
 const DETAIL_LINE_PX = 15;
 const DETAIL_TEXT_PAD = 24;
+const CLOSE_SIZE = 20;
 
 /**
  * "Deck check ▸" opens W1's Deck check over the **active seat's own deck** (docs/phase4-screen-gaps.md §3 W1:
@@ -92,7 +99,10 @@ export class SeatsScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   #searchInput: McTextInput | null = null;
   #roster: McShelfRoster<DeckOption> | null = null;
+  #grid: McVirtualList | null = null;
   #route: FocusRoute | null = null;
+  #drill: ShelfDrillState = ALL_PACKS;
+  readonly #gridScroll = new ListScroll();
 
   constructor() {
     super(SCENES.seats);
@@ -114,12 +124,18 @@ export class SeatsScene extends Phaser.Scene {
       this.#searchInput = null;
       this.#roster?.destroy();
       this.#roster = null;
+      this.#grid?.destroy();
+      this.#grid = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
-      onCancel: () => this.#back(),
-      onPage: (direction) => this.#roster?.scrollByPage(direction),
-      onHomeEnd: (edge) => (edge === "home" ? this.#roster?.scrollToStart() : this.#roster?.scrollToEnd()),
+      onCancel: () => (this.#drill.packId !== null ? this.#drillOut() : this.#back()),
+      onPage: (direction) => (this.#grid ?? this.#roster)?.scrollByPage(direction),
+      onHomeEnd: (edge) => {
+        const active = this.#grid ?? this.#roster;
+        if (edge === "home") active?.scrollToStart();
+        else active?.scrollToEnd();
+      },
     });
     this.game.events.on("mc-choice-toggle", this.#onInspectChoose, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
@@ -141,8 +157,24 @@ export class SeatsScene extends Phaser.Scene {
     this.scene.start(SCENES.scenarioSelect, { draft: this.#draft } satisfies ScenarioSelectData);
   }
 
+  #drillOut(): void {
+    this.#drill = drillOut();
+    this.#rebuild();
+  }
+
   #deckOptions(): readonly DeckOption[] {
     return deckOptionsOf(this.#savedDecks, POOL_CARDS, POOL_VERSION, POOL_DEPS);
+  }
+
+  /**
+   * Legality *as if the active seat were empty* — the fix for "once four seats are filled, no other hero can ever
+   * be picked": `seatOptions`'s own "N seats is the maximum" and unique-identity checks are asked against the
+   * table with the active seat's own current occupant removed, since picking a new hero for that seat always
+   * *replaces* it rather than adding a fifth seat.
+   */
+  #seatOptionsExcludingActive(deckOptions: readonly DeckOption[]): readonly SeatOption[] {
+    const seatsExcludingActive = this.#draft.seats.filter((_, i) => i !== this.#draft.activeSeatIndex);
+    return seatOptions(deckOptions, seatsExcludingActive, CARDS_BY_ID, MAX_SEATS);
   }
 
   #rebuild(): void {
@@ -151,6 +183,8 @@ export class SeatsScene extends Phaser.Scene {
     this.#stops = new Map();
     this.#roster?.destroy();
     this.#roster = null;
+    this.#grid?.destroy();
+    this.#grid = null;
 
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
@@ -165,12 +199,10 @@ export class SeatsScene extends Phaser.Scene {
 
     const activeDeckId = this.#draft.seats[this.#draft.activeSeatIndex];
     const detailOption = activeDeckId ? deckOptions.find((o) => (o.deck.id as string) === activeDeckId) : undefined;
-    const detailLines = detailOption ? this.#detailLinesFor(detailOption) : ["Select a hero for this seat below."];
     const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
-    const detailWrappedLines = detailLines.reduce((sum, line) => sum + estimateWrappedLines(line, detailTextWidth, DETAIL_CHAR_WIDTH), 0);
 
-    const layout = seatsLayout({ width, height, chipRows: wrapChipsToRows(chipDefs, width).length, detailLines: detailWrappedLines });
-    const chipRows = wrapChipsToRows(chipDefs, layout.chips.width);
+    const layout = seatsLayout({ width, height, chipRows: packCompactChipsToRows(chipDefs, width).length, detailLines: 10 });
+    const chipRows = packCompactChipsToRows(chipDefs, layout.chips.width);
 
     // Ground: paper body under the same full-width ink header bar Scenario select uses.
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
@@ -179,52 +211,27 @@ export class SeatsScene extends Phaser.Scene {
 
     const scenario = POOL_SCENARIOS.find((s) => (s.id as string) === this.#draft.scenarioId);
     const back = (): void => this.#back();
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: `◂ ${scenario?.name ?? "Back"}`, type: typeRole.rowTitle, rect: layout.back, onClick: back }));
+    this.#buttons.push(new McButton(this, { kind: "onInk", label: `◂ ${scenario?.name ?? "Back"}`, type: typeRole.backLabel, rect: layout.back, onClick: back }));
     this.#stops.set("back", { rect: layout.back, activate: back });
-    this.add
-      .text(layout.back.x + layout.back.width + 12, layout.headerBar.height / 2, "Take your seats", textStyle(typeRole.rowTitle, surface.paper.hex))
-      .setOrigin(0, 0.5);
+    this.add.text(layout.back.x + layout.back.width + 16, layout.headerBar.height / 2, "Take your seats", textStyle(typeRole.pageTitle, surface.paper.hex)).setOrigin(0, 0.5);
     this.add
       .text(layout.step.x + layout.step.width, layout.headerBar.height / 2, `STEP 2 OF 4 · ${this.#draft.seats.length} SEAT${this.#draft.seats.length === 1 ? "" : "S"} FILLED`, textStyle(typeRole.label, surface.paper.hex, ink.label))
       .setOrigin(1, 0.5);
 
-    // The four selectable seat cards (the active-seat model, docs/phase4-screen-gaps.md §3 W2b's own bug fix):
-    // clicking one makes it active, ringed with the `card` skin's own `selected` state.
+    // The four selectable seat cards (the active-seat model, docs/phase4-screen-gaps.md §3 W2b's own bug fix).
+    const deckOptionsById = new Map(deckOptions.map((o) => [o.deck.id as string, o]));
     const slots = seatSlotsOf(this.#draft.seats, deckOptions, CARDS_BY_ID, MAX_SEATS, this.#draft.activeSeatIndex);
-    slots.forEach((slot, index) => {
-      const rect = layout.seatSlots[index]!;
-      const heading = `SEAT ${index + 1}${index === 0 ? " · YOU" : ""}`;
-      const body = slot.deckId
-        ? `${slot.identityName ?? "?"}\n${slot.aspectLabel ?? ""} · HP ${slot.hp ?? "—"} · hand ${slot.handSize ?? "—"}`
-        : "Empty — pick a hero below";
-      const selectSeat = (): void => {
-        this.#draft = setActiveSeat(this.#draft, index);
-        this.#rebuild();
-      };
-      // `McButton` itself paints the `card` skin's panel (selected = the active seat's own red ring); the
-      // heading/body text is drawn on top of it, since a seat card needs more than one line of label.
-      this.#buttons.push(new McButton(this, { kind: "card", label: "", type: typeRole.label, rect, selected: slot.active, onClick: selectSeat }));
-      label(this, rect.x + 6, rect.y + 6, heading, typeRole.label, surface.ink.hex, slot.deckId ? 1 : ink.meta);
-      this.add.text(rect.x + 6, rect.y + 22, body, textStyle(typeRole.label, surface.ink.hex, slot.deckId ? 1 : ink.meta)).setWordWrapWidth(rect.width - 12);
-      this.#stops.set(`seat:${index}`, { rect, activate: selectSeat });
-    });
+    slots.forEach((slot, index) => this.#drawSeatCard(layout.seatSlots[index]!, slot, index, slot.deckId ? deckOptionsById.get(slot.deckId) : undefined));
 
+    label(this, layout.rosterHeader.x, layout.rosterHeader.y + layout.rosterHeader.height / 2, `Heroes — seat ${this.#draft.activeSeatIndex + 1} of ${MAX_SEATS}, all played by you`, typeRole.label, surface.ink.hex, ink.label);
+    (this.children.list.at(-1) as Phaser.GameObjects.Text)?.setOrigin(0, 0.5);
     const usePreconstructed = (): void => {
       this.#draft = usePreconstructedForAllSeats(this.#draft, deckOptions);
       this.#rebuild();
     };
-    this.#buttons.push(new McButton(this, { kind: "quiet", label: "Use preconstructed for all seats", type: typeRole.label, rect: layout.usePreconstructed, onClick: usePreconstructed }));
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "Use preconstructed", type: typeRole.label, rect: layout.usePreconstructed, onClick: usePreconstructed }));
     this.#stops.set("use-preconstructed", { rect: layout.usePreconstructed, activate: usePreconstructed });
 
-    label(
-      this,
-      layout.search.x,
-      layout.search.y - 16,
-      `Heroes — seat ${this.#draft.activeSeatIndex + 1} of ${MAX_SEATS}, all played by you`,
-      typeRole.label,
-      surface.ink.hex,
-      ink.label,
-    );
     this.#searchInput = drawSearchField(
       this,
       layout.search,
@@ -238,46 +245,72 @@ export class SeatsScene extends Phaser.Scene {
       this.#searchInput,
       this.#stops,
     );
-    drawChipStrip(this, layout.chips, chipRows, "hero-chip", this.#buttons, this.#stops);
+    drawCompactChipStrip(this, layout.chips, chipRows, "hero-chip", this.#buttons, this.#stops);
 
-    const seating = new Map(seatOptions(deckOptions, this.#draft.seats, CARDS_BY_ID).map((o) => [o.deckId, o]));
-    const active = new Map(activeSeatRosterOf(seatOptions(deckOptions, this.#draft.seats, CARDS_BY_ID), this.#draft.seats, this.#draft.activeSeatIndex).map((e) => [e.deckId, e]));
+    const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
+    const active = new Map(activeSeatRosterOf(this.#seatOptionsExcludingActive(deckOptions), this.#draft.seats, this.#draft.activeSeatIndex).map((e) => [e.deckId, e]));
     const shelves = this.#shelves(deckOptions, seating, active);
-    this.#roster = drawShelfRosterPanel({
-      scene: this,
-      rect: layout.shelves,
-      shelves,
-      metrics: CARD_METRICS,
-      screen: "seats",
-      focusPrefix: "hero",
-      idOf: (o) => o.deck.id as string,
-      renderHeader: (shelf, rect) => renderShelfHeader(this, shelf, rect, null, () => this.#roster?.refreshVisible()),
-      renderCard: (option, _shelfIndex, _itemIndex, rect) => this.#renderHeroCard(option, active, rect),
-      onCardActivate: (option) => {
-        const entry = active.get(option.deck.id as string);
-        if (entry?.blockedBy) return;
-        this.#draft = assignToActiveSeat(this.#draft, option.deck.id as string);
-        this.#rebuild();
-      },
-      inspect: (option) => this.#inspectOption(option, active),
-      onClear: () => {
-        this.#draft = clearHeroFilter(this.#draft);
-        this.#searchInput?.setValue("");
-        this.#rebuild();
-      },
-      buttons: this.#buttons,
-      stops: this.#stops,
-    });
+    const cardMetrics = this.#cardMetrics(layout.shelves);
+    let cardIds: readonly string[];
 
-    // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick. Each line wraps to
-    // its own width and the cursor advances by its real wrapped height (a long obligation/nemesis-set name should
-    // push the next line down, not run under it).
-    this.add.rectangle(layout.detail.x, layout.detail.y, layout.detail.width, layout.detail.height, surface.ink.hex).setOrigin(0, 0);
-    let detailCursorY = layout.detail.y + 8;
-    for (const line of detailLines) {
-      this.add.text(layout.detail.x + 12, detailCursorY, line, textStyle(typeRole.body, surface.paper.hex)).setWordWrapWidth(detailTextWidth);
-      detailCursorY += estimateWrappedLines(line, detailTextWidth, DETAIL_CHAR_WIDTH) * DETAIL_LINE_PX;
+    if (this.#drill.packId !== null) {
+      const shelf = shelves.find((s) => s.id === this.#drill.packId);
+      const drillBack = (): void => this.#drillOut();
+      const backRect: Rect = { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 };
+      this.#buttons.push(new McButton(this, { kind: "quiet", label: "◂ All packs", type: typeRole.rowTitle, rect: backRect, onClick: drillBack }));
+      this.#stops.set("drill-back", { rect: backRect, activate: drillBack });
+      this.add.text(layout.shelves.x + 140, layout.shelves.y + 14, shelf ? shelf.title.toUpperCase() : "", textStyle(typeRole.sectionHeader, surface.ink.hex)).setOrigin(0, 0.5);
+      const gridRect: Rect = { x: layout.shelves.x, y: layout.shelves.y + 36, width: layout.shelves.width, height: layout.shelves.height - 36 };
+      const items = shelf?.items ?? [];
+      this.#grid = drawPackGrid({
+        scene: this,
+        rect: gridRect,
+        items,
+        cardWidth: cardMetrics.cardWidth,
+        cardHeight: cardMetrics.cardHeight,
+        cardGap: cardMetrics.cardGap,
+        rowGap: cardMetrics.shelfGap,
+        scroll: this.#gridScroll,
+        focusPrefix: "hero",
+        idOf: (o) => o.deck.id as string,
+        renderCard: (option, _index, rect) => this.#renderHeroCard(option, active, rect),
+        onCardActivate: (option) => this.#pickHero(option, active),
+        inspect: (option) => this.#inspectOption(option, active),
+        onClear: () => this.#drillOut(),
+        buttons: this.#buttons,
+        stops: this.#stops,
+      });
+      cardIds = ["drill-back", ...items.map((o) => o.deck.id as string)];
+    } else {
+      this.#roster = drawShelfRosterPanel({
+        scene: this,
+        rect: layout.shelves,
+        shelves,
+        metrics: cardMetrics,
+        screen: "seats",
+        focusPrefix: "hero",
+        idOf: (o) => o.deck.id as string,
+        renderHeader: (shelf, rect) => renderShelfHeader(this, shelf, rect, null, () => this.#roster?.refreshVisible(), `${shelf.items.length} ${shelf.items.length === 1 ? "IDENTITY" : "IDENTITIES"}`),
+        renderCard: (option, _shelfIndex, _itemIndex, rect) => this.#renderHeroCard(option, active, rect),
+        onCardActivate: (option) => this.#pickHero(option, active),
+        onHeaderActivate: (shelf) => {
+          this.#drill = drillIntoPack(shelf.id);
+          this.#rebuild();
+        },
+        inspect: (option) => this.#inspectOption(option, active),
+        onClear: () => {
+          this.#draft = clearHeroFilter(this.#draft);
+          this.#searchInput?.setValue("");
+          this.#rebuild();
+        },
+        buttons: this.#buttons,
+        stops: this.#stops,
+      });
+      cardIds = flattenShelves(shelves).map((o) => o.deck.id as string);
     }
+
+    // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick.
+    this.#drawSidePanel(layout, detailOption, detailTextWidth);
 
     // The two actions at the panel's own foot (D03/P03): a quiet "Play N heroes ▸" straight to Table setup, and
     // the primary "Deck check ▸" for the active seat's own deck.
@@ -298,44 +331,141 @@ export class SeatsScene extends Phaser.Scene {
     this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
 
     this.#route?.set(
-      seatsFocusOrder({ seatCount: MAX_SEATS, deckIds: flattenShelves(shelves).map((o) => o.deck.id as string), heroChipIds: chipDefs.map((c) => c.id) }),
+      seatsFocusOrder({ seatCount: MAX_SEATS, deckIds: cardIds, heroChipIds: chipDefs.map((c) => c.id) }),
       this.#stops,
     );
   }
 
-  #renderHeroCard(option: DeckOption, active: ReadonlyMap<string, import("../view/seat-slots.js").ActiveSeatRosterEntry>, rect: import("../view/layout.js").Rect): ReturnType<typeof renderShelfCard> {
+  #pickHero(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>): void {
+    const entry = active.get(option.deck.id as string);
+    if (entry?.blockedBy) return;
+    this.#draft = assignToActiveSeat(this.#draft, option.deck.id as string);
+    this.#rebuild();
+  }
+
+  /** ~220px wide portrait cards, tall enough to fill most of the shelf viewport's own height (mirrors `scenario-select.ts`'s own sizing, narrower since a hero identity scan is a portrait card, not a landscape villain scene). */
+  #cardMetrics(shelvesRect: Rect): { cardWidth: number; cardHeight: number; cardGap: number; headerHeight: number; headerToCardsGap: number; shelfGap: number } {
+    const headerHeight = 28;
+    const headerToCardsGap = 8;
+    const shelfGap = 18;
+    const cardWidth = Math.min(220, shelvesRect.width - 40);
+    const available = shelvesRect.height - headerHeight - headerToCardsGap - shelfGap;
+    const cardHeight = Math.max(200, Math.min(360, available));
+    return { cardWidth, cardHeight, cardGap: 12, headerHeight, headerToCardsGap, shelfGap };
+  }
+
+  /** One seat card (D03 second pass): a portrait thumbnail at left, a red "SEAT N" label, the Bangers hero name, a meta line, a 4px red border when active, a dashed border and "EMPTY — PICK A HERO" when not, and a small "✕" to clear an occupied seat. */
+  #drawSeatCard(rect: Rect, slot: ReturnType<typeof seatSlotsOf>[number], index: number, option: DeckOption | undefined): void {
+    const selectSeat = (): void => {
+      this.#draft = setActiveSeat(this.#draft, index);
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick: selectSeat }));
+    this.#stops.set(`seat:${index}`, { rect, activate: selectSeat });
+
+    const face = this.add.graphics();
+    face.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    if (!slot.deckId) {
+      dashedRect(face, rect, 2);
+    } else if (slot.active) {
+      face.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
+    } else {
+      face.lineStyle(1.5, surface.ink.hex, ink.label).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
+    }
+
+    const thumbSize = rect.height - 16;
+    const thumbRect: Rect = { x: rect.x + 8, y: rect.y + 8, width: thumbSize, height: thumbSize };
+    if (slot.deckId && option) {
+      const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
+      const source = identity ? artFor(identity, { kind: "hero" }) : null;
+      const key = cardArt(this).request(this, source);
+      const art = key ? drawArt(this, key, thumbRect, { fit: "cover" }) : null;
+      if (!art) {
+        const placeholder = this.add.graphics();
+        placeholder.fillStyle(surface.parchment.hex, 1).fillRect(thumbRect.x, thumbRect.y, thumbRect.width, thumbRect.height);
+      }
+    }
+
+    const textX = thumbRect.x + thumbRect.width + 10;
+    const textWidth = rect.x + rect.width - textX - 8;
+    label(this, textX, rect.y + 8, `SEAT ${index + 1}${index === 0 ? " · YOU" : ""}`, typeRole.label, accent.heroRed.hex, 1);
+    if (slot.deckId) {
+      const name = this.add.text(textX, rect.y + 22, slot.identityName ?? "?", textStyle(typeRole.sectionHeader, surface.ink.hex));
+      name.setFontSize(18);
+      name.setWordWrapWidth(textWidth);
+      const meta = this.add.text(textX, rect.y + rect.height - 34, `${slot.aspectLabel ?? ""} · ${slot.hp ?? "—"} HP · hand ${slot.handSize ?? "—"}`, textStyle(typeRole.label, surface.ink.hex, ink.label));
+      meta.setWordWrapWidth(textWidth);
+      const closeRect: Rect = { x: rect.x + rect.width - CLOSE_SIZE - 4, y: rect.y + 4, width: CLOSE_SIZE, height: CLOSE_SIZE };
+      const clear = (): void => {
+        this.#draft = clearSeat(this.#draft, index);
+        this.#rebuild();
+      };
+      this.#buttons.push(new McButton(this, { kind: "quiet", label: "✕", type: typeRole.label, rect: closeRect, onClick: clear }));
+    } else {
+      const empty = this.add.text(textX, rect.y + rect.height / 2, "Empty — pick a hero", textStyle(typeRole.label, surface.ink.hex, ink.meta));
+      empty.setOrigin(0, 0.5);
+      empty.setWordWrapWidth(textWidth);
+    }
+  }
+
+  #renderHeroCard(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>, rect: Rect): ReturnType<typeof renderShelfCard> {
     const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
     const source = identity ? artFor(identity, { kind: "hero" }) : null;
     const artKey = cardArt(this).request(this, source);
     const entry = active.get(option.deck.id as string);
     const sourceText = option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built";
-    const tag = entry?.isActiveSeat ? `SEAT ${this.#draft.activeSeatIndex + 1}` : entry?.seatIndex !== null && entry?.seatIndex !== undefined ? `SEAT ${entry.seatIndex + 1}` : null;
+    const seatedElsewhere = entry?.seatIndex !== null && entry?.seatIndex !== undefined && !entry.isActiveSeat;
+    const tag = entry?.isActiveSeat ? `SEAT ${this.#draft.activeSeatIndex + 1}` : seatedElsewhere ? `SEAT ${entry!.seatIndex! + 1}` : null;
+    // Second-pass item 12: a deck seated elsewhere is dimmed with only its short "SEAT N" tag — no truncated
+    // "ALREADY SEATED · SEA…" string. A genuinely illegal/duplicate deck still gets its own (short) reason.
+    const blockedBy = seatedElsewhere ? null : (entry?.blockedBy ?? null);
     return renderShelfCard(this, rect, {
       artKey,
+      titleRole: typeRole.barTitle,
       title: option.deck.name.split(" — ")[0]!,
       subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
-      blockedBy: entry?.blockedBy ?? null,
-      warning: entry?.warning ?? null,
+      blockedBy: seatedElsewhere ? null : blockedBy,
+      warning: seatedElsewhere ? null : (entry?.warning ?? null),
       tag,
       selected: entry?.isActiveSeat ?? false,
     });
   }
 
-  #detailLinesFor(option: DeckOption): readonly string[] {
+  #drawSidePanel(layout: ReturnType<typeof seatsLayout>, option: DeckOption | undefined, detailTextWidth: number): void {
+    const rect = layout.detail;
+    this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
+    if (!option) {
+      this.add.text(rect.x + 16, rect.y + 16, "Select a hero for this seat below.", textStyle(typeRole.body, surface.paper.hex, ink.label)).setWordWrapWidth(rect.width - 32);
+      return;
+    }
     const detail = heroCandidateDetailOf(option, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
-    return [
-      `${detail.identityName} — ${detail.aspectLabel}`,
-      `HP ${detail.hp ?? "—"} · Hand ${detail.handSize ?? "—"} · THW ${detail.thw ?? "—"} / ATK ${detail.atk ?? "—"} / DEF ${detail.def ?? "—"}`,
-      `Obligation: ${detail.obligationName ?? "none"}`,
-      `Nemesis set: ${detail.nemesisSetName ?? "none"}`,
-    ];
+    let y = rect.y + 16;
+    const name = this.add.text(rect.x + 16, y, detail.identityName, textStyle(typeRole.sectionHeader, surface.paper.hex));
+    name.setFontSize(22);
+    name.setWordWrapWidth(rect.width - 32);
+    y += name.height + 6;
+    const stat = this.add.text(rect.x + 16, y, `${detail.aspectLabel} · HP ${detail.hp ?? "—"} · hand ${detail.handSize ?? "—"} · THW ${detail.thw ?? "—"} / ATK ${detail.atk ?? "—"} / DEF ${detail.def ?? "—"}`, textStyle(typeRole.label, surface.paper.hex, ink.label));
+    stat.setWordWrapWidth(rect.width - 32);
+    y += stat.height + 12;
+    const rule = this.add.graphics();
+    rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(rect.x + 16, y, rect.x + rect.width - 16, y);
+    y += 14;
+    label(this, rect.x + 16, y, "Obligation", typeRole.label, surface.paper.hex, ink.label);
+    y += 16;
+    const obligation = this.add.text(rect.x + 16, y, detail.obligationName ?? "None.", textStyle(typeRole.body, surface.paper.hex));
+    obligation.setWordWrapWidth(detailTextWidth);
+    y += estimateWrappedLines(detail.obligationName ?? "None.", detailTextWidth, DETAIL_CHAR_WIDTH) * DETAIL_LINE_PX + 12;
+    label(this, rect.x + 16, y, "Nemesis set", typeRole.label, surface.paper.hex, ink.label);
+    y += 16;
+    const nemesis = this.add.text(rect.x + 16, y, detail.nemesisSetName ?? "None.", textStyle(typeRole.body, surface.paper.hex));
+    nemesis.setWordWrapWidth(detailTextWidth);
   }
 
   #shelves(
     deckOptions: readonly DeckOption[],
-    seating: ReadonlyMap<string, import("../view/seats.js").SeatOption>,
-    active: ReadonlyMap<string, import("../view/seat-slots.js").ActiveSeatRosterEntry>,
-  ): readonly import("../view/roster-shelves.js").Shelf<DeckOption>[] {
+    seating: ReadonlyMap<string, SeatOption>,
+    active: ReadonlyMap<string, ActiveSeatRosterEntry>,
+  ): readonly Shelf<DeckOption>[] {
     const candidates: ShelfCandidate<DeckOption>[] = withSelectionPinned(
       deckOptions,
       () => true,
@@ -371,7 +501,7 @@ export class SeatsScene extends Phaser.Scene {
   #heroChipDefs(deckOptions: readonly DeckOption[]): readonly { id: string; text: string; selected: boolean; onClick: () => void }[] {
     const aspectChips = heroAspectsOf(deckOptions.map((option) => option.deck)).map((aspect) => ({
       id: `aspect:${aspect}`,
-      text: aspect,
+      text: aspectLabelOf([aspect]),
       selected: this.#draft.heroFilter.aspect === aspect,
       onClick: () => {
         this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, aspect: this.#draft.heroFilter.aspect === aspect ? null : aspect });
@@ -407,14 +537,14 @@ export class SeatsScene extends Phaser.Scene {
   #onInspectChoose(rowId: string): void {
     const deckOptions = this.#deckOptions();
     const option = deckOptions.find((o) => (o.deck.id as string) === rowId);
-    const seating = new Map(seatOptions(deckOptions, this.#draft.seats, CARDS_BY_ID).map((o) => [o.deckId, o]));
+    const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
     if (option && !seating.get(rowId)?.blockedBy) {
       this.#draft = assignToActiveSeat(this.#draft, rowId);
       this.#rebuild();
     }
   }
 
-  #inspectOption(option: DeckOption, active: ReadonlyMap<string, import("../view/seat-slots.js").ActiveSeatRosterEntry>): void {
+  #inspectOption(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>): void {
     const entry = active.get(option.deck.id as string);
     this.scene.launch(SCENES.inspect, {
       card: { cardId: option.deck.identityCardId as CardId, face: { kind: "hero" } },
