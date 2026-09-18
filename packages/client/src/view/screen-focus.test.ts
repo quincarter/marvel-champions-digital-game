@@ -93,19 +93,24 @@ describe("screen focus routes", () => {
       activeTab: "decks" as const,
       hasSelection: true,
       editable: true,
+      filtersExpanded: true,
+      importOpen: "paste" as const,
     };
     expect(decksFocusOrder(base)).toEqual([
       "back",
       "deck-search",
+      "filters-toggle",
       "deck-chip:aspect:justice",
       "deck-chip:legal-only",
       "deck:p1",
       "deck:s1",
       "deck:s2",
       "new-deck",
+      "ie-paste-toggle",
+      "ie-marvelcdb-toggle",
+      "ie-export",
       "paste-field",
       "paste-import",
-      "export-deck",
       "pool-chip:aspect:aggression",
       "pool-chip:cost",
       "pool-card:c1",
@@ -116,14 +121,25 @@ describe("screen focus routes", () => {
       "stats-duplicate",
       "stats-play",
     ]);
-    expect(decksFocusOrder({ ...base, showMarvelCdbImport: true })).toContain("marvelcdb-field");
-    expect(decksFocusOrder({ ...base, showMarvelCdbImport: true })).toContain("marvelcdb-import");
+    // The quick-filter chips are collapsed behind "Filters" by default — no chip stop until it's expanded.
+    expect(decksFocusOrder({ ...base, filtersExpanded: false })).not.toContain("deck-chip:aspect:justice");
+    expect(decksFocusOrder({ ...base, filtersExpanded: false })).toContain("filters-toggle");
+    // The Import/Export accordion: nothing open contributes neither field's stops; MarvelCDB's own stops still
+    // respect `showMarvelCdbImport` (dev/preview only) even while open.
+    const nothingOpen = decksFocusOrder({ ...base, importOpen: null });
+    expect(nothingOpen).not.toContain("paste-field");
+    expect(nothingOpen).not.toContain("marvelcdb-field");
+    expect(nothingOpen).toContain("ie-paste-toggle");
+    expect(decksFocusOrder({ ...base, importOpen: "marvelcdb", showMarvelCdbImport: true })).toContain("marvelcdb-field");
+    expect(decksFocusOrder({ ...base, importOpen: "marvelcdb", showMarvelCdbImport: true })).toContain("marvelcdb-import");
+    expect(decksFocusOrder({ ...base, importOpen: "marvelcdb", showMarvelCdbImport: false })).not.toContain("marvelcdb-field");
     // A precon (or any non-editable deck) selected: no Edit/Delete stop.
     expect(decksFocusOrder({ ...base, editable: false })).not.toContain("stats-edit");
     expect(decksFocusOrder({ ...base, editable: false })).not.toContain("stats-delete");
-    // Nothing selected yet: no Export stop, no pool grid, and the stats pane contributes no stops at all.
+    // Nothing selected yet: no pool grid, and the stats pane contributes no stops at all — "ie-export" itself is
+    // still always a stop (it's the button, not the effect; the button's own `enabled` reflects the selection).
     const noSelection = decksFocusOrder({ ...base, hasSelection: false });
-    expect(noSelection).not.toContain("export-deck");
+    expect(noSelection).toContain("ie-export");
     expect(noSelection).not.toContain("pool-card:c1");
     expect(noSelection).not.toContain("stats-play");
   });
@@ -138,9 +154,11 @@ describe("screen focus routes", () => {
       wide: false,
       hasSelection: true,
       editable: false,
+      filtersExpanded: false,
+      importOpen: null,
     };
     const tabs = ["tab:decks", "tab:cards", "tab:stats"];
-    expect(decksFocusOrder({ ...base, activeTab: "decks" })).toEqual(["back", ...tabs, "deck-search", "deck:p1", "new-deck", "paste-field", "paste-import", "export-deck"]);
+    expect(decksFocusOrder({ ...base, activeTab: "decks" })).toEqual(["back", ...tabs, "deck-search", "filters-toggle", "deck:p1", "new-deck", "ie-paste-toggle", "ie-marvelcdb-toggle", "ie-export"]);
     expect(decksFocusOrder({ ...base, activeTab: "cards" })).toEqual(["back", ...tabs, "pool-chip:cost", "pool-card:c1"]);
     expect(decksFocusOrder({ ...base, activeTab: "stats" })).toEqual(["back", ...tabs, "stats-check", "stats-duplicate", "stats-play"]);
   });

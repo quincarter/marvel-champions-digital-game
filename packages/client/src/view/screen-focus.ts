@@ -82,26 +82,33 @@ export interface DecksFocusInput {
   readonly hasSelection: boolean;
   /** Whether the *selected* deck can be edited/deleted (a saved deck, not a precon). */
   readonly editable: boolean;
+  /** The quick-filter chip strip is collapsed behind a "Filters" toggle by default (2026-09-18 fidelity pass, point 2) — `chipIds` only contributes stops while this is true. */
+  readonly filtersExpanded: boolean;
+  /** The Import/Export box's own accordion: which field (if either) is open — `paste-field`/`paste-import` or `marvelcdb-field`/`marvelcdb-import` only contribute stops while their own button opened them. */
+  readonly importOpen: "paste" | "marvelcdb" | null;
 }
 
 /**
- * The Decks screen (W9b, D14): Back, then — wide — the search field, its quick-filter chips, every deck row, "+ New
- * deck", the paste importer, the MarvelCDB importer (dev only) and Export (only once a deck is selected, to export),
- * then the card pool's own filter chips and every pool card, then the selected deck's stats-pane actions (Check,
- * Edit/Delete when it's editable, Duplicate, Play this deck ▸). Narrow shows the same three groups behind a
+ * The Decks screen (W9b, D14): Back, then — wide — the search field, the "Filters" toggle, its quick-filter chips
+ * (only while expanded), every deck row, "+ New deck", the Import/Export box's Paste/MarvelCDB/Export buttons and
+ * whichever of Paste's or MarvelCDB's own field+Import stops the accordion currently has open, then the card
+ * pool's own filter chips and every pool card, then the selected deck's stats-pane actions (Check, Edit/Delete
+ * when it's editable, Duplicate, Play this deck ▸). Narrow shows the same three groups behind a
  * "Decks"/"Cards"/"Stats" tab strip instead, one group at a time. Moving focus onto a deck row or a pool card
  * scrolls it into view (`scenes/decks.ts`'s `ensureVisible`), the same way a mouse would have to scroll to it first.
  */
 export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
   const listGroup = [
     "deck-search",
-    ...input.chipIds.map((id) => `deck-chip:${id}`),
+    "filters-toggle",
+    ...(input.filtersExpanded ? input.chipIds.map((id) => `deck-chip:${id}`) : []),
     ...input.deckIds.map((id) => `deck:${id}`),
     "new-deck",
-    "paste-field",
-    "paste-import",
-    ...(input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
-    ...(input.hasSelection ? ["export-deck"] : []),
+    "ie-paste-toggle",
+    "ie-marvelcdb-toggle",
+    "ie-export",
+    ...(input.importOpen === "paste" ? ["paste-field", "paste-import"] : []),
+    ...(input.importOpen === "marvelcdb" && input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
   ];
   const poolGroup = input.hasSelection ? [...input.poolChipIds.map((id) => `pool-chip:${id}`), ...input.poolCardIds.map((id) => `pool-card:${id}`)] : [];
   const statsGroup = input.hasSelection

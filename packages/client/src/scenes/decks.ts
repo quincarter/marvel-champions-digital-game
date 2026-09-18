@@ -11,30 +11,50 @@
  * **The composition, read straight off D14's own markup** (`ScreensDesktop_12`/
  * `_13`.png plus `Marvel Champions game screens/Screens - Desktop.dc.html`'s
  * `#s14` — see `view/decks-layout.ts`'s own header comment for the full
- * reasoning): an ink chrome bar over a paper ground, then three columns —
- * **"YOUR DECKS"** (a scrollable list of deck cards, the selected one
- * ink-filled with its record shown only there, an illegal/WIP one red, "+
- * NEW DECK" as the list's own last row, then a parchment Import/Export box),
- * **"CARD POOL"** (the *selected* deck's own browsable legal cards, with art,
- * a cost pip, and "Type · X of Y in deck" — filtered by the deck's aspect(s),
- * Basic, Hero, and sortable by cost), and the **ink stats rail** (curve,
- * composition, "Recently changed", ending in DUPLICATE + the single red
+ * reasoning): an ink chrome bar (Back, a large Bangers screen title, a
+ * right-aligned pool-count label) over a paper ground, then three columns —
+ * **"YOUR DECKS"** (the list *owns* the column — search plus a collapsed-by-
+ * default "Filters" toggle in one compact row, then deck cards filling
+ * whatever's left, ink-filled selected with its record shown only there,
+ * red-bordered illegal/WIP, "+ NEW DECK" as the list's own last row, a small
+ * group label folded into the top of each group's first card rather than its
+ * own full-height row, then a *compact* parchment Import/Export box pinned to
+ * the column's bottom with its paste/MarvelCDB/export fields collapsed behind
+ * three small buttons), **"CARD POOL"** (the *selected* deck's own browsable
+ * legal cards, filter chips right-aligned on the header's own rule line, each
+ * cell's art, a cost pip, and an uppercase "TYPE · X OF Y IN DECK" caption),
+ * and the **ink stats rail** (a large Bangers deck title, curve bars with the
+ * deck's most-common costs in red, composition tiles as a label over a
+ * Bangers number, "Recently changed", ending in DUPLICATE + the single red
  * "PLAY THIS DECK ▸"). Narrow screens get the same three groups behind a
  * "Decks"/"Cards"/"Stats" tab strip.
  *
  * **Deliberately not the mock, each noted where it happens:** the mock's
  * Import/Export box shows description text only — this build already has
  * paste-import, MarvelCDB-import and export, so those controls live inside
- * that box rather than being dropped. The deck note and "N of N cards owned"
- * line are both skipped per docs/phase4-screen-gaps.md §4 (advice text and
- * owned-card tracking are undecided/out of scope). S8's search field and
- * quick-filter chips (added after D14 was drawn) sit above the deck list.
- * Check/Edit/Delete — real, needed actions the mock doesn't draw at all —
- * live as a compact secondary row in the stats rail's header block, so the
- * rail's own footer still ends in exactly Duplicate + the red Play button, as
- * designed. The pool's art area draws a real card's own 2.5:3.5 shape rather
- * than the mock's arbitrarily-tall placeholder box (`view/deck-pool-grid.ts`'s
- * own header comment).
+ * that box, collapsed behind small buttons so the box stays compact by
+ * default. The deck note and owned-card tracking are both skipped per
+ * docs/phase4-screen-gaps.md §4 (advice text and owned-card tracking are
+ * undecided/out of scope) — the header's right-aligned label says the real
+ * pool size ("CARD POOL · N CARDS") rather than the mock's "Core Set · N of N
+ * owned" wording, since this pool already spans Core and wave 1 and "Core
+ * Set" would misstate that (docs/phase4-screen-gaps.md §5's own standard).
+ * S8's search field and quick-filter chips (added after D14 was drawn) sit
+ * above the deck list, collapsed by default so they cost one compact row
+ * rather than crowding the list out. A precon's card title is its short
+ * "HERO / ASPECT" form (its long printed name moves into the meta line);
+ * a saved/imported deck's title is simply its own name, already short because
+ * a player chose it. Check/Edit/Delete — real, needed actions the mock
+ * doesn't draw at all — live as a row of small buttons in the stats rail,
+ * under the composition tiles, so the rail's own footer still ends in exactly
+ * Duplicate + the red Play button, as designed. The pool's art area draws a
+ * real card's own 2.5:3.5 shape rather than the mock's arbitrarily-tall
+ * placeholder box (`view/deck-pool-grid.ts`'s own header comment). Not
+ * reproduced: the mock's red ring on a hovered/focused pool cell — this
+ * screen's per-cell objects are torn down and redrawn on every scene
+ * `#rebuild()` (`ui/virtual-list.ts`'s own documented pattern), so a
+ * pointer-move-driven highlight would need a lighter-weight redraw path than
+ * that; left as a follow-up rather than added under this pass's time budget.
  *
  * A deck row's tap **selects** it (updates the pool and stats panes) rather
  * than navigating away; a pool card's tap opens Inspect (this screen never
@@ -56,20 +76,19 @@ import { browsablePool, duplicateDeck, type PoolFilter } from "../view/deck-buil
 import { exportDecklistText, importFromMarvelCdbResponseText, importFromPasteText, type ImportEnv, type ImportOutcome } from "../view/deck-import-model.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { sortByRecency } from "../view/deck-recency.js";
-import { compositionTilesOf, costCurveBars, deckStatsOf } from "../view/deck-stats.js";
-import { deckStatusOf, type DeckStatusTone } from "../view/deck-status.js";
+import { compositionTilesOf, costCurveBars, deckStatsOf, type CompositionTile, type CostCurveBar } from "../view/deck-stats.js";
+import { deckStatusOf } from "../view/deck-status.js";
 import { decksLayout, type DecksTab } from "../view/decks-layout.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
 import { deckSourcesOf, heroAspectsOf, heroRosterMatches, withSelectionPinned, type DeckSourceKind, type RosterFilter } from "../view/roster-filter.js";
 import { decksFocusOrder } from "../view/screen-focus.js";
 import { deckKeyToString, resultsHistoryOf, type DeckKey, type ResultsHistory } from "../view/results-history.js";
-import { CHIP_GAP, wrapChipsToRows } from "../view/chip-layout.js";
+import { CHIP_GAP, minChipCellWidth } from "../view/chip-layout.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
-import { compositionTileDefs, drawCompositionTiles, drawCostCurveBars } from "../ui/deck-stats-widgets.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
-import { cssOf, textStyle } from "../ui/theme.js";
+import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McMultilineInput, McTabs, McTextInput, fitText, label, paintDotGrid, paintPanel, sectionHeader } from "../ui/widgets.js";
 import { appSession, deckStorage } from "../session.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -86,38 +105,116 @@ export interface DecksSceneData {
   readonly message?: string | null;
 }
 
-const ROW_HEIGHT = 74;
+/** Tall enough for a 1-line title + a 2-line precon meta + a selected row's record line, comfortably. */
+const ROW_HEIGHT = 84;
+/** How much of a group-starting row's own top is given to its small group label instead of the card. */
+const GROUP_LABEL_HEIGHT = 16;
 const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));
 
 const SOURCE_LABEL: Readonly<Record<DeckSourceKind, string>> = { precon: "Precon", imported: "Imported", userBuilt: "Built" };
 
 const IMPORT_EXPORT_DESCRIPTION = "Paste a decklist or drop a .txt from MarvelCDB. Exports carry the aspect and hero set.";
 
-/** One row of the deck list: a group header, a deck row, or the trailing "+ New deck" tile (never filtered out, always the list's last row). */
-type DeckRow = { readonly kind: "header"; readonly label: string } | { readonly kind: "deck"; readonly option: DeckOption } | { readonly kind: "newDeck" };
+/** A compact chip/button row's own height — smaller than `hit.target`'s 44px touch target, matching D14's small filter/action controls (point 2/3/5 of the 2026-09-18 fidelity pass). Still comfortably tappable. */
+const COMPACT_ROW = 28;
+
+/** A deck card's own Bangers title, sized for a compact list row (`typeRole.barTitle` at the screen-title 22px doesn't fit two decks' worth of name on one row's own line). */
+const CARD_TITLE_TYPE = { ...typeRole.barTitle, size: 18, letterSpacing: 0.6 };
+
+/** One row of the deck list: a deck row (optionally the first of a group, carrying that group's small label) or the trailing "+ New deck" tile (never filtered out, always the list's own last row) — see the module doc comment for why a group no longer gets its own full-height row. */
+type DeckRow = { readonly kind: "deck"; readonly option: DeckOption; readonly groupLabel?: string } | { readonly kind: "newDeck" } | { readonly kind: "message"; readonly text: string };
 
 /** `deck`'s namespaced record key — the same one `view/results-history.ts` keys `DeckRecord` by. */
 function keyOf(deck: Deck): DeckKey {
   return deck.source.kind === "precon" ? { kind: "starter", starterDeckId: deck.source.starterDeckId as string } : { kind: "custom", deckId: deck.id as string };
 }
 
-/** How tall the fixed Import/Export box needs to be at `column` px wide — used both to reserve room above it and to draw it, so the two can't drift apart. */
-function importExportBoxHeight(column: number, hasSelection: boolean): number {
-  const pad = 14;
-  const descLines = estimateWrappedLines(IMPORT_EXPORT_DESCRIPTION, column - pad * 2, 5.3);
-  return (
-    pad * 2 + // top/bottom padding
-    20 + // "IMPORT / EXPORT" heading
-    descLines * 14 +
-    10 + // description
-    16 +
-    84 +
-    10 + // "paste a decklist" label + textarea
-    16 +
-    hit.target +
-    10 + // "import from marvelcdb" label + field
-    (hasSelection ? hit.target + 10 : 0) // Export
-  );
+/** A capitalized aspect/basic name for the short card title ("justice" → "Justice"). */
+function titleCase(word: string): string {
+  return word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/**
+ * A deck card's own title (2026-09-18 fidelity pass, point 2): a precon's is D14's own short "HERO / ASPECT" form
+ * (its long printed name, e.g. "Spider-Man (Justice) — Core Set starter deck", moves into the meta line instead —
+ * `deckMetaLine` below); a saved/imported deck's title is simply its own name, already short because a player chose
+ * it themselves.
+ */
+function cardTitleOf(option: DeckOption): string {
+  if (option.deck.source.kind !== "precon") return option.deck.name;
+  const identity = option.identityName ?? "Unknown";
+  const aspects = option.deck.aspects.map(titleCase).join(" + ");
+  return aspects ? `${identity} / ${aspects}` : identity;
+}
+
+/** The deck card's meta line: identity, card count and status for a saved/imported deck; the long printed name, card count, status and source for a precon (whose title above already dropped that long name). */
+function deckMetaLine(option: DeckOption): string {
+  const stats = deckStatsOf(option.deck, POOL_CARDS);
+  const status = deckStatusOf(option).text.toLowerCase();
+  if (option.deck.source.kind === "precon") return `${option.deck.name} · ${stats.totalCards} cards · ${status}`;
+  return `${option.identityName ?? "unknown identity"} · ${stats.totalCards} cards · ${status} · ${SOURCE_LABEL[option.deck.source.kind].toLowerCase()}`;
+}
+
+/** One chip/button's own natural width — never less than it needs (`minChipCellWidth`'s own estimate is deliberately conservative), so a row of these can never truncate the way equal-width division could. */
+interface ChipDef {
+  readonly id: string;
+  readonly text: string;
+  readonly selected: boolean;
+  readonly onClick: () => void;
+}
+
+interface PlacedChip {
+  readonly chip: ChipDef;
+  readonly rect: Rect;
+}
+
+/**
+ * Packs `chips` at their own natural width (2026-09-18 fidelity pass, point 6: the truncation this screen's own
+ * quick-filter and pool-filter chips used to show came from dividing a row's width *equally* among every chip in
+ * it — `view/chip-layout.ts`'s `wrapChipsToRows`, built for exactly that shape — rather than from the width
+ * estimate itself being wrong. Giving each chip exactly the width `minChipCellWidth` already says it needs removes
+ * the truncation risk structurally, without touching that estimate or the other screens still using equal-width
+ * rows). `align: "right"` packs each row from the row's own right edge backward (D14's own pool-filter placement).
+ */
+function packChipsNatural(chips: readonly ChipDef[], x: number, y: number, maxWidth: number, rowHeight: number, align: "left" | "right" = "left"): { readonly placed: readonly PlacedChip[]; readonly bottom: number } {
+  const rows: { chip: ChipDef; width: number }[][] = [];
+  let current: { chip: ChipDef; width: number }[] = [];
+  let currentWidth = 0;
+  for (const chip of chips) {
+    const width = minChipCellWidth(chip.text);
+    const needed = current.length === 0 ? width : currentWidth + CHIP_GAP + width;
+    if (current.length > 0 && needed > maxWidth) {
+      rows.push(current);
+      current = [{ chip, width }];
+      currentWidth = width;
+    } else {
+      current.push({ chip, width });
+      currentWidth = needed;
+    }
+  }
+  if (current.length > 0) rows.push(current);
+
+  const placed: PlacedChip[] = [];
+  rows.forEach((row, rowIndex) => {
+    const rowY = y + rowIndex * (rowHeight + CHIP_GAP);
+    const rowWidth = row.reduce((sum, entry, index) => sum + entry.width + (index > 0 ? CHIP_GAP : 0), 0);
+    let cursorX = align === "right" ? x + maxWidth - rowWidth : x;
+    for (const { chip, width } of row) {
+      placed.push({ chip, rect: { x: cursorX, y: rowY, width, height: rowHeight } });
+      cursorX += width + CHIP_GAP;
+    }
+  });
+  return { placed, bottom: rows.length === 0 ? y : y + rows.length * (rowHeight + CHIP_GAP) - CHIP_GAP };
+}
+
+/** How tall the compact Import/Export box needs to be at `column` px wide, in its current accordion state — used both to reserve room above it and to draw it, so the two can't drift apart. */
+function importExportBoxHeight(column: number, open: "paste" | "marvelcdb" | null): number {
+  const pad = 12;
+  const descLines = estimateWrappedLines(IMPORT_EXPORT_DESCRIPTION, column - pad * 2, 4.6);
+  let height = pad * 2 + 16 + descLines * 13 + 8 + COMPACT_ROW + 8; // padding + heading + description + button row
+  if (open === "paste") height += 64 + 8 + COMPACT_ROW + 8; // textarea + its own Import button
+  if (open === "marvelcdb") height += COMPACT_ROW + 8 + COMPACT_ROW + 8; // URL field + its own Import button
+  return height;
 }
 
 export class DecksScene extends Phaser.Scene {
@@ -132,6 +229,10 @@ export class DecksScene extends Phaser.Scene {
   #marvelcdbInput: McTextInput | null = null;
   #searchInput: McTextInput | null = null;
   #filter: RosterFilter = { text: "" };
+  /** Collapsed by default (2026-09-18 fidelity pass, point 2): the quick-filter chips cost nothing until asked for, so the deck list itself gets the column's room. */
+  #filtersExpanded = false;
+  /** Which of the Import/Export box's two fields is open, if either — collapsed by default so the box stays compact and pinned at the column's bottom. */
+  #importExportOpen: "paste" | "marvelcdb" | null = null;
   #poolAspectFilter: CoreAspect | "basic" | "identity" | null = null;
   #poolSortByCost = false;
   #selectedDeckId: string | null = null;
@@ -162,6 +263,8 @@ export class DecksScene extends Phaser.Scene {
     this.#pasteText = "";
     this.#marvelcdbText = "";
     this.#filter = { text: "" };
+    this.#filtersExpanded = false;
+    this.#importExportOpen = null;
     this.#poolAspectFilter = null;
     this.#poolSortByCost = false;
     this.#selectedDeckId = data.focusDeckId ?? null;
@@ -277,9 +380,21 @@ export class DecksScene extends Phaser.Scene {
     const goBack = (): void => { this.scene.start(SCENES.title); };
     this.#buttons.push(new McButton(this, { kind: "onInk", label: "◂ Title", type: typeRole.rowTitle, rect: backRect, onClick: goBack }));
     this.#stops.set("back", { rect: backRect, activate: goBack });
-    const title = this.add.text(backRect.x + backRect.width + 12, layout.header.y + layout.header.height / 2, "DECKS & COLLECTION", textStyle(typeRole.barTitle, surface.paper.hex));
+
+    // The header's right-aligned meta label: the real pool size, never an owned-card claim (docs/phase4-screen-gaps.md
+    // §4/§5) — worded "CARD POOL", not the mock's "Core Set", since this pool already spans Core and wave 1. Skipped
+    // at phone width: it isn't essential there, and crowding the actual screen title into truncating for its sake
+    // would be a legibility loss for a "nice to have" line.
+    const poolMeta =
+      layout.formFactor === "phone"
+        ? null
+        : label(this, layout.header.x + layout.header.width, layout.header.y + layout.header.height / 2, `Card pool · ${POOL_CARDS.length} cards`, typeRole.label, surface.paper.hex, ink.label).setOrigin(1, 0.5);
+
+    // A large Bangers screen title beside the Back button (point 1 of the 2026-09-18 fidelity pass: D14's own
+    // title reads far bigger than a bar-title chip's usual 22px).
+    const title = this.add.text(backRect.x + backRect.width + 12, layout.header.y + layout.header.height / 2, "DECKS & COLLECTION", { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "28px" });
     title.setOrigin(0, 0.5).setLetterSpacing(typeRole.barTitle.letterSpacing);
-    fitText(title, layout.header.width - backRect.width - 24);
+    fitText(title, layout.header.width - backRect.width - 24 - (poolMeta ? poolMeta.width + 16 : 0), 28);
 
     const allOptions = this.#deckOptions();
     if (this.#selectedDeckId === null || !allOptions.some((o) => (o.deck.id as string) === this.#selectedDeckId)) {
@@ -303,6 +418,8 @@ export class DecksScene extends Phaser.Scene {
           activeTab: this.#activeTab,
           hasSelection: selected !== null,
           editable: selected !== null && selected.deck.source.kind !== "precon",
+          filtersExpanded: this.#filtersExpanded,
+          importOpen: this.#importExportOpen,
         }),
         this.#stops,
       );
@@ -339,6 +456,8 @@ export class DecksScene extends Phaser.Scene {
           activeTab: this.#activeTab,
           hasSelection: selected !== null,
           editable: selected !== null && selected.deck.source.kind !== "precon",
+          filtersExpanded: this.#filtersExpanded,
+          importOpen: this.#importExportOpen,
         }),
         this.#stops,
       );
@@ -354,29 +473,30 @@ export class DecksScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------------------------------------------------
-  // The deck list pane: search, quick-filter chips (S8), the virtualized list (grouped: Preconstructed, then
-  // saved/imported decks — recently changed first, W9 — ending in "+ New deck"), then Import/Export. Returns the
-  // deck ids actually offered as rows, in list order, for the focus route.
+  // The deck list pane (2026-09-18 fidelity pass, point 2): search plus a collapsed-by-default "Filters" toggle
+  // in one compact row, then the list itself — the pane's dominant element — ending in "+ New deck", then a
+  // compact, bottom-pinned Import/Export box. Returns the deck ids actually offered as rows, in list order, for
+  // the focus route.
   // ------------------------------------------------------------------------------------------------------------
   #drawListPane(rect: Rect, allOptions: readonly DeckOption[], selected: DeckOption | null): readonly string[] {
     const left = rect.x;
     const column = rect.width;
-    let y = rect.y;
-
-    y = sectionHeader(this, left, y, column, "Your decks");
+    let y = sectionHeader(this, rect.x, rect.y, column, "Your decks");
 
     if (this.#status) {
       const banner = this.add.text(left, y, this.#status.text, textStyle(typeRole.body, this.#status.tone === "error" ? accent.redDeep.hex : signal.heal.hex)).setWordWrapWidth(column);
       y += banner.height + 10;
     }
 
-    const searchRect: Rect = { x: left, y, width: column, height: hit.target };
+    // Search plus the "Filters" toggle share one compact row (point 2: "keep search as one compact row").
+    const filtersToggleWidth = 78;
+    const searchRect: Rect = { x: left, y, width: column - filtersToggleWidth - CHIP_GAP, height: COMPACT_ROW };
     if (this.#searchInput) this.#searchInput.layout(searchRect);
     else {
       this.#searchInput = new McTextInput(this, {
         rect: searchRect,
         value: this.#filter.text,
-        placeholder: "search decks, heroes, aspects…",
+        placeholder: "search decks…",
         onChange: (value) => {
           this.#filter = { ...this.#filter, text: value };
           this.#rebuild();
@@ -384,23 +504,27 @@ export class DecksScene extends Phaser.Scene {
       });
     }
     this.#stops.set("deck-search", { rect: searchRect, activate: () => this.#searchInput?.focus() });
-    y += hit.target + 8;
+    const filtersToggleRect: Rect = { x: left + column - filtersToggleWidth, y, width: filtersToggleWidth, height: COMPACT_ROW };
+    const toggleFilters = (): void => {
+      this.#filtersExpanded = !this.#filtersExpanded;
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#filtersExpanded ? "Filters ▴" : "Filters ▾", type: typeRole.label, rect: filtersToggleRect, selected: this.#filtersExpanded, onClick: toggleFilters }));
+    this.#stops.set("filters-toggle", { rect: filtersToggleRect, activate: toggleFilters });
+    y += COMPACT_ROW + 8;
 
-    const chipDefs = this.#chipDefs(allOptions);
-    const chipRows = wrapChipsToRows(chipDefs, column);
-    chipRows.forEach((row, rowIndex) => {
-      const rowRect: Rect = { x: left, y: y + rowIndex * (hit.target + CHIP_GAP), width: column, height: hit.target };
-      const cellWidth = (rowRect.width - (row.length - 1) * CHIP_GAP) / row.length;
-      row.forEach((chip, index) => {
-        const cell: Rect = { x: rowRect.x + index * (cellWidth + CHIP_GAP), y: rowRect.y, width: cellWidth, height: rowRect.height };
+    const chipDefs = this.#filtersExpanded ? this.#chipDefs(allOptions) : [];
+    if (chipDefs.length > 0) {
+      const packed = packChipsNatural(chipDefs, left, y, column, COMPACT_ROW);
+      for (const { chip, rect: cell } of packed.placed) {
         this.#buttons.push(new McButton(this, { kind: "secondary", label: chip.text, type: typeRole.label, rect: cell, selected: chip.selected, onClick: chip.onClick }));
         this.#stops.set(`deck-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
-      });
-    });
-    y += (chipRows.length === 0 ? 0 : chipRows.length * hit.target + (chipRows.length - 1) * CHIP_GAP) + 12;
+      }
+      y = packed.bottom + 10;
+    }
 
     // Reserve fixed room at the bottom for the Import/Export box, so the list gets exactly whatever's left.
-    const boxHeight = importExportBoxHeight(column, selected !== null);
+    const boxHeight = importExportBoxHeight(column, this.#importExportOpen);
     const listTop = y;
     const listHeight = Math.max(ROW_HEIGHT, rect.y + rect.height - boxHeight - 12 - listTop);
     const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
@@ -435,11 +559,11 @@ export class DecksScene extends Phaser.Scene {
       this.#focusedOnce = true;
     }
     rows.forEach((row, index) => {
-      if (row.kind === "header") return;
       if (row.kind === "newDeck") {
         this.#stops.set("new-deck", { rect: () => list.rectFor(index), activate: () => this.#openBuilder(), ensureVisible: () => list.scrollIntoView(index) });
         return;
       }
+      if (row.kind === "message") return;
       const deckId = row.option.deck.id as string;
       const ensureVisible = (): void => list.scrollIntoView(index);
       const select = (): void => {
@@ -460,10 +584,10 @@ export class DecksScene extends Phaser.Scene {
     this.scene.start(SCENES.deckBuilder, {} satisfies DeckBuilderSceneData);
   }
 
-  /** S8's quick-filter chips for this list: aspect, source, and "Legal only" (this screen's own version of "playable now" — a deck's own legality, not a seating question). */
-  #chipDefs(allOptions: readonly DeckOption[]): readonly { readonly id: string; readonly text: string; readonly selected: boolean; readonly onClick: () => void }[] {
+  /** S8's quick-filter chips for this list: aspect, source, and "Legal only" (this screen's own version of "playable now" — a deck's own legality, not a seating question). Only asked for while the "Filters" toggle is expanded. */
+  #chipDefs(allOptions: readonly DeckOption[]): readonly ChipDef[] {
     const decks = allOptions.map((o) => o.deck);
-    const defs: { id: string; text: string; selected: boolean; onClick: () => void }[] = [];
+    const defs: ChipDef[] = [];
     for (const aspect of heroAspectsOf(decks)) {
       defs.push({
         id: `aspect:${aspect}`,
@@ -498,7 +622,12 @@ export class DecksScene extends Phaser.Scene {
     return defs;
   }
 
-  /** `allOptions` grouped into Preconstructed / Your decks (recently changed first), filtered by search + chips, with the selected deck pinned into view even if the filter would otherwise hide it, then "+ New deck" as the list's own last row (never filtered out). */
+  /**
+   * `allOptions` grouped into Preconstructed / Your decks (recently changed first), filtered by search + chips,
+   * with the selected deck pinned into view even if the filter would otherwise hide it, then "+ New deck" as the
+   * list's own last row (never filtered out). A group's label rides on its own first card (`groupLabel`) rather
+   * than a separate full-height row — see the module doc comment for why.
+   */
   #buildRows(allOptions: readonly DeckOption[]): readonly DeckRow[] {
     const identityOf = (option: DeckOption): AnyCard | undefined => CARDS_BY_ID.get(option.deck.identityCardId as string);
     const matches = (option: DeckOption): boolean => heroRosterMatches(option.deck, identityOf(option), this.#filter, option.blockedReason);
@@ -510,23 +639,16 @@ export class DecksScene extends Phaser.Scene {
     const filteredSaved = withSelectionPinned(saved, matches, isSelected);
 
     const rows: DeckRow[] = [];
-    if (filteredPrecons.length > 0) {
-      rows.push({ kind: "header", label: "Preconstructed" });
-      for (const option of filteredPrecons) rows.push({ kind: "deck", option });
-    }
-    if (filteredSaved.length > 0) {
-      rows.push({ kind: "header", label: "Your decks · recently changed first" });
-      for (const option of filteredSaved) rows.push({ kind: "deck", option });
-    }
-    if (rows.length === 0) rows.push({ kind: "header", label: "No decks match this search." });
+    filteredPrecons.forEach((option, index) => rows.push({ kind: "deck", option, ...(index === 0 ? { groupLabel: "Preconstructed" } : {}) }));
+    filteredSaved.forEach((option, index) => rows.push({ kind: "deck", option, ...(index === 0 ? { groupLabel: "Your decks · recently changed first" } : {}) }));
+    if (rows.length === 0) rows.push({ kind: "message", text: "No decks match this search." });
     rows.push({ kind: "newDeck" });
     return rows;
   }
 
   #renderDeckRow(rect: Rect, row: DeckRow): VirtualListRow {
-    if (row.kind === "header") {
-      const text = label(this, rect.x + 4, rect.y + rect.height / 2, row.label, typeRole.label, surface.ink.hex, ink.label);
-      text.setOrigin(0, 0.5);
+    if (row.kind === "message") {
+      const text = this.add.text(rect.x + 4, rect.y + 8, row.text, textStyle(typeRole.body, surface.ink.hex, ink.meta)).setWordWrapWidth(rect.width - 8);
       return { objects: [text] };
     }
 
@@ -542,8 +664,18 @@ export class DecksScene extends Phaser.Scene {
     const selected = (option.deck.id as string) === this.#selectedDeckId;
     const status = deckStatusOf(option);
     const illegal = status.tone === "illegal";
-    const card: Rect = { x: rect.x + 4, y: rect.y + 2, width: rect.width - 8, height: rect.height - 4 };
     const objects: Phaser.GameObjects.GameObject[] = [];
+
+    // A group-starting row gives its own top `GROUP_LABEL_HEIGHT` to a small label instead of a separate
+    // full-height row (2026-09-18 fidelity pass, point 2: "group headers stay as small labels without eating a
+    // whole row's height").
+    let cardTop = rect.y + 2;
+    if (row.groupLabel) {
+      const groupText = label(this, rect.x + 4, rect.y + 2, row.groupLabel, typeRole.label, surface.ink.hex, ink.label);
+      objects.push(groupText);
+      cardTop = rect.y + GROUP_LABEL_HEIGHT;
+    }
+    const card: Rect = { x: rect.x + 4, y: cardTop, width: rect.width - 8, height: rect.y + rect.height - 4 - cardTop };
 
     // D14's own three row states: the selected deck is ink-filled with paper text (`#s14`'s
     // `background:#14110E;color:#F4EFE3`), an illegal/WIP deck gets a red border and red title, everything else
@@ -561,88 +693,113 @@ export class DecksScene extends Phaser.Scene {
     const metaColor = selected ? surface.paper.hex : surface.ink.hex;
     const metaAlpha = selected ? ink.secondary : ink.meta;
 
-    const name = this.add.text(card.x + 10, card.y + 8, option.deck.name, textStyle(typeRole.rowTitle, titleColor));
-    fitText(name, card.width - 20);
+    // The short "HERO / ASPECT" title for a precon, or the deck's own name otherwise (`cardTitleOf`) — Bangers,
+    // fit to width rather than truncated mid-word where that's avoidable (point 2).
+    const name = this.add.text(card.x + 10, card.y + 8, caseOf(CARD_TITLE_TYPE, cardTitleOf(option)), textStyle(CARD_TITLE_TYPE, titleColor)).setLetterSpacing(CARD_TITLE_TYPE.letterSpacing);
+    fitText(name, card.width - 20, CARD_TITLE_TYPE.size);
     objects.push(name);
-    objects.push(
-      this.add.text(card.x + 10, card.y + 8 + name.height + 3, `${option.identityName ?? "unknown identity"} · ${deckStatsOf(option.deck, POOL_CARDS).totalCards} cards · ${status.text.toLowerCase()}`, textStyle(typeRole.label, metaColor, metaAlpha)).setWordWrapWidth(card.width - 20),
-    );
+    objects.push(this.add.text(card.x + 10, card.y + 8 + name.height + 3, deckMetaLine(option), textStyle(typeRole.label, metaColor, metaAlpha)).setWordWrapWidth(card.width - 20));
 
     // Only the *selected* row shows its record (D14's own placement, `#s14`: the "Last played · record" line sits
     // inside the deck row, not the stats rail).
     if (selected) {
       const record = this.#history?.decks.find((r) => deckKeyToString(r.key) === deckKeyToString(keyOf(option.deck))) ?? null;
       const recordText = record && record.gamesPlayed > 0 ? `Last played ${record.lastPlayedAt ? new Date(record.lastPlayedAt).toLocaleDateString() : "—"} · ${record.wins}–${record.losses} record` : "Never played.";
-      objects.push(this.add.text(card.x + 10, card.y + card.height - 18, recordText, textStyle(typeRole.label, surface.paper.hex, ink.meta)));
+      objects.push(this.add.text(card.x + 10, card.y + card.height - 16, recordText, textStyle(typeRole.label, surface.paper.hex, ink.meta)));
     }
 
     return { objects };
   }
 
+  /**
+   * The Import/Export box (2026-09-18 fidelity pass, point 2): a compact parchment box pinned to the column's
+   * bottom, matching D14's own footprint — a heading, two lines of description, and one row of small "Paste" /
+   * "MarvelCDB" / "Export" buttons. Paste and MarvelCDB are an accordion: clicking one opens its own field (and
+   * closes the other, so the box never shows both at once); Export always acts immediately on the selected deck.
+   */
   #drawImportExportBox(rect: Rect, selected: DeckOption | null): void {
     const g = this.add.graphics();
     g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(border.object, surface.ink.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
 
-    const left = rect.x + 14;
-    const column = rect.width - 28;
-    let y = rect.y + 14;
+    const left = rect.x + 12;
+    const column = rect.width - 24;
+    let y = rect.y + 12;
 
     label(this, left, y, "import / export", typeRole.label, surface.ink.hex, ink.label);
-    y += 18;
-    const desc = this.add.text(left, y, IMPORT_EXPORT_DESCRIPTION, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(column);
-    y += desc.height + 10;
-
-    label(this, left, y, "paste a decklist", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
-    const pasteRect: Rect = { x: left, y, width: column - 96, height: 84 };
-    if (this.#pasteInput) this.#pasteInput.layout(pasteRect);
-    else {
-      this.#pasteInput = new McMultilineInput(this, {
-        rect: pasteRect,
-        value: this.#pasteText,
-        placeholder: "Hero: Spider-Man\nAspect: Justice\n2x Web-Shooter\n...",
-        onChange: (value) => {
-          this.#pasteText = value;
-        },
-      });
-    }
-    this.#stops.set("paste-field", { rect: pasteRect, activate: () => this.#pasteInput?.focus() });
-    const pasteImportRect: Rect = { x: left + column - 86, y, width: 86, height: hit.target };
-    const doPasteImport = (): void => void this.#importPaste();
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import", type: typeRole.rowTitle, rect: pasteImportRect, enabled: !this.#busy, onClick: doPasteImport }));
-    this.#stops.set("paste-import", { rect: pasteImportRect, activate: doPasteImport });
-    y += 84 + 10;
+    const desc = this.add.text(left, y, IMPORT_EXPORT_DESCRIPTION, { ...textStyle(typeRole.body, surface.ink.hex, ink.secondary), fontSize: "10px" }).setWordWrapWidth(column);
+    y += desc.height + 8;
 
-    // Always shown, not gated on `import.meta.env.DEV`: `vite preview` serves the same production bundle a real
-    // deploy would (a genuine production deploy 404s instead — see `vite-marvelcdb-import.ts`).
-    label(this, left, y, "import from marvelcdb", typeRole.label, surface.ink.hex, ink.label);
-    y += 16;
-    const mcdbFieldRect: Rect = { x: left, y, width: column - 96, height: hit.target };
-    if (this.#marvelcdbInput) this.#marvelcdbInput.layout(mcdbFieldRect);
-    else {
-      this.#marvelcdbInput = new McTextInput(this, {
-        rect: mcdbFieldRect,
-        value: this.#marvelcdbText,
-        type: typeRole.mono,
-        placeholder: "marvelcdb.com/decklist/view/1234/... or a bare id",
-        onChange: (value) => {
-          this.#marvelcdbText = value;
-        },
-      });
-    }
-    this.#stops.set("marvelcdb-field", { rect: mcdbFieldRect, activate: () => this.#marvelcdbInput?.focus() });
-    const mcdbImportRect: Rect = { x: left + column - 86, y, width: 86, height: hit.target };
-    const doMcdbImport = (): void => void this.#importMarvelCdb();
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import", type: typeRole.rowTitle, rect: mcdbImportRect, enabled: !this.#busy, onClick: doMcdbImport }));
-    this.#stops.set("marvelcdb-import", { rect: mcdbImportRect, activate: doMcdbImport });
-    y += hit.target + 10;
+    const toggle = (which: "paste" | "marvelcdb"): void => {
+      this.#importExportOpen = this.#importExportOpen === which ? null : which;
+      this.#rebuild();
+    };
+    const buttonGap = 6;
+    const buttonWidth = (column - buttonGap * 2) / 3;
+    const pasteToggleRect: Rect = { x: left, y, width: buttonWidth, height: COMPACT_ROW };
+    const mcdbToggleRect: Rect = { x: left + buttonWidth + buttonGap, y, width: buttonWidth, height: COMPACT_ROW };
+    const exportRect: Rect = { x: left + (buttonWidth + buttonGap) * 2, y, width: buttonWidth, height: COMPACT_ROW };
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Paste", type: typeRole.label, rect: pasteToggleRect, selected: this.#importExportOpen === "paste", onClick: () => toggle("paste") }));
+    this.#stops.set("ie-paste-toggle", { rect: pasteToggleRect, activate: () => toggle("paste") });
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: "MarvelCDB", type: typeRole.label, rect: mcdbToggleRect, selected: this.#importExportOpen === "marvelcdb", onClick: () => toggle("marvelcdb") }));
+    this.#stops.set("ie-marvelcdb-toggle", { rect: mcdbToggleRect, activate: () => toggle("marvelcdb") });
+    const doExport = (): void => {
+      if (selected) this.#exportToClipboard(selected.deck);
+    };
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Export", type: typeRole.label, rect: exportRect, enabled: selected !== null, ...(selected ? {} : { reason: "Select a deck first." }), onClick: doExport }));
+    this.#stops.set("ie-export", { rect: exportRect, activate: doExport });
+    y += COMPACT_ROW + 8;
 
-    if (selected) {
-      const exportRect: Rect = { x: left, y, width: column, height: hit.target };
-      const doExport = (): void => this.#exportToClipboard(selected.deck);
-      this.#buttons.push(new McButton(this, { kind: "secondary", label: `Export "${selected.deck.name}"`, type: typeRole.rowTitle, rect: exportRect, onClick: doExport }));
-      this.#stops.set("export-deck", { rect: exportRect, activate: doExport });
+    if (this.#importExportOpen === "paste") {
+      const pasteRect: Rect = { x: left, y, width: column, height: 64 };
+      if (this.#pasteInput) this.#pasteInput.layout(pasteRect);
+      else {
+        this.#pasteInput = new McMultilineInput(this, {
+          rect: pasteRect,
+          value: this.#pasteText,
+          placeholder: "Hero: Spider-Man\nAspect: Justice\n2x Web-Shooter\n...",
+          onChange: (value) => {
+            this.#pasteText = value;
+          },
+        });
+      }
+      this.#stops.set("paste-field", { rect: pasteRect, activate: () => this.#pasteInput?.focus() });
+      y += 64 + 8;
+      const pasteImportRect: Rect = { x: left, y, width: column, height: COMPACT_ROW };
+      const doPasteImport = (): void => void this.#importPaste();
+      this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import this decklist", type: typeRole.label, rect: pasteImportRect, enabled: !this.#busy, onClick: doPasteImport }));
+      this.#stops.set("paste-import", { rect: pasteImportRect, activate: doPasteImport });
+    } else {
+      this.#pasteInput?.destroy();
+      this.#pasteInput = null;
+    }
+
+    if (this.#importExportOpen === "marvelcdb") {
+      // Always offered, not gated on `import.meta.env.DEV`: `vite preview` serves the same production bundle a
+      // real deploy would (a genuine production deploy 404s instead — see `vite-marvelcdb-import.ts`).
+      const mcdbFieldRect: Rect = { x: left, y, width: column, height: COMPACT_ROW };
+      if (this.#marvelcdbInput) this.#marvelcdbInput.layout(mcdbFieldRect);
+      else {
+        this.#marvelcdbInput = new McTextInput(this, {
+          rect: mcdbFieldRect,
+          value: this.#marvelcdbText,
+          type: typeRole.mono,
+          placeholder: "marvelcdb.com/decklist/view/1234/... or a bare id",
+          onChange: (value) => {
+            this.#marvelcdbText = value;
+          },
+        });
+      }
+      this.#stops.set("marvelcdb-field", { rect: mcdbFieldRect, activate: () => this.#marvelcdbInput?.focus() });
+      y += COMPACT_ROW + 8;
+      const mcdbImportRect: Rect = { x: left, y, width: column, height: COMPACT_ROW };
+      const doMcdbImport = (): void => void this.#importMarvelCdb();
+      this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import from MarvelCDB", type: typeRole.label, rect: mcdbImportRect, enabled: !this.#busy, onClick: doMcdbImport }));
+      this.#stops.set("marvelcdb-import", { rect: mcdbImportRect, activate: doMcdbImport });
+    } else {
+      this.#marvelcdbInput?.destroy();
+      this.#marvelcdbInput = null;
     }
   }
 
@@ -654,31 +811,23 @@ export class DecksScene extends Phaser.Scene {
   #drawPoolPane(rect: Rect, selected: DeckOption | null): readonly string[] {
     const left = rect.x;
     const column = rect.width;
-    let y = rect.y;
-    y = sectionHeader(this, left, y, column, "Card pool");
 
     if (!selected) {
+      const y = sectionHeader(this, left, rect.y, column, "Card pool");
       this.add.text(left, y, "Select a deck to browse its card pool.", textStyle(typeRole.body, surface.ink.hex, ink.meta)).setWordWrapWidth(column);
       return [];
     }
     const identity = this.#identityOf(selected.deck);
     if (!identity) {
+      const y = sectionHeader(this, left, rect.y, column, "Card pool");
       this.add.text(left, y, "This deck's identity card isn't in the pool.", textStyle(typeRole.body, surface.ink.hex, ink.meta)).setWordWrapWidth(column);
       return [];
     }
 
-    const chipDefs = this.#poolChipDefs(selected.deck);
-    const chipRows = wrapChipsToRows(chipDefs, column);
-    chipRows.forEach((row, rowIndex) => {
-      const rowRect: Rect = { x: left, y: y + rowIndex * (hit.target + CHIP_GAP), width: column, height: hit.target };
-      const cellWidth = (rowRect.width - (row.length - 1) * CHIP_GAP) / row.length;
-      row.forEach((chip, index) => {
-        const cell: Rect = { x: rowRect.x + index * (cellWidth + CHIP_GAP), y: rowRect.y, width: cellWidth, height: rowRect.height };
-        this.#buttons.push(new McButton(this, { kind: "secondary", label: chip.text, type: typeRole.label, rect: cell, selected: chip.selected, onClick: chip.onClick }));
-        this.#stops.set(`pool-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
-      });
-    });
-    y += (chipRows.length === 0 ? 0 : chipRows.length * hit.target + (chipRows.length - 1) * CHIP_GAP) + 10;
+    // D14's own header shape (point 3 of the 2026-09-18 fidelity pass): small filter chips right-aligned on the
+    // *same* line as "CARD POOL", the rule running only between the label and the first chip — not a full-width
+    // rule followed by a separate row of full-height buttons.
+    let y = this.#drawPoolHeader(left, rect.y, column, this.#poolChipDefs(selected.deck));
 
     const cards = this.#poolCards(selected.deck, identity);
     if (cards.length === 0) {
@@ -713,9 +862,33 @@ export class DecksScene extends Phaser.Scene {
     return cards.map((card) => card.id as string);
   }
 
+  /**
+   * "CARD POOL ─────" with its filter chips right-aligned on the same line (D14's own `#s14` markup: the rule is
+   * a `<span style="flex:1">` sitting *between* the label and the chips, not a separate full-width rule with its
+   * own row of chips below). Returns the next free `y`.
+   */
+  #drawPoolHeader(left: number, y: number, column: number, chipDefs: readonly ChipDef[]): number {
+    const heading = this.add.text(left, y, "CARD POOL", { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "19px" }).setLetterSpacing(typeRole.barTitle.letterSpacing);
+    const chipHeight = COMPACT_ROW;
+    const chipY = y + (heading.height - chipHeight) / 2;
+    const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, "right");
+    for (const { chip, rect: cell } of packed.placed) {
+      this.#buttons.push(new McButton(this, { kind: "secondary", label: chip.text, type: typeRole.label, rect: cell, selected: chip.selected, onClick: chip.onClick }));
+      this.#stops.set(`pool-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
+    }
+    const chipsLeftEdge = packed.placed.length > 0 ? Math.min(...packed.placed.map((p) => p.rect.x)) : left + column;
+    const ruleStart = left + heading.width + 10;
+    const ruleEnd = chipsLeftEdge - 10;
+    if (ruleEnd > ruleStart) {
+      const rule = this.add.graphics();
+      rule.fillStyle(surface.ink.hex, 1).fillRect(ruleStart, y + heading.height / 2 - 1.5, ruleEnd - ruleStart, 3);
+    }
+    return Math.max(y + heading.height, packed.bottom + chipHeight) + 12;
+  }
+
   /** D14's own pool filter chips: the deck's own chosen aspect(s), Basic, Hero — one active at a time, click again to clear back to "everything" — then a Cost sort toggle. Deviation from the mock's own static screenshot, noted in this scene's header comment: D14 draws its "Aggression" chip pre-filled while the grid still shows Basic/Hero cards too, which reads as a static label rather than a working filter; here every chip (aspect included) is a real, symmetric toggle. */
-  #poolChipDefs(deck: Deck): readonly { readonly id: string; readonly text: string; readonly selected: boolean; readonly onClick: () => void }[] {
-    const defs: { id: string; text: string; selected: boolean; onClick: () => void }[] = [];
+  #poolChipDefs(deck: Deck): readonly ChipDef[] {
+    const defs: ChipDef[] = [];
     const toggleAspect = (value: CoreAspect | "basic" | "identity"): void => {
       this.#poolAspectFilter = this.#poolAspectFilter === value ? null : value;
       this.#poolListScroll.reset();
@@ -789,9 +962,9 @@ export class DecksScene extends Phaser.Scene {
       objects.push(name);
       const typeLabel = card.type.replace(/_/g, " ");
       const caption = entry !== null ? `${typeLabel} · ${inDeckQuantity} of ${entry} in deck` : typeLabel;
-      objects.push(
-        this.add.text(cardRect.x + 8, ruleY + 6 + name.height + 3, caption, { ...textStyle(typeRole.label, surface.ink.hex, ink.meta), fontStyle: "800" }).setLetterSpacing(0.8),
-      );
+      // `label()` (not a bare `this.add.text`) so `typeRole.label`'s own uppercase rule actually applies —
+      // "EVENT · 2 OF 3 IN DECK", not the lowercase caption this cell used to draw (2026-09-18 fidelity pass, point 4).
+      objects.push(label(this, cardRect.x + 8, ruleY + 6 + name.height + 3, caption, typeRole.label, surface.ink.hex, ink.meta));
     }
     return { objects };
   }
@@ -801,9 +974,11 @@ export class DecksScene extends Phaser.Scene {
   }
 
   // ------------------------------------------------------------------------------------------------------------
-  // The stats pane: the selected deck's curve, composition, "recently changed" (S4/W9 — honest and minimal, see
-  // `view/deck-recency.ts`), Check/Edit/Delete as a compact secondary row, then the footer D14 itself draws:
-  // DUPLICATE beside the single red "PLAY THIS DECK ▸".
+  // The stats pane (2026-09-18 fidelity pass, point 5): a big Bangers deck title, one meta line (card count,
+  // legality and source — dropping the separate "PRECON · <hero>" line the title's own short form now makes
+  // redundant), a paper rule, red-highlighted curve bars, label-over-number composition tiles, Check/Edit/Delete
+  // as a row of small buttons, "Recently changed", then the footer D14 itself draws: DUPLICATE beside the single
+  // red "PLAY THIS DECK ▸".
   // ------------------------------------------------------------------------------------------------------------
   #drawStatsPane(rect: Rect, option: DeckOption | null): void {
     const bg = this.add.graphics();
@@ -820,36 +995,12 @@ export class DecksScene extends Phaser.Scene {
 
     const deck = option.deck;
     const stats = deckStatsOf(deck, POOL_CARDS);
-
-    const name = this.add.text(left, y, deck.name, textStyle(typeRole.barTitle, surface.paper.hex));
-    fitText(name, column);
-    y += name.height + 4;
-    label(this, left, y, `${SOURCE_LABEL[deck.source.kind]} · ${option.identityName ?? "unknown identity"}`, typeRole.label, surface.paper.hex, ink.label);
-    y += 20;
-
     const status = deckStatusOf(option);
-    label(this, left, y, `${stats.totalCards} CARDS · MINIMUM ${DECK_MIN_CARDS} · ${status.text.toUpperCase()}`, typeRole.label, surface.paper.hex, ink.label);
-    y += 24;
 
-    // Check/Edit/Delete: real, needed actions D14 itself doesn't draw (its mock has no notion of this build's
-    // deck-check screen or in-place editing) — a compact secondary row here, so the footer below still ends in
-    // exactly Duplicate + the red Play button, as designed.
-    const editable = deck.source.kind !== "precon";
-    const secondaryDefs: { readonly id: string; readonly text: string; readonly onClick: () => void }[] = [
-      { id: "check", text: "Check", onClick: () => this.#openDeckCheck(deck) },
-      ...(editable ? [{ id: "edit", text: "Edit", onClick: () => this.scene.start(SCENES.deckBuilder, { deck } satisfies DeckBuilderSceneData) }] : []),
-      ...(editable ? [{ id: "delete", text: "Delete", onClick: () => void this.#delete(deck.id) }] : []),
-    ];
-    const secondaryRows = wrapChipsToRows(secondaryDefs, column);
-    secondaryRows.forEach((row, rowIndex) => {
-      const cellWidth = (column - (row.length - 1) * CHIP_GAP) / row.length;
-      row.forEach((action, index) => {
-        const cell: Rect = { x: left + index * (cellWidth + CHIP_GAP), y: y + rowIndex * (hit.target + CHIP_GAP), width: cellWidth, height: hit.target };
-        this.#buttons.push(new McButton(this, { kind: "onInk", label: action.text, type: typeRole.label, rect: cell, onClick: action.onClick }));
-        this.#stops.set(`stats-${action.id}`, { rect: cell, activate: action.onClick });
-      });
-    });
-    y += secondaryRows.length * hit.target + Math.max(0, secondaryRows.length - 1) * CHIP_GAP + 14;
+    const name = this.add.text(left, y, caseOf(typeRole.barTitle, cardTitleOf(option)), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "26px" }).setLetterSpacing(typeRole.barTitle.letterSpacing).setWordWrapWidth(column);
+    y += name.height + 6;
+    label(this, left, y, `${stats.totalCards} CARDS · MINIMUM ${DECK_MIN_CARDS} · ${status.text.toUpperCase()} · ${SOURCE_LABEL[deck.source.kind].toUpperCase()}`, typeRole.label, surface.paper.hex, ink.label);
+    y += 20;
 
     const ruleG = this.add.graphics();
     ruleG.fillStyle(surface.paper.hex, 1).fillRect(left, y, column, 3);
@@ -859,15 +1010,41 @@ export class DecksScene extends Phaser.Scene {
     label(this, left, y, `RESOURCE CURVE${avgText}`, typeRole.label, surface.paper.hex, ink.label);
     y += 16;
     const chartHeight = 84;
-    drawCostCurveBars(this, { x: left, y, width: column, height: chartHeight }, costCurveBars(stats), true);
+    this.#drawStatCurveBars(left, y, column, chartHeight, costCurveBars(stats));
     y += chartHeight + 16;
 
-    y = drawCompositionTiles(this, { x: left, y, width: column, height: hit.target * 2 + CHIP_GAP }, compositionTileDefs(compositionTilesOf(stats)), true) + 8;
+    label(this, left, y, "COMPOSITION", typeRole.label, surface.paper.hex, ink.label);
+    y += 16;
+    y = this.#drawStatTiles(left, y, column, compositionTilesOf(stats)) + 12;
 
-    // "Recently changed" (W9): the minimal honest version — one timestamp, no revision history, said plainly
-    // rather than pretending to a diff the client doesn't have.
-    const changedText = deck.updatedAt ? `Last changed ${new Date(deck.updatedAt).toLocaleDateString()}` : "No change history recorded for this deck.";
-    label(this, left, y, changedText, typeRole.label, surface.paper.hex, ink.meta);
+    // Check/Edit/Delete: real, needed actions D14 itself doesn't draw (its mock has no notion of this build's
+    // deck-check screen or in-place editing) — a row of small buttons, so the footer below still ends in exactly
+    // Duplicate + the red Play button, as designed.
+    const editable = deck.source.kind !== "precon";
+    const actionDefs: readonly { readonly id: string; readonly text: string; readonly onClick: () => void }[] = [
+      { id: "check", text: "Check", onClick: () => this.#openDeckCheck(deck) },
+      ...(editable ? [{ id: "edit", text: "Edit", onClick: () => this.scene.start(SCENES.deckBuilder, { deck } satisfies DeckBuilderSceneData) }] : []),
+      ...(editable ? [{ id: "delete", text: "Delete", onClick: () => void this.#delete(deck.id) }] : []),
+    ];
+    const actionWidth = (column - CHIP_GAP * (actionDefs.length - 1)) / actionDefs.length;
+    actionDefs.forEach((action, index) => {
+      const cell: Rect = { x: left + index * (actionWidth + CHIP_GAP), y, width: actionWidth, height: COMPACT_ROW };
+      this.#buttons.push(new McButton(this, { kind: "quiet", label: action.text, type: typeRole.label, rect: cell, onClick: action.onClick }));
+      this.#stops.set(`stats-${action.id}`, { rect: cell, activate: action.onClick });
+    });
+    y += COMPACT_ROW + 14;
+
+    // "Recently changed" (W9/S1): the minimal honest version — one timestamp, no revision history — drawn with
+    // D14's own left-ruled line, or a single dim line when there's nothing to report.
+    label(this, left, y, "RECENTLY CHANGED", typeRole.label, surface.paper.hex, ink.label);
+    y += 16;
+    if (deck.updatedAt) {
+      const bar = this.add.graphics();
+      bar.fillStyle(surface.paper.hex, 1).fillRect(left, y, 3, 15);
+      this.add.text(left + 9, y, `Last changed ${new Date(deck.updatedAt).toLocaleDateString()}`, textStyle(typeRole.body, surface.paper.hex, ink.secondary));
+    } else {
+      label(this, left, y, "No change history recorded for this deck.", typeRole.label, surface.paper.hex, ink.meta);
+    }
 
     // Footer, pinned to the bottom of the pane regardless of how much the body above used — D14's own two bottom
     // controls, Duplicate beside the single red Play.
@@ -896,6 +1073,48 @@ export class DecksScene extends Phaser.Scene {
       }),
     );
     this.#stops.set("stats-play", { rect: playRect, activate: () => this.#playDeck(deck) });
+  }
+
+  /**
+   * The resource curve, D14's own way (point 5): every bar is paper-colored except the deck's most-common
+   * printed costs, which are Hero Red — `#s14`'s own chart colors costs 1 and 2 red where they're the two tallest
+   * bars, everything else cream. Ties are included (every bar at either of the top two *count* values is
+   * highlighted, not just the single tallest), and a bar with no cards at that cost is never highlighted even if
+   * zero happens to be tied for a "top" value in an otherwise-empty curve.
+   */
+  #drawStatCurveBars(left: number, y: number, column: number, chartHeight: number, bars: readonly CostCurveBar[]): void {
+    const gap = 6;
+    const barWidth = (column - gap * (bars.length - 1)) / bars.length;
+    const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
+    const topCounts = new Set([...new Set(bars.map((bar) => bar.count))].filter((count) => count > 0).sort((a, b) => b - a).slice(0, 2));
+    bars.forEach((bar, index) => {
+      const barHeight = Math.max(2, Math.round((bar.count / maxCount) * (chartHeight - 18)));
+      const x = left + index * (barWidth + gap);
+      const highlighted = topCounts.has(bar.count);
+      const g = this.add.graphics();
+      g.fillStyle(highlighted ? accent.heroRed.hex : surface.paper.hex, 1).fillRect(x, y + (chartHeight - 18 - barHeight), barWidth, barHeight);
+      label(this, x + barWidth / 2, y + chartHeight - 10, bar.label, typeRole.label, surface.paper.hex, ink.label).setOrigin(0.5, 0);
+    });
+  }
+
+  /** Composition tiles D14's own way (point 5): a small uppercase label over a Bangers number, three per row — not the shared `ui/deck-stats-widgets.ts` combined-text tile other screens (D04) use. Returns the next free `y`. */
+  #drawStatTiles(left: number, y: number, column: number, tiles: readonly CompositionTile[]): number {
+    const perRow = 3;
+    const gap = 7;
+    const cellWidth = (column - (perRow - 1) * gap) / perRow;
+    const cellHeight = 46;
+    tiles.forEach((tile, index) => {
+      const row = Math.floor(index / perRow);
+      const col = index % perRow;
+      const tileX = left + col * (cellWidth + gap);
+      const tileY = y + row * (cellHeight + gap);
+      const g = this.add.graphics();
+      g.lineStyle(border.control, surface.paper.hex, 1).strokeRect(tileX, tileY, cellWidth, cellHeight);
+      label(this, tileX + 8, tileY + 7, tile.label, typeRole.label, surface.paper.hex, ink.label);
+      this.add.text(tileX + 8, tileY + 18, String(tile.count), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "20px" });
+    });
+    const rows = Math.ceil(tiles.length / perRow);
+    return rows === 0 ? y : y + rows * (cellHeight + gap) - gap;
   }
 
   /** "Play this deck ▸" (W9): hands the deck to the existing setup flow with it preselected for seat 1 (`view/setup-draft.ts`'s `withSeatOne`, applied inside `TitleScene#create` — see `scenes/title.ts`'s `TitleSceneData`). */
