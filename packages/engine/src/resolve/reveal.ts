@@ -182,6 +182,13 @@ export function attachmentHostCandidates(
       const best = host.order === "highest" ? Math.max(...values) : Math.min(...values);
       return pool.filter((_, index) => values[index] === best);
     }
+    case "ifAble": {
+      // "Attach to Yellowjacket, if able. If you cannot, attach to the villain." (docs/phase7-wave2.md §1.7). The
+      // fallback is only considered when the preferred host has no legal candidate at this moment (RRG 1.8 "Attach
+      // To", p. 8).
+      const preferred = attachmentHostCandidates(state, host.preferred, context);
+      return preferred.length > 0 ? preferred : attachmentHostCandidates(state, host.otherwise, context);
+    }
     default: {
       const query = HOST_QUERIES[host.kind];
       return query ? selectTargets(state, query, context) : [];
