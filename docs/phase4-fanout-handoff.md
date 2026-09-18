@@ -21,6 +21,10 @@ A new session cannot message the old agents — `SendMessage` fails with "No tra
 
 **W2b** (launched 2026-09-18, fresh worktree, agent briefed in-session): rebuilds Scenario select and Take your seats to D02/D03 — Bangers headers, full-width body with full-height ink side panels, the stat strip, four selectable seat cards with the **active-seat model** (the owner's bug: only seat 1 could be selected or deck-checked), "Play N heroes" beside "Deck check ▸", and **pack shelves** with nested search (an owner decision; see the gaps doc). Namespaced: Vite 5193, CDP 9593, scratchpad `w2b/`. The main session verifies it against the tiles before merging — W2's version was ticked done without that, which is how it shipped wrong.
 
+**W9b** (launched 2026-09-18, fresh worktree, agent briefed in-session): rebuilds Decks & Collection to D14 — Bangers header, a left column of Bangers deck cards with a dashed "+ NEW DECK" and a parchment Import/Export box, a middle card-pool grid, and the ink stats rail ending in "DUPLICATE" + "PLAY THIS DECK ▸". Namespaced: Vite 5194, CDP 9594, scratchpad `w9b/`. The click bug the owner hit there is already fixed on the integration branch (`f1c12fd`); W9b must not lose it.
+
+**Before merging W2b, W9b or W3**, the main session opens each screen, clicks every interactive thing with a real pointer, and compares it with its design tile. Three screens were merged and ticked without that and the owner found them wrong.
+
 Still to launch after those: **W3**, **W8**, then the `rules-qa-engineer` pass over S5.11.
 
 ## Wave 1 (launched 2026-09-17)
