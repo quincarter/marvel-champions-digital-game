@@ -44,7 +44,7 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 | D12, P10, P11, P17, L08 | Game over | ✅ | Wide and tall layouts, stats, turning points, seats, MVP, both rematches. | W8 |
 | D13, P16, L07 | Pause & Rules | ❌ | Nothing. The board has no menu button. | W4 |
 | — (P16, L07, D01) | Settings | ❌ | `settings.ts` holds `reducedMotion` and `textResolution`; no screen shows them. | W4 |
-| D14 | Decks & Collection | ⚠️ | `scenes/decks.ts`: deck list, paste and MarvelCDB import, edit, delete, and (W1) a "Check" button on every row into Deck check. Still a single list, not D14's two-pane layout. | W1, W9 |
+| D14 | Decks & Collection | ✅ | `scenes/decks.ts`: two-pane list + stats (tabs on narrow), S8 filters, S4 record, duplicate/export/play, import, Check into Deck check. | W1, W9 |
 | D01 | Campaign | ⛔ | Drawn locked in the mocks. Out of scope (PLAN.md Phase 4). | — |
 
 `SCENES.setup` is already reserved in `scenes/keys.ts` with no scene behind it.
