@@ -14,7 +14,7 @@ Working notes for the parallel run of [phase4-screen-gaps.md](phase4-screen-gaps
 | **S5** Engine queries: `stackEntries`, `preview()`, `schemeResolved`, `plannedAttackDamage` + `defendPreview`, `explainQuery` + `choiceExclusions`, and the `concede` command / `conceded` outcome | `game-rules-architect` | `.claude/worktrees/agent-a60d2333f66c689c0` | `worktree-agent-a60d2333f66c689c0` | **Done and merged** into the integration branch (engine 507 → 556). Concede wired into Pause. |
 | **W2** Title menu + setup flow (Scenario select, Take your seats, Table setup) | `game-client-engineer` | `.claude/worktrees/agent-a823678c74b964cea` | `worktree-agent-a823678c74b964cea` | Commits at the end. |
 | **W4** Pause & Rules, Settings, menu button, and S7's read-only replay board if it fits | `game-client-engineer` | `.claude/worktrees/agent-a7a89ad77a61b012c` | `worktree-agent-a7a89ad77a61b012c` | **Merged into the integration branch** (client 580 → 625 tests). Fidelity pass against D13/P16/L07 still owed. |
-| **W9** Decks & Collection layout (launched after W1 landed) | `game-client-engineer` | `.claude/worktrees/agent-a3784f22ee36a3677` | `worktree-agent-a3784f22ee36a3677` | Commits at the end. Must contain W1's `e3ea573`. |
+| **W9** Decks & Collection layout (launched after W1 landed) | `game-client-engineer` | `.claude/worktrees/agent-a3784f22ee36a3677` | `worktree-agent-a3784f22ee36a3677` | **Done and merged** (client → 668). Touches `scenes/title.ts` additively (`TitleSceneData`/`withSeatOne`) — expect a conflict with W2. |
 | **W5** Targeting panel (wave 2, launched after S5 merged) | `game-client-engineer` | `.claude/worktrees/agent-a79c9a010099fa40d` | `worktree-agent-a79c9a010099fa40d` | Commits at the end. Must contain `578fab8`. |
 | **W6** Defend choice (wave 2) | `game-client-engineer` | `.claude/worktrees/agent-a1f59c5d76777c36c` | `worktree-agent-a1f59c5d76777c36c` | Commits at the end. Must contain `578fab8`. |
 | **W7** Villain phase breakdown (wave 2) | `game-client-engineer` | `.claude/worktrees/agent-a604b8b968959cb52` | `worktree-agent-a604b8b968959cb52` | Commits at the end. Must contain `578fab8`. |
@@ -36,7 +36,7 @@ The user flagged that the built screens carry the fonts and componentry from the
 - **S5**: all six steps done and merged; its Implemented note is in the gaps doc. Pause's Concede is wired to the real command.
 - **W4**: merged into the integration branch (conflicts in `main.ts`/`screen-focus.test.ts` were additive); report lost — its commit message is the report. Concede dispatch is isolated behind `PauseOverlay#dispatchConcede`; Settings is its own scene/key; the replay board was assessed as not safely landable and the "jump to a moment" list is drawn unavailable.
 - **W2**: uncommitted, mid-write (`scenes/table-setup.ts` has two undefined names: `CARDS_BY_ID_ARRAY`, `DEFAULT_DEPS_PLACEHOLDER`); client tests 647 green, typecheck fails only there. Resumed by message with the design-fidelity brief.
-- **W9**: worktree created and W1 merged in, no work yet. Restarted with the design-fidelity brief.
+- **W9**: done and merged; note pasted into the gaps doc.
 
 ## Merge plan
 

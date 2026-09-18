@@ -407,13 +407,22 @@ Canvas: D14. This overlaps PLAN.md Phase 9 and should be checked off there as we
 
 Already there: `scenes/decks.ts`, `view/deck-list-model.ts`, `view/deck-status.ts`, `view/deck-import-model.ts`.
 
-- [ ] Two-pane layout on wide screens: deck list beside the card pool and the selected deck's stats (S1).
-- [ ] The deck list uses S8's search and quick filters (aspect, source, legal/blocked).
-- [ ] Per-deck record and last played (needs S4, including its deck-id gap).
-- [ ] "Recently changed" (needs a deck revision history in deck storage).
-- [ ] Duplicate, Export (decklist text, the inverse of paste import), and "Play this deck ▸" (opens W2's Seats with this deck in seat 1).
+- [x] Two-pane layout on wide screens: deck list beside the selected deck's stats (S1). The live card-pool column stays the builder's.
+- [x] The deck list uses S8's search and quick filters (aspect, source, legal/blocked).
+- [x] Per-deck record and last played (needs S4, including its deck-id gap).
+- [x] "Recently changed" — the minimal version: one `updatedAt` per deck, no revision history (see the note).
+- [x] Duplicate, Export (decklist text, the inverse of paste import), and "Play this deck ▸" (opens Title/Seats with this deck in seat 1).
 - [ ] Deck note, **only after** §4's decision on advice.
 - [ ] Owned-card tracking ("226 of 226 cards owned"), **only after** §4's decision.
+- **Landed (`game-client-engineer`, 2026-09-17; merged into `feature/phase4-screen-gaps`).** Two-pane `scenes/decks.ts` on wide screens (`view/decks-layout.ts`): the deck list (search + S8 quick-filter chips for aspect/source/"Legal only", the import/export boxes and "New deck" folded in below it) beside the *selected* deck's stats pane (curve, composition, record, "recently changed", and its actions) on a dark ground, matching D14's grounds/hierarchy — `decks-layout.ts`'s header comment has the composition writeup and what's deliberately not reproduced (D14's live-editing "Card pool" column, which is the builder's job, and owned-card tracking, per §4). Narrow screens get the same two groups behind a "Decks"/"Stats" tab strip. A row's tap now **selects** it; every action (Check, Duplicate, Export, Edit/Delete, Play) moved to the stats pane.
+  - **Search and quick filters (S8)** reuse `view/roster-filter.ts`'s `heroRosterMatches` unchanged; `deckSourcesOf` (new) derives the source chips from the pool.
+  - **Per-deck record and last played (S4)** come from a new `EngineHost#listSaves()`/`SessionStore#listSaves()` (mirrors `latestSave()`) feeding `resultsHistoryOf`, keyed by S4's `DeckKey`. Shown in the stats pane only.
+  - **"Recently changed": the minimal honest version.** `Deck.updatedAt?: string` (`@mc/content`), stamped only where a deck is persisted — `touch`/`duplicateDeck` (`view/deck-builder-model.ts`) and both import functions. Old stored decks without it still load (`view/deck-recency.test.ts`); saved decks sort by it (`sortByRecency`); the pane says "No change history recorded for this deck." **No revision history** — one timestamp, overwritten on save.
+  - **Duplicate, Export, Play this deck ▸.** `duplicateDeck` always yields an editable `userBuilt` copy. `exportDecklistText` (`view/deck-import-model.ts`) is the exact inverse of `parseDecklistText`, round-trip tested against every Core precon; Export copies to the clipboard with an honest failure message when unavailable. "Play this deck ▸" is live: `#playDeck` starts Title with an optional `TitleSceneData` (`initialSeatDeckId`/`initialSeatDeck`) and `view/setup-draft.ts`'s new `withSeatOne` seats exactly that deck; disabled with the engine's reason when the deck isn't legal. *W2's Title rewrite must keep this entry point* (or route it to the new Seats screen).
+  - **Shared stats widget** factored out rather than copied a third time: `ui/deck-stats-widgets.ts`'s `drawCostCurveBars`/`drawCompositionTiles`/`drawGroupedCardList`, now used by `scenes/deck-check.ts`, `scenes/deck-builder.ts` and this screen.
+  - **Fidelity pass** at 1440×900, 1024×768, 768×1024 and 390×844 against `ScreensDesktop_12`/`_13` (headless Chrome over CDP). One bug found and fixed by it: switching to the narrow "Stats" tab left the DOM-backed search/import fields floating over it. **Remaining differences:** D14's three columns are two here (the middle "Card pool" grid is D04's); the owned-card coverage line is skipped (§4); at 390px `Aggression`/`Leadership`/`Protection` chips truncate — `view/chip-layout.ts`'s width estimate is at its margin for 10-character labels and is shared with Title, so it's left for a chip-layout fix.
+  - **Skipped, per §4:** deck note and owned-card tracking.
+  - Tests: `view/decks-layout.test.ts`, `view/deck-recency.test.ts`, `view/deck-builder-model.test.ts`, `view/deck-import-model.test.ts`, `view/roster-filter.test.ts`, `view/screen-focus.test.ts`. Client 580 → 617.
 
 Depends on: S1, S4.
 
