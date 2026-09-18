@@ -73,7 +73,10 @@ export class SettingsOverlay extends Phaser.Scene {
 
     const { width, height } = this.scale.gameSize;
     const rows = settingsRowInfoOf(appSession().settings);
-    const layout = settingsLayout({ x: 0, y: 0, width, height }, rows.length);
+    const layout = settingsLayout(
+      { x: 0, y: 0, width, height },
+      rows.map((row) => row.unavailable ?? row.detail),
+    );
 
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
@@ -103,7 +106,7 @@ export class SettingsOverlay extends Phaser.Scene {
       .setFontSize(10)
       .setWordWrapWidth(rect.width - 100);
 
-    const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y, width: 84, height: 32 };
+    const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
     const activate = (): void => this.#toggle(row);
     this.#buttons.push(
       new McButton(this, {

@@ -3,11 +3,14 @@
  */
 
 import type Phaser from "phaser";
-import { accent, ink, signal, surface, typeRole } from "../../tokens.js";
+import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { McButton, McTabs } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
 import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
+
+/** The phone board's "≡" menu icon (see `drawChrome`'s own comment for why this isn't `typeRole.label`). */
+const MENU_ICON_TYPE: TypeSpec = { ...typeRole.label, size: 20, letterSpacing: 0, uppercase: false };
 
 export interface ChromeOptions {
   readonly notSaving?: boolean;
@@ -45,7 +48,11 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
     new McButton(scene, {
       kind: "onInk",
       label: wide ? "MENU" : "≡",
-      type: typeRole.label,
+      // The phone board's "≡" is a symbol standing in for a whole word, not a
+      // short label — at `typeRole.label`'s own 9px it rendered as a barely
+      // visible smudge (fidelity pass, 2026-09-17). Bigger and untracked, so
+      // the three bars actually read as a hamburger icon on a touch screen.
+      type: wide ? typeRole.label : MENU_ICON_TYPE,
       rect: menuRect,
       enabled: true,
       onClick: options.onMenu,

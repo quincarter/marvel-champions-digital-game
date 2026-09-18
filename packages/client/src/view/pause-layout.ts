@@ -29,8 +29,8 @@
  * one column at phone width.
  */
 import { hit } from "../tokens.js";
-import type { Rect } from "./layout.js";
-import { overlayPanelLayout, stackedRow } from "./overlay-layout.js";
+import { estimateWrappedLines, toggleRowHeight, type Rect } from "./layout.js";
+import { overlayPanelLayout } from "./overlay-layout.js";
 
 /** Wider than the shared `OVERLAY_MAX_WIDTH` (640): a two-column body needs the room, and D13/L07 both draw this sheet noticeably wider than Rules/Settings' own single-column overlays. */
 export const PAUSE_PANEL_MAX_WIDTH = 760;
@@ -44,6 +44,45 @@ const HEADING_HEIGHT = 18;
 const SUBHEADING_HEIGHT = 16;
 /** Below this body width (phone), the two column groups stack instead of sitting side by side. */
 const TWO_COLUMN_MIN_BODY_WIDTH = 560;
+
+/**
+ * Fidelity pass, 2026-09-17: both row lists used one *fixed* height
+ * (`hit.target`, 44 — a touch-target minimum, not a text budget) for every
+ * row regardless of its own detail text, so a long one ran past its row and
+ * into whatever sat below it — a two-line "Jump into the log" reason clipped
+ * through its own row's border, and a three-line "Reduced motion" description
+ * (this column is half a 760-wide panel, narrower than Settings' own
+ * full-width column) collided with the next row's heading. Each row is now
+ * sized to its *own* detail text (`estimateWrappedLines`, `view/layout.ts`) —
+ * a short row stays short, a long one gets the room it actually needs — with
+ * a floor at the old fixed height so a short row never shrinks below a
+ * comfortable touch target. The "Table" column reuses `toggleRowHeight`
+ * (`view/layout.ts`) unchanged, since it draws the identical row Settings
+ * does; "Quick reference" has its own formula below (a bordered chevron row,
+ * not a toggle row, with different text offsets).
+ */
+const QUICK_REFERENCE_ROW_MIN_HEIGHT = 44;
+const QUICK_REFERENCE_DETAIL_TOP = 24;
+const QUICK_REFERENCE_DETAIL_LINE_HEIGHT = 11;
+const QUICK_REFERENCE_DETAIL_CHAR_WIDTH = 5;
+const QUICK_REFERENCE_BOTTOM_PADDING = 8;
+
+function quickReferenceRowHeight(detail: string, columnWidth: number): number {
+  const wrapWidth = Math.max(1, columnWidth - 24);
+  const lines = estimateWrappedLines(detail, wrapWidth, QUICK_REFERENCE_DETAIL_CHAR_WIDTH);
+  return Math.max(QUICK_REFERENCE_ROW_MIN_HEIGHT, QUICK_REFERENCE_DETAIL_TOP + lines * QUICK_REFERENCE_DETAIL_LINE_HEIGHT + QUICK_REFERENCE_BOTTOM_PADDING);
+}
+
+/** Stacks rects of each given height, top to bottom, `gap` apart — `overlay-layout.ts`'s `stackedRow` generalized to rows that aren't all the same height. */
+function stackedRowsOf(top: number, x: number, width: number, heights: readonly number[], gap: number): Rect[] {
+  const rows: Rect[] = [];
+  let y = top;
+  for (const height of heights) {
+    rows.push({ x, y, width, height });
+    y += height + gap;
+  }
+  return rows;
+}
 
 export interface PauseColumnLayout {
   readonly heading: Rect;
@@ -68,19 +107,21 @@ export interface PauseLayout {
   readonly resume: Rect;
 }
 
-function rulesColumn(rect: Rect, rowCount: number): PauseColumnLayout {
+function rulesColumn(rect: Rect, quickReferenceDetails: readonly string[]): PauseColumnLayout {
   const heading: Rect = { x: rect.x, y: rect.y, width: rect.width, height: HEADING_HEIGHT };
   const search: Rect = { x: rect.x, y: heading.y + heading.height + 8, width: rect.width, height: hit.target };
   const subheading: Rect = { x: rect.x, y: search.y + search.height + 12, width: rect.width, height: SUBHEADING_HEIGHT };
   const rowsTop = subheading.y + subheading.height + 6;
-  const rows = Array.from({ length: rowCount }, (_unused, index) => stackedRow({ x: rect.x, y: rowsTop, width: rect.width, height: 0 }, index, hit.target, ROW_GAP));
+  const heights = quickReferenceDetails.map((detail) => quickReferenceRowHeight(detail, rect.width));
+  const rows = stackedRowsOf(rowsTop, rect.x, rect.width, heights, ROW_GAP);
   return { heading, search, subheading, rows };
 }
 
-function tableColumn(rect: Rect, rowCount: number): PauseColumnLayout {
+function tableColumn(rect: Rect, tableDetails: readonly string[]): PauseColumnLayout {
   const heading: Rect = { x: rect.x, y: rect.y, width: rect.width, height: HEADING_HEIGHT };
   const rowsTop = heading.y + heading.height + 10;
-  const rows = Array.from({ length: rowCount }, (_unused, index) => stackedRow({ x: rect.x, y: rowsTop, width: rect.width, height: 0 }, index, hit.target, ROW_GAP));
+  const heights = tableDetails.map((detail) => toggleRowHeight(detail, rect.width));
+  const rows = stackedRowsOf(rowsTop, rect.x, rect.width, heights, ROW_GAP);
   const zero: Rect = { x: rect.x, y: rect.y, width: 0, height: 0 };
   return { heading, search: zero, subheading: zero, rows };
 }
@@ -91,7 +132,7 @@ function columnBottom(column: PauseColumnLayout): number {
   return column.subheading.height > 0 ? column.subheading.y + column.subheading.height : column.heading.y + column.heading.height;
 }
 
-export function pauseLayout(bounds: Rect, quickReferenceRowCount: number, tableRowCount: number): PauseLayout {
+export function pauseLayout(bounds: Rect, quickReferenceDetails: readonly string[], tableDetails: readonly string[]): PauseLayout {
   const { panel, header, body, footer } = overlayPanelLayout(bounds, HEADER_HEIGHT, FOOTER_HEIGHT, PAUSE_PANEL_MAX_WIDTH);
   const closeButton: Rect = { x: header.x + header.width - CLOSE_SIZE - 16, y: header.y + (header.height - CLOSE_SIZE) / 2, width: CLOSE_SIZE, height: CLOSE_SIZE };
 
@@ -99,11 +140,11 @@ export function pauseLayout(bounds: Rect, quickReferenceRowCount: number, tableR
   const twoColumn = inset.width >= TWO_COLUMN_MIN_BODY_WIDTH;
   const columnWidth = twoColumn ? (inset.width - COLUMN_GAP) / 2 : inset.width;
 
-  const rules = rulesColumn({ x: inset.x, y: inset.y, width: columnWidth, height: inset.height }, quickReferenceRowCount);
+  const rules = rulesColumn({ x: inset.x, y: inset.y, width: columnWidth, height: inset.height }, quickReferenceDetails);
   const tableOrigin: Rect = twoColumn
     ? { x: inset.x + columnWidth + COLUMN_GAP, y: inset.y, width: columnWidth, height: inset.height }
     : { x: inset.x, y: columnBottom(rules) + GROUP_GAP, width: columnWidth, height: inset.height };
-  const table = tableColumn(tableOrigin, tableRowCount);
+  const table = tableColumn(tableOrigin, tableDetails);
 
   const buttonGap = 8;
   const buttonWidth = (footer.width - 32 - buttonGap * 2) / 3;

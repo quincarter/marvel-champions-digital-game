@@ -28,7 +28,7 @@ import Phaser from "phaser";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
 import { accent, ink, surface, typeRole } from "../tokens.js";
 import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
+import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { pauseLayout } from "../view/pause-layout.js";
 import { pauseStatusOf } from "../view/pause-model.js";
 import { rulesGlossaryOf } from "../view/rules-reference.js";
@@ -181,7 +181,11 @@ export class PauseOverlay extends Phaser.Scene {
 
     const quickReferenceRows = this.#quickReferenceRows(game);
     const tableRows = settingsRowInfoOf(settings);
-    const layout = pauseLayout({ x: 0, y: 0, width, height }, quickReferenceRows.length, tableRows.length);
+    const layout = pauseLayout(
+      { x: 0, y: 0, width, height },
+      quickReferenceRows.map((row) => row.unavailable ?? row.detail),
+      tableRows.map((row) => row.unavailable ?? row.detail),
+    );
 
     // Dim scrim over the board, then the panel itself — one ink ground
     // throughout (`view/pause-layout.ts`'s own doc comment says why).
@@ -245,7 +249,11 @@ export class PauseOverlay extends Phaser.Scene {
   ): void {
     this.add.text(rect.x + 16, rect.y + 12, caseOf(typeRole.barTitle, "Paused"), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "28px" });
     const statusText = game && perspectiveId ? this.#statusLine(game, perspectiveId, config) : "No game in progress.";
-    label(this, rect.x + 16, rect.y + 46, statusText, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(11);
+    const status = label(this, rect.x + 16, rect.y + 46, statusText, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(11);
+    // Shrinks rather than running under the ✕ (fidelity pass, 2026-09-17): at
+    // phone width the full "‹scenario› · ‹difficulty› · Round ‹n› · ‹phase› ·
+    // ‹seat›" line is wider than the header has room for beside the close button.
+    fitText(status, closeRect.x - rect.x - 16 - 12, 11);
     this.#buttons.push(new McButton(this, { kind: "secondary", label: "✕", type: typeRole.rowTitle, rect: closeRect, onClick: () => this.#resume() }));
     stops.set("close", { rect: closeRect, activate: () => this.#resume() });
     const rule = this.add.graphics();
@@ -263,7 +271,12 @@ export class PauseOverlay extends Phaser.Scene {
     paintPanel(g, rect, "onInk", enabled ? "rest" : "unavailable");
     const alpha = enabled ? 1 : ink.disabled;
     this.add.text(rect.x + 12, rect.y + 6, row.title, textStyle(typeRole.rowTitle, surface.paper.hex, alpha)).setWordWrapWidth(rect.width - 60);
-    this.add.text(rect.x + 12, rect.y + rect.height - 18, row.unavailable ?? row.detail, textStyle(typeRole.label, surface.paper.hex, alpha * 0.75)).setFontSize(9).setWordWrapWidth(rect.width - 24);
+    // Anchored below the title and growing *down*, not anchored to the row's
+    // bottom edge and growing up into it — "Jump into the log"'s two-line
+    // unavailable reason used to render its second line straight through the
+    // row's own border (fidelity pass, 2026-09-17: `QUICK_REFERENCE_ROW_HEIGHT`
+    // in `view/pause-layout.ts` now reserves room for a two-line detail).
+    this.add.text(rect.x + 12, rect.y + 24, row.unavailable ?? row.detail, textStyle(typeRole.label, surface.paper.hex, alpha * 0.75)).setFontSize(9).setWordWrapWidth(rect.width - 24);
     if (enabled) label(this, rect.x + rect.width - 16, rect.y + rect.height / 2, "›", typeRole.rowTitle, surface.paper.hex, ink.secondary).setOrigin(0.5);
     const activate = (): void => row.open?.();
     stops.set(`quick:${row.id}`, { rect, activate });
@@ -279,7 +292,7 @@ export class PauseOverlay extends Phaser.Scene {
       .text(rect.x, rect.y + 20, row.unavailable ?? row.detail, textStyle(typeRole.body, surface.paper.hex, row.unavailable ? 0.55 : 0.8))
       .setFontSize(10)
       .setWordWrapWidth(rect.width - 100);
-    const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y, width: 84, height: 32 };
+    const toggleRect: Rect = { x: rect.x + rect.width - 84, y: rect.y + (rect.height - 32) / 2, width: 84, height: 32 };
     const activate = (): void => this.#toggleTableRow(row);
     this.#buttons.push(
       new McButton(this, {

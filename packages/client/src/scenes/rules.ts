@@ -123,7 +123,10 @@ export class RulesOverlay extends Phaser.Scene {
     this.#buttons.push(new McButton(this, { kind: "secondary", label: "◂ Back", type: typeRole.label, rect: backRect, onClick: () => this.scene.stop() }));
     stops.set("back", { rect: backRect, activate: () => this.scene.stop() });
     this.add.text(backRect.x + backRect.width + 12, layout.header.y + 12, caseOf(typeRole.barTitle, "Rules reference"), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "22px" });
-    label(this, layout.header.x + 12, layout.header.y + layout.header.height - 20, "Filtered to what's on your table", typeRole.label, surface.paper.hex, ink.secondary).setFontSize(9);
+    // Below the Back button's own bottom edge (fidelity pass, 2026-09-17):
+    // this used to sit at a fixed offset from the header's bottom that put it
+    // directly behind Back, which then visually clipped it.
+    label(this, layout.header.x + 12, backRect.y + backRect.height + 4, "Filtered to what's on your table", typeRole.label, surface.paper.hex, ink.secondary).setFontSize(9);
 
     this.#tabsWidget = new McTabs(this, {
       rect: layout.tabs,
