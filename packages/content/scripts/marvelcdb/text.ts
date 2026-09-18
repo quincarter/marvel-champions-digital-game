@@ -65,7 +65,21 @@ export function toPlainText(html: string | null | undefined): string {
     .join("\n");
 }
 
-/** Every `[token]` left in normalized text must be one of these. */
+/**
+ * Every `[token]` left in normalized text must be one of these. Most arrive already bracketed in MarvelCDB's
+ * `real_text` (never as an HTML `<span class="icon-…">`, per a full-corpus check across all 63 packs at the wave 2
+ * survey, 2026-09-18) — they are reminder-text references to a printed icon, same as `[star]`, with no ability
+ * semantics of their own:
+ * - `[amplify]` / `[hazard]` / `[acceleration]` — modular-set scheme/card icons introduced post-wave 1 (same
+ *   family as `[crisis]`/`[per_group]`), referenced in text like "for each [crisis], [acceleration], [amplify],
+ *   and [hazard] in play".
+ * - `[unique]` — the printed unique-card icon, referenced in "a unique enemy ([unique])".
+ * - `[cost]` — the consequential-damage icon, referenced in "takes -1 consequential damage ([cost])".
+ * - `[physics]` — seen once (Marvel Boy, `mts` 21041: "spend a [physics] resource"). No `ResourceIconType` named
+ *   "physics" exists; this is very likely a MarvelCDB source typo for `[physical]`, but it is left as its own
+ *   literal token rather than silently rewritten, since nothing here can cross-check it against a card scan.
+ *   Flagged in `docs/phase7-wave2-data.md` for verification before any curation depends on its meaning.
+ */
 export const KNOWN_TEXT_TOKENS = [
   "[energy]",
   "[mental]",
@@ -76,6 +90,12 @@ export const KNOWN_TEXT_TOKENS = [
   "[boost]",
   "[crisis]",
   "[per_group]",
+  "[amplify]",
+  "[hazard]",
+  "[acceleration]",
+  "[unique]",
+  "[cost]",
+  "[physics]",
 ] as const;
 
 export function unknownTokens(text: string): string[] {

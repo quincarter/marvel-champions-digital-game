@@ -3,14 +3,28 @@ import type { EncounterSet } from "../../../src/schema/index.ts";
 import { brand } from "./brand.ts";
 import type { NormalizeContext } from "./context.ts";
 
+/**
+ * Wave 2 (docs/phase7-wave2.md §1.4/§5.1): a campaign-specific card's set is still an `EncounterSet` — the Hydra
+ * Campaign upgrades' `hydra_camp` and the campaign obligations' `expcamp` — just marked `campaignSpecific`, and
+ * built from records this function otherwise skips (a player-side `faction_code`, or `type_code: "obligation"`).
+ */
+function campaignSetCode(r: { readonly faction_code: string; readonly type_code: string; readonly card_set_code?: string | null }): string | undefined {
+  return r.faction_code === "campaign" && r.card_set_code ? r.card_set_code : undefined;
+}
+
 export function normalizeEncounterSets(ctx: NormalizeContext): { encounterSets: EncounterSet[]; setNames: Map<string, string> } {
   const setNames = new Map<string, string>();
+  const campaignSets = new Set<string>();
   for (const r of ctx.topLevel) {
-    if (r.faction_code !== "encounter" || r.type_code === "obligation" || !r.card_set_code) continue;
-    const prev = setNames.get(r.card_set_code);
-    const name = r.card_set_name ?? r.card_set_code;
-    if (prev !== undefined && prev !== name) ctx.errors.push(`set ${r.card_set_code} has two names: ${prev} / ${name}`);
-    setNames.set(r.card_set_code, name);
+    const campaignSet = campaignSetCode(r);
+    if (campaignSet) campaignSets.add(campaignSet);
+    else if (r.faction_code !== "encounter" || r.type_code === "obligation" || !r.card_set_code) continue;
+    const code = campaignSet ?? r.card_set_code;
+    if (!code) continue;
+    const prev = setNames.get(code);
+    const name = r.card_set_name ?? code;
+    if (prev !== undefined && prev !== name) ctx.errors.push(`set ${code} has two names: ${prev} / ${name}`);
+    setNames.set(code, name);
   }
   const encounterSets: EncounterSet[] = [...setNames.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
@@ -21,6 +35,7 @@ export function normalizeEncounterSets(ctx: NormalizeContext): { encounterSets: 
         name,
         packCodes: [ctx.setCode],
         ...(hero ? { nemesisOfIdentityId: brand("card", hero.code) } : {}),
+        ...(campaignSets.has(id) ? { campaignSpecific: true } : {}),
       };
     });
   return { encounterSets, setNames };
