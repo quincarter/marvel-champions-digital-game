@@ -49,6 +49,28 @@ describe("rulesCardListOf", () => {
     }
   });
 
+  test("a set with no real instance in this game is NOT marked inGame, even though `game.cardPool` (the whole app pool, not this scenario's own) names it", async () => {
+    const store = new SessionStore(new LocalEngineHost());
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
+    const state = store.state.game!;
+    // `game.cardPool` is the whole wave 1 pool regardless of scenario (`packages/cards/src/wave1/setup.ts`'s
+    // own doc comment), so a naive `Object.values(game.cardPool)` read would wrongly mark a wave-1-only
+    // scenario's set (e.g. Green Goblin's own Risky Business) as "in this" Rhino game.
+    const risky = Object.values(state.cardPool).find((card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes("risky_business"));
+    expect(risky).toBeDefined();
+    const groups = rulesCardListOf(state, POOL_CARDS, POOL_ENCOUNTER_SETS);
+    const riskyGroup = groups.find((g) => g.setId === "risky_business");
+    expect(riskyGroup?.inGame ?? false).toBe(false);
+    // Rhino's own set, by contrast, really is in this game.
+    const rhinoGroup = groups.find((g) => g.setId === "rhino");
+    expect(rhinoGroup?.inGame).toBe(true);
+  });
+
   test("each sorted sub-list (in-game, then not-in-game) is itself alphabetical by set name", () => {
     const groups = rulesCardListOf(null, POOL_CARDS, POOL_ENCOUNTER_SETS);
     const names = groups.map((g) => g.setName);

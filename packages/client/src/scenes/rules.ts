@@ -72,6 +72,7 @@ const TABS: readonly { readonly id: RulesTab; readonly label: string }[] = [
 ];
 
 /** Which cards to point a glossary entry's thumbnail strip at, and how many before "+N more". */
+/** Hard ceiling on a glossary entry's thumbnail strip, regardless of how wide its own card is. */
 const MAX_GLOSSARY_THUMBS = 6;
 /** How tall an encounter-set header slot is in the Card list grid (Bangers name + rule + count). */
 const SET_HEADER_HEIGHT = 34;
@@ -105,7 +106,6 @@ export class RulesOverlay extends Phaser.Scene {
   #scope: RulesScope = "table";
   #searchInput: McTextInput | null = null;
   #tabsWidget: McTabs | null = null;
-  #scopeButtons: McButton[] = [];
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
 
@@ -127,6 +127,11 @@ export class RulesOverlay extends Phaser.Scene {
     this.#scope = game ? "table" : "all";
     const onResize = (): void => this.#draw();
     this.scale.on("resize", onResize, this);
+    // A scan that arrives after this scene's first draw (art loads lazily, per card — `art/card-art.ts`'s own
+    // doc comment) must still show up: every card thumbnail on this screen (the glossary strip, the card list
+    // grid) is requested fresh on every `#draw`, so the fix is the same one-line subscription Decks and Inspect
+    // already use, not a redraw loop of its own.
+    const artOff = cardArt(this).onArrived(() => this.#draw());
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
       onCancel: () => this.scene.stop(),
@@ -135,14 +140,14 @@ export class RulesOverlay extends Phaser.Scene {
     });
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      artOff();
       this.#searchInput?.destroy();
       this.#searchInput = null;
       this.#tabsWidget?.destroy();
       this.#tabsWidget = null;
       this.#destroyLists();
-      for (const button of [...this.#buttons, ...this.#scopeButtons]) button.destroy();
+      for (const button of this.#buttons) button.destroy();
       this.#buttons = [];
-      this.#scopeButtons = [];
     });
     this.#draw();
   }
@@ -192,9 +197,8 @@ export class RulesOverlay extends Phaser.Scene {
   #draw(): void {
     this.#tabsWidget?.destroy();
     this.#tabsWidget = null;
-    for (const button of [...this.#buttons, ...this.#scopeButtons]) button.destroy();
+    for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.#scopeButtons = [];
     this.#destroyLists();
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
@@ -230,10 +234,12 @@ export class RulesOverlay extends Phaser.Scene {
       const allRect: Rect = { x: layout.scope.x + layout.scope.width - toggleWidth * 2 - gap, y: layout.scope.y + (layout.scope.height - 26) / 2, width: toggleWidth, height: 26 };
       const tableRect: Rect = { x: allRect.x + toggleWidth + gap, y: allRect.y, width: toggleWidth, height: 26 };
       label(this, layout.scope.x + 16, layout.scope.y + layout.scope.height / 2, this.#scope === "table" ? "Filtered to what's on your table" : "Showing all rules, not just the table", typeRole.label, surface.paper.hex, ink.secondary).setOrigin(0, 0.5).setFontSize(10);
-      this.#scopeButtons.push(new McButton(this, { kind: "onInk", label: "All rules", type: typeRole.label, rect: allRect, selected: this.#scope === "all", onClick: () => this.#setScope("all") }));
-      this.#scopeButtons.push(new McButton(this, { kind: "onInk", label: "On your table", type: typeRole.label, rect: tableRect, selected: this.#scope === "table", onClick: () => this.#setScope("table") }));
-      stops.set("scope:table", { rect: tableRect, activate: () => this.#setScope("table") });
-      stops.set("scope:all", { rect: allRect, activate: () => this.#setScope("all") });
+      // Custom-painted rather than `McButton`'s `onInk`/`primary` skins, whose own "selected" state
+      // is Hero Red — this screen has no forward action to spend that on ("one red per screen", and
+      // this one needs none), so the active option is a solid paper pill instead and the inactive one
+      // a plain paper outline; a `zone` handles the click the same way `McButton` would.
+      this.#drawScopeOption(allRect, "All rules", this.#scope === "all", () => this.#setScope("all"), stops, "scope:all");
+      this.#drawScopeOption(tableRect, "On your table", this.#scope === "table", () => this.#setScope("table"), stops, "scope:table");
     } else {
       label(this, layout.scope.x + 16, layout.scope.y + layout.scope.height / 2, "Showing the card pool — no game in progress.", typeRole.label, surface.paper.hex, ink.secondary).setOrigin(0, 0.5).setFontSize(10);
     }
@@ -275,6 +281,20 @@ export class RulesOverlay extends Phaser.Scene {
     );
   }
 
+  /** One "All rules" / "On your table" segment — see `#draw`'s own comment on why this isn't a `McButton`. */
+  #drawScopeOption(rect: Rect, text: string, selected: boolean, onClick: () => void, stops: Map<string, FocusStop>, stopId: string): void {
+    const g = this.add.graphics();
+    if (selected) g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    else g.lineStyle(2, surface.paper.hex, ink.secondary).strokeRect(rect.x, rect.y, rect.width, rect.height);
+    this.add
+      .text(rect.x + rect.width / 2, rect.y + rect.height / 2, caseOf(typeRole.label, text), textStyle(typeRole.label, selected ? surface.ink.hex : surface.paper.hex, selected ? 1 : ink.secondary))
+      .setLetterSpacing(typeRole.label.letterSpacing)
+      .setOrigin(0.5);
+    const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    zone.on("pointerup", onClick);
+    stops.set(stopId, { rect, activate: onClick });
+  }
+
   // ------------------------------------------------------------------------------------------------------------
   // Glossary: a virtualized grid of bordered entry cards (D13's own read), each with a term,
   // definition, citation, and — the owner's "card art if applicable" — a strip of small
@@ -294,7 +314,10 @@ export class RulesOverlay extends Phaser.Scene {
     );
     const rows = Math.ceil(entries.length / geometry.columns);
     const rowIds: string[] = [];
-    for (const entry of entries) for (const ref of entry.cardRefs.slice(0, MAX_GLOSSARY_THUMBS)) rowIds.push(`entry:${entry.id}:card:${ref.cardId}`);
+    for (const entry of entries) {
+      const { shown } = glossaryThumbSlots(entry.cardRefs, glossaryTextWidth(geometry.cellWidth, isStatusEntry(entry.id)));
+      for (const ref of shown) rowIds.push(`entry:${entry.id}:card:${ref.cardId}`);
+    }
 
     const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow => this.#renderGlossaryRow(rowRect, geometry, entries, rowIndex, game);
     this.#glossaryList = new McVirtualList(this, { rect, rowHeight, count: rows, renderRow, scroll: this.#glossaryScroll });
@@ -302,7 +325,8 @@ export class RulesOverlay extends Phaser.Scene {
 
     entries.forEach((entry, entryIndex) => {
       const rowIndex = Math.floor(entryIndex / geometry.columns);
-      entry.cardRefs.slice(0, MAX_GLOSSARY_THUMBS).forEach((ref) => {
+      const { shown } = glossaryThumbSlots(entry.cardRefs, glossaryTextWidth(geometry.cellWidth, isStatusEntry(entry.id)));
+      shown.forEach((ref) => {
         stops.set(`entry:${entry.id}:card:${ref.cardId}`, {
           rect: () => list.rectFor(rowIndex),
           activate: () => this.#inspectRef(ref, game),
@@ -322,7 +346,7 @@ export class RulesOverlay extends Phaser.Scene {
       const entry = entries[startIndex + col]!;
       const cell = glossaryCellRect(geometry, rowRect, col);
       const cardRect: Rect = { x: cell.x + 4, y: cell.y + 2, width: cell.width - 8, height: cell.height - 4 };
-      const isStatus = entry.id === "stunned" || entry.id === "confused" || entry.id === "tough";
+      const isStatus = isStatusEntry(entry.id);
 
       const g = this.add.graphics();
       paintPanel(g, cardRect, "card", "rest");
@@ -334,7 +358,7 @@ export class RulesOverlay extends Phaser.Scene {
       }
 
       const textX = cardRect.x + (isStatus ? 18 : 12);
-      const textWidth = Math.max(1, cardRect.width - (isStatus ? 18 : 12) - 12);
+      const textWidth = glossaryTextWidth(geometry.cellWidth, isStatus);
       let y = cardRect.y + 10;
 
       // The status hue alone never carries the meaning (colorblind-safe): the term itself is
@@ -359,7 +383,7 @@ export class RulesOverlay extends Phaser.Scene {
 
       if (entry.cardRefs.length > 0) {
         y += 8;
-        const shown = entry.cardRefs.slice(0, MAX_GLOSSARY_THUMBS);
+        const { shown, overflow } = glossaryThumbSlots(entry.cardRefs, textWidth);
         const tileHeight = GLOSSARY_THUMB_SIZE * 1.4 + GLOSSARY_THUMB_CAPTION;
         shown.forEach((ref, index) => {
           const tileRect: Rect = { x: textX + index * (GLOSSARY_THUMB_SIZE + 8), y, width: GLOSSARY_THUMB_SIZE, height: Math.min(tileHeight, cardRect.y + cardRect.height - y - 4) };
@@ -376,7 +400,6 @@ export class RulesOverlay extends Phaser.Scene {
           });
           objects.push(...tile.objects);
         });
-        const overflow = entry.cardRefs.length - shown.length;
         if (overflow > 0) {
           objects.push(label(this, textX + shown.length * (GLOSSARY_THUMB_SIZE + 8), y + GLOSSARY_THUMB_SIZE * 0.7, `+${overflow} more`, typeRole.label, surface.ink.hex, ink.meta));
         }
@@ -578,4 +601,25 @@ export class RulesOverlay extends Phaser.Scene {
   #inspectPoolCard(card: RulesCardListCard): void {
     this.scene.launch(SCENES.inspect, { card: { cardId: card.cardId as CardId, face: { kind: "front" } } } satisfies InspectData);
   }
+}
+
+const isStatusEntry = (id: string): id is "stunned" | "confused" | "tough" => id === "stunned" || id === "confused" || id === "tough";
+
+/** The text column's own width inside one glossary entry card at `cellWidth` — matches `#renderGlossaryRow`'s own `cardRect`/`textX` math exactly, so the stop-building pass in `#drawGlossaryTab` agrees with what's actually drawn. */
+function glossaryTextWidth(cellWidth: number, isStatus: boolean): number {
+  const cardWidth = cellWidth - 8;
+  return Math.max(1, cardWidth - (isStatus ? 18 : 12) - 12);
+}
+
+/**
+ * How many of `cardRefs` fit in a strip `textWidth` px wide, reserving one slot for "+N more" the
+ * moment there's an overflow — never drawing the ceiling-th thumbnail flush against (or past) the
+ * card's own edge with nowhere left to say how many more there are (the bug a fixed six-thumbnail
+ * cap ran into on a narrower card: the "+N more" label itself had nowhere to go but past the border).
+ */
+function glossaryThumbSlots(cardRefs: readonly RulesCardRef[], textWidth: number): { readonly shown: readonly RulesCardRef[]; readonly overflow: number } {
+  const maxSlots = Math.max(1, Math.min(MAX_GLOSSARY_THUMBS, Math.floor((textWidth + 8) / (GLOSSARY_THUMB_SIZE + 8))));
+  if (cardRefs.length <= maxSlots) return { shown: cardRefs, overflow: 0 };
+  const shown = cardRefs.slice(0, Math.max(1, maxSlots - 1));
+  return { shown, overflow: cardRefs.length - shown.length };
 }

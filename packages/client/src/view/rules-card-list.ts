@@ -4,12 +4,23 @@
  * own header for the redesign this belongs to).
  *
  * Every encounter set the app's pool knows, grouped and sorted so the sets touching the *live*
- * game (when there is one) read first, each with its own real card list — the running game's own
- * `cardPool` when it names the set (exactly what `createGame` actually built for this scenario,
- * difficulty, modular sets and heroes' obligations/nemesis sets), the static pool otherwise, so
- * every set is always browsable even before or without a game. `view/scenario-card-list.ts`
- * (S4/W4's original, name-only list still used by Pause's own "Scenario card list" count) is left
- * alone; this is a separate, richer model built for the full-screen grid.
+ * game (when there is one) read first, each with its own real card list — populated from every
+ * *instance* actually in the game (`state.instances`) when the set is one of those, the static
+ * pool otherwise, so every set is always browsable even before or without a game.
+ *
+ * **Not `game.cardPool`, on purpose.** `view/scenario-card-list.ts` (S4/W4's original, name-only
+ * list still used by Pause's own "Scenario card list" count) reads `Object.values(game.cardPool)`
+ * on the assumption — stated in its own doc comment — that it's "the exact card pool `createGame`
+ * already assembled for this scenario". That's only true for a scenario built with `cardPool:
+ * CORE_CARDS`; `wave1Scenario` (the app's own scenario builder, `content/pool.ts`) always passes
+ * `cardPool: WAVE1_CARDS` — *every* wave 1 card, not this scenario's own subset (`packages/cards/
+ * src/wave1/setup.ts`'s own doc comment: "so a wave 1 deck ... could sit at a Core scenario"), so
+ * `game.cardPool` is the *whole app pool* for every game, and reading it here would make "IN THIS
+ * GAME" mean "in the pool" for literally every set — the same split this tab exists to draw. This
+ * module reads `state.instances` instead: `createGame` only ever creates an instance for a card it
+ * actually shuffled into a deck, dealt to a villain, or set aside for this scenario/modular
+ * sets/heroes' obligations and nemesis sets, so the *sets those instances' cards belong to* are
+ * this game's own, and nothing else's.
  */
 import type { AnyCard, EncounterSet } from "@mc/content";
 import type { GameState } from "@mc/engine";
@@ -22,7 +33,7 @@ export interface RulesCardListCard {
 export interface RulesCardListGroup {
   readonly setId: string;
   readonly setName: string;
-  /** True when this set is part of the live game's own `cardPool` — false with no game at all. */
+  /** True when some instance of this set actually exists in the live game — false with no game at all. */
   readonly inGame: boolean;
   /** Unique cards in this set, alphabetical — a reference list, not a decklist (no multiplicity). */
   readonly cards: readonly RulesCardListCard[];
@@ -39,24 +50,29 @@ function poolCardsForSet(pool: readonly AnyCard[], setId: string): readonly Rule
   return uniqueCardsOf(pool.filter((card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId)));
 }
 
+/** Every encounter-side card with at least one real instance in `game` right now (any zone — deck, discard, in play, set-aside), grouped by each of its own printed `encounterSetIds`. */
+function inGameCardsBySet(game: GameState): ReadonlyMap<string, AnyCard[]> {
+  const bySet = new Map<string, AnyCard[]>();
+  for (const instance of Object.values(game.instances)) {
+    const card = game.cardPool[instance.cardId];
+    if (!card || !("encounterSetIds" in card)) continue;
+    for (const setId of card.encounterSetIds as readonly string[]) {
+      const list = bySet.get(setId) ?? [];
+      list.push(card);
+      bySet.set(setId, list);
+    }
+  }
+  return bySet;
+}
+
 /**
- * Every encounter set the pool knows, `game`'s own sets first (each populated from its live
- * `cardPool`) sorted by name, then every other set (populated from the static `pool`) sorted by
+ * Every encounter set the pool knows, `game`'s own sets first (populated from its live
+ * instances) sorted by name, then every other set (populated from the static `pool`) sorted by
  * name — matching the task's "IN THIS GAME" / "NOT IN THIS GAME" split. With no game, every set is
  * `inGame: false` and there is only the one sorted list (nothing to split).
  */
 export function rulesCardListOf(game: GameState | null, pool: readonly AnyCard[], encounterSets: readonly EncounterSet[]): readonly RulesCardListGroup[] {
-  const inGameCards = new Map<string, AnyCard[]>();
-  if (game) {
-    for (const card of Object.values(game.cardPool)) {
-      if (!("encounterSetIds" in card)) continue;
-      for (const setId of card.encounterSetIds as readonly string[]) {
-        const list = inGameCards.get(setId) ?? [];
-        list.push(card);
-        inGameCards.set(setId, list);
-      }
-    }
-  }
+  const inGameCards = game ? inGameCardsBySet(game) : new Map<string, AnyCard[]>();
 
   const inGame: RulesCardListGroup[] = [];
   const notInGame: RulesCardListGroup[] = [];
