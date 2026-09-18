@@ -8,6 +8,7 @@ import {
   rulesFocusOrder,
   scenarioSelectFocusOrder,
   seatsFocusOrder,
+  setupWalkthroughFocusOrder,
   settingsFocusOrder,
   tableSetupFocusOrder,
   titleFocusOrder,
@@ -309,6 +310,14 @@ describe("screen focus routes", () => {
   test("Table setup with no modular sets (Breakout) simply omits that stretch", () => {
     const order = tableSetupFocusOrder({ difficulties: ["standard"], modularSetIds: [], firstPlayerOptionIds: ["0", "random"] });
     expect(order).toEqual(["back", "difficulty:standard", "first-player:0", "first-player:random", "seed", "reroll", "deal-it-out"]);
+  });
+
+  test("Setup deal & mulligan: the deciding seat's own hand, then Mulligan, then Keep all — Keep all is always a stop", () => {
+    expect(setupWalkthroughFocusOrder({ optionIds: ["i38", "i40", "i16"] })).toEqual(["option:i38", "option:i40", "option:i16", "confirm", "decline"]);
+  });
+
+  test("Setup deal & mulligan: with no options at all, Mulligan and Keep all are still stops", () => {
+    expect(setupWalkthroughFocusOrder({ optionIds: [] })).toEqual(["confirm", "decline"]);
   });
 
   test("stepping a key route wraps, and starts from either end", () => {

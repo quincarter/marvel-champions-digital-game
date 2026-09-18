@@ -35,7 +35,7 @@ Status: ✅ built · ⚠️ partial · ❌ missing · ⛔ out of scope.
 | D03, P03, T-P02 | Hero select ("Take your seats") | ⚠️ | `scenes/seats.ts` works for seat 1 only. D03’s active-seat model (select a seat, then a hero for it) was never built, so other seats cannot be selected or deck-checked; the roster is P03’s list at every size rather than D03’s hero card grid. Reopened 2026-09-18 as W2b. | W2, W2b |
 | D04, P04 | Deck builder / Deck check | ⚠️ | `scenes/deck-builder.ts`: identity, aspect, type filter chips, name, text search, add/remove, live legality chip, cost curve, grouped deck list with overflow, Preconstructed/Clear. `scenes/deck-check.ts` (new, W1): Curve/Cards/Aspect tabs, deck list with quantities, Edit deck, Start game ▸ (drawn unavailable — no setup flow yet, W2). Neither is yet a step in the setup flow; deck advice not built (§4 unsettled). | W1 |
 | D05, P12 | Table setup | ✅ | `scenes/table-setup.ts`. | W2 |
-| D06, P13, L05 | Setup deal & mulligan | ❌ | The mulligan is a generic pending choice in `scenes/choice.ts` over the board. | W3 |
+| D06, P13, L05 | Setup deal & mulligan | ⚠️ | `scenes/setup-deal.ts`. Desktop follows D06; the phone carousel (P13) and L05's segmented header are not built. | W3 |
 | D07, Board canvases, L01, T-P01 | Board | ✅ | Long table and phone tabs. Small chrome gaps. | W8 |
 | D08, P14 | Inspect | ✅ | `scenes/inspect.ts`. No per-game history. | W8 |
 | D09, L06 | Targeting | ⚠️ | `scenes/board/targeting-panel.ts` over `preview()`/`choiceExclusions`: outcomes, "why not", tablet rail. Phone does not yet follow P06's in-tab composition. | W5 |
@@ -328,11 +328,13 @@ Canvases: D06, P13, L05.
 
 Already there: the engine's `mulligan` step and its pending choice, and the generic sheet in `scenes/choice.ts`.
 
-- [ ] A dedicated setup scene shown before round 1, driven by the engine's setup steps and events (not a scripted sequence): villain and main scheme placed, starting threat, setup cards revealed, obligations shuffled in, opening hands.
-- [ ] The opening hand as full cards with per-card mulligan toggles, and "Mulligan N" / "Keep all". It answers the same `PendingChoice` the generic sheet answers today, so the command log is unchanged.
-- [ ] Other seats' status (kept, still deciding). Since one human plays every seat, the screen steps through seats in the engine's order. The tablet layout (L05) shows all seats at once.
-- [ ] The revealed setup card panel and a setup log, reusing `view/log-lines.ts` wording.
+- [x] A dedicated setup scene shown before round 1, driven by the engine's setup steps and events (not a scripted sequence): villain and main scheme placed, starting threat, setup cards revealed, obligations shuffled in, opening hands.
+- [x] The opening hand as full cards with per-card mulligan toggles, and "Mulligan N" / "Keep all". It answers the same `PendingChoice` the generic sheet answers today, so the command log is unchanged.
+- [x] Other seats' status (kept, still deciding). Since one human plays every seat, the screen steps through seats in the engine's order. The tablet layout (L05) shows all seats at once.
+- [x] The revealed setup card panel and a setup log, reusing `view/log-lines.ts` wording.
 - [ ] "Why this matters" hint (P13), **only after** §4's decision on advice.
+
+- **Landed (`game-client-engineer`, 2026-09-18; two passes, the second against the D06 tile).** `scenes/setup-deal.ts` over `view/setup-walkthrough.ts` and `view/setup-walkthrough-layout.ts`. Table setup's "Deal it out" routes here, and the scene hands off to the Board once the engine leaves the setup phase. The mulligan answers the same `PendingChoice` as the generic sheet; `setup-walkthrough-parity.test.ts` proves an identical command log. The setup log leads with lines built from `GameState` (seed, villain stage and HP, main scheme and starting threat, obligations, hand sizes) because `createGame` bakes setup into the initial state rather than emitting events for it; real events follow. Main session verified it by touch at phone size: Deal it out, two cards marked, "Mulligan 2", Board. **Still differs from the tiles:** the phone (P13) is one stacked column with a sticky commit bar rather than the mock's per-seat carousel; tablet landscape (L05) reuses the chip header rather than L05's segmented "SETUP | MULLIGAN" control; other-seat monogram colours are a deterministic pick because the client has no hero colour token.
 
 Depends on: nothing hard. Reads better after W2.
 
