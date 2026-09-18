@@ -17,7 +17,9 @@ A new session cannot message the old agents — `SendMessage` fails with "No tra
 | **W5** Targeting panel | `.claude/worktrees/agent-a79c9a010099fa40d` | **Done and merged 2026-09-18** (client → 984). Phone still owes P06's in-tab composition |
 | **W7** Villain phase breakdown | `.claude/worktrees/agent-a604b8b968959cb52` | **Done and merged 2026-09-18** (client → 946). Engine change confirmed as one added export (`statusActive`) |
 | **W1+W4 fidelity pass** | `.claude/worktrees/agent-ad47bbda9045a2306` | **Done and merged 2026-09-18** (client → 897) |
-| **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | Nothing written. **Not relaunched yet** — held until one of the above lands, since five concurrent agents hit the limit twice |
+| **W3** Setup deal & mulligan | `.claude/worktrees/agent-aff2298a3f248bd4f` | Relaunched 2026-09-18 after the fidelity pass landed; running |
+
+**W2b** (launched 2026-09-18, fresh worktree, agent briefed in-session): rebuilds Scenario select and Take your seats to D02/D03 — Bangers headers, full-width body with full-height ink side panels, the stat strip, four selectable seat cards with the **active-seat model** (the owner's bug: only seat 1 could be selected or deck-checked), "Play N heroes" beside "Deck check ▸", and **pack shelves** with nested search (an owner decision; see the gaps doc). Namespaced: Vite 5193, CDP 9593, scratchpad `w2b/`. The main session verifies it against the tiles before merging — W2's version was ticked done without that, which is how it shipped wrong.
 
 Still to launch after those: **W3**, **W8**, then the `rules-qa-engineer` pass over S5.11.
 
