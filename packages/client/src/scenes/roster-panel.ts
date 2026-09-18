@@ -214,9 +214,10 @@ export interface ShelfCardOptions {
   readonly title: string;
   /** The uppercase label line under the title — "STAGES I–III · MASTERS OF EVIL", "PRECON · SPIDER-MAN". */
   readonly subtitle: string;
+  /** Dims the whole card. Never shown as text itself (second-pass fidelity pass: a duplicate-identity block's full sentence, "Captain Marvel is already at the table", truncated in the subtitle line) — a caller with a short reason worth naming passes it as `tag` instead ("AT THE TABLE"), and the full reason is still one Inspect away. */
   readonly blockedBy: string | null;
   readonly warning: string | null;
-  /** A small tag in the card's own top-right corner — "SELECTED" or "SEAT 2" (D02/D03 both tag the top-right, not the top-left). Null draws none. */
+  /** A small tag in the card's own top-right corner — "SELECTED", "SEAT 2", "AT THE TABLE" (D02/D03 both tag the top-right, not the top-left). Null draws none. */
   readonly tag: string | null;
   readonly selected: boolean;
 }
@@ -253,9 +254,9 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
   const title = scene.add.text(textX, textY, options.title, textStyle(options.titleRole, surface.ink.hex, dim));
   fitText(title, textWidth, options.titleRole.size);
   objects.push(title);
-  const subtitleText = options.blockedBy ?? options.warning ?? options.subtitle;
-  const subtitleColor = options.blockedBy ? accent.heroRed.hex : options.warning ? signal.caution.hex : surface.ink.hex;
-  const subtitle = label(scene, textX, textY + title.height + 3, subtitleText, typeRole.label, subtitleColor, options.blockedBy || options.warning ? 1 : ink.label * dim);
+  const subtitleText = options.warning ?? options.subtitle;
+  const subtitleColor = options.warning ? signal.caution.hex : surface.ink.hex;
+  const subtitle = label(scene, textX, textY + title.height + 3, subtitleText, typeRole.label, subtitleColor, options.warning ? 1 : ink.label * dim);
   fitText(subtitle, textWidth);
   objects.push(subtitle);
 

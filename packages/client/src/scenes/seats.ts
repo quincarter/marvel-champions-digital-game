@@ -39,7 +39,9 @@ import {
   assignToActiveSeat,
   clearHeroFilter,
   clearSeat,
+  deckCheckDeckId,
   pruneSeats,
+  seatIsSelectable,
   setActiveSeat,
   setHeroFilter,
   usePreconstructedForAllSeats,
@@ -67,20 +69,22 @@ export interface SeatsData {
 const DETAIL_CHAR_WIDTH = 5.4;
 const DETAIL_LINE_PX = 15;
 const DETAIL_TEXT_PAD = 24;
-const CLOSE_SIZE = 20;
+/** Small enough that "SEAT 1 · YOU" still reads at ~240px-wide seat cards (a 4-across row at tablet-landscape widths) instead of ellipsizing to "SEAT…" (second-pass cosmetic fix). */
+const CLOSE_SIZE = 16;
 
 /**
- * "Deck check ▸" opens W1's Deck check over the **active seat's own deck** (docs/phase4-screen-gaps.md §3 W1:
- * "reached per seat from the setup flow" — the bug this rebuild fixes was hardcoding seat 1 here), with Back
- * returning here and its "Start game ▸" continuing to Table setup. With no seated deck at the active seat (or
- * before the deck list has loaded), it goes straight to Table setup.
+ * "Deck check ▸" opens W1's Deck check over `deckCheckDeckId`'s own pick (docs/phase4-screen-gaps.md §3, second
+ * W2b pass item 1 — the owner's bug report that this silently fell through to Table setup whenever the active
+ * seat itself was empty, e.g. right after picking for seat 2 auto-advanced to the empty seat 3). It reaches Table
+ * setup only when the table genuinely has no seated deck at all, which `pruneSeats`' own fallback never actually
+ * allows — kept as a fallback rather than assumed unreachable.
  */
 function goToDeckCheckOrTableSetup(scene: Phaser.Scene, draft: SetupDraft, deckOptions: readonly DeckOption[]): void {
   const toTableSetup = (from: Phaser.Scene): void => {
     from.scene.start(SCENES.setup, { draft } satisfies TableSetupData);
   };
-  const activeDeckId = draft.seats[draft.activeSeatIndex];
-  const seated = activeDeckId ? deckOptions.find((option) => (option.deck.id as string) === activeDeckId) : undefined;
+  const checkedDeckId = deckCheckDeckId(draft);
+  const seated = checkedDeckId ? deckOptions.find((option) => (option.deck.id as string) === checkedDeckId) : undefined;
   if (!seated) {
     toTableSetup(scene);
     return;
@@ -118,8 +122,14 @@ export class SeatsScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
+    // Seat-card thumbnails and roster cards both draw through `cardArt(this).request`, which only *asks* the
+    // loader — nothing about that call redraws the scene once a scan actually arrives. Without this, whichever
+    // card's own scan was still in flight when the last unrelated redraw ran stayed blank forever (found the same
+    // way `scenes/scenario-select.ts`'s own identical fix was: fresh-navigating and waiting with no interaction).
+    const artOff = cardArt(this).onArrived(() => this.#rebuild());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
+      artOff();
       this.#searchInput?.destroy();
       this.#searchInput = null;
       this.#roster?.destroy();
@@ -359,17 +369,40 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   /** One seat card (D03 second pass): a portrait thumbnail at left, a red "SEAT N" label, the Bangers hero name, a meta line, a 4px red border when active, a dashed border and "EMPTY — PICK A HERO" when not, and a small "✕" to clear an occupied seat. */
+  /**
+   * One seat card. Four states (docs/phase4-screen-gaps.md §3, second W2b pass items 2–3):
+   *  - filled + active: solid 4px red border, "SEAT N · YOU"/"SEAT N".
+   *  - filled + inactive: a thin ink border.
+   *  - empty + active: 4px red **dashed** border, "SEAT N · PICKING" — the active seat must always read as active
+   *    even with nothing seated yet (the owner's bug report: an empty active seat looked identical to an empty
+   *    inactive one).
+   *  - empty + inactive + selectable (the *one* reachable empty seat, `seatIsSelectable`): the ordinary dashed
+   *    "Empty — pick a hero" this screen always drew.
+   *  - empty + inactive + **not** selectable (an empty seat further out than that): dimmed, not clickable at all,
+   *    "Fill seat N first" — the chosen fix for "I clicked seat 3 and the hero landed in seat 2" (item 3): rather
+   *    than leave it clickable and rely on a player noticing which seat actually lit up, a seat that can't yet be
+   *    reached is presented as not pickable.
+   */
   #drawSeatCard(rect: Rect, slot: ReturnType<typeof seatSlotsOf>[number], index: number, option: DeckOption | undefined): void {
-    const selectSeat = (): void => {
-      this.#draft = setActiveSeat(this.#draft, index);
-      this.#rebuild();
-    };
-    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick: selectSeat }));
-    this.#stops.set(`seat:${index}`, { rect, activate: selectSeat });
+    const selectable = seatIsSelectable(this.#draft, index);
+    const activeEmpty = slot.active && !slot.deckId;
+    if (selectable) {
+      const selectSeat = (): void => {
+        this.#draft = setActiveSeat(this.#draft, index);
+        this.#rebuild();
+      };
+      this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick: selectSeat }));
+      this.#stops.set(`seat:${index}`, { rect, activate: selectSeat });
+    }
+    // A seat further out than `seatIsSelectable` allows is deliberately not wired to any button or focus stop —
+    // it cannot be reached at all, not merely discouraged, so the redirect this fix targets can't happen.
 
     const face = this.add.graphics();
-    face.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    if (!slot.deckId) {
+    const dim = selectable ? 1 : ink.illegal;
+    face.fillStyle(surface.card.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
+    if (activeEmpty) {
+      dashedRect(face, rect, 4, accent.heroRed.hex);
+    } else if (!slot.deckId) {
       dashedRect(face, rect, 2);
     } else if (slot.active) {
       face.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
@@ -379,7 +412,7 @@ export class SeatsScene extends Phaser.Scene {
 
     // Capped relative to the card's own width too, not just its height — at a 2×2 grid's ~180px card, a
     // height-driven thumbnail (99px) left less than half the card for any text at all.
-    const thumbSize = Math.min(rect.height - 16, rect.width * 0.42);
+    const thumbSize = Math.min(rect.height - 16, rect.width * 0.32);
     const thumbRect: Rect = { x: rect.x + 8, y: rect.y + 8, width: thumbSize, height: thumbSize };
     if (slot.deckId && option) {
       const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
@@ -398,7 +431,8 @@ export class SeatsScene extends Phaser.Scene {
     // to leave room for it; the meta line at the card's own foot is well clear (second-pass fidelity pass:
     // "SPIDER-MAN" read as "SPIDER-MA" with the "✕" sitting on top of the rest).
     const topLineWidth = slot.deckId ? textWidth - CLOSE_SIZE - 8 : textWidth;
-    const seatLabel = label(this, textX, rect.y + 8, `SEAT ${index + 1}${index === 0 ? " · YOU" : ""}`, typeRole.label, accent.heroRed.hex, 1);
+    const seatText = activeEmpty ? `SEAT ${index + 1} · PICKING` : `SEAT ${index + 1}${index === 0 && slot.deckId ? " · YOU" : ""}`;
+    const seatLabel = label(this, textX, rect.y + 8, seatText, typeRole.label, accent.heroRed.hex, dim);
     fitText(seatLabel, topLineWidth, typeRole.label.size);
     if (slot.deckId) {
       const name = this.add.text(textX, rect.y + 26, slot.identityName ?? "?", textStyle(typeRole.sectionHeader, surface.ink.hex));
@@ -413,7 +447,8 @@ export class SeatsScene extends Phaser.Scene {
       };
       this.#buttons.push(new McButton(this, { kind: "quiet", label: "✕", type: typeRole.label, rect: closeRect, onClick: clear }));
     } else {
-      const empty = this.add.text(textX, rect.y + rect.height / 2, "Empty — pick a hero", textStyle(typeRole.label, surface.ink.hex, ink.meta));
+      const message = selectable ? "Empty — pick a hero" : `Fill seat ${this.#draft.seats.length + 1} first`;
+      const empty = this.add.text(textX, rect.y + rect.height / 2, message, textStyle(typeRole.label, surface.ink.hex, selectable ? ink.meta : ink.illegal));
       empty.setOrigin(0, 0.5);
       empty.setWordWrapWidth(textWidth);
     }
@@ -426,16 +461,18 @@ export class SeatsScene extends Phaser.Scene {
     const entry = active.get(option.deck.id as string);
     const sourceText = option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built";
     const seatedElsewhere = entry?.seatIndex !== null && entry?.seatIndex !== undefined && !entry.isActiveSeat;
-    const tag = entry?.isActiveSeat ? `SEAT ${this.#draft.activeSeatIndex + 1}` : seatedElsewhere ? `SEAT ${entry!.seatIndex! + 1}` : null;
-    // Second-pass item 12: a deck seated elsewhere is dimmed with only its short "SEAT N" tag — no truncated
-    // "ALREADY SEATED · SEA…" string. A genuinely illegal/duplicate deck still gets its own (short) reason.
+    // Second-pass item 12/cosmetic: a deck seated elsewhere gets only its short "SEAT N" tag (no truncated
+    // "ALREADY SEATED · SEA…" string); a genuinely illegal/duplicate deck gets "AT THE TABLE" instead of its own
+    // full sentence ("Captain Marvel is already at the table"), which used to truncate in the subtitle line — the
+    // full reason is still one Inspect away (`#inspectOption`'s own `note`).
     const blockedBy = seatedElsewhere ? null : (entry?.blockedBy ?? null);
+    const tag = entry?.isActiveSeat ? `SEAT ${this.#draft.activeSeatIndex + 1}` : seatedElsewhere ? `SEAT ${entry!.seatIndex! + 1}` : blockedBy ? "AT THE TABLE" : null;
     return renderShelfCard(this, rect, {
       artKey,
       titleRole: typeRole.barTitle,
       title: option.deck.name.split(" — ")[0]!,
       subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
-      blockedBy: seatedElsewhere ? null : blockedBy,
+      blockedBy,
       warning: seatedElsewhere ? null : (entry?.warning ?? null),
       tag,
       selected: entry?.isActiveSeat ?? false,

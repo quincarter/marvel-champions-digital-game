@@ -85,7 +85,10 @@ interface LiveShelf {
   readonly chevronRight: McButton | null;
 }
 
-const CHEVRON_WIDTH = 28;
+/** The horizontal space reserved at each end of a shelf for its chevron — reserved unconditionally (even on a shelf whose scroll is at an end and draws no chevron there) so cards never shift position as a shelf's scroll offset changes which direction can still scroll. */
+const CHEVRON_WIDTH = 36;
+/** A chevron's own height — a compact ink square vertically centred on the card row, not a full-height column (second-pass fidelity pass, item 4). */
+const CHEVRON_HEIGHT = 56;
 
 export class McShelfRoster<T> {
   readonly #scene: Phaser.Scene;
@@ -274,37 +277,37 @@ export class McShelfRoster<T> {
       }
 
       const contentWidth = shelf.items.length * (m.cardWidth + m.cardGap) - m.cardGap;
-      const overflow = contentWidth > innerWidth;
+      const canScrollLeft = hs.offsetPx > 0;
+      const canScrollRight = hs.offsetPx < contentWidth - innerWidth - 0.5;
       const clip = (): Rect => this.#rect;
       const suppressClick = (): boolean => this.isDragSuppressingClick;
-      // Reparented into `#layer` (the masked container every card/header row already lives in), not left on the
-      // scene root the way a bare `new McButton(this.#scene, ...)` defaults to: a shelf only partly inside the
-      // vertical scroll window (`windowFor` includes a partially-visible row so scrolling reads smoothly) still
-      // built a chevron at its own true, un-clipped position, which drew straight through whatever sits below the
-      // roster's own rect — a "quiet"/`unavailable` chevron is the system's *dashed*-border state, so a
-      // half-visible shelf's own disabled left chevron rendered as a stray dashed box bleeding into the panel
-      // underneath (2026-09-18 fidelity pass: read at first as the roster overlapping the stat strip below it,
-      // but no *card* ever left its clip — only this un-masked control did).
-      const chevronLeft = overflow
+      const chevronY = rowY + (m.cardHeight - CHEVRON_HEIGHT) / 2;
+      const chevronType = { family: "Public Sans", size: 16, weight: 800, lineHeight: 1, letterSpacing: 0, uppercase: false } as const;
+      // A chevron that cannot scroll in its own direction is not drawn at all (second-pass fidelity pass, item 4)
+      // — not drawn-but-disabled, which for a while left a visible dashed "unavailable" box at the shelf edge even
+      // when there was nothing to scroll to that way. Reparented into `#layer` (the masked container every
+      // card/header row already lives in), not left on the scene root the way a bare
+      // `new McButton(this.#scene, ...)` defaults to — a shelf only partly inside the vertical scroll window still
+      // built a chevron at its own true, un-clipped position otherwise, drawing straight through whatever sits
+      // below the roster's own rect.
+      const chevronLeft = canScrollLeft
         ? new McButton(this.#scene, {
-            kind: "quiet",
+            kind: "onInk",
             label: "‹",
-            type: { family: "Public Sans", size: 16, weight: 800, lineHeight: 1, letterSpacing: 0, uppercase: false },
-            rect: { x: this.#rect.x, y: rowY, width: CHEVRON_WIDTH, height: m.cardHeight },
-            enabled: hs.offsetPx > 0,
+            type: chevronType,
+            rect: { x: this.#rect.x, y: chevronY, width: CHEVRON_WIDTH, height: CHEVRON_HEIGHT },
             onClick: () => this.#scrollShelfBy(shelf.id, -1),
             clip,
             suppressClick,
           })
         : null;
       if (chevronLeft) this.#layer.add(chevronLeft.container);
-      const chevronRight = overflow
+      const chevronRight = canScrollRight
         ? new McButton(this.#scene, {
-            kind: "quiet",
+            kind: "onInk",
             label: "›",
-            type: { family: "Public Sans", size: 16, weight: 800, lineHeight: 1, letterSpacing: 0, uppercase: false },
-            rect: { x: this.#rect.x + this.#rect.width - CHEVRON_WIDTH, y: rowY, width: CHEVRON_WIDTH, height: m.cardHeight },
-            enabled: hs.offsetPx < contentWidth - innerWidth - 0.5,
+            type: chevronType,
+            rect: { x: this.#rect.x + this.#rect.width - CHEVRON_WIDTH, y: chevronY, width: CHEVRON_WIDTH, height: CHEVRON_HEIGHT },
             onClick: () => this.#scrollShelfBy(shelf.id, 1),
             clip,
             suppressClick,

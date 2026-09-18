@@ -19,7 +19,7 @@ import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
 import { McVirtualList } from "../ui/virtual-list.js";
-import { scenarioDetailLines, scenarioDetailOf, type ScenarioDetail } from "../view/scenario-detail.js";
+import { scenarioDetailOf, type ScenarioDetail } from "../view/scenario-detail.js";
 import { formatScaling } from "../view/scaling-text.js";
 import { scenarioProductsOf, withSelectionPinned } from "../view/roster-filter.js";
 import { packCompactChipsToRows } from "../view/chip-layout.js";
@@ -73,8 +73,16 @@ export class ScenarioSelectScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
     this.scale.on("resize", this.#rebuild, this);
+    // The villain stage-I card-scan fallback (`#renderScenarioCard`) is drawn through `cardArt(this).request`,
+    // which only *asks* the loader — nothing about that call redraws the scene once the scan actually arrives.
+    // Without this, a card whose own fallback happened to still be in flight when the last unrelated redraw ran
+    // stayed a blank parchment box forever, even though the scan had long since loaded (found by fresh-navigating
+    // and waiting several seconds with no interaction — the same "art hasn't arrived yet, draw the frame now,
+    // redraw when it does" contract every other art-consuming scene already subscribes to this way).
+    const artOff = cardArt(this).onArrived(() => this.#refreshArt());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", this.#rebuild, this);
+      artOff();
       this.#searchInput?.destroy();
       this.#searchInput = null;
       this.#roster?.destroy();
@@ -158,9 +166,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     const currentScenario = scenario ?? POOL_SCENARIOS[0]!;
     const detail = scenarioDetailOf(currentScenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
-    const detailLines = scenarioDetailLines(detail);
-    // The real wrapped line count against the panel's own text width, not the raw string count — a fixed
-    // per-string budget clipped the first line that ran long against a ~300px side panel.
+    // The real wrapped line count against the panel's own text width, not a raw string count — a fixed
+    // per-string budget clipped a long line against a ~300px side panel.
     const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
 
     const layout = scenarioSelectLayout({ width, height, chipRows: packCompactChipsToRows(chipDefs, width).length, detailLines: 12 });
@@ -263,7 +270,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     // The side panel (D02's own "SCENARIO STAGES" sidebar): a Bangers header, one outlined box per stage (bright at
     // the draft's current difficulty, dim otherwise), the played record, and the CTA pinned at the foot.
-    this.#drawSidePanel(layout, detail, detailLines, detailTextWidth);
+    this.#drawSidePanel(layout, detail, detailTextWidth);
 
     const next = (): void => {
       this.scale.off("resize", this.#rebuild, this);
@@ -297,7 +304,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
     let artKey = picture ? ensurePictureLoaded(this, picture, () => this.#refreshArt()) : null;
     if (!artKey) {
       // No custom scene art for this scenario yet (Klaw, Risky Business, Mutagen Formula today) — the villain's
-      // own stage-I card scan, cover-cropped, rather than an empty parchment box (second-pass item 7).
+      // own stage-I card scan, cover-cropped, rather than an empty parchment box (second-pass item 7). Redrawing
+      // once this scan actually arrives is `#cardArtArrived`'s job (subscribed once in `create()`), not this
+      // function's own — `cardArt(this).request` only *asks*, it never itself triggers a later redraw.
       const villainCard = CARDS_BY_ID.get(s.villainCardId as string);
       const source = villainCard ? artFor(villainCard, { kind: "villainStage", sideIndex: 0, stageIndex: 0 }) : null;
       artKey = cardArt(this).request(this, source);
@@ -362,7 +371,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     return this.#draft.difficulty === "standard" ? detail.villainStagesStandard : detail.villainStagesExpert;
   }
 
-  #drawSidePanel(layout: ReturnType<typeof scenarioSelectLayout>, detail: ScenarioDetail, detailLines: readonly string[], detailTextWidth: number): void {
+  #drawSidePanel(layout: ReturnType<typeof scenarioSelectLayout>, detail: ScenarioDetail, detailTextWidth: number): void {
     const rect = layout.detail;
     this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
     let y = rect.y + 16;
@@ -395,15 +404,22 @@ export class ScenarioSelectScene extends Phaser.Scene {
         : "Not played yet.";
     const recordNode = this.add.text(rect.x + 16, y, recordText, textStyle(typeRole.body, surface.paper.hex, ink.label));
     recordNode.setWordWrapWidth(rect.width - 32);
-    // Below the record, if there's room, the fixed/recommended encounter-set summary lines (data only, §4).
-    const linesTop = y + recordNode.height + 12;
-    if (linesTop < layout.next.y - 8) {
-      let cursorY = linesTop;
-      for (const line of detailLines.slice(3)) {
-        if (cursorY > layout.next.y - 20) break;
-        this.add.text(rect.x + 16, cursorY, line, textStyle(typeRole.body, surface.paper.hex, ink.label)).setWordWrapWidth(detailTextWidth);
-        cursorY += estimateWrappedLines(line, detailTextWidth, DETAIL_CHAR_WIDTH) * DETAIL_LINE_PX;
-      }
+    y += recordNode.height + 14;
+    // "Encounter sets" / "Recommended modular" as label-over-value blocks (second-pass item 5), matching the
+    // seats panel's own OBLIGATION / NEMESIS SET treatment — not the old plain-text dump of every
+    // `scenarioDetailLines` line (a per-stage "Stage 1: 12 per player HP · ATK 0…" that duplicated the stage boxes
+    // above verbatim).
+    const blocks: readonly { readonly heading: string; readonly value: string }[] = [
+      { heading: "Encounter sets", value: detail.fixedEncounterSetNames.join(", ") || "None." },
+      { heading: "Recommended modular", value: detail.recommendedModularSetNames.join(", ") || "None." },
+    ];
+    for (const block of blocks) {
+      if (y > layout.next.y - 40) break;
+      label(this, rect.x + 16, y, block.heading, typeRole.label, surface.paper.hex, ink.label);
+      y += 16;
+      const value = this.add.text(rect.x + 16, y, block.value, textStyle(typeRole.body, surface.paper.hex));
+      value.setWordWrapWidth(detailTextWidth);
+      y += estimateWrappedLines(block.value, detailTextWidth, DETAIL_CHAR_WIDTH) * DETAIL_LINE_PX + 12;
     }
   }
 

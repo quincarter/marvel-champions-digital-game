@@ -12,11 +12,13 @@ import {
   clearHeroFilter,
   clearScenarioFilter,
   clearSeat,
+  deckCheckDeckId,
   difficultyOptionsFor,
   initialSetupDraft,
   nextEmptySeat,
   pruneSeats,
   removeSeat,
+  seatIsSelectable,
   setActiveSeat,
   setDifficulty,
   setFirstPlayerIndex,
@@ -201,6 +203,52 @@ describe("the active-seat model (docs/phase4-screen-gaps.md §3, 'Reopened — W
     expect(draft.activeSeatIndex).toBe(1);
     draft = withSeatOne({ ...draft, activeSeatIndex: 3 }, "z");
     expect(draft.activeSeatIndex).toBe(0);
+  });
+});
+
+describe("seatIsSelectable (docs/phase4-screen-gaps.md §3, second W2b pass item 3 — clicking a later empty seat used to silently redirect the pick to an earlier one)", () => {
+  test("every filled seat, and the one empty seat past the last filled one, are selectable", () => {
+    const draft: SetupDraft = { ...initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: "a", seed: 1 }), seats: ["a", "b"] };
+    expect(seatIsSelectable(draft, 0)).toBe(true);
+    expect(seatIsSelectable(draft, 1)).toBe(true);
+    // Index 2 is the one empty seat past "a","b".
+    expect(seatIsSelectable(draft, 2)).toBe(true);
+  });
+
+  test("an empty seat further out than that is not selectable", () => {
+    const draft: SetupDraft = { ...initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: "a", seed: 1 }), seats: ["a"] };
+    expect(seatIsSelectable(draft, 0)).toBe(true);
+    expect(seatIsSelectable(draft, 1)).toBe(true);
+    expect(seatIsSelectable(draft, 2)).toBe(false);
+    expect(seatIsSelectable(draft, 3)).toBe(false);
+  });
+
+  test("a full table has every seat selectable (picking always replaces)", () => {
+    const draft: SetupDraft = { ...initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: "a", seed: 1 }), seats: ["a", "b", "c", "d"] };
+    for (let i = 0; i < 4; i++) expect(seatIsSelectable(draft, i)).toBe(true);
+  });
+});
+
+describe("deckCheckDeckId (docs/phase4-screen-gaps.md §3, second W2b pass item 1 — 'Deck check' silently fell through to Table setup when the active seat was empty)", () => {
+  test("the active seat's own deck, when it's filled", () => {
+    const draft: SetupDraft = { ...initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: "a", seed: 1 }), seats: ["a", "b"], activeSeatIndex: 1 };
+    expect(deckCheckDeckId(draft)).toBe("b");
+  });
+
+  test("the most recently filled seat, when the active seat is the empty one past the end", () => {
+    let draft = initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: "a", seed: 1 });
+    draft = assignToActiveSeat(draft, "a"); // active seat 1 is filled; active advances to the empty seat 2
+    expect(draft.activeSeatIndex).toBe(1);
+    expect(draft.seats).toEqual(["a"]);
+    expect(deckCheckDeckId(draft)).toBe("a");
+
+    draft = { ...draft, seats: ["a", "b"], activeSeatIndex: 2 };
+    expect(deckCheckDeckId(draft)).toBe("b");
+  });
+
+  test("never null for any draft `initialSetupDraft`/`pruneSeats` can actually produce", () => {
+    const draft = initialSetupDraft({ scenarioId: RHINO.id as string, seatDeckId: "a", seed: 1 });
+    expect(deckCheckDeckId(draft)).not.toBeNull();
   });
 });
 

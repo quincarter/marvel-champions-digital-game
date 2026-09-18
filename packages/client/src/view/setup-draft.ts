@@ -179,6 +179,19 @@ export function nextEmptySeat(draft: SetupDraft, maxSeats = MAX_SEATS): number |
 }
 
 /**
+ * Whether seat `index` can become the active seat (docs/phase4-screen-gaps.md §3, second W2b pass, item 3): a
+ * filled seat, or the *one* empty seat past the last filled one — never an empty seat further out. `seats` can't
+ * hold a gap, so clicking a later empty seat card (seat 4, say, with only seat 1 filled) would silently redirect
+ * `setActiveSeat`'s own clamp to `nextEmptySeat` (seat 2) instead — a pick then lands somewhere other than the
+ * card the player clicked. Marking every seat past `nextEmptySeat` as unselectable (dimmed, "Fill seat N first" —
+ * `scenes/seats.ts`) is the chosen fix over "keep it clickable and visibly redirect": it can't happen at all,
+ * rather than relying on a player to notice which card actually lit up.
+ */
+export function seatIsSelectable(draft: SetupDraft, index: number): boolean {
+  return index <= draft.seats.length;
+}
+
+/**
  * Makes `index` the active seat — a seat card being clicked, tapped, or given focus and activated. Clamped to a
  * seat that actually exists, or to the one empty seat past the end (`nextEmptySeat`): a click on an empty seat
  * card further out than that (there is no such card today — the seat row is fixed at `maxSeats` cards — but a
@@ -240,6 +253,23 @@ export function clearSeat(draft: SetupDraft, index: number, maxSeats = MAX_SEATS
  */
 export function withSeatOne(draft: SetupDraft, deckId: string): SetupDraft {
   return { ...draft, seats: [deckId], activeSeatIndex: 0 };
+}
+
+/**
+ * Which deck "Deck check ▸" should open (docs/phase4-screen-gaps.md §3, second W2b pass, item 1 — the owner's bug
+ * report that the button silently jumped to Table setup): the active seat's own deck when it's filled, or — since
+ * the active seat auto-advances to the next empty slot right after a pick — the most recently filled seat
+ * otherwise. "Most recently filled" isn't a timestamp this module tracks; it's simply the last entry in `seats`,
+ * which is exactly right for the common flow (fill seat 1, active advances to 2, fill 2, active advances to 3,
+ * …) and is never wrong in the sense that matters: it always names a real, currently-seated deck, never Table
+ * setup. Null only when the table has no seats at all, which `pruneSeats`'s own fallback never actually allows —
+ * kept for honesty rather than assumed away, so a caller can still draw "Pick a hero first" instead of a crash.
+ * "Play N heroes ▸" is the only control that ever goes to Table setup without checking a deck first.
+ */
+export function deckCheckDeckId(draft: SetupDraft): string | null {
+  if (draft.seats.length === 0) return null;
+  const index = draft.activeSeatIndex < draft.seats.length ? draft.activeSeatIndex : draft.seats.length - 1;
+  return draft.seats[index] ?? null;
 }
 
 /**
