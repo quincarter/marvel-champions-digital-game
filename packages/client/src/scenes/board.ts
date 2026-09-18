@@ -484,6 +484,7 @@ export class BoardScene extends Phaser.Scene {
       },
       onInspect: () => this.#inspect(id),
       onDrag,
+      key: id as string,
     });
   }
 
