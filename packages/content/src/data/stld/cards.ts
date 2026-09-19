@@ -344,8 +344,8 @@ export const STLD_CARDS: readonly AnyCard[] = [
     keywords: [],
     deckLimit: 1,
     text: {
-      printed: "[star] Yondu's attacks gain ranged.Ranged attacks ignore retaliate.)",
-      current: "[star] Yondu's attacks gain ranged.Ranged attacks ignore retaliate.)",
+      printed: "[star] Yondu's attacks gain ranged. Ranged attacks ignore retaliate.)",
+      current: "[star] Yondu's attacks gain ranged. Ranged attacks ignore retaliate.)",
     },
     flavor: "\"Don't need no one. I do what I want, when I want, how I want.\" —Yondu",
     abilities: [{ id: abilityId("17013.yondu-constant") }],

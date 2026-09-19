@@ -15,6 +15,12 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
   const filtered = (ids: readonly InstanceId[], filter: TargetQuery | undefined): readonly InstanceId[] =>
     filter ? ids.filter((id) => matchesQuery(state, id, filter, context)) : ids;
   switch (selector.kind) {
+    case "anyOf": {
+      // One pool across several selectors, deduplicated, in the order listed.
+      const seen = new Set<InstanceId>();
+      for (const part of selector.of) for (const id of selectCards(ctx, part, context)) seen.add(id);
+      return [...seen];
+    }
     case "ref":
       return filtered(resolveRef(state, selector.ref, context).filter((id) => getInstance(state, id) !== undefined), selector.filter);
     case "encounter": {

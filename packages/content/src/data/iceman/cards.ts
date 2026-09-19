@@ -607,7 +607,11 @@ export const ICEMAN_CARDS: readonly AnyCard[] = [
       printed: "Give to the Bobby Drake player.\nForced Response: After you attach a Frostbite upgrade to an enemy, take 1 damage.\nAlter-Ego Response: After you make a basic recovery, discard this card.",
       current: "Give to the Bobby Drake player.\nForced Response: After you attach a Frostbite upgrade to an enemy, take 1 damage.\nAlter-Ego Response: After you make a basic recovery, discard this card.",
     },
-    abilities: [{ id: abilityId("46024.obligation") }],
+    abilities: [
+      { id: abilityId("46024.obligation") },
+      { id: abilityId("46024.hot-headed-forced-response") },
+      { id: abilityId("46024.hot-headed-response") },
+    ],
   },
   {
     id: cardId("46025"),

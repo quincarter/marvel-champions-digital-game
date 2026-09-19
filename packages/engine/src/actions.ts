@@ -1361,6 +1361,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if (cannotTriggerAction(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger.form)) {
     return engineError("no_valid_target", "that ability cannot be triggered right now", command);
   }
+  const condition = definition.trigger.while;
+  if (condition) {
+    const context: EffectContext = { selfInstanceId: command.cardInstanceId, controllerId: command.playerId, event: null, bindings: {}, deps: ctx.deps };
+    if (!evaluate(ctx.state, condition, context)) return engineError("no_valid_target", "that ability cannot be triggered right now", command);
+  }
   const controller = controllerOf(ctx.state, command.cardInstanceId);
   if (controller !== null && controller !== command.playerId) {
     return engineError("no_valid_target", "you do not control that card", command);

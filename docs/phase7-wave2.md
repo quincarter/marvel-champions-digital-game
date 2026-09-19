@@ -1279,3 +1279,171 @@ is spent until the last step.
 
 Nothing here needed an unconfirmed reading, so **no new §4 entry**. The one limit worth knowing is 2's capability
 note above.
+
+---
+
+## 10. The Kang primitives (owner: `game-rules-architect`; landed 2026-09-19)
+
+The two gaps `ability-scripting-engineer` recorded while scripting `toafk` (docs/phase7-wave2-scripting.md §6.13,
+§6.14), plus the two sub-gaps each bundles. Tests: `packages/engine/src/game-areas.test.ts` (3 new, 14 total) and
+`packages/engine/src/primitives-wave2b.test.ts` §10.1.
+
+> **Progress.** All four landed. One of them — §10.4 — turned out to need **no new primitive**: the engine's join
+> procedure already enforces the card, and the pass added a test that says so out loud instead of a rule nobody
+> would read.
+
+### 10.1 One pool across several zones (§6.14's second half)
+
+**`CardSelector { kind: "anyOf"; of: CardSelector[] }`** — every card any listed selector names, each once, in the
+order listed. The `CardSelector` sibling of `AttachmentHost.anyOf`.
+
+```ts
+// "Each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion." (Kang's
+// Wrath 4B, 11013; the same shape Marked for Death 04028 needs in `trors`.)
+{ kind: "anyOf", of: [
+  { kind: "encounter", zones: ["deck", "discard"], filter: { nemesisMinionOf: … } },
+  { kind: "setAside", player: { kind: "scoped" }, filter: { … } },
+] }
+```
+
+One pool and one choice over everything found, the way a multi-zone `zone` selector already works inside a player's
+own zones. Nesting terminates but says nothing a flat list cannot.
+
+### 10.2 Un-tucking a facedown card into play (§6.14)
+
+**`TargetRef { kind: "tuckedUnder"; of: TargetRef; filter?: TargetQuery }`**, the ref sibling of the `tucked`
+`CardSelector`. Tucked cards are **out of play** (RRG 1.8 "Tuck", p. 45), which is exactly why a ref was needed:
+nothing that scans cards in play finds them, and `revealCard` takes a `TargetRef`.
+
+```ts
+// "Reveal each face down Kang's Dominion under this stage." (Kang's Wrath 4A, 11013a)
+{ kind: "revealCard", cards: { kind: "tuckedUnder", of: { kind: "mainScheme", of: "central" }, filter: { name: "Kang's Dominion" } }, player: { kind: "firstPlayer" } }
+```
+
+No new effect was needed: `revealCard` already moves a card out of wherever it is (the `tucked` zone included) and
+runs the whole reveal procedure on it, so a facedown tucked side scheme turns faceup and enters play the same way
+one revealed off the encounter deck does.
+
+### 10.3 Redirecting an acceleration token (§6.13's second half)
+
+Two additive pieces:
+
+- **`EffectSpec addAccelerationToken { target?: TargetRef; count?: ValueSpec }`** — `target` names the main scheme
+  stage the token goes on; absent is the central one, which is where the encounter-deck reset puts it (RRG 1.8
+  "Acceleration Token", p. 5). `count` is "1 acceleration token here for each side scheme in play".
+- **`RuleSpec accelerationTokenDestination { to: TargetRef; while?: Predicate }`** — "Forced Interrupt: When an
+  acceleration token would be placed on another scheme, place it here instead." (The Master of Time 2B, 11008b) →
+  `{ kind: "accelerationTokenDestination", to: { kind: "self" } }`.
+
+**Modeled as a constant redirect, not an interruptible event** — deliberately, and the same shape
+`schemeThreatDestination` already uses for a scheme activation's threat. An event would have to be pushed as a
+frame, which would defer the token past the point it is placed today and change the ordering of the encounter-deck
+reset that places most of them. A token already headed for the rule's own scheme is left alone, so "another scheme"
+cannot loop. Only a main scheme stage holds one in this model, so a redirect anywhere else does nothing.
+
+Logging: `accelerationTokenAdded` gains an optional `schemeInstanceId`, present **only** when the token did not go
+to the central stage, so every existing log line is byte-identical; a redirect also emits
+`accelerationTokenRedirected { from, to }`.
+
+### 10.4 "Cannot join a game area unless …" (§6.13's first half) — no primitive needed
+
+**"Players cannot join this game area unless there are no other game areas remaining."** (The Master of Time 2B.)
+The engine already does exactly this and always has: `executeJoinGameArea` offers the *separate* areas as
+destinations and only dissolves into the central area when none is left. That follows from §3.1's own model — The
+Once and Future Kang insert has a joining player "choose a game area", and the central stage "remains in play in a
+central location … though it is not part of any other game area".
+
+So no `RuleSpec` was added: a rule whose only card restates what the procedure already guarantees would be dead
+code that reads like a safety net. What the pass added instead is an explicit test
+(`game-areas.test.ts`, "a player joining while another area remains joins that area, never the central one"), so
+the claim is asserted rather than assumed and a future change to the join procedure breaks visibly.
+
+**If a later card restricts joining a *separate* area** (nothing in the pool does today), that is when the rule
+becomes real; the shape to add is `RuleSpec cannotJoinGameArea { while?: Predicate }` on a card in that area,
+filtering `executeJoinGameArea`'s destination list.
+
+---
+
+## 11. The pipeline's remaining schema requests, and the attack history (owner: `game-rules-architect`; landed 2026-09-19)
+
+The three items `docs/phase7-wave2-data.md` Part 4 §5 marks "still open after §7", plus making §7.4's temporal
+qualifier real. Tests: `packages/content/src/schema/wave2-data-requests.test.ts` §11 (16 total) and
+`packages/engine/src/attachment-hosts.test.ts` (5 in the §7 block).
+
+### 11.1 `HostMeasure "thw"` (request 2b)
+
+Added beside the existing `atk`/`sch`. "Attach to the ally with the lowest THW without Possessed attached."
+(Possessed, `storm` 36038) → `{ kind: "superlative", among: "ally", order: "lowest", measure: "thw",
+withoutAttachmentNamed: "Possessed" }`.
+
+**Current THW, not printed** — and the request asked for "printed THW". The printed card says "THW" with no
+qualifier, and RRG 1.8 "Printed" (p. 35) makes "printed" the *explicit* word for the value on the card; the
+existing unqualified `atk`/`sch` are current for the same reason. A `printedThw` can be added beside it the day a
+card prints that wording; none does.
+
+### 11.2 A villain face that prints no hit points (request 3)
+
+**No new flip mechanism was needed.** The Collector (`gmw` 16080a/16080b) and Hela (`mts` 21136a/b) are the
+existing `VillainCard.sides` A/B shape — one stage card with a front and a back face, same stage number, flipped by
+card text — exactly what Green Goblin/Norman Osborn already uses. Confirmed against the raw data: `16080a`
+(hp 8, "Forced Interrupt: When Collector would be defeated, … flip this card instead") has `linked_card` `16080b`
+("Collector cannot be defeated. Forced Interrupt: When the round ends, flip this card, then set Collector's hit
+point dial to his printed hit points."), same title, no `stage` of its own.
+
+The one thing missing was that the back face **prints no hit points at all**, and `VillainStage.hp` is required:
+
+**`VillainStage.hpNotPrinted?: boolean`.** `hp` stays required and holds the value that applies, because the hit
+point dial carries across a flip (RRG 1.8 "Flip", p. 20; the Green Goblin insert, Risky Business "New Rules") —
+which is also why the back face's own text has to say "set his hit point dial to his printed hit points" when it
+flips back. The validator checks the flag is only on a later side **and** that its `hp` repeats the same stage
+number's value from the face that does print them, so it is a *verified* carry-over rather than a number the
+pipeline invented.
+
+```ts
+sides: [
+  { side: "A", name: "Collector", stages: [{ stageNumber: 1, hp: flat(8), atk: 2, sch: 1, … }] },
+  // "Collector cannot be defeated." — prints no hit points; the dial carries over.
+  { side: "B", name: "Collector", stages: [{ stageNumber: 1, hp: flat(8), hpNotPrinted: true, atk: 2, sch: 1, … }] },
+]
+```
+
+Chosen over the proposed `VillainStage.flipSide?: {…}`: a second flip mechanism next to `sides` would model the same
+thing twice, and `hpNotPrinted` is additive — **no existing reader changes**, where making `hp` optional broke
+three call sites in `packages/client` (`scenario-detail.ts`, `table-setup-preview.ts`), which this pass does not own.
+
+**Parser mapping:** MarvelCDB's `stage: "A1"`/`"B1"` is standard-vs-expert, so emit **two single-stage
+`VillainCard`s** (the way `toafk`'s Kang / Expert Kang split already is), each with sides A and B from its own
+`…a`/`…b` pair. Note the labels are not the same thing as The Wrecking Crew's version "A"/"B", which the schema
+already documents as consecutive *stages of one deck*.
+
+### 11.3 `HostQualifiers.attackedThisTurnBy` made real (§7.4 was data only)
+
+**`GameState.attackedThisTurn: Readonly<Record<string, readonly InstanceId[]>>`** — keyed by the attacked
+character, listing the attackers, each once, in the order they attacked. Plain serializable data, so it replays and
+serializes like everything else.
+
+- **Written** at the `characterAttacked` event (`resolve/event.ts`), which is the one place every attack goes
+  through, player-made and enemy-made alike, so no path can forget.
+- **Cleared when each turn begins** (`beginTurn`), next to the `"turn"` ability-use counters. RRG 1.8 "Turn"
+  (p. 45): a turn is one player's, so "this turn" is the one in progress.
+- **Read** by `passesQualifiers` (`resolve/reveal.ts`): an enemy is a legal host when one of its attackers this turn
+  shows one of the listed titles — matched by `currentName`, the same face `namedCard` compares against (an
+  identity matches on its card title).
+
+```ts
+// "Attach to an enemy that X-23 or Honey Badger attacked this turn." (Puncture Wound, x23 43012)
+{ kind: "qualified", category: "enemy", attackedThisTurnBy: ["X-23", "Honey Badger"] }
+```
+
+**§7.4's "data only" note is superseded:** a card using this qualifier can now be marked playable. The pipeline's
+`cardNotes` flag on 43012 can be dropped.
+
+### 11.4 Not done: Hercules' Labor Deck (request 4)
+
+`hercules` 59002–59004 — hero-owned, encounter-shaped cards (`faction_code: "hero"`, typed
+`attachment`/`obligation`, printed "Victory 0." with a `When Revealed:` that attaches or plays them, no resource
+cost, no deck slot). **Left open deliberately.** The pipeline proposed no shape and said so; neither does this pass,
+because the question is not "which field is missing" but *what a hero-owned encounter card is* — whether it is a
+player card that happens to be revealed, a scenario-specific card owned by an identity (§1.4's `specificTo` is the
+nearest existing idea), or a third thing needing its own setup step like `IdentitySeparateDeck`. Guessing a shape
+here would cost more to undo than to wait: it needs the Hercules rulebook, which is not in the repo.

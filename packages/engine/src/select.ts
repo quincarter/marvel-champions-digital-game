@@ -586,6 +586,11 @@ export function resolveRef(
       const attached = resolveRef(state, ref.of, context).flatMap((id) => getInstance(state, id)?.attachments ?? []);
       return ref.filter ? attached.filter((id) => matchesQuery(state, id, ref.filter as TargetQuery, context)) : attached;
     }
+    case "tuckedUnder": {
+      // "Each face down Kang's Dominion under this stage": tucked cards are out of play, so only a ref finds them.
+      const tucked = resolveRef(state, ref.of, context).flatMap((id) => getInstance(state, id)?.tucked ?? []);
+      return ref.filter ? tucked.filter((id) => matchesQuery(state, id, ref.filter as TargetQuery, context)) : tucked;
+    }
     case "superlative": {
       // Each candidate is measured with itself bound to `slot`, so the measure can read another card ("the villain
       // whose side scheme has the most threat"). Ties resolve to every tied card; see the `TargetRef` comment.

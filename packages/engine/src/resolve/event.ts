@@ -424,6 +424,7 @@ function placeExcessDamageAsThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind
  * ignores retaliate entirely.
  */
 function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterAttacked" }>): void {
+  recordAttackThisTurn(ctx, event.attackerInstanceId, event.targetInstanceId);
   // Ranged printed on the attacker, or granted to this attack alone ("each of your [Arrow] attacks gain ranged").
   if (event.ranged === true || hasKeyword(ctx.state, event.attackerInstanceId, "ranged", ctx.deps)) return;
   const inPlay = cardsInPlay(ctx.state);
@@ -437,6 +438,18 @@ function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characte
     sourceInstanceId: event.targetInstanceId,
     fromAttack: false,
   });
+}
+
+/**
+ * Remembers that `attackerId` attacked `targetId` this turn (`GameState.attackedThisTurn`; docs/phase7-wave2.md
+ * §11.3). Every attack passes through the `characterAttacked` event, player-made and enemy-made alike, so this is
+ * the one place it has to be written. The list is a set in attack order, so the same attacker attacking twice is
+ * recorded once and a replay produces the same array.
+ */
+function recordAttackThisTurn(ctx: Ctx, attackerId: InstanceId, targetId: InstanceId): void {
+  const already = ctx.state.attackedThisTurn[targetId] ?? [];
+  if (already.includes(attackerId)) return;
+  ctx.state = { ...ctx.state, attackedThisTurn: { ...ctx.state.attackedThisTurn, [targetId]: [...already, attackerId] } };
 }
 
 /** Why threat cannot be removed from this scheme right now, or null. Shared by removal and `moveThreat`. */

@@ -55,6 +55,16 @@ export function toPlainText(html: string | null | undefined): string {
     return token;
   });
   s = s.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>\s*<p>/gi, "\n");
+  // MarvelCDB sometimes prints a sentence-ending mark glued directly onto the next tag with no whitespace at all
+  // ("Surge.<b>When Revealed</b>:" — Back-Alley Enclave and three siblings, `hood` 24060–24063; Bandolier of
+  // Stakes, `mojo` 39048, confirmed the only five instances in the whole corpus). Stripping tags with no space
+  // inserted first would glue the two sentences together ("Surge.When Revealed:"), which is invisible to any
+  // error check but silently breaks every downstream sentence/header boundary that depends on whitespace after
+  // punctuation (`HEADER_RE`'s own lookbehind, keyword-sentence splitting) — not a parser bug, a missing space
+  // in the source. Inserted before tags are stripped, so it round-trips as an ordinary space afterward.
+  // Only before an *opening* tag (`<b>`, `<i>`, …) — a closing tag right after a paren is the ordinary,
+  // already-correct "(Alter-Ego)</b>:" shape (no space wanted before the colon that follows).
+  s = s.replace(/([.)!])(<(?!\/))/g, "$1 $2");
   s = s.replace(/<[^>]+>/g, "");
   s = s.replace(/&[#\w]+;/g, (e) => ENTITIES[e] ?? e);
   s = s.replace(/\[\[([^\]]+)\]\]/g, "$1");

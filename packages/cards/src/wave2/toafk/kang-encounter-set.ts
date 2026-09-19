@@ -28,6 +28,7 @@ import {
   defeatingPlayer,
   exists,
   forcedInterrupt,
+  forcedResponse,
   forEachPlayer,
   giveTough,
   identityOf,
@@ -49,8 +50,11 @@ import {
   self,
   selectCards,
   stun,
+  takeDamage,
   theVillain,
   thatPlayer,
+  topOfDeck,
+  tuckCards,
   varOf,
   when,
   whenDefeated,
@@ -65,23 +69,52 @@ import { atEndOfAttack } from "../../dsl/effects.js";
 
 /**
  * The Kang encounter set (11014–11017, 11022–11029) plus its "Temporal" modular set (11030–11033, marked by
- * traits rather than a separate module — Temporal's own cards are few enough to keep here).
- * 11018–11021 ("Temporal obligations") are skipped — module docblock.
+ * traits rather than a separate module — Temporal's own cards are few enough to keep here) and the four "Temporal
+ * obligations" (11018–11021).
  *
- * **Skipped (data gap — see docs/phase7-wave2-scripting.md):**
- * - `11018.obligation`–`11021.obligation` — each combines a "Forced Response: after you use a basic hero power…"
- *   (or equivalent) *and* an "Alter-Ego Action: …→ discard this obligation" under one ref. The Kang insert itself
- *   ("The Kang set has its own Temporal obligations […], which are ordinary encounter cards", docs/phase7-wave2.md
- *   §2.3) says these don't use the Core obligation shape (`core/obligations.ts`'s "give to X, may flip, choose…"),
- *   so `obligation(...)` doesn't apply either — and a `forcedResponse`/`alterEgoAction` pair needs two different
- *   `AbilityTriggerSpec` kinds, which one ref can't carry (the same shape gap Kang's own 11007b/11013b are pinned
- *   for, `kang.ts`'s module docblock).
+ * **The Temporal obligations no longer combine two trigger kinds under one ref** (the pipeline split 11018,
+ * 11019 and 11021 into their own "When Revealed"/"Forced Response" ref plus their own "Alter-Ego Action" ref, each
+ * scripted below; the leading `.obligation` ref on each is a leftover empty artifact, `coveredByEngineRule()`).
+ * **11020 (Depowered) was not split** — still one ref for both "You cannot play hero-specific cards" (scripted, a
+ * `cannotPlay` rule) and "Alter-Ego Action: discard a hero-specific card → discard this obligation" (not scripted:
+ * the ref can only carry one `AbilityTriggerSpec` kind, and the first clause is the card's own primary restriction).
+ *
+ * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
+ * - `11018.weakened-action`, `11019.stolen-memories-action`, `11021.time-travel-hijinks-action` — each "Alter-Ego
+ *   Action: Discard a [physical/mental/energy] resource from your hand → discard this obligation" needs a
+ *   *resource-type-filtered* discard **cost**. `AbilityCost.discardFromHand` (`{min, max, bind}`) has no `filter`
+ *   field the way the *effect* version does (`EffectSpec.discardFromHand.filter`, used by Power Drain's "discard 1
+ *   resource of any type" — `ANY_RESOURCE`) — there is no way to require the discarded hand card carry a specific
+ *   printed resource icon as part of paying a cost.
  * - `11029.when-revealed` — "Each player searches the encounter deck and discard pile for a **different**
  *   obligation and reveals it" is scripted below reading "different" as "this player's own choice" only: no
  *   primitive compares one player's pick against another's within `forEachPlayer`, so cross-player distinctness
  *   isn't enforced. Flagged, not silently assumed correct.
  */
 export const KANG_ENCOUNTER_SET = defineAbilities({
+  // Weakened — Forced Response: after you use a basic hero power, take 1 damage. Alter-Ego Action (skipped, module
+  // docblock): discard a [physical] resource → discard this obligation.
+  "11018.obligation": coveredByEngineRule(),
+  "11018.weakened-forced-response": forcedResponse(on.basicPowerUsed(query("hero", { controller: "you" })), takeDamage(1)),
+
+  // Stolen Memories — When Revealed: place the top 8 cards of your deck facedown under this card. Alter-Ego
+  // Action (skipped, module docblock): discard a [mental] resource → discard this obligation (and the tucked
+  // cards with it).
+  "11019.obligation": coveredByEngineRule(),
+  "11019.when-revealed": whenRevealed(tuckCards(topOfDeck(8, you), self, true)),
+
+  // Depowered — SKIPPED (missing primitive — module docblock): "You cannot play hero-specific cards" needs a
+  // `TargetQuery` matching "belongs to *your own* hero's signature set" dynamically — `aspect` is an exact
+  // single-string match (`"hero:12001a"` for Ant-Man specifically), and this obligation is generic (any hero could
+  // hold it), so no fixed aspect string can be hardcoded here. The same "dynamic match against your own hero" gap
+  // Team-Building Exercise needs (`pack-cards.ts`'s own module docblock).
+
+  // Time-Travel Hijinks — Alter-Ego Action (skipped, module docblock): discard an [energy] resource → discard this
+  // obligation (and the tucked card with it). The "When Revealed: discard the highest-cost card you control, then
+  // place it facedown under this card" half is also skipped: no selector picks "the single highest-cost card
+  // among a set" (`TargetQuery.maxPrintedCost` is a fixed threshold comparison, not a superlative pick).
+  "11021.obligation": coveredByEngineRule(),
+
   // Temporal Shield — Attach to Kang. Forced Interrupt: When Kang is attacked, discard Temporal Shield → prevent
   // all damage from this attack and deal 1 damage to the attacker. "(Max 1 per attack.)" is a narrow edge case (two
   // copies attached to Kang at once, both interrupting the same attack) this DSL's `AbilityLimit.period` ("turn" |

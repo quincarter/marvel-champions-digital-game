@@ -195,6 +195,13 @@ export type TargetRef =
   /** "Each card attached here" / "the cards attached to that character" (Bruno Carrelli), in attachment order. */
   | { readonly kind: "attachmentsOf"; readonly of: TargetRef; readonly filter?: TargetQuery }
   /**
+   * "Each face down Kang's Dominion under this stage" (Kang's Wrath 4A, 11013a): the cards tucked under what `of`
+   * names, in tuck order. The `TargetRef` sibling of the `tucked` `CardSelector`, so an effect that takes a ref —
+   * `revealCard` above all — can name them. Tucked cards are out of play (RRG 1.8 "Tuck", p. 45), which is exactly
+   * why a ref is needed: nothing that scans cards *in play* will find them.
+   */
+  | { readonly kind: "tuckedUnder"; readonly of: TargetRef; readonly filter?: TargetQuery }
+  /**
    * "The X with the highest/lowest Y": the hero with the fewest hit points remaining (Mad Genius), the enemy with
    * the highest ATK (Clash of the Titans), the villain whose side scheme has the most threat (Get Wrecked!), the
    * highest printed cost among cards in hand (Burn Notice).
@@ -927,7 +934,12 @@ export type EffectSpec =
    * card **for this activation**" and only applies to the activation already in progress.
    */
   | { readonly kind: "giveBoostCard"; readonly enemy: TargetRef; readonly count?: ValueSpec }
-  | { readonly kind: "addAccelerationToken" }
+  /**
+   * "Place 1 acceleration token here" (The Master of Time 2B). `target` names the main scheme stage it goes on;
+   * absent is the central one, which is where the encounter-deck reset puts it (RRG 1.8 "Acceleration Token", p. 5).
+   * A constant `accelerationTokenDestination` rule may redirect it before it lands (docs/phase7-wave2.md §10.3).
+   */
+  | { readonly kind: "addAccelerationToken"; readonly target?: TargetRef; readonly count?: ValueSpec }
   | { readonly kind: "removeAccelerationToken" }
   /**
    * Advance the main scheme to its next stage (new stage's A-side When Revealed, then its starting threat). Also how the
@@ -1137,6 +1149,16 @@ export type CardSelector =
       readonly top?: ValueSpec;
       readonly filter?: TargetQuery;
     }
+  /**
+   * Every card any listed selector names, each once, in the order listed: "Each player searches the encounter deck,
+   * discard pile, **and set-aside area** for their nemesis minion" (Kang's Wrath 4B, 11013; Marked for Death 04028)
+   * is `anyOf [encounter deck+discard, that player's set-aside]` — one pool and one choice over everything found,
+   * the way a multi-zone `zone` selector already works within a player's own zones.
+   *
+   * The `CardSelector` sibling of `AttachmentHost.anyOf`. Nesting is allowed and terminates, but says nothing a flat
+   * list cannot.
+   */
+  | { readonly kind: "anyOf"; readonly of: readonly CardSelector[] }
   | {
       /**
        * A player's own zones. Several at once are searched as one pool: "search your deck **and** discard pile for a

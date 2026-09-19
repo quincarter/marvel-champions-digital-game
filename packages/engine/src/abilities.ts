@@ -70,7 +70,11 @@ export interface EventPattern {
 export type AbilityLabel = "attack" | "thwart" | "defense";
 
 export type AbilityTriggerSpec =
-  | { readonly kind: "action"; readonly form?: Form }
+  /**
+   * `while`: a condition printed before the cost ("Hero Action: If you are in Tiny hero form, exhaust Army of Ants →
+   * deal 1 damage to an enemy."). While it is false the action cannot be triggered, so no cost is paid for nothing.
+   */
+  | { readonly kind: "action"; readonly form?: Form; readonly while?: Predicate }
   /** "Resource:" / "Hero Resource:" — triggered while paying a cost. */
   | { readonly kind: "resource"; readonly form?: Form }
   /** `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. */
@@ -303,6 +307,18 @@ export type RuleSpec =
    * and a rule never blanks its own source.
    */
   | { readonly kind: "blankTextBox"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Forced Interrupt: When an acceleration token would be placed on another scheme, place it here instead." (The
+   * Master of Time 2B, 11008b; docs/phase7-wave2.md §10.3.) A constant redirect read at the moment the token is
+   * placed, the same shape `schemeThreatDestination` uses for a scheme activation's threat — not an interruptible
+   * event, so the placement stays synchronous and the encounter-deck reset that places most tokens (RRG 1.8
+   * "Acceleration Token", p. 5) keeps its exact current ordering.
+   *
+   * `to` is where tokens go instead; a token already headed there is left alone, so "another scheme" cannot loop.
+   * Only a main scheme stage can hold one in this model (`MainSchemeState.accelerationTokens`); a redirect to
+   * anything else does nothing.
+   */
+  | { readonly kind: "accelerationTokenDestination"; readonly to: TargetRef; readonly while?: Predicate }
   /** "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword. */
   | { readonly kind: "cannotLeavePlay"; readonly target: TargetQuery; readonly while?: Predicate }
   /**

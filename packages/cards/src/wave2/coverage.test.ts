@@ -64,7 +64,7 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   trors: "scripted",
   toafk: "in progress",
-  ant: "not started",
+  ant: "in progress",
   wsp: "not started",
   qsv: "not started",
   scw: "not started",
@@ -110,6 +110,8 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "04162b.improved-recovery-upgrade-response",
     "04163.obligation",
     "04164.obligation",
+    "04164.medical-emergency-forced-response",
+    "04164.medical-emergency-action",
     "04165.obligation",
     "04166.obligation",
   ],
@@ -121,12 +123,14 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "11008b.the-master-of-time-constant",
     "11013a.when-revealed",
     "11013b.when-revealed",
-    // --- Kang/Temporal encounter set (wave2/toafk/kang-encounter-set.ts): data gap (the four Temporal
-    //     obligations combine two trigger kinds under one ref), see that file's module docblock. ---
-    "11018.obligation",
-    "11019.obligation",
+    // --- Kang/Temporal encounter set (wave2/toafk/kang-encounter-set.ts): missing-primitive blocks (a
+    //     resource-type-filtered discard cost; a "highest-cost card" selector; a dynamic "your own hero" match),
+    //     see that file's module docblock. ---
+    "11018.weakened-action",
+    "11019.stolen-memories-action",
     "11020.obligation",
-    "11021.obligation",
+    "11021.when-revealed",
+    "11021.time-travel-hijinks-action",
     // --- Expert encounter set (11040-11051): not started yet. ---
     "11040.when-revealed",
     "11040.boost",
@@ -143,6 +147,19 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "11049.obligation",
     "11050.when-defeated",
     "11051.when-revealed",
+  ],
+  // Computed 2026-09-19 against ANT_CARDS/WAVE2_ABILITIES, same method as trors'/toafk's own lists above.
+  ant: [
+    // --- Ant-Man kit (wave2/ant/kit.ts): missing-primitive blocks, see that file's module docblock. ---
+    "12006.pym-particles-response",
+    "12009.giant-strength-response",
+    // --- Ant-Man obligation/nemesis (wave2/ant/obligation-nemesis.ts): missing-primitive blocks. ---
+    "12025.obligation",
+    "12029.when-revealed",
+    // --- Pack cards (wave2/ant/pack-cards.ts): missing-primitive blocks. ---
+    "12011.ant-man-interrupt",
+    "12024.team-building-exercise-action",
+    "12032.muster-courage-action",
   ],
 };
 

@@ -190,18 +190,24 @@ export const SUPERLATIVE_HOST_POOLS: readonly SuperlativeHostPool[] = ["minion",
  * - `traitCount`: how many traits the card has, printed or gained (RRG 1.8 "Gains"): "the minion with the most traits".
  *
  * Wave 2 data-pipeline request (docs/phase7-wave2-data.md Part 3 §5):
+ * - `thw`: current THW ("Attach to the ally with the lowest THW without Possessed attached", Possessed 36038), the
+ *   THW counterpart of the existing `atk`/`sch`. **Current, not printed:** the card says "THW" with no qualifier,
+ *   and RRG 1.8 "Printed" (p. 35) makes "printed" the explicit word for the value on the card. (The pipeline's
+ *   request called it "printed THW"; the printed card does not, so it follows the card. A `printedThw` can be added
+ *   beside it if a card ever prints that wording — none does today.)
  * - `printedCost`: the card's printed resource cost ("the ally with the highest cost", Beguiled, 'Pool-ized). A card
  *   in play has no other cost — cost modifiers change what a card costs *to play*, not what it costs once in play —
  *   so this is the printed value (RRG 1.8 "Printed", p. 35), named like `printedHp`/`printedAtk`. A card with no
  *   printed cost is no candidate.
  */
-export type HostMeasure = "printedHp" | "remainingHp" | "printedAtk" | "atk" | "sch" | "activationOrder" | "traitCount" | "printedCost";
+export type HostMeasure = "printedHp" | "remainingHp" | "printedAtk" | "atk" | "thw" | "sch" | "activationOrder" | "traitCount" | "printedCost";
 
 export const HOST_MEASURES: readonly HostMeasure[] = [
   "printedHp",
   "remainingHp",
   "printedAtk",
   "atk",
+  "thw",
   "sch",
   "activationOrder",
   "traitCount",

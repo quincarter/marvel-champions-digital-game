@@ -6,7 +6,7 @@ import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
 import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, heroFacesOf, mustCard, mustInstance, mustPlayer, mustVillain } from "./query.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
-import { cannotLeavePlay, cannotReady } from "./rules.js";
+import { accelerationTokenRedirect, cannotLeavePlay, cannotReady } from "./rules.js";
 import { matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
@@ -182,15 +182,28 @@ export function updateMainSchemeState(ctx: Ctx, id: InstanceId, update: (scheme:
   };
 }
 
-export function addAccelerationToken(ctx: Ctx): void {
-  ctx.state = {
-    ...ctx.state,
-    mainScheme: {
-      ...ctx.state.mainScheme,
-      accelerationTokens: ctx.state.mainScheme.accelerationTokens + 1,
-    },
-  };
-  emit(ctx, { type: "accelerationTokenAdded", total: ctx.state.mainScheme.accelerationTokens });
+/**
+ * Places one acceleration token, on the central main scheme unless a card names another stage
+ * (`EffectSpec addAccelerationToken.target`). A constant `accelerationTokenDestination` rule may redirect it before
+ * it lands ("place it here instead", The Master of Time 2B; docs/phase7-wave2.md §10.3) — read here so the
+ * placement stays synchronous and the encounter-deck reset keeps its current ordering.
+ *
+ * Only a main scheme stage holds acceleration tokens in this model; a target that is not one is left alone.
+ * `schemeInstanceId` is logged only when the token did not go to the central stage, so every existing log line is
+ * byte-identical.
+ */
+export function addAccelerationToken(ctx: Ctx, target: InstanceId = ctx.state.mainScheme.instanceId): void {
+  const redirected = accelerationTokenRedirect(ctx.state, ctx.deps, target);
+  const to = redirected ?? target;
+  if (redirected !== null) emit(ctx, { type: "accelerationTokenRedirected", from: target, to });
+  let total: number | null = null;
+  updateMainSchemeState(ctx, to, (scheme) => {
+    total = scheme.accelerationTokens + 1;
+    return { ...scheme, accelerationTokens: total };
+  });
+  if (total === null) return;
+  const central = to === ctx.state.mainScheme.instanceId;
+  emit(ctx, { type: "accelerationTokenAdded", total, ...(central ? {} : { schemeInstanceId: to }) });
 }
 
 export function removeAccelerationToken(ctx: Ctx): void {

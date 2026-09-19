@@ -19,7 +19,7 @@ import { mergeRegistries } from "../dsl/index.js";
 import { TRORS_ABILITIES } from "./trors/index.js";
 import { WAVE2_REPRINT_ABILITIES } from "./reprints.js";
 import { TOAFK_ABILITIES } from "./toafk/index.js";
-// import { ANT_ABILITIES } from "./ant/index.js";
+import { ANT_ABILITIES } from "./ant/index.js";
 // import { WSP_ABILITIES } from "./wsp/index.js";
 // import { QSV_ABILITIES } from "./qsv/index.js";
 // import { SCW_ABILITIES } from "./scw/index.js";
@@ -34,7 +34,7 @@ export const WAVE2_ABILITIES: AbilityRegistry = mergeRegistries(
   WAVE2_REPRINT_ABILITIES,
   TRORS_ABILITIES,
   TOAFK_ABILITIES,
-  // ANT_ABILITIES,
+  ANT_ABILITIES,
   // WSP_ABILITIES,
   // QSV_ABILITIES,
   // SCW_ABILITIES,

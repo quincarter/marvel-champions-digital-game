@@ -518,9 +518,13 @@ export function applyEffect(
       }
       return;
     }
-    case "addAccelerationToken":
-      addAccelerationToken(ctx);
+    case "addAccelerationToken": {
+      const count = effect.count ? Math.max(0, value(effect.count)) : 1;
+      // "Place 1 acceleration token here for each side scheme in play": `target` absent is the central main scheme.
+      const schemes = effect.target ? targets(effect.target) : [ctx.state.mainScheme.instanceId];
+      for (const scheme of schemes) for (let i = 0; i < count; i++) addAccelerationToken(ctx, scheme);
       return;
+    }
     case "flipCard": {
       const inPlay = cardsInPlay(ctx.state);
       const frames: StackFrame[] = [];

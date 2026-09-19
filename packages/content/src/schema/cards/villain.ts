@@ -26,6 +26,20 @@ export interface VillainStage {
    */
   readonly stageLabel?: string;
   readonly hp: ScalingValue;
+  /**
+   * True on a face that prints **no** hit points of its own — The Collector's and Hela's back faces (`gmw`
+   * 16080b/16081b, `mts` 21136b/21137b), which read "cannot be defeated" and carry no hit point value at all.
+   *
+   * `hp` still holds the value that applies, because the hit point dial carries across the flip (RRG 1.8 "Flip",
+   * p. 20; the Green Goblin insert, Risky Business "New Rules": "all attachment cards, status cards, boost cards,
+   * damage, and other game elements associated with the villain remain as they are") — which is also why the back
+   * face's own text has to say "set [the villain's] hit point dial to his printed hit points" when it flips back.
+   * The validator checks that it repeats the same stage number's hit points from the face that does print them, so
+   * the value is a *verified* carry-over rather than a number the pipeline invented, and every reader keeps working.
+   *
+   * Only a later side may set it. docs/phase7-wave2.md §11.2.
+   */
+  readonly hpNotPrinted?: boolean;
   /** Printed ATK. 0 when `dashedStats` lists `"atk"`. */
   readonly atk: number;
   /** Printed SCH. 0 when `dashedStats` lists `"sch"`. */

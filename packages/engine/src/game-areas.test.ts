@@ -19,7 +19,7 @@ import { applyCommand, replay, sessionApply, startSession, type GameSession } fr
 import type { GameEvent } from "./events.js";
 import { playerId, type InstanceId, type PlayerId } from "./ids.js";
 import { activeEncounterDeckId, areaOfCard, areaOfPlayer, mainSchemeStateOf, mustInstance, villainOf } from "./query.js";
-import { contextArea, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
+import { cardsInPlay, contextArea, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
 import { createGame, villainsForDifficulty } from "./setup.js";
 import type { EffectSpec, Predicate } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -38,6 +38,11 @@ const ability = (id: string, trigger: AbilityTriggerSpec, effects: readonly Effe
   return made.ref;
 };
 const setAside = (slot: string, name: string): EffectSpec => ({ kind: "selectCards", slot, cards: { kind: "encounterSetAside", filter: { name } } });
+const constantAbility = (id: string, trigger: Omit<Extract<AbilityTriggerSpec, { kind: "constant" }>, "kind">): AbilityReference => {
+  const made = stubAbility(id, { trigger: { kind: "constant", ...trigger }, effects: [] });
+  abilities.push(made);
+  return made.ref;
+};
 
 // ---- Villains: Kang (I) in the villain deck, one Kang (II) per stage 3, Kang (III) for stage 4 --------------------
 
@@ -140,8 +145,13 @@ const SCHEME: MainSchemeCard = {
         // "Each player reveals a random stage 3A in turn order. Remove any unused stage 3 schemes from the game."
         abilities: [ability("s2.revealed", { kind: "whenRevealed" }, [{ kind: "revealMainSchemeStage", player: { kind: "each" }, stageNumber: 3, removeUnused: true }])],
       },
-      // "When all the players have joined this game area, advance to stage 4A."
-      abilities: [ability("s2.joined", { kind: "stateCheck", when: notSplit }, [{ kind: "advanceMainScheme", to: { stageNumber: 4 }, scheme: self }])],
+      // "When all the players have joined this game area, advance to stage 4A." and, alongside it on the same printed
+      // card, "Forced Interrupt: When an acceleration token would be placed on another scheme, place it here
+      // instead." — the second is a constant redirect read at placement (docs/phase7-wave2.md §10.3).
+      abilities: [
+        ability("s2.joined", { kind: "stateCheck", when: notSplit }, [{ kind: "advanceMainScheme", to: { stageNumber: 4 }, scheme: self }]),
+        constantAbility("s2.accelerationHere", { rules: [{ kind: "accelerationTokenDestination", to: self }] }),
+      ],
     }),
     stage3("Alpha Stage", "Kang (Alpha)", "alpha"),
     stage3("Beta Stage", "Kang (Beta)", "beta"),
@@ -164,7 +174,32 @@ const DOMINION = stubEnvironment({ id: "dominion", name: "Dominion" });
 /** "Action: deal 99 damage to the villain" on the identity, so a test drives defeats through commands alone. */
 const BLAST_ACTION = abilityId("blaster.blast");
 abilities.push(stubAbility(BLAST_ACTION, { trigger: { kind: "action" }, effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: 99 } }] }));
-const BLASTER = stubIdentity({ id: "blaster", hp: 30, atk: 1, thw: 1, def: 1, rec: 1, heroHandSize: 5, alterEgoHandSize: 5, heroAbilities: [{ id: BLAST_ACTION }], alterEgoAbilities: [{ id: BLAST_ACTION }] });
+/** Test tools for §10.2/§10.3, on the identity so a test drives each through a real `useAbility` command. */
+const TOKEN_HERE_ACTION = abilityId("blaster.tokenArea");
+abilities.push(stubAbility(TOKEN_HERE_ACTION, { trigger: { kind: "action" }, effects: [{ kind: "addAccelerationToken", target: { kind: "mainScheme" } }] }));
+const TOKEN_CENTRAL_ACTION = abilityId("blaster.tokenCentral");
+abilities.push(stubAbility(TOKEN_CENTRAL_ACTION, { trigger: { kind: "action" }, effects: [{ kind: "addAccelerationToken", target: { kind: "mainScheme", of: "central" } }] }));
+const TUCK_DOMINION_ACTION = abilityId("blaster.tuckDominion");
+abilities.push(
+  stubAbility(TUCK_DOMINION_ACTION, {
+    trigger: { kind: "action" },
+    effects: [
+      setAside("dom", "Dominion"),
+      { kind: "tuckCards", cards: { kind: "ref", ref: { kind: "slot", slot: "dom" } }, under: { kind: "mainScheme", of: "central" }, facedown: true },
+    ],
+  }),
+);
+const REVEAL_TUCKED_ACTION = abilityId("blaster.revealTucked");
+abilities.push(
+  stubAbility(REVEAL_TUCKED_ACTION, {
+    trigger: { kind: "action" },
+    effects: [{ kind: "revealCard", cards: { kind: "tuckedUnder", of: { kind: "mainScheme", of: "central" } }, player: { kind: "firstPlayer" } }],
+  }),
+);
+const JOIN_ACTION = abilityId("blaster.join");
+abilities.push(stubAbility(JOIN_ACTION, { trigger: { kind: "action" }, effects: [{ kind: "joinGameArea" }] }));
+const TOOLS = [{ id: TOKEN_HERE_ACTION }, { id: TOKEN_CENTRAL_ACTION }, { id: TUCK_DOMINION_ACTION }, { id: REVEAL_TUCKED_ACTION }, { id: JOIN_ACTION }];
+const BLASTER = stubIdentity({ id: "blaster", hp: 30, atk: 1, thw: 1, def: 1, rec: 1, heroHandSize: 5, alterEgoHandSize: 5, heroAbilities: [{ id: BLAST_ACTION }, ...TOOLS], alterEgoAbilities: [{ id: BLAST_ACTION }, ...TOOLS] });
 const UNIQUE_ALLY: AnyCard = { ...stubAlly({ id: "unique-ally", cost: 0, atk: 1, thw: 1, hp: 3 }), unique: true };
 const CARDS: readonly AnyCard[] = [K1, K2A, K2B, K2C, K3, SCHEME, DOMINION, UNIQUE_ALLY];
 const deps: EngineDeps = depsOf(...abilities);
@@ -235,6 +270,12 @@ function toTurnOf(session: GameSession, player: PlayerId): { readonly session: G
 function blast(session: GameSession, player: PlayerId): { readonly session: GameSession; readonly events: readonly GameEvent[] } {
   const identity = session.state.players.find((p) => p.playerId === player)!.identity.instanceId;
   return run(session, { type: "useAbility", playerId: player, cardInstanceId: identity, abilityId: BLAST_ACTION, payment: [] });
+}
+
+/** Uses one of the identity's test tools, so an effect under test runs through a real command. */
+function useTool(session: GameSession, player: PlayerId, abilityId_: typeof BLAST_ACTION): { readonly session: GameSession; readonly events: readonly GameEvent[] } {
+  const identity = session.state.players.find((p) => p.playerId === player)!.identity.instanceId;
+  return run(session, { type: "useAbility", playerId: player, cardInstanceId: identity, abilityId: abilityId_, payment: [] });
 }
 const context = (state: GameState, player: PlayerId): EffectContext => ({ selfInstanceId: state.players.find((p) => p.playerId === player)!.identity.instanceId, controllerId: player, event: null, bindings: {}, deps });
 
@@ -345,6 +386,75 @@ describe("separate game areas (docs/phase7-wave2.md §3.1)", () => {
     const stepOne = next.events.filter((e): e is Extract<GameEvent, { type: "threatPlaced" }> => e.type === "threatPlaced" && e.sourceInstanceId === null && mainSchemeStateOf(next.session.state, e.schemeInstanceId) !== undefined);
     // Each area's stage 3 prints acceleration 1, plus the two central tokens.
     expect(stepOne.map((e) => e.amount)).toEqual([3, 3]);
+  });
+
+  /**
+   * docs/phase7-wave2.md §10.4. "Players cannot join this game area unless there are no other game areas remaining."
+   * (The Master of Time 2B.) No new rule was needed: the join procedure already only reaches the central area when
+   * no separate one is left (The Once and Future Kang insert, "Joining Another Game Area" — a joining player chooses
+   * *a game area*, and the central stage "is not part of any other game area", docs/phase7-wave2.md §3.1). This
+   * pins that, so the claim is asserted rather than assumed.
+   */
+  it("a player joining while another area remains joins that area, never the central one", () => {
+    let session = splitGame();
+    const [a1, a2] = session.state.gameAreas;
+    expect(session.state.gameAreas).toHaveLength(2);
+    const joined = useTool(session, p1, JOIN_ACTION);
+    session = joined.session;
+    expect(joined.events).toContainEqual({ type: "gameAreaJoined", fromAreaId: a1!.areaId, intoAreaId: a2!.areaId, playerIds: [p1] });
+    // Still split: the centre was not an option while p2's area existed.
+    expect(session.state.gameAreas).toHaveLength(1);
+    // Now it is the last area, so joining dissolves it into the centre. p1 is still the active player after the
+    // merge, and both players are in that one area, so either of them joining takes it to the centre.
+    const last = useTool(session, p1, JOIN_ACTION);
+    expect(last.events.filter((e) => e.type === "gameAreaJoined")).toEqual([
+      { type: "gameAreaJoined", fromAreaId: a2!.areaId, intoAreaId: null, playerIds: [p2, p1] },
+    ]);
+    expect(last.session.state.gameAreas).toHaveLength(0);
+  });
+
+  /**
+   * docs/phase7-wave2.md §10.3. "Forced Interrupt: When an acceleration token would be placed on another scheme,
+   * place it here instead." (The Master of Time 2B, 11008b.) Read as a constant at placement, so the
+   * encounter-deck reset that places most tokens (RRG 1.8 "Acceleration Token", p. 5) keeps its exact ordering.
+   */
+  it("an acceleration token aimed at an area's own stage is redirected to the central stage that claims it", () => {
+    const session = splitGame();
+    const areaScheme = session.state.gameAreas[0]?.mainScheme?.instanceId as InstanceId;
+    const central = session.state.mainScheme.instanceId;
+    expect(areaScheme).not.toBe(central);
+    const before = session.state.mainScheme.accelerationTokens;
+    // "Place 1 acceleration token on your area's stage": 2B's constant sends it to the centre instead.
+    const placed = useTool(session, p1, TOKEN_HERE_ACTION);
+    expect(placed.events).toContainEqual({ type: "accelerationTokenRedirected", from: areaScheme, to: central });
+    expect(placed.session.state.mainScheme.accelerationTokens).toBe(before + 1);
+    expect(mainSchemeStateOf(placed.session.state, areaScheme)?.accelerationTokens).toBe(0);
+    // A token already headed for the central stage is not redirected onto itself, and logs exactly as it always has.
+    const central2 = useTool(placed.session, p1, TOKEN_CENTRAL_ACTION);
+    expect(central2.events.filter((e) => e.type === "accelerationTokenRedirected")).toEqual([]);
+    expect(central2.events).toContainEqual({ type: "accelerationTokenAdded", total: before + 2 });
+  });
+
+  /**
+   * docs/phase7-wave2.md §10.2. "Reveal each face down Kang's Dominion under this stage." (Kang's Wrath 4A.) Tucked
+   * cards are out of play (RRG 1.8 "Tuck", p. 45), so only a `TargetRef` finds them; `revealCard` then runs the
+   * whole reveal procedure on each, from wherever it was.
+   */
+  it("a facedown card tucked under a stage can be revealed into play by `tuckedUnder` + `revealCard`", () => {
+    const session = splitGame();
+    const central = session.state.mainScheme.instanceId;
+    const [dominion] = session.state.encounterSetAside.filter((id) => mustInstance(session.state, id).cardId === DOMINION.id);
+    expect(dominion).toBeDefined();
+    // "Place 1 set-aside Kang's Dominion facedown under stage 4A", then 4A's own "Reveal each face down … under this
+    // stage" — here both aimed at the central stage, which is where a tuck under a not-yet-revealed stage lands.
+    const tucked = useTool(session, p1, TUCK_DOMINION_ACTION);
+    expect(mustInstance(tucked.session.state, central).tucked).toContain(dominion);
+    expect(cardsInPlay(tucked.session.state)).not.toContain(dominion);
+
+    const revealed = useTool(tucked.session, p1, REVEAL_TUCKED_ACTION);
+    expect(mustInstance(revealed.session.state, central).tucked).not.toContain(dominion);
+    expect(cardsInPlay(revealed.session.state)).toContain(dominion);
+    expect(mustInstance(revealed.session.state, dominion as InstanceId).faceup).toBe(true);
   });
 
   it("defeating an area's Kang removes its stage; at the end of the phase the player joins the other area, then all join the centre, stage 4A adds Kang (III), and his defeat wins", () => {

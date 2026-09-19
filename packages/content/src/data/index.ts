@@ -206,6 +206,7 @@ export * from "./x23/index.js";
 export * from "./valk/index.js";
 export * from "./deadpool/index.js";
 export * from "./spiderham/index.js";
+export * from "./mojo/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
@@ -263,9 +264,11 @@ import { DEADPOOL_CARDS } from "./deadpool/cards.js";
 import { DEADPOOL_ENCOUNTER_SETS } from "./deadpool/encounterSets.js";
 import { SPIDERHAM_CARDS } from "./spiderham/cards.js";
 import { SPIDERHAM_ENCOUNTER_SETS } from "./spiderham/encounterSets.js";
+import { MOJO_CARDS } from "./mojo/cards.js";
+import { MOJO_ENCOUNTER_SETS } from "./mojo/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 28 packs across cycles 3, 4, 5, 6, 7, 8, 9, 10 and one non-cycle promotional
+ * Every card in the data-only pool: 29 packs across cycles 3, 4, 5, 6, 7, 8, 9, 10 and one non-cycle promotional
  * release, in pack-code alphabetical order (no release-order relationship spans this many cycles at once, unlike
  * `WAVE1_CARDS`/`WAVE2_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`CORE_CARDS` — a client that wants
  * "every known card, playable or not" concatenates this with those.
@@ -299,6 +302,7 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...VALK_CARDS,
   ...DEADPOOL_CARDS,
   ...SPIDERHAM_CARDS,
+  ...MOJO_CARDS,
 ];
 
 /** Every data-only pool encounter set. */
@@ -331,4 +335,5 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...VALK_ENCOUNTER_SETS,
   ...DEADPOOL_ENCOUNTER_SETS,
   ...SPIDERHAM_ENCOUNTER_SETS,
+  ...MOJO_ENCOUNTER_SETS,
 ];

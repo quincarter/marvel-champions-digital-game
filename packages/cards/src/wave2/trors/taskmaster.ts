@@ -8,6 +8,7 @@ import {
   countAmong,
   dealDamage,
   dealEncounterCard,
+  defeatingPlayer,
   defineAbilities,
   discard,
   discardEncounterCards,
@@ -49,13 +50,16 @@ import {
   shuffleEncounterDeck,
   spend,
   stun,
+  takeIntoHand,
   theMainScheme,
   theVillain,
   thatPlayer,
   tuckCards,
+  tuckedUnder,
   valueAtLeast,
   varOf,
   when,
+  whenDefeated,
   whenRevealed,
   you,
   zone,
@@ -77,12 +81,9 @@ const HYDRA_PATROL_NAME = cardName("04154");
  * `EventPattern` field to filter `formChanged`'s own `to` direction; the engine's `EventPattern.eventIs` and
  * `PlayerRef { kind: "eventPlayer" }` (docs/phase7-wave2.md §3.13.9) now cover it — `on.playerChangesForm("hero")`.
  *
- * **Data gap flagged for `card-data-pipeline` (docs/phase7-wave2-scripting.md):** Captured by Hydra (04107) prints
- * two distinct triggers ("When Revealed: place a random Captive ally beneath this scheme" and "When this scheme is
- * defeated, the player who defeated it takes that ally into their hand and removes this scheme from the game"),
- * but carries only one ability ref (`04107.when-revealed`) — there is nowhere to hang a `whenDefeated` script for
- * the second half, unlike Hydra Prison (04122, `zola.ts`), which prints an equivalent shape with two refs. Only
- * the "When Revealed" half is scripted below.
+ * **Captured by Hydra (04107) now carries its own `.when-defeated` ref too** (a later data pass split the two
+ * printed triggers apart, the same fix Hydra Prison, 04122, `zola.ts`, already had two refs for) — both halves are
+ * scripted below.
  */
 export const TASKMASTER_SET = defineAbilities({
   // Taskmaster (I/II/III) — Forced Response: after a player changes to hero form, they discard the top card of the
@@ -188,12 +189,14 @@ export const TASKMASTER_SET = defineAbilities({
     forEachPlayer(eachPlayer, ifThen(isHero(thatPlayer), [dealDamage(1, identityOf(thatPlayer)), discardFromHand(1, thatPlayer, { random: true })])),
   ),
 
-  // Captured by Hydra — When Revealed: place 1 random set-aside Captive ally facedown beneath this scheme. The
-  // "When Defeated" half has no ability ref (module docblock) and isn't scripted.
+  // Captured by Hydra — When Revealed: place 1 random set-aside Captive ally facedown beneath this scheme.
   "04107.when-revealed": whenRevealed(
     selectCards("captive", { kind: "encounterSetAside", filter: query("ally", { trait: CAPTIVE }), random: amount(1) }),
     tuckCards(cards(chosen("captive")), self, true),
   ),
+  // Captured by Hydra — When Defeated: the player who defeated it takes that ally into their hand and removes this
+  // scheme from the game. Got its own ability ref in a later data pass (module docblock).
+  "04107.when-defeated": whenDefeated(takeIntoHand(tuckedUnder(self), defeatingPlayer), moveCards(cards(self), "removedFromGame")),
 
   // Taskmaster's Training Camp — Forced Response: after a minion enters play, give it a tough status card.
   "04108.taskmasters-training-camp-forced-response": forcedResponse(on.entersPlay(query("minion")), giveTough(eventTarget)),

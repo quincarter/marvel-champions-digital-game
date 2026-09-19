@@ -38,6 +38,8 @@ export interface AbilityOptions {
   readonly limit?: AbilityLimit;
   /** "(attack)", "(thwart)", "(defense)". */
   readonly label?: AbilityLabel | readonly AbilityLabel[];
+  /** Actions only: a condition printed before the cost ("If you are in Tiny hero form, exhaust … →"). */
+  readonly while?: Predicate;
 }
 type Args = readonly (AbilityOptions | EffectArg)[];
 
@@ -87,17 +89,17 @@ function build(trigger: AbilityTriggerSpec, options: AbilityOptions, effects: re
 /** "Action:" */
 export const action = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
-  return build({ kind: "action" }, options, effects);
+  return build({ kind: "action", ...(options.while ? { while: options.while } : {}) }, options, effects);
 };
 /** "Hero Action:" */
 export const heroAction = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
-  return build({ kind: "action", form: "hero" }, options, effects);
+  return build({ kind: "action", form: "hero", ...(options.while ? { while: options.while } : {}) }, options, effects);
 };
 /** "Alter-Ego Action:" */
 export const alterEgoAction = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
-  return build({ kind: "action", form: "alterEgo" }, options, effects);
+  return build({ kind: "action", form: "alterEgo", ...(options.while ? { while: options.while } : {}) }, options, effects);
 };
 
 /**
@@ -267,6 +269,19 @@ export const gainsTraitsOf = (traitsOf: TargetQuery, target: TargetQuery, opts: 
   traitGrants: [{ traitsOf, target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
+/** "X does not count against your ally limit." (Stinger, `ant`; RRG 1.8 "Ally Limit", p. 7). */
+export const excludedFromAllyLimit = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "excludedFromAllyLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "Treat the printed text box of each [trait] player card as if it were blank" (Tech Theft 12026, `ant`;
+ * docs/phase7-wave2.md §8): the matching cards' abilities and printed keywords stop working while this card is in
+ * play. `target` is a category list, not `controller: "you"` — the rule sits on an encounter card, which has no
+ * controller for "you" to resolve to, and the printed text says "each", not "your".
+ */
+export const blanksTextBox = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "blankTextBox", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
 /**
  * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
  * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec

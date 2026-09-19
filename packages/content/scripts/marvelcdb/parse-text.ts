@@ -653,6 +653,14 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     into.requiresIdentityTrait = m[1] as string;
     return {};
   }
+  // "Play only if you are in Giant hero form." (Giant Stomp; Hive Mind, "Tiny"): the trait is printed on that hero
+  // face only, so this is hero form plus the identity trait (PlayRestrictions docblock, docs/phase7-wave2.md §1.3).
+  m = /^Play only if you are in (.+) hero form\.$/.exec(sentence);
+  if (m) {
+    into.form = "hero";
+    into.requiresIdentityTrait = m[1] as string;
+    return {};
+  }
   m = /^Play only if you control an? (.+) character\.$/.exec(sentence);
   if (m) {
     into.requiresControlledCharacterTrait = m[1] as string;
@@ -676,6 +684,32 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
 
   if (options.obligation) {
     if (text.trim()) abilities.push({ kind: "obligation", text });
+    // ADDITIVE, only when the printed text carries two or more distinct formal trigger headers (Kang's four
+    // Temporal obligations — Weakened 11018 "Forced Response: After you use a basic hero power, take 1 damage.
+    // / Alter-Ego Action: Discard a [physical] resource from your hand → discard this obligation." —
+    // docs/phase7-wave2-scripting.md §7/§8): every printed trigger gets its own ref, alongside the existing
+    // whole-card `obligation` ref above (kept exactly as before, so no existing ref id moves). An obligation
+    // with zero or one header (the overwhelming majority of the corpus) is untouched — this only fires for the
+    // genuinely-merged-triggers shape, not every obligation, so it doesn't multiply refs pack-wide for no reason.
+    const allHeaders = text.split("\n").flatMap((oline) => findHeaders(oline).map((h) => ({ ...h, oline })));
+    if (allHeaders.length >= 2) {
+      for (const oline of text.split("\n")) {
+        const oheaders = findHeaders(oline);
+        oheaders.forEach((h, i) => {
+          const oend = oheaders[i + 1]?.index ?? oline.length;
+          const obody = oline.slice(h.index, oend).trim();
+          const { kind: hkind, form } = kindOf(h.trigger);
+          if (hkind === "contents") return;
+          abilities.push({
+            kind: hkind,
+            ...(form ? { form } : {}),
+            ...(h.label ? { label: h.label as "attack" | "thwart" | "defense" } : {}),
+            ...(h.name ? { name: h.name } : {}),
+            text: obody,
+          });
+        });
+      }
+    }
     return { keywords, abilities, restrictions, unclassified };
   }
 
@@ -781,6 +815,21 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
           if (bodyAttach) {
             attachesTo = bodyAttach.host;
             if (bodyAttach.villainName) attachesToVillainNamed = bodyAttach.villainName;
+          } else {
+            // A narrower idiom than the one above: the attach target is named mid-sentence, in a "you may pay a
+            // cost to attach this card to X" clause, rather than the sentence's own leading verb — Bandolier of
+            // Stakes (`mojo` 39048): "You may spend 1 resource of any type to attach this card to your identity.
+            // Otherwise, discard this card." Confirmed the only instance of this exact idiom in the corpus
+            // (docs/phase7-wave2-data.md). Re-synthesizes an ordinary "Attach to X." sentence from the captured
+            // target and reuses `parseAttach` unchanged, so it resolves to any host shape that already works.
+            const midSentence = /\bto attach this card to (.+?)\.?$/i.exec(firstSentence.replace(/\.$/, ""));
+            if (midSentence) {
+              const synthetic = parseAttach(`Attach to ${midSentence[1] as string}.`, options.villainNames, options.multipleVillains ?? false);
+              if (synthetic) {
+                attachesTo = synthetic.host;
+                if (synthetic.villainName) attachesToVillainNamed = synthetic.villainName;
+              }
+            }
           }
         }
       }
@@ -792,6 +841,21 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         ...(h.name ? { name: h.name } : {}),
         text: body,
       });
+      // A side scheme can print "When [it/this scheme] is defeated, ..." as inline prose glued onto another
+      // trigger's own body, instead of its own formal "When Defeated:" header (contrast Hydra Prison, 04122,
+      // which prints a real "When Defeated:" header and already gets its own ref the ordinary way) — Marked for
+      // Death (trors 04028), Captured by Hydra (trors 04107), 45055 (`aoa`): docs/phase7-wave2-scripting.md §7.
+      // Recognized as its own additional `when-defeated` ability, ADDITIVE to the enclosing trigger's own ref
+      // (which keeps its existing kind/id unchanged) — the ability-scripting-engineer needs each printed trigger
+      // on its own ref to script independently. Skipped when `kind` is already `when-defeated` (a formal header
+      // whose own body happens to restate "when it is defeated" would otherwise double up).
+      if (kind !== "when-defeated") {
+        const bodySentences = splitSentences(body);
+        const inlineDefeatedIndex = bodySentences.findIndex((s) => /^When (?:this scheme|this card|this attachment|it) is defeated,/i.test(s));
+        if (inlineDefeatedIndex !== -1) {
+          abilities.push({ kind: "when-defeated", text: bodySentences.slice(inlineDefeatedIndex).join(" ") });
+        }
+      }
     });
   }
 

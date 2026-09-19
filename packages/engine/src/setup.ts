@@ -525,6 +525,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     playedThisRound: {},
     playedThisPhase: {},
     playedByPlayerThisRound: {},
+    attackedThisTurn: {},
     pendingChoice: null,
     outcome: null,
     rng: createRng(config.seed),

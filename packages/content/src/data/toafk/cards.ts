@@ -529,7 +529,11 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
       current: "Forced Response: After you use a basic hero power, take 1 damage.\nAlter-Ego Action: Discard a [physical] resource from your hand → discard this obligation.",
     },
     flavor: "\"History is made! Made by the deeds of the strong! The brave! And destiny is forged!\" —Kang",
-    abilities: [{ id: abilityId("11018.obligation") }],
+    abilities: [
+      { id: abilityId("11018.obligation") },
+      { id: abilityId("11018.weakened-forced-response") },
+      { id: abilityId("11018.weakened-action") },
+    ],
   },
   {
     id: cardId("11019"),
@@ -549,7 +553,11 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: Place the top 8 cards of your deck facedown under this card.\nAlter-Ego Action: Discard a [mental] resource from your hand → discard this obligation. (Discard each facedown card under this obligation.)",
       current: "When Revealed: Place the top 8 cards of your deck facedown under this card.\nAlter-Ego Action: Discard a [mental] resource from your hand → discard this obligation. (Discard each facedown card under this obligation.)",
     },
-    abilities: [{ id: abilityId("11019.obligation") }],
+    abilities: [
+      { id: abilityId("11019.obligation") },
+      { id: abilityId("11019.when-revealed") },
+      { id: abilityId("11019.stolen-memories-action") },
+    ],
   },
   {
     id: cardId("11020"),
@@ -587,10 +595,14 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     traits: [trait("TEMPORAL")],
     keywords: [],
     text: {
-      printed: "When Revealed: Discard the highest-cost card you control, then place it facedown under this card.\nAlter-Ego Action: Discard a [energy] resource from your hand → discard this obligation.(Discard each facedown card under this obligation.)",
-      current: "When Revealed: Discard the highest-cost card you control, then place it facedown under this card.\nAlter-Ego Action: Discard a [energy] resource from your hand → discard this obligation.(Discard each facedown card under this obligation.)",
+      printed: "When Revealed: Discard the highest-cost card you control, then place it facedown under this card.\nAlter-Ego Action: Discard a [energy] resource from your hand → discard this obligation. (Discard each facedown card under this obligation.)",
+      current: "When Revealed: Discard the highest-cost card you control, then place it facedown under this card.\nAlter-Ego Action: Discard a [energy] resource from your hand → discard this obligation. (Discard each facedown card under this obligation.)",
     },
-    abilities: [{ id: abilityId("11021.obligation") }],
+    abilities: [
+      { id: abilityId("11021.obligation") },
+      { id: abilityId("11021.when-revealed") },
+      { id: abilityId("11021.time-travel-hijinks-action") },
+    ],
   },
   {
     id: cardId("11022"),

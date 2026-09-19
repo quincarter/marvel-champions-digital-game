@@ -667,7 +667,11 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
       printed: "Give to the Erik Lehnsherr player.\nForced Response: After you use your \"Magnetic Pull\" ability, take 1 damage for each card discarded by it.\nAlter-Ego Action: Exhaust Erik Lehnsherr → discard Old Grievances.",
       current: "Give to the Erik Lehnsherr player.\nForced Response: After you use your \"Magnetic Pull\" ability, take 1 damage for each card discarded by it.\nAlter-Ego Action: Exhaust Erik Lehnsherr → discard Old Grievances.",
     },
-    abilities: [{ id: abilityId("49027.obligation") }],
+    abilities: [
+      { id: abilityId("49027.obligation") },
+      { id: abilityId("49027.old-grievances-forced-response") },
+      { id: abilityId("49027.old-grievances-action") },
+    ],
   },
   {
     id: cardId("49028"),

@@ -410,6 +410,15 @@ export const chooseCards = (
 });
 export const shuffleDeck = (player: PlayerRef = you): EffectSpec => ({ kind: "shuffleDeck", player });
 export const changeForm = (player: PlayerRef = you, to?: "hero" | "alterEgo"): EffectSpec => ({ kind: "changeForm", player, ...(to ? { to } : {}) });
+/**
+ * "Change to your other hero form" (Resize, Swarm Tactics, `ant`/`wsp`; docs/phase7-wave2.md §3.2): a three-sided
+ * identity's own hero-to-hero change. Never uses the voluntary once-per-round change — that's the *command* path
+ * (a player choosing to change form), not a card effect (insert, "Rules Clarifications": "If a card ability causes
+ * a player to change form, it does not count against the one voluntary form change").
+ */
+export const changeToOtherHeroForm = (player: PlayerRef = you): EffectSpec => ({ kind: "changeForm", player, heroForm: "other" });
+/** "Change to your [Giant] hero form" (Rapid Growth, `wsp`) — the face printed with `t`. */
+export const changeToHeroFormWithTrait = (t: Trait, player: PlayerRef = you): EffectSpec => ({ kind: "changeForm", player, heroForm: { withTrait: t } });
 export const resolveSpecials = (cardsQuery: TargetQuery): EffectSpec => ({ kind: "resolveSpecials", cards: cardsQuery });
 /**
  * "Discard N cards from your hand". `player` may be `eachPlayer`: each chooses from their own hand, in player order.
@@ -604,6 +613,19 @@ export const playFromHandIgnoringCost = (player: PlayerRef = you, opts: { readon
   kind: "playFromHand",
   player,
   ignoreCost: true,
+  ...(opts.filter ? { filter: opts.filter } : {}),
+  ...(opts.optional ? { optional: true } : {}),
+});
+/**
+ * "Play a card from your hand […], reducing its resource cost by N" (Team-Building Exercise, `ant`/`spiderham`/
+ * `iceman`; docs/phase7-wave2.md §9). The reduction-carrying sibling of `playFromHandIgnoringCost` — exactly one
+ * of the two is set, never both (an unaffordable card, after the reduction, is not offered; RRG 1.8 "Initiating
+ * Abilities", p. 24, step 3 — §9.2.1).
+ */
+export const playFromHandReducingCost = (n: Amount, player: PlayerRef = you, opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {}): EffectSpec => ({
+  kind: "playFromHand",
+  player,
+  costReduction: amount(n),
   ...(opts.filter ? { filter: opts.filter } : {}),
   ...(opts.optional ? { optional: true } : {}),
 });

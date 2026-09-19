@@ -22,7 +22,7 @@ import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { runCommands } from "./testing/drive.js";
 import { stubAlly, stubAttachment, stubMainScheme, stubMinion, stubSideScheme, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, giveCard, HERO, seatIdentities, settleUntil, withEncounterPiles } from "./testing/scenario.js";
+import { DEFAULT_CARDS, DEFAULT_DECK, defaultPick, giveCard, HERO, seatIdentities, settle, settleUntil, withEncounterPiles } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const p2 = playerId("p2");
@@ -293,8 +293,34 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     };
     expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Spider" })).toEqual([given.id]);
     expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Hulk" })).toEqual([]);
-    // Data only: no per-turn attack history is recorded, so the card is discarded (docs/phase7-wave2.md §7.4).
-    expect(hosts(state, { kind: "qualified", category: "enemy", attackedThisTurnBy: ["X-23"] })).toEqual([]);
+  });
+
+  /**
+   * docs/phase7-wave2.md §11.3. "Attach to an enemy that X-23 or Honey Badger attacked this turn." (Puncture Wound
+   * 43012.) The one temporal qualifier: it reads `GameState.attackedThisTurn`, written at every attack and cleared
+   * when each turn begins (RRG 1.8 "Turn", p. 45).
+   */
+  it("`attackedThisTurnBy` matches only an enemy one of the named cards has attacked this turn", () => {
+    const start = game({ encounter: [ELITE_MINION.id, PLAIN_MINION.id, ...copies(BLANK.id, 14)] });
+    const attacked = intoPlay(start, ELITE_MINION.id);
+    const untouched = intoPlay(attacked.state, PLAIN_MINION.id);
+    const state = untouched.state;
+    const identity = mustPlayer(state, p1).identity.instanceId;
+    // An identity is matched by its card title, the same face `namedCard` compares against (`currentName`).
+    const byHero: AttachmentHost = { kind: "qualified", category: "enemy", attackedThisTurnBy: [HERO.name] };
+    // Nothing attacked yet.
+    expect(hosts(state, byHero)).toEqual([]);
+    const hero = ok(state, { type: "changeForm", playerId: p1 });
+    const struck = settleUntil(ok(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: attacked.id }), "declareDefender", deps);
+    expect(struck.attackedThisTurn[attacked.id]).toEqual([identity]);
+    expect(hosts(struck, byHero)).toEqual([attacked.id]);
+    // The minion nobody attacked is no host, and neither is the attacked one under a different attacker's name.
+    expect(hosts(struck, byHero)).not.toContain(untouched.id);
+    expect(hosts(struck, { kind: "qualified", category: "enemy", attackedThisTurnBy: ["Honey Badger"] })).toEqual([]);
+    // The record is cleared when the next turn begins, so "this turn" really means this one.
+    const nextTurn = settle(ok(struck, { type: "endTurn", playerId: p1 }), defaultPick, deps);
+    expect(nextTurn.step).toMatchObject({ phase: "player", kind: "turn" });
+    expect(nextTurn.attackedThisTurn).toEqual({});
   });
 });
 

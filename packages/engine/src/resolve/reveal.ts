@@ -98,6 +98,9 @@ function hostMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost[
       return printedProfile(state, id)?.atk ?? 0;
     case "atk":
       return characterProfile(state, id, deps)?.atk ?? 0;
+    case "thw":
+      // "The ally with the lowest THW" (Possessed): the current value, like `atk`/`sch` beside it.
+      return characterProfile(state, id, deps)?.thw ?? 0;
     case "sch":
       return characterProfile(state, id, deps)?.sch ?? 0;
     case "activationOrder": {
@@ -139,9 +142,13 @@ function passesQualifiers(state: GameState, id: InstanceId, host: QualifiedHost 
   // "a character with 'Spider' in its title" (Warrior of the Great Web): the title showing, not the subtitle beneath
   // it (RRG 1.8 "Subtitle", p. 41) — `currentName` is the same face `namedCard` compares against.
   if (host.titleContains !== undefined && !(currentName(state, id) ?? "").includes(host.titleContains)) return false;
-  // "an enemy that X-23 or Honey Badger attacked this turn": no per-turn attack history is recorded, so this
-  // qualifier matches nothing and the card is discarded (docs/phase7-wave2.md §7.4). Data only, deliberately.
-  if (host.attackedThisTurnBy !== undefined) return false;
+  // "an enemy that X-23 or Honey Badger attacked this turn" (docs/phase7-wave2.md §11.3): the attackers recorded
+  // against this card this turn, matched by the title each is currently showing — the same face `namedCard` reads.
+  if (host.attackedThisTurnBy !== undefined) {
+    const attackers = state.attackedThisTurn[id] ?? [];
+    const titles = host.attackedThisTurnBy;
+    if (!attackers.some((attacker) => titles.includes(currentName(state, attacker) ?? ""))) return false;
+  }
   return true;
 }
 

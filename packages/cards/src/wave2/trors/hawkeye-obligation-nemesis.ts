@@ -8,12 +8,15 @@ import {
   gainsKeyword,
   heroAction,
   modifyAttack,
+  moveCards,
   named,
   placeThreat,
   query,
   self,
   spend,
   theMainScheme,
+  tuckedUnder,
+  whenDefeated,
   whenRevealedAlterEgo,
   whenRevealedHero,
   yourIdentity,
@@ -33,12 +36,13 @@ const BOW_NAME = cardName("04002");
  * `ResourceRequirement` for the Rifle's "spend a [wild] resource" cost.
  *
  * **Skipped:**
- * - `04028.when-revealed` — "tucks her faceup beneath this card. When this scheme is defeated, return the tucked
- *   Mockingbird to her owner's hand" (errata, RRG 1.8 p. 66) needs searching a player's hand, deck, discard pile
- *   *and play area* as one pool; `CardSelector zone`'s multi-zone search only spans out-of-play zones
- *   (`PlayerZone = "hand" | "deck" | "discard"`). Closest existing primitive: `zone()`'s existing multi-zone
- *   search (already spans hand+deck+discard); "play area" would need a fourth zone kind, or a separate `cards()`
- *   ref for "Mockingbird, wherever she is" unioned into one search.
+ * - `04028.when-revealed` — "tucks her faceup beneath this card" (errata, RRG 1.8 p. 66) needs searching a
+ *   player's hand, deck, discard pile *and play area* as one pool; `CardSelector zone`'s multi-zone search only
+ *   spans out-of-play zones (`PlayerZone = "hand" | "deck" | "discard"`). Closest existing primitive: `zone()`'s
+ *   existing multi-zone search (already spans hand+deck+discard); "play area" would need a fourth zone kind, or a
+ *   separate `cards()` ref for "Mockingbird, wherever she is" unioned into one search. `04028.when-defeated`
+ *   ("When this scheme is defeated, return the tucked Mockingbird to her owner's hand") got its own ability ref in
+ *   a later data pass and is scripted below — independent of the still-blocked reveal half.
  */
 export const HAWKEYE_OBLIGATION_NEMESIS = defineAbilities({
   // Criminal Past — Give to the Clint Barton Player. You may flip to alter-ego form. Choose:
@@ -63,6 +67,9 @@ export const HAWKEYE_OBLIGATION_NEMESIS = defineAbilities({
   "04029.crossfires-rifle-constant": constant(gainsKeyword({ name: "ranged" }, query("enemy", { hostOfSelf: true }))),
   // Crossfire's Rifle — Hero Action: Exhaust your hero and spend a [wild] resource → discard Crossfire's Rifle.
   "04029.crossfires-rifle-action": heroAction({ cost: [exhaustYourHero, spend({ wild: 1 })] }, discard(self)),
+
+  // Marked for Death — When Defeated: return the tucked Mockingbird to her owner's hand.
+  "04028.when-defeated": whenDefeated(moveCards(tuckedUnder(self), "hand")),
 
   // Sniper Shot — When Revealed (Alter-Ego): Place 3 threat on the main scheme.
   "04030.when-revealed-alter-ego": whenRevealedAlterEgo(placeThreat(3, theMainScheme)),

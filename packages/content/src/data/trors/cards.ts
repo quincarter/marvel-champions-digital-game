@@ -689,7 +689,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: The Clint Barton player searches their hand, deck, discard pile, and play area for Mockingbird and places her faceup beneath this card. When this scheme is defeated, return Mockingbird to her owner's hand.",
       current: "When Revealed: The Clint Barton player searches their hand, deck, discard pile, and play area for Mockingbird and tucks her faceup beneath this card. When this scheme is defeated, return the tucked Mockingbird to her owner's hand.",
     },
-    abilities: [{ id: abilityId("04028.when-revealed") }],
+    abilities: [{ id: abilityId("04028.when-revealed") }, { id: abilityId("04028.when-defeated") }],
   },
   {
     id: cardId("04029"),
@@ -2544,7 +2544,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
       printed: "When Revealed: Place 1 random set-aside Captive ally facedown beneath this scheme. When this scheme is defeated, the player who defeated it takes that ally into their hand and removes this scheme from the game.",
       current: "When Revealed: Place 1 random set-aside Captive ally facedown beneath this scheme. When this scheme is defeated, the player who defeated it takes that ally into their hand and removes this scheme from the game.",
     },
-    abilities: [{ id: abilityId("04107.when-revealed") }],
+    abilities: [{ id: abilityId("04107.when-revealed") }, { id: abilityId("04107.when-defeated") }],
   },
   {
     id: cardId("04108"),
@@ -3660,8 +3660,8 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     traits: [trait("HYDRA")],
     keywords: [{ name: "guard" }],
     text: {
-      printed: "Guard.(While this minion is engaged with you, you cannot attack the villain.)\nWhen Defeated: Deal the engaged player an encounter card.",
-      current: "Guard.(While this minion is engaged with you, you cannot attack the villain.)\nWhen Defeated: Deal the engaged player an encounter card.",
+      printed: "Guard. (While this minion is engaged with you, you cannot attack the villain.)\nWhen Defeated: Deal the engaged player an encounter card.",
+      current: "Guard. (While this minion is engaged with you, you cannot attack the villain.)\nWhen Defeated: Deal the engaged player an encounter card.",
     },
     abilities: [{ id: abilityId("04153.when-defeated") }],
   },
@@ -4000,7 +4000,11 @@ export const TRORS_CARDS: readonly AnyCard[] = [
       current: "Forced Response: At the end of your turn, take 1 damage if you are in hero form.\nAlter-Ego Action: Discard the top 5 cards of your deck and spend a [physical] resource → discard this card.",
     },
     flavor: "\"This is going to need sutures.\" —Stephen Strange",
-    abilities: [{ id: abilityId("04164.obligation") }],
+    abilities: [
+      { id: abilityId("04164.obligation") },
+      { id: abilityId("04164.medical-emergency-forced-response") },
+      { id: abilityId("04164.medical-emergency-action") },
+    ],
   },
   {
     id: cardId("04165"),

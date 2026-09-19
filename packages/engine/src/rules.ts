@@ -191,6 +191,19 @@ export function excessDamageThreatSchemes(state: GameState, deps: EngineDeps, so
   return schemes;
 }
 
+/**
+ * Where an acceleration token headed for `schemeId` actually goes (`accelerationTokenDestination`; The Master of Time
+ * 2B), or null for no redirect. A rule whose destination is the scheme the token was already headed for is ignored,
+ * so "another scheme" cannot send a token back to itself.
+ */
+export function accelerationTokenRedirect(state: GameState, deps: EngineDeps, schemeId: InstanceId): InstanceId | null {
+  for (const { rule, context } of activeRules(state, deps, "accelerationTokenDestination")) {
+    const [to] = resolveRef(state, rule.to, context);
+    if (to !== undefined && to !== schemeId) return to;
+  }
+  return null;
+}
+
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */
 export const mustDefendWithAlly = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
   activeRules(state, deps, "mustDefendWithAlly").some(({ rule, context }) =>

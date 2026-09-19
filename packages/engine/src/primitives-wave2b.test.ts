@@ -577,6 +577,59 @@ describe("§9 `playFromHand.costReduction`: 'play a card from your hand, reducin
   });
 });
 
+// ---- §10.1 one pool across several zones -------------------------------------------------------------------------
+
+describe("§10.1 `CardSelector anyOf`: 'the encounter deck, discard pile, and set-aside area'", () => {
+  const NEMESIS = stubMinion({ id: "nemesis-minion", atk: 1, sch: 1, hp: 3, boostIcons: 0 });
+  const searchAbility = stubAbility("search.action", def({
+    // "Each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion."
+    trigger: { kind: "action" },
+    effects: [
+      {
+        kind: "selectCards",
+        slot: "found",
+        cards: {
+          kind: "anyOf",
+          of: [
+            { kind: "encounter", zones: ["deck", "discard"], filter: { name: NEMESIS.id } },
+            { kind: "setAside", player: { kind: "controller" }, filter: { name: NEMESIS.id } },
+          ],
+        },
+      },
+      { kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "found", amount: { kind: "var", name: "found.count" } },
+    ],
+  }));
+  const SEARCHER = stubSupport({ id: "searcher", cost: 0, abilities: [searchAbility.ref] });
+
+  it("finds cards in every listed zone at once, each once", () => {
+    const deps = depsOf(searchAbility);
+    const base = newGame({
+      deps,
+      extraCards: [BLANK, NEMESIS, SEARCHER],
+      deck: [...copies(RESOURCE.id, 10), ...copies(SEARCHER.id, 2)],
+      encounterDeck: [NEMESIS.id, ...copies(BLANK.id, 15)],
+    });
+    const hero = runWith(deps, base, toHero);
+    const given = giveCards(hero, p1, SEARCHER.id);
+    const inPlay = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
+    // One copy waits in the encounter deck; test surgery puts a second in this player's set-aside area.
+    const spare = Object.values(inPlay.instances).find((i) => i.cardId === NEMESIS.id && !inPlay.villainArea.includes(i.instanceId));
+    expect(spare).toBeDefined();
+    const withSetAside: GameState = {
+      ...inPlay,
+      players: inPlay.players.map((pl) => (pl.playerId === p1 ? { ...pl, setAside: [...pl.setAside, spare?.instanceId as InstanceId] } : pl)),
+      encounterDecks: Object.fromEntries(
+        Object.entries(inPlay.encounterDecks).map(([id, piles]) => [id, { ...piles, deck: piles.deck.filter((c) => c !== spare?.instanceId) }]),
+      ),
+    };
+    const encounterCopies = Object.values(withSetAside.encounterDecks).flatMap((piles) => [...piles.deck, ...piles.discard]).filter((id) => withSetAside.instances[id]?.cardId === NEMESIS.id);
+    const use: Command = { type: "useAbility", playerId: p1, cardInstanceId: given.ids[0] as InstanceId, abilityId: searchAbility.ref.id, payment: [] };
+    const after = settle(runWith(deps, withSetAside, use), undefined, deps);
+    // The set-aside copy plus whatever the encounter deck/discard still holds — one pool, no duplicates.
+    expect(mustInstance(after, identityOf(after)).counters.found).toBe(1 + encounterCopies.length);
+  });
+});
+
 // ---- §3.13.9 a string field on the triggering event -------------------------------------------------------------------
 
 describe("§3.13 `EventPattern.eventIs`: 'after a player changes to hero form'", () => {

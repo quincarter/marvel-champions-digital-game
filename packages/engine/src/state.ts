@@ -395,6 +395,16 @@ export interface GameState {
   readonly playedThisPhase: Readonly<Record<string, number>>;
   /** Cards played this round keyed `<playerId>:<card type>` ("the first ally played each round"). Reset when the round ends. */
   readonly playedByPlayerThisRound: Readonly<Record<string, number>>;
+  /**
+   * Who attacked whom **this turn**, keyed by the attacked character and listing the attackers, each once, in the
+   * order they attacked: "Attach to an enemy that X-23 or Honey Badger attacked this turn" (Puncture Wound 43012;
+   * `HostQualifiers.attackedThisTurnBy`, docs/phase7-wave2.md §7.4/§11.3).
+   *
+   * Every attack is recorded, player-made or enemy-made, at the point the attack is made (the `characterAttacked`
+   * event, which is the one place both paths go through). Reset when each turn begins, alongside the `"turn"`
+   * ability-use counters — RRG 1.8 "Turn" (p. 45): a turn is one player's, so "this turn" is the one in progress.
+   */
+  readonly attackedThisTurn: Readonly<Record<string, readonly InstanceId[]>>;
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;

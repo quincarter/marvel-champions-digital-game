@@ -164,6 +164,9 @@ function executePlayerSetupAbilities(ctx: Ctx, step: Extract<GameStep, { kind: "
 
 export function beginTurn(ctx: Ctx, activePlayerId: PlayerId, remainingPlayerIds: readonly PlayerId[]): void {
   clearAbilityUses(ctx, "turn");
+  // "…attacked this turn" (`attackedThisTurn`, docs/phase7-wave2.md §11.3): a turn is one player's (RRG 1.8 "Turn",
+  // p. 45), so the record starts empty with each one, next to the turn-scoped ability-use counters.
+  ctx.state = { ...ctx.state, attackedThisTurn: {} };
   setStep(ctx, { phase: "player", kind: "turn", activePlayerId, remainingPlayerIds });
   emit(ctx, { type: "turnStarted", playerId: activePlayerId });
   announce(ctx, { kind: "turnStarted", playerId: activePlayerId });

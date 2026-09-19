@@ -88,7 +88,39 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
       .sort((x, y) => stageOrder(x) - stageOrder(y));
     const printedType = stageRecords.some((r) => r.type_code === "leader") ? ("leader" as const) : undefined;
 
-    const doubleSided = stageRecords.some((r) => r.linked_card?.type_code === "villain");
+    // A linked pair whose two faces print *different* stages is one card carrying two difficulty versions, not
+    // two faces of the same stage: MojoMania's MaGog (39001a "A" / 39001b "B"), main scheme 1A "Contents": "MaGog
+    // (A) (MaGog (B) instead for expert mode)". Nothing flips it during play, so its faces are consecutive stages
+    // of one side, the same as The Wrecking Crew's separately printed A/B versions. Recognized structurally.
+    // When the pairs chain into one stage sequence (Age of Apocalypse's Apocalypse, 45101 I/II and 45102 III/IV)
+    // they form one villain; when they collide (Mutant Genesis's "mansion_attack": Avalanche, Blob, Pyro and Toad,
+    // each its own A/B card) each pair is its own villain.
+    const versionPairs =
+      stageRecords.length > 0 &&
+      stageRecords.every((r) => r.linked_card?.type_code === "villain" && stageOrder(r.linked_card) !== stageOrder(r));
+    if (versionPairs) {
+      const faces = stageRecords.flatMap((r) => [r.linked_card as RawCard, r]);
+      if (new Set(faces.map(stageOrder)).size !== faces.length) {
+        for (const r of stageRecords) {
+          const pair = [r, r.linked_card as RawCard].sort((x, y) => stageOrder(x) - stageOrder(y));
+          const built = pair.map((face) => buildVillainStage(ctx, face));
+          const [first, second] = built;
+          if (!first || !second) continue;
+          if (first.prepared.name !== second.prepared.name) errors.push(`${r.code}: villain version names differ`);
+          const card: VillainCard = {
+            ...baseFields(ctx, first.prepared, first.prepared.raw.code, pair.map((face) => face.code), null),
+            type: "villain",
+            encounterSetIds: [brand("encounterSet", set)],
+            sides: [{ side: "A", name: first.prepared.name, stages: [first.stage, second.stage] }],
+            ...(printedType ? { printedType } : {}),
+          };
+          record(ctx, card, set, built.map((b) => b.prepared));
+        }
+        continue;
+      }
+      stageRecords.splice(0, stageRecords.length, ...faces.sort((x, y) => stageOrder(x) - stageOrder(y)));
+    }
+    const doubleSided = !versionPairs && stageRecords.some((r) => r.linked_card?.type_code === "villain");
 
     // Several distinct, single-stage villains sharing one card_set_code (wave 2, docs/phase7-wave2.md §1.8): The
     // Once and Future Kang's "kang"/"exp_kang" sets each hold six such records — Kang (I), four differently-named

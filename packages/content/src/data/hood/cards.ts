@@ -1373,15 +1373,12 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     encounterSetIds: [encounterSetId("streets_of_mayhem")],
     boostIcons: 2,
     traits: [trait("LOCATION"), trait("SETTING")],
-    keywords: [],
+    keywords: [{ name: "surge" }],
     text: {
-      printed: "Surge.When Revealed: Discard each other Setting environment in play.\nEach character in play gets +1 ATK.",
-      current: "Surge.When Revealed: Discard each other Setting environment in play.\nEach character in play gets +1 ATK.",
+      printed: "Surge. When Revealed: Discard each other Setting environment in play.\nEach character in play gets +1 ATK.",
+      current: "Surge. When Revealed: Discard each other Setting environment in play.\nEach character in play gets +1 ATK.",
     },
-    abilities: [
-      { id: abilityId("24060.back-alley-enclave-constant") },
-      { id: abilityId("24060.back-alley-enclave-constant-2") },
-    ],
+    abilities: [{ id: abilityId("24060.when-revealed") }, { id: abilityId("24060.back-alley-enclave-constant") }],
   },
   {
     id: cardId("24061"),
@@ -1396,15 +1393,15 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     encounterSetIds: [encounterSetId("streets_of_mayhem")],
     boostIcons: 2,
     traits: [trait("LOCATION"), trait("SETTING")],
-    keywords: [],
+    keywords: [{ name: "surge" }],
     text: {
-      printed: "Surge.When Revealed: Discard each other Setting environment in play.\nEach enemy in play gains 1 acceleration icon ([acceleration]).\nEach hero and ally in play gets +1 THW.",
-      current: "Surge.When Revealed: Discard each other Setting environment in play.\nEach enemy in play gains 1 acceleration icon ([acceleration]).\nEach hero and ally in play gets +1 THW.",
+      printed: "Surge. When Revealed: Discard each other Setting environment in play.\nEach enemy in play gains 1 acceleration icon ([acceleration]).\nEach hero and ally in play gets +1 THW.",
+      current: "Surge. When Revealed: Discard each other Setting environment in play.\nEach enemy in play gains 1 acceleration icon ([acceleration]).\nEach hero and ally in play gets +1 THW.",
     },
     abilities: [
+      { id: abilityId("24061.when-revealed") },
       { id: abilityId("24061.secret-lair-constant") },
       { id: abilityId("24061.secret-lair-constant-2") },
-      { id: abilityId("24061.secret-lair-constant-3") },
     ],
   },
   {
@@ -1420,15 +1417,12 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     encounterSetIds: [encounterSetId("streets_of_mayhem")],
     boostIcons: 2,
     traits: [trait("LOCATION"), trait("SETTING")],
-    keywords: [],
+    keywords: [{ name: "surge" }],
     text: {
-      printed: "Surge.When Revealed: Discard each other Setting environment in play.\nEach character in play gains retaliate 1.",
-      current: "Surge.When Revealed: Discard each other Setting environment in play.\nEach character in play gains retaliate 1.",
+      printed: "Surge. When Revealed: Discard each other Setting environment in play.\nEach character in play gains retaliate 1.",
+      current: "Surge. When Revealed: Discard each other Setting environment in play.\nEach character in play gains retaliate 1.",
     },
-    abilities: [
-      { id: abilityId("24062.sewer-tunnels-constant") },
-      { id: abilityId("24062.sewer-tunnels-constant-2") },
-    ],
+    abilities: [{ id: abilityId("24062.when-revealed") }, { id: abilityId("24062.sewer-tunnels-constant") }],
   },
   {
     id: cardId("24063"),
@@ -1443,15 +1437,12 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     encounterSetIds: [encounterSetId("streets_of_mayhem")],
     boostIcons: 2,
     traits: [trait("LOCATION"), trait("SETTING")],
-    keywords: [],
+    keywords: [{ name: "surge" }],
     text: {
-      printed: "Surge.When Revealed: Discard each other Setting environment in play.\nEach character in play gains steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)",
-      current: "Surge.When Revealed: Discard each other Setting environment in play.\nEach character in play gains steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)",
+      printed: "Surge. When Revealed: Discard each other Setting environment in play.\nEach character in play gains steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)",
+      current: "Surge. When Revealed: Discard each other Setting environment in play.\nEach character in play gains steady. (Steady characters require 2 status cards of the same type to be stunned or confused.)",
     },
-    abilities: [
-      { id: abilityId("24063.warehouse-district-constant") },
-      { id: abilityId("24063.warehouse-district-constant-2") },
-    ],
+    abilities: [{ id: abilityId("24063.when-revealed") }, { id: abilityId("24063.warehouse-district-constant") }],
   },
   {
     id: cardId("24064"),

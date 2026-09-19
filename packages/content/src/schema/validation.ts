@@ -551,7 +551,7 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
     errors.push("a three-sided villain's sides are A, B and C");
   }
   if (card.sides.length < 3 && letters.includes("C")) errors.push("villain side C is the third face of a three-sided villain");
-  for (const side of card.sides) {
+  for (const [sideIndex, side] of card.sides.entries()) {
     if (side.side !== "A" && side.side !== "B" && side.side !== "C") errors.push(`villain side ${String(side.side)} must be A, B or C`);
     if (!isNonEmptyString(side.name)) errors.push(`villain side ${side.side} needs a name`);
     if (!side.stages || side.stages.length === 0) {
@@ -571,6 +571,15 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
         errors.push(`${label} stageLabel must be a non-empty string when present`);
       }
       if (!isScalingValue(stage.hp)) errors.push(`${label} hp must be a ScalingValue`);
+      // A later face may print no hit points at all ("Collector cannot be defeated"); the dial carries across the
+      // flip (RRG 1.8 "Flip", p. 20), so `hp` must repeat the printing face's. docs/phase7-wave2.md §11.2.
+      if (stage.hpNotPrinted === true) {
+        if (sideIndex === 0) errors.push(`${label} hpNotPrinted is only for a face behind the one that prints them`);
+        const printing = card.sides[0]?.stages.find((other) => other.stageNumber === stage.stageNumber);
+        if (printing && isScalingValue(stage.hp) && (printing.hp.base !== stage.hp.base || printing.hp.perPlayer !== stage.hp.perPlayer)) {
+          errors.push(`${label} prints no hit points, so its hp must repeat the printing face's`);
+        }
+      }
       if (!isNonNegativeNumber(stage.atk)) errors.push(`${label} atk must be a non-negative number`);
       if (!isNonNegativeNumber(stage.sch)) errors.push(`${label} sch must be a non-negative number`);
       // Read as untrusted data: `Array.isArray` would otherwise widen the element type to `any`.

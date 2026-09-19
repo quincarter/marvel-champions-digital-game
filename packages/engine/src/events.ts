@@ -102,7 +102,10 @@ export type GameEvent =
   | { readonly type: "encounterCardRevealed"; readonly instanceId: InstanceId; readonly cardId: CardId; readonly playerId: PlayerId }
   /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetEmptySeparateDecks`). */
   | { readonly type: "separateDeckReset"; readonly playerId: PlayerId; readonly name: string }
-  | { readonly type: "accelerationTokenAdded"; readonly total: number }
+  /** `schemeInstanceId` is present only when the token went somewhere other than the central main scheme (§10.3). */
+  | { readonly type: "accelerationTokenAdded"; readonly total: number; readonly schemeInstanceId?: InstanceId }
+  /** "Place it here instead" (`accelerationTokenDestination`; The Master of Time 2B). */
+  | { readonly type: "accelerationTokenRedirected"; readonly from: InstanceId; readonly to: InstanceId }
   | { readonly type: "playerEliminated"; readonly playerId: PlayerId }
   | { readonly type: "firstPlayerChanged"; readonly playerId: PlayerId }
   | { readonly type: "choiceRequested"; readonly choice: PendingChoice }

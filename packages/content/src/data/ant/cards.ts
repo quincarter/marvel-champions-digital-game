@@ -113,12 +113,13 @@ export const ANT_CARDS: readonly AnyCard[] = [
     traits: [trait("ATTACK"), trait("GIANT")],
     keywords: [],
     deckLimit: 2,
+    playRestrictions: { form: "hero", requiresIdentityTrait: trait("GIANT") },
     text: {
       printed: "Play only if you are in Giant hero form.\nHero Action (attack): Deal 1 damage to each minion. Deal 8 damage to an enemy.",
       current: "Play only if you are in Giant hero form.\nHero Action (attack): Deal 1 damage to each minion. Deal 8 damage to an enemy.",
     },
     flavor: "\"I'd run if I were you.\" —Scott Lang",
-    abilities: [{ id: abilityId("12003.giant-stomp-constant") }, { id: abilityId("12003.giant-stomp-action") }],
+    abilities: [{ id: abilityId("12003.giant-stomp-action") }],
   },
   {
     id: cardId("12004"),
@@ -136,11 +137,12 @@ export const ANT_CARDS: readonly AnyCard[] = [
     traits: [trait("THWART"), trait("TINY")],
     keywords: [],
     deckLimit: 1,
+    playRestrictions: { form: "hero", requiresIdentityTrait: trait("TINY") },
     text: {
       printed: "Play only if you are in Tiny hero form.\nHero Action (thwart): Remove 2 threat from a scheme. Remove 1 additional threat from that scheme for each Army of Ants support you control.",
       current: "Play only if you are in Tiny hero form.\nHero Action (thwart): Remove 2 threat from a scheme. Remove 1 additional threat from that scheme for each Army of Ants support you control.",
     },
-    abilities: [{ id: abilityId("12004.hive-mind-constant") }, { id: abilityId("12004.hive-mind-action") }],
+    abilities: [{ id: abilityId("12004.hive-mind-action") }],
   },
   {
     id: cardId("12005"),

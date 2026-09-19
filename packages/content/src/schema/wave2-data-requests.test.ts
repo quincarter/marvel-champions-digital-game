@@ -13,7 +13,7 @@ import {
   validateAttachmentHost,
   validateCard,
 } from "./index.js";
-import type { AttachmentHost, KeywordInstance, MainSchemeCard, MinionCard, UpgradeCard } from "./index.js";
+import type { AttachmentHost, KeywordInstance, MainSchemeCard, MinionCard, UpgradeCard, VillainCard } from "./index.js";
 
 /**
  * docs/phase7-wave2.md §7: the schema requests `card-data-pipeline` raised in `docs/phase7-wave2-data.md`
@@ -150,6 +150,54 @@ describe("§7.5 the Fear No Evil keywords", () => {
       expect(entry?.unverified).toBe(true);
       expect(entry?.sources[0]?.kind).toBe("insert-not-in-repo");
     }
+  });
+});
+
+describe("§11 the requests still open after §7", () => {
+  it("§11.1 `HostMeasure \"thw\"` ranks the ally pool by current THW (Possessed, storm 36038)", () => {
+    // "Attach to the ally with the lowest THW without Possessed attached."
+    const host: AttachmentHost = { kind: "superlative", among: "ally", order: "lowest", measure: "thw", withoutAttachmentNamed: "Possessed" };
+    expect(validateAttachmentHost(host, "attachment")).toEqual([]);
+    expect(validateAttachmentHost({ ...host, measure: "printedThw" as never }, "attachment")).not.toEqual([]);
+  });
+
+  it("§11.2 a villain's later face may print no hit points at all (Collector gmw 16080a/b, Hela mts 21136a/b)", () => {
+    const stage = (notPrinted?: boolean) => ({
+      stageNumber: 1,
+      hp: { base: 8, perPlayer: 0 },
+      ...(notPrinted ? { hpNotPrinted: true } : {}),
+      atk: 2,
+      sch: 1,
+      text: text("Collector gets +X SCH and +X ATK."),
+      traits: [],
+      keywords: [],
+      abilities: [],
+    });
+    const collector: VillainCard = {
+      id: cardId("16080"),
+      name: "Collector",
+      setCode: setCode("gmw"),
+      cycleId: CYCLE,
+      collectorNumber: "80",
+      quantityInSet: 1,
+      unique: true,
+      type: "villain",
+      encounterSetIds: [encounterSetId("escape_the_museum")],
+      sides: [
+        { side: "A", name: "Collector", stages: [stage()] },
+        // "Collector cannot be defeated." — the back face prints no hit points; the dial carries across the flip.
+        { side: "B", name: "Collector", stages: [stage(true)] },
+      ],
+    };
+    expect(validateCard(collector).errors).toEqual([]);
+    // The face that prints them cannot claim it does not, and the carried value must match what that face prints.
+    const headless: VillainCard = { ...collector, sides: [{ side: "A", name: "Collector", stages: [stage(true)] }] };
+    expect(validateCard(headless).errors).not.toEqual([]);
+    const mismatched: VillainCard = {
+      ...collector,
+      sides: [collector.sides[0]!, { side: "B", name: "Collector", stages: [{ ...stage(true), hp: { base: 99, perPlayer: 0 } }] }],
+    };
+    expect(validateCard(mismatched).errors).not.toEqual([]);
   });
 });
 
