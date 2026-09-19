@@ -649,3 +649,10 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
 }
 
 export const isTerminal = (state: GameState): boolean => state.outcome !== null;
+
+/**
+ * Whether a player's turn is in progress (RRG 1.8 "Player Turn", p. 34) — the only time "until the end of this turn"
+ * can be initiated (RRG 1.8 "Lasting Effects", p. 26; docs/phase7-wave2.md §13). False in the villain phase and during
+ * the end-of-player-phase steps, which belong to no player's turn.
+ */
+export const turnInProgress = (state: GameState): boolean => state.step.phase === "player" && state.step.kind === "turn";

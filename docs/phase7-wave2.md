@@ -1534,3 +1534,61 @@ in any order". One event per card would have fixed that order by payment order.
   not. Keeping the two fields apart means the response is correct on the day cross-player payment lands.
 - **A card in play spending itself** through a "Resource:" ability is not a card spent from hand, so it is not listed.
   No card in the pool says "after you spend this card" about such an ability.
+
+---
+
+## 13. "Until the end of this turn": `LastingUntil "endOfTurn"` (owner: `game-rules-architect`; landed 2026-09-19)
+
+"Hero Response: After you change to Giant hero form, you get +1 ATK until the end of this turn." (Giant Strength,
+`ant` 12009.) With one player, "this turn" and "this phase" end together. With two or more they don't: RRG 1.8
+"Player Phase" (p. 34) has "each player (in player order) take[] one turn", so a turn ends before the phase does.
+Tests: `packages/engine/src/turn-duration.test.ts` (3 tests, all with two players).
+
+### 13.1 Sizing: every "this turn" in the emitted pool
+
+A sentence-level scan of every `printed` text in `packages/content/src/data` (skipping the "when/after your turn
+begins/ends" triggers, which are events and not durations) finds seven cards:
+
+| Card | Wording | Needs | Status |
+|---|---|---|---|
+| Giant Strength (`ant` 12009) | "+1 ATK until the end of this turn" | `LastingUntil "endOfTurn"` | **landed** |
+| Deft Focus (`magneto` 49023) | "the next superpower card you play this turn" | `reduceNextCardCost` `duration: "turn"` | **landed** |
+| Puncture Wound (`x23` 43012) | "an enemy that X-23 or Honey Badger attacked this turn" | per-turn attack history | landed in §11.3 (reviewed in §14) |
+| Gamora (`gam` 18006, 18007) | "if you have played a thwart/attack event this turn" | a per-turn **play history** readable by trait | **open** (below) |
+| Lockjaw (`msm` 05018), Deadpool 44032 | "during your turn" | a condition on whose turn it is, not a duration | not requested; no change |
+
+### 13.2 The shape
+
+- **`LastingUntil` gains `"endOfTurn"`**, so `modifyStatUntil`, `grantTraitUntil` and `blankTextBox` all take it.
+  `LastingDuration` gains `{ kind: "endOfTurn" }`.
+  ```ts
+  // "you get +1 ATK until the end of this turn" (Giant Strength 12009)
+  modifyStat("atk", 1, yourIdentity, "endOfTurn")
+  ```
+- **`reduceNextCardCost.duration` gains `"turn"`** (DSL `NextCardCostDuration`). It maps onto the same `endOfTurn`
+  duration: `reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER })`.
+- **It expires in `finishTurn`**, the one place a turn ends (the `endTurn` command, or an applied `turnEnding`
+  event). That is right after `turnEnded` is logged and before the next player's `turnStarted`, or before the
+  end-of-phase steps. RRG 1.8 "Lasting Effects" (p. 26): "A lasting effect expires as soon as the timing point
+  specified by its duration is reached." Expiry is logged as `lastingEffectEnded { reason: "expired" }`, like every
+  other duration.
+
+### 13.3 The one rules call: an "end of this turn" effect outside a turn. Settled by the RRG; followed.
+
+The effect is **not created**. RRG 1.8 "Lasting Effects" (p. 26): "A lasting effect that expires at the end of a
+specified time period can only be initiated during that time period." The villain phase and the end-of-player-phase
+steps (discard, draw, ready) belong to no player's turn (RRG 1.8 "Player Phase", "Player Turn", p. 34).
+`turnInProgress(state)` (`query.ts`) is the test: `step` is a player-phase `turn`. So if something makes Ant-Man change
+to Giant form during the villain phase, Giant Strength's response resolves and gives nothing. `endOfAttack` already
+does the same thing with no attack in progress. Pinned by a test that also checks an "end of the phase" effect made
+at the same moment *is* created.
+
+### 13.4 Open: "if you have played a [trait] event this turn" (Gamora)
+
+This is a *read* of play history, not a duration, so it is not part of this primitive. It needs a per-turn record of
+the cards each player played, readable by trait (a thwart *event* is the `Thwart` trait on an event). The existing
+`playedByPlayerThisRound` is keyed by card type only, which cannot express it. The natural shape is
+`GameState.playedThisTurn: Record<PlayerId, readonly CardId[]>`, cleared in `beginTurn` next to `attackedThisTurn`,
+with a `Predicate { kind: "playedThisTurn"; player; filter: { cardType?, trait? } }` reading printed traits from card
+data (the played card is in a discard pile by then). Not built this pass because no scripter has asked for it and
+Gamora is not in a scheduled pack.

@@ -15,6 +15,8 @@ export type LastingDuration =
   | { readonly kind: "endOfPhase" }
   /** "Until the end of the round" / "this round". */
   | { readonly kind: "endOfRound" }
+  /** "Until the end of this turn" / "this turn": the active player's turn (docs/phase7-wave2.md §13). */
+  | { readonly kind: "endOfTurn" }
   /** "Until the end of this attack/activation": ends when that event frame finishes. */
   | { readonly kind: "endOfEvent"; readonly frameId: FrameId }
   /**

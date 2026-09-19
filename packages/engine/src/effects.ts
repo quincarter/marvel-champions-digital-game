@@ -355,7 +355,7 @@ export function endLastingEffect(ctx: Ctx, id: string, reason: "expired" | "cons
 }
 
 /** Removes every lasting effect whose duration ends at this boundary (delayed effects are fired by the caller). */
-export function expireLastingEffects(ctx: Ctx, boundary: "endOfPhase" | "endOfRound"): void {
+export function expireLastingEffects(ctx: Ctx, boundary: "endOfPhase" | "endOfRound" | "endOfTurn"): void {
   for (const effect of [...ctx.state.lastingEffects]) {
     if (effect.duration.kind === boundary && effect.kind !== "delayedEffects") endLastingEffect(ctx, effect.id, "expired");
   }

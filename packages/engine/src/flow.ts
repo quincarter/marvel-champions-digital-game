@@ -188,6 +188,9 @@ export function finishTurn(ctx: Ctx, playerId: PlayerId): void {
   const step = ctx.state.step;
   if (step.phase !== "player" || step.kind !== "turn" || step.activePlayerId !== playerId) return;
   emit(ctx, { type: "turnEnded", playerId });
+  // "Until the end of this turn" (docs/phase7-wave2.md §13): expires as soon as the turn's end is reached (RRG 1.8
+  // "Lasting Effects", p. 26), before the next player's turn begins or the end-of-phase steps start.
+  expireLastingEffects(ctx, "endOfTurn");
   advanceAfterTurn(ctx, step.remainingPlayerIds);
 }
 
