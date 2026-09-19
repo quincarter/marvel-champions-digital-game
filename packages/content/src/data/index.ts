@@ -211,6 +211,8 @@ export * from "./spiderham/index.js";
 export * from "./mojo/index.js";
 export * from "./angel/index.js";
 export * from "./storm/index.js";
+export * from "./psylocke/index.js";
+export * from "./jubilee/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
@@ -274,9 +276,13 @@ import { ANGEL_CARDS } from "./angel/cards.js";
 import { ANGEL_ENCOUNTER_SETS } from "./angel/encounterSets.js";
 import { STORM_CARDS } from "./storm/cards.js";
 import { STORM_ENCOUNTER_SETS } from "./storm/encounterSets.js";
+import { PSYLOCKE_CARDS } from "./psylocke/cards.js";
+import { PSYLOCKE_ENCOUNTER_SETS } from "./psylocke/encounterSets.js";
+import { JUBILEE_CARDS } from "./jubilee/cards.js";
+import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 31 packs across cycles 3, 4, 5, 6, 7, 8, 9, 10 and one non-cycle promotional
+ * Every card in the data-only pool: 33 packs across cycles 3, 4, 5, 6, 7, 8, 9, 10 and one non-cycle promotional
  * release, in pack-code alphabetical order (no release-order relationship spans this many cycles at once, unlike
  * `WAVE1_CARDS`/`WAVE2_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`CORE_CARDS` — a client that wants
  * "every known card, playable or not" concatenates this with those.
@@ -285,6 +291,8 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...BP_CARDS,
   ...ANGEL_CARDS,
   ...STORM_CARDS,
+  ...PSYLOCKE_CARDS,
+  ...JUBILEE_CARDS,
   ...CYCLOPS_CARDS,
   ...GAMBIT_CARDS,
   ...DRAX_CARDS,
@@ -320,6 +328,8 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...BP_ENCOUNTER_SETS,
   ...ANGEL_ENCOUNTER_SETS,
   ...STORM_ENCOUNTER_SETS,
+  ...PSYLOCKE_ENCOUNTER_SETS,
+  ...JUBILEE_ENCOUNTER_SETS,
   ...CYCLOPS_ENCOUNTER_SETS,
   ...GAMBIT_ENCOUNTER_SETS,
   ...DRAX_ENCOUNTER_SETS,

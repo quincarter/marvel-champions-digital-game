@@ -76,6 +76,8 @@ import { IRONHEART_CURATION } from "./marvelcdb/curation/ironheart.ts";
 import { ICEMAN_CURATION } from "./marvelcdb/curation/iceman.ts";
 import { WONDER_MAN_CURATION } from "./marvelcdb/curation/wonder_man.ts";
 import { X23_CURATION } from "./marvelcdb/curation/x23.ts";
+import { PSYLOCKE_CURATION } from "./marvelcdb/curation/psylocke.ts";
+import { JUBILEE_CURATION } from "./marvelcdb/curation/jubilee.ts";
 import { VALK_CURATION } from "./marvelcdb/curation/valk.ts";
 import { DEADPOOL_CURATION } from "./marvelcdb/curation/deadpool.ts";
 import { SPIDERHAM_CURATION } from "./marvelcdb/curation/spiderham.ts";
@@ -142,8 +144,10 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   mojo: MOJO_CURATION,
   angel: ANGEL_CURATION,
   storm: STORM_CURATION,
-  // hercules, fne, gmw, psylocke: curated (survey.ts), but NOT registered here — each has at least
-  // one card still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
+  psylocke: PSYLOCKE_CURATION,
+  jubilee: JUBILEE_CURATION,
+  // hercules, fne, gmw: curated (survey.ts), but NOT registered here — each has at least one card
+  // still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
   // game-rules-architect" / parser-gap log).
 };
 

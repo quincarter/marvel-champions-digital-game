@@ -73,6 +73,10 @@ import {
   ANGEL_PACK,
   STORM_CARDS,
   STORM_PACK,
+  PSYLOCKE_CARDS,
+  PSYLOCKE_PACK,
+  JUBILEE_CARDS,
+  JUBILEE_PACK,
 } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
 import { WAVE1_CARDS } from "./index.js";
@@ -110,6 +114,8 @@ const PACKS: readonly { readonly code: string; readonly cards: readonly AnyCard[
   { code: "mojo", cards: MOJO_CARDS, pack: MOJO_PACK },
   { code: "angel", cards: ANGEL_CARDS, pack: ANGEL_PACK },
   { code: "storm", cards: STORM_CARDS, pack: STORM_PACK },
+  { code: "psylocke", cards: PSYLOCKE_CARDS, pack: PSYLOCKE_PACK },
+  { code: "jubilee", cards: JUBILEE_CARDS, pack: JUBILEE_PACK },
 ];
 
 describe("data-only pool — integrity", () => {
@@ -119,8 +125,8 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("29 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(31);
+  it("33 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(33);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
@@ -145,10 +151,10 @@ describe("data-only pool — integrity", () => {
     // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue, Mojo Mania, Storm (Phoenix is not in this pool yet —
     // blocked, see curation/phoenix.ts).
     for (const code of ["cyclops", "gambit", "wolv", "rogue", "mojo", "storm"]) expect(cycleOf(code), code).toBe("cycle6");
-    // Cycle 7: X-23, Deadpool, Angel (Psylocke is not in this pool yet).
-    for (const code of ["x23", "deadpool", "angel"]) expect(cycleOf(code), code).toBe("cycle7");
-    // Cycle 8: Nightcrawler, Magneto, Iceman (Jubilee is not in this pool yet).
-    for (const code of ["ncrawler", "magneto", "iceman"]) expect(cycleOf(code), code).toBe("cycle8");
+    // Cycle 7: X-23, Deadpool, Angel, Psylocke.
+    for (const code of ["x23", "deadpool", "angel", "psylocke"]) expect(cycleOf(code), code).toBe("cycle7");
+    // Cycle 8: Nightcrawler, Magneto, Iceman, Jubilee.
+    for (const code of ["ncrawler", "magneto", "iceman", "jubilee"]) expect(cycleOf(code), code).toBe("cycle8");
     // Cycle 9: Black Panther/Shuri, Silk, Winter Soldier, Falcon (Trickster Takeover is not in this pool yet).
     for (const code of ["bp", "silk", "winter", "falcon"]) expect(cycleOf(code), code).toBe("cycle9");
     // Cycle 5: Nova, SP//dr, Ironheart, Spider-Ham.

@@ -76,6 +76,7 @@ import { GMW_CURATION } from "./curation/gmw.ts";
 import { WONDER_MAN_CURATION } from "./curation/wonder_man.ts";
 import { X23_CURATION } from "./curation/x23.ts";
 import { PSYLOCKE_CURATION } from "./curation/psylocke.ts";
+import { JUBILEE_CURATION } from "./curation/jubilee.ts";
 import { VALK_CURATION } from "./curation/valk.ts";
 import { DEADPOOL_CURATION } from "./curation/deadpool.ts";
 import { SPIDERHAM_CURATION } from "./curation/spiderham.ts";
@@ -134,6 +135,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   wonder_man: WONDER_MAN_CURATION,
   x23: X23_CURATION,
   psylocke: PSYLOCKE_CURATION,
+  jubilee: JUBILEE_CURATION,
   valk: VALK_CURATION,
   deadpool: DEADPOOL_CURATION,
   spiderham: SPIDERHAM_CURATION,

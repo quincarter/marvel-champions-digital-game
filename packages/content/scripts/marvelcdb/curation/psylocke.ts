@@ -1,17 +1,16 @@
 /**
  * Psylocke (Betsy Braddock) Hero Pack (Cycle 7) curation.
  *
- * **Curated but NOT registered for emission** — Psi-Knife's own artwork is still missing after the dash-cost fix
- * below; no second source was found this pass (see below).
- *
  * - **Psi-Knife (41002a, upgrade): dash cost, confirmed.** A Permanent signature weapon (flips to Psi-Katana,
  *   `41002b`, via its own Hero Resource). MarvelCDB sends no `cost` at all on either face; confirmed against the
  *   card's own MarvelCDB listing ("Cost: —").
- * - **Psi-Knife (41002a) has no `imagesrc` at all on MarvelCDB — not yet resolved.** Unlike `ironheart`/`qsv`,
- *   no second-source scan was located and confirmed for this specific face this pass (Hall of Heroes' own
- *   Psylocke release-page gallery filenames are generic and weren't individually verified against this card the
- *   way `ironheart.ts`'s six identity faces were — not attempted this pass to keep moving through the gap
- *   matrix). `imageOverrides` is the right mechanism once a source is confirmed.
+ * - **Psi-Knife (41002a) has no `imagesrc` at all on MarvelCDB — resolved via local art, not a curation entry.**
+ *   The repo's own card scan (`assets/card-art/bundles/cards/41002a.png`) fills this in through `withLocalArt`
+ *   (`scripts/marvelcdb/normalize/art.ts`, `scripts/marvelcdb/local-art.ts`), the same fallback that unblocked
+ *   Jubilee's identity pair; no `imageOverrides` entry needed. Confirmed via `survey.ts --pack psylocke`
+ *   (0 issues) once the local-art bundle covered `41002a`/`41002b`.
+ *
+ * Normalizes cleanly and is registered for emission — no remaining schema/parser gap found for this pack.
  */
 import type { PackCuration } from "./types.ts";
 
