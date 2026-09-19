@@ -66,7 +66,14 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       // matched: the "a" record carries its own image and the linked "b" record's `imagesrc` is null (verified —
       // `11008a.png` exists, `11008b` has no `imagesrc` at all). Falling back to the "a" record's own image when
       // the "b" record has none keeps the existing (already-verified) wave 1 behavior unchanged.
-      const aSideImage = imageOf(rb.imagesrc) ?? imageOf(ra.imagesrc);
+      // A third, lowest-priority fallback to the aggregate record's own `imagesrc` (Mutant Genesis' 21074/21098/
+      // 21114/21138/21165 and likely other later packs): confirmed cases where the bare aggregate record (dropped
+      // as a duplicate everywhere else) is the *only* place MarvelCDB actually publishes the A side's art — both
+      // `ra.imagesrc` and `rb.imagesrc` are genuinely absent, matching the README's own "A side from the aggregate
+      // record" documentation (this fallback was previously only wired for `bSideImage`, above). Backward
+      // compatible: only fires when both higher-priority lookups already failed, so it cannot change any pack
+      // whose A-side image already resolved.
+      const aSideImage = imageOf(rb.imagesrc) ?? imageOf(ra.imagesrc) ?? ctx.aggregateImage(ra.code);
       // Threat values printed as X (docs/phase7-wave1.md §1.5, Mutagen Cloud 2B): MarvelCDB encodes a printed X
       // as -1. Held as a flat 0 and the stage's own ability defines it (RRG 1.8 "Non-Numerical Variable").
       const printedX: MainSchemeThreatField[] = [];

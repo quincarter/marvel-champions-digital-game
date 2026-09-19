@@ -1,10 +1,12 @@
 /**
  * Storm (Ororo Munroe) Hero Pack (Cycle 6) curation.
  *
- * **Curated but NOT registered for emission** — one card (36038, Possessed) still blocks a clean normalize; see
- * "Schema requests for game-rules-architect" in docs/phase7-wave2-data.md. Everything else below is confirmed
- * and ready to register the moment that lands.
+ * **Registered and emitted (docs/phase7-wave2-data.md Part 6)** — `HostMeasure "thw"` landed
+ * (`packages/content/src/schema/cards/attachment-host.ts`) and the matching `parse-text.ts` descriptor mapping
+ * (`"thw"` → `HostMeasure "thw"`, mirroring `"cost"` → `"printedCost"`) closed the one remaining blocker below
+ * (Possessed, 36038).
  *
+
  * - **The Weather Deck (36002–36005: Clear Skies, Hurricane, Thunderstorm, Blizzard) resolved via the new
  *   `auxiliaryHeroSetCodes` mechanism**, not a one-off: these four supports are Storm's own hero-kit cards (a
  *   "one active weather condition at a time" mechanic — each is `Permanent`, and each has a `Special` ability
@@ -16,11 +18,10 @@
  *   matrix entries.
  * - Each Weather Deck card's cost (also flagged "support without a cost") is the confirmed dash-cost pattern
  *   (Permanent, enters play by choice/effect rather than being paid for — MarvelCDB's own "Cost: —" listing).
- * - **Possessed (36038, attachment): NOT curatable — a schema gap, not a parser gap.** "Attach to the ally with
- *   the lowest THW without Possessed attached" needs `SuperlativeHostPool` `"ally"` and `HostMeasure` `"thw"`,
- *   neither of which exists yet (`packages/content/src/schema/cards/attachment-host.ts`). The identical shape
- *   (a different stat) blocks `valk`'s Beguiled and `deadpool`'s 'Pool-ized ("highest cost"); see the
- *   consolidated schema request.
+ * - **Possessed (36038, attachment): now parses.** "Attach to the ally with the lowest THW without Possessed
+ *   attached" → `{ kind: "superlative", among: "ally", order: "lowest", measure: "thw", withoutAttachmentNamed:
+ *   "Possessed" }` — the same `SuperlativeHostPool "ally"` shape as `valk`'s Beguiled and `deadpool`'s
+ *   'Pool-ized ("highest cost"), with the `thw` measure instead of `printedCost`.
  */
 import type { PackCuration } from "./types.ts";
 

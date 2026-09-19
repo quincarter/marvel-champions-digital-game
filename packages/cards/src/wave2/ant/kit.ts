@@ -17,6 +17,7 @@ import {
   heroAction,
   heroResponse,
   ifThen,
+  modifyStat,
   on,
   query,
   removeThreat,
@@ -38,16 +39,10 @@ const TINY = trait("TINY");
  * [Giant/Tiny] trait" (`youHaveTrait`) — a three-sided identity's traits are its *current face's* printed traits
  * (`traitsOf`, docs/phase7-wave2.md §3.2), so no new predicate is needed beyond what already exists.
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
- * - `12006.pym-particles-response` — "Hero Response: After you spend this card, …" needs a trigger event for "a
- *   card was spent as a resource"; none exists (`packages/engine/src/trigger-events.ts` has no such kind). Not
- *   unique to `ant`: the identical "After you spend this card" phrasing appears in `wsp`, `valk`, `nova`, `vision`,
- *   `warm`, `ironheart` and `nebu` too (a text search across `@mc/content`'s raw data), so this primitive is worth
- *   prioritizing over a one-card fix.
- * - `12009.giant-strength-response` — "you get +1 ATK until the end of this turn": `LastingUntil` has no
- *   `"endOfTurn"` (only `"endOfPhase" | "endOfRound" | "endOfAttack"`), and "this turn" is not the same span as
- *   "this phase" once more than one player's turn can happen inside a hero phase (multiplayer). Closest existing
- *   primitive: `LastingUntil`'s own three values, needing a fourth.
+ * **Previously skipped, now landed (docs/phase7-wave2-scripting.md):** `12006.pym-particles-response` needed a
+ * trigger event for "a card was spent as a resource" (`resourcesSpent`, DSL `on.youSpendThis()`) and
+ * `12009.giant-strength-response` needed `LastingUntil.endOfTurn` — both landed in `packages/engine` (commits
+ * `1036be7`, `c53ad0b`) and are scripted below.
  */
 export const ANT_MAN_KIT = defineAbilities({
   // Puny Pest — Response: After you change to this form (Tiny hero), remove 1 threat from a scheme.
@@ -90,8 +85,9 @@ export const ANT_MAN_KIT = defineAbilities({
   "12005.resize-action": heroAction(changeToOtherHeroForm(), draw(1)),
 
   // Pym Particles (resource) — Hero Response: after you spend this card, heal 2 damage from your hero if in Giant
-  // hero form, or draw 1 card if in Tiny hero form. SKIPPED (missing primitive — module docblock): no trigger
-  // event for "a card was spent as a resource" exists.
+  // hero form, or draw 1 card if in Tiny hero form. "Hero Response" already gates this to hero form, so the else
+  // branch (not Giant) is exactly Tiny.
+  "12006.pym-particles-response": heroResponse(on.youSpendThis(), ifThen(youHaveTrait(GIANT), heal(2, yourIdentity), draw(1))),
 
   // Army of Ants — Hero Action: If you are in Tiny hero form, exhaust Army of Ants → deal 1 damage to an enemy.
   // The form check comes before the cost, so outside Tiny hero form the action cannot be triggered at all rather
@@ -104,8 +100,9 @@ export const ANT_MAN_KIT = defineAbilities({
   "12008.ant-mans-helmet-hero-response": heroResponse(on.youChangeForm(), ifThen(youHaveTrait(TINY), draw(1))),
 
   // Giant Strength — Hero Response: after you change to Giant hero form, you get +1 ATK until the end of this
-  // turn. SKIPPED (missing primitive — module docblock): `LastingUntil` has no "endOfTurn" (only "endOfPhase" |
-  // "endOfRound" | "endOfAttack"), and "this turn" isn't the same span as "this phase" in a multiplayer game.
+  // turn. `on.youChangeForm()` fires on any form change (as Ant-Man's Helmet above does too); the printed "to
+  // Giant hero form" is the `ifThen` guard.
+  "12009.giant-strength-response": heroResponse(on.youChangeForm(), ifThen(youHaveTrait(GIANT), modifyStat("atk", 1, yourIdentity, "endOfTurn"))),
 
   // Wrist Gauntlets — Hero Action: If you are in Giant hero form, exhaust and spend [P][P] → stun an enemy. Hero
   // Action: If you are in Tiny hero form, exhaust and spend [E][E] → confuse an enemy. Each form check precedes its
