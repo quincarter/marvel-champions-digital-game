@@ -13,14 +13,14 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build",
+    "desktop:build": "node ../../scripts/build-desktop.mjs",
     "cap": "cap",
     "mobile:sync": "pnpm build && cap sync",
     "ios": "pnpm mobile:sync && cap run ios",
     "android": "pnpm mobile:sync && cap run android",
     "ios:open": "pnpm mobile:sync && cap open ios",
     "android:open": "pnpm mobile:sync && cap open android",
-    "android:build": "pnpm mobile:sync && cap build android --androidreleasetype APK --keystorepath ../../marvel-champions.keystore --keystorepass \"$ANDROID_KEYSTORE_PASSWORD\" --keystorealias marvel-champions --keystorealiaspass \"$ANDROID_KEY_PASSWORD\""
+    "android:build": "node ../../scripts/build-android.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",

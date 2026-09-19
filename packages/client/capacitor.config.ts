@@ -17,6 +17,12 @@ const config: CapacitorConfig = {
     // The canvas draws edge to edge; safe-area insets are the scene layout's job.
     contentInset: "never",
   },
+  android: {
+    buildOptions: {
+      releaseType: "APK",
+      signingType: "apksigner",
+    },
+  },
 };
 
 export default config;
