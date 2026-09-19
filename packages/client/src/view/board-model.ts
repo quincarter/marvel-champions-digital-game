@@ -344,6 +344,10 @@ export interface BoardModel {
   readonly encounterPiles: PileCounts;
   /** The top of the encounter discard, which is faceup at the table. */
   readonly encounterDiscardTop: ArtSource | null;
+  /** The encounter deck's own top card, for Inspect — facedown at the table (D08's own subtitle: "any card, anywhere, including facedown counts"), so the sheet shows a card back rather than its face. Null with an empty deck. */
+  readonly encounterDeckTopInstanceId: InstanceId | null;
+  /** The encounter discard's own top card, for Inspect — faceup, since a discard pile is open information. Null with an empty pile. */
+  readonly encounterDiscardTopInstanceId: InstanceId | null;
   /**
    * A second deck your identity brings besides your player deck — Doctor
    * Strange's Invocation deck (`HeroIdentityCard.separateDecks`) — one entry
@@ -481,6 +485,8 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     myDiscard: me.discard,
     myDiscardTop: topOfDiscard(state, me.discard),
     encounterDiscardTop: topOfDiscard(state, activeEncounterDeck(state).discard),
+    encounterDeckTopInstanceId: activeEncounterDeck(state).deck[0] ?? null,
+    encounterDiscardTopInstanceId: activeEncounterDeck(state).discard[0] ?? null,
     separateDecks: separateDeckPiles(state, me),
     team: state.players
       .filter((player) => player.playerId !== perspectiveId)

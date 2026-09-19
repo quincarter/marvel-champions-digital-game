@@ -6,7 +6,7 @@
  * the player isn't entitled to see.
  */
 
-import { activeEncounterDeck, activeVillain } from "@mc/engine";
+import { activeEncounterDeck, activeVillain, keywordsOf } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
 import { abilityId } from "@mc/content";
@@ -14,7 +14,9 @@ import type { GameState, InstanceId, LegalActions, PlayerId } from "@mc/engine";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { inspectModel } from "./inspect-model.js";
+import { appendCardHistory, emptyCardHistoryLog } from "./card-history.js";
+import { inspectModel, type InspectPayment } from "./inspect-model.js";
+import { faceVisible } from "./visibility.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -95,6 +97,15 @@ describe("inspectModel", () => {
     expect(model.stats.some((tile) => tile.label === "HP")).toBe(true);
   });
 
+  test("carries the villain's printed traits, which live on its stage rather than the top-level card", () => {
+    // Regression: `"traits" in card` reads as false for a villain — `VillainStage.traits`, not `VillainCard.traits`
+    // — found inspecting Rhino in the browser while verifying this rebuild (BRUTE. CRIMINAL. on the printed card,
+    // nothing in the sheet).
+    const model = inspect(activeVillain(state).instanceId);
+    expect(model.traits.length).toBeGreaterThan(0);
+    expect(model.traits.map((t) => t.toLowerCase())).toContain("brute");
+  });
+
   test("lists no usable ability for a card legalActions doesn't name one on", () => {
     const identity = state.players.find((player) => player.playerId === me)!.identity.instanceId;
     expect(inspect(identity).abilities).toEqual([]);
@@ -123,5 +134,90 @@ describe("inspectModel", () => {
     };
     const model = inspectModel(state, identity, fakeLegal, me, CORE_DEPS);
     expect(model.abilities).toEqual([{ abilityId: auntMayAction, label: `${model.name} — exhaust`, needsPayment: false }]);
+  });
+
+  test("shows no timing entry for an ordinary action/response header — the glossary has no term for those", () => {
+    // Confirms the deliberate omission `timingEntriesFor` documents, rather than silently drifting into inventing
+    // one: most Core cards' own action/response headers must produce nothing here.
+    const identity = state.players.find((player) => player.playerId === me)!.identity.instanceId;
+    const model = inspect(identity);
+    for (const entry of model.timing) {
+      expect(["Setup", "Boost"]).toContain(entry.label.replace(/^(Hero |Alter-Ego )/, ""));
+    }
+  });
+
+  test("has no per-card history before anything has happened to it", () => {
+    const identity = state.players.find((player) => player.playerId === me)!.identity.instanceId;
+    expect(inspect(identity).history).toEqual([]);
+  });
+
+  test("reads a played card's own history straight from the accumulated log, never inventing it", () => {
+    let history = emptyCardHistoryLog();
+    const inHand = state.players.find((player) => player.playerId === me)!.hand[0]!;
+    history = appendCardHistory(history, [{ type: "cardDrawn", playerId: me, instanceId: inHand }]);
+    const model = inspectModel(state, inHand, store.state.legal?.actions ?? null, me, CORE_DEPS, { history });
+    expect(model.history.length).toBe(1);
+    expect(model.history[0]!.text).toContain("Drawn");
+    expect(model.history[0]!.roundTag).toMatch(/^\d+\.\d{2,}$/);
+  });
+
+  test("names the resources-committed clause only while a payment for this exact card is open", () => {
+    const inHand = state.players.find((player) => player.playerId === me)!.hand[0]!;
+    const legal = store.state.legal!.actions;
+    if (legal.kind !== "turn") throw new Error("expected a turn");
+    const playable = legal.legal.find((entry) => entry.action.kind === "playCard" && entry.action.instanceId === inHand);
+    if (!playable) return; // Not every seat's first hand card is playable; the assertion below only means something when one is.
+    const payment: InspectPayment = { subjectInstanceId: inHand, paid: 1, required: 3, spendableInstanceIds: new Set([inHand]) };
+    const withPayment = inspectModel(state, inHand, legal, me, CORE_DEPS, { payment });
+    expect(withPayment.status.message).toContain("2 short");
+    expect(withPayment.canPayAsResource).toBe(true);
+
+    const withoutPayment = inspectModel(state, inHand, legal, me, CORE_DEPS);
+    expect(withoutPayment.status.message).not.toContain("resources committed");
+    expect(withoutPayment.canPayAsResource).toBe(false);
+  });
+});
+
+/**
+ * The opening hand has no keyword-carrying card revealed yet (checked directly against this fixture: every
+ * instance's `keywordsOf` is empty until a minion is dealt out of an encounter deck), so the keyword-definitions
+ * box needs a game driven far enough to reveal one. A separate fixture, greedily playing cards, keeps the main
+ * `beforeAll` above cheap for every other test.
+ */
+describe("inspectModel — keyword definitions, against a revealed minion", () => {
+  let deep: GameState;
+  let deepMe: PlayerId;
+
+  beforeAll(async () => {
+    const deepStore = new SessionStore(new LocalEngineHost());
+    await deepStore.start(RHINO_SOLO);
+    for (let step = 0; step < 200 && !deepStore.state.game!.outcome; step++) {
+      const legal = deepStore.state.legal;
+      if (!legal) break;
+      if (legal.actions.kind === "choice") {
+        const { choice } = legal.actions;
+        await deepStore.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
+      } else if (legal.actions.kind === "turn") {
+        const entry = legal.actions.legal.find((e) => e.action.kind === "playCard") ?? legal.actions.legal.find((e) => e.action.kind === "endTurn") ?? legal.actions.legal[0];
+        if (!entry) break;
+        await deepStore.dispatch(entry.example);
+      } else break;
+    }
+    deep = deepStore.state.game!;
+    deepMe = deepStore.state.perspectiveId!;
+  }, 60_000);
+
+  test("every keyword definition it shows traces back to the content glossary, never invented", () => {
+    const carrier = Object.keys(deep.instances).find(
+      (id) => faceVisible(deep, id as InstanceId) && keywordsOf(deep, id as InstanceId, CORE_DEPS).length > 0,
+    ) as InstanceId | undefined;
+    expect(carrier, "expected at least one revealed keyword-carrying card by this point in the game").toBeDefined();
+    const model = inspectModel(deep, carrier!, null, deepMe, CORE_DEPS);
+    expect(model.keywordDefinitions.length).toBeGreaterThan(0);
+    for (const entry of model.keywordDefinitions) {
+      expect(entry.definition.length).toBeGreaterThan(0);
+      expect(entry.citeLabel.length).toBeGreaterThan(0);
+    }
+    expect(new Set(model.keywordDefinitions.map((e) => e.label)).size).toBe(model.keywordDefinitions.length);
   });
 });

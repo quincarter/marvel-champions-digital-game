@@ -4,7 +4,7 @@
  */
 
 import type Phaser from "phaser";
-import type { PlayerId } from "@mc/engine";
+import type { InstanceId, PlayerId } from "@mc/engine";
 import { drawArt } from "../../art/card-art.js";
 import { CARD_BACKS, type ArtSource } from "../../art/art-source.js";
 import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js";
@@ -285,11 +285,11 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
 export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const { scene } = ctx;
   const half = (rect.height - 6) / 2;
-  const piles: readonly { kind: "encounterDeck" | "encounterDiscard"; name: string; count: number; y: number; art: ArtSource | null }[] = [
-    { kind: "encounterDeck", name: "ENC DECK", count: model.encounterPiles.deck, y: rect.y, art: CARD_BACKS.encounter },
-    { kind: "encounterDiscard", name: "DISCARD", count: model.encounterPiles.discard, y: rect.y + half + 6, art: model.encounterDiscardTop },
+  const piles: readonly { kind: "encounterDeck" | "encounterDiscard"; name: string; count: number; y: number; art: ArtSource | null; instanceId: InstanceId | null }[] = [
+    { kind: "encounterDeck", name: "ENC DECK", count: model.encounterPiles.deck, y: rect.y, art: CARD_BACKS.encounter, instanceId: model.encounterDeckTopInstanceId },
+    { kind: "encounterDiscard", name: "DISCARD", count: model.encounterPiles.discard, y: rect.y + half + 6, art: model.encounterDiscardTop, instanceId: model.encounterDiscardTopInstanceId },
   ];
-  for (const { kind, name, count, y, art } of piles) {
+  for (const { kind, name, count, y, art, instanceId } of piles) {
     const box: Rect = { x: rect.x, y, width: rect.width, height: half };
     // A card revealed from the deck or discarded to the pile travels from or to this box itself, not the whole column.
     ctx.frame.pileRects.set(pileKey(kind), box);
@@ -309,6 +309,14 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     scene.add
       .text(chip.x + chip.width / 2, chip.y + chip.height / 2, String(count), textStyle(typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex))
       .setOrigin(0.5);
+
+    // Every pile with a card in it is readable, the deck's own facedown top included (D08's own subtitle: "any
+    // card, anywhere, including facedown counts") — Inspect already draws the honest "facedown" face for it via
+    // `faceVisible`; this box only had no tap target to reach that with.
+    if (count > 0 && instanceId) {
+      ctx.frame.hitRects.set(instanceId, box);
+      addTapTarget(scene, box, { onTap: () => ctx.inspect(instanceId), onInspect: () => ctx.inspect(instanceId) });
+    }
   }
 }
 
