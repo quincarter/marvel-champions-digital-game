@@ -33,6 +33,8 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RawCard } from "./marvelcdb/raw-types.ts";
 import { normalizePack, type NormalizedPack } from "./marvelcdb/normalize.ts";
+import { withLocalArt } from "./marvelcdb/normalize/art.ts";
+import { localArtCodes } from "./marvelcdb/local-art.ts";
 import { emitModule, type ModuleSpec } from "./marvelcdb/emit.ts";
 import { CORE_CURATION } from "./marvelcdb/curation/core.ts";
 import { GOB_CURATION } from "./marvelcdb/curation/gob.ts";
@@ -298,7 +300,7 @@ async function ingestOne(pack: string, args: Args): Promise<{ ok: boolean; summa
   const curation = registered ?? bareCuration(pack, cache.cards[0]);
   let normalized: NormalizedPack;
   try {
-    normalized = normalizePack(cache.cards, curation);
+    normalized = normalizePack(withLocalArt(cache.cards, await localArtCodes()), curation);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (args.dryRun) return { ok: false, summary: `${pack}: FAILED\n${message}` };

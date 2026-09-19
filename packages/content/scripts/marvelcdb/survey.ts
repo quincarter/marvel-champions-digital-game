@@ -26,6 +26,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RawCard } from "./raw-types.ts";
 import { normalizePack } from "./normalize.ts";
+import { withLocalArt } from "./normalize/art.ts";
+import { localArtCodes } from "./local-art.ts";
 import { bareCuration } from "./curation/empty.ts";
 import { CORE_CURATION } from "./curation/core.ts";
 import { GOB_CURATION } from "./curation/gob.ts";
@@ -208,7 +210,7 @@ async function surveyPack(pack: string): Promise<PackResult> {
   const cache = JSON.parse(await readFile(cachePath, "utf8")) as RawCache;
   const curation = REGISTERED_CURATIONS[pack] ?? bareCuration(pack, cache.cards[0]);
   try {
-    normalizePack(cache.cards, curation);
+    normalizePack(withLocalArt(cache.cards, await localArtCodes()), curation);
     return { pack, cardCount: cache.cards.length, ok: true, errorLines: [] };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
