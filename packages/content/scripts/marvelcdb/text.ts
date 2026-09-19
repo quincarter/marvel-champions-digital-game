@@ -55,6 +55,16 @@ export function toPlainText(html: string | null | undefined): string {
     return token;
   });
   s = s.replace(/<br\s*\/?>/gi, "\n").replace(/<\/p>\s*<p>/gi, "\n");
+  // MarvelCDB sometimes prints a sentence-ending mark glued directly onto the next tag with no whitespace at all
+  // ("Surge.<b>When Revealed</b>:" — Back-Alley Enclave and three siblings, `hood` 24060–24063; Bandolier of
+  // Stakes, `mojo` 39048, confirmed the only five instances in the whole corpus). Stripping tags with no space
+  // inserted first would glue the two sentences together ("Surge.When Revealed:"), which is invisible to any
+  // error check but silently breaks every downstream sentence/header boundary that depends on whitespace after
+  // punctuation (`HEADER_RE`'s own lookbehind, keyword-sentence splitting) — not a parser bug, a missing space
+  // in the source. Inserted before tags are stripped, so it round-trips as an ordinary space afterward.
+  // Only before an *opening* tag (`<b>`, `<i>`, …) — a closing tag right after a paren is the ordinary,
+  // already-correct "(Alter-Ego)</b>:" shape (no space wanted before the colon that follows).
+  s = s.replace(/([.)!])(<(?!\/))/g, "$1 $2");
   s = s.replace(/<[^>]+>/g, "");
   s = s.replace(/&[#\w]+;/g, (e) => ENTITIES[e] ?? e);
   s = s.replace(/\[\[([^\]]+)\]\]/g, "$1");
@@ -65,7 +75,21 @@ export function toPlainText(html: string | null | undefined): string {
     .join("\n");
 }
 
-/** Every `[token]` left in normalized text must be one of these. */
+/**
+ * Every `[token]` left in normalized text must be one of these. Most arrive already bracketed in MarvelCDB's
+ * `real_text` (never as an HTML `<span class="icon-…">`, per a full-corpus check across all 63 packs at the wave 2
+ * survey, 2026-09-18) — they are reminder-text references to a printed icon, same as `[star]`, with no ability
+ * semantics of their own:
+ * - `[amplify]` / `[hazard]` / `[acceleration]` — modular-set scheme/card icons introduced post-wave 1 (same
+ *   family as `[crisis]`/`[per_group]`), referenced in text like "for each [crisis], [acceleration], [amplify],
+ *   and [hazard] in play".
+ * - `[unique]` — the printed unique-card icon, referenced in "a unique enemy ([unique])".
+ * - `[cost]` — the consequential-damage icon, referenced in "takes -1 consequential damage ([cost])".
+ * - `[physics]` — seen once (Marvel Boy, `mts` 21041: "spend a [physics] resource"). No `ResourceIconType` named
+ *   "physics" exists; this is very likely a MarvelCDB source typo for `[physical]`, but it is left as its own
+ *   literal token rather than silently rewritten, since nothing here can cross-check it against a card scan.
+ *   Flagged in `docs/phase7-wave2-data.md` for verification before any curation depends on its meaning.
+ */
 export const KNOWN_TEXT_TOKENS = [
   "[energy]",
   "[mental]",
@@ -76,6 +100,12 @@ export const KNOWN_TEXT_TOKENS = [
   "[boost]",
   "[crisis]",
   "[per_group]",
+  "[amplify]",
+  "[hazard]",
+  "[acceleration]",
+  "[unique]",
+  "[cost]",
+  "[physics]",
 ] as const;
 
 export function unknownTokens(text: string): string[] {

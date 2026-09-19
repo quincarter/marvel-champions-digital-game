@@ -17,6 +17,8 @@ function matchesPattern(
   event: TriggerEvent,
   selfId: InstanceId,
   deps: EngineDeps,
+  /** Who controls `selfId` when that is not `controllerOf` (a spent card out of play, `spentCardCandidates`). */
+  controllerOverride?: PlayerId,
 ): boolean {
   const kinds: readonly TriggerEvent["kind"][] = typeof pattern.on === "string" ? [pattern.on] : pattern.on;
   if (!kinds.includes(event.kind)) return false;
@@ -32,7 +34,7 @@ function matchesPattern(
   ) {
     return false;
   }
-  const controller = controllerOf(state, selfId);
+  const controller = controllerOverride ?? controllerOf(state, selfId);
   if (pattern.playerIs === "controller") {
     // An encounter card has no controller: its "you" is the player the event is about.
     if (!controller) return actingPlayerOf(event, pattern) !== null && matchesRest(state, pattern, event, selfId, null, deps);
@@ -90,6 +92,12 @@ function matchesRest(
       if (typeof value !== "number" || value < amount) return false;
     }
   }
+  if (pattern.eventIs) {
+    const carried = event as unknown as Readonly<Record<string, unknown>>;
+    for (const [key, expected] of Object.entries(pattern.eventIs)) {
+      if (carried[key] !== expected) return false;
+    }
+  }
   if (pattern.attackKind) {
     if (event.kind !== "attack" && event.kind !== "thwart") return false;
     if ((pattern.attackKind === "basic") !== (event.basic === true)) return false;
@@ -120,14 +128,14 @@ export function candidatesFor(
 ): readonly TriggerCandidate[] {
   const found: TriggerCandidate[] = [];
   for (const id of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, id)) {
+    for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition) continue;
       const trigger = definition.trigger;
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
       const controllerId = controllerOf(state, id);
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
-      if (limitReached(state, id, ref.id, definition)) continue;
+      if (limitReached(state, id, ref.id, definition, event)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
       // RRG "Cost": an ability whose cost can't be paid can't be triggered.
       if (definition.cost && controllerId && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set()))) {
@@ -137,7 +145,49 @@ export function candidatesFor(
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }
+  found.push(...spentCardCandidates(state, deps, event, timing, forced));
   if (!forced) found.push(...inHandCandidates(state, deps, event, timing));
+  return found;
+}
+
+/**
+ * "After you spend this card" (docs/phase7-wave2.md §12): while a `resourcesSpent` event resolves, each card it spent
+ * offers its own abilities on that event, although the card is already in its owner's discard pile. RRG 1.8 "Resource
+ * Card" (p. 37): "Some resource cards have card text that is active while using the card to generate resources", and a
+ * spent resource "is also considered to be spent by that player's identity", so the spender controls the ability.
+ *
+ * Only abilities that trigger on `resourcesSpent` with the card itself as the spent card (`selfIs: "source"`) come
+ * alive this way — nothing else on a card in the discard pile does, so a spent card's other text stays inactive.
+ */
+function spentCardCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+  timing: WindowTiming,
+  forced: boolean,
+): readonly TriggerCandidate[] {
+  if (event.kind !== "resourcesSpent") return [];
+  const controllerId = event.playerId;
+  const inPlay = new Set(cardsInPlay(state));
+  const found: TriggerCandidate[] = [];
+  for (const id of event.cardInstanceIds) {
+    // A card that is somehow in play already had its abilities scanned above; never offer one twice.
+    if (inPlay.has(id)) continue;
+    for (const ref of activeAbilityRefs(state, id, deps)) {
+      const definition = deps.abilities[ref.id];
+      if (!definition) continue;
+      const trigger = definition.trigger;
+      if (trigger.kind !== timing || trigger.forced !== forced) continue;
+      if (trigger.on.selfIs !== "source") continue;
+      const kinds: readonly TriggerEvent["kind"][] = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+      if (!kinds.includes("resourcesSpent")) continue;
+      if (!formSatisfied(state, controllerId, trigger.form)) continue;
+      if (limitReached(state, id, ref.id, definition, event)) continue;
+      if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
+      if (definition.cost && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set()))) continue;
+      found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
+    }
+  }
   return found;
 }
 

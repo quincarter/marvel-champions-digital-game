@@ -5,12 +5,12 @@
  * fixed order (see `normalize.ts`), and ability ids are assigned in call order, so the order of calls into these
  * helpers is part of the output.
  */
-import type { AbilityReference, AnyCard, CardImages } from "../../../src/schema/index.ts";
+import type { AbilityReference, AnyCard, CardImages, ImageRef } from "../../../src/schema/index.ts";
 import type { CardProvenance } from "../../../src/data/types.ts";
 import type { PackCuration } from "../curation/types.ts";
 import { assignAbilityIds, parseCardText, type ParsedAbility, type ParsedText } from "../parse-text.ts";
 import type { RawCard } from "../raw-types.ts";
-import { imagesOf, reprintImages } from "./art.ts";
+import { imageOf, imagesOf, reprintImages } from "./art.ts";
 import { brand } from "./brand.ts";
 import { flatten, type Flattened } from "./flatten.ts";
 import type { Prepared } from "./prepare.ts";
@@ -42,31 +42,77 @@ export interface NormalizeContext extends Flattened {
   readonly usedErrata: Set<string>;
   readonly usedNotes: Set<string>;
   readonly usedAbilityIds: Set<string>;
+  readonly usedImageOverrides: Set<string>;
 }
 
 export function createContext(raw: readonly RawCard[], curation: PackCuration): NormalizeContext {
   const errors: string[] = [];
   const flat = flatten(raw, errors);
+  // Wave 2 fix: a three-sided identity's extra hero face (Ant-Man/Wasp's Giant, §1.1) is its own `hero`-type
+  // record in the same `card_set_code`, with no linked alter-ego. Before this fix, whichever of the two hero
+  // records for a set happened to sort last in the raw array's order won this map — silently making every
+  // hero-kit card's `aspect: hero:<code>` point at the extra face (e.g. "hero:12001c") instead of the real
+  // identity (e.g. "hero:12001a") whenever the extra face followed the primary in the raw feed. Only a record
+  // with a linked alter-ego (the primary identity face, matching `normalizeHeroes`' own test) may claim the set.
   const heroBySet = new Map<string, RawCard>();
-  for (const r of flat.topLevel) if (r.type_code === "hero" && r.card_set_code) heroBySet.set(r.card_set_code, r);
+  for (const r of flat.topLevel) {
+    if (r.type_code !== "hero" || !r.card_set_code) continue;
+    // A separated identity's hero record (wave 2, docs/phase7-wave2.md §6.10 — SP//dr) links to its own other
+    // side, not an alter-ego, so the ordinary check below doesn't recognize it as the primary identity of its
+    // set. `heroes.ts`'s curated `separatedIdentities` is the structural signal that this is one anyway.
+    if (r.linked_card?.type_code === "alter_ego" || curation.separatedIdentities?.[r.code]) heroBySet.set(r.card_set_code, r);
+  }
+  // A hero-kit card MarvelCDB files under a themed auxiliary set instead of the identity's own
+  // (`PackCuration.auxiliaryHeroSetCodes`'s doc comment — Storm's Weather Deck): alias the auxiliary code to
+  // whatever hero record the primary code already resolved to. A primary code the pack doesn't actually have
+  // (a typo, or a curation entry left over from a copy-paste) resolves to nothing here — no error, so this is
+  // conservative by construction, not silent-but-wrong: the auxiliary set's own cards then still fail the
+  // ordinary "hero card in a set with no identity" check exactly as before.
+  for (const [auxSet, primarySet] of Object.entries(curation.auxiliaryHeroSetCodes ?? {})) {
+    const hero = heroBySet.get(primarySet);
+    if (hero) heroBySet.set(auxSet, hero);
+  }
+  const handled = new Set<string>();
+  // A record curation has hand-verified isn't a printed card at all (`IgnoredRecord`) is dropped up front, the
+  // same way a MarvelCDB aggregate is — `checkCoverage` exempts it via `ctx.dropped`, not by lowering the bar.
+  for (const ignored of curation.ignoredRecords ?? []) {
+    handled.add(ignored.code);
+    flat.dropped.push({ marvelcdbCode: ignored.code, reason: `${ignored.reason} [evidence: ${ignored.evidence}]` });
+  }
   return {
     ...flat,
     curation,
     errors,
     setCode: brand("set", curation.packCode),
     cycleId: brand("cycle", curation.cycle.id),
-    villainNames: new Set(flat.topLevel.filter((r) => r.type_code === "villain").map((r) => r.name)),
+    // Leader records (wave 2, docs/phase7-wave2.md §6.3) are normalized the same way as villains, so a card
+    // attaching "to <leader name>" by name resolves the same way "to <villain name>" does.
+    villainNames: new Set(flat.topLevel.filter((r) => r.type_code === "villain" || r.type_code === "leader").map((r) => r.name)),
     packHasMultipleVillains: curation.scenarios.some((s) => s.multipleVillains !== undefined),
     heroBySet,
     cards: [],
     provenance: [],
-    handled: new Set(),
+    handled,
     prepared: new Map(),
     usedCorrections: new Set(),
     usedErrata: new Set(),
     usedNotes: new Set(),
     usedAbilityIds: new Set(),
+    usedImageOverrides: new Set(),
   };
+}
+
+/**
+ * A face's artwork reference, falling back to a curated second-source URL (`PackCuration.imageOverrides`) when
+ * MarvelCDB has none for that record at all. See that field's doc comment for the evidence bar.
+ */
+export function imageOfWithOverride(ctx: NormalizeContext, code: string, src: string | null | undefined): ImageRef | undefined {
+  const own = imageOf(src);
+  if (own) return own;
+  const override = ctx.curation.imageOverrides?.[code];
+  if (override === undefined) return undefined;
+  ctx.usedImageOverrides.add(code);
+  return imageOf(override);
 }
 
 /** Parses a prepared record's current text, reporting unclassified sentences and a boost flag that disagrees with it. */
@@ -101,11 +147,15 @@ export function abilityRefs(ctx: NormalizeContext, code: string, cardName: strin
 export function record(ctx: NormalizeContext, card: AnyCard, cardSetCode: string, parts: readonly Prepared[]): void {
   ctx.cards.push(card);
   const note = ctx.curation.cardNotes[card.id];
+  // MarvelCDB's `duplicate_of_code` on a verbatim reprint (see `RawCard`'s doc comment) — recorded, not resolved
+  // against the reprint's pack, since that pack isn't loaded here; a consumer treats it as a hint.
+  const duplicateOf = parts.map((p) => p.raw.duplicate_of_code).find((c): c is string => Boolean(c));
   ctx.provenance.push({
     cardId: card.id,
     cardSetCode,
     marvelcdbCodes: parts.map((p) => p.raw.code),
     corrections: [...parts.flatMap((p) => p.notes), ...(note ? [`data decision: ${note}`] : [])],
+    ...(duplicateOf ? { duplicateOfCardId: brand("card", duplicateOf) } : {}),
   });
 }
 

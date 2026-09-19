@@ -4,6 +4,7 @@ import type {
   AttachmentCard,
   AttachmentHost,
   EncounterCardFlipSide,
+  EvidenceCard,
   HeroIdentityCard,
   MainSchemeCard,
   MainSchemeThreatField,
@@ -23,8 +24,10 @@ import {
   type HostMeasure,
   type SuperlativeHostPool,
 } from "./cards/attachment-host.js";
+import { EVIDENCE_KINDS } from "./cards/evidence.js";
 import type { AbilityReference } from "./abilities.js";
-import type { Scenario, StarterDeck } from "./sets.js";
+import { KNOWN_KEYWORD_NAMES, type KeywordName } from "./keywords.js";
+import type { EncounterSet, Scenario, ScenarioSeparateDeck, StarterDeck } from "./sets.js";
 
 export interface ValidationResult {
   readonly valid: boolean;
@@ -87,10 +90,71 @@ function abilityRefErrors(refs: unknown, label: string): string[] {
   return errors;
 }
 
+/**
+ * The resource types a Requirement may name. Every printed Requirement names physical, mental or energy icons; a wild
+ * one is never printed, and the engine's typed cost slots have no wild slot, so it is refused rather than guessed at.
+ */
+const REQUIREMENT_TYPES: readonly string[] = ["physical", "mental", "energy"];
+
+/**
+ * A Requirement keyword's resources (RRG 1.8 "Requirement (Resources)", p. 37): exactly one of `resources` (icon counts,
+ * each a positive whole number, at least one type) or the single-icon `icon` (docs/phase7-wave2.md §6.1).
+ */
+function requirementErrors(k: { resources?: unknown; icon?: unknown }, label: string): string[] {
+  const hasResources = k.resources !== undefined;
+  const hasIcon = k.icon !== undefined;
+  if (hasResources === hasIcon) return [`${label} requirement keyword needs exactly one of resources or icon`];
+  if (hasIcon) return REQUIREMENT_TYPES.includes(k.icon as string) ? [] : [`${label} requirement icon '${String(k.icon)}' must be physical, mental or energy`];
+  if (typeof k.resources !== "object" || k.resources === null) return [`${label} requirement resources must be icon counts`];
+  const entries = Object.entries(k.resources as Record<string, unknown>);
+  if (entries.length === 0) return [`${label} requirement resources must name at least one resource`];
+  const errors: string[] = [];
+  for (const [type, count] of entries) {
+    if (!REQUIREMENT_TYPES.includes(type)) errors.push(`${label} requirement resource '${type}' must be physical, mental or energy`);
+    else if (!isPositiveInteger(count)) errors.push(`${label} requirement needs a positive whole number of ${type} resources`);
+  }
+  return errors;
+}
+
+/**
+ * Prerequisite (form or trait): at least one of `traits` (a non-empty OR) or `form` (the Fear No Evil rulebook, p. 3;
+ * docs/phase7-wave2.md §7.5). A keyword with neither could only mean "no prerequisite", so it is refused.
+ */
+function prerequisiteErrors(k: { traits?: unknown; form?: unknown }, label: string): string[] {
+  const errors: string[] = [];
+  const hasTraits = k.traits !== undefined;
+  if (hasTraits && (!Array.isArray(k.traits) || k.traits.length === 0 || !k.traits.every(isNonEmptyString))) {
+    errors.push(`${label} prerequisite keyword traits must name at least one trait`);
+  }
+  if (k.form !== undefined && k.form !== "hero" && k.form !== "alterEgo") {
+    errors.push(`${label} prerequisite keyword form must be 'hero' or 'alterEgo' when present`);
+  }
+  if (!hasTraits && k.form === undefined) errors.push(`${label} prerequisite keyword needs a form or at least one trait`);
+  return errors;
+}
+
+/** Discount X (trait): a positive value and at least one trait (the Fear No Evil rulebook, p. 3; docs/phase7-wave2.md §6.2). */
+function discountErrors(k: { value?: unknown; traits?: unknown }, label: string): string[] {
+  const errors: string[] = [];
+  if (!isPositiveInteger(k.value)) errors.push(`${label} discount keyword needs a positive whole-number value`);
+  if (!Array.isArray(k.traits) || k.traits.length === 0 || !k.traits.every(isNonEmptyString)) {
+    errors.push(`${label} discount keyword needs the trait(s) it is qualified by`);
+  }
+  return errors;
+}
+
 function keywordListErrors(keywords: unknown, label: string): string[] {
   if (!Array.isArray(keywords)) return [`${label} keywords must be an array`];
   const errors: string[] = [];
-  for (const k of keywords as readonly { name?: unknown; count?: unknown; value?: unknown }[]) {
+  for (const k of keywords as readonly {
+    name?: unknown;
+    count?: unknown;
+    value?: unknown;
+    resources?: unknown;
+    icon?: unknown;
+    traits?: unknown;
+    form?: unknown;
+  }[]) {
     if (!k || !isNonEmptyString(k.name)) errors.push(`${label} has a keyword without a name`);
     if (k?.name === "uses" && (!isNonNegativeNumber(k.count) || (k.count as number) < 1)) {
       errors.push("uses keyword must have a count >= 1");
@@ -101,6 +165,9 @@ function keywordListErrors(keywords: unknown, label: string): string[] {
     ) {
       errors.push(`${label} keyword ${String(k.name)} needs a numeric value`);
     }
+    if (k?.name === "requirement") errors.push(...requirementErrors(k, label));
+    if (k?.name === "discount") errors.push(...discountErrors(k, label));
+    if (k?.name === "prerequisite") errors.push(...prerequisiteErrors(k, label));
   }
   return errors;
 }
@@ -120,7 +187,29 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
     optionalName("trait");
     optionalName("withoutTrait");
     optionalName("withoutAttachmentNamed");
+    optionalName("titleContains");
+    for (const key of ["keyword", "withoutKeyword"] as const) {
+      if (h[key] !== undefined && !KNOWN_KEYWORD_NAMES.includes(h[key] as KeywordName)) {
+        errors.push(`${label} ${kind} host ${key} '${String(h[key])}' is not a known keyword`);
+      }
+    }
+    // "an enemy that X-23 or Honey Badger attacked this turn": an empty list could only mean "no host", so it is refused.
+    if (h.attackedThisTurnBy !== undefined) {
+      const names: unknown = h.attackedThisTurnBy;
+      if (!Array.isArray(names) || names.length === 0 || !names.every(isNonEmptyString)) {
+        errors.push(`${label} ${kind} host attackedThisTurnBy must name at least one card title`);
+      }
+    }
   };
+  /** Every `HostQualifiers` field, for the "a qualified host needs at least one" check. */
+  const anyQualifier = (): boolean =>
+    h.trait !== undefined ||
+    h.withoutTrait !== undefined ||
+    h.withoutAttachmentNamed !== undefined ||
+    h.keyword !== undefined ||
+    h.withoutKeyword !== undefined ||
+    h.titleContains !== undefined ||
+    h.attackedThisTurnBy !== undefined;
   switch (kind) {
     case "namedCard":
     case "namedVillain":
@@ -147,10 +236,22 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
         errors.push(`${label} qualified host category '${String(h.category)}' is not a known category`);
       }
       qualifiers();
-      if (h.trait === undefined && h.withoutTrait === undefined && h.withoutAttachmentNamed === undefined) {
+      if (!anyQualifier()) {
         errors.push(`${label} qualified host needs at least one qualifier (an unqualified category uses its plain kind)`);
       }
       break;
+    case "ifAble": {
+      const nested = [h.preferred, h.otherwise] as unknown[];
+      for (const [i, inner] of nested.entries()) {
+        const part = `${label} ifAble ${i === 0 ? "preferred" : "otherwise"}`;
+        if (typeof inner === "object" && inner !== null && (inner as { kind?: unknown }).kind === "ifAble") {
+          errors.push(`${part} host cannot itself be ifAble`);
+        } else {
+          errors.push(...validateAttachmentHost(inner, part));
+        }
+      }
+      break;
+    }
     case "superlative":
       if (!SUPERLATIVE_HOST_POOLS.includes(h.among as SuperlativeHostPool)) {
         errors.push(`${label} superlative host among '${String(h.among)}' is not a known pool`);
@@ -159,7 +260,33 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
       if (!HOST_MEASURES.includes(h.measure as HostMeasure)) {
         errors.push(`${label} superlative host measure '${String(h.measure)}' is not a known measure`);
       }
+      // Only villains print an activation order value (The Sinister Six).
+      if (h.measure === "activationOrder" && h.among !== "villain") {
+        errors.push(`${label} superlative host measure 'activationOrder' ranks villains only`);
+      }
+      // Only player cards print a resource cost, so an encounter-only pool ranked by it is a parse error
+      // (Beguiled, 'Pool-ized rank `ally`). `friendlyCharacter` is allowed: it can hold allies.
+      if (h.measure === "printedCost" && h.among !== "ally" && h.among !== "friendlyCharacter") {
+        errors.push(`${label} superlative host measure 'printedCost' ranks player cards, so among must be 'ally' or 'friendlyCharacter'`);
+      }
       qualifiers();
+      break;
+    case "anyOf": {
+      const hosts: unknown = h.hosts;
+      if (!Array.isArray(hosts) || hosts.length < 2) {
+        errors.push(`${label} anyOf host must list at least two hosts`);
+        break;
+      }
+      for (const [i, inner] of (hosts as readonly unknown[]).entries()) {
+        const part = `${label} anyOf host ${i + 1}`;
+        const innerKind = typeof inner === "object" && inner !== null ? (inner as { kind?: unknown }).kind : undefined;
+        if (innerKind === "ifAble" || innerKind === "anyOf") errors.push(`${part} cannot itself be ${String(innerKind)}`);
+        else errors.push(...validateAttachmentHost(inner, part));
+      }
+      break;
+    }
+    case "leader":
+      if (h.of !== "enemy" && h.of !== "yours") errors.push(`${label} leader host of must be 'enemy' or 'yours'`);
       break;
     default:
       break;
@@ -181,10 +308,12 @@ function baseErrors(card: AnyCard): string[] {
   return errors;
 }
 
+/**
+ * Printed boost icons: a whole number of at least 0. There is no upper bound: Joystick (51039), Fixer (53038) and
+ * Blizzard (54034) print 4 (docs/phase7-wave2.md §6.13; the old cap of 3 was a placeholder no rule states).
+ */
 function boostErrors(card: { boostIcons: number }, label: string): string[] {
-  return isNonNegativeNumber(card.boostIcons) && card.boostIcons <= 3
-    ? []
-    : [`${label} boostIcons must be 0–3`];
+  return isNonNegativeInteger(card.boostIcons) ? [] : [`${label} boostIcons must be a whole number of at least 0`];
 }
 
 /** Fields every player-deck card shares: text, keywords, abilities, deck limit, play restrictions, separate deck. */
@@ -227,17 +356,59 @@ function playerCommonErrors(card: PlayerCard): string[] {
       if (r.requiresControlledCharacterTrait !== undefined && !isNonEmptyString(r.requiresControlledCharacterTrait)) {
         errors.push("playRestrictions.requiresControlledCharacterTrait must be a trait");
       }
+      if (r.maxPerPhase !== undefined && !isPositiveInteger(r.maxPerPhase)) {
+        errors.push("playRestrictions.maxPerPhase must be a positive integer");
+      }
     }
   }
   if ("cost" in card && !isNonNegativeNumber(card.cost)) errors.push(`${card.type} cost must be a non-negative number`);
+  if ("specialCost" in card && card.specialCost !== undefined) {
+    if (card.specialCost !== "X" && card.specialCost !== "dash") errors.push(`${card.type} specialCost must be 'X' or 'dash'`);
+    else if (card.cost !== 0) errors.push(`${card.type} cost is printed ${card.specialCost === "X" ? "X" : "—"}, so its value must be 0`);
+  }
+  errors.push(...wave2PlayerCardErrors(card));
   return errors;
 }
+
+/** Wave 2 player card fields: `printedAspect`, `specificTo`, `flipSide`, and the "none" classification. */
+function wave2PlayerCardErrors(card: PlayerCard): string[] {
+  const errors: string[] = [];
+  const aspect = card.aspect as string;
+  if (card.printedAspect !== undefined) {
+    if (!CHOOSABLE_PRINTED_ASPECTS.includes(card.printedAspect)) {
+      errors.push(`${card.type} printedAspect '${String(card.printedAspect)}' must be Aggression, Justice, Leadership, Protection or 'Pool`);
+    }
+    if (!aspect.startsWith("hero:")) {
+      errors.push(`${card.type} printedAspect is only for an identity-specific card that also prints an aspect; a plain aspect card uses aspect`);
+    }
+  }
+  const specific = card.specificTo;
+  if (specific !== undefined) {
+    if (typeof specific !== "object" || specific === null) errors.push(`${card.type} specificTo must be an object`);
+    else {
+      if (specific.kind !== "scenario" && specific.kind !== "campaign" && specific.kind !== "competitive") {
+        errors.push(`${card.type} specificTo.kind must be 'scenario', 'campaign' or 'competitive'`);
+      }
+      if (!isNonEmptyString(specific.encounterSetId)) errors.push(`${card.type} specificTo must name its encounter set`);
+    }
+  }
+  // RRG 1.8 "Classifications" (p. 12): a player card with no identity, aspect or basic classification is only ever
+  // scenario- or campaign-specific.
+  if (aspect === "none" && specific === undefined) {
+    errors.push(`${card.type} with no aspect classification must say which scenario or campaign set it belongs to (specificTo)`);
+  }
+  errors.push(...flipSideErrors(card, card.type));
+  return errors;
+}
+
+const CHOOSABLE_PRINTED_ASPECTS: readonly string[] = ["aggression", "justice", "leadership", "protection", "pool"];
 
 export function validateAllyCard(card: AllyCard): ValidationResult {
   const errors = [...baseErrors(card), ...playerCommonErrors(card)];
   if (!isPrintedStat(card.atk)) errors.push("ally atk must be a non-negative number, \"X\", or null (printed —)");
   if (!isPrintedStat(card.thw)) errors.push("ally thw must be a non-negative number, \"X\", or null (printed —)");
-  if (!isNonNegativeNumber(card.hp) || card.hp < 1) errors.push("ally hp must be a positive number");
+  // 0 is printed on Ant-Man (12011) and Wasp (13012), which gain hit points from pym counters.
+  if (!isNonNegativeInteger(card.hp)) errors.push("ally hp must be a whole number of at least 0");
   if (
     !card.consequentialDamage ||
     !isNonNegativeNumber(card.consequentialDamage.attack) ||
@@ -283,6 +454,36 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
     errors.push(...keywordListErrors(card.alterEgo.keywords, "alterEgo face"));
     errors.push(...abilityRefErrors(card.alterEgo.abilities, "alterEgo face"));
   }
+  const extra: unknown = card.additionalHeroForms;
+  if (extra !== undefined) {
+    if (!Array.isArray(extra) || extra.length === 0) errors.push("identity additionalHeroForms must list at least one hero form when present");
+    else {
+      for (const [i, form] of (extra as HeroIdentityCard["hero"][]).entries()) {
+        const label = `additional hero form ${i + 1}`;
+        if (!isNonEmptyString(form?.faceName)) errors.push(`${label} missing faceName`);
+        if (!isCardText(form?.text)) errors.push(`${label} text must have non-empty printed and current strings`);
+        if (!isNonNegativeNumber(form?.handSize) || form.handSize < 1) errors.push(`${label} handSize must be a positive number`);
+        for (const stat of ["atk", "thw", "def"] as const) {
+          if (!isNonNegativeNumber(form?.[stat])) errors.push(`${label} ${stat} must be a non-negative number`);
+        }
+        if (!Array.isArray(form?.traits)) errors.push(`${label} traits must be an array`);
+        errors.push(...keywordListErrors(form?.keywords, label));
+        errors.push(...abilityRefErrors(form?.abilities, label));
+      }
+    }
+  }
+  // Ability ids are unique per card, across every face (see `additionalHeroForms`).
+  const faceRefs = [card.hero?.abilities, card.alterEgo?.abilities, ...(Array.isArray(extra) ? (extra as HeroIdentityCard["hero"][]).map((f) => f?.abilities) : [])];
+  const seenIds = new Set<string>();
+  for (const refs of faceRefs) {
+    if (!Array.isArray(refs)) continue;
+    const ids = new Set((refs as readonly AbilityReference[]).map((ref) => ref?.id));
+    for (const id of ids) {
+      if (typeof id !== "string") continue;
+      if (seenIds.has(id)) errors.push(`identity ability ${id} appears on more than one face; ability ids are unique per card`);
+      seenIds.add(id);
+    }
+  }
   if (card.separateDecks !== undefined) {
     if (!Array.isArray(card.separateDecks)) errors.push("identity separateDecks must be an array");
     else {
@@ -303,8 +504,42 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
           }
         }
         if (typeof deck.topCardFaceup !== "boolean") errors.push(`${label} topCardFaceup must be a boolean`);
-        if (deck.discardPile !== "own") errors.push(`${label} discardPile must be 'own'`);
-        if (deck.whenEmpty !== "reshuffleDiscardWithoutPenalty") errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty'`);
+        if (deck.discardPile !== "own" && deck.discardPile !== "none") errors.push(`${label} discardPile must be 'own' or 'none'`);
+        if (deck.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck.whenEmpty !== "stayEmpty") {
+          errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'stayEmpty'`);
+        }
+        // With no discard pile there is nothing to reshuffle (docs/phase7-wave2.md §15).
+        if (deck.discardPile === "none" && deck.whenEmpty === "reshuffleDiscardWithoutPenalty") {
+          errors.push(`${label} has no discard pile, so it cannot reshuffle one when empty`);
+        }
+        if (deck.cardFamily !== undefined && deck.cardFamily !== "player" && deck.cardFamily !== "encounter") {
+          errors.push(`${label} cardFamily must be 'player' or 'encounter'`);
+        }
+      }
+    }
+  }
+  const separated = card.separatedIdentity;
+  if (separated !== undefined) {
+    if (typeof separated !== "object" || separated === null) errors.push("identity separatedIdentity must be an object");
+    else {
+      if (!isNonEmptyString(separated.alterEgoCardNumber)) errors.push("identity separatedIdentity must give the alter-ego card's collector number");
+      const faces = [
+        [separated.heroCardOtherSide, "support", "hero card's other side"],
+        [separated.alterEgoCardOtherSide, "upgrade", "alter-ego card's other side"],
+      ] as const;
+      const allFaceIds = new Set(faceRefs.flatMap((refs) => (Array.isArray(refs) ? (refs as readonly AbilityReference[]).map((ref) => ref?.id) : [])));
+      for (const [face, cardType, name] of faces) {
+        const label = `identity separatedIdentity ${name}`;
+        if (typeof face !== "object" || face === null) {
+          errors.push(`${label} is missing`);
+          continue;
+        }
+        if (face.cardType !== cardType) errors.push(`${label} is a ${cardType} card`);
+        errors.push(...flipSideErrors({ flipSide: face, abilities: [] }, label));
+        for (const ref of Array.isArray(face.abilities) ? face.abilities : []) {
+          if (ref && allFaceIds.has(ref.id)) errors.push(`${label} ability ${ref.id} is also on another face; ability ids are unique per card`);
+          if (ref) allFaceIds.add(ref.id);
+        }
       }
     }
   }
@@ -317,11 +552,16 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
     errors.push("villain must have at least one side");
     return result(errors);
   }
-  if (card.sides.length > 2) errors.push("villain has at most two sides (the two faces of its stage cards)");
+  // Two faces for double-sided stage cards, three for foldable "three-sided" ones (Apocalypse; docs/phase7-wave2.md §6.9).
+  if (card.sides.length > 3) errors.push("villain has at most three sides (the faces of its stage cards)");
   const letters = card.sides.map((side) => side.side);
   if (new Set(letters).size !== letters.length) errors.push("villain sides must be distinct");
-  for (const side of card.sides) {
-    if (side.side !== "A" && side.side !== "B") errors.push(`villain side ${String(side.side)} must be A or B`);
+  if (card.sides.length === 3 && !(["A", "B", "C"] as const).every((letter) => letters.includes(letter))) {
+    errors.push("a three-sided villain's sides are A, B and C");
+  }
+  if (card.sides.length < 3 && letters.includes("C")) errors.push("villain side C is the third face of a three-sided villain");
+  for (const [sideIndex, side] of card.sides.entries()) {
+    if (side.side !== "A" && side.side !== "B" && side.side !== "C") errors.push(`villain side ${String(side.side)} must be A, B or C`);
     if (!isNonEmptyString(side.name)) errors.push(`villain side ${side.side} needs a name`);
     if (!side.stages || side.stages.length === 0) {
       errors.push(`villain side ${side.side} must have at least one stage`);
@@ -340,6 +580,15 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
         errors.push(`${label} stageLabel must be a non-empty string when present`);
       }
       if (!isScalingValue(stage.hp)) errors.push(`${label} hp must be a ScalingValue`);
+      // A later face may print no hit points at all ("Collector cannot be defeated"); the dial carries across the
+      // flip (RRG 1.8 "Flip", p. 20), so `hp` must repeat the printing face's. docs/phase7-wave2.md §11.2.
+      if (stage.hpNotPrinted === true) {
+        if (sideIndex === 0) errors.push(`${label} hpNotPrinted is only for a face behind the one that prints them`);
+        const printing = card.sides[0]?.stages.find((other) => other.stageNumber === stage.stageNumber);
+        if (printing && isScalingValue(stage.hp) && (printing.hp.base !== stage.hp.base || printing.hp.perPlayer !== stage.hp.perPlayer)) {
+          errors.push(`${label} prints no hit points, so its hp must repeat the printing face's`);
+        }
+      }
       if (!isNonNegativeNumber(stage.atk)) errors.push(`${label} atk must be a non-negative number`);
       if (!isNonNegativeNumber(stage.sch)) errors.push(`${label} sch must be a non-negative number`);
       // Read as untrusted data: `Array.isArray` would otherwise widen the element type to `any`.
@@ -361,16 +610,18 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
       errors.push(...abilityRefErrors(stage.abilities, label));
     });
   }
-  const [first, second] = card.sides;
-  if (second) {
-    // The two sides are the faces of the same stage cards (see `VillainSide`).
-    const numbers = (stages: readonly { stageNumber: number }[] | undefined): string => (stages ?? []).map((s) => s.stageNumber).join(",");
-    if (numbers(first.stages) !== numbers(second.stages)) {
-      errors.push("a two-sided villain's sides are the faces of the same stage cards, so both must list the same stage numbers");
-    }
+  const [first, ...others] = card.sides;
+  // Every side is a face of the same stage cards (see `VillainSide`).
+  const numbers = (stages: readonly { stageNumber: number }[] | undefined): string => (stages ?? []).map((s) => s.stageNumber).join(",");
+  if (others.some((side) => numbers(first.stages) !== numbers(side.stages))) {
+    errors.push("a villain's sides are the faces of the same stage cards, so every side must list the same stage numbers");
   }
   if (card.startingSide !== undefined && !card.sides.some((side) => side.side === card.startingSide)) {
     errors.push(`villain startingSide ${String(card.startingSide)} is not one of its sides`);
+  }
+  if (card.printedType !== undefined && card.printedType !== "leader") errors.push("villain printedType must be 'leader' when present");
+  if (card.activationOrder !== undefined && !isPositiveInteger(card.activationOrder)) {
+    errors.push("villain activationOrder must be a positive whole number");
   }
   return result(errors);
 }
@@ -398,7 +649,7 @@ function flipSideErrors(card: { readonly flipSide?: EncounterCardFlipSide; reado
 }
 
 function encounterCommonErrors(
-  card: { boostIcons: number; keywords: unknown; abilities: unknown; text: unknown; flipSide?: EncounterCardFlipSide },
+  card: { boostIcons: number; keywords: unknown; abilities: unknown; text: unknown; flipSide?: EncounterCardFlipSide; separateDeck?: unknown },
   label: string,
 ): string[] {
   return [
@@ -407,6 +658,8 @@ function encounterCommonErrors(
     ...abilityRefErrors(card.abilities, label),
     ...(isCardText(card.text) ? [] : [`${label} text must have non-empty printed and current strings`]),
     ...flipSideErrors(card, label),
+    // An identity's encounter-backed separate deck (Hercules's Labor deck; docs/phase7-wave2.md §15).
+    ...(card.separateDeck === undefined || isNonEmptyString(card.separateDeck) ? [] : [`${label} separateDeck must name the deck`]),
   ];
 }
 
@@ -474,13 +727,46 @@ export function validateMainSchemeCard(card: MainSchemeCard): ValidationResult {
           }
         }
       }
-      if (!isCardText(stage.text)) errors.push(`${label} text must have printed and current strings`);
+      const dashed: unknown = stage.dashedValues;
+      if (dashed !== undefined) {
+        if (!Array.isArray(dashed)) errors.push(`${label} dashedValues must be an array`);
+        else {
+          const fields: readonly unknown[] = dashed;
+          if (new Set(fields).size !== fields.length) errors.push(`${label} dashedValues lists a field twice`);
+          for (const field of fields) {
+            if (!MAIN_SCHEME_THREAT_FIELDS.includes(field as MainSchemeThreatField)) {
+              errors.push(`${label} dashedValues lists '${String(field)}', which is not a threat value`);
+              continue;
+            }
+            if (Array.isArray(stage.printedX) && stage.printedX.includes(field as MainSchemeThreatField)) {
+              errors.push(`${label} ${String(field)} cannot be printed both "—" and "X"`);
+            }
+            const value = stage[field as MainSchemeThreatField];
+            if (isScalingValue(value) && (value.base !== 0 || value.perPlayer !== 0)) {
+              errors.push(`${label} ${String(field)} is printed "—", so its value must be { base: 0, perPlayer: 0 }`);
+            }
+          }
+        }
+      }
+      // A main scheme side can be printed with no text, like a villain stage (Attack on Mount Athena 04061: stage 1's B
+      // side, stages 2 and 3's A sides; docs/phase7-wave2.md §6.13).
+      if (!isCardTextAllowEmpty(stage.text)) errors.push(`${label} text must have printed and current strings`);
       errors.push(...abilityRefErrors(stage.abilities, label));
       if (!stage.aSide || typeof stage.aSide !== "object") errors.push(`${label} is missing its aSide`);
       else {
-        if (!isCardText(stage.aSide.text)) errors.push(`${label} aSide text must have printed and current strings`);
+        if (!isCardTextAllowEmpty(stage.aSide.text)) errors.push(`${label} aSide text must have printed and current strings`);
         errors.push(...abilityRefErrors(stage.aSide.abilities, `${label} aSide`));
       }
+    }
+    // Stages sharing a stage number are alternatives (The Once and Future Kang's four stage 3 cards), so each must be
+    // told apart by its letter or its name.
+    const keys = new Set<string>();
+    for (const stage of card.stages) {
+      const key = `${stage.stageNumber}|${stage.stageLetter ?? ""}|${stage.name ?? ""}`;
+      if (keys.has(key)) {
+        errors.push(`main scheme has two stage ${stage.stageNumber}${stage.stageLetter ?? ""} entries with the same name; alternative stages need a stageLetter or a name to tell them apart`);
+      }
+      keys.add(key);
     }
   }
   return result(errors);
@@ -505,6 +791,18 @@ export function validateTreacheryCard(card: TreacheryCard): ValidationResult {
   if (card.keywords.some((k) => k.name === "surge") && card.abilities.length === 0) {
     errors.push("treachery with surge should reference at least one ability (when_revealed expected)");
   }
+  return result(errors);
+}
+
+/** An Agents of S.H.I.E.L.D. evidence card (see `EvidenceCard`; docs/phase7-wave2.md §6.4). */
+export function validateEvidenceCard(card: EvidenceCard): ValidationResult {
+  const errors = baseErrors(card);
+  if (!EVIDENCE_KINDS.includes(card.evidence)) errors.push(`evidence card kind '${String(card.evidence)}' must be means, motive or opportunity`);
+  if (!Array.isArray(card.encounterSetIds) || card.encounterSetIds.length === 0) errors.push("evidence card must name its set");
+  if (!Array.isArray(card.traits)) errors.push("evidence traits must be an array");
+  if (!isCardText(card.text)) errors.push("evidence text must have non-empty printed and current strings");
+  errors.push(...abilityRefErrors(card.abilities, "evidence"));
+  if (card.evidenceIcon !== undefined && !isNonEmptyString(card.evidenceIcon)) errors.push("evidence evidenceIcon must be a non-empty string when present");
   return result(errors);
 }
 
@@ -537,6 +835,8 @@ export function validateCard(card: AnyCard): ValidationResult {
     case "obligation":
     case "environment":
       return result([...baseErrors(card), ...encounterCommonErrors(card, card.type)]);
+    case "evidence":
+      return validateEvidenceCard(card);
   }
 }
 
@@ -589,6 +889,96 @@ export function validateScenario(scenario: Scenario): ValidationResult {
   }
   if (scenario.modularSetCount !== undefined && !isNonNegativeInteger(scenario.modularSetCount)) {
     errors.push("scenario modularSetCount must be a whole number of at least 0");
+  }
+  errors.push(...wave2ScenarioErrors(scenario));
+  return result(errors);
+}
+
+const isCardIdList = (value: unknown): boolean => Array.isArray(value) && value.every((id) => isNonEmptyString(id));
+
+/** Wave 2 scenario fields: set-aside and expert villains, victory, separate game areas, separate decks. */
+function wave2ScenarioErrors(scenario: Scenario): string[] {
+  const errors: string[] = [];
+  if (scenario.setAsideVillainCardIds !== undefined) {
+    if (!isCardIdList(scenario.setAsideVillainCardIds)) errors.push("scenario setAsideVillainCardIds must be a list of card ids");
+    else if (scenario.setAsideVillainCardIds.includes(scenario.villainCardId)) {
+      errors.push("scenario setAsideVillainCardIds cannot include the villain that starts in the villain deck");
+    }
+  }
+  const expert = scenario.expertVillains;
+  if (expert !== undefined) {
+    if (!isNonEmptyString(expert.villainCardId)) errors.push("scenario expertVillains must name its villainCardId");
+    if (!isCardIdList(expert.setAsideVillainCardIds)) errors.push("scenario expertVillains.setAsideVillainCardIds must be a list of card ids");
+    if (scenario.multipleVillains !== undefined) errors.push("scenario expertVillains is not defined for a scenario with multipleVillains");
+  }
+  if (scenario.victory !== undefined && scenario.victory !== "finalVillainStage" && scenario.victory !== "cardAbility") {
+    errors.push("scenario victory must be 'finalVillainStage' or 'cardAbility'");
+  }
+  const areas = scenario.separateGameAreas;
+  if (areas !== undefined) {
+    if (areas.isolation !== "areasCannotAffectEachOther") errors.push("scenario separateGameAreas.isolation must be 'areasCannotAffectEachOther'");
+    if (!isPositiveInteger(areas.centralStageNumber)) errors.push("scenario separateGameAreas.centralStageNumber must be a stage number");
+    if (areas.encounterDeck !== "shared") errors.push("scenario separateGameAreas.encounterDeck must be 'shared'");
+    if (areas.environments !== "inEveryArea") errors.push("scenario separateGameAreas.environments must be 'inEveryArea'");
+    if (areas.eachPlayer !== "sameArea") errors.push("scenario separateGameAreas.eachPlayer must be 'sameArea'");
+    if (areas.uniqueness !== "perArea") errors.push("scenario separateGameAreas.uniqueness must be 'perArea'");
+    if (areas.joining !== "sideSchemesAndEngagedMinionsMove") errors.push("scenario separateGameAreas.joining must be 'sideSchemesAndEngagedMinionsMove'");
+    if (scenario.multipleVillains !== undefined) errors.push("scenario separateGameAreas is not defined for a scenario with multipleVillains");
+  }
+  const decks: unknown = scenario.separateDecks;
+  if (decks !== undefined) {
+    if (!Array.isArray(decks)) errors.push("scenario separateDecks must be an array");
+    else {
+      const names = new Set<string>();
+      for (const deck of decks as readonly Partial<ScenarioSeparateDeck>[]) {
+        const label = `scenario separate deck ${isNonEmptyString(deck?.name) ? deck.name : "(unnamed)"}`;
+        if (!isNonEmptyString(deck?.name)) errors.push("scenario separate deck needs a name");
+        else if (names.has(deck.name)) errors.push(`${label} is listed twice`);
+        else names.add(deck.name);
+        const contents = deck?.contents;
+        const sets = contents?.encounterSetIds;
+        if (!contents || (sets === undefined && contents.cardType === undefined)) {
+          errors.push(`${label} contents must name encounter sets, a card type, or both`);
+        } else {
+          if (sets !== undefined && (!Array.isArray(sets) || sets.length === 0 || !sets.every(isNonEmptyString))) {
+            errors.push(`${label} contents.encounterSetIds must list encounter set ids`);
+          }
+          if (contents.cardType !== undefined && contents.cardType !== "side_scheme") errors.push(`${label} contents.cardType must be 'side_scheme'`);
+        }
+        if (deck?.discardPile !== "own" && deck?.discardPile !== "encounter") errors.push(`${label} discardPile must be 'own' or 'encounter'`);
+        if (deck?.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck?.whenEmpty !== "remainsEmpty") {
+          errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'remainsEmpty'`);
+        }
+        if (deck?.whenEmpty === "reshuffleDiscardWithoutPenalty" && deck.discardPile !== "own") {
+          errors.push(`${label} can only reshuffle a discard pile of its own`);
+        }
+      }
+    }
+  }
+  return errors;
+}
+
+/**
+ * A standalone scenario checked against the encounter set records it names (wave 2 schema pass, docs/phase7-wave2.md
+ * §6.3): no campaign-specific set (RRG 1.8 "Campaign-Specific Card", p. 11) and no competitive-only set (the Civil War
+ * rulebook, p. 3: the Standard PvP set "replaces the standard encounter set when playing in competitive mode"), because
+ * neither mode is built. A set id the list doesn't contain is reported, so the check can't pass by omission.
+ */
+export function validateScenarioEncounterSets(scenario: Scenario, sets: readonly EncounterSet[]): ValidationResult {
+  const byId = new Map(sets.map((set) => [set.id as string, set]));
+  const errors: string[] = [];
+  const named = [
+    ...scenario.encounterSetIds,
+    ...scenario.recommendedModularSetIds,
+    ...scenario.standardEncounterSetIds,
+    ...scenario.expertEncounterSetIds,
+    ...(scenario.multipleVillains?.villains.flatMap((villain) => villain.encounterSetIds) ?? []),
+  ];
+  for (const id of new Set(named)) {
+    const set = byId.get(id);
+    if (!set) errors.push(`scenario ${scenario.id} names encounter set ${id}, which is not registered`);
+    else if (set.campaignSpecific) errors.push(`scenario ${scenario.id} names campaign-specific set ${id}; campaign mode is not built`);
+    else if (set.competitiveOnly) errors.push(`scenario ${scenario.id} names competitive-only set ${id}; competitive mode is not built`);
   }
   return result(errors);
 }

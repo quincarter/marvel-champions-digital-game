@@ -25,9 +25,18 @@
  * rules (MarvelCDB's builder, Hall of Heroes) were not used as a source.
  */
 
-import type { AbilityReference, AnyCard, CardId, CoreAspect, DeckCardEntry, DeckContents, HeroIdentityCard, PlayerCard } from "@mc/content";
+import type { AbilityReference, AnyCard, CardId, CoreAspect, DeckCardEntry, DeckContents, HeroIdentityCard, IdentitySeparateDeck, PlayerCard } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import { cardsMatch, isUnique, uniqueLabel } from "./unique.js";
+
+/**
+ * The first separate deck this identity brings that the engine cannot build yet, or undefined (docs/phase7-wave2.md
+ * §15). Only Doctor Strange's kind is built: a deck of player cards with its own discard pile. Hercules's Labor deck
+ * (encounter-backed cards) and Gift deck (no discard pile) are data only.
+ */
+export function unbuildableSeparateDeck(identity: HeroIdentityCard): IdentitySeparateDeck | undefined {
+  return (identity.separateDecks ?? []).find((deck) => (deck.cardFamily ?? "player") !== "player" || deck.discardPile !== "own");
+}
 
 export type DeckProblemCode =
   /** A decklist line whose quantity is not a whole number of at least 1. */
@@ -49,6 +58,28 @@ export type DeckProblemCode =
    * It is built at setup from the identity, so it is never listed and never counted toward deck size.
    */
   | "separate_deck_card"
+  /**
+   * RRG 1.8 "Campaign-Specific Card" (p. 11): "can only be used during a campaign from the same product". Campaign mode
+   * is not built yet, so no deck may list one (the Hydra Campaign upgrades).
+   */
+  | "campaign_card"
+  /**
+   * A scenario-specific player card (RRG 1.8 "Scenario-Specific Card", p. 38): it belongs to a scenario's set and
+   * enters the game through that scenario (Taskmaster's Captive allies), never through deckbuilding.
+   */
+  | "scenario_card"
+  /**
+   * A card used only in competitive (team-vs-team) mode: each Civil War leader's four basic player cards. The Civil War
+   * rulebook (p. 3): "These leader-specific player cards are used only when playing in competitive mode." That mode is
+   * not built (docs/phase7-wave2.md §6.3).
+   */
+  | "competitive_card"
+  /**
+   * The identity uses a rule this build does not model, so it cannot be seated: a separated identity split across two
+   * cards (SP//dr; `HeroIdentityCard.separatedIdentity`, docs/phase7-wave2.md §6.10), or a separate deck of a kind
+   * the engine cannot build (Hercules's Labor and Gift decks; `unbuildableSeparateDeck`, §15).
+   */
+  | "unsupported_identity"
   /** The card data lacks a field legality needs, so the rule cannot be checked. Never guessed. */
   | "missing_card_data"
   /** A deckbuilding classification this build does not recognize (for example campaign-specific). */
@@ -256,6 +287,13 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     add("not_an_identity", `${uniqueLabel(identityCard)} is a ${typeName(identityCard)} card, not an identity: a deck is built around exactly one hero identity.`, [deck.identityCardId]);
   } else {
     identity = identityCard;
+    if (identityCard.separatedIdentity !== undefined) {
+      add("unsupported_identity", `${uniqueLabel(identityCard)} is split across two identity cards (a separated identity), which this build cannot play yet.`, [identityCard.id]);
+    }
+    const unbuilt = unbuildableSeparateDeck(identityCard);
+    if (unbuilt) {
+      add("unsupported_identity", `${uniqueLabel(identityCard)} brings a ${unbuilt.name} deck of a kind this build cannot play yet.`, [identityCard.id]);
+    }
   }
   const identityName = identity ? uniqueLabel(identity) : null;
 
@@ -286,6 +324,12 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       add("identity_in_deck", `${name} is an identity card; the identity is chosen separately and is not part of the card list.`, [card.id]);
       continue;
     }
+    if (card.type === "evidence") {
+      // The Agents of S.H.I.E.L.D. rulebook, "Gathering Evidence" (p. 6): "Evidence cards are not added to any deck".
+      counted += entry.quantity;
+      add("not_a_player_card", `${name} is an evidence card: evidence cards are kept in the A.I.M. and S.H.I.E.L.D. envelopes and are never added to a deck.`, [card.id]);
+      continue;
+    }
     if (!isPlayerDeckCard(card)) {
       // RRG 1.8 "Identity-Specific Card" (p. 23) and "Obligation" (p. 30): an identity's
       // obligation and nemesis set are identity-specific but are encounter cards. Setup adds
@@ -313,6 +357,19 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
         `${name} belongs to ${owner ? `${uniqueLabel(owner)}'s` : "an identity's"} ${card.separateDeck} deck, which setup builds from the identity; it is not part of a player deck, so it cannot be listed.`,
         [card.id],
       );
+      continue;
+    }
+    if (card.specificTo !== undefined) {
+      // Neither kind is a deckbuilding choice: a campaign adds campaign cards (and, in The Rise of Red Skull, rescued
+      // Captive allies) to decks by its own instructions, "Cards added to the deck as part of a campaign do not count
+      // toward a player's minimum or maximum deck size" (the Red Skull rulebook, p. 3). Not counted here either.
+      if (card.specificTo.kind === "campaign") {
+        add("campaign_card", `${name} is a campaign card: it can only be used during a campaign from the same product, and campaign play is not available yet.`, [card.id]);
+      } else if (card.specificTo.kind === "competitive") {
+        add("competitive_card", `${name} is used only in competitive (team-vs-team) mode, which is not available yet.`, [card.id]);
+      } else {
+        add("scenario_card", `${name} belongs to a scenario's own set of cards and enters the game only through that scenario, so it cannot be put in a deck.`, [card.id]);
+      }
       continue;
     }
     // RRG 1.8 "Permanent" (p. 32): "Permanent cards do not count towards a player's minimum or maximum deck size."
@@ -533,7 +590,7 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       continue;
     }
     if (!identity) continue;
-    const titles = [identity.name, identity.hero.faceName, identity.alterEgo.faceName];
+    const titles = [identity.name, identity.hero.faceName, identity.alterEgo.faceName, ...(identity.additionalHeroForms ?? []).map((form) => form.faceName)];
     if (teamUp.names.some((name) => titles.includes(name))) continue;
     add("team_up_identity", `${uniqueLabel(line.card)} is a Team-Up card for ${teamUp.names[0]} and ${teamUp.names[1]}; only a deck whose identity is one of them may include it.`, [line.card.id]);
   }
@@ -541,17 +598,25 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
   return problems.length === 0 ? { ok: true } : { ok: false, problems };
 }
 
-/** Every ability reference printed anywhere on a card: both identity faces, every villain stage, every main scheme side. */
+/**
+ * Every ability reference printed anywhere on a card: every identity face (including a three-sided identity's
+ * `additionalHeroForms`), every villain stage, every main scheme side, and the other face of a double-sided card.
+ */
 export function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {
   switch (card.type) {
     case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities];
+      return [
+        ...card.hero.abilities,
+        ...card.alterEgo.abilities,
+        ...(card.additionalHeroForms ?? []).flatMap((form) => form.abilities),
+        ...(card.separatedIdentity ? [...card.separatedIdentity.heroCardOtherSide.abilities, ...card.separatedIdentity.alterEgoCardOtherSide.abilities] : []),
+      ];
     case "villain":
       return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities));
     case "main_scheme":
       return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities]);
     default:
-      return card.abilities;
+      return "flipSide" in card && card.flipSide ? [...card.abilities, ...card.flipSide.abilities] : card.abilities;
   }
 }
 

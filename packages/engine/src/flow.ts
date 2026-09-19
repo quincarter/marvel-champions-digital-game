@@ -1,12 +1,14 @@
 import type { ChoiceOption } from "./choices.js";
 import { emit, pushFrames, requestChoice, setStep, updatePlayer, type Ctx } from "./ctx.js";
-import { drawCards, endLastingEffect, expireLastingEffects, readyCard } from "./effects.js";
+import { drawCards, endLastingEffect, expireLastingEffects } from "./effects.js";
+import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
 import type { PlayerId } from "./ids.js";
 import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVillains } from "./query.js";
 import { announce, clearAbilityUses, executeFrame, gameAbilityFrames, pushEffects } from "./resolve/index.js";
 import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
+import { resetEmptyScenarioDecks } from "./resolve/cards.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { cardsInPlay, controllerOf } from "./select.js";
 import { describeFrame } from "./stack.js";
@@ -31,6 +33,8 @@ export function runFlow(ctx: Ctx): void {
     if (ctx.state.outcome || ctx.state.pendingChoice) return;
     // An emptied separate deck (the Invocation deck) takes its discard pile back at once, with no penalty.
     resetEmptySeparateDecks(ctx);
+    // …and so does a scenario deck whose rules say so (the side-scheme deck; docs/phase7-wave2.md §3.3).
+    resetEmptyScenarioDecks(ctx);
     // Condition-triggered forced abilities go on the stack the moment their condition becomes true, ahead of whatever
     // was about to resolve next (docs/phase7-wave1.md §3.4; FAQ "Green Goblin (#1B)", p. 59).
     if (checkStateTriggers(ctx)) continue;
@@ -160,6 +164,9 @@ function executePlayerSetupAbilities(ctx: Ctx, step: Extract<GameStep, { kind: "
 
 export function beginTurn(ctx: Ctx, activePlayerId: PlayerId, remainingPlayerIds: readonly PlayerId[]): void {
   clearAbilityUses(ctx, "turn");
+  // "…attacked this turn" (`attackedThisTurn`, docs/phase7-wave2.md §11.3, §14): each player takes one turn (RRG 1.8
+  // "Player Phase", p. 34), so the record starts empty with each one, next to the turn-scoped ability-use counters.
+  ctx.state = { ...ctx.state, attackedThisTurn: {} };
   setStep(ctx, { phase: "player", kind: "turn", activePlayerId, remainingPlayerIds });
   emit(ctx, { type: "turnStarted", playerId: activePlayerId });
   announce(ctx, { kind: "turnStarted", playerId: activePlayerId });
@@ -181,6 +188,12 @@ export function finishTurn(ctx: Ctx, playerId: PlayerId): void {
   const step = ctx.state.step;
   if (step.phase !== "player" || step.kind !== "turn" || step.activePlayerId !== playerId) return;
   emit(ctx, { type: "turnEnded", playerId });
+  // "Until the end of this turn" (docs/phase7-wave2.md §13): expires as soon as the turn's end is reached (RRG 1.8
+  // "Lasting Effects", p. 26), before the next player's turn begins or the end-of-phase steps start.
+  expireLastingEffects(ctx, "endOfTurn");
+  // …and "attacked this turn" is empty until the next turn begins, so the end-of-phase steps and the villain phase
+  // never read the last player's attacks as their own (§14).
+  ctx.state = { ...ctx.state, attackedThisTurn: {} };
   advanceAfterTurn(ctx, step.remainingPlayerIds);
 }
 
@@ -240,20 +253,38 @@ function executeEndPhaseDraw(ctx: Ctx): void {
 
 function executeEndPhaseReady(ctx: Ctx): void {
   for (const player of playerOrder(ctx.state)) {
-    readyCard(ctx, player.identity.instanceId);
-    for (const id of mustPlayer(ctx.state, player.playerId).playArea) readyCard(ctx, id);
+    readyOrAnnounce(ctx, player.identity.instanceId);
+    for (const id of mustPlayer(ctx.state, player.playerId).playArea) readyOrAnnounce(ctx, id);
     // Every card the player controls readies, not just the play-area list: an upgrade attached to an identity
     // (Focused Rage, Web-Shooter) or to another card lives in its host's `attachments` instead.
     for (const id of cardsInPlay(ctx.state)) {
-      if (controllerOf(ctx.state, id) === player.playerId) readyCard(ctx, id);
+      if (controllerOf(ctx.state, id) === player.playerId) readyOrAnnounce(ctx, id);
     }
   }
-  for (const id of ctx.state.villainArea) readyCard(ctx, id);
-  for (const villain of undefeatedVillains(ctx.state)) readyCard(ctx, villain.instanceId);
+  for (const id of ctx.state.villainArea) readyOrAnnounce(ctx, id);
+  for (const villain of undefeatedVillains(ctx.state)) readyOrAnnounce(ctx, villain.instanceId);
   setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
+  ctx.state = { ...ctx.state, playedThisPhase: {} };
+  const delayed = takeDelayed(ctx, "endOfPhase");
   expireLastingEffects(ctx, "endOfPhase");
   announce(ctx, { kind: "playerPhaseEnded" });
+  // "At the end of the phase, …" (`atEndOfPhase`; docs/phase7-wave2.md §3.1, §3.4), after "until the end of the phase"
+  // effects expire, as RRG 1.8 "Lasting Effects" orders the round's.
+  pushDelayed(ctx, delayed);
+}
+
+/** The delayed effects waiting on this timing point, marked fired (they resolve through the stack next). */
+function takeDelayed(ctx: Ctx, kind: "endOfPhase" | "endOfRound"): readonly Extract<LastingEffect, { kind: "delayedEffects" }>[] {
+  const delayed = ctx.state.lastingEffects.filter(
+    (effect): effect is Extract<LastingEffect, { kind: "delayedEffects" }> => effect.kind === "delayedEffects" && effect.duration.kind === kind,
+  );
+  for (const effect of delayed) endLastingEffect(ctx, effect.id, "fired");
+  return delayed;
+}
+
+function pushDelayed(ctx: Ctx, delayed: readonly Extract<LastingEffect, { kind: "delayedEffects" }>[]): void {
+  for (const effect of [...delayed].reverse()) pushEffects(ctx, { effects: effect.effects, ...effect.scope });
 }
 
 /**
@@ -263,18 +294,13 @@ function executeEndPhaseReady(ctx: Ctx): void {
  */
 function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound" }>): void {
   if (!step.delayedResolved) {
-    const delayed = ctx.state.lastingEffects.filter(
-      (effect): effect is Extract<LastingEffect, { kind: "delayedEffects" }> =>
-        effect.kind === "delayedEffects" && effect.duration.kind === "endOfRound",
-    );
-    // The villain phase and the round end together.
+    // The villain phase and the round end together: "at the end of the phase" effects first, then the round's.
+    const phaseDelayed = takeDelayed(ctx, "endOfPhase");
+    const delayed = takeDelayed(ctx, "endOfRound");
     expireLastingEffects(ctx, "endOfPhase");
     expireLastingEffects(ctx, "endOfRound");
-    for (const effect of delayed) endLastingEffect(ctx, effect.id, "fired");
     setStep(ctx, { phase: "villain", kind: "endOfRound", delayedResolved: true });
-    for (const effect of [...delayed].reverse()) {
-      pushEffects(ctx, { effects: effect.effects, ...effect.scope });
-    }
+    pushDelayed(ctx, [...phaseDelayed, ...delayed]);
     return;
   }
   for (const player of ctx.state.players) {
@@ -285,7 +311,7 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
   }
   clearAbilityUses(ctx, "round");
   // "Max X per round" and "first … each round" count again from zero.
-  ctx.state = { ...ctx.state, round: ctx.state.round + 1, playedThisRound: {}, playedByPlayerThisRound: {} };
+  ctx.state = { ...ctx.state, round: ctx.state.round + 1, playedThisRound: {}, playedThisPhase: {}, playedByPlayerThisRound: {} };
   emit(ctx, { type: "roundStarted", round: ctx.state.round });
   beginPlayerPhase(ctx);
   announce(ctx, { kind: "villainPhaseEnded" });

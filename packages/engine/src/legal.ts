@@ -23,6 +23,7 @@ import {
   paymentsFromOptionIds,
   inPlayCostCandidates,
   planCost,
+  playableFromAttachment,
   playableFromDiscard,
   playRequirement,
 } from "./actions.js";
@@ -32,9 +33,18 @@ import { createCtx } from "./ctx.js";
 import { applyCommand } from "./engine.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { cardOf, cardZoneCandidates, getPlayer, isMinion, playerOrder, undefeatedVillains } from "./query.js";
+import {
+  cardOf,
+  cardZoneCandidates,
+  getPlayer,
+  heroFacesOf,
+  isMinion,
+  playerOrder,
+  undefeatedVillains,
+  mainSchemeStates,
+} from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
-import { printedResources, requirementTotal, type ResourceRequirement } from "./resources.js";
+import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, type EffectContext } from "./select.js";
 import type { GameState } from "./state.js";
 
@@ -47,7 +57,8 @@ export type ActionRef =
   /** `instanceId` is the thwarter. */
   | { readonly kind: "basicThwart"; readonly instanceId: InstanceId }
   | { readonly kind: "basicRecover" }
-  | { readonly kind: "changeForm" }
+  /** `to` is set only for a three-sided identity, one action per reachable form (docs/phase7-wave2.md §3.2). */
+  | { readonly kind: "changeForm"; readonly to?: "alterEgo" | { readonly heroForm: number } }
   | { readonly kind: "endTurn" };
 
 /** A target that exists but can't be chosen right now, and the engine's reason. */
@@ -322,7 +333,7 @@ function actionAbilities(state: GameState, deps: EngineDeps, playerId: PlayerId)
   for (const id of cardsInPlay(state)) {
     const controller = controllerOf(state, id);
     if (controller !== null && controller !== playerId) continue;
-    for (const ref of activeAbilityRefs(state, id)) {
+    for (const ref of activeAbilityRefs(state, id, deps)) {
       if (deps.abilities[ref.id]?.trigger.kind === "action") found.push({ instanceId: id, abilityId: ref.id });
     }
   }
@@ -345,7 +356,7 @@ function basicCommand(playerId: PlayerId, action: ActionRef, target: InstanceId 
     case "basicRecover":
       return { type: "basicRecover", playerId };
     case "changeForm":
-      return { type: "changeForm", playerId };
+      return action.to === undefined ? { type: "changeForm", playerId } : { type: "changeForm", playerId, to: action.to };
     case "endTurn":
       return { type: "endTurn", playerId };
     default:
@@ -380,7 +391,9 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   const results: Evaluated[] = [];
   // Hand cards, and discard pile cards whose own permission allows playing them from there (RRG 1.8 "Play Restrictions
   // and Permissions", p. 33).
-  for (const id of [...player.hand, ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id))]) {
+  // Cards attached to a card that lets its controller play them from there (Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
+  const attached = cardsInPlay(state).filter((id) => playableFromAttachment(state, deps, playerId, id));
+  for (const id of [...player.hand, ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)), ...attached]) {
     const evaluated = evaluatePlay(state, deps, playerId, id);
     if (evaluated) results.push(evaluated);
   }
@@ -395,7 +408,7 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
     ...cardsInPlay(state).filter((id) => isMinion(state, id)),
   ];
   const schemes = [
-    state.mainScheme.instanceId,
+    ...mainSchemeStates(state).map((scheme) => scheme.instanceId),
     ...state.villainArea.filter((id) => {
       const type = cardOf(state, id)?.type;
       return type === "side_scheme" || type === "player_side_scheme";
@@ -417,7 +430,18 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
     results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
   }
   results.push(simple(state, deps, playerId, { kind: "basicRecover" }));
-  results.push(simple(state, deps, playerId, { kind: "changeForm" }));
+  const identityCard = cardOf(state, player.identity.instanceId);
+  const faces = identityCard?.type === "hero_identity" ? heroFacesOf(identityCard).length : 1;
+  if (faces > 1) {
+    // A three-sided identity: each form it is not in right now is its own action.
+    if (player.identity.form === "hero") results.push(simple(state, deps, playerId, { kind: "changeForm", to: "alterEgo" }));
+    for (let heroForm = 0; heroForm < faces; heroForm++) {
+      if (player.identity.form === "hero" && player.identity.heroFormIndex === heroForm) continue;
+      results.push(simple(state, deps, playerId, { kind: "changeForm", to: { heroForm } }));
+    }
+  } else {
+    results.push(simple(state, deps, playerId, { kind: "changeForm" }));
+  }
   results.push(simple(state, deps, playerId, { kind: "endTurn" }));
 
   return {
@@ -459,7 +483,7 @@ export interface PaymentSource {
 
 export interface PaymentQuery {
   /** What the action costs, as the engine computes it (generic plus typed). */
-  readonly requirement: Required<ResourceRequirement>;
+  readonly requirement: ResolvedRequirement;
   readonly sources: readonly PaymentSource[];
   /**
    * The engine's own smallest working payment, as option ids: the overlay's
@@ -493,7 +517,7 @@ interface Payable {
   /** What the resources are being spent on, for "while paying for an [aspect] card". */
   readonly payingFor: InstanceId | null;
   /** Null when the engine refuses the cost as configured; `tryPayment` then says why. */
-  readonly requirement: Required<ResourceRequirement> | null;
+  readonly requirement: ResolvedRequirement | null;
   /** True when there is something to decide: a non-zero cost, or "spend X resources". */
   readonly spendable: boolean;
 }
@@ -510,7 +534,7 @@ const optionIdsOf = (payment: readonly Payment[]): readonly string[] =>
   payment.map((entry) => ("fromHand" in entry ? `hand:${entry.fromHand}` : `ability:${entry.ability.instanceId}:${entry.ability.abilityId}`));
 
 /** True when the player may still choose to spend even though the fixed cost is 0 ("Spend X resources…"). */
-const isSpendable = (requirement: Required<ResourceRequirement> | null, cost: AbilityCost | undefined): boolean =>
+const isSpendable = (requirement: ResolvedRequirement | null, cost: AbilityCost | undefined): boolean =>
   requirement !== null && (requirementTotal(requirement) > 0 || cost?.resourcesX !== undefined);
 
 /**

@@ -15,8 +15,12 @@ import type { AttachmentHost, PrintedStatModifiers } from "./attachment-host.js"
  * new face has "the same card type as the previous face, the card retains all attached cards, tucked cards, status
  * cards, and tokens." A back face of a different card type is not modeled yet. Its ability ids must not repeat
  * the front face's.
+ *
+ * Player cards use the same shape (`PlayerCardCommon.flipSide`, wave 2): The Rise of Red Skull's campaign "Basic"
+ * Condition upgrades flip to their "Improved" side, and later packs print double-sided upgrades of one card type
+ * (Phoenix Force, Psi-Knife / Psi-Katana, Solid / Phased).
  */
-export interface EncounterCardFlipSide {
+export interface CardFlipSide {
   readonly name: string;
   readonly subtitle?: string;
   readonly traits: readonly Trait[];
@@ -26,6 +30,9 @@ export interface EncounterCardFlipSide {
   readonly abilities: readonly AbilityReference[];
   readonly image?: ImageRef;
 }
+
+/** The wave 1 name of `CardFlipSide`, kept so existing imports compile. */
+export type EncounterCardFlipSide = CardFlipSide;
 
 /**
  * Every card that can sit in the encounter deck carries boost icons (0–3),
@@ -42,6 +49,14 @@ interface EncounterCardCommon extends BaseCard {
   readonly abilities: readonly AbilityReference[];
   /** Present on a double-sided card: the face it flips to (see `EncounterCardFlipSide`). */
   readonly flipSide?: EncounterCardFlipSide;
+  /**
+   * The identity separate deck this encounter card belongs to (docs/phase7-wave2.md §15): Hercules's Labor cards,
+   * which have an alternate encounter card back and never enter the encounter deck, a discard pile or a hand (Hercules
+   * Hero Pack insert). Listed by that identity's `IdentitySeparateDeck` with `cardFamily: "encounter"`, never by a
+   * scenario or an encounter set, so `encounterSetIds` is empty. The encounter-side sibling of
+   * `PlayerCardCommon.separateDeck`.
+   */
+  readonly separateDeck?: string;
 }
 
 export interface MinionCard extends EncounterCardCommon {

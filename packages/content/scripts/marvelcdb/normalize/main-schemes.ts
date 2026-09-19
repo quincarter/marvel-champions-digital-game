@@ -37,16 +37,43 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       if (!Number.isInteger(stageNumber) || `${stageNumber}A` !== ra.stage) {
         errors.push(`${ra.code}: stage "${String(ra.stage)}"/"${String(rb.stage)}" not an NA/NB pair`);
       }
-      if (rb.base_threat === null || rb.base_threat === undefined) errors.push(`${rb.code}: missing starting threat`);
-      if (rb.threat === null || rb.threat === undefined) errors.push(`${rb.code}: missing target threat`);
-      if (rb.escalation_threat === null || rb.escalation_threat === undefined) errors.push(`${rb.code}: missing acceleration`);
+      // Dashed values (wave 2, docs/phase7-wave2.md §1.6): MarvelCDB gives a stage with no printed starting/target/
+      // acceleration threat a `null` value alongside its own `*_fixed: true` flag — a stage that genuinely has no
+      // way to advance by threat, distinct from a data gap (which would carry `_fixed: false`). Curation must
+      // confirm the dashes from the card image before a card using this is emitted; flagged there, not here.
+      const dashedValues: MainSchemeThreatField[] = [];
+      const missingOrDashed = (value: number | null | undefined, fixed: boolean | undefined, field: MainSchemeThreatField, label: string) => {
+        if (value !== null && value !== undefined) return;
+        if (fixed) dashedValues.push(field);
+        else errors.push(`${rb.code}: missing ${label}`);
+      };
+      missingOrDashed(rb.base_threat, rb.base_threat_fixed, "startingThreat", "starting threat");
+      missingOrDashed(rb.threat, rb.threat_fixed, "targetThreat", "target threat");
+      missingOrDashed(rb.escalation_threat, rb.escalation_threat_fixed, "acceleration", "acceleration");
       // A later stage with its own title (Klaw's stage 2 is "Secret Rendezvous") keeps it.
       const firstName = parts[0]?.name;
       // The aggregate record carries the B side and the `…b` record the A side
       // (see `aggregateImage`). MarvelCDB's front/back for a main scheme is
       // "the side you play with" / "the side you set up from", not A / B.
-      const bSideImage = ctx.aggregateImage(ra.code);
-      const aSideImage = imageOf(rb.imagesrc);
+      // Not every pack has a bare aggregate record for a main scheme (wave 1's did; several later packs — Mojo
+      // Mania and others in `mojo` — have none at all, `byCode.get(aSideCode.replace(/a$/, ""))` returning
+      // `undefined`), even though the B-side's own linked record carries a perfectly good `imagesrc` of its own.
+      // Falls back to that before giving up, the same direction `aSideImage` already falls back to `rb.imagesrc`
+      // then `ra.imagesrc` below — backward compatible: this fallback only fires when the aggregate lookup found
+      // nothing, so wave 1's own (aggregate-backed) output is unchanged.
+      const bSideImage = ctx.aggregateImage(ra.code) ?? imageOf(rb.imagesrc);
+      // The Once and Future Kang's stage records go the other way round from the wave 1 packs this originally
+      // matched: the "a" record carries its own image and the linked "b" record's `imagesrc` is null (verified —
+      // `11008a.png` exists, `11008b` has no `imagesrc` at all). Falling back to the "a" record's own image when
+      // the "b" record has none keeps the existing (already-verified) wave 1 behavior unchanged.
+      // A third, lowest-priority fallback to the aggregate record's own `imagesrc` (Mutant Genesis' 21074/21098/
+      // 21114/21138/21165 and likely other later packs): confirmed cases where the bare aggregate record (dropped
+      // as a duplicate everywhere else) is the *only* place MarvelCDB actually publishes the A side's art — both
+      // `ra.imagesrc` and `rb.imagesrc` are genuinely absent, matching the README's own "A side from the aggregate
+      // record" documentation (this fallback was previously only wired for `bSideImage`, above). Backward
+      // compatible: only fires when both higher-priority lookups already failed, so it cannot change any pack
+      // whose A-side image already resolved.
+      const aSideImage = imageOf(rb.imagesrc) ?? imageOf(ra.imagesrc) ?? ctx.aggregateImage(ra.code);
       // Threat values printed as X (docs/phase7-wave1.md §1.5, Mutagen Cloud 2B): MarvelCDB encodes a printed X
       // as -1. Held as a flat 0 and the stage's own ability defines it (RRG 1.8 "Non-Numerical Variable").
       const printedX: MainSchemeThreatField[] = [];
@@ -64,6 +91,7 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
         targetThreat: schemeField(rb.threat, rb.threat_fixed, "targetThreat"),
         acceleration: schemeField(rb.escalation_threat, rb.escalation_threat_fixed, "acceleration"),
         ...(printedX.length > 0 ? { printedX } : {}),
+        ...(dashedValues.length > 0 ? { dashedValues } : {}),
         icons: schemeIcons(rb),
         text: b.text,
         traits: b.traits,

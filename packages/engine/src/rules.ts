@@ -2,8 +2,8 @@ import type { EngineDeps, RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { getInstance, villainOf } from "./query.js";
 import { activeAbilityRefs, cardsInPlay, categoriesOf, controllerOf, evaluate, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
-import type { PlayerRef } from "./spec.js";
-import type { GameState } from "./state.js";
+import type { AttackKeyword, PlayerRef } from "./spec.js";
+import type { Form, GameState } from "./state.js";
 
 /**
  * Rule restrictions from constant abilities in play ("cannot take damage",
@@ -18,7 +18,7 @@ interface ActiveRule<K extends RuleSpec["kind"]> {
 function activeRules<K extends RuleSpec["kind"]>(state: GameState, deps: EngineDeps, kind: K): readonly ActiveRule<K>[] {
   const found: ActiveRule<K>[] = [];
   for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId)) {
+    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant") continue;
       for (const rule of definition.trigger.rules ?? []) {
@@ -107,6 +107,53 @@ export const allyLimitFor = (state: GameState, deps: EngineDeps, playerId: Playe
     .filter(({ context }) => context.controllerId === playerId)
     .reduce((sum, { rule }) => sum + rule.amount, 0);
 
+/** An ally that does not count against its controller's ally limit (`excludedFromAllyLimit`). */
+export const excludedFromAllyLimit = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "excludedFromAllyLimit").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
+
+/**
+ * The `AttackKeyword`s constant abilities in play grant to one attack (`attackKeywords`; Hawkeye's Bow). `viaId` is
+ * the card whose ability is making the attack, or null for a basic attack.
+ */
+export function grantedAttackKeywords(
+  state: GameState,
+  deps: EngineDeps,
+  attackerId: InstanceId,
+  viaId: InstanceId | null,
+): readonly AttackKeyword[] {
+  const granted: AttackKeyword[] = [];
+  for (const { rule, context } of activeRules(state, deps, "attackKeywords")) {
+    if (rule.attacker && !matchesQuery(state, attackerId, rule.attacker, context)) continue;
+    if (rule.via && (viaId === null || !matchesQuery(state, viaId, rule.via, context))) continue;
+    for (const keyword of rule.keywords) if (!granted.includes(keyword)) granted.push(keyword);
+  }
+  return granted;
+}
+
+/** Whether a basic thwart against this scheme may use ATK instead of THW (`thwartWithAtk`). */
+export const mayThwartWithAtk = (state: GameState, deps: EngineDeps, schemeId: InstanceId): boolean =>
+  activeRules(state, deps, "thwartWithAtk").some(({ rule, context }) => matchesQuery(state, schemeId, rule.scheme, context));
+
+/** Whether `playerId` is forbidden to play this card (`cannotPlay`; Depowered). */
+export const cannotPlayCard = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotPlay").some(
+    ({ rule, context }) => rulePlayers(state, rule, context).includes(playerId) && matchesQuery(state, id, rule.cards, context),
+  );
+
+/** Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). */
+export const cannotTriggerAction = (state: GameState, deps: EngineDeps, id: InstanceId, form: Form | undefined): boolean =>
+  activeRules(state, deps, "cannotTriggerActions").some(
+    ({ rule, context }) => (rule.form === undefined || rule.form === form) && matchesQuery(state, id, rule.on, context),
+  );
+
+/** Whether a defeated side scheme is shuffled into the encounter deck instead of discarded (`defeatedIntoEncounterDeck`). */
+export const defeatedIntoEncounterDeck = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "defeatedIntoEncounterDeck").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
+
+/** Whether this character may divide its basic `power` among several targets (`divideBasicPower`). */
+export const canDivideBasicPower = (state: GameState, deps: EngineDeps, id: InstanceId, power: "attack" | "thwart"): boolean =>
+  activeRules(state, deps, "divideBasicPower").some(({ rule, context }) => rule.power === power && matchesQuery(state, id, rule.target, context));
+
 /** "This card cannot leave play while …" (`cannotLeavePlay`). */
 export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "cannotLeavePlay").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
@@ -142,6 +189,19 @@ export function excessDamageThreatSchemes(state: GameState, deps: EngineDeps, so
     }
   }
   return schemes;
+}
+
+/**
+ * Where an acceleration token headed for `schemeId` actually goes (`accelerationTokenDestination`; The Master of Time
+ * 2B), or null for no redirect. A rule whose destination is the scheme the token was already headed for is ignored,
+ * so "another scheme" cannot send a token back to itself.
+ */
+export function accelerationTokenRedirect(state: GameState, deps: EngineDeps, schemeId: InstanceId): InstanceId | null {
+  for (const { rule, context } of activeRules(state, deps, "accelerationTokenDestination")) {
+    const [to] = resolveRef(state, rule.to, context);
+    if (to !== undefined && to !== schemeId) return to;
+  }
+  return null;
 }
 
 /** "The engaged player must defend against [this enemy]'s attacks with an ally they control, if able" (Melter). */

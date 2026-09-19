@@ -25,6 +25,25 @@ export * from "./bkw/index.js";
 export * from "./drs/index.js";
 export * from "./hlk/index.js";
 
+// ---------------------------------------------------------------------------------------------------------------
+// Wave 2 (PLAN.md Phase 7, "Wave 2 scope decided (2026-09-18)"): cycle 1. The Rise of Red Skull (`trors`:
+// Hawkeye, Spider-Woman and five scenarios), The Once and Future Kang (`toafk`), and the Ant-Man, Wasp,
+// Quicksilver and Scarlet Witch hero packs. See docs/phase7-wave2.md and docs/phase7-wave2-data.md.
+//
+// As with wave 1, `@mc/engine`, `coreScenario()` and the client keep using the `CORE_*` exports until the engine
+// grows cycle 1's primitives (docs/phase7-wave2.md §3: separate game areas, three-sided identities, and the
+// rest) — these `WAVE2_*` exports are `@mc/content`-only aggregates, not wired into anything that runs a game.
+// No `ScenarioCuration` has been written yet for any of the six packs (docs/phase7-wave2-data.md §2), so
+// `WAVE2_SCENARIOS` is empty even though wave 2's own scenario data (villains, main schemes, encounter cards) is
+// fully present in `WAVE2_CARDS`.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./ant/index.js";
+export * from "./wsp/index.js";
+export * from "./qsv/index.js";
+export * from "./scw/index.js";
+export * from "./trors/index.js";
+export * from "./toafk/index.js";
+
 import type { AnyCard, EncounterSet, Scenario, StarterDeck } from "../schema/index.js";
 import { CORE_CARDS } from "./core/cards.js";
 import { GOB_CARDS } from "./gob/cards.js";
@@ -88,4 +107,245 @@ export const WAVE1_STARTER_DECKS: readonly StarterDeck[] = [
   ...BKW_STARTER_DECKS,
   ...DRS_STARTER_DECKS,
   ...HLK_STARTER_DECKS,
+];
+
+import { ANT_CARDS } from "./ant/cards.js";
+import { ANT_STARTER_DECKS } from "./ant/starterDecks.js";
+import { ANT_ENCOUNTER_SETS } from "./ant/encounterSets.js";
+import { WSP_CARDS } from "./wsp/cards.js";
+import { WSP_STARTER_DECKS } from "./wsp/starterDecks.js";
+import { WSP_ENCOUNTER_SETS } from "./wsp/encounterSets.js";
+import { QSV_CARDS } from "./qsv/cards.js";
+import { QSV_STARTER_DECKS } from "./qsv/starterDecks.js";
+import { QSV_ENCOUNTER_SETS } from "./qsv/encounterSets.js";
+import { SCW_CARDS } from "./scw/cards.js";
+import { SCW_STARTER_DECKS } from "./scw/starterDecks.js";
+import { SCW_ENCOUNTER_SETS } from "./scw/encounterSets.js";
+import { TRORS_CARDS } from "./trors/cards.js";
+import { TRORS_STARTER_DECKS } from "./trors/starterDecks.js";
+import { TRORS_ENCOUNTER_SETS } from "./trors/encounterSets.js";
+import { TRORS_SCENARIOS } from "./trors/scenarios.js";
+import { TOAFK_CARDS } from "./toafk/cards.js";
+import { TOAFK_ENCOUNTER_SETS } from "./toafk/encounterSets.js";
+import { TOAFK_SCENARIOS } from "./toafk/scenarios.js";
+
+/** Every card in the wave 2 (cycle 1) pool: Core plus the six cycle 1 packs, in release order. */
+export const WAVE2_CARDS: readonly AnyCard[] = [
+  ...CORE_CARDS,
+  ...TRORS_CARDS,
+  ...TOAFK_CARDS,
+  ...ANT_CARDS,
+  ...WSP_CARDS,
+  ...QSV_CARDS,
+  ...SCW_CARDS,
+];
+
+/** Every cycle 1 encounter set (Core's own villain sets are not included, matching `WAVE1_ENCOUNTER_SETS`). */
+export const WAVE2_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...TRORS_ENCOUNTER_SETS,
+  ...TOAFK_ENCOUNTER_SETS,
+  ...ANT_ENCOUNTER_SETS,
+  ...WSP_ENCOUNTER_SETS,
+  ...QSV_ENCOUNTER_SETS,
+  ...SCW_ENCOUNTER_SETS,
+];
+
+/**
+ * Every cycle 1 scenario: The Rise of Red Skull's five (Crossbones, Absorbing Man, Taskmaster, Zola, Red Skull)
+ * plus The Once and Future Kang. The Ant-Man, Wasp, Quicksilver and Scarlet Witch hero packs define no scenario
+ * of their own, matching `WAVE1_SCENARIOS`' own pattern (only the scenario packs contribute).
+ */
+export const WAVE2_SCENARIOS: readonly Scenario[] = [...TRORS_SCENARIOS, ...TOAFK_SCENARIOS];
+
+/**
+ * Every cycle 1 starter deck: Hawkeye and Spider-Woman (`trors`), plus one each for Ant-Man, Wasp, Quicksilver
+ * and Scarlet Witch. The Once and Future Kang is a scenario pack and defines no starter deck of its own.
+ */
+export const WAVE2_STARTER_DECKS: readonly StarterDeck[] = [
+  ...TRORS_STARTER_DECKS,
+  ...ANT_STARTER_DECKS,
+  ...WSP_STARTER_DECKS,
+  ...QSV_STARTER_DECKS,
+  ...SCW_STARTER_DECKS,
+];
+
+// ---------------------------------------------------------------------------------------------------------------
+// Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2
+// scope decided": every pack beyond Core, wave 1 and cycle 1 is card data the deck builder can show and
+// `validateDeck` can judge — NOT playable, because no ability script exists for any of these cards yet
+// (`unscriptedCards`, `@mc/engine`, is what actually marks a card unplayable at setup time; this pool is only
+// the data half of that). Every pack here normalized with ZERO hand corrections needed (a schema-neutral parser
+// fix or a single curated `Correction`/`Errata` was enough — see each pack's own `curation/<code>.ts` for
+// specifics) — see docs/phase7-wave2-data.md for the full 56-pack survey this was drawn from and what's left.
+// `angel` (Part 6) needed genuinely zero curation, unlike most of the rest of this pool. `storm` (Part 6) was
+// fully curated already and unblocked by the `HostMeasure "thw"` parser mapping landing.
+// ---------------------------------------------------------------------------------------------------------------
+export * from "./bp/index.js";
+export * from "./cyclops/index.js";
+export * from "./gambit/index.js";
+export * from "./drax/index.js";
+export * from "./gam/index.js";
+export * from "./stld/index.js";
+export * from "./vnm/index.js";
+export * from "./nebu/index.js";
+export * from "./warm/index.js";
+export * from "./vision/index.js";
+export * from "./ncrawler/index.js";
+export * from "./magneto/index.js";
+export * from "./winter/index.js";
+export * from "./falcon/index.js";
+export * from "./ron/index.js";
+export * from "./nova/index.js";
+export * from "./silk/index.js";
+export * from "./spdr/index.js";
+export * from "./rogue/index.js";
+export * from "./wolv/index.js";
+export * from "./hood/index.js";
+export * from "./ironheart/index.js";
+export * from "./iceman/index.js";
+export * from "./wonder_man/index.js";
+export * from "./x23/index.js";
+export * from "./valk/index.js";
+export * from "./deadpool/index.js";
+export * from "./spiderham/index.js";
+export * from "./mojo/index.js";
+export * from "./angel/index.js";
+export * from "./storm/index.js";
+
+import { BP_CARDS } from "./bp/cards.js";
+import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
+import { CYCLOPS_CARDS } from "./cyclops/cards.js";
+import { CYCLOPS_ENCOUNTER_SETS } from "./cyclops/encounterSets.js";
+import { GAMBIT_CARDS } from "./gambit/cards.js";
+import { GAMBIT_ENCOUNTER_SETS } from "./gambit/encounterSets.js";
+import { DRAX_CARDS } from "./drax/cards.js";
+import { DRAX_ENCOUNTER_SETS } from "./drax/encounterSets.js";
+import { GAM_CARDS } from "./gam/cards.js";
+import { GAM_ENCOUNTER_SETS } from "./gam/encounterSets.js";
+import { STLD_CARDS } from "./stld/cards.js";
+import { STLD_ENCOUNTER_SETS } from "./stld/encounterSets.js";
+import { VNM_CARDS } from "./vnm/cards.js";
+import { VNM_ENCOUNTER_SETS } from "./vnm/encounterSets.js";
+import { NEBU_CARDS } from "./nebu/cards.js";
+import { NEBU_ENCOUNTER_SETS } from "./nebu/encounterSets.js";
+import { WARM_CARDS } from "./warm/cards.js";
+import { WARM_ENCOUNTER_SETS } from "./warm/encounterSets.js";
+import { VISION_CARDS } from "./vision/cards.js";
+import { VISION_ENCOUNTER_SETS } from "./vision/encounterSets.js";
+import { NCRAWLER_CARDS } from "./ncrawler/cards.js";
+import { NCRAWLER_ENCOUNTER_SETS } from "./ncrawler/encounterSets.js";
+import { MAGNETO_CARDS } from "./magneto/cards.js";
+import { MAGNETO_ENCOUNTER_SETS } from "./magneto/encounterSets.js";
+import { WINTER_CARDS } from "./winter/cards.js";
+import { WINTER_ENCOUNTER_SETS } from "./winter/encounterSets.js";
+import { FALCON_CARDS } from "./falcon/cards.js";
+import { FALCON_ENCOUNTER_SETS } from "./falcon/encounterSets.js";
+import { RON_CARDS } from "./ron/cards.js";
+import { RON_ENCOUNTER_SETS } from "./ron/encounterSets.js";
+import { NOVA_CARDS } from "./nova/cards.js";
+import { NOVA_ENCOUNTER_SETS } from "./nova/encounterSets.js";
+import { SILK_CARDS } from "./silk/cards.js";
+import { SILK_ENCOUNTER_SETS } from "./silk/encounterSets.js";
+import { SPDR_CARDS } from "./spdr/cards.js";
+import { SPDR_ENCOUNTER_SETS } from "./spdr/encounterSets.js";
+import { ROGUE_CARDS } from "./rogue/cards.js";
+import { ROGUE_ENCOUNTER_SETS } from "./rogue/encounterSets.js";
+import { WOLV_CARDS } from "./wolv/cards.js";
+import { WOLV_ENCOUNTER_SETS } from "./wolv/encounterSets.js";
+import { HOOD_CARDS } from "./hood/cards.js";
+import { HOOD_ENCOUNTER_SETS } from "./hood/encounterSets.js";
+import { IRONHEART_CARDS } from "./ironheart/cards.js";
+import { IRONHEART_ENCOUNTER_SETS } from "./ironheart/encounterSets.js";
+import { ICEMAN_CARDS } from "./iceman/cards.js";
+import { ICEMAN_ENCOUNTER_SETS } from "./iceman/encounterSets.js";
+import { WONDER_MAN_CARDS } from "./wonder_man/cards.js";
+import { WONDER_MAN_ENCOUNTER_SETS } from "./wonder_man/encounterSets.js";
+import { X23_CARDS } from "./x23/cards.js";
+import { X23_ENCOUNTER_SETS } from "./x23/encounterSets.js";
+import { VALK_CARDS } from "./valk/cards.js";
+import { VALK_ENCOUNTER_SETS } from "./valk/encounterSets.js";
+import { DEADPOOL_CARDS } from "./deadpool/cards.js";
+import { DEADPOOL_ENCOUNTER_SETS } from "./deadpool/encounterSets.js";
+import { SPIDERHAM_CARDS } from "./spiderham/cards.js";
+import { SPIDERHAM_ENCOUNTER_SETS } from "./spiderham/encounterSets.js";
+import { MOJO_CARDS } from "./mojo/cards.js";
+import { MOJO_ENCOUNTER_SETS } from "./mojo/encounterSets.js";
+import { ANGEL_CARDS } from "./angel/cards.js";
+import { ANGEL_ENCOUNTER_SETS } from "./angel/encounterSets.js";
+import { STORM_CARDS } from "./storm/cards.js";
+import { STORM_ENCOUNTER_SETS } from "./storm/encounterSets.js";
+
+/**
+ * Every card in the data-only pool: 31 packs across cycles 3, 4, 5, 6, 7, 8, 9, 10 and one non-cycle promotional
+ * release, in pack-code alphabetical order (no release-order relationship spans this many cycles at once, unlike
+ * `WAVE1_CARDS`/`WAVE2_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`CORE_CARDS` — a client that wants
+ * "every known card, playable or not" concatenates this with those.
+ */
+export const DATA_ONLY_CARDS: readonly AnyCard[] = [
+  ...BP_CARDS,
+  ...ANGEL_CARDS,
+  ...STORM_CARDS,
+  ...CYCLOPS_CARDS,
+  ...GAMBIT_CARDS,
+  ...DRAX_CARDS,
+  ...GAM_CARDS,
+  ...STLD_CARDS,
+  ...VNM_CARDS,
+  ...NEBU_CARDS,
+  ...WARM_CARDS,
+  ...VISION_CARDS,
+  ...NCRAWLER_CARDS,
+  ...MAGNETO_CARDS,
+  ...WINTER_CARDS,
+  ...FALCON_CARDS,
+  ...RON_CARDS,
+  ...NOVA_CARDS,
+  ...SILK_CARDS,
+  ...SPDR_CARDS,
+  ...ROGUE_CARDS,
+  ...WOLV_CARDS,
+  ...HOOD_CARDS,
+  ...IRONHEART_CARDS,
+  ...ICEMAN_CARDS,
+  ...WONDER_MAN_CARDS,
+  ...X23_CARDS,
+  ...VALK_CARDS,
+  ...DEADPOOL_CARDS,
+  ...SPIDERHAM_CARDS,
+  ...MOJO_CARDS,
+];
+
+/** Every data-only pool encounter set. */
+export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...BP_ENCOUNTER_SETS,
+  ...ANGEL_ENCOUNTER_SETS,
+  ...STORM_ENCOUNTER_SETS,
+  ...CYCLOPS_ENCOUNTER_SETS,
+  ...GAMBIT_ENCOUNTER_SETS,
+  ...DRAX_ENCOUNTER_SETS,
+  ...GAM_ENCOUNTER_SETS,
+  ...STLD_ENCOUNTER_SETS,
+  ...VNM_ENCOUNTER_SETS,
+  ...NEBU_ENCOUNTER_SETS,
+  ...WARM_ENCOUNTER_SETS,
+  ...VISION_ENCOUNTER_SETS,
+  ...NCRAWLER_ENCOUNTER_SETS,
+  ...MAGNETO_ENCOUNTER_SETS,
+  ...WINTER_ENCOUNTER_SETS,
+  ...FALCON_ENCOUNTER_SETS,
+  ...RON_ENCOUNTER_SETS,
+  ...NOVA_ENCOUNTER_SETS,
+  ...SILK_ENCOUNTER_SETS,
+  ...SPDR_ENCOUNTER_SETS,
+  ...ROGUE_ENCOUNTER_SETS,
+  ...WOLV_ENCOUNTER_SETS,
+  ...HOOD_ENCOUNTER_SETS,
+  ...IRONHEART_ENCOUNTER_SETS,
+  ...ICEMAN_ENCOUNTER_SETS,
+  ...WONDER_MAN_ENCOUNTER_SETS,
+  ...X23_ENCOUNTER_SETS,
+  ...VALK_ENCOUNTER_SETS,
+  ...DEADPOOL_ENCOUNTER_SETS,
+  ...SPIDERHAM_ENCOUNTER_SETS,
+  ...MOJO_ENCOUNTER_SETS,
 ];

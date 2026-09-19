@@ -1,6 +1,6 @@
-import type { AnyCard, CardId, CoreAspect, DeckCardEntry, DeckContents, HeroIdentityCard } from "@mc/content";
+import type { AnyCard, CardId, CoreAspect, DeckCardEntry, DeckContents, HeroIdentityCard, ScenarioSeparateDeck, VillainSideLetter } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
-import { validateDeck } from "./deck.js";
+import { unbuildableSeparateDeck, validateDeck } from "./deck.js";
 import { createCtx, emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
 import { giveStatus, shuffleZone } from "./effects.js";
 import { engineError, type EngineError } from "./errors.js";
@@ -24,6 +24,7 @@ import {
   type EncounterDeckState,
   type GameState,
   type PlayerState,
+  type ScenarioDeckState,
   type SeparateDeckState,
   type VillainState,
 } from "./state.js";
@@ -51,7 +52,7 @@ const deckContentsOf = (setup: PlayerSetup): DeckContents => {
 export interface VillainSetup {
   readonly villainCardId: CardId;
   /** Absent: the card's `startingSide`, else "A". */
-  readonly side?: "A" | "B";
+  readonly side?: VillainSideLetter;
   /** Its first stage (version A: 0, version B: 1). Default 0. */
   readonly startStageIndex?: number;
   /** Its last stage (the extreme challenge starts on A with B last). Defaults to the side's last stage. */
@@ -78,7 +79,7 @@ export interface GameSetupConfig {
   /** The villain; with `villains`, the first of them. */
   readonly villainCardId: CardId;
   /** Absent: the card's `startingSide`, else "A". */
-  readonly villainSide?: "A" | "B";
+  readonly villainSide?: VillainSideLetter;
   /** Standard play starts at stage I, expert at stage II (RRG "Modes of Play"). */
   readonly villainStartStageIndex?: number;
   /** The last villain stage used (standard: stage II, expert: stage III). Defaults to the side's last stage. */
@@ -108,6 +109,46 @@ export interface GameSetupConfig {
   readonly encounterDeck: readonly CardId[];
   readonly players: readonly PlayerSetup[];
   readonly firstPlayerIndex?: number;
+  /**
+   * Villain cards of the scenario set aside out of play at setup, for card abilities to add (`addVillain`; The Once and
+   * Future Kang insert, "Setup": "Kang (II) and Kang (III) will enter play through the card effects on main schemes 3A
+   * and 4A"). Created in `encounterSetAside`, homed to the first encounter deck. Expert substitution
+   * (`Scenario.expertVillains`) is the scenario builder's: pass the expert cards here (`villainsForDifficulty`).
+   */
+  readonly setAsideVillainCardIds?: readonly CardId[];
+  /** `Scenario.victory`. Absent: `"finalVillainStage"` (RRG 1.8 "Villain Defeat", p. 47). */
+  readonly victory?: "finalVillainStage" | "cardAbility";
+  /** Whether card abilities may create separate game areas (`Scenario.separateGameAreas` is present). Default false. */
+  readonly separateGameAreas?: boolean;
+  /**
+   * `Scenario.separateDecks` (docs/phase7-wave2.md §3.3). Each starts empty; the main scheme's 1A `Setup:` builds it
+   * (`buildScenarioDeck`), moving the matching cards out of the encounter deck built at Appendix II step 10.
+   */
+  readonly scenarioDecks?: readonly ScenarioSeparateDeck[];
+  /**
+   * Scenario cards that start set aside, out of play (RRG 1.8 "Set Aside", p. 39): Taskmaster's Captive allies, The
+   * Sleeper, Kang's Dominion. Created in `encounterSetAside`, never in the encounter deck. A player card among them has
+   * no owner until a player takes it (RRG 1.8 "Ownership and Control", p. 31).
+   */
+  readonly setAside?: readonly CardId[];
+}
+
+/**
+ * The villain deck and set-aside villains a scenario uses at a difficulty (docs/phase7-wave2.md §3.4). The Once and
+ * Future Kang insert, "Adjustable Difficulty": "To play the scenario in expert mode, replace all six villains in the
+ * Kang encounter set with the six villains from the Expert Kang set". Without `expertVillains`, both difficulties use
+ * the scenario's own villains (stage ranges choose the rest).
+ */
+export function villainsForDifficulty(
+  scenario: {
+    readonly villainCardId: CardId;
+    readonly setAsideVillainCardIds?: readonly CardId[];
+    readonly expertVillains?: { readonly villainCardId: CardId; readonly setAsideVillainCardIds: readonly CardId[] };
+  },
+  difficulty: "standard" | "expert",
+): { readonly villainCardId: CardId; readonly setAsideVillainCardIds: readonly CardId[] } {
+  if (difficulty === "expert" && scenario.expertVillains) return scenario.expertVillains;
+  return { villainCardId: scenario.villainCardId, setAsideVillainCardIds: scenario.setAsideVillainCardIds ?? [] };
 }
 
 export type SetupResult =
@@ -161,7 +202,7 @@ const VERSION_STAGES: Record<"A" | "B" | "extreme", readonly [number, number]> =
 /** A villain as setup will create it, checked against the pool. */
 interface PlannedVillain {
   readonly card: AnyCard & { readonly type: "villain" };
-  readonly side: "A" | "B";
+  readonly side: VillainSideLetter;
   readonly startStageIndex: number;
   readonly lastStageIndex: number;
   readonly encounterDeck: readonly CardId[];
@@ -277,6 +318,18 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     if (!identityCard || identityCard.type !== "hero_identity") {
       return invalid(`${setup.identityCardId} is not an identity card`);
     }
+    // The SP//dr insert's "Separated Identity Card" (two identity cards sharing one dial) is not modeled; seating it as an
+    // ordinary identity would silently play a different game (docs/phase7-wave2.md §6.10).
+    if (identityCard.separatedIdentity !== undefined) {
+      return invalid(`${identityLabel(identityCard)} is a separated identity (two identity cards), which this engine cannot seat yet`);
+    }
+    // Only Doctor Strange's kind of separate deck is built (a player-card deck with its own discard pile). Hercules's
+    // Labor deck (encounter cards) and Gift deck (no discard pile) are data only (docs/phase7-wave2.md §15); building
+    // either as if it were the Invocation deck would silently play a different game.
+    const unbuilt = unbuildableSeparateDeck(identityCard);
+    if (unbuilt) {
+      return invalid(`${identityLabel(identityCard)}'s ${unbuilt.name} deck is a kind of separate deck this engine cannot build yet`);
+    }
     // RRG 1.8 "Unique Icon" — identities chosen at setup cannot match (see `cardsMatch`).
     const taken = seatedIdentities.find((seated) => cardsMatch(seated.card, identityCard));
     if (taken) {
@@ -296,6 +349,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     for (const cardId of setup.deck) {
       const card = pool[cardId];
       if (!card) return invalid(`unknown card ${cardId} in ${id}'s deck`);
+      if (card.type === "evidence") return invalid(`${cardId} is an evidence card, which is never in a deck`);
       const cardInstanceId = nextId();
       instances[cardInstanceId] = blankInstance(cardInstanceId, card.id, id, PLAYER_HOME);
       deck.push(cardInstanceId);
@@ -322,9 +376,14 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       // villain's (ruling, Jan 17, 2026 (5)).
       const obligation = pool[identityCard.obligationCardId];
       if (obligation) {
-        const obligationInstanceId = nextId();
-        instances[obligationInstanceId] = blankInstance(obligationInstanceId, obligation.id, null, ACTIVE_DECK_HOME);
-        obligationIds.push(obligationInstanceId);
+        // RRG 1.8 "Obligation" (p. 30): "Each identity is associated with one or more obligation cards. If an identity
+        // is being played, all of that identity's associated obligation cards are shuffled into the encounter deck
+        // during setup." Scarlet Witch's set holds two copies of Slipping Sanity (FAQ "Slipping Sanity (#23)", p. 61).
+        for (let copy = 0; copy < Math.max(1, obligation.quantityInSet); copy++) {
+          const obligationInstanceId = nextId();
+          instances[obligationInstanceId] = blankInstance(obligationInstanceId, obligation.id, null, ACTIVE_DECK_HOME);
+          obligationIds.push(obligationInstanceId);
+        }
       } else if (config.requireIdentitySets) {
         return invalid(`obligation ${identityCard.obligationCardId} is not in the card pool`);
       }
@@ -350,6 +409,7 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
         instanceId: identityInstanceId,
         cardId: identityCard.id,
         form: "alterEgo",
+        heroFormIndex: null,
         changedFormThisRound: false,
       },
       hand: [],
@@ -371,6 +431,8 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     for (const cardId of planned.encounterDeck) {
       const card = pool[cardId];
       if (!card) return invalid(`unknown encounter card ${cardId}`);
+      // The Agents of S.H.I.E.L.D. rulebook (p. 6): "Evidence cards are not added to any deck" (docs/phase7-wave2.md §6.4).
+      if (card.type === "evidence") return invalid(`${cardId} is an evidence card, which is never in the encounter deck`);
       const cardInstanceId = nextId();
       instances[cardInstanceId] = blankInstance(cardInstanceId, card.id, null, { kind: "encounterDeck", deckId });
       deck.push(cardInstanceId);
@@ -382,6 +444,28 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
 
   // Signature side schemes are set aside, linked to their villain, until an ability puts them into play.
   const encounterSetAside: InstanceId[] = [];
+  for (const cardId of config.setAside ?? []) {
+    const card = pool[cardId];
+    if (!card) return invalid(`unknown set-aside card ${cardId}`);
+    if (card.type === "evidence" || card.type === "villain") return invalid(`${cardId} cannot be set aside as a scenario card`);
+    const id = nextId();
+    const playerCard = "deckLimit" in card;
+    instances[id] = blankInstance(id, card.id, null, playerCard ? PLAYER_HOME : { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId });
+    encounterSetAside.push(id);
+  }
+  const scenarioDecks: Record<string, ScenarioDeckState> = {};
+  for (const deck of config.scenarioDecks ?? []) {
+    if (scenarioDecks[deck.name]) return invalid(`scenario deck ${deck.name} is listed twice`);
+    scenarioDecks[deck.name] = { deck: [], discard: [], discardPile: deck.discardPile, whenEmpty: deck.whenEmpty, contents: deck.contents };
+  }
+  for (const cardId of config.setAsideVillainCardIds ?? []) {
+    const card = pool[cardId];
+    if (!card || card.type !== "villain") return invalid(`${cardId} is not a villain card`);
+    if (plannedVillains.some((planned) => planned.card.id === cardId)) return invalid(`${cardId} is both in the villain deck and set aside`);
+    const id = nextId();
+    instances[id] = blankInstance(id, card.id, null, { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId });
+    encounterSetAside.push(id);
+  }
   const villains: VillainState[] = plannedVillains.map((planned, index) => {
     let signatureSideSchemeId: InstanceId | null = null;
     if (planned.signatureSideSchemeCardId) {
@@ -427,9 +511,15 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       completed: false,
       accelerationTokens: 0,
     },
+    gameAreas: [],
+    nextGameAreaSeq: 1,
+    spentMainSchemeStages: [],
+    revealedMainSchemes: [],
+    scenarioRules: { victory: config.victory ?? "finalVillainStage", separateGameAreas: config.separateGameAreas ?? false },
     encounterDecks,
     encounterDeckOrder: deckIds,
     encounterSetAside,
+    scenarioDecks,
     villainArea: [],
     victoryDisplay: [],
     removedFromGame: [],
@@ -440,7 +530,9 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     lastingEffects: [],
     stateChecks: {},
     playedThisRound: {},
+    playedThisPhase: {},
     playedByPlayerThisRound: {},
+    attackedThisTurn: {},
     pendingChoice: null,
     outcome: null,
     rng: createRng(config.seed),

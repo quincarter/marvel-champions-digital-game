@@ -16,7 +16,8 @@ export type CardType =
   | "side_scheme"
   | "treachery"
   | "obligation"
-  | "environment";
+  | "environment"
+  | "evidence";
 
 /**
  * `art` is a lookup key into a gitignored *local* asset folder; `images` points

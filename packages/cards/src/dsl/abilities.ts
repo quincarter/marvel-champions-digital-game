@@ -24,7 +24,7 @@ import type {
   TypedResource,
 } from "@mc/engine";
 import { flatten, ifThen, type EffectArg } from "./effects.js";
-import { isAlterEgo, isHero, type Amount } from "./values.js";
+import { isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
 
 /**
  * Abilities — the sentence structure of the DSL. `heroInterrupt(when.x, …)`
@@ -38,6 +38,8 @@ export interface AbilityOptions {
   readonly limit?: AbilityLimit;
   /** "(attack)", "(thwart)", "(defense)". */
   readonly label?: AbilityLabel | readonly AbilityLabel[];
+  /** Actions only: a condition printed before the cost ("If you are in Tiny hero form, exhaust … →"). */
+  readonly while?: Predicate;
 }
 type Args = readonly (AbilityOptions | EffectArg)[];
 
@@ -87,26 +89,35 @@ function build(trigger: AbilityTriggerSpec, options: AbilityOptions, effects: re
 /** "Action:" */
 export const action = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
-  return build({ kind: "action" }, options, effects);
+  return build({ kind: "action", ...(options.while ? { while: options.while } : {}) }, options, effects);
 };
 /** "Hero Action:" */
 export const heroAction = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
-  return build({ kind: "action", form: "hero" }, options, effects);
+  return build({ kind: "action", form: "hero", ...(options.while ? { while: options.while } : {}) }, options, effects);
 };
 /** "Alter-Ego Action:" */
 export const alterEgoAction = (...args: Args): AbilityDefinition => {
   const { options, effects } = split(args);
-  return build({ kind: "action", form: "alterEgo" }, options, effects);
+  return build({ kind: "action", form: "alterEgo", ...(options.while ? { while: options.while } : {}) }, options, effects);
 };
 
-/** "Resource: … generate …" (a bare number is that many wild resources). */
-export const resource = (generates: ResourceGeneration, options: AbilityOptions & { readonly form?: Form } = {}): AbilityDefinition => {
-  const { form, ...rest } = options;
-  return build({ kind: "resource", ...(form ? { form } : {}) }, rest, [], generates);
+/**
+ * "Resource: … generate …" (a bare number is that many wild resources). `generatesFor`: "generate a [wild]
+ * resource for an X card" (Expert Marksman, Finesse, `trors` pack) — usable only while paying for a card matching
+ * the query (FAQ "Finesse (#33)", RRG 1.8 p. 60: "its resource cost or a cost within that aspect card's ability").
+ */
+export const resource = (
+  generates: ResourceGeneration,
+  options: AbilityOptions & { readonly form?: Form; readonly generatesFor?: TargetQuery } = {},
+): AbilityDefinition => {
+  const { form, generatesFor, ...rest } = options;
+  const definition = build({ kind: "resource", ...(form ? { form } : {}) }, rest, [], generates);
+  return generatesFor ? { ...definition, generatesFor } : definition;
 };
 /** "Hero Resource:" */
-export const heroResource = (generates: ResourceGeneration, options: AbilityOptions = {}): AbilityDefinition => resource(generates, { ...options, form: "hero" });
+export const heroResource = (generates: ResourceGeneration, options: AbilityOptions & { readonly generatesFor?: TargetQuery } = {}): AbilityDefinition =>
+  resource(generates, { ...options, form: "hero" });
 
 const triggered =
   (kind: "interrupt" | "response", forced: boolean, form?: Form) =>
@@ -148,6 +159,19 @@ export const whenDefeated = (...effects: readonly EffectArg[]): AbilityDefinitio
 export const boost = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "boost" }, {}, effects);
 /** "Setup:" (main scheme 1A, identity). An empty setup is "Advance to stage 1B", which the engine always does. */
 export const setup = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "setup" }, {}, effects);
+/**
+ * "If <condition>, …" — a forced ability with no triggering event, checked between every two frames (Kang's stage
+ * 3 "If all the players at this stage are defeated, this stage is complete"; The Master of Time 2B's own "When all
+ * the players have joined this game area, advance to stage 4A" — docs/phase7-wave2.md §3.1). Edge-triggered: fires
+ * when the condition goes false → true, not continuously while true (RRG 1.8 "Uses", p. 46's own discard check).
+ */
+export const stateCheck = (when: Predicate, ...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "stateCheck", when }, {}, effects);
+/**
+ * RRG 1.8 "When Completed Abilities" (p. 48): "equivalent to … 'Forced Interrupt: When this scheme is
+ * completed…'" — resolves on a main scheme stage reaching its target threat, before it advances (never on the
+ * final stage, whose completion loses the game).
+ */
+export const whenCompleted = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "whenCompleted" }, {}, effects);
 
 // ---------------------------------------------------------------------------
 // Constant abilities
@@ -169,6 +193,12 @@ export interface ConstantPart {
   readonly playableFrom?: readonly "discard"[];
   /** "As an additional cost for Wonder Man to attack, you must discard 1 card from your hand." (Wonder Man, `cap` pack). */
   readonly basicPowerCosts?: readonly { readonly power: "attack" | "thwart"; readonly cost: AbilityCost }[];
+  /**
+   * "You may play [Arrow] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors`
+   * pack; docs/phase7-wave2.md §3.10): cards attached to this card that match may be played by its controller as if
+   * from hand.
+   */
+  readonly playableAttachments?: TargetQuery;
 }
 
 export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
@@ -179,6 +209,8 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   if (multipliers.length > 1) throw new Error("a constant ability has at most one resource multiplier");
   const spendableInList = parts.flatMap((p) => (p.spendableIn ? [p.spendableIn] : []));
   if (spendableInList.length > 1) throw new Error("a constant ability has at most one spendableIn form");
+  const playableAttachmentsList = parts.flatMap((p) => (p.playableAttachments ? [p.playableAttachments] : []));
+  if (playableAttachmentsList.length > 1) throw new Error("a constant ability has at most one playableAttachments query");
   const modifiers = all("modifiers");
   const keywordGrants = all("keywordGrants");
   const traitGrants = all("traitGrants");
@@ -200,10 +232,13 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
       ...(playableFrom.length ? { playableFrom } : {}),
       ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
+      ...(playableAttachmentsList[0] ? { playableAttachments: playableAttachmentsList[0] } : {}),
     },
     effects: [],
   };
 }
+/** "You may play [X] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors` pack). */
+export const playableAttachments = (query: TargetQuery): ConstantPart => ({ playableAttachments: query });
 /** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */
 export const costModifier = (spec: CostModifierSpec): ConstantPart => ({ costModifiers: [spec] });
 /** "As an additional cost for [this character] to attack/thwart, you must …" (Wonder Man). */
@@ -226,7 +261,48 @@ export const gainsKeyword = (keyword: KeywordInstance, target: TargetQuery, opts
 export const gainsTrait = (t: Trait, target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
   traitGrants: [{ trait: t, target, ...(opts.while ? { while: opts.while } : {}) }],
 });
+/**
+ * "X gains the trait of each environment in play" (Absorbing Man, `trors` pack; docs/phase7-wave2.md §3.11): the
+ * printed traits of every card `traitsOf` matches (from the granting card's point of view) are granted.
+ */
+export const gainsTraitsOf = (traitsOf: TargetQuery, target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  traitGrants: [{ traitsOf, target, ...(opts.while ? { while: opts.while } : {}) }],
+});
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
+/** "X does not count against your ally limit." (Stinger, `ant`; RRG 1.8 "Ally Limit", p. 7). */
+export const excludedFromAllyLimit = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "excludedFromAllyLimit", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "Treat the printed text box of each [trait] player card as if it were blank" (Tech Theft 12026, `ant`;
+ * docs/phase7-wave2.md §8): the matching cards' abilities and printed keywords stop working while this card is in
+ * play. `target` is a category list, not `controller: "you"` — the rule sits on an encounter card, which has no
+ * controller for "you" to resolve to, and the printed text says "each", not "your".
+ */
+export const blanksTextBox = (target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  rules: [{ kind: "blankTextBox", target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
+ * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec
+ * attackKeywords`, docs/phase7-wave2.md §3). `via` matches the card whose ability makes the attack (the event for a
+ * "Hero Action (attack)"); a persistent character/attachment granting itself the keyword should use `gainsKeyword`
+ * instead — this builder is for a grant that outlives the one card making the attack.
+ */
+export const attacksGainKeywords = (
+  keywords: readonly AttackKeyword[],
+  opts: { readonly attacker?: TargetQuery; readonly via?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "attackKeywords",
+      keywords,
+      ...(opts.attacker ? { attacker: opts.attacker } : {}),
+      ...(opts.via ? { via: opts.via } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
+});
 /** "Double the number of resources this card generates while paying for an [aspect] card." */
 export const doublesResourcesWhilePayingFor = (whilePayingFor: TargetQuery): ConstantPart => ({ resourceMultiplier: { factor: 2, whilePayingFor } });
 
@@ -382,6 +458,11 @@ export const on = {
   entersPlay: (what: Who): EventPattern => pattern("cardEntersPlay", asTarget(what)),
   /** "After you play [this card]" — playing, not merely putting into play. */
   youPlayThis: (): EventPattern => pattern("cardPlayed", { selfIs: "target" }),
+  /**
+   * "Interrupt: When you play [an X card]" (Superhuman Agility, 04031a) — the point of playing, before it resolves
+   * (`cardBeingPlayed`, interruptible unlike `cardPlayed`/`cardEntersPlay`). `what` filters which played card.
+   */
+  youPlay: (what: TargetQuery): EventPattern => pattern("cardBeingPlayed", { targetIs: what, playerIs: "controller" }),
   /** "When X would take damage" / "after X takes damage" (`taken`: some damage was actually dealt). */
   damage: (to: Who, opts: { readonly fromAttack?: boolean; readonly taken?: boolean } = {}): EventPattern =>
     pattern(
@@ -403,10 +484,46 @@ export const on = {
    * (Followed, `cap` pack): `on.schemeDefeated("host")`.
    */
   schemeDefeated: (what: Who): EventPattern => pattern("schemeDefeated", asTarget(what)),
+  /**
+   * "After this stage is complete/completed" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1) — a *different*
+   * stage reacting to another stage's own completion (as opposed to `whenCompleted`, printed on the completing
+   * stage itself).
+   */
+  mainSchemeCompleted: (what: Who): EventPattern => pattern("mainSchemeCompleted", asTarget(what)),
   /** "After you change to this form". */
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
+  /**
+   * "After **a player** changes to [hero/alter-ego] form" (Taskmaster I–III, 04093–04095) — no `playerIs` scope, so
+   * this is "a player", not "you" (`on.youChangeForm`'s own hardcoded scope). Name them with `eventPlayer`.
+   */
+  playerChangesForm: (to: "hero" | "alterEgo"): EventPattern => pattern("formChanged", { eventIs: { to } }),
   /** "After your turn begins" (Quinjet, `cap` pack). */
   yourTurnBegins: (): EventPattern => pattern("turnStarted", { playerIs: "controller" }),
+  /**
+   * "After you use a basic power" (Quicksilver's Super Speed, Captain Marvel ally 04032, Rapid Growth; docs/phase7-
+   * wave2.md §3.11). The engine's `EventPattern` has no field to narrow by *which* power (attack/thwart/defense/
+   * recover) — every wave 2 card needing this reacts to any basic power, so no filter is needed today; a future
+   * card that needs one is a `game-rules-architect` follow-up (`TriggerEventBody.basicPowerUsed`'s `power` field
+   * would need to be exposed on `EventPattern`).
+   */
+  basicPowerUsed: (who: Who): EventPattern => pattern("basicPowerUsed", asTarget(who)),
+  /** "When attached character would ready" (Frozen in Time; docs/phase7-wave2.md §3.11). */
+  cardReadying: (what: Who): EventPattern => pattern("cardReadying", asTarget(what)),
+  /** "When boost icons on an encounter card would be counted" (Chaos Control, Crest; docs/phase7-wave2.md §3.6). */
+  boostIconsCounted: (): EventPattern => pattern("boostIconsCounting", {}),
+  /**
+   * "When/After you spend this card [to play X]" (docs/phase7-wave2.md §12) — a card spent from hand as a resource.
+   * `toPlay` narrows it to paying for a card being played that matches ("to play an Attack event", "to play an
+   * ally"); an ability's cost or an effect's "spend X resources" never matches it. Works from the discard pile: the
+   * engine keeps the spent card's own ability on this event live while it resolves (RRG 1.8 "Resource Card", p. 37).
+   * "For a player" / "that player" is `PlayerRef { kind: "eventPlayer" }`.
+   */
+  youSpendThis: (opts: { readonly toPlay?: TargetQuery } = {}): EventPattern =>
+    pattern(
+      "resourcesSpent",
+      { selfIs: "source", playerIs: "controller" },
+      opts.toPlay ? { targetIs: opts.toPlay, eventIs: { purpose: "playCard" } } : {},
+    ),
 } as const;
 
 /** Interrupt wording: `heroInterrupt(when.villainAttacks({ againstYou: true }), …)`. */

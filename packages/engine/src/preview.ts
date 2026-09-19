@@ -32,7 +32,14 @@ import { applyCommand } from "./engine.js";
 import type { EngineErrorCode } from "./errors.js";
 import type { GameEvent, GameEventType } from "./events.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { characterProfile, getInstance, mainSchemeValue, maxHitPoints, remainingHitPoints } from "./query.js";
+import {
+  characterProfile,
+  getInstance,
+  mainSchemeValue,
+  maxHitPoints,
+  remainingHitPoints,
+  mainSchemeStateOf,
+} from "./query.js";
 import { cardsInPlay, categoriesOf } from "./select.js";
 import type { GameOutcome, GameState, StatusCounts } from "./state.js";
 import { faceHidden, zoneHidden } from "./visibility.js";
@@ -105,7 +112,7 @@ function snapshot(state: GameState, id: InstanceId, deps: EngineDeps): CounterSn
     };
   }
   const isScheme = categoriesOf(state, id).includes("scheme");
-  const isMainScheme = id === state.mainScheme.instanceId;
+  const mainScheme = mainSchemeStateOf(state, id);
   // A character's hit points only: `characterProfile` is what decides whether this card has any at all.
   const hasHitPoints = characterProfile(state, id, deps) !== undefined;
   return {
@@ -114,7 +121,7 @@ function snapshot(state: GameState, id: InstanceId, deps: EngineDeps): CounterSn
     remainingHitPoints: hasHitPoints ? (remainingHitPoints(state, id, deps) ?? null) : null,
     maxHitPoints: hasHitPoints ? (maxHitPoints(state, id, deps) ?? null) : null,
     threat: isScheme ? instance.threat : null,
-    threatLimit: isMainScheme ? mainSchemeValue(state, "targetThreat", deps) : null,
+    threatLimit: mainScheme ? mainSchemeValue(state, "targetThreat", deps, mainScheme) : null,
     exhausted: instance.exhausted,
     statuses: instance.statuses,
   };

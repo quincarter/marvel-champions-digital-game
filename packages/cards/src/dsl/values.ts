@@ -35,6 +35,18 @@ export const chosenPlayer = (slot = "player"): PlayerRef => ({ kind: "slot", slo
 export const otherPlayers = (of: PlayerRef = you): PlayerRef => ({ kind: "others", of });
 /** "The engaged player" of a minion. */
 export const engagedPlayerOf = (of: TargetRef): PlayerRef => ({ kind: "engagedWith", of });
+/**
+ * "They" in "After **a player** changes to hero form, they …" (Taskmaster I–III, 04093–04095): the player the
+ * triggering event itself is about, paired with `on.playerChangesForm` (`dsl/abilities.ts`), which sets no
+ * `playerIs` scope so the trigger isn't limited to "you".
+ */
+export const eventPlayer: PlayerRef = { kind: "eventPlayer" };
+/**
+ * "The player who defeated this scheme" (Crossbones' Assault 04070, Prison Camps 04141, Hydra Reinforcements
+ * 04143): the defeating player recorded on the `schemeDefeated`/`characterDefeated` event a `whenDefeated` ability
+ * is reacting to. Empty outside a defeat, and for a defeat no player caused.
+ */
+export const defeatingPlayer: PlayerRef = { kind: "defeatingPlayer" };
 export const ownerOf = (target: TargetRef): PlayerRef => ({ kind: "ownerOf", target });
 
 // ---------------------------------------------------------------------------
@@ -101,6 +113,15 @@ export const TRAIT = {
 
 export type Amount = number | ValueSpec;
 export const amount = (value: Amount): ValueSpec => (typeof value === "number" ? { kind: "const", value } : value);
+
+/**
+ * Mirrors `@mc/engine`'s own `AttackKeyword` (`spec.ts`) structurally: keywords that belong to an *attack* rather
+ * than a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"). `packages/engine/src/index.ts`'s public barrel doesn't
+ * export the type itself yet (only the `EffectSpec`/`RuleSpec` shapes that use it), and `@mc/cards` doesn't own that
+ * file — this local alias is string-literal-for-string-literal identical, so it's structurally assignable wherever
+ * the engine's own type is expected. Replace with a direct import once the barrel catches up.
+ */
+export type AttackKeyword = "piercing" | "ranged" | "overkill";
 
 /** "N [per_hero]" (plus an optional flat base). */
 export const perHero = (perPlayer: number, base = 0): ValueSpec => ({ kind: "perPlayer", base, perPlayer });
@@ -208,6 +229,16 @@ export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResu
 export const undefendedAttack: Predicate = { kind: "currentAttack", key: "undefended", atLeast: 1 };
 /** "If this is the final step of this sequence" (Wakanda Forever!). */
 export const finalStep: Predicate = varAtLeast("sequence.final", 1);
+/**
+ * "When all the players have joined this game area" is `stateCheck(not(gameAreasSplit))` (The Master of Time 2B,
+ * docs/phase7-wave2.md §3.1): true once every player is in the same game area again (or the scenario never split).
+ */
+export const gameAreasSplit: Predicate = { kind: "gameAreasSplit" };
+/**
+ * "If all the players at this stage are defeated" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1): every player
+ * in this effect's own game area is defeated (eliminated). False outside a separate game area.
+ */
+export const areaPlayersDefeated: Predicate = { kind: "areaPlayersDefeated" };
 /** "During step one of the villain phase". */
 export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "villain", step: "placeThreat" };
 /**
@@ -216,3 +247,18 @@ export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "
  * plays each round, whatever form they're in when it's played — so this reads the round count, not the phase's.
  */
 export const firstThisRound = (cardType: string, player: PlayerRef = you): Predicate => ({ kind: "playedThisRound", player, cardType, atMost: 0 });
+
+// ---------------------------------------------------------------------------
+// Wave 2 (cycle 1, docs/phase7-wave2.md) additions
+// ---------------------------------------------------------------------------
+
+/** "The total cost of all allies beneath it" (Hydra Prison, `trors`). */
+export const totalPrintedCost = (cardsRef: TargetRef): ValueSpec => ({ kind: "totalPrintedCost", cards: cardsRef });
+/**
+ * "X is the number of printed resources on that card" (the Hawkeye ally 04011, Kate Bishop, reading a card
+ * discarded to pay its own cost). `types` narrows to some icon types; absent counts all four, wild included.
+ */
+export const totalPrintedResources = (
+  cardsRef: TargetRef,
+  types?: readonly ("physical" | "mental" | "energy" | "wild")[],
+): ValueSpec => ({ kind: "totalPrintedResources", cards: cardsRef, ...(types ? { types } : {}) });

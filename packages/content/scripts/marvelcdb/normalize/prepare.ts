@@ -2,7 +2,7 @@
  * A raw record with its hand corrections and errata applied: the name, text, traits and stats every card-type module
  * reads instead of the raw fields.
  */
-import type { CardText, Trait } from "../../../src/schema/index.ts";
+import type { CardText, SpecialCost, Trait } from "../../../src/schema/index.ts";
 import type { Errata } from "../curation/types.ts";
 import type { RawCard } from "../raw-types.ts";
 import { parseTraits, toPlainText, unknownTokens } from "../text.ts";
@@ -20,6 +20,11 @@ export interface Prepared {
   readonly errata?: Errata;
   readonly notes: string[];
   readonly ignored: ReadonlySet<string>;
+  /**
+   * `"X"` when MarvelCDB's own `cost: -1` encoding says so (unambiguous, no correction needed); `"dash"` only
+   * when a curated `Correction.specialCost` confirms it from the card image (see that field's doc comment).
+   */
+  readonly specialCost?: SpecialCost;
 }
 
 /** Prepares a record once per run (cached by code), marking which corrections and errata matched. */
@@ -32,6 +37,9 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
   let traits = parseTraits(r.real_traits ?? r.traits);
   let boost = r.boost ?? 0;
   let attack = r.attack;
+  // MarvelCDB's own `cost: -1` is an unambiguous encoding of a printed "X" cost (docs/phase7-wave2.md §1.3) —
+  // read automatically, before any correction is consulted.
+  let specialCost: SpecialCost | undefined = r.cost === -1 ? "X" : undefined;
   const notes: string[] = [];
   const ignored = new Set<string>();
   curation.corrections.forEach((c, i) => {
@@ -46,6 +54,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     if (c.traits !== undefined) traits = c.traits.map((t) => t.toUpperCase());
     if (c.boost !== undefined) boost = c.boost;
     if (c.attack !== undefined) attack = c.attack;
+    if (c.specialCost !== undefined) specialCost = c.specialCost;
     for (const f of c.ignoreFields ?? []) ignored.add(f);
     notes.push(`${r.code}: ${c.reason} [evidence: ${c.evidence}]`);
   });
@@ -82,6 +91,7 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ...(errata ? { errata } : {}),
     notes,
     ignored,
+    ...(specialCost ? { specialCost } : {}),
   };
   ctx.prepared.set(r.code, p);
   return p;

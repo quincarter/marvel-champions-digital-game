@@ -50,9 +50,14 @@ export interface ReportTarget {
  */
 export interface BoostInProgress {
   readonly instanceId: InstanceId;
-  readonly step: "window" | "ability";
+  /** `count`: its icons are about to be counted (`boostIconsCounting`; docs/phase7-wave2.md §3.6). */
+  readonly step: "window" | "ability" | "count";
   readonly iconsCancelled: boolean;
   readonly abilityCancelled: boolean;
+  /** "Increase or decrease the number of boost icons on that card by 1 for this count" (`adjustBoostCount`). */
+  readonly countAdjust?: number;
+  /** "Count the number of boost icons on that card instead" (`replaceBoostCount`): the card whose icons are counted. */
+  readonly countFrom?: InstanceId;
 }
 
 /** Effects waiting for a timing point ("at the end of this attack"), with the context that created them. */

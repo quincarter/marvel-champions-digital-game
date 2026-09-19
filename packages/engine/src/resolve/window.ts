@@ -1,6 +1,7 @@
 /** Timing windows: ordering, choosing, paying for and resolving triggered abilities. */
 
 import {
+  announceResourcesSpent,
   commitPlay,
   isPriceFault,
   payCost,
@@ -198,7 +199,7 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
   if (isPriceFault(plan)) return;
   const pool = priceOrNull(ctx, controller, payment, null, plan.payingFor);
   if (!pool || !satisfies(pool, plan.requirement)) return;
-  payPayment(ctx, controller, payment);
+  const spent = payPayment(ctx, controller, payment);
   const paidVars: Vars = {
     "paid.physical": pool.physical,
     "paid.mental": pool.mental,
@@ -210,6 +211,7 @@ function payWindowAbility(ctx: Ctx, frame: Frame<"window">, answer: readonly str
     abilityFrame(ctx, candidate, frame.event, frame.eventFrameId, plan.bindings, { ...plan.vars, ...paidVars }),
   ]);
   payCost(ctx, candidate.instanceId, controller, definition.cost, plan);
+  announceResourcesSpent(ctx, controller, spent, candidate.instanceId, "ability");
 }
 
 function requestWindowPayment(
@@ -280,7 +282,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
   const abilityCost = ctx.deps.abilities[candidate.abilityId]?.cost;
   const priced = pricePlay(ctx, controller, candidate.instanceId, abilityCost, payment, {});
   if (isPriceFault(priced)) return;
-  commitPlay(ctx, controller, candidate.instanceId, payment, priced);
+  const spent = commitPlay(ctx, controller, candidate.instanceId, payment, priced);
   pushPlayCardFrame(
     ctx,
     candidate.instanceId,
@@ -290,6 +292,7 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
     { bindings: priced.plan.bindings, vars: priced.vars },
   );
   payCost(ctx, candidate.instanceId, controller, abilityCost, priced.plan);
+  announceResourcesSpent(ctx, controller, spent, candidate.instanceId, "playCard");
 }
 
 function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly string[]): void {

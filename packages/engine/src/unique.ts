@@ -41,8 +41,8 @@
  */
 
 import type { AnyCard } from "@mc/content";
-import type { InstanceId } from "./ids.js";
-import { cardOf, getInstance } from "./query.js";
+import type { InstanceId, PlayerId } from "./ids.js";
+import { areaOfCard, areaOfPlayer, cardOf, getInstance } from "./query.js";
 import { cardsInPlay } from "./select.js";
 import type { GameState } from "./state.js";
 
@@ -101,10 +101,18 @@ export function matchingCardInPlay(
   state: GameState,
   card: AnyCard,
   ignore: ReadonlySet<InstanceId> = new Set(),
+  forPlayer: PlayerId | null = null,
 ): InstanceId | null {
   if (!isUnique(card)) return null;
+  // The Once and Future Kang insert, "Rules Clarifications": "a unique card in one game area places no limitations on
+  // the others" (docs/phase7-wave2.md §3.1). `forPlayer` is whose area the card would enter.
+  const area = forPlayer ? areaOfPlayer(state, forPlayer) : null;
   for (const id of cardsInPlay(state)) {
     if (ignore.has(id)) continue;
+    if (area) {
+      const other = areaOfCard(state, id);
+      if (other && other.areaId !== area.areaId) continue;
+    }
     const instance = getInstance(state, id);
     if (!instance || !instance.faceup) continue;
     const other = cardOf(state, id);

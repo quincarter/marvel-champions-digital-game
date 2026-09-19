@@ -8,7 +8,7 @@ export type {
   ResourceCard,
   PlayerSideSchemeCard,
 } from "./player-cards.js";
-export type { PlayRestrictions } from "./player-cards.js";
+export type { PlayRestrictions, SpecialCost, SpecificSet } from "./player-cards.js";
 export type {
   HeroIdentityCard,
   HeroFace,
@@ -16,8 +16,10 @@ export type {
   IdentityDeckbuilding,
   IdentitySeparateDeck,
   OffAspectPackage,
+  SeparatedIdentity,
 } from "./identity.js";
 export type {
+  CardFlipSide,
   EncounterCard,
   EncounterCardFlipSide,
   MinionCard,
@@ -44,12 +46,15 @@ export type {
   SideSchemeCard,
   SchemeIcon,
 } from "./schemes.js";
-export type { VillainCard, VillainDashStat, VillainSide, VillainStage } from "./villain.js";
+export type { VillainCard, VillainDashStat, VillainSide, VillainSideLetter, VillainStage } from "./villain.js";
+export type { EvidenceCard, EvidenceKind } from "./evidence.js";
+export { EVIDENCE_KINDS } from "./evidence.js";
 
 import type { PlayerCard } from "./player-cards.js";
 import type { HeroIdentityCard } from "./identity.js";
 import type { EncounterCard } from "./encounter-cards.js";
 import type { MainSchemeCard, SideSchemeCard } from "./schemes.js";
 import type { VillainCard } from "./villain.js";
+import type { EvidenceCard } from "./evidence.js";
 
-export type AnyCard = PlayerCard | HeroIdentityCard | EncounterCard | MainSchemeCard | SideSchemeCard | VillainCard;
+export type AnyCard = PlayerCard | HeroIdentityCard | EncounterCard | MainSchemeCard | SideSchemeCard | VillainCard | EvidenceCard;

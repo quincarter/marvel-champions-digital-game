@@ -22,7 +22,7 @@ import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { runCommands } from "./testing/drive.js";
 import { stubAlly, stubAttachment, stubMainScheme, stubMinion, stubSideScheme, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, giveCard, HERO, seatIdentities, settleUntil, withEncounterPiles } from "./testing/scenario.js";
+import { DEFAULT_CARDS, DEFAULT_DECK, defaultPick, giveCard, HERO, seatIdentities, settle, settleUntil, withEncounterPiles } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const p2 = playerId("p2");
@@ -214,6 +214,181 @@ describe("§3.14 every host kind resolves at the moment of attaching", () => {
 });
 
 // --- the reveal procedure ---------------------------------------------------------------------------------------
+
+// --- the wave 2 data-pipeline host requests (docs/phase7-wave2.md §7) -------------------------------------------
+
+describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
+  it("'an encounter card in play' is every in-play card with no controller, and never a player's own card", () => {
+    const start = game({ encounter: [ELITE_MINION.id, SIDE.id, ...copies(BLANK.id, 14)] });
+    const withMinion = intoPlay(start, ELITE_MINION.id);
+    const withScheme = intoPlay(withMinion.state, SIDE.id);
+    const ally = giveCard(withScheme.state, p1, AVENGER_ALLY.id);
+    const inPlay: GameState = {
+      ...ally.state,
+      players: ally.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== ally.id), playArea: [...pl.playArea, ally.id] } : pl)),
+      instances: { ...ally.state.instances, [ally.id]: { ...mustInstance(ally.state, ally.id), faceup: true, controllerId: p1 } },
+    };
+    const candidates = hosts(inPlay, { kind: "encounterCard" });
+    expect(candidates).toContain(withMinion.id);
+    expect(candidates).toContain(withScheme.id);
+    expect(candidates).not.toContain(ally.id);
+    expect(candidates).not.toContain(mustPlayer(inPlay, p1).identity.instanceId);
+  });
+
+  it("'the ally with the highest cost' ranks the ally pool by printed cost, and drops cards that print none", () => {
+    const cheap = stubAlly({ id: "cheap-ally", cost: 1, atk: 1, thw: 1, hp: 3 });
+    const dear = stubAlly({ id: "dear-ally", cost: 4, atk: 1, thw: 1, hp: 3 });
+    const identities = seatIdentities(HERO, 1);
+    const result = createGame(
+      {
+        seed: 7,
+        cards: [...CARDS, cheap, dear, ...identities],
+        villainCardId: QUIET_VILLAIN.id,
+        mainSchemeCardId: LONG_SCHEME.id,
+        encounterDeck: copies(BLANK.id, 16),
+        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copies(cheap.id, 2), ...copies(dear.id, 2)] }],
+      },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    let state = runCommands(result.state, deps).state;
+    const ids: InstanceId[] = [];
+    for (const card of [cheap.id, dear.id]) {
+      const given = giveCard(state, p1, card);
+      ids.push(given.id);
+      state = {
+        ...given.state,
+        players: given.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] } : pl)),
+        instances: { ...given.state.instances, [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 } },
+      };
+    }
+    const host: AttachmentHost = { kind: "superlative", among: "ally", order: "highest", measure: "printedCost" };
+    expect(hosts(state, host)).toEqual([ids[1]]);
+    expect(hosts(state, { ...host, order: "lowest" })).toEqual([ids[0]]);
+    // The identity is a friendly character with no printed cost, so it is no candidate at all.
+    expect(hosts(state, { kind: "superlative", among: "friendlyCharacter", order: "highest", measure: "printedCost" })).toEqual([ids[1]]);
+  });
+
+  it("'the ally with the lowest THW' ranks allies by current THW (Possessed, storm 36038; docs/phase7-wave2.md §11.1)", () => {
+    const thinker = stubAlly({ id: "thinker-ally", cost: 1, atk: 1, thw: 3, hp: 3 });
+    const brawler = stubAlly({ id: "brawler-ally", cost: 1, atk: 3, thw: 1, hp: 3 });
+    const identities = seatIdentities(HERO, 1);
+    const result = createGame(
+      {
+        seed: 7,
+        cards: [...CARDS, thinker, brawler, ...identities],
+        villainCardId: QUIET_VILLAIN.id,
+        mainSchemeCardId: LONG_SCHEME.id,
+        encounterDeck: copies(BLANK.id, 16),
+        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copies(thinker.id, 2), ...copies(brawler.id, 2)] }],
+      },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    let state = runCommands(result.state, deps).state;
+    const ids: InstanceId[] = [];
+    for (const card of [thinker.id, brawler.id]) {
+      const given = giveCard(state, p1, card);
+      ids.push(given.id);
+      state = {
+        ...given.state,
+        players: given.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] } : pl)),
+        instances: { ...given.state.instances, [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 } },
+      };
+    }
+    const possessed: AttachmentHost = { kind: "superlative", among: "ally", order: "lowest", measure: "thw", withoutAttachmentNamed: "Possessed" };
+    expect(hosts(state, possessed)).toEqual([ids[1]]);
+    expect(hosts(state, { ...possessed, order: "highest" })).toEqual([ids[0]]);
+  });
+
+  it("`titleContains` matches a substring of the title showing", () => {
+    const spidey = stubAlly({ id: "Spider-Woman", cost: 1, atk: 1, thw: 1, hp: 3 });
+    const identities = seatIdentities(HERO, 1);
+    const result = createGame(
+      {
+        seed: 8,
+        cards: [...CARDS, spidey, ...identities],
+        villainCardId: QUIET_VILLAIN.id,
+        mainSchemeCardId: LONG_SCHEME.id,
+        encounterDeck: copies(BLANK.id, 16),
+        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copies(spidey.id, 2)] }],
+      },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    const started = runCommands(result.state, deps).state;
+    const given = giveCard(started, p1, spidey.id);
+    const state: GameState = {
+      ...given.state,
+      players: given.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] } : pl)),
+      instances: { ...given.state.instances, [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 } },
+    };
+    expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Spider" })).toEqual([given.id]);
+    expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Hulk" })).toEqual([]);
+  });
+
+  /**
+   * docs/phase7-wave2.md §11.3, §14. "Attach to an enemy that X-23 or Honey Badger attacked this turn." (Puncture Wound
+   * 43012.) The one temporal qualifier: it reads `GameState.attackedThisTurn`, written at every attack made during a
+   * player's turn and cleared when each turn begins and ends (RRG 1.8 "Player Phase", p. 34).
+   */
+  const HERO_TITLE = HERO.hero.faceName;
+  const byHero: AttachmentHost = { kind: "qualified", category: "enemy", attackedThisTurnBy: [HERO_TITLE] };
+
+  it("`attackedThisTurnBy` matches only an enemy one of the named cards has attacked this turn", () => {
+    const start = game({ encounter: [ELITE_MINION.id, PLAIN_MINION.id, ...copies(BLANK.id, 14)] });
+    const attacked = intoPlay(start, ELITE_MINION.id);
+    const untouched = intoPlay(attacked.state, PLAIN_MINION.id);
+    const state = untouched.state;
+    const identity = mustPlayer(state, p1).identity.instanceId;
+    // Nothing attacked yet.
+    expect(hosts(state, byHero)).toEqual([]);
+    const hero = ok(state, { type: "changeForm", playerId: p1 });
+    const struck = settleUntil(ok(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: attacked.id }), "declareDefender", deps);
+    // Recorded under the hero side's title — not the identity card's, and not the alter-ego's (RRG 1.8 "Identity", p. 23).
+    expect(struck.attackedThisTurn[attacked.id]).toEqual([{ attackerInstanceId: identity, attackerTitle: HERO_TITLE }]);
+    expect(hosts(struck, byHero)).toEqual([attacked.id]);
+    expect(hosts(struck, { kind: "qualified", category: "enemy", attackedThisTurnBy: [HERO.alterEgo.faceName] })).toEqual([]);
+    // The minion nobody attacked is no host, and neither is the attacked one under a different attacker's name.
+    expect(hosts(struck, byHero)).not.toContain(untouched.id);
+    expect(hosts(struck, { kind: "qualified", category: "enemy", attackedThisTurnBy: ["Honey Badger"] })).toEqual([]);
+    // The record is cleared when the next turn begins, so "this turn" really means this one.
+    const nextTurn = settle(ok(struck, { type: "endTurn", playerId: p1 }), defaultPick, deps);
+    expect(nextTurn.step).toMatchObject({ phase: "player", kind: "turn" });
+    expect(nextTurn.attackedThisTurn).toEqual({});
+  });
+
+  it("an attack stays recorded under the title it was made with after the attacker changes form (RRG 1.8 'Identity', p. 23)", () => {
+    const start = game({ encounter: [ELITE_MINION.id, ...copies(BLANK.id, 15)] });
+    const attacked = intoPlay(start, ELITE_MINION.id);
+    const identity = mustPlayer(attacked.state, p1).identity.instanceId;
+    const hero = ok(attacked.state, { type: "changeForm", playerId: p1 });
+    const struck = settleUntil(ok(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: attacked.id }), "declareDefender", deps);
+    // Test surgery: the identity is now showing its alter-ego side (a card effect, or last turn's hero form flipped).
+    const flipped: GameState = {
+      ...struck,
+      players: struck.players.map((pl) => (pl.playerId === p1 ? { ...pl, identity: { ...pl.identity, form: "alterEgo" } } : pl)),
+    };
+    // The hero attacked it, so it is still a legal host, although no one is showing the hero's title any more.
+    expect(hosts(flipped, byHero)).toEqual([attacked.id]);
+  });
+
+  it("an attack outside a player's turn is not recorded, so the villain phase does not read as 'this turn'", () => {
+    // The villain (0 ATK) attacks first; the engaged minion's attack is the prompt after it, by which point the
+    // villain's attack has fully resolved.
+    const start = game({ encounter: [ELITE_MINION.id, ...copies(BLANK.id, 15)] });
+    const engaged = intoPlay(start, ELITE_MINION.id);
+    // In hero form, so there is a defender to ask about and each attack stops at its own defend prompt.
+    const hero = ok(engaged.state, { type: "changeForm", playerId: p1 });
+    const villainAttack = settleUntil(ok(hero, { type: "endTurn", playerId: p1 }), "declareDefender", deps);
+    expect(villainAttack.step.phase).toBe("villain");
+    const choice = villainAttack.pendingChoice;
+    if (!choice) throw new Error("expected the villain's attack to ask for a defender");
+    const minionAttack = ok(villainAttack, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: ["decline"] });
+    expect(minionAttack.pendingChoice?.prompt.kind).toBe("declareDefender");
+    expect(minionAttack.attackedThisTurn).toEqual({});
+  });
+});
 
 describe("§3.14 attaching as a card is revealed", () => {
   it("an attachment with no legal host is discarded, and no replacement card is revealed (FAQ Counterspell #30)", () => {

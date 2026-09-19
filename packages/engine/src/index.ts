@@ -7,6 +7,7 @@ export type { RngState } from "./rng.js";
 export { createRng, nextInt, nextUint32, shuffle } from "./rng.js";
 
 export type {
+  AttackRecord,
   CardHome,
   CardInstance,
   EncounterDeckState,

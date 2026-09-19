@@ -29,6 +29,20 @@ export interface EncounterSet {
   readonly packCodes: readonly SetCode[];
   /** Set if this is a hero-specific nemesis set rather than a general modular set. */
   readonly nemesisOfIdentityId?: CardId;
+  /**
+   * True for a campaign's set (wave 2): The Rise of Red Skull's Hydra Campaign set and its four Expert Campaign Sets.
+   * RRG 1.8 "Campaign-Specific Card" (p. 11): "Campaign-specific cards can only be used during a campaign from the same
+   * product", "designated by the word 'Campaign' printed at the bottom of the card in its encounter set name area." No
+   * scenario played standalone may list one (campaign mode is not built yet).
+   */
+  readonly campaignSpecific?: boolean;
+  /**
+   * True for a set used only in competitive (team-vs-team) mode (wave 2 schema pass, docs/phase7-wave2.md §6.3): Civil
+   * War's Standard PvP set (`standard_pvp`). The Civil War rulebook, "Custom Scenario Expansion" (p. 3): "1 Standard PvP
+   * Encounter Set. This set replaces the standard encounter set when playing in competitive mode." Competitive mode is
+   * not built, so no scenario may list one (`validateScenario`).
+   */
+  readonly competitiveOnly?: boolean;
 }
 
 /** Chosen at game setup, not a property of the scenario: it selects villain stages (I–II vs II–III) and the Standard/Expert encounter set. */
@@ -92,6 +106,72 @@ export interface MultipleVillains {
   readonly winCondition: "allVillainsDefeated";
 }
 
+/**
+ * A deck a scenario adds to the game besides its villain, main scheme and encounter decks (wave 2). RRG 1.8 "Deck"
+ * (p. 15): "Certain identities or scenarios may add other decks to the game." Built by the main scheme's 1A `Setup:`
+ * ability ("Create the Experimental Weapons deck"), which moves the matching cards out of the encounter deck built at
+ * Appendix II step 10; the engine never builds it on its own.
+ *
+ * - Experimental Weapons (Attack on Mount Athena), the Red Skull rulebook, p. 5: "take all four cards in the
+ *   Experimental Weapons encounter set, shuffle them together, and set them facedown next to the main-scheme deck.
+ *   [...] After a card from the Experimental Weapons deck enters play, it is considered to be part of the encounter
+ *   deck. When that card is discarded, it is placed in the encounter deck discard pile."
+ * - The side-scheme deck (The Rise of Red Skull), the Red Skull rulebook, p. 15: "search the encounter deck for each
+ *   side scheme and shuffle them together into their own deck [...] The side-scheme deck has its own discard pile.
+ *   When a side-scheme is defeated or otherwise discarded, place it in the side-scheme discard pile. If the
+ *   side-scheme deck is ever empty, shuffle the side-scheme discard pile into the side-scheme deck. There is no
+ *   penalty for doing this." Errata (RRG 1.8 p. 66, #128A): "Shuffle every other encounter side scheme".
+ */
+export interface ScenarioSeparateDeck {
+  /** The deck's name as the cards print it ("Experimental Weapons", "side-scheme"). */
+  readonly name: string;
+  /** Which encounter-deck cards form it: every card of the listed sets, and/or every card of one type. At least one. */
+  readonly contents: {
+    readonly encounterSetIds?: readonly EncounterSetId[];
+    readonly cardType?: "side_scheme";
+  };
+  /** `own`: a discard pile of its own. `encounter`: its cards are discarded to the encounter discard pile. */
+  readonly discardPile: "own" | "encounter";
+  /** What happens when it is empty. Mirrors `IdentitySeparateDeck.whenEmpty`. */
+  readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
+}
+
+/**
+ * The rules for players split into separate game areas (wave 2), from The Once and Future Kang insert, "Create
+ * Separate Game Areas" and "Playing With Separate Game Areas". Explicit fields, as for `MultipleVillains`, because they
+ * are rules this insert states for this scenario. The areas themselves are created by card abilities (stage 3A:
+ * "Create your own game area and place this scheme in it"); nothing here creates one.
+ */
+export interface SeparateGameAreas {
+  /**
+   * "Cards and components in one game area cannot affect another game area (with the exception of the text on stage
+   * 2B). Players cannot attack or defend enemies in other game areas, and they cannot target any game elements in the
+   * other game areas." and "Stage 2B remains in play in a central location and its text remains active for all
+   * players, though it is not part of any other game area."
+   */
+  readonly isolation: "areasCannotAffectEachOther";
+  /** The main scheme stage that stays central and affects every area (Kang: 2). */
+  readonly centralStageNumber: number;
+  /** "they continue to use the same encounter deck and encounter discard pile." */
+  readonly encounterDeck: "shared";
+  /** RRG 1.8 FAQ "The Once and Future Kang Scenario Pack" (p. 60): "Environment cards are considered to be in all players' game areas." */
+  readonly environments: "inEveryArea";
+  /** Insert, "Rules Clarifications": "'Each player' refers to each player in the same game area." */
+  readonly eachPlayer: "sameArea";
+  /**
+   * Insert, "Rules Clarifications": "a unique card in one game area places no limitations on the others. When players
+   * combine game areas, they must discard copies of unique cards until only one of each remains in that game area. If
+   * the players cannot agree which one to discard, the first player decides."
+   */
+  readonly uniqueness: "perArea";
+  /**
+   * Insert, "Joining Another Game Area": "Any side schemes that were in play in your previous game area become part of
+   * the game area that you join. Any minions that were engaged with you remain engaged with you." Turn order and the
+   * first player token are unchanged ("Play still proceeds in turn order").
+   */
+  readonly joining: "sideSchemesAndEngagedMinionsMove";
+}
+
 /** A scenario references its encounter sets, main scheme, and villain by id — it does not embed card data. */
 export interface Scenario {
   readonly id: ScenarioId;
@@ -124,6 +204,37 @@ export interface Scenario {
    * "The Wrecking Crew does not use other encounter sets", so 0.
    */
   readonly modularSetCount?: number;
+  /**
+   * Villain cards of this scenario that are not in the villain deck at setup, but set aside for card abilities to
+   * bring in (wave 2). The Once and Future Kang insert, "Setup": "stage 1A instructs the players to set each copy of
+   * Kang (II) and Kang (III) aside. This means that Kang (I) is the only villain in the villain deck at the beginning
+   * of the game. Kang (II) and Kang (III) will enter play through the card effects on main schemes 3A and 4A."
+   * Each Kang card is its own `VillainCard` with one stage, because the four Kang (II) cards have different titles
+   * and are not a sequence.
+   */
+  readonly setAsideVillainCardIds?: readonly CardId[];
+  /**
+   * Villain cards that replace the scenario's villains in expert mode (wave 2). The Once and Future Kang insert,
+   * "Adjustable Difficulty": "To play the scenario in expert mode, replace all six villains in the Kang encounter set
+   * with the six villains from the Expert Kang set and add the Expert encounter set to the encounter deck." When set,
+   * expert mode uses these instead of `villainCardId` and `setAsideVillainCardIds`.
+   */
+  readonly expertVillains?: {
+    readonly villainCardId: CardId;
+    readonly setAsideVillainCardIds: readonly CardId[];
+  };
+  /**
+   * How the players win. Absent = `"finalVillainStage"`, RRG 1.8 "Villain Defeat" (p. 47): "If the final stage of the
+   * villain deck is defeated, the players win the game." `"cardAbility"`: only a card ability wins (Kang (III): "When
+   * Defeated: The players win the game."). The Once and Future Kang insert, "Setup": "The players must defeat Kang (I),
+   * Kang (II), and Kang (III) in order to win the game", although Kang (I) is alone in the villain deck. Scenario rules
+   * override the Rules Reference (RRG 1.8 "The Golden Rules", p. 4). `MultipleVillains.winCondition` is separate.
+   */
+  readonly victory?: "finalVillainStage" | "cardAbility";
+  /** Present when the scenario can split the players into separate game areas (The Once and Future Kang). */
+  readonly separateGameAreas?: SeparateGameAreas;
+  /** Decks this scenario adds besides the villain, main scheme and encounter decks (see `ScenarioSeparateDeck`). */
+  readonly separateDecks?: readonly ScenarioSeparateDeck[];
 }
 
 /** Campaign box membership (e.g. a set of linked scenarios sharing a campaign log). */

@@ -27,7 +27,15 @@
  * - A leading `[star]` marker is a printed reminder icon, not part of the
  *   ability kind; it stays in the card text.
  */
-import type { AttachmentHost, KeywordInstance } from "../../src/schema/index.ts";
+import type {
+  AttachmentHost,
+  AttachmentHostCategory,
+  HostMeasure,
+  KeywordInstance,
+  ResourceIconCounts,
+  ResourceIconType,
+  Trait,
+} from "../../src/schema/index.ts";
 import { slugify } from "./text.ts";
 
 export type AbilityKind =
@@ -35,6 +43,7 @@ export type AbilityKind =
   | "resource"
   | "response"
   | "interrupt"
+  | "forced-action"
   | "forced-response"
   | "forced-interrupt"
   | "special"
@@ -173,6 +182,8 @@ function kindOf(trigger: string): KindResult {
       return withForm("response");
     case "Interrupt":
       return withForm("interrupt");
+    case "Forced Action":
+      return withForm("forced-action");
     case "Forced Response":
       return withForm("forced-response");
     case "Forced Interrupt":
@@ -252,14 +263,67 @@ const SIMPLE_KEYWORDS: Readonly<Record<string, KeywordInstance["name"]>> = {
   vulnerable: "vulnerable",
   alliance: "alliance",
   amplify: "amplify",
+  // docs/phase7-wave2.md §7.5: "Starting. (You may add this card to your hand before drawing your starting
+  // hand.)" (Innate Reflexes 60038, `fne`; Innate Aggression/Perception/Inspiration 61034/61036/61037, `jj`) —
+  // data only, no pre-opening-draw step in the engine yet.
+  starting: "starting",
 };
 
-/** Keyword sentence, optionally followed by its own reminder text: `Surge (After …)`, `Retaliate 1. (After …)`. */
+/** A single "[icon]" resource token, as it survives `toPlainText` (docs/phase7-wave2.md). */
+const RESOURCE_ICON_RE = /\[(energy|mental|physical|wild)\]/g;
+
+/**
+ * Keyword sentence, optionally followed by its own reminder text: `Surge (After …)`, `Retaliate 1. (After …)`.
+ *
+ * Team-Up and Teamwork are fully representable in the current schema (`KeywordInstance`'s `teamUp.names` and
+ * `teamwork.sharedTrait`) and are resolved here. Requirement counts every printed icon (repeats included) into
+ * `resources: ResourceIconCounts`; a single icon still resolves to the wave 1 `icon` field for exactly one match
+ * (docs/phase7-wave2.md §6.1). Discount resolves to `{ value, traits }`, an OR of every named trait
+ * (docs/phase7-wave2.md §6.2).
+ */
 function parseKeyword(sentence: string): KeywordInstance | undefined {
   // `Uses (N type counters)` carries its parameter in parentheses, so match it
   // before reminder text is stripped.
   const uses = /^Uses \((\d+) ([\w\- ]+?) counters?\)\.?$/.exec(sentence);
   if (uses) return { name: "uses", count: Number(uses[1]), counterType: uses[2] as string };
+  const teamUp = /^Team-Up \((.+?) and (.+)\)\.?$/.exec(sentence);
+  if (teamUp) return { name: "teamUp", names: [(teamUp[1] as string).trim(), (teamUp[2] as string).trim()] };
+  const teamwork = /^Teamwork \((.+)\)\.?$/.exec(sentence);
+  if (teamwork) return { name: "teamwork", sharedTrait: (teamwork[1] as string).trim().toUpperCase() as Trait };
+  // RRG 1.8 "Linked (Card Title)" (p. 27): "Cards with the linked keyword cannot be included in a player's deck.
+  // Instead, they are brought into the game by the card title in the parentheses following the keyword." A bare
+  // `Linked.` (no title — none observed yet) still resolves, with `cardTitle` left unset.
+  const linked = /^Linked(?: \((.+)\))?\.?$/.exec(sentence);
+  if (linked) return { name: "linked", ...(linked[1] !== undefined ? { cardTitle: (linked[1] as string).trim() } : {}) };
+  const requirement = /^Requirement \(((?:\[(?:energy|mental|physical|wild)\])+)\)\.?$/.exec(sentence);
+  if (requirement) {
+    const icons = [...(requirement[1] as string).matchAll(RESOURCE_ICON_RE)].map((mm) => mm[1] as ResourceIconType);
+    if (icons.length === 1) return { name: "requirement", icon: icons[0] as ResourceIconType };
+    // Wave 2 (docs/phase7-wave2.md §6.1): several icons (repeats included) — `resources` counts each printed icon.
+    // `Requirement ([mental][mental])` → `{ mental: 2 }`; `Requirement ([energy][mental][physical])` → one each.
+    const resources: { -readonly [K in ResourceIconType]?: number } = {};
+    for (const icon of icons) resources[icon] = (resources[icon] ?? 0) + 1;
+    return { name: "requirement", resources: resources as ResourceIconCounts };
+  }
+  // Wave 2 (docs/phase7-wave2.md §6.2): "Discount N (T)." / "Discount N (T1 or T2)." — the Fear No Evil rulebook,
+  // "Featured Keywords" (p. 3). `traits` is an OR: at least one trait is listed.
+  const discount = /^Discount (\d+) \((.+)\)\.?$/.exec(sentence);
+  if (discount) {
+    const traits = (discount[2] as string).split(/\s+or\s+/).map((t) => t.trim().toUpperCase() as Trait);
+    return { name: "discount", value: Number(discount[1]), traits };
+  }
+  // docs/phase7-wave2.md §7.5, §7.7: "Prerequisite (T)." / "Prerequisite (T1 or T2)." — Defend Our City (61029,
+  // `jj`): "Prerequisite (Defender)." `traits` is an OR, spelled like `discount`'s. No emitted card prints the
+  // "form" half yet ("Prerequisite (hero form)." / "Prerequisite (alter-ego form)."), so that's recognized too,
+  // on the strength of the rulebook's own "form or trait" phrasing, but unconfirmed against a printed card.
+  const prerequisite = /^Prerequisite \((.+)\)\.?$/.exec(sentence);
+  if (prerequisite) {
+    const inner = (prerequisite[1] as string).trim();
+    const formMatch = /^(hero|alter-ego) form$/i.exec(inner);
+    if (formMatch) return { name: "prerequisite", form: (formMatch[1] as string).toLowerCase() === "hero" ? "hero" : "alterEgo" };
+    const traits = inner.split(/\s+or\s+/).map((t) => t.trim().toUpperCase() as Trait);
+    return { name: "prerequisite", traits };
+  }
   const s = sentence.replace(/\s*\([^)]*\)\.?$/, "").replace(/\.$/, "").trim();
   const simple = SIMPLE_KEYWORDS[s.toLowerCase()];
   if (simple) return { name: simple } as KeywordInstance;
@@ -274,10 +338,21 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
 }
 
 /**
- * Wave 1 attachment host phrasing (docs/phase7-wave1.md §1.6). `villainNames.size > 1` means several villains are
- * in play at once (The Wrecking Crew), so a named villain becomes `namedVillain` rather than the single-villain
- * `villain` kind ("Attach to Green Goblin." stays `villain` when there is only one villain — Green Goblin insert's
- * Hysteria).
+ * Wave 1 attachment host phrasing (docs/phase7-wave1.md §1.6, extended for wave 2 — docs/phase7-wave2-data.md
+ * §"attachment hosts"). `villainNames.size > 1` means several villains are in play at once (The Wrecking Crew),
+ * so a named villain becomes `namedVillain` rather than the single-villain `villain` kind ("Attach to Green
+ * Goblin." stays `villain` when there is only one villain — Green Goblin insert's Hysteria).
+ *
+ * Every branch below resolves to a host kind the schema already has (`AttachmentHost`, `HostQualifiers`,
+ * `SuperlativeHostPool`/`HostMeasure`) — nothing here is a new shape. A sentence with a *trailing behavioral
+ * clause* on the same sentence ("...and give it a tough status card.", "...and exhaust it.") is deliberately left
+ * unresolved: the clause is a card effect, not part of the host, and this parser only ever decides *where
+ * abilities are* (file header) — it must not fabricate a host that drops half a printed sentence. Likewise a
+ * *conditional/fallback* host ("Attach to X, if able. If you cannot, attach to Y.", "...Otherwise, attach to the
+ * villain.") is left unresolved rather than resolved to just the primary target: `AttachmentHost` has no
+ * "try this, else that" shape, so silently keeping only the primary would make the card work only part of the
+ * time it should. `parseCardText` reports both sentences of a detected fallback pair explicitly (see below) so
+ * this doesn't read as ordinary unclassified text.
  */
 function parseAttach(
   sentence: string,
@@ -298,16 +373,79 @@ function parseAttach(
     "the main scheme": { kind: "mainScheme" },
     "a side scheme": { kind: "sideScheme" },
     "a scheme": { kind: "scheme" },
+    // MarvelCDB overwhelmingly prints "Attach to your identity." (no "card") from wave 2 on; the Phase 2/wave 1
+    // "your identity card" phrasing is kept too, in case an older pack uses it verbatim.
     "your identity card": { kind: "yourIdentity" },
+    "your identity": { kind: "yourIdentity" },
     "your hero": { kind: "yourIdentity", form: "hero" },
     "your alter-ego": { kind: "yourIdentity", form: "alterEgo" },
     "a friendly character": { kind: "friendlyCharacter" },
     "the active villain's side scheme": { kind: "villainSideScheme", of: "activeVillain" },
+    // Wave 2 schema pass (docs/phase7-wave2.md §6.3, §6.8): "the enemy leader" / "your leader" (Civil War); "the
+    // villain who is not the active villain" (Direct Assault, `mts`).
+    "the enemy leader": { kind: "leader", of: "enemy" },
+    "your leader": { kind: "leader", of: "yours" },
+    "the villain who is not the active villain": { kind: "nonActiveVillain" },
+    // docs/phase7-wave2.md §7.2: "Attach to an encounter card in play." (Coordinated Effort 58032) — any card in
+    // play on the encounter side, whatever its type, as opposed to a specific category.
+    "an encounter card in play": { kind: "encounterCard" },
   };
-  const hit = simple[target];
+  // Case-insensitive on the phrase itself (MarvelCDB is inconsistent — "Attach to the Villain." in `trors`);
+  // proper names below stay case-sensitive.
+  const hit = simple[target.toLowerCase()];
   if (hit) return { host: hit };
+  // "Attach to your Iron Man leader." / "Attach to your She-Hulk leader." (Civil War, Synthezoid): the printed
+  // name is redundant — a player controls at most one leader — so this is the same host as the bare "your leader".
+  if (/^your .+ leader$/i.test(target)) return { host: { kind: "leader", of: "yours" } };
+  // "Attach to an ally you control." — allies are always player-controlled (no such thing as an enemy ally), so
+  // "you control" is a redundant qualifier here, unlike on a minion/enemy/character where it would matter.
+  if (/^an? ally you control$/i.test(target)) return { host: { kind: "ally" } };
+  // "Attach to the Avatar of Loki villain." — the villain's own printed name, with a redundant trailing "villain"
+  // category word (unlike the bare "Attach to <Name>." form already handled by the `villainNames` check below).
+  const namedVillainSuffix = /^the (.+) villain$/i.exec(target);
+  if (namedVillainSuffix) {
+    const name = namedVillainSuffix[1] as string;
+    if (villainNames.has(name)) return multiVillain ? { host: { kind: "namedVillain", name }, villainName: name } : { host: { kind: "villain" }, villainName: name };
+  }
+  // Wave 2 schema pass (docs/phase7-wave2.md §6.6): an OR of two hosts, every candidate of each once. Tried before
+  // the villain-name/qualified/superlative checks below, since "X or Y" would otherwise fail every single-host
+  // pattern on the whole phrase. " or " never appears inside those single-host phrases themselves (a trait name
+  // never contains the standalone word "or"), so a literal split is safe.
+  const orParts = target.split(/\s+or\s+/i);
+  if (orParts.length === 2) {
+    // "an X-FORCE or X-MEN ally": two trait-qualified hosts sharing one trailing category noun.
+    const sharedCategory = /^(?:an?|the) (.+?) or (.+?) (ally|minion|enemy|character|friendly character)$/i.exec(target);
+    if (sharedCategory) {
+      const categoryWord = (sharedCategory[3] as string).toLowerCase();
+      const category = (categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord) as AttachmentHostCategory;
+      const h1: AttachmentHost = { kind: "qualified", category, trait: (sharedCategory[1] as string).trim().toUpperCase() as Trait };
+      const h2: AttachmentHost = { kind: "qualified", category, trait: (sharedCategory[2] as string).trim().toUpperCase() as Trait };
+      return { host: { kind: "anyOf", hosts: [h1, h2] } };
+    }
+    // Otherwise each half resolves independently: a plain category ("an enemy or scheme") or a proper name
+    // ("Greycrow or Harpoon").
+    const resolveHalf = (part: string): AttachmentHost | undefined => {
+      const p = part.trim();
+      const bySimple = simple[p.toLowerCase()] ?? simple[`a ${p.toLowerCase()}`] ?? simple[`an ${p.toLowerCase()}`];
+      if (bySimple) return bySimple;
+      if (/^[A-Z]/.test(p) && !/^(?:a|an|the|your)\b/.test(p)) return { kind: "namedCard", name: p };
+      return undefined;
+    };
+    const h1 = resolveHalf(orParts[0] as string);
+    const h2 = resolveHalf(orParts[1] as string);
+    if (h1 && h2) return { host: { kind: "anyOf", hosts: [h1, h2] } };
+  }
   if (villainNames.has(target)) {
     return multiVillain ? { host: { kind: "namedVillain", name: target }, villainName: target } : { host: { kind: "villain" }, villainName: target };
+  }
+  // "Attach to Kang." (`toafk`): the villain's own printed name always carries a parenthetical form/stage
+  // ("Kang (The Conqueror)"), which reminder text never repeats. Only meaningful for a single-villain pack — the
+  // resolved `namedVillain` on a multi-villain one would still need the full per-stage name to match at runtime
+  // (`currentName(...) === host.name`, `packages/engine/src/resolve/reveal.ts`), which no surveyed pack needs.
+  const shortNameOf = (name: string): string => name.replace(/\s*\([^)]*\)\s*$/, "").trim();
+  if (!multiVillain) {
+    const villainShortMatch = [...villainNames].find((name) => shortNameOf(name) === target);
+    if (villainShortMatch) return { host: { kind: "villain" }, villainName: villainShortMatch };
   }
   const highest = /^the minion with the highest printed hit points(?: and without another (.+) attached)?$/.exec(target);
   if (highest) {
@@ -329,8 +467,140 @@ function parseAttach(
       },
     };
   }
+  // A plain category with only a "without X attached" suffix and no trait word at all: "an enemy without a copy
+  // of Adamantium Upgrades attached" (Wolverine). Tried before the trait-qualified pattern below, since that
+  // pattern requires a word between the article and the category noun and would otherwise never match here.
+  const CATEGORY_NOUN = "ally|minion|enemy|character|friendly character|side scheme";
+  const bareWithoutRe = new RegExp(`^(?:an?|the) (${CATEGORY_NOUN})\\s+(?:and\\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$`, "i");
+  const bareWithout = bareWithoutRe.exec(target);
+  if (bareWithout) {
+    const categoryWord = (bareWithout[1] as string).toLowerCase();
+    const category = categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord === "side scheme" ? "sideScheme" : categoryWord;
+    return { host: { kind: "qualified", category: category as AttachmentHostCategory, withoutAttachmentNamed: (bareWithout[2] as string).trim() } };
+  }
+  // Trait-qualified / negated category: "an Avenger ally", "a non-ELITE minion", "a non-permanent side scheme",
+  // "a Sentinel minion without Energy Barrier attached" (`HostQualifiers.trait` / `withoutTrait` /
+  // `withoutAttachmentNamed`). Anchored at the end of the sentence, so a trailing behavioral clause ("...and give
+  // it a tough status card") correctly fails to match rather than being silently dropped.
+  const qualifiedRe = new RegExp(
+    `^(?:an?|the) (non-)?(.+?) (${CATEGORY_NOUN})(?:\\s+(?:and\\s+)?without (?:a copy of |another copy of |another )?(.+?) attached)?$`,
+    "i",
+  );
+  const qualified = qualifiedRe.exec(target);
+  if (qualified) {
+    const negated = Boolean(qualified[1]);
+    const word = (qualified[2] as string).trim();
+    const categoryWord = (qualified[3] as string).toLowerCase();
+    const category = categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord === "side scheme" ? "sideScheme" : categoryWord;
+    const withoutAttachmentNamed = qualified[4]?.trim();
+    // Wave 2 (docs/phase7-wave2.md §6.5): "a non-permanent side scheme" — the qualifying word is a keyword
+    // (Permanent is a keyword, not a trait), not a trait, so it becomes `withoutKeyword`/`keyword` instead.
+    const keywordName = SIMPLE_KEYWORDS[word.toLowerCase()];
+    return {
+      host: {
+        kind: "qualified",
+        category: category as AttachmentHostCategory,
+        ...(keywordName
+          ? negated
+            ? { withoutKeyword: keywordName }
+            : { keyword: keywordName }
+          : negated
+            ? { withoutTrait: word.toUpperCase() as Trait }
+            : { trait: word.toUpperCase() as Trait }),
+        ...(withoutAttachmentNamed ? { withoutAttachmentNamed } : {}),
+      },
+    };
+  }
+  // docs/phase7-wave2.md §7.3: "a character with 'Spider' in its title" (Warrior of the Great Web, 30029) — a
+  // substring of the title, not a trait. MarvelCDB prints the quoted substring with double quotes.
+  const titleContains = /^a character with "(.+)" in its title$/i.exec(target);
+  if (titleContains) {
+    return { host: { kind: "qualified", category: "character", titleContains: titleContains[1] as string } };
+  }
+  // docs/phase7-wave2.md §7.4: "an enemy that A or B attacked this turn" (Puncture Wound, 43012) — data only (the
+  // engine records no per-turn attack history yet), but still parsed into the real shape rather than left
+  // unclassified, so the card's data is correct and only its playability is gated (docs/phase7-wave1.md §3.1).
+  const attackedThisTurn = /^an enemy that (.+) attacked this turn$/i.exec(target);
+  if (attackedThisTurn) {
+    const names = (attackedThisTurn[1] as string).split(/\s+or\s+/).map((n) => n.trim());
+    return { host: { kind: "qualified", category: "enemy", attackedThisTurnBy: names } };
+  }
+  // Superlative over a named pool: "the minion with the most remaining hit points without another copy of X
+  // attached", "the enemy with the highest ATK", "the villain with the fewest hit points without the Aerial
+  // trait". A descriptor this doesn't recognize (e.g. "highest activation order value", "most traits") is a
+  // `HostMeasure` the schema doesn't have — this returns `undefined` rather than guessing at a measure.
+  let supRest = target;
+  let supWithoutAttachmentNamed: string | undefined;
+  let supWithoutTrait: string | undefined;
+  const namedSuffix = /^(.*?)\s+(?:and\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$/i.exec(supRest);
+  if (namedSuffix) {
+    supRest = namedSuffix[1] as string;
+    supWithoutAttachmentNamed = (namedSuffix[2] as string).trim();
+  } else {
+    const traitSuffix = /^(.*?)\s+(?:and\s+)?without the (.+?) trait$/i.exec(supRest);
+    if (traitSuffix) {
+      supRest = traitSuffix[1] as string;
+      supWithoutTrait = (traitSuffix[2] as string).trim();
+    }
+  }
+  const supCore = /^(?:the|a) (minion|enemy|villain|friendly character|ally) with the (highest|lowest|most|fewest) (.+)$/i.exec(supRest);
+  if (supCore) {
+    const poolWord = (supCore[1] as string).toLowerCase();
+    const among = poolWord === "friendly character" ? "friendlyCharacter" : (poolWord as "minion" | "enemy" | "villain" | "ally");
+    const orderWord = (supCore[2] as string).toLowerCase();
+    const order: "highest" | "lowest" = orderWord === "highest" || orderWord === "most" ? "highest" : "lowest";
+    const descriptor = (supCore[3] as string).trim().toLowerCase();
+    const measure: HostMeasure | undefined =
+      descriptor === "printed hit points"
+        ? "printedHp"
+        : descriptor === "hit points" || descriptor === "remaining hit points"
+          ? "remainingHp"
+          : descriptor === "printed atk"
+            ? "printedAtk"
+            : descriptor === "atk"
+              ? "atk"
+              : descriptor === "sch"
+                ? "sch"
+                : // "the ally with the lowest THW without Possessed attached" (Possessed, `storm` 36038) — the
+                  // card's printed THW, the `thw` counterpart of `printedAtk`/`printedCost` (docs/
+                  // phase7-wave2-data.md Part 4/5 §5 item 2b, landed as `HostMeasure "thw"`).
+                  descriptor === "thw"
+                  ? "thw"
+                  : // Wave 2 (docs/phase7-wave2.md §6.7): "the villain with the highest activation order value" (The
+                  // Sinister Six), "the minion with the most traits" (Cyborg Tech).
+                  descriptor === "activation order value"
+                  ? "activationOrder"
+                  : descriptor === "traits"
+                    ? "traitCount"
+                    : // docs/phase7-wave2.md §7.1: "the ally with the highest cost" (Beguiled 25031, 'Pool-ized 44041) —
+                      // the card's *printed* cost (RRG 1.8 "Printed", p. 35), named `printedCost` like
+                      // `printedHp`/`printedAtk` are, not `cost` (a card in play has no other cost).
+                      descriptor === "cost"
+                      ? "printedCost"
+                      : undefined;
+    if (measure) {
+      return {
+        host: {
+          kind: "superlative",
+          among,
+          order,
+          measure,
+          ...(supWithoutTrait ? { withoutTrait: supWithoutTrait.toUpperCase() as Trait } : {}),
+          ...(supWithoutAttachmentNamed ? { withoutAttachmentNamed: supWithoutAttachmentNamed } : {}),
+        },
+      };
+    }
+  }
   const named = /^the (.+) (?:environment|side scheme|support|upgrade)$/.exec(target);
   if (named) return { host: { kind: "namedCard", name: named[1] as string } };
+  // A bare proper name not covered above ("Attach to Ahab.", "Attach to Vision.") — the generic named-card host
+  // (`AttachmentHost.namedCard`'s doc comment: any in-play card with that exact printed name, not only
+  // environments). Only when the target has no leading article ("a"/"an"/"the"/"your") and starts with a capital
+  // letter, so this can't swallow an unrecognized common-noun phrase ("an identity-specific ally you control", "a
+  // card with \"Spider\" in its title", "an enemy or scheme") that needs a real schema shape instead.
+  if (/^[A-Z]/.test(target) && !/^(?:a|an|the|your)\b/.test(target)) {
+    return { host: { kind: "namedCard", name: target } };
+  }
   return undefined;
 }
 
@@ -359,7 +629,9 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     into.maxPerRound = Number(m[1]);
     return {};
   }
-  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero)\.$/.exec(sentence);
+  // docs/phase7-wave2.md §7.2: "Max 1 per encounter card." (Coordinated Effort, 58032) — the second sentence of
+  // its printed pair with "Attach to an encounter card in play.".
+  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.$/.exec(sentence);
   if (m) {
     into.maxPerHost = Number(m[1]);
     return {};
@@ -386,6 +658,14 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     into.requiresIdentityTrait = m[1] as string;
     return {};
   }
+  // "Play only if you are in Giant hero form." (Giant Stomp; Hive Mind, "Tiny"): the trait is printed on that hero
+  // face only, so this is hero form plus the identity trait (PlayRestrictions docblock, docs/phase7-wave2.md §1.3).
+  m = /^Play only if you are in (.+) hero form\.$/.exec(sentence);
+  if (m) {
+    into.form = "hero";
+    into.requiresIdentityTrait = m[1] as string;
+    return {};
+  }
   m = /^Play only if you control an? (.+) character\.$/.exec(sentence);
   if (m) {
     into.requiresControlledCharacterTrait = m[1] as string;
@@ -409,6 +689,32 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
 
   if (options.obligation) {
     if (text.trim()) abilities.push({ kind: "obligation", text });
+    // ADDITIVE, only when the printed text carries two or more distinct formal trigger headers (Kang's four
+    // Temporal obligations — Weakened 11018 "Forced Response: After you use a basic hero power, take 1 damage.
+    // / Alter-Ego Action: Discard a [physical] resource from your hand → discard this obligation." —
+    // docs/phase7-wave2-scripting.md §7/§8): every printed trigger gets its own ref, alongside the existing
+    // whole-card `obligation` ref above (kept exactly as before, so no existing ref id moves). An obligation
+    // with zero or one header (the overwhelming majority of the corpus) is untouched — this only fires for the
+    // genuinely-merged-triggers shape, not every obligation, so it doesn't multiply refs pack-wide for no reason.
+    const allHeaders = text.split("\n").flatMap((oline) => findHeaders(oline).map((h) => ({ ...h, oline })));
+    if (allHeaders.length >= 2) {
+      for (const oline of text.split("\n")) {
+        const oheaders = findHeaders(oline);
+        oheaders.forEach((h, i) => {
+          const oend = oheaders[i + 1]?.index ?? oline.length;
+          const obody = oline.slice(h.index, oend).trim();
+          const { kind: hkind, form } = kindOf(h.trigger);
+          if (hkind === "contents") return;
+          abilities.push({
+            kind: hkind,
+            ...(form ? { form } : {}),
+            ...(h.label ? { label: h.label as "attack" | "thwart" | "defense" } : {}),
+            ...(h.name ? { name: h.name } : {}),
+            text: obody,
+          });
+        });
+      }
+    }
     return { keywords, abilities, restrictions, unclassified };
   }
 
@@ -422,8 +728,36 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       if (constantBuffer.length > 0) abilities.push({ kind: "constant", text: constantBuffer.join(" ") });
       constantBuffer = [];
     };
-    for (const raw of splitSentences(preamble)) {
+    const sentences = splitSentences(preamble);
+    for (let sentenceIndex = 0; sentenceIndex < sentences.length; sentenceIndex++) {
+      const raw = sentences[sentenceIndex] as string;
       const sentence = raw.replace(/^\[star\]\s*/, "");
+      // A fallback attach host spans two sentences: "Attach to X[, if able]." + "Otherwise, attach to Y."/"If
+      // you cannot, attach to Y." (`AttachmentHost.ifAble`, wave 2, docs/phase7-wave2.md §1.7). Only when the
+      // *continuation* itself is another attach directive — "Otherwise, this card gains surge."/"If you
+      // cannot, this card gains surge." (Genetic Experiments, Defensive Programming) is a plain fallback
+      // *effect*, not a fallback host: the primary sentence resolves on its own below, and the continuation
+      // falls through to ordinary constant/ability text.
+      if (/^Attach to /.test(sentence)) {
+        const next = sentences[sentenceIndex + 1];
+        const continuation = next ? /^(?:Otherwise|If you cannot),?\s*(.+)$/i.exec(next) : null;
+        const otherwiseAttach = continuation ? /^attach to (.+)$/i.exec(continuation[1] as string) : null;
+        if (continuation && otherwiseAttach) {
+          flushConstant();
+          const preferredSentence = sentence.replace(/,\s*if able\.?$/i, ".");
+          const preferred = parseAttach(preferredSentence, options.villainNames, options.multipleVillains ?? false);
+          const otherwise = parseAttach(`Attach to ${otherwiseAttach[1] as string}`, options.villainNames, options.multipleVillains ?? false);
+          if (preferred && otherwise) {
+            if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
+            attachesTo = { kind: "ifAble", preferred: preferred.host, otherwise: otherwise.host };
+            if (preferred.villainName) attachesToVillainNamed = preferred.villainName;
+          } else {
+            unclassified.push(`ifAble attach host: could not parse ${preferred ? "the fallback" : "the preferred"} side: "${sentence}" / "${next}"`);
+          }
+          sentenceIndex++; // consume the fallback sentence too
+          continue;
+        }
+      }
       const keyword = parseKeyword(sentence);
       if (keyword) {
         flushConstant();
@@ -469,6 +803,41 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       const body = line.slice(h.index, end).trim();
       const { kind, form } = kindOf(h.trigger);
       if (kind === "contents") return; // informational scenario contents, not an ability
+      // An attach rule can print as a triggered ability's own opening sentence instead of the preamble —
+      // "When Revealed: Attach to the ally with the highest cost without Beguiled attached. Attached ally
+      // engages its controller. Otherwise, this card gains surge." (Beguiled `valk` 25031, 'Pool-ized
+      // `deadpool` 44041, Possessed `storm` 36038, "Lost" Child `jubilee` 47027) — every surveyed instance is a
+      // `When Revealed:` ability whose printed sentence still reads exactly like a preamble "Attach to X."
+      // sentence, just positioned after the trigger header. Only tried once (the first header carrying one
+      // wins, matching the preamble's own "first wins, a second is reported" rule below) and never strips
+      // anything from the ability's own text — unlike a preamble attach rule, this sentence is also load-bearing
+      // game text (the "Otherwise, this card gains surge." branch depends on it), so `ability-scripting-engineer`
+      // still needs to see it verbatim.
+      if (!attachesTo) {
+        const firstSentence = splitSentences(body.slice(h.length).trim())[0];
+        if (firstSentence) {
+          const bodyAttach = parseAttach(firstSentence, options.villainNames, options.multipleVillains ?? false);
+          if (bodyAttach) {
+            attachesTo = bodyAttach.host;
+            if (bodyAttach.villainName) attachesToVillainNamed = bodyAttach.villainName;
+          } else {
+            // A narrower idiom than the one above: the attach target is named mid-sentence, in a "you may pay a
+            // cost to attach this card to X" clause, rather than the sentence's own leading verb — Bandolier of
+            // Stakes (`mojo` 39048): "You may spend 1 resource of any type to attach this card to your identity.
+            // Otherwise, discard this card." Confirmed the only instance of this exact idiom in the corpus
+            // (docs/phase7-wave2-data.md). Re-synthesizes an ordinary "Attach to X." sentence from the captured
+            // target and reuses `parseAttach` unchanged, so it resolves to any host shape that already works.
+            const midSentence = /\bto attach this card to (.+?)\.?$/i.exec(firstSentence.replace(/\.$/, ""));
+            if (midSentence) {
+              const synthetic = parseAttach(`Attach to ${midSentence[1] as string}.`, options.villainNames, options.multipleVillains ?? false);
+              if (synthetic) {
+                attachesTo = synthetic.host;
+                if (synthetic.villainName) attachesToVillainNamed = synthetic.villainName;
+              }
+            }
+          }
+        }
+      }
       // Final-stage loss reminder glued after an ability body is not part of the ability.
       abilities.push({
         kind,
@@ -477,6 +846,21 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         ...(h.name ? { name: h.name } : {}),
         text: body,
       });
+      // A side scheme can print "When [it/this scheme] is defeated, ..." as inline prose glued onto another
+      // trigger's own body, instead of its own formal "When Defeated:" header (contrast Hydra Prison, 04122,
+      // which prints a real "When Defeated:" header and already gets its own ref the ordinary way) — Marked for
+      // Death (trors 04028), Captured by Hydra (trors 04107), 45055 (`aoa`): docs/phase7-wave2-scripting.md §7.
+      // Recognized as its own additional `when-defeated` ability, ADDITIVE to the enclosing trigger's own ref
+      // (which keeps its existing kind/id unchanged) — the ability-scripting-engineer needs each printed trigger
+      // on its own ref to script independently. Skipped when `kind` is already `when-defeated` (a formal header
+      // whose own body happens to restate "when it is defeated" would otherwise double up).
+      if (kind !== "when-defeated") {
+        const bodySentences = splitSentences(body);
+        const inlineDefeatedIndex = bodySentences.findIndex((s) => /^When (?:this scheme|this card|this attachment|it) is defeated,/i.test(s));
+        if (inlineDefeatedIndex !== -1) {
+          abilities.push({ kind: "when-defeated", text: bodySentences.slice(inlineDefeatedIndex).join(" ") });
+        }
+      }
     });
   }
 

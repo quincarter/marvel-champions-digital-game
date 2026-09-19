@@ -5,26 +5,52 @@ import { type AbilityDefinition, abilityUseKey } from "../abilities.js";
 import { type Ctx, emit, popFrame, setFrame, updateInstance } from "../ctx.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
-import { mustPlayer } from "../query.js";
+import { cardOf, mustPlayer } from "../query.js";
 import { DEFENDER_SLOT } from "../select.js";
 import { currentActivationFrameId } from "../stack.js";
 import type { GameState } from "../state.js";
-import type { TriggerEvent } from "../trigger-events.js";
+import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { setDefender } from "./enemy-activation.js";
 import { announce, type Frame, pushEffects } from "./frames.js";
 import { heard } from "./triggers.js";
 
-export function limitReached(state: GameState, id: InstanceId, abilityId: AbilityId, definition: AbilityDefinition): boolean {
+/**
+ * The `abilityUses` key a limit counts against. An unqualified limit uses `<instance>:<ability>`, exactly as before;
+ * `limit.per` appends `#<value>` so the same ability keeps one count per value ("limit once per round for each
+ * aspect", Superhuman Agility). `#` never appears in an ability id, so `clearAbilityUses` can strip it back off.
+ */
+export function limitKeyOf(
+  state: GameState,
+  id: InstanceId,
+  abilityId: AbilityId,
+  definition: AbilityDefinition,
+  event: TriggerEvent | null,
+): string {
+  const base = abilityUseKey(id, abilityId);
+  if (definition.limit?.per !== "aspectOfEventCard") return base;
+  const [subject] = event ? eventSubjects(event).targets : [];
+  const card = subject ? cardOf(state, subject) : undefined;
+  const aspect = card && "aspect" in card ? String(card.printedAspect ?? card.aspect) : "none";
+  return `${base}#${aspect}`;
+}
+
+export function limitReached(
+  state: GameState,
+  id: InstanceId,
+  abilityId: AbilityId,
+  definition: AbilityDefinition,
+  event: TriggerEvent | null = null,
+): boolean {
   if (!definition.limit) return false;
-  return (state.abilityUses[abilityUseKey(id, abilityId)] ?? 0) >= definition.limit.count;
+  return (state.abilityUses[limitKeyOf(state, id, abilityId, definition, event)] ?? 0) >= definition.limit.count;
 }
 
 export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   const definition = ctx.deps.abilities[frame.abilityId];
   popFrame(ctx);
   if (!definition) return;
-  if (limitReached(ctx.state, frame.instanceId, frame.abilityId, definition)) return;
-  recordAbilityUse(ctx, frame.instanceId, frame.abilityId, definition);
+  if (limitReached(ctx.state, frame.instanceId, frame.abilityId, definition, frame.event)) return;
+  recordAbilityUse(ctx, frame.instanceId, frame.abilityId, definition, frame.event);
   emit(ctx, {
     type: "abilityResolved",
     instanceId: frame.instanceId,
@@ -98,9 +124,10 @@ export function recordAbilityUse(
   instanceId: InstanceId,
   abilityId: AbilityId,
   definition: AbilityDefinition,
+  event: TriggerEvent | null = null,
 ): void {
   if (!definition.limit) return;
-  const key = abilityUseKey(instanceId, abilityId);
+  const key = limitKeyOf(ctx.state, instanceId, abilityId, definition, event);
   const uses = (ctx.state.abilityUses[key] ?? 0) + 1;
   ctx.state = { ...ctx.state, abilityUses: { ...ctx.state.abilityUses, [key]: uses } };
   emit(ctx, { type: "abilityUseRecorded", instanceId, abilityId, uses });
@@ -110,7 +137,8 @@ export function recordAbilityUse(
 export function clearAbilityUses(ctx: Ctx, period: "turn" | "phase" | "round"): void {
   const kept: Record<string, number> = {};
   for (const [key, uses] of Object.entries(ctx.state.abilityUses)) {
-    const abilityId = key.slice(key.indexOf(":") + 1);
+    // `<instance>:<ability>` or `<instance>:<ability>#<qualifier>` for a per-something limit (`limitKeyOf`).
+    const abilityId = key.slice(key.indexOf(":") + 1).split("#")[0] ?? "";
     const definition = ctx.deps.abilities[abilityId];
     if (definition?.limit && definition.limit.period !== period) kept[key] = uses;
   }

@@ -33,6 +33,8 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RawCard } from "./marvelcdb/raw-types.ts";
 import { normalizePack, type NormalizedPack } from "./marvelcdb/normalize.ts";
+import { withLocalArt } from "./marvelcdb/normalize/art.ts";
+import { localArtCodes } from "./marvelcdb/local-art.ts";
 import { emitModule, type ModuleSpec } from "./marvelcdb/emit.ts";
 import { CORE_CURATION } from "./marvelcdb/curation/core.ts";
 import { GOB_CURATION } from "./marvelcdb/curation/gob.ts";
@@ -43,6 +45,43 @@ import { THOR_CURATION } from "./marvelcdb/curation/thor.ts";
 import { BKW_CURATION } from "./marvelcdb/curation/bkw.ts";
 import { DRS_CURATION } from "./marvelcdb/curation/drs.ts";
 import { HLK_CURATION } from "./marvelcdb/curation/hlk.ts";
+import { SCW_CURATION } from "./marvelcdb/curation/scw.ts";
+import { ANT_CURATION } from "./marvelcdb/curation/ant.ts";
+import { WSP_CURATION } from "./marvelcdb/curation/wsp.ts";
+import { TRORS_CURATION } from "./marvelcdb/curation/trors.ts";
+import { QSV_CURATION } from "./marvelcdb/curation/qsv.ts";
+import { TOAFK_CURATION } from "./marvelcdb/curation/toafk.ts";
+import { BP_CURATION } from "./marvelcdb/curation/bp.ts";
+import { CYCLOPS_CURATION } from "./marvelcdb/curation/cyclops.ts";
+import { GAMBIT_CURATION } from "./marvelcdb/curation/gambit.ts";
+import { DRAX_CURATION } from "./marvelcdb/curation/drax.ts";
+import { GAM_CURATION } from "./marvelcdb/curation/gam.ts";
+import { STLD_CURATION } from "./marvelcdb/curation/stld.ts";
+import { VNM_CURATION } from "./marvelcdb/curation/vnm.ts";
+import { NEBU_CURATION } from "./marvelcdb/curation/nebu.ts";
+import { WARM_CURATION } from "./marvelcdb/curation/warm.ts";
+import { VISION_CURATION } from "./marvelcdb/curation/vision.ts";
+import { NCRAWLER_CURATION } from "./marvelcdb/curation/ncrawler.ts";
+import { MAGNETO_CURATION } from "./marvelcdb/curation/magneto.ts";
+import { WINTER_CURATION } from "./marvelcdb/curation/winter.ts";
+import { FALCON_CURATION } from "./marvelcdb/curation/falcon.ts";
+import { RON_CURATION } from "./marvelcdb/curation/ron.ts";
+import { SPDR_CURATION } from "./marvelcdb/curation/spdr.ts";
+import { NOVA_CURATION } from "./marvelcdb/curation/nova.ts";
+import { SILK_CURATION } from "./marvelcdb/curation/silk.ts";
+import { ROGUE_CURATION } from "./marvelcdb/curation/rogue.ts";
+import { WOLV_CURATION } from "./marvelcdb/curation/wolv.ts";
+import { HOOD_CURATION } from "./marvelcdb/curation/hood.ts";
+import { IRONHEART_CURATION } from "./marvelcdb/curation/ironheart.ts";
+import { ICEMAN_CURATION } from "./marvelcdb/curation/iceman.ts";
+import { WONDER_MAN_CURATION } from "./marvelcdb/curation/wonder_man.ts";
+import { X23_CURATION } from "./marvelcdb/curation/x23.ts";
+import { VALK_CURATION } from "./marvelcdb/curation/valk.ts";
+import { DEADPOOL_CURATION } from "./marvelcdb/curation/deadpool.ts";
+import { SPIDERHAM_CURATION } from "./marvelcdb/curation/spiderham.ts";
+import { MOJO_CURATION } from "./marvelcdb/curation/mojo.ts";
+import { ANGEL_CURATION } from "./marvelcdb/curation/angel.ts";
+import { STORM_CURATION } from "./marvelcdb/curation/storm.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -60,6 +99,52 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   bkw: BKW_CURATION,
   drs: DRS_CURATION,
   hlk: HLK_CURATION,
+  scw: SCW_CURATION,
+  ant: ANT_CURATION,
+  wsp: WSP_CURATION,
+  trors: TRORS_CURATION,
+  qsv: QSV_CURATION,
+  toafk: TOAFK_CURATION,
+  bp: BP_CURATION,
+  cyclops: CYCLOPS_CURATION,
+  gambit: GAMBIT_CURATION,
+  drax: DRAX_CURATION,
+  gam: GAM_CURATION,
+  stld: STLD_CURATION,
+  vnm: VNM_CURATION,
+  nebu: NEBU_CURATION,
+  warm: WARM_CURATION,
+  vision: VISION_CURATION,
+  ncrawler: NCRAWLER_CURATION,
+  magneto: MAGNETO_CURATION,
+  winter: WINTER_CURATION,
+  falcon: FALCON_CURATION,
+  ron: RON_CURATION,
+  spdr: SPDR_CURATION,
+  nova: NOVA_CURATION,
+  silk: SILK_CURATION,
+  // phoenix: intentionally NOT registered here — 34028 (Burning Hunger, the obligation) has no text at all on
+  // MarvelCDB (not just a transcription gap: the field is entirely absent from the raw record, and MarvelCDB's
+  // own card page doesn't show it either), and `validateCard()` rejects an obligation with empty text. No
+  // curation mechanism can supply text from nowhere without fabricating it (CLAUDE.md/this agent's own
+  // discipline: never invent card text) — a second source with the exact printed wording is needed first. See
+  // curation/phoenix.ts and docs/phase7-wave2-data.md.
+  rogue: ROGUE_CURATION,
+  wolv: WOLV_CURATION,
+  hood: HOOD_CURATION,
+  ironheart: IRONHEART_CURATION,
+  iceman: ICEMAN_CURATION,
+  wonder_man: WONDER_MAN_CURATION,
+  x23: X23_CURATION,
+  valk: VALK_CURATION,
+  deadpool: DEADPOOL_CURATION,
+  spiderham: SPIDERHAM_CURATION,
+  mojo: MOJO_CURATION,
+  angel: ANGEL_CURATION,
+  storm: STORM_CURATION,
+  // hercules, fne, gmw, psylocke: curated (survey.ts), but NOT registered here — each has at least
+  // one card still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
+  // game-rules-architect" / parser-gap log).
 };
 
 interface RawCache {
@@ -215,7 +300,7 @@ async function ingestOne(pack: string, args: Args): Promise<{ ok: boolean; summa
   const curation = registered ?? bareCuration(pack, cache.cards[0]);
   let normalized: NormalizedPack;
   try {
-    normalized = normalizePack(cache.cards, curation);
+    normalized = normalizePack(withLocalArt(cache.cards, await localArtCodes()), curation);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     if (args.dryRun) return { ok: false, summary: `${pack}: FAILED\n${message}` };

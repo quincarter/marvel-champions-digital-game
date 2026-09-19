@@ -1,7 +1,7 @@
 import type { AbilityId, KeywordInstance, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
-import type { EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
+import type { AttackKeyword, EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
 import type { Form } from "./state.js";
 import type { TriggerEventKind } from "./trigger-events.js";
 
@@ -48,6 +48,16 @@ export interface EventPattern {
    * icons on that card", which cannot trigger on a card with none (FAQ "Attacrobatics (#6)", p. 59).
    */
   readonly eventAtLeast?: Readonly<Record<string, number>>;
+  /**
+   * String fields the event itself carries must equal these, in both windows — the string counterpart of
+   * `eventAtLeast`. `{ to: "hero" }` is "After a player changes to **hero form**" (Taskmaster 04093–04095), which
+   * `formChanged`'s own `to` field already records but no pattern field could read. An event without the field, or
+   * with a different value, never matches.
+   *
+   * Pair it with *no* `playerIs`, and the pattern is "after **a player** …" rather than "after **you** …"; the
+   * effect body then names them with `PlayerRef { kind: "eventPlayer" }`.
+   */
+  readonly eventIs?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -60,7 +70,11 @@ export interface EventPattern {
 export type AbilityLabel = "attack" | "thwart" | "defense";
 
 export type AbilityTriggerSpec =
-  | { readonly kind: "action"; readonly form?: Form }
+  /**
+   * `while`: a condition printed before the cost ("Hero Action: If you are in Tiny hero form, exhaust Army of Ants →
+   * deal 1 damage to an enemy."). While it is false the action cannot be triggered, so no cost is paid for nothing.
+   */
+  | { readonly kind: "action"; readonly form?: Form; readonly while?: Predicate }
   /** "Resource:" / "Hero Resource:" — triggered while paying a cost. */
   | { readonly kind: "resource"; readonly form?: Form }
   /** `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. */
@@ -117,6 +131,12 @@ export type AbilityTriggerSpec =
        * discard pile").
        */
       readonly playableFrom?: readonly "discard"[];
+      /**
+       * "You may play [Arrow] events attached to this card as if they were in your hand" (Hawkeye's Quiver; docs/phase7-
+       * wave2.md §3.10): cards attached to this card that match may be played by its controller as if from hand. A
+       * permission on the host, where `playableFrom` is one on the card itself.
+       */
+      readonly playableAttachments?: TargetQuery;
       /** "As an additional cost for Wonder Man to attack, you must discard 1 card." Costs on this character's own basic powers. */
       readonly basicPowerCosts?: readonly { readonly power: "attack" | "thwart"; readonly cost: AbilityCost }[];
     };
@@ -172,7 +192,14 @@ export interface KeywordGrantSpec {
 
 /** "X gains the [trait] trait" while the granting card is in play. */
 export interface TraitGrantSpec {
-  readonly trait: Trait;
+  /** The trait granted. Absent when `traitsOf` names where the traits come from instead. */
+  readonly trait?: Trait;
+  /**
+   * "Absorbing Man gains the trait of each environment in play" (docs/phase7-wave2.md §3.11): the printed traits of every
+   * card in play this query matches (from the granting card's point of view) are granted. Printed traits only, so grants
+   * can't feed each other.
+   */
+  readonly traitsOf?: TargetQuery;
   readonly target: TargetQuery;
   readonly while?: Predicate;
 }
@@ -198,6 +225,55 @@ export type RuleSpec =
    * ("If each of your allies has the Avenger trait, increase your ally limit by 1" — Avengers Tower, `cap` pack).
    */
   | { readonly kind: "allyLimit"; readonly amount: number; readonly while?: Predicate }
+  /**
+   * "Stinger does not count against your ally limit." (docs/phase7-wave2.md §3.5): matching allies are left out of the
+   * count. RRG 1.8 "Ally Limit" (p. 7): the check "occurs before abilities that resolve upon entering play", so this is a
+   * constant read at the check, not an ability that resolves.
+   */
+  | { readonly kind: "excludedFromAllyLimit"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Threat you remove using your basic thwart power (THW) can be divided among schemes as you choose." / "Damage you
+   * deal using your basic attack power (ATK) can be divided among enemies as you choose." (Wasp's Giant form). Matching
+   * characters may use `basicAttack.divide` / `basicThwart.divide`. FAQ "Wasp (#1C)" (RRG 1.8 p. 61): the targets are
+   * chosen and checked (guard, patrol, crisis) when the power is used, each target is attacked, and each retaliate
+   * damages her in the order of her choice. docs/phase7-wave2.md §3.7.
+   */
+  | { readonly kind: "divideBasicPower"; readonly power: "attack" | "thwart"; readonly target: TargetQuery; readonly while?: Predicate }
+  /** "When a character thwarts this side scheme, they may use their ATK instead of their THW" (The Red House): `basicThwart.useAtk`. */
+  | { readonly kind: "thwartWithAtk"; readonly scheme: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Each of your [Arrow] attacks gain ranged" (Hawkeye's Bow): an `AttackKeyword` granted to *attacks*, not to a
+   * character. RRG 1.8 defines piercing, ranged and overkill as properties of an attack ("An attack with the …
+   * keyword"), so a grant can be keyed on either end of one:
+   * - `attacker` matches the attacking character ("attacks made by your allies gain overkill");
+   * - `via` matches the card whose ability is making the attack — the event for a "Hero Action (attack)", the
+   *   upgrade or ally for an ability on one. A basic attack has no such card and never matches a rule with `via`.
+   *
+   * Both are optional and ANDed. A rule with neither grants the keyword to every attack in the game, which no card
+   * does; `@mc/cards` should always set at least one.
+   */
+  | {
+      readonly kind: "attackKeywords";
+      readonly keywords: readonly AttackKeyword[];
+      readonly attacker?: TargetQuery;
+      readonly via?: TargetQuery;
+      readonly while?: Predicate;
+    }
+  /**
+   * "You cannot play hero-specific cards." (Depowered): `player` cannot play cards matching `cards`. FAQ "Depowered
+   * (#20)" (RRG 1.8 p. 60): Invocation cards "are merely resolved, not played", so a resolve is not blocked.
+   */
+  | { readonly kind: "cannotPlay"; readonly player: PlayerRef; readonly cards: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (Corrupted Timestream): an action ability of a
+   * card matching `on`, with that form label (absent: any), cannot be triggered.
+   */
+  | { readonly kind: "cannotTriggerActions"; readonly on: TargetQuery; readonly form?: Form; readonly while?: Predicate }
+  /**
+   * "When this scheme is defeated, shuffle it into the encounter deck instead of discarding it." (Time Portal): a matching
+   * side scheme that is defeated goes into the encounter deck, which is shuffled, instead of the discard pile.
+   */
+  | { readonly kind: "defeatedIntoEncounterDeck"; readonly target: TargetQuery; readonly while?: Predicate }
   /** "The engaged player must defend against [attacker]'s attacks with an ally they control, if able" (Melter). */
   | { readonly kind: "mustDefendWithAlly"; readonly attacker: TargetQuery; readonly while?: Predicate }
   /**
@@ -219,6 +295,30 @@ export type RuleSpec =
    * Jan 26, 2026 (3)). See `resolve/event.ts` `applyDamage` for the ordering and the open overkill question.
    */
   | { readonly kind: "excessDamageAsThreat"; readonly source: TargetQuery; readonly scheme: "ownSignatureSideScheme" | TargetRef; readonly while?: Predicate }
+  /**
+   * "Treat the printed text box of each [Tech] player card as if it were blank." (Tech Theft 12026, a side scheme's
+   * constant): a whole *class* of cards, matched live, as against the lasting `blankTextBox` effect, which blanks a
+   * fixed list of cards for a duration. A blanked card has no abilities and no printed keywords (RRG 1.8 "Blank",
+   * p. 10: "the card is treated as if it had no printed text in its text box"); an attachment's printed stat box is
+   * outside the text box and still applies (ruling, Apr 30, 2026 (3) answer 4).
+   *
+   * Read through `blankedByConstantRules` (`select.ts`), which explains why it cannot be a plain predicate in the
+   * ability-lookup leaf: the rule's own target is matched on *printed* characteristics so the lookup cannot recurse,
+   * and a rule never blanks its own source.
+   */
+  | { readonly kind: "blankTextBox"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Forced Interrupt: When an acceleration token would be placed on another scheme, place it here instead." (The
+   * Master of Time 2B, 11008b; docs/phase7-wave2.md §10.3.) A constant redirect read at the moment the token is
+   * placed, the same shape `schemeThreatDestination` uses for a scheme activation's threat — not an interruptible
+   * event, so the placement stays synchronous and the encounter-deck reset that places most tokens (RRG 1.8
+   * "Acceleration Token", p. 5) keeps its exact current ordering.
+   *
+   * `to` is where tokens go instead; a token already headed there is left alone, so "another scheme" cannot loop.
+   * Only a main scheme stage can hold one in this model (`MainSchemeState.accelerationTokens`); a redirect to
+   * anything else does nothing.
+   */
+  | { readonly kind: "accelerationTokenDestination"; readonly to: TargetRef; readonly while?: Predicate }
   /** "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword. */
   | { readonly kind: "cannotLeavePlay"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
@@ -344,6 +444,17 @@ export interface InPlayCostPick {
 export interface AbilityLimit {
   readonly count: number;
   readonly period: "turn" | "phase" | "round";
+  /**
+   * "(Limit once per round **for each aspect**.)" (Superhuman Agility, 04031a): the count is kept separately for
+   * each value of this key, so the ability may resolve `count` times per period *per* value.
+   *
+   * - `"aspectOfEventCard"`: the aspect of the card the triggering event names — its `printedAspect` if it has one
+   *   (an identity-specific card that prints an aspect, §1.2), else its `aspect`.
+   *
+   * Only meaningful on a triggered ability: with no triggering event (an "Action" used by command) the ability falls
+   * back to one shared count, exactly as an unqualified limit behaves today.
+   */
+  readonly per?: "aspectOfEventCard";
 }
 
 /**

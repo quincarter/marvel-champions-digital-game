@@ -22,6 +22,23 @@ export const imagesOf = (frontSrc: Src, backSrc?: Src): CardImages | undefined =
   return { ...(front ? { front } : {}), ...(back ? { back } : {}) };
 };
 
+/**
+ * Fills in `imagesrc` for records MarvelCDB publishes no image for, when the repo's own art folder has a scan under
+ * that record's code (`assets/card-art/bundles/cards/<code>.png`; the Hall of Heroes fetches listed in
+ * `assets/card-art/hall-of-heroes-manifest.tsv`). The path is the same `/bundles/cards/<code>.png` shape MarvelCDB
+ * uses, which is what the client resolves against that folder. A record that already has an `imagesrc` is left
+ * alone, so MarvelCDB stays the first source. Pure: the caller lists the folder.
+ */
+export function withLocalArt(raw: readonly RawCard[], localCodes: ReadonlySet<string>): RawCard[] {
+  const fill = (r: RawCard): RawCard => {
+    const linked = r.linked_card ? fill(r.linked_card) : r.linked_card;
+    const local = !r.imagesrc && localCodes.has(r.code);
+    if (!local && linked === r.linked_card) return r;
+    return { ...r, ...(local ? { imagesrc: `/bundles/cards/${r.code}.png` } : {}), ...(linked ? { linked_card: linked } : {}) };
+  };
+  return raw.map(fill);
+}
+
 /** One face's ref, for where the schema models a single printed face. */
 export const imageOf = (src: Src): ImageRef | undefined => (src ? brand("image", src) : undefined);
 
@@ -70,6 +87,13 @@ export function printedFaces(card: AnyCard): { readonly what: string; readonly i
       return [
         { what: "the hero face", ...(card.hero.image ? { image: card.hero.image } : {}) },
         { what: "the alter-ego face", ...(card.alterEgo.image ? { image: card.alterEgo.image } : {}) },
+        // A separated identity's other two faces (docs/phase7-wave2.md §6.10 — SP//dr) are printed cards too.
+        ...(card.separatedIdentity
+          ? [
+              { what: "the hero card's other side", ...(card.separatedIdentity.heroCardOtherSide.image ? { image: card.separatedIdentity.heroCardOtherSide.image } : {}) },
+              { what: "the alter-ego card's other side", ...(card.separatedIdentity.alterEgoCardOtherSide.image ? { image: card.separatedIdentity.alterEgoCardOtherSide.image } : {}) },
+            ]
+          : []),
       ];
     case "villain":
       return card.sides.flatMap((side) =>

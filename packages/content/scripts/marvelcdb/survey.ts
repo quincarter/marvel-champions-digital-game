@@ -26,6 +26,8 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RawCard } from "./raw-types.ts";
 import { normalizePack } from "./normalize.ts";
+import { withLocalArt } from "./normalize/art.ts";
+import { localArtCodes } from "./local-art.ts";
 import { bareCuration } from "./curation/empty.ts";
 import { CORE_CURATION } from "./curation/core.ts";
 import { GOB_CURATION } from "./curation/gob.ts";
@@ -36,6 +38,48 @@ import { THOR_CURATION } from "./curation/thor.ts";
 import { BKW_CURATION } from "./curation/bkw.ts";
 import { DRS_CURATION } from "./curation/drs.ts";
 import { HLK_CURATION } from "./curation/hlk.ts";
+import { SCW_CURATION } from "./curation/scw.ts";
+import { ANT_CURATION } from "./curation/ant.ts";
+import { WSP_CURATION } from "./curation/wsp.ts";
+import { TRORS_CURATION } from "./curation/trors.ts";
+import { QSV_CURATION } from "./curation/qsv.ts";
+import { TOAFK_CURATION } from "./curation/toafk.ts";
+import { BP_CURATION } from "./curation/bp.ts";
+import { CYCLOPS_CURATION } from "./curation/cyclops.ts";
+import { GAMBIT_CURATION } from "./curation/gambit.ts";
+import { DRAX_CURATION } from "./curation/drax.ts";
+import { GAM_CURATION } from "./curation/gam.ts";
+import { STLD_CURATION } from "./curation/stld.ts";
+import { VNM_CURATION } from "./curation/vnm.ts";
+import { NEBU_CURATION } from "./curation/nebu.ts";
+import { WARM_CURATION } from "./curation/warm.ts";
+import { VISION_CURATION } from "./curation/vision.ts";
+import { NCRAWLER_CURATION } from "./curation/ncrawler.ts";
+import { MAGNETO_CURATION } from "./curation/magneto.ts";
+import { WINTER_CURATION } from "./curation/winter.ts";
+import { FALCON_CURATION } from "./curation/falcon.ts";
+import { RON_CURATION } from "./curation/ron.ts";
+import { SPDR_CURATION } from "./curation/spdr.ts";
+import { NOVA_CURATION } from "./curation/nova.ts";
+import { SILK_CURATION } from "./curation/silk.ts";
+import { PHOENIX_CURATION } from "./curation/phoenix.ts";
+import { ROGUE_CURATION } from "./curation/rogue.ts";
+import { WOLV_CURATION } from "./curation/wolv.ts";
+import { HOOD_CURATION } from "./curation/hood.ts";
+import { IRONHEART_CURATION } from "./curation/ironheart.ts";
+import { MOJO_CURATION } from "./curation/mojo.ts";
+import { STORM_CURATION } from "./curation/storm.ts";
+import { ICEMAN_CURATION } from "./curation/iceman.ts";
+import { HERCULES_CURATION } from "./curation/hercules.ts";
+import { FNE_CURATION } from "./curation/fne.ts";
+import { GMW_CURATION } from "./curation/gmw.ts";
+import { WONDER_MAN_CURATION } from "./curation/wonder_man.ts";
+import { X23_CURATION } from "./curation/x23.ts";
+import { PSYLOCKE_CURATION } from "./curation/psylocke.ts";
+import { VALK_CURATION } from "./curation/valk.ts";
+import { DEADPOOL_CURATION } from "./curation/deadpool.ts";
+import { SPIDERHAM_CURATION } from "./curation/spiderham.ts";
+import { ANGEL_CURATION } from "./curation/angel.ts";
 import type { PackCuration } from "./curation/types.ts";
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -52,6 +96,48 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   bkw: BKW_CURATION,
   drs: DRS_CURATION,
   hlk: HLK_CURATION,
+  scw: SCW_CURATION,
+  ant: ANT_CURATION,
+  wsp: WSP_CURATION,
+  trors: TRORS_CURATION,
+  qsv: QSV_CURATION,
+  toafk: TOAFK_CURATION,
+  bp: BP_CURATION,
+  cyclops: CYCLOPS_CURATION,
+  gambit: GAMBIT_CURATION,
+  drax: DRAX_CURATION,
+  gam: GAM_CURATION,
+  stld: STLD_CURATION,
+  vnm: VNM_CURATION,
+  nebu: NEBU_CURATION,
+  warm: WARM_CURATION,
+  vision: VISION_CURATION,
+  ncrawler: NCRAWLER_CURATION,
+  magneto: MAGNETO_CURATION,
+  winter: WINTER_CURATION,
+  falcon: FALCON_CURATION,
+  ron: RON_CURATION,
+  spdr: SPDR_CURATION,
+  nova: NOVA_CURATION,
+  silk: SILK_CURATION,
+  phoenix: PHOENIX_CURATION,
+  rogue: ROGUE_CURATION,
+  wolv: WOLV_CURATION,
+  hood: HOOD_CURATION,
+  ironheart: IRONHEART_CURATION,
+  mojo: MOJO_CURATION,
+  storm: STORM_CURATION,
+  iceman: ICEMAN_CURATION,
+  hercules: HERCULES_CURATION,
+  fne: FNE_CURATION,
+  gmw: GMW_CURATION,
+  wonder_man: WONDER_MAN_CURATION,
+  x23: X23_CURATION,
+  psylocke: PSYLOCKE_CURATION,
+  valk: VALK_CURATION,
+  deadpool: DEADPOOL_CURATION,
+  spiderham: SPIDERHAM_CURATION,
+  angel: ANGEL_CURATION,
 };
 
 interface RawCache {
@@ -90,7 +176,11 @@ const CATEGORIES: readonly Category[] = [
   { label: "deck_limit missing/invalid", re: /deck_limit .* invalid/ },
   { label: "Max N per deck text vs deck_limit mismatch", re: /Max .* per deck but deck_limit/ },
   { label: "attach rule shape not recognized by the parser", re: /(second attach rule|unrecognized attach rule|attach rule on a|attachment without an attach rule|player card attaches to a villain by name|attaches to a villain by name is not this set's villain)/ },
+  { label: "ifAble attach host: one side didn't parse", re: /ifAble attach host: could not parse/ },
+  { label: "Requirement keyword needs more than one resource icon (schema gap)", re: /Requirement keyword needs more than one resource icon/ },
+  { label: "Discount keyword needs a target-trait qualifier (schema gap)", re: /Discount keyword needs a target-trait qualifier/ },
   { label: "play/deck restriction text on a non-player card", re: /play\/deck restriction on a non-player card/ },
+  { label: "campaign-specific obligation (schema gap — ObligationCard has no specificTo)", re: /obligation with faction campaign/ },
   { label: "unknown text token (icon/markup the text normalizer doesn't map)", re: /unknown text token/ },
   { label: "boost_star flag vs Boost ability text mismatch", re: /boost_star=.* but text/ },
   { label: "MarvelCDB record never turned into a card (falls out of every code path)", re: /was not turned into any card/ },
@@ -120,7 +210,7 @@ async function surveyPack(pack: string): Promise<PackResult> {
   const cache = JSON.parse(await readFile(cachePath, "utf8")) as RawCache;
   const curation = REGISTERED_CURATIONS[pack] ?? bareCuration(pack, cache.cards[0]);
   try {
-    normalizePack(cache.cards, curation);
+    normalizePack(withLocalArt(cache.cards, await localArtCodes()), curation);
     return { pack, cardCount: cache.cards.length, ok: true, errorLines: [] };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

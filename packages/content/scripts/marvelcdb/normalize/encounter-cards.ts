@@ -1,9 +1,24 @@
-/** Encounter-side cards: minion, attachment, treachery, obligation, environment and side scheme. */
-import type { AttachmentCard, EncounterCardFlipSide, MinionCard, PrintedStatModifiers, SideSchemeCard } from "../../../src/schema/index.ts";
+/** Encounter-side cards: minion, attachment, treachery, obligation, environment, side scheme and evidence. */
+import type {
+  AttachmentCard,
+  EncounterCardFlipSide,
+  EvidenceCard,
+  EvidenceKind,
+  MinionCard,
+  PrintedStatModifiers,
+  SideSchemeCard,
+} from "../../../src/schema/index.ts";
 import { brand } from "./brand.ts";
 import { checkNoSchemeFields, expectNoAttach, expectNoPlayerData, record, type NormalizeContext, type SingleRecord } from "./context.ts";
 import type { Prepared } from "./prepare.ts";
 import { scalingOf, schemeIcons } from "./values.ts";
+
+/** MarvelCDB's three evidence type codes, keyed to the schema's `EvidenceKind` (docs/phase7-wave2.md §6.4). */
+const EVIDENCE_KIND_OF: Readonly<Record<string, EvidenceKind>> = {
+  evidence_means: "means",
+  evidence_motive: "motive",
+  evidence_opportunity: "opportunity",
+};
 
 export function normalizeEncounterCard(
   ctx: NormalizeContext,
@@ -13,12 +28,19 @@ export function normalizeEncounterCard(
 ): void {
   const { errors, curation } = ctx;
   const { r, p, parsed, set, common, abilities } = rec;
-  if (r.faction_code !== "encounter") errors.push(`${r.code}: ${r.type_code} with faction ${r.faction_code}`);
+  // A campaign-specific encounter card (wave 2, docs/phase7-wave2.md §1.4/§5.1 — The Rise of Red Skull's Hydra
+  // Campaign story obligations, e.g. Zola's Algorithm 04163; later packs' campaign-specific minions, side
+  // schemes, treacheries, environments and attachments, e.g. Sinister Motives' Bad Publicity/Community
+  // Service/Snitches get Stitches sets) is faction "campaign", not "encounter": every such card belongs to its
+  // own `campaignSpecific` `EncounterSet` instead of the pack's ordinary encounter sets.
+  const isCampaignCard = r.faction_code === "campaign";
+  if (r.faction_code !== "encounter" && !isCampaignCard) errors.push(`${r.code}: ${r.type_code} with faction ${r.faction_code}`);
   expectNoPlayerData(ctx, p, parsed);
   const encounterCommon = {
-    // Obligations belong to a hero kit, not an encounter set; they reach the
-    // encounter deck through HeroIdentityCard.obligationCardId.
-    encounterSetIds: r.type_code === "obligation" ? [] : [brand("encounterSet", set)],
+    // An ordinary obligation belongs to a hero kit, not an encounter set; it reaches the encounter deck through
+    // HeroIdentityCard.obligationCardId. A campaign-specific obligation has no hero kit and belongs to its own
+    // (campaign-specific) encounter set instead, like any other encounter card.
+    encounterSetIds: r.type_code === "obligation" && !isCampaignCard ? [] : [brand("encounterSet", set)],
     boostIcons: p.boost,
     traits: p.traits,
     keywords: parsed.keywords,
@@ -63,7 +85,9 @@ export function normalizeEncounterCard(
         return;
       }
       if (parsed.attachesToVillainNamed) {
-        const villain = ctx.topLevel.find((x) => x.type_code === "villain" && x.card_set_code === r.card_set_code);
+        // Leader records normalize the same way villains do (docs/phase7-wave2.md §6.3), so a card that attaches
+        // to a leader by name ("Attach to Iron Man.") is checked against the pack's leader set the same way.
+        const villain = ctx.topLevel.find((x) => (x.type_code === "villain" || x.type_code === "leader") && x.card_set_code === r.card_set_code);
         if (villain?.name !== parsed.attachesToVillainNamed) {
           errors.push(`${r.code}: "Attach to ${parsed.attachesToVillainNamed}." is not this set's villain`);
         }
@@ -111,6 +135,24 @@ export function normalizeEncounterCard(
         ...(parsed.signatureOf ? { signatureOf: parsed.signatureOf } : {}),
       };
       record(ctx, scheme, set, [p, ...flipParts]);
+      return;
+    }
+    case "evidence_means":
+    case "evidence_motive":
+    case "evidence_opportunity": {
+      // Wave 2 (docs/phase7-wave2.md §6.4): the Agents of S.H.I.E.L.D. Executive Board Evidence set. Neither a
+      // player nor an encounter card — never enters a deck or the encounter deck; `expectNoAttach` doesn't apply
+      // (no evidence card prints an attach rule) and `evidenceIcon` is left unset (MarvelCDB doesn't record it).
+      const evidence: EvidenceCard = {
+        ...common,
+        type: "evidence",
+        evidence: EVIDENCE_KIND_OF[r.type_code] as EvidenceKind,
+        encounterSetIds: [brand("encounterSet", set)],
+        traits: p.traits,
+        text: p.text,
+        abilities,
+      };
+      record(ctx, evidence, set, [p, ...flipParts]);
       return;
     }
     default:

@@ -1,9 +1,9 @@
 /** Card selectors and bulk card moves used by effects. */
 
-import { type Ctx, moveCard, syncSeparateDeckTop, updateInstance, updatePlayer } from "../ctx.js";
+import { type Ctx, emit, moveCard, syncSeparateDeckTop, updateInstance, updatePlayer } from "../ctx.js";
 import { leavePlay, shuffleZone } from "../effects.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "../ids.js";
-import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, getInstance, getPlayer, mustPlayer, separateDeckOf, villainOf } from "../query.js";
+import { activeEncounterDeckId, cardOf, discardZoneFor, encounterDeckOf, getInstance, getPlayer, mustPlayer, separateDeckOf, villainOf } from "../query.js";
 import { nextInt } from "../rng.js";
 import { cardsInPlay, type EffectContext, matchesQuery, resolvePlayers, resolveRef, resolveValue } from "../select.js";
 import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
@@ -15,6 +15,12 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
   const filtered = (ids: readonly InstanceId[], filter: TargetQuery | undefined): readonly InstanceId[] =>
     filter ? ids.filter((id) => matchesQuery(state, id, filter, context)) : ids;
   switch (selector.kind) {
+    case "anyOf": {
+      // One pool across several selectors, deduplicated, in the order listed.
+      const seen = new Set<InstanceId>();
+      for (const part of selector.of) for (const id of selectCards(ctx, part, context)) seen.add(id);
+      return [...seen];
+    }
     case "ref":
       return filtered(resolveRef(state, selector.ref, context).filter((id) => getInstance(state, id) !== undefined), selector.filter);
     case "encounter": {
@@ -30,8 +36,26 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       }
       return filtered(ids, selector.filter);
     }
-    case "encounterSetAside":
-      return filtered(state.encounterSetAside, selector.filter);
+    case "encounterSetAside": {
+      const matching = [...filtered(state.encounterSetAside, selector.filter)];
+      if (!selector.random) return matching;
+      const count = Math.max(0, resolveValue(ctx.state, selector.random, context));
+      const picked: InstanceId[] = [];
+      for (let i = 0; i < count && matching.length > 0; i++) {
+        const [index, rng] = nextInt(ctx.state.rng, matching.length);
+        ctx.state = { ...ctx.state, rng };
+        picked.push(matching[index] as InstanceId);
+        matching.splice(index, 1);
+      }
+      return picked;
+    }
+    case "scenarioDeck": {
+      const piles = state.scenarioDecks[selector.name];
+      if (!piles) return [];
+      const zones = selector.zones ?? ["deck"];
+      const deck = selector.top ? piles.deck.slice(0, Math.max(0, resolveValue(state, selector.top, context))) : piles.deck;
+      return filtered([...(zones.includes("deck") ? deck : []), ...(zones.includes("discard") ? piles.discard : [])], selector.filter);
+    }
     case "setAside":
       return resolvePlayers(state, selector.player, context).flatMap((playerId) => filtered(mustPlayer(state, playerId).setAside, selector.filter));
     case "tucked":
@@ -152,6 +176,49 @@ export function shuffleSeparateDeck(ctx: Ctx, playerId: PlayerId, name: string):
   const order = shuffleZone(ctx, { kind: "separateDeck", playerId, name }, piles.deck);
   updatePlayer(ctx, playerId, (p) => ({ ...p, separateDecks: { ...p.separateDecks, [name]: { ...piles, deck: order } } }));
   syncSeparateDeckTop(ctx, playerId, name);
+}
+
+/** Shuffles a scenario deck (docs/phase7-wave2.md §3.3). */
+export function shuffleScenarioDeck(ctx: Ctx, name: string): void {
+  const piles = ctx.state.scenarioDecks[name];
+  if (!piles) return;
+  const order = shuffleZone(ctx, { kind: "scenarioDeck", name }, piles.deck);
+  ctx.state = { ...ctx.state, scenarioDecks: { ...ctx.state.scenarioDecks, [name]: { ...piles, deck: order } } };
+}
+
+/** `EffectSpec buildScenarioDeck`: the matching encounter-deck cards move into the scenario deck, which is shuffled. */
+export function buildScenarioDeck(ctx: Ctx, name: string): void {
+  const piles = ctx.state.scenarioDecks[name];
+  if (!piles) return;
+  const { encounterSetIds, cardType } = piles.contents;
+  for (const deckId of ctx.state.encounterDeckOrder) {
+    for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
+      const card = cardOf(ctx.state, id);
+      if (!card) continue;
+      if (cardType !== undefined && card.type !== cardType) continue;
+      if (encounterSetIds !== undefined && !("encounterSetIds" in card && card.encounterSetIds.some((set: string) => encounterSetIds.includes(set)))) continue;
+      moveCard(ctx, id, { kind: "scenarioDeck", name });
+      if (piles.discardPile === "own") updateInstance(ctx, id, (i) => ({ ...i, home: { kind: "scenarioDeck", name } }));
+    }
+  }
+  shuffleScenarioDeck(ctx, name);
+}
+
+/**
+ * `whenEmpty: "reshuffleDiscardWithoutPenalty"` (the Red Skull rulebook, p. 15: "If the side-scheme deck is ever empty,
+ * shuffle the side-scheme discard pile into the side-scheme deck. There is no penalty for doing this."), checked
+ * between frames as the Invocation deck's is. A `remainsEmpty` deck stays empty.
+ */
+export function resetEmptyScenarioDecks(ctx: Ctx): void {
+  for (const [name, piles] of Object.entries(ctx.state.scenarioDecks)) {
+    if (piles.whenEmpty !== "reshuffleDiscardWithoutPenalty" || piles.deck.length > 0 || piles.discard.length === 0) continue;
+    for (const id of [...piles.discard]) {
+      moveCard(ctx, id, { kind: "scenarioDeck", name });
+      updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
+    }
+    shuffleScenarioDeck(ctx, name);
+    emit(ctx, { type: "scenarioDeckReset", name });
+  }
 }
 
 /** Shuffles an encounter deck: "the encounter deck" is the active villain's. */

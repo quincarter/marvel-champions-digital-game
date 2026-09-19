@@ -11,9 +11,17 @@ import {
   getInstance,
   getPlayer,
   handSize,
+  heroFacesOf,
+  identityFace,
   isMinion,
   isVillain,
   mainSchemeStage,
+  mainSchemeStageOf,
+  mainSchemeStateOf,
+  mainSchemeFor,
+  activeVillainIdFor,
+  areaOfCard,
+  areaOfPlayer,
   maxHitPoints,
   playerOrder,
   printedHandSize,
@@ -22,11 +30,12 @@ import {
   villainOf,
   villainStageOf,
 } from "./query.js";
-import { printedResources } from "./resources.js";
+import { boostIconsFor } from "./modifiers.js";
+import { printedResources, RESOURCE_TYPES } from "./resources.js";
 import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
 import type { LastingReach, LastingScope } from "./lasting.js";
 import type { PlayerRef, Predicate, TargetCategory, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
-import { STATUS_NAMES, type GameState } from "./state.js";
+import { STATUS_NAMES, type GameAreaState, type GameState } from "./state.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { eventSubjects } from "./trigger-events.js";
 
@@ -117,10 +126,13 @@ function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   if (card.type === "hero_identity") {
     const player = state.players.find((p) => p.identity.instanceId === id);
     if (!player) return [];
-    return player.identity.form === "hero" ? card.hero.traits : card.alterEgo.traits;
+    return identityFace(state, player).face.traits;
   }
   if (card.type === "villain") return isVillain(state, id) ? villainStageOf(state, id).traits : [];
-  if (card.type === "main_scheme") return mainSchemeStage(state).traits;
+  if (card.type === "main_scheme") {
+    const scheme = mainSchemeStateOf(state, id);
+    return scheme ? mainSchemeStageOf(state, scheme).traits : [];
+  }
   return "traits" in card ? card.traits : [];
 }
 
@@ -132,7 +144,7 @@ export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DE
   }
   if (Object.keys(deps.abilities).length > 0) {
     for (const sourceId of cardsInPlay(state)) {
-      for (const ref of activeAbilityRefs(state, sourceId)) {
+      for (const ref of activeAbilityRefs(state, sourceId, deps)) {
         const definition = deps.abilities[ref.id];
         if (definition?.trigger.kind !== "constant" || !definition.trigger.traitGrants) continue;
         const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
@@ -147,7 +159,13 @@ export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DE
             (!withoutTrait || !printed.includes(withoutTrait)) &&
             (!anyTrait || anyTrait.some((wanted) => printed.includes(wanted)));
           if (matchesQuery(state, id, rest, context) && traitsMatch) {
-            traits.push(grant.trait);
+            if (grant.trait) traits.push(grant.trait);
+            if (grant.traitsOf) {
+              const query = grant.traitsOf;
+              for (const other of cardsInPlay(state)) {
+                if (other !== id && matchesQuery(state, other, query, context)) traits.push(...printedTraitsOf(state, other));
+              }
+            }
           }
         }
       }
@@ -171,6 +189,8 @@ export function cardsInPlay(state: GameState): readonly InstanceId[] {
   for (const attachment of getInstance(state, state.mainScheme.instanceId)?.attachments ?? []) {
     ids.push(attachment);
   }
+  // Each separate game area's own main scheme stage (docs/phase7-wave2.md §3.1).
+  for (const area of state.gameAreas) if (area.mainScheme) withAttachments(area.mainScheme.instanceId);
   for (const player of playerOrder(state)) {
     withAttachments(player.identity.instanceId);
     for (const id of player.playArea) withAttachments(id);
@@ -217,7 +237,9 @@ export type QueryExclusion =
   | "notInSlot"
   | "wrongSignatureSideScheme"
   | "notEngagedWithPlayer"
-  | "wrongIdentitySet";
+  | "wrongIdentitySet"
+  /** In a different separate game area from the effect's (docs/phase7-wave2.md §3.1). */
+  | "otherGameArea";
 
 /**
  * The single implementation of "does this card match this query?", reported as *which clause said no*.
@@ -232,6 +254,7 @@ export function explainQuery(
   query: TargetQuery,
   context: EffectContext,
 ): QueryExclusion | null {
+  if (!inContextArea(state, id, context)) return "otherGameArea";
   const instance = getInstance(state, id);
   if (!instance) return "unknownCard";
   if (query.self !== undefined) {
@@ -283,7 +306,16 @@ export function explainQuery(
   }
   if (query.aspect !== undefined) {
     const card = cardOf(state, id);
-    if (!card || !("aspect" in card) || card.aspect !== query.aspect) return "wrongAspect";
+    // An identity-specific card may also print an aspect (Spider-Woman's Venom Blast: `printedAspect`,
+    // docs/phase7-wave2.md §1.2); card effects asking for an aspect's cards count it.
+    if (!card || !("aspect" in card) || (card.aspect !== query.aspect && card.printedAspect !== query.aspect)) return "wrongAspect";
+  }
+  // "An aspect card": the OR of the four core aspects, read the same way `aspect` is.
+  if (query.anyAspect !== undefined) {
+    const card = cardOf(state, id);
+    const aspects =
+      card && "aspect" in card ? [String(card.aspect), ...(card.printedAspect === undefined ? [] : [String(card.printedAspect)])] : [];
+    if (!query.anyAspect.some((wanted) => aspects.includes(wanted))) return "wrongAspect";
   }
   if (query.exhausted !== undefined && instance.exhausted !== query.exhausted) return query.exhausted ? "ready" : "exhausted";
   if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat) return query.hasThreat ? "noThreat" : "hasThreat";
@@ -311,6 +343,8 @@ export function explainQuery(
     if (!attacker || !canAttack(state, attacker, id, context.deps)) return "cannotBeAttacked";
   }
   if (query.excludeSlots?.some((slot) => (context.bindings[slot] ?? []).includes(id))) return "alreadyChosen";
+  // "each *other* environment card in play": everything this ref names is out.
+  if (query.excluding !== undefined && resolveRef(state, query.excluding, context).includes(id)) return "alreadyChosen";
   if (query.inSlot !== undefined && !(context.bindings[query.inSlot] ?? []).includes(id)) return "notInSlot";
   if (query.controlledBy) {
     const controller = controllerOf(state, id);
@@ -330,6 +364,35 @@ export function explainQuery(
     if (!aspect || !identities.some((cardId) => cardId !== undefined && aspect === `hero:${cardId}`)) return "wrongIdentitySet";
   }
   return null;
+}
+
+/**
+ * The separate game area an effect resolves in (docs/phase7-wave2.md §3.1), or null for every area: the players share
+ * one area, or the effect's card is area-neutral (an environment, the central stage). The Once and Future Kang insert:
+ * "Cards and components in one game area cannot affect another game area (with the exception of the text on stage 2B)."
+ *
+ * The card resolving the effect decides when it is in an area; otherwise the player resolving it ("That player", then
+ * the controller) does, which covers an encounter card revealed by a player and an ability of a card out of play.
+ */
+export function contextArea(state: GameState, context: EffectContext): GameAreaState | null {
+  if (state.gameAreas.length === 0) return null;
+  const self = context.selfInstanceId;
+  if (self) {
+    const area = areaOfCard(state, self);
+    if (area) return area;
+    if (cardsInPlay(state).includes(self)) return null;
+  }
+  const player = context.scopedPlayerId ?? context.controllerId;
+  return player ? areaOfPlayer(state, player) : null;
+}
+
+/** Whether a card can be affected from the effect's area: same area, or either side is in every area. */
+export function inContextArea(state: GameState, id: InstanceId, context: EffectContext): boolean {
+  if (state.gameAreas.length === 0) return true;
+  const area = contextArea(state, context);
+  if (!area) return true;
+  const cardArea = areaOfCard(state, id);
+  return cardArea === null || cardArea.areaId === area.areaId;
 }
 
 export const matchesQuery = (
@@ -369,7 +432,7 @@ export function canAttack(state: GameState, attackerId: InstanceId, targetId: In
 function attackForbidden(state: GameState, targetId: InstanceId, deps: EngineDeps): boolean {
   if (Object.keys(deps.abilities).length === 0) return false;
   for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId)) {
+    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const trigger = deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "constant") continue;
       for (const rule of trigger.rules ?? []) {
@@ -412,8 +475,14 @@ export function resolvePlayers(
     }
     case "firstPlayer":
       return [state.firstPlayerId];
-    case "each":
-      return playerOrder(state).map((p) => p.playerId);
+    case "each": {
+      // The Once and Future Kang insert, "Rules Clarifications": "'Each player' refers to each player in the same game
+      // area" (docs/phase7-wave2.md §3.1).
+      const area = contextArea(state, context);
+      return playerOrder(state)
+        .map((p) => p.playerId)
+        .filter((id) => !area || area.playerIds.includes(id));
+    }
     case "id":
       return getPlayer(state, ref.playerId) ? [ref.playerId] : [];
     case "slot": {
@@ -441,6 +510,12 @@ export function resolvePlayers(
         .map((id) => getInstance(state, id)?.engagedWith ?? null)
         .filter((id): id is PlayerId => id !== null);
       return [...new Set(engaged)];
+    }
+    case "defeatingPlayer": {
+      const event = context.event;
+      if (event?.kind !== "schemeDefeated" && event?.kind !== "characterDefeated") return [];
+      const player = event.defeatedByPlayerId ?? null;
+      return player !== null && getPlayer(state, player) ? [player] : [];
     }
   }
 }
@@ -478,12 +553,17 @@ export function resolveRef(
       return (attack.slots[DEFENDER_SLOT] ?? []).filter((id) => inPlay.includes(id));
     }
     case "villain": {
-      // "The villain" is the active villain (The Wrecking Crew insert, "The Active Villain").
-      const active = activeVillain(state);
-      return active.defeated ? [] : [active.instanceId];
+      // "The villain" is the active villain (The Wrecking Crew insert, "The Active Villain"); in a separate game area,
+      // that area's (docs/phase7-wave2.md §3.1).
+      const activeId = activeVillainIdFor(state, contextArea(state, context));
+      const active = activeId ? villainOf(state, activeId) : undefined;
+      return !active || active.defeated ? [] : [active.instanceId];
     }
-    case "mainScheme":
-      return [state.mainScheme.instanceId];
+    case "mainScheme": {
+      // "The main scheme": this area's own stage, or the central one (`of: "central"`, "under stage 4A").
+      const scheme = ref.of === "central" ? state.mainScheme : mainSchemeFor(state, contextArea(state, context));
+      return scheme ? [scheme.instanceId] : [];
+    }
     case "identityOf":
       return resolvePlayers(state, ref.player, context)
         .map((id) => getPlayer(state, id)?.identity.instanceId)
@@ -505,6 +585,11 @@ export function resolveRef(
       // "Each card attached here": in attachment order, out-of-play hosts included (nothing attaches out of play today).
       const attached = resolveRef(state, ref.of, context).flatMap((id) => getInstance(state, id)?.attachments ?? []);
       return ref.filter ? attached.filter((id) => matchesQuery(state, id, ref.filter as TargetQuery, context)) : attached;
+    }
+    case "tuckedUnder": {
+      // "Each face down Kang's Dominion under this stage": tucked cards are out of play, so only a ref finds them.
+      const tucked = resolveRef(state, ref.of, context).flatMap((id) => getInstance(state, id)?.tucked ?? []);
+      return ref.filter ? tucked.filter((id) => matchesQuery(state, id, ref.filter as TargetQuery, context)) : tucked;
     }
     case "superlative": {
       // Each candidate is measured with itself bound to `slot`, so the measure can read another card ("the villain
@@ -595,6 +680,9 @@ export function resolveValue(
       return id ? (getInstance(state, id)?.threat ?? 0) : 0;
     }
     case "boostIcons": {
+      // One counting function for every read (docs/phase7-wave2.md §3.6): printed icons plus boost icon modifiers.
+      const [counted] = resolveRef(state, value.of, context);
+      if (counted && context.deps) return boostIconsFor(state, context.deps, counted);
       const [id] = resolveRef(state, value.of, context);
       const card = id ? cardOf(state, id) : undefined;
       return card && "boostIcons" in card ? card.boostIcons : 0;
@@ -631,8 +719,25 @@ export function resolveValue(
       const card = id ? cardOf(state, id) : undefined;
       return card && "cost" in card && typeof card.cost === "number" ? card.cost : 0;
     }
+    case "totalPrintedCost":
+      // Read wherever the cards are (tucked cards are out of play); a card with no printed cost adds 0.
+      return resolveRef(state, value.cards, context).reduce((sum, id) => {
+        const card = cardOf(state, id);
+        return sum + (card && "cost" in card && typeof card.cost === "number" ? card.cost : 0);
+      }, 0);
+    case "totalPrintedResources": {
+      // Printed icons only (RRG 1.8 "Printed", p. 35), read wherever the cards are — a card discarded to pay a cost
+      // is already in the discard pile by the time the ability's effects resolve.
+      const types = value.types ?? RESOURCE_TYPES;
+      return resolveRef(state, value.cards, context).reduce((sum, id) => {
+        const card = cardOf(state, id);
+        if (!card) return sum;
+        const pool = printedResources(card);
+        return sum + types.reduce((total, type) => total + pool[type], 0);
+      }, 0);
+    }
     case "villainStageNumber": {
-      const [id] = value.of ? resolveRef(state, value.of, context) : [activeVillain(state).instanceId];
+      const [id] = value.of ? resolveRef(state, value.of, context) : [activeVillainIdFor(state, contextArea(state, context)) ?? activeVillain(state).instanceId];
       return id && isVillain(state, id) ? villainStageOf(state, id).stageNumber : 0;
     }
   }
@@ -713,34 +818,124 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
       if (predicate.op === "atMost") return left <= right;
       return left === right;
     }
+    case "gameAreasSplit":
+      return state.gameAreas.length > 0;
+    case "areaPlayersDefeated": {
+      const area = contextArea(state, context);
+      return area !== null && area.playerIds.every((id) => getPlayer(state, id)?.eliminated !== false);
+    }
   }
 }
 
-/** The ability slots that are live on a card right now (active identity face, current stage). */
-export function activeAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
+/**
+ * Class-wide text blanking: "Treat the printed text box of each [Tech] player card as if it were blank" (Tech Theft),
+ * a constant `RuleSpec blankTextBox`. `textBoxBlank` (`query.ts`) covers the *lasting* kind, which is a fixed list of
+ * instance ids and so needs no registry; a constant rule has to be found in play, which the naive version gets wrong
+ * twice (docs/phase7-wave2.md §8):
+ *
+ * 1. **Recursion.** Finding the rule needs the in-play cards' live abilities, and matching its `{ trait: TECH }`
+ *    target needs `traitsOf`, which needs them too. Both are cut the same way `traitsOf` already cuts trait grants:
+ *    the scan below reads each source's refs with the *lasting* blank check only, and evaluates the rule's own
+ *    `target`/`while` under `DEFAULT_DEPS`, so granted traits and keywords are never consulted. A blanking rule
+ *    therefore cannot depend on another blanking rule, and the answer is a fixed point after one pass.
+ * 2. **Cost.** `activeAbilityRefs` is the engine's hottest read, called once per in-play card inside `activeRules`,
+ *    `traitsOf`, `grantedKeywords` and `statModifiers`, each of which runs per query candidate. Scanning the board
+ *    on every lookup would make all of those quadratic. Two memos keep it O(1) amortized, both over **immutable
+ *    inputs and never over game state the engine reads back**: which ability ids carry the rule (per `EngineDeps`,
+ *    fixed for a whole game) and which cards are blanked (per `GameState`, which is replaced on every mutation and
+ *    never edited in place). A registry with no such rule — Core, wave 1 and all of cycle 1 — short-circuits on the
+ *    first `WeakMap` hit, so nothing that exists today pays anything at all.
+ */
+const NO_BLANKED: ReadonlySet<InstanceId> = new Set<InstanceId>();
+
+/** Ability ids in this registry that carry a constant `blankTextBox` rule. Memoized per registry object. */
+const BLANK_RULE_IDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
+
+function blankRuleIds(deps: EngineDeps): ReadonlySet<string> {
+  const cached = BLANK_RULE_IDS.get(deps);
+  if (cached) return cached;
+  const ids = new Set<string>();
+  for (const [id, definition] of Object.entries(deps.abilities)) {
+    if (definition.trigger.kind === "constant" && (definition.trigger.rules ?? []).some((rule) => rule.kind === "blankTextBox")) {
+      ids.add(id);
+    }
+  }
+  BLANK_RULE_IDS.set(deps, ids);
+  return ids;
+}
+
+const BLANKED_BY_RULES = new WeakMap<GameState, WeakMap<EngineDeps, ReadonlySet<InstanceId>>>();
+
+/**
+ * Every card a constant `blankTextBox` rule in play treats as blank right now. A rule never blanks its own source
+ * (that would erase the rule), and two rules blanking each other both apply — the scan reads printed refs, so the
+ * answer does not depend on the order cards are visited.
+ */
+export function blankedByConstantRules(state: GameState, deps: EngineDeps): ReadonlySet<InstanceId> {
+  const ruleIds = blankRuleIds(deps);
+  if (ruleIds.size === 0) return NO_BLANKED;
+  const perDeps = BLANKED_BY_RULES.get(state) ?? new WeakMap<EngineDeps, ReadonlySet<InstanceId>>();
+  const cached = perDeps.get(deps);
+  if (cached) return cached;
+  const blanked = new Set<InstanceId>();
+  const inPlay = cardsInPlay(state);
+  for (const sourceId of inPlay) {
+    for (const ref of activeAbilityRefs(state, sourceId)) {
+      if (!ruleIds.has(ref.id)) continue;
+      const trigger = deps.abilities[ref.id]?.trigger;
+      if (trigger?.kind !== "constant") continue;
+      for (const rule of trigger.rules ?? []) {
+        if (rule.kind !== "blankTextBox") continue;
+        // `DEFAULT_DEPS`: printed characteristics only, so matching cannot re-enter this function.
+        const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps: DEFAULT_DEPS };
+        if (rule.while && !evaluate(state, rule.while, context)) continue;
+        for (const id of inPlay) {
+          if (id !== sourceId && matchesQuery(state, id, rule.target, context)) blanked.add(id);
+        }
+      }
+    }
+  }
+  perDeps.set(deps, blanked);
+  BLANKED_BY_RULES.set(state, perDeps);
+  return blanked;
+}
+
+/** Whether this card's printed text box is blank right now, from a lasting effect or a constant rule in play. */
+export const textBoxBlankFor = (state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean =>
+  textBoxBlank(state, id) || blankedByConstantRules(state, deps).has(id);
+
+/**
+ * The ability slots that are live on a card right now (active identity face, current stage).
+ *
+ * `deps` is what makes a *constant* class-wide blank (Tech Theft) visible; without it only the lasting kind is seen,
+ * which is what every caller that has no registry to hand wants. Passing it costs one `WeakMap` lookup in a game
+ * whose card pool has no such rule.
+ */
+export function activeAbilityRefs(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
   // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank.
-  if (getInstance(state, id)?.facedownAs || textBoxBlank(state, id)) return [];
+  if (getInstance(state, id)?.facedownAs || textBoxBlankFor(state, id, deps)) return [];
   const face = encounterFace(state, id);
   if (face) return face.abilities;
   if (card.type === "hero_identity") {
     const player = state.players.find((p) => p.identity.instanceId === id);
     if (!player) return [];
-    return player.identity.form === "hero" ? card.hero.abilities : card.alterEgo.abilities;
+    return identityFace(state, player).face.abilities;
   }
   if (card.type === "villain") {
     return isVillain(state, id) ? villainStageOf(state, id).abilities : [];
   }
   if (card.type === "main_scheme") {
-    return id === state.mainScheme.instanceId ? mainSchemeStage(state).abilities : [];
+    const scheme = mainSchemeStateOf(state, id);
+    return scheme ? mainSchemeStageOf(state, scheme).abilities : [];
   }
   return "abilities" in card ? card.abilities : [];
 }
 
 /** Ability slots printed on a card regardless of where the card is (for reveal/boost). */
 export function printedAbilityRefs(card: AnyCard): readonly AbilityReference[] {
-  if (card.type === "hero_identity") return [...card.hero.abilities, ...card.alterEgo.abilities];
+  if (card.type === "hero_identity") return [...heroFacesOf(card).flatMap((face) => face.abilities), ...card.alterEgo.abilities];
   if (card.type === "villain") return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities));
   if (card.type === "main_scheme") {
     return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities]);

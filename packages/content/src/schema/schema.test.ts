@@ -487,8 +487,10 @@ describe("schema fixtures: malformed cards are rejected", () => {
     expect(validateTreacheryCard({ ...underSiege, abilities: [] }).valid).toBe(false);
   });
 
-  it("rejects an encounter card with more than 3 boost icons", () => {
-    expect(validateMinionCard({ ...hydraMercenary, boostIcons: 4 }).valid).toBe(false);
+  it("accepts 4 printed boost icons (Joystick 51039, Fixer 53038, Blizzard 54034) and rejects a negative or fractional count", () => {
+    expect(validateMinionCard({ ...hydraMercenary, boostIcons: 4 }).errors).toEqual([]);
+    expect(validateMinionCard({ ...hydraMercenary, boostIcons: -1 }).valid).toBe(false);
+    expect(validateMinionCard({ ...hydraMercenary, boostIcons: 1.5 }).valid).toBe(false);
   });
 });
 

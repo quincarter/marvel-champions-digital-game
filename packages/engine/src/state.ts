@@ -1,5 +1,5 @@
-import type { AnyCard, CardId, Trait } from "@mc/content";
-import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
+import type { AnyCard, CardId, Trait, VillainSideLetter } from "@mc/content";
+import type { EncounterDeckId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { RngState } from "./rng.js";
 import type { StackFrame } from "./stack.js";
@@ -50,6 +50,12 @@ export type ZoneId =
    */
   | { readonly kind: "separateDeck"; readonly playerId: PlayerId; readonly name: string }
   | { readonly kind: "separateDiscard"; readonly playerId: PlayerId; readonly name: string }
+  /**
+   * A scenario's own separate deck and its discard pile (docs/phase7-wave2.md §3.3; `Scenario.separateDecks`): the
+   * Experimental Weapons deck, the side-scheme deck. Out of play, owned by nobody.
+   */
+  | { readonly kind: "scenarioDeck"; readonly name: string }
+  | { readonly kind: "scenarioDiscard"; readonly name: string }
   | { readonly kind: "villainArea" }
   | { readonly kind: "attachment"; readonly hostInstanceId: InstanceId }
   | { readonly kind: "boost"; readonly hostInstanceId: InstanceId }
@@ -91,7 +97,9 @@ export type CardHome =
   | { readonly kind: "player" }
   | { readonly kind: "encounterDeck"; readonly deckId: EncounterDeckId }
   | { readonly kind: "activeEncounterDeck" }
-  | { readonly kind: "separateDeck"; readonly name: string };
+  | { readonly kind: "separateDeck"; readonly name: string }
+  /** A card of a scenario deck with a discard pile of its own (the side-scheme deck; docs/phase7-wave2.md §3.3). */
+  | { readonly kind: "scenarioDeck"; readonly name: string };
 
 export interface CardInstance {
   readonly instanceId: InstanceId;
@@ -127,6 +135,12 @@ export interface IdentityState {
   readonly instanceId: InstanceId;
   readonly cardId: CardId;
   readonly form: Form;
+  /**
+   * Which hero face is up while in hero form: 0 is the identity's `hero`, n is `additionalHeroForms[n - 1]` (a
+   * three-sided identity's inside face; docs/phase7-wave2.md §3.2). Null in alter-ego form. `form` is kept beside it so
+   * every reader that only asks "hero or alter-ego" is unchanged.
+   */
+  readonly heroFormIndex: number | null;
   /** RRG "Form, Change Form": once each round, during that player's own turn. */
   readonly changedFormThisRound: boolean;
 }
@@ -167,7 +181,8 @@ export interface SeparateDeckState {
 export interface VillainState {
   readonly instanceId: InstanceId;
   readonly cardId: CardId;
-  readonly side: "A" | "B";
+  /** The face up: A or B, or C on the inside of a three-sided villain (`VillainSideLetter`). */
+  readonly side: VillainSideLetter;
   readonly stageIndex: number;
   /** The last stage used this game (standard I–II, expert II–III): defeating it defeats this villain. */
   readonly lastStageIndex: number;
@@ -185,6 +200,21 @@ export interface VillainState {
   readonly signatureSideSchemeId: InstanceId | null;
 }
 
+/**
+ * One scenario deck and its discard pile, with the rules its `ScenarioSeparateDeck` states (docs/phase7-wave2.md §3.3).
+ * `discardPile: "encounter"` cards keep an encounter-deck home, so a discard goes to the encounter discard pile ("After a
+ * card from the Experimental Weapons deck enters play, it is considered to be part of the encounter deck"); `"own"` cards
+ * are homed to this deck and go to its discard pile.
+ */
+export interface ScenarioDeckState {
+  readonly deck: readonly InstanceId[];
+  readonly discard: readonly InstanceId[];
+  readonly discardPile: "own" | "encounter";
+  readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
+  /** Which encounter-deck cards form it (`ScenarioSeparateDeck.contents`); read by `buildScenarioDeck`. */
+  readonly contents: { readonly encounterSetIds?: readonly string[]; readonly cardType?: "side_scheme" };
+}
+
 /** One encounter deck and its discard pile (RRG 1.8 "Encounter Deck", p. 17). */
 export interface EncounterDeckState {
   readonly deck: readonly InstanceId[];
@@ -198,6 +228,46 @@ export interface MainSchemeState {
   readonly completed: boolean;
   /** RRG "Acceleration Token": carries over when the main scheme advances. */
   readonly accelerationTokens: number;
+}
+
+/**
+ * One separate game area (docs/phase7-wave2.md §3.1; The Once and Future Kang insert, "Playing With Separate Game
+ * Areas"). Created by a card ability ("Create your own game area and place this scheme in it"), never at setup.
+ *
+ * - `playerIds`: the players in it. A player's own cards (identity, play area, engaged minions and their attachments)
+ *   are in their area.
+ * - `mainScheme`: the area's own main scheme stage, an instance of the scenario's main scheme card at one of its
+ *   alternative stages (Kang's stage 3), or null once a card has removed it ("Remove the Chronopolis from the game").
+ * - `villainIds` / `activeVillainId`: the villains in it ("Add Kang (Immortus) to the game area"); "the villain" in this
+ *   area is `activeVillainId`.
+ * - `sideSchemeIds`: side schemes that belong to it (in the shared `villainArea` zone like every side scheme).
+ *
+ * Everything else in play, environments above all (RRG 1.8 FAQ "The Once and Future Kang Scenario Pack", p. 60:
+ * "Environment cards are considered to be in all players' game areas"), and the central stage (`GameState.mainScheme`,
+ * "Stage 2B remains in play in a central location and its text remains active for all players") is in every area.
+ */
+export interface GameAreaState {
+  readonly areaId: GameAreaId;
+  readonly playerIds: readonly PlayerId[];
+  readonly mainScheme: MainSchemeState | null;
+  readonly villainIds: readonly InstanceId[];
+  readonly activeVillainId: InstanceId | null;
+  readonly sideSchemeIds: readonly InstanceId[];
+  /** Stages this area had and a card removed ("Remove the Chronopolis from the game"), so their text still knows its area. */
+  readonly formerSchemeIds: readonly InstanceId[];
+}
+
+/**
+ * Scenario rules the engine applies itself, fixed at setup from the scenario data (`GameSetupConfig`).
+ *
+ * - `victory`: `"finalVillainStage"` is RRG 1.8 "Villain Defeat" (p. 47); `"cardAbility"` means only an ability wins
+ *   (`winGame`; Kang (III): "When Defeated: The players win the game."), so defeating every villain does not
+ *   (docs/phase7-wave2.md §1.8, §3.4).
+ * - `separateGameAreas`: whether card abilities may split the players into areas (`Scenario.separateGameAreas`).
+ */
+export interface ScenarioRules {
+  readonly victory: "finalVillainStage" | "cardAbility";
+  readonly separateGameAreas: boolean;
 }
 
 /**
@@ -258,6 +328,12 @@ export type GameOutcome =
    */
   | { readonly result: "conceded"; readonly reason: "playerConceded"; readonly byPlayerId: PlayerId };
 
+/** One attack in `GameState.attackedThisTurn`: who made it, and the title they were showing when they did. */
+export interface AttackRecord {
+  readonly attackerInstanceId: InstanceId;
+  readonly attackerTitle: string;
+}
+
 export interface GameState {
   readonly round: number;
   readonly step: GameStep;
@@ -273,11 +349,31 @@ export interface GameState {
    * rules rather than an entry in a card's `counters`; changes are logged as `activeVillainChanged`.
    */
   readonly activeVillainId: InstanceId;
+  /**
+   * The main scheme: with separate game areas, the central stage outside every area (docs/phase7-wave2.md §3.1); each
+   * area's own stage is its `GameAreaState.mainScheme`.
+   */
   readonly mainScheme: MainSchemeState;
+  /** Separate game areas, in creation order. Empty while the players share one game area (every scenario but Kang). */
+  readonly gameAreas: readonly GameAreaState[];
+  readonly nextGameAreaSeq: number;
+  /**
+   * Stage indexes of the main scheme card that can no longer be revealed: an alternative stage already revealed, or one
+   * removed from the game ("Remove any unused stage 3 schemes from the game", The Master of Time 2A).
+   */
+  readonly spentMainSchemeStages: readonly number[];
+  /**
+   * Main scheme stages revealed by `revealMainSchemeStage` whose A side is still resolving, before `createGameArea`
+   * places them in an area ("Create your own game area and place this scheme in it"). Not in play.
+   */
+  readonly revealedMainSchemes: readonly MainSchemeState[];
+  readonly scenarioRules: ScenarioRules;
   /** Every encounter deck with its discard pile, keyed by id. `encounterDeckOrder` gives their stable order. */
   readonly encounterDecks: Readonly<Record<string, EncounterDeckState>>;
   readonly encounterDeckOrder: readonly EncounterDeckId[];
   readonly encounterSetAside: readonly InstanceId[];
+  /** Scenario decks by name (docs/phase7-wave2.md §3.3). Empty for every scenario that has none. */
+  readonly scenarioDecks: Readonly<Record<string, ScenarioDeckState>>;
   readonly villainArea: readonly InstanceId[];
   readonly victoryDisplay: readonly InstanceId[];
   readonly removedFromGame: readonly InstanceId[];
@@ -301,8 +397,26 @@ export interface GameState {
    * Reset when the round ends.
    */
   readonly playedThisRound: Readonly<Record<string, number>>;
+  /** Cards played this phase, by title, across every player: "Max 1 per phase." (Maximum Velocity). Reset when a phase ends. */
+  readonly playedThisPhase: Readonly<Record<string, number>>;
   /** Cards played this round keyed `<playerId>:<card type>` ("the first ally played each round"). Reset when the round ends. */
   readonly playedByPlayerThisRound: Readonly<Record<string, number>>;
+  /**
+   * Who attacked whom **this turn**, keyed by the attacked character and listing each attack's attacker with the title
+   * it showed when it attacked, each pair once, in attack order: "Attach to an enemy that X-23 or Honey Badger attacked
+   * this turn" (Puncture Wound 43012; `HostQualifiers.attackedThisTurnBy`, docs/phase7-wave2.md §11.3, §14).
+   *
+   * - **Written** by every attack, player-made or enemy-made, at the `characterAttacked` event (the one place both
+   *   paths go through) — but only while a player's turn is in progress, since outside one there is no "this turn"
+   *   (RRG 1.8 "Player Phase" / "Player Turn", p. 34; the same reading as `LastingUntil "endOfTurn"`, §13.3).
+   * - **Cleared** when each turn begins and when it ends, so the villain phase and the end-of-phase steps see an empty
+   *   record rather than the last player's.
+   * - **The title is the attacker's at attack time**, read from an identity's faceup side (`titleShowing`): "that
+   *   X-23 attacked" is a fact about the attack, and RRG 1.8 "Identity" (p. 23) has a title name "only … the identity
+   *   with that title, and not … the other side of the card". So an identity that attacked as X-23 and then changed
+   *   to Laura Kinney still attacked as X-23, and nothing an alter-ego does is recorded under the hero's title.
+   */
+  readonly attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>;
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;
