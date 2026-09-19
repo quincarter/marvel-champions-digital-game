@@ -4,21 +4,13 @@ import {
   constant,
   coveredByEngineRule,
   defineAbilities,
-  engagedPlayerOf,
   forcedResponse,
-  gainsKeyword,
-  gainsTrait,
-  gets,
-  hasTrait,
-  identityOf,
   on,
   query,
   removeCountersFrom,
   self,
 } from "../../dsl/index.js";
 
-const GIANT = trait("GIANT");
-const TINY = trait("TINY");
 const TECH = trait("TECH");
 
 /**
@@ -34,6 +26,34 @@ const TECH = trait("TECH");
  *   `costReduction`/`blankTextBox` exist for other standing changes with a clock on them. "Until your next turn
  *   ends" also isn't one of `LastingUntil`'s three values. Closest existing primitive: `LastingEffectBody`'s own
  *   shape, needing a `cannotChangeForm`-kind sibling.
+ * - `12027.yellowjacket-constant` / `12027.yellowjacket-constant-2` — "While you are in Giant/Tiny hero form,
+ *   Yellowjacket gains the Giant/Tiny trait and retaliate 1 / +1 ATK." **Found by testing (docs/phase7-wave2-
+ *   scripting.md §4.1's rule): scripted once with `gainsTrait`/`gets(..., { while: hasTrait(identityOf(
+ *   engagedPlayerOf(self)), GIANT) })`, which typechecked and looked exactly like The Viper's own "while engaged
+ *   with you" constant (`04054.the-viper-constant`, `trors/spider-woman-obligation-nemesis.ts`) — but it is a
+ *   different shape (The Viper's target itself is `query("identity", { controlledBy: engagedPlayerOf(self) })`; a
+ *   *query*, never routed through `traitsOf`) and it crashes the engine the instant it is ever evaluated: a**
+ *   `RangeError: Maximum call stack size exceeded` **in `traitsOf` (`packages/engine/src/select.ts`, its trait-
+ *   grant scan around lines 145–173), confirmed with a real reveal-from-encounter-deck test before being pulled
+ *   (`kit.test.ts` no longer exercises it) rather than shipped subtly wrong (or, here, catastrophically wrong).**
+ *   **Root cause:** `traitsOf(state, id)` loops over every card in play and evaluates every constant `traitGrant`'s
+ *   `while` predicate *unconditionally*, before checking whether the grant's `target` even matches `id`. A
+ *   `while: hasTrait(ref, trait)` predicate calls `evaluate`'s `"hasTrait"` case, which calls `traitsOf(state,
+ *   refId)` — a full, unrestricted re-entry into the very function currently running, with no memoization and no
+ *   scope-narrowing. Because the predicate never depends on the outer call's `id`, the re-entrant call hits the
+ *   exact same ability's `while` again, unconditionally, every time — an unconditional infinite recursion, not a
+ *   deep-but-finite one, so no board size or player count avoids it. **This is not specific to this card**: any
+ *   constant `gainsTrait`/`gets`/`gainsKeyword` rule anywhere whose `while` needs `hasTrait`/`traitsOf` on any
+ *   card would hit the same crash the moment `traitsOf` (or `statBonus`, which also routes through it once a
+ *   `while` predicate needs a trait check) is called for *anything*, not only this card's own target — confirmed
+ *   by the ATK modifier (`12027.yellowjacket-constant-2`'s `gets("atk", …)`) crashing the same way via
+ *   `modifiersFor` → `evaluate` → `traitsOf`. **Closest existing primitive/fix:** `blankedByConstantRules`
+ *   (`select.ts`, right above `traitsOf`) already solved the identical class of problem for `blankTextBox` by
+ *   evaluating a rule's own `target`/`while` under `DEFAULT_DEPS` (printed characteristics only) specifically "so
+ *   matching cannot re-enter this function" (its own docblock) — `traitsOf`'s trait-grant scan has no equivalent
+ *   guard and needs the same treatment (or a recursion-depth/visited-set guard) before this shape of ability is
+ *   safe to script. Flagged for `game-rules-architect` rather than reworked into a differently-shaped ability: the
+ *   printed text is "gains the Giant trait" (a trait grant, not a form check to hardcode a bespoke reading around).
  * - `12029.when-revealed` — "discard cards from the encounter deck until a card from the **Ant-Man Nemesis set**
  *   is discarded" needs a `TargetQuery` matching "belongs to encounter set X" — no field does (only `categories`/
  *   `trait`/`name`/etc., none of which name a card's `encounterSetIds` membership).
@@ -42,19 +62,9 @@ export const ANT_MAN_OBLIGATION_NEMESIS = defineAbilities({
   // Tech Theft — Treat the printed text box of each Tech player card as if it were blank.
   "12026.tech-theft-constant": constant(blanksTextBox({ trait: TECH, categories: ["ally", "upgrade", "support"] })),
 
-  // Yellowjacket — While you are in Giant hero form, Yellowjacket gains the Giant trait and retaliate 1. "You" is
-  // the player Yellowjacket is engaged with — the same reading The Viper's own "while engaged with you" constant
-  // uses (`04054.the-viper-constant`, `trors/spider-woman-obligation-nemesis.ts`), since a nemesis minion's
-  // constant has no controller of its own to resolve "you" against.
-  "12027.yellowjacket-constant": constant(
-    gainsTrait(GIANT, query("minion", { self: true }), { while: hasTrait(identityOf(engagedPlayerOf(self)), GIANT) }),
-    gainsKeyword({ name: "retaliate", value: 1 }, query("minion", { self: true }), { while: hasTrait(identityOf(engagedPlayerOf(self)), GIANT) }),
-  ),
-  // Yellowjacket — While you are in Tiny hero form, Yellowjacket gains the Tiny trait and gets +1 ATK.
-  "12027.yellowjacket-constant-2": constant(
-    gainsTrait(TINY, query("minion", { self: true }), { while: hasTrait(identityOf(engagedPlayerOf(self)), TINY) }),
-    gets("atk", 1, query("minion", { self: true }), { while: hasTrait(identityOf(engagedPlayerOf(self)), TINY) }),
-  ),
+  // Yellowjacket's two form-conditional constants (12027.yellowjacket-constant, 12027.yellowjacket-constant-2) are
+  // SKIPPED — see the module docblock above: they crash the engine (`traitsOf` infinite recursion), not merely a
+  // missing vocabulary word.
 
   // Size Increase — Attach to Yellowjacket, if able. Otherwise, attach to the villain (data, `AttachmentHost.
   // ifAble`). Uses (3 counters) (data). The data carries a second ("-constant") ref for the "Uses" reminder with no

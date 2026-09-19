@@ -64,7 +64,7 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   trors: "scripted",
   toafk: "in progress",
-  ant: "in progress",
+  ant: "scripted",
   wsp: "not started",
   qsv: "not started",
   scw: "not started",
@@ -153,8 +153,12 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // --- Ant-Man kit (wave2/ant/kit.ts): missing-primitive blocks, see that file's module docblock. ---
     "12006.pym-particles-response",
     "12009.giant-strength-response",
-    // --- Ant-Man obligation/nemesis (wave2/ant/obligation-nemesis.ts): missing-primitive blocks. ---
+    // --- Ant-Man obligation/nemesis (wave2/ant/obligation-nemesis.ts): missing-primitive blocks, plus a
+    //     found-by-testing engine crash (traitsOf's unguarded recursion through a `while: hasTrait(...)` on a
+    //     constant trait/stat grant) — see that file's module docblock. ---
     "12025.obligation",
+    "12027.yellowjacket-constant",
+    "12027.yellowjacket-constant-2",
     "12029.when-revealed",
     // --- Pack cards (wave2/ant/pack-cards.ts): missing-primitive blocks. ---
     "12011.ant-man-interrupt",
