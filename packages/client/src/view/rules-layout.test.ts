@@ -51,6 +51,16 @@ describe("rulesLayout", () => {
     expect(layout.body.x + layout.body.width).toBeLessThan(1440);
   });
 
+  test("the scope row sits with the same margin as tabs/body, so its own right-anchored toggle never touches the viewport edge", () => {
+    for (const { width, height } of SIZES) {
+      const layout = rulesLayout({ x: 0, y: 0, width, height }, "glossary");
+      expect(layout.scope.x).toBe(layout.tabs.x);
+      expect(layout.scope.x).toBeGreaterThan(0);
+      expect(layout.scope.x + layout.scope.width).toBe(layout.tabs.x + layout.tabs.width);
+      expect(layout.scope.x + layout.scope.width).toBeLessThan(width);
+    }
+  });
+
   test("the search row has zero height outside the glossary tab", () => {
     expect(rulesLayout({ x: 0, y: 0, width: 800, height: 600 }, "villainPhase").search.height).toBe(0);
     expect(rulesLayout({ x: 0, y: 0, width: 800, height: 600 }, "cardList").search.height).toBe(0);

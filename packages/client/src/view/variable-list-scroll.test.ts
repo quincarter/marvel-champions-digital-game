@@ -68,6 +68,58 @@ describe("VariableListScroll", () => {
   });
 });
 
+describe("header rows scroll exactly like grid rows", () => {
+  // Rules overlay's Card list tab (scenes/rules.ts): a short "header" slot ("BOMB SCARE · 4
+  // CARDS") sits above a tall "gridRow" slot of card thumbnails, in the same `heights` array — the
+  // bug this guards against (`ui/variable-list.ts`'s own doc comment) was a *rendering* one (the
+  // header's own text/rule objects were created outside `McVariableList`'s scrolled+masked row
+  // layer, so they never moved), not a scroll-math one. This proves the math side was never at
+  // fault: `rowTop` for a header slot and a grid slot both shift by exactly the same delta as the
+  // list scrolls, with no special-casing by row "kind" anywhere in this module — `VariableListScroll`
+  // only ever sees plain numbers.
+  const SECTION_LABEL = 26;
+  const HEADER = 34;
+  const GRID_ROW = 288;
+  // sectionLabel, header, two grid rows, header, one grid row.
+  const MIXED_HEIGHTS = [SECTION_LABEL, HEADER, GRID_ROW, GRID_ROW, HEADER, GRID_ROW];
+  const headerIndex = 4; // the second header slot
+  const gridIndex = 5; // the grid row right after it
+
+  test("a header row's own top moves by exactly the scroll delta, same as a grid row's", () => {
+    const scroll = new VariableListScroll();
+    const viewport = 300;
+    const headerTopBefore = scroll.rowTop(MIXED_HEIGHTS, headerIndex);
+    const gridTopBefore = scroll.rowTop(MIXED_HEIGHTS, gridIndex);
+
+    const delta = 120;
+    expect(scroll.scrollByPx(delta, MIXED_HEIGHTS, viewport)).toBe(true);
+
+    const headerTopAfter = scroll.rowTop(MIXED_HEIGHTS, headerIndex);
+    const gridTopAfter = scroll.rowTop(MIXED_HEIGHTS, gridIndex);
+
+    // Both rows moved by the applied delta (clamped, but nothing clamped it here: total content
+    // height comfortably exceeds the viewport by more than 120px).
+    expect(headerTopBefore - headerTopAfter).toBeCloseTo(delta, 5);
+    expect(gridTopBefore - gridTopAfter).toBeCloseTo(delta, 5);
+    // And the gap between them (the header's own height) never changes — scrolling can't separate
+    // a header from the row it belongs to.
+    expect(gridTopAfter - headerTopAfter).toBeCloseTo(gridTopBefore - headerTopBefore, 5);
+  });
+
+  test("dragging past the header keeps the same rowTop delta a wheel/keyboard scroll would produce", () => {
+    // scrollByPx is the one path every input method (wheel, mouse/touch drag, PageDown/Home/End)
+    // funnels through in `ui/variable-list.ts` — proving it here covers all of them, the same way
+    // the module's own doc comment describes.
+    const scroll = new VariableListScroll();
+    const viewport = 300;
+    scroll.scrollByPx(50, MIXED_HEIGHTS, viewport);
+    const headerTop1 = scroll.rowTop(MIXED_HEIGHTS, headerIndex);
+    scroll.scrollByPx(75, MIXED_HEIGHTS, viewport);
+    const headerTop2 = scroll.rowTop(MIXED_HEIGHTS, headerIndex);
+    expect(headerTop1 - headerTop2).toBeCloseTo(75, 5);
+  });
+});
+
 describe("variableThumbOf", () => {
   test("null when everything fits", () => {
     expect(variableThumbOf(0, [30, 40], 300)).toBeNull();

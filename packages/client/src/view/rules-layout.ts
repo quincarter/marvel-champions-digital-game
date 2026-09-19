@@ -44,11 +44,15 @@ export interface RulesLayout {
 
 export function rulesLayout(bounds: Rect, activeTab: RulesTab): RulesLayout {
   const header: Rect = { x: bounds.x, y: bounds.y, width: bounds.width, height: CHROME_TITLE_HEIGHT };
-  const scope: Rect = { x: bounds.x, y: header.y + header.height, width: bounds.width, height: CHROME_SCOPE_HEIGHT };
-  const chrome: Rect = { x: bounds.x, y: bounds.y, width: bounds.width, height: header.height + scope.height };
-
   const contentX = bounds.x + MARGIN;
   const contentWidth = Math.max(0, bounds.width - MARGIN * 2);
+  // Inset like every row under the chrome (`tabs`/`search`/`body`), not edge to edge like the ink
+  // chrome band itself — the previous full-width scope row let its own "ON YOUR TABLE" pill sit
+  // flush against the viewport's own right edge with zero gutter (found on a 390px phone in a real
+  // headless-Chrome pass: the pill's own right edge landed exactly on the last on-screen pixel).
+  const scope: Rect = { x: contentX, y: header.y + header.height, width: contentWidth, height: CHROME_SCOPE_HEIGHT };
+  const chrome: Rect = { x: bounds.x, y: bounds.y, width: bounds.width, height: header.height + scope.height };
+
   const tabs: Rect = { x: contentX, y: chrome.y + chrome.height + GAP, width: contentWidth, height: TABS_HEIGHT };
   const showSearch = activeTab === "glossary";
   const search: Rect = { x: contentX, y: tabs.y + tabs.height + GAP, width: contentWidth, height: showSearch ? SEARCH_HEIGHT : 0 };

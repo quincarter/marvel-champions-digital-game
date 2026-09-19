@@ -72,3 +72,20 @@ export function glossaryCardHeight(entry: GlossaryCardContent, cellWidth: number
 export function glossaryRowHeight(entries: readonly GlossaryCardContent[], cellWidth: number, minHeight = 120): number {
   return Math.max(minHeight, ...entries.map((entry) => glossaryCardHeight(entry, cellWidth)));
 }
+
+/**
+ * One height *per grid row* — `columns` entries at a time — rather than `glossaryRowHeight`'s
+ * single height for the whole tab. A `McVirtualList` can only draw every row at one uniform
+ * height, so feeding it the tab-wide tallest entry left every short entry (no thumbnail strip:
+ * "Alliance", "Assault", "Discount"…) with the same reserved height as the tallest one on the
+ * whole tab, most of it empty. `ui/variable-list.ts`'s `McVariableList` draws each row at its own
+ * height, so the caller (`scenes/rules.ts`) can take *this* — the taller of just the pair (or
+ * fewer, on a short trailing row) actually sharing that row — instead.
+ */
+export function glossaryRowHeights(entries: readonly GlossaryCardContent[], columns: number, cellWidth: number, minHeight = 120): number[] {
+  const heights: number[] = [];
+  for (let start = 0; start < entries.length; start += columns) {
+    heights.push(glossaryRowHeight(entries.slice(start, start + columns), cellWidth, minHeight));
+  }
+  return heights;
+}
