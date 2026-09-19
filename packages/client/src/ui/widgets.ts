@@ -334,13 +334,25 @@ export function label(
  * Champions game screens/Screens - Desktop.dc.html`'s `#s14`: a Bangers label
  * beside `<span style="flex:1;height:3px;background:#14110E">`). Returns the
  * next free `y`.
+ *
+ * `rightLabel` (Table setup's D05, "1 REQUIRED · 1 CHOSEN" / "30 CARDS ·
+ * SHUFFLED AT DEAL") draws a small uppercase label at the row's own right
+ * edge, letting the rule run only as far as that label's own left edge —
+ * still one implementation, so a header with or without one never drifts
+ * into two different row shapes.
  */
-export function sectionHeader(scene: Phaser.Scene, x: number, y: number, width: number, text: string, color: number = surface.ink.hex): number {
+export function sectionHeader(scene: Phaser.Scene, x: number, y: number, width: number, text: string, color: number = surface.ink.hex, rightLabel?: string): number {
   const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setLetterSpacing(typeRole.barTitle.letterSpacing).setFontSize(19);
+  let rightWidth = 0;
+  if (rightLabel) {
+    const right = label(scene, x + width, y + heading.height / 2, rightLabel, typeRole.label, color, ink.label).setOrigin(1, 0.5);
+    rightWidth = right.width + 14;
+  }
   const ruleX = x + heading.width + 10;
-  if (ruleX < x + width) {
+  const ruleEnd = x + width - rightWidth;
+  if (ruleX < ruleEnd) {
     const rule = scene.add.graphics();
-    rule.fillStyle(color, 1).fillRect(ruleX, y + heading.height / 2 - 1.5, x + width - ruleX, 3);
+    rule.fillStyle(color, 1).fillRect(ruleX, y + heading.height / 2 - 1.5, ruleEnd - ruleX, 3);
   }
   return y + heading.height + 12;
 }
