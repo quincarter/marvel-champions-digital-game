@@ -195,6 +195,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongSignatureSideScheme: "not this villain's signature side scheme",
   notEngagedWithPlayer: "not engaged with the right player",
   wrongIdentitySet: "not from this identity's set",
+  otherGameArea: "in another game area",
   notInPlay: "not in play",
   alterEgoForm: "in alter-ego form",
   notHeroOrAlly: "not a hero or ally",

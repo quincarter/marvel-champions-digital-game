@@ -70,6 +70,13 @@ export function printedFaces(card: AnyCard): { readonly what: string; readonly i
       return [
         { what: "the hero face", ...(card.hero.image ? { image: card.hero.image } : {}) },
         { what: "the alter-ego face", ...(card.alterEgo.image ? { image: card.alterEgo.image } : {}) },
+        // A separated identity's other two faces (docs/phase7-wave2.md §6.10 — SP//dr) are printed cards too.
+        ...(card.separatedIdentity
+          ? [
+              { what: "the hero card's other side", ...(card.separatedIdentity.heroCardOtherSide.image ? { image: card.separatedIdentity.heroCardOtherSide.image } : {}) },
+              { what: "the alter-ego card's other side", ...(card.separatedIdentity.alterEgoCardOtherSide.image ? { image: card.separatedIdentity.alterEgoCardOtherSide.image } : {}) },
+            ]
+          : []),
       ];
     case "villain":
       return card.sides.flatMap((side) =>

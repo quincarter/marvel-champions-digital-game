@@ -42,7 +42,7 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   const observed: Record<string, boolean> = {};
   const firing: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] = [];
   for (const instanceId of cardsInPlay(ctx.state)) {
-    for (const ref of activeAbilityRefs(ctx.state, instanceId)) {
+    for (const ref of activeAbilityRefs(ctx.state, instanceId, ctx.deps)) {
       const definition = ctx.deps.abilities[ref.id];
       if (definition?.trigger.kind !== "stateCheck") continue;
       const key = `${instanceId}:${ref.id}`;

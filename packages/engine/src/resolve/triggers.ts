@@ -90,6 +90,12 @@ function matchesRest(
       if (typeof value !== "number" || value < amount) return false;
     }
   }
+  if (pattern.eventIs) {
+    const carried = event as unknown as Readonly<Record<string, unknown>>;
+    for (const [key, expected] of Object.entries(pattern.eventIs)) {
+      if (carried[key] !== expected) return false;
+    }
+  }
   if (pattern.attackKind) {
     if (event.kind !== "attack" && event.kind !== "thwart") return false;
     if ((pattern.attackKind === "basic") !== (event.basic === true)) return false;
@@ -120,14 +126,14 @@ export function candidatesFor(
 ): readonly TriggerCandidate[] {
   const found: TriggerCandidate[] = [];
   for (const id of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, id)) {
+    for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition) continue;
       const trigger = definition.trigger;
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
       const controllerId = controllerOf(state, id);
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
-      if (limitReached(state, id, ref.id, definition)) continue;
+      if (limitReached(state, id, ref.id, definition, event)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
       // RRG "Cost": an ability whose cost can't be paid can't be triggered.
       if (definition.cost && controllerId && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set()))) {

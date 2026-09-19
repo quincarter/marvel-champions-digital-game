@@ -56,51 +56,80 @@ export const poolTotal = (pool: ResourcePool): number => pool.physical + pool.me
  * A resource cost. `generic` is any type (a card's printed cost); the typed
  * fields are "Spend a [energy] resource" / "Spend [E][M][P]". A bare number in
  * `AbilityCost.resources` means `{ generic: n }`.
+ *
+ * `wild` is the odd one out: "spend a [wild] resource" (Crossfire's Rifle 04029, and later packs' Moon Knight)
+ * demands an actual wild resource. RRG 1.8 "Wild Resource" (p. 48): "Some card abilities specifically require wild
+ * resources to be spent in order to resolve their effects", and a generated wild "may specify which resource type
+ * (energy, mental, physical, or wild) it is being used as" — a wild can be declared wild, but a physical resource
+ * can never be declared as wild. So a `wild` slot is filled only from `pool.wild`, unlike every other typed slot,
+ * which a wild may backfill.
  */
 export interface ResourceRequirement {
   readonly generic?: number;
   readonly physical?: number;
   readonly mental?: number;
   readonly energy?: number;
+  readonly wild?: number;
 }
 
-export const requirementOf = (value: number | ResourceRequirement | undefined): Required<ResourceRequirement> => {
+/**
+ * A requirement with every slot resolved. `wild` is present **only** when a card actually asks for a wild resource,
+ * so the object an ordinary cost produces — and the one the `spendResources` prompt and `paymentFor` hand a client —
+ * keeps exactly the four keys it always had.
+ */
+export type ResolvedRequirement = Required<Omit<ResourceRequirement, "wild">> & { readonly wild?: number };
+
+const withWild = (base: Required<Omit<ResourceRequirement, "wild">>, wild: number): ResolvedRequirement =>
+  wild > 0 ? { ...base, wild } : base;
+
+export const requirementOf = (value: number | ResourceRequirement | undefined): ResolvedRequirement => {
   if (value === undefined) return { generic: 0, physical: 0, mental: 0, energy: 0 };
   if (typeof value === "number") return { generic: value, physical: 0, mental: 0, energy: 0 };
-  return {
-    generic: value.generic ?? 0,
-    physical: value.physical ?? 0,
-    mental: value.mental ?? 0,
-    energy: value.energy ?? 0,
-  };
+  return withWild(
+    {
+      generic: value.generic ?? 0,
+      physical: value.physical ?? 0,
+      mental: value.mental ?? 0,
+      energy: value.energy ?? 0,
+    },
+    value.wild ?? 0,
+  );
 };
 
 export const combineRequirements = (
   a: number | ResourceRequirement | undefined,
   b: number | ResourceRequirement | undefined,
-): Required<ResourceRequirement> => {
+): ResolvedRequirement => {
   const x = requirementOf(a);
   const y = requirementOf(b);
-  return {
-    generic: x.generic + y.generic,
-    physical: x.physical + y.physical,
-    mental: x.mental + y.mental,
-    energy: x.energy + y.energy,
-  };
+  return withWild(
+    {
+      generic: x.generic + y.generic,
+      physical: x.physical + y.physical,
+      mental: x.mental + y.mental,
+      energy: x.energy + y.energy,
+    },
+    (x.wild ?? 0) + (y.wild ?? 0),
+  );
 };
 
-export const requirementTotal = (req: Required<ResourceRequirement>): number =>
-  req.generic + req.physical + req.mental + req.energy;
+export const requirementTotal = (req: ResolvedRequirement): number =>
+  req.generic + req.physical + req.mental + req.energy + (req.wild ?? 0);
 
 /**
- * RRG "Cost": typed slots are filled by that type first, wilds cover any typed
- * shortfall, and whatever remains pays the generic part. Overpaying is legal.
+ * RRG "Cost": a `wild` slot takes an actual wild resource, typed slots are
+ * filled by that type first, the wilds left over cover any typed shortfall, and
+ * whatever remains pays the generic part. Overpaying is legal.
  */
 export function satisfies(pool: ResourcePool, requirement: number | ResourceRequirement | undefined): boolean {
   const req = requirementOf(requirement);
+  // Wild slots are paid first and only from wilds; nothing else can be declared a wild resource (RRG 1.8 p. 48).
+  const wildSlots = req.wild ?? 0;
+  if (pool.wild < wildSlots) return false;
+  const wildsLeft = pool.wild - wildSlots;
   let shortfall = 0;
   for (const type of TYPED_RESOURCES) shortfall += Math.max(0, req[type] - pool[type]);
-  if (shortfall > pool.wild) return false;
+  if (shortfall > wildsLeft) return false;
   return poolTotal(pool) >= requirementTotal(req);
 }
 

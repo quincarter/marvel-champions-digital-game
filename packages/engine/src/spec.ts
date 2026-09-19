@@ -11,6 +11,20 @@ import type { FacedownRole, Form, GameStep } from "./state.js";
  * plain JSON so an ability definition can be inspected, logged, and replayed.
  */
 
+/**
+ * The keywords that belong to an *attack* rather than to a character (RRG 1.8 "Piercing", p. 32; "Ranged", p. 35;
+ * "Overkill", p. 31). Each is defined as "an attack with the … keyword", so a card may grant one to a single attack
+ * without granting it to the attacker: "this attack gains piercing" (Piercing Strike, Vibranium Arrow), "the attack
+ * gains piercing" (Crossfire's boost), "each of your [Arrow] attacks gain ranged" (Hawkeye's Bow).
+ *
+ * Three ways to grant one, all read through the same check when the attack deals its damage
+ * (`attackHasKeyword`, `keywords.ts`), so they compose:
+ * - the attacker's own printed or granted keyword (the character case, unchanged);
+ * - `attack.keywords` / `modifyAttack.keywords`, this activation only;
+ * - a constant `RuleSpec attackKeywords`, which matches on the attacker and/or the card making the attack.
+ */
+export type AttackKeyword = "piercing" | "ranged" | "overkill";
+
 /** Card categories a target query can filter on. Broader than `AnyCard["type"]` on purpose. */
 export type TargetCategory =
   | "character"
@@ -81,6 +95,14 @@ export interface TargetQuery {
   readonly owner?: "you";
   /** Player-card aspect, e.g. "aggression" ("while paying for an Aggression card"). */
   readonly aspect?: string;
+  /**
+   * At least one of these aspects: "an aspect card" (Finesse 04033, Jessica Drew's Apartment 04034) is the OR of the
+   * four — `["aggression", "justice", "leadership", "protection"]` — which `aspect` (exactly one) cannot say, the way
+   * `anyTrait` is to `trait`. Matches `printedAspect` as well as `aspect` for the same reason `aspect` does
+   * (§1.2: Spider-Woman's signature cards print an aspect but belong to her set). ANDed with `aspect` if both are
+   * given. An empty list matches nothing.
+   */
+  readonly anyAspect?: readonly string[];
   readonly exhausted?: boolean;
   readonly hasThreat?: boolean;
   readonly damaged?: boolean;
@@ -106,6 +128,13 @@ export interface TargetQuery {
   readonly attackableBy?: TargetRef;
   /** Excludes cards already bound to these slots: "remove 2 threat from a *different* scheme". */
   readonly excludeSlots?: readonly string[];
+  /**
+   * Excludes whatever this ref names: "discard each **other** environment card in play" (None Shall Pass 1A) is
+   * `query("environment", { excluding: eventTarget })` on an ability triggered by one entering. `self: false`
+   * already excludes the ability's *own* card; this excludes a card the ability names some other way (the
+   * triggering event's subject, a slot an earlier step bound, the host).
+   */
+  readonly excluding?: TargetRef;
   /** Only cards already bound to this slot: a choice among candidates an earlier step narrowed (tied villains). */
   readonly inSlot?: string;
   /** Controlled by one of these players: "each character *that player* controls" (a chosen player). */
@@ -153,7 +182,11 @@ export type TargetRef =
    * `villain` category, which matches every villain in play.
    */
   | { readonly kind: "villain" }
-  | { readonly kind: "mainScheme" }
+  /**
+   * "The main scheme": in a separate game area, that area's own stage; `of: "central"` is the central stage outside
+   * every area ("place 1 set-aside Kang's Dominion facedown under stage 4A"; docs/phase7-wave2.md §3.1).
+   */
+  | { readonly kind: "mainScheme"; readonly of?: "central" }
   | { readonly kind: "identityOf"; readonly player: PlayerRef }
   /** "The villain corresponding to the attached side scheme" (Held Hostage): each undefeated villain whose signature side scheme the ref names. */
   | { readonly kind: "villainOfSideScheme"; readonly scheme: TargetRef }
@@ -202,7 +235,15 @@ export type PlayerRef =
   /** Every player except these: "each other hero" (Whirlwind). */
   | { readonly kind: "others"; readonly of: PlayerRef }
   /** The player a card is engaged with: "the engaged player" on a minion's own ability. */
-  | { readonly kind: "engagedWith"; readonly of: TargetRef };
+  | { readonly kind: "engagedWith"; readonly of: TargetRef }
+  /**
+   * "The player who defeated this scheme" (Crossbones' Assault 04070) / "the defeating player" (Mystique's
+   * Manipulations, errata RRG 1.8 p. 66): the defeating player recorded on the `schemeDefeated` or
+   * `characterDefeated` event in context. Unlike an `on.defeated({ byYou: true })` trigger filter, which is a yes/no
+   * gate, this hands the player back as a value a later effect can use. Empty outside a defeat, and for a defeat no
+   * player caused (an encounter card's own effect).
+   */
+  | { readonly kind: "defeatingPlayer" };
 
 export type ValueSpec =
   | { readonly kind: "const"; readonly value: number }
@@ -269,6 +310,18 @@ export type ValueSpec =
   | { readonly kind: "distinctCardTypes"; readonly cards: TargetRef }
   /** A card's printed cost (RRG 1.8 "Printed", p. 35): "equal to its printed cost" (Headbutt, Thoughtcasting). A card with no printed cost is 0. */
   | { readonly kind: "printedCost"; readonly of: TargetRef }
+  /** The sum of the printed costs of every card a ref names, wherever they are: "the total cost of all allies beneath it" (Hydra Prison). */
+  | { readonly kind: "totalPrintedCost"; readonly cards: TargetRef }
+  /**
+   * The total printed resource icons on every card a ref names, wherever they are: "X is the number of printed
+   * resources on that card" (the Hawkeye ally 04011, counting a card discarded as the ability's own cost).
+   *
+   * `types` narrows it to some icon types ("each [mental] icon"); absent counts all four, wild included, because a
+   * printed wild icon is a printed resource. The sibling of `totalPrintedCost`; unlike `<bind>.<type>`, which reports
+   * a pool summed over a `moveCards`/`discardEncounterCards` bind, this reads whatever a `TargetRef` names, so a card
+   * bound by a cost's own `discardFromHand` slot (which reports only a count) can be measured.
+   */
+  | { readonly kind: "totalPrintedResources"; readonly cards: TargetRef; readonly types?: readonly ("physical" | "mental" | "energy" | "wild")[] }
   /**
    * A villain's printed stage number (Death from Above, Wicked Ambitions): the numeral printed on the stage card
    * (`VillainStage.stageNumber`), not its index in the deck — expert play starts on stage II, whose number is 2.
@@ -343,7 +396,17 @@ export type Predicate =
    * and `varAtLeast` are the older, narrower spellings of the `atLeast` case and stay as they are; prefer `compare`
    * for anything new. Both sides are evaluated in this ability's context at the moment the predicate is read.
    */
-  | { readonly kind: "compare"; readonly left: ValueSpec; readonly op: "atLeast" | "atMost" | "equalTo"; readonly right: ValueSpec };
+  | { readonly kind: "compare"; readonly left: ValueSpec; readonly op: "atLeast" | "atMost" | "equalTo"; readonly right: ValueSpec }
+  /**
+   * The players are split into separate game areas (docs/phase7-wave2.md §3.1). The Master of Time 2B's "When all the
+   * players have joined this game area, advance to stage 4A" is a `stateCheck` on `not(gameAreasSplit)`.
+   */
+  | { readonly kind: "gameAreasSplit" }
+  /**
+   * Every player in this effect's game area is defeated (eliminated): "If all the players at this stage are defeated,
+   * this stage is complete." (Kang's stage 3 cards). False outside a separate game area.
+   */
+  | { readonly kind: "areaPlayersDefeated" };
 
 export type StatusName = "stunned" | "confused" | "tough";
 
@@ -373,7 +436,12 @@ export type EffectSpec =
   /** "Heal N damage"; with `bind`, "if no damage was healed this way" reads `<bind>.amount`. */
   | { readonly kind: "heal"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
   | { readonly kind: "placeThreat"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
-  | { readonly kind: "removeThreat"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
+  /**
+   * `ignoreCrisis`: "…, ignoring any crisis icons in play" (Cable Arrow 04008). RRG 1.8 "Crisis Icon" (p. 14) stops
+   * *players* removing threat from the main scheme while one is in play; this one effect steps over that check only.
+   * It does not touch a `threatCannotBeRemoved` rule, which is a "cannot" (RRG 1.8 "'Cannot'", p. 11) and absolute.
+   */
+  | { readonly kind: "removeThreat"; readonly target: TargetRef; readonly amount: ValueSpec; readonly ignoreCrisis?: boolean; readonly bind?: string }
   /**
    * "(attack)": "Deal N damage to an enemy" resolved as an attack by your
    * identity (or `attacker`): guard, retaliate, "after X attacks" and overkill
@@ -386,11 +454,26 @@ export type EffectSpec =
       readonly amount: ValueSpec;
       readonly attacker?: TargetRef;
       readonly overkill?: boolean;
+      /**
+       * "This attack gains piercing" (Piercing Strike, Vibranium Arrow): attack keywords for this attack only, not for
+       * the attacker. `["overkill"]` is the same as `overkill: true`; both are accepted and unioned.
+       */
+      readonly keywords?: readonly AttackKeyword[];
       readonly moveDamageFrom?: TargetRef;
       readonly bind?: string;
     }
-  /** "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with `label: ["thwart"]`. */
-  | { readonly kind: "thwart"; readonly target: TargetRef; readonly amount: ValueSpec; readonly thwarter?: TargetRef; readonly bind?: string }
+  /**
+   * "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with
+   * `label: ["thwart"]`. `ignoreCrisis` is `removeThreat.ignoreCrisis`, carried through to the removal this makes.
+   */
+  | {
+      readonly kind: "thwart";
+      readonly target: TargetRef;
+      readonly amount: ValueSpec;
+      readonly thwarter?: TargetRef;
+      readonly ignoreCrisis?: boolean;
+      readonly bind?: string;
+    }
   /**
    * Changes the attack/activation in progress: "the attack gains overkill",
    * "give him 1 additional boost card for this activation", "+N ATK until the
@@ -399,7 +482,25 @@ export type EffectSpec =
   | {
       readonly kind: "modifyAttack";
       readonly overkill?: boolean;
-      readonly extraBoostCards?: number;
+      /**
+       * "The attack gains piercing" / "the attack gains ranged" (Crossfire's boost, Crossfire's Rifle): attack
+       * keywords for the activation in progress. `["overkill"]` is the same as `overkill: true`.
+       */
+      readonly keywords?: readonly AttackKeyword[];
+      /**
+       * "Prevent all damage from that attack" (Mockingbird 04004), set from an interrupt at attack *initiation* —
+       * before a defender is declared and long before a `dealDamage` frame exists, which is why the `preventDamage`
+       * effect (an interrupt to one damage event) cannot express it. The flag rides the activation's own event frame
+       * and is read when that attack finally deals its damage, so it survives `declareDefender` and the defense
+       * arithmetic, and it expires with the attack.
+       *
+       * RRG 1.8 "Prevent" (p. 34): the damage is still *dealt* (excess damage is measured, and "the attacking
+       * character is considered to have dealt damage"), but the target takes none, so no tough status card is used,
+       * "attacked and damaged" is false, and the attack's `damage`/`damaged` results stay 0.
+       */
+      readonly preventAllDamage?: boolean;
+      /** A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist; §3.11). */
+      readonly extraBoostCards?: number | ValueSpec;
       readonly atkBonus?: ValueSpec;
       /** Scheme activations: "reduce the amount of threat placed on the scheme by 1" (Emergency) → `-1`. */
       readonly threatBonus?: ValueSpec;
@@ -414,6 +515,18 @@ export type EffectSpec =
    * `<bind>.made`, `<bind>.amount` (icons cancelled: "Deal 1 damage … for each boost icon canceled this way").
    */
   | { readonly kind: "cancelBoostIcons"; readonly bind?: string }
+  /**
+   * "Increase or decrease the number of boost icons on that card by 1 for this count" (Scarlet Witch's Crest): changes
+   * the count of the boost card the current activation is about to count (`boostIconsCounting`), for this count only;
+   * the total is floored at 0. docs/phase7-wave2.md §3.6.
+   */
+  | { readonly kind: "adjustBoostCount"; readonly delta: ValueSpec }
+  /**
+   * "When boost icons on an encounter card would be counted, discard the top card of the encounter deck and count the
+   * number of boost icons on that card instead" (Chaos Control): the current activation's boost count reads the first
+   * card `card` names (bind the discarded card first). docs/phase7-wave2.md §3.6.
+   */
+  | { readonly kind: "replaceBoostCount"; readonly card: TargetRef }
   /** "Cancel that card's boost ability" (Target Acquired): only before that ability resolves. `bind`: `<bind>.made`. */
   | { readonly kind: "cancelBoostAbility"; readonly bind?: string }
   /** Interrupt to damage: "prevent N of that damage" (Cosmic Flight) / "prevent all" (Backflip, `amount` absent). */
@@ -480,8 +593,24 @@ export type EffectSpec =
     }
   /** Shuffle a player's deck (RRG "Search": searching any part of a deck shuffles it afterwards). */
   | { readonly kind: "shuffleDeck"; readonly player: PlayerRef }
-  /** "Change your form" as an effect; doesn't use the player's one voluntary change this round (RRG "Form, Change Form"). */
-  | { readonly kind: "changeForm"; readonly player: PlayerRef; readonly to?: Form }
+  /**
+   * "Change your form" as an effect; doesn't use the player's one voluntary change this round (RRG "Form, Change Form";
+   * the Ant-Man insert: "If a card ability causes a player to change form, it does not count against the one voluntary
+   * form change"). `to` absent is the other form.
+   *
+   * `heroForm` picks the hero face of a three-sided identity (docs/phase7-wave2.md §3.2):
+   * - `{ withTrait }`: "change to your [Giant] hero form" (Rapid Growth): the face printed with that trait;
+   * - `"other"`: "change to your other hero form" (Resize, Swarm Tactics): from one hero face to the other; nothing
+   *   happens in alter-ego form;
+   * - absent, going to hero form with more than one hero face: that player chooses the face (`chooseOption`).
+   * A player already in the named form is unaffected, so no `formChanged` is announced.
+   */
+  | {
+      readonly kind: "changeForm";
+      readonly player: PlayerRef;
+      readonly to?: Form;
+      readonly heroForm?: { readonly withTrait: Trait } | "other";
+    }
   /** "Draw up to N cards" / "draw up to your printed hand size". */
   | { readonly kind: "drawUpTo"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
@@ -492,6 +621,28 @@ export type EffectSpec =
       readonly kind: "chooseOne";
       readonly chooser: PlayerRef;
       readonly options: readonly { readonly label: string; readonly condition?: Predicate; readonly effects: readonly EffectSpec[] }[];
+      /**
+       * "Choose two of the following (you may choose the same option twice)" (Double Time; docs/phase7-wave2.md §3.7):
+       * `count` options are chosen and resolve in the order chosen. RRG 1.8 "Choose (Option)" (p. 12) forbids choosing an
+       * option more than once unless the card says otherwise, which `allowRepeat` does. Default 1.
+       */
+      readonly count?: number;
+      readonly allowRepeat?: boolean;
+    }
+  /**
+   * "Deal a total of 4 damage divided among enemies you choose" (Wasp Sting) / "Remove a total of 3 threat from among
+   * schemes in play" (Inconspicuous): `chooser` divides `amount` among the cards `among` matches, one point at a time
+   * (a `divide` choice; options `<instanceId>#<n>`). The candidates are fixed when the choice is made. Damage then
+   * resolves simultaneously as one damage group; threat is removed from each scheme in the order chosen. A single
+   * candidate takes it all without a choice. `bind`: `<bind>.amount` / `<bind>.made` for damage.
+   */
+  | {
+      readonly kind: "divide";
+      readonly what: "damage" | "threat";
+      readonly amount: ValueSpec;
+      readonly among: TargetQuery;
+      readonly chooser: PlayerRef;
+      readonly bind?: string;
     }
   /** "Choose a player." Binds that player (their identity) into `slot`; use `PlayerRef` `slot` to refer to them. */
   | { readonly kind: "choosePlayer"; readonly slot: string; readonly chooser: PlayerRef }
@@ -594,6 +745,43 @@ export type EffectSpec =
   /** "Reveal it": each card goes through the full reveal procedure (RRG "Reveal") for `player`, from wherever it is. */
   | { readonly kind: "revealCard"; readonly cards: TargetRef; readonly player: PlayerRef }
   | { readonly kind: "shuffleEncounterDeck" }
+  /**
+   * "Create the Experimental Weapons deck" / "Shuffle every other encounter side scheme into the side-scheme deck"
+   * (docs/phase7-wave2.md §3.3): every card of the encounter deck matching the scenario deck's `contents` (its encounter
+   * sets and/or its card type; both must match when both are given) moves into it, and it is shuffled. A deck with a
+   * discard pile of its own takes its cards' home with them, so a discard goes there; the others stay homed to the
+   * encounter deck. Only the main scheme's 1A script builds one; the engine never builds a deck on its own.
+   */
+  | { readonly kind: "buildScenarioDeck"; readonly name: string }
+  /**
+   * "The player who defeated it takes that ally into their hand" (Captured by Hydra; docs/phase7-wave2.md §3.10): each
+   * card goes to `player`'s hand and, if it has no owner (a scenario-specific player card set aside at setup), that player
+   * becomes its owner. RRG 1.8 "Ownership and Control" (p. 31): "When a player takes control of a campaign-specific or
+   * scenario-specific player card [...] that player becomes the owner of that card until the game ends or another player
+   * takes control of that card." Its home becomes theirs, so a discard goes to their discard pile.
+   */
+  | { readonly kind: "takeIntoHand"; readonly cards: CardSelector; readonly player: PlayerRef }
+  /**
+   * Playing a card from hand from inside an ability. `player` chooses a card their hand holds that `filter` matches
+   * and that can be played this way; `optional` is "you may". Exactly one of the two cost modes is set:
+   *
+   * - **`ignoreCost: true`** — "Play a card from your hand, ignoring its resource cost." (Chaos Magic;
+   *   docs/phase7-wave2.md §3.8). Zero resources are paid (`playIgnoringCostFault` says which cards qualify).
+   * - **`costReduction`** — "play a card from your hand that shares a trait with your hero, reducing its resource
+   *   cost by 1" (Team-Building Exercise; docs/phase7-wave2.md §9). The player pays the reduced cost from their
+   *   usual payment options, choosing an upgrade's host first when it has more than one.
+   *
+   * RRG 1.8 "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): this is *playing* the
+   * card, so form, "max per", Restricted, the unique rule and `cannotPlay` all apply, and it counts as played.
+   */
+  | {
+      readonly kind: "playFromHand";
+      readonly player: PlayerRef;
+      readonly ignoreCost?: true;
+      readonly costReduction?: ValueSpec;
+      readonly filter?: TargetQuery;
+      readonly optional?: boolean;
+    }
   /** "Discard cards from the encounter deck until a minion is discarded": the matching card is bound to `bind` (then `putIntoPlay` / `revealCard` it). */
   | { readonly kind: "discardEncounterUntil"; readonly filter: TargetQuery; readonly bind: string }
   /**
@@ -746,7 +934,71 @@ export type EffectSpec =
    * engine finishes a completion after its When Completed abilities. An advance by card text is not a completion. On
    * the final stage it does nothing.
    */
-  | { readonly kind: "advanceMainScheme" }
+  | {
+      readonly kind: "advanceMainScheme";
+      /**
+       * "Advance the main scheme to stage 2" / "advance to stage 4A" (docs/phase7-wave2.md §3.4): the stage with this
+       * number (and `name`, to pick one of several alternatives). Required to advance into a group of alternatives.
+       */
+      readonly to?: { readonly stageNumber: number; readonly name?: string };
+      /** Which main scheme: absent is "the main scheme" of this effect's game area (`TargetRef mainScheme`). */
+      readonly scheme?: TargetRef;
+    }
+  /** "If all the players at this stage are defeated, this stage is complete." (Kang's stage 3 cards): completes it now. */
+  | { readonly kind: "completeMainScheme"; readonly scheme: TargetRef }
+  /**
+   * "The players win the game." (Kang (III)'s When Defeated) / "the players lose the game" (Kang's Arrival 1B, as a When
+   * Completed). Logged with an existing outcome reason: a win as `villainDefeated`, a loss as `reason` (default
+   * `mainSchemeCompleted`). Needed where `Scenario.victory` is `"cardAbility"` (docs/phase7-wave2.md §3.4).
+   */
+  | { readonly kind: "endGame"; readonly result: "win" | "loss"; readonly reason?: "mainSchemeCompleted" | "allPlayersDefeated" }
+  /**
+   * "Add Kang (Immortus) to the game area" / "Reveal Kang (III) and add him to the game area" (docs/phase7-wave2.md
+   * §3.4): each set-aside villain `villain` names (bind it with `selectCards` over `encounterSetAside` first) enters play
+   * as an additional villain, on its card's starting side and first stage. In a separate game area it joins that area
+   * and becomes its active villain; otherwise it takes the active counter if the active villain is defeated. Its
+   * toughness applies (RRG 1.8 "Toughness"); `reveal` also resolves its When Revealed ("Reveal Kang (III)").
+   */
+  | { readonly kind: "addVillain"; readonly villain: TargetRef; readonly reveal?: boolean }
+  /**
+   * "Remove Kang (Immortus) and this stage from the game": a villain leaves play, removed from the game rather than
+   * defeated (no When Defeated, no win). Its attachments and boost cards are discarded as it leaves.
+   */
+  | { readonly kind: "removeVillain"; readonly villain: TargetRef }
+  /**
+   * "Remove the Chronopolis from the game" / "remove … this stage from the game": a separate game area's own main
+   * scheme stage leaves play and its alternative can never be revealed again. The central stage cannot be removed.
+   */
+  | { readonly kind: "removeMainSchemeStage"; readonly scheme: TargetRef }
+  /**
+   * "Each player reveals a random stage 3A in turn order" (The Master of Time 2A): for each player `player` names, in
+   * player order, a random stage with this number that has not been spent is revealed as a new main scheme instance —
+   * its A side's When Revealed resolves with that player as "you" ("Create your own game area and place this scheme in
+   * it"), then its B side's starting threat is placed. `removeUnused` then removes the rest of the group from the game
+   * ("Remove any unused stage 3 schemes from the game"). Only in a scenario with `separateGameAreas`.
+   */
+  | { readonly kind: "revealMainSchemeStage"; readonly player: PlayerRef; readonly stageNumber: number; readonly removeUnused?: boolean }
+  /**
+   * "Create your own game area and place this scheme in it" (Kang's stage 3A cards): a new separate game area for the
+   * resolving player, whose main scheme is this card (the stage instance `revealMainSchemeStage` created). The player's
+   * cards come with them; side schemes already in play stay where they are (docs/phase7-wave2.md §3.1).
+   */
+  | { readonly kind: "createGameArea"; readonly scheme: TargetRef }
+  /**
+   * "Join another game area" / "combine your game area with another game area" (docs/phase7-wave2.md §3.1): every player
+   * of this effect's area moves to another area, chosen by the first of them when there are several, with the area's
+   * side schemes and villains ("Any side schemes that were in play in your previous game area become part of the game
+   * area that you join. Any minions that were engaged with you remain engaged with you."). When no other separate area
+   * remains, the players join the central area and the game is no longer split ("Players cannot join this game area
+   * unless there are no other game areas remaining", The Master of Time 2B). Duplicate unique cards are then discarded,
+   * the first player choosing ("If the players cannot agree which one to discard, the first player decides").
+   */
+  | { readonly kind: "joinGameArea" }
+  /**
+   * "At the end of the phase, …": a delayed effect, the phase counterpart of `atEndOfRound`. It fires when the current
+   * phase ends: after the player phase's ready step, or with the round's end for the villain phase.
+   */
+  | { readonly kind: "atEndOfPhase"; readonly effects: readonly EffectSpec[] }
   /**
    * "Move all threat from the side scheme with the least threat to the side scheme with the most threat" (Tactical
    * Prowess); "move 1 threat from a scheme to here" (Beat Cop). `amount` absent moves all of it. RRG 1.8 "Move" (p. 30):
@@ -774,6 +1026,13 @@ export type EffectSpec =
    * Either way a `cardFlipped` event follows, for "after this card flips" abilities. A card with one face is unaffected.
    */
   | { readonly kind: "flipCard"; readonly target: TargetRef }
+  /**
+   * "Change Apocalypse to [Giant] form" (Staggering Strength, Biomorphic Blast; The Age of Apocalypse): a three-sided
+   * villain (`VillainSideLetter` "C") turns to the face of its current stage card whose traits include `toFaceWithTrait`.
+   * `flipCard` is undefined for such a villain, since "flip" doesn't say which of the two other faces. Resolves as a flip
+   * (RRG 1.8 "Flip", p. 20). Works on a two-faced villain too, when card text names the face by a trait.
+   */
+  | { readonly kind: "changeVillainForm"; readonly villain: TargetRef; readonly toFaceWithTrait: Trait }
   /**
    * Parks a `chooseTarget` choice for `chooser` and binds the answer to `slot`.
    *
@@ -847,8 +1106,23 @@ export type CardSelector =
     }
   /** A player's set-aside nemesis set. */
   | { readonly kind: "setAside"; readonly player: PlayerRef; readonly filter?: TargetQuery }
-  /** Scenario cards set aside at setup (a signature side scheme before Breakout 1A puts it into play). */
-  | { readonly kind: "encounterSetAside"; readonly filter?: TargetQuery }
+  /**
+   * Scenario cards set aside at setup (a signature side scheme before Breakout 1A puts it into play). `random`: that many
+   * of the matching cards at random, from the game's seeded RNG ("Place 1 random set-aside Captive ally facedown beneath
+   * this scheme", Captured by Hydra; docs/phase7-wave2.md §3.12).
+   */
+  | { readonly kind: "encounterSetAside"; readonly filter?: TargetQuery; readonly random?: ValueSpec }
+  /**
+   * A scenario deck and/or its own discard pile (docs/phase7-wave2.md §3.3): "Reveal the top card of the Experimental
+   * Weapons deck" → `{ name: "Experimental Weapons", top: 1 }`. `zones` defaults to the deck.
+   */
+  | {
+      readonly kind: "scenarioDeck";
+      readonly name: string;
+      readonly zones?: readonly ("deck" | "discard")[];
+      readonly top?: ValueSpec;
+      readonly filter?: TargetQuery;
+    }
   /** Cards tucked under a card ("each facedown card here"). */
   | { readonly kind: "tucked"; readonly under: TargetRef }
   /**

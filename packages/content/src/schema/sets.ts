@@ -36,6 +36,13 @@ export interface EncounterSet {
    * scenario played standalone may list one (campaign mode is not built yet).
    */
   readonly campaignSpecific?: boolean;
+  /**
+   * True for a set used only in competitive (team-vs-team) mode (wave 2 schema pass, docs/phase7-wave2.md §6.3): Civil
+   * War's Standard PvP set (`standard_pvp`). The Civil War rulebook, "Custom Scenario Expansion" (p. 3): "1 Standard PvP
+   * Encounter Set. This set replaces the standard encounter set when playing in competitive mode." Competitive mode is
+   * not built, so no scenario may list one (`validateScenario`).
+   */
+  readonly competitiveOnly?: boolean;
 }
 
 /** Chosen at game setup, not a property of the scenario: it selects villain stages (I–II vs II–III) and the Standard/Expert encounter set. */

@@ -22,6 +22,12 @@ export type TriggerEventBody =
       readonly overkill?: boolean;
       /** "This damage ignores tough status cards" (Lightning Strike, errata RRG 1.8 p. 65): taken through a tough status card, which stays. */
       readonly ignoreTough?: boolean;
+      /**
+       * This attack has piercing even if its attacker lacks the keyword ("this attack gains piercing"): the attacked
+       * character's tough status cards are discarded before damage (RRG 1.8 "Piercing", p. 32). Stamped when the
+       * attack pushes its damage, so every way of granting the keyword is already folded in.
+       */
+      readonly piercing?: boolean;
       /** The card whose ability produced this damage when that isn't the source ("damage from Black Panther upgrades"). */
       readonly viaInstanceId?: InstanceId | null;
     }
@@ -39,6 +45,8 @@ export type TriggerEventBody =
       readonly amount: number;
       readonly sourceInstanceId: InstanceId | null;
       readonly parentFrameId?: FrameId | null;
+      /** "…, ignoring any crisis icons in play": this removal skips the crisis check (RRG 1.8 "Crisis Icon", p. 14). */
+      readonly ignoreCrisis?: boolean;
     }
   | {
       readonly kind: "attack";
@@ -49,6 +57,8 @@ export type TriggerEventBody =
       readonly amount?: number | null;
       readonly basic?: boolean;
       readonly overkill?: boolean;
+      /** "This attack gains piercing/ranged": keywords this attack has that its attacker need not (`AttackKeyword`). */
+      readonly keywords?: readonly ("piercing" | "ranged" | "overkill")[];
       /** The card whose ability made this attack (the event card for "Hero Action (attack)"). */
       readonly sourceInstanceId?: InstanceId | null;
     }
@@ -60,6 +70,10 @@ export type TriggerEventBody =
       /** Threat removed by a "(thwart)" ability; absent/null = the thwarter's THW (a basic thwart). */
       readonly amount?: number | null;
       readonly basic?: boolean;
+      /** A basic thwart made with ATK instead of THW (the Assault keyword, or "may use their ATK"; §3.11). */
+      readonly useAtk?: boolean;
+      /** "…, ignoring any crisis icons in play": passed to the threat removal this thwart makes. */
+      readonly ignoreCrisis?: boolean;
       readonly sourceInstanceId?: InstanceId | null;
     }
   /** A defender was declared (basic defense) or a "(defense)" ability made the identity the defender. */
@@ -109,6 +123,11 @@ export type TriggerEventBody =
       readonly attackerInstanceId: InstanceId;
       readonly targetInstanceId: InstanceId;
       readonly playerId: PlayerId | null;
+      /**
+       * The attack had ranged (printed on the attacker, or granted to this attack alone), so it "ignores the retaliate
+       * keyword" (RRG 1.8 "Ranged", p. 35). Stamped when the attack pushes this event, alongside `dealDamage.piercing`.
+       */
+      readonly ranged?: boolean;
     }
   | { readonly kind: "cardEntersPlay"; readonly instanceId: InstanceId; readonly playerId: PlayerId | null }
   | { readonly kind: "cardPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -140,9 +159,45 @@ export type TriggerEventBody =
     }
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
-  | { readonly kind: "schemeDefeated"; readonly instanceId: InstanceId }
+  /**
+   * A side scheme reached no threat and is defeated (RRG 1.8 "Defeat", p. 15). `defeatedByPlayerId` is the player
+   * whose thwart or card effect removed the last threat — "the player who defeated this scheme" (Crossbones' Assault
+   * 04070), "the defeating player" (Mystique's Manipulations errata, RRG 1.8 p. 66). Null when no player did it.
+   */
+  | { readonly kind: "schemeDefeated"; readonly instanceId: InstanceId; readonly defeatedByPlayerId?: PlayerId | null }
   | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
-  | { readonly kind: "mainSchemeAdvanced"; readonly stageIndex: number }
+  /** `schemeInstanceId` is set only for a separate game area's own stage (docs/phase7-wave2.md §3.1). */
+  | { readonly kind: "mainSchemeAdvanced"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
+  /**
+   * A main scheme stage was completed and did not end the game or advance: a separate game area's stage ("Forced
+   * Response: After this stage is complete, …", Kang's stage 3 cards), or a stage whose next stage is a group of
+   * alternatives that card text must choose among (docs/phase7-wave2.md §3.1, §3.4).
+   */
+  | { readonly kind: "mainSchemeCompleted"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number }
+  /**
+   * A boost card's icons are about to be counted for an activation (docs/phase7-wave2.md §3.6): "When boost icons on an
+   * encounter card would be counted" (Chaos Control) and "increase or decrease the number of boost icons on that card by
+   * 1 for this count" (Scarlet Witch's Crest) interrupt it with `replaceBoostCount` / `adjustBoostCount`. Announced only
+   * when an ability could react. Counts made by card effects (Hex Bolt) are not announced yet (§4.8).
+   */
+  | { readonly kind: "boostIconsCounting"; readonly enemyInstanceId: InstanceId; readonly cardInstanceId: InstanceId; readonly playerId: PlayerId }
+  /**
+   * A character used a basic power (docs/phase7-wave2.md §3.11): "After you use a basic power" (Quicksilver's Super
+   * Speed; Captain Marvel ally 04032; Rapid Growth). FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61): a stunned attack or a
+   * confused thwart "is not considered to have used a basic power", so it is announced only once the power resolves.
+   * Announced only when an ability could react.
+   */
+  | {
+      readonly kind: "basicPowerUsed";
+      readonly characterInstanceId: InstanceId;
+      readonly power: "attack" | "thwart" | "defense" | "recover";
+      readonly playerId: PlayerId;
+    }
+  /**
+   * A card is about to ready (docs/phase7-wave2.md §3.11): "When attached character would ready, discard this card
+   * instead" (Frozen in Time) replaces it. Pushed only when an ability could react; otherwise the card readies at once.
+   */
+  | { readonly kind: "cardReadying"; readonly instanceId: InstanceId }
   | { readonly kind: "turnStarted"; readonly playerId: PlayerId }
   /**
    * A minion engaged a player (RRG 1.8 "Engage", p. 18): it entered play in their area, was put into play engaged with
@@ -166,7 +221,17 @@ export type TriggerEventBody =
   /** A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened. */
   | { readonly kind: "cardFlipped"; readonly instanceId: InstanceId }
   /** A player changed form (by the once-per-round flip or a card effect): "after you change to this form". */
-  | { readonly kind: "formChanged"; readonly playerId: PlayerId; readonly to: "hero" | "alterEgo" }
+  /**
+   * `fromHeroForm` / `toHeroForm`: the hero faces before and after, for an identity with more than one (a three-sided
+   * identity changing between its hero forms is a change of form with `to: "hero"`; docs/phase7-wave2.md §3.2).
+   */
+  | {
+      readonly kind: "formChanged";
+      readonly playerId: PlayerId;
+      readonly to: "hero" | "alterEgo";
+      readonly fromHeroForm?: number | null;
+      readonly toHeroForm?: number | null;
+    }
   | { readonly kind: "playerPhaseEnded" }
   | { readonly kind: "villainPhaseEnded" };
 
@@ -206,9 +271,21 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "characterDefeated":
     case "encounterCardRevealing":
     case "boostCardTurnedFaceup":
+    // "When boost icons on an encounter card would be counted" (docs/phase7-wave2.md §3.6): the count is still to come.
+    case "boostIconsCounting":
+    // "When attached character would ready" (docs/phase7-wave2.md §3.11): the ready is still to come.
+    case "cardReadying":
     case "turnEnding":
     case "surgeResolving":
     case "cardBeingPlayed":
+    /**
+     * "Forced Interrupt: When an environment enters play, …" (None Shall Pass 1A): the card is already in the play
+     * area by the time this is pushed, but nothing it does *on* entering has happened yet — the enter-play keywords
+     * (toughness, uses counters, the restricted and ally-limit checks) are this event's own apply step
+     * (`resolve/event.ts`), so an interrupt runs before them and a response after, which is also what RRG 1.8
+     * "Ally Limit" (p. 7) asks for: the check "occurs before abilities that resolve upon entering play".
+     */
+    case "cardEntersPlay":
       return false;
     default:
       return true;
@@ -266,7 +343,17 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "characterDefeated":
       return of([], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "schemeDefeated":
+      // The defeating player, so "after *you* defeat a side scheme" reads like the `characterDefeated` case above.
+      return of([], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "cardFlipped":
+      return of([], [event.instanceId], []);
+    case "mainSchemeCompleted":
+      return of([], [event.schemeInstanceId], []);
+    case "boostIconsCounting":
+      return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
+    case "basicPowerUsed":
+      return of([event.characterInstanceId], [event.characterInstanceId], [event.playerId]);
+    case "cardReadying":
       return of([], [event.instanceId], []);
     case "boostCardTurnedFaceup":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);

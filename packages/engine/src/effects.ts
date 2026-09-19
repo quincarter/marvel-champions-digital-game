@@ -1,13 +1,15 @@
+import type { VillainSideLetter } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { emit, moveCard, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
 import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
-import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, mustInstance, mustPlayer, mustVillain } from "./query.js";
+import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, heroFacesOf, mustCard, mustInstance, mustPlayer, mustVillain } from "./query.js";
+import type { TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
 import { cannotLeavePlay, cannotReady } from "./rules.js";
 import { matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
-import type { GameOutcome, GameState, ZoneId } from "./state.js";
+import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
 import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lasting.js";
 
 /**
@@ -21,14 +23,21 @@ import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lastin
  * a card effect doesn't use it up (RRG "Form, Change Form"). Damage, statuses,
  * attachments and ready state all stay.
  */
-export function setForm(ctx: Ctx, playerId: PlayerId, to: "hero" | "alterEgo", voluntary: boolean): void {
+export function setForm(ctx: Ctx, playerId: PlayerId, to: "hero" | "alterEgo", voluntary: boolean, heroFormIndex = 0): TriggerEvent | null {
   const player = mustPlayer(ctx.state, playerId);
-  if (player.identity.form === to) return;
+  const nextIndex = to === "hero" ? heroFormIndex : null;
+  const fromIndex = player.identity.heroFormIndex;
+  if (player.identity.form === to && fromIndex === nextIndex) return null;
   updatePlayer(ctx, playerId, (p) => ({
     ...p,
-    identity: { ...p.identity, form: to, changedFormThisRound: p.identity.changedFormThisRound || voluntary },
+    identity: { ...p.identity, form: to, heroFormIndex: nextIndex, changedFormThisRound: p.identity.changedFormThisRound || voluntary },
   }));
-  emit(ctx, { type: "formChanged", playerId, to, ...(voluntary ? {} : { byEffect: true }) });
+  // A three-sided identity (docs/phase7-wave2.md §3.2) logs which hero face; every other identity logs as before.
+  const card = mustCard(ctx.state, player.identity.cardId);
+  const faces = card.type === "hero_identity" ? heroFacesOf(card).length : 1;
+  const face = faces > 1 ? { fromHeroFormIndex: fromIndex, heroFormIndex: nextIndex } : {};
+  emit(ctx, { type: "formChanged", playerId, to, ...(voluntary ? {} : { byEffect: true }), ...face });
+  return { kind: "formChanged", playerId, to, ...(faces > 1 ? { fromHeroForm: fromIndex, toHeroForm: nextIndex } : {}) };
 }
 
 export function endGame(ctx: Ctx, outcome: GameOutcome): void {
@@ -143,7 +152,7 @@ export function drawEncounterCard(ctx: Ctx, deckId: EncounterDeckId = activeEnco
  * cards, boost cards, damage, and other game elements associated with the villain remain as they are"; RRG 1.8
  * "Flip", p. 20).
  */
-export function flipVillain(ctx: Ctx, id: InstanceId, to: "A" | "B"): void {
+export function flipVillain(ctx: Ctx, id: InstanceId, to: VillainSideLetter): void {
   const villain = mustVillain(ctx.state, id);
   if (villain.side === to) return;
   ctx.state = { ...ctx.state, villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, side: to } : v)) };
@@ -159,6 +168,18 @@ export function setActiveVillain(ctx: Ctx, to: InstanceId, reason: "effect" | "a
   if (from === to || mustVillain(ctx.state, to).defeated) return;
   ctx.state = { ...ctx.state, activeVillainId: to };
   emit(ctx, { type: "activeVillainChanged", from, to, reason });
+}
+
+/** Rewrites a main scheme's state wherever it lives: the central one, or a separate game area's (§3.1). */
+export function updateMainSchemeState(ctx: Ctx, id: InstanceId, update: (scheme: MainSchemeState) => MainSchemeState): void {
+  if (ctx.state.mainScheme.instanceId === id) {
+    ctx.state = { ...ctx.state, mainScheme: update(ctx.state.mainScheme) };
+    return;
+  }
+  ctx.state = {
+    ...ctx.state,
+    gameAreas: ctx.state.gameAreas.map((area) => (area.mainScheme?.instanceId === id ? { ...area, mainScheme: update(area.mainScheme) } : area)),
+  };
 }
 
 export function addAccelerationToken(ctx: Ctx): void {

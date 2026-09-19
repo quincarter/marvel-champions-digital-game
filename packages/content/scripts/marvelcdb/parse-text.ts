@@ -27,7 +27,15 @@
  * - A leading `[star]` marker is a printed reminder icon, not part of the
  *   ability kind; it stays in the card text.
  */
-import type { AttachmentHost, AttachmentHostCategory, HostMeasure, KeywordInstance, ResourceIconType, Trait } from "../../src/schema/index.ts";
+import type {
+  AttachmentHost,
+  AttachmentHostCategory,
+  HostMeasure,
+  KeywordInstance,
+  ResourceIconCounts,
+  ResourceIconType,
+  Trait,
+} from "../../src/schema/index.ts";
 import { slugify } from "./text.ts";
 
 export type AbilityKind =
@@ -35,6 +43,7 @@ export type AbilityKind =
   | "resource"
   | "response"
   | "interrupt"
+  | "forced-action"
   | "forced-response"
   | "forced-interrupt"
   | "special"
@@ -173,6 +182,8 @@ function kindOf(trigger: string): KindResult {
       return withForm("response");
     case "Interrupt":
       return withForm("interrupt");
+    case "Forced Action":
+      return withForm("forced-action");
     case "Forced Response":
       return withForm("forced-response");
     case "Forced Interrupt":
@@ -261,12 +272,10 @@ const RESOURCE_ICON_RE = /\[(energy|mental|physical|wild)\]/g;
  * Keyword sentence, optionally followed by its own reminder text: `Surge (After …)`, `Retaliate 1. (After …)`.
  *
  * Team-Up and Teamwork are fully representable in the current schema (`KeywordInstance`'s `teamUp.names` and
- * `teamwork.sharedTrait`) and are resolved here. Requirement is only resolved when it names exactly one resource
- * icon (`icon: ResourceIconType`, singular) — every printed multi-icon Requirement (two of the same icon, or
- * several different icons) needs a schema shape this repo doesn't have yet (a count/list, not a single icon), so
- * `parseCardText` reports those explicitly rather than silently dropping the extra icons. Discount always needs a
- * target-trait qualifier that the current stub shape has no field for at all, so it is never resolved here; see
- * the same caller.
+ * `teamwork.sharedTrait`) and are resolved here. Requirement counts every printed icon (repeats included) into
+ * `resources: ResourceIconCounts`; a single icon still resolves to the wave 1 `icon` field for exactly one match
+ * (docs/phase7-wave2.md §6.1). Discount resolves to `{ value, traits }`, an OR of every named trait
+ * (docs/phase7-wave2.md §6.2).
  */
 function parseKeyword(sentence: string): KeywordInstance | undefined {
   // `Uses (N type counters)` carries its parameter in parentheses, so match it
@@ -277,11 +286,27 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   if (teamUp) return { name: "teamUp", names: [(teamUp[1] as string).trim(), (teamUp[2] as string).trim()] };
   const teamwork = /^Teamwork \((.+)\)\.?$/.exec(sentence);
   if (teamwork) return { name: "teamwork", sharedTrait: (teamwork[1] as string).trim().toUpperCase() as Trait };
+  // RRG 1.8 "Linked (Card Title)" (p. 27): "Cards with the linked keyword cannot be included in a player's deck.
+  // Instead, they are brought into the game by the card title in the parentheses following the keyword." A bare
+  // `Linked.` (no title — none observed yet) still resolves, with `cardTitle` left unset.
+  const linked = /^Linked(?: \((.+)\))?\.?$/.exec(sentence);
+  if (linked) return { name: "linked", ...(linked[1] !== undefined ? { cardTitle: (linked[1] as string).trim() } : {}) };
   const requirement = /^Requirement \(((?:\[(?:energy|mental|physical|wild)\])+)\)\.?$/.exec(sentence);
   if (requirement) {
     const icons = [...(requirement[1] as string).matchAll(RESOURCE_ICON_RE)].map((mm) => mm[1] as ResourceIconType);
     if (icons.length === 1) return { name: "requirement", icon: icons[0] as ResourceIconType };
-    return undefined; // multi-icon: reported by parseCardText, see doc comment above.
+    // Wave 2 (docs/phase7-wave2.md §6.1): several icons (repeats included) — `resources` counts each printed icon.
+    // `Requirement ([mental][mental])` → `{ mental: 2 }`; `Requirement ([energy][mental][physical])` → one each.
+    const resources: { -readonly [K in ResourceIconType]?: number } = {};
+    for (const icon of icons) resources[icon] = (resources[icon] ?? 0) + 1;
+    return { name: "requirement", resources: resources as ResourceIconCounts };
+  }
+  // Wave 2 (docs/phase7-wave2.md §6.2): "Discount N (T)." / "Discount N (T1 or T2)." — the Fear No Evil rulebook,
+  // "Featured Keywords" (p. 3). `traits` is an OR: at least one trait is listed.
+  const discount = /^Discount (\d+) \((.+)\)\.?$/.exec(sentence);
+  if (discount) {
+    const traits = (discount[2] as string).split(/\s+or\s+/).map((t) => t.trim().toUpperCase() as Trait);
+    return { name: "discount", value: Number(discount[1]), traits };
   }
   const s = sentence.replace(/\s*\([^)]*\)\.?$/, "").replace(/\.$/, "").trim();
   const simple = SIMPLE_KEYWORDS[s.toLowerCase()];
@@ -340,11 +365,57 @@ function parseAttach(
     "your alter-ego": { kind: "yourIdentity", form: "alterEgo" },
     "a friendly character": { kind: "friendlyCharacter" },
     "the active villain's side scheme": { kind: "villainSideScheme", of: "activeVillain" },
+    // Wave 2 schema pass (docs/phase7-wave2.md §6.3, §6.8): "the enemy leader" / "your leader" (Civil War); "the
+    // villain who is not the active villain" (Direct Assault, `mts`).
+    "the enemy leader": { kind: "leader", of: "enemy" },
+    "your leader": { kind: "leader", of: "yours" },
+    "the villain who is not the active villain": { kind: "nonActiveVillain" },
   };
   // Case-insensitive on the phrase itself (MarvelCDB is inconsistent — "Attach to the Villain." in `trors`);
   // proper names below stay case-sensitive.
   const hit = simple[target.toLowerCase()];
   if (hit) return { host: hit };
+  // "Attach to your Iron Man leader." / "Attach to your She-Hulk leader." (Civil War, Synthezoid): the printed
+  // name is redundant — a player controls at most one leader — so this is the same host as the bare "your leader".
+  if (/^your .+ leader$/i.test(target)) return { host: { kind: "leader", of: "yours" } };
+  // "Attach to an ally you control." — allies are always player-controlled (no such thing as an enemy ally), so
+  // "you control" is a redundant qualifier here, unlike on a minion/enemy/character where it would matter.
+  if (/^an? ally you control$/i.test(target)) return { host: { kind: "ally" } };
+  // "Attach to the Avatar of Loki villain." — the villain's own printed name, with a redundant trailing "villain"
+  // category word (unlike the bare "Attach to <Name>." form already handled by the `villainNames` check below).
+  const namedVillainSuffix = /^the (.+) villain$/i.exec(target);
+  if (namedVillainSuffix) {
+    const name = namedVillainSuffix[1] as string;
+    if (villainNames.has(name)) return multiVillain ? { host: { kind: "namedVillain", name }, villainName: name } : { host: { kind: "villain" }, villainName: name };
+  }
+  // Wave 2 schema pass (docs/phase7-wave2.md §6.6): an OR of two hosts, every candidate of each once. Tried before
+  // the villain-name/qualified/superlative checks below, since "X or Y" would otherwise fail every single-host
+  // pattern on the whole phrase. " or " never appears inside those single-host phrases themselves (a trait name
+  // never contains the standalone word "or"), so a literal split is safe.
+  const orParts = target.split(/\s+or\s+/i);
+  if (orParts.length === 2) {
+    // "an X-FORCE or X-MEN ally": two trait-qualified hosts sharing one trailing category noun.
+    const sharedCategory = /^(?:an?|the) (.+?) or (.+?) (ally|minion|enemy|character|friendly character)$/i.exec(target);
+    if (sharedCategory) {
+      const categoryWord = (sharedCategory[3] as string).toLowerCase();
+      const category = (categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord) as AttachmentHostCategory;
+      const h1: AttachmentHost = { kind: "qualified", category, trait: (sharedCategory[1] as string).trim().toUpperCase() as Trait };
+      const h2: AttachmentHost = { kind: "qualified", category, trait: (sharedCategory[2] as string).trim().toUpperCase() as Trait };
+      return { host: { kind: "anyOf", hosts: [h1, h2] } };
+    }
+    // Otherwise each half resolves independently: a plain category ("an enemy or scheme") or a proper name
+    // ("Greycrow or Harpoon").
+    const resolveHalf = (part: string): AttachmentHost | undefined => {
+      const p = part.trim();
+      const bySimple = simple[p.toLowerCase()] ?? simple[`a ${p.toLowerCase()}`] ?? simple[`an ${p.toLowerCase()}`];
+      if (bySimple) return bySimple;
+      if (/^[A-Z]/.test(p) && !/^(?:a|an|the|your)\b/.test(p)) return { kind: "namedCard", name: p };
+      return undefined;
+    };
+    const h1 = resolveHalf(orParts[0] as string);
+    const h2 = resolveHalf(orParts[1] as string);
+    if (h1 && h2) return { host: { kind: "anyOf", hosts: [h1, h2] } };
+  }
   if (villainNames.has(target)) {
     return multiVillain ? { host: { kind: "namedVillain", name: target }, villainName: target } : { host: { kind: "villain" }, villainName: target };
   }
@@ -377,24 +448,46 @@ function parseAttach(
       },
     };
   }
-  // Trait-qualified / negated category: "an Avenger ally", "a non-ELITE minion", "a Sentinel minion without
-  // Energy Barrier attached" (`HostQualifiers.trait` / `withoutTrait` / `withoutAttachmentNamed`). Anchored at
-  // the end of the sentence, so a trailing behavioral clause ("...and give it a tough status card") correctly
-  // fails to match rather than being silently dropped.
-  const qualifiedRe =
-    /^(?:an?|the) (non-)?(.+?) (ally|minion|enemy|character|friendly character)(?:\s+(?:and\s+)?without (?:a copy of |another copy of |another )?(.+?) attached)?$/i;
+  // A plain category with only a "without X attached" suffix and no trait word at all: "an enemy without a copy
+  // of Adamantium Upgrades attached" (Wolverine). Tried before the trait-qualified pattern below, since that
+  // pattern requires a word between the article and the category noun and would otherwise never match here.
+  const CATEGORY_NOUN = "ally|minion|enemy|character|friendly character|side scheme";
+  const bareWithoutRe = new RegExp(`^(?:an?|the) (${CATEGORY_NOUN})\\s+(?:and\\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$`, "i");
+  const bareWithout = bareWithoutRe.exec(target);
+  if (bareWithout) {
+    const categoryWord = (bareWithout[1] as string).toLowerCase();
+    const category = categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord === "side scheme" ? "sideScheme" : categoryWord;
+    return { host: { kind: "qualified", category: category as AttachmentHostCategory, withoutAttachmentNamed: (bareWithout[2] as string).trim() } };
+  }
+  // Trait-qualified / negated category: "an Avenger ally", "a non-ELITE minion", "a non-permanent side scheme",
+  // "a Sentinel minion without Energy Barrier attached" (`HostQualifiers.trait` / `withoutTrait` /
+  // `withoutAttachmentNamed`). Anchored at the end of the sentence, so a trailing behavioral clause ("...and give
+  // it a tough status card") correctly fails to match rather than being silently dropped.
+  const qualifiedRe = new RegExp(
+    `^(?:an?|the) (non-)?(.+?) (${CATEGORY_NOUN})(?:\\s+(?:and\\s+)?without (?:a copy of |another copy of |another )?(.+?) attached)?$`,
+    "i",
+  );
   const qualified = qualifiedRe.exec(target);
   if (qualified) {
     const negated = Boolean(qualified[1]);
-    const trait = (qualified[2] as string).trim().toUpperCase() as Trait;
+    const word = (qualified[2] as string).trim();
     const categoryWord = (qualified[3] as string).toLowerCase();
-    const category = categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord;
+    const category = categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord === "side scheme" ? "sideScheme" : categoryWord;
     const withoutAttachmentNamed = qualified[4]?.trim();
+    // Wave 2 (docs/phase7-wave2.md §6.5): "a non-permanent side scheme" — the qualifying word is a keyword
+    // (Permanent is a keyword, not a trait), not a trait, so it becomes `withoutKeyword`/`keyword` instead.
+    const keywordName = SIMPLE_KEYWORDS[word.toLowerCase()];
     return {
       host: {
         kind: "qualified",
         category: category as AttachmentHostCategory,
-        ...(negated ? { withoutTrait: trait } : { trait }),
+        ...(keywordName
+          ? negated
+            ? { withoutKeyword: keywordName }
+            : { keyword: keywordName }
+          : negated
+            ? { withoutTrait: word.toUpperCase() as Trait }
+            : { trait: word.toUpperCase() as Trait }),
         ...(withoutAttachmentNamed ? { withoutAttachmentNamed } : {}),
       },
     };
@@ -435,7 +528,13 @@ function parseAttach(
               ? "atk"
               : descriptor === "sch"
                 ? "sch"
-                : undefined;
+                : // Wave 2 (docs/phase7-wave2.md §6.7): "the villain with the highest activation order value" (The
+                  // Sinister Six), "the minion with the most traits" (Cyborg Tech).
+                  descriptor === "activation order value"
+                  ? "activationOrder"
+                  : descriptor === "traits"
+                    ? "traitCount"
+                    : undefined;
     if (measure) {
       return {
         host: {
@@ -592,16 +691,6 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       }
       if (/^\(.*\)\.?$/.test(sentence)) continue; // reminder text
       if (STAGE_LOSS_REMINDER.test(sentence)) continue;
-      // Requirement/Discount that `parseKeyword` didn't fully resolve are real schema gaps (see its doc comment),
-      // not plain text — report them explicitly rather than letting them fall into the constant-text buffer below.
-      if (/^Requirement \(/.test(sentence)) {
-        unclassified.push(`Requirement keyword needs more than one resource icon (schema only has a single "icon" field): ${sentence}`);
-        continue;
-      }
-      if (/^Discount \d+ \(/.test(sentence)) {
-        unclassified.push(`Discount keyword needs a target-trait qualifier (schema only has "value", no trait field): ${sentence}`);
-        continue;
-      }
       const restriction = parseRestriction(sentence, restrictions);
       if (restriction) {
         flushConstant();

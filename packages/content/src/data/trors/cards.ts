@@ -782,6 +782,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     },
     obligationCardId: cardId("04053"),
     nemesisEncounterSetId: encounterSetId("spider_woman_nemesis"),
+    deckbuilding: { aspectCount: 2, equalCardsPerAspect: true },
   },
   {
     id: cardId("04032"),
@@ -2290,7 +2291,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     aspect: "none",
     traits: [trait("CAPTIVE"), trait("HERO FOR HIRE")],
     keywords: [],
-    deckLimit: 0,
+    deckLimit: 1,
     text: {
       printed: "Response: After you play Moon Knight from your hand, spend a [wild] resource → draw 2 cards.",
       current: "Response: After you play Moon Knight from your hand, spend a [wild] resource → draw 2 cards.",
@@ -2318,7 +2319,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     aspect: "none",
     traits: [trait("CAPTIVE"), trait("HERO FOR HIRE")],
     keywords: [],
-    deckLimit: 0,
+    deckLimit: 1,
     text: {
       printed: "Response: After you play Shang-Chi from your hand, spend a [energy] resource → stun an enemy.",
       current: "Response: After you play Shang-Chi from your hand, spend a [energy] resource → stun an enemy.",
@@ -2347,7 +2348,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     aspect: "none",
     traits: [trait("CAPTIVE"), trait("HERO FOR HIRE")],
     keywords: [],
-    deckLimit: 0,
+    deckLimit: 1,
     text: {
       printed: "Response: After you play White Tiger from your hand, spend [mental] resource → remove 3 threat from a scheme.",
       current: "Response: After you play White Tiger from your hand, spend [mental] resource → remove 3 threat from a scheme.",
@@ -2375,7 +2376,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     aspect: "none",
     traits: [trait("CAPTIVE"), trait("HERO FOR HIRE")],
     keywords: [],
-    deckLimit: 0,
+    deckLimit: 1,
     text: {
       printed: "Response: After you play Elektra from your hand, spend a [physical] resource → deal 3 damage to an enemy.",
       current: "Response: After you play Elektra from your hand, spend a [physical] resource → deal 3 damage to an enemy.",

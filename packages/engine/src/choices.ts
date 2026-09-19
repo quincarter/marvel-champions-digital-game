@@ -79,7 +79,12 @@ export type ChoicePrompt =
    * remaining hit points). Options are `<instanceId>#<n>` for n = 1…cap; each selected option is 1 damage to that
    * character, and exactly `amount` must be selected.
    */
-  | { readonly kind: "assignIndirectDamage"; readonly amount: number; readonly caps: Readonly<Record<string, number>> };
+  | { readonly kind: "assignIndirectDamage"; readonly amount: number; readonly caps: Readonly<Record<string, number>> }
+  /**
+   * `EffectSpec divide` (docs/phase7-wave2.md §3.7): split `amount` among the options' cards. Options are
+   * `<instanceId>#<n>` for n = 1…amount; each selected option is 1 point to that card, and exactly `amount` are selected.
+   */
+  | { readonly kind: "divide"; readonly what: "damage" | "threat"; readonly amount: number };
 
 export type ChoiceRef =
   | { readonly kind: "card"; readonly instanceId: InstanceId }

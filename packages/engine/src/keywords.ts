@@ -1,9 +1,10 @@
 import type { KeywordInstance, KeywordName } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
-import { cardOf, encounterFace, isVillain, mainSchemeStage, textBoxBlank, villainStageOf } from "./query.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, type EffectContext } from "./select.js";
-import type { StatusName } from "./spec.js";
+import { cardOf, encounterFace, identityFace, isVillain, mainSchemeStageOf, mainSchemeStateOf, villainStageOf } from "./query.js";
+import { grantedAttackKeywords } from "./rules.js";
+import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, textBoxBlankFor, type EffectContext } from "./select.js";
+import type { AttackKeyword, StatusName } from "./spec.js";
 import type { GameState } from "./state.js";
 
 /**
@@ -16,23 +17,26 @@ import type { GameState } from "./state.js";
  * `deps` lets keywords *gained* from constant abilities ("Klaw gains retaliate
  * 1") count; without it only printed keywords are seen.
  */
-export function printedKeywordsOf(state: GameState, id: InstanceId): readonly KeywordInstance[] {
+export function printedKeywordsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly KeywordInstance[] {
   const card = cardOf(state, id);
   if (!card) return [];
-  if (state.instances[id]?.facedownAs || textBoxBlank(state, id)) return [];
+  // RRG 1.8 "Blank" (p. 10): no printed text in the text box, keywords included. `deps` makes a *constant*
+  // class-wide blank visible (Tech Theft); the lasting kind needs no registry.
+  if (state.instances[id]?.facedownAs || textBoxBlankFor(state, id, deps)) return [];
   const face = encounterFace(state, id);
   if (face) return face.keywords;
   if (card.type === "villain") {
     return isVillain(state, id) ? villainStageOf(state, id).keywords : [];
   }
   if (card.type === "main_scheme") {
-    return id === state.mainScheme.instanceId ? mainSchemeStage(state).keywords : [];
+    const scheme = mainSchemeStateOf(state, id);
+    return scheme ? mainSchemeStageOf(state, scheme).keywords : [];
   }
   if (card.type === "hero_identity") {
     // Keywords are per face: read the face the identity is currently showing.
     const player = state.players.find((p) => p.identity.instanceId === id);
     if (!player) return [];
-    return player.identity.form === "hero" ? card.hero.keywords : card.alterEgo.keywords;
+    return identityFace(state, player).face.keywords;
   }
   return "keywords" in card ? card.keywords : [];
 }
@@ -42,7 +46,7 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
   if (Object.keys(deps.abilities).length === 0) return [];
   const granted: KeywordInstance[] = [];
   for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId)) {
+    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
       const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
@@ -56,7 +60,7 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
 }
 
 export function keywordsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly KeywordInstance[] {
-  const printed = printedKeywordsOf(state, id);
+  const printed = printedKeywordsOf(state, id, deps);
   const granted = grantedKeywords(state, deps, id);
   return granted.length === 0 ? printed : [...printed, ...granted];
 }
@@ -86,6 +90,44 @@ export const usesKeyword = (
   keywordsOf(state, id, deps).find(
     (keyword): keyword is Extract<KeywordInstance, { name: "uses" }> => keyword.name === "uses",
   );
+
+export const ATTACK_KEYWORDS: readonly AttackKeyword[] = ["piercing", "ranged", "overkill"];
+
+/**
+ * Everything an attack needs to know for `attackKeywordsOf`. Nothing here is stored: an attack's keywords are
+ * recomputed once, when the attack pushes its damage, and stamped on that damage event.
+ */
+export interface AttackKeywordContext {
+  readonly attackerInstanceId: InstanceId;
+  /** The card whose ability is making the attack ("your [Arrow] attacks"); null for a basic attack or an enemy activation. */
+  readonly viaInstanceId?: InstanceId | null;
+  /** Keywords the attack carries itself: `attack.keywords` ("this attack gains piercing"). */
+  readonly keywords?: readonly AttackKeyword[];
+  /** The attack/activation event frame's vars, where `modifyAttack` records a grant made mid-activation. */
+  readonly vars?: Readonly<Record<string, number>>;
+}
+
+/**
+ * The `AttackKeyword`s one attack has, from every source at once (RRG 1.8 "Piercing", p. 32; "Ranged", p. 35;
+ * "Overkill", p. 31 — each is worded as a property of an attack, not of a character):
+ *
+ * 1. the attacker's own printed or granted keyword (Crossbones "gains piercing while …");
+ * 2. `attack.keywords` on the effect that made it ("this attack gains piercing", Piercing Strike);
+ * 3. `modifyAttack.keywords` during the activation, recorded as a var named after the keyword on the attack's own
+ *    event frame ("the attack gains piercing", Crossfire's boost) — the same var `overkill` has always used;
+ * 4. a constant `attackKeywords` rule in play ("each of your [Arrow] attacks gain ranged", Hawkeye's Bow).
+ */
+export function attackKeywordsOf(state: GameState, deps: EngineDeps, attack: AttackKeywordContext): readonly AttackKeyword[] {
+  const via = attack.viaInstanceId ?? null;
+  const fromRules = grantedAttackKeywords(state, deps, attack.attackerInstanceId, via);
+  return ATTACK_KEYWORDS.filter(
+    (name) =>
+      hasKeyword(state, attack.attackerInstanceId, name, deps) ||
+      attack.keywords?.includes(name) === true ||
+      (attack.vars?.[name] ?? 0) > 0 ||
+      fromRules.includes(name),
+  );
+}
 
 /**
  * RRG "Status Cards": one of each type per character. Steady allows a second

@@ -1,5 +1,5 @@
 /** Step 10: starter decks (precons) from curation, checked against the cards just emitted. */
-import type { StarterDeck } from "../../../src/schema/index.ts";
+import type { CoreAspect, StarterDeck } from "../../../src/schema/index.ts";
 import { brand } from "./brand.ts";
 import type { NormalizeContext } from "./context.ts";
 
@@ -23,7 +23,12 @@ export function normalizeStarterDecks(ctx: NormalizeContext): StarterDeck[] {
       }
       if (qty > card.quantityInSet) errors.push(`deck ${d.id}: ${qty}× ${code} but one box has ${card.quantityInSet}`);
       if (qty > card.deckLimit) errors.push(`deck ${d.id}: ${qty}× ${code} exceeds deck limit ${card.deckLimit}`);
-      const ok = card.aspect === `hero:${d.identityCode}` || card.aspect === d.aspect || card.aspect === "basic";
+      const secondaryAspects: readonly CoreAspect[] = d.secondaryAspects ?? [];
+      const ok =
+        card.aspect === `hero:${d.identityCode}` ||
+        card.aspect === d.aspect ||
+        secondaryAspects.includes(card.aspect as CoreAspect) ||
+        card.aspect === "basic";
       if (!ok) errors.push(`deck ${d.id}: ${code} has aspect ${card.aspect}`);
     }
     if (total !== 40) errors.push(`deck ${d.id}: ${total} cards, expected 40`);
@@ -58,7 +63,7 @@ export function normalizeStarterDecks(ctx: NormalizeContext): StarterDeck[] {
       name: d.name,
       packCode: ctx.setCode,
       identityCardId: brand("card", d.identityCode),
-      aspects: [d.aspect],
+      aspects: [d.aspect, ...(d.secondaryAspects ?? [])],
       cards: Object.entries(d.cards)
         .sort(([a], [b]) => a.localeCompare(b))
         .map(([cardId, quantity]) => ({ cardId: brand("card", cardId), quantity })),

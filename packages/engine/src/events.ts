@@ -1,5 +1,5 @@
-import type { AbilityId, CardId } from "@mc/content";
-import type { ChoiceId, FrameId, InstanceId, PlayerId } from "./ids.js";
+import type { AbilityId, CardId, VillainSideLetter } from "@mc/content";
+import type { ChoiceId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { FacedownRole, Form, GameOutcome, GameStep, ZoneId } from "./state.js";
 import type { StackFrameKind, WindowTiming } from "./stack.js";
@@ -20,7 +20,32 @@ export type GameEvent =
   | { readonly type: "cardPlayed"; readonly playerId: PlayerId; readonly instanceId: InstanceId; readonly cardId: CardId; readonly resourcesPaid: number; readonly paid: ResourcePool }
   | { readonly type: "cardExhausted"; readonly instanceId: InstanceId }
   | { readonly type: "cardReadied"; readonly instanceId: InstanceId }
-  | { readonly type: "formChanged"; readonly playerId: PlayerId; readonly to: Form; readonly byEffect?: boolean }
+  /**
+   * `fromHeroFormIndex` / `heroFormIndex` are the hero faces before and after (null for alter-ego), present only for an
+   * identity with more than one hero face (docs/phase7-wave2.md §3.2), so every other identity logs exactly as before.
+   */
+  /** A player became a card's owner by taking it (RRG 1.8 "Ownership and Control", p. 31; docs/phase7-wave2.md §3.10). */
+  | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /** A scenario deck took its discard pile back, with no penalty (docs/phase7-wave2.md §3.3). */
+  | { readonly type: "scenarioDeckReset"; readonly name: string }
+  /** A set-aside villain entered play as an additional villain (`addVillain`; docs/phase7-wave2.md §3.4). */
+  | { readonly type: "villainAdded"; readonly instanceId: InstanceId; readonly cardId: CardId; readonly areaId: GameAreaId | null }
+  /** A villain was removed from the game without being defeated (`removeVillain`). */
+  | { readonly type: "villainRemoved"; readonly instanceId: InstanceId }
+  /** A separate game area was created, or players joined another area (null: the central area; the game is no longer split). */
+  | { readonly type: "gameAreaCreated"; readonly areaId: GameAreaId; readonly playerIds: readonly PlayerId[]; readonly schemeInstanceId: InstanceId }
+  | { readonly type: "gameAreaJoined"; readonly fromAreaId: GameAreaId; readonly intoAreaId: GameAreaId | null; readonly playerIds: readonly PlayerId[] }
+  /** A main scheme stage was revealed from a group of alternatives, or removed from the game. */
+  | { readonly type: "mainSchemeStageRevealed"; readonly schemeInstanceId: InstanceId; readonly stageIndex: number; readonly playerId: PlayerId }
+  | { readonly type: "mainSchemeStageRemoved"; readonly schemeInstanceId: InstanceId | null; readonly stageIndex: number }
+  | {
+      readonly type: "formChanged";
+      readonly playerId: PlayerId;
+      readonly to: Form;
+      readonly byEffect?: boolean;
+      readonly fromHeroFormIndex?: number | null;
+      readonly heroFormIndex?: number | null;
+    }
   | { readonly type: "damageDealt"; readonly targetInstanceId: InstanceId; readonly amount: number; readonly sourceInstanceId: InstanceId | null }
   | { readonly type: "damagePrevented"; readonly targetInstanceId: InstanceId; readonly amount: number; readonly reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage" }
   | { readonly type: "threatPrevented"; readonly schemeInstanceId: InstanceId; readonly amount: number }
@@ -61,7 +86,7 @@ export type GameEvent =
   | { readonly type: "schemeDefeated"; readonly instanceId: InstanceId; readonly cardId: CardId }
   | { readonly type: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** A villain turned to its other face on the same stage (Green Goblin insert, "When the Villain Changes Form"). */
-  | { readonly type: "villainFlipped"; readonly instanceId: InstanceId; readonly from: "A" | "B"; readonly to: "A" | "B" }
+  | { readonly type: "villainFlipped"; readonly instanceId: InstanceId; readonly from: VillainSideLetter; readonly to: VillainSideLetter }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }
   /** The active counter moved (The Wrecking Crew insert, "The Active Villain"). */
@@ -71,8 +96,9 @@ export type GameEvent =
       readonly to: InstanceId;
       readonly reason: "effect" | "activeVillainDefeated";
     }
-  | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number }
-  | { readonly type: "mainSchemeAdvanced"; readonly stageIndex: number }
+  /** `schemeInstanceId` only for a separate game area's own stage (docs/phase7-wave2.md §3.1); absent is the central one. */
+  | { readonly type: "mainSchemeCompleted"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
+  | { readonly type: "mainSchemeAdvanced"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
   | { readonly type: "encounterCardRevealed"; readonly instanceId: InstanceId; readonly cardId: CardId; readonly playerId: PlayerId }
   /** An empty separate deck took its discard pile back and was shuffled, with no penalty (`resetEmptySeparateDecks`). */
   | { readonly type: "separateDeckReset"; readonly playerId: PlayerId; readonly name: string }

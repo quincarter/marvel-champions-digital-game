@@ -36,6 +36,10 @@ export function normalizeEncounterSets(ctx: NormalizeContext): { encounterSets: 
         packCodes: [ctx.setCode],
         ...(hero ? { nemesisOfIdentityId: brand("card", hero.code) } : {}),
         ...(campaignSets.has(id) ? { campaignSpecific: true } : {}),
+        // Wave 2 (docs/phase7-wave2.md §6.3): the Civil War rulebook, "Custom Scenario Expansion" (p. 3) — Standard
+        // PvP "replaces the standard encounter set when playing in competitive mode". Competitive mode is not
+        // built; `validateScenarioEncounterSets` refuses a standalone scenario that names this set.
+        ...(id === "standard_pvp" ? { competitiveOnly: true } : {}),
       };
     });
   return { encounterSets, setNames };

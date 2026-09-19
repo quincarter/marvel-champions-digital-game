@@ -11,7 +11,9 @@ import { dealEncounterCardTo } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { statusActive } from "../keywords.js";
 import {
-  activeVillain,
+  activeVillainIdFor,
+  areaOfPlayer,
+  villainOf,
   countSchemeIcons,
   getPlayer,
   isMinion,
@@ -21,7 +23,7 @@ import {
   nextClockwisePlayer,
   playerOrder,
 } from "../query.js";
-import { pushEvent, pushRevealFrame } from "../resolve/index.js";
+import { pushEvent, pushEvents, pushRevealFrame } from "../resolve/index.js";
 import type { GameState, GameStep } from "../state.js";
 
 const livePlayers = (state: GameState, ids: readonly PlayerId[]): readonly PlayerId[] =>
@@ -33,17 +35,36 @@ const livePlayers = (state: GameState, ids: readonly PlayerId[]): readonly Playe
 export function executePlaceThreat(ctx: Ctx): void {
   const step = ctx.state.step;
   if (step.kind === "placeThreat" && !step.placed) {
-    const amount =
-      mainSchemeValue(ctx.state, "acceleration", ctx.deps) +
-      ctx.state.mainScheme.accelerationTokens +
-      countSchemeIcons(ctx.state, "acceleration");
     setStep(ctx, { phase: "villain", kind: "placeThreat", placed: true });
-    pushEvent(ctx, {
-      kind: "placeThreat",
-      schemeInstanceId: ctx.state.mainScheme.instanceId,
-      amount,
-      sourceInstanceId: null,
-    });
+    if (ctx.state.gameAreas.length === 0) {
+      const amount =
+        mainSchemeValue(ctx.state, "acceleration", ctx.deps) +
+        ctx.state.mainScheme.accelerationTokens +
+        countSchemeIcons(ctx.state, "acceleration");
+      pushEvent(ctx, {
+        kind: "placeThreat",
+        schemeInstanceId: ctx.state.mainScheme.instanceId,
+        amount,
+        sourceInstanceId: null,
+      });
+      return;
+    }
+    // Separate game areas (docs/phase7-wave2.md §3.1): each area places threat on its own stage, from its own
+    // acceleration, tokens and icons. The central stage's acceleration tokens add to every area's step one — RRG 1.8
+    // "Acceleration Token" (p. 5) adds their threat "to the main scheme during step one", and the central stage (The
+    // Master of Time 2B) prints no values; docs/phase7-wave2.md §4.3's proposed reading, unconfirmed.
+    pushEvents(
+      ctx,
+      ctx.state.gameAreas.flatMap((area) => {
+        if (!area.mainScheme) return [];
+        const amount =
+          mainSchemeValue(ctx.state, "acceleration", ctx.deps, area.mainScheme) +
+          area.mainScheme.accelerationTokens +
+          ctx.state.mainScheme.accelerationTokens +
+          countSchemeIcons(ctx.state, "acceleration", area);
+        return [{ kind: "placeThreat" as const, schemeInstanceId: area.mainScheme.instanceId, amount, sourceInstanceId: null }];
+      }),
+    );
     return;
   }
   setStep(ctx, {
@@ -84,7 +105,10 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
     // activation rather than fixed at the start of the step, so a counter moved during one player's activations
     // changes who activates against the next. Proposed reading of docs/phase7-wave1.md §4.10: the insert says
     // only "the active villain will activate".
-    activateEnemy(ctx, activeVillain(ctx.state).instanceId, current.playerId);
+    // With separate game areas the villain is the one in that player's area (docs/phase7-wave2.md §3.1). A defeated
+    // villain with no successor (Kang (I) under `victory: "cardAbility"`) does not activate.
+    const villainId = activeVillainIdFor(ctx.state, areaOfPlayer(ctx.state, current.playerId));
+    if (villainId && villainOf(ctx.state, villainId)?.defeated === false) activateEnemy(ctx, villainId, current.playerId);
     return;
   }
   const minions = current.playArea.filter((id) => isMinion(ctx.state, id) && !activatedMinionIds.includes(id));

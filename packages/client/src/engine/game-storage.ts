@@ -27,8 +27,10 @@ import type { SessionConfig, StateWithoutPool } from "./host.js";
  *   (`villains`/`activeVillainId`, `encounterDecks`, `CardInstance.home`; docs/phase7-wave1.md §3.1–§3.2). Saves
  *   from 1 are retired, not migrated (user decision, PLAN.md Phase 7): marked `incompatible`, never offered as
  *   Continue.
+ * - 3 (2026-09-19): separate game areas, scenario decks and set-aside scenario cards, and three-sided identities
+ *   add required state (docs/phase7-wave2.md §3). Saves from 2 are retired the same way.
  */
-export const SAVE_SCHEMA = 2;
+export const SAVE_SCHEMA = 3;
 
 /** Whether this build can read a save: only the current schema. Anything older is retired, not migrated. */
 export const isCurrentSchema = (meta: Pick<SaveMeta, "schema">): boolean => meta.schema === SAVE_SCHEMA;

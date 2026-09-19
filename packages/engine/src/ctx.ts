@@ -82,6 +82,13 @@ function setZone(state: GameState, zone: ZoneId, ids: readonly InstanceId[]): Ga
       });
     case "encounterSetAside":
       return { ...state, encounterSetAside: ids };
+    case "scenarioDeck":
+    case "scenarioDiscard": {
+      const piles = state.scenarioDecks[zone.name];
+      if (!piles) throw new EngineInvariantError(`unknown scenario deck ${zone.name}`);
+      const next = zone.kind === "scenarioDeck" ? { ...piles, deck: ids } : { ...piles, discard: ids };
+      return { ...state, scenarioDecks: { ...state.scenarioDecks, [zone.name]: next } };
+    }
     case "villainArea":
       return { ...state, villainArea: ids };
     case "victoryDisplay":

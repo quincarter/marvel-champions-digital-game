@@ -268,6 +268,7 @@ function bindsOf(effect: EffectSpec, scope: Scope): void {
     case "cancelBoostAbility":
     case "dealIndirectDamage":
     case "moveThreat":
+    case "divide":
       if (effect.bind) scope.prefixes.add(`${effect.bind}.`);
       return;
     default:

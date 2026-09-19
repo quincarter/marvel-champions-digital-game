@@ -45,6 +45,8 @@ const KEY_BRANDS: Readonly<Record<string, BrandFn>> = {
   obligationCardId: "cardId",
   villainCardId: "cardId",
   mainSchemeCardId: "cardId",
+  // `Scenario.setAsideVillainCardIds` and `Scenario.expertVillains.setAsideVillainCardIds` (wave 2 — Kang).
+  setAsideVillainCardIds: "cardId",
   identityCardId: "cardId",
   nemesisOfIdentityId: "cardId",
   signatureSideSchemeCardId: "cardId",
