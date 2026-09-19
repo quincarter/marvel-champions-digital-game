@@ -631,6 +631,12 @@ export class InspectOverlay extends Phaser.Scene {
     // `rulesGlossaryOf`/`rulesGlossaryPoolOf` (`view/rules-reference.ts`) both search on via the entry's own
     // `displayName`, so the query here is deliberately the id rather than the drawn chip text.
     void displayText;
+    // Closes this sheet first, rather than launching Rules alongside it: `#rebuild` re-claims `bringToTop` on
+    // every store update (the "Z-ORDER VS. THE PENDING-CHOICE OVERLAY" note at the top of this file), so a Rules
+    // overlay merely launched *underneath* an open Inspect would render invisibly behind it — found verifying this
+    // exact flow in the browser, where the glossary opened at the right term but nothing showed until Inspect was
+    // separately dismissed. The player asked to go read a term, not to peek at it through a gap.
+    this.#close();
     this.scene.launch(SCENES.rules, { initialTab: "glossary", initialQuery: glossaryId } satisfies RulesSceneData);
   }
 

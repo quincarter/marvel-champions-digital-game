@@ -97,6 +97,15 @@ describe("inspectModel", () => {
     expect(model.stats.some((tile) => tile.label === "HP")).toBe(true);
   });
 
+  test("carries the villain's printed traits, which live on its stage rather than the top-level card", () => {
+    // Regression: `"traits" in card` reads as false for a villain — `VillainStage.traits`, not `VillainCard.traits`
+    // — found inspecting Rhino in the browser while verifying this rebuild (BRUTE. CRIMINAL. on the printed card,
+    // nothing in the sheet).
+    const model = inspect(activeVillain(state).instanceId);
+    expect(model.traits.length).toBeGreaterThan(0);
+    expect(model.traits.map((t) => t.toLowerCase())).toContain("brute");
+  });
+
   test("lists no usable ability for a card legalActions doesn't name one on", () => {
     const identity = state.players.find((player) => player.playerId === me)!.identity.instanceId;
     expect(inspect(identity).abilities).toEqual([]);

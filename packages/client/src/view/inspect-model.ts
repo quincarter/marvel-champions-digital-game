@@ -23,6 +23,7 @@ import {
   playCostOf,
   printedResources,
   remainingHitPoints,
+  traitsOf,
   type AbilityTriggerSpec,
   type EngineDeps,
   type GameState,
@@ -248,7 +249,12 @@ export function inspectModel(
       : [],
     keywords: keywordChips.map((chip) => chip.text),
     keywordChips,
-    traits: "traits" in card ? (card.traits as readonly string[]) : [],
+    // `traitsOf` (`@mc/engine`), not `"traits" in card`: a villain's and a main scheme's printed traits live on
+    // their *stage* (`VillainStage.traits`/`MainSchemeStage.traits`), never on the top-level card, so the naive
+    // field check silently read as "no traits" for every villain and every main scheme — found inspecting Rhino
+    // (BRUTE. CRIMINAL. on the card, nothing in the sheet's traits chips) while verifying this rebuild in the
+    // browser. `traitsOf` is the same per-face/per-stage/granted-traits lookup `keywordsOf` above already uses.
+    traits: traitsOf(state, instanceId, deps),
     // The face in play, not "the front": a villain's picture lives on its
     // stage and a main scheme's on its side, so asking for a front gets
     // nothing at all for exactly the cards a player most wants to read.
