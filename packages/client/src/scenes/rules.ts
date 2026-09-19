@@ -54,7 +54,7 @@ import { McVariableList } from "../ui/variable-list.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry } from "../view/deck-pool-grid.js";
-import { glossaryCellRect, glossaryGridColumns, glossaryRowHeight, GLOSSARY_THUMB_CAPTION, GLOSSARY_THUMB_SIZE } from "../view/rules-glossary-grid.js";
+import { glossaryCellRect, glossaryGridColumns, glossaryRowHeights, GLOSSARY_THUMB_CAPTION, GLOSSARY_THUMB_SIZE } from "../view/rules-glossary-grid.js";
 import { rulesLayout, type RulesTab } from "../view/rules-layout.js";
 import { rulesGlossaryOf, rulesGlossaryPoolOf, villainPhaseOrder, type RulesCardRef, type RulesEntry, type VillainPhaseStep } from "../view/rules-reference.js";
 import { rulesCardListOf, type RulesCardListCard, type RulesCardListGroup } from "../view/rules-card-list.js";
@@ -111,8 +111,13 @@ export class RulesOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
 
-  #glossaryList: McVirtualList | null = null;
-  #glossaryScroll = new ListScroll();
+  // A `McVariableList`, not `McVirtualList`: rows are entry-card *grid rows*, and each needs only
+  // as much height as its own tallest cell (no thumbnail strip vs. one) — a plain `McVirtualList`
+  // draws every row at one uniform height, which meant every row on the tab was as tall as the
+  // single tallest entry anywhere on it (rules-glossary-grid.ts's own `glossaryRowHeights` doc
+  // comment).
+  #glossaryList: McVariableList | null = null;
+  #glossaryScroll = new VariableListScroll();
   #villainList: McVirtualList | null = null;
   #villainScroll = new ListScroll();
   #cardListList: McVariableList | null = null;
@@ -323,11 +328,11 @@ export class RulesOverlay extends Phaser.Scene {
     }
 
     const geometry = glossaryGridColumns(rect.width);
-    const rowHeight = glossaryRowHeight(
+    const heights = glossaryRowHeights(
       entries.map((entry) => ({ definition: entry.definition, cardRefCount: entry.cardRefs.length })),
+      geometry.columns,
       geometry.cellWidth,
     );
-    const rows = Math.ceil(entries.length / geometry.columns);
     const rowIds: string[] = [];
     for (const entry of entries) {
       const { shown } = glossaryThumbSlots(entry.cardRefs, glossaryTextWidth(geometry.cellWidth, isStatusEntry(entry.id)));
@@ -335,7 +340,7 @@ export class RulesOverlay extends Phaser.Scene {
     }
 
     const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow => this.#renderGlossaryRow(rowRect, geometry, entries, rowIndex, game);
-    this.#glossaryList = new McVirtualList(this, { rect, rowHeight, count: rows, renderRow, scroll: this.#glossaryScroll });
+    this.#glossaryList = new McVariableList(this, { rect, heights, renderRow, scroll: this.#glossaryScroll });
     const list = this.#glossaryList;
 
     entries.forEach((entry, entryIndex) => {
