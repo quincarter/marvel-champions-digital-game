@@ -215,6 +215,89 @@ describe("§3.14 every host kind resolves at the moment of attaching", () => {
 
 // --- the reveal procedure ---------------------------------------------------------------------------------------
 
+// --- the wave 2 data-pipeline host requests (docs/phase7-wave2.md §7) -------------------------------------------
+
+describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
+  it("'an encounter card in play' is every in-play card with no controller, and never a player's own card", () => {
+    const start = game({ encounter: [ELITE_MINION.id, SIDE.id, ...copies(BLANK.id, 14)] });
+    const withMinion = intoPlay(start, ELITE_MINION.id);
+    const withScheme = intoPlay(withMinion.state, SIDE.id);
+    const ally = giveCard(withScheme.state, p1, AVENGER_ALLY.id);
+    const inPlay: GameState = {
+      ...ally.state,
+      players: ally.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== ally.id), playArea: [...pl.playArea, ally.id] } : pl)),
+      instances: { ...ally.state.instances, [ally.id]: { ...mustInstance(ally.state, ally.id), faceup: true, controllerId: p1 } },
+    };
+    const candidates = hosts(inPlay, { kind: "encounterCard" });
+    expect(candidates).toContain(withMinion.id);
+    expect(candidates).toContain(withScheme.id);
+    expect(candidates).not.toContain(ally.id);
+    expect(candidates).not.toContain(mustPlayer(inPlay, p1).identity.instanceId);
+  });
+
+  it("'the ally with the highest cost' ranks the ally pool by printed cost, and drops cards that print none", () => {
+    const cheap = stubAlly({ id: "cheap-ally", cost: 1, atk: 1, thw: 1, hp: 3 });
+    const dear = stubAlly({ id: "dear-ally", cost: 4, atk: 1, thw: 1, hp: 3 });
+    const identities = seatIdentities(HERO, 1);
+    const result = createGame(
+      {
+        seed: 7,
+        cards: [...CARDS, cheap, dear, ...identities],
+        villainCardId: QUIET_VILLAIN.id,
+        mainSchemeCardId: LONG_SCHEME.id,
+        encounterDeck: copies(BLANK.id, 16),
+        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copies(cheap.id, 2), ...copies(dear.id, 2)] }],
+      },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    let state = runCommands(result.state, deps).state;
+    const ids: InstanceId[] = [];
+    for (const card of [cheap.id, dear.id]) {
+      const given = giveCard(state, p1, card);
+      ids.push(given.id);
+      state = {
+        ...given.state,
+        players: given.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] } : pl)),
+        instances: { ...given.state.instances, [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 } },
+      };
+    }
+    const host: AttachmentHost = { kind: "superlative", among: "ally", order: "highest", measure: "printedCost" };
+    expect(hosts(state, host)).toEqual([ids[1]]);
+    expect(hosts(state, { ...host, order: "lowest" })).toEqual([ids[0]]);
+    // The identity is a friendly character with no printed cost, so it is no candidate at all.
+    expect(hosts(state, { kind: "superlative", among: "friendlyCharacter", order: "highest", measure: "printedCost" })).toEqual([ids[1]]);
+  });
+
+  it("`titleContains` matches a substring of the title showing, and `attackedThisTurnBy` matches nothing yet", () => {
+    const spidey = stubAlly({ id: "Spider-Woman", cost: 1, atk: 1, thw: 1, hp: 3 });
+    const identities = seatIdentities(HERO, 1);
+    const result = createGame(
+      {
+        seed: 8,
+        cards: [...CARDS, spidey, ...identities],
+        villainCardId: QUIET_VILLAIN.id,
+        mainSchemeCardId: LONG_SCHEME.id,
+        encounterDeck: copies(BLANK.id, 16),
+        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copies(spidey.id, 2)] }],
+      },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    const started = runCommands(result.state, deps).state;
+    const given = giveCard(started, p1, spidey.id);
+    const state: GameState = {
+      ...given.state,
+      players: given.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] } : pl)),
+      instances: { ...given.state.instances, [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 } },
+    };
+    expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Spider" })).toEqual([given.id]);
+    expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Hulk" })).toEqual([]);
+    // Data only: no per-turn attack history is recorded, so the card is discarded (docs/phase7-wave2.md §7.4).
+    expect(hosts(state, { kind: "qualified", category: "enemy", attackedThisTurnBy: ["X-23"] })).toEqual([]);
+  });
+});
+
 describe("§3.14 attaching as a card is revealed", () => {
   it("an attachment with no legal host is discarded, and no replacement card is revealed (FAQ Counterspell #30)", () => {
     const start = game({ encounter: [COUNTERSPELL.id, ...copies(BLANK.id, 15)] });

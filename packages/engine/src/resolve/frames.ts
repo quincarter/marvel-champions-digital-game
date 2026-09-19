@@ -3,8 +3,8 @@
 import type { AbilityId, AbilityReference } from "@mc/content";
 import { type Ctx, nextFrameId, pushFrames, updateFrame } from "../ctx.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
-import { cardOf, textBoxBlank } from "../query.js";
-import { activeAbilityRefs, controllerOf, printedAbilityRefs } from "../select.js";
+import { cardOf } from "../query.js";
+import { activeAbilityRefs, controllerOf, printedAbilityRefs, textBoxBlankFor } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import type { Bindings, ReportTarget, StackFrame, TriggerCandidate, Vars } from "../stack.js";
 import { isAnnouncement, type TriggerEvent } from "../trigger-events.js";
@@ -190,14 +190,14 @@ export function gameAbilityFrames(
   actingPlayerId: PlayerId | null = null,
 ): readonly StackFrame[] {
   const card = cardOf(ctx.state, instanceId);
-  if (!card || (!refsOverride && textBoxBlank(ctx.state, instanceId))) return [];
+  if (!card || (!refsOverride && textBoxBlankFor(ctx.state, instanceId, ctx.deps))) return [];
   // Villains, main schemes and identities print abilities for every face/stage;
   // only the active one is live.
   // A flipped encounter card's live abilities are its other face's (RRG 1.8 "Flip").
   const refs =
     refsOverride ??
     (card.type === "villain" || card.type === "main_scheme" || card.type === "hero_identity" || ctx.state.instances[instanceId]?.flipped
-      ? activeAbilityRefs(ctx.state, instanceId)
+      ? activeAbilityRefs(ctx.state, instanceId, ctx.deps)
       : printedAbilityRefs(card));
   const frames: StackFrame[] = [];
   for (const ref of refs) {

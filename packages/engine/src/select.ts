@@ -144,7 +144,7 @@ export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DE
   }
   if (Object.keys(deps.abilities).length > 0) {
     for (const sourceId of cardsInPlay(state)) {
-      for (const ref of activeAbilityRefs(state, sourceId)) {
+      for (const ref of activeAbilityRefs(state, sourceId, deps)) {
         const definition = deps.abilities[ref.id];
         if (definition?.trigger.kind !== "constant" || !definition.trigger.traitGrants) continue;
         const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
@@ -432,7 +432,7 @@ export function canAttack(state: GameState, attackerId: InstanceId, targetId: In
 function attackForbidden(state: GameState, targetId: InstanceId, deps: EngineDeps): boolean {
   if (Object.keys(deps.abilities).length === 0) return false;
   for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId)) {
+    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const trigger = deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "constant") continue;
       for (const rule of trigger.rules ?? []) {
@@ -822,12 +822,95 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
   }
 }
 
-/** The ability slots that are live on a card right now (active identity face, current stage). */
-export function activeAbilityRefs(state: GameState, id: InstanceId): readonly AbilityReference[] {
+/**
+ * Class-wide text blanking: "Treat the printed text box of each [Tech] player card as if it were blank" (Tech Theft),
+ * a constant `RuleSpec blankTextBox`. `textBoxBlank` (`query.ts`) covers the *lasting* kind, which is a fixed list of
+ * instance ids and so needs no registry; a constant rule has to be found in play, which the naive version gets wrong
+ * twice (docs/phase7-wave2.md §8):
+ *
+ * 1. **Recursion.** Finding the rule needs the in-play cards' live abilities, and matching its `{ trait: TECH }`
+ *    target needs `traitsOf`, which needs them too. Both are cut the same way `traitsOf` already cuts trait grants:
+ *    the scan below reads each source's refs with the *lasting* blank check only, and evaluates the rule's own
+ *    `target`/`while` under `DEFAULT_DEPS`, so granted traits and keywords are never consulted. A blanking rule
+ *    therefore cannot depend on another blanking rule, and the answer is a fixed point after one pass.
+ * 2. **Cost.** `activeAbilityRefs` is the engine's hottest read, called once per in-play card inside `activeRules`,
+ *    `traitsOf`, `grantedKeywords` and `statModifiers`, each of which runs per query candidate. Scanning the board
+ *    on every lookup would make all of those quadratic. Two memos keep it O(1) amortized, both over **immutable
+ *    inputs and never over game state the engine reads back**: which ability ids carry the rule (per `EngineDeps`,
+ *    fixed for a whole game) and which cards are blanked (per `GameState`, which is replaced on every mutation and
+ *    never edited in place). A registry with no such rule — Core, wave 1 and all of cycle 1 — short-circuits on the
+ *    first `WeakMap` hit, so nothing that exists today pays anything at all.
+ */
+const NO_BLANKED: ReadonlySet<InstanceId> = new Set<InstanceId>();
+
+/** Ability ids in this registry that carry a constant `blankTextBox` rule. Memoized per registry object. */
+const BLANK_RULE_IDS = new WeakMap<EngineDeps, ReadonlySet<string>>();
+
+function blankRuleIds(deps: EngineDeps): ReadonlySet<string> {
+  const cached = BLANK_RULE_IDS.get(deps);
+  if (cached) return cached;
+  const ids = new Set<string>();
+  for (const [id, definition] of Object.entries(deps.abilities)) {
+    if (definition.trigger.kind === "constant" && (definition.trigger.rules ?? []).some((rule) => rule.kind === "blankTextBox")) {
+      ids.add(id);
+    }
+  }
+  BLANK_RULE_IDS.set(deps, ids);
+  return ids;
+}
+
+const BLANKED_BY_RULES = new WeakMap<GameState, WeakMap<EngineDeps, ReadonlySet<InstanceId>>>();
+
+/**
+ * Every card a constant `blankTextBox` rule in play treats as blank right now. A rule never blanks its own source
+ * (that would erase the rule), and two rules blanking each other both apply — the scan reads printed refs, so the
+ * answer does not depend on the order cards are visited.
+ */
+export function blankedByConstantRules(state: GameState, deps: EngineDeps): ReadonlySet<InstanceId> {
+  const ruleIds = blankRuleIds(deps);
+  if (ruleIds.size === 0) return NO_BLANKED;
+  const perDeps = BLANKED_BY_RULES.get(state) ?? new WeakMap<EngineDeps, ReadonlySet<InstanceId>>();
+  const cached = perDeps.get(deps);
+  if (cached) return cached;
+  const blanked = new Set<InstanceId>();
+  const inPlay = cardsInPlay(state);
+  for (const sourceId of inPlay) {
+    for (const ref of activeAbilityRefs(state, sourceId)) {
+      if (!ruleIds.has(ref.id)) continue;
+      const trigger = deps.abilities[ref.id]?.trigger;
+      if (trigger?.kind !== "constant") continue;
+      for (const rule of trigger.rules ?? []) {
+        if (rule.kind !== "blankTextBox") continue;
+        // `DEFAULT_DEPS`: printed characteristics only, so matching cannot re-enter this function.
+        const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps: DEFAULT_DEPS };
+        if (rule.while && !evaluate(state, rule.while, context)) continue;
+        for (const id of inPlay) {
+          if (id !== sourceId && matchesQuery(state, id, rule.target, context)) blanked.add(id);
+        }
+      }
+    }
+  }
+  perDeps.set(deps, blanked);
+  BLANKED_BY_RULES.set(state, perDeps);
+  return blanked;
+}
+
+/** Whether this card's printed text box is blank right now, from a lasting effect or a constant rule in play. */
+export const textBoxBlankFor = (state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean =>
+  textBoxBlank(state, id) || blankedByConstantRules(state, deps).has(id);
+
+/**
+ * The ability slots that are live on a card right now (active identity face, current stage).
+ *
+ * `deps` is what makes a *constant* class-wide blank (Tech Theft) visible; without it only the lasting kind is seen,
+ * which is what every caller that has no registry to hand wants. Passing it costs one `WeakMap` lookup in a game
+ * whose card pool has no such rule.
+ */
+export function activeAbilityRefs(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly AbilityReference[] {
   const card = cardOf(state, id);
   if (!card) return [];
   // A facedown card's own text is blank while it is facedown, and so is a card whose text box is treated as blank.
-  if (getInstance(state, id)?.facedownAs || textBoxBlank(state, id)) return [];
+  if (getInstance(state, id)?.facedownAs || textBoxBlankFor(state, id, deps)) return [];
   const face = encounterFace(state, id);
   if (face) return face.abilities;
   if (card.type === "hero_identity") {

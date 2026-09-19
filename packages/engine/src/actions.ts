@@ -170,7 +170,7 @@ export function playableFromAttachment(state: GameState, deps: EngineDeps, playe
   const host = getInstance(state, id)?.attachedTo;
   if (!host || controllerOf(state, host) !== playerId) return false;
   const context: EffectContext = { selfInstanceId: host, controllerId: playerId, event: null, bindings: {}, deps };
-  return activeAbilityRefs(state, host).some((ref) => {
+  return activeAbilityRefs(state, host, deps).some((ref) => {
     const trigger = deps.abilities[ref.id]?.trigger;
     return trigger?.kind === "constant" && trigger.playableAttachments !== undefined && matchesQuery(state, id, trigger.playableAttachments, context);
   });
@@ -272,7 +272,7 @@ export function playCostContributions(
   for (const sourceId of cardsInPlay(state)) {
     // A card nobody controls in a player's area (an obligation) speaks for that player.
     const controllerId = controllerOf(state, sourceId) ?? state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
-    for (const ref of activeAbilityRefs(state, sourceId)) {
+    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const trigger = deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "constant") continue;
       for (const modifier of trigger.costModifiers ?? []) {
@@ -329,12 +329,21 @@ function requiredResources(card: AnyCard): ResolvedRequirement {
  * The part of a play's price that is the card's own resource cost: printed, then modified, then reduced, never below 0.
  * `playRequirement` adds the card ability's cost to it.
  */
-function ownPlayCost(state: GameState, playerId: PlayerId, cardInstanceId: InstanceId, deps: EngineDeps, attachTo: InstanceId | null, x = 0): number {
+function ownPlayCost(
+  state: GameState,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  deps: EngineDeps,
+  attachTo: InstanceId | null,
+  x = 0,
+  /** A reduction the *playing effect* carries rather than a lasting one: "reducing its resource cost by 1" (§9). */
+  extraReduction = 0,
+): number {
   const card = mustCardOf(state, cardInstanceId);
   // A cost printed "X" costs the X the player chose (docs/phase7-wave2.md §3.8), before modifiers.
   const printed = "specialCost" in card && card.specialCost === "X" ? Math.max(0, x) : "cost" in card ? card.cost : 0;
   const modified = Math.max(0, printed + playCostModifier(state, deps, playerId, cardInstanceId, attachTo));
-  return Math.max(0, modified - costReductionFor(state, deps, playerId, cardInstanceId));
+  return Math.max(0, modified - costReductionFor(state, deps, playerId, cardInstanceId) - Math.max(0, extraReduction));
 }
 
 /**
@@ -343,9 +352,17 @@ function ownPlayCost(state: GameState, playerId: PlayerId, cardInstanceId: Insta
  * paid beyond a cost "were not paid for that cost" (RRG 1.8 "Cost", p. 13), so overpaying cannot meet it. Engine reading,
  * docs/phase7-wave2.md §4.12: the RRG settles only the extreme case ("cannot be played 'ignoring its resource cost'").
  */
-export function requirementUnmeetable(state: GameState, playerId: PlayerId, cardInstanceId: InstanceId, deps: EngineDeps, attachTo: InstanceId | null, x = 0): boolean {
+export function requirementUnmeetable(
+  state: GameState,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  deps: EngineDeps,
+  attachTo: InstanceId | null,
+  x = 0,
+  extraReduction = 0,
+): boolean {
   const required = requirementTotal(requiredResources(mustCardOf(state, cardInstanceId)));
-  return required > 0 && required > ownPlayCost(state, playerId, cardInstanceId, deps, attachTo, x);
+  return required > 0 && required > ownPlayCost(state, playerId, cardInstanceId, deps, attachTo, x, extraReduction);
 }
 
 /** The signed change to a card's cost from every `CostModifierSpec` that applies to playing it now (see there). */
@@ -355,7 +372,7 @@ export function playCostModifier(state: GameState, deps: EngineDeps, playerId: P
 
 /** The additional cost on this character's own basic power, if it has one (`basicPowerCosts`). */
 export function basicPowerCost(state: GameState, deps: EngineDeps, characterId: InstanceId, power: "attack" | "thwart"): AbilityCost | undefined {
-  for (const ref of activeAbilityRefs(state, characterId)) {
+  for (const ref of activeAbilityRefs(state, characterId, deps)) {
     const trigger = deps.abilities[ref.id]?.trigger;
     if (trigger?.kind !== "constant") continue;
     const found = trigger.basicPowerCosts?.find((entry) => entry.power === power);
@@ -422,7 +439,7 @@ function resourceAbilityFault(
   if (!definition || definition.trigger.kind !== "resource") {
     return { code: "no_valid_target", message: `${abilityId} is not a resource ability` };
   }
-  if (!activeAbilityRefs(state, instanceId).some((ref) => ref.id === abilityId)) {
+  if (!activeAbilityRefs(state, instanceId, deps).some((ref) => ref.id === abilityId)) {
     return { code: "no_valid_target", message: `${abilityId} is not active on ${instanceId}` };
   }
   if (controllerOf(state, instanceId) !== playerId) {
@@ -533,7 +550,7 @@ export function paymentOptions(
   }
   for (const id of cardsInPlay(ctx.state)) {
     if (controllerOf(ctx.state, id) !== playerId) continue;
-    for (const ref of activeAbilityRefs(ctx.state, id)) {
+    for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       if (ctx.deps.abilities[ref.id]?.trigger.kind !== "resource") continue;
       if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, excludeInstanceId)) continue;
       options.push({
@@ -916,8 +933,10 @@ export function playRequirement(
   deps: EngineDeps = DEFAULT_DEPS,
   attachTo: InstanceId | null = null,
   x = 0,
+  /** "…, reducing its resource cost by 1" (Team-Building Exercise; docs/phase7-wave2.md §9). */
+  extraReduction = 0,
 ): ResolvedRequirement {
-  const own = ownPlayCost(state, playerId, cardInstanceId, deps, attachTo, x);
+  const own = ownPlayCost(state, playerId, cardInstanceId, deps, attachTo, x, extraReduction);
   // A Requirement keyword turns part of the card's own cost into typed slots (see `requiredResources`).
   const required = requiredResources(mustCardOf(state, cardInstanceId));
   const typed = requirementTotal(required);
@@ -981,6 +1000,8 @@ export function pricePlay(
   choices: CostChoices,
   attachTo: InstanceId | null = null,
   x?: number,
+  /** "…, reducing its resource cost by 1" (docs/phase7-wave2.md §9): a reduction the playing effect carries. */
+  extraReduction = 0,
 ): PricedPlay | PriceFault {
   const plan = planCost(ctx.state, ctx.deps, cardInstanceId, playerId, cost, choices, handCardsIn(payment));
   if (isFault(plan)) return plan;
@@ -988,10 +1009,10 @@ export function pricePlay(
   const printedX = "specialCost" in card && card.specialCost === "X";
   if (x !== undefined && (!printedX || !Number.isInteger(x) || x < 0)) return { code: "invalid_choice", message: "X is chosen only for a cost printed X, as a whole number of at least 0" };
   const xValue = printedX ? (x ?? 0) : 0;
-  if (requirementUnmeetable(ctx.state, playerId, cardInstanceId, ctx.deps, attachTo, xValue)) {
+  if (requirementUnmeetable(ctx.state, playerId, cardInstanceId, ctx.deps, attachTo, xValue, extraReduction)) {
     return { code: "insufficient_resources", message: "its Requirement resources cannot all be spent on a cost this low" };
   }
-  const requirement = playRequirement(ctx.state, playerId, cardInstanceId, plan.requirement, ctx.deps, attachTo, xValue);
+  const requirement = playRequirement(ctx.state, playerId, cardInstanceId, plan.requirement, ctx.deps, attachTo, xValue, extraReduction);
   const pool = priceOf(ctx, playerId, payment, cardInstanceId, plan.payingFor ?? cardInstanceId);
   if (isFault(pool)) return pool;
   if (!satisfies(pool, requirement)) {
@@ -1154,6 +1175,25 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
 }
 
 /**
+ * The play restrictions every "play a card from your hand" effect checks, whatever it does about the cost. RRG 1.8
+ * "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): playing a card through an effect is
+ * still *playing* it, so form, "max per", Restricted, the unique rule and `cannotPlay` all apply.
+ */
+function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: InstanceId): string | null {
+  const card = cardOf(ctx.state, id);
+  const player = getPlayer(ctx.state, playerId);
+  if (!card || !player || !player.hand.includes(id)) return "not in hand";
+  if (!("cost" in card)) return "not a card that is played";
+  if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
+  const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
+  if (restrictions?.form && player.identity.form !== restrictions.form) return "wrong form";
+  if (playRestrictionFault(ctx.state, ctx.deps, playerId, card) || cannotPlayCard(ctx.state, ctx.deps, playerId, id)) return "a play restriction";
+  if (hasKeyword(ctx.state, id, "restricted", ctx.deps) && restrictedCardsOf(ctx.state, playerId, ctx.deps).length >= 2) return "two restricted cards";
+  if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId)) return "a matching unique card is in play";
+  return null;
+}
+
+/**
  * Why a card in hand cannot be played by an effect "ignoring its resource cost" (Chaos Magic: "Play a card from your hand,
  * ignoring its resource cost."; docs/phase7-wave2.md §3.8), or null. The play restrictions still apply; a Requirement
  * card cannot be (RRG 1.8 "Requirement (Resources)", p. 37: "cannot be played 'ignoring its resource cost' because the
@@ -1161,24 +1201,129 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
  * event is playable only through an action ability with no cost of its own, and an upgrade only onto its own identity.
  */
 export function playIgnoringCostFault(ctx: Ctx, playerId: PlayerId, id: InstanceId): string | null {
-  const card = cardOf(ctx.state, id);
-  const player = getPlayer(ctx.state, playerId);
-  if (!card || !player || !player.hand.includes(id)) return "not in hand";
-  if (!("cost" in card)) return "not a card that is played";
-  if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
-  if (card.keywords.some((keyword) => keyword.name === "requirement")) return "a Requirement card cannot be played ignoring its cost";
+  const restriction = playFromEffectRestrictionFault(ctx, playerId, id);
+  if (restriction) return restriction;
+  const card = mustCardOf(ctx.state, id);
+  const player = mustPlayer(ctx.state, playerId);
+  if ("keywords" in card && card.keywords.some((keyword) => keyword.name === "requirement")) {
+    return "a Requirement card cannot be played ignoring its cost";
+  }
   if (card.type === "upgrade" && card.attachesTo) return "an upgrade with a host of its own";
   if (card.type === "event") {
     const ability = eventActionAbility(ctx, card);
     if (!ability || ability.cost) return "an event with no cost-free action";
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form) return "wrong form";
   }
-  const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
-  if (restrictions?.form && player.identity.form !== restrictions.form) return "wrong form";
-  if (playRestrictionFault(ctx.state, ctx.deps, playerId, card) || cannotPlayCard(ctx.state, ctx.deps, playerId, id)) return "a play restriction";
-  if (hasKeyword(ctx.state, id, "restricted", ctx.deps) && restrictedCardsOf(ctx.state, playerId, ctx.deps).length >= 2) return "two restricted cards";
-  if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId)) return "a matching unique card is in play";
   return null;
+}
+
+/**
+ * Why a card in hand cannot be played by an effect that **pays** for it, at a reduced cost ("play a card from your hand
+ * that shares a trait with your hero, reducing its resource cost by 1", Team-Building Exercise; docs/phase7-wave2.md
+ * §9), or null.
+ *
+ * Unlike the ignore-cost path, a Requirement card **is** legal: its required resources are genuinely spent here.
+ * Affordability is part of the check because RRG 1.8 "Initiating Abilities" (p. 24) step 3 makes "the player's ability
+ * to pay" a condition of playing at all, and step 5 aborts a play whose costs cannot be paid — so a card the player
+ * cannot pay for is not something this effect may choose. The test is whether the *largest* payment the player could
+ * make covers the cost; a player who then selects less simply does not play the card.
+ */
+export function playWithPaymentFault(ctx: Ctx, playerId: PlayerId, id: InstanceId, extraReduction: number): string | null {
+  const restriction = playFromEffectRestrictionFault(ctx, playerId, id);
+  if (restriction) return restriction;
+  const card = mustCardOf(ctx.state, id);
+  const player = mustPlayer(ctx.state, playerId);
+  const abilityCost = card.type === "event" ? eventActionAbility(ctx, card)?.cost : undefined;
+  if (card.type === "event") {
+    const ability = eventActionAbility(ctx, card);
+    if (!ability) return "an event with no action ability";
+    if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form) return "wrong form";
+  }
+  // The ability's own cost has to be settleable without asking: `planCost` fills in a pick with exactly one legal
+  // candidate, and anything more ambiguous has nowhere to prompt from inside this effect (§9's capability note).
+  const plan = planCost(ctx.state, ctx.deps, id, playerId, abilityCost, {}, new Set([id]));
+  if (isFault(plan)) return "its own ability cost cannot be paid without a further choice";
+  const attachTo = hostForEffectPlay(ctx, playerId, id);
+  if (attachTo === undefined) return "no legal host";
+  if (requirementUnmeetable(ctx.state, playerId, id, ctx.deps, attachTo, 0, extraReduction)) {
+    return "its Requirement resources cannot all be spent on a cost this low";
+  }
+  const requirement = playRequirement(ctx.state, playerId, id, plan.requirement, ctx.deps, attachTo, 0, extraReduction);
+  if (requirementTotal(requirement) === 0) return null;
+  // Every option that is legal for *this* card on its own — which drops the ones a "you can only spend [physical]
+  // resources to pay for this card" restriction forbids (FAQ "Crushing Blow (#2)", p. 60) — then all of them at once.
+  // `satisfies` is monotone in what the pool holds, so if the largest legal payment falls short, no subset covers it.
+  // It can still over-offer in one narrow case: two resource abilities whose own costs conflict with each other. That
+  // direction is safe — the player simply cannot complete the payment and nothing is played.
+  const usable = paymentOptions(ctx, playerId, id).filter(
+    (option) => priceOrNull(ctx, playerId, paymentsFromOptionIds([option.optionId]), id) !== null,
+  );
+  const most = priceOrNull(ctx, playerId, paymentsFromOptionIds(usable.map((option) => option.optionId)), id);
+  return most !== null && satisfies(most, requirement) ? null : "not enough resources to pay for it";
+}
+
+/**
+ * Where an upgrade played by an effect attaches: its own identity when it names no host, else the single legal host.
+ * `undefined` means there is none and the card cannot be played; `null` means "not an upgrade", i.e. no host needed.
+ *
+ * Several legal hosts is a player choice the effect asks for separately (`executePlayFromHand`); this is the
+ * no-question-to-ask case, and the shape the caller uses once that choice is answered.
+ */
+export function hostForEffectPlay(ctx: Ctx, playerId: PlayerId, id: InstanceId): InstanceId | null | undefined {
+  const card = mustCardOf(ctx.state, id);
+  if (card.type !== "upgrade") return null;
+  if (!card.attachesTo) return mustPlayer(ctx.state, playerId).identity.instanceId;
+  const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps: ctx.deps };
+  const [first] = attachmentHostCandidates(ctx.state, card.attachesTo, context);
+  return first ?? undefined;
+}
+
+/** Every legal host for an upgrade an effect is about to play; empty for a card that needs none. */
+export function hostChoicesForEffectPlay(ctx: Ctx, playerId: PlayerId, id: InstanceId): readonly InstanceId[] {
+  const card = mustCardOf(ctx.state, id);
+  if (card.type !== "upgrade" || !card.attachesTo) return [];
+  const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps: ctx.deps };
+  return attachmentHostCandidates(ctx.state, card.attachesTo, context);
+}
+
+/**
+ * What an effect-played card demands right now, at the effect's reduced cost: its own cost plus its ability's, with
+ * the reduction applied. Null when its ability cost cannot be settled without a further choice.
+ */
+export function playFromEffectRequirement(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  attachTo: InstanceId | null,
+  extraReduction: number,
+): ResolvedRequirement | null {
+  const card = mustCardOf(ctx.state, id);
+  const abilityCost = card.type === "event" ? eventActionAbility(ctx, card)?.cost : undefined;
+  const plan = planCost(ctx.state, ctx.deps, id, playerId, abilityCost, {}, new Set([id]));
+  if (isFault(plan)) return null;
+  return playRequirement(ctx.state, playerId, id, plan.requirement, ctx.deps, attachTo, 0, extraReduction);
+}
+
+/**
+ * Plays a card from hand for a payment the effect's own reduction has already been applied to (Team-Building
+ * Exercise). Returns false, having spent nothing, when the payment does not cover the reduced cost.
+ */
+export function playWithPayment(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  payment: readonly Payment[],
+  attachTo: InstanceId | null,
+  extraReduction: number,
+): boolean {
+  const card = mustCardOf(ctx.state, id);
+  const ability = card.type === "event" ? eventActionAbility(ctx, card) : undefined;
+  const priced = pricePlay(ctx, playerId, id, ability?.cost, payment, {}, attachTo, undefined, extraReduction);
+  if (isFault(priced)) return false;
+  commitPlay(ctx, playerId, id, payment, priced);
+  pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings: priced.plan.bindings, vars: priced.vars });
+  payCost(ctx, id, playerId, ability?.cost, priced.plan);
+  return true;
 }
 
 /**
@@ -1209,7 +1354,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if (definition.trigger.kind !== "action") {
     return engineError("wrong_phase", `${command.abilityId} is not an action ability`, command);
   }
-  if (!activeAbilityRefs(ctx.state, command.cardInstanceId).some((ref) => ref.id === command.abilityId)) {
+  if (!activeAbilityRefs(ctx.state, command.cardInstanceId, ctx.deps).some((ref) => ref.id === command.abilityId)) {
     return engineError("no_valid_target", `${command.abilityId} is not active on that card`, command);
   }
   // "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (`cannotTriggerActions`, §3.11).

@@ -1,9 +1,9 @@
 import type { KeywordInstance, KeywordName } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
-import { cardOf, encounterFace, identityFace, isVillain, mainSchemeStageOf, mainSchemeStateOf, textBoxBlank, villainStageOf } from "./query.js";
+import { cardOf, encounterFace, identityFace, isVillain, mainSchemeStageOf, mainSchemeStateOf, villainStageOf } from "./query.js";
 import { grantedAttackKeywords } from "./rules.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, type EffectContext } from "./select.js";
+import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, textBoxBlankFor, type EffectContext } from "./select.js";
 import type { AttackKeyword, StatusName } from "./spec.js";
 import type { GameState } from "./state.js";
 
@@ -17,10 +17,12 @@ import type { GameState } from "./state.js";
  * `deps` lets keywords *gained* from constant abilities ("Klaw gains retaliate
  * 1") count; without it only printed keywords are seen.
  */
-export function printedKeywordsOf(state: GameState, id: InstanceId): readonly KeywordInstance[] {
+export function printedKeywordsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly KeywordInstance[] {
   const card = cardOf(state, id);
   if (!card) return [];
-  if (state.instances[id]?.facedownAs || textBoxBlank(state, id)) return [];
+  // RRG 1.8 "Blank" (p. 10): no printed text in the text box, keywords included. `deps` makes a *constant*
+  // class-wide blank visible (Tech Theft); the lasting kind needs no registry.
+  if (state.instances[id]?.facedownAs || textBoxBlankFor(state, id, deps)) return [];
   const face = encounterFace(state, id);
   if (face) return face.keywords;
   if (card.type === "villain") {
@@ -44,7 +46,7 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
   if (Object.keys(deps.abilities).length === 0) return [];
   const granted: KeywordInstance[] = [];
   for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId)) {
+    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
       const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
@@ -58,7 +60,7 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
 }
 
 export function keywordsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly KeywordInstance[] {
-  const printed = printedKeywordsOf(state, id);
+  const printed = printedKeywordsOf(state, id, deps);
   const granted = grantedKeywords(state, deps, id);
   return granted.length === 0 ? printed : [...printed, ...granted];
 }

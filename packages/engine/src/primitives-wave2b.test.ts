@@ -487,6 +487,96 @@ describe("§3.13 `AbilityLimit.per`: 'limit once per round for each aspect'", ()
   });
 });
 
+// ---- §9 playing a card from inside an ability, at a reduced cost -------------------------------------------------------
+
+describe("§9 `playFromHand.costReduction`: 'play a card from your hand, reducing its resource cost by 1'", () => {
+  const AVENGER = trait("AVENGER");
+  const exerciseAbility = stubAbility("exercise.action", def({
+    // "Hero Action: Exhaust Team-Building Exercise → play a card from your hand that shares a trait with your hero,
+    // reducing its resource cost by 1."
+    trigger: { kind: "action", form: "hero" },
+    effects: [{ kind: "playFromHand", player: { kind: "controller" }, costReduction: { kind: "const", value: 1 }, filter: { trait: AVENGER } }],
+  }));
+  const EXERCISE = stubSupport({ id: "exercise", cost: 0, abilities: [exerciseAbility.ref] });
+  const FRIEND = stubAlly({ id: "friend", traits: [AVENGER], cost: 3, atk: 1, thw: 1, hp: 3 });
+  const STRANGER = stubAlly({ id: "stranger", cost: 1, atk: 1, thw: 1, hp: 3 });
+  const deps = depsOf(exerciseAbility);
+  const allCards = [EXERCISE, FRIEND, STRANGER];
+
+  /** A game with Team-Building Exercise in play and `resources` spare resource cards in hand. */
+  const ready = (resources: number) => {
+    const base = newGame({
+      deps,
+      extraCards: allCards,
+      deck: [...copies(RESOURCE.id, 12), ...allCards.flatMap((c) => copies(c.id, 2))],
+    });
+    const hero = runWith(deps, base, toHero);
+    const given = giveCards(hero, p1, EXERCISE.id, FRIEND.id, STRANGER.id);
+    const [exerciseId] = given.ids as [InstanceId, InstanceId, InstanceId];
+    let state = settle(runWith(deps, given.state, play(exerciseId)), undefined, deps);
+    for (let i = 0; i < resources; i++) state = giveCards(state, p1, RESOURCE.id).state;
+    // Trim the hand to exactly the two allies plus `resources` resource cards, so the payment options are known.
+    const hand = mustPlayer(state, p1).hand;
+    const allies = hand.filter((id) => [FRIEND.id, STRANGER.id].some((c) => state.instances[id]?.cardId === c));
+    const res = hand.filter((id) => state.instances[id]?.cardId === RESOURCE.id).slice(0, resources);
+    const trimmed: GameState = { ...state, players: state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: [...allies, ...res] } : pl)) };
+    return { state: trimmed, exerciseId, resources: res };
+  };
+
+  const use = (exerciseId: InstanceId): Command => ({
+    type: "useAbility",
+    playerId: p1,
+    cardInstanceId: exerciseId,
+    abilityId: exerciseAbility.ref.id,
+    payment: [],
+  });
+
+  it("offers only cards the filter matches and the player can actually pay for, at the reduced price", () => {
+    // The Avenger ally costs 3, reduced to 2. With two resources in hand it is affordable and offered; the
+    // non-Avenger ally is filtered out even though it is cheaper.
+    const { state, exerciseId } = ready(2);
+    const after = expectOk(applyCommand(state, use(exerciseId), deps));
+    const offered = after.pendingChoice?.options.map((o) => o.optionId) ?? [];
+    const friend = mustPlayer(state, p1).hand.find((id) => state.instances[id]?.cardId === FRIEND.id) as InstanceId;
+    const stranger = mustPlayer(state, p1).hand.find((id) => state.instances[id]?.cardId === STRANGER.id) as InstanceId;
+    expect(offered).toContain(friend);
+    expect(offered).not.toContain(stranger);
+  });
+
+  it("charges the reduced cost, and nothing at all when the payment falls short", () => {
+    const { state, exerciseId } = ready(2);
+    const friend = mustPlayer(state, p1).hand.find((id) => state.instances[id]?.cardId === FRIEND.id) as InstanceId;
+    const resources = mustPlayer(state, p1).hand.filter((id) => state.instances[id]?.cardId === RESOURCE.id);
+    const choose = (s: GameState, picks: readonly string[]): GameState => {
+      const choice = s.pendingChoice;
+      if (!choice) throw new Error("no pending choice");
+      return expectOk(applyCommand(s, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: picks }, deps));
+    };
+    // Pick the ally, then pay two resources: cost 3 − 1 = 2.
+    let current = expectOk(applyCommand(state, use(exerciseId), deps));
+    current = choose(current, [friend]);
+    const paid = settle(choose(current, resources.map((id) => `hand:${id}`)), undefined, deps);
+    expect(mustPlayer(paid, p1).playArea.some((id) => paid.instances[id]?.cardId === FRIEND.id)).toBe(true);
+    expect(mustPlayer(paid, p1).hand.filter((id) => paid.instances[id]?.cardId === RESOURCE.id)).toHaveLength(0);
+
+    // Paying only one resource is not enough for a cost of 2: RRG 1.8 "Initiating Abilities" (p. 24) step 5 aborts
+    // the play without paying anything, so the ally stays in hand and the resource stays unspent.
+    let short = expectOk(applyCommand(state, use(exerciseId), deps));
+    short = choose(short, [friend]);
+    const aborted = settle(choose(short, [`hand:${resources[0] as InstanceId}`]), undefined, deps);
+    expect(mustPlayer(aborted, p1).playArea.some((id) => aborted.instances[id]?.cardId === FRIEND.id)).toBe(false);
+    expect(mustPlayer(aborted, p1).hand).toContain(friend);
+    expect(mustPlayer(aborted, p1).hand).toContain(resources[0]);
+  });
+
+  it("never offers a card the reduced cost is still out of reach for", () => {
+    // One resource in hand, an Avenger ally costing 3 → 2: unaffordable, so the effect finds nothing to play.
+    const { state, exerciseId } = ready(1);
+    const after = settle(expectOk(applyCommand(state, use(exerciseId), deps)), undefined, deps);
+    expect(mustPlayer(after, p1).playArea.some((id) => after.instances[id]?.cardId === FRIEND.id)).toBe(false);
+  });
+});
+
 // ---- §3.13.9 a string field on the triggering event -------------------------------------------------------------------
 
 describe("§3.13 `EventPattern.eventIs`: 'after a player changes to hero form'", () => {

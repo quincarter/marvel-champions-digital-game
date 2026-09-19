@@ -1,7 +1,19 @@
 /** Stepping through an effects frame, including the effects that stop for a player choice. */
 
 import type { EngineDeps } from "../abilities.js";
-import { paymentOptions, paymentsFromOptionIds, payPayment, playIgnoringCost, playIgnoringCostFault, priceOrNull } from "../actions.js";
+import {
+  hostChoicesForEffectPlay,
+  hostForEffectPlay,
+  paymentOptions,
+  paymentsFromOptionIds,
+  payPayment,
+  playFromEffectRequirement,
+  playIgnoringCost,
+  playIgnoringCostFault,
+  playWithPayment,
+  playWithPaymentFault,
+  priceOrNull,
+} from "../actions.js";
 import type { ChoiceOption } from "../choices.js";
 import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame } from "../ctx.js";
 import { dealEncounterCardTo, discardFromHand, setForm } from "../effects.js";
@@ -89,28 +101,108 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
   applyEffect(ctx, effect, context, frame);
 }
 
-/** `EffectSpec playFromHand` (docs/phase7-wave2.md §3.8): the player picks a card, which is played ignoring its cost. */
+/**
+ * `EffectSpec playFromHand` (docs/phase7-wave2.md §3.8, §9): the player picks a card from their hand and plays it,
+ * either ignoring its cost (Chaos Magic) or paying a reduced one (Team-Building Exercise).
+ *
+ * The paid mode needs up to three answers inside one effect step, so it runs as a small state machine on the frame's
+ * own vars (`_play.step`), the way `assignDamage` does: **pick the card → pick a host, if the upgrade has more than
+ * one → pick a payment**. Nothing is spent until the last step, and a payment that does not cover the reduced cost
+ * plays nothing at all (RRG 1.8 "Initiating Abilities", p. 24, step 5: "abort this process without paying any costs").
+ */
 function executePlayFromHand(ctx: Ctx, frame: Frame<"effects">, effect: Extract<EffectSpec, { kind: "playFromHand" }>, context: EffectContext): void {
   const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+  const reduction = effect.costReduction === undefined ? 0 : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
+  const paying = effect.ignoreCost !== true;
+  const fault = (id: InstanceId, player: PlayerId): string | null =>
+    paying ? playWithPaymentFault(ctx, player, id, reduction) : playIgnoringCostFault(ctx, player, id);
   const candidates = playerId
     ? (getPlayer(ctx.state, playerId)?.hand ?? []).filter(
-        (id) => !playIgnoringCostFault(ctx, playerId, id) && (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
+        (id) => !fault(id, playerId) && (!effect.filter || matchesQuery(ctx.state, id, effect.filter, context)),
       )
     : [];
-  if (frame.answer === null && playerId && candidates.length > 0) {
-    requestChoice(ctx, {
-      playerId,
-      prompt: { kind: "chooseCards", slot: "playFromHand" },
-      options: cardOptions(ctx, candidates),
-      minSelections: effect.optional ? 0 : 1,
-      maxSelections: 1,
-      frameId: frame.frameId,
+  const step = frame.vars["_play.step"] ?? 0;
+  const done = (): void => {
+    const vars = Object.fromEntries(Object.entries(frame.vars).filter(([key]) => !key.startsWith("_play.")));
+    const bindings = Object.fromEntries(Object.entries(frame.bindings).filter(([key]) => !key.startsWith("_play.")));
+    setFrame(ctx, { ...frame, answer: null, vars, bindings, cursor: frame.cursor + 1 });
+  };
+
+  if (step === 0) {
+    if (frame.answer === null && playerId && candidates.length > 0) {
+      requestChoice(ctx, {
+        playerId,
+        prompt: { kind: "chooseCards", slot: "playFromHand" },
+        options: cardOptions(ctx, candidates),
+        minSelections: effect.optional ? 0 : 1,
+        maxSelections: 1,
+        frameId: frame.frameId,
+      });
+      return;
+    }
+    const [picked] = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => candidates.includes(id));
+    if (!playerId || !picked) return done();
+    if (!paying) {
+      done();
+      playIgnoringCost(ctx, playerId, picked);
+      return;
+    }
+    // A host is only a question when the upgrade names one and several are legal (RRG 1.8 "Attach To", p. 8).
+    const choices = hostChoicesForEffectPlay(ctx, playerId, picked);
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      vars: { ...frame.vars, "_play.step": choices.length > 1 ? 1 : 2 },
+      bindings: { ...frame.bindings, "_play.card": [picked] },
     });
     return;
   }
-  const [picked] = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => candidates.includes(id));
-  setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
-  if (playerId && picked) playIgnoringCost(ctx, playerId, picked);
+
+  const [card] = frame.bindings["_play.card"] ?? [];
+  if (!playerId || !card) return done();
+
+  if (step === 1) {
+    const choices = hostChoicesForEffectPlay(ctx, playerId, card);
+    if (frame.answer === null) {
+      requestChoice(ctx, {
+        playerId,
+        prompt: { kind: "chooseTarget", slot: "playFromHandHost", abilityId: null },
+        options: cardOptions(ctx, choices),
+        minSelections: 1,
+        maxSelections: 1,
+        frameId: frame.frameId,
+      });
+      return;
+    }
+    const [host] = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => choices.includes(id));
+    if (!host) return done();
+    setFrame(ctx, { ...frame, answer: null, vars: { ...frame.vars, "_play.step": 2 }, bindings: { ...frame.bindings, "_play.host": [host] } });
+    return;
+  }
+
+  const [chosenHost] = frame.bindings["_play.host"] ?? [];
+  const attachTo = chosenHost ?? hostForEffectPlay(ctx, playerId, card) ?? null;
+  const requirement = playFromEffectRequirement(ctx, playerId, card, attachTo, reduction);
+  if (requirement === null) return done();
+
+  if (frame.answer === null) {
+    const needed = requirement.generic + requirement.physical + requirement.mental + requirement.energy + (requirement.wild ?? 0);
+    const options = needed > 0 ? paymentOptions(ctx, playerId, card) : [];
+    if (options.length > 0) {
+      requestChoice(ctx, {
+        playerId,
+        prompt: { kind: "spendResources", requirement },
+        options,
+        minSelections: 0,
+        maxSelections: options.length,
+        frameId: frame.frameId,
+      });
+      return;
+    }
+  }
+  const payment = paymentsFromOptionIds(frame.answer ?? []);
+  done();
+  playWithPayment(ctx, playerId, card, payment, attachTo, reduction);
 }
 
 /** `EffectSpec divide` (docs/phase7-wave2.md §3.7): see there. */
@@ -808,7 +900,7 @@ function executeResolveSpecials(
       ? selectTargets(ctx.state, effect.cards, context)
       : [];
   for (const id of sources) {
-    for (const ref of activeAbilityRefs(ctx.state, id)) {
+    for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       if (ctx.deps.abilities[ref.id]?.trigger.kind !== "special") continue;
       steps.push({ instanceId: id, abilityId: ref.id, controllerId: controllerOf(ctx.state, id), forced: true, fromHand: false });
     }

@@ -487,7 +487,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 > - A dash cost is refused (`card_type_not_playable`).
 > - Overpaying was already accepted. Plays now bind `overpaid.total` and `overpaid.<type>` (the most of that type that can be the excess, a wild counting as any), and `paid.*`, `overpaid.*` and `x` reach the card's own abilities while it is being played, which also fixes the Valkyrie gap PLAN.md records.
 > - `EffectSpec playFromHand { player, ignoreCost: true, filter?, optional? }` (Chaos Magic): play restrictions apply; never a Requirement card or a dash cost; `paid.*` all 0.
-> - **Not done:** playing a card inside an ability with a reduction (Team-Building Exercise), which needs a payment prompt from inside an effect; an event with a cost of its own, or an upgrade with its own host, isn't offered by `playFromHand` yet.
+> - **Landed later (§9):** playing a card inside an ability with a reduction (Team-Building Exercise) — `playFromHand.costReduction`, which also covers an event with a cost of its own and an upgrade with its own host.
 
 **Rules and cards:**
 - **Overpaying.** Ant-Man ally (12011): "place 1 pym counter on him (to a maximum of 4) for each resource you overpaid for Ant-Man's cost". Wasp ally (13012) counts [energy] only.
@@ -548,7 +548,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 > - Trigger event `cardReadying`, pushed only when heard, so "When attached character would ready, … instead" can replace a ready (Frozen in Time); `readyOrAnnounce` is used by the end-of-phase ready step and the `ready` effect.
 > - `modifyAttack.extraBoostCards` takes a value ("an additional boost card for each side scheme in play").
 > - **Already covered, no change:** damage placed on a non-character (`replaceTriggeringEvent` + `placeDamage`), the conditional "cannot take damage" (`cannotTakeDamage.while`), redirecting prevented damage, and hand-size modifiers.
-> - **Not done:** "Treat the printed text box of each [Tech] player card as if it were blank" as a constant. `textBoxBlank` is read without the ability registry, so a constant blank would need that reader reworked. Also not done: Superhuman Agility's "limit once per round for each aspect", which needs a limit keyed by the played card's aspect.
+> - **Landed later:** "Treat the printed text box of each [Tech] player card as if it were blank" as a constant is §8; Superhuman Agility's "limit once per round for each aspect" is §3.13.8.
 
 - **`basicPowerUsed { characterInstanceId, power }`.** Quicksilver's Super Speed, Captain Marvel ally (04032), Rapid Growth, the Scarlet Witch ally.
   - FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61): a stunned attack or confused thwart "is not considered to have used a basic power".
@@ -599,12 +599,12 @@ A pack whose cards need an unbuilt primitive stays data only.
 > | §6.11 once per round per aspect | `AbilityLimit.per` | **Landed**, §3.13.8 |
 > | §6.10 "after a player changes to hero form" | `EventPattern.eventIs` | **Landed**, §3.13.9 |
 > | §6.9 Interrupt on a card entering play, and "each other" | `cardEntersPlay` is interruptible; `TargetQuery.excluding` | **Landed**, §3.13.10 |
-> | §6.11 blanking a class of cards (Tech Theft) | — | **Not done**, §3.13.11 |
-> | §3.8 play a card inside an ability with a reduction | — | **Not done**, §3.13.11 |
+> | §6.11 blanking a class of cards (Tech Theft) | `RuleSpec blankTextBox` + the blanked-set layer | **Landed later**, §8 |
+> | §3.8 play a card inside an ability with a reduction | `playFromHand.costReduction` | **Landed later**, §9 |
 > | §3.6 / §4.8 boost counts made by card effects | — | **Not done**, §3.13.11 (open rules question) |
 >
-> Tests: `packages/engine/src/primitives-wave2b.test.ts` (18 tests). Nothing below renumbers or removes an existing
-> field; the only observable shape change anywhere is §3.13.3's, and it is opt-in.
+> Tests: `packages/engine/src/primitives-wave2b.test.ts` (21 tests, the last three §9's). Nothing below renumbers or
+> removes an existing field; the only observable shape change anywhere is §3.13.3's, and it is opt-in.
 
 #### 3.13.1 An attack keyword granted to one attack (§6.1)
 
@@ -818,39 +818,13 @@ the query.
 `self: false` already excluded the ability's *own* card; this excludes a card the ability names some other way (the
 triggering event's subject, a slot, the host). Useful well beyond this card — any "each other …" text.
 
-#### 3.13.11 Recorded as NOT done, with reasons
+#### 3.13.11 Recorded as NOT done in this pass
 
-**Blanking a whole class of cards' text** — "Treat the printed text box of each [Tech] player card as if it were
-blank" (Tech Theft 12026, a side scheme's constant; `ant`, not started). **Not built.** `textBoxBlank` (`query.ts`)
-reads only lasting effects, and it is consulted by `activeAbilityRefs` (`select.ts`), `printedKeywordsOf`
-(`keywords.ts`) and `gameAbilityFrames` (`resolve/frames.ts`) — which are exactly the functions that would have to
-find the blanking rule. Two concrete problems, both structural rather than fiddly:
-
-- **Recursion.** Finding a constant rule means `activeRules` → `activeAbilityRefs` → `textBoxBlank`; and matching the
-  rule's `{ trait: TECH }` target means `traitsOf` → `activeAbilityRefs` → `textBoxBlank` again. It is breakable (a
-  printed-refs-only scan for the blanking rules, with the rule's own query matched under `DEFAULT_DEPS` so granted
-  traits and keywords are not consulted — the same trick `traitsOf` already uses for trait grants), but it has to be
-  written deliberately, not bolted on.
-- **Cost.** `activeAbilityRefs` is the engine's hottest read, called once per in-play card inside `activeRules`,
-  `traitsOf`, `grantedKeywords` and `modifiers`, each of which is itself called per query candidate. Making it scan
-  every in-play card for a blanking rule turns those loops quadratic. The right shape is a **blanked-set layer**
-  computed once per scan and handed down, not a predicate called from the leaf.
-
-Neither is hard; both are a focused refactor of the ability-lookup layer rather than an additive field, and the only
-card in the pool that needs it is in a pack nobody has started. Recommendation: do it as its own change, with the
-layering above, before `ant` is scripted.
-
-**Playing a card inside an ability with a cost reduction** — "play a card from your hand that shares a trait with
-your hero, reducing its resource cost by 1" (Team-Building Exercise 12024/30022/46021; `ant`, not started).
-**Not built.** `playFromHand` today only plays a card *ignoring* its cost, which needs no payment. A reduced cost
-needs a second prompt inside the same effect step (choose the card, then choose the payment) and the whole
-`playCard` legality and pricing path reached from inside an effect — including the judgement calls `playIgnoringCost`
-currently side-steps by being conservative: whether a card the player cannot afford is offered at all, whether an
-event with its own ability cost may be chosen, and which host an upgrade attaches to. Each of those is a rules
-decision, and getting one subtly wrong is worse than leaving the card unscripted (docs/phase7-wave2-scripting.md
-§4.1). The shape when it is built: `playFromHand` gains `costReduction?: ValueSpec` (and `ignoreCost` becomes
-optional rather than required), with the reduction expressed as a lasting `costReduction` created for that player
-and consumed by `commitPlay`'s existing `consumeCostReductions`, so the client's price note explains it for free.
+**Blanking a whole class of cards' text** (Tech Theft 12026) and **playing a card inside an ability with a cost
+reduction** (Team-Building Exercise 12024) were both left out of this pass, each because it is a focused refactor
+rather than an additive field: the first needs a blanked-set layer over the ability lookup (recursion and a
+quadratic cost to avoid), the second a second and third prompt inside one effect step plus three rules judgement
+calls. **Both were built in the pass after this one — §8 and §9 below.**
 
 **Boost counts made by card effects** — Hex Bolt (15004), Taskmaster's and Crossbones' "discard the top card of the
 encounter deck … boost icons on that card". **Not built, deliberately: it is §4.8's open rules question,** not an
@@ -897,6 +871,10 @@ today; what is undecided is whether Chaos Control (`scw`, not started) can repla
 
 12. **Requirement against a reduced cost** (§6.1). RRG 1.8 "Requirement (Resources)" (p. 37) says the required resources must be "spent while paying for that card's cost", and that the card "cannot be played 'ignoring its resource cost'". It does not say what happens when an effect reduces the cost below the number of required resources.
     - **Implemented:** the card cannot be played (`requirementUnmeetable`, `actions.ts`), because resources beyond a cost "were not paid for that cost" (RRG 1.8 "Cost", p. 13). The other reading is that the required resources are always spent even above the reduced cost. Needs confirming.
+
+13. **What the Prerequisite keyword gates** (§7.5). RRG 1.8 has no entry; the Fear No Evil rulebook (p. 3) is the only source and is not in this repo, and the one printed card that has it (Defend Our City 61029, a **player side scheme**) carries no reminder text.
+    - Unclear whether the keyword bars *playing* the card, bars *triggering its abilities*, or both — and, on a card that enters play some other way, whether it keeps checking while the card is in play or only at the moment it is played.
+    - **Implemented: data only.** The schema shape is `{ name: "prerequisite", traits?, form? }` and the engine does nothing with it; a card carrying it cannot be marked playable. Nothing is guessed. Read the rulebook page before building the semantics; `PlayRestrictions.form` / `requiresIdentityTrait` is the likely target.
 
 ---
 
@@ -1072,3 +1050,232 @@ The ten schema needs in `docs/phase7-wave2-data.md` §3, each checked against th
 - **Main scheme text may be blank,** like a villain stage's: `stage.text` and `stage.aSide.text` use `isCardTextAllowEmpty`. Attack on Mount Athena (04061) prints a blank stage 1B and blank 2A/3A.
 - **Boost icons have no upper bound:** a whole number of at least 0. Joystick (51039), Fixer (53038) and Blizzard (54034) print 4. `schema.test.ts`'s old "more than 3 is invalid" test now asserts the opposite, and fractions or negatives are refused.
 - The exclusions `KNOWN_SCHEMA_GAP_MAIN_SCHEME_BLANK_TEXT` (`src/data/wave2.test.ts`) and `KNOWN_SCHEMA_GAP_BOOST_ICON_CAP` (`src/data/data-only.test.ts`) are removed; every emitted card validates.
+
+---
+
+## 7. Schema requests from the data pipeline (owner: `game-rules-architect`; landed 2026-09-19)
+
+The confirmed schema gaps `card-data-pipeline` reported in `docs/phase7-wave2-data.md` (Part 1 §6, Part 3 §5), each
+with a real card behind it. Landed in `packages/content/src/schema/**`, additively — every existing card still
+validates and every existing test passes unchanged. Fixtures: `packages/content/src/schema/wave2-data-requests.test.ts`
+(14 tests); the engine side, where there is one, is in `packages/engine/src/attachment-hosts.test.ts` (3 tests).
+
+> **Progress / next up.** §7.1–§7.5 are landed. §7.6 was already closed by the §6.13 pass — the pipeline can drop
+> both exclusion constants (they are already gone from `packages/content/src/data/**`; nothing to do). The one
+> shape that is **data only** is §7.4's temporal qualifier, and §7.5's two keywords, each for the reason given.
+
+### 7.1 `SuperlativeHostPool` `"ally"` and `HostMeasure` `"printedCost"`
+
+- **Cards:** Beguiled (`valk` 25031), 'Pool-ized (`deadpool` 44041): "Attach to the ally with the highest cost
+  without [this] attached."
+- **Shape:**
+  ```ts
+  { kind: "superlative", among: "ally", order: "highest", measure: "printedCost", withoutAttachmentNamed: "Beguiled" }
+  ```
+- **The measure is named `printedCost`, not `cost`** — deliberately, to match the existing `printedHp`/`printedAtk`
+  and the engine's own `ValueSpec printedCost`. RRG 1.8 "Printed" (p. 35): a card in play has no other cost, because
+  cost modifiers change what a card costs *to play*, not what it costs once it is in play. **Pipeline: emit
+  `measure: "printedCost"` for "the … with the highest/lowest cost".**
+- **Validation:** `printedCost` is refused over an encounter-only pool (`minion`, `enemy`, `villain`), since only
+  player cards print a cost; `ally` and `friendlyCharacter` are both accepted.
+- **Engine, landed:** ranked like every other measure, and a candidate with no printed cost is dropped before ranking
+  (`hasMeasure`), so a friendly-character pool ranks its allies and ignores the identity.
+
+### 7.2 `AttachmentHost { kind: "encounterCard" }`
+
+- **Card:** Coordinated Effort (`wonder_man` 58032): "Attach to an encounter card in play. Max 1 per encounter card."
+- **Shape:** `{ kind: "encounterCard" }`; the second sentence is the existing `playRestrictions.maxPerHost: 1`.
+- Any card in play on the encounter side, whatever its type (RRG 1.8 "Encounter Card", p. 18) — as opposed to
+  `enemy`/`sideScheme`/`minion`, which name one category. **Engine, landed:** every in-play card with no controller,
+  which is exactly the test `friendlyCharacter` inverts (RRG 1.8 "Friendly", p. 21).
+
+### 7.3 `HostQualifiers.titleContains`
+
+- **Card:** Warrior of the Great Web (`spiderham` 30029): "Attach to a character with 'Spider' in its title."
+- **Shape:** `{ kind: "qualified", category: "character", titleContains: "Spider" }`. A case-sensitive substring; an
+  empty string is refused (it would match everything). Usable on `superlative` too — both share `HostQualifiers` —
+  and it counts as a qualifier for the "a `qualified` host needs at least one" rule.
+- **The title only, not the subtitle.** RRG 1.8 "Subtitle" (p. 41) defines a subtitle as a separate line "beneath the
+  title", so "Hawkeye (Kate Bishop)" does not match `"Kate"`. **Engine, landed:** matched against `currentName`, the
+  face the card is currently showing — the same face `namedCard` compares against, so a flipped identity is matched
+  on the face that is up.
+
+### 7.4 `HostQualifiers.attackedThisTurnBy` — **data only**
+
+- **Card:** Puncture Wound (`x23` 43012): "Attach to an enemy that X-23 or Honey Badger attacked this turn."
+- **Shape:** `{ kind: "qualified", category: "enemy", attackedThisTurnBy: ["X-23", "Honey Badger"] }` — the card
+  titles whose attacks count. An empty list is refused (it could only mean "no host").
+- **The only *temporal* qualifier in the set:** every other `HostQualifiers` field reads a static characteristic of
+  the candidate, while this one reads history. **The engine records no per-turn attack history**, so the qualifier
+  matches nothing and the attachment is discarded (RRG 1.8 "Attach To", p. 8; FAQ "Counterspell (#30)", p. 60) —
+  chosen over guessing, and pinned by a test so it cannot drift into a silent half-implementation.
+- **What it needs to become real:** a `GameState` record of "which characters attacked which enemies this turn",
+  written where the `attack` / `enemyAttack` events resolve and cleared at each turn end (the same lifecycle
+  `playedThisPhase` already has). A card using this qualifier must not be marked playable until then
+  (docs/phase7-wave1.md §3.1).
+
+### 7.5 The Fear No Evil keywords: Prerequisite and Starting
+
+Both are on the Fear No Evil rulebook's "Featured Keywords" page (p. 3), which is **not in this repo**; RRG 1.8 has
+no entry for either. So both glossary entries are `insert-not-in-repo` and `unverified: true`, exactly as `discount`
+already is, and both are **data only**.
+
+- **`{ name: "prerequisite", traits?: Trait[], form?: "hero" | "alterEgo" }`.** Printed
+  `Prerequisite ([Defender]).` on Defend Our City (`jj` 61029), a player side scheme. `traits` is an OR, spelled like
+  `discount`'s; `form` is the other half of the rulebook's "form or trait", which no emitted card prints yet. At
+  least one of the two is required. The closest existing shapes are `PlayRestrictions.form` and
+  `PlayRestrictions.requiresIdentityTrait`, which is most likely what it compiles to — **but what exactly the keyword
+  gates is unconfirmed (§4.13).**
+- **`{ name: "starting" }`,** no parameters. Its printed reminder text is the same on every card that has it (Innate
+  Reflexes 60038; Innate Aggression/Perception/Inspiration 61034/61036/61037): "You may add this card to your hand
+  before drawing your starting hand." It is a **setup** keyword, and the engine has no pre-opening-draw step to hang
+  it on (Appendix II step 11 draws the opening hand); a card with it must not be marked playable until there is one.
+
+### 7.6 The two older gaps — already closed
+
+Both were closed in the §6.13 pass, before this one: a main scheme stage's `text`/`aSide.text` use
+`isCardTextAllowEmpty` (Attack on Mount Athena 04061a prints a blank 1B and blank 2A/3A), and a minion's boost icons
+are a whole number of at least 0 with no cap (Joystick 51039, Fixer 53038, Blizzard 54034 print 4). Both are now also
+pinned from the pipeline's side in `wave2-data-requests.test.ts` §7.6. `KNOWN_SCHEMA_GAP_MAIN_SCHEME_BLANK_TEXT` and
+`KNOWN_SCHEMA_GAP_BOOST_ICON_CAP` no longer appear anywhere in `packages/content/src`, so there is nothing for the
+pipeline to remove.
+
+### 7.7 Parser mappings this adds
+
+| Raw text | Emit |
+|---|---|
+| `Attach to the ally with the highest cost without X attached.` | `{ kind: "superlative", among: "ally", order: "highest", measure: "printedCost", withoutAttachmentNamed: "X" }` |
+| `Attach to an encounter card in play.` | `{ kind: "encounterCard" }` (+ `playRestrictions.maxPerHost` for "Max 1 per encounter card") |
+| `Attach to a character with "X" in its title.` | `{ kind: "qualified", category: "character", titleContains: "X" }` |
+| `Attach to an enemy that A or B attacked this turn.` | `{ kind: "qualified", category: "enemy", attackedThisTurnBy: ["A", "B"] }` (data only) |
+| `Prerequisite (T).` / `Prerequisite (T1 or T2).` | `{ name: "prerequisite", traits: [T] }` / `traits: [T1, T2]` |
+| `Starting.` (with or without its reminder text) | `{ name: "starting" }` |
+
+### 7.8 Not requested, and not done
+
+- **`iceman` 46002's "hero card in a set with no identity"** (also `fne`, `hercules`, `storm`). The pipeline asked
+  for a decision, not a shape. It is **not** the Ant-Man/Wasp three-sided case (§1.1): 46002 is an ordinary signature
+  upgrade that MarvelCDB files under its own `card_set_code`. Nothing in the printed card suggests a new mechanic, so
+  the schema needs no change — this is a **curation-level set-code alias** (`iceman_frostbite` → `iceman`), which is
+  the pipeline's own `Correction` machinery. Recorded here so it is not re-raised as a schema gap.
+
+---
+
+## 8. Blanking a whole class of cards' text (owner: `game-rules-architect`; landed 2026-09-19)
+
+"Treat the printed text box of each [Tech] player card as if it were blank." (Tech Theft 12026, `ant`, a side
+scheme's constant ability.) Recorded as not-done in §3.13.11 and built here as the focused refactor that note
+described. Tests: `packages/engine/src/blank-text-box.test.ts` (6 tests). Every existing engine test passes
+unchanged.
+
+### 8.1 The shape
+
+**`RuleSpec { kind: "blankTextBox"; target: TargetQuery; while?: Predicate }`** — the *constant* sibling of the
+existing lasting `EffectSpec blankTextBox`, which blanks a fixed list of cards for a duration.
+
+```ts
+// "Treat the printed text box of each [Tech] player card as if it were blank." (Tech Theft 12026)
+{ kind: "blankTextBox", target: { trait: TECH, categories: ["ally", "upgrade", "support"] } }
+```
+
+- **"Player card" is the category list, not `controller: "you"`.** The rule sits on an encounter card, which has no
+  controller for "you" to resolve to, and the card says "each", not "your". The player card types in play are ally,
+  upgrade and support.
+- **What goes:** the card's abilities (constant, triggered and action) and its printed keywords — RRG 1.8 "Blank"
+  (p. 10): the card "is treated as if it had no printed text in its text box". An attachment's printed stat box is
+  outside the text box and still applies (ruling, Apr 30, 2026 (3) answer 4), as it already did for the lasting kind.
+- **A rule never blanks its own source** (it would erase itself). Two rules blanking each other both apply, which is
+  a stable answer that does not depend on the order cards are visited.
+- It stops the instant the blanking card leaves play, like any constant.
+
+### 8.2 The layer, and why it is not a predicate in the leaf
+
+`blankedByConstantRules(state, deps)` / `textBoxBlankFor(state, id, deps)` (`select.ts`) sit between the rule and
+`activeAbilityRefs`, `printedKeywordsOf` and `gameAbilityFrames`. §3.13.11 named two problems; both are solved here
+rather than worked around:
+
+1. **Recursion.** Finding the rule needs the in-play cards' live abilities, and matching its `{ trait: TECH }` target
+   needs `traitsOf`, which needs them too. Cut exactly the way `traitsOf` already cuts trait grants: the scan reads
+   each source's refs with the **lasting** blank check only, and evaluates the rule's own `target` and `while` under
+   `DEFAULT_DEPS`, so granted traits and keywords are never consulted. **A card that has the trait only as a *grant*
+   is therefore not blanked** — pinned by a test. A blanking rule cannot depend on another blanking rule, so one pass
+   is a fixed point.
+2. **Cost.** `activeAbilityRefs` is the engine's hottest read. Two memos keep the lookup O(1) amortized, both over
+   inputs that are immutable for their lifetime and neither over anything the engine reads back as game state:
+   - which ability ids carry the rule, per `EngineDeps` (one object for a whole game);
+   - which cards are blanked, per `GameState` (replaced on every mutation, never edited in place).
+
+   **A registry with no such rule — Core, wave 1 and all of cycle 1 — short-circuits on the first `WeakMap` hit, so
+   nothing that exists today pays anything at all.**
+
+`activeAbilityRefs(state, id, deps?)` and `printedKeywordsOf(state, id, deps?)` gained an optional `deps`; without it
+they behave exactly as before (lasting blanks only), which is what the callers with no registry to hand want. It is
+threaded through every reader where a blanked card's text must stop working: `activeRules`, `grantedKeywords`,
+`traitsOf`, `statModifiers`, `attackForbidden`, the trigger scan, `gameAbilityFrames`, `legalActions`, the state
+checks, and the action/resource-ability paths in `actions.ts`.
+
+### 8.3 The perf regression test
+
+`blank-text-box.test.ts` counts reads of `state.instances[...]` — the lookup every card read goes through — during
+one full ability scan of the board, at 4 and at 20 filler cards. Measured both ways while writing it:
+
+| build | rule in the pool, not in play | rule in play | overhead at n = 20 |
+|---|---|---|---|
+| memoized (this one) | 3.29× | 3.31× | 1.70× |
+| per-lookup rescan (the cliff) | 9.86× | 9.94× | 2.39× |
+
+Five times the board is five times the reads if the scan is linear and ~25× if it is quadratic, so the test's bound
+of 5 sits with about 50% headroom on either side of the two builds.
+
+---
+
+## 9. Playing a card from inside an ability, at a reduced cost (owner: `game-rules-architect`; landed 2026-09-19)
+
+"Hero Action: Exhaust Team-Building Exercise → play a card from your hand that shares a trait with your hero,
+reducing its resource cost by 1." (12024 `ant` / 30022 `spiderham` / 46021 `iceman`.) Recorded as not-done in
+§3.13.11 and built here. Tests: `packages/engine/src/primitives-wave2b.test.ts` §9 (3 tests).
+
+### 9.1 The shape
+
+**`playFromHand.costReduction?: ValueSpec`**, beside the existing `ignoreCost`. `ignoreCost` is no longer required,
+so exactly one of the two modes is set; every existing caller passes `ignoreCost: true` and is unaffected.
+
+```ts
+// "play a card from your hand that shares a trait with your hero, reducing its resource cost by 1"
+{ kind: "playFromHand", player: { kind: "controller" }, costReduction: { kind: "const", value: 1 }, filter: { trait: AVENGER } }
+```
+
+The reduction is carried explicitly down the pricing path (`pricePlay` → `playRequirement` → `ownPlayCost`, each with
+a new optional `extraReduction`) rather than by creating a lasting `costReduction` effect and cleaning it up — no
+state to add and remove, and `requirementUnmeetable` (§4.12) sees the reduced cost for free. The price is floored at
+0 as every other reduction is.
+
+**Resolution is a three-answer state machine on the effect frame's own vars** (`_play.step`), the way `assignDamage`
+already works: pick the card → pick a host, if the upgrade names one and several are legal → pick a payment. Nothing
+is spent until the last step.
+
+### 9.2 The three judgement calls, and where the rules land
+
+1. **Is a card the player cannot afford offered at all? — Settled by the RRG; followed.** RRG 1.8 "Initiating
+   Abilities" (p. 24) step 3 makes "the player's ability to pay [the costs], taking modifiers into account" a
+   condition checked *before* the card is played, and step 5 says a play whose costs cannot be paid "abort[s] this
+   process without paying any costs". So an unaffordable card is not a legal choice, and a payment that falls short
+   plays nothing and spends nothing. Both halves are pinned by test.
+   - The affordability test is "does the largest payment the player could legally make for **this** card cover the
+     reduced cost" — options that a "you can only spend [physical] resources to pay for this card" restriction
+     forbids are dropped first (FAQ "Crushing Blow (#2)", p. 60), and `satisfies` is monotone, so no subset can
+     succeed where the union fails. It can still over-offer in one narrow case (two resource abilities whose own
+     costs conflict); that direction is safe, since the player then simply cannot complete the payment.
+2. **May an event with its own ability cost be chosen? — Settled by the RRG; followed.** Step 3 says "the cost (or
+   costs)", plural, so playing such an event means paying both. It is allowed, and both are charged.
+   - **Capability limit, not a rules reading:** the ability's cost must be settleable without a further question.
+     `planCost` fills in a pick with exactly one legal candidate; anything more ambiguous ("exhaust any number of
+     allies") has nowhere to prompt from inside this effect, so the card is not offered. Widening this means a
+     fourth prompt step, not a rules decision.
+3. **Which host does an upgrade attach to? — Settled by the RRG; followed.** RRG 1.8 "Attach To" (p. 8): the host is
+   checked when the card would be attached, and choosing among legal hosts is the playing player's. An upgrade that
+   names no host goes on its own identity; one that names a host with a single legal candidate takes it without
+   asking; several legal hosts is a prompt. No legal host means the card is not offered.
+
+Nothing here needed an unconfirmed reading, so **no new §4 entry**. The one limit worth knowing is 2's capability
+note above.

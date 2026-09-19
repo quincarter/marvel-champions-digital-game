@@ -126,7 +126,7 @@ export function candidatesFor(
 ): readonly TriggerCandidate[] {
   const found: TriggerCandidate[] = [];
   for (const id of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, id)) {
+    for (const ref of activeAbilityRefs(state, id, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition) continue;
       const trigger = definition.trigger;

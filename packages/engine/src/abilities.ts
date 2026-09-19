@@ -291,6 +291,18 @@ export type RuleSpec =
    * Jan 26, 2026 (3)). See `resolve/event.ts` `applyDamage` for the ordering and the open overkill question.
    */
   | { readonly kind: "excessDamageAsThreat"; readonly source: TargetQuery; readonly scheme: "ownSignatureSideScheme" | TargetRef; readonly while?: Predicate }
+  /**
+   * "Treat the printed text box of each [Tech] player card as if it were blank." (Tech Theft 12026, a side scheme's
+   * constant): a whole *class* of cards, matched live, as against the lasting `blankTextBox` effect, which blanks a
+   * fixed list of cards for a duration. A blanked card has no abilities and no printed keywords (RRG 1.8 "Blank",
+   * p. 10: "the card is treated as if it had no printed text in its text box"); an attachment's printed stat box is
+   * outside the text box and still applies (ruling, Apr 30, 2026 (3) answer 4).
+   *
+   * Read through `blankedByConstantRules` (`select.ts`), which explains why it cannot be a plain predicate in the
+   * ability-lookup leaf: the rule's own target is matched on *printed* characteristics so the lookup cannot recurse,
+   * and a rule never blanks its own source.
+   */
+  | { readonly kind: "blankTextBox"; readonly target: TargetQuery; readonly while?: Predicate }
   /** "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword. */
   | { readonly kind: "cannotLeavePlay"; readonly target: TargetQuery; readonly while?: Predicate }
   /**

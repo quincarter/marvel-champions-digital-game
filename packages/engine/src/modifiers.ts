@@ -59,7 +59,7 @@ export function modifiersFor(
   }
 
   for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId)) {
+    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (!definition || definition.trigger.kind !== "constant") continue;
       const context: EffectContext = {

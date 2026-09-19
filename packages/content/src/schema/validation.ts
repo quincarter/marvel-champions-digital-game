@@ -116,6 +116,23 @@ function requirementErrors(k: { resources?: unknown; icon?: unknown }, label: st
   return errors;
 }
 
+/**
+ * Prerequisite (form or trait): at least one of `traits` (a non-empty OR) or `form` (the Fear No Evil rulebook, p. 3;
+ * docs/phase7-wave2.md §7.5). A keyword with neither could only mean "no prerequisite", so it is refused.
+ */
+function prerequisiteErrors(k: { traits?: unknown; form?: unknown }, label: string): string[] {
+  const errors: string[] = [];
+  const hasTraits = k.traits !== undefined;
+  if (hasTraits && (!Array.isArray(k.traits) || k.traits.length === 0 || !k.traits.every(isNonEmptyString))) {
+    errors.push(`${label} prerequisite keyword traits must name at least one trait`);
+  }
+  if (k.form !== undefined && k.form !== "hero" && k.form !== "alterEgo") {
+    errors.push(`${label} prerequisite keyword form must be 'hero' or 'alterEgo' when present`);
+  }
+  if (!hasTraits && k.form === undefined) errors.push(`${label} prerequisite keyword needs a form or at least one trait`);
+  return errors;
+}
+
 /** Discount X (trait): a positive value and at least one trait (the Fear No Evil rulebook, p. 3; docs/phase7-wave2.md §6.2). */
 function discountErrors(k: { value?: unknown; traits?: unknown }, label: string): string[] {
   const errors: string[] = [];
@@ -129,7 +146,15 @@ function discountErrors(k: { value?: unknown; traits?: unknown }, label: string)
 function keywordListErrors(keywords: unknown, label: string): string[] {
   if (!Array.isArray(keywords)) return [`${label} keywords must be an array`];
   const errors: string[] = [];
-  for (const k of keywords as readonly { name?: unknown; count?: unknown; value?: unknown; resources?: unknown; icon?: unknown; traits?: unknown }[]) {
+  for (const k of keywords as readonly {
+    name?: unknown;
+    count?: unknown;
+    value?: unknown;
+    resources?: unknown;
+    icon?: unknown;
+    traits?: unknown;
+    form?: unknown;
+  }[]) {
     if (!k || !isNonEmptyString(k.name)) errors.push(`${label} has a keyword without a name`);
     if (k?.name === "uses" && (!isNonNegativeNumber(k.count) || (k.count as number) < 1)) {
       errors.push("uses keyword must have a count >= 1");
@@ -142,6 +167,7 @@ function keywordListErrors(keywords: unknown, label: string): string[] {
     }
     if (k?.name === "requirement") errors.push(...requirementErrors(k, label));
     if (k?.name === "discount") errors.push(...discountErrors(k, label));
+    if (k?.name === "prerequisite") errors.push(...prerequisiteErrors(k, label));
   }
   return errors;
 }
@@ -161,12 +187,29 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
     optionalName("trait");
     optionalName("withoutTrait");
     optionalName("withoutAttachmentNamed");
+    optionalName("titleContains");
     for (const key of ["keyword", "withoutKeyword"] as const) {
       if (h[key] !== undefined && !KNOWN_KEYWORD_NAMES.includes(h[key] as KeywordName)) {
         errors.push(`${label} ${kind} host ${key} '${String(h[key])}' is not a known keyword`);
       }
     }
+    // "an enemy that X-23 or Honey Badger attacked this turn": an empty list could only mean "no host", so it is refused.
+    if (h.attackedThisTurnBy !== undefined) {
+      const names: unknown = h.attackedThisTurnBy;
+      if (!Array.isArray(names) || names.length === 0 || !names.every(isNonEmptyString)) {
+        errors.push(`${label} ${kind} host attackedThisTurnBy must name at least one card title`);
+      }
+    }
   };
+  /** Every `HostQualifiers` field, for the "a qualified host needs at least one" check. */
+  const anyQualifier = (): boolean =>
+    h.trait !== undefined ||
+    h.withoutTrait !== undefined ||
+    h.withoutAttachmentNamed !== undefined ||
+    h.keyword !== undefined ||
+    h.withoutKeyword !== undefined ||
+    h.titleContains !== undefined ||
+    h.attackedThisTurnBy !== undefined;
   switch (kind) {
     case "namedCard":
     case "namedVillain":
@@ -193,13 +236,7 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
         errors.push(`${label} qualified host category '${String(h.category)}' is not a known category`);
       }
       qualifiers();
-      if (
-        h.trait === undefined &&
-        h.withoutTrait === undefined &&
-        h.withoutAttachmentNamed === undefined &&
-        h.keyword === undefined &&
-        h.withoutKeyword === undefined
-      ) {
+      if (!anyQualifier()) {
         errors.push(`${label} qualified host needs at least one qualifier (an unqualified category uses its plain kind)`);
       }
       break;
@@ -226,6 +263,11 @@ export function validateAttachmentHost(host: unknown, label: string): string[] {
       // Only villains print an activation order value (The Sinister Six).
       if (h.measure === "activationOrder" && h.among !== "villain") {
         errors.push(`${label} superlative host measure 'activationOrder' ranks villains only`);
+      }
+      // Only player cards print a resource cost, so an encounter-only pool ranked by it is a parse error
+      // (Beguiled, 'Pool-ized rank `ally`). `friendlyCharacter` is allowed: it can hold allies.
+      if (h.measure === "printedCost" && h.among !== "ally" && h.among !== "friendlyCharacter") {
+        errors.push(`${label} superlative host measure 'printedCost' ranks player cards, so among must be 'ally' or 'friendlyCharacter'`);
       }
       qualifiers();
       break;

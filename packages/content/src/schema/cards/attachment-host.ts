@@ -62,6 +62,21 @@ import type { KeywordName } from "../keywords.js";
  * - `HostMeasure` `activationOrder` ("the villain with the highest activation order value", The Sinister Six) and
  *   `traitCount` ("the minion with the most traits", Cyborg Tech).
  *
+ * Wave 2 data-pipeline requests (docs/phase7-wave2-data.md Part 3 §5; docs/phase7-wave2.md §7):
+ * - `encounterCard`: "Attach to an encounter card in play." (Coordinated Effort 58032) — any card in play on the
+ *   encounter side, whatever its type, as opposed to a specific category. RRG 1.8 "Encounter Card" (p. 18).
+ * - `SuperlativeHostPool` `ally` and `HostMeasure` `printedCost`: "Attach to the ally with the highest cost without
+ *   [this] attached" (Beguiled 25031, 'Pool-ized 44041). The measure is the card's **printed** cost (RRG 1.8
+ *   "Printed", p. 35) — a card in play has no other cost, since cost modifiers apply only while it is being played.
+ * - `HostQualifiers.titleContains`: "a character with 'Spider' in its title" (Warrior of the Great Web 30029) — a
+ *   substring of the **title**, which RRG 1.8 "Subtitle" (p. 41) keeps distinct from the subtitle beneath it, so an
+ *   ally's subtitle is not searched. Matched against the title the card is currently showing (a flipped identity's
+ *   current face), the same face `namedCard` compares against.
+ * - `HostQualifiers.attackedThisTurnBy`: "an enemy that X-23 or Honey Badger attacked this turn" (Puncture Wound
+ *   43012) — the one *temporal* qualifier in the pool, listing the card titles whose attacks count. **Data only:**
+ *   the engine records no per-turn attack history, so it resolves to no legal host until it does (see
+ *   docs/phase7-wave2.md §7.4).
+ *
  * A kind the engine cannot resolve yields no legal host, so the attachment is discarded. Card data that uses
  * a kind the engine does not resolve yet must not be marked playable (docs/phase7-wave1.md §3.1).
  */
@@ -91,7 +106,8 @@ export type AttachmentHost =
   | { readonly kind: "ifAble"; readonly preferred: AttachmentHost; readonly otherwise: AttachmentHost }
   | { readonly kind: "anyOf"; readonly hosts: readonly [AttachmentHost, AttachmentHost, ...AttachmentHost[]] }
   | { readonly kind: "leader"; readonly of: "enemy" | "yours" }
-  | { readonly kind: "nonActiveVillain" };
+  | { readonly kind: "nonActiveVillain" }
+  | { readonly kind: "encounterCard" };
 
 export type AttachmentHostKind = AttachmentHost["kind"];
 
@@ -117,6 +133,7 @@ export const ATTACHMENT_HOST_KINDS: readonly AttachmentHostKind[] = [
   "anyOf",
   "leader",
   "nonActiveVillain",
+  "encounterCard",
 ];
 
 /** The card categories a `qualified` host narrows. `character` is any character in play. */
@@ -138,6 +155,14 @@ export const ATTACHMENT_HOST_CATEGORIES: readonly AttachmentHostCategory[] = [
  * - `withoutAttachmentNamed`: "without another Goblin Glider attached", "without a copy of Gene Therapy attached".
  * - `keyword` / `withoutKeyword` (wave 2): "a non-permanent side scheme" is `withoutKeyword: "permanent"`. A keyword
  *   counts whether printed or gained (RRG 1.8 "Gains").
+ * - `titleContains`: "a character with 'Spider' in its title" — a case-sensitive substring of the title the card is
+ *   currently showing. Not the subtitle: RRG 1.8 "Subtitle" (p. 41) defines it as a separate line "beneath the
+ *   title", so "Spider-Man (Miles Morales)" matches on its title and "Hawkeye (Kate Bishop)" does not match "Kate".
+ * - `attackedThisTurnBy`: "an enemy that X-23 or Honey Badger attacked this turn" — card titles whose attacks this
+ *   turn make an enemy a legal host. **Data only** until the engine records per-turn attack history
+ *   (docs/phase7-wave2.md §7.4); an empty list is refused, since it could only mean "no host".
+ *
+ * Every qualifier is ANDed.
  */
 export interface HostQualifiers {
   readonly trait?: Trait;
@@ -145,12 +170,14 @@ export interface HostQualifiers {
   readonly withoutAttachmentNamed?: string;
   readonly keyword?: KeywordName;
   readonly withoutKeyword?: KeywordName;
+  readonly titleContains?: string;
+  readonly attackedThisTurnBy?: readonly string[];
 }
 
 /** What a `superlative` host ranks candidates among. */
-export type SuperlativeHostPool = "minion" | "enemy" | "villain" | "friendlyCharacter";
+export type SuperlativeHostPool = "minion" | "enemy" | "villain" | "friendlyCharacter" | "ally";
 
-export const SUPERLATIVE_HOST_POOLS: readonly SuperlativeHostPool[] = ["minion", "enemy", "villain", "friendlyCharacter"];
+export const SUPERLATIVE_HOST_POOLS: readonly SuperlativeHostPool[] = ["minion", "enemy", "villain", "friendlyCharacter", "ally"];
 
 /**
  * The value a `superlative` host ranks by. `printedHp`/`printedAtk` are the printed values (RRG 1.8 "Printed");
@@ -161,10 +188,25 @@ export const SUPERLATIVE_HOST_POOLS: readonly SuperlativeHostPool[] = ["minion",
  * - `activationOrder`: the villain's printed activation order value (`VillainCard.activationOrder`; The Sinister Six,
  *   whose villains print "Activation Order 1"–"6"). Only with `among: "villain"`; a villain without one is no candidate.
  * - `traitCount`: how many traits the card has, printed or gained (RRG 1.8 "Gains"): "the minion with the most traits".
+ *
+ * Wave 2 data-pipeline request (docs/phase7-wave2-data.md Part 3 §5):
+ * - `printedCost`: the card's printed resource cost ("the ally with the highest cost", Beguiled, 'Pool-ized). A card
+ *   in play has no other cost — cost modifiers change what a card costs *to play*, not what it costs once in play —
+ *   so this is the printed value (RRG 1.8 "Printed", p. 35), named like `printedHp`/`printedAtk`. A card with no
+ *   printed cost is no candidate.
  */
-export type HostMeasure = "printedHp" | "remainingHp" | "printedAtk" | "atk" | "sch" | "activationOrder" | "traitCount";
+export type HostMeasure = "printedHp" | "remainingHp" | "printedAtk" | "atk" | "sch" | "activationOrder" | "traitCount" | "printedCost";
 
-export const HOST_MEASURES: readonly HostMeasure[] = ["printedHp", "remainingHp", "printedAtk", "atk", "sch", "activationOrder", "traitCount"];
+export const HOST_MEASURES: readonly HostMeasure[] = [
+  "printedHp",
+  "remainingHp",
+  "printedAtk",
+  "atk",
+  "sch",
+  "activationOrder",
+  "traitCount",
+  "printedCost",
+];
 
 /**
  * Stat changes printed in an attachment's stat boxes (Charge +3 ATK, Program

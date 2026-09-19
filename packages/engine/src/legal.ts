@@ -333,7 +333,7 @@ function actionAbilities(state: GameState, deps: EngineDeps, playerId: PlayerId)
   for (const id of cardsInPlay(state)) {
     const controller = controllerOf(state, id);
     if (controller !== null && controller !== playerId) continue;
-    for (const ref of activeAbilityRefs(state, id)) {
+    for (const ref of activeAbilityRefs(state, id, deps)) {
       if (deps.abilities[ref.id]?.trigger.kind === "action") found.push({ instanceId: id, abilityId: ref.id });
     }
   }

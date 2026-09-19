@@ -762,12 +762,26 @@ export type EffectSpec =
    */
   | { readonly kind: "takeIntoHand"; readonly cards: CardSelector; readonly player: PlayerRef }
   /**
-   * "Play a card from your hand, ignoring its resource cost." (Chaos Magic; docs/phase7-wave2.md §3.8): `player`
-   * chooses a card from their hand that `filter` matches and that can be played this way (`playIgnoringCostFault`), and
-   * plays it with zero resources paid. `optional`: "you may". Playing a card inside an ability with a cost reduction
-   * (Team-Building Exercise) is not built.
+   * Playing a card from hand from inside an ability. `player` chooses a card their hand holds that `filter` matches
+   * and that can be played this way; `optional` is "you may". Exactly one of the two cost modes is set:
+   *
+   * - **`ignoreCost: true`** — "Play a card from your hand, ignoring its resource cost." (Chaos Magic;
+   *   docs/phase7-wave2.md §3.8). Zero resources are paid (`playIgnoringCostFault` says which cards qualify).
+   * - **`costReduction`** — "play a card from your hand that shares a trait with your hero, reducing its resource
+   *   cost by 1" (Team-Building Exercise; docs/phase7-wave2.md §9). The player pays the reduced cost from their
+   *   usual payment options, choosing an upgrade's host first when it has more than one.
+   *
+   * RRG 1.8 "Play, Put Into Play" (p. 32) and "Play Restrictions and Permissions" (p. 33): this is *playing* the
+   * card, so form, "max per", Restricted, the unique rule and `cannotPlay` all apply, and it counts as played.
    */
-  | { readonly kind: "playFromHand"; readonly player: PlayerRef; readonly ignoreCost: true; readonly filter?: TargetQuery; readonly optional?: boolean }
+  | {
+      readonly kind: "playFromHand";
+      readonly player: PlayerRef;
+      readonly ignoreCost?: true;
+      readonly costReduction?: ValueSpec;
+      readonly filter?: TargetQuery;
+      readonly optional?: boolean;
+    }
   /** "Discard cards from the encounter deck until a minion is discarded": the matching card is bound to `bind` (then `putIntoPlay` / `revealCard` it). */
   | { readonly kind: "discardEncounterUntil"; readonly filter: TargetQuery; readonly bind: string }
   /**

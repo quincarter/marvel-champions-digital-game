@@ -109,13 +109,21 @@ function hostMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost[
     case "traitCount":
       // "The minion with the most traits" (Cyborg Tech): printed and gained traits (RRG 1.8 "Gains"), each counted once.
       return new Set(traitsOf(state, id, deps)).size;
+    case "printedCost": {
+      // "The ally with the highest cost" (Beguiled, 'Pool-ized): the printed cost (RRG 1.8 "Printed", p. 35). A card
+      // in play has no other cost — cost modifiers change what a card costs to *play*. Cards with none are dropped
+      // by `hasMeasure` before ranking, so this 0 is never compared.
+      const card = cardOf(state, id);
+      return card && "cost" in card && typeof card.cost === "number" ? card.cost : 0;
+    }
   }
 }
 
 /** Whether a card has a value for this measure at all (a villain with no printed activation order has none). */
 function hasMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost["measure"]): boolean {
-  if (measure !== "activationOrder") return true;
   const card = cardOf(state, id);
+  if (measure === "printedCost") return card !== undefined && "cost" in card && typeof card.cost === "number";
+  if (measure !== "activationOrder") return true;
   return card?.type === "villain" && card.activationOrder !== undefined;
 }
 
@@ -128,6 +136,12 @@ function passesQualifiers(state: GameState, id: InstanceId, host: QualifiedHost 
   // "a non-permanent side scheme" (docs/phase7-wave2.md §6.5): printed or gained keywords.
   if (host.keyword !== undefined && !hasKeyword(state, id, host.keyword, deps)) return false;
   if (host.withoutKeyword !== undefined && hasKeyword(state, id, host.withoutKeyword, deps)) return false;
+  // "a character with 'Spider' in its title" (Warrior of the Great Web): the title showing, not the subtitle beneath
+  // it (RRG 1.8 "Subtitle", p. 41) — `currentName` is the same face `namedCard` compares against.
+  if (host.titleContains !== undefined && !(currentName(state, id) ?? "").includes(host.titleContains)) return false;
+  // "an enemy that X-23 or Honey Badger attacked this turn": no per-turn attack history is recorded, so this
+  // qualifier matches nothing and the card is discarded (docs/phase7-wave2.md §7.4). Data only, deliberately.
+  if (host.attackedThisTurnBy !== undefined) return false;
   return true;
 }
 
@@ -234,6 +248,11 @@ export function attachmentHostCandidates(
       if (host.of === "yours") return [];
       return theVillain(state, context);
     }
+    case "encounterCard":
+      // "Attach to an encounter card in play." (Coordinated Effort): every in-play card on the encounter side,
+      // whatever its type. RRG 1.8 "Encounter Card" (p. 18); an encounter card has no controller, which is the same
+      // test `isFriendly` inverts.
+      return selectTargets(state, {}, context).filter((id) => !isFriendly(state, id));
     case "nonActiveVillain":
       // "Attach to the villain who is not the active villain." (Direct Assault): several are a first-player choice.
       return undefeatedVillains(state)

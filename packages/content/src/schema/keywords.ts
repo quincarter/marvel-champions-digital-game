@@ -20,10 +20,10 @@ import type { ResourceIconCounts, ResourceIconType, Trait } from "./common.js";
  * card type, not a keyword), Age of Apocalypse (Find), Agents of SHIELD
  * (Vulnerable).
  *
- * NOT on the keyword-list page as of this fetch: "Discount" (introduced in Fear No Evil). Its definition comes from
- * the Fear No Evil rulebook (fetched 2026-09-18, not stored in the repo), p. 3 "Featured Keywords"; see the shape
- * below. The same page defines two keywords this schema does not enumerate yet, "Prerequisite (form or trait)" and
- * "Starting" (docs/phase7-wave2.md §6.11).
+ * NOT on the keyword-list page as of this fetch: "Discount", "Prerequisite" and "Starting" (all introduced in Fear No
+ * Evil). Their definitions come from the Fear No Evil rulebook (fetched 2026-09-18, not stored in the repo), p. 3
+ * "Featured Keywords"; see the shapes below. RRG 1.8 has no entry for any of the three, so each glossary entry is
+ * `insert-not-in-repo` and `unverified` (docs/phase7-wave2.md §6.11, §7.5).
  *
  * Checked against RRG 1.8 (Jul 2026) for Phase 7 wave 1 (docs/phase7-wave1.md §1):
  * - Glossary entries exist for "Team-Up" (p. 43), "Teamwork (Trait)" (p. 43),
@@ -75,7 +75,9 @@ export type KeywordName =
   | "find"
   | "vulnerable"
   | "discount"
-  | "linked";
+  | "linked"
+  | "prerequisite"
+  | "starting";
 
 interface KeywordBase<N extends KeywordName> {
   readonly name: N;
@@ -103,6 +105,14 @@ export type KeywordInstance =
       | "temporary"
       | "assault"
       | "vulnerable"
+      /**
+       * The Fear No Evil rulebook, "Featured Keywords" (p. 3), and the printed reminder text on every card that has
+       * it (Innate Reflexes 60038; Innate Aggression/Perception/Inspiration 61034/61036/61037): "Starting. (You may
+       * add this card to your hand before drawing your starting hand.)" No parameters. It is a *setup* keyword: the
+       * card is taken from the deck into hand before the opening draw, which is a step the engine does not have yet
+       * (docs/phase7-wave2.md §7.5).
+       */
+      | "starting"
     >
   | (KeywordBase<"retaliate"> & { readonly value: number })
   | (KeywordBase<"uses"> & { readonly count: number; readonly counterType: string })
@@ -148,7 +158,18 @@ export type KeywordInstance =
    * card that brings the linked cards into play (indicated in the parentheses following the
    * keyword)." `cardTitle` is that parenthesized title.
    */
-  | (KeywordBase<"linked"> & { readonly cardTitle?: string });
+  | (KeywordBase<"linked"> & { readonly cardTitle?: string })
+  /**
+   * "Prerequisite (form or trait)", the Fear No Evil rulebook, "Featured Keywords" (p. 3). Printed as
+   * `Prerequisite ([Defender]).` on Defend Our City (61029, `jj`), a player side scheme. RRG 1.8 has no entry.
+   *
+   * `traits` is an OR, spelled like `discount`'s; `form` is the identity-form half the rulebook's "form or trait"
+   * names, which no emitted card prints yet. At least one of the two is required. **Exactly what the keyword gates
+   * is unconfirmed** — this repo does not hold the rulebook — so it is data only and flagged in
+   * docs/phase7-wave2.md §4.13. The closest existing shapes are `PlayRestrictions.form` and
+   * `PlayRestrictions.requiresIdentityTrait`, which is what it most likely compiles to.
+   */
+  | (KeywordBase<"prerequisite"> & { readonly traits?: readonly Trait[]; readonly form?: "hero" | "alterEgo" });
 
 export const KNOWN_KEYWORD_NAMES: readonly KeywordName[] = [
   "guard",
@@ -182,6 +203,8 @@ export const KNOWN_KEYWORD_NAMES: readonly KeywordName[] = [
   "vulnerable",
   "discount",
   "linked",
+  "prerequisite",
+  "starting",
 ];
 
 /**
