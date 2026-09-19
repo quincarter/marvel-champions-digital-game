@@ -142,12 +142,13 @@ function passesQualifiers(state: GameState, id: InstanceId, host: QualifiedHost 
   // "a character with 'Spider' in its title" (Warrior of the Great Web): the title showing, not the subtitle beneath
   // it (RRG 1.8 "Subtitle", p. 41) — `currentName` is the same face `namedCard` compares against.
   if (host.titleContains !== undefined && !(currentName(state, id) ?? "").includes(host.titleContains)) return false;
-  // "an enemy that X-23 or Honey Badger attacked this turn" (docs/phase7-wave2.md §11.3): the attackers recorded
-  // against this card this turn, matched by the title each is currently showing — the same face `namedCard` reads.
+  // "an enemy that X-23 or Honey Badger attacked this turn" (docs/phase7-wave2.md §11.3, §14): the attacks recorded
+  // against this card this turn, matched by the title each attacker showed *when it attacked* (RRG 1.8 "Referential
+  // Ability", p. 36), so a hero who attacked and then changed form still counts.
   if (host.attackedThisTurnBy !== undefined) {
-    const attackers = state.attackedThisTurn[id] ?? [];
+    const attacks = state.attackedThisTurn[id] ?? [];
     const titles = host.attackedThisTurnBy;
-    if (!attackers.some((attacker) => titles.includes(currentName(state, attacker) ?? ""))) return false;
+    if (!attacks.some((attack) => titles.includes(attack.attackerTitle))) return false;
   }
   return true;
 }

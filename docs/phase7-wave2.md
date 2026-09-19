@@ -1098,7 +1098,7 @@ validates and every existing test passes unchanged. Fixtures: `packages/content/
 - **The title only, not the subtitle.** RRG 1.8 "Subtitle" (p. 41) defines a subtitle as a separate line "beneath the
   title", so "Hawkeye (Kate Bishop)" does not match `"Kate"`. **Engine, landed:** matched against `currentName`, the
   face the card is currently showing — the same face `namedCard` compares against, so a flipped identity is matched
-  on the face that is up.
+  on the face that is up. **Correction (§14.3):** true of encounter cards, not of identities — `currentName` answers an identity's card title in both forms.
 
 ### 7.4 `HostQualifiers.attackedThisTurnBy` — **data only**
 
@@ -1418,14 +1418,19 @@ already documents as consecutive *stages of one deck*.
 
 ### 11.3 `HostQualifiers.attackedThisTurnBy` made real (§7.4 was data only)
 
+> **Revised by §14** (the review of this section): the value is now a list of `AttackRecord`s carrying the
+> attacker's title at attack time, recording is limited to player turns, and the record is also cleared when a turn
+> ends. The bullets below are as first landed; §14 has the current behaviour and the corrected citations. (RRG 1.8
+> has no "Turn" entry, and p. 45 is "Tuck".)
+
 **`GameState.attackedThisTurn: Readonly<Record<string, readonly InstanceId[]>>`** — keyed by the attacked
 character, listing the attackers, each once, in the order they attacked. Plain serializable data, so it replays and
 serializes like everything else.
 
 - **Written** at the `characterAttacked` event (`resolve/event.ts`), which is the one place every attack goes
   through, player-made and enemy-made alike, so no path can forget.
-- **Cleared when each turn begins** (`beginTurn`), next to the `"turn"` ability-use counters. RRG 1.8 "Turn"
-  (p. 45): a turn is one player's, so "this turn" is the one in progress.
+- **Cleared when each turn begins** (`beginTurn`), next to the `"turn"` ability-use counters. ~~RRG 1.8 "Turn"
+  (p. 45)~~ RRG 1.8 "Player Phase" (p. 34): each player takes one turn, so "this turn" is the one in progress.
 - **Read** by `passesQualifiers` (`resolve/reveal.ts`): an enemy is a legal host when one of its attackers this turn
   shows one of the listed titles — matched by `currentName`, the same face `namedCard` compares against (an
   identity matches on its card title).
@@ -1592,3 +1597,61 @@ the cards each player played, readable by trait (a thwart *event* is the `Thwart
 with a `Predicate { kind: "playedThisTurn"; player; filter: { cardType?, trait? } }` reading printed traits from card
 data (the played card is in a discard pile by then). Not built this pass because no scripter has asked for it and
 Gamora is not in a scheduled pack.
+
+---
+
+## 14. Review of the attack history (§11.3) (owner: `game-rules-architect`; landed 2026-09-19)
+
+A review of §11.3 against the RRG, as item 3 of this batch. The mechanism was right: one write point at
+`characterAttacked`, and plain serializable data. Four things were not, and are fixed here. Tests:
+`packages/engine/src/attachment-hosts.test.ts` §7 block (3 attack-history tests, 2 of them new).
+
+### 14.1 What changed
+
+1. **The attacker's title is recorded when it attacks, from the faceup side.** RRG 1.8 "Identity" (p. 23): "If a
+   card refers to a hero or alter-ego by title, it refers only to the identity with that title, and not to the other
+   side of the card." §11.3 matched at *query* time through `currentName`, which answers an identity's **card**
+   title whatever its form. So an identity whose card title differs from its hero face matched on the wrong string,
+   and an alter-ego matched a qualifier naming the hero. The value is now
+   ```ts
+   attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>
+   interface AttackRecord { attackerInstanceId: InstanceId; attackerTitle: string }   // exported from @mc/engine
+   ```
+   The title comes from `titleShowing(state, id)` (`query.ts`): an identity's faceup face name, anything else's
+   `currentName`. "That X-23 attacked" is a fact about the attack, so an X-23 who attacks and then changes to Laura
+   Kinney still counts, and nothing is ever recorded under "Laura Kinney", since an alter-ego cannot attack. Both
+   are pinned by tests. This replaces the shape §11.3 landed on this same branch; nothing outside the engine reads
+   it. **Pipeline: no change.** `attackedThisTurnBy` still lists printed titles, which for an identity means its hero
+   face title ("X-23").
+2. **Only attacks made during a player's turn are recorded, and the record is also cleared when a turn ends.**
+   Before, the villain phase's attacks piled onto the last player's record, and the end-of-phase steps read that
+   player's attacks as "this turn". Outside a turn there is no "this turn" (RRG 1.8 "Player Phase" / "Player Turn",
+   p. 34), which is the same reading as §13.3's `endOfTurn`. `recordAttackThisTurn` checks `turnInProgress`, and
+   `finishTurn` clears the record next to the `endOfTurn` expiry. Pinned by a test that stops between the villain's
+   attack and a minion's.
+3. **The write moved out of `applyRetaliate`.** It is now its own call in the `characterAttacked` case of
+   `applyEvent`. It was never retaliate's business, and a later change that skipped retaliate (for ranged, say)
+   could have skipped it too.
+4. **Citations.** §11.3 cited RRG 1.8 "Turn" (p. 45). No such entry exists; p. 45 is "Tuck". Corrected in
+   `state.ts`, `flow.ts`, `resolve/event.ts`, the test and §11.3.
+
+### 14.2 Behaviour to know
+
+- An attack whose `characterAttacked` event is cancelled by an interrupt is not recorded, because the write is that
+  event's apply step. RRG 1.8 "Cancel" (p. 11): cancel abilities "prevent [effects] from resolving".
+- The same attacker attacking the same character twice in a turn is recorded once. The qualifier asks *whether*,
+  not how often.
+- Enemy attacks during a player's turn (quickstrike, "the villain attacks you" effects) are recorded against the
+  character they attacked. No current qualifier asks about them, and recording them costs nothing.
+
+### 14.3 Open: `currentName` and an identity's title (flagged, not changed)
+
+The discrepancy in 14.1 point 1 is wider than this qualifier. `currentName` answers an identity's **card** title
+in both forms, and it feeds every title-matching reader: `namedCard` refs, `TargetQuery.name`, the `name`
+predicate, `titleContains` and `withoutAttachmentNamed`. By RRG 1.8 "Identity" (p. 23), "Spider-Woman" should not
+match Jessica Drew, and `titleContains: "Spider"` should not match her in alter-ego form. For most identities the
+card title equals the hero face title, so the visible effect is that **an alter-ego matches its hero's name**.
+Fixing it means `currentName` returning `titleShowing`, which could change how existing scripts that name an
+identity behave in alter-ego form. That needs a sweep of `@mc/cards` for identity names in queries and refs (an
+`ability-scripting-engineer` + `rules-qa-engineer` pass), so it is **left for a dedicated change** rather than made
+silently here.

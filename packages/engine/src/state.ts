@@ -328,6 +328,12 @@ export type GameOutcome =
    */
   | { readonly result: "conceded"; readonly reason: "playerConceded"; readonly byPlayerId: PlayerId };
 
+/** One attack in `GameState.attackedThisTurn`: who made it, and the title they were showing when they did. */
+export interface AttackRecord {
+  readonly attackerInstanceId: InstanceId;
+  readonly attackerTitle: string;
+}
+
 export interface GameState {
   readonly round: number;
   readonly step: GameStep;
@@ -396,15 +402,21 @@ export interface GameState {
   /** Cards played this round keyed `<playerId>:<card type>` ("the first ally played each round"). Reset when the round ends. */
   readonly playedByPlayerThisRound: Readonly<Record<string, number>>;
   /**
-   * Who attacked whom **this turn**, keyed by the attacked character and listing the attackers, each once, in the
-   * order they attacked: "Attach to an enemy that X-23 or Honey Badger attacked this turn" (Puncture Wound 43012;
-   * `HostQualifiers.attackedThisTurnBy`, docs/phase7-wave2.md §7.4/§11.3).
+   * Who attacked whom **this turn**, keyed by the attacked character and listing each attack's attacker with the title
+   * it showed when it attacked, each pair once, in attack order: "Attach to an enemy that X-23 or Honey Badger attacked
+   * this turn" (Puncture Wound 43012; `HostQualifiers.attackedThisTurnBy`, docs/phase7-wave2.md §11.3, §14).
    *
-   * Every attack is recorded, player-made or enemy-made, at the point the attack is made (the `characterAttacked`
-   * event, which is the one place both paths go through). Reset when each turn begins, alongside the `"turn"`
-   * ability-use counters — RRG 1.8 "Turn" (p. 45): a turn is one player's, so "this turn" is the one in progress.
+   * - **Written** by every attack, player-made or enemy-made, at the `characterAttacked` event (the one place both
+   *   paths go through) — but only while a player's turn is in progress, since outside one there is no "this turn"
+   *   (RRG 1.8 "Player Phase" / "Player Turn", p. 34; the same reading as `LastingUntil "endOfTurn"`, §13.3).
+   * - **Cleared** when each turn begins and when it ends, so the villain phase and the end-of-phase steps see an empty
+   *   record rather than the last player's.
+   * - **The title is the attacker's at attack time**, read from an identity's faceup side (`titleShowing`): "that
+   *   X-23 attacked" is a fact about the attack, and RRG 1.8 "Identity" (p. 23) has a title name "only … the identity
+   *   with that title, and not … the other side of the card". So an identity that attacked as X-23 and then changed
+   *   to Laura Kinney still attacked as X-23, and nothing an alter-ego does is recorded under the hero's title.
    */
-  readonly attackedThisTurn: Readonly<Record<string, readonly InstanceId[]>>;
+  readonly attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>;
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;

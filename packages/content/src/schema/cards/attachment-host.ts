@@ -73,9 +73,8 @@ import type { KeywordName } from "../keywords.js";
  *   ally's subtitle is not searched. Matched against the title the card is currently showing (a flipped identity's
  *   current face), the same face `namedCard` compares against.
  * - `HostQualifiers.attackedThisTurnBy`: "an enemy that X-23 or Honey Badger attacked this turn" (Puncture Wound
- *   43012) — the one *temporal* qualifier in the pool, listing the card titles whose attacks count. **Data only:**
- *   the engine records no per-turn attack history, so it resolves to no legal host until it does (see
- *   docs/phase7-wave2.md §7.4).
+ *   43012) — the one *temporal* qualifier in the pool, listing the card titles whose attacks count. The engine
+ *   records each attack this turn with the attacker's title at the time (docs/phase7-wave2.md §11.3, §14).
  *
  * A kind the engine cannot resolve yields no legal host, so the attachment is discarded. Card data that uses
  * a kind the engine does not resolve yet must not be marked playable (docs/phase7-wave1.md §3.1).
@@ -159,8 +158,8 @@ export const ATTACHMENT_HOST_CATEGORIES: readonly AttachmentHostCategory[] = [
  *   currently showing. Not the subtitle: RRG 1.8 "Subtitle" (p. 41) defines it as a separate line "beneath the
  *   title", so "Spider-Man (Miles Morales)" matches on its title and "Hawkeye (Kate Bishop)" does not match "Kate".
  * - `attackedThisTurnBy`: "an enemy that X-23 or Honey Badger attacked this turn" — card titles whose attacks this
- *   turn make an enemy a legal host. **Data only** until the engine records per-turn attack history
- *   (docs/phase7-wave2.md §7.4); an empty list is refused, since it could only mean "no host".
+ *   turn make an enemy a legal host, matched against the title each attacker showed when it attacked
+ *   (docs/phase7-wave2.md §11.3, §14). An empty list is refused, since it could only mean "no host".
  *
  * Every qualifier is ANDed.
  */

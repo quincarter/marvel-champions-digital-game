@@ -651,6 +651,22 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
 export const isTerminal = (state: GameState): boolean => state.outcome !== null;
 
 /**
+ * The title a card is showing right now, with an identity read from its **faceup side**: RRG 1.8 "Identity" (p. 23),
+ * "If a card refers to a hero or alter-ego by title, it refers only to the identity with that title, and not to the
+ * other side of the card." Everything else is `currentName`.
+ *
+ * Used where a title is captured for later (`attackedThisTurn`, docs/phase7-wave2.md §14). `currentName` itself still
+ * answers an identity's card title whatever its form; that is a known discrepancy with p. 23, recorded in §14.3 rather
+ * than changed here, because every name-matching reader (`namedCard`, target-query `name`, the name predicate) goes
+ * through it.
+ */
+export function titleShowing(state: GameState, id: InstanceId): string | undefined {
+  const player = state.players.find((p) => p.identity.instanceId === id);
+  if (player && cardOf(state, id)?.type === "hero_identity") return identityFace(state, player).face.faceName;
+  return currentName(state, id);
+}
+
+/**
  * Whether a player's turn is in progress (RRG 1.8 "Player Turn", p. 34) — the only time "until the end of this turn"
  * can be initiated (RRG 1.8 "Lasting Effects", p. 26; docs/phase7-wave2.md §13). False in the villain phase and during
  * the end-of-player-phase steps, which belong to no player's turn.
