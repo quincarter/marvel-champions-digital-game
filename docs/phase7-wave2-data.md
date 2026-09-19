@@ -1,6 +1,6 @@
 # Phase 7 wave 2: cycle 1 finished, data-only pool growing (`card-data-pipeline`)
 
-Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers three passes:
+Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers four passes:
 
 1. **2026-09-18, first pass:** the schema-neutral parser sweep across all 62 non-Core packs, then curating and
    emitting `scw`, `ant`, `wsp`, `trors` (cycle 1). `docs/phase7-wave2.md` is `game-rules-architect`'s parallel
@@ -9,10 +9,13 @@ Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers
    curation/image check, wired `WAVE2_CARDS` with tests, curated all six cycle 1 starter decks, and made a start
    on Part 2 — 15 more packs (`bp` plus 14 packs that needed no curation at all) wired into a new, separate,
    explicitly-not-playable `DATA_ONLY_CARDS` pool.
-3. **2026-09-19, third pass (this one, "Part 3" below):** closed both cycle 1 data gaps `ability-scripting-
-   engineer` reported (`WAVE2_SCENARIOS`, Legions of Hydra), finished registering `nova`/`silk`/`spdr` (left
-   incomplete by an intervening checkpoint), and grew `DATA_ONLY_CARDS` to 21 packs (`rogue`, `wolv`, `hood`
-   newly curated).
+3. **2026-09-19, third pass ("Part 3" below):** closed both cycle 1 data gaps `ability-scripting-engineer`
+   reported (`WAVE2_SCENARIOS`, Legions of Hydra), finished registering `nova`/`silk`/`spdr` (left incomplete by
+   an intervening checkpoint), and grew `DATA_ONLY_CARDS` to 21 packs (`rogue`, `wolv`, `hood` newly curated).
+4. **2026-09-19, fourth pass (this one, "Part 4" below):** grew `DATA_ONLY_CARDS` to 23 packs (`ironheart`,
+   `iceman`), added the general `auxiliaryHeroSetCodes` mechanism plus two more general normalizer fixes, curated
+   ten more packs without fully unblocking all of them, and consolidated nine schema/parser-architecture
+   requests for `game-rules-architect`.
 
 ## Result
 
@@ -519,3 +522,184 @@ test file nor the `wild` key appears in this pass's diff).
   5. Core/wave 1's generated-file staleness (§3 above) is worth a deliberate decision (regenerate and diff for
      real, or leave as-is) from whoever owns that regeneration next — it's not something this pass should decide
      unilaterally given the "don't touch Core/wave 1" mandate.
+
+---
+
+## Part 4: two more data-only packs emitted, ten more curated-but-blocked, schema requests consolidated
+
+**2026-09-19, fourth pass.** Picked up after commit `8ac0b24` (Part 3 committed: `WAVE2_SCENARIOS`, Legions of
+Hydra, `nova`/`silk`/`spdr`/`rogue`/`wolv`/`hood` emitted). Continued Task B: item 3's "hero card in a different
+card_set_code" shape turned out to be a real, general mechanism (§2 below) — resolved for `iceman` (now emitted)
+and used again for `storm`/`hercules`/`fne`. Worked through the gap matrix in ascending issue-count order.
+
+### 1. Two more packs fully emitted
+
+- **`ironheart`** (Cycle 5). Not a three-sided identity (Ant-Man/Wasp's shape) — **three separate, complete
+  hero/alter-ego identity pairs** (Version 1/2/3, a "Level Up! swap to a stronger form" mechanic), which already
+  normalized fine structurally. The only gap was artwork: MarvelCDB has no `imagesrc` for Version 2/3's four
+  faces. Found and confirmed a second source — Hall of Heroes' own Ironheart release-page gallery (`i0a`–`i0f`,
+  six images) — by downloading each candidate image to the scratchpad, **viewing it directly with the Read tool**
+  (title, printed text, hand size/hit points, and the corner collector mark all cross-checked against the raw
+  record), then deleting the local copy; only the URL is stored (`imageOverrides`, CLAUDE.md "Content & IP
+  boundaries" — a reference, never bytes). `emit.ts`'s `KEY_BRANDS` needed no change (already covers `image`).
+- **`iceman`** (Cycle 8). Needed the `auxiliaryHeroSetCodes` mechanism (§2) plus one confirmed dash-cost
+  correction (Frostbite, 46002) and one `cardNotes` entry (Snow Clone, 46003, printed THW is a real dash,
+  confirmed from MarvelCDB's own stat listing).
+
+### 2. New general mechanism: `PackCuration.auxiliaryHeroSetCodes`
+
+Several packs file a hero-kit card under its own themed sub-`card_set_code` instead of the identity's own set —
+Storm's four-card Weather Deck (`storm_weather_deck`), Hercules' three-card Gift Deck (`hercules_gift_deck`),
+Iceman's Frostbite (`iceman_frostbite`), Daredevil's five-card Sense Deck (`daredevil_sense_deck`, `fne`) — which
+`heroBySet`'s plain `card_set_code` lookup couldn't resolve ("hero card in a set with no identity"). Added
+`PackCuration.auxiliaryHeroSetCodes?: Readonly<Record<string, string>>` (auxiliary code → the pack's primary hero
+`card_set_code`), consumed by `normalize/context.ts`'s `heroBySet` construction: after the primary map is built,
+every auxiliary code is aliased to whatever hero record its primary code already resolved to. A primary code with
+no real hero record behind it (a typo) simply doesn't alias anything — the auxiliary set's own cards then still
+fail the ordinary check, not silently wrong. Confirmed working on four independent packs (`storm`, `iceman`,
+`hercules`, `fne`) with zero regression risk to any pack that doesn't set it (additive, opt-in per pack).
+
+### 3. Two more general normalizer fixes (same "wave 1 assumption doesn't hold everywhere" class as Part 3's `flatten.ts` fix)
+
+- **`main-schemes.ts`'s B-side image lookup only ever consulted the dropped bare aggregate record's own
+  `imagesrc`** (`ctx.aggregateImage`), which is how wave 1's main schemes happen to be shaped — but several later
+  packs' main schemes have **no bare aggregate record at all**, even though the B-side's own *linked* record
+  carries a perfectly good `imagesrc` MarvelCDB just never routed through the (nonexistent) aggregate. Added a
+  fallback to the B-side record's own image, mirroring the A-side's existing `rb.imagesrc ?? ra.imagesrc`
+  fallback. Confirmed fixing `mojo` (3 main scheme images, unblocking that pack down to one remaining card) with
+  no change to any pack whose aggregate lookup already succeeds (wave 1's own output, byte-diffed — see §5).
+  **Also silently helped `sm`** (36 → 30 issues) as a side effect, not independently investigated further.
+- **`player-cards.ts`'s missing-`deck_limit` fallback only defaulted to 1 for a *specific* (scenario/campaign)
+  unique card**, leaving a plain identity-specific unique card with no printed `deck_limit` (Hercules' Gift Deck,
+  `is_unique: true`, no `specificTo`) falling through to 0 and failing `validateCard`'s "must be a positive
+  integer" check. RRG's uniqueness rule caps *any* unique card at one copy in a deck regardless of why it's
+  unique, so the same reasoning that justified defaulting a unique specific card to 1 applies unconditionally —
+  simplified the condition from `specificTo !== undefined && r.is_unique` to just `r.is_unique`. Fixed
+  `hercules`' three Gift Deck cards' `deck_limit` errors (10 → 7 issues); left a **non-unique** identity card with
+  no printed `deck_limit` (`fne`'s Sense Deck, 5 cards) alone, since RRG's uniqueness-cap reasoning doesn't apply
+  there and no comparable evidence justifies a different default — reported, not guessed at (§4).
+
+### 4. Ten more packs curated, not all fully unblocked
+
+Following the same "register a real curation, re-run `survey.ts --pack <code>`, only trust what it reports"
+discipline as every earlier pass. Each pack below is registered in `survey.ts` (so its real state is visible and
+tested) but **NOT** in `ingest-marvelcdb.ts`'s `REGISTERED_CURATIONS` (so nothing can accidentally emit invalid
+data) unless noted as "emitted" in §1:
+
+| Pack | Cycle | Issues before → after curation | What's left |
+|---|---|---|---|
+| `mojo` | 6 | 6 → 2 (both the same card) | Bandolier of Stakes' only attach info is inside its own `When Revealed` ability body, not a standalone preamble sentence — a parser-architecture gap (§5.1), confirmed the only instance of this shape in the whole 63-pack corpus. |
+| `storm` | 6 | 10 → 2 | Possessed needs `SuperlativeHostPool "ally"` + `HostMeasure "thw"` (schema gap, §5.2). |
+| `hercules` | 10 | 10 → 7 | The Labor Deck (59002–59004+) is a hero-owned, encounter-shaped card mechanic with no schema shape yet (§5.3). |
+| `fne` | 10 | 13 → 8 | `deck_limit` gap on 5 non-unique Sense Deck cards (no evidence-backed default found, §5.4); Photographic Reflexes' triple MarvelCDB record (60040a/b/c) is genuinely ambiguous without a second source (§5.5); 3 missing images. A brand-new pack (July 2026) with more open questions than usual. |
+| `gmw` | 3 | 15 (originally) → 4 | The Collector's standard/expert flip-side shape is the same schema gap as `mts`'s Hela (§5.2) — now confirmed on two independent packs. |
+| `wonder_man` | 10 | 3 → 1 | Coordinated Effort needs an "any encounter card in play" attach host (schema gap, §5.6). |
+| `x23` | 7 | 2 → 1 | 43012 needs a temporal "attacked this turn" qualifier (schema gap, §5.7). |
+| `psylocke` | 7 | 2 → 1 | Psi-Knife (41002a) still has no artwork reference — no second source found/confirmed this pass. |
+| `valk` | 4 | 2 (unchanged) | Beguiled needs the same `SuperlativeHostPool "ally"` + `HostMeasure "cost"` gap as `deadpool`/`jubilee` (§5.2). |
+| `deadpool` | 7 | 2 (unchanged) | 'Pool-ized — identical shape to `valk`'s Beguiled. |
+| `spiderham` | 5 | 1 (unchanged) | Warrior of the Great Web needs a substring/title-contains host (schema gap, §5.8). |
+
+`jubilee` (Cycle 8, 11 issues) was investigated but not curated: "Lost" Child (47027) is the same `SuperlativeHostPool
+"ally"`/`HostMeasure "cost"` shape as `valk`/`deadpool` (§5.2); its other 9 issues are missing artwork for three
+different `a`/`b`/`c`-suffixed event/resource records (Firecracker, Flash of Light, Plasmoid Energy) — real second-
+source research for 9 images, not attempted this pass to keep moving through the gap matrix.
+
+### 5. Schema requests for `game-rules-architect`
+
+Consolidated in one place, each with the exact cards and printed text driving it. None of these was worked
+around; every pack they block is left curated-but-unregistered (§4) rather than guessed at.
+
+1. **Attach rule inside a triggered ability's body, not the preamble** (parser-architecture, not schema —
+   flagged here anyway since it's a structural decision, not a curation one). Bandolier of Stakes (`mojo`,
+   39048): `"Surge. Uses (3 stake counters). When Revealed: You may spend 1 resource of any type to attach this
+   card to your identity. Otherwise, discard this card."` — the only "where does this attach" information is a
+   full sentence inside the `When Revealed:` ability, which `parseCardText` (`parse-text.ts`) never scans (by
+   design: every other attachment in the 63-pack corpus prints its attach rule before any trigger header). The
+   target host itself needs nothing new (`{ kind: "yourIdentity" }` already exists) — this is purely about
+   *where* the parser looks. Confirmed the only instance of this exact idiom in the whole corpus (grepped every
+   pack for `You may spend .* to attach this card to .*\. Otherwise, discard this card\.`).
+2. **`SuperlativeHostPool` needs `"ally"`; `HostMeasure` needs `"cost"` and `"thw"`.** Four confirmed cards, all
+   the same "attach to the most/least-[stat] ally without a copy of me attached, otherwise this card gains surge"
+   idiom:
+   - Beguiled (`valk`, 25031): `"Attach to the ally with the highest cost without Beguiled attached."`
+   - 'Pool-ized (`deadpool`, 44041): `"Attach to the ally with the highest cost without 'Pool-ized attached."`
+   - "Lost" Child (`jubilee`, 47027): `"Attach to the ally with the highest cost without "Lost" Child attached."`
+   - Possessed (`storm`, 36038): `"Attach to the ally with the lowest THW without Possessed attached."` (needs
+     `"thw"`, not `"cost"` — the same pool, a different measure)
+3. **The Collector (`gmw`, 16080/16081) and Hela (`mts`, 21136/21137): a villain stage with a flip-side back
+   face, not a second numbered stage.** MarvelCDB's `stage` field reads "A1"/"A2" (standard) and "B1"/"B2"
+   (expert) instead of a roman numeral. Each mode (A/standard, B/expert — confirmed for Hela via a web search of
+   the printed card's own flavor: "Hela is a double-sided villain that has a Standard and an Expert version") is
+   a genuine **single-stage** villain (Hela A1 health 8 / B1 health 9; Collector A1 health 8 / B1 health 10 — a
+   standard-vs-expert HP difference, not stage growth) whose ONE stage has a front face and a "cannot be
+   defeated" back face, flipped by a Forced Response ("After a side scheme is defeated, flip Hela to her mystic
+   side" / Collector's analogous text). `VillainCard`/`VillainStage` has no `flipSide` field — only encounter
+   cards and player cards have one (`EncounterCardFlipSide`/`CardFlipSide`, docs/phase7-wave2.md §1.5). Proposed
+   shape: `VillainStage.flipSide?: { name: string; text: CardText; traits: readonly Trait[]; keywords:
+   readonly KeywordInstance[]; abilities: readonly AbilityReference[]; hp?: ScalingValue }` (hp optional/absent
+   when the flip side, like both of these, prints no separate HP — "cannot be defeated" makes HP moot), and the
+   standard/expert split modeled as two ordinary single-stage `VillainCard`s (not two sides of one) the way
+   `toafk`'s Kang/exp_kang split already is.
+4. **Hercules' Labor Deck (59002 Defeat the Hydra, 59003 Embody Pathos, 59004 Protect Humanity, and likely more
+   unsurveyed `hercules_labor_deck` codes): a hero-owned, encounter-shaped card.** Each prints `faction_code:
+   "hero"` (identity-specific, like the Gift Deck) but is typed `attachment`/`obligation` and behaves like an
+   *encounter* card: `"Victory 0."`, a `When Revealed:` trigger that searches for and attaches/plays itself, no
+   resource cost, no deck slot. `AttachmentCard`/`ObligationCard` (`schema/cards/encounter-cards.ts`) assume
+   `faction_code: "encounter"`. No shape proposed here — needs a real design decision (closest existing
+   precedent is `PlayerCardCommon.separateDeck`/`IdentitySeparateDeck`, but those are ordinary player cards, not
+   encounter-shaped ones).
+5. **`fne`'s Sense Deck: a non-unique identity-specific card with no printed `deck_limit`.** Daredevil's five
+   Sense Deck cards (60002–60006, Acute Tactility/Enhanced Olfaction/Heightened Hearing/Radar Sense/Superior
+   Taste): `is_unique: false`, `quantity: 1`, `deck_limit: None`. Unlike Hercules' Gift Deck (§3 above, Part 4),
+   these aren't unique, so RRG's uniqueness-cap reasoning that justified defaulting a missing `deck_limit` to 1
+   doesn't apply, and no other evidence yet supports a specific value (1, matching `quantity`, is the most likely
+   real answer — a "pick one of five" mechanic — but wasn't independently confirmed against a card image or
+   rules insert before this pass ran out of time on a very recently released pack). Needs either a confirmed
+   value (a card scan or the product's rules insert) or a considered decision on whether "non-unique,
+   identity-specific, missing deck_limit" should default the same way a unique one does.
+6. **`fne`'s Photographic Reflexes (60040a/60040b/60040c): three MarvelCDB records, one physical card or
+   three?** Same `card_set_code`, `quantity: 2` each, byte-identical text, none with `imagesrc`. Could be three
+   real alternate-art printings (6 physical copies) or a MarvelCDB triplication bug (one physical card, the way
+   `trors`' `10098` duplicated a real Captive ally). No card image exists for any of the three to settle it.
+7. **Coordinated Effort (`wonder_man`, 58032): "Attach to an encounter card in play."** No `AttachmentHostCategory`
+   value means "any card currently in the encounter deck/discard's play area", as opposed to a specific category
+   (`enemy`/`sideScheme`/etc.) — every existing `qualified`/plain category kind names one specific kind of card.
+8. **X-23's 43012: "Attach to an enemy that X-23 or Honey Badger attacked this turn."** A temporal condition
+   (which enemy, and when) — no existing `AttachmentHost` kind expresses "attacked this [turn/phase/round]".
+9. **Warrior of the Great Web (`spiderham`, 30029): "Attach to a character with 'Spider' in its title."** A
+   substring match on the printed title (not a trait, not an exact name) — no existing `HostQualifiers` shape
+   for "title contains X" (`namedCard` requires an exact match).
+
+### Progress / next up
+
+- **Done this pass:** `ironheart`, `iceman` emitted (23 packs in `DATA_ONLY_CARDS` now). `auxiliaryHeroSetCodes`
+  (new, general) and two more general normalizer fixes (`main-schemes.ts` B-side image fallback,
+  `player-cards.ts` unique-card `deck_limit` default). Ten more packs curated with real findings
+  (`mojo`/`storm`/`hercules`/`fne`/`gmw`/`wonder_man`/`x23`/`psylocke`/`valk`/`deadpool`/`spiderham`), all
+  registered in `survey.ts`, none emitting invalid data. Nine schema/parser-architecture gaps consolidated above.
+  `phoenix` stays withheld exactly as decided in Part 3 — not revisited this pass.
+  Survey: **40 of 63 packs normalize cleanly** (up from 34 before Part 3, 38 after Part 3's commit).
+- **Verified: root `pnpm typecheck`/`pnpm test` clean.** `@mc/content` 389 tests (was 388 after Part 3's commit,
+  +1 net from `iceman`'s emission — `ironheart` landed mid-pass before the tally, both counted in the 388→389
+  delta together with the pack-count assertion bumps). `@mc/cards`'s 2 pre-existing failures from concurrent
+  work in that package are unrelated (confirmed unrelated file paths) and outside this remit.
+- **Regenerated all already-registered packs again this pass to check the two new general normalizer fixes for
+  regressions** (same discipline as Part 3 §3): only the intended files changed for every pack except Core and
+  the same six wave 1 packs (`bkw`/`cap`/`drs`/`gob`/`hlk`/`msm`/`thor`), which reproduced the *exact same*
+  pre-existing, pre-this-agent staleness Part 3 already found and reverted (`git checkout`, not committed —
+  still not this pass's to resolve).
+- **Next opportunity, in rough order of leverage:**
+  1. `game-rules-architect`: the nine schema/parser requests above, roughly by how many packs each unblocks —
+     `SuperlativeHostPool "ally"`/`HostMeasure "cost"`/`"thw"` (4 packs: `valk`, `deadpool`, `jubilee`, `storm`),
+     `VillainStage.flipSide` (2 packs: `gmw`, `mts`, likely more once `aos`/`tt` — both also flagged "villain
+     stage label is not a roman numeral" — are checked against this same shape).
+  2. `jubilee`'s three missing-artwork records (9 images) and `psylocke`'s Psi-Knife (1 image) are ready for the
+     `imageOverrides` treatment the moment someone does the second-source research (same recipe as `ironheart`
+     §1: download to scratchpad, view with Read, delete, cite the URL).
+  3. The big packs (`next_evol` 86, `aos` 76, `cw`/`tt` 57, `aoa` 56, `mts` 38, `jj`/`mut_gen` 37, `sm` 30,
+     `luke_cage` 26, `synthezoid` 22) are each a mix of several of the above categories plus more not yet
+     individually triaged — worth a fresh pass once the schema items land, since several of their issues will
+     likely resolve for free the way `sm`'s did this pass.
+  4. Core/wave 1's generated-file staleness (Part 3 §3) is still just reverted, not resolved — still not this
+     pass's call.

@@ -70,6 +70,8 @@ import { SILK_CURATION } from "./marvelcdb/curation/silk.ts";
 import { ROGUE_CURATION } from "./marvelcdb/curation/rogue.ts";
 import { WOLV_CURATION } from "./marvelcdb/curation/wolv.ts";
 import { HOOD_CURATION } from "./marvelcdb/curation/hood.ts";
+import { IRONHEART_CURATION } from "./marvelcdb/curation/ironheart.ts";
+import { ICEMAN_CURATION } from "./marvelcdb/curation/iceman.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -120,6 +122,10 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   rogue: ROGUE_CURATION,
   wolv: WOLV_CURATION,
   hood: HOOD_CURATION,
+  ironheart: IRONHEART_CURATION,
+  iceman: ICEMAN_CURATION,
+  // mojo, storm: curated (survey.ts), but NOT registered here — each has one card still blocked on a real
+  // parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for game-rules-architect" / parser-gap log).
 };
 
 interface RawCache {

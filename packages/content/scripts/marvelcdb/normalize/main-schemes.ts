@@ -55,7 +55,13 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       // The aggregate record carries the B side and the `…b` record the A side
       // (see `aggregateImage`). MarvelCDB's front/back for a main scheme is
       // "the side you play with" / "the side you set up from", not A / B.
-      const bSideImage = ctx.aggregateImage(ra.code);
+      // Not every pack has a bare aggregate record for a main scheme (wave 1's did; several later packs — Mojo
+      // Mania and others in `mojo` — have none at all, `byCode.get(aSideCode.replace(/a$/, ""))` returning
+      // `undefined`), even though the B-side's own linked record carries a perfectly good `imagesrc` of its own.
+      // Falls back to that before giving up, the same direction `aSideImage` already falls back to `rb.imagesrc`
+      // then `ra.imagesrc` below — backward compatible: this fallback only fires when the aggregate lookup found
+      // nothing, so wave 1's own (aggregate-backed) output is unchanged.
+      const bSideImage = ctx.aggregateImage(ra.code) ?? imageOf(rb.imagesrc);
       // The Once and Future Kang's stage records go the other way round from the wave 1 packs this originally
       // matched: the "a" record carries its own image and the linked "b" record's `imagesrc` is null (verified —
       // `11008a.png` exists, `11008b` has no `imagesrc` at all). Falling back to the "a" record's own image when

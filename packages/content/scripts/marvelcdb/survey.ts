@@ -64,6 +64,19 @@ import { PHOENIX_CURATION } from "./curation/phoenix.ts";
 import { ROGUE_CURATION } from "./curation/rogue.ts";
 import { WOLV_CURATION } from "./curation/wolv.ts";
 import { HOOD_CURATION } from "./curation/hood.ts";
+import { IRONHEART_CURATION } from "./curation/ironheart.ts";
+import { MOJO_CURATION } from "./curation/mojo.ts";
+import { STORM_CURATION } from "./curation/storm.ts";
+import { ICEMAN_CURATION } from "./curation/iceman.ts";
+import { HERCULES_CURATION } from "./curation/hercules.ts";
+import { FNE_CURATION } from "./curation/fne.ts";
+import { GMW_CURATION } from "./curation/gmw.ts";
+import { WONDER_MAN_CURATION } from "./curation/wonder_man.ts";
+import { X23_CURATION } from "./curation/x23.ts";
+import { PSYLOCKE_CURATION } from "./curation/psylocke.ts";
+import { VALK_CURATION } from "./curation/valk.ts";
+import { DEADPOOL_CURATION } from "./curation/deadpool.ts";
+import { SPIDERHAM_CURATION } from "./curation/spiderham.ts";
 import type { PackCuration } from "./curation/types.ts";
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -108,6 +121,19 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   rogue: ROGUE_CURATION,
   wolv: WOLV_CURATION,
   hood: HOOD_CURATION,
+  ironheart: IRONHEART_CURATION,
+  mojo: MOJO_CURATION,
+  storm: STORM_CURATION,
+  iceman: ICEMAN_CURATION,
+  hercules: HERCULES_CURATION,
+  fne: FNE_CURATION,
+  gmw: GMW_CURATION,
+  wonder_man: WONDER_MAN_CURATION,
+  x23: X23_CURATION,
+  psylocke: PSYLOCKE_CURATION,
+  valk: VALK_CURATION,
+  deadpool: DEADPOOL_CURATION,
+  spiderham: SPIDERHAM_CURATION,
 };
 
 interface RawCache {

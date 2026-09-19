@@ -66,22 +66,25 @@ export function normalizePlayerCard(
   // A scenario- or campaign-specific card doesn't always print a real `deck_limit` (MarvelCDB sends none for some
   // products' campaign cards — Galaxy's Most Wanted's "the_market" set has cost but no deck_limit at all — and
   // never for a scenario prop such as Taskmaster's Captive allies): `validateDeck` gates these on `specificTo`'s
-  // classification, not on this count (docs/phase7-wave2.md §1.4). A missing deck_limit on a *unique* scenario/
-  // campaign card (every Captive ally: `is_unique: true`) defaults to 1 rather than 0 — the schema's own
-  // `validateCard` requires a positive `deckLimit` on every player card regardless of `specificTo` (unlike this
-  // file's earlier, looser ingestion-only check), and RRG's uniqueness rule caps such a card at one copy in any
-  // case, so 1 is the correct value, not a workaround (docs/phase7-wave2.md §5.1: "deckLimit: 1 (they are
-  // unique; campaign mode may add them to decks)"). A non-unique specific card with no printed deck_limit (none
-  // observed yet) still defaults to 0 and stays exempt from the check below, since no evidence supports a value.
-  // A *present* deck_limit (the Hydra Campaign upgrades print 1) is still read and kept either way.
+  // classification, not on this count (docs/phase7-wave2.md §1.4). A missing deck_limit on a *unique* card
+  // defaults to 1 rather than 0 — the schema's own `validateCard` requires a positive `deckLimit` on every player
+  // card regardless of `specificTo` (unlike this file's earlier, looser ingestion-only check), and RRG's
+  // uniqueness rule caps a unique card at one copy in any deck regardless of why it's unique, so 1 is the
+  // correct value, not a workaround (docs/phase7-wave2.md §5.1: "deckLimit: 1 (they are unique; campaign mode
+  // may add them to decks)" — originally observed only on unique scenario/campaign cards, but the same reasoning
+  // holds for any unique card missing `deck_limit`: Hercules' Gift Deck, 59005–59007, `is_unique: true` with no
+  // `specificTo` at all, hits the identical gap as a plain identity-specific hero-kit card). A non-unique
+  // specific card with no printed deck_limit (none observed yet) still defaults to 0 and stays exempt from the
+  // check below, since no evidence supports a value. A *present* deck_limit (the Hydra Campaign upgrades print 1)
+  // is still read and kept either way.
   // A card with the Linked keyword (RRG 1.8 p. 27: "Cards with the linked keyword cannot be included in a
   // player's deck") never prints a `deck_limit` either — MarvelCDB's Redemption (51036, `bp`) has none. It is
   // refused from deckbuilding by `validateDeck`'s own `linked_card` check regardless of this number (PLAN.md
   // Phase 7, "Aug 3, 2026, ruling 4"), so `deckLimit` here is a formality to satisfy `validateCard`'s "must be a
-  // positive integer" — defaulted to 1 the same way a unique scenario/campaign card is, for the same reason.
+  // positive integer" — defaulted to 1 the same way a unique card is, for the same reason.
   const isLinked = parsed.keywords.some((k) => k.name === "linked");
   const exemptFromDeckLimit = Boolean(separateDeck) || isLinked || (specificTo !== undefined && !r.is_unique);
-  const deckLimit = separateDeck ? 0 : (r.deck_limit ?? (isLinked || (specificTo !== undefined && r.is_unique) ? 1 : 0));
+  const deckLimit = separateDeck ? 0 : (r.deck_limit ?? (isLinked || r.is_unique ? 1 : 0));
   if (!exemptFromDeckLimit && (!Number.isInteger(deckLimit) || deckLimit < 1)) {
     errors.push(`${r.code}: deck_limit ${String(r.deck_limit)} invalid`);
   }

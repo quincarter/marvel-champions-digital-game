@@ -62,6 +62,16 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     // set. `heroes.ts`'s curated `separatedIdentities` is the structural signal that this is one anyway.
     if (r.linked_card?.type_code === "alter_ego" || curation.separatedIdentities?.[r.code]) heroBySet.set(r.card_set_code, r);
   }
+  // A hero-kit card MarvelCDB files under a themed auxiliary set instead of the identity's own
+  // (`PackCuration.auxiliaryHeroSetCodes`'s doc comment — Storm's Weather Deck): alias the auxiliary code to
+  // whatever hero record the primary code already resolved to. A primary code the pack doesn't actually have
+  // (a typo, or a curation entry left over from a copy-paste) resolves to nothing here — no error, so this is
+  // conservative by construction, not silent-but-wrong: the auxiliary set's own cards then still fail the
+  // ordinary "hero card in a set with no identity" check exactly as before.
+  for (const [auxSet, primarySet] of Object.entries(curation.auxiliaryHeroSetCodes ?? {})) {
+    const hero = heroBySet.get(primarySet);
+    if (hero) heroBySet.set(auxSet, hero);
+  }
   const handled = new Set<string>();
   // A record curation has hand-verified isn't a printed card at all (`IgnoredRecord`) is dropped up front, the
   // same way a MarvelCDB aggregate is — `checkCoverage` exempts it via `ctx.dropped`, not by lowering the bar.

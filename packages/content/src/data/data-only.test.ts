@@ -53,6 +53,10 @@ import {
   WOLV_PACK,
   HOOD_CARDS,
   HOOD_PACK,
+  IRONHEART_CARDS,
+  IRONHEART_PACK,
+  ICEMAN_CARDS,
+  ICEMAN_PACK,
 } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
 import { WAVE1_CARDS } from "./index.js";
@@ -80,6 +84,8 @@ const PACKS: readonly { readonly code: string; readonly cards: readonly AnyCard[
   { code: "rogue", cards: ROGUE_CARDS, pack: ROGUE_PACK },
   { code: "wolv", cards: WOLV_CARDS, pack: WOLV_PACK },
   { code: "hood", cards: HOOD_CARDS, pack: HOOD_PACK },
+  { code: "ironheart", cards: IRONHEART_CARDS, pack: IRONHEART_PACK },
+  { code: "iceman", cards: ICEMAN_CARDS, pack: ICEMAN_PACK },
 ];
 
 describe("data-only pool — integrity", () => {
@@ -89,8 +95,8 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("21 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(21);
+  it("23 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(23);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
@@ -115,12 +121,12 @@ describe("data-only pool — integrity", () => {
     // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue (Phoenix/Mojo/Storm are not in this pool yet — Phoenix
     // is blocked, see curation/phoenix.ts).
     for (const code of ["cyclops", "gambit", "wolv", "rogue"]) expect(cycleOf(code), code).toBe("cycle6");
-    // Cycle 8: Nightcrawler, Magneto (Iceman/Jubilee are not in this pool yet).
-    for (const code of ["ncrawler", "magneto"]) expect(cycleOf(code), code).toBe("cycle8");
+    // Cycle 8: Nightcrawler, Magneto, Iceman (Jubilee is not in this pool yet).
+    for (const code of ["ncrawler", "magneto", "iceman"]) expect(cycleOf(code), code).toBe("cycle8");
     // Cycle 9: Black Panther/Shuri, Silk, Winter Soldier, Falcon (Trickster Takeover is not in this pool yet).
     for (const code of ["bp", "silk", "winter", "falcon"]) expect(cycleOf(code), code).toBe("cycle9");
-    // Cycle 5: Nova, SP//dr (Ironheart/Spider-Ham are not in this pool yet).
-    for (const code of ["nova", "spdr"]) expect(cycleOf(code), code).toBe("cycle5");
+    // Cycle 5: Nova, SP//dr, Ironheart (Spider-Ham is not in this pool yet).
+    for (const code of ["nova", "spdr", "ironheart"]) expect(cycleOf(code), code).toBe("cycle5");
     // Ronan is a Print and Play promotional release, not part of any numbered cycle.
     expect(cycleOf("ron")).toBe("promo");
   });

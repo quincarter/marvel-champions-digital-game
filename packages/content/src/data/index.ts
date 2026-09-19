@@ -199,6 +199,8 @@ export * from "./spdr/index.js";
 export * from "./rogue/index.js";
 export * from "./wolv/index.js";
 export * from "./hood/index.js";
+export * from "./ironheart/index.js";
+export * from "./iceman/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
@@ -242,9 +244,13 @@ import { WOLV_CARDS } from "./wolv/cards.js";
 import { WOLV_ENCOUNTER_SETS } from "./wolv/encounterSets.js";
 import { HOOD_CARDS } from "./hood/cards.js";
 import { HOOD_ENCOUNTER_SETS } from "./hood/encounterSets.js";
+import { IRONHEART_CARDS } from "./ironheart/cards.js";
+import { IRONHEART_ENCOUNTER_SETS } from "./ironheart/encounterSets.js";
+import { ICEMAN_CARDS } from "./iceman/cards.js";
+import { ICEMAN_ENCOUNTER_SETS } from "./iceman/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 21 packs across cycles 3, 4, 5, 6, 8, 9 and one non-cycle promotional release,
+ * Every card in the data-only pool: 23 packs across cycles 3, 4, 5, 6, 8, 9 and one non-cycle promotional release,
  * in pack-code alphabetical order (no release-order relationship spans this many cycles at once, unlike
  * `WAVE1_CARDS`/`WAVE2_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`CORE_CARDS` — a client that wants
  * "every known card, playable or not" concatenates this with those.
@@ -271,6 +277,8 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...ROGUE_CARDS,
   ...WOLV_CARDS,
   ...HOOD_CARDS,
+  ...IRONHEART_CARDS,
+  ...ICEMAN_CARDS,
 ];
 
 /** Every data-only pool encounter set. */
@@ -296,4 +304,6 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...ROGUE_ENCOUNTER_SETS,
   ...WOLV_ENCOUNTER_SETS,
   ...HOOD_ENCOUNTER_SETS,
+  ...IRONHEART_ENCOUNTER_SETS,
+  ...ICEMAN_ENCOUNTER_SETS,
 ];

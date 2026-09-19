@@ -262,4 +262,14 @@ export interface PackCuration {
    * `alter_ego` (the structural signature of a separated identity) ever consults this map.
    */
   readonly separatedIdentities?: Readonly<Record<string, SeparatedIdentitySource>>;
+  /**
+   * An auxiliary `card_set_code` → the pack's hero identity's own (primary) `card_set_code`, for a hero-kit card
+   * MarvelCDB files under a themed sub-set instead of the identity's own set — Storm's four Weather Deck supports
+   * (`storm_weather_deck` → `storm`; Clear Skies/Hurricane/Thunderstorm/Blizzard, a "one active weather condition
+   * at a time" mechanic) is the confirmed case; the same shape recurs in `fne`/`hercules`/`iceman`'s own gap
+   * matrix entries ("hero card in a set with no identity"), not yet individually confirmed. Resolved by aliasing
+   * the auxiliary set code to the primary set's own hero record in `heroBySet` — every `aspect: hero:<id>` lookup
+   * keyed off `card_set_code` (deckbuilding, `printedAspect`, nemesis-set naming) then works unchanged.
+   */
+  readonly auxiliaryHeroSetCodes?: Readonly<Record<string, string>>;
 }
