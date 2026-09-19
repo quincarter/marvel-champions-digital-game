@@ -1,17 +1,29 @@
 /**
- * Pause (docs/phase4-screen-gaps.md §3 "W4"; design canvases D13, P16, L07).
+ * Pause (docs/phase4-screen-gaps.md §3 "W4"; owner decision 2026-09-18 — see
+ * `view/pause-layout.ts`'s own header for the full read of what changed and
+ * why).
  *
- * **Composition (fidelity pass, 2026-09-17).** `view/pause-layout.ts`'s own
- * doc comment has the full read of the tiles; in short, an overlay *sheet*
- * over a 70%-ink scrim, one ink ground throughout: an ink title bar ("Paused"
- * + the status line, a boxed ✕ at its corner that does what Resume does) over
- * a two-column body — **Rules reference** (a search field, then "Quick
- * reference" chevron rows: Villain phase order / Keyword glossary / Scenario
- * card list / Jump into the log) beside **Table** (the same toggle rows
- * `scenes/settings.ts` draws, from the shared `view/settings-rows.ts`) — and a
- * three-button footer: Save & quit, Concede (both quiet outlines), Resume (the
- * one red primary action). Below `TWO_COLUMN_MIN_BODY_WIDTH` the Table group
- * stacks under Rules reference instead of beside it.
+ * **Wide (desktop and tablet, both orientations): D13's two-panel sheet.**
+ * A left ink menu — Bangers "Paused", the status line, Resume (the one red
+ * fill), Full game log, Rules reference, Settings, and Concede pinned at the
+ * panel's own foot — beside a right paper panel: "Rules reference" over a
+ * grid of bordered keyword/status cards for what's on the table right now
+ * (`view/rules-reference.ts`'s own glossary, capped at a few rows by
+ * `view/pause-keyword-grid.ts`), then "Jump to a moment" over the most
+ * recent log lines (`view/pause-log-window.ts`) — not clickable yet
+ * (docs/phase4-screen-gaps.md S7's read-only replay board hasn't landed), so
+ * its own footer label says that plainly rather than promising a jump this
+ * build doesn't do. "Full game log" swaps that same footprint for the fuller
+ * retained log instead — there is no separate full-log screen to open, so
+ * this is what "open the log" means here (`view/pause-layout.ts`'s own doc
+ * comment).
+ *
+ * **Phone: P16's own single-column sheet**, unchanged in spirit from the
+ * previous pass — an ink title bar with a boxed ✕, a search field, "Quick
+ * reference" chevron rows, the "Table" toggle rows (`scenes/settings.ts`'s
+ * own shared row list — P16 draws Table inline, unlike D13, which sends it
+ * to the standalone Settings screen instead), and a footer of Resume over
+ * Save & quit / Concede side by side.
  *
  * Launched over the Board by its own MENU/≡ chrome button, or by Escape when
  * nothing else (a target/payment mode, the choice sheet, Inspect, the villain
@@ -26,12 +38,13 @@
  */
 import Phaser from "phaser";
 import { POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS } from "../content/pool.js";
-import { accent, ink, surface, typeRole } from "../tokens.js";
+import { accent, ink, status, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { caseOf, setTextResolution, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
-import { pauseLayout } from "../view/pause-layout.js";
+import { pauseLayout, type PausePhoneLayout, type PauseWideLayout } from "../view/pause-layout.js";
+import { recentLogMoments } from "../view/pause-log-window.js";
 import { pauseStatusOf } from "../view/pause-model.js";
-import { rulesGlossaryOf } from "../view/rules-reference.js";
+import { rulesGlossaryOf, type RulesEntry } from "../view/rules-reference.js";
 import { scenarioCardListOf } from "../view/scenario-card-list.js";
 import { nextSettingsAfterToggle, settingsRowInfoOf, type SettingsRowInfo } from "../view/settings-rows.js";
 import { pauseFocusOrder } from "../view/screen-focus.js";
@@ -43,7 +56,7 @@ import type { RulesSceneData } from "./rules.js";
 import type { RulesTab } from "../view/rules-layout.js";
 import { SCENES } from "./keys.js";
 
-/** One "Quick reference" row: a title, an optional detail line, and what opens when it's activated (or, absent that, why it can't be yet). */
+/** One "Quick reference" row (phone only): a title, an optional detail line, and what opens when it's activated (or, absent that, why it can't be yet). */
 interface QuickReferenceRow {
   readonly id: string;
   readonly title: string;
@@ -52,6 +65,9 @@ interface QuickReferenceRow {
   readonly unavailable?: string;
 }
 
+/** The wide menu's own Bangers size — smaller than a bar title, still the display face, matching D13's own read of "RESUME"/"SETTINGS" etc. */
+const MENU_BUTTON_TYPE: TypeSpec = { ...typeRole.barTitle, size: 18 };
+
 export class PauseOverlay extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
   #buttons: McButton[] = [];
@@ -59,6 +75,8 @@ export class PauseOverlay extends Phaser.Scene {
   #query = "";
   #route: FocusRoute | null = null;
   #confirmingConcede = false;
+  /** Wide only: "Full game log" swaps the right panel's header/grid/jump-box group for the fuller retained log (`view/pause-layout.ts`'s own `rightContent`). */
+  #logExpanded = false;
 
   constructor() {
     super(SCENES.pause);
@@ -66,6 +84,7 @@ export class PauseOverlay extends Phaser.Scene {
 
   create(): void {
     this.#confirmingConcede = false;
+    this.#logExpanded = false;
     this.#query = "";
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#draw());
@@ -89,6 +108,11 @@ export class PauseOverlay extends Phaser.Scene {
 
   #setConfirmingConcede(value: boolean): void {
     this.#confirmingConcede = value;
+    this.#draw();
+  }
+
+  #toggleFullGameLog(): void {
+    this.#logExpanded = !this.#logExpanded;
     this.#draw();
   }
 
@@ -125,6 +149,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.scene.launch(SCENES.rules, data);
   }
 
+  /** Phone only — wide mode's menu links straight to Rules reference/Settings instead of this chevron list. */
   #quickReferenceRows(game: SessionState["game"]): readonly QuickReferenceRow[] {
     const rows: QuickReferenceRow[] = [];
     const query = this.#query.trim();
@@ -170,10 +195,6 @@ export class PauseOverlay extends Phaser.Scene {
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
-    for (const node of kept) this.children.remove(node);
-    this.children.removeAll(true);
-    for (const node of kept) this.children.add(node);
 
     const { store, settings } = appSession();
     const { game, perspectiveId, config } = store.state;
@@ -181,62 +202,284 @@ export class PauseOverlay extends Phaser.Scene {
 
     const quickReferenceRows = this.#quickReferenceRows(game);
     const tableRows = settingsRowInfoOf(settings);
+    const keywordEntries = game ? rulesGlossaryOf(game, POOL_DEPS) : [];
+
     const layout = pauseLayout(
       { x: 0, y: 0, width, height },
-      quickReferenceRows.map((row) => row.unavailable ?? row.detail),
-      tableRows.map((row) => row.unavailable ?? row.detail),
+      {
+        keywordCount: keywordEntries.length,
+        quickReferenceDetails: quickReferenceRows.map((row) => row.unavailable ?? row.detail),
+        tableDetails: tableRows.map((row) => row.unavailable ?? row.detail),
+      },
     );
 
-    // Dim scrim over the board, then the panel itself — one ink ground
-    // throughout (`view/pause-layout.ts`'s own doc comment says why).
+    const kept = layout.kind === "phone" && this.#searchInput ? [this.#searchInput.gameObject] : [];
+    for (const node of kept) this.children.remove(node);
+    this.children.removeAll(true);
+    for (const node of kept) this.children.add(node);
+    if (layout.kind === "wide" && this.#searchInput) {
+      // Wide mode has no search field of its own — search lives in the full Rules reference overlay instead.
+      this.#searchInput.destroy();
+      this.#searchInput = null;
+    }
+
+    // Dim scrim over the board — the sheet itself paints its own two panels below.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.void.hex, 0.7).fillRect(0, 0, width, height);
+
+    const stops = new Map<string, FocusStop>();
+
+    if (layout.kind === "wide") {
+      this.#drawWide(layout, keywordEntries, game, perspectiveId, config, stops);
+      this.#route?.set(
+        pauseFocusOrder({
+          kind: "wide",
+          keywordIds: keywordEntries.slice(0, layout.keywordGrid.shown).map((entry) => entry.id),
+          confirmingConcede: this.#confirmingConcede,
+        }),
+        stops,
+      );
+    } else {
+      this.#drawPhone(layout, quickReferenceRows, tableRows, game, perspectiveId, config, stops);
+      this.#route?.set(
+        pauseFocusOrder({
+          kind: "phone",
+          quickReferenceIds: quickReferenceRows.map((row) => row.id),
+          tableRowIds: tableRows.map((row) => row.id),
+          confirmingConcede: this.#confirmingConcede,
+        }),
+        stops,
+      );
+    }
+  }
+
+  // ------------------------------------------------------------------------------------------------------------
+  // Wide (desktop + tablet, both orientations): D13's two-panel sheet.
+  // ------------------------------------------------------------------------------------------------------------
+
+  #drawWide(
+    layout: PauseWideLayout,
+    entries: readonly RulesEntry[],
+    game: SessionState["game"],
+    perspectiveId: SessionState["perspectiveId"],
+    config: SessionState["config"],
+    stops: Map<string, FocusStop>,
+  ): void {
+    // A hard offset shadow behind the sheet — the design's own one shadow besides the selection ring.
+    const shadow = this.add.graphics();
+    shadow.fillStyle(surface.ink.hex, 0.5).fillRect(layout.sheet.x + 8, layout.sheet.y + 8, layout.sheet.width, layout.sheet.height);
+
+    const leftG = this.add.graphics();
+    leftG.fillStyle(surface.ink.hex, 1).fillRect(layout.left.x, layout.left.y, layout.left.width, layout.left.height);
+    leftG.lineStyle(4, surface.paper.hex, 1).strokeRect(layout.left.x, layout.left.y, layout.left.width, layout.left.height);
+    paintDotGrid(this, layout.left, "ink", { spacing: 8, radius: 1, alpha: 0.08 });
+
+    const rightG = this.add.graphics();
+    rightG.fillStyle(surface.paper.hex, 1).fillRect(layout.right.x, layout.right.y, layout.right.width, layout.right.height);
+    rightG.lineStyle(4, surface.ink.hex, 1).strokeRect(layout.right.x, layout.right.y, layout.right.width, layout.right.height);
+    paintDotGrid(this, layout.right, "paper", { spacing: 6, radius: 1, alpha: 0.1 });
+
+    this.add.text(layout.title.x, layout.title.y, caseOf(typeRole.barTitle, "Paused"), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "30px" });
+    const statusText = game && perspectiveId ? this.#wideStatusLine(game, perspectiveId, config) : "No game in progress.";
+    const statusLabel = label(this, layout.status.x, layout.status.y, statusText, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(11);
+    fitText(statusLabel, layout.status.width, 11);
+
+    this.#menuButton(stops, "resume", "primary", "Resume", layout.menu.resume, () => this.#resume());
+    this.#menuButton(stops, "full-game-log", "onInk", "Full game log", layout.menu.fullGameLog, () => this.#toggleFullGameLog(), this.#logExpanded);
+    this.#menuButton(stops, "rules-reference", "onInk", "Rules reference", layout.menu.rulesReference, () => this.#openRules({ initialTab: "glossary" satisfies RulesTab }));
+    this.#menuButton(stops, "settings", "onInk", "Settings", layout.menu.settings, () => this.scene.launch(SCENES.settings));
+
+    if (this.#confirmingConcede) this.#drawWideConcedeConfirm(layout, stops);
+    else this.#drawDimButton(layout.concede, "Concede", () => this.#setConfirmingConcede(true), stops, "concede");
+
+    this.#drawWideRight(layout, entries, game, stops);
+  }
+
+  #menuButton(stops: Map<string, FocusStop>, id: string, kind: "primary" | "onInk", text: string, rect: Rect, onClick: () => void, selected = false): void {
+    stops.set(id, { rect, activate: onClick });
+    this.#buttons.push(new McButton(this, { kind, label: text, type: MENU_BUTTON_TYPE, rect, onClick, selected, enabled: true }));
+  }
+
+  /** A dim outline button — Concede's own D13 look — borrowing `paintPanel`'s "onInk"/"unavailable" skin for its visual only; the button stays real and clickable. */
+  #drawDimButton(rect: Rect, text: string, onClick: () => void, stops: Map<string, FocusStop>, id: string): void {
+    const g = this.add.graphics();
+    paintPanel(g, rect, "onInk", "unavailable");
+    const t = this.add
+      .text(rect.x + rect.width / 2, rect.y + rect.height / 2, caseOf(MENU_BUTTON_TYPE, text), textStyle(MENU_BUTTON_TYPE, surface.paper.hex, ink.disabled))
+      .setOrigin(0.5)
+      .setLetterSpacing(MENU_BUTTON_TYPE.letterSpacing);
+    fitText(t, rect.width - 16, MENU_BUTTON_TYPE.size);
+    const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    zone.on("pointerup", onClick);
+    stops.set(id, { rect, activate: onClick });
+  }
+
+  #drawWideConcedeConfirm(layout: PauseWideLayout, stops: Map<string, FocusStop>): void {
+    this.add
+      .text(layout.title.x, layout.concedeConfirmCancel.y - 34, "Concede? This ends the game for the whole table.", textStyle(typeRole.body, accent.heroRed.hex))
+      .setFontSize(10)
+      .setWordWrapWidth(layout.title.width);
+    stops.set("concede-confirm-yes", { rect: layout.concedeConfirmYes, activate: () => void this.#onConcedeConfirmed() });
+    this.#buttons.push(new McButton(this, { kind: "primary", label: "Yes, concede", type: MENU_BUTTON_TYPE, rect: layout.concedeConfirmYes, onClick: () => void this.#onConcedeConfirmed() }));
+    stops.set("concede-confirm-cancel", { rect: layout.concedeConfirmCancel, activate: () => this.#setConfirmingConcede(false) });
+    this.#buttons.push(new McButton(this, { kind: "onInk", label: "Cancel", type: MENU_BUTTON_TYPE, rect: layout.concedeConfirmCancel, onClick: () => this.#setConfirmingConcede(false) }));
+  }
+
+  #drawWideRight(layout: PauseWideLayout, entries: readonly RulesEntry[], game: SessionState["game"], stops: Map<string, FocusStop>): void {
+    if (this.#logExpanded) {
+      this.#drawExpandedLog(layout);
+      return;
+    }
+
+    const headerTitle = this.add
+      .text(layout.rulesHeader.x, layout.rulesHeader.y, caseOf(typeRole.barTitle, "Rules reference"), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "20px" })
+      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+    const filterText = game ? "Filtered to what's on your table" : "No game in progress";
+    const filterLabel = label(this, layout.rulesHeader.x + layout.rulesHeader.width, layout.rulesHeader.y + 8, filterText, typeRole.label, surface.ink.hex, ink.secondary)
+      .setOrigin(1, 0)
+      .setFontSize(9);
+    fitText(filterLabel, 240, 9);
+    const ruleY = layout.rulesHeader.y + headerTitle.height / 2 + 4;
+    const ruleStartX = layout.rulesHeader.x + headerTitle.width + 12;
+    const ruleEndX = filterLabel.x - filterLabel.width - 12;
+    if (ruleEndX > ruleStartX) {
+      const rule = this.add.graphics();
+      rule.fillStyle(surface.ink.hex, 0.3).fillRect(ruleStartX, ruleY, ruleEndX - ruleStartX, 2);
+    }
+
+    if (layout.keywordGrid.shown === 0) {
+      const emptyText = game ? "Nothing on the table carries a keyword or status right now." : "No game in progress — start or resume one to see what's on your table.";
+      this.add.text(layout.keywordEmpty.x, layout.keywordEmpty.y, emptyText, textStyle(typeRole.body, surface.ink.hex, ink.meta)).setFontSize(10).setWordWrapWidth(layout.keywordEmpty.width);
+    } else {
+      entries.slice(0, layout.keywordGrid.shown).forEach((entry, index) => this.#drawKeywordCard(layout.keywordGrid.cells[index]!, entry, stops));
+    }
+
+    this.#drawLogSection(layout.jumpHeader, layout.logBox, "Jump to a moment");
+  }
+
+  /** One bordered keyword/status card — a status is a filled card in its own status colour with paper text (colorblind-safe: the term is always the plain word, never colour alone), a keyword a plain outlined card. Tapping either opens the full Rules reference overlay's Glossary tab, filtered to this term. */
+  #drawKeywordCard(rect: Rect, entry: RulesEntry, stops: Map<string, FocusStop>): void {
+    const isStatus = entry.id === "stunned" || entry.id === "confused" || entry.id === "tough";
+    const g = this.add.graphics();
+    if (isStatus) {
+      g.fillStyle(status[entry.id as "stunned" | "confused" | "tough"].hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+      g.lineStyle(3, surface.ink.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+    } else {
+      paintPanel(g, rect, "card", "rest");
+    }
+    const textColor = isStatus ? surface.paper.hex : surface.ink.hex;
+    const pad = 10;
+    const term = this.add
+      .text(rect.x + pad, rect.y + 8, caseOf(typeRole.barTitle, entry.displayName), { ...textStyle(typeRole.barTitle, textColor), fontSize: "16px" })
+      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+    fitText(term, rect.width - pad * 2, 16);
+    this.add
+      .text(rect.x + pad, rect.y + 8 + term.height + 4, entry.definition, textStyle(typeRole.body, textColor, isStatus ? 1 : ink.body))
+      .setFontSize(9)
+      .setWordWrapWidth(rect.width - pad * 2);
+    const tailCard = entry.cardRefs[0];
+    if (tailCard) {
+      this.add.text(rect.x + pad, rect.y + rect.height - 16, `On ${tailCard.name}.`, textStyle(typeRole.label, textColor, isStatus ? 0.85 : ink.meta)).setFontSize(9);
+    }
+    const activate = (): void => this.#openRules({ initialTab: "glossary" satisfies RulesTab, initialQuery: entry.displayName });
+    const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    zone.on("pointerup", activate);
+    stops.set(`keyword:${entry.id}`, { rect, activate });
+  }
+
+  /** The parchment box of recent log lines — shared by the normal "Jump to a moment" footprint and "Full game log"'s expanded one. Not clickable yet (docs/phase4-screen-gaps.md S7). */
+  #drawLogBox(boxRect: Rect): void {
+    const g = this.add.graphics();
+    g.fillStyle(surface.parchment.hex, 1).fillRect(boxRect.x, boxRect.y, boxRect.width, boxRect.height);
+    g.lineStyle(2, surface.ink.hex, 1).strokeRect(boxRect.x, boxRect.y, boxRect.width, boxRect.height);
+
+    const padX = 12;
+    const padY = 10;
+    const footerHeight = 16;
+    const textWidth = Math.max(1, boxRect.width - padX * 2 - 46);
+    const available = Math.max(0, boxRect.height - padY * 2 - footerHeight - 6);
+    const moments = recentLogMoments(appSession().gameLog.lines, available, textWidth);
+
+    if (moments.length === 0) {
+      this.add.text(boxRect.x + padX, boxRect.y + padY, "Nothing has happened yet.", textStyle(typeRole.body, surface.ink.hex, ink.meta)).setFontSize(10);
+    } else {
+      let y = boxRect.y + padY;
+      for (const moment of moments) {
+        this.add.text(boxRect.x + padX, y, moment.line.ref, textStyle(typeRole.mono, surface.ink.hex, ink.meta)).setFontSize(9);
+        this.add.text(boxRect.x + padX + 46, y, moment.line.text, textStyle(typeRole.body, surface.ink.hex, ink.body)).setFontSize(10).setWordWrapWidth(textWidth);
+        y += moment.height;
+      }
+    }
+    label(this, boxRect.x + padX, boxRect.y + boxRect.height - padY - 6, "REPLAY FROM A MOMENT ISN'T BUILT YET", typeRole.label, surface.ink.hex, ink.meta)
+      .setFontSize(8)
+      .setOrigin(0, 0.5);
+  }
+
+  #drawLogSection(headerRect: Rect, boxRect: Rect, title: string): void {
+    this.add.text(headerRect.x, headerRect.y, caseOf(typeRole.barTitle, title), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "18px" }).setLetterSpacing(typeRole.barTitle.letterSpacing);
+    this.#drawLogBox(boxRect);
+  }
+
+  /** "Full game log": there is no separate full-log screen to open (`view/pause-layout.ts`'s own doc comment), so this swaps the header/grid/jump-header/log-box group for one taller box over the same footprint instead. */
+  #drawExpandedLog(layout: PauseWideLayout): void {
+    const rect = layout.rightContent;
+    const titleText = this.add
+      .text(rect.x, rect.y, caseOf(typeRole.barTitle, "Full game log"), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "20px" })
+      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+    const note = this.add
+      .text(rect.x, rect.y + titleText.height + 4, "Every retained beat, newest first. Tap “Full game log” again to go back to the keyword grid.", textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+      .setFontSize(9)
+      .setWordWrapWidth(rect.width);
+    const boxTop = note.y + note.height + 8;
+    this.#drawLogBox({ x: rect.x, y: boxTop, width: rect.width, height: Math.max(60, rect.y + rect.height - boxTop) });
+  }
+
+  // ------------------------------------------------------------------------------------------------------------
+  // Phone: P16's own single-column sheet.
+  // ------------------------------------------------------------------------------------------------------------
+
+  #drawPhone(
+    layout: PausePhoneLayout,
+    quickReferenceRows: readonly QuickReferenceRow[],
+    tableRows: readonly SettingsRowInfo[],
+    game: SessionState["game"],
+    perspectiveId: SessionState["perspectiveId"],
+    config: SessionState["config"],
+    stops: Map<string, FocusStop>,
+  ): void {
     const panel = this.add.graphics();
     panel.fillStyle(surface.ink.hex, 1).fillRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
     panel.lineStyle(4, surface.paper.hex, 1).strokeRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
     paintDotGrid(this, layout.panel, "ink", { spacing: 8, radius: 1, alpha: 0.08 });
 
-    const stops = new Map<string, FocusStop>();
     this.#drawHeader(layout.header, layout.closeButton, game, perspectiveId, config, stops);
 
-    // Rules reference column: search field, then the Quick reference rows.
-    label(this, layout.rules.heading.x, layout.rules.heading.y, "Rules reference", typeRole.label, surface.paper.hex, ink.secondary);
-    if (this.#searchInput) this.#searchInput.layout(layout.rules.search);
+    if (this.#searchInput) this.#searchInput.layout(layout.search);
     else {
       this.#searchInput = new McTextInput(this, {
-        rect: layout.rules.search,
+        rect: layout.search,
         value: this.#query,
-        placeholder: "Search — \"retaliate\", \"confused\"…",
+        placeholder: "Search rules — \"retaliate\", \"confused\"…",
         onChange: (value) => {
           this.#query = value;
           this.#draw();
         },
       });
     }
-    stops.set("search", { rect: layout.rules.search, activate: () => this.#searchInput?.focus() });
-    label(this, layout.rules.subheading.x, layout.rules.subheading.y, "Quick reference", typeRole.label, surface.paper.hex, ink.label);
-    quickReferenceRows.forEach((row, index) => this.#drawQuickReferenceRow(layout.rules.rows[index]!, row, stops));
+    stops.set("search", { rect: layout.search, activate: () => this.#searchInput?.focus() });
 
-    // Table column: the same toggle rows Settings draws, from one shared list.
-    label(this, layout.table.heading.x, layout.table.heading.y, "Table", typeRole.label, surface.paper.hex, ink.secondary);
-    tableRows.forEach((row, index) => this.#drawTableRow(layout.table.rows[index]!, row, stops));
+    label(this, layout.quickReferenceHeading.x, layout.quickReferenceHeading.y, "Quick reference", typeRole.label, surface.paper.hex, ink.label);
+    quickReferenceRows.forEach((row, index) => this.#drawQuickReferenceRow(layout.quickReferenceRows[index]!, row, stops));
 
-    // Footer: Save & quit, Concede, Resume — or the concede confirm in their place.
-    if (this.#confirmingConcede) this.#drawConcedeConfirm(layout, stops);
+    label(this, layout.tableHeading.x, layout.tableHeading.y, "Table", typeRole.label, surface.paper.hex, ink.secondary);
+    tableRows.forEach((row, index) => this.#drawTableRow(layout.tableRows[index]!, row, stops));
+
+    if (this.#confirmingConcede) this.#drawPhoneConcedeConfirm(layout, stops);
     else {
+      this.#button(stops, "resume", "primary", "Resume", layout.resume, () => this.#resume());
       this.#button(stops, "save-quit", "secondary", "Save & quit", layout.saveQuit, () => this.#saveAndQuit());
       this.#button(stops, "concede", "quiet", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
-      this.#button(stops, "resume", "primary", "Resume", layout.resume, () => this.#resume());
     }
-
-    this.#route?.set(
-      pauseFocusOrder({
-        quickReferenceIds: quickReferenceRows.map((row) => row.id),
-        tableRowIds: tableRows.map((row) => row.id),
-        confirmingConcede: this.#confirmingConcede,
-      }),
-      stops,
-    );
   }
 
   #drawHeader(
@@ -247,13 +490,13 @@ export class PauseOverlay extends Phaser.Scene {
     config: SessionState["config"],
     stops: Map<string, FocusStop>,
   ): void {
-    this.add.text(rect.x + 16, rect.y + 12, caseOf(typeRole.barTitle, "Paused"), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "28px" });
+    this.add.text(rect.x + 16, rect.y + 10, caseOf(typeRole.barTitle, "Paused"), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "26px" });
     const statusText = game && perspectiveId ? this.#statusLine(game, perspectiveId, config) : "No game in progress.";
-    const status = label(this, rect.x + 16, rect.y + 46, statusText, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(11);
+    const statusLabel = label(this, rect.x + 16, rect.y + 42, statusText, typeRole.label, surface.paper.hex, ink.secondary).setFontSize(11);
     // Shrinks rather than running under the ✕ (fidelity pass, 2026-09-17): at
     // phone width the full "‹scenario› · ‹difficulty› · Round ‹n› · ‹phase› ·
     // ‹seat›" line is wider than the header has room for beside the close button.
-    fitText(status, closeRect.x - rect.x - 16 - 12, 11);
+    fitText(statusLabel, closeRect.x - rect.x - 16 - 12, 11);
     this.#buttons.push(new McButton(this, { kind: "secondary", label: "✕", type: typeRole.rowTitle, rect: closeRect, onClick: () => this.#resume() }));
     stops.set("close", { rect: closeRect, activate: () => this.#resume() });
     const rule = this.add.graphics();
@@ -261,8 +504,20 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   #statusLine(game: NonNullable<SessionState["game"]>, perspectiveId: NonNullable<SessionState["perspectiveId"]>, config: SessionState["config"]): string {
-    const status = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS);
-    return `${status.scenarioName} · ${status.difficultyLabel} · Round ${status.round} · ${status.phaseLabel} · ${status.seatLabel}`;
+    const s = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS);
+    return `${s.scenarioName} · ${s.difficultyLabel} · Round ${s.round} · ${s.phaseLabel} · ${s.seatLabel}`;
+  }
+
+  /**
+   * D13's own shorter read ("Round 3 · player phase · your turn") — the wide
+   * left menu is a fixed ~300px column, not phone's near-full-width header,
+   * so it drops the scenario/difficulty phone's line carries (still visible
+   * on the Board's own chrome underneath) rather than shrinking the whole
+   * line to near-illegibility to fit all five segments.
+   */
+  #wideStatusLine(game: NonNullable<SessionState["game"]>, perspectiveId: NonNullable<SessionState["perspectiveId"]>, config: SessionState["config"]): string {
+    const s = pauseStatusOf(game, perspectiveId, config, POOL_SCENARIOS);
+    return `Round ${s.round} · ${s.phaseLabel.toLowerCase()} · ${s.seatLabel}`;
   }
 
   #drawQuickReferenceRow(rect: Rect, row: QuickReferenceRow, stops: Map<string, FocusStop>): void {
@@ -271,11 +526,6 @@ export class PauseOverlay extends Phaser.Scene {
     paintPanel(g, rect, "onInk", enabled ? "rest" : "unavailable");
     const alpha = enabled ? 1 : ink.disabled;
     this.add.text(rect.x + 12, rect.y + 6, row.title, textStyle(typeRole.rowTitle, surface.paper.hex, alpha)).setWordWrapWidth(rect.width - 60);
-    // Anchored below the title and growing *down*, not anchored to the row's
-    // bottom edge and growing up into it — "Jump into the log"'s two-line
-    // unavailable reason used to render its second line straight through the
-    // row's own border (fidelity pass, 2026-09-17: `QUICK_REFERENCE_ROW_HEIGHT`
-    // in `view/pause-layout.ts` now reserves room for a two-line detail).
     this.add.text(rect.x + 12, rect.y + 24, row.unavailable ?? row.detail, textStyle(typeRole.label, surface.paper.hex, alpha * 0.75)).setFontSize(9).setWordWrapWidth(rect.width - 24);
     if (enabled) label(this, rect.x + rect.width - 16, rect.y + rect.height / 2, "›", typeRole.rowTitle, surface.paper.hex, ink.secondary).setOrigin(0.5);
     const activate = (): void => row.open?.();
@@ -318,16 +568,17 @@ export class PauseOverlay extends Phaser.Scene {
     this.#draw();
   }
 
-  #drawConcedeConfirm(layout: { readonly footer: Rect; readonly saveQuit: Rect; readonly concede: Rect; readonly resume: Rect }, stops: Map<string, FocusStop>): void {
-    const yesRect = layout.concede;
-    const cancelRect = layout.resume;
+  #drawPhoneConcedeConfirm(layout: PausePhoneLayout, stops: Map<string, FocusStop>): void {
+    const yesRect = layout.resume;
+    const cancelRect = layout.saveQuit;
     this.add
-      .text(layout.footer.x + 16, layout.footer.y - 4, "Concede? This ends the game for the whole table.", textStyle(typeRole.body, accent.heroRed.hex))
-      .setFontSize(11);
+      .text(layout.panel.x + 16, yesRect.y - 22, "Concede? This ends the game for the whole table.", textStyle(typeRole.body, accent.heroRed.hex))
+      .setFontSize(11)
+      .setWordWrapWidth(layout.panel.width - 32);
     stops.set("concede-confirm-yes", { rect: yesRect, activate: () => void this.#onConcedeConfirmed() });
-    this.#buttons.push(new McButton(this, { kind: "primary", label: "Yes, concede", type: typeRole.label, rect: yesRect, onClick: () => void this.#onConcedeConfirmed() }));
+    this.#buttons.push(new McButton(this, { kind: "primary", label: "Yes, concede", type: typeRole.barTitle, rect: yesRect, onClick: () => void this.#onConcedeConfirmed() }));
     stops.set("concede-confirm-cancel", { rect: cancelRect, activate: () => this.#setConfirmingConcede(false) });
-    this.#buttons.push(new McButton(this, { kind: "quiet", label: "Cancel", type: typeRole.label, rect: cancelRect, onClick: () => this.#setConfirmingConcede(false) }));
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "Cancel", type: typeRole.rowTitle, rect: cancelRect, onClick: () => this.#setConfirmingConcede(false) }));
   }
 
   #button(stops: Map<string, FocusStop>, id: string, kind: "primary" | "secondary" | "quiet", text: string, rect: Rect, onClick: () => void): void {
