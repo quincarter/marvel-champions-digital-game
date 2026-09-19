@@ -314,6 +314,8 @@ export interface ScenarioSelectFocusInput {
    */
   readonly scenarioIds: readonly string[];
   readonly scenarioChipIds?: readonly string[];
+  /** True on a narrow layout, where the stages panel is a disclosure with a bar to toggle. */
+  readonly stagesToggle?: boolean;
 }
 
 /** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
@@ -323,6 +325,8 @@ export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): reado
     "scenario-search",
     ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
     ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
+    // The phone's collapsible stages panel (absent on a wide layout, where the panel is always open).
+    ...(input.stagesToggle ? ["stages-toggle"] : []),
     "next",
   ];
 }
