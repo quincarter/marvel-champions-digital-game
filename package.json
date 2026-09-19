@@ -16,10 +16,12 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "check": "pnpm typecheck && pnpm test && pnpm build",
+    "capture:screens": "node scripts/capture-design-screenshots.mjs",
     "ingest": "pnpm --filter @mc/content ingest --",
     "clean": "rm -rf packages/*/dist"
   },
   "devDependencies": {
+    "playwright": "^1.63.0",
     "typescript": "^5.9.0",
     "vitest": "^3.2.0"
   }
