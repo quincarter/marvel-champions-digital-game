@@ -146,8 +146,10 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     // pair shares the row across.
     const stacked = detail.width - 32;
     const ctaBlockHeight = ctaHeight * 2 + 8 + FOOTER_HEIGHT + 4;
-    const play: Rect = { x: detail.x + 16, y: detail.y + detail.height - 16 - ctaBlockHeight, width: stacked, height: ctaHeight };
-    const deckCheck: Rect = { x: detail.x + 16, y: play.y + ctaHeight + 8, width: stacked, height: ctaHeight };
+    // "Play N heroes" is the way forward, so it takes the primary's place at the very foot; Deck check is the
+    // optional look above it (owner, 2026-09-18: "Deck check shouldn't be the primary action").
+    const deckCheck: Rect = { x: detail.x + 16, y: detail.y + detail.height - 16 - ctaBlockHeight, width: stacked, height: ctaHeight };
+    const play: Rect = { x: detail.x + 16, y: deckCheck.y + ctaHeight + 8, width: stacked, height: ctaHeight };
     return { formFactor, wide, headerBar, back, step, seatSlots, rosterHeader, usePreconstructed, search, chips, shelves, detail, play, deckCheck };
   }
 
@@ -157,8 +159,8 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   const rawDetailHeight = Math.max(DETAIL_LINE_HEIGHT, input.detailLines * DETAIL_LINE_HEIGHT) + 16;
   const maxDetailHeight = Math.max(DETAIL_LINE_HEIGHT + 16, bodyBottom - y - SHELVES_MIN_HEIGHT - gap - ctaHeight);
   const detailHeight = Math.min(rawDetailHeight, maxDetailHeight);
-  const deckCheck: Rect = { x: left + ctaWidth + CTA_GAP, y: bodyBottom - ctaHeight, width: ctaWidth, height: ctaHeight };
-  const play: Rect = { x: left, y: bodyBottom - ctaHeight, width: ctaWidth, height: ctaHeight };
+  const play: Rect = { x: left + ctaWidth + CTA_GAP, y: bodyBottom - ctaHeight, width: ctaWidth, height: ctaHeight };
+  const deckCheck: Rect = { x: left, y: bodyBottom - ctaHeight, width: ctaWidth, height: ctaHeight };
   const detail: Rect = { x: left, y: play.y - gap - detailHeight, width: detailWidth, height: detailHeight };
   const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, detail.y - gap - y);
   const shelves: Rect = { x: left, y, width: shelvesWidth, height: shelvesHeight };

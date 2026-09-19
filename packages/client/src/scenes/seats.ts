@@ -326,14 +326,15 @@ export class SeatsScene extends Phaser.Scene {
     // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick.
     this.#drawSidePanel(layout, detailOption, detailTextWidth);
 
-    // The two actions at the panel's own foot (D03/P03): a quiet "Play N heroes ▸" straight to Table setup, and
-    // the primary "Deck check ▸" for the active seat's own deck.
+    // The two actions at the panel's own foot: the primary "Play N heroes ▸" on to Table setup, and a quiet
+    // "Deck check ▸" for the active seat's own deck. D03 draws them the other way round; the owner's call
+    // (2026-09-18) is that the way forward is the red one and looking at a deck is the side trip.
     const play = (): void => {
       this.scale.off("resize", this.#rebuild, this);
       this.scene.start(SCENES.setup, { draft: this.#draft } satisfies TableSetupData);
     };
     this.#buttons.push(
-      new McButton(this, { kind: "secondary", label: `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`, type: typeRole.barTitle, rect: layout.play, onClick: play }),
+      new McButton(this, { kind: "primary", label: `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`, type: typeRole.barTitle, rect: layout.play, onClick: play }),
     );
     this.#stops.set("play", { rect: layout.play, activate: play });
 
@@ -341,7 +342,7 @@ export class SeatsScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
       goToDeckCheckOrTableSetup(this, this.#draft, this.#deckOptions());
     };
-    this.#buttons.push(new McButton(this, { kind: "primary", label: "Deck check ▸", type: typeRole.barTitle, rect: layout.deckCheck, onClick: deckCheck }));
+    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Deck check ▸", type: typeRole.barTitle, rect: layout.deckCheck, onClick: deckCheck }));
     this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
 
     this.#route?.set(

@@ -348,8 +348,8 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
     "hero-search",
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
     ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
-    "play",
     "deck-check",
+    "play",
   ];
 }
 

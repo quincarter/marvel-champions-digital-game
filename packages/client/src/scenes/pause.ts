@@ -291,7 +291,9 @@ export class PauseOverlay extends Phaser.Scene {
     this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
 
     if (this.#confirmingConcede) this.#drawWideConcedeConfirm(layout, stops);
-    else this.#drawDimButton(layout.concede, "Concede", () => this.#setConfirmingConcede(true), stops, "concede");
+    // The same full-strength outline as the rest of the menu. D13 dims it, which read as *disabled* (owner,
+    // 2026-09-18); its place alone at the panel's foot, and the confirm step behind it, already set it apart.
+    else this.#menuButton(stops, "concede", "onInk", "Concede", layout.concede, () => this.#setConfirmingConcede(true));
 
     this.#drawWideRight(layout, entries, game, stops);
   }
@@ -299,20 +301,6 @@ export class PauseOverlay extends Phaser.Scene {
   #menuButton(stops: Map<string, FocusStop>, id: string, kind: "primary" | "onInk", text: string, rect: Rect, onClick: () => void, selected = false): void {
     stops.set(id, { rect, activate: onClick });
     this.#buttons.push(new McButton(this, { kind, label: text, type: MENU_BUTTON_TYPE, rect, onClick, selected, enabled: true }));
-  }
-
-  /** A dim outline button — Concede's own D13 look — borrowing `paintPanel`'s "onInk"/"unavailable" skin for its visual only; the button stays real and clickable. */
-  #drawDimButton(rect: Rect, text: string, onClick: () => void, stops: Map<string, FocusStop>, id: string): void {
-    const g = this.add.graphics();
-    paintPanel(g, rect, "onInk", "unavailable");
-    const t = this.add
-      .text(rect.x + rect.width / 2, rect.y + rect.height / 2, caseOf(MENU_BUTTON_TYPE, text), textStyle(MENU_BUTTON_TYPE, surface.paper.hex, ink.disabled))
-      .setOrigin(0.5)
-      .setLetterSpacing(MENU_BUTTON_TYPE.letterSpacing);
-    fitText(t, rect.width - 16, MENU_BUTTON_TYPE.size);
-    const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-    zone.on("pointerup", onClick);
-    stops.set(id, { rect, activate: onClick });
   }
 
   #drawWideConcedeConfirm(layout: PauseWideLayout, stops: Map<string, FocusStop>): void {

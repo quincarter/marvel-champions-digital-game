@@ -327,8 +327,8 @@ describe("screen focus routes", () => {
       "hero-search",
       "hero:a",
       "hero:b",
-      "play",
       "deck-check",
+      "play",
     ]);
     expect(seatsFocusOrder({ seatCount: 4, deckIds: [] })).toEqual([
       "back",
@@ -339,8 +339,8 @@ describe("screen focus routes", () => {
       "use-preconstructed",
       "hero-search",
       "hero-clear",
-      "play",
       "deck-check",
+      "play",
     ]);
     expect(seatsFocusOrder({ seatCount: 4, deckIds: ["a"], heroChipIds: ["aspect:justice"] })).toEqual([
       "back",
@@ -352,8 +352,8 @@ describe("screen focus routes", () => {
       "hero-search",
       "hero-chip:aspect:justice",
       "hero:a",
-      "play",
       "deck-check",
+      "play",
     ]);
   });
 
