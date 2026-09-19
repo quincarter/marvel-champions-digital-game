@@ -29,6 +29,15 @@ below cites of it):
    `storm` (one parser mapping); cross-checked the remaining "no artwork reference" gap against a local card-art
    folder the user pointed at (findings, no images sourced or committed); and wrote up the Core/wave 1 generated-
    file regeneration drift precisely (found, reverted, not committed — same as every prior pass).
+7. **2026-09-19, seventh pass (undocumented until now — see Part 7 §1 below):** added 252 of the repo's own local
+   card scans to a new committed bundle (`assets/card-art/bundles/cards/`) plus `withLocalArt`, a fallback that
+   fills in `imagesrc` for a MarvelCDB record with no image of its own when the repo's local folder has a scan
+   under that exact code. This closed Psylocke's and Jubilee's remaining artwork gaps (and several others') but
+   stopped before registering either pack for emission — reconstructed and written up retroactively in Part 7,
+   since this doc had no record of it.
+8. **2026-09-19, eighth pass ("Part 7" below):** re-surveyed `psylocke`/`jubilee` clean, curated `jubilee` (zero
+   corrections, Cycle 8), registered both packs and emitted them, and ran a full 63-pack survey to rank the 14
+   remaining non-importing packs by blocker (artwork vs. schema vs. parser) for whoever picks them up next.
 
 ## Result
 
@@ -1146,3 +1155,154 @@ permanently) is the user's to make, not this pipeline's to default on.
   `packages/content/src/data/{index.ts, data-only.test.ts}`, the new `packages/content/src/data/{angel,storm}/`
   folders, and this doc. No `packages/content/src/schema/**`, `packages/engine/**`, `packages/cards/**` or
   `packages/client/**` file was touched.
+
+## Part 7: `psylocke`/`jubilee` registered and emitted; local-art fallback written up; full 63-pack blocker ranking
+
+### 1. What landed in the undocumented seventh pass (reconstructed here, not redone)
+
+Before this pass started, `assets/card-art/bundles/cards/` (the local scan folder Part 6 §3 found already
+committed and flagged for the user) had grown from the 4,857 files Part 6 counted to **5,109** — 252 new
+files — and two new modules existed: `scripts/marvelcdb/local-art.ts` (lists that folder's `<code>.png` files)
+and `withLocalArt()` in `scripts/marvelcdb/normalize/art.ts` (fills in a record's `imagesrc` with
+`/bundles/cards/<code>.png` when MarvelCDB sent none and the local folder has that exact code — a record that
+already has an `imagesrc` is untouched, so MarvelCDB stays the first source per Part 6 §3's own conclusion that
+`imageOverrides`/per-card citation is the right general mechanism; this is the same idea applied to the codes
+this folder *does* already cover). Both `ingest-marvelcdb.ts` and `survey.ts` already called `withLocalArt` before
+`normalizePack`. None of this is written up anywhere in this file — reconstructed here from the diff and
+re-verified rather than trusted at face value (§4 below).
+
+Re-running the full survey today (`survey.ts`, no `--pack` filter) confirms the effect Part 6 §7 predicted a
+folder like this could *not* have (§3's Finding 3 was about the folder's coverage *as it stood then*, up to card
+number ~62000 — these 252 new files are exactly the codes Part 6's 141-code gap list needed, not a coincidence):
+**49 of 63 packs now normalize cleanly** (up from 47 at the end of Part 6), and the "no artwork reference"
+category fell from **141 codes across 13 packs to 48 across 6** (`cw` 1, `jj` 17, `luke_cage` 17, `mts` 2, `sm`
+1, `synthezoid` 10 — `aoa`, `aos`, `fne`, `jubilee`, `next_evol`, `psylocke`, `tt` dropped out of this category
+entirely). `psylocke` and `jubilee` specifically went from "artwork only, 1 issue" and "artwork only, 9 issues"
+(Part 6 §7's table) to **zero issues each** — confirmed again by this pass (§2).
+
+### 2. `psylocke`/`jubilee` re-verified and registered
+
+`survey.ts --pack psylocke --pack jubilee`: both 0 issues, re-confirmed before touching anything. Psi-Knife
+(41002a) still has no `imagesrc` on MarvelCDB itself (checked directly against `raw/marvelcdb/psylocke.json`),
+but `assets/card-art/bundles/cards/41002a.png` and `41002b.png` are both present, so `withLocalArt` resolves it —
+`curation/psylocke.ts`'s header comment (previously: "curated but NOT registered — Psi-Knife's own artwork is
+still missing") updated to record this instead of leaving a stale claim next to a now-registered curation.
+
+`jubilee` had no curation file at all. Curated fresh, same "needs nothing" shape as `angel`/`falcon`/`magneto`:
+40 MarvelCDB records (hero identity pair, 4 signature allies/events/upgrades, three `a`/`b`/`c`-suffixed
+aspect-flavored signatures — Firecracker/Flash of Light/Plasmoid Energy, one per Aggression/Justice/Protection —
+plus the `justice`/`basic` pool cards and the Jubilee/nemesis/Arcade encounter sets). Cycle and release date:
+Hall of Heroes' Jubilee/Jubilation Lee page ("Release date: July 19, 2024"); cycle grouping confirmed against
+Hall of Heroes' own `/browse/` navigation, which groups Jubilee with Iceman, Nightcrawler and Magneto under
+Cycle 8 — matching those three packs' already-committed `cycle8`/`order: 8`.
+
+Both registered in `REGISTERED_CURATIONS` in `ingest-marvelcdb.ts` and `survey.ts` (following `angel`'s exact
+template), emitted to `src/data/psylocke/` and `src/data/jubilee/`, wired into `DATA_ONLY_CARDS`/
+`DATA_ONLY_ENCOUNTER_SETS` in `src/data/index.ts`, and added to `data-only.test.ts`'s `PACKS` table and its
+Cycle 7/Cycle 8 grouping assertions (which previously carried "Psylocke/Jubilee is not in this pool yet" caveats
+that no longer apply).
+
+**Result: `DATA_ONLY_CARDS` is now 33 packs** (31 → 33). Content tests: 413 → 418, all green
+(`pnpm --filter @mc/content test`); `pnpm typecheck` (root, all four packages) and
+`pnpm --filter @mc/content typecheck` both clean.
+
+### 3. Corrections needed: none
+
+Neither pack needed a new hand correction this pass — `psylocke.ts`'s one existing correction (Psi-Knife's
+printed-dash cost, cited to its own MarvelCDB listing) was already there from before; `jubilee.ts` carries zero
+`corrections`/`errata`, matching every other "needed nothing" pack in this pool.
+
+### 4. Full 63-pack survey, all 14 remaining non-importing packs ranked most-tractable first
+
+Ranked by real blocker category, not raw issue count alone — a pack whose only blocker is a single
+already-flagged cross-agent schema decision is more tractable than a lower-count pack still needing individual
+card-by-card triage:
+
+| Rank | Pack | Issues | Blocker(s) |
+|---|---|---|---|
+| 1 | `gmw` | 4 | **Schema only, already flagged.** All 4 lines are "villain stage label not roman" — The
+  Collector's `VillainStage.flipSide` gap (a "cannot be defeated" back face), open since Part 4/5 §5 item 3. No
+  new triage needed; unblocks the instant `game-rules-architect` designs the field and this pipeline adds one
+  parser mapping (the `storm`/`HostMeasure "thw"` pattern from Part 6 §5).
+| 2 | `fne` | 5 | **Schema/ruling only, already flagged.** All 5 lines are `deck_limit` missing on Sense Deck
+  cards (60040-range) — needs a `game-rules-architect` ruling on whether non-unique identity cards default like
+  unique ones do (Part 4 §5 item 5). No artwork gap left (§1 above closed it).
+| 3 | `hercules` | 7 | **Schema decision, already flagged.** 3 lines are the Labor Deck shape itself
+  (59002-59004, a hero-owned card behaving like an encounter card: `faction_code: "hero"` but `Victory 0.`, a
+  self-attaching `When Revealed`), 2 are the same attach-rule parser gap that shape produces, 2 are records that
+  never became cards for the same reason. One design decision from `game-rules-architect` (Part 4/5 §5 item 4)
+  closes all 7 at once.
+| 4 | `luke_cage` | 18 | **Artwork-dominated, real per-card research needed.** 17 of 18 lines are "no artwork
+  reference" (a brand-new pack with little second-source material surveyed yet — unlike `psylocke`/`jubilee`,
+  none of these 17 codes are in the local folder); 1 is an ally printed-dash THW that likely just needs a
+  `cardNotes` citation once someone is looking at the card image anyway.
+| 5 | `jj` | 21 | **Artwork-dominated, plus small stat/parser triage.** 17 "no artwork reference" lines (same
+  situation as `luke_cage` — not in the local folder); the rest are one cost-shape line, one attach-rule gap, and
+  a minion (61031) whose printed ATK/scheme value needs a card-image check for "0" vs. a reminder-star dash.
+| 6 | `aoa` | 21 | **No artwork left (closed by §1) — now parser/schema.** 4 attach-rule gaps, 3 records never
+  turned into cards, 1 cost shape, and 8 lines (4 minions × 2 lines each) needing a printed-ATK/scheme-value
+  `cardNotes` check the same shape as `jj`'s 61031, plus 2 "unexpected linked card on a side_scheme" lines that
+  look like the same three-form-Apocalypse third-face parser gap Part 6 flagged.
+| 7 | `synthezoid` | 22 | **Mixed, partly out of scope.** 10 "no artwork reference" (not in the local folder), 5
+  records never turned into cards, 3 attach-rule gaps (includes the competitive-only "enemy team's choice" attach
+  idiom already flagged as out-of-scope for this cooperative-only project), 2 side-scheme-without-threat, 2
+  unexpected-linked-card lines.
+| 8 | `cw` | 24 | **Parser-dominated, one competitive-mode family.** 11 attach-rule gaps (the `leader`/Civil War
+  competitive-mode shapes flagged since Part 6), 10 records never turned into cards (likely the same family), 2
+  unexpected-linked-card lines, only 1 artwork line left (down from 34 before §1's fallback).
+| 9 | `mts` | 28 | **Same schema gap as `gmw`, plus parser triage.** 4 "villain stage label not roman" lines are
+  Hela's flip side — the identical `VillainStage.flipSide` gap as `gmw`, so items 1 and 9 share one fix. Plus 8
+  records never turned into cards, 6 attach-rule gaps, 3 cost shapes, only 2 artwork lines left (down from 1
+  before, but a different code — recheck), 1 villain-by-name attach targeting gap, 1 boost-icon mismatch, 3
+  unexpected-linked-card lines.
+| 10 | `sm` | 30 | **A different schema shape: main-scheme threat/stage pairing.** 12 main-scheme
+  missing-threat lines and 4 main-scheme-stage-not-NA/NB lines dominate — a main-scheme record shape this
+  pipeline's parser doesn't yet recognize, not yet root-caused card-by-card. Plus 8 cost shapes, 2 attach-rule
+  gaps, 2 records never turned into cards, 1 minion-ATK-is-X, 1 artwork line.
+| 11 | `aos` | 33 | **Record-never-became-a-card dominated, plus the roman-numeral schema gap again.** 11 records
+  never turned into cards (largest single bucket), 4 villain-stage-not-roman (likely more `flipSide` cases, not
+  individually confirmed), 4 attach-rule gaps, 3 main-scheme-missing-threat, 6 "unexpected linked card ... on an
+  environment" lines (a parser shape not yet seen elsewhere in this survey), 1 villain-by-name attach targeting
+  gap, 1 non-printed-field, 2 cost shapes.
+| 12 | `mut_gen` | 35 | **Record-never-became-a-card dominated.** 12 records never turned into cards, 7
+  attach-rule gaps, 7 "unexpected linked card ... on a side_scheme" lines (the largest concentration of this
+  shape in the survey), 3 main-scheme-missing-threat, 2 ally-missing-atk/thw, 2 minion stat lines, 1 cost shape.
+| 13 | `tt` | 39 | **Heaviest schema+parser mix of the ranked list.** 14 records never turned into cards, 10
+  villain-stage-not-roman (likely `flipSide` again, not confirmed), 10 attach-rule gaps, 2 stage-names-differ, 2
+  main-scheme-missing-threat, 1 stage-not-NA/NB. Still the pack Part 2 flagged as crashing under some
+  configurations — not re-investigated this pass.
+| 14 | `next_evol` | 51 | **Largest pack, largest issue count, every category represented.** 16 records never
+  turned into cards, 14 attach-rule gaps, 8 cost shapes, 6 "unexpected linked card ... on a player_side_scheme"
+  lines, 3 main-scheme-missing-threat, 2 ally-missing-atk/thw, 1 villain-by-name attach targeting gap, 1 `ifAble`
+  attach-host gap.
+
+**None of these 14 are trivially unblocked** — the top three (`gmw`, `fne`, `hercules`, 16 issues combined) are
+each waiting on exactly one `game-rules-architect` decision already on record (not re-litigated here); nothing
+below that is a single-line fix. Per the task's own instruction, none were started this pass.
+
+### 5. Verification
+
+`pnpm --filter @mc/content test` (418 passed, up from 413), `pnpm --filter @mc/content typecheck`, and root
+`pnpm typecheck` (all four packages) all green. `git status` after committing shows only the intended paths
+changed.
+
+## Handoff (Part 7)
+
+- **For whoever continues the data-only pool:** §4's table above is the current, single-source-of-truth ranked
+  blocker list for all 14 remaining packs, superseding Part 6 §7's table (issue counts there are stale — several
+  packs' artwork gaps closed by §1's fallback without their other blockers changing). Start with `gmw`/`fne`/
+  `hercules` once `game-rules-architect` rules on the three still-open schema items (Part 4/5 §5); everything
+  else needs real per-card artwork research (`luke_cage`, `jj`, and partial gaps in `synthezoid`/`mts`/`sm`/`cw`
+  via `PackCuration.imageOverrides`, confirmed not resolvable from the local folder for these specific codes) or
+  individual card-by-card triage of "record never became a card"/attach-rule/"unexpected linked card" buckets
+  this pass did not open.
+- **For `ability-scripting-engineer`:** nothing new blocks scripting `psylocke` or `jubilee` beyond the general
+  "no ability scripts exist for the data-only pool yet" status quo; both packs' data is complete and validated.
+- **For the user:** Part 6's two flagged decisions (`assets/card-art/` being tracked in git at all, and whether
+  `gob`'s ability-ref pair should be regenerated) are still open and unrelated to this pass's work — not
+  re-raised in detail here, see Part 6's own Handoff.
+- **Files touched this pass**: `packages/content/scripts/marvelcdb/curation/{jubilee.ts (new), psylocke.ts}`,
+  `packages/content/scripts/{ingest-marvelcdb.ts, marvelcdb/survey.ts}`, `packages/content/src/data/{index.ts,
+  data-only.test.ts}`, the new `packages/content/src/data/{psylocke,jubilee}/` folders, and this doc. No
+  `packages/content/src/schema/**`, `packages/engine/**`, `packages/cards/**` or `packages/client/**` file was
+  touched.
