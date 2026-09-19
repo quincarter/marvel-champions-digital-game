@@ -460,10 +460,191 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   };
 }
 
+/** Wide (desktop/tabletLandscape, `wideLayout`) and tablet-portrait (`narrowLayout`, D05 stacked under one column) only. Phone uses `tableSetupCompactLayout` instead — see that function's own doc comment for why they can't share a shape (2026-09-18 correction). */
 export function tableSetupLayout(input: TableSetupLayoutInput): TableSetupLayout {
   const formFactor = formFactorFor(input.width, input.height);
   const wide = formFactor === "desktop" || formFactor === "tabletLandscape";
   return wide ? wideLayout(input, formFactor) : narrowLayout(input, formFactor);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Phone: `tableSetupCompactLayout` (2026-09-18 correction).
+//
+// The owner: "Don't compress D05 onto a phone — build P12." `narrowLayout` above (still used for tablet portrait,
+// >= 700px wide, where the owner's own D05-stacked adaptation reads fine) trims the two description-only blocks
+// down to whatever fits above a fixed-height page — which, on an actual phone width with a real four-seat/six-
+// modular-set table, meant an empty "THE GAME YOU'LL GET" and two encounter-deck panels crushed to bare title
+// bars. P12 draws none of that trimming: it's a **scrolling paper page** — real, full-height content, and the
+// page moves instead of the content shrinking. `tableSetupCompactLayout` is that composition:
+//
+//  - **Ground**: paper (not ink) — P12's own `background:#F4EFE3`. The ink top bar carries a square "◂" icon
+//    button (not "◂ Seats" text — P12's own compact icon), the Bangers title, and a small "4/4" label.
+//  - **One scrollable region** between the top bar and a sticky ink footer (`McScrollRegion`, `ui/scroll-region.ts`
+//    — wheel + touch-drag + momentum, reusing this module's own `VariableListScroll`). Every section below is
+//    real, full height, laid out top to bottom in **content space** (`rows`, each a stable id plus a height —
+//    used for the scroll math and for `scrollIntoView`, not for drawing: the scene draws each row at its own
+//    real position and lets `McScrollRegion` translate the whole thing).
+//  - **DIFFICULTY** (not in P12 — Standard/Expert has to live *somewhere* on every form factor, or the client
+//    would be dropping a legal choice on phone alone): a compact two-to-three-cell segmented row, ink fill =
+//    selected, no description text — that's what wide's own cards carry, and there's a whole page to scroll on
+//    phone instead of cramming prose into a 44px row.
+//  - **MODULAR SETS**: full-width checkbox rows, exactly P12's own shape — the required set ink-filled with a red
+//    checked box and "locked", a chosen candidate paper with an ink-filled checked box, an available candidate
+//    paper with an empty box. The right label ("N REQUIRED · N CHOSEN") sits on the header's own line when it
+//    fits (`sectionHeaderInlineFits`), else on its own line below — a real layout decision (it changes the
+//    header's own height), not left to `fitText`'s shrink-then-ellipsize the way a *plain* header does.
+//  - **FIRST PLAYER**: one row of compact chips (as many as there are seats, plus a dashed "Random"), sharing the
+//    row equally.
+//  - **SHUFFLE SEED**: a parchment bordered row, label/caption at left, the seed field (still the real
+//    DOM-backed `McTextInput`) and Reroll at right.
+//  - **THE ENCOUNTER DECK**: one bordered paper panel — composition rows (obligations red), then what's-in-there
+//    rows, then a single dim "N cards on standby" line (not the full nemesis sentence — P12 has no room for prose
+//    here either, and the count is the fact that matters). Every row real, none trimmed; the panel is simply as
+//    tall as its real content and the page scrolls to it.
+//  - **Sticky footer**: one uppercase summary line ("RHINO · STANDARD I · 1 HERO · 1 MODULAR") above the single
+//    red "DEAL IT OUT ▸" fill with a paper outline — P12's own shape exactly.
+// ---------------------------------------------------------------------------------------------------------------
+
+export const COMPACT_PAD = 16;
+export const COMPACT_HEADER_ROW_HEIGHT = 30;
+export const COMPACT_HEADER_ROW_HEIGHT_STACKED = 48;
+export const COMPACT_DIFFICULTY_ROW_HEIGHT = 44;
+export const COMPACT_MODULAR_ROW_HEIGHT = 60;
+export const COMPACT_FIRST_PLAYER_ROW_HEIGHT = 58;
+export const COMPACT_SEED_ROW_HEIGHT = 100;
+export const COMPACT_ROW_GAP = 10;
+export const COMPACT_CONTENT_PAD_TOP = 14;
+export const COMPACT_CONTENT_PAD_BOTTOM = 18;
+export const COMPACT_BACK_SIZE = 36;
+const COMPACT_HEADING_CHAR_PX = 10.5;
+const COMPACT_RIGHT_LABEL_CHAR_PX = 7.4;
+const COMPACT_RIGHT_LABEL_GAP_PX = 14;
+const COMPACT_RULE_MIN_PX = 20;
+
+/**
+ * Whether a section header's own Bangers heading and a right-aligned label (Table setup's D05/P12 "N REQUIRED ·
+ * N CHOSEN") both fit on one row at `width`, without needing `fitText`'s shrink-then-ellipsize — a conservative,
+ * canvas-free character-width estimate (the same trade `view/chip-layout.ts`'s own doc comment makes for a chip
+ * label, generalized to a Bangers heading beside a small uppercase label), used by both the pure layout (to decide
+ * whether the header needs a second row) and the scene (to draw the same decision) so the two can't disagree.
+ */
+export function sectionHeaderInlineFits(width: number, heading: string, rightLabel: string): boolean {
+  const headingPx = heading.length * COMPACT_HEADING_CHAR_PX;
+  const rightPx = rightLabel.length * COMPACT_RIGHT_LABEL_CHAR_PX + COMPACT_RIGHT_LABEL_GAP_PX;
+  return headingPx + rightPx + COMPACT_RULE_MIN_PX <= width;
+}
+
+export interface CompactRow {
+  readonly id: string;
+  readonly height: number;
+}
+
+export interface TableSetupCompactLayoutInput {
+  readonly width: number;
+  readonly height: number;
+  readonly difficultyIds: readonly string[];
+  /** The scenario's own required set ids, in draw order (ink-filled, never toggleable). */
+  readonly requiredModularIds: readonly string[];
+  /** Every candidate modular set id, in draw order — becomes this row's own stable id (`modular:<id>`), matching `tableSetupFocusOrder`'s own `modular:<id>` stop ids exactly, so a scene can map one to the other with no lookup table. */
+  readonly candidateModularIds: readonly string[];
+  readonly modularHeaderRightLabel: string;
+  readonly seatCount: number;
+  readonly compositionRows: number;
+  readonly whatsInThereRows: number;
+  readonly hasNemesisStandby: boolean;
+}
+
+export interface TableSetupCompactLayout {
+  readonly formFactor: FormFactor;
+  readonly pad: number;
+  readonly column: number;
+  readonly headerBar: Rect;
+  readonly back: Rect;
+  readonly step: Rect;
+  /** The scrollable region's own fixed screen rect. */
+  readonly viewport: Rect;
+  /** Every content row, in draw order, content-space (`rows[0]` starts at content y 0) — heights only; the scene computes each row's own drawn rect from the running total, same arithmetic `VariableListScroll`'s own `topOf` uses. */
+  readonly rows: readonly CompactRow[];
+  readonly contentHeight: number;
+  readonly modularHeaderStacked: boolean;
+  readonly footer: Rect;
+  readonly footerSummary: Rect;
+  readonly dealItOut: Rect;
+}
+
+/** Every row's own content-space rect (`x`/`width` are the column's; `y`/`height` come from `rows`, summed in order) — the one place this arithmetic lives, so the scene and any test agree on it. */
+export function compactRowRects(layout: TableSetupCompactLayout): readonly Rect[] {
+  const rects: Rect[] = [];
+  let y = 0;
+  for (const row of layout.rows) {
+    rects.push({ x: layout.pad, y, width: layout.column, height: row.height });
+    y += row.height;
+  }
+  return rects;
+}
+
+export function compactRowIndex(layout: TableSetupCompactLayout, id: string): number {
+  return layout.rows.findIndex((row) => row.id === id);
+}
+
+export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): TableSetupCompactLayout {
+  const { width, height } = input;
+  const formFactor = formFactorFor(width, height);
+  const pad = COMPACT_PAD;
+  const column = width - pad * 2;
+
+  const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
+  const back: Rect = { x: 12, y: (HEADER_HEIGHT - COMPACT_BACK_SIZE) / 2, width: COMPACT_BACK_SIZE, height: COMPACT_BACK_SIZE };
+  const stepWidth = 40;
+  const step: Rect = { x: width - 12 - stepWidth, y: (HEADER_HEIGHT - 24) / 2, width: stepWidth, height: 24 };
+
+  const dealItOutHeight = hit.primary;
+  const footerSummaryHeight = 14;
+  const footerGap = 7;
+  const footerPadV = 10;
+  const footerHeight = footerPadV * 2 + footerSummaryHeight + footerGap + dealItOutHeight;
+  const footer: Rect = { x: 0, y: height - footerHeight, width, height: footerHeight };
+  const footerSummary: Rect = { x: pad, y: footer.y + footerPadV, width: column, height: footerSummaryHeight };
+  const dealItOut: Rect = { x: pad, y: footerSummary.y + footerSummaryHeight + footerGap, width: column, height: dealItOutHeight };
+
+  const viewport: Rect = { x: 0, y: headerBar.height, width, height: footer.y - headerBar.height };
+
+  const modularHeaderStacked = !sectionHeaderInlineFits(column, "MODULAR SETS", input.modularHeaderRightLabel);
+
+  const rows: CompactRow[] = [];
+  rows.push({ id: "spacer:top", height: COMPACT_CONTENT_PAD_TOP });
+  rows.push({ id: "header:difficulty", height: COMPACT_HEADER_ROW_HEIGHT });
+  rows.push({ id: "difficulty", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({ id: "header:modular", height: (modularHeaderStacked ? COMPACT_HEADER_ROW_HEIGHT_STACKED : COMPACT_HEADER_ROW_HEIGHT) });
+  for (const id of input.requiredModularIds) rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
+  for (const id of input.candidateModularIds) rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({ id: "header:firstPlayer", height: COMPACT_HEADER_ROW_HEIGHT });
+  rows.push({ id: "firstPlayer", height: COMPACT_FIRST_PLAYER_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({ id: "header:seed", height: COMPACT_HEADER_ROW_HEIGHT });
+  rows.push({ id: "seed", height: COMPACT_SEED_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({ id: "header:encounter", height: COMPACT_HEADER_ROW_HEIGHT });
+  const encounterRowCount = input.compositionRows + input.whatsInThereRows + (input.hasNemesisStandby ? 1 : 0);
+  const encounterPanelHeight = PANEL_PAD * 2 + Math.max(1, encounterRowCount) * PANEL_ROW_HEIGHT + (input.compositionRows > 0 && input.whatsInThereRows > 0 ? 6 : 0);
+  rows.push({ id: "encounterPanel", height: encounterPanelHeight });
+  rows.push({ id: "spacer:bottom", height: COMPACT_CONTENT_PAD_BOTTOM });
+
+  const contentHeight = rows.reduce((sum, row) => sum + row.height, 0);
+
+  return {
+    formFactor,
+    pad,
+    column,
+    headerBar,
+    back,
+    step,
+    viewport,
+    rows,
+    contentHeight,
+    modularHeaderStacked,
+    footer,
+    footerSummary,
+    dealItOut,
+  };
 }
 
 export { LABEL_ROOM };

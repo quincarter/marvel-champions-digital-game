@@ -1,6 +1,15 @@
 import { describe, expect, test } from "vitest";
 import { rectsOverlap } from "./layout.js";
-import { tableSetupLayout, tableSetupLayoutRects, type TableSetupLayoutInput } from "./table-setup-layout.js";
+import {
+  compactRowIndex,
+  compactRowRects,
+  sectionHeaderInlineFits,
+  tableSetupCompactLayout,
+  tableSetupLayout,
+  tableSetupLayoutRects,
+  type TableSetupCompactLayoutInput,
+  type TableSetupLayoutInput,
+} from "./table-setup-layout.js";
 
 /** The exact viewports the task's own VERIFY section mandates, plus tablet portrait (768×1024) and a short desktop. */
 const SIZES: readonly { readonly name: string; readonly width: number; readonly height: number }[] = [
@@ -131,5 +140,100 @@ describe("tableSetupLayout: composition", () => {
       expect(nemesis).toBeGreaterThanOrEqual(0);
       expect(nemesis).toBeLessThanOrEqual(REALISTIC.nemesisLines);
     }
+  });
+});
+
+/** Phone (2026-09-18 correction): P12's own scrolling page, never trimmed. */
+const COMPACT_SIZES: readonly { readonly name: string; readonly width: number; readonly height: number }[] = [
+  { name: "phone 390x844", width: 390, height: 844 },
+  { name: "narrow phone 360x740", width: 360, height: 740 },
+];
+
+const COMPACT_SEAT_COUNTS = [1, 4] as const;
+
+function compactInputFor(width: number, height: number, seatCount: 1 | 4): TableSetupCompactLayoutInput {
+  return {
+    width,
+    height,
+    difficultyIds: ["standard", "expert"],
+    requiredModularIds: ["rhino"],
+    candidateModularIds: ["bomb_scare", "masters_of_evil", "under_attack", "legions_of_hydra", "the_doomsday_chair"],
+    modularHeaderRightLabel: "1 REQUIRED · 1 CHOSEN",
+    seatCount,
+    compositionRows: 4,
+    whatsInThereRows: 5,
+    hasNemesisStandby: true,
+  };
+}
+
+describe("tableSetupCompactLayout", () => {
+  for (const size of COMPACT_SIZES) {
+    for (const seatCount of COMPACT_SEAT_COUNTS) {
+      test(`no overlap among fixed screen elements at ${size.name}, ${seatCount} seat(s)`, () => {
+        const layout = tableSetupCompactLayout(compactInputFor(size.width, size.height, seatCount));
+        // back/step sit *inside* headerBar and footerSummary/dealItOut sit *inside* footer by design (they're
+        // drawn on those grounds) — only siblings drawn on the same ground should never overlap each other.
+        expect(rectsOverlap(layout.back, layout.step)).toBe(false);
+        expect(rectsOverlap(layout.footerSummary, layout.dealItOut)).toBe(false);
+        expect(rectsOverlap(layout.headerBar, layout.viewport)).toBe(false);
+        expect(rectsOverlap(layout.viewport, layout.footer)).toBe(false);
+        expect(rectsOverlap(layout.headerBar, layout.footer)).toBe(false);
+      });
+
+      test(`the footer never overlaps the scroll region at ${size.name}, ${seatCount} seat(s)`, () => {
+        const layout = tableSetupCompactLayout(compactInputFor(size.width, size.height, seatCount));
+        expect(layout.footer.y).toBeGreaterThanOrEqual(layout.viewport.y + layout.viewport.height - 0.01);
+      });
+
+      test(`content rows never overlap each other at ${size.name}, ${seatCount} seat(s)`, () => {
+        const layout = tableSetupCompactLayout(compactInputFor(size.width, size.height, seatCount));
+        const rects = compactRowRects(layout);
+        for (let i = 0; i < rects.length; i++) {
+          for (let j = i + 1; j < rects.length; j++) {
+            expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+          }
+        }
+      });
+
+      test(`content is taller than the viewport, so it genuinely scrolls, at ${size.name}, ${seatCount} seat(s)`, () => {
+        const layout = tableSetupCompactLayout(compactInputFor(size.width, size.height, seatCount));
+        expect(layout.contentHeight - layout.viewport.height).toBeGreaterThan(0);
+      });
+
+      test(`nothing is trimmed to zero rows at ${size.name}, ${seatCount} seat(s)`, () => {
+        const layout = tableSetupCompactLayout(compactInputFor(size.width, size.height, seatCount));
+        // Every modular set (required + candidate) gets its own real row — none dropped for space.
+        expect(layout.rows.filter((r) => r.id.startsWith("modular:")).length).toBe(1 + 5);
+        // The encounter panel is sized for its own full row count (composition + what's-in-there + standby), not a floor.
+        const encounterRow = layout.rows.find((r) => r.id === "encounterPanel")!;
+        expect(encounterRow.height).toBeGreaterThan((4 + 5 + 1) * 18);
+      });
+    }
+  }
+
+  test("every candidate modular row's id matches the exact 'modular:<id>' shape tableSetupFocusOrder's own stop ids use", () => {
+    const layout = tableSetupCompactLayout(compactInputFor(390, 844, 4));
+    expect(compactRowIndex(layout, "modular:bomb_scare")).toBeGreaterThanOrEqual(0);
+    expect(compactRowIndex(layout, "modular:not-a-real-id")).toBe(-1);
+  });
+
+  test("the modular header's right label moves to its own line when it wouldn't fit inline, growing that row's own height", () => {
+    const narrow = tableSetupCompactLayout({ ...compactInputFor(360, 740, 1), modularHeaderRightLabel: "1 REQUIRED · 1 CHOSEN" });
+    const wide = tableSetupCompactLayout({ ...compactInputFor(390, 844, 1), modularHeaderRightLabel: "" });
+    expect(wide.modularHeaderStacked).toBe(false);
+    const header = narrow.rows.find((r) => r.id === "header:modular")!;
+    const headerNoLabel = wide.rows.find((r) => r.id === "header:modular")!;
+    if (narrow.modularHeaderStacked) expect(header.height).toBeGreaterThan(headerNoLabel.height);
+  });
+
+  test("sectionHeaderInlineFits: a short heading with no label always fits; a long label at a narrow width doesn't", () => {
+    expect(sectionHeaderInlineFits(400, "DIFFICULTY", "")).toBe(true);
+    expect(sectionHeaderInlineFits(120, "MODULAR SETS", "1 REQUIRED · 1 CHOSEN")).toBe(false);
+  });
+
+  test("a solo game (one seat) is exactly as tall as a four-seat game — the first-player row is one fixed-height row of chips either way", () => {
+    const solo = tableSetupCompactLayout(compactInputFor(390, 844, 1));
+    const full = tableSetupCompactLayout(compactInputFor(390, 844, 4));
+    expect(solo.contentHeight).toBe(full.contentHeight);
   });
 });

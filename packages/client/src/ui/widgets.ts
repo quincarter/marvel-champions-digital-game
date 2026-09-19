@@ -687,6 +687,11 @@ export class McTextInput {
   #rect: Rect;
   #onChange: ((value: string) => void) | undefined;
   #numeric: boolean;
+  #hidden = false;
+  /** True while another scene is running above this field's own (`syncCovered`) — kept separate from `setVisible`'s own caller-requested visibility so the two reasons a field might be hidden combine (AND) instead of the per-frame `syncCovered` check silently overriding a caller's own `setVisible(false)` back to visible every frame (found in browser verification, 2026-09-18: the phone Table setup scroll region's own hide-when-scrolled-away call was winning for exactly one frame before `syncCovered` put the field back). */
+  #coveredByOtherScene = false;
+  /** The caller's own last `setVisible` request — combined with `#coveredByOtherScene` in `#applyVisibility`. */
+  #requestedVisible = true;
 
   constructor(scene: Phaser.Scene, options: McTextInputOptions) {
     this.#rect = options.rect;
@@ -748,8 +753,9 @@ export class McTextInput {
     const syncCovered = (): void => {
       const running = scene.scene.manager.getScenes(true);
       const covered = running.indexOf(scene) < running.length - 1;
-      if (this.#input.visible === covered) this.#input.setVisible(!covered);
-      if (covered && this.#input.isFocused) this.#input.setBlur();
+      if (this.#coveredByOtherScene === covered) return;
+      this.#coveredByOtherScene = covered;
+      this.#applyVisibility();
     };
     scene.events.on("update", syncCovered);
     this.#input.once("destroy", () => scene.events.off("update", syncCovered));
@@ -805,6 +811,36 @@ export class McTextInput {
     this.#input.setPosition(rect.x, rect.y);
     this.#input.resize(rect.width, rect.height);
     if (this.#input.isFocused) this.#ring.show(rect, "static", true);
+  }
+
+  /**
+   * Shows or hides the field — for a caller positioning it inside a scrolled, masked region (`ui/scroll-region.ts`):
+   * a DOM element sits above the canvas, so a Phaser mask never clips it, and it has to be hidden by hand whenever
+   * `layout` would otherwise place it outside its own scrollable viewport. Combined (AND) with `syncCovered`'s own
+   * "another scene is covering this one" state in `#applyVisibility`, not applied directly — two independent
+   * reasons a field might need to be hidden must not silently overwrite each other every frame.
+   */
+  setVisible(visible: boolean): void {
+    this.#requestedVisible = visible;
+    this.#applyVisibility();
+  }
+
+  /**
+   * Applies `#requestedVisible && !#coveredByOtherScene` via Phaser's own native `setVisible` — **not** a direct
+   * `node.style.display` write. Browser verification (2026-09-18, the phone Table setup scroll region) found and
+   * ruled out that shortcut: `DOMElementCSSRenderer` (Phaser's own per-*frame* DOM sync, not a one-shot render)
+   * unconditionally rewrites `style.display` from the element's own `renderFlags` every frame the element is still
+   * flagged visible, so a manual `style.display = 'none'` written *this* frame is silently put back to `'block'`
+   * the very next one. The native call is what actually flips `renderFlags`, which that per-frame sync then
+   * honours correctly on its own. Blurs on hide, so a hidden field can't silently keep the keyboard focus (and the
+   * screen's own focus route blocked on `focused`) after either reason makes it invisible.
+   */
+  #applyVisibility(): void {
+    const visible = this.#requestedVisible && !this.#coveredByOtherScene;
+    if (this.#hidden === !visible) return;
+    this.#hidden = !visible;
+    this.#input.setVisible(visible);
+    if (!visible && this.#input.isFocused) this.#input.setBlur();
   }
 
   destroy(): void {
