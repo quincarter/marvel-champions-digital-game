@@ -36,6 +36,7 @@ import type { Rect } from "../view/layout.js";
 import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 export class SettingsOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
@@ -69,7 +70,7 @@ export class SettingsOverlay extends Phaser.Scene {
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.children.removeAll(true);
+    destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const rows = settingsRowInfoOf(appSession().settings);

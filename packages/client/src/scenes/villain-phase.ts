@@ -142,6 +142,7 @@ import { appSession } from "../session.js";
 import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 /** How often a new beat is revealed while auto-advancing at normal motion. */
 const REVEAL_INTERVAL_MS = 550;
@@ -407,7 +408,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.children.removeAll(true);
+    destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const formFactor = formFactorFor(width, height);

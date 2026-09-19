@@ -203,7 +203,7 @@ export class BoardMotion {
    * rule `drawBeats` follows.
    *
    * Every travel is redrawn from its own elapsed time on every draw, the same
-   * trick `drawBeats` uses: the draw's `children.removeAll(true)` destroys last
+   * trick `drawBeats` uses: the draw's `destroyChildren(scene)` destroys last
    * frame's ghost along with everything else, so this recreates it already
    * partway along its path rather than snapping it back to `from`.
    */

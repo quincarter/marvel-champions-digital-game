@@ -92,6 +92,7 @@ import { costPipColor, drawGroupedCardList, drawRainbowCurveBars, drawStatCurveB
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import { SCENES, type SceneKey } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 export interface DeckCheckSceneData {
   readonly deck: Deck;
@@ -215,7 +216,7 @@ export class DeckCheckScene extends Phaser.Scene {
     // non-DOM widget (`ui/virtual-list.ts`'s own doc comment) — only its scroll position (`#cardListScroll`) survives.
     this.#cardList?.destroy();
     this.#cardList = null;
-    this.children.removeAll(true);
+    destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const layout = deckCheckLayout({ width, height });

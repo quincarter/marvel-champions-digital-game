@@ -55,6 +55,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { RulesSceneData } from "./rules.js";
 import type { RulesTab } from "../view/rules-layout.js";
 import { SCENES } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 /** One "Quick reference" row (phone only): a title, an optional detail line, and what opens when it's activated (or, absent that, why it can't be yet). */
 interface QuickReferenceRow {
@@ -215,7 +216,7 @@ export class PauseOverlay extends Phaser.Scene {
 
     const kept = layout.kind === "phone" && this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
-    this.children.removeAll(true);
+    destroyChildren(this);
     for (const node of kept) this.children.add(node);
     if (layout.kind === "wide" && this.#searchInput) {
       // Wide mode has no search field of its own — search lives in the full Rules reference overlay instead.

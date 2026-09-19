@@ -81,6 +81,7 @@ import { SCENES } from "./keys.js";
 import { appSession, deckStorage } from "../session.js";
 import type { DecksSceneData } from "./decks.js";
 import type { SeatsData } from "./seats.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 export interface TableSetupData {
   readonly draft: SetupDraft;
@@ -188,7 +189,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#stops = new Map();
     const kept = this.#seedInput ? [this.#seedInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
-    this.children.removeAll(true);
+    destroyChildren(this);
     for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;

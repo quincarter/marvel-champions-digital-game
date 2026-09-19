@@ -58,6 +58,7 @@ import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
 import { drawEncounter, drawEnemies, drawPlayArea, drawTeam } from "./board/zones.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 export class BoardScene extends Phaser.Scene {
   #unsubscribe: (() => void) | null = null;
@@ -328,7 +329,7 @@ export class BoardScene extends Phaser.Scene {
     this.#tabs?.destroy();
     this.#tabs = null;
     this.#frame = emptyFrame();
-    this.children.removeAll(true);
+    destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const layout = boardLayout({ x: 0, y: 0, width, height }, {

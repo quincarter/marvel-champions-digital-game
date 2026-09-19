@@ -88,6 +88,7 @@ import { appSession } from "../session.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { SCENES } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 /**
  * The checklist's state matrix (fidelity pass): a green-outlined dark wash for a done step ("done fill"/"done
@@ -246,7 +247,7 @@ export class SetupDealScene extends Phaser.Scene {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     this.#focusRects.clear();
-    this.children.removeAll(true);
+    destroyChildren(this);
     this.#stripMask?.destroy();
     this.#stripMask = null;
 

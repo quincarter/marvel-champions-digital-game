@@ -36,6 +36,7 @@ import type { SessionConfig } from "../engine/host.js";
 import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
@@ -89,7 +90,7 @@ export class GameOverScene extends Phaser.Scene {
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.children.removeAll(true);
+    destroyChildren(this);
     this.#status = null;
     this.#stops = new Map();
     this.#order = [];

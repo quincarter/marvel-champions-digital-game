@@ -60,6 +60,7 @@ import type { DeckCheckSceneData } from "./deck-check.js";
 import { deckStorage } from "../session.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { TableSetupData } from "./table-setup.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 export interface SeatsData {
   readonly draft: SetupDraft;
@@ -207,7 +208,7 @@ export class SeatsScene extends Phaser.Scene {
 
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
-    this.children.removeAll(true);
+    destroyChildren(this);
     for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;

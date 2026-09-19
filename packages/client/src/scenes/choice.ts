@@ -45,6 +45,7 @@ import { appSession } from "../session.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { SCENES } from "./keys.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
@@ -123,7 +124,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     this.#focusRects.clear();
-    this.children.removeAll(true);
+    destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";

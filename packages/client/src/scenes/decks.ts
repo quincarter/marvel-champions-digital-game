@@ -98,6 +98,7 @@ import type { TitleSceneData } from "./title.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { fetchMarvelCdbDeck } from "../platform/deck-fetch.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 /** What a caller (Title, on an `illegal_deck` refusal) hands over on launch. */
 export interface DecksSceneData {
@@ -324,7 +325,7 @@ export class DecksScene extends Phaser.Scene {
     // this pass — wide always draws them; narrow only while the "Decks" tab is active. They aren't Phaser
     // display-list objects (`McTextInput`/`McMultilineInput` are DOM-backed rexUI), so switching tabs and never
     // destroying them would leave them floating over another pane forever, invisible to
-    // `children.removeAll(true)` below — found in the browser switching tabs at a narrow width.
+    // `destroyChildren(scene)` below — found in the browser switching tabs at a narrow width.
     const showListFields = layout.wide || this.#activeTab === "decks";
     if (!showListFields) {
       this.#searchInput?.destroy();
@@ -340,7 +341,7 @@ export class DecksScene extends Phaser.Scene {
     // list, so its root alone is not enough (`McMultilineInput.gameObjects`).
     const kept = [...(this.#pasteInput?.gameObjects ?? []), ...(this.#marvelcdbInput ? [this.#marvelcdbInput.gameObject] : []), ...(this.#searchInput ? [this.#searchInput.gameObject] : [])];
     for (const node of kept) this.children.remove(node);
-    this.children.removeAll(true);
+    destroyChildren(this);
     for (const node of kept) this.children.add(node);
 
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", { spacing: 6, radius: 1, alpha: 0.1 });

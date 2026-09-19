@@ -6,7 +6,7 @@
  * one `McVirtualList`, which draws every row at the same height.
  *
  * Everything else about it is deliberately identical to `McVirtualList`: recreated fresh every
- * scene rebuild (not persisted across `children.removeAll(true)`); the caller owns scroll
+ * scene rebuild (not persisted across `destroyChildren(scene)`); the caller owns scroll
  * position across rebuilds (`VariableListScroll`, this list's `ListScroll`); rows are recycled by
  * index against the current window; it owns its own background panel, painted first inside its
  * own container; and touch/mouse drag-to-scroll is handled the same way. See that file's own doc

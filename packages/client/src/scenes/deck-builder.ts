@@ -74,6 +74,7 @@ import { drawCostCurveBars, drawGroupedCardList } from "../ui/deck-stats-widgets
 import { deckStorage } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 export interface DeckBuilderSceneData {
   readonly deck?: Deck;
@@ -171,7 +172,7 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     const kept = [...(this.#nameInput ? [this.#nameInput.gameObject] : []), ...(this.#filterInput ? [this.#filterInput.gameObject] : [])];
     for (const node of kept) this.children.remove(node);
-    this.children.removeAll(true);
+    destroyChildren(this);
     for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;

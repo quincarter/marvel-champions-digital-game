@@ -6,7 +6,7 @@
  *
  * **Recreated every scene rebuild, like every other non-DOM widget on these
  * screens** (buttons, labels, panels) — not persisted across
- * `children.removeAll(true)` the way `McTextInput` is. An earlier version
+ * `destroyChildren(scene)` the way `McTextInput` is. An earlier version
  * tried to persist it (detach its root before the sweep, reattach after, the
  * `McTextInput` pattern), and that was the wrong pattern here: a DOM input
  * has to persist to keep browser focus and keystrokes, but this widget has

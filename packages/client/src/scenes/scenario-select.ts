@@ -36,6 +36,7 @@ import { drawCompactChipStrip, drawPackGrid, drawSearchField, drawShelfRosterPan
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { SeatsData } from "./seats.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 export interface ScenarioSelectData {
   readonly draft: SetupDraft;
@@ -149,7 +150,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
-    this.children.removeAll(true);
+    destroyChildren(this);
     for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;

@@ -64,6 +64,7 @@ import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { InspectData } from "./inspect.js";
 import { SCENES } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 const TABS: readonly { readonly id: RulesTab; readonly label: string }[] = [
   { id: "glossary", label: "Glossary" },
@@ -209,7 +210,7 @@ export class RulesOverlay extends Phaser.Scene {
     this.#destroyLists();
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
-    this.children.removeAll(true);
+    destroyChildren(this);
     for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;

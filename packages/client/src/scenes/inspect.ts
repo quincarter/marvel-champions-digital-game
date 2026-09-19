@@ -83,6 +83,7 @@ import { bindGamepad, bindKeyboard } from "./board/input.js";
 import type { BoardScene } from "./board.js";
 import type { RulesSceneData } from "./rules.js";
 import { SCENES } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
 
 /** What the caller hands over when it launches this overlay. */
 export interface InspectData {
@@ -248,7 +249,7 @@ export class InspectOverlay extends Phaser.Scene {
     this.#buttons = [];
     for (const panel of this.#scrollPanels) panel.destroy();
     this.#scrollPanels = [];
-    this.children.removeAll(true);
+    destroyChildren(this);
     this.#dismissArm = new PressArm();
     this.#primaryAction = null;
 

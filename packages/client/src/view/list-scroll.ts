@@ -15,7 +15,7 @@
  *
  * Like the log's own scroll state, this lives outside the scene's display
  * list on purpose — see `ui/virtual-list.ts`, which owns a `ListScroll` and
- * is itself the thing that survives a scene's `children.removeAll(true)`
+ * is itself the thing that survives a scene's `destroyChildren(scene)`
  * sweep, the same way `McTextInput` does.
  */
 
