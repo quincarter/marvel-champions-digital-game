@@ -208,10 +208,16 @@ export const enemyScheme = (
   ...withBind(opts.bind),
   ...(opts.schBonus !== undefined ? { schBonus: amount(opts.schBonus) } : {}),
 });
-export const modifyAttack = (change: { readonly overkill?: boolean; readonly extraBoostCards?: number; readonly atkBonus?: Amount; readonly threatBonus?: Amount }): EffectSpec => ({
+/**
+ * `extraBoostCards` accepts a live `Amount`, not just a literal number — "give him an additional boost card for
+ * each side scheme in play" (Master Strategist, `trors`, docs/phase7-wave2.md §3.11) needs `countOf(query
+ * ("sideScheme"))`, and the engine's own `EffectSpec` (`packages/engine/src/spec.ts`) already types the field as
+ * `number | ValueSpec`; this DSL wrapper hadn't been updated to match until Master Strategist needed it.
+ */
+export const modifyAttack = (change: { readonly overkill?: boolean; readonly extraBoostCards?: Amount; readonly atkBonus?: Amount; readonly threatBonus?: Amount }): EffectSpec => ({
   kind: "modifyAttack",
   ...(change.overkill ? { overkill: true } : {}),
-  ...(change.extraBoostCards !== undefined ? { extraBoostCards: change.extraBoostCards } : {}),
+  ...(change.extraBoostCards !== undefined ? { extraBoostCards: amount(change.extraBoostCards) } : {}),
   ...(change.atkBonus !== undefined ? { atkBonus: amount(change.atkBonus) } : {}),
   ...(change.threatBonus !== undefined ? { threatBonus: amount(change.threatBonus) } : {}),
 });

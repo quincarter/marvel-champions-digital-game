@@ -113,8 +113,128 @@ function crossbonesScenario(options: Wave2ScenarioOptions): GameSetupConfig {
   };
 }
 
+/**
+ * Absorbing Man ("None Shall Pass", a single-stage main scheme, 04079): villain Absorbing Man (04076/04077/04078,
+ * stages I/II/III — docs/phase7-wave2.md §2.2's I–II standard, II–III expert). Modular set: Hydra Patrol (shared
+ * with Hawkeye's own nemesis pool, `../trors/hawkeye-obligation-nemesis.js`'s encounter set — no new cards).
+ */
+function absorbingManScenario(options: Wave2ScenarioOptions): GameSetupConfig {
+  const difficulty = options.difficulty ?? "standard";
+  const [firstStage, lastStage] = difficulty === "expert" ? [2, 3] : [1, 2];
+  const sets = ["absorbing_man", ...(options.modularSetIds ?? ["hydra_patrol"]), "standard"];
+  if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
+  return {
+    seed: options.seed,
+    cards: WAVE2_CARDS,
+    villainCardId: "04076" as CardId,
+    villainSide: "A",
+    villainStartStageIndex: villainStageIndex("04076", firstStage),
+    villainLastStageIndex: villainStageIndex("04076", lastStage),
+    mainSchemeCardId: "04079a" as CardId,
+    encounterDeck: wave2EncounterCardsOf(sets),
+    players: seatsOf(options.players),
+    includeIdentitySets: true,
+    requireIdentitySets: true,
+    requireLegalDecks: true,
+    ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+  };
+}
+
+/**
+ * Taskmaster ("Hunting Down Heroes", 04096): villain Taskmaster (04093/04094/04095, stages I/II/III). Required
+ * sets: Taskmaster, Hydra Patrol (docs/phase7-wave2.md §2.2: "The Hydra Patrol set [...] is required when playing
+ * Taskmaster"), Standard. Modular: Weapon Master. The four Captive allies (04097–04100) carry no `encounterSetIds`
+ * of their own (they're `specificTo: scenario`, not shuffled into the encounter deck — docs/phase7-wave2.md
+ * §1.4/§4.5), so they're listed in `setAside` directly rather than swept in by `wave2EncounterCardsOf`.
+ */
+function taskmasterScenario(options: Wave2ScenarioOptions): GameSetupConfig {
+  const difficulty = options.difficulty ?? "standard";
+  const [firstStage, lastStage] = difficulty === "expert" ? [2, 3] : [1, 2];
+  const sets = ["taskmaster", "hydra_patrol", ...(options.modularSetIds ?? ["weap_master"]), "standard"];
+  if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
+  return {
+    seed: options.seed,
+    cards: WAVE2_CARDS,
+    villainCardId: "04093" as CardId,
+    villainSide: "A",
+    villainStartStageIndex: villainStageIndex("04093", firstStage),
+    villainLastStageIndex: villainStageIndex("04093", lastStage),
+    mainSchemeCardId: "04096a" as CardId,
+    encounterDeck: wave2EncounterCardsOf(sets),
+    players: seatsOf(options.players),
+    includeIdentitySets: true,
+    requireIdentitySets: true,
+    requireLegalDecks: true,
+    setAside: ["04097", "04098", "04099", "04100"] as CardId[],
+    ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+  };
+}
+
+/**
+ * Zola ("The Island of Dr. Zola" → "The Mad Doctor", 04112): villain Zola (04109/04110/04111, stages I/II/III).
+ * Required sets: Zola, Standard. Modular: Under Attack (Core's own set, already in `WAVE2_CARDS` via `CORE_CARDS`).
+ */
+function zolaScenario(options: Wave2ScenarioOptions): GameSetupConfig {
+  const difficulty = options.difficulty ?? "standard";
+  const [firstStage, lastStage] = difficulty === "expert" ? [2, 3] : [1, 2];
+  const sets = ["zola", ...(options.modularSetIds ?? ["under_attack"]), "standard"];
+  if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
+  return {
+    seed: options.seed,
+    cards: WAVE2_CARDS,
+    villainCardId: "04109" as CardId,
+    villainSide: "A",
+    villainStartStageIndex: villainStageIndex("04109", firstStage),
+    villainLastStageIndex: villainStageIndex("04109", lastStage),
+    mainSchemeCardId: "04112a" as CardId,
+    encounterDeck: wave2EncounterCardsOf(sets),
+    players: seatsOf(options.players),
+    includeIdentitySets: true,
+    requireIdentitySets: true,
+    requireLegalDecks: true,
+    ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+  };
+}
+
+/**
+ * Red Skull ("The Rise of Red Skull" → "New World Hydra", 04128): villain Red Skull (04125/04126/04127, stages
+ * I/II/III). Required sets: Red Skull, Hydra Assault, Hydra Patrol (both modular sets are required, not chosen —
+ * docs/phase7-wave2.md §2.2's table lists them outside the "(count)" modular-pick column, and the 1A text prints
+ * "Two modular encounter sets (Hydra Assault and Hydra Patrol)" as part of "Contents," not as a choice), Standard.
+ * The side-scheme deck (§1.8/§3.3) is built by the 1A `Setup:` ability itself (`red-skull.ts`'s `04128a.setup`),
+ * from `scenarioDecks` below, not by this function directly. The Sleeper (04130) is set aside, out of play, per
+ * the 1A text — matching Taskmaster's Captive allies, `taskmasterScenario`.
+ */
+function redSkullScenario(options: Wave2ScenarioOptions): GameSetupConfig {
+  const difficulty = options.difficulty ?? "standard";
+  const [firstStage, lastStage] = difficulty === "expert" ? [2, 3] : [1, 2];
+  const sets = ["red_skull", "hydra_assault", "hydra_patrol", "standard"];
+  if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
+  return {
+    seed: options.seed,
+    cards: WAVE2_CARDS,
+    villainCardId: "04125" as CardId,
+    villainSide: "A",
+    villainStartStageIndex: villainStageIndex("04125", firstStage),
+    villainLastStageIndex: villainStageIndex("04125", lastStage),
+    mainSchemeCardId: "04128a" as CardId,
+    encounterDeck: wave2EncounterCardsOf(sets),
+    players: seatsOf(options.players),
+    includeIdentitySets: true,
+    requireIdentitySets: true,
+    requireLegalDecks: true,
+    setAside: ["04130"] as CardId[],
+    scenarioDecks: [{ name: "side-scheme", contents: { cardType: "side_scheme" }, discardPile: "own", whenEmpty: "reshuffleDiscardWithoutPenalty" }],
+    ...(options.firstPlayerIndex !== undefined ? { firstPlayerIndex: options.firstPlayerIndex } : {}),
+  };
+}
+
 const TRORS_SCENARIOS: Readonly<Record<string, (options: Wave2ScenarioOptions) => GameSetupConfig>> = {
   crossbones: crossbonesScenario,
+  "absorbing-man": absorbingManScenario,
+  taskmaster: taskmasterScenario,
+  zola: zolaScenario,
+  "red-skull": redSkullScenario,
 };
 
 /**

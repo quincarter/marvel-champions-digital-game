@@ -9,7 +9,7 @@ the rule for a genuinely missing primitive, and — because cycle 1 is six packs
 **progress / next up** section so a session cut off by a usage limit can resume exactly where the last one stopped.
 
 The model to follow for style is `packages/cards/src/core/` (Core Set), `packages/cards/src/wave1/cap/` (wave 1's
-first fully-scripted pack), and now `packages/cards/src/wave2/trors/` (this wave's first pack, in progress).
+first fully-scripted pack), and now `packages/cards/src/wave2/trors/` (this wave's first pack, fully scripted).
 
 ## 1. Folder layout and naming
 
@@ -173,6 +173,35 @@ being `null` not `undefined`, and not inventing a card's data, applies unchanged
   expected hand-size delta after playing an event that also draws a card must subtract *two* (the played card, the
   resource payment) before adding back the draw, not one; this was wrong in the first drafts of the Press the
   Advantage and Clear the Area tests here.
+- **Every villain phase runs the villain's (and every engaged minion's) own normal activation, independent of
+  whatever encounter card is revealed that round** — a scenario with a minion already in play at setup (Zola's
+  Ultimate Bio-Servants, Absorbing Man's none, Taskmaster's none) means *more than one* enemy activates each
+  round, and **each activating enemy is dealt its own boost card from the top of the encounter deck before any
+  player's own encounter card is dealt.** A `stackEncounterDeck(state, filler, realCard)` two-card stack (the
+  pattern wave 1 established for a lone villain) silently deals the *filler* to the second activating enemy and
+  the *real* card to a third enemy or the player depending on order, unless you either stack one filler per
+  activating enemy ahead of the real card, or (simpler, used in `zola.test.ts`) patch the extra minion out of
+  `state.villainArea` for that one test. **Never assume "before/after one round" isolates a single card's own
+  effect**, either: the main scheme's own step-one acceleration threat and the villain's own normal
+  attack/scheme both change state every round regardless of what's revealed — isolate a conditional card's own
+  contribution with a differential (two otherwise-identical rounds that differ only in the condition, e.g.
+  `absorbing-man.test.ts`'s Steel Kick tests), not an absolute delta.
+- **`TargetRef { kind: "named" }` (and any `TargetRef`, generally) only ever finds a card already in play** —
+  `resolveRef`'s "named" case searches `cardsInPlay(state)`. A setup ability that needs to find a specific card
+  still sitting in the encounter deck (Red Skull's own "Put the Red House into play") must search for it first
+  (`selectCards`/`encounterCards`, or `encounterSetAside` for a set-aside card like The Sleeper) and act on the
+  bound slot, not reference it by name directly — `putIntoPlay(named(...), ...)` silently does nothing (the ref
+  resolves to no candidates) rather than erroring, so this fails silently, not loudly.
+- **`putIntoPlay(card, controller)` already engages a minion with `controller`**
+  (`packages/engine/src/resolve/apply-effect.ts`'s own `putIntoPlay` case) — a separate `{ kind: "engage" }` effect
+  right after it is redundant for "put that minion into play engaged with X," not merely harmless-but-unnecessary;
+  check the primitive's own behavior before assuming a printed "engaged with" clause needs its own effect.
+- **A `giveBoostCard` inside a `boost()` ability is a validator error**, not merely wrong: "give an additional
+  boost card" printed *on a card that is itself resolving as a boost card* means "for **this** activation"
+  (`modifyAttack({ extraBoostCards })`), not "deal a *future* facedown boost card" (`giveBoostCard`, which waits on
+  an enemy for a later activation) — the validator (`dsl/validate.ts`) refuses the latter inside a Boost ability
+  specifically because the two are easy to conflate from the printed wording alone (Hydra Exo-Soldier, 04131,
+  `red-skull.ts`).
 
 ## 6. Engine primitive gaps found scripting `trors` (ranked by how many cards each blocks so far)
 
@@ -266,60 +295,122 @@ a starting point. None of these were hacked around — every card that needs one
   current attack's own frame id, cleared when that attack's resolution finishes (the same point `atEndOfAttack`
   fires), is the shape to build.
 
-### 6.7 "The player who defeated this scheme" as a `PlayerRef` (1 card)
+### 6.7 "The player who defeated this scheme" as a `PlayerRef` (3 cards)
 
-- **Card:** Crossbones' Assault (04070, a side scheme): "When Defeated: Crossbones activates against the player
-  who defeated this scheme."
+- **Cards:** Crossbones' Assault (04070, `crossbones.ts`): "When Defeated: Crossbones activates against the player
+  who defeated this scheme." Prison Camps (04141, `red-skull.ts`): "When Defeated: **the player who defeated this
+  scheme** searches their deck and discard pile for an ally, puts it into play, and shuffles their deck." Hydra
+  Reinforcements (04143, `red-skull.ts`): "When Defeated: **the player who defeated this scheme** discards a
+  non-Elite minion." All three are otherwise fully scriptable with existing vocabulary — this is the only thing
+  blocking each of them.
 - **The gap:** no `TargetRef`/`PlayerRef` reads a scheme's own defeating player for a *later* effect in the same
   ability. `on.defeated`'s `byYou` filter (used on the *responding* ability's own trigger condition) can name "you
   defeated it" as a yes/no gate, but can't hand that player back as a `PlayerRef` value for `enemyAttack(theVillain,
-  { against: <that player> })`.
+  { against: <that player> })`, `chooseCards(..., { chooser: <that player> })`, etc.
 - **Closest existing primitive:** the `defendingCharacter`/`eventSource`/`eventTarget` family of context-scoped
   refs (`dsl/values.ts`) — a `defeatingPlayer: PlayerRef` reading the current `characterDefeated`/`schemeDefeated`
   event's own defeating player (already recorded on that event, since `byYou` reads it) would slot in the same way.
 
-### 6.8 Already known, not newly found (see `docs/phase7-wave2.md` §3.11)
+### 6.9 `cardEntersPlay` is announcement-only — no Interrupt timing for "when a card enters play" (2 cards)
+
+- **Cards:** None Shall Pass 1A (04079b, `absorbing-man.ts`): "Forced Interrupt: When an environment enters play,
+  discard each other environment card in play." Omni-Morph Duplication and friends never need this, but any future
+  card printed "Interrupt: when X enters play" will hit the same wall. (Counted as one gap; only one `trors` card
+  needs it.)
+- **The gap:** `isAnnouncement` (`packages/engine/src/trigger-events.ts`) defaults to `true` (response-only, no
+  interrupt window opened) for any `TriggerEventKind` not in its explicit interruptible list, and `cardEntersPlay`
+  isn't in that list — `enterPlay()` (`resolve/enter-play.ts`) calls `applyEnterPlayKeywords` (which already
+  mutates state: toughness, uses counters, the ally-limit check) *before* announcing the event, so by the time any
+  ability on it could react, the card is already fully in play. A **Response** on the same event ("after an
+  environment enters play, discard each other one") doesn't fix this either for a card whose *effect itself*
+  needs to distinguish the entering card from the others (`query("environment")` at that point matches the new
+  one too, and there's no `TargetQuery` field to exclude a specific `TargetRef` the way `self` excludes only the
+  ability's own card — confirmed by testing, docs §4.1's convention: scripting it as an Interrupt produces a
+  silent no-op; scripting it as a Response discards the entering card too).
+- **Closest existing primitive:** making `cardEntersPlay` interruptible (moving `enterPlay`'s `announce` call
+  before its own state mutations, the way `cardBeingPlayed` already precedes an event's own effects) is the
+  cleanest fix, paired with a `TargetQuery` field to exclude a specific `TargetRef` (`eventTarget`, here) from a
+  query — the second half is independently useful for any future "each *other*" card whose own entry would
+  otherwise match its own query.
+
+### 6.10 `formChanged` has no direction filter, and no "any player" `EventPattern` shorthand (1 card, 3 refs)
+
+- **Card:** Taskmaster (I/II/III) (04093/04094/04095, `taskmaster.ts`): "Forced Response: After **a player**
+  changes to **hero form**, they discard the top card of the encounter deck and take damage equal to the number of
+  boost icons on that card."
+- **The gap:** `formChanged`'s own event shape (`packages/engine/src/spec.ts`) carries `to: "hero" | "alterEgo"`,
+  but `EventPattern` has no field to filter on it — only `on.youChangeForm()`'s hardcoded `{ playerIs: "controller"
+  }`, which also doesn't fit here: this is a *villain* ability reacting to *any* player's change, not "you." A
+  `PlayerRef { kind: "eventPlayer" }` already exists (`spec.ts`) and would supply "they" for the effect body once
+  the trigger itself can be written.
+- **Closest existing primitive:** a `to?: "hero" | "alterEgo"` field on `EventPattern`, read the same way
+  `requireResults` reads other event-carried fields, plus a version of `on.youChangeForm` (or a new `on.
+  playerChangesForm`) with no built-in `playerIs: "controller"` scoping.
+
+### 6.11 Already known, not newly found (see `docs/phase7-wave2.md` §3.11)
 
 - **"Once per round for each aspect"** (Superhuman Agility, 04031a): needs a limit keyed by the played card's
   aspect, not a flat once-per-round.
 - **Blanking a whole class of cards' text** (Tech Theft, `ant` pack — not yet reached in `trors`, listed here so a
   future `ant` agent doesn't rediscover it): `textBoxBlank` is read without the ability registry today.
 
+### 6.12 Not a primitive gap: a stale DSL wrapper, fixed in this pass
+
+- `dsl/effects.ts`'s `modifyAttack({ extraBoostCards })` was typed `number` only; the engine's own `EffectSpec`
+  already accepted `number | ValueSpec`. Master Strategist (04134, `red-skull.ts`, "give him an additional boost
+  card for each side scheme in play," the exact card docs/phase7-wave2.md §3.11 names as this field's reason for
+  existing) needed the live-value form, so the DSL wrapper's type was widened to `Amount` to match the engine
+  primitive that had already landed — not a new primitive, just catching up the wrapper. Every existing caller
+  passed a literal number and is unaffected (`amount(1)` still compiles to the same `{ kind: "const", value: 1 }`).
+
 ## 7. Status
 
 | Pack | Code | Status | Notes |
 |---|---|---|---|
-| The Rise of Red Skull | `trors` | **In progress.** 152 cards, 248 ability refs: 73 resolve (13 as reprint aliases, 60 hand-scripted), 175 in `KNOWN_SKIPPED` (12 genuinely missing-primitive blocks — §6 — the other 163 simply not yet scripted). | Hawkeye's and Spider-Woman's own kits, obligations and nemesis sets are scripted (`hawkeye-kit.ts`, `hawkeye-obligation-nemesis.ts`, `spider-woman-kit.ts`, `spider-woman-obligation-nemesis.ts`; 35 tests across `hawkeye.test.ts`/`spider-woman.test.ts`). The Crossbones scenario's villain, main scheme and own encounter set are scripted (`crossbones.ts`; 6 tests in `crossbones.test.ts`, plus a standalone 2-player setup test in `e2e.test.ts`) — the only cycle 1 scenario with a working `wave2Scenario("crossbones", …)` builder so far (`../setup.ts`). **Not started:** Absorbing Man, Taskmaster, Zola and Red Skull (the other four Red Skull scenarios), the Hydra Campaign cards (data only while campaign mode is deferred, per the wave 2 scope decision), and the pack's own generic-aspect filler cards beyond what's already a Core/wave 1 reprint. Real-game tests: `wave2/trors/e2e.test.ts` (Hawkeye and Spider-Woman precons vs. Rhino, solo, to a real outcome; Crossbones standalone 2-player setup). **Data gap flagged for `card-data-pipeline`:** the Attack on Mount Athena 1A text prints "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` has no "Legions of Hydra" `EncounterSet` — `crossbonesScenario` uses only the two that exist. |
+| The Rise of Red Skull | `trors` | **Scripted.** 152 cards, 248 ability refs: 201 resolve (15 as reprint aliases, 186 hand-scripted), 47 in `KNOWN_SKIPPED` — 19 genuinely missing-primitive/data-gap blocks (§6) and 28 Hydra Campaign refs, pinned regardless of any primitive since campaign mode is deferred. | All five scenarios are scripted: Hawkeye/Spider-Woman kits (`hawkeye-kit.ts`, `hawkeye-obligation-nemesis.ts`, `spider-woman-kit.ts`, `spider-woman-obligation-nemesis.ts`), Crossbones (`crossbones.ts`), Absorbing Man (`absorbing-man.ts`), Taskmaster (`taskmaster.ts`), Zola (`zola.ts`) and Red Skull (`red-skull.ts`), each with its own `wave2Scenario(...)` entry in `../setup.ts` and its own ruling-level `.test.ts` (95 tests total across the pack's test files) plus a standalone setup test proving each scenario's own 1A/1B setup ability actually runs (setAside, scenario decks, engaged minions, revealed side schemes, etc.). Real-game tests: `wave2/trors/e2e.test.ts` (Hawkeye and Spider-Woman precons vs. Rhino, solo, to a real outcome; Crossbones standalone 2-player setup). **Data gaps flagged for `card-data-pipeline`:** (1) the Attack on Mount Athena 1A text prints "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` has no "Legions of Hydra" `EncounterSet` — `crossbonesScenario` uses only the two that exist; (2) several cards carry more ability refs than their printed text has independent clauses for (Omni-Morph Duplication 04089's four extra "-constant" refs, The Mad Doctor 04113b's and Neurological Implants 04119's second refs, The Rise of Red Skull 1A's 04128a and New World Hydra's 04129b's "-constant" refs) — each is stood up as an empty `coveredByEngineRule()` rather than left unscripted, since the card's own primary ability ref already carries the full printed behavior; (3) Captured by Hydra (04107) prints a "When Defeated" clause with no ability ref to hang it on (contrast Hydra Prison, 04122, which prints an equivalent shape with two refs) — only its "When Revealed" half is scripted. |
 | The Once and Future Kang | `toafk` | **Not started.** | Needs `GameState.gameAreas`-shaped setup (landed per docs/phase7-wave2.md §3.1) and its own `wave2Scenario` entry once scripted — it's a scenario pack, no hero kit. |
-| Ant-Man | `ant` | **Not started.** | Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md, landed). Known gap ahead of time: Tech Theft's class-wide text-blanking (§6.8). |
+| Ant-Man | `ant` | **Not started.** | Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md, landed). Known gap ahead of time: Tech Theft's class-wide text-blanking (§6.11). |
 | Wasp | `wsp` | **Not started.** | Three-sided identity; divided basic powers (§3.7, landed). |
 | Quicksilver | `qsv` | **Not started.** | `basicPowerUsed` trigger event (landed, used already by Spider-Woman's Captain Marvel in `trors`). |
 | Scarlet Witch | `scw` | **Not started.** | Two copies of her own obligation shuffled in (§1.10, landed); boost-icon counting as an event (§3.6, landed for activation counts; card-effect counts — Hex Bolt — still open per §4.8). |
 
 ## 8. Progress / next up (update this every session)
 
-**Last updated:** 2026-09-19, by the session that fixed the villain-AI regression and the two pre-existing type
-errors, then built the registry/coverage/scenario scaffolding and finished Hawkeye + Spider-Woman + Crossbones.
+**Last updated:** 2026-09-19, by the session that finished `trors` end to end: Absorbing Man, Taskmaster, Zola and
+Red Skull (the four scenarios the previous checkpoint, commit `4a630fb`, left as "next up"), each with its own
+`wave2Scenario(...)` entry, standalone setup test and ruling-level test file. `trors` is now `"scripted"` in
+`PACK_STATUS` (§7) — every unresolved ability ref is a documented primitive/data gap (§6) or a Hydra Campaign card
+pinned for the deferred-campaign-mode reason, never a "not reached yet." Root `pnpm typecheck` and `pnpm test` are
+both green (content 374, engine 638, cards 548, client 1376) as of this checkpoint.
 
-**Immediately resumable next steps, in priority order (release order, per the task brief):**
-1. **Absorbing Man** (`trors`, 04076–04095 roughly): the villain, its single-stage main scheme "None Shall Pass",
-   and the Hydra Patrol modular set. Needs "gains the trait of each environment in play" (`gainsTraitsOf`, already
-   landed in `dsl/abilities.ts` — unused so far, this is its first real card) and the "environments with Surge
-   enter without surging" reading from docs/phase7-wave2.md §2.2.
-2. **Taskmaster** (04096–04111 roughly): needs the Captive allies set aside (§3.10, landed) and the Hydra Patrol
-   modular set (shared with Absorbing Man).
-3. **Zola** (04112–04127 roughly): needs Hydra Prison's player-ally tucking (§3.10, landed) and `totalPrintedCost`
-   (already landed, unused so far).
-4. **Red Skull** (04128–04154 roughly): needs the side-scheme separate deck (§1.8/§3.3, landed) and the Assault
-   keyword / optional thwart-with-ATK rule (§3.11, landed).
-5. Once all five `trors` scenarios are scripted, add per-scenario standalone setup tests for each (the task's
-   original ask) and mark `trors` `"scripted"` in `PACK_STATUS` (§7) — it cannot be marked that until every
-   `KNOWN_SKIPPED` entry is a genuine primitive block, not a "not reached yet."
-6. Then `toafk`, `ant`, `wsp`, `qsv`, `scw` in that order (release order), each starting the same way this file's
-   §2 describes: registry + coverage entry + (for `toafk`, a scenario) before any card scripting, so the tree stays
-   green at every stopping point.
+**`trors` is done. Next: `toafk`, then `ant`, `wsp`, `qsv`, `scw` in that order (release order) — none of these
+five packs has been started.** Each begins the same way this file's §2 describes: registry (`<pack>/index.ts`
+exporting `<PACK>_ABILITIES`) + a `wave2/coverage.test.ts` entry (flip `PACK_STATUS[code]` to `"in progress"` and
+pin the pack's *entire* ability-ref list in `KNOWN_SKIPPED` before writing a single card script, computed the
+programmatic way §1 describes, never hand-typed) + (for `toafk`, which has no hero kit) a scenario entry in
+`../setup.ts`, before any actual card scripting — so the tree stays green at every stopping point, the same
+discipline `trors` used at each of its five scenario boundaries this session and last.
 
-**Do not start a card that needs §6.1's piercing/ranged gap, §6.3's wild-resource-cost gap, or §6.6's
-attack-initiation damage-prevention gap without checking whether `game-rules-architect` has landed the primitive
-first** — re-run the `KNOWN_SKIPPED` regeneration test (§1) to see whether a card you're about to skip is actually
-already scriptable.
+1. **The Once and Future Kang (`toafk`)** — a scenario pack, no hero kit. The whole scenario depends on separate
+   game areas (docs/phase7-wave2.md §3.1, landed 2026-09-18) — read that section and §2.3 closely before starting;
+   it's the most structurally different scenario in cycle 1 (`GameState.gameAreas`, several main scheme stages at
+   once, `revealMainSchemeStage`/`joinGameArea`/`addVillain` effects this pack hasn't needed yet). Kang's own
+   parenthetical-as-title reading (docs/phase7-wave2.md §4.1) and the 2B acceleration-token redirect (§4.3) are
+   still open questions to flag rather than silently resolve.
+2. **Ant-Man (`ant`)** — three-sided identity (docs/phase7-wave2.md §1.1/§3.2, landed). Tech Theft's class-wide
+   text-blanking is a known primitive gap ahead of time (§6.11) — don't attempt an approximation for it.
+3. **Wasp (`wsp`)** — three-sided identity; divided basic powers (§3.7, landed) for her own Giant-form constants.
+4. **Quicksilver (`qsv`)** — `basicPowerUsed` (already used by Spider-Woman's Captain Marvel in `trors`, so the DSL
+   side is proven) drives several of his own cards.
+5. **Scarlet Witch (`scw`)** — two copies of her own obligation shuffled in (§1.10, landed); boost-icon counting as
+   an event (§3.6, landed for activation counts — card-effect counts, Hex Bolt, are still open per §4.8, so that
+   one card may need a `KNOWN_SKIPPED` pin even after the pack is otherwise done).
+
+**Before starting any pack, re-run the `KNOWN_SKIPPED` regeneration test (§1) against whatever primitives have
+landed since this was written** — a card pinned here as blocked may already be scriptable. Two gaps found and
+confirmed *by testing* this session, not just reasoning about the DSL (§4.1's own convention: verify a skip claim
+before trusting it, and equally, verify an *unblocked* claim before trusting it) are worth rereading before
+`toafk`/`ant`/`wsp`/`qsv`/`scw` hit the same shapes: §6.9 (`cardEntersPlay` is announcement-only — a printed
+"Interrupt: when X enters play" is not scriptable as written) and §6.10 (`formChanged` has no `to`-direction
+filter, and no ready-made "any player, not you" trigger). §6.7's "player who defeated this scheme" gap recurred
+twice more in Red Skull after Crossbones' Assault first found it (§6.7) — expect it again in later packs.
