@@ -8,3 +8,7 @@ coverage/
 
 # Rendered design canvases (regenerate with scripts/render-design-canvases.sh)
 docs/design-renders/
+
+# Output of packages/content/scripts/scraper (card images and a duplicate raw cache)
+packages/content/scripts/assets/
+packages/content/scripts/raw/
