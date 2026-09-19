@@ -46,10 +46,11 @@
  * Both are grammatical; nothing here can tell whether one is a printed variant or a transcription slip without a
  * scan of 11009 specifically (no image exists for any stage-3 B side). Not changed.
  *
- * **Scenario setup (docs/phase7-wave2.md §2.3, §1.8) and the starter deck are not curated this pass** — this
- * pack has no starter deck of its own (a scenario pack), and `Scenario`-level curation (`setAsideVillainCardIds`,
- * `expertVillains`, `victory`, `separateGameAreas`) needs `ScenarioCuration` fields this pass didn't extend to
- * (mirrors `trors`' own "scenarios not yet curated" scope cut).
+ * **Scenario setup** (docs/phase7-wave2.md §2.3, §1.8): one `ScenarioCuration` entry, `villainCardCode: "11001"`
+ * (Kang (I)) — `villainIdBySet` has no entry for the "kang" set (`normalize/villains.ts` deliberately leaves it
+ * unset for a set whose stage numbers collide, which is exactly this set's shape: six single-stage villains, not
+ * one incrementing sequence), so the scenario names its starting villain's card code directly
+ * (`ScenarioCuration.villainCardCode`, new this pass). The pack has no starter deck of its own (a scenario pack).
  */
 import type { PackCuration } from "./types.ts";
 
@@ -89,6 +90,56 @@ export const TOAFK_CURATION: PackCuration = {
     "11007a": "The Master of Time 2B's dashed starting/target/acceleration threat (docs/phase7-wave2.md §1.6) is not independently confirmed from a card scan — no image exists for 11008b on MarvelCDB (imagesrc null; direct fetch of 11008b.png/.jpg both 404). Read from the `_fixed: true` + null-value pattern, which is how the schema/normalizer distinguish a dash from a data gap; treat as high-confidence but unverified against a scan until one is found.",
   },
 
-  scenarios: [],
+  scenarios: [
+    {
+      id: "kang",
+      name: "Kang",
+      villainSetCode: "kang",
+      // `villainIdBySet` has no entry for "kang" (six single-stage villains collide on one stage-number sequence
+      // — see this file's header). Kang (I) is the only villain that starts in the villain deck.
+      villainCardCode: "11001",
+      // Kang insert, "Setup": "stage 1A instructs the players to set each copy of Kang (II) and Kang (III)
+      // aside. This means that Kang (I) is the only villain in the villain deck at the beginning of the game.
+      // Kang (II) and Kang (III) will enter play through the card effects on main schemes 3A and 4A." (Kang's
+      // Dominion, the identity-obligation-adjacent side scheme also set aside per the same Setup text, has no
+      // `Scenario`-level field to record — only villain set-aside is modeled; flagged here for whoever scripts
+      // 1A's Setup ability.)
+      setAsideVillainCardCodes: ["11002", "11003", "11004", "11005", "11006"],
+      // Kang insert, "Adjustable Difficulty": "To play the scenario in expert mode, replace all six villains in
+      // the Kang encounter set with the six villains from the Expert Kang set and add the Expert encounter set
+      // to the encounter deck." (That "Expert encounter set" is Core's own difficulty set, `expertSetCodes`
+      // below — not the "exp_kang" set, which holds only the six expert villain cards themselves.)
+      expertVillains: {
+        villainCardCode: "11034",
+        setAsideVillainCardCodes: ["11035", "11036", "11037", "11038", "11039"],
+      },
+      // Kang insert, "Modular Encounter Sets": Temporal is recommended; Master of Time or Anachronauts may
+      // replace it. Only one is used at a time (modularSetCount absent = 1).
+      recommendedModularSetCodes: ["temporal"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      // Kang (I)/(III) are each their own one-stage `VillainCard` (stageNumber 1 and 3 respectively, per
+      // `wave2.test.ts`'s own fixture), not a multi-stage sequence — `villainStages` has no real "range" to
+      // report here; [1, 1] both modes since the scenario always starts on Kang (I) (standard: 11001) or Kang
+      // (I) expert (11034), each a single stage.
+      villainStages: { standard: [1, 1], expert: [1, 1] },
+      // Kang insert, "Setup": "The players must defeat Kang (I), Kang (II), and Kang (III) in order to win the
+      // game" — not "the final stage of the villain deck", since Kang (II)/(III) enter through separate
+      // set-aside villain records rather than a later stage of the same VillainCard. Kang (III)'s own "When
+      // Defeated: The players win the game." is the actual trigger (docs/phase7-wave2.md §1.8).
+      victory: "cardAbility",
+      separateGameAreas: {
+        isolation: "areasCannotAffectEachOther",
+        centralStageNumber: 2,
+        encounterDeck: "shared",
+        environments: "inEveryArea",
+        eachPlayer: "sameArea",
+        uniqueness: "perArea",
+        joining: "sideSchemesAndEngagedMinionsMove",
+      },
+      evidence:
+        "The Once and Future Kang insert, \"Setup\"/\"Adjustable Difficulty\"/\"Modular Encounter Sets\"/\"Create Separate Game Areas\"/\"Playing With Separate Game Areas\"/\"Rules Clarifications\"; RRG 1.8 FAQ \"The Once and Future Kang Scenario Pack\" (p. 60); docs/phase7-wave2.md §1.8, §2.3",
+    },
+  ],
   starterDecks: [],
 };

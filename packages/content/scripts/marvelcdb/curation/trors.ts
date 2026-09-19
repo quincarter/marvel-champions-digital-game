@@ -9,9 +9,13 @@
  *   image and transcribed here (the spoiler-free rulebook the rest of this file cites has only 12 pages and does
  *   not include this section).
  *
- * **Scenarios not yet curated.** This pass only gets the pack's cards (heroes, campaign cards, five scenarios'
- * encounter cards) normalizing; the `ScenarioCuration` entries that would let `coreScenario`-style setup resolve
- * are a follow-up (docs/phase7-wave2.md §2.2 has the per-scenario setup notes already researched).
+ * **Five `ScenarioCuration` entries** (docs/phase7-wave2.md §2.2's own per-scenario table, each cell cited below):
+ * villain/main scheme/modular sets, standard I–II / expert II–III (every rulebook page reads "Remove [villain]
+ * (I) and add [villain] (III) for expert mode"). "Legions of Hydra" (Crossbones' third modular set) is a *Core*
+ * Set encounter set (`packages/content/raw/marvelcdb/core.json`'s `legions_of_hydra`, not present in trors.json
+ * at all) — Attack on Mount Athena's 1A just calls for it alongside two of trors' own sets, the same way a
+ * scenario can already reference a Core set by code (`normalize/scenarios.ts`'s `CORE_ENCOUNTER_SET_CODES`
+ * fallback, built for exactly this). Not a data gap: `core/encounterSets.ts` already registers it.
  *
  * **Starter decks curated from the rulebook's own "Starter Decks" page** (rulebook p.18), transcribed
  * item-by-item and cross-checked against raw (trors.json) by name, code and quantity — every item matched
@@ -129,7 +133,103 @@ export const TRORS_CURATION: PackCuration = {
     },
   },
 
-  scenarios: [],
+  scenarios: [
+    {
+      id: "crossbones",
+      name: "Crossbones",
+      villainSetCode: "crossbones",
+      // 1A "Contents" (raw 04061a): "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)."
+      // Legions of Hydra is a *Core Set* modular set (core.json's `legions_of_hydra`; not present in trors.json at
+      // all) — the normalizer already resolves a scenario's cross-pack Core reference the same way wave 1's Green
+      // Goblin scenarios do for "standard"/"expert" (`CORE_ENCOUNTER_SET_CODES`). Not a gap: `core/encounterSets.ts`
+      // already registers it.
+      recommendedModularSetCodes: ["hydra_assault", "weap_master", "legions_of_hydra"],
+      modularSetCount: 3,
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      // Rulebook p.5: "Create the Experimental Weapons deck" — its own separate deck, not part of the flat
+      // encounter deck (docs/phase7-wave2.md §1.8): "take all four cards in the Experimental Weapons encounter set,
+      // shuffle them together, and set them facedown next to the main-scheme deck [...] After a card [...] enters
+      // play, it is considered to be part of the encounter deck. When that card is discarded, it is placed in the
+      // encounter deck discard pile." Crossbones III's own When Revealed ("Reveal the top card of the Experimental
+      // Weapons deck") is why the set is still named in `encounterSetIds` (`additionalEncounterSetCodes`).
+      additionalEncounterSetCodes: ["exper_weapon"],
+      separateDecks: [
+        {
+          name: "Experimental Weapons",
+          contents: { encounterSetCodes: ["exper_weapon"] },
+          discardPile: "encounter",
+          whenEmpty: "remainsEmpty",
+        },
+      ],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      evidence:
+        "Red Skull rulebook (spoiler edition), p.5, \"Crossbones\"; 1A Contents text (raw 04061a), errata #61A; docs/phase7-wave2.md §1.8, §2.2",
+    },
+    {
+      id: "absorbing-man",
+      name: "Absorbing Man",
+      villainSetCode: "absorbing_man",
+      // 1A "Contents" (raw 04079a): "One modular encounter set (Hydra Patrol)."
+      recommendedModularSetCodes: ["hydra_patrol"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      evidence: "Red Skull rulebook (spoiler edition), p.7, \"Absorbing Man\"; 1A Contents text (raw 04079a); docs/phase7-wave2.md §2.2",
+    },
+    {
+      id: "taskmaster",
+      name: "Taskmaster",
+      villainSetCode: "taskmaster",
+      // Rulebook p.10: "The Hydra Patrol set [...] is required when playing Taskmaster" — required, not modular
+      // (it enters play via stage 1A's own search, not a player's difficulty choice).
+      additionalEncounterSetCodes: ["hydra_patrol"],
+      recommendedModularSetCodes: ["weap_master"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      evidence:
+        "Red Skull rulebook (spoiler edition), p.10, \"Taskmaster\"; 1A Contents text (raw 04096a); docs/phase7-wave2.md §2.2",
+    },
+    {
+      id: "zola",
+      name: "Zola",
+      villainSetCode: "zola",
+      // 1A "Contents" (raw 04112a): "One modular encounter set (Under Attack)" — a Core Set modular set (same
+      // cross-pack reference mechanism as Crossbones' Legions of Hydra, above).
+      recommendedModularSetCodes: ["under_attack"],
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      evidence: "Red Skull rulebook (spoiler edition), p.13, \"Zola\"; 1A Contents text (raw 04112a); docs/phase7-wave2.md §2.2",
+    },
+    {
+      id: "red-skull",
+      name: "Red Skull",
+      villainSetCode: "red_skull",
+      // 1A "Contents" (raw 04128a): "Two modular sets (Hydra Assault and Hydra Patrol)."
+      recommendedModularSetCodes: ["hydra_assault", "hydra_patrol"],
+      modularSetCount: 2,
+      standardSetCodes: ["standard"],
+      expertSetCodes: ["expert"],
+      // Rulebook p.15 + errata #128A (RRG 1.8 p.66): "search the encounter deck for each side scheme and shuffle
+      // them together into their own deck [...] The side-scheme deck has its own discard pile [...] If [it] is
+      // ever empty, shuffle the side-scheme discard pile into the side-scheme deck. There is no penalty for doing
+      // this." — its own separate deck (docs/phase7-wave2.md §1.8), built from every *encounter* side scheme
+      // (errata corrects "side scheme" to "encounter side scheme", already applied to 04128a's text above).
+      separateDecks: [
+        {
+          name: "side-scheme deck",
+          contents: { cardType: "side_scheme" },
+          discardPile: "own",
+          whenEmpty: "reshuffleDiscardWithoutPenalty",
+        },
+      ],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+      evidence:
+        "Red Skull rulebook (spoiler edition), p.15, \"Red Skull\"; 1A Contents text (raw 04128a); errata #128A (RRG 1.8 p.66); docs/phase7-wave2.md §1.8, §2.2",
+    },
+  ],
   starterDecks: [
     {
       id: "hawkeye-leadership",

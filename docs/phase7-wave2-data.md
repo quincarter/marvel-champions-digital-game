@@ -1,14 +1,18 @@
-# Phase 7 wave 2: cycle 1 finished, data-only pool started (`card-data-pipeline`)
+# Phase 7 wave 2: cycle 1 finished, data-only pool growing (`card-data-pipeline`)
 
-Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers two passes:
+Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers three passes:
 
 1. **2026-09-18, first pass:** the schema-neutral parser sweep across all 62 non-Core packs, then curating and
    emitting `scw`, `ant`, `wsp`, `trors` (cycle 1). `docs/phase7-wave2.md` is `game-rules-architect`'s parallel
    spec for cycle 1's schema and engine primitives — cited throughout by section.
-2. **2026-09-18, second pass (this one):** finished cycle 1 (`qsv`, `toafk`), applied every remaining §5
+2. **2026-09-18, second pass:** finished cycle 1 (`qsv`, `toafk`), applied every remaining §5
    curation/image check, wired `WAVE2_CARDS` with tests, curated all six cycle 1 starter decks, and made a start
    on Part 2 — 15 more packs (`bp` plus 14 packs that needed no curation at all) wired into a new, separate,
    explicitly-not-playable `DATA_ONLY_CARDS` pool.
+3. **2026-09-19, third pass (this one, "Part 3" below):** closed both cycle 1 data gaps `ability-scripting-
+   engineer` reported (`WAVE2_SCENARIOS`, Legions of Hydra), finished registering `nova`/`silk`/`spdr` (left
+   incomplete by an intervening checkpoint), and grew `DATA_ONLY_CARDS` to 21 packs (`rogue`, `wolv`, `hood`
+   newly curated).
 
 ## Result
 
@@ -24,11 +28,18 @@ Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers
   **20 packs are now emitted as real data** (up from 4): all six cycle 1 packs (`trors`, `toafk`, `ant`, `wsp`,
   `qsv`, `scw`) plus 14 more (`bp`, `cyclops`, `gambit`, `drax`, `gam`, `stld`, `vnm`, `nebu`, `warm`, `vision`,
   `ncrawler`, `magneto`, `winter`, `falcon`, `ron`).
-- **Verification:** root `pnpm typecheck` and `pnpm test` are clean at the end of this pass: content 374,
-  engine 607, cards 441, client 1271 — 2,893 tests, zero failures. `src/data/core` and the eight wave 1 pack
-  folders are confirmed git-unmodified (`git status`) — byte-identical, as required. (I regenerated all nine at
-  one point to sanity-check my normalizer edits against them; the only diff was the raw cache's `fetchedAt`
-  header stamp, not card data — reverted with `git checkout`, not committed.)
+- **Verification (end of second pass):** root `pnpm typecheck` and `pnpm test` clean: content 374, engine 607,
+  cards 441, client 1271 — 2,893 tests, zero failures. `src/data/core` and the eight wave 1 pack folders
+  confirmed git-unmodified (`git status`) — byte-identical, as required.
+- **After the third pass (Part 3):** `WAVE2_SCENARIOS` now holds all six cycle 1 scenarios (was empty).
+  `DATA_ONLY_CARDS` is 21 packs (up from 15): the original 15 plus `nova`, `silk`, `spdr` (registered/emitted,
+  finishing the checkpoint's own unfinished step), `rogue`, `wolv` (one dash-cost correction each), `hood` (a
+  general `flatten.ts` fix for double-sided-card aggregate quantities, which also unblocks the same shape in the
+  not-yet-registered `mts`). Survey: **38 of 63 packs normalize cleanly** (up from 34 at the start of this pass —
+  `angel` was already clean coincidentally; `nova`/`silk`/`spdr` were already registered in `survey.ts` by the
+  checkpoint). `phoenix` is curated and survey-clean but deliberately withheld from emission — see Part 3 §5.
+  Content tests: 374 → 387. Full detail, evidence and the reverted false start (Core/wave 1 regeneration
+  staleness unrelated to this pass) are in Part 3 below.
 
 ---
 
@@ -316,3 +327,195 @@ new problem.
   folders. No `packages/content/src/schema/**`, `packages/engine/**`, `packages/cards/**` or `packages/client/**`
   file was touched — those packages' own concurrent changes (visible in `git status` throughout this pass) are
   the other agents' work, not mine; root `pnpm typecheck`/`pnpm test` stayed green against them throughout.
+
+---
+
+## Part 3: cycle 1's two data gaps closed; nova/silk/spdr registered; six more data-only packs
+
+**2026-09-19, third pass.** Picked up from checkpoint commit `919184b` ("Wave 2 data-only checkpoint: later-pack
+parser mappings, nova/silk/spdr curations (not yet emitted)"), whose last words were "Now register these three
+(nova, silk, spdr) in both survey.ts and ingest-marvelcdb.ts, then emit them." They were registered in
+`survey.ts` but not `ingest-marvelcdb.ts`'s `REGISTERED_CURATIONS` — the only place that actually controls
+emission. This pass did that, then closed the two cycle 1 data gaps `ability-scripting-engineer` reported, then
+extended the data-only pool by six more packs.
+
+### 1. Cycle 1 data gap #1 — `WAVE2_SCENARIOS` was empty
+
+Wired all six cycle 1 scenarios as real `Scenario` records, additively (no existing cycle 1 card id, ability ref,
+set id or field renamed/removed):
+
+- **`ScenarioCuration` grew six new optional fields** (`curation/types.ts`), each consumed by
+  `normalize/scenarios.ts`, none changing any existing scenario's output (Core/wave 1's curations don't set them):
+  `villainCardCode` (a direct villain-card override for a set `villainIdBySet` has no entry for — see next
+  bullet), `additionalEncounterSetCodes` (required sets besides the villain's own — Crossbones needs Experimental
+  Weapons, Taskmaster needs Hydra Patrol), `setAsideVillainCardCodes`, `expertVillains`, `victory`,
+  `separateGameAreas`, and `separateDecks` (the curated, MarvelCDB-code form of `Scenario.separateDecks`).
+- **`emit.ts`'s `KEY_BRANDS` gained `setAsideVillainCardIds: "cardId"`** — without it, the emitted TS literally
+  typed `readonly CardId[]` fields as bare string arrays, which fails `pnpm typecheck` (branded types aren't
+  string-assignable). Caught by regenerating and typechecking, not guessed.
+- **`curation/trors.ts`**: five `ScenarioCuration` entries (Crossbones, Absorbing Man, Taskmaster, Zola, Red
+  Skull), each citing the Red Skull rulebook page docs/phase7-wave2.md §2.2 already researched. Crossbones'
+  `separateDecks` models the Experimental Weapons deck (§1.8); Red Skull's models the side-scheme deck (§1.8,
+  errata #128A, already applied to 04128a's text in Part 1).
+- **`curation/toafk.ts`**: one entry (Kang), using `villainCardCode: "11001"` because `villainIdBySet` has *no*
+  entry for the "kang" set — `normalize/villains.ts` deliberately leaves it unset when a set's stage numbers
+  collide (Kang (I)/(II)×4/(III) are six single-stage villains, not one sequence; see Part 1 §1). `victory:
+  "cardAbility"`, `setAsideVillainCardCodes`, `expertVillains` and `separateGameAreas` all transcribed from the
+  Kang insert and RRG 1.8 FAQ p. 60, cited in the curation file itself.
+- **Regenerated only `trors`/`toafk` (`--offline`), and confirmed by `git status` that only their `scenarios.ts`
+  changed** — no other file in either pack's output differs from what was already committed. (A first attempt at
+  regenerating *every* already-registered pack, to double-check the later `flatten.ts` change below, surfaced
+  that Core and six wave 1 packs' generated files are already stale against the current normalizer for unrelated
+  reasons predating this pass — see "What I found and reverted" below. `trors`/`toafk` were not affected by that
+  staleness.)
+- `packages/content/src/data/index.ts` now exports `WAVE2_SCENARIOS = [...TRORS_SCENARIOS, ...TOAFK_SCENARIOS]`
+  instead of `[]`. `wave2.test.ts` gained a "cycle 1 scenarios" describe block: six scenario ids, `validateScenario`/
+  `validateScenarioEncounterSets` (the latter against `[...CORE_ENCOUNTER_SETS, ...WAVE2_ENCOUNTER_SETS]` — see
+  next section for why Core's own sets need to be in scope), villain/main scheme id resolution, and fixture
+  assertions for Crossbones' modular sets, Kang's set-aside/expert villains, and both `separateDecks`.
+
+### 2. Cycle 1 data gap #2 — "Legions of Hydra" looked missing from `trors`
+
+**Not a gap.** Attack on Mount Athena's 1A ("Three modular sets: Hydra Assault, Weapon Master, and Legions of
+Hydra") names a set that genuinely has no `legions_of_hydra` `card_set_code` anywhere in `trors.json` — because
+**Legions of Hydra is one of Core Set's own modular encounter sets** (`packages/content/raw/marvelcdb/core.json`;
+already registered as `EncounterSet { id: "legions_of_hydra", packCodes: ["core"] }` in
+`packages/content/src/data/core/encounterSets.ts`, unmodified). The Rise of Red Skull just happens to call for a
+Core modular set alongside two of its own — the same cross-pack pattern wave 1's own Green Goblin scenarios
+already use for "standard"/"expert" (both Core sets), via `normalize/scenarios.ts`'s `CORE_ENCOUNTER_SET_CODES`
+fallback. Crossbones' `ScenarioCuration.recommendedModularSetCodes` now lists `["hydra_assault", "weap_master",
+"legions_of_hydra"]` (`modularSetCount: 3`), which resolves cleanly through that existing mechanism with zero
+normalizer changes. `wave2.test.ts` pins this with a dedicated test (`legions_of_hydra` present in
+`CORE_ENCOUNTER_SETS`, absent from `WAVE2_ENCOUNTER_SETS`, and referenced by the Crossbones scenario) so the
+distinction stays visible rather than silently working.
+
+### 3. What I found and reverted — Core/wave 1's generated files are already stale, not because of this pass
+
+While double-checking the `flatten.ts` change below couldn't affect Core/wave 1, I regenerated *every*
+already-registered pack (`--offline`) and diffed against `git status`. `trors`/`toafk` (this pass's intentional
+scenario changes) and every already-clean pack from Part 1/Part 2 (`scw`, `ant`, `wsp`, `qsv`, `bp`, `cyclops`,
+…) came back byte-identical except the intended files. **Core and six wave 1 packs (`bkw`, `cap`, `drs`, `gob`,
+`hlk`, `msm`, `thor`) did not** — regenerating them against the *current* normalizer produces a real, unrelated
+diff (a `duplicateOfCardId` provenance field on basic-card records that the currently-committed files don't have,
+and on `gob` a restructured ability-ref pair on Hostile Takeover's 1A/1B). This predates this pass entirely: it
+reflects normalizer work from an earlier pipeline pass that was never regenerated back into Core/wave 1's
+committed output. **Reverted with `git checkout`, not committed** — my mandate this pass is additive to cycle 1
+and otherwise `don't change the emitted data of the six cycle 1 packs, Core or wave 1`, and this drift is neither
+mine nor in scope to resolve here. Flagged for whoever owns Core/wave 1 regeneration next: `pnpm --filter
+@mc/content ingest -- --pack core --offline` (and the six wave 1 packs) will currently produce a diff against
+`main`; decide whether that diff is wanted before running it for real.
+
+### 4. `nova`, `silk`, `spdr` registered and emitted (the checkpoint's own unfinished step)
+
+Registered in `ingest-marvelcdb.ts`'s `REGISTERED_CURATIONS` (`survey.ts` already had them from the checkpoint).
+All three still normalize with zero further hand corrections (`survey.ts --pack nova --pack silk --pack spdr`),
+confirming the checkpoint's own curation files were correct. Emitted, wired into `DATA_ONLY_CARDS`/
+`DATA_ONLY_ENCOUNTER_SETS`/`data-only.test.ts`. `spdr`'s separated-identity mechanism (Peni Parker, 31002,
+sourced from a second gallery — see `curation/spdr.ts`) works as designed; no further issues found.
+
+### 5. Six more data-only packs: `nova`, `silk`, `spdr`, `rogue`, `wolv`, `hood`
+
+Following Part 2's own discipline — register a real curation, re-run `survey.ts --pack <code>`, only then trust
+"0 corrections needed", and only then wire into the pool and run the full test suite before moving on:
+
+- **`rogue`, `wolv`** (Cycle 6): each needed exactly one `Correction` — their signature weapon upgrade (Touched
+  38002; Wolverine's Claws 35002) prints a dash cost (a Permanent card exhausted for its own Hero Action, not
+  paid for), and MarvelCDB sends no `cost` field at all. Confirmed per-card from each card's own MarvelCDB
+  listing ("Cost: —"), the same evidence standard as trors' Hydra Campaign upgrades.
+- **`phoenix`** (Cycle 6) — **curated but deliberately NOT registered/emitted.** Its one cost gap (Phoenix Force,
+  34002a) is the same confirmed dash-cost pattern as `rogue`/`wolv`. But Burning Hunger (34028, Phoenix's
+  obligation) has **no `text`/`real_text` field on MarvelCDB at all** — not blank, absent — and MarvelCDB's own
+  card page doesn't display any either; a web search surfaces only a third-party paraphrase of the effect (summon
+  Dark Phoenix), not the verbatim printed wording. `validateCard()` rejects an obligation with empty text, and
+  this pipeline's discipline is to never fabricate card text. Caught only because `data-only.test.ts`'s
+  pool-wide `validateCard()` check runs *after* emission — `survey.ts`'s `normalizePack` never calls
+  `validateCard`, so a pack can "survey clean" and still fail this way; worth remembering for whoever next trusts
+  a bare survey pass. `curation/phoenix.ts` documents the block in full; `ingest-marvelcdb.ts`'s
+  `REGISTERED_CURATIONS` has a comment explaining why it's absent rather than a silent gap. **Blocked on: a
+  second source (card scan) with 34028's exact printed text.**
+- **`hood`** (Cycle 4, a villain/scenario expansion with no hero pack — 3 villain, 6 main_scheme, 11 attachment,
+  20 minion, 10 side_scheme, 18 treachery, 6 environment records, zero `hero`/`hero_identity`) — needed a real,
+  general normalizer fix, not a curated correction: **`normalize/flatten.ts`'s aggregate-quantity check summed
+  both faces of a double-sided card as if they were two independent printed copies.** Formidable Foe (an
+  environment, 24049a/24049b) is one physical double-sided card; MarvelCDB's bare aggregate record `24049`
+  (`quantity: 1`, correctly meaning "one physical card") was being compared against `24049a.quantity +
+  24049b.quantity` (1 + 1 = 2) instead of either face's own quantity. Fixed structurally (detects "exactly two
+  variants, mutually linked", not by card name or type), mirroring the `main_scheme` branch just above it in the
+  same function, which already special-cases its own A/B pair for the same reason. **Also unblocks the identical
+  shape in `mts`** (Mutant Genesis' `21100a/21100b`, confirmed in the gap matrix, error count 39→38) — `mts` stays
+  blocked on its other, unrelated issues (villain stage labels, attach-rule shapes, missing images), not
+  registered this pass.
+- `nova`, `silk`, `spdr` — see §4 above; listed here again only because they're new to `DATA_ONLY_CARDS` this
+  pass, not because anything further was found for them.
+
+**Not attempted / re-triaged this pass:** every pack in the gap matrix below with more than one remaining issue —
+fixing one issue in a still-blocked pack doesn't unlock its emission (a pack only emits once `normalizePack`
+raises zero errors *and* every emitted card passes `validateCard()`), so partial corrections to packs I'm not
+finishing this pass would sit unverified in an unregistered curation file with no benefit over just reporting the
+finding here. Findings from cards I did look at (`iceman`, `x23`, `wonder_man`, `spiderham`, `valk`, `deadpool`,
+`psylocke`, `hercules`, `mts`, `mut_gen`, `sm`, `storm`, `aos`, `gmw`, `jj`, `aoa`, `next_evol`), gathered while
+triaging what a quick win might look like:
+  - **The exact same dash-cost pattern** (a Permanent/Setup signature upgrade or support with no paid cost,
+    confirmed via MarvelCDB's own "Cost: —" listing on a representative sample) also explains every "upgrade/
+    support/ally without a cost" entry currently in the gap matrix: `hercules` 59005–59007, `mts` 21002–21004,
+    `mut_gen` 32031a, `sm` 27182a–27189a (all eight of the "gadget kit" choose-one-at-setup upgrades), `storm`
+    36002–36005, `aos` 50035a, `gmw` 16142, `jj` 61002, `wonder_man` 58002/58031, `aoa` 45171a, plus the "ally
+    without a cost" Captive/Rescued-style allies `aos` 50091, `mojo` 39071, `next_evol` 40079/40130, and
+    `next_evol`'s six flip-side player side schemes 40190a–40195a. None of these packs is otherwise close to
+    clean (13–86 other issues each), so no `Correction` was written for them — the pattern is recorded here so
+    whoever curates these packs next doesn't have to re-derive it.
+  - **Confirmed schema gaps, not curatable** (each needs a shape `AttachmentHost`/`SuperlativeHostPool`/
+    `HostMeasure` doesn't have yet — `packages/content/src/schema/cards/attachment-host.ts` is
+    `game-rules-architect`'s):
+    - `valk` 25031 / `deadpool` 44041 ("Beguiled"/"'Pool-ized"): "Attach to the ally with the highest **cost**
+      without [this] attached" — `SuperlativeHostPool` has no `"ally"`, and `HostMeasure` has no `"cost"`.
+    - `wonder_man` 58032 ("Coordinated Effort"): "Attach to an encounter card in play" — no host kind for "any
+      encounter card", as opposed to a specific category (`enemy`/`sideScheme`/etc.).
+    - `spiderham` 30029 / `x23` 43012: "a character with 'Spider' in its title" (substring name match, not a
+      trait) and "an enemy that X-23 or Honey Badger attacked this turn" (a temporal condition, not a static
+      qualifier) — neither fits `qualified`'s trait-based `HostQualifiers`.
+  - **`iceman` 46002 (Frostbite)**: a hero-kit upgrade filed under its own `card_set_code`
+    (`iceman_frostbite`) distinct from Iceman's identity set (`iceman`) — the same shape flagged in the gap
+    matrix for `fne`/`hercules`/`storm` too ("hero card in a set with no identity"). Structurally different from
+    Ant-Man/Wasp's three-sided-identity extra face (Part 1 §5): this isn't a face of the identity card, just a
+    signature card MarvelCDB happens to group under a different set code. Not attempted — unclear whether this
+    needs a curation-level set-code alias or is evidence of a real mechanic (a chosen "form" set, like Ant-Man's
+    Giant) that `game-rules-architect` should weigh in on before a workaround is picked.
+  - `iceman` 46003 (Snow Clone, ally with no printed THW) is a plain `cardNotes` fix, not attempted only because
+    `iceman` is blocked on 46002 regardless.
+
+### 6. Verification
+
+`pnpm typecheck` and `pnpm test` from the repo root: `@mc/content` (387 tests), `@mc/engine` (651 tests) and
+`@mc/client` all pass; `@mc/cards` has 2 pre-existing failures (`legal-actions.test.ts`, `klaw.test.ts`, both
+about a `wild` key appearing in a payment-requirement object) from the `ability-scripting-engineer`/
+`game-rules-architect` agents' own concurrent uncommitted work in `packages/cards`/`packages/engine` — outside my
+remit per this task's own instructions ("if their in-progress edits briefly break a typecheck outside your
+packages, ignore it"); not touched, and unrelated to any file this pass edited (grep-confirmed: neither failing
+test file nor the `wild` key appears in this pass's diff).
+
+### Progress / next up
+
+- **Done:** `WAVE2_SCENARIOS` (6 scenarios), the Legions of Hydra cross-pack reference confirmed working, `nova`/
+  `silk`/`spdr` registered and emitted (finishing the checkpoint), `rogue`/`wolv`/`hood` newly curated and
+  emitted, the `flatten.ts` double-sided-aggregate fix (general, unblocks `mts` too though `mts` isn't
+  registered).
+- **`DATA_ONLY_CARDS`: 21 packs** (15 from Part 2 + `nova`, `silk`, `spdr`, `rogue`, `wolv`, `hood`).
+- **Blocked, documented, not worked around:** `phoenix` (curated, survey-clean, but withheld — needs a second
+  source for 34028's exact text before it can emit).
+- **Next opportunity, roughly in order of leverage:**
+  1. The dash-cost pattern write-up in §5 above is ready to apply to `hercules`/`mts`/`mut_gen`/`sm`/`storm`/
+     `aos`/`gmw`/`jj`/`aoa`/`next_evol`/`mojo` the moment each pack's *other* issues are also resolved — it alone
+     won't unlock any of them.
+  2. `game-rules-architect` schema decisions this data now has concrete evidence for: `SuperlativeHostPool`
+     `"ally"` + `HostMeasure` `"cost"` (unblocks `valk`, `deadpool`, contributes to `next_evol`/`aos` cost-shape
+     packs too), an "any encounter card" attach host (`wonder_man`), a substring/name-based host or temporal
+     "attacked this turn" qualifier (`spiderham`, `x23`).
+  3. `iceman`'s "hero card in a different card_set_code" shape needs a decision (curation alias vs. a real
+     mechanic) before `iceman`/`fne`/`hercules`/`storm` can progress.
+  4. The 274 "no artwork reference" issues across 16 packs are `qsv`'s `imageOverrides` mechanism applied
+     per-card — real research (a second source per face), not a parser change; the highest-volume remaining
+     category but also the most labor-intensive per pack.
+  5. Core/wave 1's generated-file staleness (§3 above) is worth a deliberate decision (regenerate and diff for
+     real, or leave as-is) from whoever owns that regeneration next — it's not something this pass should decide
+     unilaterally given the "don't touch Core/wave 1" mandate.

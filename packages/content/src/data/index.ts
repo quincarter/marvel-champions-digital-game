@@ -124,8 +124,10 @@ import { SCW_ENCOUNTER_SETS } from "./scw/encounterSets.js";
 import { TRORS_CARDS } from "./trors/cards.js";
 import { TRORS_STARTER_DECKS } from "./trors/starterDecks.js";
 import { TRORS_ENCOUNTER_SETS } from "./trors/encounterSets.js";
+import { TRORS_SCENARIOS } from "./trors/scenarios.js";
 import { TOAFK_CARDS } from "./toafk/cards.js";
 import { TOAFK_ENCOUNTER_SETS } from "./toafk/encounterSets.js";
+import { TOAFK_SCENARIOS } from "./toafk/scenarios.js";
 
 /** Every card in the wave 2 (cycle 1) pool: Core plus the six cycle 1 packs, in release order. */
 export const WAVE2_CARDS: readonly AnyCard[] = [
@@ -149,12 +151,11 @@ export const WAVE2_ENCOUNTER_SETS: readonly EncounterSet[] = [
 ];
 
 /**
- * Every cycle 1 scenario. Empty: no `ScenarioCuration` has been written yet for any of the six packs (the
- * per-scenario setup notes are researched in docs/phase7-wave2.md §2, but turning them into `Scenario` records is
- * a follow-up — see docs/phase7-wave2-data.md). `WAVE2_CARDS` already carries every scenario's villain, main
- * scheme and encounter cards.
+ * Every cycle 1 scenario: The Rise of Red Skull's five (Crossbones, Absorbing Man, Taskmaster, Zola, Red Skull)
+ * plus The Once and Future Kang. The Ant-Man, Wasp, Quicksilver and Scarlet Witch hero packs define no scenario
+ * of their own, matching `WAVE1_SCENARIOS`' own pattern (only the scenario packs contribute).
  */
-export const WAVE2_SCENARIOS: readonly Scenario[] = [];
+export const WAVE2_SCENARIOS: readonly Scenario[] = [...TRORS_SCENARIOS, ...TOAFK_SCENARIOS];
 
 /**
  * Every cycle 1 starter deck: Hawkeye and Spider-Woman (`trors`), plus one each for Ant-Man, Wasp, Quicksilver
@@ -192,6 +193,12 @@ export * from "./magneto/index.js";
 export * from "./winter/index.js";
 export * from "./falcon/index.js";
 export * from "./ron/index.js";
+export * from "./nova/index.js";
+export * from "./silk/index.js";
+export * from "./spdr/index.js";
+export * from "./rogue/index.js";
+export * from "./wolv/index.js";
+export * from "./hood/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
@@ -223,9 +230,21 @@ import { FALCON_CARDS } from "./falcon/cards.js";
 import { FALCON_ENCOUNTER_SETS } from "./falcon/encounterSets.js";
 import { RON_CARDS } from "./ron/cards.js";
 import { RON_ENCOUNTER_SETS } from "./ron/encounterSets.js";
+import { NOVA_CARDS } from "./nova/cards.js";
+import { NOVA_ENCOUNTER_SETS } from "./nova/encounterSets.js";
+import { SILK_CARDS } from "./silk/cards.js";
+import { SILK_ENCOUNTER_SETS } from "./silk/encounterSets.js";
+import { SPDR_CARDS } from "./spdr/cards.js";
+import { SPDR_ENCOUNTER_SETS } from "./spdr/encounterSets.js";
+import { ROGUE_CARDS } from "./rogue/cards.js";
+import { ROGUE_ENCOUNTER_SETS } from "./rogue/encounterSets.js";
+import { WOLV_CARDS } from "./wolv/cards.js";
+import { WOLV_ENCOUNTER_SETS } from "./wolv/encounterSets.js";
+import { HOOD_CARDS } from "./hood/cards.js";
+import { HOOD_ENCOUNTER_SETS } from "./hood/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 15 packs across cycles 3, 4, 6, 8, 9 and one non-cycle promotional release,
+ * Every card in the data-only pool: 21 packs across cycles 3, 4, 5, 6, 8, 9 and one non-cycle promotional release,
  * in pack-code alphabetical order (no release-order relationship spans this many cycles at once, unlike
  * `WAVE1_CARDS`/`WAVE2_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`CORE_CARDS` — a client that wants
  * "every known card, playable or not" concatenates this with those.
@@ -246,6 +265,12 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...WINTER_CARDS,
   ...FALCON_CARDS,
   ...RON_CARDS,
+  ...NOVA_CARDS,
+  ...SILK_CARDS,
+  ...SPDR_CARDS,
+  ...ROGUE_CARDS,
+  ...WOLV_CARDS,
+  ...HOOD_CARDS,
 ];
 
 /** Every data-only pool encounter set. */
@@ -265,4 +290,10 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...WINTER_ENCOUNTER_SETS,
   ...FALCON_ENCOUNTER_SETS,
   ...RON_ENCOUNTER_SETS,
+  ...NOVA_ENCOUNTER_SETS,
+  ...SILK_ENCOUNTER_SETS,
+  ...SPDR_ENCOUNTER_SETS,
+  ...ROGUE_ENCOUNTER_SETS,
+  ...WOLV_ENCOUNTER_SETS,
+  ...HOOD_ENCOUNTER_SETS,
 ];

@@ -60,6 +60,10 @@ import { RON_CURATION } from "./curation/ron.ts";
 import { SPDR_CURATION } from "./curation/spdr.ts";
 import { NOVA_CURATION } from "./curation/nova.ts";
 import { SILK_CURATION } from "./curation/silk.ts";
+import { PHOENIX_CURATION } from "./curation/phoenix.ts";
+import { ROGUE_CURATION } from "./curation/rogue.ts";
+import { WOLV_CURATION } from "./curation/wolv.ts";
+import { HOOD_CURATION } from "./curation/hood.ts";
 import type { PackCuration } from "./curation/types.ts";
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -100,6 +104,10 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   spdr: SPDR_CURATION,
   nova: NOVA_CURATION,
   silk: SILK_CURATION,
+  phoenix: PHOENIX_CURATION,
+  rogue: ROGUE_CURATION,
+  wolv: WOLV_CURATION,
+  hood: HOOD_CURATION,
 };
 
 interface RawCache {

@@ -63,11 +63,18 @@ export function flatten(raw: readonly RawCard[], errors: string[]): Flattened {
         reason: `MarvelCDB aggregate record duplicating main scheme stage ${r.code}a/${r.code}b.`,
       });
     } else {
-      const sum = variants.reduce((n, v) => n + v.quantity, 0);
+      // A double-sided pair of the *same physical card* (one variant's `linked_card` points at the other, the
+      // same A/B shape `main_scheme` gets above, just for another type — The Hood's Formidable Foe 24049a/b,
+      // Mutant Genesis' 21100a/b) is not two printed copies: summing both faces' `quantity` double-counts the one
+      // physical card. Detected structurally, not by type: exactly two variants, mutually linked.
+      const doubleSidedFace = variants.length === 2 ? variants.find((v) => variants.some((o) => o.code === v.linked_card?.code)) : undefined;
+      const sum = doubleSidedFace ? doubleSidedFace.quantity : variants.reduce((n, v) => n + v.quantity, 0);
       if (sum !== r.quantity) errors.push(`aggregate ${r.code} quantity ${r.quantity} != variants' total ${sum}`);
       dropped.push({
         marvelcdbCode: r.code,
-        reason: `MarvelCDB aggregate record for the printed variants ${variants.map((v) => v.code).join(", ")} (quantity ${r.quantity} = their total).`,
+        reason: doubleSidedFace
+          ? `MarvelCDB aggregate record duplicating the double-sided card ${r.code}a/${r.code}b (quantity ${r.quantity} = one physical card, not both faces summed).`
+          : `MarvelCDB aggregate record for the printed variants ${variants.map((v) => v.code).join(", ")} (quantity ${r.quantity} = their total).`,
       });
     }
   }

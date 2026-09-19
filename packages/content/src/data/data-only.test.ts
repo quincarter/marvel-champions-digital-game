@@ -41,6 +41,18 @@ import {
   FALCON_PACK,
   RON_CARDS,
   RON_PACK,
+  NOVA_CARDS,
+  NOVA_PACK,
+  SILK_CARDS,
+  SILK_PACK,
+  SPDR_CARDS,
+  SPDR_PACK,
+  ROGUE_CARDS,
+  ROGUE_PACK,
+  WOLV_CARDS,
+  WOLV_PACK,
+  HOOD_CARDS,
+  HOOD_PACK,
 } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
 import { WAVE1_CARDS } from "./index.js";
@@ -62,6 +74,12 @@ const PACKS: readonly { readonly code: string; readonly cards: readonly AnyCard[
   { code: "winter", cards: WINTER_CARDS, pack: WINTER_PACK },
   { code: "falcon", cards: FALCON_CARDS, pack: FALCON_PACK },
   { code: "ron", cards: RON_CARDS, pack: RON_PACK },
+  { code: "nova", cards: NOVA_CARDS, pack: NOVA_PACK },
+  { code: "silk", cards: SILK_CARDS, pack: SILK_PACK },
+  { code: "spdr", cards: SPDR_CARDS, pack: SPDR_PACK },
+  { code: "rogue", cards: ROGUE_CARDS, pack: ROGUE_PACK },
+  { code: "wolv", cards: WOLV_CARDS, pack: WOLV_PACK },
+  { code: "hood", cards: HOOD_CARDS, pack: HOOD_PACK },
 ];
 
 describe("data-only pool — integrity", () => {
@@ -71,8 +89,8 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("15 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(15);
+  it("21 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(21);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
@@ -92,14 +110,17 @@ describe("data-only pool — integrity", () => {
     const cycleOf = (code: string) => PACKS.find((p) => p.code === code)?.pack.cycleId;
     // Cycle 3 (Guardians of the Galaxy): Star-Lord, Gamora, Drax, Venom.
     for (const code of ["stld", "gam", "drax", "vnm"]) expect(cycleOf(code), code).toBe("cycle3");
-    // Cycle 4: Nebula, War Machine, Vision (The Hood and Valkyrie are not in this pool yet).
-    for (const code of ["nebu", "warm", "vision"]) expect(cycleOf(code), code).toBe("cycle4");
-    // Cycle 6 (X-Men): Cyclops, Gambit (Phoenix/Mojo/Wolverine/Storm/Rogue are not in this pool yet).
-    for (const code of ["cyclops", "gambit"]) expect(cycleOf(code), code).toBe("cycle6");
+    // Cycle 4: Nebula, War Machine, Vision, The Hood (Valkyrie is not in this pool yet).
+    for (const code of ["nebu", "warm", "vision", "hood"]) expect(cycleOf(code), code).toBe("cycle4");
+    // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue (Phoenix/Mojo/Storm are not in this pool yet — Phoenix
+    // is blocked, see curation/phoenix.ts).
+    for (const code of ["cyclops", "gambit", "wolv", "rogue"]) expect(cycleOf(code), code).toBe("cycle6");
     // Cycle 8: Nightcrawler, Magneto (Iceman/Jubilee are not in this pool yet).
     for (const code of ["ncrawler", "magneto"]) expect(cycleOf(code), code).toBe("cycle8");
-    // Cycle 9: Black Panther/Shuri, Winter Soldier, Falcon (Silk/Trickster Takeover are not in this pool yet).
-    for (const code of ["bp", "winter", "falcon"]) expect(cycleOf(code), code).toBe("cycle9");
+    // Cycle 9: Black Panther/Shuri, Silk, Winter Soldier, Falcon (Trickster Takeover is not in this pool yet).
+    for (const code of ["bp", "silk", "winter", "falcon"]) expect(cycleOf(code), code).toBe("cycle9");
+    // Cycle 5: Nova, SP//dr (Ironheart/Spider-Ham are not in this pool yet).
+    for (const code of ["nova", "spdr"]) expect(cycleOf(code), code).toBe("cycle5");
     // Ronan is a Print and Play promotional release, not part of any numbered cycle.
     expect(cycleOf("ron")).toBe("promo");
   });

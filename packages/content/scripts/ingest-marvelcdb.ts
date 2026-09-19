@@ -67,6 +67,9 @@ import { RON_CURATION } from "./marvelcdb/curation/ron.ts";
 import { SPDR_CURATION } from "./marvelcdb/curation/spdr.ts";
 import { NOVA_CURATION } from "./marvelcdb/curation/nova.ts";
 import { SILK_CURATION } from "./marvelcdb/curation/silk.ts";
+import { ROGUE_CURATION } from "./marvelcdb/curation/rogue.ts";
+import { WOLV_CURATION } from "./marvelcdb/curation/wolv.ts";
+import { HOOD_CURATION } from "./marvelcdb/curation/hood.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -105,6 +108,18 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   winter: WINTER_CURATION,
   falcon: FALCON_CURATION,
   ron: RON_CURATION,
+  spdr: SPDR_CURATION,
+  nova: NOVA_CURATION,
+  silk: SILK_CURATION,
+  // phoenix: intentionally NOT registered here — 34028 (Burning Hunger, the obligation) has no text at all on
+  // MarvelCDB (not just a transcription gap: the field is entirely absent from the raw record, and MarvelCDB's
+  // own card page doesn't show it either), and `validateCard()` rejects an obligation with empty text. No
+  // curation mechanism can supply text from nowhere without fabricating it (CLAUDE.md/this agent's own
+  // discipline: never invent card text) — a second source with the exact printed wording is needed first. See
+  // curation/phoenix.ts and docs/phase7-wave2-data.md.
+  rogue: ROGUE_CURATION,
+  wolv: WOLV_CURATION,
+  hood: HOOD_CURATION,
 };
 
 interface RawCache {

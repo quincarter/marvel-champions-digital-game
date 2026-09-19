@@ -3,7 +3,7 @@
  * us (or gives us wrong). Every entry cites the evidence it rests on, so a
  * reviewer can re-check it without re-deriving it.
  */
-import type { CoreAspect, IdentityDeckbuilding, SpecialCost } from "../../../src/schema/index.ts";
+import type { CoreAspect, IdentityDeckbuilding, SeparateGameAreas, SpecialCost } from "../../../src/schema/index.ts";
 
 /**
  * A correction to MarvelCDB's transcription of the *physical card*. Applies to
@@ -90,10 +90,30 @@ export interface MultipleVillainsCuration {
   readonly signatureSideSchemeCodes: readonly string[];
 }
 
+/**
+ * A scenario's separate deck (wave 2, docs/phase7-wave2.md §1.8) — the curated, MarvelCDB-code form of
+ * `ScenarioSeparateDeck` (`contents.encounterSetIds` becomes `contents.encounterSetCodes`, resolved by the
+ * normalizer the same way every other encounter-set reference is).
+ */
+export interface ScenarioSeparateDeckCuration {
+  readonly name: string;
+  readonly contents: { readonly encounterSetCodes?: readonly string[]; readonly cardType?: "side_scheme" };
+  readonly discardPile: "own" | "encounter";
+  readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "remainsEmpty";
+}
+
 export interface ScenarioCuration {
   readonly id: string;
   readonly name: string;
   readonly villainSetCode: string;
+  /**
+   * Direct MarvelCDB code for the villain card, overriding the normal `villainSetCode` lookup (wave 2 — The Once
+   * and Future Kang). `normalizeVillains` deliberately leaves `villainIdBySet` unset for a set whose stage
+   * numbers collide (several single-stage villains sharing one `card_set_code`, e.g. "kang"/"exp_kang" —
+   * `normalize/villains.ts`'s own comment on that shape) because there is no single "the villain" of that set;
+   * this names one of those records directly instead. Absent = resolve normally via `villainSetCode`.
+   */
+  readonly villainCardCode?: string;
   /**
    * The MarvelCDB `card_set_code` the main scheme is filed under, when it differs from `villainSetCode` — The
    * Wrecking Crew's Breakout is its own `wrecking_crew` set, not Wrecker's `wrecker` set (docs/phase7-wave1.md
@@ -101,6 +121,12 @@ export interface ScenarioCuration {
    * minions and treacheries together).
    */
   readonly mainSchemeSetCode?: string;
+  /**
+   * Encounter sets always in the deck besides the villain's own set (wave 2 — The Rise of Red Skull's rulebook
+   * pages list some scenarios' "Encounter sets (required)" as more than just the villain's own set: Crossbones
+   * needs Experimental Weapons, Taskmaster needs Hydra Patrol). Absent = none (every wave 1/Core scenario).
+   */
+  readonly additionalEncounterSetCodes?: readonly string[];
   readonly recommendedModularSetCodes: readonly string[];
   readonly standardSetCodes: readonly string[];
   readonly expertSetCodes: readonly string[];
@@ -112,6 +138,24 @@ export interface ScenarioCuration {
   readonly usesIdentityEncounterSets?: boolean;
   /** Absent = 1 (one modular encounter set). The Wrecking Crew insert sets this 0. */
   readonly modularSetCount?: number;
+  /**
+   * MarvelCDB codes of villain cards set aside at setup rather than started in the villain deck (wave 2 — The
+   * Once and Future Kang insert, "Setup": Kang (II) and Kang (III) are set aside; only Kang (I) starts in the
+   * deck). Resolved to card ids the same way `villainCardCode` is. Absent = none.
+   */
+  readonly setAsideVillainCardCodes?: readonly string[];
+  /**
+   * Expert-mode villain replacement (wave 2 — Kang insert, "Adjustable Difficulty": expert mode swaps in the six
+   * Expert Kang villains and their own encounter set entirely). Absent = standard mode's villain(s) are used in
+   * expert mode too (every Core/wave 1/other cycle 1 scenario).
+   */
+  readonly expertVillains?: { readonly villainCardCode: string; readonly setAsideVillainCardCodes: readonly string[] };
+  /** Absent = `"finalVillainStage"`. See `Scenario.victory`. */
+  readonly victory?: "finalVillainStage" | "cardAbility";
+  /** See `Scenario.separateGameAreas` (wave 2 — Kang). Absent = the scenario has none. */
+  readonly separateGameAreas?: SeparateGameAreas;
+  /** See `Scenario.separateDecks` (wave 2 — Crossbones' Experimental Weapons deck, Red Skull's side-scheme deck). */
+  readonly separateDecks?: readonly ScenarioSeparateDeckCuration[];
 }
 
 /**

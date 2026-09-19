@@ -14,6 +14,13 @@ export interface ScenarioLookups {
 export function normalizeScenarios(ctx: NormalizeContext, { setNames, villainIdBySet, mainSchemeIdBySet }: ScenarioLookups): Scenario[] {
   const { errors } = ctx;
   const emittedCardIds = new Set(ctx.cards.map((c) => c.id as string));
+  const resolveCardCode = (code: string, label: string): string | undefined => {
+    if (!emittedCardIds.has(code)) {
+      errors.push(`scenario: ${label} names unknown card ${code}`);
+      return undefined;
+    }
+    return code;
+  };
   return ctx.curation.scenarios.map((s) => {
     const schemeSetCode = s.mainSchemeSetCode ?? s.villainSetCode;
     for (const code of [
@@ -22,14 +29,44 @@ export function normalizeScenarios(ctx: NormalizeContext, { setNames, villainIdB
       ...s.recommendedModularSetCodes,
       ...s.standardSetCodes,
       ...s.expertSetCodes,
+      ...(s.additionalEncounterSetCodes ?? []),
       ...(s.multipleVillains?.villainSetCodes ?? []),
+      ...(s.separateDecks?.flatMap((d) => d.contents.encounterSetCodes ?? []) ?? []),
     ]) {
       if (!setNames.has(code) && !CORE_ENCOUNTER_SET_CODES.has(code)) errors.push(`scenario ${s.id}: unknown encounter set ${code}`);
     }
-    const villainId = villainIdBySet.get(s.villainSetCode);
+    // Wave 2 (docs/phase7-wave2.md §1.8): Kang's villain set has no single villainIdBySet entry (several
+    // single-stage villains collide on one card_set_code — normalize/villains.ts leaves the map unset for that
+    // shape), so a scenario that hits it must name its villain card directly instead.
+    const villainId = s.villainCardCode ? resolveCardCode(s.villainCardCode, `scenario ${s.id} villainCardCode`) : villainIdBySet.get(s.villainSetCode);
     const schemeId = mainSchemeIdBySet.get(schemeSetCode);
     if (!villainId) errors.push(`scenario ${s.id}: no villain in set ${s.villainSetCode}`);
     if (!schemeId) errors.push(`scenario ${s.id}: no main scheme in set ${schemeSetCode}`);
+
+    const setAsideVillainCardIds = (s.setAsideVillainCardCodes ?? [])
+      .map((c) => resolveCardCode(c, `scenario ${s.id} setAsideVillainCardCodes`))
+      .filter((id): id is string => id !== undefined)
+      .map((id) => brand("card", id));
+
+    const expertVillains = s.expertVillains
+      ? {
+          villainCardId: brand("card", resolveCardCode(s.expertVillains.villainCardCode, `scenario ${s.id} expertVillains.villainCardCode`) ?? ""),
+          setAsideVillainCardIds: s.expertVillains.setAsideVillainCardCodes
+            .map((c) => resolveCardCode(c, `scenario ${s.id} expertVillains.setAsideVillainCardCodes`))
+            .filter((id): id is string => id !== undefined)
+            .map((id) => brand("card", id)),
+        }
+      : undefined;
+
+    const separateDecks = s.separateDecks?.map((d) => ({
+      name: d.name,
+      contents: {
+        ...(d.contents.encounterSetCodes ? { encounterSetIds: d.contents.encounterSetCodes.map((c) => brand("encounterSet", c)) } : {}),
+        ...(d.contents.cardType ? { cardType: d.contents.cardType } : {}),
+      },
+      discardPile: d.discardPile,
+      whenEmpty: d.whenEmpty,
+    }));
 
     // Several villains at once (docs/phase7-wave1.md §1.1 — The Wrecking Crew).
     let multipleVillains: MultipleVillains | undefined;
@@ -72,7 +109,9 @@ export function normalizeScenarios(ctx: NormalizeContext, { setNames, villainIdB
       mainSchemeCardId: brand("card", schemeId ?? ""),
       // A multi-villain scenario has no single flat encounter deck (each villain has its own — see
       // `multipleVillains`); the insert also uses no modular/standard/expert sets (The Wrecking Crew).
-      encounterSetIds: multipleVillains ? [] : [brand("encounterSet", s.villainSetCode)],
+      encounterSetIds: multipleVillains
+        ? []
+        : [brand("encounterSet", s.villainSetCode), ...(s.additionalEncounterSetCodes ?? []).map((c) => brand("encounterSet", c))],
       recommendedModularSetIds: s.recommendedModularSetCodes.map((c) => brand("encounterSet", c)),
       standardEncounterSetIds: s.standardSetCodes.map((c) => brand("encounterSet", c)),
       expertEncounterSetIds: s.expertSetCodes.map((c) => brand("encounterSet", c)),
@@ -80,6 +119,11 @@ export function normalizeScenarios(ctx: NormalizeContext, { setNames, villainIdB
       ...(multipleVillains ? { multipleVillains } : {}),
       ...(s.usesIdentityEncounterSets === false ? { usesIdentityEncounterSets: false as const } : {}),
       ...(s.modularSetCount !== undefined ? { modularSetCount: s.modularSetCount } : {}),
+      ...(setAsideVillainCardIds.length > 0 ? { setAsideVillainCardIds } : {}),
+      ...(expertVillains ? { expertVillains } : {}),
+      ...(s.victory ? { victory: s.victory } : {}),
+      ...(s.separateGameAreas ? { separateGameAreas: s.separateGameAreas } : {}),
+      ...(separateDecks ? { separateDecks } : {}),
     };
   });
 }

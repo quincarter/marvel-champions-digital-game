@@ -2,6 +2,8 @@
 import { readFileSync } from "node:fs";
 import {
   validateCard,
+  validateScenario,
+  validateScenarioEncounterSets,
   validateStarterDeck,
   type AnyCard,
   type HeroIdentityCard,
@@ -16,6 +18,7 @@ import { TRORS_CARDS, TRORS_PACK, TRORS_PROVENANCE, TRORS_STARTER_DECKS } from "
 import { TOAFK_CARDS, TOAFK_PACK, TOAFK_PROVENANCE } from "./toafk/index.js";
 import { WAVE2_CARDS, WAVE2_ENCOUNTER_SETS, WAVE2_SCENARIOS, WAVE2_STARTER_DECKS } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
+import { CORE_ENCOUNTER_SETS } from "./core/encounterSets.js";
 import { poolVersionOf } from "./pool-version.js";
 import type { CardProvenance, DroppedSourceRecord } from "./types.js";
 
@@ -122,9 +125,63 @@ describe("wave 2 (cycle 1) data — integrity (every pack)", () => {
   });
 });
 
+describe("cycle 1 scenarios — The Rise of Red Skull's five plus The Once and Future Kang", () => {
+  it("six scenarios: Crossbones, Absorbing Man, Taskmaster, Zola, Red Skull, Kang", () => {
+    expect(WAVE2_SCENARIOS.map((s) => s.id).sort()).toEqual(
+      ["absorbing-man", "crossbones", "kang", "red-skull", "taskmaster", "zola"].sort(),
+    );
+  });
+
+  it("every scenario passes validateScenario()", () => {
+    for (const s of WAVE2_SCENARIOS) expect(validateScenario(s).errors, s.id as string).toEqual([]);
+  });
+
+  it("every scenario's named encounter sets are registered (cycle 1's own plus Core's, for cross-pack modular sets)", () => {
+    const sets = [...CORE_ENCOUNTER_SETS, ...WAVE2_ENCOUNTER_SETS];
+    for (const s of WAVE2_SCENARIOS) expect(validateScenarioEncounterSets(s, sets).errors, s.id as string).toEqual([]);
+  });
+
+  it("every scenario's villainCardId/mainSchemeCardId resolve to a real card in WAVE2_CARDS", () => {
+    const ids = new Set(WAVE2_CARDS.map((c) => c.id as string));
+    for (const s of WAVE2_SCENARIOS) {
+      expect(ids.has(s.villainCardId as string), `${s.id as string} villain`).toBe(true);
+      expect(ids.has(s.mainSchemeCardId as string), `${s.id as string} main scheme`).toBe(true);
+    }
+  });
+
+  it("Crossbones' modular sets include Core's Legions of Hydra, not a trors-only set (docs/phase7-wave2-data.md, Task A #2)", () => {
+    const crossbones = WAVE2_SCENARIOS.find((s) => s.id === "crossbones");
+    expect(crossbones?.recommendedModularSetIds).toContain("legions_of_hydra");
+    expect(CORE_ENCOUNTER_SETS.some((s) => s.id === "legions_of_hydra")).toBe(true);
+    // trors' own raw feed has no "legions_of_hydra" card_set_code at all — it is a Core Set modular set that
+    // Attack on Mount Athena's 1A happens to call for alongside two of trors' own.
+    expect(WAVE2_ENCOUNTER_SETS.some((s) => s.id === "legions_of_hydra")).toBe(false);
+  });
+
+  it("Kang: Kang (I) starts the villain deck; Kang (II)/(III) are set aside; expert mode replaces all six", () => {
+    const kang = WAVE2_SCENARIOS.find((s) => s.id === "kang");
+    expect(kang?.villainCardId).toBe("11001");
+    expect(kang?.setAsideVillainCardIds).toEqual(["11002", "11003", "11004", "11005", "11006"]);
+    expect(kang?.expertVillains?.villainCardId).toBe("11034");
+    expect(kang?.expertVillains?.setAsideVillainCardIds).toEqual(["11035", "11036", "11037", "11038", "11039"]);
+    expect(kang?.victory).toBe("cardAbility");
+    expect(kang?.separateGameAreas?.centralStageNumber).toBe(2);
+  });
+
+  it("Crossbones' Experimental Weapons and Red Skull's side-scheme deck are separate decks, not part of the flat encounter deck", () => {
+    const crossbones = WAVE2_SCENARIOS.find((s) => s.id === "crossbones");
+    expect(crossbones?.separateDecks).toEqual([
+      { name: "Experimental Weapons", contents: { encounterSetIds: ["exper_weapon"] }, discardPile: "encounter", whenEmpty: "remainsEmpty" },
+    ]);
+    const redSkull = WAVE2_SCENARIOS.find((s) => s.id === "red-skull");
+    expect(redSkull?.separateDecks).toEqual([
+      { name: "side-scheme deck", contents: { cardType: "side_scheme" }, discardPile: "own", whenEmpty: "reshuffleDiscardWithoutPenalty" },
+    ]);
+  });
+});
+
 describe("cycle 1 starter decks — schema validation (content-level; engine deck legality is @mc/engine's/@mc/cards' own test, not @mc/content's — it cannot import @mc/engine per the client→cards→engine→content dependency direction)", () => {
-  it("wave 2 has no curated scenarios yet (follow-up), and six starter decks", () => {
-    expect(WAVE2_SCENARIOS).toEqual([]);
+  it("wave 2 has six starter decks", () => {
     expect(WAVE2_STARTER_DECKS).toHaveLength(6);
   });
 
