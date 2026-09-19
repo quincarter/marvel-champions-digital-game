@@ -62,30 +62,62 @@ export function titleFocusOrder(input: TitleFocusInput): readonly string[] {
 export interface DecksFocusInput {
   /** Import by MarvelCDB URL/id is dev/preview-only (PLAN.md Phase 9); paste always shows. */
   readonly showMarvelCdbImport: boolean;
-  /** Every deck row, in list order — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
+  /** Every deck row, in list order (group headers and the trailing "+ New deck" tile excluded — see `newDeck` below) — not just the ones currently on screen. `McVirtualList` scrolls a row into view when it takes focus, so a row off-screen is still a real stop. */
   readonly deckIds: readonly string[];
-  /** A row whose deck can be edited/deleted (a saved deck) gets those two extra stops; a precon's row does not. */
-  readonly editableDeckIds: ReadonlySet<string>;
+  /** S8's quick-filter chip ids (aspect, source, "Legal only"), between the search field and the list. */
+  readonly chipIds: readonly string[];
+  /** W9b/D14: every card in the *selected* deck's own browsable pool, in grid order — not just the ones currently on screen (same "off-screen is still a stop" rule as `deckIds`). Empty with no deck selected. */
+  readonly poolCardIds: readonly string[];
+  /** D14's own pool filter chips (the deck's aspect(s), Basic, Hero, Cost sort), between the pool header and its grid. */
+  readonly poolChipIds: readonly string[];
+  /**
+   * W9b (docs/phase4-screen-gaps.md §3): wide three-pane layout reaches the list, the card pool, and the selected
+   * deck's stats pane, all in one route; narrow single-column layout reaches only whichever of
+   * "Decks"/"Cards"/"Stats" `activeTab` names — the same tab-scoped pattern `deckCheckFocusOrder` already uses for
+   * its own tabs.
+   */
+  readonly wide: boolean;
+  readonly activeTab: "decks" | "cards" | "stats";
+  /** Whether a deck is currently selected — with none, the pool grid and the stats pane have nothing to act on and contribute no stops. */
+  readonly hasSelection: boolean;
+  /** Whether the *selected* deck can be edited/deleted (a saved deck, not a precon). */
+  readonly editable: boolean;
+  /** The quick-filter chip strip is collapsed behind a "Filters" toggle by default (2026-09-18 fidelity pass, point 2) — `chipIds` only contributes stops while this is true. */
+  readonly filtersExpanded: boolean;
+  /** The Import/Export box's own accordion: which field (if either) is open — `paste-field`/`paste-import` or `marvelcdb-field`/`marvelcdb-import` only contribute stops while their own button opened them. */
+  readonly importOpen: "paste" | "marvelcdb" | null;
 }
 
 /**
- * The Decks screen: Back, the paste importer, the MarvelCDB importer (dev
- * only), New deck, then every deck row (and its Edit/Delete when it has
- * them) — the whole list, not only whatever the virtualized panel currently
- * draws. Moving focus onto a row scrolls it into view (`scenes/decks.ts`'s
- * `ensureVisible`), the same way a mouse would have to scroll to it first.
+ * The Decks screen (W9b, D14): Back, then — wide — the search field, the "Filters" toggle, its quick-filter chips
+ * (only while expanded), every deck row, "+ New deck", the Import/Export box's Paste/MarvelCDB/Export buttons and
+ * whichever of Paste's or MarvelCDB's own field+Import stops the accordion currently has open, then the card
+ * pool's own filter chips and every pool card, then the selected deck's stats-pane actions (Check, Edit/Delete
+ * when it's editable, Duplicate, Play this deck ▸). Narrow shows the same three groups behind a
+ * "Decks"/"Cards"/"Stats" tab strip instead, one group at a time. Moving focus onto a deck row or a pool card
+ * scrolls it into view (`scenes/decks.ts`'s `ensureVisible`), the same way a mouse would have to scroll to it first.
  */
 export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
-  return [
-    "back",
-    "paste-field",
-    "paste-import",
-    ...(input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
+  const listGroup = [
+    "deck-search",
+    "filters-toggle",
+    ...(input.filtersExpanded ? input.chipIds.map((id) => `deck-chip:${id}`) : []),
+    ...input.deckIds.map((id) => `deck:${id}`),
     "new-deck",
-    ...input.deckIds.flatMap((id) =>
-      input.editableDeckIds.has(id) ? [`deck:${id}`, `deck:${id}:edit`, `deck:${id}:delete`] : [`deck:${id}`],
-    ),
+    "ie-paste-toggle",
+    "ie-marvelcdb-toggle",
+    "ie-export",
+    ...(input.importOpen === "paste" ? ["paste-field", "paste-import"] : []),
+    ...(input.importOpen === "marvelcdb" && input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
   ];
+  const poolGroup = input.hasSelection ? [...input.poolChipIds.map((id) => `pool-chip:${id}`), ...input.poolCardIds.map((id) => `pool-card:${id}`)] : [];
+  const statsGroup = input.hasSelection
+    ? ["stats-check", ...(input.editable ? ["stats-edit", "stats-delete"] : []), "stats-duplicate", "stats-play"]
+    : [];
+  if (input.wide) return ["back", ...listGroup, ...poolGroup, ...statsGroup];
+  const tabs = ["tab:decks", "tab:cards", "tab:stats"];
+  const activeGroup = input.activeTab === "decks" ? listGroup : input.activeTab === "cards" ? poolGroup : statsGroup;
+  return ["back", ...tabs, ...activeGroup];
 }
 
 export interface DeckBuilderFocusInput {
@@ -93,31 +125,281 @@ export interface DeckBuilderFocusInput {
   readonly identityChosen: boolean;
   readonly identityIds: readonly string[];
   readonly aspectIds: readonly string[];
+  /** W1's type filter chips ("All, Ally, Event, Upgrade, Support, Resource"), by `PoolFilter.type` value (`"all"` for the null/no-filter case). */
+  readonly typeFilterIds: readonly string[];
   /** Every pool card in filter order — not just the ones currently on screen (see `DecksFocusInput.deckIds`). */
   readonly poolCardIds: readonly string[];
 }
 
 /**
  * The deck builder: Back first, then either the identity picker alone, or —
- * once an identity is chosen — the aspect picker, the name field, and every
- * pool row (each row both adds and removes, one stop each), then Save.
+ * once an identity is chosen — the aspect picker, the type filter chips
+ * (W1), the name field, Preconstructed and Clear (W1 — always a stop, even
+ * when Preconstructed has nothing to reset to and is drawn unavailable, the
+ * same "dim, don't hide" rule every disabled control follows), Save, the
+ * pool search field, and every pool row (each row both adds and removes, one
+ * stop each).
  */
 export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly string[] {
   if (!input.identityChosen) return ["back", ...input.identityIds.map((id) => `identity:${id}`)];
   return [
     "back",
     ...input.aspectIds.map((id) => `aspect:${id}`),
+    ...input.typeFilterIds.map((id) => `type:${id}`),
     "name",
+    "preconstructed",
+    "clear",
+    "save",
     "filter-text",
     ...input.poolCardIds.map((id) => `card:${id}`),
-    "save",
+  ];
+}
+
+export interface DeckCheckFocusInput {
+  /**
+   * Wide (desktop/tabletLandscape, docs/phase4-screen-gaps.md §3 2026-09-18 rebuild): both the card grid and the
+   * analysis panel are on screen at once, so the route reaches the grid directly with no tab to select it — there
+   * is no `activeTab` in this mode. Narrow: exactly one of the Curve/Cards/Aspect tabs is showing, and only its own
+   * rows contribute stops, the same tab-scoped pattern `decksFocusOrder` already uses for its own narrow mode.
+   */
+  readonly wide: boolean;
+  /** Narrow only: which of the three tabs is showing. Ignored (and optional) in wide mode. */
+  readonly activeTab?: "curve" | "cards" | "aspect";
+  /** Every card in the deck's own grid, in group-then-name order — wide always (already narrowed by `filterChipIds`, when one is selected), narrow only while the Cards tab is active. */
+  readonly cardIds: readonly string[];
+  /** Wide only: the left rail's type filter chip ids (D04's "ALL/ALLY/EVENT/UPGRADE/SUPPORT/RESOURCE"), between Back and the grid. */
+  readonly filterChipIds?: readonly string[];
+}
+
+/**
+ * Deck check (W1; rebuilt 2026-09-18 for the owner's fidelity note, then again the same day once D04's own
+ * screenshot showed this is the deck *builder*'s own three-column composition, read-only — see
+ * `view/deck-check-layout.ts`'s own doc comment): Back, then wide — the rail's own filter chips (the aspect tiles
+ * are read-only, so they contribute no stops), then every card in the grid directly, no tab needed — or narrow —
+ * the three tabs, then whichever one is active's own rows (only the Cards tab has any; Curve and Aspect are
+ * read-only panels) — then Edit deck, then Start game ▸, still a real stop even drawn unavailable so its reason can
+ * be read (the "dashed = not yet real" rule, docs/phase4-screen-gaps.md §0).
+ */
+export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string[] {
+  const cardStops = input.cardIds.map((id) => `card:${id}`);
+  if (input.wide) return ["back", ...(input.filterChipIds ?? []).map((id) => `filter:${id}`), ...cardStops, "edit-deck", "start"];
+  return [
+    "back",
+    "tab:curve",
+    "tab:cards",
+    "tab:aspect",
+    ...(input.activeTab === "cards" ? cardStops : []),
+    "edit-deck",
+    "start",
   ];
 }
 
 /**
  * The villain-phase walkthrough: Continue first once the phase has finished,
- * because it is what the player is there to press, then Skip.
+ * because it is what the player is there to press. When the inline interrupt
+ * window (D11/P09/L02) is open, its "Play <card>" buttons and "Let it
+ * resolve" come right after — the decision the player is actually there to
+ * make — ahead of Skip, which never coexists with "finished" (a paused phase
+ * hasn't finished).
  */
-export function villainPhaseFocusOrder(finished: boolean): readonly string[] {
-  return [...(finished ? ["continue"] : []), "skip"];
+export function villainPhaseFocusOrder(finished: boolean, interruptOptionIds: readonly string[] = []): readonly string[] {
+  return [
+    ...(finished ? ["continue"] : []),
+    ...interruptOptionIds.map((id) => `interrupt:${id}`),
+    ...(interruptOptionIds.length > 0 ? ["resolve"] : []),
+    "skip",
+  ];
+}
+
+/**
+ * Pause (docs/phase4-screen-gaps.md §3 "W4"; owner decision 2026-09-18 — see
+ * `view/pause-layout.ts`'s own header). Two shapes, matching the layout's own
+ * `kind`:
+ *
+ * - **Wide** (desktop and tablet, D13): the left menu top to bottom — Resume,
+ *   Full game log, Rules reference, Settings, then Concede pinned at the
+ *   panel's own foot (or, while the concede confirm is open, its own Yes/
+ *   Cancel pair in Concede's place) — then the keyword/status cards in the
+ *   right panel's own grid order. There is no ✕ on this shape (D13 has none;
+ *   Escape and Resume both close it) and no search field (search lives in the
+ *   full Rules Reference overlay this screen's own "Rules reference" button
+ *   opens).
+ * - **Phone** (P16): the boxed ✕ first (top of the title bar, reads before
+ *   anything else), then the search field, the "Quick reference" rows, the
+ *   "Table" rows (the same shared list `scenes/settings.ts` draws), then the
+ *   footer — Resume, Save & quit, Concede (or, while confirming, its own two
+ *   controls in their place, so Enter can't fire Resume or a stray Concede tap
+ *   by accident mid-confirm).
+ */
+export type PauseFocusInput =
+  | {
+      readonly kind: "wide";
+      /** The keyword/status cards actually shown (`PauseKeywordGrid.shown`'s own count), in grid order. */
+      readonly keywordIds: readonly string[];
+      readonly confirmingConcede: boolean;
+    }
+  | {
+      readonly kind: "phone";
+      readonly quickReferenceIds: readonly string[];
+      readonly tableRowIds: readonly string[];
+      readonly confirmingConcede: boolean;
+    };
+
+export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
+  if (input.kind === "wide") {
+    return [
+      "resume",
+      "full-game-log",
+      "rules-reference",
+      "settings",
+      "save-quit",
+      ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
+      ...input.keywordIds.map((id) => `keyword:${id}`),
+    ];
+  }
+  return [
+    "close",
+    "search",
+    ...input.quickReferenceIds.map((id) => `quick:${id}`),
+    ...input.tableRowIds.map((id) => `table:${id}`),
+    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["resume", "save-quit", "concede"]),
+  ];
+}
+
+/**
+ * Rules Reference (full-screen redesign, owner feedback 2026-09-18): Back, the scope
+ * toggle ("All rules" / "On your table" — only a stop with a live game to scope against,
+ * `showScopeToggle`), the three tabs, then the glossary's search field (glossary tab
+ * only), then whatever rows the active tab is showing — the glossary's own entry (and
+ * card-thumbnail) stops, the villain phase's step stops, or the card list's per-card
+ * stops, whichever tab `rowIds` was built for.
+ */
+export function rulesFocusOrder(input: {
+  readonly tabIds: readonly string[];
+  readonly showScopeToggle: boolean;
+  readonly showSearch: boolean;
+  readonly rowIds: readonly string[];
+}): readonly string[] {
+  return [
+    "back",
+    ...(input.showScopeToggle ? ["scope:table", "scope:all"] : []),
+    ...input.tabIds.map((id) => `tab:${id}`),
+    ...(input.showSearch ? ["search"] : []),
+    ...input.rowIds.map((id) => `row:${id}`),
+  ];
+}
+
+/** Settings: Back, then one stop per toggle row, in the order they're drawn. */
+export function settingsFocusOrder(rowIds: readonly string[]): readonly string[] {
+  return ["back", ...rowIds.map((id) => `row:${id}`)];
+}
+
+/**
+ * The Title menu (docs/phase4-screen-gaps.md §3 W2, D01): Continue (when
+ * there's a game to pick up), New game, Decks & Collection, Campaign
+ * (drawn locked) and Settings (drawn unavailable until W4 lands it) — both
+ * still take focus so their reason reads with `I`, the same rule
+ * `titleFocusOrder` already applies to a blocked hero seat.
+ */
+export function titleMenuFocusOrder(input: { readonly continuable: boolean }): readonly string[] {
+  return [...(input.continuable ? ["continue"] : []), "new-game", "decks", "campaign", "settings"];
+}
+
+export interface ScenarioSelectFocusInput {
+  /**
+   * Every scenario card, in the pack-shelf roster's own reading order (shelf by shelf, left to right within a
+   * shelf — `view/roster-shelves.ts`'s `flattenShelves`); already filtered by the search field and product chips
+   * (S8). Empty means the search matched nothing. `view/shelf-nav.ts`'s own doc comment explains why this stays a
+   * flat route rather than a real 2-axis one this pass.
+   */
+  readonly scenarioIds: readonly string[];
+  readonly scenarioChipIds?: readonly string[];
+  /** True on a narrow layout, where the stages panel is a disclosure with a bar to toggle. */
+  readonly stagesToggle?: boolean;
+}
+
+/** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
+export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): readonly string[] {
+  return [
+    "back",
+    "scenario-search",
+    ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
+    ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
+    // The phone's collapsible stages panel (absent on a wide layout, where the panel is always open).
+    ...(input.stagesToggle ? ["stages-toggle"] : []),
+    "next",
+  ];
+}
+
+export interface SeatsFocusInput {
+  /** How many seat cards to route focus through — always `MAX_SEATS` (`view/seats-layout.ts`), listed for clarity at the call site rather than hardcoded here. */
+  readonly seatCount: number;
+  /** Every seat option's deck id, in the pack-shelf roster's own reading order (`flattenShelves`) — still keyed `hero:<deckId>`, matching `titleFocusOrder`'s own convention. */
+  readonly deckIds: readonly string[];
+  readonly heroChipIds?: readonly string[];
+}
+
+/**
+ * Take your seats (D03): Back, each seat card (clicking/activating one makes it active,
+ * docs/phase4-screen-gaps.md §3 W2b), "Use preconstructed for all seats", the search field, its chips, each
+ * roster card (or "Clear"), then "Play N heroes ▸" / "Deck check ▸".
+ */
+export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
+  return [
+    "back",
+    ...Array.from({ length: input.seatCount }, (_, i) => `seat:${i}`),
+    // Narrow layouts only (`view/seats-layout.ts`): the active seat's "Clear seat" control on the summary line. The
+    // route drops an id with no stop, so wide layouts (which clear through each seat card's own "✕") skip it.
+    "clear-seat",
+    "use-preconstructed",
+    "hero-search",
+    ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
+    ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
+    "deck-check",
+    "play",
+  ];
+}
+
+export interface TableSetupFocusInput {
+  readonly difficulties: readonly string[];
+  /** Every modular set candidate's own id (`view/modular-sets.ts`'s `modularSetCandidateIdsFor`) — empty for a scenario that uses none (Breakout). */
+  readonly modularSetIds: readonly string[];
+  /** One stop per seat index plus "Random" (`view/seed.ts`'s `rollFirstPlayerIndex`). */
+  readonly firstPlayerOptionIds: readonly string[];
+}
+
+/** Table setup (D05): Back, difficulty, the modular set picker, seating/first player, the seed field, Reroll, then "Deal it out". */
+export function tableSetupFocusOrder(input: TableSetupFocusInput): readonly string[] {
+  return [
+    "back",
+    ...input.difficulties.map((id) => `difficulty:${id}`),
+    ...input.modularSetIds.map((id) => `modular:${id}`),
+    ...input.firstPlayerOptionIds.map((id) => `first-player:${id}`),
+    "seed",
+    "reroll",
+    "deal-it-out",
+  ];
+}
+
+export interface SetupWalkthroughFocusInput {
+  /**
+   * The deciding seat's own hand, already in display order
+   * (`view/choice-focus.ts`'s `cardChoiceDisplayOrder`, the same one the
+   * generic sheet walks) — empty while no seat's mulligan is the open choice
+   * (a different decision during setup has the choice instead, and the
+   * generic `ChoiceOverlay` owns focus for that one).
+   */
+  readonly optionIds: readonly string[];
+}
+
+/**
+ * Setup deal & mulligan (W3, docs/phase4-screen-gaps.md §3 — D06, P13, L05):
+ * the deciding seat's own hand, then "Mulligan" then "Keep all". Unlike the
+ * generic sheet's `choiceFocusOrder` — which only adds a "decline" stop when
+ * `PendingChoice.minSelections` allows it — a mulligan's `minSelections` is
+ * always 0 (RRG 1.8 Appendix II step 15: "discard any number of cards,
+ * including none"), so "Keep all" is always legal and always its own stop.
+ */
+export function setupWalkthroughFocusOrder(input: SetupWalkthroughFocusInput): readonly string[] {
+  return [...input.optionIds.map((id) => `option:${id}`), "confirm", "decline"];
 }

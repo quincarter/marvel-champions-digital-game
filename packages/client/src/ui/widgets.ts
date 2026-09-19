@@ -19,6 +19,7 @@ import { ribbonHeight, type Rect } from "../view/layout.js";
 import { PressArm } from "../view/press-arm.js";
 // The only rexUI import in the app. See ui/rex.ts for why the components
 // are constructed directly instead of through `RexUIPlugin`.
+import { bindHoldTarget } from "./hold-target.js";
 import { addInputText, addTextArea, addTextAreaInput } from "./rex.js";
 import { caseOf, cssOf, fontFamilyOf, skin, textStyle, type WidgetKind, type WidgetState } from "./theme.js";
 
@@ -33,7 +34,8 @@ export function paintPanel(g: Phaser.GameObjects.Graphics, rect: Rect, kind: Wid
 }
 
 /** A dashed outline: the system's mark for a slot that isn't filled yet. */
-export function dashedRect(g: Phaser.GameObjects.Graphics, rect: Rect, width: number): void {
+/** Defaults to the "quiet" skin's own ink stroke (the design system's ordinary "slot not filled" mark); a caller with something more specific to say — the active-but-still-empty seat card's red "SEAT N · PICKING" border (`scenes/seats.ts`) — passes its own colour instead. */
+export function dashedRect(g: Phaser.GameObjects.Graphics, rect: Rect, width: number, color: number = skin("quiet", "rest").stroke): void {
   const step = border.dashSegment + border.dashGap;
   const line = (x1: number, y1: number, x2: number, y2: number): void => {
     const length = Math.hypot(x2 - x1, y2 - y1);
@@ -44,7 +46,7 @@ export function dashedRect(g: Phaser.GameObjects.Graphics, rect: Rect, width: nu
       g.lineBetween(x1 + dx * at, y1 + dy * at, x1 + dx * end, y1 + dy * end);
     }
   };
-  g.lineStyle(width, skin("quiet", "rest").stroke, 1);
+  g.lineStyle(width, color, 1);
   line(rect.x, rect.y, rect.x + rect.width, rect.y);
   line(rect.x + rect.width, rect.y, rect.x + rect.width, rect.y + rect.height);
   line(rect.x + rect.width, rect.y + rect.height, rect.x, rect.y + rect.height);
@@ -326,6 +328,62 @@ export function label(
   return object;
 }
 
+/**
+ * A section heading with a full-bleed rule filling the rest of its row
+ * ("YOUR DECKS ────", "CARD POOL ────" — D14's own header shape, `Marvel
+ * Champions game screens/Screens - Desktop.dc.html`'s `#s14`: a Bangers label
+ * beside `<span style="flex:1;height:3px;background:#14110E">`). Returns the
+ * next free `y`.
+ *
+ * `rightLabel` (Table setup's D05, "1 REQUIRED · 1 CHOSEN" / "30 CARDS ·
+ * SHUFFLED AT DEAL") draws a small uppercase label at the row's own right
+ * edge, letting the rule run only as far as that label's own left edge —
+ * still one implementation, so a header with or without one never drifts
+ * into two different row shapes.
+ *
+ * `collect`, when passed, receives every text/label/rule object this creates
+ * — a virtualized-list row (`ui/variable-list.ts`'s `McVariableList`) must
+ * return every object it draws in its own `VirtualListRow.objects` so the
+ * list's row layer (the one thing that actually gets masked and scrolled)
+ * owns them; a caller that calls `scene.add.*` itself via this helper and
+ * throws the return value away leaves those objects parented straight to
+ * the scene, outside the scroll/mask container, where they never move again
+ * (the Rules overlay's Card list tab's own encounter-set headers not
+ * scrolling with their own cards was exactly this bug).
+ */
+export function sectionHeader(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  text: string,
+  color: number = surface.ink.hex,
+  rightLabel?: string,
+  collect?: Phaser.GameObjects.GameObject[],
+): number {
+  const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setLetterSpacing(typeRole.barTitle.letterSpacing).setFontSize(19);
+  collect?.push(heading);
+  let rightWidth = 0;
+  if (rightLabel) {
+    const right = label(scene, x + width, y + heading.height / 2, rightLabel, typeRole.label, color, ink.label).setOrigin(1, 0.5);
+    rightWidth = right.width + 14;
+    collect?.push(right);
+  }
+  // The heading never overlaps its own right label: a long title ("THE ENCOUNTER DECK YOU'RE BUILDING") on a
+  // narrow column shrinks (`fitText`'s own floor-then-ellipsis) against exactly the width that's left for it,
+  // rather than being drawn at its natural width and spilling into the label sitting at the row's own right edge.
+  const headingMaxWidth = Math.max(10, width - rightWidth - (rightLabel ? 10 : 0));
+  fitText(heading, headingMaxWidth, 19);
+  const ruleX = x + heading.width + 10;
+  const ruleEnd = x + width - rightWidth;
+  if (ruleX < ruleEnd) {
+    const rule = scene.add.graphics();
+    rule.fillStyle(color, 1).fillRect(ruleX, y + heading.height / 2 - 1.5, ruleEnd - ruleX, 3);
+    collect?.push(rule);
+  }
+  return y + heading.height + 12;
+}
+
 export interface McTabsOptions {
   readonly rect: Rect;
   readonly tabs: readonly { readonly id: string; readonly label: string; readonly badge?: number }[];
@@ -404,13 +462,6 @@ export interface McCardTileOptions {
 }
 
 /**
- * How long a press has to last before it inspects instead of choosing. The same
- * threshold the board and the choice sheet use, so the gesture means one thing
- * everywhere in the app.
- */
-export const INSPECT_HOLD_MS = 420;
-
-/**
  * A card as a choosable thing: the scan above, its name below, one border
  * around both.
  *
@@ -478,34 +529,13 @@ export class McCardTile {
       .setOrigin(0, 0)
       .setInteractive({ useHandCursor: true });
 
-    let held: Phaser.Time.TimerEvent | null = null;
-    let inspected = false;
-    const cancelHold = (): void => {
-      held?.remove();
-      held = null;
-    };
-    const inspect = (): void => {
-      inspected = true;
-      options.onInspect?.();
-    };
-
-    zone.on("pointerdown", (pointer: Phaser.Input.Pointer) => {
-      inspected = false;
-      // A tile you cannot choose can still be read: that is how the player
-      // finds out *why* it is unavailable.
-      if (!options.onInspect) return;
-      if (pointer.rightButtonDown()) {
-        inspect();
-        return;
-      }
-      held = scene.time.delayedCall(INSPECT_HOLD_MS, inspect);
-    });
-    zone.on("pointerout", cancelHold);
-    zone.on("pointerup", () => {
-      cancelHold();
-      // A hold already did something; the release must not also act on it.
-      if (inspected) return;
-      if (enabled) options.onClick();
+    // A tile you cannot choose can still be read: that is how the player
+    // finds out *why* it is unavailable.
+    bindHoldTarget(scene, zone, {
+      onTap: () => {
+        if (enabled) options.onClick();
+      },
+      onInspect: options.onInspect,
     });
     this.#objects.push(zone);
   }
@@ -679,6 +709,11 @@ export class McTextInput {
   #rect: Rect;
   #onChange: ((value: string) => void) | undefined;
   #numeric: boolean;
+  #hidden = false;
+  /** True while another scene is running above this field's own (`syncCovered`) — kept separate from `setVisible`'s own caller-requested visibility so the two reasons a field might be hidden combine (AND) instead of the per-frame `syncCovered` check silently overriding a caller's own `setVisible(false)` back to visible every frame (found in browser verification, 2026-09-18: the phone Table setup scroll region's own hide-when-scrolled-away call was winning for exactly one frame before `syncCovered` put the field back). */
+  #coveredByOtherScene = false;
+  /** The caller's own last `setVisible` request — combined with `#coveredByOtherScene` in `#applyVisibility`. */
+  #requestedVisible = true;
 
   constructor(scene: Phaser.Scene, options: McTextInputOptions) {
     this.#rect = options.rect;
@@ -728,6 +763,24 @@ export class McTextInput {
      * top-left rects, so the origin has to be set on the object itself.
      */
     this.#input.setOrigin(0, 0);
+
+    /**
+     * A DOM element is not in the canvas, so it is not under anything drawn
+     * there: Phaser's DOM container sits over the whole canvas, and an overlay
+     * scene launched on top of this one covered everything *except* this field
+     * — Pause's search box showed through the Rules reference. So the field
+     * hides itself while any scene is running above its own, and comes back
+     * when that scene closes.
+     */
+    const syncCovered = (): void => {
+      const running = scene.scene.manager.getScenes(true);
+      const covered = running.indexOf(scene) < running.length - 1;
+      if (this.#coveredByOtherScene === covered) return;
+      this.#coveredByOtherScene = covered;
+      this.#applyVisibility();
+    };
+    scene.events.on("update", syncCovered);
+    this.#input.once("destroy", () => scene.events.off("update", syncCovered));
 
     this.#input.on("textchange", () => {
       const raw = this.#input.text;
@@ -780,6 +833,36 @@ export class McTextInput {
     this.#input.setPosition(rect.x, rect.y);
     this.#input.resize(rect.width, rect.height);
     if (this.#input.isFocused) this.#ring.show(rect, "static", true);
+  }
+
+  /**
+   * Shows or hides the field — for a caller positioning it inside a scrolled, masked region (`ui/scroll-region.ts`):
+   * a DOM element sits above the canvas, so a Phaser mask never clips it, and it has to be hidden by hand whenever
+   * `layout` would otherwise place it outside its own scrollable viewport. Combined (AND) with `syncCovered`'s own
+   * "another scene is covering this one" state in `#applyVisibility`, not applied directly — two independent
+   * reasons a field might need to be hidden must not silently overwrite each other every frame.
+   */
+  setVisible(visible: boolean): void {
+    this.#requestedVisible = visible;
+    this.#applyVisibility();
+  }
+
+  /**
+   * Applies `#requestedVisible && !#coveredByOtherScene` via Phaser's own native `setVisible` — **not** a direct
+   * `node.style.display` write. Browser verification (2026-09-18, the phone Table setup scroll region) found and
+   * ruled out that shortcut: `DOMElementCSSRenderer` (Phaser's own per-*frame* DOM sync, not a one-shot render)
+   * unconditionally rewrites `style.display` from the element's own `renderFlags` every frame the element is still
+   * flagged visible, so a manual `style.display = 'none'` written *this* frame is silently put back to `'block'`
+   * the very next one. The native call is what actually flips `renderFlags`, which that per-frame sync then
+   * honours correctly on its own. Blurs on hide, so a hidden field can't silently keep the keyboard focus (and the
+   * screen's own focus route blocked on `focused`) after either reason makes it invisible.
+   */
+  #applyVisibility(): void {
+    const visible = this.#requestedVisible && !this.#coveredByOtherScene;
+    if (this.#hidden === !visible) return;
+    this.#hidden = !visible;
+    this.#input.setVisible(visible);
+    if (!visible && this.#input.isFocused) this.#input.setBlur();
   }
 
   destroy(): void {

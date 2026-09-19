@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import { deckFromStarterDeck } from "@mc/content";
 import { POOL_STARTER_DECKS } from "../content/pool.js";
 import { heroAspectsOf } from "./roster-filter.js";
-import { chipRowFits, chipStripHeight, minChipCellWidth, wrapChipsToRows, type ChipLabel } from "./chip-layout.js";
+import { chipRowFits, chipStripHeight, compactChipWidth, minChipCellWidth, packCompactChipsToRows, wrapChipsToRows, type ChipLabel } from "./chip-layout.js";
 
 /** The real Heroes roster chip set (`scenes/title.ts#heroChipDefs`), in the same order: aspects, then source, then "Playable now". */
 function realHeroChips(): readonly ChipLabel[] {
@@ -49,10 +49,14 @@ describe("wrapChipsToRows", () => {
     expect(rows.flat()).toEqual(chips);
   });
 
-  test("the real hero chip set fits on one row at the content column's own cap (640) — every non-phone width", () => {
+  test("the real hero chip set wraps to two rows at the content column's own cap (640), and neither row truncates", () => {
+    // Was asserted at 1 row before `CHIP_MIN_CHAR_WIDTH_PX`'s 2026-09 fix (4.6 → 7.0): the old estimate left out
+    // `typeRole.label.letterSpacing`, so it under-counted every chip and let this row through at a width real
+    // rendering would have truncated at. Two rows, uncramped, is the honest fit at this width.
     const chips = realHeroChips();
     const rows = wrapChipsToRows(chips, 640);
-    expect(rows).toHaveLength(1);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) expect(chipRowFits(row, 640)).toBe(true);
   });
 
   test("a handful of scenario product chips (three packs) fit one row even at phone width", () => {
@@ -73,6 +77,42 @@ describe("wrapChipsToRows", () => {
     const rows = wrapChipsToRows([{ id: "huge", text: "A Genuinely Enormous Label That Never Fits Anywhere" }], 60);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveLength(1);
+  });
+});
+
+describe("packCompactChipsToRows (W2b's second pass: compact chips sized to their own label, not stretched to share a row evenly)", () => {
+  test("short chips pack several to a row rather than each claiming an equal share of the width", () => {
+    const chips: ChipLabel[] = [
+      { id: "a", text: "Core Set" },
+      { id: "b", text: "Green Goblin" },
+      { id: "c", text: "The Wrecking Crew" },
+    ];
+    const rows = packCompactChipsToRows(chips, 640);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toEqual(chips);
+    // Every chip's own compact width is far short of a third of 640 — proof they aren't stretched.
+    for (const chip of chips) expect(compactChipWidth(chip.text)).toBeLessThan(640 / 3);
+  });
+
+  test("wraps to a new row only once the running total would overflow, never splitting a chip", () => {
+    const chips = realHeroChips();
+    const rows = packCompactChipsToRows(chips, PHONE_COLUMN_WIDTH);
+    expect(rows.length).toBeGreaterThan(1);
+    for (const row of rows) {
+      const total = row.reduce((sum, chip, i) => sum + compactChipWidth(chip.text) + (i > 0 ? 6 : 0), 0);
+      expect(total).toBeLessThanOrEqual(PHONE_COLUMN_WIDTH);
+    }
+    expect(rows.flat()).toEqual(chips);
+  });
+
+  test("a chip wider than the whole row still gets its own row", () => {
+    const rows = packCompactChipsToRows([{ id: "huge", text: "A Genuinely Enormous Label That Never Fits Anywhere" }], 60);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveLength(1);
+  });
+
+  test("no chips wrap to no rows", () => {
+    expect(packCompactChipsToRows([], 300)).toEqual([]);
   });
 });
 

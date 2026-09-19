@@ -43,7 +43,9 @@ function covers(entry: LegalAction, command: Command): boolean {
     case "changeForm":
     case "endTurn":
       return action.kind === command.type;
+    // Neither is a turn action `legalActions` lists: a choice is answered, and conceding is always available.
     case "resolveChoice":
+    case "concede":
       return false;
   }
 }

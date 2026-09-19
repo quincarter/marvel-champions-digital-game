@@ -1,15 +1,19 @@
 import { describe, expect, test } from "vitest";
-import { CORE_CARDS, WAVE1_CARDS, cardId, type Deck } from "@mc/content";
+import { CORE_CARDS, CORE_STARTER_DECKS, WAVE1_CARDS, cardId, deckFromStarterDeck, type Deck } from "@mc/content";
 import {
   addCard,
   aspectCountFor,
   browsablePool,
+  duplicateDeck,
   identityOptions,
   legalityOf,
   newDeck,
   removeCard,
+  resetToIdentitySet,
+  resetToPrecon,
   setAspects,
   setName,
+  touch,
 } from "./deck-builder-model.js";
 
 const spiderMan = identityOptions(CORE_CARDS).find((c) => c.name === "Spider-Man")!;
@@ -130,6 +134,81 @@ describe("addCard / removeCard", () => {
     expect(deck.cards).toEqual([]);
     deck = removeCard(deck, cardId("01088"));
     expect(deck.cards).toEqual([]);
+  });
+});
+
+describe("resetToIdentitySet", () => {
+  test("drops every added card, keeping only the identity's signature set and everything else about the deck", () => {
+    let deck = newDeck(spiderMan, CORE_CARDS, "id-1", "poolv1", NOW);
+    deck = setAspects(deck, ["justice"]);
+    deck = addCard(deck, cardId("01088")); // Energy — not part of the signature set
+    const cleared = resetToIdentitySet(deck, spiderMan, CORE_CARDS);
+    expect(cleared.cards).toEqual(SPIDER_MAN_SIGNATURE);
+    expect(cleared.id).toBe(deck.id);
+    expect(cleared.aspects).toEqual(["justice"]); // aspect choice survives a Clear
+  });
+});
+
+describe("resetToPrecon", () => {
+  test("resets aspects and cards to the identity's real precon, keeping the deck's own id/name", () => {
+    let deck = newDeck(spiderMan, CORE_CARDS, "id-1", "poolv1", NOW);
+    deck = setName(deck, "My Spider-Man");
+    deck = setAspects(deck, ["aggression"]); // the wrong aspect on purpose — Preconstructed should overwrite it
+    deck = addCard(deck, cardId("01088"));
+
+    const reset = resetToPrecon(deck, spiderMan, CORE_STARTER_DECKS)!;
+    expect(reset).not.toBeNull();
+    expect(reset.id).toBe(deck.id);
+    expect(reset.name).toBe("My Spider-Man");
+
+    const starter = CORE_STARTER_DECKS.find((s) => (s.identityCardId as string) === (spiderMan.id as string))!;
+    const precon = deckFromStarterDeck(starter, "poolv1");
+    expect(reset.aspects).toEqual(precon.aspects);
+    expect(reset.cards).toEqual(precon.cards);
+    expect(legalityOf(reset, CORE_CARDS)).toEqual({ ok: true });
+  });
+
+  test("null when the identity has no published precon in the given list", () => {
+    const deck = newDeck(spiderMan, CORE_CARDS, "id-1", "poolv1", NOW);
+    expect(resetToPrecon(deck, spiderMan, [])).toBeNull();
+  });
+});
+
+describe("touch", () => {
+  test("stamps updatedAt without touching anything else", () => {
+    const deck = newDeck(spiderMan, CORE_CARDS, "id-1", "poolv1", NOW);
+    const later = "2026-09-14T00:00:00.000Z";
+    const touched = touch(deck, later);
+    expect(touched.updatedAt).toBe(later);
+    expect({ ...touched, updatedAt: deck.updatedAt }).toEqual(deck);
+  });
+});
+
+describe("duplicateDeck", () => {
+  test("copies identity, aspects and cards under a new id, name and userBuilt source", () => {
+    let deck = newDeck(spiderMan, CORE_CARDS, "id-1", "poolv1", NOW);
+    deck = setName(deck, "My Spider-Man");
+    deck = setAspects(deck, ["justice"]);
+    deck = addCard(deck, cardId("01088"));
+
+    const later = "2026-09-15T00:00:00.000Z";
+    const copy = duplicateDeck(deck, "id-2", later);
+    expect(copy.id).toBe("id-2");
+    expect(copy.name).toBe("My Spider-Man (copy)");
+    expect(copy.identityCardId).toBe(deck.identityCardId);
+    expect(copy.aspects).toEqual(deck.aspects);
+    expect(copy.cards).toEqual(deck.cards);
+    expect(copy.poolVersion).toBe(deck.poolVersion);
+    expect(copy.source).toEqual({ kind: "userBuilt", createdAt: later });
+    expect(copy.updatedAt).toBe(later);
+  });
+
+  test("duplicating a precon produces an editable userBuilt deck, not a second precon", () => {
+    const starter = CORE_STARTER_DECKS.find((s) => (s.identityCardId as string) === (spiderMan.id as string))!;
+    const precon = deckFromStarterDeck(starter, "poolv1");
+    const copy = duplicateDeck(precon, "id-3", NOW);
+    expect(copy.source.kind).toBe("userBuilt");
+    expect(copy.cards).toEqual(precon.cards);
   });
 });
 

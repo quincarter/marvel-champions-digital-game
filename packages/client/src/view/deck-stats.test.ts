@@ -8,7 +8,7 @@ import {
   deckFromStarterDeck,
   type Deck,
 } from "@mc/content";
-import { deckStatsOf } from "./deck-stats.js";
+import { compositionTilesOf, costCurveBars, deckListGroupsOf, deckStatsOf, filterDeckListGroups } from "./deck-stats.js";
 
 const sumQuantities = (deck: Deck): number => deck.cards.reduce((total, entry) => total + entry.quantity, 0);
 
@@ -65,6 +65,19 @@ describe("deckStatsOf: a wave 1 precon (Doctor Strange)", () => {
   });
 });
 
+describe("compositionTilesOf", () => {
+  test("one tile per non-empty type, worded and summed the same as countsByType", () => {
+    const starter = CORE_STARTER_DECKS[0]!;
+    const deck = deckFromStarterDeck(starter, "poolv1");
+    const stats = deckStatsOf(deck, CORE_CARDS);
+    const tiles = compositionTilesOf(stats);
+    expect(tiles.length).toBeGreaterThan(0);
+    for (const tile of tiles) expect(tile.count).toBe(stats.countsByType[tile.id]);
+    // No zero-count tiles, and no tile for a type this deck has none of.
+    expect(tiles.every((tile) => tile.count > 0)).toBe(true);
+  });
+});
+
 describe("deckStatsOf: cards with no cost and cards not in the pool", () => {
   test("a resource card is counted by type and aspect, but excluded from the cost curve and average", () => {
     // "Genius" (01089): a basic resource card, no printed cost.
@@ -105,6 +118,120 @@ describe("deckStatsOf: a custom deck", () => {
     if ("cost" in cardTwo) {
       expect(stats.costCurve).toEqual([{ cost: cardTwo.cost, count: 3 }]);
       expect(stats.averageCost).toBe(cardTwo.cost);
+    }
+  });
+});
+
+describe("costCurveBars", () => {
+  test("every Core precon: exactly capAt+1 bars, summing to the curve total, in ascending order 0..capAt-1 then the overflow bucket", () => {
+    for (const starter of CORE_STARTER_DECKS) {
+      const deck = deckFromStarterDeck(starter, "poolv1");
+      const stats = deckStatsOf(deck, CORE_CARDS);
+      const bars = costCurveBars(stats);
+      expect(bars).toHaveLength(5);
+      expect(bars.map((b) => b.label)).toEqual(["0", "1", "2", "3", "4+"]);
+      const curveTotal = stats.costCurve.reduce((sum, bucket) => sum + bucket.count, 0);
+      expect(bars.reduce((sum, bar) => sum + bar.count, 0)).toBe(curveTotal);
+    }
+  });
+
+  test("a cost at or above capAt collapses into the overflow bucket", () => {
+    const stats = deckStatsOf(
+      { cards: [{ cardId: cardId("01002"), quantity: 1 }] },
+      CORE_CARDS,
+    );
+    // Whatever 01002 costs, force the question by building the curve by hand instead.
+    const fake = { ...stats, costCurve: [{ cost: 2, count: 3 }, { cost: 4, count: 1 }, { cost: 7, count: 2 }] };
+    expect(costCurveBars(fake)).toEqual([
+      { label: "0", count: 0 },
+      { label: "1", count: 0 },
+      { label: "2", count: 3 },
+      { label: "3", count: 0 },
+      { label: "4+", count: 3 },
+    ]);
+  });
+
+  test("a deck with nothing at a given cost still gets a zero-height bar there (a fixed bar count, never fewer)", () => {
+    const stats = deckStatsOf({ cards: [{ cardId: cardId("01089"), quantity: 2 }] }, CORE_CARDS); // Genius: no cost at all
+    expect(costCurveBars(stats)).toEqual([
+      { label: "0", count: 0 },
+      { label: "1", count: 0 },
+      { label: "2", count: 0 },
+      { label: "3", count: 0 },
+      { label: "4+", count: 0 },
+    ]);
+  });
+});
+
+describe("deckListGroupsOf", () => {
+  test("every Core precon: every classifiable card appears exactly once, grouped hero-first then by aspect, each group sorted by name", () => {
+    for (const starter of CORE_STARTER_DECKS) {
+      const deck = deckFromStarterDeck(starter, "poolv1");
+      const groups = deckListGroupsOf(deck, CORE_CARDS);
+      expect(groups.length).toBeGreaterThan(0);
+      expect(groups[0]!.key).toBe("hero"); // every Core precon has signature cards
+
+      const keys = groups.map((g) => g.key);
+      expect(new Set(keys).size).toBe(keys.length); // no group repeated
+
+      for (const group of groups) {
+        const names = group.entries.map((e) => e.name);
+        expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
+        expect(group.count).toBe(group.entries.reduce((sum, e) => sum + e.quantity, 0));
+      }
+
+      const stats = deckStatsOf(deck, CORE_CARDS);
+      const totalGrouped = groups.reduce((sum, g) => sum + g.count, 0);
+      // Every card deckStatsOf could classify by aspect is grouped here too — nothing silently dropped.
+      const aspectTotal = Object.values(stats.countsByAspect).reduce((sum, n) => sum + n, 0);
+      expect(totalGrouped).toBe(aspectTotal);
+    }
+  });
+
+  test("a card id absent from the pool is skipped, not grouped", () => {
+    const deck: Pick<Deck, "cards"> = { cards: [{ cardId: cardId("99999-does-not-exist"), quantity: 3 }] };
+    expect(deckListGroupsOf(deck, CORE_CARDS)).toEqual([]);
+  });
+
+  test("Doctor Strange's Invocation cards never appear (they're never in deck.cards)", () => {
+    const starter = WAVE1_STARTER_DECKS.find((d) => (d.id as string) === "drs-protection")!;
+    const deck = deckFromStarterDeck(starter, "poolv1");
+    const groups = deckListGroupsOf(deck, WAVE1_CARDS);
+    const invocationIds = new Set(["09032", "09033", "09034", "09035", "09036"].map((id) => cardId(id)));
+    for (const group of groups) for (const entry of group.entries) expect(invocationIds.has(entry.cardId)).toBe(false);
+  });
+});
+
+describe("filterDeckListGroups: Deck check's own left-rail type filter chips", () => {
+  const starter = CORE_STARTER_DECKS[0]!;
+  const deck = deckFromStarterDeck(starter, "poolv1");
+  const groups = deckListGroupsOf(deck, CORE_CARDS);
+
+  test("null (\"All\") returns the groups unchanged", () => {
+    expect(filterDeckListGroups(groups, null)).toBe(groups);
+  });
+
+  test("a real type narrows every group to only that type, dropping groups left with nothing and recomputing each kept group's count", () => {
+    const filtered = filterDeckListGroups(groups, "ally");
+    expect(filtered.length).toBeGreaterThan(0);
+    for (const group of filtered) {
+      expect(group.entries.length).toBeGreaterThan(0);
+      for (const entry of group.entries) expect(entry.type).toBe("ally");
+      expect(group.count).toBe(group.entries.reduce((sum, e) => sum + e.quantity, 0));
+    }
+  });
+
+  test("a type absent from the deck returns no groups at all", () => {
+    // Every Core precon carries a resource; player_side_scheme is Core-absent (wave 1 only).
+    expect(filterDeckListGroups(groups, "player_side_scheme")).toEqual([]);
+  });
+
+  test("filtering never changes the total quantity across the filtered type vs. the unfiltered stats for that type", () => {
+    for (const type of ["ally", "event", "resource", "upgrade", "support"] as const) {
+      const filtered = filterDeckListGroups(groups, type);
+      const filteredTotal = filtered.reduce((sum, g) => sum + g.count, 0);
+      const stats = deckStatsOf(deck, CORE_CARDS);
+      expect(filteredTotal).toBe(stats.countsByType[type] ?? 0);
     }
   });
 });

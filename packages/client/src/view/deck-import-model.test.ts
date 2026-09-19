@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS } from "@mc/content";
-import { importFromMarvelCdbResponseText, importFromPasteText, type ImportEnv } from "./deck-import-model.js";
+import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck } from "@mc/content";
+import { exportDecklistText, importFromMarvelCdbResponseText, importFromPasteText, type ImportEnv } from "./deck-import-model.js";
 
 const env: ImportEnv = {
   pool: CORE_CARDS,
@@ -97,5 +97,31 @@ describe("importFromMarvelCdbResponseText", () => {
   test("MarvelCDB's actual empty-body 'not found' response fails with a specific problem, not a crash", () => {
     const result = importFromMarvelCdbResponseText("", { kind: "decklist", id: "999999999" }, null, env);
     expect(result.ok).toBe(false);
+  });
+});
+
+/** By cardId, so a round trip's re-derived quantities (import re-splits an exported name+total back across codes) can be compared regardless of line order. */
+const byCardId = (cards: readonly { readonly cardId: string; readonly quantity: number }[]) =>
+  [...cards].sort((a, b) => (a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : 0));
+
+describe("exportDecklistText: the exact inverse of importFromPasteText", () => {
+  test.each(CORE_STARTER_DECKS.map((starter) => [starter.name, starter] as const))("%s round-trips through export/import", (_name, starter) => {
+    const deck = deckFromStarterDeck(starter, CORE_POOL_VERSION);
+    const text = exportDecklistText(deck, CORE_CARDS);
+
+    const reimported = importFromPasteText(text, env);
+    if (!reimported.ok) throw new Error(`${starter.name}: ${JSON.stringify(reimported.problems, null, 2)}`);
+
+    expect(reimported.deck.identityCardId).toBe(deck.identityCardId);
+    expect([...reimported.deck.aspects].sort()).toEqual([...deck.aspects].sort());
+    expect(byCardId(reimported.deck.cards)).toEqual(byCardId(deck.cards));
+  });
+
+  test("skips a card id the given pool doesn't resolve, rather than throwing", () => {
+    const starter = CORE_STARTER_DECKS[0]!;
+    const deck = deckFromStarterDeck(starter, CORE_POOL_VERSION);
+    const withGhost = { ...deck, cards: [...deck.cards, { cardId: "99999" as (typeof deck.cards)[number]["cardId"], quantity: 1 }] };
+    const text = exportDecklistText(withGhost, CORE_CARDS);
+    expect(text).not.toContain("99999");
   });
 });

@@ -34,7 +34,9 @@ import { cssOf } from "../ui/theme.js";
 import { McSelectionRing, McTabs, paintDotGrid } from "../ui/widgets.js";
 import { boardModel, type BoardModel } from "../view/board-model.js";
 import { highlights, type Highlights } from "../view/highlights.js";
+import { appendCardHistory, emptyCardHistoryLog, type CardHistoryLog } from "../view/card-history.js";
 import { appendEvents, emptyLog, type LogState } from "../view/log-lines.js";
+import type { PaymentView } from "../view/payment-model.js";
 import { tabsTouchedBy } from "../view/tab-badges.js";
 import { playerName } from "../view/names.js";
 import type { GamepadIntent } from "../view/gamepad.js";
@@ -51,6 +53,7 @@ import { drawHand, HandScroll } from "./board/hand.js";
 import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes } from "./board/schemes.js";
+import { drawTargetingPanel, type TargetingHover } from "./board/targeting-panel.js";
 import { focusKey } from "./board/selection.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { LogPanel } from "./board/log.js";
@@ -62,6 +65,14 @@ export class BoardScene extends Phaser.Scene {
   #marks: Highlights | null = null;
   #layout: BoardLayout | null = null;
   #log: LogState = emptyLog();
+  /**
+   * "This card, this game" (Inspect, `view/card-history.ts`): a second, wider fold of the same event stream `#log`
+   * folds, kept for as long as this scene is alive — the whole session, since overlays launch on top of Board
+   * rather than replacing it. Deliberately not merged into `#log`: that log is the shared table log and drops the
+   * bookkeeping (a card drawn, a card discarded to pay) a single card's own history wants back — see that
+   * module's own header.
+   */
+  #cardHistory: CardHistoryLog = emptyCardHistoryLog();
   /** What the last draw left behind: hit rects, focus rects, and the widgets to destroy before the next one. */
   #frame: BoardFrame = emptyFrame();
   #version = -1;
@@ -78,6 +89,8 @@ export class BoardScene extends Phaser.Scene {
   /** Card scans, shared with every overlay above this scene. */
   #artCache: CardArt | null = null;
   #artUnsubscribe: (() => void) | null = null;
+  /** The targeting panel's own hovered tile (docs/phase4-screen-gaps.md §3 "W5") — separate from `#focus`, since a mouse player hovers without ever taking keyboard focus. */
+  #targetingHoverId: InstanceId | null = null;
 
   readonly #controller = new BoardController({
     model: () => this.#model,
@@ -95,6 +108,18 @@ export class BoardScene extends Phaser.Scene {
     return this.#artCache;
   }
 
+  /** Built fresh each draw: a live view onto `#targetingHoverId` for `drawTargetingPanel`. */
+  get #targetingHover(): TargetingHover {
+    return {
+      hoveredId: this.#targetingHoverId,
+      setHovered: (id) => {
+        if (this.#targetingHoverId === id) return;
+        this.#targetingHoverId = id;
+        this.#draw();
+      },
+    };
+  }
+
   constructor() {
     super(SCENES.board);
   }
@@ -105,6 +130,7 @@ export class BoardScene extends Phaser.Scene {
     // starts over here. The log didn't, and a rematch was dealt under the
     // previous game's "The villain is defeated. You win."
     this.#log = emptyLog();
+    appSession().gameLog = this.#log;
     this.#logPanel.reset();
     this.#version = -1;
     this.#tabBadges.clear();
@@ -130,10 +156,17 @@ export class BoardScene extends Phaser.Scene {
     // once per batch rather than holding the table back on the network.
     this.#artUnsubscribe = this.#art.onArrived(() => this.#draw());
     const binding: IntentBinding = {
-      // A decision overlay or the villain-phase walkthrough owns the keyboard
-      // and the pad while it is up — the walkthrough used to leave arrows
-      // walking the board unseen underneath it.
-      blocked: () => this.#choiceOpen || this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.villainPhase),
+      // A decision overlay, the villain-phase walkthrough, or Pause (and
+      // whatever Pause itself launched) owns the keyboard and the pad while it
+      // is up — the walkthrough used to leave arrows walking the board unseen
+      // underneath it, and Pause's own Escape must not also reopen itself.
+      blocked: () =>
+        this.#choiceOpen ||
+        this.scene.isActive(SCENES.inspect) ||
+        this.scene.isActive(SCENES.villainPhase) ||
+        this.scene.isActive(SCENES.pause) ||
+        this.scene.isActive(SCENES.rules) ||
+        this.scene.isActive(SCENES.settings),
       onIntent: (intent) => this.#actOnIntent(intent),
     };
     bindKeyboard(this, binding);
@@ -170,7 +203,7 @@ export class BoardScene extends Phaser.Scene {
        * `#choiceOpen` resets too, or the next Board would think the sheet was
        * already up and never relaunch it.
        */
-      for (const overlay of [SCENES.choice, SCENES.inspect, SCENES.villainPhase]) {
+      for (const overlay of [SCENES.choice, SCENES.inspect, SCENES.villainPhase, SCENES.pause, SCENES.rules, SCENES.settings]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
       this.#choiceOpen = false;
@@ -187,6 +220,9 @@ export class BoardScene extends Phaser.Scene {
       // an empty log starts counting from the state's round rather than "R0".
       if (this.#log.round === 0) this.#log = { ...this.#log, round: state.game.round };
       this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId, POOL_DEPS);
+      this.#cardHistory = appendCardHistory(this.#cardHistory, state.lastEvents);
+      // Mirrored for Pause's "Jump to a moment" (`session.ts`'s own doc comment on `gameLog`).
+      appSession().gameLog = this.#log;
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
       // A hero going down is the one change nobody may miss. The last one
@@ -317,18 +353,25 @@ export class BoardScene extends Phaser.Scene {
     paintDotGrid(this, { x: 0, y: 0, width, height }, "ink", dotGrid.onInk);
 
     const { zones } = layout;
-    drawChrome(this, zones.chrome!, model, appSession().store.state.saveError !== null);
+    drawChrome(this, zones.chrome!, model, {
+      notSaving: appSession().store.state.saveError !== null,
+      onMenu: () => this.#openPause(),
+      buttons: this.#frame.buttons,
+    });
     if (zones.tabs) this.#drawTabs(zones.tabs, model);
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
     if (zones.enemies) drawEnemies(ctx, zones.enemies, model);
     if (zones.encounter) drawEncounter(ctx, zones.encounter, model);
     if (zones.log) this.#logPanel.draw(this, zones.log, this.#log);
     else this.#logPanel.hide();
-    if (zones.me) drawCharacter(ctx, zones.me, model.me);
+    // Always the wide panel: the identity's attachments only show as chips
+    // beside its card, and a tall window can give this slot a card-like shape.
+    if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide" });
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model);
     if (zones.team) drawTeam(ctx, zones.team, model);
     drawHand(ctx, zones.hand!, model);
     drawActionBar(ctx, zones.actionBar!, model);
+    this.#drawTargetingPanel(ctx, { x: 0, y: 0, width, height });
     this.#drawTargetRings();
     this.#drawFocusRing();
     // Turns the moves of a fresh state (if any landed) into travels, now that
@@ -357,6 +400,19 @@ export class BoardScene extends Phaser.Scene {
         this.#draw();
       },
     });
+  }
+
+  /**
+   * The targeting panel (docs/phase4-screen-gaps.md §3 "W5"): drawn over the whole table whenever the controller is
+   * in target-select mode, so the "Choose a target" title bar, each option's outcome, "why not the others?" and the
+   * tablet inspector rail sit over the same board a plain pulsing ring used to be the only affordance for.
+   */
+  #drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect): void {
+    if (this.#controller.selection.kind !== "targeting") return;
+    const panel = this.#controller.targetingPanel();
+    if (!panel) return;
+    const focused = this.#focus?.kind === "card" ? this.#focus.instanceId : null;
+    drawTargetingPanel(ctx, viewport, panel, this.#targetingHover, focused);
   }
 
   /** Pulsing rings on the valid targets while a target is being chosen. */
@@ -389,9 +445,21 @@ export class BoardScene extends Phaser.Scene {
         if (this.#focus?.kind === "card") this.#inspect(this.#focus.instanceId);
         break;
       case "cancel":
+        // Escape/B backs out of a mode first, same as everywhere else in this
+        // app; with no mode open, it's the keyboard/pad route to Pause
+        // (docs/phase4-screen-gaps.md §3 "W4": "Escape when no mode/overlay is
+        // open"). `binding.blocked()` already keeps this from firing while an
+        // overlay owns input, so reaching here means the board itself is idle.
         if (this.#controller.selection.kind !== "idle") this.#controller.cancel();
+        else this.#openPause();
         break;
     }
+  }
+
+  /** Opens Pause over the board — the MENU/≡ chrome button and Escape both land here. */
+  #openPause(): void {
+    if (this.scene.isActive(SCENES.pause)) return;
+    this.scene.launch(SCENES.pause);
   }
 
   #moveFocus(delta: number): void {
@@ -432,6 +500,7 @@ export class BoardScene extends Phaser.Scene {
       },
       onInspect: () => this.#inspect(id),
       onDrag,
+      key: id as string,
     });
   }
 
@@ -453,5 +522,20 @@ export class BoardScene extends Phaser.Scene {
 
   #onInspectUseAbility(instanceId: InstanceId, abilityId: AbilityId): void {
     this.#controller.useAbilityById(instanceId, abilityId);
+  }
+
+  /** "This card, this game" — read by the Inspect overlay (`scenes/inspect.ts#model`), which has no store of its own for it. */
+  cardHistory(): CardHistoryLog {
+    return this.#cardHistory;
+  }
+
+  /** The open payment, if any — read by the Inspect overlay to gate its "Use as resource" button and word "Right now" mid-payment. */
+  paymentView(): PaymentView | null {
+    return this.#controller.paymentView();
+  }
+
+  /** Spends `id` for the payment currently open, if it's one of its sources. See `BoardController#payWithCard`'s own comment. */
+  payWithCard(id: InstanceId): boolean {
+    return this.#controller.payWithCard(id);
   }
 }

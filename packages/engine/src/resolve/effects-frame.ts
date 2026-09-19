@@ -31,7 +31,8 @@ import { selectCards } from "./cards.js";
 import { abilityFrame, type Frame, pushEffects, pushEvents } from "./frames.js";
 import { candidateOption } from "./window.js";
 
-const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectContext => ({
+/** The `EffectContext` an effects frame resolves in. Exported so `why-not.ts` can rebuild it exactly. */
+export const contextOf = (frame: Frame<"effects">, deps: EngineDeps): EffectContext => ({
   deps,
   scopedPlayerId: frame.scopedPlayerId,
   selfInstanceId: frame.selfInstanceId,

@@ -15,16 +15,30 @@ import { ink, signal, status as statusTokens, surface, typeRole } from "../../to
 import { textStyle } from "../../ui/theme.js";
 import { McHpPlate, McStatBadge, fitText, label, paintPanel, type StatKey } from "../../ui/widgets.js";
 import { attachmentChipLabel, type CharacterPanel, type StatTile } from "../../view/board-model.js";
-import { CARD_ASPECT, cardStatColumn, statBlockLayout, type Rect, type StatBlock } from "../../view/layout.js";
+import {
+  CARD_ASPECT,
+  PANEL_TEXT_INSETS,
+  PANEL_TEXT_MIN_WIDTH,
+  cardStatColumn,
+  panelShape,
+  statBlockLayout,
+  type PanelShape,
+  type Rect,
+  type StatBlock,
+} from "../../view/layout.js";
 import type { BoardDrawContext } from "./context.js";
 import { dimAlpha, targetState } from "./selection.js";
 
-/**
- * The narrowest a panel's text column may get before the panel stops being
- * "card plus numbers" and becomes the card itself. Below this the name wraps to
- * one word a line and the stat tiles have nowhere to sit.
- */
-const MIN_PANEL_TEXT_WIDTH = 104;
+export interface DrawCharacterOptions {
+  /**
+   * Which shape the panel takes. `"auto"` (the default) reads the rect —
+   * right for a slot from `cardRow`. The identity panel passes `"wide"`,
+   * because it is the one panel whose attachments and rules text the player
+   * has to be able to read whatever shape the window gives its slot
+   * (`panelShape` in `view/layout.ts`).
+   */
+  readonly shape?: PanelShape | "auto";
+}
 
 /** "1 time" / "2 time, 1 snoop" — every counter kind on the card itself, in one short line. */
 function counterLine(counters: CharacterPanel["counters"]): string {
@@ -46,7 +60,7 @@ const BADGE_STAT: Record<Exclude<StatTile["label"], "HP">, StatKey> = {
  * then consequence, then a stat triplet"). A panel too short for a band
  * drops it rather than squeezing it — the compact variant in the same sheet.
  */
-export function drawCharacter(ctx: BoardDrawContext, rect: Rect, panel: CharacterPanel): void {
+export function drawCharacter(ctx: BoardDrawContext, rect: Rect, panel: CharacterPanel, options: DrawCharacterOptions = {}): void {
   const { scene, controller } = ctx;
   ctx.frame.hitRects.set(panel.instanceId, rect);
   const dim = dimAlpha(controller.selection, panel.instanceId);
@@ -61,16 +75,20 @@ export function drawCharacter(ctx: BoardDrawContext, rect: Rect, panel: Characte
   // it and the live numbers ride on top. A wider panel gives the card a
   // column down its left and the numbers the room beside it. Either way the
   // scan is never cropped — a card with its edges cut off reads as broken
-  // rather than as art.
-  if (rect.width < MIN_PANEL_TEXT_WIDTH + 60 || rect.width < rect.height * 0.95) {
+  // rather than as art. The identity asks for the wide panel outright, since
+  // a tall window can hand it a slot that *looks* card-shaped.
+  if (panelShape(rect, options.shape) === "card") {
     drawCardShapedPanel(ctx, rect, panel, dim, firstDrawn);
     return;
   }
 
   // As tall as the panel allows, so the card is the thing you see — capped
-  // only by leaving the numbers beside it a readable column.
-  const artWidth = Math.round(
-    Math.min(rect.width - MIN_PANEL_TEXT_WIDTH - 14, (rect.height - 6) * CARD_ASPECT),
+  // only by leaving the numbers beside it a readable column. `PANEL_TEXT_INSETS`
+  // is exactly the frame inset, gap and text inset spent below, so the column
+  // that is left really is `PANEL_TEXT_MIN_WIDTH` wide, not 8px short of it.
+  const artWidth = Math.max(
+    0,
+    Math.round(Math.min(rect.width - PANEL_TEXT_MIN_WIDTH - PANEL_TEXT_INSETS, (rect.height - 6) * CARD_ASPECT)),
   );
   const artColumn: Rect | null =
     artWidth > 0

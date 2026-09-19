@@ -18,7 +18,8 @@ export type HostRequest =
   | { readonly kind: "dispatch"; readonly id: number; readonly command: Command }
   | { readonly kind: "legalActions"; readonly id: number; readonly playerId: PlayerId }
   | { readonly kind: "save"; readonly id: number }
-  | { readonly kind: "latestSave"; readonly id: number };
+  | { readonly kind: "latestSave"; readonly id: number }
+  | { readonly kind: "listSaves"; readonly id: number };
 
 /** A save as it crosses the boundary: the baseline state without its card pool. */
 export interface SerializedSave {
@@ -38,6 +39,7 @@ export type HostResponse =
   | { readonly kind: "legalActions"; readonly id: number; readonly actions: LegalActions }
   | { readonly kind: "save"; readonly id: number; readonly save: SerializedSave }
   | { readonly kind: "latestSave"; readonly id: number; readonly meta: SaveMeta | null }
+  | { readonly kind: "listSaves"; readonly id: number; readonly saves: readonly SaveMeta[] }
   /**
    * The worker threw: an invariant break, a bad setup, or a save that won't
    * replay. Surfaced, never swallowed. `code`/`illegalDecks` are present when

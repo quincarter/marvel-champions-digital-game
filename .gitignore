@@ -4,3 +4,7 @@ coverage/
 .history/
 .DS_Store
 *.tsbuildinfo
+*.keystore
+
+# Rendered design canvases (regenerate with scripts/render-design-canvases.sh)
+docs/design-renders/

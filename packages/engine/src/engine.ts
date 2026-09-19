@@ -2,13 +2,13 @@ import { basicAttack, basicRecover, basicThwart, changeForm, endTurn, playCard, 
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { clearChoice, createCtx, emit, updateFrame, type Ctx } from "./ctx.js";
-import { discardFromHand, discardFromPlay } from "./effects.js";
+import { discardFromHand, discardFromPlay, endGame } from "./effects.js";
 import { engineError, EngineInvariantError, type EngineError } from "./errors.js";
 import type { GameEvent } from "./events.js";
 import { afterDiscardChoice, afterMulliganChoice, runFlow } from "./flow.js";
 import { activateChosenMinion } from "./villain/phase.js";
 import { instanceId } from "./ids.js";
-import { handSize, mustPlayer } from "./query.js";
+import { getPlayer, handSize, mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
 
 export type CommandResult =
@@ -28,7 +28,11 @@ export function applyCommand(
     if (state.outcome) {
       return { ok: false, error: engineError("game_over", "the game has ended", command) };
     }
-    if (state.pendingChoice && command.type !== "resolveChoice") {
+    // Conceding is exempt from the pending-choice gate on purpose: the moment a player most wants to give up is
+    // mid-prompt (the defend prompt of a villain phase that has already decided the game), and there is no rules
+    // reason a concession has to wait for an answer. The `state.outcome` guard above still makes a second concede an
+    // error, correctly.
+    if (state.pendingChoice && command.type !== "resolveChoice" && command.type !== "concede") {
       return { ok: false, error: engineError("choice_pending", "a choice must be resolved first", command) };
     }
     const ctx = createCtx(state, deps);
@@ -60,7 +64,22 @@ function dispatch(ctx: Ctx, command: Command): EngineError | null {
       return endTurn(ctx, command);
     case "resolveChoice":
       return resolveChoice(ctx, command);
+    case "concede":
+      return concede(ctx, command);
   }
+}
+
+/**
+ * The players give up. See `Command`'s own note for why this is a command rather than a client flag, and why any seat
+ * may issue it; the only rules content here is who counts as seated — an eliminated player is out of the game
+ * (RRG 1.8 "Player Elimination", p. 33) and has nothing left to concede.
+ */
+function concede(ctx: Ctx, command: Command & { type: "concede" }): EngineError | null {
+  const player = getPlayer(ctx.state, command.playerId);
+  if (!player) return engineError("unknown_player", `${command.playerId} is not at this table`, command);
+  if (player.eliminated) return engineError("not_active_player", `${command.playerId} is out of the game`, command);
+  endGame(ctx, { result: "conceded", reason: "playerConceded", byPlayerId: command.playerId });
+  return null;
 }
 
 function resolveChoice(ctx: Ctx, command: Command & { type: "resolveChoice" }): EngineError | null {

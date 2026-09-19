@@ -117,6 +117,13 @@ export function heroAspectsOf(decks: readonly Deck[]): readonly CoreAspect[] {
   return CHOOSABLE_ASPECTS.filter((aspect) => present.has(aspect));
 }
 
+/** The source chips a deck list shows (W9's Decks & Collection, docs/phase4-screen-gaps.md §3): only kinds actually present, in a fixed reading order (precon first, since it's usually the largest group) rather than first-seen order. */
+export function deckSourcesOf(decks: readonly Deck[]): readonly DeckSourceKind[] {
+  const ORDER: readonly DeckSourceKind[] = ["precon", "imported", "userBuilt"];
+  const present = new Set(decks.map((deck) => deck.source.kind));
+  return ORDER.filter((kind) => present.has(kind));
+}
+
 /** The product chips a Scenario roster shows: every distinct `packCode` present, in first-seen (pool) order. */
 export function scenarioProductsOf(scenarios: readonly Scenario[]): readonly string[] {
   const seen: string[] = [];

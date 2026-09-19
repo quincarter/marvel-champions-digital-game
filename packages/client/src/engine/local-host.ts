@@ -65,6 +65,10 @@ export class LocalEngineHost implements EngineHost {
     return this.#core.latestSave();
   }
 
+  listSaves(): Promise<readonly SaveMeta[]> {
+    return this.#core.listSaves();
+  }
+
   /** Resolves once every queued write has settled — so a test can "refresh" after it. */
   flushed(): Promise<void> {
     return this.#core.flushed();
