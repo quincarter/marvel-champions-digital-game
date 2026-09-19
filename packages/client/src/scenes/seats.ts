@@ -27,6 +27,7 @@ import { accent, dotGrid, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McShelfRoster } from "../ui/shelf-roster.js";
+import { McChipRail } from "../ui/chip-rail.js";
 import { McVirtualList } from "../ui/virtual-list.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { heroAspectsOf, withSelectionPinned, type DeckSourceKind } from "../view/roster-filter.js";
@@ -48,7 +49,8 @@ import {
   type SetupDraft,
 } from "../view/setup-draft.js";
 import { seatsFocusOrder } from "../view/screen-focus.js";
-import { seatsLayout, detailPanelWidthFor, MAX_SEATS } from "../view/seats-layout.js";
+import { seatsLayout, detailPanelWidthFor, rosterColumnWidthFor, MAX_SEATS, CLEAR_SEAT_WIDTH } from "../view/seats-layout.js";
+import { RailScroll } from "../view/rail-scroll.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { drawCompactChipStrip, drawPackGrid, drawSearchField, drawShelfRosterPanel, renderShelfCard, renderShelfHeader } from "./roster-panel.js";
@@ -104,9 +106,12 @@ export class SeatsScene extends Phaser.Scene {
   #searchInput: McTextInput | null = null;
   #roster: McShelfRoster<DeckOption> | null = null;
   #grid: McVirtualList | null = null;
+  /** Narrow only: the sideways-scrolling chip rail (`SeatsLayout.chipsScroll`). Null on wide, where the chips wrap. */
+  #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
   #drill: ShelfDrillState = ALL_PACKS;
   readonly #gridScroll = new ListScroll();
+  readonly #chipScroll = new RailScroll();
 
   constructor() {
     super(SCENES.seats);
@@ -136,6 +141,8 @@ export class SeatsScene extends Phaser.Scene {
       this.#roster = null;
       this.#grid?.destroy();
       this.#grid = null;
+      this.#chipRail?.destroy();
+      this.#chipRail = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
@@ -195,6 +202,8 @@ export class SeatsScene extends Phaser.Scene {
     this.#roster = null;
     this.#grid?.destroy();
     this.#grid = null;
+    this.#chipRail?.destroy();
+    this.#chipRail = null;
 
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
@@ -211,7 +220,10 @@ export class SeatsScene extends Phaser.Scene {
     const detailOption = activeDeckId ? deckOptions.find((o) => (o.deck.id as string) === activeDeckId) : undefined;
     const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
 
-    const layout = seatsLayout({ width, height, chipRows: packCompactChipsToRows(chipDefs, width).length, detailLines: 10 });
+    // Wrapped against the roster column's *real* width (not the viewport's): the old estimate against `width`
+    // under-counted the rows and drew the extra one straight through the shelves (the owner's 2026-09-19 phone
+    // screenshot: "Playable now" half-hidden under the Core Set cards).
+    const layout = seatsLayout({ width, height, chipRows: packCompactChipsToRows(chipDefs, rosterColumnWidthFor(width, height)).length, detailLines: 10 });
     const chipRows = packCompactChipsToRows(chipDefs, layout.chips.width);
 
     // Ground: paper body under the same full-width ink header bar Scenario select uses.
@@ -234,7 +246,12 @@ export class SeatsScene extends Phaser.Scene {
     // The four selectable seat cards (the active-seat model, docs/phase4-screen-gaps.md §3 W2b's own bug fix).
     const deckOptionsById = new Map(deckOptions.map((o) => [o.deck.id as string, o]));
     const slots = seatSlotsOf(this.#draft.seats, deckOptions, CARDS_BY_ID, MAX_SEATS, this.#draft.activeSeatIndex);
-    slots.forEach((slot, index) => this.#drawSeatCard(layout.seatSlots[index]!, slot, index, slot.deckId ? deckOptionsById.get(slot.deckId) : undefined));
+    slots.forEach((slot, index) => {
+      const option = slot.deckId ? deckOptionsById.get(slot.deckId) : undefined;
+      if (layout.wide) this.#drawSeatCard(layout.seatSlots[index]!, slot, index, option);
+      else this.#drawSeatChip(layout.seatSlots[index]!, slot, index);
+    });
+    if (layout.seatSummary && layout.clearSeat) this.#drawSeatSummary(layout.seatSummary, layout.clearSeat, detailOption);
 
     const rosterLabel = label(this, layout.rosterHeader.x, layout.rosterHeader.y + layout.rosterHeader.height / 2, `Heroes — seat ${this.#draft.activeSeatIndex + 1} of ${MAX_SEATS}`, typeRole.label, surface.ink.hex, ink.label);
     rosterLabel.setOrigin(0, 0.5);
@@ -259,7 +276,16 @@ export class SeatsScene extends Phaser.Scene {
       this.#searchInput,
       this.#stops,
     );
-    drawCompactChipStrip(this, layout.chips, chipRows, "hero-chip", this.#buttons, this.#stops);
+    if (layout.chipsScroll) {
+      // Narrow: one row that scrolls sideways (P03 has no room for three wrapped rows of 44px chips).
+      const rail = new McChipRail(this, { rect: layout.chips, chips: chipDefs, scroll: this.#chipScroll });
+      this.#chipRail = rail;
+      chipDefs.forEach((chip, index) => {
+        this.#stops.set(`hero-chip:${chip.id}`, { rect: () => rail.rectFor(index), activate: chip.onClick, ensureVisible: () => rail.scrollIntoView(index) });
+      });
+    } else {
+      drawCompactChipStrip(this, layout.chips, chipRows, "hero-chip", this.#buttons, this.#stops);
+    }
 
     const seating = new Map(this.#seatOptionsExcludingActive(deckOptions).map((o) => [o.deckId, o]));
     const active = new Map(activeSeatRosterOf(this.#seatOptionsExcludingActive(deckOptions), this.#draft.seats, this.#draft.activeSeatIndex).map((e) => [e.deckId, e]));
@@ -323,8 +349,15 @@ export class SeatsScene extends Phaser.Scene {
       cardIds = flattenShelves(shelves).map((o) => o.deck.id as string);
     }
 
-    // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick.
-    this.#drawSidePanel(layout, detailOption, detailTextWidth);
+    // The hero-detail panel — dark, matching D03's own sidebar, for the active seat's own pick. Wide only: on
+    // narrow the same facts live in the seat summary line under the seat chips, and the shelves get the room.
+    if (layout.detail) this.#drawSidePanel(layout.detail, detailOption, detailTextWidth);
+
+    // Narrow: the sticky ink footer both actions sit inside (P03/P12's own shape), drawn after the roster so its
+    // ink covers whatever a too-short viewport let the shelves run under.
+    if (layout.footer) {
+      this.add.rectangle(layout.footer.x, layout.footer.y, layout.footer.width, layout.footer.height, surface.ink.hex).setOrigin(0, 0);
+    }
 
     // The two actions at the panel's own foot: the primary "Play N heroes ▸" on to Table setup, and a quiet
     // "Deck check ▸" for the active seat's own deck. D03 draws them the other way round; the owner's call
@@ -336,13 +369,19 @@ export class SeatsScene extends Phaser.Scene {
     this.#buttons.push(
       new McButton(this, { kind: "primary", label: `Play ${this.#draft.seats.length} hero${this.#draft.seats.length === 1 ? "" : "es"} ▸`, type: typeRole.barTitle, rect: layout.play, onClick: play }),
     );
+    if (layout.footer) {
+      // The red fill on an ink footer takes the same paper outline Table setup's "Deal it out" does, so the two
+      // sticky footers of the setup flow read as one.
+      const outline = this.add.graphics();
+      outline.lineStyle(3, surface.paper.hex, 1).strokeRect(layout.play.x + 1.5, layout.play.y + 1.5, layout.play.width - 3, layout.play.height - 3);
+    }
     this.#stops.set("play", { rect: layout.play, activate: play });
 
     const deckCheck = (): void => {
       this.scale.off("resize", this.#rebuild, this);
       goToDeckCheckOrTableSetup(this, this.#draft, this.#deckOptions());
     };
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Deck check ▸", type: typeRole.barTitle, rect: layout.deckCheck, onClick: deckCheck }));
+    this.#buttons.push(new McButton(this, { kind: layout.footer ? "onInk" : "secondary", label: "Deck check ▸", type: typeRole.barTitle, rect: layout.deckCheck, onClick: deckCheck }));
     this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
 
     this.#route?.set(
@@ -365,7 +404,9 @@ export class SeatsScene extends Phaser.Scene {
     const shelfGap = 18;
     const cardWidth = Math.min(220, shelvesRect.width - 40);
     const available = shelvesRect.height - headerHeight - headerToCardsGap - shelfGap;
-    const cardHeight = Math.max(200, Math.min(360, available));
+    // Floored at 160 (was 200): a short phone (375×667) gives the narrow layout's shelves about 250px, and a card
+    // that fits that beats one that's cropped at the knees.
+    const cardHeight = Math.max(160, Math.min(360, available));
     return { cardWidth, cardHeight, cardGap: 12, headerHeight, headerToCardsGap, shelfGap };
   }
 
@@ -455,6 +496,100 @@ export class SeatsScene extends Phaser.Scene {
     }
   }
 
+  /**
+   * One compact seat chip (P03's "SEAT 1 / C. MARVEL" strip) — the narrow layouts' seat card. Same four states as
+   * `#drawSeatCard`, drawn in a 64px chip: the red "SEAT N" label, a Bangers name (or EMPTY), the same borders. No
+   * "✕": at ~80px wide there is no room for a touch target, so clearing lives in the seat summary line below.
+   */
+  #drawSeatChip(rect: Rect, slot: ReturnType<typeof seatSlotsOf>[number], index: number): void {
+    const selectable = seatIsSelectable(this.#draft, index);
+    const activeEmpty = slot.active && !slot.deckId;
+    if (selectable) {
+      const selectSeat = (): void => {
+        this.#draft = setActiveSeat(this.#draft, index);
+        this.#rebuild();
+      };
+      this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect, onClick: selectSeat }));
+      this.#stops.set(`seat:${index}`, { rect, activate: selectSeat });
+    }
+
+    const face = this.add.graphics();
+    const dim = selectable ? 1 : ink.illegal;
+    face.fillStyle(surface.card.hex, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
+    if (activeEmpty) {
+      dashedRect(face, rect, 3, accent.heroRed.hex);
+    } else if (!slot.deckId) {
+      dashedRect(face, rect, 2);
+    } else if (slot.active) {
+      face.lineStyle(3, accent.heroRed.hex, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+    } else {
+      face.lineStyle(1.5, surface.ink.hex, ink.label).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
+    }
+
+    const pad = 7;
+    const textWidth = rect.width - pad * 2;
+    // "· YOU" only where it fits without shrinking "SEAT 1" itself (a tablet-portrait chip; never a phone one).
+    const roomy = rect.width >= 120;
+    const seatText = `SEAT ${index + 1}${index === 0 && slot.deckId && roomy ? " · YOU" : ""}`;
+    const seatLabel = label(this, rect.x + pad, rect.y + pad, seatText, typeRole.label, accent.heroRed.hex, dim);
+    fitText(seatLabel, textWidth, typeRole.label.size);
+    if (slot.deckId) {
+      const name = this.add.text(rect.x + pad, rect.y + 24, slot.identityName ?? "?", textStyle(typeRole.sectionHeader, surface.ink.hex));
+      name.setFontSize(17);
+      fitText(name, textWidth, 17);
+      if (roomy) {
+        const meta = label(this, rect.x + pad, rect.y + rect.height - pad - 11, `${slot.aspectLabel ?? ""} · ${slot.hp ?? "—"} HP`, typeRole.label, surface.ink.hex, ink.label);
+        fitText(meta, textWidth, typeRole.label.size);
+      }
+    } else {
+      const message = activeEmpty ? "Picking" : "Empty";
+      const empty = label(this, rect.x + pad, rect.y + 24, message, typeRole.label, activeEmpty ? accent.heroRed.hex : surface.ink.hex, activeEmpty ? 1 : selectable ? ink.meta : ink.illegal);
+      fitText(empty, textWidth, typeRole.label.size);
+    }
+  }
+
+  /**
+   * Narrow only: the active seat's facts on one strip under the seat chips — what the wide layout's ink detail
+   * panel says (stat line, obligation, nemesis set), plus the "Clear seat" control the chips have no room for. An
+   * empty active seat gets P03's own hint instead ("Tap a hero for seat N").
+   */
+  #drawSeatSummary(rect: Rect, clearRect: Rect, option: DeckOption | undefined): void {
+    const seatNumber = this.#draft.activeSeatIndex + 1;
+    if (!option) {
+      const hint = this.add.text(rect.x, rect.y + rect.height / 2, `Tap a hero below for seat ${seatNumber}.`, textStyle(typeRole.body, surface.ink.hex, ink.meta)).setOrigin(0, 0.5);
+      hint.setWordWrapWidth(rect.width);
+      return;
+    }
+    const detail = heroCandidateDetailOf(option, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    const textWidth = rect.width - CLEAR_SEAT_WIDTH - 12;
+    // Four short label lines rather than the wide panel's one long stat line: at a phone's ~240px of text width
+    // the single line ellipsized its own DEF ("THW 1 / ATK 2 / DE…").
+    const lines: readonly { readonly text: string; readonly alpha: number }[] = [
+      { text: `${detail.aspectLabel} · HP ${detail.hp ?? "—"} · hand ${detail.handSize ?? "—"}`, alpha: 1 },
+      { text: `THW ${detail.thw ?? "—"} / ATK ${detail.atk ?? "—"} / DEF ${detail.def ?? "—"}`, alpha: 1 },
+      { text: `Obligation · ${detail.obligationName ?? "none"}`, alpha: ink.label },
+      { text: `Nemesis · ${detail.nemesisSetName ?? "none"}`, alpha: ink.label },
+    ];
+    const lineStep = 12;
+    let y = rect.y + (rect.height - lineStep * lines.length) / 2;
+    for (const line of lines) {
+      const text = label(this, rect.x, y, line.text, typeRole.label, surface.ink.hex, line.alpha);
+      fitText(text, textWidth, typeRole.label.size);
+      y += lineStep;
+    }
+
+    // `clearSeat` itself refuses to empty the last seat (a game needs one hero), so the control says so rather
+    // than silently doing nothing.
+    const canClear = this.#draft.seats.length > 1;
+    const clear = (): void => {
+      if (!canClear) return;
+      this.#draft = clearSeat(this.#draft, this.#draft.activeSeatIndex);
+      this.#rebuild();
+    };
+    this.#buttons.push(new McButton(this, { kind: "quiet", label: "Clear seat", type: typeRole.label, rect: clearRect, onClick: clear, enabled: canClear, reason: "A game needs at least one hero." }));
+    this.#stops.set("clear-seat", { rect: clearRect, activate: clear });
+  }
+
   #renderHeroCard(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>, rect: Rect): ReturnType<typeof renderShelfCard> {
     const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
     const source = identity ? artFor(identity, { kind: "hero" }) : null;
@@ -480,8 +615,7 @@ export class SeatsScene extends Phaser.Scene {
     });
   }
 
-  #drawSidePanel(layout: ReturnType<typeof seatsLayout>, option: DeckOption | undefined, detailTextWidth: number): void {
-    const rect = layout.detail;
+  #drawSidePanel(rect: Rect, option: DeckOption | undefined, detailTextWidth: number): void {
     this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
     if (!option) {
       this.add.text(rect.x + 16, rect.y + 16, "Select a hero for this seat below.", textStyle(typeRole.body, surface.paper.hex, ink.label)).setWordWrapWidth(rect.width - 32);

@@ -21,8 +21,22 @@
  * **full-height ink** hero-detail panel, `DETAIL_WIDTH` wide, inset `GUTTER`,
  * with two actions pinned at its own foot.
  *
- * **Narrow (phone/tabletPortrait): one column**, stacked exactly as D02's own
- * narrow layout does.
+ * **Narrow (phone/tabletPortrait): P03's own composition** (rebuilt 2026-09-19
+ * after the owner's phone screenshot: the 2×2 seat cards, three wrapped chip
+ * rows, a hero-detail block *and* the two actions all had to fit one 844px
+ * screen, which left the shelf roster a ~160px strip that cropped every card
+ * to its top third — "mobile is completely broken"). One column, top to
+ * bottom: one row of four compact **seat chips** (P03's "SEAT 1 / C. MARVEL"
+ * strip, not the wide layout's 115px cards); a **seat summary** line for the
+ * active seat (its stat line and obligation/nemesis, with a "Clear seat"
+ * control — this is where the wide layout's ink detail panel and the seat
+ * card's "✕" both went); the `rosterHeader` row; the search field; the
+ * chips as **one horizontally-scrolling rail** (`chipsScroll`, drawn by
+ * `ui/chip-rail.ts`) rather than wrapped rows; then the shelves take
+ * **every remaining pixel** above a sticky ink `footer` carrying Deck check
+ * and Play — the same sticky-footer shape Table setup's own phone layout
+ * (P12) already uses. `detail` is null on narrow: nothing else is allowed to
+ * take height away from the roster.
  */
 import { hit } from "../tokens.js";
 import { chipStripHeight } from "./chip-layout.js";
@@ -38,6 +52,23 @@ export const ROSTER_HEADER_HEIGHT = 26;
 export const FOOTER_HEIGHT = 18;
 const SHELVES_MIN_HEIGHT = 160;
 const CTA_GAP = 10;
+/** Narrow only: one compact seat chip (P03's "SEAT N" + a Bangers name), a full touch target and a little more. */
+export const SEAT_CHIP_HEIGHT = 64;
+export const SEAT_CHIP_GAP = 6;
+/** Narrow only: the active seat's summary line(s) beside its "Clear seat" control — a 44px target tall so the control is a real one. */
+export const SEAT_SUMMARY_HEIGHT = 56;
+export const CLEAR_SEAT_WIDTH = 104;
+/** Narrow only: the sticky ink footer's own vertical padding around the two 52px actions. */
+export const NARROW_FOOTER_PAD = 12;
+export const NARROW_FOOTER_HEIGHT = hit.primary + NARROW_FOOTER_PAD * 2;
+/** Narrow only: "Deck check ▸" is the fixed-width side trip; "Play N heroes ▸" takes the rest of the footer row. */
+export const NARROW_DECK_CHECK_WIDTH = 140;
+/**
+ * Narrow only: the shelf roster is the whole point of the screen, so the layout never gives it less than one shelf
+ * header band plus `scenes/seats.ts`'s `#cardMetrics` card-height floor (160px) — anything shorter is the bug this
+ * rebuild fixes. Sized so a 375×667 phone fits exactly (a card at the floor, nothing under the footer).
+ */
+export const NARROW_SHELVES_MIN_HEIGHT = 220;
 
 export interface SeatsLayoutInput {
   readonly width: number;
@@ -58,12 +89,22 @@ export interface SeatsLayout {
   /** The small quiet "Use preconstructed for all seats" button, right-aligned within `rosterHeader`. */
   readonly usePreconstructed: Rect;
   readonly search: Rect;
+  /** The chip strip. On wide, `chipRows` wrapped rows tall; on narrow (`chipsScroll`), exactly one row that scrolls sideways. */
   readonly chips: Rect;
+  /** True on narrow: draw the chips as one horizontally-scrolling rail (`ui/chip-rail.ts`) rather than wrapped rows. */
+  readonly chipsScroll: boolean;
   readonly shelves: Rect;
-  readonly detail: Rect;
-  /** The quiet "Play N heroes ▸" action, beside `deckCheck`. */
+  /** The full-height ink hero-detail panel. Wide only — null on narrow, where `seatSummary` carries the active seat's facts instead. */
+  readonly detail: Rect | null;
+  /** Narrow only: the active seat's summary line(s) under the seat chips (stat line, obligation/nemesis, or "Tap a hero for seat N"). Null on wide. */
+  readonly seatSummary: Rect | null;
+  /** Narrow only: the quiet "Clear seat" control right-aligned inside `seatSummary` — the seat card's "✕" has no room on a phone chip. Null on wide. */
+  readonly clearSeat: Rect | null;
+  /** Narrow only: the sticky ink band at the screen's foot that `play`/`deckCheck` sit inside. Null on wide. */
+  readonly footer: Rect | null;
+  /** The "Play N heroes ▸" action, beside `deckCheck`. */
   readonly play: Rect;
-  /** The primary "Deck check ▸" action. */
+  /** The "Deck check ▸" action. */
   readonly deckCheck: Rect;
 }
 
@@ -73,7 +114,18 @@ export interface SeatsLayout {
  * guaranteed clear by construction. `usePreconstructed` is excluded too — it's inside `rosterHeader` by design.
  */
 export function seatsLayoutRects(layout: SeatsLayout): readonly Rect[] {
-  return [layout.back, layout.step, ...layout.seatSlots, layout.rosterHeader, layout.search, layout.chips, layout.shelves, layout.detail];
+  return [
+    layout.back,
+    layout.step,
+    ...layout.seatSlots,
+    layout.rosterHeader,
+    layout.search,
+    layout.chips,
+    layout.shelves,
+    ...(layout.detail ? [layout.detail] : []),
+    ...(layout.seatSummary ? [layout.seatSummary] : []),
+    ...(layout.footer ? [layout.footer] : []),
+  ];
 }
 
 /**
@@ -86,6 +138,20 @@ export function detailPanelWidthFor(width: number, height: number): number {
   const wide = formFactor === "desktop" || formFactor === "tabletLandscape";
   const gutter = formFactor === "phone" ? 16 : GUTTER;
   return wide ? DETAIL_WIDTH : width - gutter * 2;
+}
+
+/**
+ * The roster column's own width — what the search field, the chip strip and the shelves all span — exposed so a
+ * caller can wrap its chips against the *real* column before calling `seatsLayout` with the resulting row count.
+ * `scenes/seats.ts` used to wrap against the full viewport width for that first estimate and against the column
+ * for the actual draw, which under-counted the rows whenever the two disagreed (always: the column is at least two
+ * gutters narrower, and 300px+ narrower on wide) and drew the extra row straight through the shelves below.
+ */
+export function rosterColumnWidthFor(width: number, height: number): number {
+  const formFactor = formFactorFor(width, height);
+  const wide = formFactor === "desktop" || formFactor === "tabletLandscape";
+  const gutter = formFactor === "phone" ? 16 : GUTTER;
+  return wide ? width - gutter * 2 - gutter - DETAIL_WIDTH : width - gutter * 2;
 }
 
 export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
@@ -105,39 +171,29 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
 
   const left = gutter;
   const detailWidth = detailPanelWidthFor(width, height);
-  const shelvesWidth = wide ? width - gutter * 2 - gap - detailWidth : width - gutter * 2;
+  const shelvesWidth = rosterColumnWidthFor(width, height);
 
   const bodyTop = HEADER_HEIGHT + gutter;
   const bodyBottom = height - gutter;
 
-  // Wide: one row of four. Narrow: 2×2 — four seat cards squeezed to ~85px wide each at phone width left no room
-  // for the portrait thumbnail plus any text at all (second-pass fidelity pass: the name/meta text overlapped
-  // between cards). A 2×2 grid keeps each card wide enough for its own content at every width.
-  const seatCols = wide ? MAX_SEATS : 2;
-  const seatRows = MAX_SEATS / seatCols;
-  const slotWidth = (shelvesWidth - (seatCols - 1) * 6) / seatCols;
-  const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => {
-    const col = i % seatCols;
-    const row = Math.floor(i / seatCols);
-    return { x: left + col * (slotWidth + 6), y: bodyTop + row * (SEAT_SLOT_HEIGHT + 6), width: slotWidth, height: SEAT_SLOT_HEIGHT };
-  });
-  let y = bodyTop + seatRows * SEAT_SLOT_HEIGHT + (seatRows - 1) * 6 + smallGap;
-
-  const usePreconstructedWidth = Math.min(230, shelvesWidth * 0.5);
-  const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: ROSTER_HEADER_HEIGHT };
-  const usePreconstructed: Rect = { x: rosterHeader.x + rosterHeader.width - usePreconstructedWidth, y: rosterHeader.y, width: usePreconstructedWidth, height: ROSTER_HEADER_HEIGHT };
-  y += ROSTER_HEADER_HEIGHT + smallGap;
-
-  const search: Rect = { x: left, y, width: shelvesWidth, height: hit.target };
-  y += hit.target + smallGap;
-  const chipsHeight = chipStripHeight(input.chipRows);
-  const chips: Rect = { x: left, y, width: shelvesWidth, height: chipsHeight };
-  y += chipsHeight + smallGap;
-
-  const ctaHeight = hit.primary;
-  const ctaWidth = (shelvesWidth - CTA_GAP) / 2;
-
   if (wide) {
+    // One row of four seat cards.
+    const slotWidth = (shelvesWidth - (MAX_SEATS - 1) * 6) / MAX_SEATS;
+    const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => ({ x: left + i * (slotWidth + 6), y: bodyTop, width: slotWidth, height: SEAT_SLOT_HEIGHT }));
+    let y = bodyTop + SEAT_SLOT_HEIGHT + smallGap;
+
+    const usePreconstructedWidth = Math.min(230, shelvesWidth * 0.5);
+    const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: ROSTER_HEADER_HEIGHT };
+    const usePreconstructed: Rect = { x: rosterHeader.x + rosterHeader.width - usePreconstructedWidth, y: rosterHeader.y, width: usePreconstructedWidth, height: ROSTER_HEADER_HEIGHT };
+    y += ROSTER_HEADER_HEIGHT + smallGap;
+
+    const search: Rect = { x: left, y, width: shelvesWidth, height: hit.target };
+    y += hit.target + smallGap;
+    const chipsHeight = chipStripHeight(input.chipRows);
+    const chips: Rect = { x: left, y, width: shelvesWidth, height: chipsHeight };
+    y += chipsHeight + smallGap;
+
+    const ctaHeight = hit.primary;
     const detailHeight = bodyBottom - bodyTop;
     const shelves: Rect = { x: left, y, width: shelvesWidth, height: Math.max(SHELVES_MIN_HEIGHT, bodyBottom - y) };
     const detail: Rect = { x: left + shelvesWidth + gap, y: bodyTop, width: detailWidth, height: detailHeight };
@@ -150,19 +206,75 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     // optional look above it (owner, 2026-09-18: "Deck check shouldn't be the primary action").
     const deckCheck: Rect = { x: detail.x + 16, y: detail.y + detail.height - 16 - ctaBlockHeight, width: stacked, height: ctaHeight };
     const play: Rect = { x: detail.x + 16, y: deckCheck.y + ctaHeight + 8, width: stacked, height: ctaHeight };
-    return { formFactor, wide, headerBar, back, step, seatSlots, rosterHeader, usePreconstructed, search, chips, shelves, detail, play, deckCheck };
+    return {
+      formFactor,
+      wide,
+      headerBar,
+      back,
+      step,
+      seatSlots,
+      rosterHeader,
+      usePreconstructed,
+      search,
+      chips,
+      chipsScroll: false,
+      shelves,
+      detail,
+      seatSummary: null,
+      clearSeat: null,
+      footer: null,
+      play,
+      deckCheck,
+    };
   }
 
-  // Clamped so `shelves` can never be squeezed below `SHELVES_MIN_HEIGHT` by an oversized detail panel — see
-  // `view/scenario-select-layout.ts`'s identical fix and its own comment for why this has to account for every
-  // fixed element between the detail block and the body's own bottom edge, not just the gap immediately below it.
-  const rawDetailHeight = Math.max(DETAIL_LINE_HEIGHT, input.detailLines * DETAIL_LINE_HEIGHT) + 16;
-  const maxDetailHeight = Math.max(DETAIL_LINE_HEIGHT + 16, bodyBottom - y - SHELVES_MIN_HEIGHT - gap - ctaHeight);
-  const detailHeight = Math.min(rawDetailHeight, maxDetailHeight);
-  const play: Rect = { x: left + ctaWidth + CTA_GAP, y: bodyBottom - ctaHeight, width: ctaWidth, height: ctaHeight };
-  const deckCheck: Rect = { x: left, y: bodyBottom - ctaHeight, width: ctaWidth, height: ctaHeight };
-  const detail: Rect = { x: left, y: play.y - gap - detailHeight, width: detailWidth, height: detailHeight };
-  const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, detail.y - gap - y);
-  const shelves: Rect = { x: left, y, width: shelvesWidth, height: shelvesHeight };
-  return { formFactor, wide, headerBar, back, step, seatSlots, rosterHeader, usePreconstructed, search, chips, shelves, detail, play, deckCheck };
+  // Narrow (P03): compact seat chips in one row, the summary line, header/search/rail, then the shelves take all
+  // the room down to the sticky footer. Nothing here is sized to "whatever is left" except the shelves.
+  const chipWidth = (shelvesWidth - (MAX_SEATS - 1) * SEAT_CHIP_GAP) / MAX_SEATS;
+  const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => ({ x: left + i * (chipWidth + SEAT_CHIP_GAP), y: bodyTop, width: chipWidth, height: SEAT_CHIP_HEIGHT }));
+  let y = bodyTop + SEAT_CHIP_HEIGHT + smallGap;
+
+  const seatSummary: Rect = { x: left, y, width: shelvesWidth, height: SEAT_SUMMARY_HEIGHT };
+  const clearSeat: Rect = { x: left + shelvesWidth - CLEAR_SEAT_WIDTH, y: y + (SEAT_SUMMARY_HEIGHT - hit.target) / 2, width: CLEAR_SEAT_WIDTH, height: hit.target };
+  y += SEAT_SUMMARY_HEIGHT + smallGap;
+
+  const usePreconstructedWidth = Math.min(230, shelvesWidth * 0.5);
+  const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: ROSTER_HEADER_HEIGHT };
+  const usePreconstructed: Rect = { x: rosterHeader.x + rosterHeader.width - usePreconstructedWidth, y: rosterHeader.y, width: usePreconstructedWidth, height: ROSTER_HEADER_HEIGHT };
+  y += ROSTER_HEADER_HEIGHT + smallGap;
+
+  const search: Rect = { x: left, y, width: shelvesWidth, height: hit.target };
+  y += hit.target + smallGap;
+  // One row, whatever `chipRows` says: the rail scrolls sideways instead of wrapping.
+  const chips: Rect = { x: left, y, width: shelvesWidth, height: chipStripHeight(1) };
+  y += chips.height + smallGap;
+
+  const footer: Rect = { x: 0, y: height - NARROW_FOOTER_HEIGHT, width, height: NARROW_FOOTER_HEIGHT };
+  const deckCheck: Rect = { x: left, y: footer.y + NARROW_FOOTER_PAD, width: NARROW_DECK_CHECK_WIDTH, height: hit.primary };
+  const play: Rect = { x: left + NARROW_DECK_CHECK_WIDTH + CTA_GAP, y: footer.y + NARROW_FOOTER_PAD, width: shelvesWidth - NARROW_DECK_CHECK_WIDTH - CTA_GAP, height: hit.primary };
+
+  // Floored, never trimmed: on a viewport too short for even this (a landscape phone), the shelves keep one card's
+  // worth of height and are the thing that runs under the footer — the footer's own ink hides the overflow, and a
+  // cropped last shelf beats a roster that can't show a single hero.
+  const shelves: Rect = { x: left, y, width: shelvesWidth, height: Math.max(NARROW_SHELVES_MIN_HEIGHT, footer.y - gutter - y) };
+  return {
+    formFactor,
+    wide,
+    headerBar,
+    back,
+    step,
+    seatSlots,
+    rosterHeader,
+    usePreconstructed,
+    search,
+    chips,
+    chipsScroll: true,
+    shelves,
+    detail: null,
+    seatSummary,
+    clearSeat,
+    footer,
+    play,
+    deckCheck,
+  };
 }
