@@ -150,9 +150,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   ],
   // Computed 2026-09-19 against ANT_CARDS/WAVE2_ABILITIES, same method as trors'/toafk's own lists above.
   ant: [
-    // --- Ant-Man kit (wave2/ant/kit.ts): missing-primitive blocks, see that file's module docblock. ---
-    "12006.pym-particles-response",
-    "12009.giant-strength-response",
     // --- Ant-Man obligation/nemesis (wave2/ant/obligation-nemesis.ts): missing-primitive blocks, plus a
     //     found-by-testing engine crash (traitsOf's unguarded recursion through a `while: hasTrait(...)` on a
     //     constant trait/stat grant) — see that file's module docblock. ---

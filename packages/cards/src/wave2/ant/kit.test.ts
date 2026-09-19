@@ -95,6 +95,26 @@ describe("Ant-Man kit", () => {
     expect(playerOf(played, P1).hand.length).toBe(before + 1);
   });
 
+  it("Pym Particles: after being spent, heals 2 damage from your hero in Giant hero form", () => {
+    const giant = withForm(antManVsRhino(), GIANT);
+    const given = moveToHand(giant, P1, "12006", "12007");
+    const [particles, antsSupport] = given.ids as [InstanceId, InstanceId];
+    const identity = identityOf(given.state);
+    const damaged = withDamage(given.state, identity, 3);
+    const played = settle(runWave2(damaged, play(P1, antsSupport, [particles])), accepting("12006.pym-particles-response"), undefined, WAVE2_DEPS);
+    expect(inst(played, identity).damage).toBe(1);
+  });
+
+  it("Pym Particles: after being spent, draws 1 card in Tiny hero form", () => {
+    const tiny = withForm(antManVsRhino(), TINY);
+    const given = moveToHand(tiny, P1, "12006", "12007");
+    const [particles, antsSupport] = given.ids as [InstanceId, InstanceId];
+    const before = playerOf(given.state, P1).hand.length;
+    const played = settle(runWave2(given.state, play(P1, antsSupport, [particles])), accepting("12006.pym-particles-response"), undefined, WAVE2_DEPS);
+    // -1 for the support played, -1 for Pym Particles spent as its payment, +1 drawn by the response.
+    expect(playerOf(played, P1).hand.length).toBe(before - 2 + 1);
+  });
+
   it("Giant Stomp: cannot be played from Tiny hero form", () => {
     const given = moveToHand(withForm(antManVsRhino(), TINY), P1, "12003");
     const [giantStomp] = given.ids as [InstanceId];
@@ -118,6 +138,27 @@ describe("Ant-Man kit", () => {
     const used = settle(runWave2(tiny, use(P1, ants, "12007.army-of-ants-action")), accepting(villain), undefined, WAVE2_DEPS);
     expect(inst(used, villain).damage).toBe(inst(tiny, villain).damage + 1);
     expect(inst(used, ants).exhausted).toBe(true);
+  });
+
+  it("Giant Strength: +1 ATK until the end of this turn after changing to Giant hero form", () => {
+    const tiny = withForm(antManVsRhino(), TINY);
+    const { state: withStrength } = playFromHand(tiny, "12009", 1);
+    const identity = identityOf(withStrength);
+    // Two forks of the same pre-change state: declining vs accepting the response, so the comparison isolates
+    // Giant Strength's own +1 rather than the Tiny→Giant form change's own base ATK difference.
+    const declined = changeTo(withStrength, GIANT, firstLegal);
+    const baseline = characterProfile(declined, identity, WAVE2_DEPS)?.atk;
+    const settled = changeTo(withStrength, GIANT, accepting("12009.giant-strength-response"));
+    expect(characterProfile(settled, identity, WAVE2_DEPS)?.atk).toBe((baseline ?? 0) + 1);
+  });
+
+  it("Giant Strength: no bonus from changing to alter-ego (not Giant hero form)", () => {
+    const giant = withForm(antManVsRhino(), GIANT);
+    const { state: withStrength } = playFromHand(giant, "12009", 1);
+    const before = withStrength.lastingEffects.length;
+    const settled = changeTo(withStrength, "alterEgo", firstLegal);
+    // No new lasting +1 ATK effect is created (there is no "Giant hero form" response option offered at all).
+    expect(settled.lastingEffects.length).toBe(before);
   });
 
   it("Wrist Gauntlets: each action is usable only in its own hero form", () => {
