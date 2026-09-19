@@ -100,13 +100,22 @@ export const alterEgoAction = (...args: Args): AbilityDefinition => {
   return build({ kind: "action", form: "alterEgo" }, options, effects);
 };
 
-/** "Resource: … generate …" (a bare number is that many wild resources). */
-export const resource = (generates: ResourceGeneration, options: AbilityOptions & { readonly form?: Form } = {}): AbilityDefinition => {
-  const { form, ...rest } = options;
-  return build({ kind: "resource", ...(form ? { form } : {}) }, rest, [], generates);
+/**
+ * "Resource: … generate …" (a bare number is that many wild resources). `generatesFor`: "generate a [wild]
+ * resource for an X card" (Expert Marksman, Finesse, `trors` pack) — usable only while paying for a card matching
+ * the query (FAQ "Finesse (#33)", RRG 1.8 p. 60: "its resource cost or a cost within that aspect card's ability").
+ */
+export const resource = (
+  generates: ResourceGeneration,
+  options: AbilityOptions & { readonly form?: Form; readonly generatesFor?: TargetQuery } = {},
+): AbilityDefinition => {
+  const { form, generatesFor, ...rest } = options;
+  const definition = build({ kind: "resource", ...(form ? { form } : {}) }, rest, [], generates);
+  return generatesFor ? { ...definition, generatesFor } : definition;
 };
 /** "Hero Resource:" */
-export const heroResource = (generates: ResourceGeneration, options: AbilityOptions = {}): AbilityDefinition => resource(generates, { ...options, form: "hero" });
+export const heroResource = (generates: ResourceGeneration, options: AbilityOptions & { readonly generatesFor?: TargetQuery } = {}): AbilityDefinition =>
+  resource(generates, { ...options, form: "hero" });
 
 const triggered =
   (kind: "interrupt" | "response", forced: boolean, form?: Form) =>
@@ -169,6 +178,12 @@ export interface ConstantPart {
   readonly playableFrom?: readonly "discard"[];
   /** "As an additional cost for Wonder Man to attack, you must discard 1 card from your hand." (Wonder Man, `cap` pack). */
   readonly basicPowerCosts?: readonly { readonly power: "attack" | "thwart"; readonly cost: AbilityCost }[];
+  /**
+   * "You may play [Arrow] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors`
+   * pack; docs/phase7-wave2.md §3.10): cards attached to this card that match may be played by its controller as if
+   * from hand.
+   */
+  readonly playableAttachments?: TargetQuery;
 }
 
 export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
@@ -179,6 +194,8 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
   if (multipliers.length > 1) throw new Error("a constant ability has at most one resource multiplier");
   const spendableInList = parts.flatMap((p) => (p.spendableIn ? [p.spendableIn] : []));
   if (spendableInList.length > 1) throw new Error("a constant ability has at most one spendableIn form");
+  const playableAttachmentsList = parts.flatMap((p) => (p.playableAttachments ? [p.playableAttachments] : []));
+  if (playableAttachmentsList.length > 1) throw new Error("a constant ability has at most one playableAttachments query");
   const modifiers = all("modifiers");
   const keywordGrants = all("keywordGrants");
   const traitGrants = all("traitGrants");
@@ -200,10 +217,13 @@ export function constant(...parts: readonly ConstantPart[]): AbilityDefinition {
       ...(spendableInList[0] ? { spendableIn: spendableInList[0] } : {}),
       ...(playableFrom.length ? { playableFrom } : {}),
       ...(basicPowerCosts.length ? { basicPowerCosts } : {}),
+      ...(playableAttachmentsList[0] ? { playableAttachments: playableAttachmentsList[0] } : {}),
     },
     effects: [],
   };
 }
+/** "You may play [X] events attached to this card as if they were in your hand." (Hawkeye's Quiver, `trors` pack). */
+export const playableAttachments = (query: TargetQuery): ConstantPart => ({ playableAttachments: query });
 /** "Reduce the cost to play X by N [while …]" / "… costs N additional resources" (a signed `delta`). */
 export const costModifier = (spec: CostModifierSpec): ConstantPart => ({ costModifiers: [spec] });
 /** "As an additional cost for [this character] to attack/thwart, you must …" (Wonder Man). */
@@ -225,6 +245,13 @@ export const gainsKeyword = (keyword: KeywordInstance, target: TargetQuery, opts
 /** "X gains the [trait] trait". */
 export const gainsTrait = (t: Trait, target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
   traitGrants: [{ trait: t, target, ...(opts.while ? { while: opts.while } : {}) }],
+});
+/**
+ * "X gains the trait of each environment in play" (Absorbing Man, `trors` pack; docs/phase7-wave2.md §3.11): the
+ * printed traits of every card `traitsOf` matches (from the granting card's point of view) are granted.
+ */
+export const gainsTraitsOf = (traitsOf: TargetQuery, target: TargetQuery, opts: { readonly while?: Predicate } = {}): ConstantPart => ({
+  traitGrants: [{ traitsOf, target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
 /** "Double the number of resources this card generates while paying for an [aspect] card." */
@@ -407,6 +434,18 @@ export const on = {
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
   /** "After your turn begins" (Quinjet, `cap` pack). */
   yourTurnBegins: (): EventPattern => pattern("turnStarted", { playerIs: "controller" }),
+  /**
+   * "After you use a basic power" (Quicksilver's Super Speed, Captain Marvel ally 04032, Rapid Growth; docs/phase7-
+   * wave2.md §3.11). The engine's `EventPattern` has no field to narrow by *which* power (attack/thwart/defense/
+   * recover) — every wave 2 card needing this reacts to any basic power, so no filter is needed today; a future
+   * card that needs one is a `game-rules-architect` follow-up (`TriggerEventBody.basicPowerUsed`'s `power` field
+   * would need to be exposed on `EventPattern`).
+   */
+  basicPowerUsed: (who: Who): EventPattern => pattern("basicPowerUsed", asTarget(who)),
+  /** "When attached character would ready" (Frozen in Time; docs/phase7-wave2.md §3.11). */
+  cardReadying: (what: Who): EventPattern => pattern("cardReadying", asTarget(what)),
+  /** "When boost icons on an encounter card would be counted" (Chaos Control, Crest; docs/phase7-wave2.md §3.6). */
+  boostIconsCounted: (): EventPattern => pattern("boostIconsCounting", {}),
 } as const;
 
 /** Interrupt wording: `heroInterrupt(when.villainAttacks({ againstYou: true }), …)`. */

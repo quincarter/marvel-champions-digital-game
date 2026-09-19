@@ -24,6 +24,7 @@ import {
   yourIdentity,
   identityOf,
   theVillain,
+  theMainScheme,
   type Amount,
 } from "./values.js";
 
@@ -473,3 +474,158 @@ export const thwartAScheme = (n: Amount, slot = "scheme"): EffectSpec[] => [aSch
 export const damageAnEnemy = (n: Amount, slot = "enemy"): EffectSpec[] => [anEnemy(slot), dealDamage(n, chosen(slot))];
 /** "Remove N threat from a scheme." (not a thwart) */
 export const removeThreatFromAScheme = (n: Amount, slot = "scheme"): EffectSpec[] => [aScheme(slot), removeThreat(n, chosen(slot))];
+
+// ---------------------------------------------------------------------------
+// Wave 2 (cycle 1, docs/phase7-wave2.md) additions
+// ---------------------------------------------------------------------------
+
+/**
+ * "Deal a total of N damage divided among X you choose" (Wasp Sting) / "Remove a total of N threat from among
+ * schemes in play" (Inconspicuous): docs/phase7-wave2.md §3.7.
+ */
+export const divide = (
+  what: "damage" | "threat",
+  n: Amount,
+  among: TargetQuery,
+  opts: { readonly chooser?: PlayerRef; readonly bind?: string } = {},
+): EffectSpec => ({ kind: "divide", what, amount: amount(n), among, chooser: opts.chooser ?? you, ...withBind(opts.bind) });
+
+/**
+ * "Choose two of the following (you may choose the same option twice)" (Double Time, `qsv`/`scw`): the plural form
+ * of `chooseOne`, resolving `count` options in the order chosen. `allowRepeat` permits choosing the same option
+ * more than once (RRG 1.8 "Choose (Option)", p. 12, forbids it otherwise).
+ */
+export const chooseOptions = (count: number, opts: readonly ChoiceOption[], config: { readonly chooser?: PlayerRef; readonly allowRepeat?: boolean } = {}): EffectSpec => ({
+  kind: "chooseOne",
+  chooser: config.chooser ?? you,
+  options: opts,
+  count,
+  ...(config.allowRepeat ? { allowRepeat: true } : {}),
+});
+
+/**
+ * "Discard N cards from the encounter deck" (Taskmaster, Crossbones' Machine Gun, Luminous, …): docs/phase7-wave2.md
+ * §3.6. `forEachDiscarded` runs its effects once per discarded card, in discard order, that card bound to its slot.
+ */
+export const discardEncounterCards = (
+  n: Amount,
+  opts: { readonly bind?: string; readonly forEachDiscarded?: { readonly slot: string; readonly effects: readonly EffectArg[] } } = {},
+): EffectSpec => ({
+  kind: "discardEncounterCards",
+  count: amount(n),
+  ...withBind(opts.bind),
+  ...(opts.forEachDiscarded ? { forEachDiscarded: { slot: opts.forEachDiscarded.slot, effects: flatten(opts.forEachDiscarded.effects) } } : {}),
+});
+
+/** "Create the [name] deck" (docs/phase7-wave2.md §3.3): moves the matching encounter-deck cards out and shuffles. */
+export const buildScenarioDeck = (name: string): EffectSpec => ({ kind: "buildScenarioDeck", name });
+/** "Reveal the top card of the [name] deck" — the scenario-deck sibling of `zone`/`encounterCards`. */
+export const scenarioDeck = (
+  name: string,
+  opts: { readonly zones?: readonly ("deck" | "discard")[]; readonly top?: Amount; readonly filter?: TargetQuery } = {},
+): CardSelector => ({
+  kind: "scenarioDeck",
+  name,
+  ...(opts.zones ? { zones: opts.zones } : {}),
+  ...(opts.top !== undefined ? { top: amount(opts.top) } : {}),
+  ...(opts.filter ? { filter: opts.filter } : {}),
+});
+
+/** "The player who defeated it takes that ally into their hand" (Captured by Hydra, `trors` pack): docs/phase7-wave2.md §3.10. */
+export const takeIntoHand = (from: CardSelector, player: PlayerRef = you): EffectSpec => ({ kind: "takeIntoHand", cards: from, player });
+
+/** "Play a card from your hand, ignoring its resource cost." (Chaos Magic, `qsv` pack): docs/phase7-wave2.md §3.8. */
+export const playFromHandIgnoringCost = (player: PlayerRef = you, opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {}): EffectSpec => ({
+  kind: "playFromHand",
+  player,
+  ignoreCost: true,
+  ...(opts.filter ? { filter: opts.filter } : {}),
+  ...(opts.optional ? { optional: true } : {}),
+});
+
+/** "Advance the main scheme to stage N" (docs/phase7-wave2.md §1.6/§3.4). */
+export const advanceMainScheme = (opts: { readonly to?: { readonly stageNumber: number; readonly name?: string }; readonly scheme?: TargetRef } = {}): EffectSpec => ({
+  kind: "advanceMainScheme",
+  ...(opts.to ? { to: opts.to } : {}),
+  ...(opts.scheme ? { scheme: opts.scheme } : {}),
+});
+/** "If all the players at this stage are defeated, this stage is complete." (Kang's stage 3 cards). */
+export const completeMainScheme = (scheme: TargetRef = theMainScheme): EffectSpec => ({ kind: "completeMainScheme", scheme });
+/** "The players win/lose the game." (docs/phase7-wave2.md §3.4, used where `Scenario.victory` is `"cardAbility"`). */
+export const endGame = (result: "win" | "loss", reason?: "mainSchemeCompleted" | "allPlayersDefeated"): EffectSpec => ({
+  kind: "endGame",
+  result,
+  ...(reason ? { reason } : {}),
+});
+/** "Add [villain] to the game area" (docs/phase7-wave2.md §3.4). */
+export const addVillain = (villain: TargetRef, opts: { readonly reveal?: boolean } = {}): EffectSpec => ({
+  kind: "addVillain",
+  villain,
+  ...(opts.reveal ? { reveal: true } : {}),
+});
+/** "Remove [villain] and this stage from the game." */
+export const removeVillain = (villain: TargetRef): EffectSpec => ({ kind: "removeVillain", villain });
+/** "Remove [stage] from the game." (a separate game area's own main scheme stage). */
+export const removeMainSchemeStage = (scheme: TargetRef): EffectSpec => ({ kind: "removeMainSchemeStage", scheme });
+/** "Each player reveals a random stage 3A in turn order" (The Master of Time 2A). */
+export const revealMainSchemeStage = (player: PlayerRef, stageNumber: number, opts: { readonly removeUnused?: boolean } = {}): EffectSpec => ({
+  kind: "revealMainSchemeStage",
+  player,
+  stageNumber,
+  ...(opts.removeUnused ? { removeUnused: true } : {}),
+});
+/** "Create your own game area and place this scheme in it" (Kang's stage 3A cards). */
+export const createGameArea = (scheme: TargetRef): EffectSpec => ({ kind: "createGameArea", scheme });
+/** "Join another game area" / "combine your game area with another game area." */
+export const joinGameArea = (): EffectSpec => ({ kind: "joinGameArea" });
+/** "At the end of the phase, …" — the phase counterpart of `atEndOfRound`. */
+export const atEndOfPhase = (...effects: readonly EffectArg[]): EffectSpec => ({ kind: "atEndOfPhase", effects: flatten(effects) });
+/** "Change Apocalypse to [Giant] form" — a three-sided villain's face change, resolved as a flip. */
+export const changeVillainForm = (villain: TargetRef, toFaceWithTrait: Trait): EffectSpec => ({ kind: "changeVillainForm", villain, toFaceWithTrait });
+/** "Flip [card]" (RRG 1.8 "Flip"). */
+export const flipCard = (target: TargetRef): EffectSpec => ({ kind: "flipCard", target });
+
+/** "Increase or decrease the number of boost icons on that card by 1 for this count" (Crest, `scw` pack). */
+export const adjustBoostCount = (delta: Amount): EffectSpec => ({ kind: "adjustBoostCount", delta: amount(delta) });
+/** "…discard the top card of the encounter deck and count the number of boost icons on that card instead" (Chaos Control). */
+export const replaceBoostCount = (card: TargetRef): EffectSpec => ({ kind: "replaceBoostCount", card });
+
+/** "Attach 1 card from your hand facedown here" (`facedown` for a facedown attach). */
+export const attachCard = (card: TargetRef, to: TargetRef, opts: { readonly facedown?: boolean } = {}): EffectSpec => ({
+  kind: "attach",
+  card,
+  to,
+  ...(opts.facedown ? { facedown: true } : {}),
+});
+/** "Engage that enemy" (RRG 1.8 "Engage"). */
+export const engage = (minion: TargetRef, player: PlayerRef = you): EffectSpec => ({ kind: "engage", minion, player });
+/** "Put the others back in any order" (RRG 1.8 "Deck"). */
+export const reorderCards = (from: CardSelector, chooser: PlayerRef = you): EffectSpec => ({ kind: "reorderCards", cards: from, chooser, to: "encounterDeckTop" });
+/**
+ * "Deal N indirect damage to each player" / "…to you" (RRG 1.8 "Indirect Damage"): each player divides it among the
+ * characters they control. `to: "group"` has the first player divide it among every friendly character.
+ */
+export const dealIndirectDamage = (to: PlayerRef | "group", n: Amount, opts: { readonly bind?: string } = {}): EffectSpec => ({
+  kind: "dealIndirectDamage",
+  to,
+  amount: amount(n),
+  ...withBind(opts.bind),
+});
+/** "Remove N counters from X" as an effect (not a cost — see `dsl/abilities.ts`'s `removeCounter` for the cost form). */
+export const removeCountersFrom = (target: TargetRef, counterType: string, n: Amount = 1): EffectSpec => ({
+  kind: "removeCounters",
+  target,
+  counterType,
+  amount: amount(n),
+});
+/**
+ * "Move all threat from the side scheme with the least threat to the side scheme with the most threat" / "move 1
+ * threat from a scheme to here" (RRG 1.8 "Move"). `amount` absent moves all of it.
+ */
+export const moveThreat = (from: TargetRef, to: TargetRef, opts: { readonly amount?: Amount; readonly bind?: string } = {}): EffectSpec => ({
+  kind: "moveThreat",
+  from,
+  to,
+  ...(opts.amount !== undefined ? { amount: amount(opts.amount) } : {}),
+  ...withBind(opts.bind),
+});

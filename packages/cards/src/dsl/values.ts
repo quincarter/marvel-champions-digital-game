@@ -216,3 +216,10 @@ export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "
  * plays each round, whatever form they're in when it's played — so this reads the round count, not the phase's.
  */
 export const firstThisRound = (cardType: string, player: PlayerRef = you): Predicate => ({ kind: "playedThisRound", player, cardType, atMost: 0 });
+
+// ---------------------------------------------------------------------------
+// Wave 2 (cycle 1, docs/phase7-wave2.md) additions
+// ---------------------------------------------------------------------------
+
+/** "The total cost of all allies beneath it" (Hydra Prison, `trors`). */
+export const totalPrintedCost = (cardsRef: TargetRef): ValueSpec => ({ kind: "totalPrintedCost", cards: cardsRef });
