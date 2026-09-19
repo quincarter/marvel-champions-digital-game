@@ -77,6 +77,7 @@ import { PSYLOCKE_CURATION } from "./curation/psylocke.ts";
 import { VALK_CURATION } from "./curation/valk.ts";
 import { DEADPOOL_CURATION } from "./curation/deadpool.ts";
 import { SPIDERHAM_CURATION } from "./curation/spiderham.ts";
+import { ANGEL_CURATION } from "./curation/angel.ts";
 import type { PackCuration } from "./curation/types.ts";
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -134,6 +135,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   valk: VALK_CURATION,
   deadpool: DEADPOOL_CURATION,
   spiderham: SPIDERHAM_CURATION,
+  angel: ANGEL_CURATION,
 };
 
 interface RawCache {
