@@ -1,10 +1,10 @@
+import { cardId } from "@mc/content";
 import type { GameState, InstanceId } from "@mc/engine";
-import { traitsOf } from "@mc/engine";
-import { firstLegal, identityOf, inst, moveToHand, P1, payWith, play, playerOf, settle, use, type Picker } from "../../testing/harness.js";
+import { activeEncounterDeckId, cardsInPlay, characterProfile, traitsOf } from "@mc/engine";
+import { firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, use, type Picker } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { ANT_MAN_KIT } from "./kit.js";
-import { ANT_MAN_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
 
 // Real wave 2 content: the Ant-Man (Leadership) precon against Rhino, standard, solo. Scott Lang starts in alter-ego.
 const antManVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 }));
@@ -158,13 +158,59 @@ describe("Ant-Man kit", () => {
   });
 });
 
+/**
+ * A nemesis-set card is set aside per player at setup (`PlayerState.setAside`, RRG 1.8 Appendix II step 5), not in
+ * the encounter deck — `stackEncounterDeck` alone can't reach it (docs/phase7-wave2-scripting.md §5's own
+ * `stackSetAside`, `hawkeye.test.ts`). This stages it to the very top of the active encounter deck, then a filler
+ * card (Advance, 01186 — a Core "Standard" treachery already in every wave 2 scenario's deck, whose "villain
+ * schemes" is never resolved as a boost card) ahead of it, so the villain's own activation consumes the filler as
+ * its boost and the nemesis card is dealt to the player as their own encounter card instead.
+ */
+function stageNemesisCardForReveal(state: GameState, code: string, player = P1): GameState {
+  const owner = playerOf(state, player);
+  const id = owner.setAside.find((i) => state.instances[i]?.cardId === cardId(code));
+  if (!id) throw new Error(`no ${code} set aside for ${player}`);
+  const deckId = activeEncounterDeckId(state);
+  const pile = state.encounterDecks[deckId]!;
+  const staged: GameState = {
+    ...state,
+    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
+    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [id, ...pile.deck] } },
+  };
+  return stackEncounterDeck(staged, "01186");
+}
+
+/** Reveals a nemesis-set `code`, returning the revealed card's in-play instance id. */
+function revealFromEncounterDeck(state: GameState, code: string): { readonly state: GameState; readonly id: InstanceId } {
+  const staged = stageNemesisCardForReveal(state, code);
+  const revealed = settle(runWave2(staged, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE2_DEPS);
+  const id = instancesOf(revealed, code).find((candidate) => cardsInPlay(revealed).includes(candidate))!;
+  return { state: revealed, id };
+}
+
 describe("Ant-Man's obligation and nemesis (Care for Cassie, Yellowjacket)", () => {
   it("Tech Theft: treats the printed text box of each Tech player card as if it were blank", () => {
-    expect(ANT_MAN_OBLIGATION_NEMESIS["12026.tech-theft-constant"]).toBeDefined();
+    // Reinforced Suit (12018, TECH) attached to Wasp (12002) grants +2 hit points constantly.
+    const withWasp = playFromHand(withForm(antManVsRhino(), TINY), "12002", 3);
+    const wasp = withWasp.id;
+    const given = moveToHand(withWasp.state, P1, "12018");
+    const [suit] = given.ids as [InstanceId];
+    const withSuit = settle(
+      runWave2(given.state, play(P1, suit, payWith(given.state, P1, 1, [suit]), { attachToInstanceId: wasp })),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(characterProfile(withSuit, wasp, WAVE2_DEPS)?.maxHp).toBe(5); // printed 3 + Reinforced Suit's +2
+
+    const { state: withTechTheft } = revealFromEncounterDeck(withSuit, "12026");
+    // Reinforced Suit's own text box (its "+2 hit points" constant) is now blank, so Wasp is back to her printed 3.
+    expect(characterProfile(withTechTheft, wasp, WAVE2_DEPS)?.maxHp).toBe(3);
   });
 
-  it("Yellowjacket: gains the Giant trait and retaliate 1 while the engaged player is in Giant hero form", () => {
-    expect(ANT_MAN_OBLIGATION_NEMESIS["12027.yellowjacket-constant"]).toBeDefined();
-    expect(ANT_MAN_OBLIGATION_NEMESIS["12027.yellowjacket-constant-2"]).toBeDefined();
-  });
+  // Yellowjacket's own form-conditional constants (12027.yellowjacket-constant, 12027.yellowjacket-constant-2) are
+  // in `KNOWN_SKIPPED` (`../coverage.test.ts`) — see `obligation-nemesis.ts`'s module docblock: an earlier version
+  // of this test proved a `while: hasTrait(...)` on a constant trait/stat grant crashes the engine with an
+  // unconditional infinite recursion in `traitsOf` the instant the ability is ever evaluated (reveal Yellowjacket,
+  // then read *any* card's traits or stats), so it was pulled rather than shipped catastrophically wrong.
 });

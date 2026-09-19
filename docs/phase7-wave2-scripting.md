@@ -401,13 +401,52 @@ historical) since they're still the most complete account of *why* each primitiv
   primitive that had already landed — not a new primitive, just catching up the wrapper. Every existing caller
   passed a literal number and is unaffected (`amount(1)` still compiles to the same `{ kind: "const", value: 1 }`).
 
+### 6.15 `traitsOf`'s constant trait-grant scan has no recursion guard for a `while: hasTrait(...)` predicate (found scripting `ant`)
+
+- **Card:** Yellowjacket (12027, Ant-Man's nemesis minion): "While you are in Giant hero form, Yellowjacket gains
+  the Giant trait and retaliate 1. While you are in Tiny hero form, Yellowjacket gains the Tiny trait and gets +1
+  ATK." Read per docs/phase7-wave2.md §3.2 as "your identity currently has the [Giant/Tiny] trait" — a nemesis
+  minion has no controller of its own, so "you" is the engaged player, the same reading The Viper's own "while
+  engaged with you" constant uses (`04054.the-viper-constant`, `trors/spider-woman-obligation-nemesis.ts`).
+- **Found by testing (§4.1's rule), not a missing vocabulary word.** Scripted once as `gainsTrait(GIANT, query(
+  "minion", { self: true }), { while: hasTrait(identityOf(engagedPlayerOf(self)), GIANT) })` (and the Tiny/ATK
+  sibling) — this typechecked, looked structurally like The Viper's constant, and was only "is defined"-tested
+  before this pass. A real reveal-from-encounter-deck test (`ant/kit.test.ts`, since reverted) crashed the engine
+  with `RangeError: Maximum call stack size exceeded` the moment Yellowjacket was in play and *anything* called
+  `traitsOf` or `statBonus` for *any* card — not only Yellowjacket itself.
+- **The gap, precisely.** `traitsOf(state, id)` (`packages/engine/src/select.ts`, its trait-grant scan around lines
+  145–173) loops over every card in play and evaluates every constant `traitGrant`'s `while` predicate
+  *unconditionally*, before checking whether the grant's own `target` even matches the requested `id`. A `while:
+  hasTrait(ref, trait)` predicate's `evaluate` case (`select.ts`, `"hasTrait"`) calls `traitsOf(state, refId)` — a
+  full, unmemoized re-entry into the very function currently running. Because the predicate's inputs never depend
+  on the outer call's `id`, the re-entrant call hits the identical ability's identical `while` again, unconditionally,
+  every single time: an **unconditional** infinite recursion (not merely deep), so no board size or player count
+  avoids it. `statBonus`/`modifiersFor` (`modifiers.ts`) hit the same wall for the ATK sibling, since a stat
+  modifier's own `while` reaches `evaluate` → `traitsOf` the same way.
+- **Not unique to this card.** Any constant `gainsTrait`/`gets`/`gainsKeyword` rule anywhere whose `while` needs
+  `hasTrait`/`traitsOf` on any card crashes the instant that ability is active in play and `traitsOf`/`statBonus` is
+  called for *anything* — this is the first card in the pool to combine the two, but nothing about the shape is
+  specific to Ant-Man or nemesis minions.
+- **Closest existing primitive/fix:** `blankedByConstantRules` (`select.ts`, immediately above `traitsOf`) already
+  solved the identical class of problem for `blankTextBox`, by evaluating a rule's own `target`/`while` under
+  `DEFAULT_DEPS` (printed characteristics only) specifically "so matching cannot re-enter this function" (its own
+  docblock). `traitsOf`'s trait-grant scan (and `modifiersFor`'s stat-modifier scan) has no equivalent guard and
+  needs the same treatment — or a recursion-depth/visited-set guard — before this shape of ability is safe to
+  script. **Not reworked into a differently-shaped ability**: the printed text is a trait grant depending on
+  another card's current trait, not a form check to hardcode a bespoke reading around, so the fix belongs in the
+  engine, not in `@mc/cards`.
+- **Pinned:** `12027.yellowjacket-constant`, `12027.yellowjacket-constant-2` (`wave2/coverage.test.ts`'s
+  `KNOWN_SKIPPED.ant`; full write-up in `ant/obligation-nemesis.ts`'s module docblock). Until this lands, Yellowjacket
+  in play behaves as its base 2 ATK / 2 SCH / 4 HP minion with no form-conditional bonus — a documented inaccuracy,
+  not a crash risk, since the ability is out of the registry entirely.
+
 ## 7. Status
 
 | Pack | Code | Status | Notes |
 |---|---|---|---|
 | The Rise of Red Skull | `trors` | **Scripted.** 152 cards, 248 ability refs: 219 resolve (15 as reprint aliases, 204 hand-scripted), 29 in `KNOWN_SKIPPED` — 1 genuine data-gap block (Captured by Hydra's missing "When Defeated" ref) and 28 Hydra Campaign refs, pinned regardless of any primitive since campaign mode is deferred. Every §6 primitive gap found scripting `trors` (§6.1–§6.7, §6.9, §6.10, plus the per-aspect-limit half of §6.11 — 18 refs total across Hawkeye's Bow, Vibranium Arrow, Crossfire's boost, Piercing Strike, Finesse, Jessica Drew's Apartment, Superhuman Agility, Crossfire's Rifle, Cable Arrow, Kate Bishop's Hawkeye, Mockingbird, Crossbones' Assault, Prison Camps, Hydra Reinforcements, Taskmaster I/II/III's forced response, None Shall Pass's forced interrupt) has since landed and was un-skipped in later passes over the same pack — see §6's "LANDED" notes. | All five scenarios are scripted: Hawkeye/Spider-Woman kits (`hawkeye-kit.ts`, `hawkeye-obligation-nemesis.ts`, `spider-woman-kit.ts`, `spider-woman-obligation-nemesis.ts`), Crossbones (`crossbones.ts`), Absorbing Man (`absorbing-man.ts`), Taskmaster (`taskmaster.ts`), Zola (`zola.ts`) and Red Skull (`red-skull.ts`), each with its own `wave2Scenario(...)` entry in `../setup.ts` and its own ruling-level `.test.ts` plus a standalone setup test proving each scenario's own 1A/1B setup ability actually runs (setAside, scenario decks, engaged minions, revealed side schemes, etc.). Real-game tests: `wave2/trors/e2e.test.ts` (Hawkeye and Spider-Woman precons vs. Rhino, solo, to a real outcome; Crossbones standalone 2-player setup). **Data gaps flagged for `card-data-pipeline`:** (1) the Attack on Mount Athena 1A text prints "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` has no "Legions of Hydra" `EncounterSet` — `crossbonesScenario` uses only the two that exist; (2) several cards carry more ability refs than their printed text has independent clauses for (Omni-Morph Duplication 04089's four extra "-constant" refs, The Mad Doctor 04113b's and Neurological Implants 04119's second refs, The Rise of Red Skull 1A's 04128a and New World Hydra's 04129b's "-constant" refs) — each is stood up as an empty `coveredByEngineRule()` rather than left unscripted, since the card's own primary ability ref already carries the full printed behavior; (3) Captured by Hydra (04107) prints a "When Defeated" clause with no ability ref to hang it on (contrast Hydra Prison, 04122, which prints an equivalent shape with two refs) — only its "When Revealed" half is scripted. |
 | The Once and Future Kang | `toafk` | **In progress.** 51 cards, 82 ability refs: 59 resolve, 23 in `KNOWN_SKIPPED` (4 primitive/open-question gaps on stage 2/4 — §6.13/§6.14 — 4 data-gap Temporal obligations, 15 refs for the not-yet-started Expert encounter set 11040–11051). | Kang's villain (standard and Expert), "Kang's Arrival" 1A/1B, "The Master of Time" 2A, and all four stage 3 alternatives are scripted in `kang.ts`; the Kang/Temporal encounter set (11014–11033, minus the four Temporal obligations) is scripted in `kang-encounter-set.ts`. `wave2Scenario("kang", …)` (`../setup.ts`'s `kangScenario`) is data-driven off `WAVE2_SCENARIOS`. `kang.test.ts` has a standalone setup test (standard and expert) plus ruling-level tests. |
-| Ant-Man | `ant` | **Not started.** | Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md, landed). Known gaps ahead of time, both recorded "Not done" in docs/phase7-wave2.md §3.13.11 (`game-rules-architect` working on them as of 2026-09-19): Tech Theft's class-wide text-blanking (§6.11), and Team-Building Exercise's "play a card with a cost reduction" (`playFromHand.costReduction`, not yet built). Pin both and move on rather than waiting. |
+| Ant-Man | `ant` | **Scripted.** 33 cards, 37 ability refs: 28 resolve (reprints aliased by `../reprints.ts` plus hand-scripted refs across `kit.ts`/`obligation-nemesis.ts`/`pack-cards.ts`), 9 in `KNOWN_SKIPPED` — see §6.15 (Yellowjacket's two form-conditional constants, found-by-testing engine crash), plus missing-primitive blocks for Pym Particles' "after you spend this card" trigger, Giant Strength's `LastingUntil.endOfTurn`, Care for Cassie's "cannot change form" lasting rule, Yellowjacket's Plan's "belongs to encounter set X" query, Ant-Man's own overpaid-from-a-later-interrupt read, Team-Building Exercise's "shares a trait with your hero" query and Muster Courage's dynamic `chooseCards.max`. Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md) and Tech Theft's class-wide text-blanking (§8 there) are both landed and used (`kit.ts`'s `changeToOtherHeroForm`/`youHaveTrait`, `obligation-nemesis.ts`'s `blanksTextBox`, verified with a real behavioral test attaching a TECH upgrade and confirming its own text goes blank). | Ant-Man's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-aspect cards (`pack-cards.ts`) each have ruling-level tests (`kit.test.ts`) driving real commands — form changes, Hero Actions gated by `while`, a Team-Up legality check, a reveal-from-encounter-deck helper for the nemesis set's own cards — plus `e2e.test.ts` (Rhino, standard, solo, Ant-Man Leadership precon to a real outcome, replayed deep-equal). |
 | Wasp | `wsp` | **Not started.** | Three-sided identity; divided basic powers (§3.7, landed). |
 | Quicksilver | `qsv` | **Not started.** | `basicPowerUsed` trigger event (landed, used already by Spider-Woman's Captain Marvel in `trors`). |
 | Scarlet Witch | `scw` | **Not started.** | Two copies of her own obligation shuffled in (§1.10, landed); boost-icon counting as an event (§3.6, landed for activation counts; card-effect counts — Hex Bolt — still open per §4.8). |
@@ -518,3 +557,38 @@ session's own `trors` follow-up (§6.9/§6.10 landing after the checkpoint that 
 already-landed game-area primitives both depended on this habit. §6.7's "player who defeated this scheme" gap
 recurred three times across `trors` alone before landing — expect the same pattern (a gap recurring across several
 cards/packs before anyone notices and fixes the primitive) with §6.13/§6.14 above.
+
+**2026-09-19, later session: `ant` finished, promoted to `"scripted"`.** Picked up with `ant`'s kit, obligation/
+nemesis and pack-cards modules already scripted (from a prior in-flight pass, recovered per `PLAN.md`'s "Wave 2:
+Kang primitives, Mojo data, Ant-Man kit" commit) but its two obligation/nemesis abilities (Tech Theft, Yellowjacket)
+only "is defined"-tested, against this brief's own quality bar (a response/constant test must drive real commands
+and assert the printed outcome, not `toBeDefined()`). Made both real:
+- **Tech Theft** (12026): a real test now attaches a TECH-trait upgrade (Reinforced Suit) to an ally, confirms its
+  `+2 hit points` constant applies, reveals Tech Theft from the nemesis set (a `PlayerState.setAside` card, staged
+  onto the encounter deck the same way `hawkeye.test.ts`'s `stackSetAside` does — a new local `
+  stageNemesisCardForReveal`/`revealFromEncounterDeck` pair in `ant/kit.test.ts`, generalizable to `wsp`/`qsv`/`scw`
+  the same way `stackSetAside` was flagged as reusable in `trors`), and confirms Reinforced Suit's own text (and so
+  its +2 hit points) is now blank.
+- **Yellowjacket** (12027): turning its "is defined" test into a real one *found a genuine engine crash*, not a
+  missing vocabulary word — see the new §6.15 write-up. The ability was pulled from the registry (not shipped
+  broken) and added to `KNOWN_SKIPPED.ant`, with the full root-cause analysis in `ant/obligation-nemesis.ts`'s
+  module docblock and §6.15 here, for `game-rules-architect`. This is this brief's own "found-by-testing" rule
+  (§4.1) working exactly as intended: the ability compiled, typechecked, and *looked* like an existing pattern (The
+  Viper's constant) right up until a real test exercised it.
+- Re-ran the `KNOWN_SKIPPED` regeneration check (§1) against `ant`'s full ref list before promoting the pack to
+  `"scripted"`: all 9 remaining unresolved refs are documented primitive/engine-bug blocks (none "not yet reached"),
+  matching `trors`' own bar for that status. `ant`'s `KNOWN_SKIPPED` is unchanged in size (still 7 pre-existing
+  primitive blocks) plus the 2 new Yellowjacket entries = 9.
+- Confirmed §3.13's table before touching anything: three-sided identity (§3.2) and Tech Theft's class-wide
+  text-blanking (§8 there) are both landed and already used correctly by the pack's existing scripts — no rework
+  needed, just verification (this session's own version of the "re-check before assuming still blocked" lesson).
+- `pnpm -w typecheck` and `packages/cards`' full Vitest suite (589 tests) are green.
+
+**Not reached this session: `wsp`, `qsv`, `scw`.** Only `ant` fit in this session's budget once the found engine
+crash needed a full root-cause writeup rather than a quick fix. **Next session starts with `wsp`** (three-sided
+identity, same landed primitives `ant` used; divided basic powers, §3.7, landed) — re-check §3.13 for anything
+landed since this was written, the same habit this session and the `trors`/`toafk` ones before it all depended on.
+Also worth carrying forward: **grep any new pack's constant abilities for a `while` that reaches `hasTrait`/
+`traitsOf` before trusting it compiles-and-therefore-works** — §6.15's crash was silent at the type level and only
+surfaced through a real behavioral test, exactly the "compiling is not evidence of correctness" lesson CLAUDE.md
+and this brief's own §4.1 both already warn about, now with a second concrete instance.
