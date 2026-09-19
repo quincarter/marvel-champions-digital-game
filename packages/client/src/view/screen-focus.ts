@@ -212,28 +212,56 @@ export function villainPhaseFocusOrder(finished: boolean, interruptOptionIds: re
 }
 
 /**
- * Pause (docs/phase4-screen-gaps.md §3 "W4"; fidelity pass 2026-09-17, matching
- * D13/P16/L07's overlay sheet): the boxed ✕ first (top of the title bar, reads
- * before anything else), then the search field, the "Quick reference" rows
- * (Villain phase order / Keyword glossary / Scenario card list / Jump into the
- * log — the last dashed-unavailable until S7's read-only board lands), then the
- * "Table" rows (the same shared list `scenes/settings.ts` draws), then the
- * footer's three buttons in the order the sheet draws them left to right —
- * Save & quit, Concede, Resume. When the concede confirm is open, its own two
- * controls replace those three so Enter can't fire Resume or a stray Concede
- * tap by accident mid-confirm.
+ * Pause (docs/phase4-screen-gaps.md §3 "W4"; owner decision 2026-09-18 — see
+ * `view/pause-layout.ts`'s own header). Two shapes, matching the layout's own
+ * `kind`:
+ *
+ * - **Wide** (desktop and tablet, D13): the left menu top to bottom — Resume,
+ *   Full game log, Rules reference, Settings, then Concede pinned at the
+ *   panel's own foot (or, while the concede confirm is open, its own Yes/
+ *   Cancel pair in Concede's place) — then the keyword/status cards in the
+ *   right panel's own grid order. There is no ✕ on this shape (D13 has none;
+ *   Escape and Resume both close it) and no search field (search lives in the
+ *   full Rules Reference overlay this screen's own "Rules reference" button
+ *   opens).
+ * - **Phone** (P16): the boxed ✕ first (top of the title bar, reads before
+ *   anything else), then the search field, the "Quick reference" rows, the
+ *   "Table" rows (the same shared list `scenes/settings.ts` draws), then the
+ *   footer — Resume, Save & quit, Concede (or, while confirming, its own two
+ *   controls in their place, so Enter can't fire Resume or a stray Concede tap
+ *   by accident mid-confirm).
  */
-export function pauseFocusOrder(input: {
-  readonly quickReferenceIds: readonly string[];
-  readonly tableRowIds: readonly string[];
-  readonly confirmingConcede: boolean;
-}): readonly string[] {
+export type PauseFocusInput =
+  | {
+      readonly kind: "wide";
+      /** The keyword/status cards actually shown (`PauseKeywordGrid.shown`'s own count), in grid order. */
+      readonly keywordIds: readonly string[];
+      readonly confirmingConcede: boolean;
+    }
+  | {
+      readonly kind: "phone";
+      readonly quickReferenceIds: readonly string[];
+      readonly tableRowIds: readonly string[];
+      readonly confirmingConcede: boolean;
+    };
+
+export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
+  if (input.kind === "wide") {
+    return [
+      "resume",
+      "full-game-log",
+      "rules-reference",
+      "settings",
+      ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
+      ...input.keywordIds.map((id) => `keyword:${id}`),
+    ];
+  }
   return [
     "close",
     "search",
     ...input.quickReferenceIds.map((id) => `quick:${id}`),
     ...input.tableRowIds.map((id) => `table:${id}`),
-    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["save-quit", "concede", "resume"]),
+    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["resume", "save-quit", "concede"]),
   ];
 }
 

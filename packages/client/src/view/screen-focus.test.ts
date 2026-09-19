@@ -243,18 +243,39 @@ describe("screen focus routes", () => {
     expect(villainPhaseFocusOrder(false, [])).toEqual(["skip"]);
   });
 
-  test("Pause reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
-    expect(pauseFocusOrder({ quickReferenceIds: [], tableRowIds: [], confirmingConcede: false })).toEqual(["close", "search", "save-quit", "concede", "resume"]);
+  test("Pause (phone) reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
+    expect(pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false })).toEqual(["close", "search", "resume", "save-quit", "concede"]);
     expect(
-      pauseFocusOrder({ quickReferenceIds: ["villainPhase", "glossary"], tableRowIds: ["reduced-motion", "sound"], confirmingConcede: false }),
-    ).toEqual(["close", "search", "quick:villainPhase", "quick:glossary", "table:reduced-motion", "table:sound", "save-quit", "concede", "resume"]);
+      pauseFocusOrder({ kind: "phone", quickReferenceIds: ["villainPhase", "glossary"], tableRowIds: ["reduced-motion", "sound"], confirmingConcede: false }),
+    ).toEqual(["close", "search", "quick:villainPhase", "quick:glossary", "table:reduced-motion", "table:sound", "resume", "save-quit", "concede"]);
   });
 
-  test("Pause's concede confirm replaces the footer's three buttons with its own two controls", () => {
-    const order = pauseFocusOrder({ quickReferenceIds: [], tableRowIds: [], confirmingConcede: true });
+  test("Pause (phone)'s concede confirm replaces the footer's three buttons with its own two controls", () => {
+    const order = pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: true });
     expect(order).not.toContain("resume");
     expect(order).not.toContain("concede");
     expect(order.slice(-2)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
+  });
+
+  test("Pause (wide, D13) reads the left menu top to bottom, then the keyword grid", () => {
+    expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).toEqual(["resume", "full-game-log", "rules-reference", "settings", "concede"]);
+    expect(pauseFocusOrder({ kind: "wide", keywordIds: ["guard", "stunned"], confirmingConcede: false })).toEqual([
+      "resume",
+      "full-game-log",
+      "rules-reference",
+      "settings",
+      "concede",
+      "keyword:guard",
+      "keyword:stunned",
+    ]);
+  });
+
+  test("Pause (wide)'s concede confirm replaces Concede with its own two controls, without disturbing the rest of the menu", () => {
+    const order = pauseFocusOrder({ kind: "wide", keywordIds: ["guard"], confirmingConcede: true });
+    expect(order).not.toContain("concede");
+    expect(order).toContain("resume");
+    expect(order.slice(4, 6)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
+    expect(order[order.length - 1]).toBe("keyword:guard");
   });
 
   test("Rules Reference reads Back, the scope toggle (only with a game), tabs, search (glossary only), then rows", () => {
