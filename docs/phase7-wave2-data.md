@@ -1,6 +1,6 @@
 # Phase 7 wave 2: cycle 1 finished, data-only pool growing (`card-data-pipeline`)
 
-Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers four passes:
+Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers five passes:
 
 1. **2026-09-18, first pass:** the schema-neutral parser sweep across all 62 non-Core packs, then curating and
    emitting `scw`, `ant`, `wsp`, `trors` (cycle 1). `docs/phase7-wave2.md` is `game-rules-architect`'s parallel
@@ -12,10 +12,14 @@ Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers
 3. **2026-09-19, third pass ("Part 3" below):** closed both cycle 1 data gaps `ability-scripting-engineer`
    reported (`WAVE2_SCENARIOS`, Legions of Hydra), finished registering `nova`/`silk`/`spdr` (left incomplete by
    an intervening checkpoint), and grew `DATA_ONLY_CARDS` to 21 packs (`rogue`, `wolv`, `hood` newly curated).
-4. **2026-09-19, fourth pass (this one, "Part 4" below):** grew `DATA_ONLY_CARDS` to 23 packs (`ironheart`,
-   `iceman`), added the general `auxiliaryHeroSetCodes` mechanism plus two more general normalizer fixes, curated
-   ten more packs without fully unblocking all of them, and consolidated nine schema/parser-architecture
-   requests for `game-rules-architect`.
+4. **2026-09-19, fourth pass ("Part 4" below):** grew `DATA_ONLY_CARDS` to 23 packs (`ironheart`, `iceman`),
+   added the general `auxiliaryHeroSetCodes` mechanism plus two more general normalizer fixes, curated ten more
+   packs without fully unblocking all of them, and consolidated nine schema/parser-architecture requests for
+   `game-rules-architect`.
+5. **2026-09-19, fifth pass (this one, "Part 5" below):** implemented the six schema requests
+   `game-rules-architect` landed (docs/phase7-wave2.md §7) as parser mappings, found one more general parser
+   fix along the way (attach rules inside a triggered ability's body), grew `DATA_ONLY_CARDS` to 28 packs
+   (`wonder_man`, `x23`, `valk`, `deadpool`, `spiderham`), and restated the three still-open schema items.
 
 ## Result
 
@@ -43,6 +47,13 @@ Scope: PLAN.md Phase 7 "Wave 2 scope decided (2026-09-18)". This file now covers
   checkpoint). `phoenix` is curated and survey-clean but deliberately withheld from emission — see Part 3 §5.
   Content tests: 374 → 387. Full detail, evidence and the reverted false start (Core/wave 1 regeneration
   staleness unrelated to this pass) are in Part 3 below.
+- **After the fourth pass (Part 4):** `DATA_ONLY_CARDS` grew to 23 packs (`ironheart`, `iceman`). Survey: 40 of
+  63 clean. Nine schema/parser-architecture gaps reported to `game-rules-architect`.
+- **After the fifth pass (Part 5, this one):** `game-rules-architect` landed six of those nine requests
+  (docs/phase7-wave2.md §7); this pass implemented the matching parser mappings and found one more general fix.
+  `DATA_ONLY_CARDS` grew to **28 packs** (`wonder_man`, `x23`, `valk`, `deadpool`, `spiderham`). Survey: **45 of
+  63 packs normalize cleanly**. Content tests: 389 → 408. Three schema items remain open (re-stated in Part 4 §5,
+  kept current there rather than duplicated). Full detail in Part 5 below.
 
 ---
 
@@ -607,31 +618,37 @@ source research for 9 images, not attempted this pass to keep moving through the
 
 ### 5. Schema requests for `game-rules-architect`
 
-Consolidated in one place, each with the exact cards and printed text driving it. None of these was worked
-around; every pack they block is left curated-but-unregistered (§4) rather than guessed at.
+**Status as of Part 5 (2026-09-19, fifth pass): six of the nine items below landed** in
+`packages/content/src/schema/**`, `docs/phase7-wave2.md` §7 (2026-09-19), each exactly as requested. The pipeline
+implemented the matching parser mappings the same pass (§7.7's table) — see Part 5 §1–§2. **Three items are
+still open after §7**, marked below; each is re-stated precisely (unchanged from when first reported, since §7
+didn't touch them) so it stays a single source of truth rather than being re-derived from two places.
 
-1. **Attach rule inside a triggered ability's body, not the preamble** (parser-architecture, not schema —
-   flagged here anyway since it's a structural decision, not a curation one). Bandolier of Stakes (`mojo`,
-   39048): `"Surge. Uses (3 stake counters). When Revealed: You may spend 1 resource of any type to attach this
-   card to your identity. Otherwise, discard this card."` — the only "where does this attach" information is a
-   full sentence inside the `When Revealed:` ability, which `parseCardText` (`parse-text.ts`) never scans (by
-   design: every other attachment in the 63-pack corpus prints its attach rule before any trigger header). The
-   target host itself needs nothing new (`{ kind: "yourIdentity" }` already exists) — this is purely about
-   *where* the parser looks. Confirmed the only instance of this exact idiom in the whole corpus (grepped every
-   pack for `You may spend .* to attach this card to .*\. Otherwise, discard this card\.`).
-2. **`SuperlativeHostPool` needs `"ally"`; `HostMeasure` needs `"cost"` and `"thw"`.** Four confirmed cards, all
-   the same "attach to the most/least-[stat] ally without a copy of me attached, otherwise this card gains surge"
-   idiom:
-   - Beguiled (`valk`, 25031): `"Attach to the ally with the highest cost without Beguiled attached."`
-   - 'Pool-ized (`deadpool`, 44041): `"Attach to the ally with the highest cost without 'Pool-ized attached."`
-   - "Lost" Child (`jubilee`, 47027): `"Attach to the ally with the highest cost without "Lost" Child attached."`
-   - Possessed (`storm`, 36038): `"Attach to the ally with the lowest THW without Possessed attached."` (needs
-     `"thw"`, not `"cost"` — the same pool, a different measure)
-3. **The Collector (`gmw`, 16080/16081) and Hela (`mts`, 21136/21137): a villain stage with a flip-side back
-   face, not a second numbered stage.** MarvelCDB's `stage` field reads "A1"/"A2" (standard) and "B1"/"B2"
-   (expert) instead of a roman numeral. Each mode (A/standard, B/expert — confirmed for Hela via a web search of
-   the printed card's own flavor: "Hela is a double-sided villain that has a Standard and an Expert version") is
-   a genuine **single-stage** villain (Hela A1 health 8 / B1 health 9; Collector A1 health 8 / B1 health 10 — a
+1. ~~Attach rule inside a triggered ability's body, not the preamble~~ — **not a schema item, but resolved by the
+   pipeline itself in Part 5 §2** (a `parse-text.ts` change, not a schema request). Originally reported only
+   against Bandolier of Stakes (`mojo`, 39048); turned out to be the same root cause blocking Beguiled/
+   'Pool-ized/"Lost" Child too (see item 2). **`mojo`'s own card is still blocked** — its phrasing ("You may
+   spend 1 resource of any type to **attach this card to** your identity. Otherwise, discard this card.") isn't
+   a leading "Attach to X." sentence the way the other four are, so the fix (which only recognizes that exact
+   leading-sentence shape inside an ability body) doesn't reach it. Left as a documented, narrower residual gap
+   — see Part 5 §2.
+2. ~~`SuperlativeHostPool "ally"` / `HostMeasure "printedCost"`~~ — **landed** (docs/phase7-wave2.md §7.1,
+   exactly as requested, named `printedCost` not `cost`). Combined with item 1's parser fix, this closed
+   Beguiled (`valk` 25031), 'Pool-ized (`deadpool` 44041) and "Lost" Child (`jubilee` 47027) — all three parse
+   correctly now (`valk`/`deadpool` fully emitted; `jubilee` still blocked on unrelated missing artwork). **The
+   `"thw"` measure `storm`'s Possessed needs was NOT part of this request and did not land — still open**, see
+   item 2b below.
+   - **2b, still open after §7: `HostMeasure` needs `"thw"`** (a card's printed THW, the `thw` counterpart of the
+     now-landed `printedCost`/existing `printedAtk`/`printedHp`). Possessed (`storm`, 36038): `"Attach to the
+     ally with the lowest THW without Possessed attached."` Same `SuperlativeHostPool "ally"` (now available),
+     same "attach rule inside a When Revealed body" shape (now parseable) — the *only* missing piece is this one
+     measure value. The narrowest possible remaining ask.
+3. **Still open after §7: The Collector (`gmw`, 16080/16081) and Hela (`mts`, 21136/21137) — a villain stage
+   with a flip-side back face, not a second numbered stage.** Re-stated exactly as first reported (§7 doesn't
+   mention it): MarvelCDB's `stage` field reads "A1"/"A2" (standard) and "B1"/"B2" (expert) instead of a roman
+   numeral. Each mode (A/standard, B/expert — confirmed for Hela via a web search of the printed card's own
+   flavor: "Hela is a double-sided villain that has a Standard and an Expert version") is a genuine
+   **single-stage** villain (Hela A1 health 8 / B1 health 9; Collector A1 health 8 / B1 health 10 — a
    standard-vs-expert HP difference, not stage growth) whose ONE stage has a front face and a "cannot be
    defeated" back face, flipped by a Forced Response ("After a side scheme is defeated, flip Hela to her mystic
    side" / Collector's analogous text). `VillainCard`/`VillainStage` has no `flipSide` field — only encounter
@@ -640,36 +657,29 @@ around; every pack they block is left curated-but-unregistered (§4) rather than
    readonly KeywordInstance[]; abilities: readonly AbilityReference[]; hp?: ScalingValue }` (hp optional/absent
    when the flip side, like both of these, prints no separate HP — "cannot be defeated" makes HP moot), and the
    standard/expert split modeled as two ordinary single-stage `VillainCard`s (not two sides of one) the way
-   `toafk`'s Kang/exp_kang split already is.
-4. **Hercules' Labor Deck (59002 Defeat the Hydra, 59003 Embody Pathos, 59004 Protect Humanity, and likely more
-   unsurveyed `hercules_labor_deck` codes): a hero-owned, encounter-shaped card.** Each prints `faction_code:
-   "hero"` (identity-specific, like the Gift Deck) but is typed `attachment`/`obligation` and behaves like an
-   *encounter* card: `"Victory 0."`, a `When Revealed:` trigger that searches for and attaches/plays itself, no
-   resource cost, no deck slot. `AttachmentCard`/`ObligationCard` (`schema/cards/encounter-cards.ts`) assume
-   `faction_code: "encounter"`. No shape proposed here — needs a real design decision (closest existing
-   precedent is `PlayerCardCommon.separateDeck`/`IdentitySeparateDeck`, but those are ordinary player cards, not
+   `toafk`'s Kang/exp_kang split already is. Also likely relevant to `aos`/`tt`'s own "villain stage label is not
+   a roman numeral" entries (22 total across `aos`/`gmw`/`mts`/`tt`) — not individually re-checked against this
+   shape yet.
+4. **Still open after §7: Hercules' Labor Deck (59002 Defeat the Hydra, 59003 Embody Pathos, 59004 Protect
+   Humanity, and likely more unsurveyed `hercules_labor_deck` codes) — a hero-owned, encounter-shaped card.**
+   Re-stated exactly as first reported. Each prints `faction_code: "hero"` (identity-specific, like the Gift
+   Deck) but is typed `attachment`/`obligation` and behaves like an *encounter* card: `"Victory 0."`, a `When
+   Revealed:` trigger that searches for and attaches/plays itself, no resource cost, no deck slot.
+   `AttachmentCard`/`ObligationCard` (`schema/cards/encounter-cards.ts`) assume `faction_code: "encounter"`. No
+   shape proposed here — needs a real design decision (closest existing precedent is
+   `PlayerCardCommon.separateDeck`/`IdentitySeparateDeck`, but those are ordinary player cards, not
    encounter-shaped ones).
-5. **`fne`'s Sense Deck: a non-unique identity-specific card with no printed `deck_limit`.** Daredevil's five
-   Sense Deck cards (60002–60006, Acute Tactility/Enhanced Olfaction/Heightened Hearing/Radar Sense/Superior
-   Taste): `is_unique: false`, `quantity: 1`, `deck_limit: None`. Unlike Hercules' Gift Deck (§3 above, Part 4),
-   these aren't unique, so RRG's uniqueness-cap reasoning that justified defaulting a missing `deck_limit` to 1
-   doesn't apply, and no other evidence yet supports a specific value (1, matching `quantity`, is the most likely
-   real answer — a "pick one of five" mechanic — but wasn't independently confirmed against a card image or
-   rules insert before this pass ran out of time on a very recently released pack). Needs either a confirmed
-   value (a card scan or the product's rules insert) or a considered decision on whether "non-unique,
-   identity-specific, missing deck_limit" should default the same way a unique one does.
-6. **`fne`'s Photographic Reflexes (60040a/60040b/60040c): three MarvelCDB records, one physical card or
-   three?** Same `card_set_code`, `quantity: 2` each, byte-identical text, none with `imagesrc`. Could be three
-   real alternate-art printings (6 physical copies) or a MarvelCDB triplication bug (one physical card, the way
-   `trors`' `10098` duplicated a real Captive ally). No card image exists for any of the three to settle it.
-7. **Coordinated Effort (`wonder_man`, 58032): "Attach to an encounter card in play."** No `AttachmentHostCategory`
-   value means "any card currently in the encounter deck/discard's play area", as opposed to a specific category
-   (`enemy`/`sideScheme`/etc.) — every existing `qualified`/plain category kind names one specific kind of card.
-8. **X-23's 43012: "Attach to an enemy that X-23 or Honey Badger attacked this turn."** A temporal condition
-   (which enemy, and when) — no existing `AttachmentHost` kind expresses "attacked this [turn/phase/round]".
-9. **Warrior of the Great Web (`spiderham`, 30029): "Attach to a character with 'Spider' in its title."** A
-   substring match on the printed title (not a trait, not an exact name) — no existing `HostQualifiers` shape
-   for "title contains X" (`namedCard` requires an exact match).
+
+**Closed, landed exactly as requested (§7.2/§7.3/§7.4, all confirmed working end to end this pass — Part 5 §1):**
+`AttachmentHost { kind: "encounterCard" }` (Coordinated Effort, `wonder_man` 58032 — now emitted);
+`HostQualifiers.titleContains` (Warrior of the Great Web, `spiderham` 30029 — now emitted);
+`HostQualifiers.attackedThisTurnBy`, **data only exactly as the architect specified** (Puncture Wound, `x23`
+43012 — emitted, but flagged in `cardNotes` as not-yet-playable per §7.4's own note that the engine records no
+per-turn attack history).
+
+**Not schema items — pipeline-level, resolved without a request:**
+- `fne`'s Sense Deck `deck_limit` gap and Photographic Reflexes' triple record are curation/evidence questions,
+  not schema gaps — restated in Part 4 §5 items 5–6, unchanged, not re-litigated here.
 
 ### Progress / next up
 
@@ -703,3 +713,146 @@ around; every pack they block is left curated-but-unregistered (§4) rather than
      likely resolve for free the way `sm`'s did this pass.
   4. Core/wave 1's generated-file staleness (Part 3 §3) is still just reverted, not resolved — still not this
      pass's call.
+
+---
+
+## Part 5: `game-rules-architect`'s §7 landed; five more packs emitted; the "attach rule inside an ability body" gap generalized
+
+**2026-09-19, fifth pass.** Picked up after commit `c061906` (Part 4 committed: `ironheart`/`iceman` emitted, 23
+data-only packs, ten packs curated-but-withheld, nine schema/parser requests). `game-rules-architect` landed six
+of those nine requests the same day (docs/phase7-wave2.md §7, "Schema requests from the data pipeline"). This
+pass: (1) implemented every §7.7 parser mapping and emitted the packs they unblocked, (2) found and fixed one
+more general parser gap along the way, (3) re-stated the three items §7 didn't cover as still open (§5 above,
+in place — not duplicated in a second list), (4) surveyed the rest of the gap matrix for further movement.
+
+### 1. §7's parser mappings implemented, one at a time
+
+All six landed shapes wired into `parse-text.ts`, each exactly as §7.7's table specifies:
+
+- `Attach to an encounter card in play.` → `{ kind: "encounterCard" }` (added to `parseAttach`'s `simple` map).
+- `Max N per encounter card.` → `playRestrictions.maxPerHost` (extended the existing `Max N per <category>.`
+  regex in `parseRestriction`).
+- `Attach to a character with "X" in its title.` → `{ kind: "qualified", category: "character", titleContains:
+  "X" }` (new pattern, tried before the generic `qualified`/superlative checks so it can't be swallowed by
+  either).
+- `Attach to an enemy that A or B attacked this turn.` → `{ kind: "qualified", category: "enemy",
+  attackedThisTurnBy: ["A", "B"] }` (new pattern; still emits real, correct data even though the field is data
+  only per §7.4 — the pipeline's job is correct data, not deciding playability).
+- `the ally with the highest cost` → `SuperlativeHostPool "ally"` added to the existing `supCore` regex's pool
+  alternation; `cost` → `measure: "printedCost"` added to the existing descriptor ternary (not `"cost"` — the
+  architect's own naming decision, §7.1, matched exactly).
+- `Prerequisite (T).` / `Prerequisite (T1 or T2).` → `{ name: "prerequisite", traits: [...] }`, spelled like the
+  existing `discount` keyword parser; the unconfirmed "form" half (`Prerequisite (hero form).`) is also
+  recognized on the strength of the rulebook's own "form or trait" phrasing, since no emitted card prints it yet
+  to test against.
+- `Starting.` (with its reminder text) → `{ name: "starting" }`, added to `SIMPLE_KEYWORDS` (the same table
+  `permanent`/`toughness`/etc. already use, so the existing reminder-text-stripping logic covers it for free).
+
+Verified against `packages/content/src/schema/wave2-data-requests.test.ts` (14 tests, `game-rules-architect`'s
+own fixtures) and `wave1.test.ts`/`wave2*.test.ts` — all pass unchanged; `pnpm --filter @mc/content typecheck`
+clean after every mapping.
+
+### 2. One more general parser fix, found while wiring §7.1 in: attach rules inside a triggered ability's body
+
+Landing `SuperlativeHostPool "ally"`/`HostMeasure "printedCost"` alone didn't unblock Beguiled (`valk`) or
+'Pool-ized (`deadpool`) — both still failed with "attachment without an attach rule". Their printed text is:
+
+```
+When Revealed: Attach to the ally with the highest cost without Beguiled attached. Attached ally engages
+its controller. Otherwise, this card gains surge.
+```
+
+The "Attach to X." sentence is the **`When Revealed:` ability's own opening sentence**, not a separate preamble
+line — `parseCardText` only ever scanned the preamble (the text before any trigger header) for an attach rule,
+by design, since every other attachment in the 63-pack corpus prints its attach rule as a standalone preamble
+sentence. This is the *general* shape behind what Part 4 §4 reported narrowly as "Bandolier of Stakes' own
+gap" (`mojo` 39048) — it turned out not to be a one-card idiom at all, just under-sampled: **four** confirmed
+cards (Beguiled `valk` 25031, 'Pool-ized `deadpool` 44041, "Lost" Child `jubilee` 47027, Possessed `storm`
+36038) share the exact shape "a `When Revealed:` ability whose own first sentence is a plain `Attach to X.`
+line". Fixed generally in `parse-text.ts`: when no preamble attach rule was found, each triggered ability's own
+first sentence (immediately after its trigger header) is tried against the same `parseAttach` function used for
+the preamble — first header to match wins (mirroring the preamble's own "first wins, a second is reported"
+rule), and **nothing is stripped from the ability's own text**, unlike a preamble attach rule (which the
+existing code does remove) — this sentence is also load-bearing game text (the "Otherwise, this card gains
+surge." branch reads on it), so `ability-scripting-engineer` still needs to see it verbatim.
+
+**`mojo`'s Bandolier of Stakes (39048) stays blocked** — its own phrasing is structurally different ("You may
+spend 1 resource of any type to **attach this card to** your identity. Otherwise, discard this card." — "attach"
+is mid-sentence, not the sentence's own leading verb), so this fix correctly doesn't reach it. Re-confirmed by
+survey: `mojo` unchanged at 2 issues (1 card, both error lines about it).
+
+**Verified no regression:** regenerated every already-registered pack (`--offline`) after this fix; only the
+already-known, pre-existing Core/wave 1 staleness (Part 3 §3) reproduced, reverted the same way as every prior
+pass — nothing new.
+
+### 3. Five more packs fully emitted
+
+`wonder_man`, `x23`, `valk`, `deadpool`, `spiderham` — all confirmed clean via `survey.ts` before registering in
+`ingest-marvelcdb.ts`'s `REGISTERED_CURATIONS`, emitted and wired into `DATA_ONLY_CARDS`/`DATA_ONLY_ENCOUNTER_SETS`/
+`data-only.test.ts` one at a time. Spot-checked the emitted data directly against the new shapes (all four match
+§7's proposed shapes exactly):
+
+```ts
+// Beguiled (valk, 25031)
+attachesTo: { kind: "superlative", among: "ally", order: "highest", measure: "printedCost", withoutAttachmentNamed: "Beguiled" }
+// Warrior of the Great Web (spiderham, 30029)
+attachesTo: { kind: "qualified", category: "character", titleContains: "Spider" }
+// Coordinated Effort (wonder_man, 58032)
+attachesTo: { kind: "encounterCard" }
+// Puncture Wound (x23, 43012)
+attachesTo: { kind: "qualified", category: "enemy", attackedThisTurnBy: ["X-23", "Honey Badger"] }
+```
+
+Puncture Wound's `cardNotes` records the data-only status §7.4 specifies, for whoever scripts X-23 next.
+`DATA_ONLY_CARDS` is now **28 packs** (up from 23).
+
+### 4. Gap matrix re-surveyed
+
+`jubilee`'s "Lost" Child (47027) resolved for free from §2's fix (11 → 9 issues) — **not emitted**, though: its
+remaining 9 issues are unrelated missing artwork for three `a`/`b`/`c`-suffixed records (Firecracker, Flash of
+Light, Plasmoid Energy), unchanged from Part 4's finding, not re-attempted this pass (real second-source
+research, not a parser fix). `mts` dropped 38 → 36 (two records' attach rules resolved by §2's fix, structurally
+similar to the four confirmed cards but not individually re-verified). No other pack's blocker changed —
+`storm`/`hercules`/`fne`/`gmw`/`psylocke` remain exactly as Part 4 described (§5 above has the up-to-date,
+single-source-of-truth status for each). Full survey: **45 of 63 packs normalize cleanly** (up from 40 at the
+start of this pass).
+
+Looked at the largest still-blocked packs (`luke_cage`, `synthezoid`) for further quick wins: `luke_cage` (26
+issues) is almost entirely missing artwork (25 of 26 records) — a brand-new pack with little second-source
+material yet, not attempted. `synthezoid` (22 issues) has a mix of a competitive-mode-only attach idiom ("Attach
+to a minion of the enemy team's choice" — this project builds cooperative play only, RRG 1.8 p. 4) and a
+"side scheme without starting threat" gap needing individual card-image confirmation; not attempted this pass to
+keep the report accurate rather than partially guessed at.
+
+### Progress / next up
+
+- **Done this pass:** all six landed §7 schema shapes wired into the parser; one more general parser fix (attach
+  rules inside a triggered ability's body); five more packs emitted (`wonder_man`, `x23`, `valk`, `deadpool`,
+  `spiderham` — `DATA_ONLY_CARDS` now 28 packs). The nine-item schema request list (§5 above) is now current:
+  six closed, three restated as "still open after §7" (the `thw` measure, `VillainStage.flipSide`, Hercules'
+  Labor Deck shape).
+- **Survey: 45 of 63 packs normalize cleanly** (up from 40 at the start of this pass, 34 before Part 3).
+- **Verified: root `pnpm --filter @mc/content typecheck`/`test` clean** (408 tests; the schema package's own new
+  `wave2-data-requests.test.ts`, `game-rules-architect`'s, is part of that count and not this pipeline's to
+  maintain). Regenerated and diffed every registered pack again — only the known pre-existing Core/wave 1
+  staleness reproduced, reverted as always.
+- **Still withheld, unchanged from Part 4 except where noted:** `phoenix` (needs 34028's exact text), `mojo`
+  (Bandolier of Stakes' distinct phrasing, §2), `storm` (needs the `thw` measure only — the narrowest remaining
+  gap of the three), `hercules` (Labor Deck), `fne` (deck_limit + Photographic Reflexes triplication + images),
+  `gmw` (needs `VillainStage.flipSide`), `psylocke` (one missing image, not sourced), `jubilee` (nine missing
+  images, not sourced).
+- **Next opportunity, in rough order of leverage:**
+  1. `game-rules-architect`: the `thw` measure alone (item 2b) fully unblocks `storm` — the cheapest remaining
+     schema ask. `VillainStage.flipSide` unblocks `gmw` and likely contributes to `mts`/`aos`/`tt`'s own "villain
+     stage label is not a roman numeral" entries (22 total, not yet individually re-checked against this shape).
+  2. Second-source image research: `jubilee` (9 images), `psylocke` (1 image), `luke_cage` (25 images, a whole
+     pack) — same recipe as `ironheart` (Part 4 §1): download to scratchpad, view with Read, delete, cite the
+     URL.
+  3. `fne` needs either a confirmed `deck_limit` value for its Sense Deck or a `game-rules-architect` decision on
+     whether non-unique identity cards default the same way unique ones do (Part 4 §5 item 5), plus a decision on
+     Photographic Reflexes (item 6).
+  4. The remaining big packs (`next_evol` 86, `aos` 74, `cw`/`tt` 57, `aoa` 56, `jj`/`mut_gen` 37, `sm` 30,
+     `luke_cage` 26, `synthezoid` 22) still need individual triage — several will likely resolve partially for
+     free once the `thw` measure and `VillainStage.flipSide` land, the way `jubilee`/`mts` did this pass.
+  5. Core/wave 1's generated-file staleness (Part 3 §3) is still just reverted every pass, never resolved —
+     still not this pipeline pass's call to make unilaterally.

@@ -201,6 +201,11 @@ export * from "./wolv/index.js";
 export * from "./hood/index.js";
 export * from "./ironheart/index.js";
 export * from "./iceman/index.js";
+export * from "./wonder_man/index.js";
+export * from "./x23/index.js";
+export * from "./valk/index.js";
+export * from "./deadpool/index.js";
+export * from "./spiderham/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
@@ -248,10 +253,20 @@ import { IRONHEART_CARDS } from "./ironheart/cards.js";
 import { IRONHEART_ENCOUNTER_SETS } from "./ironheart/encounterSets.js";
 import { ICEMAN_CARDS } from "./iceman/cards.js";
 import { ICEMAN_ENCOUNTER_SETS } from "./iceman/encounterSets.js";
+import { WONDER_MAN_CARDS } from "./wonder_man/cards.js";
+import { WONDER_MAN_ENCOUNTER_SETS } from "./wonder_man/encounterSets.js";
+import { X23_CARDS } from "./x23/cards.js";
+import { X23_ENCOUNTER_SETS } from "./x23/encounterSets.js";
+import { VALK_CARDS } from "./valk/cards.js";
+import { VALK_ENCOUNTER_SETS } from "./valk/encounterSets.js";
+import { DEADPOOL_CARDS } from "./deadpool/cards.js";
+import { DEADPOOL_ENCOUNTER_SETS } from "./deadpool/encounterSets.js";
+import { SPIDERHAM_CARDS } from "./spiderham/cards.js";
+import { SPIDERHAM_ENCOUNTER_SETS } from "./spiderham/encounterSets.js";
 
 /**
- * Every card in the data-only pool: 23 packs across cycles 3, 4, 5, 6, 8, 9 and one non-cycle promotional release,
- * in pack-code alphabetical order (no release-order relationship spans this many cycles at once, unlike
+ * Every card in the data-only pool: 28 packs across cycles 3, 4, 5, 6, 7, 8, 9, 10 and one non-cycle promotional
+ * release, in pack-code alphabetical order (no release-order relationship spans this many cycles at once, unlike
  * `WAVE1_CARDS`/`WAVE2_CARDS`). Not included in `WAVE1_CARDS`/`WAVE2_CARDS`/`CORE_CARDS` — a client that wants
  * "every known card, playable or not" concatenates this with those.
  */
@@ -279,6 +294,11 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...HOOD_CARDS,
   ...IRONHEART_CARDS,
   ...ICEMAN_CARDS,
+  ...WONDER_MAN_CARDS,
+  ...X23_CARDS,
+  ...VALK_CARDS,
+  ...DEADPOOL_CARDS,
+  ...SPIDERHAM_CARDS,
 ];
 
 /** Every data-only pool encounter set. */
@@ -306,4 +326,9 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...HOOD_ENCOUNTER_SETS,
   ...IRONHEART_ENCOUNTER_SETS,
   ...ICEMAN_ENCOUNTER_SETS,
+  ...WONDER_MAN_ENCOUNTER_SETS,
+  ...X23_ENCOUNTER_SETS,
+  ...VALK_ENCOUNTER_SETS,
+  ...DEADPOOL_ENCOUNTER_SETS,
+  ...SPIDERHAM_ENCOUNTER_SETS,
 ];

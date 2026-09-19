@@ -1,14 +1,13 @@
 /**
  * Valkyrie (Brunnhilde) Hero Pack (Cycle 4) curation.
  *
- * **Curated but NOT registered for emission** — Beguiled needs a schema decision; see "Schema requests for
- * game-rules-architect" in docs/phase7-wave2-data.md. No corrections needed otherwise; this file exists to
- * document the one blocker.
- *
- * - **Beguiled (25031, attachment): NOT curatable — a schema gap.** "Attach to the ally with the highest cost
- *   without Beguiled attached" needs `SuperlativeHostPool` `"ally"` and `HostMeasure` `"cost"`, neither of which
- *   exists yet. The identical shape (by "cost") also blocks `deadpool`'s 'Pool-ized and `jubilee`'s "Lost"
- *   Child; `storm`'s Possessed needs the same pool but by `"thw"` instead. See the consolidated schema request.
+ * - **Beguiled (25031, attachment): `SuperlativeHostPool "ally"` + `HostMeasure "printedCost"`**, landed by
+ *   `game-rules-architect` (docs/phase7-wave2.md §7.1) — "Attach to the ally with the highest cost without
+ *   Beguiled attached" now parses to `{ kind: "superlative", among: "ally", order: "highest", measure:
+ *   "printedCost", withoutAttachmentNamed: "Beguiled" }`. Also needed the parser to look for an "Attach to X."
+ *   sentence inside a `When Revealed:` ability's own body, not just the card's preamble (`parse-text.ts`'s
+ *   general fix, `docs/phase7-wave2-data.md`) — this card's attach rule is the ability's own opening sentence,
+ *   not a separate preamble line. No corrections needed; normalizes cleanly.
  */
 import type { PackCuration } from "./types.ts";
 

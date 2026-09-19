@@ -72,6 +72,11 @@ import { WOLV_CURATION } from "./marvelcdb/curation/wolv.ts";
 import { HOOD_CURATION } from "./marvelcdb/curation/hood.ts";
 import { IRONHEART_CURATION } from "./marvelcdb/curation/ironheart.ts";
 import { ICEMAN_CURATION } from "./marvelcdb/curation/iceman.ts";
+import { WONDER_MAN_CURATION } from "./marvelcdb/curation/wonder_man.ts";
+import { X23_CURATION } from "./marvelcdb/curation/x23.ts";
+import { VALK_CURATION } from "./marvelcdb/curation/valk.ts";
+import { DEADPOOL_CURATION } from "./marvelcdb/curation/deadpool.ts";
+import { SPIDERHAM_CURATION } from "./marvelcdb/curation/spiderham.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -124,8 +129,14 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   hood: HOOD_CURATION,
   ironheart: IRONHEART_CURATION,
   iceman: ICEMAN_CURATION,
-  // mojo, storm: curated (survey.ts), but NOT registered here — each has one card still blocked on a real
-  // parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for game-rules-architect" / parser-gap log).
+  wonder_man: WONDER_MAN_CURATION,
+  x23: X23_CURATION,
+  valk: VALK_CURATION,
+  deadpool: DEADPOOL_CURATION,
+  spiderham: SPIDERHAM_CURATION,
+  // mojo, storm, hercules, fne, gmw, psylocke: curated (survey.ts), but NOT registered here — each has at least
+  // one card still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
+  // game-rules-architect" / parser-gap log).
 };
 
 interface RawCache {

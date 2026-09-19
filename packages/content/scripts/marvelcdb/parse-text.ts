@@ -263,6 +263,10 @@ const SIMPLE_KEYWORDS: Readonly<Record<string, KeywordInstance["name"]>> = {
   vulnerable: "vulnerable",
   alliance: "alliance",
   amplify: "amplify",
+  // docs/phase7-wave2.md §7.5: "Starting. (You may add this card to your hand before drawing your starting
+  // hand.)" (Innate Reflexes 60038, `fne`; Innate Aggression/Perception/Inspiration 61034/61036/61037, `jj`) —
+  // data only, no pre-opening-draw step in the engine yet.
+  starting: "starting",
 };
 
 /** A single "[icon]" resource token, as it survives `toPlainText` (docs/phase7-wave2.md). */
@@ -307,6 +311,18 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   if (discount) {
     const traits = (discount[2] as string).split(/\s+or\s+/).map((t) => t.trim().toUpperCase() as Trait);
     return { name: "discount", value: Number(discount[1]), traits };
+  }
+  // docs/phase7-wave2.md §7.5, §7.7: "Prerequisite (T)." / "Prerequisite (T1 or T2)." — Defend Our City (61029,
+  // `jj`): "Prerequisite (Defender)." `traits` is an OR, spelled like `discount`'s. No emitted card prints the
+  // "form" half yet ("Prerequisite (hero form)." / "Prerequisite (alter-ego form)."), so that's recognized too,
+  // on the strength of the rulebook's own "form or trait" phrasing, but unconfirmed against a printed card.
+  const prerequisite = /^Prerequisite \((.+)\)\.?$/.exec(sentence);
+  if (prerequisite) {
+    const inner = (prerequisite[1] as string).trim();
+    const formMatch = /^(hero|alter-ego) form$/i.exec(inner);
+    if (formMatch) return { name: "prerequisite", form: (formMatch[1] as string).toLowerCase() === "hero" ? "hero" : "alterEgo" };
+    const traits = inner.split(/\s+or\s+/).map((t) => t.trim().toUpperCase() as Trait);
+    return { name: "prerequisite", traits };
   }
   const s = sentence.replace(/\s*\([^)]*\)\.?$/, "").replace(/\.$/, "").trim();
   const simple = SIMPLE_KEYWORDS[s.toLowerCase()];
@@ -370,6 +386,9 @@ function parseAttach(
     "the enemy leader": { kind: "leader", of: "enemy" },
     "your leader": { kind: "leader", of: "yours" },
     "the villain who is not the active villain": { kind: "nonActiveVillain" },
+    // docs/phase7-wave2.md §7.2: "Attach to an encounter card in play." (Coordinated Effort 58032) — any card in
+    // play on the encounter side, whatever its type, as opposed to a specific category.
+    "an encounter card in play": { kind: "encounterCard" },
   };
   // Case-insensitive on the phrase itself (MarvelCDB is inconsistent — "Attach to the Villain." in `trors`);
   // proper names below stay case-sensitive.
@@ -492,6 +511,20 @@ function parseAttach(
       },
     };
   }
+  // docs/phase7-wave2.md §7.3: "a character with 'Spider' in its title" (Warrior of the Great Web, 30029) — a
+  // substring of the title, not a trait. MarvelCDB prints the quoted substring with double quotes.
+  const titleContains = /^a character with "(.+)" in its title$/i.exec(target);
+  if (titleContains) {
+    return { host: { kind: "qualified", category: "character", titleContains: titleContains[1] as string } };
+  }
+  // docs/phase7-wave2.md §7.4: "an enemy that A or B attacked this turn" (Puncture Wound, 43012) — data only (the
+  // engine records no per-turn attack history yet), but still parsed into the real shape rather than left
+  // unclassified, so the card's data is correct and only its playability is gated (docs/phase7-wave1.md §3.1).
+  const attackedThisTurn = /^an enemy that (.+) attacked this turn$/i.exec(target);
+  if (attackedThisTurn) {
+    const names = (attackedThisTurn[1] as string).split(/\s+or\s+/).map((n) => n.trim());
+    return { host: { kind: "qualified", category: "enemy", attackedThisTurnBy: names } };
+  }
   // Superlative over a named pool: "the minion with the most remaining hit points without another copy of X
   // attached", "the enemy with the highest ATK", "the villain with the fewest hit points without the Aerial
   // trait". A descriptor this doesn't recognize (e.g. "highest activation order value", "most traits") is a
@@ -510,10 +543,10 @@ function parseAttach(
       supWithoutTrait = (traitSuffix[2] as string).trim();
     }
   }
-  const supCore = /^(?:the|a) (minion|enemy|villain|friendly character) with the (highest|lowest|most|fewest) (.+)$/i.exec(supRest);
+  const supCore = /^(?:the|a) (minion|enemy|villain|friendly character|ally) with the (highest|lowest|most|fewest) (.+)$/i.exec(supRest);
   if (supCore) {
     const poolWord = (supCore[1] as string).toLowerCase();
-    const among = poolWord === "friendly character" ? "friendlyCharacter" : (poolWord as "minion" | "enemy" | "villain");
+    const among = poolWord === "friendly character" ? "friendlyCharacter" : (poolWord as "minion" | "enemy" | "villain" | "ally");
     const orderWord = (supCore[2] as string).toLowerCase();
     const order: "highest" | "lowest" = orderWord === "highest" || orderWord === "most" ? "highest" : "lowest";
     const descriptor = (supCore[3] as string).trim().toLowerCase();
@@ -534,7 +567,12 @@ function parseAttach(
                   ? "activationOrder"
                   : descriptor === "traits"
                     ? "traitCount"
-                    : undefined;
+                    : // docs/phase7-wave2.md §7.1: "the ally with the highest cost" (Beguiled 25031, 'Pool-ized 44041) —
+                      // the card's *printed* cost (RRG 1.8 "Printed", p. 35), named `printedCost` like
+                      // `printedHp`/`printedAtk` are, not `cost` (a card in play has no other cost).
+                      descriptor === "cost"
+                      ? "printedCost"
+                      : undefined;
     if (measure) {
       return {
         host: {
@@ -586,7 +624,9 @@ function parseRestriction(sentence: string, into: MutableRestrictions): { maxPer
     into.maxPerRound = Number(m[1]);
     return {};
   }
-  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero)\.$/.exec(sentence);
+  // docs/phase7-wave2.md §7.2: "Max 1 per encounter card." (Coordinated Effort, 58032) — the second sentence of
+  // its printed pair with "Attach to an encounter card in play.".
+  m = /^Max (\d+) per (?:enemy|ally|minion|character|hero|encounter card)\.$/.exec(sentence);
   if (m) {
     into.maxPerHost = Number(m[1]);
     return {};
@@ -724,6 +764,26 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       const body = line.slice(h.index, end).trim();
       const { kind, form } = kindOf(h.trigger);
       if (kind === "contents") return; // informational scenario contents, not an ability
+      // An attach rule can print as a triggered ability's own opening sentence instead of the preamble —
+      // "When Revealed: Attach to the ally with the highest cost without Beguiled attached. Attached ally
+      // engages its controller. Otherwise, this card gains surge." (Beguiled `valk` 25031, 'Pool-ized
+      // `deadpool` 44041, Possessed `storm` 36038, "Lost" Child `jubilee` 47027) — every surveyed instance is a
+      // `When Revealed:` ability whose printed sentence still reads exactly like a preamble "Attach to X."
+      // sentence, just positioned after the trigger header. Only tried once (the first header carrying one
+      // wins, matching the preamble's own "first wins, a second is reported" rule below) and never strips
+      // anything from the ability's own text — unlike a preamble attach rule, this sentence is also load-bearing
+      // game text (the "Otherwise, this card gains surge." branch depends on it), so `ability-scripting-engineer`
+      // still needs to see it verbatim.
+      if (!attachesTo) {
+        const firstSentence = splitSentences(body.slice(h.length).trim())[0];
+        if (firstSentence) {
+          const bodyAttach = parseAttach(firstSentence, options.villainNames, options.multipleVillains ?? false);
+          if (bodyAttach) {
+            attachesTo = bodyAttach.host;
+            if (bodyAttach.villainName) attachesToVillainNamed = bodyAttach.villainName;
+          }
+        }
+      }
       // Final-stage loss reminder glued after an ability body is not part of the ability.
       abilities.push({
         kind,

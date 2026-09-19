@@ -1,17 +1,14 @@
 /**
  * Wonder Man (Simon Williams) Hero Pack (Cycle 10) curation.
  *
- * **Curated but NOT registered for emission** — Coordinated Effort needs a schema decision; see "Schema
- * requests for game-rules-architect" in docs/phase7-wave2-data.md.
- *
  * - **Ionic Physiology (58002, upgrade) and Cameo (58031, support): dash cost, confirmed.** Ionic Physiology is
  *   Permanent, entering play by its own text; Cameo is a `Setup:` search-and-attach support, never played for a
  *   resource cost. Both send no `cost` at all on MarvelCDB; both confirmed against their own MarvelCDB listing
  *   ("Cost: —").
- * - **Coordinated Effort (58032, upgrade): NOT curatable — a schema gap.** "Attach to an encounter card in
- *   play. Max 1 per encounter card." names no specific category (`enemy`/`sideScheme`/etc.) — it's "any card
- *   from the encounter deck currently in play," which `AttachmentHostCategory` has no value for. See the
- *   consolidated schema request.
+ * - **Coordinated Effort (58032, upgrade): `AttachmentHost { kind: "encounterCard" }`**, landed by
+ *   `game-rules-architect` (docs/phase7-wave2.md §7.2) in response to this pipeline's schema request — "Attach
+ *   to an encounter card in play. Max 1 per encounter card." parses automatically once the request landed; no
+ *   further curation needed. Normalizes cleanly.
  */
 import type { PackCuration } from "./types.ts";
 

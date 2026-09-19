@@ -1,13 +1,10 @@
 /**
  * Deadpool (Wade Wilson) Hero Pack (Cycle 7) curation.
  *
- * **Curated but NOT registered for emission** — 'Pool-ized needs a schema decision; see "Schema requests for
- * game-rules-architect" in docs/phase7-wave2-data.md. No corrections needed otherwise; this file exists to
- * document the one blocker.
- *
- * - **'Pool-ized (44041, attachment): NOT curatable — the same schema gap as `valk`'s Beguiled.** "Attach to the
- *   ally with the highest cost without 'Pool-ized attached" needs `SuperlativeHostPool` `"ally"` and
- *   `HostMeasure` `"cost"`. See the consolidated schema request.
+ * - **'Pool-ized (44041, attachment): the same landed shape as `valk`'s Beguiled** (`SuperlativeHostPool "ally"`
+ *   + `HostMeasure "printedCost"`, docs/phase7-wave2.md §7.1) — "Attach to the ally with the highest cost
+ *   without 'Pool-ized attached" now parses automatically, including via the same "attach rule inside a
+ *   `When Revealed:` ability body" parser fix `valk.ts` describes. No corrections needed; normalizes cleanly.
  */
 import type { PackCuration } from "./types.ts";
 

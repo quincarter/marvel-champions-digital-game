@@ -1,15 +1,15 @@
 /**
  * X-23 (Laura Kinney) Hero Pack (Cycle 7) curation.
  *
- * **Curated but NOT registered for emission** — 43012 needs a schema decision; see "Schema requests for
- * game-rules-architect" in docs/phase7-wave2-data.md.
- *
  * - **X-23's Claws (43002, upgrade): dash cost, confirmed.** A Permanent signature weapon, exhausted for its own
  *   Hero Action rather than played for a resource cost. MarvelCDB sends no `cost` at all; confirmed against the
  *   card's own MarvelCDB listing ("Cost: —").
- * - **43012 (attachment): NOT curatable — a schema gap.** "Attach to an enemy that X-23 or Honey Badger attacked
- *   this turn" is a temporal condition (which enemy was attacked, and when), not a static qualifier any existing
- *   `AttachmentHost` kind can express. See the consolidated schema request.
+ * - **Puncture Wound (43012, attachment): `HostQualifiers.attackedThisTurnBy`**, landed by
+ *   `game-rules-architect` (docs/phase7-wave2.md §7.4) — "Attach to an enemy that X-23 or Honey Badger attacked
+ *   this turn" now parses to `{ kind: "qualified", category: "enemy", attackedThisTurnBy: ["X-23", "Honey
+ *   Badger"] }`. **Data only, per the architect's own note:** the engine records no per-turn attack history yet,
+ *   so this qualifier resolves to no legal host until it does — 43012 carries correct data but must not be
+ *   marked playable before that engine primitive lands (docs/phase7-wave1.md §3.1).
  */
 import type { PackCuration } from "./types.ts";
 
@@ -35,7 +35,10 @@ export const X23_CURATION: PackCuration = {
   errata: [],
 
   scriptingNotes: {},
-  cardNotes: {},
+  cardNotes: {
+    "43012":
+      "attackedThisTurnBy is data only (docs/phase7-wave2.md §7.4) — the engine has no per-turn attack history yet, so this card resolves to no legal host and must not be marked playable until that primitive lands.",
+  },
 
   scenarios: [],
   starterDecks: [],
