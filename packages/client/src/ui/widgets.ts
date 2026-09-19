@@ -335,8 +335,14 @@ export function label(
  * beside `<span style="flex:1;height:3px;background:#14110E">`). Returns the
  * next free `y`.
  *
- * `collect`, when passed, receives the text and rule objects this creates —
- * a virtualized-list row (`ui/variable-list.ts`'s `McVariableList`) must
+ * `rightLabel` (Table setup's D05, "1 REQUIRED · 1 CHOSEN" / "30 CARDS ·
+ * SHUFFLED AT DEAL") draws a small uppercase label at the row's own right
+ * edge, letting the rule run only as far as that label's own left edge —
+ * still one implementation, so a header with or without one never drifts
+ * into two different row shapes.
+ *
+ * `collect`, when passed, receives every text/label/rule object this creates
+ * — a virtualized-list row (`ui/variable-list.ts`'s `McVariableList`) must
  * return every object it draws in its own `VirtualListRow.objects` so the
  * list's row layer (the one thing that actually gets masked and scrolled)
  * owns them; a caller that calls `scene.add.*` itself via this helper and
@@ -352,14 +358,27 @@ export function sectionHeader(
   width: number,
   text: string,
   color: number = surface.ink.hex,
+  rightLabel?: string,
   collect?: Phaser.GameObjects.GameObject[],
 ): number {
   const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setLetterSpacing(typeRole.barTitle.letterSpacing).setFontSize(19);
   collect?.push(heading);
+  let rightWidth = 0;
+  if (rightLabel) {
+    const right = label(scene, x + width, y + heading.height / 2, rightLabel, typeRole.label, color, ink.label).setOrigin(1, 0.5);
+    rightWidth = right.width + 14;
+    collect?.push(right);
+  }
+  // The heading never overlaps its own right label: a long title ("THE ENCOUNTER DECK YOU'RE BUILDING") on a
+  // narrow column shrinks (`fitText`'s own floor-then-ellipsis) against exactly the width that's left for it,
+  // rather than being drawn at its natural width and spilling into the label sitting at the row's own right edge.
+  const headingMaxWidth = Math.max(10, width - rightWidth - (rightLabel ? 10 : 0));
+  fitText(heading, headingMaxWidth, 19);
   const ruleX = x + heading.width + 10;
-  if (ruleX < x + width) {
+  const ruleEnd = x + width - rightWidth;
+  if (ruleX < ruleEnd) {
     const rule = scene.add.graphics();
-    rule.fillStyle(color, 1).fillRect(ruleX, y + heading.height / 2 - 1.5, x + width - ruleX, 3);
+    rule.fillStyle(color, 1).fillRect(ruleX, y + heading.height / 2 - 1.5, ruleEnd - ruleX, 3);
     collect?.push(rule);
   }
   return y + heading.height + 12;
@@ -690,6 +709,11 @@ export class McTextInput {
   #rect: Rect;
   #onChange: ((value: string) => void) | undefined;
   #numeric: boolean;
+  #hidden = false;
+  /** True while another scene is running above this field's own (`syncCovered`) — kept separate from `setVisible`'s own caller-requested visibility so the two reasons a field might be hidden combine (AND) instead of the per-frame `syncCovered` check silently overriding a caller's own `setVisible(false)` back to visible every frame (found in browser verification, 2026-09-18: the phone Table setup scroll region's own hide-when-scrolled-away call was winning for exactly one frame before `syncCovered` put the field back). */
+  #coveredByOtherScene = false;
+  /** The caller's own last `setVisible` request — combined with `#coveredByOtherScene` in `#applyVisibility`. */
+  #requestedVisible = true;
 
   constructor(scene: Phaser.Scene, options: McTextInputOptions) {
     this.#rect = options.rect;
@@ -751,8 +775,9 @@ export class McTextInput {
     const syncCovered = (): void => {
       const running = scene.scene.manager.getScenes(true);
       const covered = running.indexOf(scene) < running.length - 1;
-      if (this.#input.visible === covered) this.#input.setVisible(!covered);
-      if (covered && this.#input.isFocused) this.#input.setBlur();
+      if (this.#coveredByOtherScene === covered) return;
+      this.#coveredByOtherScene = covered;
+      this.#applyVisibility();
     };
     scene.events.on("update", syncCovered);
     this.#input.once("destroy", () => scene.events.off("update", syncCovered));
@@ -808,6 +833,36 @@ export class McTextInput {
     this.#input.setPosition(rect.x, rect.y);
     this.#input.resize(rect.width, rect.height);
     if (this.#input.isFocused) this.#ring.show(rect, "static", true);
+  }
+
+  /**
+   * Shows or hides the field — for a caller positioning it inside a scrolled, masked region (`ui/scroll-region.ts`):
+   * a DOM element sits above the canvas, so a Phaser mask never clips it, and it has to be hidden by hand whenever
+   * `layout` would otherwise place it outside its own scrollable viewport. Combined (AND) with `syncCovered`'s own
+   * "another scene is covering this one" state in `#applyVisibility`, not applied directly — two independent
+   * reasons a field might need to be hidden must not silently overwrite each other every frame.
+   */
+  setVisible(visible: boolean): void {
+    this.#requestedVisible = visible;
+    this.#applyVisibility();
+  }
+
+  /**
+   * Applies `#requestedVisible && !#coveredByOtherScene` via Phaser's own native `setVisible` — **not** a direct
+   * `node.style.display` write. Browser verification (2026-09-18, the phone Table setup scroll region) found and
+   * ruled out that shortcut: `DOMElementCSSRenderer` (Phaser's own per-*frame* DOM sync, not a one-shot render)
+   * unconditionally rewrites `style.display` from the element's own `renderFlags` every frame the element is still
+   * flagged visible, so a manual `style.display = 'none'` written *this* frame is silently put back to `'block'`
+   * the very next one. The native call is what actually flips `renderFlags`, which that per-frame sync then
+   * honours correctly on its own. Blurs on hide, so a hidden field can't silently keep the keyboard focus (and the
+   * screen's own focus route blocked on `focused`) after either reason makes it invisible.
+   */
+  #applyVisibility(): void {
+    const visible = this.#requestedVisible && !this.#coveredByOtherScene;
+    if (this.#hidden === !visible) return;
+    this.#hidden = !visible;
+    this.#input.setVisible(visible);
+    if (!visible && this.#input.isFocused) this.#input.setBlur();
   }
 
   destroy(): void {

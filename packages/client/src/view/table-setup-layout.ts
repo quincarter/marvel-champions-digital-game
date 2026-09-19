@@ -1,211 +1,650 @@
 /**
  * Table setup (docs/phase4-screen-gaps.md §3 W2, D05/P12), composition read
- * off `docs/design-renders/ScreensDesktop_04-05.png` and
- * `ScreensPhone_02.png`:
+ * off the owner's own D05 screenshot (2026-09-18 correction, which supersedes
+ * the brief this module was first written against — see that correction's
+ * full text for the exact wording, reproduced here as the composition this
+ * layout implements):
  *
- * The same full-width **ink** header bar as Scenario select/Take your seats.
- * Below it, on tablet/desktop, the screen splits side by side: a **paper**
- * body panel (~62%) carrying Difficulty, the modular set picker (dark ink
- * tiles of their own, red-bordered when chosen) and Seating/first player,
- * beside a persistent **ink** sidebar (~38%) carrying "the encounter deck
- * you're building" (S3), "the game you'll get"
- * (`view/table-setup-preview.ts`), the seed field with Reroll, and the one
- * red action, "Deal it out", at the sidebar's own foot. On phone there's no
- * room for two columns, so the sidebar drops below the body instead —
- * everything else the same, ink ground and all.
+ * A full-width **ink** header bar: "◂ Seats" (Bangers), the Bangers page
+ * title "Set the table", "STEP 4 OF 4" on the right — the same shape
+ * Scenario select/Take your seats use.
  *
- * The two info panels are still a variable number of text lines (an
- * encounter deck's own set/type breakdown, a multi-villain scenario's own
- * longer "game you'll get"), so the same "lay out once, measure the overflow,
- * trim panel line budgets first" rule `view/scenario-select-layout.ts` uses
- * applies here too, independently for the body and the sidebar since they
- * scroll to their own bottoms.
+ * **Wide (desktop/tabletLandscape):** the ground below the header is
+ * **paper**, split into a body column and a fixed ~300px full-height **ink**
+ * sidebar inset 24px from the body's own top/right/bottom (`scenario-select-
+ * layout.ts`'s own pattern, reused so the setup flow reads as one product).
+ * The body stacks four sections, each a Bangers header + a full-bleed ink
+ * rule (`ui/widgets.ts`'s `sectionHeader`), some carrying a right-aligned
+ * label:
+ *  - **DIFFICULTY** — up to three equal-width cards (Heroic stays out of
+ *    scope, §4, so at most two are ever drawn against a three-wide row,
+ *    leaving the third slot empty rather than stretching to fill it).
+ *  - **MODULAR SETS** ("N REQUIRED · N CHOSEN") — a wrapped grid, the
+ *    scenario's own required set(s) first (ink-filled, not toggleable),
+ *    then every candidate modular set.
+ *  - **SEATING & FIRST PLAYER** — one row of seat cards, with a small quiet
+ *    "Random" control on the header's own line.
+ *  - **THE ENCOUNTER DECK YOU'RE BUILDING** ("N CARDS · SHUFFLED AT DEAL")
+ *    — three equal bordered panels (Composition / What's in there / Nemesis
+ *    sets held back) filling the rest of the body's own height.
+ *
+ * The sidebar carries "THE GAME YOU'LL GET" (six label/value rows), a rule,
+ * the seed field with Reroll and its own helper text, and the single red
+ * "Deal it out" pinned at the sidebar's own foot.
+ *
+ * **Narrow (phone/tabletPortrait), read against the owner's own P12
+ * screenshot and the coordinator's tablet-portrait note ("adapt D05: portrait
+ * stacks it under the body with DEAL IT OUT in a sticky footer"):** no room
+ * for a second column, so the whole screen is one **ink** ground and one
+ * column (`title-menu-layout.ts`'s own "no split" convention), and every
+ * section is drawn compactly rather than at the wide layout's own card sizes
+ * — P12 draws Modular sets and First player as dense list/row controls, not
+ * the wide layout's description cards, and this module follows that same
+ * compaction for Difficulty too, for the same reason (P12 doesn't carry a
+ * difficulty picker at all, but the setup flow needs one on every form
+ * factor — dropping a legal choice on one device would be the client
+ * inventing a rule, so it stays, just compact). Seating draws as **one**
+ * horizontal row of small cards, Random included as its own dashed cell (P12
+ * embeds it in the row; the wide layout, per the owner's correction, keeps it
+ * on the section-header line instead — two different homes for the same
+ * control, each matching its own screenshot).
+ *
+ * Difficulty, modular sets and seating stay at their full, real, functional
+ * sizes — they're controls, never trimmed. "Deal it out" pins to the
+ * screen's own foot as a sticky footer, like the board's action bar
+ * ("content scrolls under the bar", `view/layout.ts`). Whatever vertical
+ * room is left above it goes to the encounter-deck panels first and then the
+ * game-summary block, **laid out sequentially** — the panels get their real
+ * height (trimmed row-first, down to zero rows, never negative), then the
+ * summary block starts exactly where the panels actually ended, so the two
+ * can never overlap by construction (a fixed pre-split of the same room, tried
+ * first, could let one block's real minimum height run into the other's
+ * fixed start — this doesn't have that failure mode). On a wide-enough
+ * narrow viewport (tablet portrait) the three panels still sit side by side,
+ * exactly like the wide layout; only true phone width stacks them.
  */
+import { formFactorFor, type FormFactor, type Rect } from "./layout.js";
 import { hit } from "../tokens.js";
-import type { Rect } from "./layout.js";
-import { LABEL_ROOM, setupColumnWidth, setupMetrics } from "./setup-metrics.js";
+import { LABEL_ROOM, setupMetrics } from "./setup-metrics.js";
 
-export const PANEL_LINE_HEIGHT = 18;
 export const HEADER_HEIGHT = 64;
-const SIDEBAR_SHARE = 0.38;
-const GUTTER = 24;
+export const GUTTER = 24;
+export const SIDEBAR_WIDTH = 300;
+/** A section's own Bangers-title-plus-rule row (drawn by `ui/widgets.ts`'s `sectionHeader`, top-aligned at this height). */
+export const SECTION_HEADER_HEIGHT = 26;
+export const SECTION_GAP = 20;
+export const ROW_GAP = 8;
+/** A difficulty card: a Bangers name plus one wrapped description line. Wide only — narrow uses `NARROW_DIFFICULTY_CARD_HEIGHT`. */
+export const DIFFICULTY_CARD_HEIGHT = 76;
+/** A modular-set / required-set card: a Bangers name plus one label line. Wide only — narrow uses `NARROW_MODULAR_CARD_HEIGHT`. */
+export const MODULAR_CARD_HEIGHT = 58;
+const MODULAR_CARD_MIN_WIDTH = 170;
+/** A seat card: a radio dot, the hero's name, and a small "FIRST PLAYER"/"SEAT N" label. Wide only — narrow uses `NARROW_SEATING_CARD_HEIGHT`. */
+export const SEAT_CARD_HEIGHT = 60;
+/** One row inside a description-only panel (Composition / What's in there / Nemesis / the sidebar's own summary rows). */
+export const PANEL_ROW_HEIGHT = 18;
+export const PANEL_HEADER_HEIGHT = 22;
+export const PANEL_PAD = 10;
+export const GAME_SUMMARY_ROW_COUNT = 6;
+
+// Narrow (phone/tabletPortrait) is compact throughout (P12's own dense list/row treatment) — exported so the
+// scene's own cell math (`modularGrid.height` divided into `modularRows` cells, say) uses exactly the same
+// numbers this layout was computed with, rather than a second, potentially-drifting copy of them.
+// 66/64 (not 52/50): a difficulty card's description ("Standard encounter set only. Starts at stage I.") and a
+// modular card's label ("Chosen · 6 cards · Treacheries") both wrap to two lines at a phone-width card
+// (`docs/design-renders` fidelity pass, 2026-09-18 — 52/50 clipped the description to one word and let the
+// modular label's second line spill past its own card into whatever sat below it).
+export const NARROW_DIFFICULTY_CARD_HEIGHT = 66;
+export const NARROW_MODULAR_CARD_HEIGHT = 64;
+export const NARROW_MODULAR_GRID_GAP = 6;
+export const NARROW_SEATING_CARD_HEIGHT = 56;
 
 export interface TableSetupLayoutInput {
   readonly width: number;
   readonly height: number;
   readonly difficultyCount: number;
-  readonly modularRows: number;
-  readonly encounterLines: number;
-  readonly gameLines: number;
+  /** Every card the modular-set section draws: the scenario's own required set(s) plus every candidate. */
+  readonly modularCardCount: number;
+  readonly seatCount: number;
+  readonly compositionRows: number;
+  readonly whatsInThereRows: number;
+  /** The nemesis panel's own body: 0 when there's nothing held back (the panel still gets its header), else the wrapped sentence's line count plus one for the "N CARDS ON STANDBY" foot line. */
+  readonly nemesisLines: number;
+}
+
+export interface EncounterPanelsLayout {
+  readonly composition: Rect;
+  readonly whatsInThere: Rect;
+  readonly nemesis: Rect;
+  /** How many body rows each panel actually has room to draw, after this layout's own trimming — the scene draws exactly this many and a "+N more" for the rest. Composition/whatsInThere/nemesis, in that order. */
+  readonly rowBudgets: readonly [number, number, number];
 }
 
 export interface TableSetupLayout {
-  readonly pad: number;
-  readonly left: number;
-  readonly column: number;
+  readonly formFactor: FormFactor;
+  readonly wide: boolean;
   readonly headerBar: Rect;
   readonly back: Rect;
   readonly step: Rect;
-  /** The paper body panel's own bounds (full width on phone, ~62% on tablet/desktop). */
-  readonly bodyPanel: Rect;
-  /** The ink sidebar's own bounds (full width, below the body, on phone). */
-  readonly sidebar: Rect;
-  readonly split: boolean;
-  readonly difficulty: Rect;
-  readonly modular: Rect;
+  /** The ink sidebar (wide) — null on narrow, where its content joins the single column instead. */
+  readonly sidebar: Rect | null;
+  readonly difficultyHeader: Rect;
+  readonly difficultyRow: Rect;
+  readonly modularHeader: Rect;
+  readonly seatingHeader: Rect;
+  /**
+   * The "Random" control. On `wide` it sits on the seating header's own line
+   * (the owner's correction: "the tile has none, we need it") and
+   * `seatingRow` holds exactly `seatCount` cells. On narrow it's zero-area
+   * (unused) — P12 draws Random as the seat row's own extra dashed cell
+   * instead, so the scene splits `seatingRow` into `seatCount + 1` cells
+   * there and never reads this field.
+   */
+  readonly randomControl: Rect;
+  readonly modularGrid: Rect;
+  readonly modularColumns: number;
   readonly modularRows: number;
-  readonly seating: Rect;
-  readonly encounterPreview: Rect;
-  readonly encounterLines: number;
-  readonly gamePreview: Rect;
-  readonly gameLines: number;
+  readonly seatingRow: Rect;
+  readonly encounterHeader: Rect;
+  readonly encounterPanels: EncounterPanelsLayout;
+  /** "THE GAME YOU'LL GET": header, then `GAME_SUMMARY_ROW_COUNT` label/value rows. */
+  readonly gameSummaryHeader: Rect;
+  readonly gameSummaryRows: Rect;
+  readonly rule: Rect;
   readonly seed: Rect;
   readonly reroll: Rect;
+  /** Room for the seed field's own helper text, right under it — empty (zero height) when there's no room at all. */
+  readonly seedHelper: Rect;
   readonly dealItOut: Rect;
 }
 
+/**
+ * Every drawn *content* region, for a no-overlap test — deliberately excludes `sidebar` itself (wide only), which
+ * is the ink ground every sidebar row is meant to sit inside, not content to keep clear of (`bodyPanel` got the
+ * same exclusion before this module's rewrite).
+ */
 export function tableSetupLayoutRects(layout: TableSetupLayout): readonly Rect[] {
-  return [
+  const rects: Rect[] = [
     layout.back,
     layout.step,
-    layout.difficulty,
-    layout.modular,
-    layout.seating,
-    layout.encounterPreview,
-    layout.gamePreview,
+    layout.difficultyHeader,
+    layout.difficultyRow,
+    layout.modularHeader,
+    layout.modularGrid,
+    layout.seatingHeader,
+    layout.randomControl,
+    layout.seatingRow,
+    layout.encounterHeader,
+    layout.encounterPanels.composition,
+    layout.encounterPanels.whatsInThere,
+    layout.encounterPanels.nemesis,
+    layout.gameSummaryHeader,
+    layout.gameSummaryRows,
+    layout.rule,
     layout.seed,
     layout.reroll,
+    layout.seedHelper,
     layout.dealItOut,
   ];
+  return rects;
 }
 
-interface Sizing {
-  readonly split: boolean;
-  readonly bodyPanel: Rect;
-  readonly sidebar: Rect;
-  readonly bodyLeft: number;
-  readonly bodyWidth: number;
-  readonly sidebarLeft: number;
-  readonly sidebarWidth: number;
+/** How many columns the modular grid gets at `width`: as many `MODULAR_CARD_MIN_WIDTH`-wide cards as fit, 4 at most (D05's own "~4 per row"), 1 at least. */
+function modularColumnsFor(width: number): number {
+  return Math.max(1, Math.min(4, Math.floor((width + ROW_GAP) / (MODULAR_CARD_MIN_WIDTH + ROW_GAP))));
 }
 
-function sizingFor(width: number, height: number, headerHeight: number): Sizing {
-  const { phone, pad } = setupMetrics(width, height);
-  const split = !phone;
-  const bodyTop = headerHeight;
-  if (!split) {
-    const column = setupColumnWidth(width, height);
-    const left = (width - column) / 2;
-    return {
-      split,
-      bodyPanel: { x: 0, y: bodyTop, width, height: 0 },
-      sidebar: { x: 0, y: bodyTop, width, height: 0 },
-      bodyLeft: left,
-      bodyWidth: column,
-      sidebarLeft: left,
-      sidebarWidth: column,
-    };
+/** Shrinks `rowCounts` (in place, by index) one row at a time — always from whichever budget is currently largest — until their combined height (`rowCounts.reduce + headers*eachHeaderHeight`) fits `maxHeight`, or every budget has hit `floor`. Mirrors the single-panel version this module used before the correction, generalized to more than one panel at once so no one panel is starved while another still has rows to give up. */
+function trimRowBudgets(rowCounts: number[], rowHeight: number, floor: number, fixedHeight: number, maxHeight: number): void {
+  const totalHeight = (): number => fixedHeight + rowCounts.reduce((sum, n) => sum + n * rowHeight, 0);
+  while (totalHeight() > maxHeight && rowCounts.some((n) => n > floor)) {
+    let maxIndex = 0;
+    for (let i = 1; i < rowCounts.length; i++) if (rowCounts[i]! > rowCounts[maxIndex]!) maxIndex = i;
+    if (rowCounts[maxIndex]! <= floor) break;
+    rowCounts[maxIndex]! -= 1;
   }
-  const sidebarWidthOuter = Math.round(width * SIDEBAR_SHARE);
-  const bodyWidthOuter = width - sidebarWidthOuter;
-  return {
-    split,
-    bodyPanel: { x: 0, y: bodyTop, width: bodyWidthOuter, height: 0 },
-    sidebar: { x: bodyWidthOuter, y: bodyTop, width: sidebarWidthOuter, height: 0 },
-    bodyLeft: pad,
-    bodyWidth: bodyWidthOuter - pad * 2,
-    sidebarLeft: bodyWidthOuter + pad,
-    sidebarWidth: sidebarWidthOuter - pad * 2,
-  };
 }
 
-function layoutAt(input: TableSetupLayoutInput, encounterLines: number, gameLines: number): TableSetupLayout {
+function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): TableSetupLayout {
   const { width, height } = input;
-  const { pad, gap, smallGap } = setupMetrics(width, height);
   const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
   const headerPad = 16;
-  const backWidth = 70;
-  const stepWidth = Math.min(160, Math.max(90, width * 0.32));
+  const backWidth = 90;
+  const stepWidth = Math.min(160, Math.max(90, width * 0.28));
   const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
   const step: Rect = { x: width - headerPad - stepWidth, y: (HEADER_HEIGHT - hit.target) / 2, width: stepWidth, height: hit.target };
 
-  const sizing = sizingFor(width, height, HEADER_HEIGHT);
+  const bodyTop = HEADER_HEIGHT + GUTTER;
+  const bodyBottom = height - GUTTER;
+  const sidebar: Rect = { x: width - GUTTER - SIDEBAR_WIDTH, y: bodyTop, width: SIDEBAR_WIDTH, height: bodyBottom - bodyTop };
+  const bodyLeft = GUTTER;
+  const bodyWidth = sidebar.x - GUTTER - bodyLeft;
 
-  // Body column: Difficulty, modular sets, seating.
-  let by = HEADER_HEIGHT + pad;
-  const left = sizing.bodyLeft;
-  const column = sizing.bodyWidth;
-  by += LABEL_ROOM;
-  const difficulty: Rect = { x: left, y: by, width: column, height: hit.target };
-  by += hit.target + gap;
-  by += LABEL_ROOM;
-  const modularHeight = Math.max(0, input.modularRows) * hit.target + Math.max(0, input.modularRows - 1) * 6;
-  const modular: Rect = { x: left, y: by, width: column, height: modularHeight };
-  by += modularHeight + gap;
-  by += LABEL_ROOM;
-  const seating: Rect = { x: left, y: by, width: column, height: hit.target };
-  by += hit.target + gap;
-  const bodyPanel: Rect = { ...sizing.bodyPanel, height: (sizing.split ? by : by) - HEADER_HEIGHT + pad };
+  let y = bodyTop;
+  const difficultyHeader: Rect = { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT };
+  y += SECTION_HEADER_HEIGHT + 8;
+  const difficultyRow: Rect = { x: bodyLeft, y, width: bodyWidth, height: DIFFICULTY_CARD_HEIGHT };
+  y += DIFFICULTY_CARD_HEIGHT + SECTION_GAP;
 
-  // Sidebar column: encounter preview, game preview, seed, Deal it out. Starts right after the body on phone.
-  // Each panel's own heading ("THE ENCOUNTER DECK YOU'RE BUILDING", "THE GAME YOU'LL GET") is drawn `LABEL_ROOM`
-  // above it (`scenes/table-setup.ts`), so both need that much room reserved ahead of them, same as every other
-  // labelled control on these four setup screens.
-  let sy = (sizing.split ? HEADER_HEIGHT + pad : by + GUTTER) + LABEL_ROOM;
-  const sLeft = sizing.sidebarLeft;
-  const sWidth = sizing.sidebarWidth;
-  const encounterHeight = Math.max(PANEL_LINE_HEIGHT, encounterLines * PANEL_LINE_HEIGHT);
-  const encounterPreview: Rect = { x: sLeft, y: sy, width: sWidth, height: encounterHeight };
-  sy += encounterHeight + smallGap + LABEL_ROOM;
-  const gameHeight = Math.max(PANEL_LINE_HEIGHT, gameLines * PANEL_LINE_HEIGHT);
-  const gamePreview: Rect = { x: sLeft, y: sy, width: sWidth, height: gameHeight };
-  sy += gameHeight + gap;
-  const rerollWidth = 110;
+  const modularHeader: Rect = { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT };
+  y += SECTION_HEADER_HEIGHT + 8;
+  const modularColumns = modularColumnsFor(bodyWidth);
+  const modularRows = Math.max(1, Math.ceil(input.modularCardCount / modularColumns));
+  const modularGrid: Rect = { x: bodyLeft, y, width: bodyWidth, height: modularRows * MODULAR_CARD_HEIGHT + (modularRows - 1) * ROW_GAP };
+  y += modularGrid.height + SECTION_GAP;
+
+  const randomWidth = 90;
+  const seatingHeader: Rect = { x: bodyLeft, y, width: bodyWidth - randomWidth - 10, height: SECTION_HEADER_HEIGHT };
+  const randomControl: Rect = { x: bodyLeft + bodyWidth - randomWidth, y, width: randomWidth, height: SECTION_HEADER_HEIGHT };
+  y += SECTION_HEADER_HEIGHT + 8;
+  const seatingRow: Rect = { x: bodyLeft, y, width: bodyWidth, height: SEAT_CARD_HEIGHT };
+  y += SEAT_CARD_HEIGHT + SECTION_GAP;
+
+  const encounterHeader: Rect = { x: bodyLeft, y, width: bodyWidth, height: SECTION_HEADER_HEIGHT };
+  y += SECTION_HEADER_HEIGHT + 8;
+  const panelsTop = y;
+  const panelsHeight = Math.max(PANEL_HEADER_HEIGHT + PANEL_ROW_HEIGHT, bodyBottom - panelsTop);
+  const panelGap = 16;
+  const panelWidth = (bodyWidth - panelGap * 2) / 3;
+  const composition: Rect = { x: bodyLeft, y: panelsTop, width: panelWidth, height: panelsHeight };
+  const whatsInThere: Rect = { x: bodyLeft + panelWidth + panelGap, y: panelsTop, width: panelWidth, height: panelsHeight };
+  const nemesis: Rect = { x: bodyLeft + (panelWidth + panelGap) * 2, y: panelsTop, width: panelWidth, height: panelsHeight };
+  const bodyRows = Math.max(0, Math.floor((panelsHeight - PANEL_HEADER_HEIGHT - PANEL_PAD) / PANEL_ROW_HEIGHT));
+  const rowBudgets: readonly [number, number, number] = [Math.min(bodyRows, input.compositionRows), Math.min(bodyRows, input.whatsInThereRows), Math.min(bodyRows, input.nemesisLines)];
+
+  // Sidebar content.
+  const inset = 16;
+  const sLeft = sidebar.x + inset;
+  const sWidth = sidebar.width - inset * 2;
+  let sy = sidebar.y + inset + SECTION_HEADER_HEIGHT + 8;
+  const gameSummaryHeader: Rect = { x: sLeft, y: sidebar.y + inset, width: sWidth, height: SECTION_HEADER_HEIGHT };
+  const gameSummaryRows: Rect = { x: sLeft, y: sy, width: sWidth, height: GAME_SUMMARY_ROW_COUNT * PANEL_ROW_HEIGHT };
+  sy += gameSummaryRows.height + 14;
+  const rule: Rect = { x: sLeft, y: sy, width: sWidth, height: 1 };
+  sy += 14;
+  const rerollWidth = 96;
   const seedWidth = sWidth - rerollWidth - 10;
   const seed: Rect = { x: sLeft, y: sy, width: seedWidth, height: hit.target };
   const reroll: Rect = { x: sLeft + seedWidth + 10, y: sy, width: rerollWidth, height: hit.target };
-  sy += hit.target + gap;
-  const dealItOut: Rect = { x: sLeft, y: sy, width: sWidth, height: hit.primary };
-  sy += hit.primary + pad;
-  const sidebar: Rect = { ...sizing.sidebar, height: sy - sizing.sidebar.y };
+  sy += hit.target + 6;
+  const dealItOut: Rect = { x: sLeft, y: sidebar.y + sidebar.height - inset - hit.primary, width: sWidth, height: hit.primary };
+  const seedHelperHeight = Math.max(0, dealItOut.y - 6 - sy);
+  const seedHelper: Rect = { x: sLeft, y: sy, width: sWidth, height: seedHelperHeight };
 
   return {
-    pad,
-    left,
-    column,
+    formFactor,
+    wide: true,
     headerBar,
     back,
     step,
-    bodyPanel,
     sidebar,
-    split: sizing.split,
-    difficulty,
-    modular,
-    modularRows: input.modularRows,
-    seating,
-    encounterPreview,
-    encounterLines,
-    gamePreview,
-    gameLines,
+    difficultyHeader,
+    difficultyRow,
+    modularHeader,
+    seatingHeader,
+    randomControl,
+    modularGrid,
+    modularColumns,
+    modularRows,
+    seatingRow,
+    encounterHeader,
+    encounterPanels: { composition, whatsInThere, nemesis, rowBudgets },
+    gameSummaryHeader,
+    gameSummaryRows,
+    rule,
     seed,
     reroll,
+    seedHelper,
     dealItOut,
   };
 }
 
-export function tableSetupLayout(input: TableSetupLayoutInput): TableSetupLayout {
-  const trial = layoutAt(input, input.encounterLines, input.gameLines);
-  const bottom = trial.split ? Math.max(trial.bodyPanel.y + trial.bodyPanel.height, trial.sidebar.y + trial.sidebar.height) : trial.sidebar.y + trial.sidebar.height;
-  const overflow = bottom - input.height;
-  if (overflow <= 0) return trial;
-  let encounterLines = input.encounterLines;
-  let gameLines = input.gameLines;
-  let remaining = overflow;
-  while (remaining > 0 && (encounterLines > 1 || gameLines > 1)) {
-    if (encounterLines >= gameLines && encounterLines > 1) encounterLines -= 1;
-    else if (gameLines > 1) gameLines -= 1;
-    else break;
-    remaining -= PANEL_LINE_HEIGHT;
+/** Below this column width the three encounter panels stack full-width instead of sitting side by side (tablet portrait's own 688px-ish column comfortably holds three ~220px panels; a phone's ~358px-360px does not). */
+const NARROW_PANELS_SIDE_BY_SIDE_MIN = 560;
+
+function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): TableSetupLayout {
+  const { width, height } = input;
+  const { pad } = setupMetrics(width, height);
+  const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
+  const headerPad = 12;
+  const backWidth = 70;
+  const stepWidth = Math.min(120, Math.max(70, width * 0.26));
+  const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
+  const step: Rect = { x: width - headerPad - stepWidth, y: (HEADER_HEIGHT - hit.target) / 2, width: stepWidth, height: hit.target };
+
+  const left = pad;
+  const column = width - pad * 2;
+  const dealItOut: Rect = { x: left, y: height - pad - hit.primary, width: column, height: hit.primary };
+  const gap = 12;
+
+  // Mandatory blocks — real controls, drawn at a real, functional size regardless of how little room is left.
+  // Compact throughout (P12's own dense list/row treatment), not the wide layout's roomier cards.
+  let y = HEADER_HEIGHT + pad;
+  const difficultyHeader: Rect = { x: left, y, width: column, height: SECTION_HEADER_HEIGHT };
+  y += SECTION_HEADER_HEIGHT + 6;
+  const difficultyRow: Rect = { x: left, y, width: column, height: NARROW_DIFFICULTY_CARD_HEIGHT };
+  y += difficultyRow.height + gap;
+
+  const modularHeader: Rect = { x: left, y, width: column, height: SECTION_HEADER_HEIGHT };
+  y += SECTION_HEADER_HEIGHT + 6;
+  const modularColumns = modularColumnsFor(column);
+  const modularRows = Math.max(1, Math.ceil(input.modularCardCount / modularColumns));
+  const modularGrid: Rect = { x: left, y, width: column, height: modularRows * NARROW_MODULAR_CARD_HEIGHT + (modularRows - 1) * NARROW_MODULAR_GRID_GAP };
+  y += modularGrid.height + gap;
+
+  // Seating: one horizontal row (P12's own "FIRST PLAYER" row), Random as the row's own extra dashed cell — no
+  // header-line control here, unlike `wideLayout`'s (the owner's correction was written against D05, which has no
+  // Random control at all yet; P12 already draws one as part of the row, so there's nothing to add on the header
+  // line on narrow).
+  const seatingHeader: Rect = { x: left, y, width: column, height: SECTION_HEADER_HEIGHT };
+  const randomControl: Rect = { x: left, y, width: 0, height: 0 };
+  y += SECTION_HEADER_HEIGHT + 6;
+  const seatingRow: Rect = { x: left, y, width: column, height: NARROW_SEATING_CARD_HEIGHT };
+  y += seatingRow.height + gap;
+
+  const mandatoryBottom = y;
+  const seedHeight = hit.target;
+  const rerollWidth = 96;
+  const seedWidth = column - rerollWidth - 10;
+  const seedY = dealItOut.y - 10 - seedHeight;
+  const roomAbove = Math.max(0, seedY - gap - mandatoryBottom);
+
+  // The two flexible, description-only blocks are laid out **sequentially**, each starting exactly where the
+  // previous one actually ended — so the two can never overlap by construction, unlike computing both from a
+  // fixed up-front split of `roomAbove` (tried first; a block's real minimum height could run past its own
+  // share and into whatever a *different*, independently-positioned rect assumed was clear).
+  //
+  // The game-summary block goes first and gets first claim on the room: six short label/value facts (villain,
+  // threat, deck size…) answer "what am I about to play", which matters more on a cramped phone than the
+  // per-set composition breakdown below it — so summary rows trim last, encounter-panel rows trim first. But
+  // summary is capped at `roomAbove` *minus the encounter section's own absolute floor* (its two headers plus
+  // every panel at zero rows), so a summary greedy for all six rows can never itself starve the encounter
+  // section below the one thing it can't shrink past — its own headers and empty panel frames.
+  const panelGap = 8;
+  const sideBySide = column >= NARROW_PANELS_SIDE_BY_SIDE_MIN;
+  const perPanelFixed = PANEL_HEADER_HEIGHT + PANEL_PAD;
+  const encounterFloor = SECTION_HEADER_HEIGHT + 6 + (sideBySide ? perPanelFixed : perPanelFixed * 3 + panelGap * 2);
+
+  const gameSummaryHeader: Rect = { x: left, y: mandatoryBottom, width: column, height: SECTION_HEADER_HEIGHT };
+  const summaryCap = Math.max(0, roomAbove - gap - encounterFloor);
+  const summaryRoomLeft = Math.max(0, summaryCap - SECTION_HEADER_HEIGHT - 6);
+  const summaryRowsAvailable = Math.max(0, Math.min(GAME_SUMMARY_ROW_COUNT, Math.floor((summaryRoomLeft - 1 - 6) / PANEL_ROW_HEIGHT)));
+  const gameSummaryRows: Rect = { x: left, y: mandatoryBottom + SECTION_HEADER_HEIGHT + 6, width: column, height: summaryRowsAvailable * PANEL_ROW_HEIGHT };
+  const rule: Rect = { x: left, y: gameSummaryRows.y + gameSummaryRows.height + 6, width: column, height: 1 };
+
+  const encounterTop = rule.y + rule.height + gap;
+  const encounterHeader: Rect = { x: left, y: encounterTop, width: column, height: SECTION_HEADER_HEIGHT };
+  const panelsTop = encounterTop + SECTION_HEADER_HEIGHT + 6;
+  const encounterCap = Math.max(0, seedY - gap - panelsTop);
+
+  const rowCounts = [input.compositionRows, input.whatsInThereRows, input.nemesisLines];
+  let composition: Rect;
+  let whatsInThere: Rect;
+  let nemesis: Rect;
+  if (sideBySide) {
+    // Side by side, all three panels share one row height (the tallest content decides it, same as `wideLayout`'s
+    // own fixed-height panels) — so what's trimmed is that one shared row budget, not three independent ones.
+    let sharedRows = Math.max(...rowCounts);
+    while (sharedRows > 0 && perPanelFixed + sharedRows * PANEL_ROW_HEIGHT > encounterCap) sharedRows -= 1;
+    rowCounts[0] = Math.min(rowCounts[0]!, sharedRows);
+    rowCounts[1] = Math.min(rowCounts[1]!, sharedRows);
+    rowCounts[2] = Math.min(rowCounts[2]!, sharedRows);
+    const panelHeight = Math.max(perPanelFixed, perPanelFixed + sharedRows * PANEL_ROW_HEIGHT);
+    const panelWidth = (column - panelGap * 2) / 3;
+    composition = { x: left, y: panelsTop, width: panelWidth, height: panelHeight };
+    whatsInThere = { x: left + panelWidth + panelGap, y: panelsTop, width: panelWidth, height: panelHeight };
+    nemesis = { x: left + (panelWidth + panelGap) * 2, y: panelsTop, width: panelWidth, height: panelHeight };
+  } else {
+    trimRowBudgets(rowCounts, PANEL_ROW_HEIGHT, 0, perPanelFixed * 3 + panelGap * 2, encounterCap);
+    const panelHeights = rowCounts.map((rows) => perPanelFixed + rows * PANEL_ROW_HEIGHT);
+    let py = panelsTop;
+    composition = { x: left, y: py, width: column, height: panelHeights[0]! };
+    py += panelHeights[0]! + panelGap;
+    whatsInThere = { x: left, y: py, width: column, height: panelHeights[1]! };
+    py += panelHeights[1]! + panelGap;
+    nemesis = { x: left, y: py, width: column, height: panelHeights[2]! };
   }
-  return layoutAt(input, encounterLines, gameLines);
+
+  const seed: Rect = { x: left, y: seedY, width: seedWidth, height: seedHeight };
+  const reroll: Rect = { x: left + seedWidth + 10, y: seedY, width: rerollWidth, height: seedHeight };
+  const seedHelper: Rect = { x: left, y: 0, width: column, height: 0 };
+
+  // A final defensive clamp, not a normal case: on a viewport shorter than any this module was designed against
+  // (below the "short desktop"/"very short" cases its own tests cover), the flexible blocks' own *fixed* overhead
+  // (two section headers, three panel frames) can exceed `roomAbove` even at zero rows everywhere, which would
+  // otherwise push the sequential flow past `seed`'s pinned position — a fixed, non-negotiable control — and
+  // overlap it. Every rect below `seedY - gap` is capped there; nothing above `mandatoryBottom` is touched, so
+  // the real controls (Difficulty/Modular/Seating/Deal it out) are never affected, only how much of the
+  // descriptive tail is actually visible.
+  // Never less than `mandatoryBottom`: on a viewport short enough that even the *mandatory* blocks alone reach past
+  // where `seed` is pinned (`limit < mandatoryBottom`), collapsing a flexible rect to `y: limit` would pull it
+  // backward past `seatingRow`'s own end — trading one overlap (with `seed`) for another (with a mandatory
+  // control). Clamping to whichever is later keeps every flexible rect at or after `mandatoryBottom`, where the
+  // sequential flow itself already starts.
+  const limit = Math.max(seedY - gap, mandatoryBottom);
+  // A zero-height rect still registers as "overlapping" (`rectsOverlap`'s own strict inequalities) anything whose
+  // y-range it sits strictly inside, so a collapsed rect's `y` is pulled back to `limit` too, not left wherever
+  // the sequential flow originally put it — a point exactly at another rect's own edge never overlaps it.
+  const clampBottom = (r: Rect): Rect => (r.y >= limit ? { ...r, y: limit, height: 0 } : r.y + r.height > limit ? { ...r, height: limit - r.y } : r);
+
+  return {
+    formFactor,
+    wide: false,
+    headerBar,
+    back,
+    step,
+    sidebar: null,
+    difficultyHeader,
+    difficultyRow,
+    modularHeader,
+    seatingHeader,
+    randomControl,
+    modularGrid,
+    modularColumns,
+    modularRows,
+    seatingRow,
+    encounterHeader: clampBottom(encounterHeader),
+    encounterPanels: {
+      composition: clampBottom(composition),
+      whatsInThere: clampBottom(whatsInThere),
+      nemesis: clampBottom(nemesis),
+      rowBudgets: [rowCounts[0]!, rowCounts[1]!, rowCounts[2]!],
+    },
+    gameSummaryHeader: clampBottom(gameSummaryHeader),
+    gameSummaryRows: clampBottom(gameSummaryRows),
+    rule: clampBottom(rule),
+    seed,
+    reroll,
+    seedHelper,
+    dealItOut,
+  };
 }
+
+/** Wide (desktop/tabletLandscape, `wideLayout`) and tablet-portrait (`narrowLayout`, D05 stacked under one column) only. Phone uses `tableSetupCompactLayout` instead — see that function's own doc comment for why they can't share a shape (2026-09-18 correction). */
+export function tableSetupLayout(input: TableSetupLayoutInput): TableSetupLayout {
+  const formFactor = formFactorFor(input.width, input.height);
+  const wide = formFactor === "desktop" || formFactor === "tabletLandscape";
+  return wide ? wideLayout(input, formFactor) : narrowLayout(input, formFactor);
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Phone: `tableSetupCompactLayout` (2026-09-18 correction).
+//
+// The owner: "Don't compress D05 onto a phone — build P12." `narrowLayout` above (still used for tablet portrait,
+// >= 700px wide, where the owner's own D05-stacked adaptation reads fine) trims the two description-only blocks
+// down to whatever fits above a fixed-height page — which, on an actual phone width with a real four-seat/six-
+// modular-set table, meant an empty "THE GAME YOU'LL GET" and two encounter-deck panels crushed to bare title
+// bars. P12 draws none of that trimming: it's a **scrolling paper page** — real, full-height content, and the
+// page moves instead of the content shrinking. `tableSetupCompactLayout` is that composition:
+//
+//  - **Ground**: paper (not ink) — P12's own `background:#F4EFE3`. The ink top bar carries a square "◂" icon
+//    button (not "◂ Seats" text — P12's own compact icon), the Bangers title, and a small "4/4" label.
+//  - **One scrollable region** between the top bar and a sticky ink footer (`McScrollRegion`, `ui/scroll-region.ts`
+//    — wheel + touch-drag + momentum, reusing this module's own `VariableListScroll`). Every section below is
+//    real, full height, laid out top to bottom in **content space** (`rows`, each a stable id plus a height —
+//    used for the scroll math and for `scrollIntoView`, not for drawing: the scene draws each row at its own
+//    real position and lets `McScrollRegion` translate the whole thing).
+//  - **DIFFICULTY** (not in P12 — Standard/Expert has to live *somewhere* on every form factor, or the client
+//    would be dropping a legal choice on phone alone): a compact two-to-three-cell segmented row, ink fill =
+//    selected, no description text — that's what wide's own cards carry, and there's a whole page to scroll on
+//    phone instead of cramming prose into a 44px row.
+//  - **MODULAR SETS**: full-width checkbox rows, exactly P12's own shape — the required set ink-filled with a red
+//    checked box and "locked", a chosen candidate paper with an ink-filled checked box, an available candidate
+//    paper with an empty box. The right label ("N REQUIRED · N CHOSEN") sits on the header's own line when it
+//    fits (`sectionHeaderInlineFits`), else on its own line below — a real layout decision (it changes the
+//    header's own height), not left to `fitText`'s shrink-then-ellipsize the way a *plain* header does.
+//  - **FIRST PLAYER**: one row of compact chips (as many as there are seats, plus a dashed "Random"), sharing the
+//    row equally.
+//  - **SHUFFLE SEED**: a parchment bordered row, label/caption at left, the seed field (still the real
+//    DOM-backed `McTextInput`) and Reroll at right.
+//  - **THE ENCOUNTER DECK**: one bordered paper panel — composition rows (obligations red), then what's-in-there
+//    rows, then a single dim "N cards on standby" line (not the full nemesis sentence — P12 has no room for prose
+//    here either, and the count is the fact that matters). Every row real, none trimmed; the panel is simply as
+//    tall as its real content and the page scrolls to it.
+//  - **Sticky footer**: one uppercase summary line ("RHINO · STANDARD I · 1 HERO · 1 MODULAR") above the single
+//    red "DEAL IT OUT ▸" fill with a paper outline — P12's own shape exactly.
+// ---------------------------------------------------------------------------------------------------------------
+
+export const COMPACT_PAD = 16;
+export const COMPACT_HEADER_ROW_HEIGHT = 30;
+export const COMPACT_HEADER_ROW_HEIGHT_STACKED = 48;
+export const COMPACT_DIFFICULTY_ROW_HEIGHT = 44;
+export const COMPACT_MODULAR_ROW_HEIGHT = 60;
+export const COMPACT_FIRST_PLAYER_ROW_HEIGHT = 58;
+export const COMPACT_SEED_ROW_HEIGHT = 100;
+export const COMPACT_ROW_GAP = 10;
+export const COMPACT_CONTENT_PAD_TOP = 14;
+export const COMPACT_CONTENT_PAD_BOTTOM = 18;
+export const COMPACT_BACK_SIZE = 36;
+const COMPACT_HEADING_CHAR_PX = 10.5;
+const COMPACT_RIGHT_LABEL_CHAR_PX = 7.4;
+const COMPACT_RIGHT_LABEL_GAP_PX = 14;
+const COMPACT_RULE_MIN_PX = 20;
+
+/**
+ * Whether a section header's own Bangers heading and a right-aligned label (Table setup's D05/P12 "N REQUIRED ·
+ * N CHOSEN") both fit on one row at `width`, without needing `fitText`'s shrink-then-ellipsize — a conservative,
+ * canvas-free character-width estimate (the same trade `view/chip-layout.ts`'s own doc comment makes for a chip
+ * label, generalized to a Bangers heading beside a small uppercase label), used by both the pure layout (to decide
+ * whether the header needs a second row) and the scene (to draw the same decision) so the two can't disagree.
+ */
+export function sectionHeaderInlineFits(width: number, heading: string, rightLabel: string): boolean {
+  const headingPx = heading.length * COMPACT_HEADING_CHAR_PX;
+  const rightPx = rightLabel.length * COMPACT_RIGHT_LABEL_CHAR_PX + COMPACT_RIGHT_LABEL_GAP_PX;
+  return headingPx + rightPx + COMPACT_RULE_MIN_PX <= width;
+}
+
+export interface CompactRow {
+  readonly id: string;
+  readonly height: number;
+}
+
+export interface TableSetupCompactLayoutInput {
+  readonly width: number;
+  readonly height: number;
+  readonly difficultyIds: readonly string[];
+  /** The scenario's own required set ids, in draw order (ink-filled, never toggleable). */
+  readonly requiredModularIds: readonly string[];
+  /** Every candidate modular set id, in draw order — becomes this row's own stable id (`modular:<id>`), matching `tableSetupFocusOrder`'s own `modular:<id>` stop ids exactly, so a scene can map one to the other with no lookup table. */
+  readonly candidateModularIds: readonly string[];
+  readonly modularHeaderRightLabel: string;
+  readonly seatCount: number;
+  readonly compositionRows: number;
+  readonly whatsInThereRows: number;
+  readonly hasNemesisStandby: boolean;
+}
+
+export interface TableSetupCompactLayout {
+  readonly formFactor: FormFactor;
+  readonly pad: number;
+  readonly column: number;
+  readonly headerBar: Rect;
+  readonly back: Rect;
+  readonly step: Rect;
+  /** The scrollable region's own fixed screen rect. */
+  readonly viewport: Rect;
+  /** Every content row, in draw order, content-space (`rows[0]` starts at content y 0) — heights only; the scene computes each row's own drawn rect from the running total, same arithmetic `VariableListScroll`'s own `topOf` uses. */
+  readonly rows: readonly CompactRow[];
+  readonly contentHeight: number;
+  readonly modularHeaderStacked: boolean;
+  readonly footer: Rect;
+  readonly footerSummary: Rect;
+  readonly dealItOut: Rect;
+}
+
+/** Every row's own content-space rect (`x`/`width` are the column's; `y`/`height` come from `rows`, summed in order) — the one place this arithmetic lives, so the scene and any test agree on it. */
+export function compactRowRects(layout: TableSetupCompactLayout): readonly Rect[] {
+  const rects: Rect[] = [];
+  let y = 0;
+  for (const row of layout.rows) {
+    rects.push({ x: layout.pad, y, width: layout.column, height: row.height });
+    y += row.height;
+  }
+  return rects;
+}
+
+export function compactRowIndex(layout: TableSetupCompactLayout, id: string): number {
+  return layout.rows.findIndex((row) => row.id === id);
+}
+
+export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): TableSetupCompactLayout {
+  const { width, height } = input;
+  const formFactor = formFactorFor(width, height);
+  const pad = COMPACT_PAD;
+  const column = width - pad * 2;
+
+  const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
+  const back: Rect = { x: 12, y: (HEADER_HEIGHT - COMPACT_BACK_SIZE) / 2, width: COMPACT_BACK_SIZE, height: COMPACT_BACK_SIZE };
+  const stepWidth = 40;
+  const step: Rect = { x: width - 12 - stepWidth, y: (HEADER_HEIGHT - 24) / 2, width: stepWidth, height: 24 };
+
+  const dealItOutHeight = hit.primary;
+  const footerSummaryHeight = 14;
+  const footerGap = 7;
+  const footerPadV = 10;
+  const footerHeight = footerPadV * 2 + footerSummaryHeight + footerGap + dealItOutHeight;
+  const footer: Rect = { x: 0, y: height - footerHeight, width, height: footerHeight };
+  const footerSummary: Rect = { x: pad, y: footer.y + footerPadV, width: column, height: footerSummaryHeight };
+  const dealItOut: Rect = { x: pad, y: footerSummary.y + footerSummaryHeight + footerGap, width: column, height: dealItOutHeight };
+
+  const viewport: Rect = { x: 0, y: headerBar.height, width, height: footer.y - headerBar.height };
+
+  const modularHeaderStacked = !sectionHeaderInlineFits(column, "MODULAR SETS", input.modularHeaderRightLabel);
+
+  const rows: CompactRow[] = [];
+  rows.push({ id: "spacer:top", height: COMPACT_CONTENT_PAD_TOP });
+  rows.push({ id: "header:difficulty", height: COMPACT_HEADER_ROW_HEIGHT });
+  rows.push({ id: "difficulty", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({ id: "header:modular", height: (modularHeaderStacked ? COMPACT_HEADER_ROW_HEIGHT_STACKED : COMPACT_HEADER_ROW_HEIGHT) });
+  for (const id of input.requiredModularIds) rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
+  for (const id of input.candidateModularIds) rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({ id: "header:firstPlayer", height: COMPACT_HEADER_ROW_HEIGHT });
+  rows.push({ id: "firstPlayer", height: COMPACT_FIRST_PLAYER_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({ id: "header:seed", height: COMPACT_HEADER_ROW_HEIGHT });
+  rows.push({ id: "seed", height: COMPACT_SEED_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({ id: "header:encounter", height: COMPACT_HEADER_ROW_HEIGHT });
+  const encounterRowCount = input.compositionRows + input.whatsInThereRows + (input.hasNemesisStandby ? 1 : 0);
+  const encounterPanelHeight = PANEL_PAD * 2 + Math.max(1, encounterRowCount) * PANEL_ROW_HEIGHT + (input.compositionRows > 0 && input.whatsInThereRows > 0 ? 6 : 0);
+  rows.push({ id: "encounterPanel", height: encounterPanelHeight });
+  rows.push({ id: "spacer:bottom", height: COMPACT_CONTENT_PAD_BOTTOM });
+
+  const contentHeight = rows.reduce((sum, row) => sum + row.height, 0);
+
+  return {
+    formFactor,
+    pad,
+    column,
+    headerBar,
+    back,
+    step,
+    viewport,
+    rows,
+    contentHeight,
+    modularHeaderStacked,
+    footer,
+    footerSummary,
+    dealItOut,
+  };
+}
+
+export { LABEL_ROOM };
