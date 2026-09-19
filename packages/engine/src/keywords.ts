@@ -1,7 +1,7 @@
 import type { KeywordInstance, KeywordName } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
-import { cardOf, encounterFace, isVillain, mainSchemeStage, textBoxBlank, villainStageOf } from "./query.js";
+import { cardOf, encounterFace, identityFace, isVillain, mainSchemeStageOf, mainSchemeStateOf, textBoxBlank, villainStageOf } from "./query.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
 import type { GameState } from "./state.js";
@@ -26,13 +26,14 @@ export function printedKeywordsOf(state: GameState, id: InstanceId): readonly Ke
     return isVillain(state, id) ? villainStageOf(state, id).keywords : [];
   }
   if (card.type === "main_scheme") {
-    return id === state.mainScheme.instanceId ? mainSchemeStage(state).keywords : [];
+    const scheme = mainSchemeStateOf(state, id);
+    return scheme ? mainSchemeStageOf(state, scheme).keywords : [];
   }
   if (card.type === "hero_identity") {
     // Keywords are per face: read the face the identity is currently showing.
     const player = state.players.find((p) => p.identity.instanceId === id);
     if (!player) return [];
-    return player.identity.form === "hero" ? card.hero.keywords : card.alterEgo.keywords;
+    return identityFace(state, player).face.keywords;
   }
   return "keywords" in card ? card.keywords : [];
 }

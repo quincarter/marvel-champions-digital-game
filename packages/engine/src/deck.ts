@@ -59,6 +59,17 @@ export type DeckProblemCode =
    * enters the game through that scenario (Taskmaster's Captive allies), never through deckbuilding.
    */
   | "scenario_card"
+  /**
+   * A card used only in competitive (team-vs-team) mode: each Civil War leader's four basic player cards. The Civil War
+   * rulebook (p. 3): "These leader-specific player cards are used only when playing in competitive mode." That mode is
+   * not built (docs/phase7-wave2.md §6.3).
+   */
+  | "competitive_card"
+  /**
+   * The identity uses a rule this build does not model, so it cannot be seated: a separated identity split across two
+   * cards (SP//dr; `HeroIdentityCard.separatedIdentity`, docs/phase7-wave2.md §6.10).
+   */
+  | "unsupported_identity"
   /** The card data lacks a field legality needs, so the rule cannot be checked. Never guessed. */
   | "missing_card_data"
   /** A deckbuilding classification this build does not recognize (for example campaign-specific). */
@@ -266,6 +277,9 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     add("not_an_identity", `${uniqueLabel(identityCard)} is a ${typeName(identityCard)} card, not an identity: a deck is built around exactly one hero identity.`, [deck.identityCardId]);
   } else {
     identity = identityCard;
+    if (identityCard.separatedIdentity !== undefined) {
+      add("unsupported_identity", `${uniqueLabel(identityCard)} is split across two identity cards (a separated identity), which this build cannot play yet.`, [identityCard.id]);
+    }
   }
   const identityName = identity ? uniqueLabel(identity) : null;
 
@@ -294,6 +308,12 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     }
     if (card.type === "hero_identity") {
       add("identity_in_deck", `${name} is an identity card; the identity is chosen separately and is not part of the card list.`, [card.id]);
+      continue;
+    }
+    if (card.type === "evidence") {
+      // The Agents of S.H.I.E.L.D. rulebook, "Gathering Evidence" (p. 6): "Evidence cards are not added to any deck".
+      counted += entry.quantity;
+      add("not_a_player_card", `${name} is an evidence card: evidence cards are kept in the A.I.M. and S.H.I.E.L.D. envelopes and are never added to a deck.`, [card.id]);
       continue;
     }
     if (!isPlayerDeckCard(card)) {
@@ -331,6 +351,8 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       // toward a player's minimum or maximum deck size" (the Red Skull rulebook, p. 3). Not counted here either.
       if (card.specificTo.kind === "campaign") {
         add("campaign_card", `${name} is a campaign card: it can only be used during a campaign from the same product, and campaign play is not available yet.`, [card.id]);
+      } else if (card.specificTo.kind === "competitive") {
+        add("competitive_card", `${name} is used only in competitive (team-vs-team) mode, which is not available yet.`, [card.id]);
       } else {
         add("scenario_card", `${name} belongs to a scenario's own set of cards and enters the game only through that scenario, so it cannot be put in a deck.`, [card.id]);
       }
@@ -569,7 +591,12 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
 export function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {
   switch (card.type) {
     case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities, ...(card.additionalHeroForms ?? []).flatMap((form) => form.abilities)];
+      return [
+        ...card.hero.abilities,
+        ...card.alterEgo.abilities,
+        ...(card.additionalHeroForms ?? []).flatMap((form) => form.abilities),
+        ...(card.separatedIdentity ? [...card.separatedIdentity.heroCardOtherSide.abilities, ...card.separatedIdentity.alterEgoCardOtherSide.abilities] : []),
+      ];
     case "villain":
       return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities));
     case "main_scheme":

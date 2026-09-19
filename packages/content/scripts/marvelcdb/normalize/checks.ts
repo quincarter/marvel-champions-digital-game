@@ -14,6 +14,9 @@ export function checkStaleCuration(ctx: NormalizeContext): void {
   }
   const cardIds = new Set(ctx.cards.map((c) => c.id as string));
   for (const id of Object.keys(curation.cardNotes)) if (!cardIds.has(id)) errors.push(`cardNotes entry ${id} matches no card`);
+  for (const code of Object.keys(curation.imageOverrides ?? {})) {
+    if (!ctx.usedImageOverrides.has(code)) errors.push(`curation imageOverride for ${code} matched no face that needed it`);
+  }
 }
 
 /** Step 11: every non-aggregate record became part of a card, and every printed face has an artwork reference. */

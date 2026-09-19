@@ -277,6 +277,11 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   if (teamUp) return { name: "teamUp", names: [(teamUp[1] as string).trim(), (teamUp[2] as string).trim()] };
   const teamwork = /^Teamwork \((.+)\)\.?$/.exec(sentence);
   if (teamwork) return { name: "teamwork", sharedTrait: (teamwork[1] as string).trim().toUpperCase() as Trait };
+  // RRG 1.8 "Linked (Card Title)" (p. 27): "Cards with the linked keyword cannot be included in a player's deck.
+  // Instead, they are brought into the game by the card title in the parentheses following the keyword." A bare
+  // `Linked.` (no title — none observed yet) still resolves, with `cardTitle` left unset.
+  const linked = /^Linked(?: \((.+)\))?\.?$/.exec(sentence);
+  if (linked) return { name: "linked", ...(linked[1] !== undefined ? { cardTitle: (linked[1] as string).trim() } : {}) };
   const requirement = /^Requirement \(((?:\[(?:energy|mental|physical|wild)\])+)\)\.?$/.exec(sentence);
   if (requirement) {
     const icons = [...(requirement[1] as string).matchAll(RESOURCE_ICON_RE)].map((mm) => mm[1] as ResourceIconType);

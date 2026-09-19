@@ -8,6 +8,7 @@ import { printedAbilityRefs } from "../select.js";
 import type { Bindings, StackFrame, Vars } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { endUntilCardPlayedEffects, expireCardResolutionEffects } from "../effects.js";
+import { checkDefeats } from "./defeat.js";
 import { enterPlay } from "./enter-play.js";
 import { abilityFrame, announce, base, pushEffects, type Frame, pushEvent } from "./frames.js";
 import { heard } from "./triggers.js";
@@ -143,6 +144,10 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       const delayed = endUntilCardPlayedEffects(ctx, ctx.deps, frame.playerId, frame.instanceId);
       popFrame(ctx);
       for (const effect of [...delayed].reverse()) pushEffects(ctx, { effects: effect.effects, ...effect.scope });
+      // RRG 1.8 "Damage" (p. 14): "If a character has zero or fewer remaining hit points, it is defeated." An ally printed
+      // with 0 hit points (Ant-Man 12011, Wasp 13012) gets them from counters its "When [this ally] enters play" places,
+      // so the check waits until its play and those windows have resolved (docs/phase7-wave2.md §3.9, §4.9 proposed).
+      if (card.type === "ally") checkDefeats(ctx);
       return;
     }
   }

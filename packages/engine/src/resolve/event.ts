@@ -2,12 +2,24 @@
 
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
-import { discardFromPlay, expireEventLastingEffects, healDamage, pierceTough } from "../effects.js";
+import { discardFromPlay, expireEventLastingEffects, healDamage, pierceTough, readyCard } from "../effects.js";
 import type { FrameId, InstanceId } from "../ids.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
-import { activeVillain, cardOf, characterProfile, countSchemeIcons, getInstance, getPlayer, isMinion, mustInstance, villainOf } from "../query.js";
+import {
+  activeVillain,
+  cardOf,
+  characterProfile,
+  countSchemeIcons,
+  getInstance,
+  getPlayer,
+  isMinion,
+  mustInstance,
+  villainOf,
+  areaOfCard,
+  mainSchemeStateOf,
+} from "../query.js";
 import type { EngineDeps } from "../abilities.js";
-import { cannotTakeDamage, excessDamageThreatSchemes, notDefeatedWithoutThreat, threatCannotBeRemoved } from "../rules.js";
+import { cannotTakeDamage, defeatedIntoEncounterDeck, excessDamageThreatSchemes, notDefeatedWithoutThreat, threatCannotBeRemoved } from "../rules.js";
 import { cardsInPlay, controllerOf } from "../select.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
@@ -27,7 +39,7 @@ import {
 } from "./frames.js";
 import { finishTurn } from "../flow.js";
 import { resolveSurge } from "./reveal.js";
-import { candidatesFor, hasCandidates } from "./triggers.js";
+import { candidatesFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
@@ -226,6 +238,9 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return applyRetaliate(ctx, event);
     case "characterDefeated":
       return applyDefeat(ctx, event);
+    case "cardReadying":
+      readyCard(ctx, event.instanceId);
+      return;
     default:
       return;
   }
@@ -407,7 +422,8 @@ export function threatRemovalBlocked(
 ): "crisis" | "rule" | null {
   // RRG "Crisis Icon": while a crisis icon is in play, players cannot remove threat from the main scheme.
   const byPlayer = sourceInstanceId === null || controllerOf(state, sourceInstanceId) !== null;
-  if (schemeId === state.mainScheme.instanceId && byPlayer && countSchemeIcons(state, "crisis") > 0) return "crisis";
+  // With separate game areas, only the icons in the scheme's own area count (docs/phase7-wave2.md §3.1).
+  if (mainSchemeStateOf(state, schemeId) && byPlayer && countSchemeIcons(state, "crisis", areaOfCard(state, schemeId)) > 0) return "crisis";
   return threatCannotBeRemoved(state, deps, schemeId, byThwart) ? "rule" : null;
 }
 
@@ -423,7 +439,7 @@ function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeT
   });
   addFrameVars(ctx, frameId, { amount: event.amount });
   addFrameVars(ctx, event.parentFrameId, { threatPlaced: event.amount });
-  if (event.schemeInstanceId === ctx.state.mainScheme.instanceId) checkMainSchemeCompletion(ctx);
+  if (mainSchemeStateOf(ctx.state, event.schemeInstanceId)) checkMainSchemeCompletion(ctx);
 }
 
 function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "removeThreat" }>, frameId: FrameId): void {
@@ -457,7 +473,10 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     const effectsFrame: StackFrame = {
       ...base(ctx),
       kind: "effects",
-      effects: [{ kind: "discardFromPlay", target: { kind: "self" } }],
+      // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11).
+      effects: defeatedIntoEncounterDeck(ctx.state, ctx.deps, event.schemeInstanceId)
+        ? [{ kind: "moveCards", cards: { kind: "ref", ref: { kind: "self" } }, to: "encounterDeckShuffle" }]
+        : [{ kind: "discardFromPlay", target: { kind: "self" } }],
       cursor: 0,
       bindings: {},
       vars: {},
@@ -505,10 +524,23 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   ]);
 }
 
+/**
+ * Readies a card, through a `cardReadying` event when an ability could replace it ("When attached character would
+ * ready, discard this card instead", Frozen in Time; docs/phase7-wave2.md §3.11), else at once as before.
+ */
+export function readyOrAnnounce(ctx: Ctx, id: InstanceId): void {
+  const instance = getInstance(ctx.state, id);
+  if (!instance?.exhausted) return;
+  const event: TriggerEvent = { kind: "cardReadying", instanceId: id };
+  if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
+  else readyCard(ctx, id);
+}
+
 function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwart" }>, frameId: FrameId): void {
   const thwarter = characterProfile(ctx.state, event.thwarterInstanceId, ctx.deps);
-  if (thwarter?.missing.includes("thw")) return;
-  const amount = event.amount ?? thwarter?.thw;
+  const stat = event.useAtk ? "atk" : "thw";
+  if (thwarter?.missing.includes(stat)) return;
+  const amount = event.amount ?? thwarter?.[stat];
   if (amount === undefined) return;
   pushEvent(ctx, {
     kind: "removeThreat",

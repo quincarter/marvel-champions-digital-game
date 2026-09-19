@@ -3,7 +3,7 @@
  * us (or gives us wrong). Every entry cites the evidence it rests on, so a
  * reviewer can re-check it without re-deriving it.
  */
-import type { CoreAspect, SpecialCost } from "../../../src/schema/index.ts";
+import type { CoreAspect, IdentityDeckbuilding, SpecialCost } from "../../../src/schema/index.ts";
 
 /**
  * A correction to MarvelCDB's transcription of the *physical card*. Applies to
@@ -63,6 +63,12 @@ export interface StarterDeckCuration {
   readonly name: string;
   readonly identityCode: string;
   readonly aspect: CoreAspect;
+  /**
+   * Wave 2: a second aspect for a precon that draws from two (Spider-Woman's Double Agent ability, RRG 1.8 p. 60
+   * FAQ, docs/phase7-wave2.md §1.2) — every other precon has exactly one aspect and leaves this unset. Both
+   * `aspect` and every listed `secondaryAspects` entry accept a plain (non-identity-specific) card in `cards`.
+   */
+  readonly secondaryAspects?: readonly CoreAspect[];
   /** MarvelCDB code → quantity, exactly as the source lists it (identity excluded). */
   readonly cards: Readonly<Record<string, number>>;
   /** The obligation and nemesis cards the source lists for this deck, cross-checked against the identity links. */
@@ -155,4 +161,23 @@ export interface PackCuration {
   readonly separateDecks?: readonly SeparateDeckCuration[];
   /** MarvelCDB records to drop entirely — not a printed card (see `IgnoredRecord`). Absent = none. */
   readonly ignoredRecords?: readonly IgnoredRecord[];
+  /**
+   * A stable, absolute URL to use as a face's artwork reference when MarvelCDB has none at all for that record
+   * (`imagesrc: null`, confirmed by a direct 404 on MarvelCDB's own bundle path — not merely absent from the
+   * cached pack response) — MarvelCDB code → absolute URL. `checkCoverage`'s "no artwork reference" check is a
+   * hard error with no other override (CLAUDE.md "Content & IP boundaries": a reference, never image bytes, so
+   * this stores a URL exactly the way a MarvelCDB path does, just against a different, cited host). Every use
+   * must be independently verified (viewed, not fabricated) against the second source before being entered here —
+   * e.g. Quicksilver's alter-ego face (`14001b`), which Hall of Heroes' own release-page gallery scan
+   * (https://hallofheroeslcg.com/quicksilver/) shows and MarvelCDB does not host at all.
+   */
+  readonly imageOverrides?: Readonly<Record<string, string>>;
+  /**
+   * `HeroIdentityCard.deckbuilding` overrides, MarvelCDB identity code → the field (wave 2, docs/phase7-wave2.md
+   * §1.2). RRG 1.8 FAQ "Jessica Drew (#31B)" (p. 60): "Does Jessica Drew's Double Agent ability require her deck
+   * to be built with two aspects? A: Yes. An equal number of cards from two different aspects must be included
+   * in her deck." No wave 1 identity needed this; the field has no automatic MarvelCDB source (it's a rules
+   * exception, not a printed stat), so it's always hand-curated.
+   */
+  readonly identityDeckbuilding?: Readonly<Record<string, IdentityDeckbuilding>>;
 }

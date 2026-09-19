@@ -6,7 +6,8 @@ import { dealEncounterCardTo } from "../effects.js";
 import { type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
 import {
-  activeVillain,
+  activeVillainIdFor,
+  villainOf,
   cardOf,
   characterProfile,
   currentName,
@@ -19,8 +20,10 @@ import {
   remainingHitPoints,
   startingThreatOf,
   undefeatedVillains,
+  areaOfPlayer,
+  mainSchemeFor,
 } from "../query.js";
-import { cardsInPlay, controllerOf, type EffectContext, selectTargets, traitsOf } from "../select.js";
+import { cardsInPlay, contextArea, controllerOf, type EffectContext, selectTargets, traitsOf } from "../select.js";
 import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
 import type { TargetQuery } from "../spec.js";
 import type { StackFrame } from "../stack.js";
@@ -72,6 +75,13 @@ const POOL_QUERIES: Record<QualifiedHost["category"] | SuperlativeHost["among"],
   sideScheme: { categories: ["sideScheme"] },
 };
 
+/** "The villain" for this context: the active villain, or the context's game area's (docs/phase7-wave2.md §3.1). */
+function theVillain(state: GameState, context: EffectContext): readonly InstanceId[] {
+  const id = activeVillainIdFor(state, contextArea(state, context));
+  const villain = id ? villainOf(state, id) : undefined;
+  return villain && !villain.defeated ? [villain.instanceId] : [];
+}
+
 /** RRG 1.8 "Friendly" (p. 21): "cards the players control". */
 const isFriendly = (state: GameState, id: InstanceId): boolean => controllerOf(state, id) !== null;
 
@@ -90,7 +100,23 @@ function hostMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost[
       return characterProfile(state, id, deps)?.atk ?? 0;
     case "sch":
       return characterProfile(state, id, deps)?.sch ?? 0;
+    case "activationOrder": {
+      // The Sinister Six's printed "Activation Order N" (`VillainCard.activationOrder`); `superlative` drops a villain
+      // without one before ranking, so this 0 is never compared.
+      const card = cardOf(state, id);
+      return card?.type === "villain" ? (card.activationOrder ?? 0) : 0;
+    }
+    case "traitCount":
+      // "The minion with the most traits" (Cyborg Tech): printed and gained traits (RRG 1.8 "Gains"), each counted once.
+      return new Set(traitsOf(state, id, deps)).size;
   }
+}
+
+/** Whether a card has a value for this measure at all (a villain with no printed activation order has none). */
+function hasMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost["measure"]): boolean {
+  if (measure !== "activationOrder") return true;
+  const card = cardOf(state, id);
+  return card?.type === "villain" && card.activationOrder !== undefined;
 }
 
 /** "an X-MEN ally", "a non-ELITE minion", "without another Goblin Glider attached" (`HostQualifiers`). */
@@ -99,6 +125,9 @@ function passesQualifiers(state: GameState, id: InstanceId, host: QualifiedHost 
   if (host.withoutTrait && traitsOf(state, id, deps).includes(host.withoutTrait)) return false;
   const barred = host.withoutAttachmentNamed;
   if (barred !== undefined && mustInstance(state, id).attachments.some((a) => currentName(state, a) === barred)) return false;
+  // "a non-permanent side scheme" (docs/phase7-wave2.md §6.5): printed or gained keywords.
+  if (host.keyword !== undefined && !hasKeyword(state, id, host.keyword, deps)) return false;
+  if (host.withoutKeyword !== undefined && hasKeyword(state, id, host.withoutKeyword, deps)) return false;
   return true;
 }
 
@@ -120,18 +149,20 @@ export function attachmentHostCandidates(
 ): readonly InstanceId[] {
   const deps = context.deps ?? DEFAULT_DEPS;
   switch (host.kind) {
-    case "villain": {
-      // "Attach to the villain": the active villain (The Wrecking Crew insert, "The Active Villain").
-      const active = activeVillain(state);
-      return active.defeated ? [] : [active.instanceId];
-    }
+    case "villain":
+      // "Attach to the villain": the active villain (The Wrecking Crew insert, "The Active Villain"), the area's own
+      // with separate game areas (docs/phase7-wave2.md §3.1).
+      return theVillain(state, context);
     case "namedVillain":
       // "Attach to Wrecker": by the title showing, so a flipped villain is found under its current face's name.
       return undefeatedVillains(state)
         .filter((villain) => currentName(state, villain.instanceId) === host.name)
         .map((villain) => villain.instanceId);
-    case "mainScheme":
-      return [state.mainScheme.instanceId];
+    case "mainScheme": {
+      // The main scheme of the revealing player's area when the players are split (docs/phase7-wave2.md §3.1).
+      const scheme = mainSchemeFor(state, contextArea(state, context));
+      return scheme ? [scheme.instanceId] : [];
+    }
     case "villainSideScheme": {
       // "Attach to the active villain's side scheme" (Held Hostage), or a named villain's.
       const of = host.of;
@@ -176,7 +207,8 @@ export function attachmentHostCandidates(
       // "The enemy with the highest printed hit points and without another Goblin Glider attached."
       const pool = selectTargets(state, POOL_QUERIES[host.among], context)
         .filter((id) => host.among !== "friendlyCharacter" || isFriendly(state, id))
-        .filter((id) => passesQualifiers(state, id, host, deps));
+        .filter((id) => passesQualifiers(state, id, host, deps))
+        .filter((id) => hasMeasure(state, id, host.measure));
       if (pool.length === 0) return [];
       const values = pool.map((id) => hostMeasure(state, id, host.measure, deps));
       const best = host.order === "highest" ? Math.max(...values) : Math.min(...values);
@@ -189,6 +221,24 @@ export function attachmentHostCandidates(
       const preferred = attachmentHostCandidates(state, host.preferred, context);
       return preferred.length > 0 ? preferred : attachmentHostCandidates(state, host.otherwise, context);
     }
+    case "anyOf": {
+      // "Attach to an enemy or scheme." / "Attach to Greycrow or Harpoon." (docs/phase7-wave2.md §6.6): every host any
+      // part names, each once, in the order listed.
+      const all = host.hosts.flatMap((part) => attachmentHostCandidates(state, part, context));
+      return [...new Set(all)];
+    }
+    case "leader": {
+      // Cooperative play only (the Civil War rulebook, p. 6): "The leader in play is called 'the enemy leader.'", so the
+      // enemy leader is the villain; "A card ability that refers to 'your leader' cannot be resolved." (competitive mode,
+      // where a team has a leader of its own, is not built). Ruling, Jul 9, 2026 (3) answer 2.
+      if (host.of === "yours") return [];
+      return theVillain(state, context);
+    }
+    case "nonActiveVillain":
+      // "Attach to the villain who is not the active villain." (Direct Assault): several are a first-player choice.
+      return undefeatedVillains(state)
+        .filter((villain) => villain.instanceId !== state.activeVillainId)
+        .map((villain) => villain.instanceId);
     default: {
       const query = HOST_QUERIES[host.kind];
       return query ? selectTargets(state, query, context) : [];
@@ -261,11 +311,13 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       const frames: StackFrame[] = [];
       // RRG "Incite X" is itself a "When Revealed: place X threat on the main scheme".
       const incite = keywordTotal(ctx.state, frame.instanceId, "incite", ctx.deps);
-      if (incite > 0) {
+      // Incite's "the main scheme" is the revealing player's area's, when the players are split (§3.1).
+      const inciteScheme = mainSchemeFor(ctx.state, areaOfPlayer(ctx.state, frame.playerId))?.instanceId;
+      if (incite > 0 && inciteScheme) {
         frames.push(
           eventFrame(ctx, {
             kind: "placeThreat",
-            schemeInstanceId: ctx.state.mainScheme.instanceId,
+            schemeInstanceId: inciteScheme,
             amount: incite,
             sourceInstanceId: frame.instanceId,
           }),
@@ -339,6 +391,8 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
       break;
     case "side_scheme":
       moveCard(ctx, id, { kind: "villainArea" });
+      // With separate game areas, a side scheme enters the revealing player's area (docs/phase7-wave2.md §3.1).
+      assignToArea(ctx, id, playerId);
       entered = true;
       pushEvent(ctx, {
         kind: "placeThreat",
@@ -372,6 +426,18 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
       break;
   }
   if (entered) enterPlay(ctx, id, playerId);
+}
+
+/** Makes a side scheme part of `playerId`'s game area, when the players are split. */
+export function assignToArea(ctx: Ctx, id: InstanceId, playerId: PlayerId): void {
+  const area = areaOfPlayer(ctx.state, playerId);
+  if (!area || area.sideSchemeIds.includes(id)) return;
+  ctx.state = {
+    ...ctx.state,
+    gameAreas: ctx.state.gameAreas.map((a) =>
+      a.areaId === area.areaId ? { ...a, sideSchemeIds: [...a.sideSchemeIds, id] } : { ...a, sideSchemeIds: a.sideSchemeIds.filter((s) => s !== id) },
+    ),
+  };
 }
 
 /** Returns false while a target choice is pending. */

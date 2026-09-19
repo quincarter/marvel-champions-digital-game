@@ -75,7 +75,14 @@ export const WSP_PROVENANCE: readonly CardProvenance[] = [
   },
   { cardId: cardId("13026"), cardSetCode: "wsp", marvelcdbCodes: ["13026"], corrections: [] },
   { cardId: cardId("13027"), cardSetCode: "wsp_nemesis", marvelcdbCodes: ["13027"], corrections: [] },
-  { cardId: cardId("13028"), cardSetCode: "wsp_nemesis", marvelcdbCodes: ["13028"], corrections: [] },
+  {
+    cardId: cardId("13028"),
+    cardSetCode: "wsp_nemesis",
+    marvelcdbCodes: ["13028"],
+    corrections: [
+      "13028: errata RRG 1.8 p. 66 — Beetle's \"choose to either spend a [physical] resource or shuffle Beetle into the encounter deck\" reads \"the defeating player chooses to either spend a [physical] resource or shuffle Beetle into the encounter deck.\" — MarvelCDB's cached text is still the pre-errata wording. [evidence: raw (13028); RRG 1.8 p. 66; docs/phase7-wave2.md §5.2]",
+    ],
+  },
   { cardId: cardId("13029"), cardSetCode: "wsp_nemesis", marvelcdbCodes: ["13029"], corrections: [] },
   { cardId: cardId("13030"), cardSetCode: "wsp_nemesis", marvelcdbCodes: ["13030"], corrections: [] },
   { cardId: cardId("13031"), cardSetCode: "justice", marvelcdbCodes: ["13031"], corrections: [] },

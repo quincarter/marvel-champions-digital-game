@@ -68,6 +68,34 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
       .sort((x, y) => stageOrder(x) - stageOrder(y));
 
     const doubleSided = stageRecords.some((r) => r.linked_card?.type_code === "villain");
+
+    // Several distinct, single-stage villains sharing one card_set_code (wave 2, docs/phase7-wave2.md §1.8): The
+    // Once and Future Kang's "kang"/"exp_kang" sets each hold six such records — Kang (I), four differently-named
+    // Kang (II) variants, and Kang (III) (which shares a title with Kang (I) but is not the next stage after it).
+    // None of these forms one villain's incrementing stage sequence. Recognized structurally, without naming a
+    // card: more than one record claims the same stage number, which a genuine single villain's stages never do.
+    // Each becomes its own one-stage `VillainCard` instead of being merged into one (and erroring "stage names
+    // differ" the way the single-sequence branch below would). `villainIdBySet` is left unset for this set: there
+    // is no single "the villain" of it for a scenario to reference by set code, only Scenario.setAsideVillainCardIds
+    // pointing at each record's own card id directly (not curated yet for this pack).
+    if (!doubleSided) {
+      const stageNumbers = stageRecords.map(stageOrder);
+      const hasCollidingStageNumbers = new Set(stageNumbers).size !== stageNumbers.length;
+      if (hasCollidingStageNumbers) {
+        for (const r of stageRecords) {
+          const { stage, prepared } = buildVillainStage(ctx, r);
+          const card: VillainCard = {
+            ...baseFields(ctx, prepared, r.code, [r.code], null),
+            type: "villain",
+            encounterSetIds: [brand("encounterSet", set)],
+            sides: [{ side: "A", name: prepared.name, stages: [stage] }],
+          };
+          record(ctx, card, set, [prepared]);
+        }
+        continue;
+      }
+    }
+
     if (doubleSided) {
       // Risky Business: MarvelCDB's visible top-level record is the Green Goblin face; the linked, hidden record
       // is Norman Osborn. The rulebook has it the other way round (main scheme 1A "Contents": "Norman Osborn (I)

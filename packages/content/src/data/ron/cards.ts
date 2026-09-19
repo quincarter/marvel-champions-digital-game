@@ -1,0 +1,130 @@
+// GENERATED FILE — do not edit by hand.
+// Source: MarvelCDB public API https://marvelcdb.com/api/public/cards/ron (fetched 2026-09-13; raw cache: packages/content/raw/marvelcdb/ron.json).
+// Hand corrections / curated data: packages/content/scripts/marvelcdb/curation/ron.ts
+// Regenerate: pnpm --filter @mc/content ingest -- --pack ron [--offline]
+
+import { abilityId, cardId, cycleId, encounterSetId, imageRef, setCode, trait } from "../../schema/index.js";
+import type { AnyCard } from "../../schema/index.js";
+
+/** Every Ronan the Accuser Print and Play Modular Set card, one record per distinct physical card, ordered by id. */
+export const RON_CARDS: readonly AnyCard[] = [
+  {
+    id: cardId("90001"),
+    type: "minion",
+    name: "Ronan the Accuser",
+    setCode: setCode("ron"),
+    cycleId: cycleId("promo"),
+    collectorNumber: "1",
+    quantityInSet: 1,
+    unique: true,
+    images: { front: imageRef("/bundles/cards/90001.png") },
+    atk: 3,
+    sch: 3,
+    hp: 9,
+    encounterSetIds: [encounterSetId("kree_fanatic")],
+    boostIcons: 0,
+    traits: [trait("ACCUSER CORPS"), trait("ELITE"), trait("KREE")],
+    keywords: [{ name: "toughness" }],
+    text: {
+      printed: "Toughness.\nRonan the Accuser cannot be stunned.\nForced Interrupt: When the villain phase begins, Ronan the Accuser engages the hero with the fewest remaining hit points.\n[star] Boost: Put Ronan the Accuser into play engaged with you.",
+      current: "Toughness.\nRonan the Accuser cannot be stunned.\nForced Interrupt: When the villain phase begins, Ronan the Accuser engages the hero with the fewest remaining hit points.\n[star] Boost: Put Ronan the Accuser into play engaged with you.",
+    },
+    abilities: [
+      { id: abilityId("90001.ronan-the-accuser-constant") },
+      { id: abilityId("90001.ronan-the-accuser-forced-interrupt") },
+      { id: abilityId("90001.boost") },
+    ],
+  },
+  {
+    id: cardId("90002"),
+    type: "side_scheme",
+    name: "Judge, Jury, Executioner",
+    setCode: setCode("ron"),
+    cycleId: cycleId("promo"),
+    collectorNumber: "2",
+    quantityInSet: 1,
+    unique: false,
+    images: { front: imageRef("/bundles/cards/90002.png") },
+    encounterSetIds: [encounterSetId("kree_fanatic")],
+    startingThreat: { base: 0, perPlayer: 3 },
+    icons: ["acceleration"],
+    boostIcons: 0,
+    traits: [],
+    keywords: [],
+    text: {
+      printed: "Forced Response: After a friendly character is defeated by an enemy attack, place 2 threat on the main scheme.\n[star] Boost: Put Judge, Jury, Executioner into play.",
+      current: "Forced Response: After a friendly character is defeated by an enemy attack, place 2 threat on the main scheme.\n[star] Boost: Put Judge, Jury, Executioner into play.",
+    },
+    abilities: [
+      {
+        id: abilityId("90002.judge-jury-executioner-forced-response"),
+      },
+      { id: abilityId("90002.boost") },
+    ],
+  },
+  {
+    id: cardId("90003"),
+    type: "attachment",
+    name: "The Accused",
+    setCode: setCode("ron"),
+    cycleId: cycleId("promo"),
+    collectorNumber: "3",
+    quantityInSet: 1,
+    unique: false,
+    images: { front: imageRef("/bundles/cards/90003.png") },
+    attachesTo: { kind: "yourIdentity" },
+    encounterSetIds: [encounterSetId("kree_fanatic")],
+    boostIcons: 0,
+    traits: [trait("CONDITION")],
+    keywords: [],
+    text: {
+      printed: "Attach to your identity.\nForced Interrupt: When an enemy initiates an attack against the attached identity, that enemy gets +1 ATK for the attack.\nForced Response: After Ronan the Accuser is defeated, discard this card.\n[star] Boost: Attach to your identity.",
+      current: "Attach to your identity.\nForced Interrupt: When an enemy initiates an attack against the attached identity, that enemy gets +1 ATK for the attack.\nForced Response: After Ronan the Accuser is defeated, discard this card.\n[star] Boost: Attach to your identity.",
+    },
+    abilities: [
+      { id: abilityId("90003.the-accused-forced-interrupt") },
+      { id: abilityId("90003.the-accused-forced-response") },
+      { id: abilityId("90003.boost") },
+    ],
+  },
+  {
+    id: cardId("90004"),
+    type: "treachery",
+    name: "Bring the Hammer Down",
+    setCode: setCode("ron"),
+    cycleId: cycleId("promo"),
+    collectorNumber: "4",
+    quantityInSet: 2,
+    unique: false,
+    images: { front: imageRef("/bundles/cards/90004.png") },
+    encounterSetIds: [encounterSetId("kree_fanatic")],
+    boostIcons: 3,
+    traits: [],
+    keywords: [],
+    text: {
+      printed: "When Revealed: Ronan the Accuser activates against the player he is engaged with. If Ronan the Accuser is not in play, this card gains surge.\n[star] Boost: If this activation defeats a character, deal the first player 1 facedown encounter card.",
+      current: "When Revealed: Ronan the Accuser activates against the player he is engaged with. If Ronan the Accuser is not in play, this card gains surge.\n[star] Boost: If this activation defeats a character, deal the first player 1 facedown encounter card.",
+    },
+    abilities: [{ id: abilityId("90004.when-revealed") }, { id: abilityId("90004.boost") }],
+  },
+  {
+    id: cardId("90005"),
+    type: "treachery",
+    name: "You Dare Oppose Me?",
+    setCode: setCode("ron"),
+    cycleId: cycleId("promo"),
+    collectorNumber: "5",
+    quantityInSet: 2,
+    unique: false,
+    images: { front: imageRef("/bundles/cards/90005.png") },
+    encounterSetIds: [encounterSetId("kree_fanatic")],
+    boostIcons: 2,
+    traits: [],
+    keywords: [],
+    text: {
+      printed: "When Revealed: Discard the top 5 cards of the encounter deck. Each time a card belonging to the Kree Fanatic set is discarded this way, deal that card to yourself as a facedown encounter card.\n[star] Boost: If this activation is an attack, that attack gains overkill.",
+      current: "When Revealed: Discard the top 5 cards of the encounter deck. Each time a card belonging to the Kree Fanatic set is discarded this way, deal that card to yourself as a facedown encounter card.\n[star] Boost: If this activation is an attack, that attack gains overkill.",
+    },
+    abilities: [{ id: abilityId("90005.when-revealed") }, { id: abilityId("90005.boost") }],
+  },
+];

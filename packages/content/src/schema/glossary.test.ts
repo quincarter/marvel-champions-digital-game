@@ -100,10 +100,12 @@ describe("glossary entries", () => {
     }
   });
 
-  it("discount is the one keyword with no RRG page, flagged unverified and pointing at the product that introduced it", () => {
+  it("discount is the one keyword with no RRG page, flagged unverified and pointing at the rulebook page that defines it", () => {
+    // Wave 2 schema pass (docs/phase7-wave2.md §6.2): the Fear No Evil rulebook, p. 3, was read but is not in the repo.
     const discount = glossaryEntry("discount");
     expect(discount?.unverified).toBe(true);
-    expect(discount?.sources.some((s) => s.kind === "insert-not-in-repo" && s.product.length > 0)).toBe(true);
+    expect(discount?.sources).toEqual([{ kind: "insert-not-in-repo", product: "Fear No Evil rulebook, p. 3" }]);
+    expect(discount?.definition).toMatch(/identity has the named trait/);
     expect(discount?.sources.some((s) => s.kind === "rrg")).toBe(false);
   });
 

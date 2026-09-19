@@ -117,6 +117,12 @@ export type AbilityTriggerSpec =
        * discard pile").
        */
       readonly playableFrom?: readonly "discard"[];
+      /**
+       * "You may play [Arrow] events attached to this card as if they were in your hand" (Hawkeye's Quiver; docs/phase7-
+       * wave2.md §3.10): cards attached to this card that match may be played by its controller as if from hand. A
+       * permission on the host, where `playableFrom` is one on the card itself.
+       */
+      readonly playableAttachments?: TargetQuery;
       /** "As an additional cost for Wonder Man to attack, you must discard 1 card." Costs on this character's own basic powers. */
       readonly basicPowerCosts?: readonly { readonly power: "attack" | "thwart"; readonly cost: AbilityCost }[];
     };
@@ -172,7 +178,14 @@ export interface KeywordGrantSpec {
 
 /** "X gains the [trait] trait" while the granting card is in play. */
 export interface TraitGrantSpec {
-  readonly trait: Trait;
+  /** The trait granted. Absent when `traitsOf` names where the traits come from instead. */
+  readonly trait?: Trait;
+  /**
+   * "Absorbing Man gains the trait of each environment in play" (docs/phase7-wave2.md §3.11): the printed traits of every
+   * card in play this query matches (from the granting card's point of view) are granted. Printed traits only, so grants
+   * can't feed each other.
+   */
+  readonly traitsOf?: TargetQuery;
   readonly target: TargetQuery;
   readonly while?: Predicate;
 }
@@ -198,6 +211,37 @@ export type RuleSpec =
    * ("If each of your allies has the Avenger trait, increase your ally limit by 1" — Avengers Tower, `cap` pack).
    */
   | { readonly kind: "allyLimit"; readonly amount: number; readonly while?: Predicate }
+  /**
+   * "Stinger does not count against your ally limit." (docs/phase7-wave2.md §3.5): matching allies are left out of the
+   * count. RRG 1.8 "Ally Limit" (p. 7): the check "occurs before abilities that resolve upon entering play", so this is a
+   * constant read at the check, not an ability that resolves.
+   */
+  | { readonly kind: "excludedFromAllyLimit"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Threat you remove using your basic thwart power (THW) can be divided among schemes as you choose." / "Damage you
+   * deal using your basic attack power (ATK) can be divided among enemies as you choose." (Wasp's Giant form). Matching
+   * characters may use `basicAttack.divide` / `basicThwart.divide`. FAQ "Wasp (#1C)" (RRG 1.8 p. 61): the targets are
+   * chosen and checked (guard, patrol, crisis) when the power is used, each target is attacked, and each retaliate
+   * damages her in the order of her choice. docs/phase7-wave2.md §3.7.
+   */
+  | { readonly kind: "divideBasicPower"; readonly power: "attack" | "thwart"; readonly target: TargetQuery; readonly while?: Predicate }
+  /** "When a character thwarts this side scheme, they may use their ATK instead of their THW" (The Red House): `basicThwart.useAtk`. */
+  | { readonly kind: "thwartWithAtk"; readonly scheme: TargetQuery; readonly while?: Predicate }
+  /**
+   * "You cannot play hero-specific cards." (Depowered): `player` cannot play cards matching `cards`. FAQ "Depowered
+   * (#20)" (RRG 1.8 p. 60): Invocation cards "are merely resolved, not played", so a resolve is not blocked.
+   */
+  | { readonly kind: "cannotPlay"; readonly player: PlayerRef; readonly cards: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (Corrupted Timestream): an action ability of a
+   * card matching `on`, with that form label (absent: any), cannot be triggered.
+   */
+  | { readonly kind: "cannotTriggerActions"; readonly on: TargetQuery; readonly form?: Form; readonly while?: Predicate }
+  /**
+   * "When this scheme is defeated, shuffle it into the encounter deck instead of discarding it." (Time Portal): a matching
+   * side scheme that is defeated goes into the encounter deck, which is shuffled, instead of the discard pile.
+   */
+  | { readonly kind: "defeatedIntoEncounterDeck"; readonly target: TargetQuery; readonly while?: Predicate }
   /** "The engaged player must defend against [attacker]'s attacks with an ally they control, if able" (Melter). */
   | { readonly kind: "mustDefendWithAlly"; readonly attacker: TargetQuery; readonly while?: Predicate }
   /**

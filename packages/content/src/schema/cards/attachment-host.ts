@@ -1,4 +1,5 @@
 import type { Trait } from "../common.js";
+import type { KeywordName } from "../keywords.js";
 
 /**
  * Where an attachment (encounter attachment or player upgrade) may be attached.
@@ -45,6 +46,22 @@ import type { Trait } from "../common.js";
  *   `preferred` is tried first; only when it yields no legal host is `otherwise` tried. Both are evaluated when the
  *   card would be attached (RRG 1.8 "Attach To", p. 8). Neither may itself be `ifAble`.
  *
+ * Wave 2 schema pass for later packs (docs/phase7-wave2.md §6):
+ * - `anyOf`: "Attach to an enemy or scheme." (Acute Tactility, Enhanced Olfaction), "Attach to Greycrow or Harpoon."
+ *   (Favored Weapon's preferred host), "Attach to an X-FORCE or X-MEN ally." (Advanced Suit). Every candidate of every
+ *   listed host is legal, deduplicated, in the order listed. Neither `ifAble` nor `anyOf` may be listed inside it.
+ * - `leader`: "the enemy leader" / "your leader" (Civil War). RRG 1.8 "Leader" (p. 26): "The leader card type follows
+ *   the same rules as the villain card type for all purposes." In cooperative play (the only mode built), the Civil War
+ *   rulebook, "Playing a Custom Scenario Cooperatively" (p. 6): "The leader in play is called 'the enemy leader.'" and
+ *   "A card ability that refers to 'your leader' cannot be resolved." So `enemy` is the villain and `yours` has no
+ *   host. Ruling, Jul 9, 2026 (3) answer 2: "Outside Civil War scenarios, 'enemy leader' refers to the villain."
+ * - `nonActiveVillain`: "Attach to the villain who is not the active villain." (Direct Assault, `mts`): each villain in
+ *   play other than the one with the active counter.
+ * - `HostQualifiers.withoutKeyword` / `keyword`: "a non-permanent side scheme" (Containment Strategy, The Direct
+ *   Approach). Permanent is a keyword, not a trait, so `withoutTrait` cannot say it.
+ * - `HostMeasure` `activationOrder` ("the villain with the highest activation order value", The Sinister Six) and
+ *   `traitCount` ("the minion with the most traits", Cyborg Tech).
+ *
  * A kind the engine cannot resolve yields no legal host, so the attachment is discarded. Card data that uses
  * a kind the engine does not resolve yet must not be marked playable (docs/phase7-wave1.md §3.1).
  */
@@ -71,7 +88,10 @@ export type AttachmentHost =
       readonly order: "highest" | "lowest";
       readonly measure: HostMeasure;
     } & HostQualifiers)
-  | { readonly kind: "ifAble"; readonly preferred: AttachmentHost; readonly otherwise: AttachmentHost };
+  | { readonly kind: "ifAble"; readonly preferred: AttachmentHost; readonly otherwise: AttachmentHost }
+  | { readonly kind: "anyOf"; readonly hosts: readonly [AttachmentHost, AttachmentHost, ...AttachmentHost[]] }
+  | { readonly kind: "leader"; readonly of: "enemy" | "yours" }
+  | { readonly kind: "nonActiveVillain" };
 
 export type AttachmentHostKind = AttachmentHost["kind"];
 
@@ -94,6 +114,9 @@ export const ATTACHMENT_HOST_KINDS: readonly AttachmentHostKind[] = [
   "minionWithHighestPrintedHp",
   "superlative",
   "ifAble",
+  "anyOf",
+  "leader",
+  "nonActiveVillain",
 ];
 
 /** The card categories a `qualified` host narrows. `character` is any character in play. */
@@ -113,11 +136,15 @@ export const ATTACHMENT_HOST_CATEGORIES: readonly AttachmentHostCategory[] = [
  * - `trait`: "an X-MEN ally" (printed or gained traits, RRG 1.8 "Gains").
  * - `withoutTrait`: "a non-ELITE minion", "without the Aerial trait".
  * - `withoutAttachmentNamed`: "without another Goblin Glider attached", "without a copy of Gene Therapy attached".
+ * - `keyword` / `withoutKeyword` (wave 2): "a non-permanent side scheme" is `withoutKeyword: "permanent"`. A keyword
+ *   counts whether printed or gained (RRG 1.8 "Gains").
  */
 export interface HostQualifiers {
   readonly trait?: Trait;
   readonly withoutTrait?: Trait;
   readonly withoutAttachmentNamed?: string;
+  readonly keyword?: KeywordName;
+  readonly withoutKeyword?: KeywordName;
 }
 
 /** What a `superlative` host ranks candidates among. */
@@ -129,10 +156,15 @@ export const SUPERLATIVE_HOST_POOLS: readonly SuperlativeHostPool[] = ["minion",
  * The value a `superlative` host ranks by. `printedHp`/`printedAtk` are the printed values (RRG 1.8 "Printed");
  * a villain's printed hit points carry the per player icon, which "multiplies that value by the number of players
  * who started the scenario" (RRG 1.8 "Per Player Icon"). `remainingHp`, `atk` and `sch` are current values.
+ *
+ * Wave 2 (docs/phase7-wave2.md §6.7):
+ * - `activationOrder`: the villain's printed activation order value (`VillainCard.activationOrder`; The Sinister Six,
+ *   whose villains print "Activation Order 1"–"6"). Only with `among: "villain"`; a villain without one is no candidate.
+ * - `traitCount`: how many traits the card has, printed or gained (RRG 1.8 "Gains"): "the minion with the most traits".
  */
-export type HostMeasure = "printedHp" | "remainingHp" | "printedAtk" | "atk" | "sch";
+export type HostMeasure = "printedHp" | "remainingHp" | "printedAtk" | "atk" | "sch" | "activationOrder" | "traitCount";
 
-export const HOST_MEASURES: readonly HostMeasure[] = ["printedHp", "remainingHp", "printedAtk", "atk", "sch"];
+export const HOST_MEASURES: readonly HostMeasure[] = ["printedHp", "remainingHp", "printedAtk", "atk", "sch", "activationOrder", "traitCount"];
 
 /**
  * Stat changes printed in an attachment's stat boxes (Charge +3 ATK, Program

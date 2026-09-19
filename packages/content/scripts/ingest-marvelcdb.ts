@@ -47,6 +47,23 @@ import { SCW_CURATION } from "./marvelcdb/curation/scw.ts";
 import { ANT_CURATION } from "./marvelcdb/curation/ant.ts";
 import { WSP_CURATION } from "./marvelcdb/curation/wsp.ts";
 import { TRORS_CURATION } from "./marvelcdb/curation/trors.ts";
+import { QSV_CURATION } from "./marvelcdb/curation/qsv.ts";
+import { TOAFK_CURATION } from "./marvelcdb/curation/toafk.ts";
+import { BP_CURATION } from "./marvelcdb/curation/bp.ts";
+import { CYCLOPS_CURATION } from "./marvelcdb/curation/cyclops.ts";
+import { GAMBIT_CURATION } from "./marvelcdb/curation/gambit.ts";
+import { DRAX_CURATION } from "./marvelcdb/curation/drax.ts";
+import { GAM_CURATION } from "./marvelcdb/curation/gam.ts";
+import { STLD_CURATION } from "./marvelcdb/curation/stld.ts";
+import { VNM_CURATION } from "./marvelcdb/curation/vnm.ts";
+import { NEBU_CURATION } from "./marvelcdb/curation/nebu.ts";
+import { WARM_CURATION } from "./marvelcdb/curation/warm.ts";
+import { VISION_CURATION } from "./marvelcdb/curation/vision.ts";
+import { NCRAWLER_CURATION } from "./marvelcdb/curation/ncrawler.ts";
+import { MAGNETO_CURATION } from "./marvelcdb/curation/magneto.ts";
+import { WINTER_CURATION } from "./marvelcdb/curation/winter.ts";
+import { FALCON_CURATION } from "./marvelcdb/curation/falcon.ts";
+import { RON_CURATION } from "./marvelcdb/curation/ron.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -68,6 +85,23 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   ant: ANT_CURATION,
   wsp: WSP_CURATION,
   trors: TRORS_CURATION,
+  qsv: QSV_CURATION,
+  toafk: TOAFK_CURATION,
+  bp: BP_CURATION,
+  cyclops: CYCLOPS_CURATION,
+  gambit: GAMBIT_CURATION,
+  drax: DRAX_CURATION,
+  gam: GAM_CURATION,
+  stld: STLD_CURATION,
+  vnm: VNM_CURATION,
+  nebu: NEBU_CURATION,
+  warm: WARM_CURATION,
+  vision: VISION_CURATION,
+  ncrawler: NCRAWLER_CURATION,
+  magneto: MAGNETO_CURATION,
+  winter: WINTER_CURATION,
+  falcon: FALCON_CURATION,
+  ron: RON_CURATION,
 };
 
 interface RawCache {

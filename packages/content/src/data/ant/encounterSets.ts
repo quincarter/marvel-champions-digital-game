@@ -11,6 +11,6 @@ export const ANT_ENCOUNTER_SETS: readonly EncounterSet[] = [
     id: encounterSetId("ant_nemesis"),
     name: "Ant-Man Nemesis",
     packCodes: [setCode("ant")],
-    nemesisOfIdentityId: cardId("12001c"),
+    nemesisOfIdentityId: cardId("12001a"),
   },
 ];

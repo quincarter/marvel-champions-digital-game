@@ -1,0 +1,10 @@
+// GENERATED FILE — do not edit by hand.
+// Source: MarvelCDB public API https://marvelcdb.com/api/public/cards/vision (fetched 2026-09-13; raw cache: packages/content/raw/marvelcdb/vision.json).
+// Hand corrections / curated data: packages/content/scripts/marvelcdb/curation/vision.ts
+// Regenerate: pnpm --filter @mc/content ingest -- --pack vision [--offline]
+
+import type { StarterDeck } from "../../schema/index.js";
+
+export const VISION_STARTER_DECKS: readonly StarterDeck[] = [
+
+];

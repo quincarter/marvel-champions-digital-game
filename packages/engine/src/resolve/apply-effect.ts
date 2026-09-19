@@ -6,6 +6,8 @@ import {
   addCounters,
   addLastingEffect,
   discardFromPlay,
+  endGame,
+  leavePlay,
   discardRandomFromHand,
   drawCards,
   drawEncounterCard,
@@ -47,6 +49,7 @@ import {
   canAttack,
   cardsInPlay,
   categoriesOf,
+  contextArea,
   controllerOf,
   type EffectContext,
   evaluate,
@@ -59,10 +62,11 @@ import type { EffectSpec } from "../spec.js";
 import { currentActivationFrameId, type DeferredEffects, type ReportTarget, type StackFrame } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { matchingCardInPlay } from "../unique.js";
-import { moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
+import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
 import { cannotChangeForm, cannotThwart } from "../rules.js";
-import { advanceMainSchemeStage, checkDefeats } from "./defeat.js";
-import { threatRemovalBlocked } from "./event.js";
+import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
+import { addVillains, createGameArea, removeMainSchemeStage, removeVillains, revealMainSchemeStages } from "./game-areas.js";
+import { readyOrAnnounce, threatRemovalBlocked } from "./event.js";
 import { heard } from "./triggers.js";
 import { dealBoostCard, giveBoostCard } from "./enemy-activation.js";
 import { applyEnterPlayKeywords, quickstrikeAttack } from "./enter-play.js";
@@ -88,7 +92,7 @@ import { enterPlayOnReveal, revealFrame } from "./reveal.js";
  *
  * Returns the ids that may proceed, and records every refusal in the game log.
  */
-function admitUniqueEntry(ctx: Ctx, ids: readonly InstanceId[]): readonly InstanceId[] {
+function admitUniqueEntry(ctx: Ctx, ids: readonly InstanceId[], forPlayer: PlayerId | null = null): readonly InstanceId[] {
   const admitted: InstanceId[] = [];
   for (const id of ids) {
     const card = cardOf(ctx.state, id);
@@ -98,7 +102,7 @@ function admitUniqueEntry(ctx: Ctx, ids: readonly InstanceId[]): readonly Instan
       continue;
     }
     // `ignore` keeps a card already in play from matching itself.
-    const match = matchingCardInPlay(ctx.state, card, new Set([id]));
+    const match = matchingCardInPlay(ctx.state, card, new Set([id]), forPlayer);
     if (!match) {
       admitted.push(id);
       continue;
@@ -268,7 +272,7 @@ export function applyEffect(
       if (effect.overkill) delta.overkill = 1;
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
       if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
-      const extra = effect.extraBoostCards ?? 0;
+      const extra = effect.extraBoostCards === undefined ? 0 : typeof effect.extraBoostCards === "number" ? effect.extraBoostCards : Math.max(0, value(effect.extraBoostCards));
       const procedure = ctx.state.stack.find(
         (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
           (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.eventFrameId === activation,
@@ -306,6 +310,22 @@ export function applyEffect(
       if (turned?.kind === "event" && turned.event.kind === "boostCardTurnedFaceup") setFrame(ctx, { ...turned, event: { ...turned.event, boostIcons: 0 } });
       emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "icons" });
       return report(1, icons);
+    }
+    case "adjustBoostCount":
+    case "replaceBoostCount": {
+      // The boost card the current activation is counting (docs/phase7-wave2.md §3.6).
+      const procedure = ctx.state.stack.find(
+        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> => (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.step === "count",
+      );
+      const boost = procedure?.boost;
+      if (!procedure || !boost) return;
+      if (effect.kind === "adjustBoostCount") {
+        setFrame(ctx, { ...procedure, boost: { ...boost, countAdjust: (boost.countAdjust ?? 0) + value(effect.delta) } });
+      } else {
+        const [card] = resolveRef(ctx.state, effect.card, context);
+        if (card) setFrame(ctx, { ...procedure, boost: { ...boost, countFrom: card } });
+      }
+      return;
     }
     case "atEndOfAttack":
     case "atEndOfActivation": {
@@ -354,7 +374,7 @@ export function applyEffect(
       for (const id of targets(effect.target)) exhaustCard(ctx, id);
       return;
     case "ready":
-      for (const id of targets(effect.target)) readyCard(ctx, id);
+      for (const id of targets(effect.target)) readyOrAnnounce(ctx, id);
       return;
     case "giveStatus":
       for (const id of targets(effect.target)) giveStatus(ctx, id, effect.status);
@@ -380,6 +400,9 @@ export function applyEffect(
         // "Attach 1 card from your hand facedown here" (Bruno Carrelli): no title, traits, keywords or abilities
         // while it is facedown; it is itself again when it leaves play (`leavePlay`).
         if (effect.facedown) updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
+        // Otherwise it is faceup in play, whatever zone it came from ("search the top 5 cards of your deck for an
+        // [Arrow] event and attach it faceup to this card", Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
+        else if (!mustInstance(ctx.state, id).faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
       }
       return;
     }
@@ -427,7 +450,7 @@ export function applyEffect(
     case "putIntoPlay": {
       const [controller] = resolvePlayers(ctx.state, effect.controller, context);
       if (!controller) return;
-      const admitted = admitUniqueEntry(ctx, targets(effect.card));
+      const admitted = admitUniqueEntry(ctx, targets(effect.card), controller);
       const placed: InstanceId[] = [];
       for (const id of admitted) {
         const card = cardOf(ctx.state, id);
@@ -500,6 +523,9 @@ export function applyEffect(
         const card = cardOf(ctx.state, id);
         const villain = villainOf(ctx.state, id);
         if (villain && card?.type === "villain") {
+          // "Flip" names the other face of a two-faced card. A three-sided villain has two others, so card text names the
+          // face by form instead (`changeVillainForm`; docs/phase7-wave2.md §6.9).
+          if (card.sides.length !== 2) continue;
           const other = card.sides.find((side) => side.side !== villain.side);
           // Both faces of a double-sided stage card list the same stages (docs/phase7-wave1.md §1.3).
           if (!other?.stages[villain.stageIndex]) continue;
@@ -517,6 +543,26 @@ export function applyEffect(
       pushFrames(ctx, frames);
       return;
     }
+    case "changeVillainForm": {
+      // "Change Apocalypse to [Giant] form" (Staggering Strength; The Age of Apocalypse): the face of the same stage card
+      // whose traits include the form. RRG 1.8 "Flip" (p. 20): "A foldable, 'three-sided' card is considered to have
+      // flipped any time the faceup side of the card changes", so it is a flip, with the same When Revealed and
+      // `cardFlipped` as `flipCard`. Already in that form: nothing changes and nothing triggers.
+      const inPlay = cardsInPlay(ctx.state);
+      const frames: StackFrame[] = [];
+      for (const id of targets(effect.villain)) {
+        const card = cardOf(ctx.state, id);
+        const villain = villainOf(ctx.state, id);
+        if (!inPlay.includes(id) || !villain || card?.type !== "villain") continue;
+        const face = card.sides.find((side) => side.stages[villain.stageIndex]?.traits.includes(effect.toFaceWithTrait));
+        if (!face || face.side === villain.side) continue;
+        flipVillain(ctx, id, face.side);
+        frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
+        frames.push(eventFrame(ctx, { kind: "cardFlipped", instanceId: id }));
+      }
+      pushFrames(ctx, frames);
+      return;
+    }
     case "setActiveVillain": {
       const [to] = targets(effect.villain).filter((id) => villainOf(ctx.state, id)?.defeated === false);
       if (!to) return;
@@ -528,8 +574,53 @@ export function applyEffect(
     case "removeAccelerationToken":
       removeAccelerationToken(ctx);
       return;
-    case "advanceMainScheme":
-      advanceMainSchemeStage(ctx);
+    case "advanceMainScheme": {
+      // "The main scheme" of this effect's area unless named; `to` names the stage (docs/phase7-wave2.md §3.4).
+      const [scheme] = effect.scheme ? targets(effect.scheme) : resolveRef(ctx.state, { kind: "mainScheme" }, context);
+      if (scheme) advanceMainSchemeStage(ctx, scheme, effect.to);
+      return;
+    }
+    case "completeMainScheme":
+      for (const scheme of targets(effect.scheme)) completeMainScheme(ctx, scheme);
+      return;
+    case "endGame":
+      endGame(ctx, effect.result === "win" ? { result: "win", reason: "villainDefeated" } : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" });
+      return;
+    case "addVillain": {
+      const actor = context.scopedPlayerId ?? context.controllerId ?? ctx.state.firstPlayerId;
+      pushFrames(ctx, addVillains(ctx, targets(effect.villain), contextArea(ctx.state, context), effect.reveal ?? false, actor));
+      return;
+    }
+    case "removeVillain":
+      removeVillains(ctx, targets(effect.villain));
+      return;
+    case "removeMainSchemeStage":
+      for (const scheme of targets(effect.scheme)) removeMainSchemeStage(ctx, scheme);
+      return;
+    case "revealMainSchemeStage": {
+      if (!ctx.state.scenarioRules.separateGameAreas) return;
+      const players = resolvePlayers(ctx.state, effect.player, context);
+      pushFrames(ctx, revealMainSchemeStages(ctx, players, effect.stageNumber, effect.removeUnused ?? false));
+      return;
+    }
+    case "createGameArea": {
+      const player = context.scopedPlayerId ?? context.controllerId;
+      if (!player) return;
+      for (const scheme of targets(effect.scheme)) createGameArea(ctx, scheme, player);
+      return;
+    }
+    case "joinGameArea":
+      throw new EngineInvariantError("joinGameArea is handled before applyEffect");
+    case "atEndOfPhase":
+      addLastingEffect(
+        ctx,
+        {
+          kind: "delayedEffects",
+          effects: effect.effects,
+          scope: { selfInstanceId: frame.selfInstanceId, controllerId: frame.controllerId, vars: frame.vars, bindings: frame.bindings },
+        },
+        { kind: "endOfPhase" },
+      );
       return;
     case "moveThreat": {
       const [from] = targets(effect.from);
@@ -723,19 +814,8 @@ export function applyEffect(
         updatePlayer(ctx, playerId, (p) => ({ ...p, deck: order }));
       }
       return;
-    case "changeForm": {
-      const changed: TriggerEvent[] = [];
-      for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
-        if (cannotChangeForm(ctx.state, ctx.deps, playerId)) continue;
-        const current = mustPlayer(ctx.state, playerId).identity.form;
-        const to = effect.to ?? (current === "hero" ? "alterEgo" : "hero");
-        if (to === current) continue;
-        setForm(ctx, playerId, to, false);
-        changed.push({ kind: "formChanged", playerId, to });
-      }
-      pushEvents(ctx, changed);
-      return;
-    }
+    case "changeForm":
+      throw new EngineInvariantError("changeForm is handled before applyEffect");
     case "drawUpTo":
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         const missing = value(effect.amount) - mustPlayer(ctx.state, playerId).hand.length;
@@ -857,6 +937,26 @@ export function applyEffect(
       pushFrames(ctx, frames);
       return;
     }
+    case "takeIntoHand": {
+      const [playerId] = resolvePlayers(ctx.state, effect.player, context);
+      if (!playerId) return;
+      for (const id of selectCards(ctx, effect.cards, context)) {
+        const instance = getInstance(ctx.state, id);
+        const card = cardOf(ctx.state, id);
+        if (!instance || !card || !("deckLimit" in card)) continue;
+        if (instance.ownerId !== playerId) {
+          updateInstance(ctx, id, (i) => ({ ...i, ownerId: playerId, home: { kind: "player" } }));
+          emit(ctx, { type: "ownershipChanged", instanceId: id, playerId });
+        }
+        if (cardsInPlay(ctx.state).includes(id)) leavePlay(ctx, id, { kind: "hand", playerId });
+        else moveCard(ctx, id, { kind: "hand", playerId });
+        updateInstance(ctx, id, (i) => ({ ...i, faceup: true, controllerId: playerId }));
+      }
+      return;
+    }
+    case "buildScenarioDeck":
+      buildScenarioDeck(ctx, effect.name);
+      return;
     case "shuffleEncounterDeck":
       shuffleEncounterDeck(ctx);
       return;
@@ -980,9 +1080,13 @@ export function applyEffect(
     case "tuckCards": {
       const [host] = targets(effect.under);
       if (!host) return;
+      const inPlay = cardsInPlay(ctx.state);
       for (const id of selectCards(ctx, effect.cards, context)) {
-        moveCard(ctx, id, { kind: "tucked", hostInstanceId: host });
-        updateInstance(ctx, id, (i) => ({ ...i, faceup: effect.facedown !== true }));
+        // A card tucked out of play leaves play properly: its attachments are discarded and it is a new copy (RRG 1.8
+        // "Leaves Play", p. 27): Marked for Death "tucks her faceup beneath this card" (docs/phase7-wave2.md §3.10).
+        if (inPlay.includes(id)) leavePlay(ctx, id, { kind: "tucked", hostInstanceId: host });
+        else moveCard(ctx, id, { kind: "tucked", hostInstanceId: host });
+        updateInstance(ctx, id, (i) => ({ ...i, faceup: effect.facedown !== true, controllerId: i.ownerId, attachedTo: null }));
       }
       return;
     }

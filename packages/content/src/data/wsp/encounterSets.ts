@@ -11,6 +11,6 @@ export const WSP_ENCOUNTER_SETS: readonly EncounterSet[] = [
     id: encounterSetId("wsp_nemesis"),
     name: "Wasp Nemesis",
     packCodes: [setCode("wsp")],
-    nemesisOfIdentityId: cardId("13001c"),
+    nemesisOfIdentityId: cardId("13001a"),
   },
 ];

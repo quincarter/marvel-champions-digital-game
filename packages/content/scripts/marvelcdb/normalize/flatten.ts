@@ -50,7 +50,12 @@ export function flatten(raw: readonly RawCard[], errors: string[]): Flattened {
     const variants = [...byCode.values()].filter((v) => new RegExp(`^${r.code}[a-z]$`).test(v.code));
     if (r.type_code === "main_scheme") {
       const b = byCode.get(`${r.code}b`);
-      if (!b || b.threat !== r.threat || b.escalation_threat !== r.escalation_threat) {
+      // MarvelCDB represents "no printed value" inconsistently between the aggregate and its B-side twin: a
+      // dashed stage's aggregate record simply omits the field (`undefined`) while the B-side record carries an
+      // explicit `null` (The Once and Future Kang's 11008/11008b, docs/phase7-wave2.md §1.6/§5.1). Both mean the
+      // same thing — normalize before comparing, so a genuinely dashed stage isn't reported as a mismatch.
+      const sameOrBothAbsent = (x: number | null | undefined, y: number | null | undefined) => (x ?? null) === (y ?? null);
+      if (!b || !sameOrBothAbsent(b.threat, r.threat) || !sameOrBothAbsent(b.escalation_threat, r.escalation_threat)) {
         errors.push(`aggregate ${r.code} does not match its B side — inspect before dropping`);
       }
       dropped.push({

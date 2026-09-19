@@ -6,13 +6,26 @@ import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { boostIconsFor } from "../modifiers.js";
-import { cardOf, characterProfile, discardZoneFor, getInstance, locateCard, mustCardOf, mustInstance, mustPlayer, playerOrder } from "../query.js";
+import {
+  cardOf,
+  characterProfile,
+  discardZoneFor,
+  getInstance,
+  locateCard,
+  mustCardOf,
+  mustInstance,
+  mustPlayer,
+  playerOrder,
+  areaOfCard,
+  mainSchemeFor,
+} from "../query.js";
 import { mustDefendWithAlly, schemeThreatDestination } from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "../select.js";
 import type { Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { addFrameSlots, addFrameVars, announce, base, type Frame, gameAbilityFrames, pushEvent, pushEvents } from "./frames.js";
+import { heard } from "./triggers.js";
 
 const getsBoostCard = (state: GameState, enemyId: InstanceId): boolean => {
   const card = cardOf(state, enemyId);
@@ -96,7 +109,17 @@ function stepBoostCard(
     else pushFrames(ctx, gameAbilityFrames(ctx, boost.instanceId, ["boost"], null, undefined, playerId));
     return "busy";
   }
-  const icons = boost.iconsCancelled ? 0 : boostIconsFor(ctx.state, ctx.deps, boost.instanceId);
+  if (boost.step === "ability") {
+    // The icons are about to be counted: a window only when something could react (docs/phase7-wave2.md §3.6).
+    setFrame(ctx, { ...frame, boost: { ...boost, step: "count" } });
+    const counting: TriggerEvent = { kind: "boostIconsCounting", enemyInstanceId: frame.enemyInstanceId, cardInstanceId: boost.instanceId, playerId };
+    if (!boost.iconsCancelled && heard(ctx.state, ctx.deps, counting)) {
+      pushEvent(ctx, counting);
+      return "busy";
+    }
+  }
+  const counted = boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) + (boost.countAdjust ?? 0);
+  const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
   // Discarded to its home deck's discard (docs/phase7-wave1.md §4.3, proposed), unless its own Boost ability already
   // moved it ("Put Goblin Thrall into play engaged with you").
   if (locateCard(ctx.state, boost.instanceId)?.kind === "boost") moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
@@ -239,6 +262,9 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         });
         exhaustCard(ctx, defenderId);
         setDefender(ctx, { ...frame, answer: null, stage: "flipBoosts" }, defenderId, defenderPlayer, true);
+        // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
+        const used: TriggerEvent = { kind: "basicPowerUsed", characterInstanceId: defenderId, power: "defense", playerId: defenderPlayer };
+        if (heard(ctx.state, ctx.deps, used)) announce(ctx, used);
         return;
       }
       // RRG "Defend, Defense": with a "(defense)" defender already set, only that
@@ -382,7 +408,11 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
       // threat itself and applies either way. The two are deliberately separate keys.
       const sch = profile.sch + (profile.missing.includes("sch") ? 0 : (vars.schBonus ?? 0));
       // RRG 1.8 "Scheme (Enemy Activation)" step 3 places it on the main scheme unless a constant ability redirects it.
-      const schemeInstanceId = schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ?? ctx.state.mainScheme.instanceId;
+      // With separate game areas, "the main scheme" is the enemy's own area's (docs/phase7-wave2.md §3.1).
+      const schemeInstanceId =
+        schemeThreatDestination(ctx.state, ctx.deps, frame.enemyInstanceId) ??
+        mainSchemeFor(ctx.state, areaOfCard(ctx.state, frame.enemyInstanceId))?.instanceId ??
+        ctx.state.mainScheme.instanceId;
       const threatBonus = vars.threatBonus ?? 0;
       const amount = Math.max(0, sch + frame.boostIcons + threatBonus);
       // The mirror of `attackResolved`: every term of the total separately, so nothing downstream has to re-derive it.

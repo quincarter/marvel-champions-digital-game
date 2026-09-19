@@ -23,6 +23,7 @@ import {
   paymentsFromOptionIds,
   inPlayCostCandidates,
   planCost,
+  playableFromAttachment,
   playableFromDiscard,
   playRequirement,
 } from "./actions.js";
@@ -32,7 +33,16 @@ import { createCtx } from "./ctx.js";
 import { applyCommand } from "./engine.js";
 import { EngineInvariantError, type EngineErrorCode } from "./errors.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { cardOf, cardZoneCandidates, getPlayer, isMinion, playerOrder, undefeatedVillains } from "./query.js";
+import {
+  cardOf,
+  cardZoneCandidates,
+  getPlayer,
+  heroFacesOf,
+  isMinion,
+  playerOrder,
+  undefeatedVillains,
+  mainSchemeStates,
+} from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResourceRequirement } from "./resources.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, type EffectContext } from "./select.js";
@@ -47,7 +57,8 @@ export type ActionRef =
   /** `instanceId` is the thwarter. */
   | { readonly kind: "basicThwart"; readonly instanceId: InstanceId }
   | { readonly kind: "basicRecover" }
-  | { readonly kind: "changeForm" }
+  /** `to` is set only for a three-sided identity, one action per reachable form (docs/phase7-wave2.md §3.2). */
+  | { readonly kind: "changeForm"; readonly to?: "alterEgo" | { readonly heroForm: number } }
   | { readonly kind: "endTurn" };
 
 /** A target that exists but can't be chosen right now, and the engine's reason. */
@@ -345,7 +356,7 @@ function basicCommand(playerId: PlayerId, action: ActionRef, target: InstanceId 
     case "basicRecover":
       return { type: "basicRecover", playerId };
     case "changeForm":
-      return { type: "changeForm", playerId };
+      return action.to === undefined ? { type: "changeForm", playerId } : { type: "changeForm", playerId, to: action.to };
     case "endTurn":
       return { type: "endTurn", playerId };
     default:
@@ -380,7 +391,9 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   const results: Evaluated[] = [];
   // Hand cards, and discard pile cards whose own permission allows playing them from there (RRG 1.8 "Play Restrictions
   // and Permissions", p. 33).
-  for (const id of [...player.hand, ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id))]) {
+  // Cards attached to a card that lets its controller play them from there (Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
+  const attached = cardsInPlay(state).filter((id) => playableFromAttachment(state, deps, playerId, id));
+  for (const id of [...player.hand, ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)), ...attached]) {
     const evaluated = evaluatePlay(state, deps, playerId, id);
     if (evaluated) results.push(evaluated);
   }
@@ -395,7 +408,7 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
     ...cardsInPlay(state).filter((id) => isMinion(state, id)),
   ];
   const schemes = [
-    state.mainScheme.instanceId,
+    ...mainSchemeStates(state).map((scheme) => scheme.instanceId),
     ...state.villainArea.filter((id) => {
       const type = cardOf(state, id)?.type;
       return type === "side_scheme" || type === "player_side_scheme";
@@ -417,7 +430,18 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
     results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
   }
   results.push(simple(state, deps, playerId, { kind: "basicRecover" }));
-  results.push(simple(state, deps, playerId, { kind: "changeForm" }));
+  const identityCard = cardOf(state, player.identity.instanceId);
+  const faces = identityCard?.type === "hero_identity" ? heroFacesOf(identityCard).length : 1;
+  if (faces > 1) {
+    // A three-sided identity: each form it is not in right now is its own action.
+    if (player.identity.form === "hero") results.push(simple(state, deps, playerId, { kind: "changeForm", to: "alterEgo" }));
+    for (let heroForm = 0; heroForm < faces; heroForm++) {
+      if (player.identity.form === "hero" && player.identity.heroFormIndex === heroForm) continue;
+      results.push(simple(state, deps, playerId, { kind: "changeForm", to: { heroForm } }));
+    }
+  } else {
+    results.push(simple(state, deps, playerId, { kind: "changeForm" }));
+  }
   results.push(simple(state, deps, playerId, { kind: "endTurn" }));
 
   return {

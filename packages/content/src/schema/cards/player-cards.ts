@@ -60,11 +60,17 @@ export interface PlayRestrictions {
  *   Skull rulebook, p. 3, "Campaign-Only Cards": "These cards cannot be included in any player's deck unless they are
  *   playing The Rise of Red Skull campaign and the players were directed to add them to their decks").
  *
- * `validateDeck` refuses both outside a campaign (`campaign_card`, `scenario_card`). Campaign mode is not built yet
- * (PLAN.md Phase 7, "Wave 2 scope decided").
+ * - `competitive` (wave 2 schema pass, docs/phase7-wave2.md §6.3): the four basic player cards paired with each Civil War
+ *   leader (The Futurist, Target Lock, High-Tech Suit, Suit Up with Iron Man; MarvelCDB `faction_code: "basic"` in the
+ *   leader's `card_set_code`). The Civil War rulebook, "Custom Scenario Expansion" (p. 3): "each leader comes paired
+ *   with 4 basic player cards. These leader-specific player cards are used only when playing in competitive mode."
+ *   `encounterSetId` is the leader's set.
+ *
+ * `validateDeck` refuses all three outside their mode (`campaign_card`, `scenario_card`, `competitive_card`). Campaign
+ * mode and competitive (team-vs-team) mode are not built yet (PLAN.md Phase 7, "Wave 2 scope decided").
  */
 export interface SpecificSet {
-  readonly kind: "scenario" | "campaign";
+  readonly kind: "scenario" | "campaign" | "competitive";
   readonly encounterSetId: EncounterSetId;
 }
 

@@ -3,6 +3,7 @@ import type { KeywordInstance } from "../keywords.js";
 import type { AbilityReference } from "../abilities.js";
 import type { ArtRef, CardId, EncounterSetId, ImageRef } from "../ids.js";
 import type { BaseCard, CardType } from "./base.js";
+import type { CardFlipSide } from "./encounter-cards.js";
 
 /**
  * RRG 1.8 Appendix I "Deck Customization" (p. 50): "Any 'deckbuilding requirements' on the
@@ -112,6 +113,42 @@ export interface HeroIdentityCard extends BaseCard {
    * Data only until the engine tracks which hero face is up (docs/phase7-wave2.md §3.2).
    */
   readonly additionalHeroForms?: readonly (HeroFace & { readonly traits: readonly Trait[] })[];
+  /**
+   * An identity split across two physical cards (wave 2 schema pass, docs/phase7-wave2.md §6.10). Absent for every
+   * ordinary identity, whose hero and alter-ego faces are the two sides of one card.
+   *
+   * The SP//dr Hero Pack insert, "New Rule: Separated Identity Card": "each side of her identity is split between two
+   * separate cards. One card represents the human pilot, Peni Parker, while the other represents the robotic SP//dr
+   * Suit. Start the game with the Peni Parker alter-ego in play and, following her 'Setup' instructions, put the
+   * INACTIVE support side of the SP//dr Suit card into play. While in alter-ego form, to change to hero form, flip Peni
+   * Parker from her alter-ego side to her SP//dr upgrade side and flip the SP//dr Suit card from its INACTIVE support
+   * side to its ACTIVE hero side. While in hero form, to change to alter-ego form, flip the SP//dr Suit card from its
+   * ACTIVE hero side to its INACTIVE support side and flip the SP//dr upgrade side to its Peni Parker alter-ego side.
+   * Both identity cards share a single hit point dial, with damage persisting on the dial between forms. Additionally,
+   * if one form is defeated, both forms are considered to be defeated simultaneously and the player is eliminated from
+   * the game."
+   *
+   * `hero` and `alterEgo` stay the identity's two forms (SP//dr Suit ACTIVE, 31001a; Peni Parker's alter-ego side).
+   * These fields are the other side of each physical card, which is in play as a card of its own type while its form is
+   * not:
+   * - `heroCardOtherSide`: the SP//dr Suit card's INACTIVE support side (31001b), in play while in alter-ego form;
+   * - `alterEgoCardOtherSide`: Peni Parker's SP//dr upgrade side, in play while in hero form.
+   *
+   * `alterEgoCardNumber` is the second physical card's collector number (Peni Parker is card 2 of the pack; the
+   * identity's own `collectorNumber` is the SP//dr Suit card's). MarvelCDB's cache has no record at all for Peni
+   * Parker's card (no 31002 in `spdr.json`; 31001a links to the support side 31001b instead of to an alter-ego), so
+   * curation needs a second source for her faces.
+   *
+   * Data only: the engine does not model two identity cards yet and refuses such an identity at setup.
+   */
+  readonly separatedIdentity?: SeparatedIdentity;
+}
+
+/** The two card-type faces of a separated identity's physical cards (see `HeroIdentityCard.separatedIdentity`). */
+export interface SeparatedIdentity {
+  readonly alterEgoCardNumber: string;
+  readonly heroCardOtherSide: CardFlipSide & { readonly cardType: "support" };
+  readonly alterEgoCardOtherSide: CardFlipSide & { readonly cardType: "upgrade" };
 }
 
 /**

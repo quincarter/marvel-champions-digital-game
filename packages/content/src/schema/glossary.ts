@@ -311,10 +311,12 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
   discount: {
     id: "discount",
     kind: "keyword",
-    displayName: "Discount",
+    displayName: "Discount X (Trait)",
     definition:
-      "Not confirmed: the community keyword index pairs 'Discount' with a numeric value and credits it to a product ('Fear No Evil') that isn't in this repo, and RRG 1.8 has no glossary entry for it at all. Treat this as a placeholder shape, not verified rules, until a real printed card or FAQ text for it can be checked.",
-    sources: [{ kind: "insert-not-in-repo", product: "Fear No Evil" }],
+      "When you play this card, it costs X less if your identity has the named trait. With more than one trait named, having any one of them is enough, and the reduction still applies only once.",
+    // Paraphrased from the Fear No Evil rulebook, "Featured Keywords" (p. 3) and its FAQ (p. 26), fetched 2026-09-18 and
+    // read, but not stored in this repo (CLAUDE.md: per-product inserts are not in the repo yet), so it stays flagged.
+    sources: [{ kind: "insert-not-in-repo", product: "Fear No Evil rulebook, p. 3" }],
     unverified: true,
   },
 };

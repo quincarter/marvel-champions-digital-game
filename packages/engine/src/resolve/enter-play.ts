@@ -5,7 +5,7 @@ import { addCounters, giveStatus } from "../effects.js";
 import type { InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword, keywordsOf } from "../keywords.js";
 import { cardOf, getInstance, getPlayer, mustCardOf, mustPlayer } from "../query.js";
-import { allyLimitFor, BASE_ALLY_LIMIT } from "../rules.js";
+import { allyLimitFor, BASE_ALLY_LIMIT, excludedFromAllyLimit } from "../rules.js";
 import { controllerOf, restrictedCardsOf } from "../select.js";
 
 /**
@@ -48,7 +48,7 @@ export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
 function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
   if (!playerId || ctx.state.pendingChoice) return false;
   const allies = mustPlayer(ctx.state, playerId).playArea.filter(
-    (id) => cardOf(ctx.state, id)?.type === "ally" && controllerOf(ctx.state, id) === playerId,
+    (id) => cardOf(ctx.state, id)?.type === "ally" && controllerOf(ctx.state, id) === playerId && !excludedFromAllyLimit(ctx.state, ctx.deps, id),
   );
   // Every ally limit rule is an increase on the base of three, so three allies or fewer is never over the limit.
   // Skipping the rule scan keeps this cheap when it runs between frames.

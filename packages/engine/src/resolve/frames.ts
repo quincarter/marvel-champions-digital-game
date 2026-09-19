@@ -126,7 +126,9 @@ export function pushEffects(
 function playPaymentVars(ctx: Ctx, instanceId: InstanceId): Vars {
   const play = ctx.state.stack.find((frame) => frame.kind === "playCard" && frame.instanceId === instanceId);
   if (play?.kind !== "playCard") return {};
-  return Object.fromEntries(Object.entries(play.vars).filter(([key]) => key.startsWith("paid.")));
+  // `overpaid.*` and a chosen `x` travel the same way ("for each resource you overpaid", Ant-Man ally; docs/phase7-wave2.md
+  // §3.8).
+  return Object.fromEntries(Object.entries(play.vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"));
 }
 
 export function abilityFrame(
