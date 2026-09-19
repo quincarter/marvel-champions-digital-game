@@ -219,7 +219,7 @@ export class TableSetupScene extends Phaser.Scene {
     const bodyColor = layout.wide ? surface.ink.hex : surface.paper.hex;
 
     sectionHeader(this, layout.difficultyHeader.x, layout.difficultyHeader.y, layout.difficultyHeader.width, "Difficulty", bodyColor);
-    this.#drawDifficultyRow(layout.difficultyRow, difficultyCards);
+    this.#drawDifficultyRow(layout.difficultyRow, difficultyCards, layout.wide);
 
     const modularRight = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
     sectionHeader(this, layout.modularHeader.x, layout.modularHeader.y, layout.modularHeader.width, "Modular sets", bodyColor, modularRight);
@@ -308,9 +308,15 @@ export class TableSetupScene extends Phaser.Scene {
     );
   }
 
-  /** DIFFICULTY: up to three equal-width cards (Heroic stays out of scope, §4). Selected = white + 4px red border; unselected = white + dim border + dim text. */
-  #drawDifficultyRow(rect: Rect, cards: readonly DifficultyCard[]): void {
-    const slots = Math.max(3, cards.length);
+  /**
+   * DIFFICULTY: up to three equal-width cards (Heroic stays out of scope, §4), each with a real description
+   * wrapped to as many lines as it needs. Wide reserves a third empty slot even at two real cards (D05's own
+   * shape); narrow sizes cards to exactly `cards.length` instead — reserving a third of the row for nothing
+   * would leave a real description ("Standard encounter set only. Starts at stage I.") only ~110px to wrap into,
+   * clipping mid-sentence on a phone (`docs/design-renders` fidelity pass, 2026-09-18).
+   */
+  #drawDifficultyRow(rect: Rect, cards: readonly DifficultyCard[], wide: boolean): void {
+    const slots = wide ? Math.max(3, cards.length) : cards.length;
     const gap = 12;
     const slotWidth = (rect.width - gap * (slots - 1)) / slots;
     cards.forEach((card, index) => {
@@ -366,17 +372,25 @@ export class TableSetupScene extends Phaser.Scene {
     }
   }
 
+  /** The label line under a modular card's name, clamped to however many lines actually fit below `nameBottom` inside `rect` — flowing from the top (not anchored to the card's own bottom edge), so a two-line wrap never spills past a short card into whatever's drawn below it. */
+  #drawModularCardLabel(rect: Rect, nameBottom: number, text: string, color: number, alpha: number): void {
+    const available = rect.y + rect.height - 4 - nameBottom;
+    const maxLines = Math.max(1, Math.floor(available / 12));
+    if (maxLines < 1) return;
+    this.add
+      .text(rect.x + 10, nameBottom, text, textStyle(typeRole.label, color, alpha))
+      .setLetterSpacing(typeRole.label.letterSpacing)
+      .setWordWrapWidth(rect.width - 20)
+      .setMaxLines(maxLines);
+  }
+
   /** The scenario's own required set: ink-filled, paper text, never toggleable — no button, no focus stop. */
   #drawRequiredModularCard(rect: Rect, required: RequiredEncounterSet, villainName: string): void {
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     const name = this.add.text(rect.x + 10, rect.y + 8, required.name, textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.paper.hex));
     fitText(name, rect.width - 20, 15);
-    const meta = this.add
-      .text(rect.x + 10, rect.y + rect.height - 20, requiredCardLabel(villainName, required.cardCount).toUpperCase(), textStyle(typeRole.label, surface.paper.hex, ink.label))
-      .setWordWrapWidth(rect.width - 20)
-      .setMaxLines(2);
-    void meta;
+    this.#drawModularCardLabel(rect, rect.y + 8 + name.height + 4, requiredCardLabel(villainName, required.cardCount).toUpperCase(), surface.paper.hex, ink.label);
   }
 
   /** A candidate modular set: white, chosen = 4px red border, available = dim border + dim text. Toggling replaces the current pick at the scenario's own cap (`toggleModularSet` enforces it). */
@@ -392,11 +406,7 @@ export class TableSetupScene extends Phaser.Scene {
     const dim = option.selected ? 1 : ink.disabled;
     const name = this.add.text(rect.x + 10, rect.y + 8, option.name, textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.ink.hex, dim));
     fitText(name, rect.width - 20, 15);
-    const meta = this.add
-      .text(rect.x + 10, rect.y + rect.height - 20, modularCardLabel(option).toUpperCase(), textStyle(typeRole.label, surface.ink.hex, option.selected ? ink.label : ink.disabled))
-      .setWordWrapWidth(rect.width - 20)
-      .setMaxLines(2);
-    void meta;
+    this.#drawModularCardLabel(rect, rect.y + 8 + name.height + 4, modularCardLabel(option).toUpperCase(), surface.ink.hex, option.selected ? ink.label : ink.disabled);
   }
 
   /** One seat cell per seated deck — a radio dot (filled amber for the first player), the hero's name, and a small "FIRST PLAYER"/"SEAT N" label. */
@@ -451,6 +461,11 @@ export class TableSetupScene extends Phaser.Scene {
       };
       this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: randomRect, onClick: roll }));
       this.#stops.set("first-player:random", { rect: randomRect, activate: roll });
+      // Covers the "quiet" button's own default paper fill (theme.ts's `skin("quiet","rest")`, correct on the
+      // wide layout's paper body but wrong here) with the page's own ink ground, so the dashed outline reads as
+      // "an empty slot" against this screen's ink page rather than a stray cream box with invisible paper-on-paper text.
+      const ground = this.add.graphics();
+      ground.fillStyle(surface.ink.hex, 1).fillRect(randomRect.x, randomRect.y, randomRect.width, randomRect.height);
       const dash = this.add.graphics();
       dashedRect(dash, randomRect, 1.5, bodyColor);
       const text = this.add.text(randomRect.x + randomRect.width / 2, randomRect.y + randomRect.height / 2, "Random", textStyle(typeRole.label, bodyColor, ink.label)).setOrigin(0.5);
@@ -467,7 +482,10 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   #drawListPanel(rect: Rect, title: string, rows: readonly CompositionRow[], rowBudget: number, ground: number): void {
-    if (rect.height <= 0) return;
+    // Below its own header's height, a panel reads as a stray sliver, not a legible "trimmed" panel — the layout's
+    // own defensive clamp (`table-setup-layout.ts`, very short viewports) can shrink a panel below that; this
+    // scene simply omits it rather than draw a clipped label in a box a few pixels tall.
+    if (rect.height < PANEL_HEADER_HEIGHT + 4) return;
     const g = this.add.graphics();
     g.fillStyle(ground, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
@@ -488,7 +506,7 @@ export class TableSetupScene extends Phaser.Scene {
   }
 
   #drawNemesisPanel(rect: Rect, nemesis: NemesisStandby | null, lineBudget: number): void {
-    if (rect.height <= 0) return;
+    if (rect.height < PANEL_HEADER_HEIGHT + 4) return;
     const g = this.add.graphics();
     g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);

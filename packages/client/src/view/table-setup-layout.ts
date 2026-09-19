@@ -90,8 +90,12 @@ export const GAME_SUMMARY_ROW_COUNT = 6;
 // Narrow (phone/tabletPortrait) is compact throughout (P12's own dense list/row treatment) — exported so the
 // scene's own cell math (`modularGrid.height` divided into `modularRows` cells, say) uses exactly the same
 // numbers this layout was computed with, rather than a second, potentially-drifting copy of them.
-export const NARROW_DIFFICULTY_CARD_HEIGHT = 52;
-export const NARROW_MODULAR_CARD_HEIGHT = 50;
+// 66/64 (not 52/50): a difficulty card's description ("Standard encounter set only. Starts at stage I.") and a
+// modular card's label ("Chosen · 6 cards · Treacheries") both wrap to two lines at a phone-width card
+// (`docs/design-renders` fidelity pass, 2026-09-18 — 52/50 clipped the description to one word and let the
+// modular label's second line spill past its own card into whatever sat below it).
+export const NARROW_DIFFICULTY_CARD_HEIGHT = 66;
+export const NARROW_MODULAR_CARD_HEIGHT = 64;
 export const NARROW_MODULAR_GRID_GAP = 6;
 export const NARROW_SEATING_CARD_HEIGHT = 56;
 
@@ -412,7 +416,12 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   // overlap it. Every rect below `seedY - gap` is capped there; nothing above `mandatoryBottom` is touched, so
   // the real controls (Difficulty/Modular/Seating/Deal it out) are never affected, only how much of the
   // descriptive tail is actually visible.
-  const limit = seedY - gap;
+  // Never less than `mandatoryBottom`: on a viewport short enough that even the *mandatory* blocks alone reach past
+  // where `seed` is pinned (`limit < mandatoryBottom`), collapsing a flexible rect to `y: limit` would pull it
+  // backward past `seatingRow`'s own end — trading one overlap (with `seed`) for another (with a mandatory
+  // control). Clamping to whichever is later keeps every flexible rect at or after `mandatoryBottom`, where the
+  // sequential flow itself already starts.
+  const limit = Math.max(seedY - gap, mandatoryBottom);
   // A zero-height rect still registers as "overlapping" (`rectsOverlap`'s own strict inequalities) anything whose
   // y-range it sits strictly inside, so a collapsed rect's `y` is pulled back to `limit` too, not left wherever
   // the sequential flow originally put it — a point exactly at another rect's own edge never overlaps it.

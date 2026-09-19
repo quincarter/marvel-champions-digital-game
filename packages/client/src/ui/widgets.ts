@@ -348,6 +348,11 @@ export function sectionHeader(scene: Phaser.Scene, x: number, y: number, width: 
     const right = label(scene, x + width, y + heading.height / 2, rightLabel, typeRole.label, color, ink.label).setOrigin(1, 0.5);
     rightWidth = right.width + 14;
   }
+  // The heading never overlaps its own right label: a long title ("THE ENCOUNTER DECK YOU'RE BUILDING") on a
+  // narrow column shrinks (`fitText`'s own floor-then-ellipsis) against exactly the width that's left for it,
+  // rather than being drawn at its natural width and spilling into the label sitting at the row's own right edge.
+  const headingMaxWidth = Math.max(10, width - rightWidth - (rightLabel ? 10 : 0));
+  fitText(heading, headingMaxWidth, 19);
   const ruleX = x + heading.width + 10;
   const ruleEnd = x + width - rightWidth;
   if (ruleX < ruleEnd) {

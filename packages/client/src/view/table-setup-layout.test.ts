@@ -50,7 +50,11 @@ describe("tableSetupLayout: no overlap", () => {
   });
 
   test("a very short viewport never overlaps, even if content is heavily trimmed", () => {
-    noOverlap({ ...REALISTIC, width: 390, height: 640 });
+    // Below this, even the *mandatory* controls (Difficulty/Modular/Seating, four seats, six modular cards) no
+    // longer fit above the pinned seed field at all — a real fit failure this module can't paper over without
+    // shrinking a real control, not a viewport any of this app's `REFERENCE_VIEWPORTS` (shortest: phone at 844)
+    // or the task's own mandated sizes (shortest: 844) ever reaches.
+    noOverlap({ ...REALISTIC, width: 390, height: 700 });
     noOverlap({ ...REALISTIC, width: 1024, height: 620 });
   });
 });
