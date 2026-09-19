@@ -99,6 +99,21 @@ export class HandScroll {
     this.scrollBy(deltaX !== 0 ? deltaX : deltaY);
   }
 
+  /**
+   * Scrolls just far enough that `drawn` — a slot as it was last drawn, scroll already subtracted — sits wholly
+   * inside the row's content rect: keyboard/pad focus moving onto a card that is off the edge of the strip
+   * (`scenes/setup-deal.ts#onIntent`) brings it on screen rather than ringing a card the player can't see. A slot
+   * already fully visible, or wider than the viewport, leaves the scroll where it is.
+   */
+  scrollIntoView(drawn: Rect): void {
+    const rect = this.#contentRect;
+    if (!rect || this.#maxScroll <= 0) return;
+    const left = rect.x;
+    const right = rect.x + rect.width;
+    if (drawn.x < left) this.scrollBy(drawn.x - left);
+    else if (drawn.x + drawn.width > right && drawn.width <= rect.width) this.scrollBy(drawn.x + drawn.width - right);
+  }
+
   toggleFan(): void {
     this.#fannedOut = !this.#fannedOut;
     // A fresh view onto whatever shape the row just took, rather than

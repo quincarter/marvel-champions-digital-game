@@ -59,6 +59,7 @@ import Phaser from "phaser";
 import type { InstanceId, PendingChoice } from "@mc/engine";
 import { CARDS_BY_ID, POOL_DEPS } from "../content/pool.js";
 import { accent, dotGrid, ink, signal, statHue, surface, typeRole, type TypeSpec } from "../tokens.js";
+import { setMask } from "../ui/rex.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, dashedRect, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt, type CardArt } from "../art/card-art.js";
@@ -66,7 +67,9 @@ import { canConfirmChoice, cardChoiceDisplayOrder, initialChoiceSelection } from
 import { wrapChipsToRows } from "../view/chip-layout.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
-import { cardRow, type Rect } from "../view/layout.js";
+import { HandScroll } from "../view/hand-scroll.js";
+import type { Rect } from "../view/layout.js";
+import { openingHandLayout, openingHandThumb } from "../view/opening-hand-layout.js";
 import { setupMetrics } from "../view/setup-metrics.js";
 import { setupWalkthroughFocusOrder } from "../view/screen-focus.js";
 import {
@@ -130,6 +133,15 @@ export class SetupDealScene extends Phaser.Scene {
   #focusRects = new Map<string, Rect>();
   #focusRing: McSelectionRing | null = null;
   #logScrollTop = 0;
+  /**
+   * The opening hand's sideways scroll, on a width where the cards would otherwise not read
+   * (`view/opening-hand-layout.ts`). Every scrolled pixel redraws the scene, the way the Board's own tabbed hand
+   * does (`scenes/board/hand.ts`): the gesture survives the redraw because `ui/hold-target.ts` keeps the press per
+   * pointer, not per zone.
+   */
+  #hand = new HandScroll(() => this.#draw());
+  /** The strip's clip shape — off the display list, so `children.removeAll` never reaches it and `#draw` destroys it by hand. */
+  #stripMask: Phaser.GameObjects.Graphics | null = null;
 
   get #art(): CardArt {
     return cardArt(this);
@@ -148,6 +160,7 @@ export class SetupDealScene extends Phaser.Scene {
     this.#choiceId = null;
     this.#focus = null;
     this.#logScrollTop = 0;
+    this.#hand = new HandScroll(() => this.#draw());
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
 
     const { store } = appSession();
@@ -162,9 +175,15 @@ export class SetupDealScene extends Phaser.Scene {
     };
     bindKeyboard(this, binding);
     bindGamepad(this, binding);
+    // A wheel/trackpad gesture over the hand strip scrolls it; a no-op wherever the hand fits in one row
+    // (`HandScroll#measure` is only ever called for a strip, so `maxScroll` stays 0 otherwise).
+    this.input.on("wheel", this.#hand.onWheel, this.#hand);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
+      this.input.off("wheel", this.#hand.onWheel, this.#hand);
+      this.#stripMask?.destroy();
+      this.#stripMask = null;
       this.#artUnsubscribe?.();
       this.#artUnsubscribe = null;
       this.#focusRing?.destroy();
@@ -228,6 +247,8 @@ export class SetupDealScene extends Phaser.Scene {
     this.#focusRing = null;
     this.#focusRects.clear();
     this.children.removeAll(true);
+    this.#stripMask?.destroy();
+    this.#stripMask = null;
 
     const { width, height } = this.scale.gameSize;
     const otherSeatCount = view.decidingPlayerId ? view.seats.length - 1 : view.seats.length;
@@ -407,43 +428,60 @@ export class SetupDealScene extends Phaser.Scene {
   }
 
   /**
-   * A single row for as many cards as read legibly at this width; a crowded phone hand (five or six cards in a
-   * ~360px column) wraps to a two-row grid instead of shrinking every card to an unreadable thumbnail — the design's
-   * own P13 grid, not this screen's own invention. `cardRow`'s single-row shrink is tried first and only abandoned
-   * once it would actually fall below a readable floor, so nothing changes at tablet/desktop widths, where a single
-   * row already reads fine (`ScreensDesktop_05-06`).
+   * A single row for as many cards as read legibly at this width. Where they wouldn't — a five- or six-card hand in
+   * a phone's ~360px column — the hand becomes a sideways-scrolling strip of full-height cards instead
+   * (`view/opening-hand-layout.ts` decides which, and lays out both). The strip replaced the P13 two-row grid after
+   * a Pixel 9 Pro XL report (2026-09-19): halving each card's height to fit two rows made the cards "nearly
+   * impossible to see", and a card's height is what its text reads by. Nothing changes at tablet-landscape/desktop
+   * widths, where a single row already reads fine (`ScreensDesktop_05-06`).
+   *
+   * The strip is clipped to its own viewport (a masked container, the same `ui/rex.ts` mask `McScrollRegion` uses,
+   * everything drawn eagerly then reparented — `TableSetupScene#captureInto`'s trick), drags sideways on any card
+   * (`addTapTarget`'s `onDrag`, exactly the Board's tabbed hand), takes a wheel/trackpad gesture (`create`), and
+   * carries a thin indicator under it so the player can see there is more hand to the right.
    */
   #drawOpeningHand(rect: Rect, decider: SetupSeatStatus): void {
-    const count = decider.hand.length;
-    const singleRow = cardRow(rect, count, { gap: 8, maxHeight: rect.height });
-    const READABLE_CARD_WIDTH = 90;
-    if (count <= 4 || (singleRow[0]?.width ?? 0) >= READABLE_CARD_WIDTH) {
+    const layout = openingHandLayout(rect, decider.hand.length);
+    if (layout.mode === "row") {
       decider.hand.forEach((card, index) => {
-        const slot = singleRow[index];
+        const slot = layout.slots[index];
         if (slot) this.#drawMulliganCard(slot, card);
       });
       return;
     }
 
-    const rows = 2;
-    const perRow = Math.ceil(count / rows);
-    const rowGap = 8;
-    const rowHeight = (rect.height - rowGap) / rows;
-    let index = 0;
-    for (let r = 0; r < rows && index < count; r++) {
-      const rowCount = Math.min(perRow, count - index);
-      const rowRect: Rect = { x: rect.x, y: rect.y + r * (rowHeight + rowGap), width: rect.width, height: rowHeight };
-      const slots = cardRow(rowRect, rowCount, { gap: 8, maxHeight: rowHeight });
-      for (const slot of slots) {
-        const card = decider.hand[index]!;
-        this.#drawMulliganCard(slot, card);
-        index++;
-      }
+    this.#hand.measure(layout.viewport, layout.viewport.x + layout.contentWidth);
+    const scrollX = this.#hand.scrollX;
+    const onDrag = (deltaX: number): void => this.#hand.scrollBy(-deltaX);
+
+    const strip = this.add.container(0, 0);
+    const mask = this.make.graphics({}, false);
+    mask.fillStyle(0xffffff).fillRect(layout.viewport.x, layout.viewport.y, layout.viewport.width, layout.viewport.height);
+    this.#stripMask = mask;
+    setMask(strip, mask, "world");
+
+    const before = this.children.list.length;
+    decider.hand.forEach((card, index) => {
+      const slot = layout.slots[index];
+      if (slot) this.#drawMulliganCard({ ...slot, x: slot.x - scrollX }, card, onDrag);
+    });
+    const drawn = this.children.list.slice(before);
+    if (drawn.length > 0) strip.add(drawn);
+
+    const thumb = openingHandThumb(layout, scrollX);
+    if (layout.indicator && thumb) {
+      const track = this.add.graphics();
+      track.fillStyle(surface.paper.hex, 0.15).fillRect(layout.indicator.x, layout.indicator.y, layout.indicator.width, layout.indicator.height);
+      track.fillStyle(surface.paper.hex, 0.7).fillRect(thumb.x, thumb.y, thumb.width, thumb.height);
     }
   }
 
-  /** A card marked for mulligan gets a dim wash under its art, a red outline (`paintPanel`'s own "selected" skin already draws that), and a red "MULLIGAN" tag near the bottom — D06's "DOWNTIME" card. */
-  #drawMulliganCard(slot: Rect, card: HandCardView): void {
+  /**
+   * A card marked for mulligan gets a dim wash under its art, a red outline (`paintPanel`'s own "selected" skin
+   * already draws that), and a red "MULLIGAN" tag near the bottom — D06's "DOWNTIME" card. `onDrag` is given only
+   * inside the scrolling strip, where a sideways drag on a card scrolls the hand instead of toggling the card.
+   */
+  #drawMulliganCard(slot: Rect, card: HandCardView, onDrag?: (deltaX: number) => void): void {
     const picked = this.#selected.includes(card.instanceId);
     this.#focusRects.set(`option:${card.instanceId}`, slot);
 
@@ -479,6 +517,10 @@ export class SetupDealScene extends Phaser.Scene {
     addTapTarget(this, slot, {
       onTap: () => this.#toggle(card.instanceId),
       onInspect: () => this.#inspect(card.instanceId, picked),
+      onDrag,
+      // Stable across the redraw every scrolled pixel causes, so a press that began on this card is still a tap
+      // on it when it ends (`ui/hold-target.ts`'s own doc comment).
+      key: card.instanceId as unknown as string,
     });
   }
 
@@ -681,6 +723,10 @@ export class SetupDealScene extends Phaser.Scene {
         const at = this.#route.indexOf(this.#focus ?? "");
         const next = stepFocus(this.#route, at, intent === "next" ? 1 : -1);
         this.#focus = next >= 0 ? (this.#route[next] ?? null) : null;
+        // A card off the edge of the hand strip comes on screen before it is ringed (a redraw, which re-registers
+        // every focus rect at the new offset); the ring is drawn either way.
+        const focused = this.#focus ? this.#focusRects.get(this.#focus) : undefined;
+        if (focused && this.#focus?.startsWith("option:")) this.#hand.scrollIntoView(focused);
         this.#drawFocusRing();
         break;
       }
