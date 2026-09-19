@@ -57,6 +57,9 @@ import { MAGNETO_CURATION } from "./curation/magneto.ts";
 import { WINTER_CURATION } from "./curation/winter.ts";
 import { FALCON_CURATION } from "./curation/falcon.ts";
 import { RON_CURATION } from "./curation/ron.ts";
+import { SPDR_CURATION } from "./curation/spdr.ts";
+import { NOVA_CURATION } from "./curation/nova.ts";
+import { SILK_CURATION } from "./curation/silk.ts";
 import type { PackCuration } from "./curation/types.ts";
 
 const PKG_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
@@ -94,6 +97,9 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   winter: WINTER_CURATION,
   falcon: FALCON_CURATION,
   ron: RON_CURATION,
+  spdr: SPDR_CURATION,
+  nova: NOVA_CURATION,
+  silk: SILK_CURATION,
 };
 
 interface RawCache {

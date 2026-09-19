@@ -141,6 +141,38 @@ export interface IgnoredRecord {
   readonly evidence: string;
 }
 
+/**
+ * One face's worth of hand-transcribed card data for a separated identity's missing alter-ego card (see
+ * `SeparatedIdentitySource`) — plain text, exactly as `prepare()` would produce from a real MarvelCDB record, but
+ * sourced from a second-source scan instead since MarvelCDB has no record at all.
+ */
+export interface SeparatedIdentitySourceFace {
+  readonly name: string;
+  /** Printed traits, verbatim (e.g. "Civilian." → `["CIVILIAN"]`). */
+  readonly traits: readonly string[];
+  readonly text: string;
+  readonly flavor?: string;
+  /** Absolute URL to the second-source scan (see `PackCuration.imageOverrides`'s evidence bar). */
+  readonly image?: string;
+}
+
+/**
+ * A separated identity's alter-ego card, sourced entirely from curation because MarvelCDB has no record of it at
+ * all (SP//dr's Peni Parker, 31002/31002a/31002b — docs/phase7-wave2.md §6.10). Keyed in
+ * `PackCuration.separatedIdentities` by the *hero* record's own MarvelCDB code (e.g. "31001a"), whose
+ * `linked_card` points at the card's own other side (a `support`/`upgrade` type, not `alter_ego`) — the
+ * structural signal that this is a separated identity rather than an ordinary one.
+ */
+export interface SeparatedIdentitySource {
+  /** The missing card's own collector number ("31002"), with no MarvelCDB record under it at all. */
+  readonly alterEgoCardNumber: string;
+  readonly alterEgo: SeparatedIdentitySourceFace & { readonly handSize: number; readonly rec: number };
+  /** The alter-ego card's own flip side (an upgrade, per `SeparatedIdentity.alterEgoCardOtherSide`). */
+  readonly alterEgoOtherSide: SeparatedIdentitySourceFace;
+  /** Where every field above was verified (a second-source scan gallery, viewed directly — never stored as bytes). */
+  readonly evidence: string;
+}
+
 export interface PackCuration {
   readonly packCode: string;
   readonly cycle: { readonly id: string; readonly name: string; readonly order: number };
@@ -180,4 +212,10 @@ export interface PackCuration {
    * exception, not a printed stat), so it's always hand-curated.
    */
   readonly identityDeckbuilding?: Readonly<Record<string, IdentityDeckbuilding>>;
+  /**
+   * A separated identity's missing alter-ego card, keyed by the hero record's MarvelCDB code (wave 2 schema pass,
+   * docs/phase7-wave2.md §6.10 — SP//dr). Only a hero record whose `linked_card` exists but is not type
+   * `alter_ego` (the structural signature of a separated identity) ever consults this map.
+   */
+  readonly separatedIdentities?: Readonly<Record<string, SeparatedIdentitySource>>;
 }

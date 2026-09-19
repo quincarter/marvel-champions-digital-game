@@ -56,7 +56,11 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
   // with a linked alter-ego (the primary identity face, matching `normalizeHeroes`' own test) may claim the set.
   const heroBySet = new Map<string, RawCard>();
   for (const r of flat.topLevel) {
-    if (r.type_code === "hero" && r.card_set_code && r.linked_card?.type_code === "alter_ego") heroBySet.set(r.card_set_code, r);
+    if (r.type_code !== "hero" || !r.card_set_code) continue;
+    // A separated identity's hero record (wave 2, docs/phase7-wave2.md §6.10 — SP//dr) links to its own other
+    // side, not an alter-ego, so the ordinary check below doesn't recognize it as the primary identity of its
+    // set. `heroes.ts`'s curated `separatedIdentities` is the structural signal that this is one anyway.
+    if (r.linked_card?.type_code === "alter_ego" || curation.separatedIdentities?.[r.code]) heroBySet.set(r.card_set_code, r);
   }
   const handled = new Set<string>();
   // A record curation has hand-verified isn't a printed card at all (`IgnoredRecord`) is dropped up front, the
@@ -71,7 +75,9 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     errors,
     setCode: brand("set", curation.packCode),
     cycleId: brand("cycle", curation.cycle.id),
-    villainNames: new Set(flat.topLevel.filter((r) => r.type_code === "villain").map((r) => r.name)),
+    // Leader records (wave 2, docs/phase7-wave2.md §6.3) are normalized the same way as villains, so a card
+    // attaching "to <leader name>" by name resolves the same way "to <villain name>" does.
+    villainNames: new Set(flat.topLevel.filter((r) => r.type_code === "villain" || r.type_code === "leader").map((r) => r.name)),
     packHasMultipleVillains: curation.scenarios.some((s) => s.multipleVillains !== undefined),
     heroBySet,
     cards: [],

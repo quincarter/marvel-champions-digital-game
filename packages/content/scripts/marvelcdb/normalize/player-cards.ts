@@ -39,6 +39,12 @@ export function normalizePlayerCard(
     const hero = ctx.heroBySet.get(r.card_set_code);
     aspect = `hero:${hero?.code ?? "?"}`;
     printedAspect = r.faction_code as CoreAspect;
+  } else if (r.faction_code === "basic" && r.card_set_type_name_code === "leader" && r.card_set_code) {
+    // Wave 2 (docs/phase7-wave2.md §6.3): a leader's own basic player cards (The Futurist and friends), "used only
+    // when playing in competitive mode" (Civil War rulebook, PDF p. 3) — `faction_code: "basic"` inside a set whose
+    // `card_set_type_name_code` is "leader", distinct from the ordinary Basic set's plain basic cards.
+    aspect = "basic";
+    specificTo = { kind: "competitive", encounterSetId: brand("encounterSet", r.card_set_code) };
   } else if ((CORE_ASPECTS as readonly string[]).includes(r.faction_code)) {
     aspect = r.faction_code;
   } else if (r.faction_code === "encounter" && r.card_set_code) {

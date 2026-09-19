@@ -64,6 +64,9 @@ import { MAGNETO_CURATION } from "./marvelcdb/curation/magneto.ts";
 import { WINTER_CURATION } from "./marvelcdb/curation/winter.ts";
 import { FALCON_CURATION } from "./marvelcdb/curation/falcon.ts";
 import { RON_CURATION } from "./marvelcdb/curation/ron.ts";
+import { SPDR_CURATION } from "./marvelcdb/curation/spdr.ts";
+import { NOVA_CURATION } from "./marvelcdb/curation/nova.ts";
+import { SILK_CURATION } from "./marvelcdb/curation/silk.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
