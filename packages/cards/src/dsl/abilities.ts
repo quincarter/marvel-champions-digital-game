@@ -157,6 +157,19 @@ export const whenDefeated = (...effects: readonly EffectArg[]): AbilityDefinitio
 export const boost = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "boost" }, {}, effects);
 /** "Setup:" (main scheme 1A, identity). An empty setup is "Advance to stage 1B", which the engine always does. */
 export const setup = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "setup" }, {}, effects);
+/**
+ * "If <condition>, …" — a forced ability with no triggering event, checked between every two frames (Kang's stage
+ * 3 "If all the players at this stage are defeated, this stage is complete"; The Master of Time 2B's own "When all
+ * the players have joined this game area, advance to stage 4A" — docs/phase7-wave2.md §3.1). Edge-triggered: fires
+ * when the condition goes false → true, not continuously while true (RRG 1.8 "Uses", p. 46's own discard check).
+ */
+export const stateCheck = (when: Predicate, ...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "stateCheck", when }, {}, effects);
+/**
+ * RRG 1.8 "When Completed Abilities" (p. 48): "equivalent to … 'Forced Interrupt: When this scheme is
+ * completed…'" — resolves on a main scheme stage reaching its target threat, before it advances (never on the
+ * final stage, whose completion loses the game).
+ */
+export const whenCompleted = (...effects: readonly EffectArg[]): AbilityDefinition => build({ kind: "whenCompleted" }, {}, effects);
 
 // ---------------------------------------------------------------------------
 // Constant abilities
@@ -456,8 +469,19 @@ export const on = {
    * (Followed, `cap` pack): `on.schemeDefeated("host")`.
    */
   schemeDefeated: (what: Who): EventPattern => pattern("schemeDefeated", asTarget(what)),
+  /**
+   * "After this stage is complete/completed" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1) — a *different*
+   * stage reacting to another stage's own completion (as opposed to `whenCompleted`, printed on the completing
+   * stage itself).
+   */
+  mainSchemeCompleted: (what: Who): EventPattern => pattern("mainSchemeCompleted", asTarget(what)),
   /** "After you change to this form". */
   youChangeForm: (): EventPattern => pattern("formChanged", { playerIs: "controller" }),
+  /**
+   * "After **a player** changes to [hero/alter-ego] form" (Taskmaster I–III, 04093–04095) — no `playerIs` scope, so
+   * this is "a player", not "you" (`on.youChangeForm`'s own hardcoded scope). Name them with `eventPlayer`.
+   */
+  playerChangesForm: (to: "hero" | "alterEgo"): EventPattern => pattern("formChanged", { eventIs: { to } }),
   /** "After your turn begins" (Quinjet, `cap` pack). */
   yourTurnBegins: (): EventPattern => pattern("turnStarted", { playerIs: "controller" }),
   /**

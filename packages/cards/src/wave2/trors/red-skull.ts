@@ -110,7 +110,7 @@ export const RED_SKULL_SET = defineAbilities({
   "04128a.setup": setup(
     selectCards("redHouse", { kind: "encounter", zones: ["deck"], filter: query("sideScheme", { name: cardName("04139") }) }),
     putIntoPlay(chosen("redHouse"), firstPlayer),
-    { kind: "buildScenarioDeck", name: "side-scheme" },
+    { kind: "buildScenarioDeck", name: "side-scheme deck" },
   ),
   // The data carries a second ("-constant") ability ref for 1A with no separate printed text of its own beyond
   // "Setup:" — the same parser-artifact shape as this pack's other duplicated refs (`absorbing-man.ts`'s
@@ -120,16 +120,16 @@ export const RED_SKULL_SET = defineAbilities({
   // after resolving step one of the villain phase, reveal the top card of the side-scheme deck and put it into play.
   "04128b.the-rise-of-red-skull-forced-response": forcedResponse(
     on.threatPlaced(query("mainScheme")),
-    selectCards("found", scenarioDeck("side-scheme", { top: 1 })),
+    selectCards("found", scenarioDeck("side-scheme deck", { top: 1 })),
     revealCard(chosen("found"), firstPlayer),
   ),
 
   // New World Hydra 2A — When Revealed: reveal the top card of the side-scheme deck and put it into play.
-  "04129a.when-revealed": whenRevealed(selectCards("found", scenarioDeck("side-scheme", { top: 1 })), revealCard(chosen("found"), firstPlayer)),
+  "04129a.when-revealed": whenRevealed(selectCards("found", scenarioDeck("side-scheme deck", { top: 1 })), revealCard(chosen("found"), firstPlayer)),
   // New World Hydra — same Forced Response as 1B. "If this scheme is completed, the players lose" is data.
   "04129b.new-world-hydra-forced-response": forcedResponse(
     on.threatPlaced(query("mainScheme")),
-    selectCards("found2", scenarioDeck("side-scheme", { top: 1 })),
+    selectCards("found2", scenarioDeck("side-scheme deck", { top: 1 })),
     revealCard(chosen("found2"), firstPlayer),
   ),
   "04129b.new-world-hydra-constant": coveredByEngineRule(),

@@ -235,8 +235,17 @@ blocked (Hawkeye's Bow 04002, Vibranium Arrow 04009, Crossfire's boost 04027, Pi
 Jessica Drew's Apartment 04034, Superhuman Agility 04031a, Crossfire's Rifle 04029, Cable Arrow 04008, Kate Bishop's
 Hawkeye 04011, Mockingbird 04004, Crossbones' Assault 04070, Prison Camps 04141, Hydra Reinforcements 04143) is
 un-skipped, scripted and behaviorally tested (`hawkeye.test.ts`, `spider-woman.test.ts`, `crossbones.test.ts`,
-`red-skull.test.ts`). §6.9 and §6.10 (below) are still open. Write-ups below are kept as-is (now historical) since
-they're still the most complete account of *why* each primitive has the shape it does.
+`red-skull.test.ts`).
+
+**LANDED (2026-09-19, later the same day):** §6.9 and §6.10 too — `EventPattern.eventIs` (docs/phase7-wave2.md
+§3.13.9) and `cardEntersPlay` becoming interruptible plus `TargetQuery.excluding` (§3.13.10). Un-skipped: Taskmaster
+I/II/III's forced response (04093/04094/04095, `taskmaster.ts`, DSL: `on.playerChangesForm`, `eventPlayer`) and
+None Shall Pass's forced interrupt (04079b, `absorbing-man.ts`, DSL: `query(..., { excluding: eventTarget })`),
+each with a real behavioral test (`taskmaster.test.ts`, `absorbing-man.test.ts` — the latter's old "documents the
+open gap" test now asserts the *correct* post-fix behavior instead). Every §6 primitive gap found scripting `trors`
+is now landed; only the two data gaps (Captured by Hydra 04028/04107, no ability ref for their "When Defeated"
+half) and the deferred Hydra Campaign refs remain in `KNOWN_SKIPPED`. Write-ups below are kept as-is (now
+historical) since they're still the most complete account of *why* each primitive has the shape it does.
 
 ### 6.1 A one-shot played event granting piercing/ranged to only its own attack (4 cards blocked, the largest gap)
 
@@ -396,9 +405,9 @@ they're still the most complete account of *why* each primitive has the shape it
 
 | Pack | Code | Status | Notes |
 |---|---|---|---|
-| The Rise of Red Skull | `trors` | **Scripted.** 152 cards, 248 ability refs: 215 resolve (15 as reprint aliases, 200 hand-scripted), 33 in `KNOWN_SKIPPED` — 5 genuinely missing-primitive/data-gap blocks (§6.9/§6.10 plus data gaps) and 28 Hydra Campaign refs, pinned regardless of any primitive since campaign mode is deferred. §6.1–§6.7 (14 refs across Hawkeye's Bow, Vibranium Arrow, Crossfire's boost, Piercing Strike, Finesse, Jessica Drew's Apartment, Superhuman Agility, Crossfire's Rifle, Cable Arrow, Kate Bishop's Hawkeye, Mockingbird, Crossbones' Assault, Prison Camps, Hydra Reinforcements) landed and were un-skipped in a later pass over the same pack — see §6's "LANDED" note. | All five scenarios are scripted: Hawkeye/Spider-Woman kits (`hawkeye-kit.ts`, `hawkeye-obligation-nemesis.ts`, `spider-woman-kit.ts`, `spider-woman-obligation-nemesis.ts`), Crossbones (`crossbones.ts`), Absorbing Man (`absorbing-man.ts`), Taskmaster (`taskmaster.ts`), Zola (`zola.ts`) and Red Skull (`red-skull.ts`), each with its own `wave2Scenario(...)` entry in `../setup.ts` and its own ruling-level `.test.ts` plus a standalone setup test proving each scenario's own 1A/1B setup ability actually runs (setAside, scenario decks, engaged minions, revealed side schemes, etc.). Real-game tests: `wave2/trors/e2e.test.ts` (Hawkeye and Spider-Woman precons vs. Rhino, solo, to a real outcome; Crossbones standalone 2-player setup). **Data gaps flagged for `card-data-pipeline`:** (1) the Attack on Mount Athena 1A text prints "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` has no "Legions of Hydra" `EncounterSet` — `crossbonesScenario` uses only the two that exist; (2) several cards carry more ability refs than their printed text has independent clauses for (Omni-Morph Duplication 04089's four extra "-constant" refs, The Mad Doctor 04113b's and Neurological Implants 04119's second refs, The Rise of Red Skull 1A's 04128a and New World Hydra's 04129b's "-constant" refs) — each is stood up as an empty `coveredByEngineRule()` rather than left unscripted, since the card's own primary ability ref already carries the full printed behavior; (3) Captured by Hydra (04107) prints a "When Defeated" clause with no ability ref to hang it on (contrast Hydra Prison, 04122, which prints an equivalent shape with two refs) — only its "When Revealed" half is scripted. |
-| The Once and Future Kang | `toafk` | **Not started.** | Needs `GameState.gameAreas`-shaped setup (landed per docs/phase7-wave2.md §3.1) and its own `wave2Scenario` entry once scripted — it's a scenario pack, no hero kit. |
-| Ant-Man | `ant` | **Not started.** | Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md, landed). Known gap ahead of time: Tech Theft's class-wide text-blanking (§6.11). |
+| The Rise of Red Skull | `trors` | **Scripted.** 152 cards, 248 ability refs: 219 resolve (15 as reprint aliases, 204 hand-scripted), 29 in `KNOWN_SKIPPED` — 1 genuine data-gap block (Captured by Hydra's missing "When Defeated" ref) and 28 Hydra Campaign refs, pinned regardless of any primitive since campaign mode is deferred. Every §6 primitive gap found scripting `trors` (§6.1–§6.7, §6.9, §6.10, plus the per-aspect-limit half of §6.11 — 18 refs total across Hawkeye's Bow, Vibranium Arrow, Crossfire's boost, Piercing Strike, Finesse, Jessica Drew's Apartment, Superhuman Agility, Crossfire's Rifle, Cable Arrow, Kate Bishop's Hawkeye, Mockingbird, Crossbones' Assault, Prison Camps, Hydra Reinforcements, Taskmaster I/II/III's forced response, None Shall Pass's forced interrupt) has since landed and was un-skipped in later passes over the same pack — see §6's "LANDED" notes. | All five scenarios are scripted: Hawkeye/Spider-Woman kits (`hawkeye-kit.ts`, `hawkeye-obligation-nemesis.ts`, `spider-woman-kit.ts`, `spider-woman-obligation-nemesis.ts`), Crossbones (`crossbones.ts`), Absorbing Man (`absorbing-man.ts`), Taskmaster (`taskmaster.ts`), Zola (`zola.ts`) and Red Skull (`red-skull.ts`), each with its own `wave2Scenario(...)` entry in `../setup.ts` and its own ruling-level `.test.ts` plus a standalone setup test proving each scenario's own 1A/1B setup ability actually runs (setAside, scenario decks, engaged minions, revealed side schemes, etc.). Real-game tests: `wave2/trors/e2e.test.ts` (Hawkeye and Spider-Woman precons vs. Rhino, solo, to a real outcome; Crossbones standalone 2-player setup). **Data gaps flagged for `card-data-pipeline`:** (1) the Attack on Mount Athena 1A text prints "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` has no "Legions of Hydra" `EncounterSet` — `crossbonesScenario` uses only the two that exist; (2) several cards carry more ability refs than their printed text has independent clauses for (Omni-Morph Duplication 04089's four extra "-constant" refs, The Mad Doctor 04113b's and Neurological Implants 04119's second refs, The Rise of Red Skull 1A's 04128a and New World Hydra's 04129b's "-constant" refs) — each is stood up as an empty `coveredByEngineRule()` rather than left unscripted, since the card's own primary ability ref already carries the full printed behavior; (3) Captured by Hydra (04107) prints a "When Defeated" clause with no ability ref to hang it on (contrast Hydra Prison, 04122, which prints an equivalent shape with two refs) — only its "When Revealed" half is scripted. |
+| The Once and Future Kang | `toafk` | **In progress.** 51 cards, 82 ability refs: 59 resolve, 23 in `KNOWN_SKIPPED` (4 primitive/open-question gaps on stage 2/4 — §6.13/§6.14 — 4 data-gap Temporal obligations, 15 refs for the not-yet-started Expert encounter set 11040–11051). | Kang's villain (standard and Expert), "Kang's Arrival" 1A/1B, "The Master of Time" 2A, and all four stage 3 alternatives are scripted in `kang.ts`; the Kang/Temporal encounter set (11014–11033, minus the four Temporal obligations) is scripted in `kang-encounter-set.ts`. `wave2Scenario("kang", …)` (`../setup.ts`'s `kangScenario`) is data-driven off `WAVE2_SCENARIOS`. `kang.test.ts` has a standalone setup test (standard and expert) plus ruling-level tests. |
+| Ant-Man | `ant` | **Not started.** | Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md, landed). Known gaps ahead of time, both recorded "Not done" in docs/phase7-wave2.md §3.13.11 (`game-rules-architect` working on them as of 2026-09-19): Tech Theft's class-wide text-blanking (§6.11), and Team-Building Exercise's "play a card with a cost reduction" (`playFromHand.costReduction`, not yet built). Pin both and move on rather than waiting. |
 | Wasp | `wsp` | **Not started.** | Three-sided identity; divided basic powers (§3.7, landed). |
 | Quicksilver | `qsv` | **Not started.** | `basicPowerUsed` trigger event (landed, used already by Spider-Woman's Captain Marvel in `trors`). |
 | Scarlet Witch | `scw` | **Not started.** | Two copies of her own obligation shuffled in (§1.10, landed); boost-icon counting as an event (§3.6, landed for activation counts; card-effect counts — Hex Bolt — still open per §4.8). |
@@ -428,38 +437,84 @@ specific offered card), not lean on `firstLegal`/`picking`'s fallback. (2) `sett
 being tested is invisible to `heard`/`hasCandidates` and its trigger window never opens, which looks exactly like
 "the ability didn't fire" rather than "the test forgot `deps`."
 
-**`trors` is otherwise done (only §6.9/§6.10 and the listed data gaps remain skipped). Next: `toafk`, then `ant`,
-`wsp`, `qsv`, `scw` in that order (release order) — none of these five packs has been started.** Each begins the
-same way this file's §2 describes: registry (`<pack>/index.ts` exporting `<PACK>_ABILITIES`) + a `wave2/
-coverage.test.ts` entry (flip `PACK_STATUS[code]` to `"in progress"` and pin the pack's *entire* ability-ref list in
-`KNOWN_SKIPPED` before writing a single card script, computed the programmatic way §1 describes, never hand-typed)
-+ (for `toafk`, which has no hero kit) a scenario entry in `../setup.ts`, before any actual card scripting — so the
-tree stays green at every stopping point, the same discipline `trors` used at each of its five scenario boundaries
-across earlier sessions. **Also re-check §6.9/§6.10 and any `KNOWN_SKIPPED` pins in whichever pack you're working at
-each pack/scenario boundary** — this session found that primitives land out from under a pinned card without
-anyone telling the scripting session directly; the only reliable signal is re-reading `docs/phase7-wave2.md` §3 and
-diffing the actual engine source against each `KNOWN_SKIPPED` entry's write-up.
+**Same-day follow-up (still 2026-09-19):** the coordinator flagged two more landed primitives before this session
+moved on — `EventPattern.eventIs` (docs/phase7-wave2.md §3.13.9) and `cardEntersPlay` becoming interruptible plus
+`TargetQuery.excluding` (§3.13.10), i.e. all of §6.9/§6.10. Un-skipped Taskmaster I/II/III's forced response
+(04093/04094/04095, DSL: `on.playerChangesForm`, `eventPlayer`) and None Shall Pass's forced interrupt (04079b,
+DSL: `query(..., { excluding: eventTarget })`), each with a real behavioral test — including rewriting
+`absorbing-man.test.ts`'s old "(documents the open gap)" test, which asserted the *broken* pre-fix behavior, to
+assert the correct post-fix one instead (a stale "documents the gap" test is worse than no test once the gap is
+closed: it starts asserting the wrong thing is right). Every §6 primitive gap found scripting `trors` is now
+landed; only two data gaps and the deferred Hydra Campaign refs remain in `KNOWN_SKIPPED` (§7).
 
-1. **The Once and Future Kang (`toafk`)** — a scenario pack, no hero kit. The whole scenario depends on separate
-   game areas (docs/phase7-wave2.md §3.1, landed 2026-09-18) — read that section and §2.3 closely before starting;
-   it's the most structurally different scenario in cycle 1 (`GameState.gameAreas`, several main scheme stages at
-   once, `revealMainSchemeStage`/`joinGameArea`/`addVillain` effects this pack hasn't needed yet). Kang's own
-   parenthetical-as-title reading (docs/phase7-wave2.md §4.1) and the 2B acceleration-token redirect (§4.3) are
-   still open questions to flag rather than silently resolve.
-2. **Ant-Man (`ant`)** — three-sided identity (docs/phase7-wave2.md §1.1/§3.2, landed). Tech Theft's class-wide
-   text-blanking is a known primitive gap ahead of time (§6.11) — don't attempt an approximation for it.
-3. **Wasp (`wsp`)** — three-sided identity; divided basic powers (§3.7, landed) for her own Giant-form constants.
-4. **Quicksilver (`qsv`)** — `basicPowerUsed` (already used by Spider-Woman's Captain Marvel in `trors`, so the DSL
-   side is proven) drives several of his own cards.
-5. **Scarlet Witch (`scw`)** — two copies of her own obligation shuffled in (§1.10, landed); boost-icon counting as
-   an event (§3.6, landed for activation counts — card-effect counts, Hex Bolt, are still open per §4.8, so that
-   one card may need a `KNOWN_SKIPPED` pin even after the pack is otherwise done).
+**Also migrated `wave2/setup.ts` to `WAVE2_SCENARIOS`** (`@mc/content`, now holding all six cycle 1 scenario
+records — trors's five plus Kang), the way `wave1/setup.ts` already dispatches through `WAVE1_SCENARIOS`: the five
+hand-written `<villain>Scenario()` functions became one data-driven `buildSingleVillain(scenario, options)`
+(copied from `wave1/setup.ts`'s own function of the same name, re-pointed at `WAVE2_CARDS`), with
+`Scenario.separateDecks` replacing the hand-written `ScenarioSeparateDeck` literals and a small
+`SETASIDE_BY_SCENARIO` lookup (`@mc/cards`-local; `Scenario.setAsideVillainCardIds` is villain cards only) covering
+Taskmaster's Captive allies and Red Skull's Sleeper. Two things fell out of this migration that needed fixing, not
+just plumbing: (1) Crossbones' "Legions of Hydra" data gap (flagged in `crossbones.ts`'s own docblock) is resolved
+— the content record's `recommendedModularSetIds` now lists all three of the 1A text's modular sets, and
+`buildSingleVillain` already uses every one by default, so the scenario needed no code change beyond deleting the
+stale docblock note; (2) the content record's `separateDecks[].name` for Red Skull's own scenario deck is
+`"side-scheme deck"` (the printed common noun), not the earlier hand-written `"side-scheme"` — `red-skull.ts`'s own
+`buildScenarioDeck`/`scenarioDeck(...)` calls and `red-skull.test.ts`'s direct `state.scenarioDecks[...]` reads
+both had to be renamed to match; a scenario-deck name is content data now, not a string `@mc/cards` invents, so
+double-check it against the actual `Scenario` record rather than keeping whatever name a pre-migration draft used.
 
-**Before starting any pack, re-run the `KNOWN_SKIPPED` regeneration test (§1) against whatever primitives have
-landed since this was written** — a card pinned here as blocked may already be scriptable. Two gaps found and
-confirmed *by testing* this session, not just reasoning about the DSL (§4.1's own convention: verify a skip claim
-before trusting it, and equally, verify an *unblocked* claim before trusting it) are worth rereading before
-`toafk`/`ant`/`wsp`/`qsv`/`scw` hit the same shapes: §6.9 (`cardEntersPlay` is announcement-only — a printed
-"Interrupt: when X enters play" is not scriptable as written) and §6.10 (`formChanged` has no `to`-direction
-filter, and no ready-made "any player, not you" trigger). §6.7's "player who defeated this scheme" gap recurred
-twice more in Red Skull after Crossbones' Assault first found it (§6.7) — expect it again in later packs.
+**`trors` is done — every scripted card, every primitive gap closed, scenario setup fully data-driven.** Do not
+re-audit `trors` again (per the coordinator) — its own `KNOWN_SKIPPED` is exact-match asserted by `coverage.test.ts`,
+so any future primitive landing that affects it will surface as a coverage-test failure (an unexpectedly-resolved
+ref still listed as skipped) the next time anyone runs the suite, not something that needs active re-checking every
+session.
+
+**`toafk` (Kang) is `"in progress"`, same day.** Kang's villain (11001–11006, standard *and* the Expert Kang copies
+11034–11039 — same printed text, reused ability bodies), "Kang's Arrival" 1A/1B, "The Master of Time" 2A, all four
+stage 3 alternatives (Chronopolis/Inexorable Fate/Realm of Rama-Tut/Present Future War, each with its own
+`createGameArea`+`addVillain`+`stateCheck`+`forcedResponse` set, modeled almost verbatim on
+`packages/engine/src/game-areas.test.ts`'s synthetic Kang-shaped scenario — read that test file before touching
+this pack again, it is the authoritative reference for every game-area primitive's exact shape), and the Kang/
+Temporal encounter set (11014–11033, minus the four Temporal obligations) are scripted, each with a real
+behavioral test (`kang.test.ts`) — including one proving `atEndOfPhase` really defers Kang (I)'s "advance to stage
+2" past the moment of defeat, and one proving 1A's own obligation-removal actually empties the deck of them.
+`toafk`'s `KNOWN_SKIPPED` (§7) has 23 refs: 4 genuine primitive/open-question gaps on Kang's own stage 2/4 (below,
+new §6.13/§6.14), 4 data-gap Temporal obligations (same two-trigger-kinds-in-one-ref shape as `trors`'s own
+Captured by Hydra), and 15 refs for the Expert-only encounter set (11040–11051, not started — lower priority than
+standard play). `wave2/setup.ts` gained `kangScenario` (`separateGameAreas`, modeled on the same test file's
+`kangGame()`), dispatched from `wave2Scenario("kang", …)`.
+
+**Two new engine primitive gaps found scripting `toafk` (see `kang.ts`'s module docblock for the full write-up):**
+- **§6.13 "Cannot join a game area unless a condition holds"** (The Master of Time 2B, 1 ref) — no `RuleSpec` for a
+  standing per-area join restriction exists; closest primitive is `cannotAttack`/`cannotThwart`'s shape,
+  generalized to game areas. Bundled with this same ref: "when an acceleration token would be placed on another
+  scheme, place it here instead" has no interruptible "token about to be placed" event either (docs/phase7-wave2.md
+  §4.3 already flags the redirect itself as an open rules question, unconfirmed against any FFG source).
+- **§6.14 Un-tucking a facedown card into play** (Kang's Wrath 4A, "Reveal each face down Kang's Dominion under
+  this stage", 1 ref) — `tuckedUnder(...)` finds tucked cards, but no effect turns a *tucked, out-of-play* card
+  face up and puts it into play; `flipCard` only flips a card already in play. Also still open: a per-player
+  nemesis-card selector spanning `setAside` (Kang's Wrath 4B's own "search […] and set-aside area for their
+  nemesis minion", the same zone-search gap `04028.when-revealed` in `trors` has).
+
+**Not reached this session: `ant`, `wsp`, `qsv`, `scw`.** `toafk` alone (separate game areas, several stage-shape
+data quirks, and the game's most novel scenario mechanics) took the rest of the session once the `trors` follow-up
+work (§6.9/§6.10, the `wave2/setup.ts` migration) was done — there was no remaining budget to even scaffold the
+four hero packs. **Next session starts with `ant`** (three-sided identity, docs/phase7-wave2.md §1.1/§3.2, landed;
+Tech Theft's class-wide text-blanking and Team-Building Exercise's cost-reduction-inside-an-ability are both
+"Not done" per docs/phase7-wave2.md §3.13.11 as of this session — `game-rules-architect` was said to be working on
+both; re-check §3.13 before assuming either is still blocked, the same lesson this session's own `trors` follow-up
+just relearned), then `wsp` (three-sided identity; divided basic powers, §3.7, landed), `qsv` (`basicPowerUsed`,
+already proven by Spider-Woman's Captain Marvel in `trors`), then `scw` (two copies of her own obligation shuffled
+in, §1.10, landed; boost-icon counting as an event, §3.6, landed for activation counts — card-effect counts, Hex
+Bolt, are still open per §4.8). Each begins the same way this file's §2 describes and `toafk`'s own start did:
+registry (`<pack>/index.ts` exporting `<PACK>_ABILITIES`) + a `wave2/coverage.test.ts` entry (flip
+`PACK_STATUS[code]` to `"in progress"` and pin the pack's *entire* ability-ref list in `KNOWN_SKIPPED` before
+writing a single card script, computed the programmatic way §1 describes, never hand-typed), before any actual
+card scripting — so the tree stays green at every stopping point.
+
+**Re-run the `KNOWN_SKIPPED` regeneration test (§1) against whatever primitives have landed since this was
+written, at the start of every pack and every session** — a card pinned as blocked may already be scriptable; this
+session's own `trors` follow-up (§6.9/§6.10 landing after the checkpoint that pinned them) and `toafk`'s reuse of
+already-landed game-area primitives both depended on this habit. §6.7's "player who defeated this scheme" gap
+recurred three times across `trors` alone before landing — expect the same pattern (a gap recurring across several
+cards/packs before anyone notices and fixes the primitive) with §6.13/§6.14 above.

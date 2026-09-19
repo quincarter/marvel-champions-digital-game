@@ -42,14 +42,14 @@ import {
 const WEAPON = trait("WEAPON");
 
 /**
- * Crossbones scenario (`crossbones` encounter set, plus Experimental Weapons and the Hydra Assault/Weapon Master
- * modular sets): the villain (04058–04060), main scheme "Attack on Mount Athena" (04061), his own encounter set
- * (04064–04071) and the Experimental Weapons attachments (04072–04075).
- *
- * **Data gap flagged for `card-data-pipeline` (docs/phase7-wave2-scripting.md):** the 1A text prints "Three
- * modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` only registers
- * `hydra_assault` and `weap_master` — there is no "Legions of Hydra" `EncounterSet`. The scenario builder
- * (`../setup.ts`) uses only the two that exist.
+ * Crossbones scenario (`crossbones` encounter set, plus Experimental Weapons and the "Three modular sets (Hydra
+ * Assault, Weapon Master, and Legions of Hydra)" the 1A text calls for): the villain (04058–04060), main scheme
+ * "Attack on Mount Athena" (04061), his own encounter set (04064–04071) and the Experimental Weapons attachments
+ * (04072–04075). The data gap this docblock used to flag (`trors/encounterSets.ts` had no "Legions of Hydra"
+ * `EncounterSet`) is resolved: `@mc/content`'s `TRORS_SCENARIOS` record now lists all three in
+ * `recommendedModularSetIds` (`legions_of_hydra` is Core's own encounter set, wired in cross-pack — Legions of
+ * Hydra's three minions print no cycle-1-specific text), and `../setup.ts`'s `wave2Scenario("crossbones", …)`
+ * uses all of them by default (`options.modularSetIds ?? scenario.recommendedModularSetIds`).
  *
  * **Skipped (missing engine primitive):**
  * - `04058.crossbones-constant` (and `04059`/`04060`'s copies) — "While Crossbones has a Weapon attachment, his

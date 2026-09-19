@@ -35,19 +35,18 @@ describe("Absorbing Man scenario", () => {
     expect(traitsOf(start, villain, WAVE2_DEPS).map(String)).toContain(expectedTrait);
   });
 
-  // None Shall Pass's own Forced Interrupt ("discard each other environment card in play") is in KNOWN_SKIPPED
-  // (`../coverage.test.ts`) — see `absorbing-man.ts`'s module docblock: `cardEntersPlay` is announcement-only, so
-  // scripting it either as an Interrupt (a no-op — nothing left to discard "before") or a Response (discards the
-  // entering card too, with no way to exclude it) is wrong. Confirmed here: revealing a second environment leaves
-  // both in play rather than replacing the first.
-  it("(documents the open gap) revealing a second environment currently leaves both in play, not just the new one", () => {
+  // None Shall Pass — Forced Interrupt: when an environment enters play, discard each other environment card in
+  // play. Was in `KNOWN_SKIPPED` pending `cardEntersPlay` becoming interruptible and `TargetQuery.excluding`
+  // (docs/phase7-wave2.md §3.13.10); both landed, so revealing a second environment now replaces the first instead
+  // of leaving both in play.
+  it("None Shall Pass: revealing a second environment discards the first, leaving only the new one in play", () => {
     const start = absorbingManVsHeroes();
     const before = environmentInPlay(start)!;
     const nextEnvironment = ENVIRONMENTS.find((code) => code !== before)!;
     const stacked = stackEncounterDeck(start, ADVANCE, nextEnvironment);
     const revealed = settle(runWave2(stacked, toHero(), endTurn()), firstLegal, undefined, WAVE2_DEPS);
     const after = cardsInPlay(revealed).filter((id) => (ENVIRONMENTS as readonly string[]).includes(revealed.instances[id]?.cardId ?? ""));
-    expect(after.map((id) => revealed.instances[id]?.cardId).sort()).toEqual([before, nextEnvironment].sort());
+    expect(after.map((id) => revealed.instances[id]?.cardId)).toEqual([nextEnvironment]);
   });
 
   it("None Shall Pass: places 1 delay counter after resolving step one of the villain phase, every round", () => {

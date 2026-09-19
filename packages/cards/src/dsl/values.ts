@@ -36,6 +36,12 @@ export const otherPlayers = (of: PlayerRef = you): PlayerRef => ({ kind: "others
 /** "The engaged player" of a minion. */
 export const engagedPlayerOf = (of: TargetRef): PlayerRef => ({ kind: "engagedWith", of });
 /**
+ * "They" in "After **a player** changes to hero form, they …" (Taskmaster I–III, 04093–04095): the player the
+ * triggering event itself is about, paired with `on.playerChangesForm` (`dsl/abilities.ts`), which sets no
+ * `playerIs` scope so the trigger isn't limited to "you".
+ */
+export const eventPlayer: PlayerRef = { kind: "eventPlayer" };
+/**
  * "The player who defeated this scheme" (Crossbones' Assault 04070, Prison Camps 04141, Hydra Reinforcements
  * 04143): the defeating player recorded on the `schemeDefeated`/`characterDefeated` event a `whenDefeated` ability
  * is reacting to. Empty outside a defeat, and for a defeat no player caused.
@@ -223,6 +229,16 @@ export const eventDealt = (key: string, n = 1): Predicate => ({ kind: "eventResu
 export const undefendedAttack: Predicate = { kind: "currentAttack", key: "undefended", atLeast: 1 };
 /** "If this is the final step of this sequence" (Wakanda Forever!). */
 export const finalStep: Predicate = varAtLeast("sequence.final", 1);
+/**
+ * "When all the players have joined this game area" is `stateCheck(not(gameAreasSplit))` (The Master of Time 2B,
+ * docs/phase7-wave2.md §3.1): true once every player is in the same game area again (or the scenario never split).
+ */
+export const gameAreasSplit: Predicate = { kind: "gameAreasSplit" };
+/**
+ * "If all the players at this stage are defeated" (Kang's stage 3 cards, docs/phase7-wave2.md §3.1): every player
+ * in this effect's own game area is defeated (eliminated). False outside a separate game area.
+ */
+export const areaPlayersDefeated: Predicate = { kind: "areaPlayersDefeated" };
 /** "During step one of the villain phase". */
 export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "villain", step: "placeThreat" };
 /**

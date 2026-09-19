@@ -7,20 +7,22 @@ const redSkullVsHeroes = () => startWave2Game(wave2Scenario("red-skull", { playe
 const ADVANCE = "01186";
 
 /**
- * Every Red Skull side scheme other than the one in play at setup is shuffled into the separate "side-scheme"
- * scenario deck (errata #128A), not the main encounter deck — revealed by New World Hydra's own "after step one"
- * ability (`04129b.new-world-hydra-forced-response`), not a normal player encounter draw. The `stackEncounterDeck`
- * test helper only reaches the main deck/discard, so this is its side-scheme-deck counterpart.
+ * Every Red Skull side scheme other than the one in play at setup is shuffled into the separate "side-scheme deck"
+ * scenario deck (errata #128A, `Scenario.separateDecks` in `@mc/content`'s own `TRORS_SCENARIOS` record — the
+ * printed name, not the earlier hand-written "side-scheme"), not the main encounter deck — revealed by New World
+ * Hydra's own "after step one" ability (`04129b.new-world-hydra-forced-response`), not a normal player encounter
+ * draw. The `stackEncounterDeck` test helper only reaches the main deck/discard, so this is its
+ * side-scheme-deck counterpart.
  */
 function stackSideSchemeDeck(state: GameState, code: string): GameState {
-  const pile = state.scenarioDecks["side-scheme"]!;
+  const pile = state.scenarioDecks["side-scheme deck"]!;
   const id = pile.deck.find((i) => state.instances[i]?.cardId === code) ?? pile.discard.find((i) => state.instances[i]?.cardId === code);
   if (!id) throw new Error(`no ${code} in the side-scheme deck or discard`);
   return {
     ...state,
     scenarioDecks: {
       ...state.scenarioDecks,
-      "side-scheme": { ...pile, deck: [id, ...pile.deck.filter((i) => i !== id)], discard: pile.discard.filter((i) => i !== id) },
+      "side-scheme deck": { ...pile, deck: [id, ...pile.deck.filter((i) => i !== id)], discard: pile.discard.filter((i) => i !== id) },
     },
   };
 }
@@ -33,7 +35,7 @@ describe("Red Skull scenario", () => {
     const settled = startWave2Game(config);
     expect(cardsInPlay(settled).some((id) => settled.instances[id]?.cardId === "04139")).toBe(true);
     expect(settled.encounterSetAside.some((id) => settled.instances[id]?.cardId === "04130")).toBe(true);
-    expect(settled.scenarioDecks["side-scheme"]?.deck.length ?? 0).toBeGreaterThan(0);
+    expect(settled.scenarioDecks["side-scheme deck"]?.deck.length ?? 0).toBeGreaterThan(0);
     expect(settled.villains).toHaveLength(1);
     expect(settled.outcome).toBeNull();
   });
@@ -50,11 +52,11 @@ describe("Red Skull scenario", () => {
 
   it("The Rise of Red Skull / New World Hydra: reveals the top of the side-scheme deck after resolving step one, every round", () => {
     const start = redSkullVsHeroes();
-    const before = start.scenarioDecks["side-scheme"]!.deck.length;
+    const before = start.scenarioDecks["side-scheme deck"]!.deck.length;
     const settled = settle(runWave2(start, toHero(), endTurn()), firstLegal, undefined, WAVE2_DEPS);
     // The side-scheme deck's own discard pile (`discardPile: "own"`) should have gained the revealed card, unless
     // it entered play and stayed (side schemes always stay in play once revealed, so the deck itself just shrinks).
-    expect(settled.scenarioDecks["side-scheme"]!.deck.length).toBeLessThan(before);
+    expect(settled.scenarioDecks["side-scheme deck"]!.deck.length).toBeLessThan(before);
   });
 
   it("The Sleeper: When Revealed engages the first player; When Defeated removes it from the game", () => {

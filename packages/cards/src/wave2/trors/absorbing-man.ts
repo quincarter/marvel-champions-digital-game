@@ -22,9 +22,11 @@ import {
   encounterCards,
   enemyAttack,
   enemyScheme,
+  eventTarget,
   exhaust,
   firstPlayer,
   forEachPlayer,
+  forcedInterrupt,
   forcedResponse,
   gainsTrait,
   gainsTraitsOf,
@@ -129,16 +131,13 @@ export const ABSORBING_MAN_SET = defineAbilities({
   // None Shall Pass — Forced Response: after resolving step one of the villain phase, place 1 delay counter here.
   "04079b.none-shall-pass-forced-response": forcedResponse(on.threatPlaced(query("mainScheme")), addCounters(DELAY, 1, self)),
   // None Shall Pass — Forced Interrupt: when an environment enters play, discard each other environment card in
-  // play. SKIPPED (missing primitive — see module docblock): `cardEntersPlay` is an announcement-only trigger
-  // event (`isAnnouncement`, `trigger-events.ts`, defaults `true` for any kind not explicitly listed as
-  // interruptible) — by the time any ability on it can react, the entering card is already in play, so there is
-  // no "before" moment left to discard the others from, and no way to name "every environment except the one that
-  // just entered" without one (no `TargetQuery` field excludes a specific `TargetRef` the way `self` excludes only
-  // the ability's own card). Confirmed broken by testing (docs/phase7-wave2-scripting.md §4.1's own convention):
-  // scripting it as an Interrupt produced a no-op (nothing fires, since interrupt windows aren't opened for
-  // announcement events), and scripting it as a Response instead would discard the entering environment too
-  // (query("environment") would match it as well, with nothing to exclude it), which is a different and wrong
-  // outcome, not an approximation of the right one.
+  // play. `cardEntersPlay` is now interruptible (its own enter-play keywords resolve as that event's *apply* step,
+  // not before it's announced), and `TargetQuery.excluding` names "every environment except the one that just
+  // entered" (docs/phase7-wave2.md §3.13.10) — this was pinned in `KNOWN_SKIPPED` pending both.
+  "04079b.none-shall-pass-forced-interrupt": forcedInterrupt(
+    on.entersPlay(query("environment")),
+    discard(each(query("environment", { excluding: eventTarget }))),
+  ),
 
   // Dense Forest / Snowy Hillside / Rocky Outcrop / Abandoned Facility — Surge (data). Forced Response: after
   // Absorbing Man makes an undefended attack against you, a worse effect if 5+ delay counters on the main scheme.

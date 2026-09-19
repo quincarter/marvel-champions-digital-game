@@ -63,7 +63,7 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
  */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   trors: "scripted",
-  toafk: "not started",
+  toafk: "in progress",
   ant: "not started",
   wsp: "not started",
   qsv: "not started",
@@ -80,17 +80,9 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // dumping `allRefs.filter((id) => !(id in WAVE2_ABILITIES))`) whenever this list needs updating; hand-typing
   // ability slugs from memory is exactly how this list drifted from reality the first time it was written.
   trors: [
-    // --- Hawkeye obligation/nemesis (wave2/trors/hawkeye-obligation-nemesis.ts): missing-primitive block. ---
+    // --- Hawkeye obligation/nemesis (wave2/trors/hawkeye-obligation-nemesis.ts): missing-primitive block, see
+    //     that file's module docblock (needs searching a player's hand/deck/discard *and* play area as one pool). ---
     "04028.when-revealed",
-    // --- Taskmaster scenario (wave2/trors/taskmaster.ts): missing-primitive block (`formChanged` has no `to`
-    //     direction filter — docs/phase7-wave2-scripting.md §6.10) and a data gap (Captured by Hydra's "When
-    //     Defeated" half has no ability ref), see that file's module docblock. ---
-    "04093.taskmaster-forced-response",
-    "04094.taskmaster-forced-response",
-    "04095.taskmaster-forced-response",
-    // --- Absorbing Man scenario (wave2/trors/absorbing-man.ts): missing-primitive block, see that file's docblock
-    //     (`cardEntersPlay` is announcement-only — docs/phase7-wave2-scripting.md §6.9). ---
-    "04079b.none-shall-pass-forced-interrupt",
     // --- Hydra Campaign cards: data only while campaign mode is deferred (docs/phase7-wave2.md, PLAN.md Phase 7). ---
     "04155.adrenal-stims-action",
     "04156.tactical-scanner-action",
@@ -120,6 +112,37 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "04164.obligation",
     "04165.obligation",
     "04166.obligation",
+  ],
+  // Computed 2026-09-19 against TOAFK_CARDS/WAVE2_ABILITIES, same method as trors' own list above.
+  toafk: [
+    // --- Kang's own villain/main scheme (wave2/toafk/kang.ts): missing-primitive and data-gap blocks, see that
+    //     file's module docblock. ---
+    "11008b.the-master-of-time-forced-interrupt",
+    "11008b.the-master-of-time-constant",
+    "11013a.when-revealed",
+    "11013b.when-revealed",
+    // --- Kang/Temporal encounter set (wave2/toafk/kang-encounter-set.ts): data gap (the four Temporal
+    //     obligations combine two trigger kinds under one ref), see that file's module docblock. ---
+    "11018.obligation",
+    "11019.obligation",
+    "11020.obligation",
+    "11021.obligation",
+    // --- Expert encounter set (11040-11051): not started yet. ---
+    "11040.when-revealed",
+    "11040.boost",
+    "11041.boost",
+    "11042.boost",
+    "11043.terminatrix-constant",
+    "11043.boost",
+    "11044.when-revealed",
+    "11044.boost",
+    "11045.when-defeated",
+    "11046.when-revealed",
+    "11047.kang-master-of-time-constant",
+    "11048.boost",
+    "11049.obligation",
+    "11050.when-defeated",
+    "11051.when-revealed",
   ],
 };
 

@@ -1,5 +1,5 @@
 import { activeEncounterDeck, cardsInPlay, createGame, hasKeyword, type GameState, type InstanceId } from "@mc/engine";
-import { cardId } from "@mc/content";
+import { cardId, WAVE2_CARDS } from "@mc/content";
 import { endTurn, firstLegal, identityOf, inst, P1, payWith, play, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
@@ -36,6 +36,22 @@ describe("Taskmaster scenario", () => {
     expect(cardsInPlay(created.state).some((id) => created.state.instances[id]?.cardId === "04154")).toBe(true);
     expect(created.state.villains).toHaveLength(1);
     expect(created.state.outcome).toBeNull();
+  });
+
+  it("Taskmaster (I/II/III): Forced Response, after a player changes to hero form, they discard the top card of the encounter deck and take damage equal to its boost icons", () => {
+    const start = taskmasterVsHeroes();
+    const identity = identityOf(start);
+    const before = inst(start, identity).damage;
+    const deckBefore = activeEncounterDeck(start).deck.length;
+    const hero = runWave2(start, toHero());
+    // Taskmaster (I) is the default starting stage, and this forced response has no "against you"/villain-scoping
+    // — it fires for any player's own change to hero form.
+    expect(activeEncounterDeck(hero).deck.length).toBeLessThan(deckBefore);
+    const discarded = activeEncounterDeck(hero).discard.at(-1)!;
+    const discardedCardId = hero.instances[discarded]!.cardId;
+    const discardedCard = WAVE2_CARDS.find((c) => c.id === discardedCardId);
+    const boostIcons = discardedCard && "boostIcons" in discardedCard ? discardedCard.boostIcons : 0;
+    expect(inst(hero, identity).damage).toBe(before + boostIcons);
   });
 
   it("Taskmaster (II/III): When Revealed deals each player an encounter card", () => {

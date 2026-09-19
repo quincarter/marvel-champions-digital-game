@@ -10,6 +10,7 @@ import {
   dealEncounterCard,
   defineAbilities,
   discard,
+  discardEncounterCards,
   discardFromHand,
   draw,
   eachPlayer,
@@ -17,6 +18,7 @@ import {
   enemyAttack,
   enemyScheme,
   eventAmount,
+  eventPlayer,
   eventSource,
   eventTarget,
   exhaustYourHero,
@@ -52,6 +54,7 @@ import {
   thatPlayer,
   tuckCards,
   valueAtLeast,
+  varOf,
   when,
   whenRevealed,
   you,
@@ -70,15 +73,9 @@ const HYDRA_PATROL_NAME = cardName("04154");
  * modular set): the villain (04093–04095), main scheme "Hunting Down Heroes" (04096), and his own encounter set
  * (04097–04108). Hydra Patrol's own cards (04152–04154) are scripted in `red-skull.ts`, where the set is shared.
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
- * - `04093.taskmaster-forced-response` (and its identical copies on 04094/04095) — "Forced Response: After a
- *   player changes to hero form, they discard the top card of the encounter deck and take damage equal to the
- *   number of boost icons on that card." `EventPattern` has no field to filter `formChanged`'s own `to: "hero" |
- *   "alterEgo"` (`packages/engine/src/spec.ts`'s `formChanged` event shape) — only `on.youChangeForm()`'s
- *   hardcoded `{ playerIs: "controller" }`, which also wouldn't fit here anyway ("a player", not "you": this is a
- *   villain ability, not scoped to one identity). Closest existing primitive: `PlayerRef { kind: "eventPlayer" }`
- *   already exists (`spec.ts`) and would supply "they"; the missing half is a `to`-direction filter on
- *   `EventPattern` for `formChanged`, alongside a version of `on.youChangeForm` with no built-in controller scope.
+ * `04093.taskmaster-forced-response` (and its identical copies on 04094/04095) were pinned pending an
+ * `EventPattern` field to filter `formChanged`'s own `to` direction; the engine's `EventPattern.eventIs` and
+ * `PlayerRef { kind: "eventPlayer" }` (docs/phase7-wave2.md §3.13.9) now cover it — `on.playerChangesForm("hero")`.
  *
  * **Data gap flagged for `card-data-pipeline` (docs/phase7-wave2-scripting.md):** Captured by Hydra (04107) prints
  * two distinct triggers ("When Revealed: place a random Captive ally beneath this scheme" and "When this scheme is
@@ -88,7 +85,24 @@ const HYDRA_PATROL_NAME = cardName("04154");
  * the "When Revealed" half is scripted below.
  */
 export const TASKMASTER_SET = defineAbilities({
-  // Taskmaster (I/II/III) — Forced Response: after a player changes to hero form, ... SKIPPED (module docblock).
+  // Taskmaster (I/II/III) — Forced Response: after a player changes to hero form, they discard the top card of the
+  // encounter deck and take damage equal to the number of boost icons on that card. "They" is `eventPlayer`, the
+  // player `formChanged` itself names — no `playerIs` scope, since it is any player, not just "you".
+  "04093.taskmaster-forced-response": forcedResponse(
+    on.playerChangesForm("hero"),
+    discardEncounterCards(1, { bind: "d" }),
+    dealDamage(varOf("d.boostIcons"), identityOf(eventPlayer)),
+  ),
+  "04094.taskmaster-forced-response": forcedResponse(
+    on.playerChangesForm("hero"),
+    discardEncounterCards(1, { bind: "d" }),
+    dealDamage(varOf("d.boostIcons"), identityOf(eventPlayer)),
+  ),
+  "04095.taskmaster-forced-response": forcedResponse(
+    on.playerChangesForm("hero"),
+    discardEncounterCards(1, { bind: "d" }),
+    dealDamage(varOf("d.boostIcons"), identityOf(eventPlayer)),
+  ),
 
   // Taskmaster (II/III) — When Revealed: deal each player an encounter card.
   "04094.when-revealed": whenRevealed(dealEncounterCard(eachPlayer)),
