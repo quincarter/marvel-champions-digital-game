@@ -78,6 +78,7 @@ import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { sortByRecency } from "../view/deck-recency.js";
 import { compositionTilesOf, costCurveBars, deckStatsOf, type CompositionTile, type CostCurveBar } from "../view/deck-stats.js";
 import { deckStatusOf } from "../view/deck-status.js";
+import { cardTitleOf, deckMetaLine, SOURCE_LABEL } from "../view/deck-title.js";
 import { decksLayout, type DecksTab } from "../view/decks-layout.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
 import { deckSourcesOf, heroAspectsOf, heroRosterMatches, withSelectionPinned, type DeckSourceKind, type RosterFilter } from "../view/roster-filter.js";
@@ -111,8 +112,6 @@ const ROW_HEIGHT = 84;
 const GROUP_LABEL_HEIGHT = 16;
 const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));
 
-const SOURCE_LABEL: Readonly<Record<DeckSourceKind, string>> = { precon: "Precon", imported: "Imported", userBuilt: "Built" };
-
 const IMPORT_EXPORT_DESCRIPTION = "Paste a decklist or drop a .txt from MarvelCDB. Exports carry the aspect and hero set.";
 
 /** A compact chip/button row's own height — smaller than `hit.target`'s 44px touch target, matching D14's small filter/action controls (point 2/3/5 of the 2026-09-18 fidelity pass). Still comfortably tappable. */
@@ -127,37 +126,6 @@ type DeckRow = { readonly kind: "deck"; readonly option: DeckOption; readonly gr
 /** `deck`'s namespaced record key — the same one `view/results-history.ts` keys `DeckRecord` by. */
 function keyOf(deck: Deck): DeckKey {
   return deck.source.kind === "precon" ? { kind: "starter", starterDeckId: deck.source.starterDeckId as string } : { kind: "custom", deckId: deck.id as string };
-}
-
-/** A capitalized aspect/basic name for the short card title ("justice" → "Justice"). */
-function titleCase(word: string): string {
-  return word.length === 0 ? word : word.charAt(0).toUpperCase() + word.slice(1);
-}
-
-/**
- * A deck card's own title (2026-09-18 fidelity pass, point 2): a precon's is D14's own short "HERO / ASPECT" form
- * (its long printed name, e.g. "Spider-Man (Justice) — Core Set starter deck", moves into the meta line instead —
- * `deckMetaLine` below); a saved/imported deck's title is simply its own name, already short because a player chose
- * it themselves.
- */
-function cardTitleOf(option: DeckOption): string {
-  if (option.deck.source.kind !== "precon") return option.deck.name;
-  const identity = option.identityName ?? "Unknown";
-  const aspects = option.deck.aspects.map(titleCase).join(" + ");
-  return aspects ? `${identity} / ${aspects}` : identity;
-}
-
-/** The deck card's meta line: identity, card count and status for a saved/imported deck; the long printed name, card count, status and source for a precon (whose title above already dropped that long name). */
-function deckMetaLine(option: DeckOption): string {
-  const stats = deckStatsOf(option.deck, POOL_CARDS);
-  const status = deckStatusOf(option).text.toLowerCase();
-  if (option.deck.source.kind === "precon") {
-    // The title already says hero and aspect; keep only what the printed name adds ("Core Set starter deck"),
-    // so the count and legality always fit on the one line D14 gives them.
-    const product = option.deck.name.includes("—") ? option.deck.name.slice(option.deck.name.indexOf("—") + 1).trim() : option.deck.name;
-    return `${product} · ${stats.totalCards} cards · ${status}`;
-  }
-  return `${option.identityName ?? "unknown identity"} · ${stats.totalCards} cards · ${status} · ${SOURCE_LABEL[option.deck.source.kind].toLowerCase()}`;
 }
 
 /** One chip/button's own natural width — never less than it needs (`minChipCellWidth`'s own estimate is deliberately conservative), so a row of these can never truncate the way equal-width division could. */
@@ -703,7 +671,7 @@ export class DecksScene extends Phaser.Scene {
     const name = this.add.text(card.x + 10, card.y + 8, caseOf(CARD_TITLE_TYPE, cardTitleOf(option)), textStyle(CARD_TITLE_TYPE, titleColor)).setLetterSpacing(CARD_TITLE_TYPE.letterSpacing);
     fitText(name, card.width - 20, CARD_TITLE_TYPE.size);
     objects.push(name);
-    const meta = this.add.text(card.x + 10, card.y + 8 + name.height + 3, deckMetaLine(option), textStyle(typeRole.label, metaColor, metaAlpha));
+    const meta = this.add.text(card.x + 10, card.y + 8 + name.height + 3, deckMetaLine(option, POOL_CARDS), textStyle(typeRole.label, metaColor, metaAlpha));
     // One line, shrunk or clipped to fit: a wrapped meta line ran into the selected card's record line.
     fitText(meta, card.width - 20, typeRole.label.size);
     objects.push(meta);

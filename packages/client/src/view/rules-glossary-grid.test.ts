@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { glossaryCardHeight, glossaryCellRect, glossaryGridColumns, glossaryRowHeight } from "./rules-glossary-grid.js";
+import { glossaryCardHeight, glossaryCellRect, glossaryGridColumns, glossaryRowHeight, glossaryRowHeights } from "./rules-glossary-grid.js";
 
 describe("glossaryGridColumns", () => {
   test("one column on a phone-width panel", () => {
@@ -59,5 +59,34 @@ describe("glossaryCardHeight / glossaryRowHeight", () => {
     const height = glossaryRowHeight(entries, 300);
     expect(height).toBe(Math.max(...entries.map((e) => glossaryCardHeight(e, 300))));
     expect(glossaryRowHeight([], 300, 150)).toBe(150);
+  });
+});
+
+describe("glossaryRowHeights", () => {
+  test("one height per row of `columns` entries, not one height for the whole tab", () => {
+    const short = { definition: "Short.", cardRefCount: 0 };
+    const tall = { definition: "A much longer definition that wraps across several lines at this column width, needing real room to read without clipping.", cardRefCount: 3 };
+    // Two rows of two columns: the first row (both short) stays compact, the second (one tall
+    // entry) grows to fit it — the whole point of a *per-row* height over one uniform height.
+    const heights = glossaryRowHeights([short, short, short, tall], 2, 300);
+    expect(heights).toHaveLength(2);
+    expect(heights[0]).toBeLessThan(heights[1]!);
+    expect(heights[0]).toBe(glossaryRowHeight([short, short], 300));
+    expect(heights[1]).toBe(glossaryRowHeight([short, tall], 300));
+  });
+
+  test("a short trailing row (fewer than `columns` entries) still gets its own height", () => {
+    const entry = { definition: "Some definition text.", cardRefCount: 0 };
+    const heights = glossaryRowHeights([entry, entry, entry], 2, 300);
+    expect(heights).toHaveLength(2);
+  });
+
+  test("no entries makes no rows", () => {
+    expect(glossaryRowHeights([], 2, 300)).toEqual([]);
+  });
+
+  test("never less than the minimum, per row", () => {
+    const entry = { definition: "Short.", cardRefCount: 0 };
+    for (const height of glossaryRowHeights([entry, entry], 2, 300, 150)) expect(height).toBeGreaterThanOrEqual(150);
   });
 });

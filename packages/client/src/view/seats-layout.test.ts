@@ -85,7 +85,8 @@ describe("seatsLayout", () => {
     const layout = seatsLayout({ width: 390, height: 844, chipRows: 1, detailLines: 4 });
     expect(layout.play.y).toBe(layout.deckCheck.y);
     expect(rectsOverlap(layout.play, layout.deckCheck)).toBe(false);
-    expect(layout.play.x + layout.play.width).toBeLessThanOrEqual(layout.deckCheck.x + 0.01);
+    // The primary (Play) sits on the right, where a thumb and the reading order both end.
+    expect(layout.deckCheck.x + layout.deckCheck.width).toBeLessThanOrEqual(layout.play.x + 0.01);
     expect(rectsOverlap(layout.play, layout.shelves)).toBe(false);
     expect(rectsOverlap(layout.deckCheck, layout.shelves)).toBe(false);
   });

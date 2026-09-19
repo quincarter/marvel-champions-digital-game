@@ -340,13 +340,34 @@ export function label(
  * edge, letting the rule run only as far as that label's own left edge —
  * still one implementation, so a header with or without one never drifts
  * into two different row shapes.
+ *
+ * `collect`, when passed, receives every text/label/rule object this creates
+ * — a virtualized-list row (`ui/variable-list.ts`'s `McVariableList`) must
+ * return every object it draws in its own `VirtualListRow.objects` so the
+ * list's row layer (the one thing that actually gets masked and scrolled)
+ * owns them; a caller that calls `scene.add.*` itself via this helper and
+ * throws the return value away leaves those objects parented straight to
+ * the scene, outside the scroll/mask container, where they never move again
+ * (the Rules overlay's Card list tab's own encounter-set headers not
+ * scrolling with their own cards was exactly this bug).
  */
-export function sectionHeader(scene: Phaser.Scene, x: number, y: number, width: number, text: string, color: number = surface.ink.hex, rightLabel?: string): number {
+export function sectionHeader(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  text: string,
+  color: number = surface.ink.hex,
+  rightLabel?: string,
+  collect?: Phaser.GameObjects.GameObject[],
+): number {
   const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setLetterSpacing(typeRole.barTitle.letterSpacing).setFontSize(19);
+  collect?.push(heading);
   let rightWidth = 0;
   if (rightLabel) {
     const right = label(scene, x + width, y + heading.height / 2, rightLabel, typeRole.label, color, ink.label).setOrigin(1, 0.5);
     rightWidth = right.width + 14;
+    collect?.push(right);
   }
   // The heading never overlaps its own right label: a long title ("THE ENCOUNTER DECK YOU'RE BUILDING") on a
   // narrow column shrinks (`fitText`'s own floor-then-ellipsis) against exactly the width that's left for it,
@@ -358,6 +379,7 @@ export function sectionHeader(scene: Phaser.Scene, x: number, y: number, width: 
   if (ruleX < ruleEnd) {
     const rule = scene.add.graphics();
     rule.fillStyle(color, 1).fillRect(ruleX, y + heading.height / 2 - 1.5, ruleEnd - ruleX, 3);
+    collect?.push(rule);
   }
   return y + heading.height + 12;
 }

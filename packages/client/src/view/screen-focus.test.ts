@@ -202,9 +202,9 @@ describe("screen focus routes", () => {
     ]);
   });
 
-  test("Deck check: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
-    expect(deckCheckFocusOrder({ activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
-    expect(deckCheckFocusOrder({ activeTab: "cards", cardIds: ["c1", "c2"] })).toEqual([
+  test("Deck check narrow: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "cards", cardIds: ["c1", "c2"] })).toEqual([
       "back",
       "tab:curve",
       "tab:cards",
@@ -214,7 +214,23 @@ describe("screen focus routes", () => {
       "edit-deck",
       "start",
     ]);
-    expect(deckCheckFocusOrder({ activeTab: "aspect", cardIds: ["c1"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "aspect", cardIds: ["c1"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
+  });
+
+  test("Deck check wide: Back, every card in the grid directly (no tabs), Edit deck, and Start", () => {
+    expect(deckCheckFocusOrder({ wide: true, cardIds: ["c1", "c2"] })).toEqual(["back", "card:c1", "card:c2", "edit-deck", "start"]);
+  });
+
+  test("Deck check wide: the rail's own type filter chips come between Back and the grid", () => {
+    expect(deckCheckFocusOrder({ wide: true, cardIds: ["c1"], filterChipIds: ["all", "ally", "event"] })).toEqual([
+      "back",
+      "filter:all",
+      "filter:ally",
+      "filter:event",
+      "card:c1",
+      "edit-deck",
+      "start",
+    ]);
   });
 
   test("the walkthrough offers Continue first once the phase is over", () => {
@@ -227,18 +243,40 @@ describe("screen focus routes", () => {
     expect(villainPhaseFocusOrder(false, [])).toEqual(["skip"]);
   });
 
-  test("Pause reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
-    expect(pauseFocusOrder({ quickReferenceIds: [], tableRowIds: [], confirmingConcede: false })).toEqual(["close", "search", "save-quit", "concede", "resume"]);
+  test("Pause (phone) reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
+    expect(pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false })).toEqual(["close", "search", "resume", "save-quit", "concede"]);
     expect(
-      pauseFocusOrder({ quickReferenceIds: ["villainPhase", "glossary"], tableRowIds: ["reduced-motion", "sound"], confirmingConcede: false }),
-    ).toEqual(["close", "search", "quick:villainPhase", "quick:glossary", "table:reduced-motion", "table:sound", "save-quit", "concede", "resume"]);
+      pauseFocusOrder({ kind: "phone", quickReferenceIds: ["villainPhase", "glossary"], tableRowIds: ["reduced-motion", "sound"], confirmingConcede: false }),
+    ).toEqual(["close", "search", "quick:villainPhase", "quick:glossary", "table:reduced-motion", "table:sound", "resume", "save-quit", "concede"]);
   });
 
-  test("Pause's concede confirm replaces the footer's three buttons with its own two controls", () => {
-    const order = pauseFocusOrder({ quickReferenceIds: [], tableRowIds: [], confirmingConcede: true });
+  test("Pause (phone)'s concede confirm replaces the footer's three buttons with its own two controls", () => {
+    const order = pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: true });
     expect(order).not.toContain("resume");
     expect(order).not.toContain("concede");
     expect(order.slice(-2)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
+  });
+
+  test("Pause (wide, D13) reads the left menu top to bottom, then the keyword grid", () => {
+    expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).toEqual(["resume", "full-game-log", "rules-reference", "settings", "save-quit", "concede"]);
+    expect(pauseFocusOrder({ kind: "wide", keywordIds: ["guard", "stunned"], confirmingConcede: false })).toEqual([
+      "resume",
+      "full-game-log",
+      "rules-reference",
+      "settings",
+      "save-quit",
+      "concede",
+      "keyword:guard",
+      "keyword:stunned",
+    ]);
+  });
+
+  test("Pause (wide)'s concede confirm replaces Concede with its own two controls, without disturbing the rest of the menu", () => {
+    const order = pauseFocusOrder({ kind: "wide", keywordIds: ["guard"], confirmingConcede: true });
+    expect(order).not.toContain("concede");
+    expect(order).toContain("resume");
+    expect(order.slice(5, 7)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
+    expect(order[order.length - 1]).toBe("keyword:guard");
   });
 
   test("Rules Reference reads Back, the scope toggle (only with a game), tabs, search (glossary only), then rows", () => {
@@ -289,8 +327,8 @@ describe("screen focus routes", () => {
       "hero-search",
       "hero:a",
       "hero:b",
-      "play",
       "deck-check",
+      "play",
     ]);
     expect(seatsFocusOrder({ seatCount: 4, deckIds: [] })).toEqual([
       "back",
@@ -301,8 +339,8 @@ describe("screen focus routes", () => {
       "use-preconstructed",
       "hero-search",
       "hero-clear",
-      "play",
       "deck-check",
+      "play",
     ]);
     expect(seatsFocusOrder({ seatCount: 4, deckIds: ["a"], heroChipIds: ["aspect:justice"] })).toEqual([
       "back",
@@ -314,8 +352,8 @@ describe("screen focus routes", () => {
       "hero-search",
       "hero-chip:aspect:justice",
       "hero:a",
-      "play",
       "deck-check",
+      "play",
     ]);
   });
 

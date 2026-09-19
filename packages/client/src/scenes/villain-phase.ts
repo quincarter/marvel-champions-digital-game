@@ -56,9 +56,10 @@
  * narrates, and shows the same "Auto-advance paused ..." label the choice
  * sheet also has available (`decisionLabel`/`pauseFor` share their
  * reasoning). Whenever a `pendingChoice` is open and `ChoiceOverlay` is
- * running, this scene calls `this.scene.bringToTop(SCENES.choice)` on every
- * state update, so the thing the player must act on is never hidden behind
- * the thing that's just narrating.
+ * running, this scene keeps the choice sheet ordered above itself (checked
+ * every frame — see `#orderAgainstChoice` for why a per-update check was not
+ * enough), so the thing the player must act on is never hidden behind the
+ * thing that's just narrating.
  *
  * The one exception is the inline interrupt window (D11/P09/L02,
  * `inlineInterruptFor`): when the open choice is the viewer's own
@@ -108,16 +109,20 @@
 
 import Phaser from "phaser";
 import { cardOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { artFor } from "../art/art-source.js";
+import { cardArt, drawArt } from "../art/card-art.js";
 import { POOL_DEPS } from "../content/pool.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
+import { bindHoldTarget } from "../ui/hold-target.js";
 import { textStyle } from "../ui/theme.js";
 import { McButton, fitText, label, paintPanel } from "../ui/widgets.js";
 import { inspectModel } from "../view/inspect-model.js";
-import type { Rect } from "../view/layout.js";
+import type { FormFactor, Rect } from "../view/layout.js";
 import { formFactorFor } from "../view/layout.js";
 import { cardName, seatName } from "../view/names.js";
 import { revealOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
+import { boostCardsLayout } from "../view/villain-phase-boosts.js";
 import { mainSchemeCalloutOf, type MainSchemeCallout } from "../view/villain-main-scheme.js";
 import { queuedActivationsOf, type QueuedSeat } from "../view/villain-queue.js";
 import { teamStatusOf, type TeamStatusRow } from "../view/villain-team-status.js";
@@ -236,6 +241,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
     const onResize = (): void => this.#draw();
+    // A boost card's scan is requested lazily and may not have arrived on the
+    // first draw; without this the panel stays blank until something else
+    // happens to redraw the scene.
+    const artOff = cardArt(this).onArrived(() => this.#draw());
     /**
      * The resize listener MUST be removed on shutdown.
      *
@@ -261,6 +270,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.scale.off("resize", onResize, this);
       this.#unsubscribe?.();
       this.#unsubscribe = null;
+      artOff();
       this.#revealTimer?.remove();
       this.#revealTimer = null;
       this.#closeTimer?.remove();
@@ -303,13 +313,42 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // (see the class doc comment), where this screen stays on top instead so
     // its own "Play"/"Let it resolve" controls are the ones that get the
     // click.
-    if (state.game.pendingChoice && this.scene.isActive(SCENES.choice)) {
-      const inline = inlineInterruptFor(state.game.pendingChoice, state.perspectiveId);
-      if (inline) this.scene.bringToTop();
-      else this.scene.bringToTop(SCENES.choice);
-    }
+    this.#orderAgainstChoice();
 
     this.#draw();
+  }
+
+  /**
+   * Keeps the decision sheet and this walkthrough in the right order, checked
+   * every frame rather than only when the state changes.
+   *
+   * It used to run once per store update, and only "if the choice sheet is
+   * active". But the Board *launches* that sheet from the same store update,
+   * and Phaser starts a launched scene on the next frame — so whenever this
+   * scene's subscriber ran first, the sheet was not active yet, the claim was
+   * skipped, and nothing came along to retry it: the engine was now waiting on
+   * the very decision that sat, unreachable, underneath this screen until the
+   * player hit Skip. A per-frame check has no such window. It only moves a
+   * scene when the order is actually wrong, and it moves the sheet to *just
+   * above this one* rather than to the top, so an Inspect the player opened
+   * over the sheet stays over it.
+   */
+  #orderAgainstChoice(): void {
+    const state = this.#latest;
+    const choice = state?.game?.pendingChoice;
+    if (!state || !choice || !this.scene.isActive(SCENES.choice)) return;
+    const manager = this.scene.manager;
+    const mine = manager.getIndex(SCENES.villainPhase);
+    const theirs = manager.getIndex(SCENES.choice);
+    // The one decision this screen answers itself (see the class doc comment)
+    // keeps *this* screen on top, so its own buttons take the click.
+    const inline = inlineInterruptFor(choice, state.perspectiveId) !== null;
+    if (inline && mine < theirs) this.scene.moveAbove(SCENES.choice, SCENES.villainPhase);
+    else if (!inline && theirs < mine) this.scene.moveAbove(SCENES.villainPhase, SCENES.choice);
+  }
+
+  override update(): void {
+    this.#orderAgainstChoice();
   }
 
   #syncTiming(): void {
@@ -372,7 +411,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     const formFactor = formFactorFor(width, height);
     const phone = formFactor === "phone";
-    const layout = villainPhaseLayout({ x: 0, y: 0, width, height }, formFactor);
+    const reveal = revealOf(this.#walkthrough, this.#revealed);
+    const boostCount = reveal.current?.activation?.boosts.length ?? 0;
+    const layout = villainPhaseLayout({ x: 0, y: 0, width, height }, formFactor, boostCount);
 
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
@@ -381,8 +422,6 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     g.fillStyle(surface.ink.hex, 1).fillRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
     g.lineStyle(border.object, surface.paper.hex, 1);
     g.strokeRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
-
-    const reveal = revealOf(this.#walkthrough, this.#revealed);
 
     // Header: title, skip control.
     const title = this.add
@@ -420,7 +459,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       finished = this.#drawFooter(layout.footer, reveal);
     } else {
       this.#drawHappeningNow(layout.happeningNow, reveal, game, viewer);
-      this.#drawBoosts(layout.boosts, reveal.current?.activation ?? null, game, viewerId);
+      this.#drawBoosts(layout.boosts, reveal.current?.activation ?? null, game, viewerId, formFactor);
       this.#drawQueued(layout.queued, queuedActivationsOf(game, POOL_DEPS), game, viewer);
       this.#drawTeamStatus(layout.teamStatus, teamStatusOf(game, POOL_DEPS, activationTargetOf(reveal.current?.activation ?? null)), viewer);
       this.#drawMainScheme(layout.mainScheme, mainSchemeCalloutOf(game, POOL_DEPS));
@@ -581,28 +620,55 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     return 48;
   }
 
-  /** The boost cards this activation has revealed so far — face up, per `boostCardFlipped` (D11/L02). */
-  #drawBoosts(rect: Rect, activation: ActivationBeat | null, state: GameState, viewerId: PlayerId): void {
+  /**
+   * The boost cards this activation has revealed so far — face up, per
+   * `boostCardFlipped` (D11/L02): each card's own scan on the left
+   * (`view/villain-phase-boosts.ts` sizes it, as tall as the panel allows),
+   * the same name/icon-count/rules-text column the panel always had to its
+   * right, unchanged — the text stays for accessibility (colorblind-safe,
+   * readable without the scan, and the fallback when a scan is missing).
+   * Tapping or holding/right-clicking the art opens Inspect for that card,
+   * the table's usual card gesture (`ui/hold-target.ts`).
+   */
+  #drawBoosts(rect: Rect, activation: ActivationBeat | null, state: GameState, viewerId: PlayerId, formFactor: FormFactor): void {
     const boosts = activation?.boosts ?? [];
     if (boosts.length === 0 || rect.height <= 0) return;
 
-    const gap = 10;
-    const maxShown = Math.min(boosts.length, rect.width > 480 ? 3 : 2);
-    const cardWidth = (rect.width - gap * (maxShown - 1)) / maxShown;
+    const { slots, overflow } = boostCardsLayout(rect, boosts.length, formFactor);
 
-    boosts.slice(0, maxShown).forEach((boost, i) => {
-      const cardRect: Rect = { x: rect.x + i * (cardWidth + gap), y: rect.y, width: cardWidth, height: rect.height };
+    slots.forEach((slot, i) => {
+      const boost = boosts[i]!;
       const cg = this.add.graphics();
-      paintPanel(cg, cardRect, "card", "rest");
+      paintPanel(cg, slot.card, "card", "rest");
 
-      label(this, cardRect.x + 10, cardRect.y + 6, `BOOST CARD ${i + 1}`, typeRole.label, surface.ink.hex, ink.label);
+      if (slot.art.width > 0 && slot.art.height > 0) {
+        const artFill = this.add.graphics();
+        artFill.fillStyle(surface.parchment.hex, 1).fillRect(slot.art.x, slot.art.y, slot.art.width, slot.art.height);
+        const key = cardArt(this).request(this, artFor(cardOf(state, boost.instanceId), { kind: "front" }));
+        const art = drawArt(this, key, slot.art);
+        if (!art) {
+          this.add
+            .text(slot.art.x + slot.art.width / 2, slot.art.y + slot.art.height / 2, "no scan", textStyle(typeRole.label, surface.ink.hex, ink.meta))
+            .setOrigin(0.5);
+        }
+
+        const zone = this.add.zone(slot.art.x, slot.art.y, slot.art.width, slot.art.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        const openInspect = (): void => {
+          this.scene.launch(SCENES.inspect, { instanceId: boost.instanceId });
+        };
+        bindHoldTarget(this, zone, { key: boost.instanceId as string, onTap: openInspect, onInspect: openInspect });
+      }
+
+      if (slot.text.width <= 0) return;
+      const { x: textX, y: textY, width: textWidth } = slot.text;
+      label(this, textX, textY, `BOOST CARD ${i + 1}`, typeRole.label, surface.ink.hex, ink.label);
       const model = inspectModel(state, boost.instanceId, null, viewerId, POOL_DEPS);
       const nameText = this.add
-        .text(cardRect.x + 10, cardRect.y + 20, model.name.toUpperCase(), textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex))
+        .text(textX, textY + 14, model.name.toUpperCase(), textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex))
         .setOrigin(0, 0)
-        .setWordWrapWidth(cardRect.width - 20)
+        .setWordWrapWidth(textWidth)
         .setMaxLines(1);
-      fitText(nameText, cardRect.width - 20, 13);
+      fitText(nameText, textWidth, 13);
 
       const status =
         boost.cancelled === "icons"
@@ -611,20 +677,20 @@ export class VillainPhaseOverlay extends Phaser.Scene {
             ? `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"} · Boost ability cancelled.`
             : `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"}.`;
       const statusText = this.add
-        .text(cardRect.x + 10, cardRect.y + 20 + nameText.height + 2, status, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+        .text(textX, nameText.y + nameText.height + 2, status, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
         .setOrigin(0, 0)
-        .setWordWrapWidth(cardRect.width - 20)
+        .setWordWrapWidth(textWidth)
         .setMaxLines(1);
 
       this.add
-        .text(cardRect.x + 10, statusText.y + statusText.height + 2, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
+        .text(textX, statusText.y + statusText.height + 2, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
         .setOrigin(0, 0)
-        .setWordWrapWidth(cardRect.width - 20)
-        .setMaxLines(Math.max(0, Math.floor((cardRect.height - (statusText.y + statusText.height + 2 - cardRect.y)) / 14)));
+        .setWordWrapWidth(textWidth)
+        .setMaxLines(Math.max(0, Math.floor((slot.card.y + slot.card.height - (statusText.y + statusText.height + 2)) / 14)));
     });
 
-    if (boosts.length > maxShown) {
-      label(this, rect.x + rect.width - 70, rect.y + rect.height - 14, `+${boosts.length - maxShown} more`, typeRole.label, surface.ink.hex, ink.secondary);
+    if (overflow > 0) {
+      label(this, rect.x + rect.width - 70, rect.y + rect.height - 14, `+${overflow} more`, typeRole.label, surface.ink.hex, ink.secondary);
     }
   }
 

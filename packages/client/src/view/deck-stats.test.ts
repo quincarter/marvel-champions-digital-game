@@ -8,7 +8,7 @@ import {
   deckFromStarterDeck,
   type Deck,
 } from "@mc/content";
-import { compositionTilesOf, costCurveBars, deckListGroupsOf, deckStatsOf } from "./deck-stats.js";
+import { compositionTilesOf, costCurveBars, deckListGroupsOf, deckStatsOf, filterDeckListGroups } from "./deck-stats.js";
 
 const sumQuantities = (deck: Deck): number => deck.cards.reduce((total, entry) => total + entry.quantity, 0);
 
@@ -199,5 +199,39 @@ describe("deckListGroupsOf", () => {
     const groups = deckListGroupsOf(deck, WAVE1_CARDS);
     const invocationIds = new Set(["09032", "09033", "09034", "09035", "09036"].map((id) => cardId(id)));
     for (const group of groups) for (const entry of group.entries) expect(invocationIds.has(entry.cardId)).toBe(false);
+  });
+});
+
+describe("filterDeckListGroups: Deck check's own left-rail type filter chips", () => {
+  const starter = CORE_STARTER_DECKS[0]!;
+  const deck = deckFromStarterDeck(starter, "poolv1");
+  const groups = deckListGroupsOf(deck, CORE_CARDS);
+
+  test("null (\"All\") returns the groups unchanged", () => {
+    expect(filterDeckListGroups(groups, null)).toBe(groups);
+  });
+
+  test("a real type narrows every group to only that type, dropping groups left with nothing and recomputing each kept group's count", () => {
+    const filtered = filterDeckListGroups(groups, "ally");
+    expect(filtered.length).toBeGreaterThan(0);
+    for (const group of filtered) {
+      expect(group.entries.length).toBeGreaterThan(0);
+      for (const entry of group.entries) expect(entry.type).toBe("ally");
+      expect(group.count).toBe(group.entries.reduce((sum, e) => sum + e.quantity, 0));
+    }
+  });
+
+  test("a type absent from the deck returns no groups at all", () => {
+    // Every Core precon carries a resource; player_side_scheme is Core-absent (wave 1 only).
+    expect(filterDeckListGroups(groups, "player_side_scheme")).toEqual([]);
+  });
+
+  test("filtering never changes the total quantity across the filtered type vs. the unfiltered stats for that type", () => {
+    for (const type of ["ally", "event", "resource", "upgrade", "support"] as const) {
+      const filtered = filterDeckListGroups(groups, type);
+      const filteredTotal = filtered.reduce((sum, g) => sum + g.count, 0);
+      const stats = deckStatsOf(deck, CORE_CARDS);
+      expect(filteredTotal).toBe(stats.countsByType[type] ?? 0);
+    }
   });
 });

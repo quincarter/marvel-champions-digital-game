@@ -1,0 +1,198 @@
+{
+  "generatedAt": "2026-09-19T00:15:28.874Z",
+  "viewport": {
+    "width": 1600,
+    "height": 1200
+  },
+  "captures": [
+    {
+      "source": "Board - Long Table.dc.html",
+      "screenshot": "artifacts/design-screenshots/board-long-table.dc.png",
+      "screens": []
+    },
+    {
+      "source": "Board - Phone.dc.html",
+      "screenshot": "artifacts/design-screenshots/board-phone.dc.png",
+      "screens": []
+    },
+    {
+      "source": "Components.dc.html",
+      "screenshot": "artifacts/design-screenshots/components.dc.png",
+      "screens": []
+    },
+    {
+      "source": "Screens - Desktop.dc.html",
+      "screenshot": "artifacts/design-screenshots/screens-desktop.dc.png",
+      "screens": [
+        {
+          "label": "s01",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/01-s01.png"
+        },
+        {
+          "label": "s02",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/02-s02.png"
+        },
+        {
+          "label": "s03",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/03-s03.png"
+        },
+        {
+          "label": "s04",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/04-s04.png"
+        },
+        {
+          "label": "s05",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/05-s05.png"
+        },
+        {
+          "label": "s06",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/06-s06.png"
+        },
+        {
+          "label": "s08",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/07-s08.png"
+        },
+        {
+          "label": "s09",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/08-s09.png"
+        },
+        {
+          "label": "s10",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/09-s10.png"
+        },
+        {
+          "label": "s11",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/10-s11.png"
+        },
+        {
+          "label": "s12",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/11-s12.png"
+        },
+        {
+          "label": "s13",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/12-s13.png"
+        },
+        {
+          "label": "s14",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/13-s14.png"
+        },
+        {
+          "label": "14 Collection",
+          "screenshot": "artifacts/design-screenshots/individual/screens-desktop.dc/14-14-collection.png"
+        }
+      ]
+    },
+    {
+      "source": "Screens - Phone.dc.html",
+      "screenshot": "artifacts/design-screenshots/screens-phone.dc.png",
+      "screens": [
+        {
+          "label": "P01 Title",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/01-p01-title.png"
+        },
+        {
+          "label": "P02 Scenario",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/02-p02-scenario.png"
+        },
+        {
+          "label": "P03 Hero select",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/03-p03-hero-select.png"
+        },
+        {
+          "label": "P04 Deck check",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/04-p04-deck-check.png"
+        },
+        {
+          "label": "P05 Threat tab",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/05-p05-threat-tab.png"
+        },
+        {
+          "label": "P06 Enemies tab",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/06-p06-enemies-tab.png"
+        },
+        {
+          "label": "P07 Hand payment",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/07-p07-hand-payment.png"
+        },
+        {
+          "label": "P08 Team tab",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/08-p08-team-tab.png"
+        },
+        {
+          "label": "P09 Villain phase",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/09-p09-villain-phase.png"
+        },
+        {
+          "label": "P10 Log tab",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/10-p10-log-tab.png"
+        },
+        {
+          "label": "P11 Defeat",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/11-p11-defeat.png"
+        },
+        {
+          "label": "P12 Table setup",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/12-p12-table-setup.png"
+        },
+        {
+          "label": "P13 Setup mulligan",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/13-p13-setup-mulligan.png"
+        },
+        {
+          "label": "P14 Inspect card",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/14-p14-inspect-card.png"
+        },
+        {
+          "label": "P15 Defend prompt",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/15-p15-defend-prompt.png"
+        },
+        {
+          "label": "P16 Pause",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/16-p16-pause.png"
+        },
+        {
+          "label": "P17 Victory",
+          "screenshot": "artifacts/design-screenshots/individual/screens-phone.dc/17-p17-victory.png"
+        }
+      ]
+    },
+    {
+      "source": "Screens - Tablet.dc.html",
+      "screenshot": "artifacts/design-screenshots/screens-tablet.dc.png",
+      "screens": [
+        {
+          "label": "T01 Landscape table",
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/01-t01-landscape-table.png"
+        },
+        {
+          "label": "T02 Landscape villain phase",
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/02-t02-landscape-villain-phase.png"
+        },
+        {
+          "label": "T03 Portrait table",
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/03-t03-portrait-table.png"
+        },
+        {
+          "label": "T04 Portrait hero select",
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/04-t04-portrait-hero-select.png"
+        },
+        {
+          "label": "T05 Setup mulligan",
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/05-t05-setup-mulligan.png"
+        },
+        {
+          "label": "T06 Inspect and target",
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/06-t06-inspect-and-target.png"
+        },
+        {
+          "label": "T07 Pause",
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/07-t07-pause.png"
+        },
+        {
+          "label": "T08 Victory",
+          "screenshot": "artifacts/design-screenshots/individual/screens-tablet.dc/08-t08-victory.png"
+        }
+      ]
+    }
+  ]
+}

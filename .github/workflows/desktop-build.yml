@@ -1,0 +1,110 @@
+# Desktop builds for macOS, Linux and Windows 11.
+#
+# Tauri bundles with the host's own toolchain (Xcode, webkit2gtk, MSVC +
+# WebView2), so one machine cannot produce all three: each OS builds its own.
+# `bundle.targets: "all"` in src-tauri/tauri.conf.json then yields
+#   macOS    .app + .dmg, one universal binary (Apple silicon + Intel)
+#   Linux    .deb, .rpm and .AppImage (x86_64)
+#   Windows  .msi and an NSIS -setup.exe (x64). Windows 11 ships WebView2, and
+#            the installer fetches it on the rare machine that lacks it.
+#
+# Run it by hand from the Actions tab to get the installers as workflow
+# artifacts, or push a `v*` tag to also attach them to a draft GitHub release.
+#
+# Nothing here is code-signed. macOS will say the app is from an unidentified
+# developer (right-click > Open) and Windows SmartScreen will warn once;
+# signing needs an Apple Developer ID and a Windows certificate as secrets.
+name: Desktop build
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS (universal)
+            os: macos-latest
+            args: --target universal-apple-darwin
+            rust-targets: aarch64-apple-darwin,x86_64-apple-darwin
+          - name: Linux (x86_64)
+            # The oldest supported Ubuntu, so the AppImage and .deb run on
+            # older glibc too, not only on the newest distro.
+            os: ubuntu-22.04
+            args: ""
+            rust-targets: ""
+          - name: Windows 11 (x64)
+            os: windows-latest
+            args: ""
+            rust-targets: ""
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux build dependencies
+        if: startsWith(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf build-essential curl wget file libssl-dev libxdo-dev
+
+      # Reads the pnpm version from package.json's `packageManager`.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-targets }}
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: packages/client/src-tauri -> target
+
+      - run: pnpm install --frozen-lockfile
+
+      # The same gate a merge has to pass; a red suite never ships an installer.
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      # Runs `pnpm build` (tauri.conf.json's beforeBuildCommand: the Vite build,
+      # which copies the pool's card scans into dist/) and then bundles.
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: packages/client
+          args: ${{ matrix.args }}
+          # A release only for a tag; a manual run just uploads artifacts below.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/') && format('Marvel Champions {0}', github.ref_name) || '' }}
+          releaseDraft: true
+          prerelease: true
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: marvel-champions-${{ matrix.os }}
+          if-no-files-found: error
+          path: |
+            packages/client/src-tauri/target/**/release/bundle/dmg/*.dmg
+            packages/client/src-tauri/target/**/release/bundle/macos/*.app.tar.gz
+            packages/client/src-tauri/target/**/release/bundle/deb/*.deb
+            packages/client/src-tauri/target/**/release/bundle/rpm/*.rpm
+            packages/client/src-tauri/target/**/release/bundle/appimage/*.AppImage
+            packages/client/src-tauri/target/**/release/bundle/msi/*.msi
+            packages/client/src-tauri/target/**/release/bundle/nsis/*.exe

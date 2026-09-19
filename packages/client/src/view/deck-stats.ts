@@ -250,3 +250,19 @@ export function deckListGroupsOf(deck: Pick<Deck, "cards">, pool: CardPool): rea
     return { key, label, count: entries.reduce((sum, e) => sum + e.quantity, 0), entries };
   });
 }
+
+/**
+ * `groups` (`deckListGroupsOf`'s own output) narrowed to one `PlayerCardType` — Deck check's own left-rail type
+ * filter chips (D04's "ALL/ALLY/EVENT/UPGRADE/SUPPORT/RESOURCE"), which filter what the card *grid* shows without
+ * touching the deck itself. `null` returns `groups` unchanged ("All"). A group left with no entries after filtering
+ * is dropped entirely (an all-Aggression deck's "Basic" group has no allies to show under the Ally filter), and each
+ * kept group's own `count` is recomputed from the entries actually kept, so a group header never claims a quantity
+ * the filtered grid doesn't back up.
+ */
+export function filterDeckListGroups(groups: readonly DeckListGroup[], type: PlayerCardType | null): readonly DeckListGroup[] {
+  if (type === null) return groups;
+  return groups
+    .map((group) => ({ ...group, entries: group.entries.filter((entry) => entry.type === type) }))
+    .filter((group) => group.entries.length > 0)
+    .map((group) => ({ ...group, count: group.entries.reduce((sum, entry) => sum + entry.quantity, 0) }));
+}

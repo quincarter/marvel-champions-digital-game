@@ -12,6 +12,18 @@
 import type Phaser from "phaser";
 import { accent, border, font, ink, surface, type TypeSpec } from "../tokens.js";
 
+/**
+ * Bangers is a hand-lettered, slanted face — its rightmost glyphs (the tail of a
+ * cursive "T", the lean on "Y"/"D"/"N"…) draw past the metrics-reported advance
+ * width Phaser measures the text box from, so a right-aligned or tightly-fit
+ * container clips them ("READY", "EXHAUSTED", "DISCOUNT" losing their last
+ * glyph's right edge — found on the Rules overlay's Card list/Glossary tabs).
+ * A few px of right padding gives the slant somewhere to draw without changing
+ * the glyphs' own left-origin position (Phaser's text canvas only grows to the
+ * right when `padding.left` is 0, so origin-0 callers never shift).
+ */
+const BANGERS_RIGHT_PADDING = 6;
+
 /** The four states every control can be in. */
 export type WidgetState = "rest" | "hover" | "selected" | "unavailable";
 
@@ -149,6 +161,7 @@ export function textStyle(spec: TypeSpec, color: number, alpha = 1): Phaser.Type
     fontStyle: spec.weight === 400 ? "normal" : `${spec.weight}`,
     color: cssOf(color, alpha),
     resolution: textResolution,
+    ...(spec.family === font.display ? { padding: { right: BANGERS_RIGHT_PADDING } } : {}),
   };
 }
 

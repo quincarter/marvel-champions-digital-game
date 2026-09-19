@@ -54,7 +54,7 @@ import { McVariableList } from "../ui/variable-list.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry } from "../view/deck-pool-grid.js";
-import { glossaryCellRect, glossaryGridColumns, glossaryRowHeight, GLOSSARY_THUMB_CAPTION, GLOSSARY_THUMB_SIZE } from "../view/rules-glossary-grid.js";
+import { glossaryCellRect, glossaryGridColumns, glossaryRowHeights, GLOSSARY_THUMB_CAPTION, GLOSSARY_THUMB_SIZE } from "../view/rules-glossary-grid.js";
 import { rulesLayout, type RulesTab } from "../view/rules-layout.js";
 import { rulesGlossaryOf, rulesGlossaryPoolOf, villainPhaseOrder, type RulesCardRef, type RulesEntry, type VillainPhaseStep } from "../view/rules-reference.js";
 import { rulesCardListOf, type RulesCardListCard, type RulesCardListGroup } from "../view/rules-card-list.js";
@@ -80,6 +80,8 @@ const SET_HEADER_HEIGHT = 34;
 const SECTION_LABEL_HEIGHT = 26;
 /** Reserved at the bottom of the Villain phase tab for its own citation, outside the scrolling list. */
 const VILLAIN_PHASE_CITATION_HEIGHT = 24;
+/** The Card list grid's own left inset — matches `poolCellRect`'s cell-to-`cardRect` gutter (`cell.x + 4`) so a section label or set header lines up under the card art below it instead of starting flush under the list's outer border. */
+const CARD_LIST_INSET = 4;
 
 export type RulesScope = "table" | "all";
 
@@ -109,8 +111,13 @@ export class RulesOverlay extends Phaser.Scene {
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
 
-  #glossaryList: McVirtualList | null = null;
-  #glossaryScroll = new ListScroll();
+  // A `McVariableList`, not `McVirtualList`: rows are entry-card *grid rows*, and each needs only
+  // as much height as its own tallest cell (no thumbnail strip vs. one) — a plain `McVirtualList`
+  // draws every row at one uniform height, which meant every row on the tab was as tall as the
+  // single tallest entry anywhere on it (rules-glossary-grid.ts's own `glossaryRowHeights` doc
+  // comment).
+  #glossaryList: McVariableList | null = null;
+  #glossaryScroll = new VariableListScroll();
   #villainList: McVirtualList | null = null;
   #villainScroll = new ListScroll();
   #cardListList: McVariableList | null = null;
@@ -321,11 +328,11 @@ export class RulesOverlay extends Phaser.Scene {
     }
 
     const geometry = glossaryGridColumns(rect.width);
-    const rowHeight = glossaryRowHeight(
+    const heights = glossaryRowHeights(
       entries.map((entry) => ({ definition: entry.definition, cardRefCount: entry.cardRefs.length })),
+      geometry.columns,
       geometry.cellWidth,
     );
-    const rows = Math.ceil(entries.length / geometry.columns);
     const rowIds: string[] = [];
     for (const entry of entries) {
       const { shown } = glossaryThumbSlots(entry.cardRefs, glossaryTextWidth(geometry.cellWidth, isStatusEntry(entry.id)));
@@ -333,7 +340,7 @@ export class RulesOverlay extends Phaser.Scene {
     }
 
     const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow => this.#renderGlossaryRow(rowRect, geometry, entries, rowIndex, game);
-    this.#glossaryList = new McVirtualList(this, { rect, rowHeight, count: rows, renderRow, scroll: this.#glossaryScroll });
+    this.#glossaryList = new McVariableList(this, { rect, heights, renderRow, scroll: this.#glossaryScroll });
     const list = this.#glossaryList;
 
     entries.forEach((entry, entryIndex) => {
@@ -565,13 +572,29 @@ export class RulesOverlay extends Phaser.Scene {
   }
 
   #renderCardListSlot(rect: Rect, slot: CardListSlot, geometry: ReturnType<typeof poolGridGeometry>, game: GameState | null): VirtualListRow {
+    // Matches the grid cells' own left inset (`cardRect.x = cell.x + 4` below) so a header/label
+    // row's own text lines up under the card art's own left edge instead of starting flush under
+    // the list's outer border.
     if (slot.kind === "sectionLabel") {
-      return { objects: [label(this, rect.x, rect.y + rect.height / 2, slot.text, typeRole.label, surface.ink.hex, ink.secondary).setOrigin(0, 0.5).setFontSize(11)] };
+      return { objects: [label(this, rect.x + CARD_LIST_INSET, rect.y + rect.height / 2, slot.text, typeRole.label, surface.ink.hex, ink.secondary).setOrigin(0, 0.5).setFontSize(11)] };
     }
     if (slot.kind === "header") {
+      // Every object `sectionHeader` draws must land in this row's own `objects` — anything
+      // created straight off `scene.add.*` and not returned here is parented outside
+      // `McVariableList`'s row layer, the one thing that actually gets masked and repositioned by
+      // scroll (`ui/variable-list.ts`'s own doc comment) — a header drawn that way stays put while
+      // the grid rows around it scroll past.
       const objects: Phaser.GameObjects.GameObject[] = [];
-      const y = sectionHeader(this, rect.x, rect.y + 4, rect.width, `${slot.group.setName.toUpperCase()} · ${slot.group.cards.length} CARD${slot.group.cards.length === 1 ? "" : "S"}`);
-      void y;
+      sectionHeader(
+        this,
+        rect.x + CARD_LIST_INSET,
+        rect.y + 4,
+        rect.width - CARD_LIST_INSET * 2,
+        `${slot.group.setName.toUpperCase()} · ${slot.group.cards.length} CARD${slot.group.cards.length === 1 ? "" : "S"}`,
+        surface.ink.hex,
+        undefined,
+        objects,
+      );
       return { objects };
     }
 

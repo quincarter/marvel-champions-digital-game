@@ -28,7 +28,7 @@ import { ALL_PACKS, drillIntoPack, drillOut, type ShelfDrillState } from "../vie
 import { resultsHistoryOf, type ScenarioRecord } from "../view/results-history.js";
 import { setScenario, setScenarioFilter, clearScenarioFilter, type SetupDraft } from "../view/setup-draft.js";
 import { scenarioSelectFocusOrder } from "../view/screen-focus.js";
-import { scenarioSelectLayout, detailPanelWidthFor } from "../view/scenario-select-layout.js";
+import { DETAIL_COLLAPSED_HEIGHT, scenarioSelectLayout, detailPanelWidthFor } from "../view/scenario-select-layout.js";
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { appSession } from "../session.js";
@@ -52,6 +52,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
   #draft!: SetupDraft;
   #buttons: McButton[] = [];
   #stops = new Map<string, FocusStop>();
+  /** Whether the phone's stages panel is open. Shut by default: it is reading, not choosing, and it crowds a small screen. */
+  #stagesOpen = false;
   #searchInput: McTextInput | null = null;
   #roster: McShelfRoster<Scenario> | null = null;
   #grid: McVirtualList | null = null;
@@ -170,7 +172,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // per-string budget clipped a long line against a ~300px side panel.
     const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
 
-    const layout = scenarioSelectLayout({ width, height, chipRows: packCompactChipsToRows(chipDefs, width).length, detailLines: 12 });
+    const layout = scenarioSelectLayout({ width, height, chipRows: packCompactChipsToRows(chipDefs, width).length, detailLines: 12, detailCollapsed: !this.#stagesOpen });
     const chipRows = packCompactChipsToRows(chipDefs, layout.chips.width);
 
     // Ground: paper body under a full-width ink header bar (docs/design-renders/ScreensDesktop_01-02.png).
@@ -266,7 +268,9 @@ export class ScenarioSelectScene extends Phaser.Scene {
     }
 
     // Stat strip (D02's own band below the roster): main scheme, starting threat, villain HP (stage I), encounter sets — the same `detail` the ink panel already computed, so the two can't disagree.
-    this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
+    // Zero-height while the phone's disclosure is shut — the strip folds away with the stages.
+    // (An open phone sheet draws the strip itself, over its own ground — see `#drawSidePanel`.)
+    if (layout.statStrip.height > 0 && !layout.detailOverlay) this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
 
     // The side panel (D02's own "SCENARIO STAGES" sidebar): a Bangers header, one outlined box per stage (bright at
     // the draft's current difficulty, dim otherwise), the played record, and the CTA pinned at the foot.
@@ -280,7 +284,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.#stops.set("next", { rect: layout.next, activate: next });
     label(this, layout.footer.x, layout.footer.y, "Step 1 of 4 · scenario", typeRole.label, surface.paper.hex, ink.label);
 
-    this.#route?.set(scenarioSelectFocusOrder({ scenarioIds: cardIds, scenarioChipIds: chipDefs.map((c) => c.id) }), this.#stops);
+    this.#route?.set(scenarioSelectFocusOrder({ scenarioIds: cardIds, scenarioChipIds: chipDefs.map((c) => c.id), stagesToggle: !layout.wide }), this.#stops);
   }
 
   /** Card size: ~300px wide (D02's own roughly-300px-wide art-dominant cards), tall enough to fill most of the shelf viewport's own height, capped so it doesn't run away on a very tall monitor. */
@@ -375,16 +379,50 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const rect = layout.detail;
     this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
     let y = rect.y + 16;
-    this.add.text(rect.x + 16, y, "Scenario stages", textStyle(typeRole.sectionHeader, surface.paper.hex));
-    y += 28;
+    if (layout.wide) {
+      this.add.text(rect.x + 16, y, "Scenario stages", textStyle(typeRole.sectionHeader, surface.paper.hex));
+      y += 28;
+    } else {
+      // On a phone the panel is a disclosure: its bar is the control, it starts shut, and open it is a sheet
+      // risen over the roster from that same bar (`view/scenario-select-layout.ts`). The bar names what is inside
+      // even when shut, so the stages are one tap away rather than gone.
+      const open = this.#stagesOpen;
+      const bar: Rect = { x: rect.x, y: rect.y + rect.height - DETAIL_COLLAPSED_HEIGHT, width: rect.width, height: DETAIL_COLLAPSED_HEIGHT };
+      if (open) {
+        // Swallows taps meant for the cards and chips the sheet is covering.
+        this.add.zone(rect.x, rect.y, rect.width, rect.height - bar.height).setOrigin(0, 0).setInteractive();
+        const rule = this.add.graphics();
+        rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(bar.x, bar.y, bar.x + bar.width, bar.y);
+      }
+      const [from, to] = this.#currentStageRange(detail);
+      const summary = `${detail.villainName.toUpperCase()} · STAGE ${roman(from)}${to > from ? `–${roman(to)}` : ""}`;
+      this.add.text(bar.x + 16, bar.y + bar.height / 2, "Scenario stages", textStyle(typeRole.sectionHeader, surface.paper.hex)).setOrigin(0, 0.5);
+      this.add.text(bar.x + bar.width - 16, bar.y + bar.height / 2, open ? "▾" : "▴", textStyle(typeRole.sectionHeader, surface.paper.hex)).setOrigin(1, 0.5);
+      if (!open) {
+        const hint = this.add.text(bar.x + bar.width - 40, bar.y + bar.height / 2, summary, textStyle(typeRole.label, surface.paper.hex, ink.label)).setOrigin(1, 0.5);
+        fitText(hint, bar.width - 40 - 170, typeRole.label.size);
+      }
+      const toggle = (): void => {
+        this.#stagesOpen = !this.#stagesOpen;
+        this.#rebuild();
+      };
+      this.add.zone(bar.x, bar.y, bar.width, bar.height).setOrigin(0, 0).setInteractive({ useHandCursor: true }).on("pointerup", toggle);
+      this.#stops.set("stages-toggle", { rect: bar, activate: toggle });
+      if (!open) return;
+      this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
+      y = layout.statStrip.y + layout.statStrip.height + 14;
+    }
     if (detail.otherVillainNames.length > 0) {
       const note = this.add.text(rect.x + 16, y, `+ ${detail.otherVillainNames.length} more: ${detail.otherVillainNames.join(", ")}`, textStyle(typeRole.label, surface.paper.hex, ink.label));
       note.setWordWrapWidth(rect.width - 32);
       y += note.height + 8;
     }
+    // Where the panel's own content has to stop: above the CTA on a wide layout, above its own bar on a phone sheet.
+    const contentBottom = layout.wide ? layout.next.y - 8 : rect.y + rect.height - DETAIL_COLLAPSED_HEIGHT - 8;
     const [rangeStart, rangeEnd] = this.#currentStageRange(detail);
     for (const stage of detail.stages) {
       const boxHeight = 44;
+      if (y + boxHeight > contentBottom) break;
       const current = stage.stageNumber >= rangeStart && stage.stageNumber <= rangeEnd;
       const box = this.add.graphics();
       box.lineStyle(current ? 2 : 1, surface.paper.hex, current ? 1 : ink.disabled).strokeRect(rect.x + 16, y, rect.width - 32, boxHeight);
@@ -394,6 +432,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       y += boxHeight + 8;
     }
     y += 8;
+    if (y + 40 > contentBottom) return;
     const rule = this.add.graphics();
     rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(rect.x + 16, y, rect.x + rect.width - 16, y);
     y += 12;
@@ -414,7 +453,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       { heading: "Recommended modular", value: detail.recommendedModularSetNames.join(", ") || "None." },
     ];
     for (const block of blocks) {
-      if (y > layout.next.y - 40) break;
+      if (y + 40 > contentBottom) break;
       label(this, rect.x + 16, y, block.heading, typeRole.label, surface.paper.hex, ink.label);
       y += 16;
       const value = this.add.text(rect.x + 16, y, block.value, textStyle(typeRole.body, surface.paper.hex));

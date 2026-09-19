@@ -1,5 +1,18 @@
 # Design reference: seeing the canvases
 
+## Start here: one PNG per screen
+
+`artifacts/design-screenshots/` (added 2026-09-18 by the owner; regenerate with `pnpm capture:screens`, i.e. `scripts/capture-design-screenshots.mjs`, which needs Playwright and Chrome) holds **one full PNG per design screen**, which beats stitching the overlapping tiles described further down:
+
+- `individual/screens-desktop.dc/NN-sNN.png` — D01–D14 (`01-s01` Title, `02-s02` Scenario select, `03-s03` Hero select, `04-s04` Deck check, `05-s05` Table setup, `06-s06` Setup deal & mulligan, then `s08`–`s14`; `14-14-collection` is Decks & Collection). There is no `s07`.
+- `individual/screens-phone.dc/NN-pNN-<name>.png` — P01–P17, named (`04-p04-deck-check`, `12-p12-table-setup`, `16-p16-pause`, …).
+- `individual/screens-tablet.dc/NN-tNN-<name>.png` — T01–T08.
+- `board-long-table.dc.png`, `board-phone.dc.png`, `components.dc.png` and the three `screens-*.dc.png` — each whole canvas as one tall image; `manifest.json` lists every capture.
+
+**The `Read` tool shows a PNG as an image.** Worktrees don't carry untracked files, so read these by absolute path from the main checkout. Open the screen you are building *before* writing layout code, and put your own screenshot beside it at the end.
+
+## The older tile renders
+
 The design canvases in `Marvel Champions game screens/` are `.dc.html` files driven by `support.js`. Nothing in an agent's toolset renders them, which is why past screen work matched the tokens and the widgets but not the *compositions* — the arrangement, grounds, proportions and hierarchy each screen actually has.
 
 `scripts/render-design-canvases.sh` renders every canvas to PNG tiles in `docs/design-renders/` (gitignored; run the script once per checkout, it takes about a minute and needs Google Chrome). Each tile is a viewport-sized capture (1600 or 2000 px wide, 1200 px tall) at 1100 px steps, so consecutive tiles overlap by 100 px. **The `Read` tool shows a PNG as an image.** Worktrees don't carry the renders, so read them by absolute path from the main checkout.
