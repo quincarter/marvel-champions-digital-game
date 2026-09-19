@@ -19,7 +19,8 @@
     "ios": "pnpm mobile:sync && cap run ios",
     "android": "pnpm mobile:sync && cap run android",
     "ios:open": "pnpm mobile:sync && cap open ios",
-    "android:open": "pnpm mobile:sync && cap open android"
+    "android:open": "pnpm mobile:sync && cap open android",
+    "android:build": "pnpm mobile:sync && cap build android --androidreleasetype APK --keystorepath ../../marvel-champions.keystore --keystorepass \"$ANDROID_KEYSTORE_PASSWORD\" --keystorealias marvel-champions --keystorealiaspass \"$ANDROID_KEY_PASSWORD\""
   },
   "dependencies": {
     "@capacitor/android": "^8.5.2",
@@ -39,6 +40,7 @@
   "devDependencies": {
     "@capacitor/cli": "^8.5.2",
     "@tauri-apps/cli": "^2.11.4",
+    "@types/node": "^22.20.2",
     "fake-indexeddb": "^6.2.5",
     "vite": "^8.3.0"
   }

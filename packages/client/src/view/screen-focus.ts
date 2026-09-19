@@ -156,26 +156,39 @@ export function deckBuilderFocusOrder(input: DeckBuilderFocusInput): readonly st
 }
 
 export interface DeckCheckFocusInput {
-  /** Which of the three tabs is showing — only that tab's own content stops appear (`cardIds` below). */
-  readonly activeTab: "curve" | "cards" | "aspect";
-  /** Every row in the Cards tab's deck list, in list order — only relevant (and only present) while that tab is active. */
+  /**
+   * Wide (desktop/tabletLandscape, docs/phase4-screen-gaps.md §3 2026-09-18 rebuild): both the card grid and the
+   * analysis panel are on screen at once, so the route reaches the grid directly with no tab to select it — there
+   * is no `activeTab` in this mode. Narrow: exactly one of the Curve/Cards/Aspect tabs is showing, and only its own
+   * rows contribute stops, the same tab-scoped pattern `decksFocusOrder` already uses for its own narrow mode.
+   */
+  readonly wide: boolean;
+  /** Narrow only: which of the three tabs is showing. Ignored (and optional) in wide mode. */
+  readonly activeTab?: "curve" | "cards" | "aspect";
+  /** Every card in the deck's own grid, in group-then-name order — wide always (already narrowed by `filterChipIds`, when one is selected), narrow only while the Cards tab is active. */
   readonly cardIds: readonly string[];
+  /** Wide only: the left rail's type filter chip ids (D04's "ALL/ALLY/EVENT/UPGRADE/SUPPORT/RESOURCE"), between Back and the grid. */
+  readonly filterChipIds?: readonly string[];
 }
 
 /**
- * Deck check (W1): Back, the three tabs, the active tab's own rows (today
- * only the Cards tab has any — Curve and Aspect are read-only panels), Edit
- * deck, then Start game — drawn unavailable with its reason until W2 wires a
- * setup flow to hand the finished game off to, but still a real stop so that
- * reason can be read (the "dashed = not yet real" rule, docs/phase4-screen-gaps.md §0).
+ * Deck check (W1; rebuilt 2026-09-18 for the owner's fidelity note, then again the same day once D04's own
+ * screenshot showed this is the deck *builder*'s own three-column composition, read-only — see
+ * `view/deck-check-layout.ts`'s own doc comment): Back, then wide — the rail's own filter chips (the aspect tiles
+ * are read-only, so they contribute no stops), then every card in the grid directly, no tab needed — or narrow —
+ * the three tabs, then whichever one is active's own rows (only the Cards tab has any; Curve and Aspect are
+ * read-only panels) — then Edit deck, then Start game ▸, still a real stop even drawn unavailable so its reason can
+ * be read (the "dashed = not yet real" rule, docs/phase4-screen-gaps.md §0).
  */
 export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string[] {
+  const cardStops = input.cardIds.map((id) => `card:${id}`);
+  if (input.wide) return ["back", ...(input.filterChipIds ?? []).map((id) => `filter:${id}`), ...cardStops, "edit-deck", "start"];
   return [
     "back",
     "tab:curve",
     "tab:cards",
     "tab:aspect",
-    ...(input.activeTab === "cards" ? input.cardIds.map((id) => `card:${id}`) : []),
+    ...(input.activeTab === "cards" ? cardStops : []),
     "edit-deck",
     "start",
   ];
@@ -199,28 +212,57 @@ export function villainPhaseFocusOrder(finished: boolean, interruptOptionIds: re
 }
 
 /**
- * Pause (docs/phase4-screen-gaps.md §3 "W4"; fidelity pass 2026-09-17, matching
- * D13/P16/L07's overlay sheet): the boxed ✕ first (top of the title bar, reads
- * before anything else), then the search field, the "Quick reference" rows
- * (Villain phase order / Keyword glossary / Scenario card list / Jump into the
- * log — the last dashed-unavailable until S7's read-only board lands), then the
- * "Table" rows (the same shared list `scenes/settings.ts` draws), then the
- * footer's three buttons in the order the sheet draws them left to right —
- * Save & quit, Concede, Resume. When the concede confirm is open, its own two
- * controls replace those three so Enter can't fire Resume or a stray Concede
- * tap by accident mid-confirm.
+ * Pause (docs/phase4-screen-gaps.md §3 "W4"; owner decision 2026-09-18 — see
+ * `view/pause-layout.ts`'s own header). Two shapes, matching the layout's own
+ * `kind`:
+ *
+ * - **Wide** (desktop and tablet, D13): the left menu top to bottom — Resume,
+ *   Full game log, Rules reference, Settings, then Concede pinned at the
+ *   panel's own foot (or, while the concede confirm is open, its own Yes/
+ *   Cancel pair in Concede's place) — then the keyword/status cards in the
+ *   right panel's own grid order. There is no ✕ on this shape (D13 has none;
+ *   Escape and Resume both close it) and no search field (search lives in the
+ *   full Rules Reference overlay this screen's own "Rules reference" button
+ *   opens).
+ * - **Phone** (P16): the boxed ✕ first (top of the title bar, reads before
+ *   anything else), then the search field, the "Quick reference" rows, the
+ *   "Table" rows (the same shared list `scenes/settings.ts` draws), then the
+ *   footer — Resume, Save & quit, Concede (or, while confirming, its own two
+ *   controls in their place, so Enter can't fire Resume or a stray Concede tap
+ *   by accident mid-confirm).
  */
-export function pauseFocusOrder(input: {
-  readonly quickReferenceIds: readonly string[];
-  readonly tableRowIds: readonly string[];
-  readonly confirmingConcede: boolean;
-}): readonly string[] {
+export type PauseFocusInput =
+  | {
+      readonly kind: "wide";
+      /** The keyword/status cards actually shown (`PauseKeywordGrid.shown`'s own count), in grid order. */
+      readonly keywordIds: readonly string[];
+      readonly confirmingConcede: boolean;
+    }
+  | {
+      readonly kind: "phone";
+      readonly quickReferenceIds: readonly string[];
+      readonly tableRowIds: readonly string[];
+      readonly confirmingConcede: boolean;
+    };
+
+export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
+  if (input.kind === "wide") {
+    return [
+      "resume",
+      "full-game-log",
+      "rules-reference",
+      "settings",
+      "save-quit",
+      ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
+      ...input.keywordIds.map((id) => `keyword:${id}`),
+    ];
+  }
   return [
     "close",
     "search",
     ...input.quickReferenceIds.map((id) => `quick:${id}`),
     ...input.tableRowIds.map((id) => `table:${id}`),
-    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["save-quit", "concede", "resume"]),
+    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["resume", "save-quit", "concede"]),
   ];
 }
 
@@ -272,6 +314,8 @@ export interface ScenarioSelectFocusInput {
    */
   readonly scenarioIds: readonly string[];
   readonly scenarioChipIds?: readonly string[];
+  /** True on a narrow layout, where the stages panel is a disclosure with a bar to toggle. */
+  readonly stagesToggle?: boolean;
 }
 
 /** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
@@ -281,6 +325,8 @@ export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): reado
     "scenario-search",
     ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
     ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
+    // The phone's collapsible stages panel (absent on a wide layout, where the panel is always open).
+    ...(input.stagesToggle ? ["stages-toggle"] : []),
     "next",
   ];
 }
@@ -306,8 +352,8 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
     "hero-search",
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
     ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),
-    "play",
     "deck-check",
+    "play",
   ];
 }
 

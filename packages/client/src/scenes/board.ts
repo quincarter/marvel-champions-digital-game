@@ -130,6 +130,7 @@ export class BoardScene extends Phaser.Scene {
     // starts over here. The log didn't, and a rematch was dealt under the
     // previous game's "The villain is defeated. You win."
     this.#log = emptyLog();
+    appSession().gameLog = this.#log;
     this.#logPanel.reset();
     this.#version = -1;
     this.#tabBadges.clear();
@@ -220,6 +221,8 @@ export class BoardScene extends Phaser.Scene {
       if (this.#log.round === 0) this.#log = { ...this.#log, round: state.game.round };
       this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId, POOL_DEPS);
       this.#cardHistory = appendCardHistory(this.#cardHistory, state.lastEvents);
+      // Mirrored for Pause's "Jump to a moment" (`session.ts`'s own doc comment on `gameLog`).
+      appSession().gameLog = this.#log;
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
       // A hero going down is the one change nobody may miss. The last one

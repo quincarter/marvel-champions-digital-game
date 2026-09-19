@@ -56,9 +56,10 @@
  * narrates, and shows the same "Auto-advance paused ..." label the choice
  * sheet also has available (`decisionLabel`/`pauseFor` share their
  * reasoning). Whenever a `pendingChoice` is open and `ChoiceOverlay` is
- * running, this scene calls `this.scene.bringToTop(SCENES.choice)` on every
- * state update, so the thing the player must act on is never hidden behind
- * the thing that's just narrating.
+ * running, this scene keeps the choice sheet ordered above itself (checked
+ * every frame — see `#orderAgainstChoice` for why a per-update check was not
+ * enough), so the thing the player must act on is never hidden behind the
+ * thing that's just narrating.
  *
  * The one exception is the inline interrupt window (D11/P09/L02,
  * `inlineInterruptFor`): when the open choice is the viewer's own
@@ -312,13 +313,42 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // (see the class doc comment), where this screen stays on top instead so
     // its own "Play"/"Let it resolve" controls are the ones that get the
     // click.
-    if (state.game.pendingChoice && this.scene.isActive(SCENES.choice)) {
-      const inline = inlineInterruptFor(state.game.pendingChoice, state.perspectiveId);
-      if (inline) this.scene.bringToTop();
-      else this.scene.bringToTop(SCENES.choice);
-    }
+    this.#orderAgainstChoice();
 
     this.#draw();
+  }
+
+  /**
+   * Keeps the decision sheet and this walkthrough in the right order, checked
+   * every frame rather than only when the state changes.
+   *
+   * It used to run once per store update, and only "if the choice sheet is
+   * active". But the Board *launches* that sheet from the same store update,
+   * and Phaser starts a launched scene on the next frame — so whenever this
+   * scene's subscriber ran first, the sheet was not active yet, the claim was
+   * skipped, and nothing came along to retry it: the engine was now waiting on
+   * the very decision that sat, unreachable, underneath this screen until the
+   * player hit Skip. A per-frame check has no such window. It only moves a
+   * scene when the order is actually wrong, and it moves the sheet to *just
+   * above this one* rather than to the top, so an Inspect the player opened
+   * over the sheet stays over it.
+   */
+  #orderAgainstChoice(): void {
+    const state = this.#latest;
+    const choice = state?.game?.pendingChoice;
+    if (!state || !choice || !this.scene.isActive(SCENES.choice)) return;
+    const manager = this.scene.manager;
+    const mine = manager.getIndex(SCENES.villainPhase);
+    const theirs = manager.getIndex(SCENES.choice);
+    // The one decision this screen answers itself (see the class doc comment)
+    // keeps *this* screen on top, so its own buttons take the click.
+    const inline = inlineInterruptFor(choice, state.perspectiveId) !== null;
+    if (inline && mine < theirs) this.scene.moveAbove(SCENES.choice, SCENES.villainPhase);
+    else if (!inline && theirs < mine) this.scene.moveAbove(SCENES.villainPhase, SCENES.choice);
+  }
+
+  override update(): void {
+    this.#orderAgainstChoice();
   }
 
   #syncTiming(): void {

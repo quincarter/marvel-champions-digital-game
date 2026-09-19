@@ -23,6 +23,16 @@ describe("encounterDeckPreviewOf: a Core scenario (Rhino)", () => {
     for (const bucket of deck.bySet) expect(bucket.setName).not.toBe(bucket.setId);
   });
 
+  test("surgeCount counts only cards actually carrying the surge keyword, and never exceeds the deck total", () => {
+    const deck = preview.decks[0]!;
+    const bySurgeKeyword = config.encounterDeck.filter((id) => {
+      const card = CORE_CARDS.find((c) => c.id === id);
+      return card && "keywords" in card && card.keywords.some((k) => k.name === "surge");
+    }).length;
+    expect(deck.surgeCount).toBe(bySurgeKeyword);
+    expect(deck.surgeCount).toBeLessThanOrEqual(deck.totalCards);
+  });
+
   test("includes Rhino's own set, the recommended modular (Bomb Scare, since none was chosen) and the standard set", () => {
     const deck = preview.decks[0]!;
     const setIds = deck.bySet.map((b) => b.setId);
@@ -49,6 +59,20 @@ describe("encounterDeckPreviewOf: a Core scenario (Rhino)", () => {
     expect(twoPlayerPreview.obligationsShuffledIn).toHaveLength(2);
     expect(twoPlayerPreview.nemesisSetsHeldBack).toHaveLength(2);
     expect(twoPlayerPreview.obligationsShuffledIn.map((o) => o.heroName).sort()).toEqual(["Black Panther", "Spider-Man"]);
+  });
+});
+
+describe("encounterDeckPreviewOf: surgeCount on a deck that actually has surge cards (Klaw's own set)", () => {
+  test("Klaw's deck reports a positive surge count matching a manual keyword count", () => {
+    const config = coreScenario("klaw", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 3 });
+    const preview = encounterDeckPreviewOf(config, CORE_CARDS, CORE_ENCOUNTER_SETS);
+    const deck = preview.decks[0]!;
+    const bySurgeKeyword = config.encounterDeck.filter((id) => {
+      const card = CORE_CARDS.find((c) => c.id === id);
+      return card && "keywords" in card && card.keywords.some((k) => k.name === "surge");
+    }).length;
+    expect(deck.surgeCount).toBe(bySurgeKeyword);
+    expect(deck.surgeCount).toBeGreaterThan(0);
   });
 });
 

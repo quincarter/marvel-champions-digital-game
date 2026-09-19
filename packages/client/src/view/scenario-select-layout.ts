@@ -40,6 +40,8 @@ export const DETAIL_WIDTH = 300;
 const SHELVES_MIN_HEIGHT = 160;
 /** The small uppercase line under the CTA, inside the detail panel's own foot. */
 export const FOOTER_HEIGHT = 18;
+/** The collapsed stages panel: a header bar, and a touch target. */
+export const DETAIL_COLLAPSED_HEIGHT = hit.target;
 
 export interface ScenarioSelectLayoutInput {
   readonly width: number;
@@ -47,6 +49,13 @@ export interface ScenarioSelectLayoutInput {
   readonly chipRows: number;
   /** How many text lines the detail panel needs for the currently selected scenario (`view/scenario-detail.ts`). */
   readonly detailLines: number;
+  /**
+   * Narrow layouts only: the stages panel folded down to its own header bar. It is the screen's one block of
+   * pure reading, and at full height it left an iPhone SE (375×667) a sliver of a scenario card to choose from —
+   * so on a phone it starts collapsed and the player opens it when they want it. Ignored on a wide layout, where
+   * the panel is a side column and costs the shelves nothing.
+   */
+  readonly detailCollapsed?: boolean;
 }
 
 export interface ScenarioSelectLayout {
@@ -67,6 +76,11 @@ export interface ScenarioSelectLayout {
   readonly next: Rect;
   /** The small uppercase caption under the CTA, inside the detail panel. */
   readonly footer: Rect;
+  /**
+   * Narrow and open: `detail` is a sheet risen over `chips` and `shelves` from its own bar (which stays put at its
+   * foot), with `statStrip` inside it. The roster underneath keeps its shut geometry and is simply covered.
+   */
+  readonly detailOverlay: boolean;
 }
 
 /**
@@ -75,6 +89,8 @@ export interface ScenarioSelectLayout {
  * guaranteed clear by construction.
  */
 export function scenarioSelectLayoutRects(layout: ScenarioSelectLayout): readonly Rect[] {
+  // An open phone sheet covers the chips and shelves on purpose, and holds the stat strip inside itself.
+  if (layout.detailOverlay) return [layout.back, layout.step, layout.search, layout.detail];
   return [layout.back, layout.step, layout.search, layout.chips, layout.shelves, layout.statStrip, layout.detail];
 }
 
@@ -129,21 +145,28 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
     const detail: Rect = { x: left + shelvesWidth + gap, y: bodyTop, width: detailWidth, height: detailHeight };
     const next: Rect = { x: detail.x + 16, y: detail.y + detail.height - 16 - ctaBlockHeight, width: detail.width - 32, height: hit.primary };
     const footer: Rect = { x: next.x, y: next.y + next.height + 4, width: next.width, height: FOOTER_HEIGHT };
-    return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail, next, footer };
+    return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail, next, footer, detailOverlay: false };
   }
 
-  // The detail block's own height is clamped so `shelves` can never be squeezed below `SHELVES_MIN_HEIGHT` by a
-  // long detail — otherwise (an oversized `detailLines`, or simply a short viewport) `shelves` clamping to its own
-  // minimum left `statStrip`/`detail` positioned as if it hadn't, overlapping it.
-  const rawDetailHeight = Math.max(DETAIL_LINE_HEIGHT, input.detailLines * DETAIL_LINE_HEIGHT) + 16;
-  const reservedAroundDetail = SHELVES_MIN_HEIGHT + gap + statStripHeight + gap + FOOTER_HEIGHT + 4 + hit.primary;
-  const maxDetailHeight = Math.max(DETAIL_LINE_HEIGHT + 16, bodyBottom - y - reservedAroundDetail);
-  const detailHeight = Math.min(rawDetailHeight, maxDetailHeight);
+  // Narrow: the stages panel is a disclosure (`detailCollapsed`). The roster is always laid out as if it were
+  // shut — one bar between the shelves and the CTA — because that is the only arrangement that leaves a phone
+  // room to choose from: open inline, the panel and the two-row stat strip left an iPhone SE (375×667) a sliver
+  // of one scenario card. Open, the panel instead rises *over* the chips and shelves from that same bar, which
+  // stays where it was at the sheet's foot, so opening and closing never moves the thing you tapped.
   const next: Rect = { x: left, y: bodyBottom - hit.primary, width: detailWidth, height: hit.primary };
   const footer: Rect = { x: left, y: next.y - FOOTER_HEIGHT - 4, width: detailWidth, height: FOOTER_HEIGHT };
-  const detail: Rect = { x: left, y: footer.y - gap - detailHeight, width: detailWidth, height: detailHeight };
-  const statStrip: Rect = { x: left, y: detail.y - gap - statStripHeight, width: detailWidth, height: statStripHeight };
-  const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, statStrip.y - gap - y);
+  const bar: Rect = { x: left, y: footer.y - gap - DETAIL_COLLAPSED_HEIGHT, width: detailWidth, height: DETAIL_COLLAPSED_HEIGHT };
+  const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, bar.y - gap - y);
   const shelves: Rect = { x: left, y, width: shelvesWidth, height: shelvesHeight };
-  return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail, next, footer };
+  if (input.detailCollapsed) {
+    const statStrip: Rect = { x: left, y: bar.y, width: detailWidth, height: 0 };
+    return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail: bar, next, footer, detailOverlay: false };
+  }
+  // A few pixels above the chips: their borders are stroked *around* their rects, and a sheet that starts flush
+  // with them leaves those strokes poking out of its top edge.
+  const sheetTop = chips.y - 4;
+  // …and the same few pixels either side, for the chips' and cards' left and right strokes.
+  const detail: Rect = { x: left - 4, y: sheetTop, width: detailWidth + 8, height: bar.y + bar.height - sheetTop };
+  const statStrip: Rect = { x: left + 12, y: sheetTop + 12, width: detailWidth - 24, height: statStripHeight };
+  return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail, next, footer, detailOverlay: true };
 }

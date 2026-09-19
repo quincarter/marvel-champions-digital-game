@@ -12,11 +12,26 @@ import type { EngineHost } from "./engine/host.js";
 import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
+import { emptyLog, type LogState } from "./view/log-lines.js";
 
 export interface AppSession {
   readonly host: EngineHost;
   readonly store: SessionStore;
   settings: Settings;
+  /**
+   * The current game's log, for any scene that needs its history rather than
+   * just the latest command's `lastEvents` — Pause's "Jump to a moment"
+   * (`scenes/pause.ts`) is the first caller. `scenes/board.ts` is the sole
+   * writer: it already folds every command onto its own `#log` field to
+   * drive the on-table log panel, and mirrors that same fold here so a
+   * second scene doesn't have to reach into the Board's own instance (an
+   * overlay reads state, never another scene's internals) or re-run
+   * `appendEvents` a second time over the same events. Reset to `emptyLog()`
+   * whenever the Board's own `create()` starts a fresh game, for the same
+   * reason its own `#log` resets there ("Run it back"/"Continue" reuse one
+   * Phaser scene instance across games).
+   */
+  gameLog: LogState;
 }
 
 let session: AppSession | null = null;
@@ -24,7 +39,7 @@ let session: AppSession | null = null;
 export function appSession(): AppSession {
   if (!session) {
     const host = createEngineHost();
-    session = { host, store: new SessionStore(host), settings: defaultSettings() };
+    session = { host, store: new SessionStore(host), settings: defaultSettings(), gameLog: emptyLog() };
   }
   return session;
 }

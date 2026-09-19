@@ -592,6 +592,7 @@ export class RulesOverlay extends Phaser.Scene {
         rect.width - CARD_LIST_INSET * 2,
         `${slot.group.setName.toUpperCase()} · ${slot.group.cards.length} CARD${slot.group.cards.length === 1 ? "" : "S"}`,
         surface.ink.hex,
+        undefined,
         objects,
       );
       return { objects };
