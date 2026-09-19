@@ -202,9 +202,9 @@ describe("screen focus routes", () => {
     ]);
   });
 
-  test("Deck check: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
-    expect(deckCheckFocusOrder({ activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
-    expect(deckCheckFocusOrder({ activeTab: "cards", cardIds: ["c1", "c2"] })).toEqual([
+  test("Deck check narrow: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "cards", cardIds: ["c1", "c2"] })).toEqual([
       "back",
       "tab:curve",
       "tab:cards",
@@ -214,7 +214,23 @@ describe("screen focus routes", () => {
       "edit-deck",
       "start",
     ]);
-    expect(deckCheckFocusOrder({ activeTab: "aspect", cardIds: ["c1"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "aspect", cardIds: ["c1"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
+  });
+
+  test("Deck check wide: Back, every card in the grid directly (no tabs), Edit deck, and Start", () => {
+    expect(deckCheckFocusOrder({ wide: true, cardIds: ["c1", "c2"] })).toEqual(["back", "card:c1", "card:c2", "edit-deck", "start"]);
+  });
+
+  test("Deck check wide: the rail's own type filter chips come between Back and the grid", () => {
+    expect(deckCheckFocusOrder({ wide: true, cardIds: ["c1"], filterChipIds: ["all", "ally", "event"] })).toEqual([
+      "back",
+      "filter:all",
+      "filter:ally",
+      "filter:event",
+      "card:c1",
+      "edit-deck",
+      "start",
+    ]);
   });
 
   test("the walkthrough offers Continue first once the phase is over", () => {
