@@ -511,6 +511,19 @@ export const on = {
   cardReadying: (what: Who): EventPattern => pattern("cardReadying", asTarget(what)),
   /** "When boost icons on an encounter card would be counted" (Chaos Control, Crest; docs/phase7-wave2.md §3.6). */
   boostIconsCounted: (): EventPattern => pattern("boostIconsCounting", {}),
+  /**
+   * "When/After you spend this card [to play X]" (docs/phase7-wave2.md §12) — a card spent from hand as a resource.
+   * `toPlay` narrows it to paying for a card being played that matches ("to play an Attack event", "to play an
+   * ally"); an ability's cost or an effect's "spend X resources" never matches it. Works from the discard pile: the
+   * engine keeps the spent card's own ability on this event live while it resolves (RRG 1.8 "Resource Card", p. 37).
+   * "For a player" / "that player" is `PlayerRef { kind: "eventPlayer" }`.
+   */
+  youSpendThis: (opts: { readonly toPlay?: TargetQuery } = {}): EventPattern =>
+    pattern(
+      "resourcesSpent",
+      { selfIs: "source", playerIs: "controller" },
+      opts.toPlay ? { targetIs: opts.toPlay, eventIs: { purpose: "playCard" } } : {},
+    ),
 } as const;
 
 /** Interrupt wording: `heroInterrupt(when.villainAttacks({ againstYou: true }), …)`. */

@@ -1447,3 +1447,90 @@ because the question is not "which field is missing" but *what a hero-owned enco
 player card that happens to be revealed, a scenario-specific card owned by an identity (§1.4's `specificTo` is the
 nearest existing idea), or a third thing needing its own setup step like `IdentitySeparateDeck`. Guessing a shape
 here would cost more to undo than to wait: it needs the Hercules rulebook, which is not in the repo.
+
+---
+
+## 12. "After you spend this card": the `resourcesSpent` trigger event (owner: `game-rules-architect`; landed 2026-09-19)
+
+"Hero Response: After you spend this card, heal 2 damage from your hero if you are in Giant hero form or draw 1 card
+if you are in Tiny hero form." (Pym Particles, `ant` 12006 / `wsp` 13007.) The same trigger is on Audacity (`valk`
+25021), Everyday Hero (`nova` 28019), Preservation (`vision` 26021), Innovation (`warm` 23021), Stroke of Genius
+(`ironheart` 29009) and Determination (`nebu` 22016). The interrupt form "When you spend this card [to play X]" is on
+Effective Leadership (`cyclops` 33018), Molecular Acceleration and Passion for Justice (`gambit` 37010, 37016),
+Defensive Energy (`rogue` 38017), Aggressive Energy (`wolv` 35020) and Energy Siphon (`wonder_man` 58006). Tests:
+`packages/engine/src/spend-trigger.test.ts` (6 tests).
+
+### 12.1 The shape
+
+**`TriggerEventBody { kind: "resourcesSpent" }`.** One event per payment. It lists every card that payment
+discarded from hand:
+
+```ts
+{
+  kind: "resourcesSpent";
+  cardInstanceIds: readonly InstanceId[];   // the cards spent from hand, in payment order — the event's *sources*
+  playerId: PlayerId;                       // whose hand they came from: "you"
+  forPlayerId: PlayerId;                    // whose cost they paid: "for a player" / "that player" (`eventPlayer`)
+  payingForInstanceId: InstanceId | null;   // the card played, or the card whose ability's cost was paid
+  purpose: "playCard" | "ability" | "effect";
+}
+```
+
+**DSL (`@mc/cards`): `on.youSpendThis(opts?)`**, usable as `when.` (interrupt) or `after.` (response):
+
+```ts
+// "Hero Response: After you spend this card, deal 1 damage to the villain." (Audacity 25021)
+heroResponse(after.youSpendThis(), dealDamage(1, theVillain))
+// "Interrupt: When you spend this card to play an ally, that ally gets +1 THW and +1 ATK until the end of the phase."
+// (Effective Leadership 33018): the played card is the event's target, so "that ally" is `eventTarget`.
+interrupt(when.youSpendThis({ toPlay: { categories: ["ally"] } }), modifyStat("thw", 1, eventTarget, "endOfPhase"), …)
+// "Hero Interrupt: When you spend this card to play an [Attack] event, that event deals 1 additional damage."
+// (Aggressive Energy 35020; Passion for Justice's THWART version uses `threatRemoved`)
+{ kind: "modifyCardEffect", card: { kind: "eventTarget" }, damage: { kind: "const", value: 1 } }
+```
+
+`youSpendThis()` compiles to `{ on: "resourcesSpent", selfIs: "source", playerIs: "controller" }`. `toPlay` adds
+`targetIs: <query>` and `eventIs: { purpose: "playCard" }`. The target is the played card **only** when
+`purpose` is `playCard`, so "to play an ally" cannot match the cost of an ally's own ability. The Aggressive Energy
+shape is pinned by a test: the bonus lands on the event before it commences being played, so its damage is 3, not 2.
+
+### 12.2 The two rules calls, both settled by the RRG
+
+1. **When it resolves: between paying and playing. Settled; followed.** RRG 1.8 "Initiating Abilities" (p. 24) pays
+   costs in step 5, and "the card commences being played" in step 6. "Cost Arrow Icon" (p. 14): "Responses to the text
+   preceding the cost arrow icon resolve before the text following the icon resolves." The ruling of Feb 28, 2026 (1)
+   generalizes this to any cost: "Any abilities triggered by paying a cost resolve immediately before the effect
+   following the arrow resolves." So every path that spends
+   (`playCard`, `useAbility`, basic-power costs, events and abilities paid inside a window, `playFromHand` with
+   `costReduction`, the `spendResources` effect) pushes the event **after** the frame it paid for, so the event
+   resolves first. `payPayment` now returns the cards it spent, and the caller passes them to
+   `announceResourcesSpent` once its own frame is pushed. Nothing is stashed in state. A payment no ability reacts to
+   pushes no event (`heard`), so every existing log is byte-identical.
+2. **Where the ability lives: the discard pile, for this event only. Settled; followed.** The card is discarded by
+   the time anything can respond, and the trigger scan only reads cards in play. RRG 1.8 "Resource Card" (p. 37) says
+   "Some resource cards have card text that is active while using the card to generate resources", and a spent
+   resource "is also considered to be spent by that player's identity". So while a `resourcesSpent` event resolves,
+   `spentCardCandidates` (`resolve/triggers.ts`) offers each spent card's own abilities on that event, and only those.
+   The ability must be `selfIs: "source"` on `resourcesSpent`, and the spender controls it. Nothing else on a card in
+   the discard pile comes alive.
+
+**One event per payment, not one per card**, so that two spent cards' responses share one window and their controller
+picks the order. RRG 1.8 "Response" (p. 38): responses to triggering conditions caused by one effect "can be resolved
+in any order". One event per card would have fixed that order by payment order.
+
+### 12.3 What it does not do (recorded, not guessed)
+
+- **The interrupt window runs after the discard.** All costs are paid at once (RRG 1.8 "Cost", p. 13), and the
+  event is pushed once they are. Every "When you spend this card" interrupt in the pool (bonus damage/threat on
+  that event, stat boosts on that ally, draw a card, place a counter) reads the same either way. **Energy Siphon
+  (58006)** is the exception: "take up to 3 damage → this card generates 1 additional [energy] resource for each
+  damage taken this way". It changes what the card *generates*, which happens during pricing, before any payment is
+  final. The event cannot express that, and **it stays unscriptable**. It needs a pricing-time hook on the card's
+  own resource value (a `ResourceGeneration` computed from a cost paid inside the payment), which is a payment-model
+  change, not a trigger.
+- **`forPlayerId` always equals `playerId` today.** No payment spans players yet: Alliance (RRG 1.8 p. 6, "any player
+  may contribute") is not built. Everyday Hero's "this card can be spent for any player" is a **payment permission**
+  as well as a trigger, so its response half is scriptable (`eventPlayer` is the right ref) and its permission half is
+  not. Keeping the two fields apart means the response is correct on the day cross-player payment lands.
+- **A card in play spending itself** through a "Resource:" ability is not a card spent from hand, so it is not listed.
+  No card in the pool says "after you spend this card" about such an ability.

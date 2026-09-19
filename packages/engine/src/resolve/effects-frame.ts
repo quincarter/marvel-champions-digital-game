@@ -6,6 +6,7 @@ import {
   hostForEffectPlay,
   paymentOptions,
   paymentsFromOptionIds,
+  announceResourcesSpent,
   payPayment,
   playFromEffectRequirement,
   playIgnoringCost,
@@ -728,7 +729,9 @@ function executeSpendResources(
   const pool = playerId && payment.length > 0 ? priceOrNull(ctx, playerId, payment, null, null) : null;
   const paid = pool !== null && satisfies(pool, requirement);
   finish(paid);
-  if (paid && playerId) payPayment(ctx, playerId, payment);
+  // Spent mid-effect: the event goes above this effects frame, so "after you spend this card" resolves before the
+  // effects that follow the spend (RRG 1.8 "Cost Arrow Icon", p. 14; docs/phase7-wave2.md §12).
+  if (paid && playerId) announceResourcesSpent(ctx, playerId, payPayment(ctx, playerId, payment), null, "effect");
 }
 
 /**
