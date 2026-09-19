@@ -440,12 +440,37 @@ historical) since they're still the most complete account of *why* each primitiv
   in play behaves as its base 2 ATK / 2 SCH / 4 HP minion with no form-conditional bonus — a documented inaccuracy,
   not a crash risk, since the ability is out of the registry entirely.
 
+### 6.16 "The current player's own nemesis minion" as a live, per-player query (found scripting `toafk`)
+
+- **Card:** Kang's Wrath 4B (11013b, `kang.ts`): "Each player searches the encounter deck, discard pile, and
+  set-aside area for their nemesis minion and puts it into play engaged with them."
+- **What landed already covers the *pooling* half.** §6.14's "one pool across several zones" gap (docs/phase7-
+  wave2.md §10.1, `CardSelector { kind: "anyOf" }`) is exactly this card's own worked example, and it landed. What's
+  still missing is the *identification* half: nothing reads "the minion belonging to *this player's own* chosen
+  hero's nemesis set" dynamically, so the search still can't be written as one selector.
+- **The gap, precisely.** `CardSelector { kind: "setAside", player }` already finds *a* player's whole set-aside
+  pool (every card in their nemesis set, not only the minion), and `TargetQuery.name` matches one fixed printed
+  name — but no query field varies that name *per player* the way `PlayerRef defeatingPlayer` now reads a defeated
+  scheme's own defeating player, or the way `identitySetOf: PlayerRef` reads a *player card's* `aspect` field
+  against a player's identity. Nemesis minions are encounter cards, not player cards (ruling, Jun 25, 2026 (4):
+  "Nemesis sets belong to that identity" — about set ownership, not `identitySetOf`'s own player-card-only
+  `aspect` check), so `identitySetOf` itself doesn't reach them; a `nemesisMinion: true` card-data flag already
+  exists (`packages/content/src/schema/validation.ts`) but nothing ties it to *which* identity's nemesis set a
+  specific minion belongs to at query time.
+- **Closest existing primitive:** the `defeatingPlayer`/`eventPlayer` family of context-scoped `PlayerRef`s, or
+  `identitySetOf`'s own shape generalized past player cards — a `TargetQuery.nemesisMinionOf?: PlayerRef` field
+  (matching a minion whose own nemesis set belongs to that player's chosen identity) would let this card's search
+  be written as one `anyOf` selector with no per-player special-casing, the same way `04028.when-revealed` (`trors`,
+  Marked for Death's own "Mockingbird, wherever she is" search — a different, fixed-name gap, not to be conflated
+  with this one) would benefit from the pooling half alone.
+- **Pinned:** `11013b.when-revealed` (`wave2/coverage.test.ts`'s `KNOWN_SKIPPED.toafk`).
+
 ## 7. Status
 
 | Pack | Code | Status | Notes |
 |---|---|---|---|
 | The Rise of Red Skull | `trors` | **Scripted.** 152 cards, 248 ability refs: 219 resolve (15 as reprint aliases, 204 hand-scripted), 29 in `KNOWN_SKIPPED` — 1 genuine data-gap block (Captured by Hydra's missing "When Defeated" ref) and 28 Hydra Campaign refs, pinned regardless of any primitive since campaign mode is deferred. Every §6 primitive gap found scripting `trors` (§6.1–§6.7, §6.9, §6.10, plus the per-aspect-limit half of §6.11 — 18 refs total across Hawkeye's Bow, Vibranium Arrow, Crossfire's boost, Piercing Strike, Finesse, Jessica Drew's Apartment, Superhuman Agility, Crossfire's Rifle, Cable Arrow, Kate Bishop's Hawkeye, Mockingbird, Crossbones' Assault, Prison Camps, Hydra Reinforcements, Taskmaster I/II/III's forced response, None Shall Pass's forced interrupt) has since landed and was un-skipped in later passes over the same pack — see §6's "LANDED" notes. | All five scenarios are scripted: Hawkeye/Spider-Woman kits (`hawkeye-kit.ts`, `hawkeye-obligation-nemesis.ts`, `spider-woman-kit.ts`, `spider-woman-obligation-nemesis.ts`), Crossbones (`crossbones.ts`), Absorbing Man (`absorbing-man.ts`), Taskmaster (`taskmaster.ts`), Zola (`zola.ts`) and Red Skull (`red-skull.ts`), each with its own `wave2Scenario(...)` entry in `../setup.ts` and its own ruling-level `.test.ts` plus a standalone setup test proving each scenario's own 1A/1B setup ability actually runs (setAside, scenario decks, engaged minions, revealed side schemes, etc.). Real-game tests: `wave2/trors/e2e.test.ts` (Hawkeye and Spider-Woman precons vs. Rhino, solo, to a real outcome; Crossbones standalone 2-player setup). **Data gaps flagged for `card-data-pipeline`:** (1) the Attack on Mount Athena 1A text prints "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` has no "Legions of Hydra" `EncounterSet` — `crossbonesScenario` uses only the two that exist; (2) several cards carry more ability refs than their printed text has independent clauses for (Omni-Morph Duplication 04089's four extra "-constant" refs, The Mad Doctor 04113b's and Neurological Implants 04119's second refs, The Rise of Red Skull 1A's 04128a and New World Hydra's 04129b's "-constant" refs) — each is stood up as an empty `coveredByEngineRule()` rather than left unscripted, since the card's own primary ability ref already carries the full printed behavior; (3) Captured by Hydra (04107) prints a "When Defeated" clause with no ability ref to hang it on (contrast Hydra Prison, 04122, which prints an equivalent shape with two refs) — only its "When Revealed" half is scripted. |
-| The Once and Future Kang | `toafk` | **In progress.** 51 cards, 82 ability refs: 59 resolve, 23 in `KNOWN_SKIPPED` (4 primitive/open-question gaps on stage 2/4 — §6.13/§6.14 — 4 data-gap Temporal obligations, 15 refs for the not-yet-started Expert encounter set 11040–11051). | Kang's villain (standard and Expert), "Kang's Arrival" 1A/1B, "The Master of Time" 2A, and all four stage 3 alternatives are scripted in `kang.ts`; the Kang/Temporal encounter set (11014–11033, minus the four Temporal obligations) is scripted in `kang-encounter-set.ts`. `wave2Scenario("kang", …)` (`../setup.ts`'s `kangScenario`) is data-driven off `WAVE2_SCENARIOS`. `kang.test.ts` has a standalone setup test (standard and expert) plus ruling-level tests. |
+| The Once and Future Kang | `toafk` | **Scripted.** 51 cards, 82 ability refs: 76 resolve, 6 in `KNOWN_SKIPPED` — 1 new primitive gap (§6.16, "your own nemesis minion" as a live query, Kang's Wrath 4B), 4 pre-existing primitive/data-gap blocks on the Temporal obligations (a resource-type-filtered discard cost; two "two clauses, one ref" data-shape gaps), 1 identical "two clauses, one ref" gap on the Expert set's own Fear of Kang. All four §6.13/§6.14 gaps landed (docs/phase7-wave2.md §10) and were un-skipped this pass: 11008b's both refs (the acceleration-token redirect and the join restriction — the latter needed no rule at all, §10.4), and 11013a (Kang III added, the tucked Kang's Dominion revealed via the new `TargetRef { kind: "tuckedUnder" }`/`tuckedUnderRef`). The Expert encounter set (11040–11051), not started as of the previous session, is now fully scripted. **A real bug was found and fixed in the same pass, not just new scripting:** `11007a.setup`'s "remove each player's obligation cards from the game" used `query("obligation")` — *every* obligation-type card — which was correct only until the Temporal set's own four obligations (11018–11021, also type "obligation") existed; once scripted, this silently removed them at setup too, discovered only by a real test (`kang-encounter-set.test.ts`) failing to find 11021 anywhere in the game. Fixed with `withoutTrait: TEMPORAL` (every identity obligation is untraited; all four Temporal obligations carry it) — see `kang.ts`'s own comment on that ability. | Kang's villain (standard and Expert), "Kang's Arrival" 1A/1B, "The Master of Time" 2A/2B, "Kang's Wrath" 4A, and all four stage 3 alternatives are scripted in `kang.ts`; the Kang/Temporal encounter set plus the Expert set (11014–11033, 11040–11051, minus the two-clauses-one-ref obligations) is scripted in `kang-encounter-set.ts`. `wave2Scenario("kang", …)` (`../setup.ts`'s `kangScenario`) is data-driven off `WAVE2_SCENARIOS`. `kang.test.ts` has a standalone setup test (standard and expert), ruling-level tests, and a full one-player split-and-rejoin playthrough exercising 11008b and 11013a end to end through real commands (defeat Kang (I) → stage 3 area created → defeat that area's Kang (II) → area rejoins the center → center advances straight to Kang's Wrath → Kang (III) and the tucked Dominion appear). `kang-encounter-set.test.ts` (new this pass) covers Time-Travel Hijinks' highest-cost discard-and-tuck with a real playthrough, plus definition-level checks for the rest. **A second, purely data-side gap was found, not fixed (out of `@mc/cards`' remit): the Kang/Temporal set's own four obligations (11018–11021) carry `encounterSetIds: []` in `@mc/content`** — they are never shuffled into any deck in a real game, so they are currently unreachable content despite being correctly scripted. Flagged for `card-data-pipeline`; `kang-encounter-set.test.ts`'s own Time-Travel Hijinks test works around it by relabeling an already-in-the-deck filler card's `cardId`, documented inline as a stand-in for the real fix. |
 | Ant-Man | `ant` | **Scripted.** 33 cards, 37 ability refs: 30 resolve (reprints aliased by `../reprints.ts` plus hand-scripted refs across `kit.ts`/`obligation-nemesis.ts`/`pack-cards.ts`), 7 in `KNOWN_SKIPPED` — see §6.15 (Yellowjacket's two form-conditional constants, found-by-testing engine crash), plus missing-primitive blocks for Care for Cassie's "cannot change form" lasting rule, Yellowjacket's Plan's "belongs to encounter set X" query, Ant-Man's own overpaid-from-a-later-interrupt read, Team-Building Exercise's "shares a trait with your hero" query and Muster Courage's dynamic `chooseCards.max`. Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md) and Tech Theft's class-wide text-blanking (§8 there) are both landed and used (`kit.ts`'s `changeToOtherHeroForm`/`youHaveTrait`, `obligation-nemesis.ts`'s `blanksTextBox`, verified with a real behavioral test attaching a TECH upgrade and confirming its own text goes blank). Pym Particles' "after you spend this card" trigger (`resourcesSpent`/`on.youSpendThis()`) and Giant Strength's `LastingUntil.endOfTurn` both landed mid-session (commits `1036be7`, `c53ad0b`) and were un-skipped with real behavioral tests the same session. | Ant-Man's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-aspect cards (`pack-cards.ts`) each have ruling-level tests (`kit.test.ts`) driving real commands — form changes, Hero Actions gated by `while`, a Team-Up legality check, a reveal-from-encounter-deck helper for the nemesis set's own cards — plus `e2e.test.ts` (Rhino, standard, solo, Ant-Man Leadership precon to a real outcome, replayed deep-equal). |
 | Wasp | `wsp` | **Not started.** | Three-sided identity; divided basic powers (§3.7, landed). |
 | Quicksilver | `qsv` | **Not started.** | `basicPowerUsed` trigger event (landed, used already by Spider-Woman's Captain Marvel in `trors`). |
@@ -595,11 +620,92 @@ accepted branch, and confirmed absent (no new `lastingEffects` entry) when chang
 missing-primitive blocks. Re-pushed to `origin/feature/wave2` after each verified green commit, per the process
 change mid-session (fetch → merge → re-verify → push, never force-push).
 
-**Not reached this session: `wsp`, `qsv`, `scw`.** Only `ant` fit in this session's budget once the found engine
-crash needed a full root-cause writeup rather than a quick fix. **Next session starts with `wsp`** (three-sided
+**Not reached that session: `wsp`, `qsv`, `scw`.** Only `ant` fit in that session's budget once the found engine
+crash needed a full root-cause writeup rather than a quick fix.
+
+**2026-09-19, next session: `toafk` finished, promoted to `"scripted"`.** Picked up with `toafk` `"in progress"`
+(51 cards, 82 refs: 59 resolved, 23 skipped — §6.13/§6.14's four primitive gaps, the four Temporal obligations, and
+the not-yet-started Expert set). Re-checked docs/phase7-wave2.md §10 first, per this file's own standing habit, and
+found all four §6.13/§6.14 gaps landed there the same day they were pinned:
+
+- **Un-skipped `11008b`'s both refs** (`kang.ts`): the acceleration-token redirect is now
+  `constant({ rules: [{ kind: "accelerationTokenDestination", to: self }] })` (§10.3); "players cannot join this
+  game area unless…" needed **no rule at all** (§10.4 — the join procedure already only offers separate areas as
+  destinations), so only the "advance to stage 4A" half of that ref carries an effect
+  (`stateCheck(not(gameAreasSplit), advanceMainScheme(...))`).
+- **Un-skipped `11013a.when-revealed`**: two new DSL builders, `centralMainScheme` and `tuckedUnderRef` (`dsl/
+  values.ts`, wrapping the landed `TargetRef { kind: "tuckedUnder" }`, §10.2), let `revealCard(tuckedUnderRef(
+  centralMainScheme), firstPlayer)` reveal the facedown Kang's Dominion(s) tucked there by the stage 3 areas' own
+  Forced Responses — no new effect needed, `revealCard` already runs the whole reveal procedure on whatever it's
+  given, tucked cards included.
+- **`11013b.when-revealed` is still blocked** — §10.1's `anyOf` selector landed, but that only solves the "search
+  several zones as one pool" half; a *new* gap (§6.16, not a re-flagging of §6.14) blocks the "identify **whose**
+  nemesis minion" half: no query reads "the minion belonging to *this player's own* chosen hero's nemesis set"
+  dynamically. Left skipped with the new gap documented precisely, not silently conflated with the landed one.
+
+**Also scripted the Expert encounter set (11040–11051, not started as of the last session)** — 15 of 16 refs
+(`kang-encounter-set.ts`): every "Boost: … Give this enemy another boost card" reads as `modifyAttack({
+extraBoostCards })` (Hydra Exo-Soldier's own established reading, `trors/red-skull.ts` — never `giveBoostCard`,
+which the validator refuses inside a `boost()` ability), Terminatrix's own piercing grant reuses the `attackKeywords`
+rule Tyrannosaurus Rex (11032) already established, and Ancient Grudge's "Kang (Master of Time) activates against
+you" reads as an attack, the convention `absorbing-man.ts` already cites for every other cycle-1 "activates against"
+phrasing. `11049.obligation` (Fear of Kang) stays skipped — the same "two clauses, one ref" data shape 11020
+(Depowered) already has, not a new gap.
+
+**Un-skipped `11021.when-revealed`** ("discard the highest-cost card you control, then place it facedown under this
+card") by centralizing `superlative`/`printedCostOf` into `dsl/values.ts` — the module docblock's own earlier claim
+that no primitive existed for "the highest-cost card" was wrong: `TargetRef { kind: "superlative" }` already existed
+in the engine and had five separate per-pack copies of an identical local builder (`wave1/{gob,hlk,twc,bkw,drs}/
+local.ts`), just never centralized. Its Alter-Ego Action half stays skipped for the pre-existing resource-type-
+filtered-cost gap (11018/11019 share it).
+
+**A real bug, not just new scripting, was found and fixed:** writing `kang-encounter-set.test.ts`'s own real test
+for 11021 (stacking it onto the encounter deck) found it unreachable — tracked down to `kang.ts`'s own `11007a.setup`
+using `query("obligation")` (every obligation-type card) to "remove each player's obligation cards from the game," a
+reading that stopped being correct the moment the Temporal set's own four obligations (11018–11021, also type
+"obligation") existed. Fixed with `withoutTrait: TEMPORAL` — every identity's own obligation is untraited, and all
+four Temporal obligations carry it, so the trait line draws exactly the distinction the printed text means without
+needing a new primitive. This is this brief's own §4.1 ("found-by-testing" > "compiles, therefore correct") landing
+again, now against an ability that had shipped as "scripted" for an entire prior session.
+
+**A second, data-only gap was found and left for `card-data-pipeline`, not routed around:** the Temporal
+obligations (11018–11021) carry `encounterSetIds: []` in `@mc/content`, so they are never shuffled into any deck in
+a real game — correctly scripted, unreachable content. `kang-encounter-set.test.ts`'s own 11021 test works around
+this by relabeling an already-in-the-deck filler card's `cardId` (a test-only technique, documented inline as a
+stand-in for the real content fix, not a substitute for it).
+
+**New real behavioral tests, not just "is defined" checks:** `kang.test.ts` gained a full one-player split-and-
+rejoin playthrough (defeat Kang (I) → stage 2 → one random stage 3 area created → defeat that area's Kang (II) →
+area rejoins the (now sole) central area → central advances straight to Kang's Wrath → Kang (III) added, the tucked
+Dominion revealed), driven entirely through real commands (`basicAttack`, `endTurn`) with no engine-bypassing
+shortcuts beyond the existing "damage: 999, then one real attack" convention. `kang-encounter-set.test.ts` (new
+file — the module had zero tests before this session, a gap this pass didn't attempt to close in full, see below)
+covers Time-Travel Hijinks the same way. One test-harness lesson worth carrying forward: **a blanket `picking(id)`
+picker is unsafe once more than one prompt in a round could legally offer the same instance id** — Kang (I)'s own
+attack that same round offered the test's ally as a legal defender, so `picking(allyId)` volunteered it to *defend*
+instead of answering the unrelated `chooseTarget` prompt from the obligation being tested; scoping the picker to the
+specific prompt (`prompt.kind === "chooseTarget" && prompt.slot === "pick"`) fixed it. Not a new rule, but a sharper
+version of §5's existing "always pass `deps` explicitly" caution: a picker that matches on a bare id, not a prompt
+shape, can silently answer the wrong prompt without erroring.
+
+**Re-ran the `KNOWN_SKIPPED` regeneration check (§1)** before promoting `toafk`: all 6 remaining refs are documented
+primitive/data-gap blocks (§6.16's new gap, the two pre-existing Temporal-obligation blocks, and two "two clauses,
+one ref" data gaps), none "not yet reached" — the same bar `trors`/`ant` were held to. `pnpm --filter @mc/cards test`
+(599 tests) and root `pnpm typecheck` are both green.
+
+**Flagged, not fixed, and worth a wider sweep some session:** `kang-encounter-set.ts` (17 cards across the Kang/
+Temporal and Expert sets) had **zero tests** before this session despite being registered as resolved since an
+earlier one — this session added tests only for its own new work (11021, plus definition-level checks for a sample
+of the Expert set), not a full retroactive audit of the pre-existing cards. Given §6.15 and this session's own
+`11007a.setup` bug both turned up *inside* modules that looked done, a future session auditing `kang-encounter-set.ts`
+end to end (the same way this session's predecessor did for `ant`'s Tech Theft/Yellowjacket) would not be wasted
+time — flagged here rather than attempted, to stay inside this session's own budget once `toafk` closed out.
+
+**Not reached this session: `wsp`, `qsv`, `scw`.** `toafk`'s primitive-gap re-audit, the Expert set, and the
+`11007a.setup`/11021 bug hunt took the rest of this session's budget. **Next session starts with `wsp`** (three-sided
 identity, same landed primitives `ant` used; divided basic powers, §3.7, landed) — re-check §3.13 for anything
-landed since this was written, the same habit this session and the `trors`/`toafk` ones before it all depended on.
-Also worth carrying forward: **grep any new pack's constant abilities for a `while` that reaches `hasTrait`/
-`traitsOf` before trusting it compiles-and-therefore-works** — §6.15's crash was silent at the type level and only
-surfaced through a real behavioral test, exactly the "compiling is not evidence of correctness" lesson CLAUDE.md
-and this brief's own §4.1 both already warn about, now with a second concrete instance.
+landed since this was written, the same habit every session so far has depended on. Also worth carrying forward:
+**grep any new pack's constant abilities for a `while` that reaches `hasTrait`/`traitsOf` before trusting it
+compiles-and-therefore-works** — §6.15's crash was silent at the type level and only surfaced through a real
+behavioral test, exactly the "compiling is not evidence of correctness" lesson CLAUDE.md and this brief's own §4.1
+both already warn about, now with two more concrete instances (`11007a.setup`, this same session).

@@ -63,7 +63,7 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
  */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   trors: "scripted",
-  toafk: "in progress",
+  toafk: "scripted",
   ant: "scripted",
   wsp: "not started",
   qsv: "not started",
@@ -115,38 +115,22 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "04165.obligation",
     "04166.obligation",
   ],
-  // Computed 2026-09-19 against TOAFK_CARDS/WAVE2_ABILITIES, same method as trors' own list above.
+  // Regenerated 2026-09-19 (later session) against TOAFK_CARDS/WAVE2_ABILITIES, same method as trors' own list
+  // above, after un-skipping the four refs whose primitives landed in docs/phase7-wave2.md §10 (11008b's two refs,
+  // 11013a) and §10.1's `superlative`/`printedCostOf` DSL follow-up (11021.when-revealed), and scripting the
+  // previously-not-started Expert encounter set (11040-11051, all but the two-clauses-one-ref 11049.obligation).
   toafk: [
-    // --- Kang's own villain/main scheme (wave2/toafk/kang.ts): missing-primitive and data-gap blocks, see that
-    //     file's module docblock. ---
-    "11008b.the-master-of-time-forced-interrupt",
-    "11008b.the-master-of-time-constant",
-    "11013a.when-revealed",
+    // --- Kang's own villain/main scheme (wave2/toafk/kang.ts): a genuine missing-primitive block and a data-gap
+    //     block, see that file's module docblock. ---
     "11013b.when-revealed",
-    // --- Kang/Temporal encounter set (wave2/toafk/kang-encounter-set.ts): missing-primitive blocks (a
-    //     resource-type-filtered discard cost; a "highest-cost card" selector; a dynamic "your own hero" match),
+    // --- Kang/Temporal encounter set + Expert set (wave2/toafk/kang-encounter-set.ts): missing-primitive blocks (a
+    //     resource-type-filtered discard cost; a dynamic "your own hero" match) and two-clauses-one-ref data gaps,
     //     see that file's module docblock. ---
     "11018.weakened-action",
     "11019.stolen-memories-action",
     "11020.obligation",
-    "11021.when-revealed",
     "11021.time-travel-hijinks-action",
-    // --- Expert encounter set (11040-11051): not started yet. ---
-    "11040.when-revealed",
-    "11040.boost",
-    "11041.boost",
-    "11042.boost",
-    "11043.terminatrix-constant",
-    "11043.boost",
-    "11044.when-revealed",
-    "11044.boost",
-    "11045.when-defeated",
-    "11046.when-revealed",
-    "11047.kang-master-of-time-constant",
-    "11048.boost",
     "11049.obligation",
-    "11050.when-defeated",
-    "11051.when-revealed",
   ],
   // Computed 2026-09-19 against ANT_CARDS/WAVE2_ABILITIES, same method as trors'/toafk's own lists above.
   ant: [

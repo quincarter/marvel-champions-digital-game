@@ -1,7 +1,9 @@
+import { trait } from "@mc/content";
 import {
   adjustBoostCount,
   allOf,
   attachCard,
+  bindTargets,
   boost,
   cards,
   chooseCards,
@@ -17,11 +19,15 @@ import {
   discardEncounterUntil,
   discard,
   discardThis,
+  each,
   eachPlayer,
+  encounterCards,
+  engagedPlayerOf,
   enemyAttack,
   eventDealt,
   eventSource,
   eventTarget,
+  exhaust,
   dealDamage,
   dealEncounterCard,
   dealIndirectDamage,
@@ -30,26 +36,32 @@ import {
   forcedInterrupt,
   forcedResponse,
   forEachPlayer,
+  gets,
   giveTough,
   identityOf,
   ifThen,
+  inPlay,
   instead,
   made,
   modifyAttack,
   moveCards,
+  named,
   not,
   on,
   option,
   ownerOf,
   placeThreat,
   preventDamage,
+  printedCostOf,
   putIntoPlay,
   query,
   refMatches,
+  revealCard,
   rule,
   self,
   selectCards,
   stun,
+  superlative,
   takeDamage,
   theVillain,
   thatPlayer,
@@ -66,6 +78,10 @@ import {
   zone,
 } from "../../dsl/index.js";
 import { atEndOfAttack } from "../../dsl/effects.js";
+import { cardName } from "../names.js";
+
+/** The trait Expert Kang minions and Kang's Chosen search for/among (`packages/content`'s upper-cased spelling). */
+const TEMPORAL = trait("TEMPORAL");
 
 /**
  * The Kang encounter set (11014–11017, 11022–11029) plus its "Temporal" modular set (11030–11033, marked by
@@ -75,9 +91,17 @@ import { atEndOfAttack } from "../../dsl/effects.js";
  * **The Temporal obligations no longer combine two trigger kinds under one ref** (the pipeline split 11018,
  * 11019 and 11021 into their own "When Revealed"/"Forced Response" ref plus their own "Alter-Ego Action" ref, each
  * scripted below; the leading `.obligation` ref on each is a leftover empty artifact, `coveredByEngineRule()`).
- * **11020 (Depowered) was not split** — still one ref for both "You cannot play hero-specific cards" (scripted, a
- * `cannotPlay` rule) and "Alter-Ego Action: discard a hero-specific card → discard this obligation" (not scripted:
- * the ref can only carry one `AbilityTriggerSpec` kind, and the first clause is the card's own primary restriction).
+ * **11020 (Depowered) was not split** — still one ref for both "You cannot play hero-specific cards" (a `cannotPlay`
+ * rule, would be scriptable on its own) and "Alter-Ego Action: discard a hero-specific card → discard this
+ * obligation" — the ref can only carry one `AbilityTriggerSpec` kind, so **neither** clause is scripted: picking one
+ * would silently drop the other's real behavior rather than approximate it (§4's "missing primitive → record and
+ * skip" rule). "11049.obligation" (`toafk`'s Expert set) has the identical shape for the same reason.
+ *
+ * **11021 (Time-Travel Hijinks)'s "When Revealed" half is now scripted** — `superlative`/`printedCostOf` (`dsl/
+ * values.ts`, added this pass) supply "the highest-cost card you control" (a gap the module docblock previously
+ * claimed had no primitive at all; `TargetRef { kind: "superlative" }` already existed for other packs, just not as
+ * a shared `@mc/cards` builder — see `superlative`'s own doc comment). Its Alter-Ego Action half stays skipped
+ * (below) for the same resource-type-filtered cost gap as 11018/11019.
  *
  * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
  * - `11018.weakened-action`, `11019.stolen-memories-action`, `11021.time-travel-hijinks-action` — each "Alter-Ego
@@ -90,6 +114,16 @@ import { atEndOfAttack } from "../../dsl/effects.js";
  *   obligation and reveals it" is scripted below reading "different" as "this player's own choice" only: no
  *   primitive compares one player's pick against another's within `forEachPlayer`, so cross-player distinctness
  *   isn't enforced. Flagged, not silently assumed correct.
+ *
+ * **The Expert encounter set (11040–11051, scripted this pass)** substitutes for the Kang/Temporal set in expert
+ * mode (docs/phase7-wave2.md §2.3). Every "[star] Boost: … Give this enemy another boost card" reads "this enemy"
+ * as the card's own current activation, the same `modifyAttack({ extraBoostCards })` reading Hydra Exo-Soldier
+ * (04131, `trors/red-skull.ts`) established — never `giveBoostCard`, which the validator refuses inside a `boost()`
+ * ability for exactly this reason (docs/phase7-wave2-scripting.md §5). "Kang (Master of Time) activates against
+ * you" (11051) reads as an attack, the same convention `absorbing-man.ts` cites for every other cycle-1 "activates
+ * against" phrasing (RRG 1.8 doesn't define "against" as a term; every other cycle-1 use of it names an attack's
+ * target). **`11049.obligation`** (Fear of Kang) has the same two-clauses-one-ref shape as 11020 above and is
+ * skipped for the identical reason.
  */
 export const KANG_ENCOUNTER_SET = defineAbilities({
   // Weakened — Forced Response: after you use a basic hero power, take 1 damage. Alter-Ego Action (skipped, module
@@ -109,11 +143,16 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // hold it), so no fixed aspect string can be hardcoded here. The same "dynamic match against your own hero" gap
   // Team-Building Exercise needs (`pack-cards.ts`'s own module docblock).
 
-  // Time-Travel Hijinks — Alter-Ego Action (skipped, module docblock): discard an [energy] resource → discard this
-  // obligation (and the tucked card with it). The "When Revealed: discard the highest-cost card you control, then
-  // place it facedown under this card" half is also skipped: no selector picks "the single highest-cost card
-  // among a set" (`TargetQuery.maxPrintedCost` is a fixed threshold comparison, not a superlative pick).
+  // Time-Travel Hijinks — When Revealed: discard the highest-cost card you control, then place it facedown under
+  // this card. Alter-Ego Action (skipped, module docblock): discard an [energy] resource → discard this obligation
+  // (and the tucked card with it).
   "11021.obligation": coveredByEngineRule(),
+  "11021.when-revealed": whenRevealed(
+    bindTargets("highestCost", superlative("highest", each(query(["ally", "upgrade", "support"], { controller: "you" })), printedCostOf(chosen("candidate")))),
+    chooseTarget("pick", { inSlot: "highestCost" }, { optional: true }),
+    discard(chosen("pick")),
+    tuckCards(cards(chosen("pick")), self, true),
+  ),
 
   // Temporal Shield — Attach to Kang. Forced Interrupt: When Kang is attacked, discard Temporal Shield → prevent
   // all damage from this attack and deal 1 damage to the attacker. "(Max 1 per attack.)" is a narrow edge case (two
@@ -220,4 +259,75 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // Time Portal — Hazard (data). Forced Interrupt: when this scheme is defeated, shuffle it into the encounter
   // deck instead of discarding it.
   "11033.time-portal-forced-interrupt": constant(rule({ kind: "defeatedIntoEncounterDeck", target: query("sideScheme", { self: true }) })),
+
+  // ---- The Expert encounter set (11040–11051), module docblock ----------------------------------------------
+
+  // Apocryphus — When Revealed: discard an ally or support you control. [star] Boost: exhaust a character you
+  // control. Give this enemy another boost card.
+  "11040.when-revealed": whenRevealed(chooseTarget("target", query(["ally", "support"], { controller: "you" }), { optional: true }), discard(chosen("target"))),
+  "11040.boost": boost(
+    chooseTarget("char", query("character", { controller: "you" }), { optional: true }),
+    exhaust(chosen("char")),
+    modifyAttack({ extraBoostCards: 1 }),
+  ),
+
+  // Deathunt 9000 — Toughness. Villainous (data). [star] Boost: give this enemy a tough status card and another
+  // boost card.
+  "11041.boost": boost(giveTough(self), modifyAttack({ extraBoostCards: 1 })),
+
+  // Sir Raston — Guard. Retaliate 1 (data). [star] Boost: take 1 damage. Give this enemy another boost card.
+  "11042.boost": boost(takeDamage(1), modifyAttack({ extraBoostCards: 1 })),
+
+  // Terminatrix — Quickstrike (data). [star] Terminatrix's attacks gain piercing. [star] Boost: give this enemy 2
+  // more boost cards.
+  "11043.terminatrix-constant": constant(rule({ kind: "attackKeywords", keywords: ["piercing"], attacker: query("minion", { self: true }) })),
+  "11043.boost": boost(modifyAttack({ extraBoostCards: 2 })),
+
+  // Wildrun — When Revealed: discard 1 random card from your hand. [star] Boost: discard 1 random card from your
+  // hand. Give this enemy another boost card.
+  "11044.when-revealed": whenRevealed(discardAtRandom(1, you)),
+  "11044.boost": boost(discardAtRandom(1, you), modifyAttack({ extraBoostCards: 1 })),
+
+  // The Anachronauts — Hazard (data). When Defeated: shuffle each Temporal card in the encounter discard pile into
+  // the encounter deck.
+  "11045.when-defeated": whenDefeated(moveCards(encounterCards(["discard"], { trait: TEMPORAL }), "encounterDeckShuffle")),
+
+  // Kang's Chosen — Incite 1 (data). When Revealed: discard cards from the top of the encounter deck until a
+  // Temporal minion is discarded. Reveal that minion.
+  "11046.when-revealed": whenRevealed(discardEncounterUntil(query("minion", { trait: TEMPORAL }), "found"), revealCard(chosen("found"), you)),
+
+  // Kang (Master of Time) — Toughness. Villainous (data). Gets +1 SCH and +1 ATK for each obligation in your (the
+  // engaged player's) play area — the same "you" reading The Viper's own "while engaged with you" constant uses
+  // (docs/phase7-wave2.md §3.2; `04054.the-viper-constant`, `trors/spider-woman-obligation-nemesis.ts`).
+  "11047.kang-master-of-time-constant": constant(
+    gets("sch", { kind: "count", query: query("obligation", { controlledBy: engagedPlayerOf(self) }) }, query("minion", { self: true })),
+    gets("atk", { kind: "count", query: query("obligation", { controlledBy: engagedPlayerOf(self) }) }, query("minion", { self: true })),
+  ),
+
+  // Time-Displaced Soldier — Incite 1. Surge (data). [star] Boost: deal yourself 1 facedown encounter card.
+  "11048.boost": boost(dealEncounterCard(you)),
+
+  // Fear of Kang (11049) — SKIPPED (module docblock): "You cannot attack Kang" and "Alter-Ego Action: discard a
+  // random card from your hand → discard this obligation" share the single `11049.obligation` ref, the same
+  // two-clauses-one-ref shape 11020 (Depowered) has.
+
+  // Light of Centuries Sphere — Hazard (data). When Defeated: discard cards from the top of the encounter deck
+  // until a minion is discarded. Put that minion into play engaged with the player who defeated this scheme (the
+  // same shape Rampage, 11025, above, uses).
+  "11050.when-defeated": whenDefeated(discardEncounterUntil(query("minion"), "found"), putIntoPlay(chosen("found"), defeatingPlayer)),
+
+  // Ancient Grudge — When Revealed: Kang (Master of Time) activates against you (module docblock: read as an
+  // attack). If Kang (Master of Time) is not in play, search the encounter deck and discard pile for him and put
+  // him into play engaged with you. Shuffle the encounter deck. Printed order matters: if he isn't in play yet, the
+  // first effect's `named(...)` ref resolves to nothing and silently does nothing (docs/phase7-wave2-scripting.md
+  // §5's `putIntoPlay(named(...))` precedent — the same "ref finds nothing, effect no-ops" reading applies to any
+  // effect reading a `TargetRef`), so only the search half fires on the first reveal.
+  "11051.when-revealed": whenRevealed(
+    enemyAttack(named(cardName("11047")), { against: you, additionalResolution: true }),
+    ifThen(not(inPlay(cardName("11047"))), [
+      selectCards("found", encounterCards(["deck", "discard"], { name: cardName("11047") })),
+      putIntoPlay(chosen("found"), you),
+      { kind: "shuffleEncounterDeck" },
+    ]),
+  ),
 });

@@ -64,6 +64,18 @@ export const theVillain: TargetRef = { kind: "villain" };
  */
 export const defendingCharacter: TargetRef = { kind: "defendingCharacter" };
 export const theMainScheme: TargetRef = { kind: "mainScheme" };
+/**
+ * The central main scheme stage, outside every separate game area (docs/phase7-wave2.md §3.1): "place 1 set-aside
+ * Kang's Dominion facedown under stage 4A" while game areas are still split. Distinct from `theMainScheme`, which
+ * resolves inside the *current* context's own area.
+ */
+export const centralMainScheme: TargetRef = { kind: "mainScheme", of: "central" };
+/**
+ * "Each face down [card] under this stage/card" (Kang's Wrath 4A, 11013a): the cards tucked under what `of` names,
+ * still out of play (RRG 1.8 "Tuck", p. 45) — the `TargetRef` sibling of the `tuckedUnder` `CardSelector` (`dsl/
+ * effects.ts`), needed anywhere a ref is required (`revealCard`'s `cards`, above all) rather than a selector.
+ */
+export const tuckedUnderRef = (of: TargetRef, filter?: TargetQuery): TargetRef => ({ kind: "tuckedUnder", of, ...(filter ? { filter } : {}) });
 /** A player's identity, in whichever form it is ("you take 2 damage", "your hero", "Peter Parker"). */
 export const identityOf = (player: PlayerRef = you): TargetRef => ({ kind: "identityOf", player });
 export const yourIdentity: TargetRef = identityOf(you);
@@ -77,6 +89,21 @@ export const eventTarget: TargetRef = { kind: "eventTarget" };
 export const each = (q: TargetQuery): TargetRef => ({ kind: "each", query: q });
 /** The card in play with this exact printed name. */
 export const named = (name: string): TargetRef => ({ kind: "named", name });
+/**
+ * "The X with the highest/lowest Y" (Mad Genius, Clash of the Titans, Time-Travel Hijinks' "the highest-cost card
+ * you control"): each candidate in `among` is measured once, with itself bound to `slot` (default `"candidate"`) so
+ * `measure` can read the candidate's own values. Ties resolve to every tied card by default (`ties: "all"`) since a
+ * ref is resolved with nobody to ask; an effect that needs exactly one breaks the tie itself (`bindTargets` this,
+ * then `chooseTarget({ inSlot })`). Several packs (`wave1/{gob,hlk,twc,bkw,drs}/local.ts`) carry an identical
+ * per-pack copy of this builder predating its centralization here — not deduplicated by this change, since doing so
+ * safely means touching every one of those packs' own files.
+ */
+export const superlative = (
+  order: "highest" | "lowest",
+  among: TargetRef,
+  measure: ValueSpec,
+  opts: { readonly ties?: "all" | "first"; readonly slot?: string } = {},
+): TargetRef => ({ kind: "superlative", among, order, measure, ...opts });
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -144,6 +171,8 @@ export const damageOn = (of: TargetRef): ValueSpec => ({ kind: "damage", of });
 export const threatOn = (of: TargetRef): ValueSpec => ({ kind: "threat", of });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
+/** A card's own printed resource cost (0 for a card that prints none): "the highest-cost card you control". */
+export const printedCostOf = (of: TargetRef): ValueSpec => ({ kind: "printedCost", of });
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });
