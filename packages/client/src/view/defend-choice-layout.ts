@@ -32,7 +32,7 @@ export interface DefendChoiceLayout {
   readonly commit: Rect;
 }
 
-const HEADER_HEIGHT = 56;
+const HEADER_HEIGHT = 64;
 const WAITING_HEIGHT = 36;
 const SECTION_GAP = 10;
 const SHEET_MARGIN_WIDE = 40;
@@ -81,7 +81,7 @@ export function defendChoiceLayout(viewport: Rect): DefendChoiceLayout {
       height: Math.max(0, waitingOn.y - SECTION_GAP - bodyTop),
     };
 
-    const summaryHeight = Math.min(170, Math.round((sheet.y + sheet.height - bodyTop) * 0.4));
+    const summaryHeight = Math.min(250, Math.round((sheet.y + sheet.height - bodyTop) * 0.45));
     const summary: Rect = { x: sheet.x, y: bodyTop, width: mainWidth, height: summaryHeight };
     const options: Rect = {
       x: sheet.x,
@@ -105,7 +105,7 @@ export function defendChoiceLayout(viewport: Rect): DefendChoiceLayout {
   const stackHeight = Math.min(150, Math.max(84, Math.round((bodyBottomForStack - bodyTop) * 0.24)));
   const stack: Rect = { x: sheet.x, y: bodyBottomForStack - stackHeight, width: sheet.width, height: stackHeight };
 
-  const summaryHeight = Math.min(150, Math.round((stack.y - SECTION_GAP - bodyTop) * 0.38));
+  const summaryHeight = Math.min(230, Math.round((stack.y - SECTION_GAP - bodyTop) * 0.42));
   const summary: Rect = { x: sheet.x, y: bodyTop, width: sheet.width, height: summaryHeight };
   const options: Rect = {
     x: sheet.x,
@@ -118,8 +118,8 @@ export function defendChoiceLayout(viewport: Rect): DefendChoiceLayout {
 }
 
 const OPTION_GAP = 8;
-/** Below this an option card stops holding a title, an exhaust line and a damage line without crowding. */
-const OPTION_MIN_MAIN_AXIS = 132;
+/** Below this an option card stops holding its defender's scan beside a title, an exhaust line and a damage line. */
+const OPTION_MIN_MAIN_AXIS = 220;
 
 /**
  * One rect per option: a row on phone/tablet-portrait (there's no width to spare for a second column), a side-by-side
@@ -162,4 +162,55 @@ export function defendOptionSlots(area: Rect, count: number, formFactor: FormFac
     }
   }
   return slots;
+}
+
+/** A card scan's width over its height (63mm × 88mm). */
+const CARD_ASPECT = 63 / 88;
+const MATCHUP_PAD = 12;
+const CAPTION_HEIGHT = 16;
+
+/**
+ * The incoming-attack card's own insides: the attacker's scan, what it is swinging with, and the character it is
+ * aimed at, read left to right like the sentence in the header — then the notes, beside the matchup where there is
+ * width for them and under it where there isn't (phone).
+ */
+export interface DefendMatchupLayout {
+  readonly attacker: Rect;
+  /** "ATK 3", the arrow, and the facedown boost backs — between the two scans. */
+  readonly middle: Rect;
+  readonly target: Rect;
+  /** One caption line under each scan. */
+  readonly attackerCaption: Rect;
+  readonly targetCaption: Rect;
+  readonly notes: Rect;
+}
+
+export function defendMatchupLayout(summary: Rect, formFactor: FormFactor): DefendMatchupLayout {
+  const wide = isWide(formFactor);
+  const innerTop = summary.y + MATCHUP_PAD + CAPTION_HEIGHT; // the eyebrow line sits above the scans
+  const rowHeight = wide ? summary.height - MATCHUP_PAD * 2 - CAPTION_HEIGHT * 2 : Math.round((summary.height - MATCHUP_PAD * 2 - CAPTION_HEIGHT * 2) * 0.62);
+  const cardHeight = Math.max(40, rowHeight);
+  const cardWidth = Math.round(cardHeight * CARD_ASPECT);
+  const middleWidth = Math.max(96, Math.min(150, Math.round(cardWidth * 1.1)));
+
+  const attacker: Rect = { x: summary.x + MATCHUP_PAD, y: innerTop, width: cardWidth, height: cardHeight };
+  const middle: Rect = { x: attacker.x + cardWidth + 8, y: innerTop, width: middleWidth, height: cardHeight };
+  const target: Rect = { x: middle.x + middleWidth + 8, y: innerTop, width: cardWidth, height: cardHeight };
+  const captionY = innerTop + cardHeight + 3;
+  const attackerCaption: Rect = { x: attacker.x, y: captionY, width: cardWidth + Math.round(middleWidth * 0.3), height: CAPTION_HEIGHT };
+  const targetCaption: Rect = { x: target.x - Math.round(middleWidth * 0.65), y: captionY, width: cardWidth + Math.round(middleWidth * 0.65), height: CAPTION_HEIGHT };
+
+  const matchupRight = target.x + cardWidth;
+  const notes: Rect = wide
+    ? { x: matchupRight + 16, y: innerTop, width: Math.max(0, summary.x + summary.width - MATCHUP_PAD - (matchupRight + 16)), height: summary.height - MATCHUP_PAD * 2 - CAPTION_HEIGHT }
+    : { x: summary.x + MATCHUP_PAD, y: captionY + CAPTION_HEIGHT + 2, width: summary.width - MATCHUP_PAD * 2, height: Math.max(0, summary.y + summary.height - MATCHUP_PAD - (captionY + CAPTION_HEIGHT + 2)) };
+  return { attacker, middle, target, attackerCaption, targetCaption, notes };
+}
+
+/** Where an option card's scan goes, or null when the card is too narrow to hold one beside its text. */
+export function defendOptionPicture(slot: Rect): Rect | null {
+  const height = Math.min(slot.height - 16, 160);
+  const width = Math.round(height * CARD_ASPECT);
+  if (height < 40 || slot.width - width - 30 < 120) return null;
+  return { x: slot.x + 8, y: slot.y + 8, width, height };
 }

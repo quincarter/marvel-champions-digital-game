@@ -12,7 +12,7 @@ import type { DefendBand, GameState, InstanceId, PendingChoice, PlayerId } from 
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { bandFactsOf, consequenceLinesFrom, damageHeadline, defendChoiceViewOf, forcedNotesOf, hpAfterFrom } from "./defend-choice.js";
+import { bandFactsOf, consequenceLinesFrom, damageHeadline, defendCauseFrom, defendChoiceViewOf, forcedNotesOf, hpAfterFrom } from "./defend-choice.js";
 
 async function playToDeclareDefender(): Promise<{ state: GameState; choice: PendingChoice; viewer: PlayerId }> {
   const store = new SessionStore(new LocalEngineHost());
@@ -249,5 +249,53 @@ describe("forcedNotesOf", () => {
       "Forced interrupt: +2 ATK for this activation.",
       "Forced interrupt: this attack has gained Overkill.",
     ]);
+  });
+});
+
+describe("defendCauseFrom — why the attack is happening", () => {
+  const name = (id: InstanceId): string => `<${id}>`;
+  const klaw = "i1" as InstanceId;
+  const gangUp = "i9" as InstanceId;
+
+  test("nothing under the attack during step two: the villain's ordinary activation", () => {
+    const cause = defendCauseFrom([{ kind: "window", subjectInstanceId: null }, { kind: "event", subjectInstanceId: null }, { kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "villain", true, name);
+    expect(cause).toEqual({ kind: "villainActivation", eyebrow: "Villain phase · step 2 — the villain activates", sourceInstanceId: null });
+  });
+
+  test("a minion's activation says so", () => {
+    expect(defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "minion", true, name).kind).toBe("minionActivation");
+  });
+
+  test("a card's frame under the attack: that card's effect, even in step two", () => {
+    const cause = defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }, { kind: "effects", subjectInstanceId: gangUp }, { kind: "reveal", subjectInstanceId: gangUp }], klaw, "villain", true, name);
+    expect(cause).toEqual({ kind: "cardEffect", eyebrow: "Card effect — <i9>", sourceInstanceId: gangUp });
+  });
+
+  test("frames above the attack (its own windows) are not its cause", () => {
+    expect(defendCauseFrom([{ kind: "ability", subjectInstanceId: gangUp }, { kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "villain", true, name).kind).toBe("villainActivation");
+  });
+
+  test("the attacker's own ability (Quickstrike-style) names the attacker and draws no second scan", () => {
+    const cause = defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }, { kind: "ability", subjectInstanceId: klaw }], klaw, "minion", false, name);
+    expect(cause).toEqual({ kind: "cardEffect", eyebrow: "Card effect — <i1>'s own ability", sourceInstanceId: null });
+  });
+
+  test("outside step two with nothing beneath: a plain enemy attack", () => {
+    expect(defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "villain", false, name).kind).toBe("attack");
+  });
+});
+
+describe("defendChoiceViewOf — the matchup", () => {
+  test("names the attacker, the character under attack, and the ordinary activation as the cause", async () => {
+    const { state, choice, viewer } = await playToDeclareDefender();
+    const view = defendChoiceViewOf(state, choice, POOL_DEPS, viewer, [])!;
+    if (choice.prompt.kind !== "declareDefender") throw new Error("unreachable");
+    expect(view.summary.attackerInstanceId).toBe(choice.prompt.attack.enemyInstanceId);
+    expect(view.summary.targetInstanceId).toBe(choice.prompt.attack.targetCharacterInstanceId);
+    expect(view.summary.targetCaption).toBe(`Attacking you — ${view.summary.targetCardName}`);
+    expect(view.summary.cause.kind).toBe("villainActivation");
+    const decline = view.options.find((option) => option.kind === "decline")!;
+    expect(decline.pictureInstanceId).toBe(view.summary.targetInstanceId);
+    for (const option of view.options.filter((entry) => entry.kind === "defender")) expect(option.pictureInstanceId).toBe(option.defenderInstanceId);
   });
 });

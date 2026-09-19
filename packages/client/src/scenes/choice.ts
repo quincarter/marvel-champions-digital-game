@@ -19,7 +19,7 @@ import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, fitText, label, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { artFor } from "../art/art-source.js";
+import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
@@ -28,7 +28,7 @@ import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceHeaderInstanceId, choiceHeaderText } from "../view/choice-source.js";
 import { seatIdentityName } from "../view/names.js";
 import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice.js";
-import { defendChoiceLayout, defendOptionSlots } from "../view/defend-choice-layout.js";
+import { defendChoiceLayout, defendMatchupLayout, defendOptionPicture, defendOptionSlots } from "../view/defend-choice-layout.js";
 import {
   canConfirmChoice,
   cardChoiceDisplayOrder,
@@ -349,32 +349,79 @@ export class ChoiceOverlay extends Phaser.Scene {
     const headerG = this.add.graphics();
     headerG.fillStyle(surface.ink.hex, 1).fillRect(layout.header.x, layout.header.y, layout.header.width, layout.header.height);
     const authorityTag = choice.soleDecider ? "PERIL" : "AUTHORITY: PLAYER";
-    label(this, layout.header.x + layout.header.width - 12, layout.header.y + layout.header.height / 2, authorityTag, typeRole.label, surface.paper.hex, ink.secondary).setOrigin(1, 0.5);
+    label(this, layout.header.x + layout.header.width - 12, layout.header.y + layout.header.height / 2 + 10, authorityTag, typeRole.label, surface.paper.hex, ink.secondary).setOrigin(1, 0.5);
+    // Why this is happening, above what is happening: a villain-phase activation and a card's effect read the same
+    // in "X attacks you" alone, and they are not the same moment of the round.
+    label(this, layout.header.x + 12, layout.header.y + 10, view.summary.cause.eyebrow, typeRole.label, view.summary.cause.kind === "cardEffect" ? signal.caution.hex : surface.paper.hex, 1);
+    const target = view.summary.targetName === "you" ? `you — ${view.summary.targetCardName}` : view.summary.targetName;
     const headerTitle = this.add
-      .text(layout.header.x + 12, layout.header.y + layout.header.height / 2, `${view.summary.attackerName} attacks ${view.summary.targetName}`, textStyle(typeRole.barTitle, surface.paper.hex))
+      .text(layout.header.x + 12, layout.header.y + layout.header.height / 2 + 10, `${view.summary.attackerName} attacks ${target}`, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
     fitText(headerTitle, layout.header.width - 140, typeRole.barTitle.size);
 
-    // Incoming attack summary.
+    // Incoming attack: the attacker's scan, what it swings with, and the character it is aimed at.
     const summaryG = this.add.graphics();
     paintPanel(summaryG, layout.summary, "card", "rest");
-    let sy = layout.summary.y + 10;
-    this.add.text(layout.summary.x + 12, sy, `Base ATK ${view.summary.baseAtk} · ${view.summary.facedownCount} boost card${view.summary.facedownCount === 1 ? "" : "s"} facedown`, textStyle(typeRole.rowTitle, surface.ink.hex));
-    sy += 20;
-    for (const note of view.summary.forcedNotes) {
-      const t = this.add.text(layout.summary.x + 12, sy, note, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(layout.summary.width - 24);
-      sy += t.height + 4;
+    const matchup = defendMatchupLayout(layout.summary, layout.formFactor);
+    label(this, layout.summary.x + 12, layout.summary.y + 10, "incoming attack", typeRole.label, surface.ink.hex, ink.label);
+    this.#drawScan(game, view.summary.attackerInstanceId, matchup.attacker);
+    this.#drawScan(game, view.summary.targetInstanceId, matchup.target);
+    summaryG.lineStyle(3, accent.heroRed.hex, 1).strokeRect(matchup.target.x - 2, matchup.target.y - 2, matchup.target.width + 4, matchup.target.height + 4);
+    fitText(this.add.text(matchup.attackerCaption.x, matchup.attackerCaption.y, view.summary.attackerName, textStyle(typeRole.rowTitle, surface.ink.hex)), matchup.attackerCaption.width, typeRole.rowTitle.size);
+    fitText(
+      this.add.text(matchup.targetCaption.x + matchup.targetCaption.width, matchup.targetCaption.y, view.summary.targetCaption, textStyle(typeRole.rowTitle, accent.heroRed.hex)).setOrigin(1, 0),
+      matchup.targetCaption.width,
+      typeRole.rowTitle.size,
+    );
+
+    // Between them: ATK, an arrow pointing at the target, and one facedown back per boost card still to flip.
+    const mid = matchup.middle;
+    const midX = mid.x + mid.width / 2;
+    // Stacked top to bottom with every height taken from the column's own, so a phone's short column shrinks the
+    // number and drops the backs rather than letting them land on each other.
+    const atkSize = Math.min(44, Math.max(18, Math.round(mid.height * 0.24)));
+    label(this, midX, mid.y + 2, "base atk", typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
+    this.add.text(midX, mid.y + 15, String(view.summary.baseAtk), textStyle(typeRole.stat, accent.heroRed.hex)).setOrigin(0.5, 0).setFontSize(atkSize);
+    const arrowY = mid.y + 15 + atkSize + 16;
+    summaryG.fillStyle(accent.heroRed.hex, 1).fillRect(mid.x + 4, arrowY - 3, mid.width - 20, 6);
+    summaryG.fillTriangle(mid.x + mid.width - 18, arrowY - 10, mid.x + mid.width - 18, arrowY + 10, mid.x + mid.width - 2, arrowY);
+    const boostLabelY = mid.y + mid.height - 12;
+    const boosts = Math.min(view.summary.facedownCount, 4);
+    const backHeight = Math.min(64, boostLabelY - 4 - (arrowY + 14));
+    if (boosts > 0 && backHeight >= 22) {
+      const backWidth = Math.round(backHeight * (63 / 88));
+      const step = boosts > 1 ? Math.min(backWidth + 4, (mid.width - backWidth) / (boosts - 1)) : 0;
+      const rowWidth = backWidth + step * (boosts - 1);
+      const backKey = cardArt(this).request(this, CARD_BACKS.encounter);
+      for (let index = 0; index < boosts; index++) {
+        const rect: Rect = { x: midX - rowWidth / 2 + index * step, y: arrowY + 14, width: backWidth, height: backHeight };
+        if (!drawArt(this, backKey, rect, { fit: "cover" })) summaryG.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+      }
     }
-    if (view.summary.boostAbilityNote) {
-      const t = this.add.text(layout.summary.x + 12, sy, view.summary.boostAbilityNote, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(layout.summary.width - 24);
-      sy += t.height + 4;
+    const boostText = mid.width < 120 ? `+${view.summary.facedownCount} boost` : `+ ${view.summary.facedownCount} boost facedown`;
+    label(this, midX, boostLabelY, boostText, typeRole.label, surface.ink.hex, ink.secondary).setOrigin(0.5, 0);
+
+    // The notes, clipped to their own rect rather than allowed to run under the option cards.
+    const notes = matchup.notes;
+    const noteLines: { readonly text: string; readonly role: "body" | "label" }[] = [
+      ...view.summary.forcedNotes.map((text) => ({ text, role: "body" as const })),
+      ...(view.summary.boostAbilityNote ? [{ text: view.summary.boostAbilityNote, role: "body" as const }] : []),
+      { text: `Play a defense event: ${view.defenseEventsNote}`, role: "body" },
+      { text: view.rangeCaveat, role: "label" },
+    ];
+    let sy = notes.y;
+    if (notes.width >= 120) {
+      for (const line of noteLines) {
+        const style = line.role === "label" ? textStyle(typeRole.label, surface.ink.hex, ink.label) : textStyle(typeRole.body, surface.ink.hex, ink.secondary);
+        const t = this.add.text(notes.x, sy, line.text, style).setWordWrapWidth(notes.width);
+        if (sy + t.height > notes.y + notes.height) {
+          t.destroy();
+          break;
+        }
+        sy += t.height + 4;
+      }
     }
-    const eventsLine = this.add
-      .text(layout.summary.x + 12, sy, `Play a defense event: ${view.defenseEventsNote}`, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
-      .setWordWrapWidth(layout.summary.width - 24);
-    sy += eventsLine.height + 4;
-    this.add.text(layout.summary.x + 12, sy, view.rangeCaveat, textStyle(typeRole.label, surface.ink.hex, ink.label)).setWordWrapWidth(layout.summary.width - 24);
 
     // Options.
     const slots = defendOptionSlots(layout.options, view.options.length, layout.formFactor);
@@ -422,6 +469,14 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
   }
 
+  /** A card's scan at its current face, with a plain ink plate until (or unless) the image arrives. */
+  #drawScan(game: GameState, instanceId: InstanceId, rect: Rect): void {
+    const source = artFor(cardOf(game, instanceId), faceOf(game, instanceId));
+    const key = source ? cardArt(this).request(this, source) : null;
+    if (key && drawArt(this, key, rect, { fit: "contain" })) return;
+    this.add.graphics().fillStyle(surface.ink.hex, 0.85).fillRect(rect.x, rect.y, rect.width, rect.height);
+  }
+
   /**
    * One defend option, drawn as a card: title, what it costs, and its consequences — tap to select, Confirm to answer.
    *
@@ -437,32 +492,39 @@ export class ChoiceOverlay extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, slot, "card", option.selected ? "selected" : "rest");
 
+    // The card the option is about: the defender who would exhaust, or for "No defense" the character left to take it.
+    const picture = defendOptionPicture(slot);
+    const game = appSession().store.state.game;
+    if (picture && game) this.#drawScan(game, option.pictureInstanceId, picture);
+    const textX = picture ? picture.x + picture.width + 10 : slot.x + 10;
+    const textWidth = slot.x + slot.width - 10 - textX;
+
     let y = slot.y + 8;
-    const title = this.add.text(slot.x + 10, y, option.title, textStyle(typeRole.rowTitle, surface.ink.hex));
-    fitText(title, slot.width - 20, typeRole.rowTitle.size);
+    const title = this.add.text(textX, y, option.title, textStyle(typeRole.rowTitle, surface.ink.hex));
+    fitText(title, textWidth, typeRole.rowTitle.size);
     y += title.height + 4;
 
     const costLine =
       option.kind === "decline"
         ? "Stays ready."
         : `Exhausts ${option.exhaustsNames.join(", ")}${option.defenseReduction > 0 ? ` · DEF ${option.defenseReduction}` : ""}.`;
-    const cost = this.add.text(slot.x + 10, y, costLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary)).setWordWrapWidth(slot.width - 20);
+    const cost = this.add.text(textX, y, costLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary)).setWordWrapWidth(textWidth);
     y += cost.height + 6;
 
-    const damage = this.add.text(slot.x + 10, y, option.damageHeadline, {
+    const damage = this.add.text(textX, y, option.damageHeadline, {
       ...textStyle(typeRole.stat, accent.heroRed.hex),
     });
     y += damage.height + 4;
 
     if (option.hpAfter) {
-      const hp = this.add.text(slot.x + 10, y, option.hpAfter, textStyle(typeRole.label, surface.ink.hex, ink.secondary));
+      const hp = this.add.text(textX, y, option.hpAfter, textStyle(typeRole.label, surface.ink.hex, ink.secondary));
       y += hp.height + 4;
     }
 
     if (option.consequences.length > 0 && y < slot.y + slot.height - 12) {
       this.add
-        .text(slot.x + 10, y, option.consequences.join(" "), textStyle(typeRole.body, surface.ink.hex, ink.secondary))
-        .setWordWrapWidth(slot.width - 20)
+        .text(textX, y, option.consequences.join(" "), textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .setWordWrapWidth(textWidth)
         .setMaxLines(Math.max(1, Math.floor((slot.y + slot.height - y - 8) / 16)));
     }
 
