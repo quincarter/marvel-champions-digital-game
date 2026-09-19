@@ -364,7 +364,9 @@ export class BoardScene extends Phaser.Scene {
     if (zones.encounter) drawEncounter(ctx, zones.encounter, model);
     if (zones.log) this.#logPanel.draw(this, zones.log, this.#log);
     else this.#logPanel.hide();
-    if (zones.me) drawCharacter(ctx, zones.me, model.me);
+    // Always the wide panel: the identity's attachments only show as chips
+    // beside its card, and a tall window can give this slot a card-like shape.
+    if (zones.me) drawCharacter(ctx, zones.me, model.me, { shape: "wide" });
     if (zones.playArea) drawPlayArea(ctx, zones.playArea, model);
     if (zones.team) drawTeam(ctx, zones.team, model);
     drawHand(ctx, zones.hand!, model);

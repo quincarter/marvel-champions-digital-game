@@ -129,6 +129,58 @@ export interface LayoutOptions {
 /** A physical card is 2.5″ × 3.5″; every card slot keeps that ratio. */
 export const CARD_ASPECT = 2.5 / 3.5;
 
+/**
+ * The narrowest a wide character panel's text column may get before the panel
+ * stops being "card plus numbers" and becomes the card itself. Below this the
+ * name wraps to one word a line and the stat tiles have nowhere to sit.
+ */
+export const PANEL_TEXT_MIN_WIDTH = 104;
+
+/**
+ * What a wide panel spends across its width besides the card and the text
+ * column: the 3px frame inset before the card, the gap and rule between card
+ * and text, and the 8px inset after the text (`character-panel.ts`).
+ */
+export const PANEL_TEXT_INSETS = 22;
+
+/** The frame inset above and below a wide panel's card. */
+const PANEL_CARD_INSET = 3;
+
+/**
+ * How wide a wide character panel has to be for a card as tall as the panel
+ * allows to sit beside a `PANEL_TEXT_MIN_WIDTH` text column — a whole card,
+ * never cropped, with room for the name, the statuses and the attachment
+ * chips next to it.
+ */
+export function widePanelWidthFor(panelHeight: number): number {
+  return Math.round((panelHeight - PANEL_CARD_INSET * 2) * CARD_ASPECT) + PANEL_TEXT_MIN_WIDTH + PANEL_TEXT_INSETS;
+}
+
+/**
+ * The two shapes a character panel takes: `"wide"` puts the card in a column
+ * with the live numbers, statuses and attachment chips beside it; `"card"` is
+ * the slot *as* the card, with only the numbers riding on top.
+ */
+export type PanelShape = "wide" | "card";
+
+/**
+ * Which shape a character panel gets in `rect`.
+ *
+ * `"auto"` reads the rect: a slot already roughly card-shaped (a minion in a
+ * row, an ally in the play area) is the card, and anything wider gets the
+ * column beside it. `"wide"` is for the perspective player's identity, which
+ * is always the wide panel: its attachments only show as chips beside the
+ * card, and its scan is shown whole so the printed rules text can be read.
+ * On a tall window — a maximized 16″ MacBook, a 1920×1080 display — the
+ * identity's slot comes out taller than it is wide, and reading the rect
+ * sent it through the card shape, which crops the scan to cover the slot and
+ * draws no attachments at all: the very things the wide panel exists to show.
+ */
+export function panelShape(rect: Rect, preferred: PanelShape | "auto" = "auto"): PanelShape {
+  if (preferred !== "auto") return preferred;
+  return rect.width < PANEL_TEXT_MIN_WIDTH + 60 || rect.width < rect.height * 0.95 ? "card" : "wide";
+}
+
 /** The design canvases' reference viewports. */
 export const REFERENCE_VIEWPORTS = {
   phone: { width: 390, height: 844 },
@@ -303,7 +355,17 @@ function longTableZones(viewport: Rect, formFactor: FormFactor, options: LayoutO
 
   // Player band: identity · play area · other heroes (the strip only exists in multiplayer).
   const teamWidth = options.playerCount > 1 ? Math.round(Math.min(260, usable * 0.2)) : 0;
-  const identityWidth = Math.round(Math.min(300, usable * 0.24));
+  // The identity column grows with the band, so its card is shown whole at the
+  // band's height with a readable text column beside it. A fixed 24% column
+  // was fine on the 1440×900 canvas, but a taller window (a maximized 16″
+  // MacBook, a 1920×1080 display) made the band taller without making the
+  // column wider, so the card either shrank to fit the width with dead panel
+  // under it or, past a point, the slot read as card-shaped and cropped it.
+  // Capped at 30% so the play area keeps most of the band; past that the
+  // card simply doesn't fill the height, which is the lesser loss.
+  const identityWidth = Math.round(
+    Math.min(Math.max(Math.min(300, usable * 0.24), widePanelWidthFor(playerHeight)), usable * 0.3),
+  );
   const playAreaWidth = usable - identityWidth - teamWidth - gutter * (teamWidth > 0 ? 2 : 1);
 
   // The log shares the encounter column, under the piles.
