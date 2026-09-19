@@ -17,6 +17,7 @@ import "@fontsource/ibm-plex-mono/400.css";
 import Phaser from "phaser";
 import { surface } from "./tokens.js";
 import { cssOf, setTextResolution } from "./ui/theme.js";
+import { recoverTextOnContextRestore } from "./ui/context-recovery.js";
 import { appSession } from "./session.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
@@ -89,6 +90,10 @@ const game = new Phaser.Game({
 // stay out of the way of it. Phaser 4 has no game-config flag for this, only
 // this call on the mouse manager.
 game.input.mouse?.disableContextMenu();
+
+// A GPU reset in the native webviews turns every label into a black box
+// unless the text is redrawn once the context is back (`ui/context-recovery.ts`).
+recoverTextOnContextRestore(game);
 
 /**
  * A canvas has no inspectable DOM, so in development the game is reachable from

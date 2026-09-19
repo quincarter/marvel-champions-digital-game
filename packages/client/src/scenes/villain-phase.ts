@@ -123,6 +123,7 @@ import { cardName, seatName } from "../view/names.js";
 import { revealOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
 import { boostCardsLayout } from "../view/villain-phase-boosts.js";
+import { interruptCardsLayout } from "../view/villain-phase-interrupts.js";
 import { mainSchemeCalloutOf, type MainSchemeCallout } from "../view/villain-main-scheme.js";
 import { queuedActivationsOf, type QueuedSeat } from "../view/villain-queue.js";
 import { teamStatusOf, type TeamStatusRow } from "../view/villain-team-status.js";
@@ -449,7 +450,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       // fighting the breakdown/queued layout for room it doesn't have.
       const mergedBottom = phone ? layout.phaseLog.y + layout.phaseLog.height : layout.queued.y + layout.queued.height;
       const merged: Rect = { x: layout.happeningNow.x, y: layout.happeningNow.y, width: layout.happeningNow.width, height: mergedBottom - layout.happeningNow.y };
-      this.#drawInterrupt(merged, inline, game, viewerId, pause!, stops);
+      this.#drawInterrupt(merged, inline, game, viewerId, pause!, formFactor, stops);
       if (!phone) {
         // L02's own point: the team rail stays legible behind the interrupt.
         this.#drawTeamStatus(layout.teamStatus, teamStatusOf(game, POOL_DEPS, activationTargetOf(reveal.current?.activation ?? null)), viewer);
@@ -823,7 +824,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * resolve" — both dispatch through `#resolve`, the same `resolveChoice`
    * the full choice sheet would use for the same option ids.
    */
-  #drawInterrupt(rect: Rect, options: readonly InlineInterruptOption[], state: GameState, viewerId: PlayerId, pause: Pause, stops: Map<string, FocusStop>): void {
+  #drawInterrupt(
+    rect: Rect,
+    options: readonly InlineInterruptOption[],
+    state: GameState,
+    viewerId: PlayerId,
+    pause: Pause,
+    formFactor: FormFactor,
+    stops: Map<string, FocusStop>,
+  ): void {
     const g = this.add.graphics();
     g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(border.object, signal.caution.hex, 1);
@@ -837,45 +846,63 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       .setMaxLines(2);
 
     const resolveHeight = hit.primary;
-    let cardY = rect.y + 28 + bodyText.height + 12;
-    const roomForCards = Math.max(0, rect.y + rect.height - 12 - resolveHeight - 12 - cardY);
-    const cardHeight = Math.max(80, Math.min(150, roomForCards / Math.max(1, options.length) - 10));
+    const cardsTop = rect.y + 28 + bodyText.height + 12;
+    const cardsArea: Rect = { x: rect.x + 14, y: cardsTop, width: rect.width - 28, height: Math.max(0, rect.y + rect.height - 12 - resolveHeight - 12 - cardsTop) };
+    const slots = interruptCardsLayout(cardsArea, options.length, formFactor, hit.target);
 
-    for (const option of options) {
+    options.forEach((option, i) => {
+      const slot = slots[i];
+      if (!slot) return;
       const model = inspectModel(state, option.instanceId, null, viewerId, POOL_DEPS);
-      const cardRect: Rect = { x: rect.x + 14, y: cardY, width: rect.width - 28, height: cardHeight };
       const cg = this.add.graphics();
-      paintPanel(cg, cardRect, "card", "rest");
+      paintPanel(cg, slot.card, "card", "rest");
 
+      if (slot.art.width > 0 && slot.art.height > 0) {
+        const artFill = this.add.graphics();
+        artFill.fillStyle(surface.parchment.hex, 1).fillRect(slot.art.x, slot.art.y, slot.art.width, slot.art.height);
+        const key = cardArt(this).request(this, artFor(cardOf(state, option.instanceId), { kind: "front" }));
+        if (!drawArt(this, key, slot.art)) {
+          this.add
+            .text(slot.art.x + slot.art.width / 2, slot.art.y + slot.art.height / 2, "no scan", textStyle(typeRole.label, surface.ink.hex, ink.meta))
+            .setOrigin(0.5);
+        }
+        const zone = this.add.zone(slot.art.x, slot.art.y, slot.art.width, slot.art.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        const openInspect = (): void => {
+          this.scene.launch(SCENES.inspect, { instanceId: option.instanceId });
+        };
+        bindHoldTarget(this, zone, { key: `interrupt:${option.optionId}`, onTap: openInspect, onInspect: openInspect });
+      }
+
+      const { x: textX, y: textY, width: textWidth, height: textHeight } = slot.text;
       const nameText = this.add
-        .text(cardRect.x + 12, cardRect.y + 10, model.name, textStyle({ ...typeRole.rowTitle, size: 16 }, surface.ink.hex))
+        .text(textX, textY, model.name, textStyle({ ...typeRole.rowTitle, size: 16 }, surface.ink.hex))
         .setOrigin(0, 0)
-        .setWordWrapWidth(cardRect.width - 200);
-      fitText(nameText, cardRect.width - 200, 16);
-      this.add
-        .text(cardRect.x + 12, cardRect.y + 10 + nameText.height + 2, model.typeLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
-        .setOrigin(0, 0);
-      this.add
-        .text(cardRect.x + 12, cardRect.y + 10 + nameText.height + 20, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
+        .setWordWrapWidth(textWidth)
+        .setMaxLines(1);
+      fitText(nameText, textWidth, 16);
+      const typeText = this.add
+        .text(textX, textY + nameText.height + 2, model.typeLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
         .setOrigin(0, 0)
-        .setWordWrapWidth(cardRect.width - 24)
-        .setMaxLines(Math.max(1, Math.floor((cardHeight - 40) / 15)));
+        .setWordWrapWidth(textWidth)
+        .setMaxLines(1);
+      const rulesTop = typeText.y + typeText.height + 6;
+      this.add
+        .text(textX, rulesTop, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
+        .setOrigin(0, 0)
+        .setWordWrapWidth(textWidth)
+        .setMaxLines(Math.max(0, Math.floor((textY + textHeight - rulesTop) / 15)));
 
-      const buttonWidth = Math.min(180, cardRect.width - 24);
-      const buttonRect: Rect = { x: cardRect.x + cardRect.width - buttonWidth - 12, y: cardRect.y + cardRect.height - hit.target - 8, width: buttonWidth, height: hit.target };
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
           label: `Play ${model.name}`,
           type: typeRole.label,
-          rect: buttonRect,
+          rect: slot.button,
           onClick: () => this.#resolve([option.optionId]),
         }),
       );
-      stops.set(`interrupt:${option.optionId}`, { rect: buttonRect, activate: () => this.#resolve([option.optionId]) });
-
-      cardY += cardHeight + 10;
-    }
+      stops.set(`interrupt:${option.optionId}`, { rect: slot.button, activate: () => this.#resolve([option.optionId]) });
+    });
 
     const resolveRect: Rect = { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
     this.#buttons.push(new McButton(this, { kind: "secondary", label: "Let it resolve", type: typeRole.barTitle, rect: resolveRect, onClick: () => this.#resolve([]) }));
