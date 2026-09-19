@@ -39,8 +39,15 @@ const PAD_WIDE = 24;
 const RAIL_WIDTH = 300;
 const RAIL_GAP = 16;
 const MAIN_SCHEME_HEIGHT = 92;
-const BOOSTS_HEIGHT_WIDE = 96;
-const BOOSTS_HEIGHT_PHONE = 64;
+/**
+ * The boost-card panel's height once there is at least one boost card to
+ * show it — tall enough for a real scan to be readable next to its text
+ * (`view/villain-phase-boosts.ts` tiles the actual cards within it), inside
+ * the 220–260px the design asks for on desktop/tablet.
+ */
+const BOOSTS_HEIGHT_WIDE = 240;
+/** Sized so a single boost card's thumbnail lands close to the design's ~90px-wide phone thumb (`villain-phase-boosts.ts`'s own padding math). */
+const BOOSTS_HEIGHT_PHONE = 142;
 const MIN_QUEUED_HEIGHT = 60;
 const MIN_LOG_HEIGHT = 40;
 
@@ -55,7 +62,13 @@ export interface VillainPhaseLayout {
   readonly stepLine: Rect;
   /** "Happening now": the activation's breakdown, or the plain narration when there's nothing structured to show. */
   readonly happeningNow: Rect;
-  /** The boost cards this activation has revealed so far. Zero height when the current beat has none to show — the scene decides that from the model, not this layout. */
+  /**
+   * The boost cards this activation has revealed so far. Zero height when
+   * `boostCount` is zero (most of the phase has none to show); tall enough
+   * for a real scan (`BOOSTS_HEIGHT_WIDE`/`BOOSTS_HEIGHT_PHONE`) once there is
+   * at least one, so "queued this phase" only gives up room to it when it is
+   * actually drawing something.
+   */
   readonly boosts: Rect;
   /** The per-seat "TEAM STATUS" list (L02) — tablet only; zero height on phone and desktop, which have no such panel. */
   readonly teamStatus: Rect;
@@ -68,9 +81,18 @@ export interface VillainPhaseLayout {
   readonly footer: Rect;
 }
 
-export function villainPhaseLayout(bounds: Rect, formFactor: FormFactor): VillainPhaseLayout {
+/**
+ * `boostCount` is how many boost cards the current activation has revealed so
+ * far (`activation.boosts.length` off the walkthrough model) — defaulted to
+ * zero for callers that only care about the rest of the geometry (most of
+ * this file's own tests), matching `poolGridGeometry`'s own precedent for a
+ * count-driven layout elsewhere in the client.
+ */
+export function villainPhaseLayout(bounds: Rect, formFactor: FormFactor, boostCount: number = 0): VillainPhaseLayout {
   const phone = formFactor === "phone";
   const tablet = formFactor === "tabletLandscape" || formFactor === "tabletPortrait";
+  const boostsHeightWide = boostCount > 0 ? BOOSTS_HEIGHT_WIDE : 0;
+  const boostsHeightPhone = boostCount > 0 ? BOOSTS_HEIGHT_PHONE : 0;
   const margin = phone ? MARGIN_PHONE : MARGIN_WIDE;
   const pad = phone ? PAD_PHONE : PAD_WIDE;
   const panel: Rect = { x: bounds.x + margin, y: bounds.y + margin, width: bounds.width - margin * 2, height: bounds.height - margin * 2 };
@@ -98,12 +120,14 @@ export function villainPhaseLayout(bounds: Rect, formFactor: FormFactor): Villai
 
   if (phone) {
     const nowHeight = 128;
-    const boostsHeight = BOOSTS_HEIGHT_PHONE;
+    const boostsHeight = boostsHeightPhone;
     const mainSchemeHeight = 56;
     const happeningNow: Rect = { x: contentX, y, width: contentWidth, height: nowHeight };
     y += nowHeight + 8;
     const boosts: Rect = { x: contentX, y, width: contentWidth, height: boostsHeight };
-    y += boostsHeight + 8;
+    // No second gap when there is nothing to show — an empty boosts rect
+    // should not cost "queued this phase" room it isn't using.
+    y += boostsHeight + (boostsHeight > 0 ? 8 : 0);
     const mainScheme: Rect = { x: contentX, y, width: contentWidth, height: mainSchemeHeight };
     y += mainSchemeHeight + 8;
     const queuedHeight = Math.max(MIN_QUEUED_HEIGHT, Math.min(90, bodyBottom - y - MIN_LOG_HEIGHT - 16));
@@ -134,8 +158,9 @@ export function villainPhaseLayout(bounds: Rect, formFactor: FormFactor): Villai
 
   // Main column: "happening now", the boost cards it revealed, then "queued this phase" filling what's left.
   const happeningNow: Rect = { x: contentX, y, width: mainWidth, height: 168 };
-  const boosts: Rect = { x: contentX, y: happeningNow.y + happeningNow.height + 12, width: mainWidth, height: BOOSTS_HEIGHT_WIDE };
-  const queuedTop = boosts.y + boosts.height + 12;
+  const boosts: Rect = { x: contentX, y: happeningNow.y + happeningNow.height + 12, width: mainWidth, height: boostsHeightWide };
+  // No second gap when there is nothing to show — see the phone branch's own comment.
+  const queuedTop = boosts.y + boosts.height + (boostsHeightWide > 0 ? 12 : 0);
   const queued: Rect = { x: contentX, y: queuedTop, width: mainWidth, height: Math.max(0, bodyBottom - queuedTop) };
 
   return { panel, title, skip, subtitle, stepStrip, stepLine, happeningNow, boosts, teamStatus, mainScheme, queued, phaseLog, footer };

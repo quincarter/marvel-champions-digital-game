@@ -95,7 +95,10 @@ describe("villainPhaseLayout", () => {
         }
 
         test("happening now, the boost row and queued this phase stack in the main column, top to bottom", () => {
-          const layout = villainPhaseLayout(bounds, formFactor);
+          // With a boost card actually revealed: an empty boosts rect (the
+          // default, zero-height) legitimately shares its y with queued right
+          // under it, which the dedicated boosts-height tests already cover.
+          const layout = villainPhaseLayout(bounds, formFactor, 1);
           expect(layout.happeningNow.y).toBeLessThan(layout.boosts.y);
           expect(layout.boosts.y).toBeLessThan(layout.queued.y);
           expect(layout.happeningNow.x).toBe(layout.boosts.x);
@@ -120,6 +123,34 @@ describe("villainPhaseLayout", () => {
         expect(layout.footer.y + layout.footer.height).toBeLessThanOrEqual(layout.panel.y + layout.panel.height + 0.001);
         expect(layout.queued.y + layout.queued.height).toBeLessThanOrEqual(layout.footer.y + 0.001);
         expect(layout.phaseLog.y + layout.phaseLog.height).toBeLessThanOrEqual(layout.footer.y + 0.001);
+      });
+
+      test("boosts is zero height with nothing revealed, and stays that way with the default argument", () => {
+        expect(villainPhaseLayout(bounds, formFactor).boosts.height).toBe(0);
+        expect(villainPhaseLayout(bounds, formFactor, 0).boosts.height).toBe(0);
+      });
+
+      test("boosts grows tall enough for a real scan once a boost card is revealed, still with no overlap", () => {
+        const withBoosts = villainPhaseLayout(bounds, formFactor, 1);
+        expect(withBoosts.boosts.height).toBeGreaterThanOrEqual(phone ? 120 : 220);
+        expect(withBoosts.boosts.height).toBeLessThanOrEqual(phone ? 200 : 260);
+        const rects = leafRects(withBoosts);
+        for (let i = 0; i < rects.length; i++) {
+          for (let j = i + 1; j < rects.length; j++) {
+            expect(rectsOverlap(rects[i]!, rects[j]!), `rect ${i} overlaps rect ${j}`).toBe(false);
+          }
+        }
+        for (const rect of rects) {
+          expect(rect.x + rect.width).toBeLessThanOrEqual(width + 0.001);
+          expect(rect.y + rect.height).toBeLessThanOrEqual(height + 0.001);
+        }
+      });
+
+      test("more revealed boost cards never shrink the reserved boosts height (a fixed panel, tiled by the boosts sub-layout)", () => {
+        const one = villainPhaseLayout(bounds, formFactor, 1);
+        const many = villainPhaseLayout(bounds, formFactor, 4);
+        expect(many.boosts.height).toBe(one.boosts.height);
+        expect(many.boosts.width).toBe(one.boosts.width);
       });
     });
   }
