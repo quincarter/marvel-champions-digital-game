@@ -522,7 +522,7 @@ export class DeckCheckScene extends Phaser.Scene {
       const entry = slot.group.entries[slot.startIndex + column];
       if (entry) this.#inspect(entry);
     };
-    this.#cardList = new McVariableList(this, { rect, heights, renderRow, scroll: this.#cardListScroll, onRowActivate });
+    this.#cardList = new McVariableList(this, { rect, heights, renderRow, scroll: this.#cardListScroll, onRowActivate, background: false });
     const list = this.#cardList;
 
     const cardIds: string[] = [];
@@ -566,13 +566,13 @@ export class DeckCheckScene extends Phaser.Scene {
   #renderGroupHeaderRow(rect: Rect, group: DeckListGroup): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const heading = this.add
-      .text(rect.x, rect.y + 4, `${group.label.toUpperCase()} · ${group.count}`, { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "19px" })
+      .text(rect.x + 4, rect.y + 4, `${group.label.toUpperCase()} · ${group.count}`, { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "19px" })
       .setLetterSpacing(typeRole.barTitle.letterSpacing);
     objects.push(heading);
-    const ruleX = rect.x + heading.width + 10;
+    const ruleX = rect.x + 4 + heading.width + 10;
     if (ruleX < rect.x + rect.width) {
       const rule = this.add.graphics();
-      rule.fillStyle(surface.ink.hex, 1).fillRect(ruleX, rect.y + 4 + heading.height / 2 - 1.5, rect.x + rect.width - ruleX, 3);
+      rule.fillStyle(surface.ink.hex, 1).fillRect(ruleX, rect.y + 4 + heading.height / 2 - 1.5, rect.x + rect.width - 4 - ruleX, 3);
       objects.push(rule);
     }
     return { objects };
@@ -628,7 +628,7 @@ export class DeckCheckScene extends Phaser.Scene {
     footerRule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, footerRuleY, cardRect.width, 2);
     objects.push(footerRule);
     const ruleText = card && "text" in card ? truncate((card as unknown as { text: { current: string } }).text.current, 64) : "";
-    if (ruleText) objects.push(this.add.text(cardRect.x + 6, footerRuleY + 4, ruleText, textStyle(typeRole.label, surface.ink.hex, ink.meta)).setWordWrapWidth(cardRect.width - 12));
+    if (ruleText) objects.push(this.add.text(cardRect.x + 6, footerRuleY + 4, ruleText, textStyle(typeRole.label, surface.ink.hex, ink.meta)).setWordWrapWidth(cardRect.width - 12).setMaxLines(2));
 
     // The "×N" copies badge, floating over the cell's own top-right corner (D04's own absolute-positioned badge).
     const qtyLabel = `×${entry.quantity}`;
