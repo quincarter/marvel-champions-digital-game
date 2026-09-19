@@ -55,6 +55,8 @@ export interface VillainDeckPreview {
   readonly totalCards: number;
   readonly bySet: readonly EncounterSetBreakdown[];
   readonly byType: readonly CardTypeBreakdown[];
+  /** Cards carrying the `surge` keyword — cross-cutting with `byType` (a treachery or a minion can both carry it), so it's its own count rather than a `CardType` bucket. */
+  readonly surgeCount: number;
 }
 
 export interface NemesisHeldBack {
@@ -81,9 +83,10 @@ export interface EncounterDeckPreview {
 
 const cardsOf = (pool: CardPool): readonly AnyCard[] => (Array.isArray(pool) ? pool : Object.values(pool));
 
-function breakdownOf(cardIds: readonly CardId[], byId: ReadonlyMap<string, AnyCard>, setNames: ReadonlyMap<string, string>): Pick<VillainDeckPreview, "totalCards" | "bySet" | "byType"> {
+function breakdownOf(cardIds: readonly CardId[], byId: ReadonlyMap<string, AnyCard>, setNames: ReadonlyMap<string, string>): Pick<VillainDeckPreview, "totalCards" | "bySet" | "byType" | "surgeCount"> {
   const typeCounts = new Map<CardType, number>();
   const setCounts = new Map<string, number>();
+  let surgeCount = 0;
   for (const id of cardIds) {
     const card = byId.get(id as string);
     if (!card) continue; // defensive: every id here came from the same pool the caller built the config against.
@@ -93,12 +96,13 @@ function breakdownOf(cardIds: readonly CardId[], byId: ReadonlyMap<string, AnyCa
         setCounts.set(setId, (setCounts.get(setId) ?? 0) + 1);
       }
     }
+    if ("keywords" in card && (card.keywords as readonly { readonly name: string }[]).some((k) => k.name === "surge")) surgeCount += 1;
   }
   const byType = [...typeCounts.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count);
   const bySet = [...setCounts.entries()]
     .map(([setId, cardCount]) => ({ setId, setName: setNames.get(setId) ?? setId, cardCount }))
     .sort((a, b) => b.cardCount - a.cardCount);
-  return { totalCards: cardIds.length, byType, bySet };
+  return { totalCards: cardIds.length, byType, bySet, surgeCount };
 }
 
 /**

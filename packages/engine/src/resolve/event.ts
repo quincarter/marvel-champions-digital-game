@@ -1,6 +1,7 @@
 /** Event frames (interrupts → apply → responses) and the state change each event kind makes. */
 
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
+import { overkillRecipient } from "../defend-preview.js";
 import { discardFromPlay, expireEventLastingEffects, healDamage, pierceTough } from "../effects.js";
 import type { FrameId, InstanceId } from "../ids.js";
 import { hasKeyword, keywordTotal } from "../keywords.js";
@@ -271,28 +272,6 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   }
   pushFrames(ctx, frames);
   return true;
-}
-
-/**
- * RRG "Overkill": excess damage spills to the villain when the attack defeats a
- * minion, and to the controlling player's hero when an *ally used to defend*
- * is defeated — an ally hit by anything other than a defense does not spill.
- */
-function overkillRecipient(state: GameState, targetId: InstanceId): InstanceId | null {
-  const card = cardOf(state, targetId);
-  if (isMinion(state, targetId)) {
-    // "To the villain" is read as the active villain. Open (docs/phase7-wave1.md §4.5): the insert's "'the villain'
-    // only refers to the active villain" speaks of card effects, and overkill is a keyword.
-    const active = activeVillain(state);
-    return active.defeated ? null : active.instanceId;
-  }
-  if (card?.type !== "ally") return null;
-  const defended = state.stack.some(
-    (frame) => frame.kind === "enemyAttack" && frame.defenderInstanceId === targetId,
-  );
-  if (!defended) return null;
-  const controller = controllerOf(state, targetId);
-  return controller ? (getPlayer(state, controller)?.identity.instanceId ?? null) : null;
 }
 
 /** RRG "Tough": a tough status prevents all damage and is discarded instead. */

@@ -90,6 +90,13 @@ export function gameOverModel(
   deps: EngineDeps,
 ): GameOverModel {
   const outcome = state.outcome;
+  /**
+   * A conceded game is neither a win nor a defeat — the RRG has no concede rule at all, so calling it a loss would
+   * import a meaning the game does not have (see `GameOutcome`). `tone` is the *palette* the scene draws in and it
+   * only knows two, so a concession takes the non-win one; every line of copy below says conceded instead of
+   * defeated, which is where the distinction actually shows.
+   */
+  const concededBy = outcome?.result === "conceded" ? outcome.byPlayerId : null;
   const tone: GameOverTone = outcome?.result === "win" ? "win" : "loss";
   // The villain with the active counter: with several villains, the one still standing last.
   const villainState = activeVillain(state);
@@ -130,6 +137,12 @@ export function gameOverModel(
             }
           : { title: `${villain} defeated`, body: `The last ${blow.amount} damage landed in round ${blow.round}.` };
       }
+      break;
+    }
+    case "playerConceded": {
+      kicker = "Game conceded";
+      headline = concededBy ? `${playerName(state, concededBy)} conceded` : "The table conceded";
+      summary = `The game was given up in round ${round}, with ${villain} at stage ${stage} and ${villainHp} hit points left.`;
       break;
     }
     case "allPlayersDefeated": {
@@ -226,7 +239,7 @@ export function gameOverModel(
     finalBlow,
     stats,
     quickStats,
-    beatsHeading: tone === "win" ? "How it was won" : "Where it went wrong",
+    beatsHeading: concededBy ? "How it went" : tone === "win" ? "How it was won" : "Where it went wrong",
     beats: turningPoints(state, record, tone, villain),
     seats,
     mvp,

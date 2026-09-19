@@ -8,10 +8,13 @@ import {
   cardStatColumn,
   CARD_ASPECT,
   formFactorFor,
+  panelShape,
+  PANEL_TEXT_MIN_WIDTH,
   PHONE_TABS,
   REFERENCE_VIEWPORTS,
   statBlockLayout,
   villainRowSlots,
+  widePanelWidthFor,
   type Rect,
   type ZoneName,
 } from "./layout.js";
@@ -130,6 +133,46 @@ describe("boardLayout", () => {
     expect(me!.y + me!.height).toBeLessThanOrEqual(hand!.y);
     // Schemes left of the villain, per the Long Table canvas.
     expect(threat!.x).toBeLessThan(enemies!.x);
+  });
+
+  /**
+   * A maximized 16″ MacBook window, a 1920×1080 display, a portrait-ish
+   * desktop window: each makes the player band taller than the design's
+   * 1440×900 canvas without making it wider. Reported from the desktop app as
+   * the hero card "getting clipped" again — the identity's fixed 24% column
+   * turned taller than wide, read as a card-shaped slot, and lost its
+   * attachment chips and the readable scan.
+   */
+  const TALL_WINDOWS = [
+    ["macbook 16 maximized", { width: 1728, height: 1117 }],
+    ["1080p display", { width: 1920, height: 1080 }],
+    ["tall desktop window", { width: 1440, height: 1200 }],
+    ["tall tablet landscape", { width: 1100, height: 900 }],
+  ] as const;
+
+  test.each(TALL_WINDOWS)("%s: the identity column is wide enough to show its card whole beside a text column", (_name, size) => {
+    const layout = boardLayout(rectOf(size), { playerCount: 1 });
+    const me = layout.zones.me!;
+    expect(me.width).toBeGreaterThanOrEqual(widePanelWidthFor(me.height));
+    expect(panelShape(me)).toBe("wide");
+  });
+
+  test.each(TALL_WINDOWS)("%s: the identity column never takes more than 30% of the table from the play area", (_name, size) => {
+    for (const playerCount of [1, 4]) {
+      const layout = boardLayout(rectOf(size), { playerCount });
+      const { me, playArea, team } = layout.zones;
+      // The band runs from the identity's left edge to the right edge of its last column.
+      const usable = (team ? team.x + team.width : playArea!.x + playArea!.width) - me!.x;
+      expect(me!.width).toBeLessThanOrEqual(usable * 0.3 + 0.5);
+      expect(playArea!.width).toBeGreaterThan(me!.width);
+    }
+  });
+
+  test("the identity column keeps the 1440×900 canvas's width where the card already fits", () => {
+    const me = boardLayout(rectOf(REFERENCE_VIEWPORTS.desktop), { playerCount: 1 }).zones.me!;
+    // The canvas gives it 300px; the card needs 302 here, so it barely moves.
+    expect(me.width).toBeGreaterThanOrEqual(300);
+    expect(me.width).toBeLessThanOrEqual(304);
   });
 
   test("zones in a band do not overlap", () => {
@@ -369,5 +412,30 @@ describe("villainRowSlots", () => {
     for (let i = 1; i < sorted.length; i++) {
       expect(sorted[i]!.x).toBeGreaterThanOrEqual(sorted[i - 1]!.x + sorted[i - 1]!.width - 0.001);
     }
+  });
+});
+
+describe("widePanelWidthFor", () => {
+  test("is the card at the panel's height plus the text column and its insets", () => {
+    const height = 249;
+    const cardWidth = Math.round((height - 6) * CARD_ASPECT);
+    expect(widePanelWidthFor(height)).toBe(cardWidth + PANEL_TEXT_MIN_WIDTH + 22);
+  });
+});
+
+describe("panelShape", () => {
+  test("a card-row slot reads as the card", () => {
+    const [slot] = cardRow({ x: 0, y: 0, width: 600, height: 200 }, 3);
+    expect(panelShape(slot!)).toBe("card");
+  });
+
+  test("a panel with a text column's worth of room beside the card is wide", () => {
+    expect(panelShape({ x: 0, y: 0, width: 300, height: 249 })).toBe("wide");
+  });
+
+  test("a slot taller than it is wide reads as the card unless the caller asks for the wide panel", () => {
+    const tallIdentitySlot: Rect = { x: 0, y: 0, width: 300, height: 351 };
+    expect(panelShape(tallIdentitySlot)).toBe("card");
+    expect(panelShape(tallIdentitySlot, "wide")).toBe("wide");
   });
 });

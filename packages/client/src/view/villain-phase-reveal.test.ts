@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import type { Walkthrough, WalkthroughBeat } from "./villain-walkthrough.js";
 import { revealOf } from "./villain-phase-reveal.js";
 
-const beat = (id: string, text: string): WalkthroughBeat => ({ id, text, pause: null });
+const beat = (id: string, text: string): WalkthroughBeat => ({ id, text, pause: null, activation: null });
 
 /** A walkthrough that already ran to completion in one command, no pause. */
 function completedWalkthrough(): Walkthrough {
@@ -25,6 +25,7 @@ function completedWalkthrough(): Walkthrough {
     pausedAt: null,
     complete: true,
     nextBeatId: 7,
+    activation: null,
   };
 }
 
@@ -80,6 +81,7 @@ describe("revealOf", () => {
       pausedAt: null,
       complete: false,
       nextBeatId: 1,
+      activation: null,
     };
 
     const reveal = revealOf(empty, 0);
@@ -100,7 +102,12 @@ describe("revealOf", () => {
           title: "Villain and minions activate",
           beats: [
             beat("b2", "Klaw activates against you"),
-            { id: "b3", text: "Auto-advance paused for your interrupt", pause: { playerId: "p1" as never, promptKind: "chooseTriggers", authority: "player", label: "Auto-advance paused for your interrupt", soleDecider: false, offer: "" } },
+            {
+              id: "b3",
+              text: "Auto-advance paused for your interrupt",
+              pause: { playerId: "p1" as never, promptKind: "chooseTriggers", authority: "player", label: "Auto-advance paused for your interrupt", soleDecider: false, offer: "" },
+              activation: null,
+            },
           ],
           status: "active",
         },
@@ -112,6 +119,7 @@ describe("revealOf", () => {
       pausedAt: { playerId: "p1" as never, promptKind: "chooseTriggers", authority: "player", label: "Auto-advance paused for your interrupt", soleDecider: false, offer: "" },
       complete: false,
       nextBeatId: 4,
+      activation: null,
     };
 
     const reveal = revealOf(paused, 3);

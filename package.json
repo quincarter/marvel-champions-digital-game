@@ -8,15 +8,23 @@
   "scripts": {
     "dev": "pnpm --filter @mc/client dev",
     "preview": "pnpm --filter @mc/client build && pnpm --filter @mc/client preview",
+    "desktop:dev": "pnpm --filter @mc/client desktop:dev",
+    "desktop:build": "pnpm --filter @mc/client desktop:build",
+    "ios": "pnpm --filter @mc/client ios",
+    "android": "pnpm --filter @mc/client android",
+    "cap": "pnpm --filter @mc/client cap",
+    "android:build": "pnpm --filter @mc/client android:build",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "check": "pnpm typecheck && pnpm test && pnpm build",
+    "capture:screens": "node scripts/capture-design-screenshots.mjs",
     "ingest": "pnpm --filter @mc/content ingest --",
     "clean": "rm -rf packages/*/dist"
   },
   "devDependencies": {
-    "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }

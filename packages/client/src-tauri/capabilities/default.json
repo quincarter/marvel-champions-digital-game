@@ -1,0 +1,13 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The game window: core APIs, plus native HTTP to MarvelCDB only (card art and deck import; see src/platform/native-http.ts).",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    {
+      "identifier": "http:default",
+      "allow": [{ "url": "https://marvelcdb.com/*" }]
+    }
+  ]
+}

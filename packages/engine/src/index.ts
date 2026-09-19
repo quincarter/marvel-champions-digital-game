@@ -109,7 +109,7 @@ export {
   schemeThreatDestination,
   threatCannotBeRemoved,
 } from "./rules.js";
-export { hasKeyword, keywordsOf, printedKeywordsOf } from "./keywords.js";
+export { hasKeyword, keywordsOf, printedKeywordsOf, statusActive } from "./keywords.js";
 export { printedResources } from "./resources.js";
 export type { CostChoices } from "./commands.js";
 export type { DeferredEffects, ReportTarget, Vars } from "./stack.js";
@@ -139,21 +139,42 @@ export { eventSubjects, isAnnouncement } from "./trigger-events.js";
 export type { Bindings, BoostInProgress, StackFrame, StackFrameKind, StackView, TriggerCandidate, WindowTiming } from "./stack.js";
 export { describeFrame, viewStack } from "./stack.js";
 
+/** The resolution stack as rows a client can word (`stack-view.ts`); `frameCardId` is the card a frame resolves. */
+export type { StackEntry } from "./stack-view.js";
+export { stackEntries } from "./stack-view.js";
+export { frameCardId } from "./ctx.js";
+
+/** Who may read a card's face, as a rule over zones — the client's rendering and `preview()` share this one answer. */
+export { faceHidden, faceVisible, offeredByOpenChoice, zoneHidden } from "./visibility.js";
+
+/** "What would this command do?" — a probe of the real engine, truncated wherever the answer needs hidden information. */
+export type { CounterSnapshot, OutcomePreview, PreviewCounter, PreviewStop } from "./preview.js";
+export { preview } from "./preview.js";
+
+/** The defend prompt's options as damage ranges over the facedown boost cards, plus the attack arithmetic they share. */
+export type { BoostBound, BoostScope, DefendBand, DefendOptionPreview, PlannedAttack } from "./defend-preview.js";
+export { defendPreview, plannedAttackDamage } from "./defend-preview.js";
+
 export type { ActiveModifier, ModifiedStat } from "./modifiers.js";
 export { boostIconsFor, modifiersFor, statBonus } from "./modifiers.js";
 
-export type { EffectContext } from "./select.js";
+export type { EffectContext, QueryExclusion } from "./select.js";
 export {
   activeAbilityRefs,
   canAttack,
   cardsInPlay,
   categoriesOf,
   controllerOf,
+  explainQuery,
   matchesQuery,
   resolveValue,
   selectTargets,
   traitsOf,
 } from "./select.js";
+
+/** "Why not the others?" — the cards an open choice left out, each with the clause that excluded it. */
+export type { ChoiceExclusion, ExclusionCode } from "./why-not.js";
+export { choiceExclusions } from "./why-not.js";
 
 /** RRG "Unique Icon": the match predicate and the in-play scan, for a client that wants to grey a card itself. */
 export type { UniqueNames } from "./unique.js";

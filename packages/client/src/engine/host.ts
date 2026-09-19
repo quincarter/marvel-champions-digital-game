@@ -116,5 +116,7 @@ export interface EngineHost {
   save(): Promise<SavedGame>;
   /** The stored game to offer as "Continue", or null. */
   latestSave(): Promise<SaveMeta | null>;
+  /** Every saved game (W9's per-deck record and last played, `view/results-history.ts`). */
+  listSaves(): Promise<readonly SaveMeta[]>;
   dispose(): void;
 }

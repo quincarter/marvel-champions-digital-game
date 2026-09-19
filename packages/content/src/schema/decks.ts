@@ -36,6 +36,17 @@ export interface Deck {
    */
   readonly poolVersion: string;
   readonly source: DeckSource;
+  /**
+   * ISO 8601, set by whatever client action persisted this revision of the deck (a builder save,
+   * an import, a duplicate) — never read from a clock here, the same "caller supplies the
+   * timestamp" pattern `DeckSource`'s own `createdAt`/`importedAt` already use. **Optional**
+   * because a deck saved before this field existed has none: such a deck still loads exactly as
+   * before (`DeckStorage` stores decks exactly as given, `decks.ts`'s own doc comment), it is
+   * simply absent from "recently changed" sorting rather than treated as an error
+   * (`view/deck-recency.ts`, `@mc/client`). This is deliberately *not* a revision history — one
+   * timestamp, overwritten on every save, with no record of what changed.
+   */
+  readonly updatedAt?: string;
 }
 
 /** One line of a decklist. `cardId` is the MarvelCDB card code (see `decks.test.ts`). */

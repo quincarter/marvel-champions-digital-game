@@ -27,23 +27,26 @@
  * client can show a message from, and sidesteps relying on a third party's
  * CORS headers being present on every response shape rather than just the
  * happy path.
+ *
+ * A packaged app (Capacitor/Tauri) has no route either, but it has native HTTP
+ * that CORS doesn't apply to, so `src/platform/deck-fetch.ts` asks MarvelCDB
+ * directly there. Both paths shape the answer with `marvelcdb-upstream.ts`.
  */
 import type { ServerResponse } from "node:http";
 import type { Connect, Plugin } from "vite";
+import { deckImportError, interpretDeckResponse, marvelCdbDeckUrl, type DeckImportAnswer } from "./src/platform/marvelcdb-upstream.js";
 
 export const MARVELCDB_IMPORT_ROUTE = "/api/marvelcdb-import/";
 
 const REF_PATTERN = /^(decklist|deck)\/(\d+)$/;
 
-function upstreamUrl(kind: "decklist" | "deck", id: string): string {
-  return `https://marvelcdb.com/api/public/${kind}/${id}.json`;
-}
-
-/** A same-shape error body for every failure case, so the client has one thing to read regardless of which quirk produced it. */
-function sendError(response: ServerResponse, status: number, message: string): void {
-  response.statusCode = status;
+function send(response: ServerResponse, answer: DeckImportAnswer): void {
+  response.statusCode = answer.status;
   response.setHeader("content-type", "application/json");
-  response.end(JSON.stringify({ error: message }));
+  // Never cached: a deck a player is actively editing on MarvelCDB should
+  // reimport with its latest contents, unlike card art, which never changes.
+  if (answer.status === 200) response.setHeader("cache-control", "no-store");
+  response.end(answer.body);
 }
 
 const middleware = (): Connect.NextHandleFunction => {
@@ -56,7 +59,7 @@ const middleware = (): Connect.NextHandleFunction => {
     const path = url.slice(MARVELCDB_IMPORT_ROUTE.length).split("?")[0] ?? "";
     const match = REF_PATTERN.exec(path);
     if (!match) {
-      sendError(response, 400, "expected /api/marvelcdb-import/decklist/<id> or /deck/<id>");
+      send(response, deckImportError(400, "expected /api/marvelcdb-import/decklist/<id> or /deck/<id>"));
       return;
     }
     const kind = match[1] as "decklist" | "deck";
@@ -67,28 +70,16 @@ const middleware = (): Connect.NextHandleFunction => {
       try {
         // `fetch` follows the `deck` endpoint's redirect itself; the shape
         // that lands here for a private/unknown deck is a 200 HTML page from
-        // /login, handled below by the content-type check rather than by
-        // inspecting the redirect (Node's fetch does not expose the chain).
-        upstream = await fetch(upstreamUrl(kind, id));
+        // /login, handled by `interpretDeckResponse`'s content-type check
+        // rather than by inspecting the redirect (Node's fetch does not expose
+        // the chain).
+        upstream = await fetch(marvelCdbDeckUrl(kind, id));
       } catch (cause) {
-        sendError(response, 502, `could not reach MarvelCDB: ${cause instanceof Error ? cause.message : String(cause)}`);
+        send(response, deckImportError(502, `could not reach MarvelCDB: ${cause instanceof Error ? cause.message : String(cause)}`));
         return;
       }
       const contentType = upstream.headers.get("content-type") ?? "";
-      const body = await upstream.text();
-      // Both observed "not found" shapes are non-JSON (empty, or an HTML
-      // login page) and both mean the same thing to a client: nothing to
-      // import at that reference.
-      if (!upstream.ok || !contentType.includes("application/json") || body.trim().length === 0) {
-        sendError(response, 404, `MarvelCDB has no ${kind === "deck" ? "deck" : "public decklist"} at id ${id} (it may not exist, or may be private).`);
-        return;
-      }
-      response.statusCode = 200;
-      response.setHeader("content-type", "application/json");
-      // Never cached: a deck a player is actively editing on MarvelCDB should
-      // reimport with its latest contents, unlike card art, which never changes.
-      response.setHeader("cache-control", "no-store");
-      response.end(body);
+      send(response, interpretDeckResponse(kind, id, { ok: upstream.ok, contentType, body: await upstream.text() }));
     })();
   };
 };

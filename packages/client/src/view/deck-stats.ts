@@ -139,3 +139,130 @@ export function deckStatsOf(deck: Pick<Deck, "cards">, pool: CardPool): DeckStat
     countsByAspect: aspectCounts,
   };
 }
+
+/** One bar of a cost-curve chart (W1's "Resource curve"): a printed cost, or `capAt` collapsed into an open-ended "N+" bucket. */
+export interface CostCurveBar {
+  readonly label: string;
+  readonly count: number;
+}
+
+/**
+ * `stats.costCurve` bucketed for a fixed-width bar chart (P04/D04's five-to-six-bar curve): one bar per cost from 0
+ * to `capAt - 1`, then one final "`capAt`+" bar summing everything at or above it. Always returns exactly
+ * `capAt + 1` bars, including zero-count ones, so a chart's bar count (and so its width per bar) never depends on
+ * what happens to be in the deck — a deck with nothing at cost 0 still gets a "0" bar at zero height, the same as
+ * every design canvas draws it.
+ */
+export function costCurveBars(stats: DeckStats, capAt = 4): readonly CostCurveBar[] {
+  const bars: { label: string; count: number }[] = Array.from({ length: capAt }, (_unused, cost) => ({ label: String(cost), count: 0 }));
+  let overflow = 0;
+  for (const bucket of stats.costCurve) {
+    if (bucket.cost < capAt) bars[bucket.cost]!.count += bucket.count;
+    else overflow += bucket.count;
+  }
+  return [...bars, { label: `${capAt}+`, count: overflow }];
+}
+
+/** A player-facing label for each `PlayerCardType`'s composition tile ("Events", "Allies" …) — shared by every screen that shows composition-by-type (W1's Deck check and builder panel, W9's Decks & Collection stats pane), so the wording can't drift between them. */
+const TYPE_TILE_LABELS: Readonly<Record<PlayerCardType, string>> = {
+  resource: "Resources",
+  ally: "Allies",
+  event: "Events",
+  upgrade: "Upgrades",
+  support: "Supports",
+  player_side_scheme: "Side schemes",
+};
+
+/** One composition-by-type tile ("Events 21", D14's own wording). */
+export interface CompositionTile {
+  readonly id: PlayerCardType;
+  readonly label: string;
+  readonly count: number;
+}
+
+/** `stats.countsByType`, worded and ordered for a composition tile row — every non-empty type, in `TYPE_TILE_LABELS`' own order. */
+export function compositionTilesOf(stats: DeckStats): readonly CompositionTile[] {
+  return (Object.keys(TYPE_TILE_LABELS) as PlayerCardType[])
+    .filter((type) => (stats.countsByType[type] ?? 0) > 0)
+    .map((type) => ({ id: type, label: TYPE_TILE_LABELS[type], count: stats.countsByType[type]! }));
+}
+
+/** One line of a grouped deck list: a card's display name, type and printed cost (null for a resource), plus how many copies are in the deck. */
+export interface DeckListEntry {
+  readonly cardId: CardId;
+  readonly name: string;
+  readonly type: PlayerCardType;
+  readonly cost: number | null;
+  readonly quantity: number;
+}
+
+/** One group of a grouped deck list ("Hero", an aspect, "Basic") — W1's builder stats panel and Deck check both group this way. */
+export interface DeckListGroup {
+  /** `"hero"` for the identity's signature cards, otherwise the `CoreAspect` value. */
+  readonly key: "hero" | CoreAspect;
+  /** Title-cased for display: "Hero", "Aggression", "Basic", … */
+  readonly label: string;
+  /** The sum of `entries`' quantities — same number `countsByAspect`/`countsByType` would give for this group, kept alongside the entries so a caller never has to re-sum them. */
+  readonly count: number;
+  /** Sorted by name. */
+  readonly entries: readonly DeckListEntry[];
+}
+
+/** Display order and label for each group — hero first (a player's own signature cards read as "theirs" before the aspect they chose), then the aspects in the picker's own order, `basic` and `pool` last. Empty groups are omitted by `deckListGroupsOf`, so this is a superset of what any one deck shows. */
+const GROUP_ORDER: readonly { readonly key: "hero" | CoreAspect; readonly label: string }[] = [
+  { key: "hero", label: "Hero" },
+  { key: "aggression", label: "Aggression" },
+  { key: "justice", label: "Justice" },
+  { key: "leadership", label: "Leadership" },
+  { key: "protection", label: "Protection" },
+  { key: "basic", label: "Basic" },
+  { key: "pool", label: "Pool" },
+];
+
+/**
+ * `deck`'s cards grouped the way the builder's "YOUR DECK" panel and Deck check's card list both show them: by
+ * signature set, then by aspect, each group's cards sorted by name. A card missing from `pool` is skipped, exactly
+ * as `deckStatsOf` skips it from every count — there is nothing to name or group it by.
+ */
+export function deckListGroupsOf(deck: Pick<Deck, "cards">, pool: CardPool): readonly DeckListGroup[] {
+  const byId = new Map(cardsOf(pool).map((card) => [card.id as string, card]));
+  const buckets = new Map<string, DeckListEntry[]>();
+
+  for (const entry of deck.cards as readonly DeckCardEntry[]) {
+    const card = byId.get(entry.cardId as string);
+    if (!card || !PLAYER_CARD_TYPES.has(card.type) || !("aspect" in card)) continue;
+    const aspect = card.aspect as string;
+    const key = aspect.startsWith("hero:") ? "hero" : CORE_ASPECTS.has(aspect as CoreAspect) ? aspect : null;
+    if (!key) continue;
+    const list = buckets.get(key) ?? [];
+    list.push({
+      cardId: card.id,
+      name: card.name,
+      type: card.type as PlayerCardType,
+      cost: "cost" in card ? (card.cost as number) : null,
+      quantity: entry.quantity,
+    });
+    buckets.set(key, list);
+  }
+
+  return GROUP_ORDER.filter(({ key }) => buckets.has(key)).map(({ key, label }) => {
+    const entries = buckets.get(key)!.slice().sort((a, b) => a.name.localeCompare(b.name));
+    return { key, label, count: entries.reduce((sum, e) => sum + e.quantity, 0), entries };
+  });
+}
+
+/**
+ * `groups` (`deckListGroupsOf`'s own output) narrowed to one `PlayerCardType` — Deck check's own left-rail type
+ * filter chips (D04's "ALL/ALLY/EVENT/UPGRADE/SUPPORT/RESOURCE"), which filter what the card *grid* shows without
+ * touching the deck itself. `null` returns `groups` unchanged ("All"). A group left with no entries after filtering
+ * is dropped entirely (an all-Aggression deck's "Basic" group has no allies to show under the Ally filter), and each
+ * kept group's own `count` is recomputed from the entries actually kept, so a group header never claims a quantity
+ * the filtered grid doesn't back up.
+ */
+export function filterDeckListGroups(groups: readonly DeckListGroup[], type: PlayerCardType | null): readonly DeckListGroup[] {
+  if (type === null) return groups;
+  return groups
+    .map((group) => ({ ...group, entries: group.entries.filter((entry) => entry.type === type) }))
+    .filter((group) => group.entries.length > 0)
+    .map((group) => ({ ...group, count: group.entries.reduce((sum, entry) => sum + entry.quantity, 0) }));
+}

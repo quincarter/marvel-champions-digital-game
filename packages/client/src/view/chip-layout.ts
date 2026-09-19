@@ -29,14 +29,20 @@ export const CHIP_GAP = 6;
 
 /**
  * Conservative pixels-per-character at the smallest size `fitText` ever
- * lands a chip on (`CAPTION_FLOOR` = 8px, Public Sans, all-caps per
- * `typeRole.label`). Real glyphs average narrower than this — deliberately:
- * overestimating a label's width can only push it to an earlier row (or its
- * own), never let a label through that actually truncates. Calibrated
- * generously rather than measured, since this module has no canvas to
- * measure against.
+ * lands a chip on (`CAPTION_FLOOR` = 8px, Public Sans ExtraBold, all-caps per
+ * `typeRole.label`). Calibrated generously rather than measured, since this
+ * module has no canvas to measure against — but **not so generously that it
+ * undercounts**: the original 4.6px/char (2026-09 fidelity passes on the
+ * Decks & Collection and Title screens both hit real truncation this module
+ * was supposed to prevent) counted only the glyph's own advance width and
+ * forgot `typeRole.label.letterSpacing` (1.2px), which `McButton` applies to
+ * *every* character including the last, and which `fitText`'s own 1px of
+ * shrink headroom (9px down to `CAPTION_FLOOR`'s 8px) can't make up for. 7.0
+ * folds a same-order glyph estimate and the letter-spacing back in, so a chip
+ * sized to exactly `minChipCellWidth` — not just one crammed into an
+ * equal-width row with slack to spare — no longer truncates.
  */
-export const CHIP_MIN_CHAR_WIDTH_PX = 4.6;
+export const CHIP_MIN_CHAR_WIDTH_PX = 7.0;
 
 /** Matches `McButton.redraw`'s own `fitText` margin for a plain (no `value`) label: `rect.width - 16`. */
 export const CHIP_LABEL_PADDING_PX = 16;
@@ -81,4 +87,38 @@ export function wrapChipsToRows<T extends ChipLabel>(chips: readonly T[], rowWid
 /** The height of a chip strip with `rowCount` rows, stacked with `CHIP_GAP` between — what `title-layout.ts` reserves for it. */
 export function chipStripHeight(rowCount: number): number {
   return rowCount <= 0 ? 0 : rowCount * hit.target + (rowCount - 1) * CHIP_GAP;
+}
+
+/** Horizontal padding either side of a compact chip's own label — generous enough that `fitText` never has to shrink it. */
+export const COMPACT_CHIP_PADDING_PX = 20;
+
+/** A compact chip's own width: sized to its label, not stretched to share a row's full width with its neighbours (W2b's roster filter chips, docs/phase4-screen-gaps.md §3 — the design's small pill chips, not a row of 44px-tall full-width buttons). */
+export function compactChipWidth(label: string): number {
+  return minChipCellWidth(label) + COMPACT_CHIP_PADDING_PX;
+}
+
+/**
+ * Packs `chips` into as few rows as possible at each chip's own compact width (`compactChipWidth`), left to right,
+ * wrapping to a new row only when the next chip wouldn't fit — unlike `wrapChipsToRows`, which divides a row
+ * *evenly* among however many chips it decided to put there (right for a difficulty/modular-set choice row of
+ * equal-weight options, wrong for a filter strip where "Core" and "Playable now" are not the same width).
+ */
+export function packCompactChipsToRows<T extends ChipLabel>(chips: readonly T[], rowWidth: number): readonly (readonly T[])[] {
+  const rows: T[][] = [];
+  let current: T[] = [];
+  let currentWidth = 0;
+  for (const chip of chips) {
+    const w = compactChipWidth(chip.text);
+    const needed = currentWidth + (current.length > 0 ? CHIP_GAP : 0) + w;
+    if (current.length > 0 && needed > rowWidth) {
+      rows.push(current);
+      current = [chip];
+      currentWidth = w;
+    } else {
+      current.push(chip);
+      currentWidth = needed;
+    }
+  }
+  if (current.length > 0) rows.push(current);
+  return rows;
 }

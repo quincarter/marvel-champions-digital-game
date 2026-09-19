@@ -1,47 +1,67 @@
 /**
- * Serving card art to the client, same-origin.
+ * Card art is a build input. This plugin is the whole of how it reaches the
+ * client, in dev and in every packaged form.
  *
- * Two facts decide this design:
+ * The scans live in the repo's `assets/card-art/`, put there by the content
+ * scripts. Nothing fetches them at runtime — not this dev server, not the
+ * desktop shell, not the mobile shell:
  *
- *  1. **WebGL refuses tainted textures.** MarvelCDB serves the card images the
- *     content package points at, but with no `access-control-allow-origin`
- *     header, so a cross-origin `<img>` can be decoded and then *not* uploaded
- *     as a texture. Fetching it through our own origin is the only way a Phaser
- *     scene can draw it at all.
- *  2. **No card art is ever committed** (CLAUDE.md "Content & IP boundaries").
- *     Everything this middleware caches lands in the repo's gitignored
- *     `assets/card-art/`, which is the folder that rule already names.
+ *  - **dev / preview:** `/card-art/<path>` is answered straight from that
+ *    folder.
+ *  - **build:** the pool's share of the folder (`src/art/bundled-art.ts`) is
+ *    copied to `dist/card-art/`, so the same URL is a plain static file. A web
+ *    deploy serves it; Tauri (`frontendDist`) and Capacitor (`webDir`) both
+ *    wrap that same `dist/`, so neither shell needs any art code of its own.
  *
- * So: one route, `/card-art/<path>`, answered from disk first and from
- * MarvelCDB second. A player who owns scans can drop them at
- * `assets/card-art/<path>` and they win over the fetch, which is what
- * `ArtRef` ("a key into a gitignored local asset folder") is for.
+ * Same-origin is the point of the route: WebGL refuses a cross-origin image as
+ * a texture, so a scan has to come from the app's own origin to be drawn.
  *
- * This is a dev/preview server concern only. A production build of the client
- * has no middleware, so `/card-art/*` 404s unless the host serves that folder —
- * and a 404 is a *supported* outcome: every card falls back to the generated
- * frame, which is the designs' behaviour for a missing scan.
+ * A scan that isn't on disk is a 404, and a 404 is a *supported* outcome — the
+ * card falls back to its generated frame. But it is a gap in the asset folder,
+ * not something to paper over at runtime, so the build names every one.
+ *
+ * `MC_CARD_ART` overrides how much a build carries: `pool` (default), `all`
+ * (the whole folder — over a gigabyte; never for the desktop shell, which
+ * embeds `dist/` in its binary), or `none` (skip the copy, e.g. a CI typecheck
+ * build).
  */
 
 import { createHash } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { cp, copyFile, mkdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
-import type { Plugin, Connect } from "vite";
-// One constant, one place: the content package owns where MarvelCDB serves its
-// `ImageRef` paths, and this is the same host its `imageUrl` resolves against.
-import { MARVELCDB_IMAGE_BASE } from "../content/src/schema/images.js";
+import { runnerImport, type Plugin, type Connect } from "vite";
+import { CARD_ART_ROUTE } from "./src/art/art-source.js";
 
-/** The URL prefix the client asks for. Must match `src/art/art-source.ts`. */
-export const CARD_ART_ROUTE = "/card-art/";
+export { CARD_ART_ROUTE };
 
-/** Repo-root `assets/card-art/`, the folder .gitignore already excludes. */
-const CACHE_ROOT = path.resolve(import.meta.dirname, "../../assets/card-art");
+/** Repo-root `assets/card-art/`. */
+const ART_ROOT = path.resolve(import.meta.dirname, "../../assets/card-art");
 
 /**
- * The type is sniffed from the bytes, not the extension: MarvelCDB serves JPEGs
- * under `.png` paths (and labels them `image/png`). Browsers sniff too, so
- * getting this wrong is survivable — but a cached file with no extension to go
- * on wouldn't be, and honest headers cost nothing.
+ * Which scans the pool needs, asked of the client's own code
+ * (`src/art/bundled-art.ts`) rather than restated here.
+ *
+ * It is loaded through Vite's module runner, at build time only, and not with a
+ * plain `import`: that module reaches `@mc/content`, a workspace package whose
+ * entry is raw TypeScript. Vite's config loader leaves a bare package import
+ * external, so Node would be handed `.ts` source it cannot link. The runner
+ * resolves it exactly as the app does — and the dev server never pays for it.
+ */
+async function poolArtPaths(): Promise<{ readonly cardCount: number; readonly paths: readonly string[] }> {
+  const entry = path.resolve(import.meta.dirname, "src/art/bundled-art.ts");
+  const { module } = await runnerImport<typeof import("./src/art/bundled-art.js")>(entry, {
+    root: import.meta.dirname,
+    // Not this config again: it would only re-enter this plugin.
+    configFile: false,
+    logLevel: "silent",
+  });
+  return module.poolArtPaths();
+}
+
+/**
+ * The type is sniffed from the bytes, not the extension: some scans are JPEGs
+ * filed under `.png` paths. Browsers sniff too, so getting this wrong is
+ * survivable, but honest headers cost nothing.
  */
 function imageTypeOf(bytes: Buffer): string {
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
@@ -56,30 +76,18 @@ function imageTypeOf(bytes: Buffer): string {
 }
 
 /**
- * Resolves a request path to a file under the cache root, or null if it tries
- * to escape it. A path from the network decides a filesystem read here, so this
+ * Resolves a request path to a file under the art root, or null if it tries to
+ * escape it. A path from the network decides a filesystem read here, so this
  * check is not optional.
  */
-function safeCachePath(requestPath: string): string | null {
+function safeArtPath(requestPath: string): string | null {
   const decoded = decodeURIComponent(requestPath).replace(/^\/+/, "");
-  const resolved = path.resolve(CACHE_ROOT, decoded);
-  const root = CACHE_ROOT + path.sep;
-  return resolved.startsWith(root) ? resolved : null;
+  const resolved = path.resolve(ART_ROOT, decoded);
+  return resolved.startsWith(ART_ROOT + path.sep) ? resolved : null;
 }
 
-/** In-process memo, so a card re-requested during one session hits neither disk nor network twice. */
+/** In-process memo, so a card re-requested during one session doesn't hit the disk twice. */
 const memory = new Map<string, Buffer>();
-
-async function fetchUpstream(requestPath: string): Promise<Buffer | null> {
-  const url = `${MARVELCDB_IMAGE_BASE}/${requestPath.replace(/^\/+/, "")}`;
-  const response = await fetch(url);
-  if (!response.ok) return null;
-  const type = response.headers.get("content-type") ?? "";
-  // Refuse anything that isn't an image: an upstream error page rendered as a
-  // card would be worse than the generated frame.
-  if (!type.startsWith("image/")) return null;
-  return Buffer.from(await response.arrayBuffer());
-}
 
 const middleware = (): Connect.NextHandleFunction => {
   return (request, response, next) => {
@@ -89,7 +97,7 @@ const middleware = (): Connect.NextHandleFunction => {
       return;
     }
     const requestPath = url.slice(CARD_ART_ROUTE.length).split("?")[0] ?? "";
-    const file = safeCachePath(requestPath);
+    const file = safeArtPath(requestPath);
     if (!file) {
       response.statusCode = 400;
       response.end("bad card-art path");
@@ -97,33 +105,15 @@ const middleware = (): Connect.NextHandleFunction => {
     }
 
     void (async () => {
-      const cached = memory.get(file);
-      const bytes =
-        cached ??
-        (await readFile(file).catch(() => null)) ??
-        (await fetchUpstream(requestPath).catch(() => null));
-
-      if (!bytes) {
-        // The client treats 404 as "no scan", and draws the generated frame.
+      const bytes = memory.get(file) ?? (await readFile(file).catch(() => null));
+      const type = bytes ? imageTypeOf(bytes) : "application/octet-stream";
+      if (!bytes || type === "application/octet-stream") {
+        // No scan (or not an image at all): the client draws the generated frame.
         response.statusCode = 404;
         response.end("no art");
         return;
       }
-      if (!cached) {
-        memory.set(file, bytes);
-        // Write through, so the next run of the dev server is offline-capable.
-        await mkdir(path.dirname(file), { recursive: true }).catch(() => undefined);
-        await writeFile(file, bytes).catch(() => undefined);
-      }
-
-      const type = imageTypeOf(bytes);
-      if (type === "application/octet-stream") {
-        // Not an image at all: better a missing scan than a corrupt texture.
-        response.statusCode = 404;
-        response.end("no art");
-        return;
-      }
-
+      memory.set(file, bytes);
       response.statusCode = 200;
       response.setHeader("content-type", type);
       // Card art never changes under a given path, so it is safe to cache hard.
@@ -134,15 +124,71 @@ const middleware = (): Connect.NextHandleFunction => {
   };
 };
 
-/** Installs the route on both `vite dev` and `vite preview`. */
+type BundleMode = "pool" | "all" | "none";
+
+function bundleMode(): BundleMode {
+  const mode = process.env.MC_CARD_ART ?? "pool";
+  if (mode === "pool" || mode === "all" || mode === "none") return mode;
+  throw new Error(`MC_CARD_ART must be "pool", "all" or "none" (got "${mode}")`);
+}
+
+/** Copies the scans a build carries into `<outDir>/card-art/`, and says what it did. */
+async function copyArt(outDir: string, log: (message: string) => void, warn: (message: string) => void): Promise<void> {
+  const mode = bundleMode();
+  const target = path.join(outDir, CARD_ART_ROUTE);
+  if (mode === "none") {
+    log("card art: skipped (MC_CARD_ART=none) — every card will draw its generated frame");
+    return;
+  }
+  if (mode === "all") {
+    await cp(ART_ROOT, target, { recursive: true });
+    log(`card art: copied the whole of assets/card-art/ (MC_CARD_ART=all)`);
+    return;
+  }
+
+  const { cardCount, paths } = await poolArtPaths();
+  const missing: string[] = [];
+  let bytes = 0;
+  for (const relative of paths) {
+    const from = path.join(ART_ROOT, relative);
+    const size = await stat(from).then((s) => s.size, () => null);
+    if (size === null) {
+      missing.push(relative);
+      continue;
+    }
+    const to = path.join(target, relative);
+    await mkdir(path.dirname(to), { recursive: true });
+    await copyFile(from, to);
+    bytes += size;
+  }
+  log(`card art: ${paths.length - missing.length} scans for ${cardCount} pool cards → ${path.relative(process.cwd(), target)} (${(bytes / 1e6).toFixed(1)} MB)`);
+  if (missing.length > 0) {
+    warn(
+      `card art: ${missing.length} scan(s) the pool references are not in assets/card-art/ — those faces will draw their generated frame:\n` +
+        missing.map((relative) => `  ${relative}`).join("\n"),
+    );
+  }
+}
+
+/** Serves `/card-art/*` on `vite dev` and `vite preview`, and bundles the scans on `vite build`. */
 export function cardArtPlugin(): Plugin {
+  let outDir = "dist";
   return {
     name: "mc-card-art",
+    configResolved(config) {
+      outDir = path.resolve(config.root, config.build.outDir);
+    },
     configureServer(server) {
       server.middlewares.use(middleware());
     },
     configurePreviewServer(server) {
       server.middlewares.use(middleware());
+    },
+    async closeBundle() {
+      // `closeBundle` also fires for the worker's own sub-build and in watch mode;
+      // only a real client build has an output directory to fill.
+      if (this.meta.watchMode) return;
+      await copyArt(outDir, (message) => this.info(message), (message) => this.warn(message));
     },
   };
 }

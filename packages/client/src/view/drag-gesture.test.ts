@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import { DragGesture, Momentum, pointInRect } from "./drag-gesture.js";
+import { AxisDragGesture, DragGesture, Momentum, pointInRect } from "./drag-gesture.js";
 import { ListScroll } from "./list-scroll.js";
 
 describe("DragGesture", () => {
@@ -167,6 +167,62 @@ describe("Momentum composed with ListScroll — the clamp-at-an-end contract `ui
     expect(momentum.active).toBe(false);
     expect(scroll.offsetPx).toBeGreaterThan(50);
     expect(scroll.offsetPx).toBeLessThan(120);
+  });
+});
+
+describe("AxisDragGesture (the pack-shelf roster's 2-axis drag, W2b)", () => {
+  test("a small movement in either direction is a tap, axis null", () => {
+    const g = new AxisDragGesture({ tapThresholdPx: 6 });
+    g.start(1, 100, 100, 0);
+    g.move(1, 103, 102, 16);
+    const result = g.end(1, 32);
+    expect(result).toEqual({ wasTap: true, axis: null, velocityPxPerMs: 0 });
+  });
+
+  test("a mostly-vertical drag locks to vertical and never reports a horizontal delta, even if the pointer later drifts sideways", () => {
+    const g = new AxisDragGesture();
+    g.start(1, 100, 100, 0);
+    const first = g.move(1, 102, 80, 16); // dx=2, dy=-20 — vertical wins
+    expect(first).toEqual({ axis: "vertical", delta: 20 });
+    const later = g.move(1, 140, 70, 32); // a big sideways drift after the axis is locked
+    expect(later!.axis).toBe("vertical");
+  });
+
+  test("a mostly-horizontal drag locks to horizontal", () => {
+    const g = new AxisDragGesture();
+    g.start(1, 100, 100, 0);
+    const move = g.move(1, 70, 105, 16); // dx=-30, dy=5 — horizontal wins
+    expect(move).toEqual({ axis: "horizontal", delta: 30 });
+  });
+
+  test("before the threshold is crossed, move() reports nothing to apply", () => {
+    const g = new AxisDragGesture({ tapThresholdPx: 6 });
+    g.start(1, 100, 100, 0);
+    expect(g.move(1, 102, 101, 16)).toBeNull();
+    expect(g.axis).toBeNull();
+  });
+
+  test("end() reports the locked axis and a velocity along it, for Momentum.start", () => {
+    const g = new AxisDragGesture();
+    g.start(1, 100, 100, 0);
+    g.move(1, 70, 100, 16); // horizontal
+    const result = g.end(1, 32);
+    expect(result!.wasTap).toBe(false);
+    expect(result!.axis).toBe("horizontal");
+    expect(result!.velocityPxPerMs).toBeGreaterThan(0);
+  });
+
+  test("a second pointer mid-drag is ignored", () => {
+    const g = new AxisDragGesture();
+    expect(g.start(1, 100, 100, 0)).toBe(true);
+    expect(g.start(2, 0, 0, 0)).toBe(false);
+  });
+
+  test("cancel drops the tracked pointer without reporting a result", () => {
+    const g = new AxisDragGesture();
+    g.start(1, 100, 100, 0);
+    g.cancel();
+    expect(g.end(1, 16)).toBeNull();
   });
 });
 
