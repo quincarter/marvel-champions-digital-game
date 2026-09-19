@@ -348,6 +348,9 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
   return [
     "back",
     ...Array.from({ length: input.seatCount }, (_, i) => `seat:${i}`),
+    // Narrow layouts only (`view/seats-layout.ts`): the active seat's "Clear seat" control on the summary line. The
+    // route drops an id with no stop, so wide layouts (which clear through each seat card's own "✕") skip it.
+    "clear-seat",
     "use-preconstructed",
     "hero-search",
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),

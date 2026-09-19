@@ -172,8 +172,16 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // per-string budget clipped a long line against a ~300px side panel.
     const detailTextWidth = detailPanelWidthFor(width, height) - DETAIL_TEXT_PAD;
 
-    const layout = scenarioSelectLayout({ width, height, chipRows: packCompactChipsToRows(chipDefs, width).length, detailLines: 12, detailCollapsed: !this.#stagesOpen });
-    const chipRows = packCompactChipsToRows(chipDefs, layout.chips.width);
+    // Two passes: the chips wrap against the roster column's own width, which only the layout knows — wrapping
+    // against the full viewport width for the first estimate under-counted the rows (the column is at least two
+    // gutters narrower, 300px+ on wide) and drew the extra row straight through the first shelf's header
+    // (2026-09-19 phone check: "The Wrecking Crew" sat on top of "CORE SET").
+    const layoutFor = (chipRowCount: number): ReturnType<typeof scenarioSelectLayout> =>
+      scenarioSelectLayout({ width, height, chipRows: chipRowCount, detailLines: 12, detailCollapsed: !this.#stagesOpen });
+    const estimatedRows = packCompactChipsToRows(chipDefs, width).length;
+    const firstPass = layoutFor(estimatedRows);
+    const chipRows = packCompactChipsToRows(chipDefs, firstPass.chips.width);
+    const layout = chipRows.length === estimatedRows ? firstPass : layoutFor(chipRows.length);
 
     // Ground: paper body under a full-width ink header bar (docs/design-renders/ScreensDesktop_01-02.png).
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
