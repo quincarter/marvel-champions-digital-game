@@ -16,6 +16,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // Debug builds are signed with the same key as the release APK (scripts/build-android.mjs) whenever that
+    // keystore is present. With Android's throwaway debug key instead, the `pnpm android` build and the release
+    // APK shared a package name but not a signature, and Android refuses to install one over the other — the
+    // phone only says "App not installed". Same key, and either installs over the other in place.
+    // The keystore is gitignored; without it (CI, a fresh clone) debug falls back to the default debug key.
+    def sharedKeystore = file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "../../../../marvel-champions.keystore")
+    if (sharedKeystore.exists()) {
+        signingConfigs {
+            shared {
+                storeFile sharedKeystore
+                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "rocket"
+                keyAlias System.getenv("ANDROID_KEYSTORE_ALIAS") ?: "marvel-champions"
+                keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: (System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "rocket")
+            }
+        }
+        buildTypes.debug.signingConfig = signingConfigs.shared
+    }
     buildTypes {
         release {
             minifyEnabled false
