@@ -49,6 +49,16 @@ export type DeckProblemCode =
    * It is built at setup from the identity, so it is never listed and never counted toward deck size.
    */
   | "separate_deck_card"
+  /**
+   * RRG 1.8 "Campaign-Specific Card" (p. 11): "can only be used during a campaign from the same product". Campaign mode
+   * is not built yet, so no deck may list one (the Hydra Campaign upgrades).
+   */
+  | "campaign_card"
+  /**
+   * A scenario-specific player card (RRG 1.8 "Scenario-Specific Card", p. 38): it belongs to a scenario's set and
+   * enters the game through that scenario (Taskmaster's Captive allies), never through deckbuilding.
+   */
+  | "scenario_card"
   /** The card data lacks a field legality needs, so the rule cannot be checked. Never guessed. */
   | "missing_card_data"
   /** A deckbuilding classification this build does not recognize (for example campaign-specific). */
@@ -315,6 +325,17 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       );
       continue;
     }
+    if (card.specificTo !== undefined) {
+      // Neither kind is a deckbuilding choice: a campaign adds campaign cards (and, in The Rise of Red Skull, rescued
+      // Captive allies) to decks by its own instructions, "Cards added to the deck as part of a campaign do not count
+      // toward a player's minimum or maximum deck size" (the Red Skull rulebook, p. 3). Not counted here either.
+      if (card.specificTo.kind === "campaign") {
+        add("campaign_card", `${name} is a campaign card: it can only be used during a campaign from the same product, and campaign play is not available yet.`, [card.id]);
+      } else {
+        add("scenario_card", `${name} belongs to a scenario's own set of cards and enters the game only through that scenario, so it cannot be put in a deck.`, [card.id]);
+      }
+      continue;
+    }
     // RRG 1.8 "Permanent" (p. 32): "Permanent cards do not count towards a player's minimum or maximum deck size."
     if (!hasPlainKeyword(card, "permanent")) counted += entry.quantity;
     const classification = classify(card);
@@ -533,7 +554,7 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       continue;
     }
     if (!identity) continue;
-    const titles = [identity.name, identity.hero.faceName, identity.alterEgo.faceName];
+    const titles = [identity.name, identity.hero.faceName, identity.alterEgo.faceName, ...(identity.additionalHeroForms ?? []).map((form) => form.faceName)];
     if (teamUp.names.some((name) => titles.includes(name))) continue;
     add("team_up_identity", `${uniqueLabel(line.card)} is a Team-Up card for ${teamUp.names[0]} and ${teamUp.names[1]}; only a deck whose identity is one of them may include it.`, [line.card.id]);
   }
@@ -541,17 +562,20 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
   return problems.length === 0 ? { ok: true } : { ok: false, problems };
 }
 
-/** Every ability reference printed anywhere on a card: both identity faces, every villain stage, every main scheme side. */
+/**
+ * Every ability reference printed anywhere on a card: every identity face (including a three-sided identity's
+ * `additionalHeroForms`), every villain stage, every main scheme side, and the other face of a double-sided card.
+ */
 export function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {
   switch (card.type) {
     case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities];
+      return [...card.hero.abilities, ...card.alterEgo.abilities, ...(card.additionalHeroForms ?? []).flatMap((form) => form.abilities)];
     case "villain":
       return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities));
     case "main_scheme":
       return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities]);
     default:
-      return card.abilities;
+      return "flipSide" in card && card.flipSide ? [...card.abilities, ...card.flipSide.abilities] : card.abilities;
   }
 }
 

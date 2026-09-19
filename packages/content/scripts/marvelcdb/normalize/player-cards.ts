@@ -1,28 +1,71 @@
 /** Player cards: ally, event, support, upgrade, resource and player side scheme. */
-import type { AllyCard, PlayerSideSchemeCard, PlayRestrictions } from "../../../src/schema/index.ts";
-import { traitOf } from "./brand.ts";
+import type { AllyCard, CardFlipSide, CoreAspect, PlayerSideSchemeCard, PlayRestrictions, SpecialCost, SpecificSet } from "../../../src/schema/index.ts";
+import { brand, traitOf } from "./brand.ts";
 import { record, type NormalizeContext, type SingleRecord } from "./context.ts";
+import type { Prepared } from "./prepare.ts";
 import type { SeparateDeckMembership } from "./separate-decks.ts";
 import { CORE_ASPECTS, printedStat, resourceIcons, scalingOf } from "./values.ts";
 
-export function normalizePlayerCard(ctx: NormalizeContext, rec: SingleRecord, separateDeck: SeparateDeckMembership | undefined): void {
+/** Aspects a `printedAspect` may name (validation.ts `CHOOSABLE_PRINTED_ASPECTS`) — narrower than `CORE_ASPECTS`, which also has "basic". */
+const PRINTABLE_ASPECTS: readonly CoreAspect[] = ["aggression", "justice", "leadership", "protection", "pool"];
+
+export function normalizePlayerCard(
+  ctx: NormalizeContext,
+  rec: SingleRecord,
+  separateDeck: SeparateDeckMembership | undefined,
+  // Wave 2: a double-sided player card of one card type (the Hydra Campaign "Basic"/"Improved" upgrades,
+  // `PlayerCardCommon.flipSide`) — the same shape and the same `readFlipSide` detection as an encounter card's,
+  // just consumed here too now instead of only by `normalizeEncounterCard`.
+  flipSide?: CardFlipSide,
+  flipParts: readonly Prepared[] = [],
+): void {
   const { errors, curation } = ctx;
   const { r, p, parsed, set, common, abilities } = rec;
   let aspect: string;
+  let specificTo: SpecificSet | undefined;
+  let printedAspect: CoreAspect | undefined;
   if (separateDeck) {
     aspect = `hero:${separateDeck.identityCode}`;
   } else if (r.faction_code === "hero") {
     const hero = ctx.heroBySet.get(r.card_set_code ?? "");
     if (!hero) errors.push(`${r.code}: hero card in set ${String(r.card_set_code)} with no identity`);
     aspect = `hero:${hero?.code ?? "?"}`;
+  } else if (r.card_set_code && ctx.heroBySet.has(r.card_set_code) && PRINTABLE_ASPECTS.includes(r.faction_code as CoreAspect)) {
+    // Wave 2 (docs/phase7-wave2.md §1.2): an identity-specific card that also prints an aspect icon — Spider-Woman's
+    // Venom Blast (Aggression), Pheromones (Leadership), Contaminant Immunity (Protection) and Inconspicuous
+    // (Justice), MarvelCDB giving each the aspect's `faction_code` with `card_set_code` set to her identity's own.
+    // Deckbuilding treats these as identity-specific (RRG 1.8 "Identity-Specific Card", p. 23), so `aspect` stays
+    // `hero:<identity>`; `printedAspect` is what card effects read ("an aspect card", "a Leadership card").
+    const hero = ctx.heroBySet.get(r.card_set_code);
+    aspect = `hero:${hero?.code ?? "?"}`;
+    printedAspect = r.faction_code as CoreAspect;
   } else if ((CORE_ASPECTS as readonly string[]).includes(r.faction_code)) {
     aspect = r.faction_code;
+  } else if (r.faction_code === "encounter" && r.card_set_code) {
+    // Wave 2: a player card with no identity, aspect or "Basic" classification at all — its only classification
+    // is the scenario's encounter set it belongs to (RRG 1.8 "Classifications", p. 12, "scenario-specific"). The
+    // Rise of Red Skull's four Taskmaster Captive allies (Moon Knight, Shang-Chi, White Tiger, Elektra) are
+    // MarvelCDB `type_code: "ally", faction_code: "encounter"` for exactly this reason.
+    aspect = "none";
+    specificTo = { kind: "scenario", encounterSetId: brand("encounterSet", r.card_set_code) };
+  } else if (r.faction_code === "campaign" && r.card_set_code) {
+    // Wave 2: printed "Campaign / Basic" (RRG 1.8 "Campaign-Specific Card", p. 11) — The Rise of Red Skull's
+    // Hydra Campaign upgrades (04155–04162).
+    aspect = "basic";
+    specificTo = { kind: "campaign", encounterSetId: brand("encounterSet", r.card_set_code) };
   } else {
     errors.push(`${r.code}: unknown faction ${r.faction_code}`);
     aspect = r.faction_code;
   }
+  // A scenario- or campaign-specific card doesn't always print a real `deck_limit` (MarvelCDB sends none for some
+  // products' campaign cards — Galaxy's Most Wanted's "the_market" set has cost but no deck_limit at all — and
+  // never for a scenario prop such as Taskmaster's Captive allies): either way `validateDeck` gates these on
+  // `specificTo`'s classification, not on this count (docs/phase7-wave2.md §1.4), so a missing one defaults to 0
+  // rather than failing ingestion, the same way a `separateDeck` card's does. A *present* deck_limit (the Hydra
+  // Campaign upgrades print 1) is still read and kept.
+  const exemptFromDeckLimit = Boolean(separateDeck) || specificTo !== undefined;
   const deckLimit = separateDeck ? 0 : (r.deck_limit ?? 0);
-  if (!separateDeck && (!Number.isInteger(deckLimit) || deckLimit < 1)) {
+  if (!exemptFromDeckLimit && (!Number.isInteger(deckLimit) || deckLimit < 1)) {
     errors.push(`${r.code}: deck_limit ${String(r.deck_limit)} invalid`);
   }
   if (parsed.maxPerDeckText !== undefined && parsed.maxPerDeckText !== deckLimit) {
@@ -52,14 +95,21 @@ export function normalizePlayerCard(ctx: NormalizeContext, rec: SingleRecord, se
     ...(p.flavor ? { flavor: p.flavor } : {}),
     abilities,
     ...(separateDeck ? { separateDeck: separateDeck.deckName } : {}),
+    ...(flipSide ? { flipSide } : {}),
+    ...(specificTo ? { specificTo } : {}),
+    ...(printedAspect ? { printedAspect } : {}),
   };
   const cost = r.cost ?? null;
-  const needCost = (): number => {
+  // `p.specialCost` is "X" whenever MarvelCDB's own `cost: -1` says so (automatic), or "dash" when a curated
+  // `Correction.specialCost` confirms a printed dash from the card image (docs/phase7-wave2.md §1.3) — either
+  // way `cost` itself is held at 0 (`CostedCard.specialCost`'s doc comment).
+  const needCost = (): { cost: number; specialCost?: SpecialCost } => {
+    if (p.specialCost) return { cost: 0, specialCost: p.specialCost };
     if (cost === null) {
       errors.push(`${r.code}: ${r.type_code} without a cost`);
-      return 0;
+      return { cost: 0 };
     }
-    return cost;
+    return { cost };
   };
   switch (r.type_code) {
     case "ally": {
@@ -71,7 +121,7 @@ export function normalizePlayerCard(ctx: NormalizeContext, rec: SingleRecord, se
       const ally: AllyCard = {
         ...common,
         type: "ally",
-        cost: needCost(),
+        ...needCost(),
         resourceIcons: resourceIcons(r),
         // Absent = printed "—" (cannot attack/thwart; Hulk's THW); MarvelCDB -1 = printed "X".
         atk: printedStat(r.attack),
@@ -80,14 +130,14 @@ export function normalizePlayerCard(ctx: NormalizeContext, rec: SingleRecord, se
         consequentialDamage: { attack: r.attack_cost ?? 0, thwart: r.thwart_cost ?? 0 },
         ...playerCommon,
       };
-      record(ctx, ally, set, [p]);
+      record(ctx, ally, set, [p, ...flipParts]);
       break;
     }
     case "event":
-      record(ctx, { ...common, type: "event", cost: needCost(), resourceIcons: resourceIcons(r), ...playerCommon }, set, [p]);
+      record(ctx, { ...common, type: "event", ...needCost(), resourceIcons: resourceIcons(r), ...playerCommon }, set, [p, ...flipParts]);
       break;
     case "support":
-      record(ctx, { ...common, type: "support", cost: needCost(), resourceIcons: resourceIcons(r), ...playerCommon }, set, [p]);
+      record(ctx, { ...common, type: "support", ...needCost(), resourceIcons: resourceIcons(r), ...playerCommon }, set, [p, ...flipParts]);
       break;
     case "upgrade":
       record(
@@ -95,18 +145,18 @@ export function normalizePlayerCard(ctx: NormalizeContext, rec: SingleRecord, se
         {
           ...common,
           type: "upgrade",
-          cost: needCost(),
+          ...needCost(),
           resourceIcons: resourceIcons(r),
           ...(parsed.attachesTo ? { attachesTo: parsed.attachesTo } : {}),
           ...playerCommon,
         },
         set,
-        [p],
+        [p, ...flipParts],
       );
       break;
     case "resource":
       if (cost !== null) errors.push(`${r.code}: resource with a cost`);
-      record(ctx, { ...common, type: "resource", producesIcons: resourceIcons(r), ...playerCommon }, set, [p]);
+      record(ctx, { ...common, type: "resource", producesIcons: resourceIcons(r), ...playerCommon }, set, [p, ...flipParts]);
       break;
     case "player_side_scheme": {
       if (r.base_threat === null || r.base_threat === undefined) {
@@ -115,12 +165,12 @@ export function normalizePlayerCard(ctx: NormalizeContext, rec: SingleRecord, se
       const scheme: PlayerSideSchemeCard = {
         ...common,
         type: "player_side_scheme",
-        cost: needCost(),
+        ...needCost(),
         resourceIcons: resourceIcons(r),
         startingThreat: scalingOf(r.base_threat ?? 0, !r.base_threat_fixed),
         ...playerCommon,
       };
-      record(ctx, scheme, set, [p]);
+      record(ctx, scheme, set, [p, ...flipParts]);
       break;
     }
   }

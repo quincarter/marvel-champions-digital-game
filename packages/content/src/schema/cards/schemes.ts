@@ -30,6 +30,12 @@ export interface MainSchemeASide {
 /**
  * One main scheme stage (an A/B card pair). The top-level fields describe the
  * B side (threat values, B-side text and abilities); `aSide` is the A side.
+ *
+ * **Alternative stages** (wave 2). Stages that share a `stageNumber` are alternatives, not a sequence, and each must be
+ * told apart by `stageLetter` or `name`. The Once and Future Kang prints four stage 3 cards (The Chronopolis,
+ * Inexorable Fate, The Realm of Rama-Tut, The Present Future War); The Master of Time 2A: "Each player reveals a
+ * random stage 3A in turn order. Remove any unused stage 3 schemes from the game." The default advance to "the next
+ * stage" is not defined into a group of alternatives: a card ability must say which one (docs/phase7-wave2.md §3.1).
  */
 export interface MainSchemeStage {
   readonly stageNumber: number;
@@ -50,6 +56,15 @@ export interface MainSchemeStage {
    * (including Green Goblin) in play." (MarvelCDB `escalation_threat: -1`.)
    */
   readonly printedX?: readonly MainSchemeThreatField[];
+  /**
+   * Threat values printed as "—" (wave 2), each holding `{ base: 0, perPlayer: 0 }`. RRG 1.8 "Dash (Value)" (p. 15):
+   * a value presented as a dash "cannot be used", and a referenced dash "is treated as an unmodifiable 0". The Master
+   * of Time 2B (11008b) has no starting threat, target threat or acceleration: "When all the players have joined this
+   * game area, advance to stage 4A." (MarvelCDB: `threat_fixed`, `base_threat_fixed`, `escalation_threat_fixed` with
+   * no values). A stage with a dashed target threat is never completed by threat. Curation must confirm the dashes
+   * from the card image. A field may not be both dashed and `printedX`.
+   */
+  readonly dashedValues?: readonly MainSchemeThreatField[];
   readonly icons: readonly SchemeIcon[];
   readonly text: CardText;
   readonly traits: readonly Trait[];

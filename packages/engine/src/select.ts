@@ -283,7 +283,9 @@ export function explainQuery(
   }
   if (query.aspect !== undefined) {
     const card = cardOf(state, id);
-    if (!card || !("aspect" in card) || card.aspect !== query.aspect) return "wrongAspect";
+    // An identity-specific card may also print an aspect (Spider-Woman's Venom Blast: `printedAspect`,
+    // docs/phase7-wave2.md §1.2); card effects asking for an aspect's cards count it.
+    if (!card || !("aspect" in card) || (card.aspect !== query.aspect && card.printedAspect !== query.aspect)) return "wrongAspect";
   }
   if (query.exhausted !== undefined && instance.exhausted !== query.exhausted) return query.exhausted ? "ready" : "exhausted";
   if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat) return query.hasThreat ? "noThreat" : "hasThreat";

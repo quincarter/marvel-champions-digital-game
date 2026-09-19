@@ -322,9 +322,14 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       // villain's (ruling, Jan 17, 2026 (5)).
       const obligation = pool[identityCard.obligationCardId];
       if (obligation) {
-        const obligationInstanceId = nextId();
-        instances[obligationInstanceId] = blankInstance(obligationInstanceId, obligation.id, null, ACTIVE_DECK_HOME);
-        obligationIds.push(obligationInstanceId);
+        // RRG 1.8 "Obligation" (p. 30): "Each identity is associated with one or more obligation cards. If an identity
+        // is being played, all of that identity's associated obligation cards are shuffled into the encounter deck
+        // during setup." Scarlet Witch's set holds two copies of Slipping Sanity (FAQ "Slipping Sanity (#23)", p. 61).
+        for (let copy = 0; copy < Math.max(1, obligation.quantityInSet); copy++) {
+          const obligationInstanceId = nextId();
+          instances[obligationInstanceId] = blankInstance(obligationInstanceId, obligation.id, null, ACTIVE_DECK_HOME);
+          obligationIds.push(obligationInstanceId);
+        }
       } else if (config.requireIdentitySets) {
         return invalid(`obligation ${identityCard.obligationCardId} is not in the card pool`);
       }
