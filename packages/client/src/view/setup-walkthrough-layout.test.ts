@@ -55,6 +55,29 @@ describe("setupWalkthroughLayout", () => {
     expect(twoRows.logPanel!.y + twoRows.logPanel!.height).toBeLessThanOrEqual(844.5);
   });
 
+  test("the phone hand row never shrinks below a strip of readable full-height cards; the revealed panel gives first", () => {
+    // The tightest phone case this screen is tested at: a 4-player game, a two-row checklist, a revealed setup card.
+    const phone = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 3, seatCount: 4, checklistRows: 2, hasRevealedCard: true });
+    expect(phone.handRow.height).toBeGreaterThanOrEqual(180);
+    // The room came out of the revealed-card panel, not the commit row or the log's own floor.
+    expect(phone.revealedPanel!.height).toBeLessThan(120);
+    expect(phone.revealedPanel!.height).toBeGreaterThanOrEqual(70);
+    expect(phone.logPanel!.height).toBeGreaterThanOrEqual(60);
+    expect(phone.logPanel!.y + phone.logPanel!.height).toBeLessThanOrEqual(phone.commitRow.y);
+  });
+
+  test("when even the floors can't fit (a five-row checklist on a narrow phone), the strip floor gives way to the row floor before anything overflows", () => {
+    const phone = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 3, seatCount: 4, checklistRows: 5, hasRevealedCard: true });
+    expect(phone.handRow.height).toBe(120);
+    expect(phone.revealedPanel!.height).toBe(70);
+    // A four-row checklist with two other seats is the tightest case that still fits: the hand gives up its strip
+    // floor only as far as needed.
+    const tight = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 2, seatCount: 3, checklistRows: 4, hasRevealedCard: true });
+    expect(tight.handRow.height).toBeGreaterThanOrEqual(120);
+    expect(tight.handRow.height).toBeLessThan(180);
+    expect(tight.logPanel!.y + tight.logPanel!.height).toBeLessThanOrEqual(tight.commitRow.y);
+  });
+
   test("tablet landscape is the all-seats composition; every other size is the focus composition", () => {
     expect(setupWalkthroughLayout({ width: 1024, height: 768, otherSeatCount: 3, seatCount: 4 }).mode).toBe("allSeats");
     for (const size of [{ width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1440, height: 900 }]) {

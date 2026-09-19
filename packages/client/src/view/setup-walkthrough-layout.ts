@@ -16,7 +16,9 @@
  * **Two different compositions, not one narrowed to fit.** Phone,
  * tablet-portrait and desktop share one — "focus" — built the same way
  * `table-setup-layout.ts` splits Table setup: a body column (the currently
- * deciding seat's own hand as full cards, a compact "Mulligan N"/"Keep all N"
+ * deciding seat's own hand as full cards — one row where they read, a
+ * sideways-scrolling strip of full-height cards where they wouldn't,
+ * `view/opening-hand-layout.ts` — a compact "Mulligan N"/"Keep all N"
  * pair under it, then "Other seats" — a side-by-side row of compact seat
  * cards on tablet-portrait/desktop, since a 4-player game only ever has up to
  * three, stacked full-width only on phone where there isn't the width for a
@@ -146,6 +148,13 @@ interface Shared {
 
 /** Floors for the two budgets `focusLayout` shrinks when a tall checklist (two rows, a narrow phone) leaves less room than usual — never below a size that stops reading as a card row or a card panel. */
 const MIN_HAND_ROW_HEIGHT = 120;
+/**
+ * The phone's own floor is higher: there the hand is a horizontally scrolling strip of full-height cards
+ * (`view/opening-hand-layout.ts`), so the row's height *is* each card's height, and a 120px card is the
+ * unreadable thumbnail that strip exists to get rid of (Pixel 9 Pro XL report, 2026-09-19). 180px keeps a card
+ * ~129px wide; the revealed-card panel gives up its slack first instead, down to its own floor.
+ */
+const MIN_HAND_STRIP_HEIGHT = 180;
 const MIN_REVEALED_HEIGHT_STACKED = 70;
 
 function focusLayoutAt(
@@ -250,8 +259,8 @@ function focusLayoutAt(
  * by a row's worth of height, which the phone composition — already the tightest of the three, no sidebar to fold
  * the overflow into — has no slack for. Rather than a fixed shrink for "the phone case", this measures the actual
  * overflow past the viewport (from the log panel's own floor, the last thing laid out) and takes it out of the two
- * budgets built to give room back — the hand row first (down to `MIN_HAND_ROW_HEIGHT`, still a legible row or grid
- * of card thumbnails, `scenes/setup-deal.ts`'s own two-row grid takes over well above this floor), then the
+ * budgets built to give room back — the hand row first (down to `MIN_HAND_ROW_HEIGHT`, or `MIN_HAND_STRIP_HEIGHT`
+ * on phone, where the row is a scrolling strip and its height is every card's height), then the
  * revealed-card panel (down to `MIN_REVEALED_HEIGHT_STACKED`, still enough for a name and one line of rules text)
  * — never the checklist, the commit row's 44px+ touch targets, or the log panel's own floor.
  */
@@ -263,7 +272,8 @@ function focusLayout(shared: Shared & { readonly otherSeatCount: number; readonl
   if (overflow <= 0) return trial;
 
   const defaultHandRowHeight = trial.handRow.height;
-  const takenFromHand = Math.min(overflow, Math.max(0, defaultHandRowHeight - MIN_HAND_ROW_HEIGHT));
+  const minHandRowHeight = trial.formFactor === "phone" ? MIN_HAND_STRIP_HEIGHT : MIN_HAND_ROW_HEIGHT;
+  const takenFromHand = Math.min(overflow, Math.max(0, defaultHandRowHeight - minHandRowHeight));
   const handRowHeightOverride = defaultHandRowHeight - takenFromHand;
   const remaining = overflow - takenFromHand;
   if (remaining <= 0) return focusLayoutAt(shared, handRowHeightOverride);
@@ -271,7 +281,14 @@ function focusLayout(shared: Shared & { readonly otherSeatCount: number; readonl
   const defaultRevealedHeight = trial.revealedPanel?.height ?? MIN_REVEALED_HEIGHT_STACKED;
   const takenFromRevealed = Math.min(remaining, Math.max(0, defaultRevealedHeight - MIN_REVEALED_HEIGHT_STACKED));
   const revealedHeightOverride = defaultRevealedHeight - takenFromRevealed;
-  return focusLayoutAt(shared, handRowHeightOverride, revealedHeightOverride);
+  const stillOver = remaining - takenFromRevealed;
+  if (stillOver <= 0) return focusLayoutAt(shared, handRowHeightOverride, revealedHeightOverride);
+
+  // Last resort, phone only: even both floors don't fit (a checklist wrapped to four or five rows on a narrow
+  // phone). The strip's higher floor gives way down to the plain row floor before anything is allowed to overflow —
+  // a shorter strip still beats a stack that runs under the pinned commit row.
+  const lastResort = Math.min(stillOver, Math.max(0, handRowHeightOverride - MIN_HAND_ROW_HEIGHT));
+  return focusLayoutAt(shared, handRowHeightOverride - lastResort, revealedHeightOverride);
 }
 
 function allSeatsLayout(shared: Shared & { readonly seatCount: number }): SetupWalkthroughLayout {

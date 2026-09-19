@@ -99,3 +99,46 @@ describe("HandScroll across a hand that crowds, empties, and crowds again", () =
     expect(showsFanToggle(true, false, hand.canScroll, hand.fannedOut)).toBe(false);
   });
 });
+
+describe("HandScroll#scrollIntoView", () => {
+  /** A strip of six 163px cards in a 358px viewport, the setup screen's phone hand (`view/opening-hand-layout.ts`). */
+  const viewport: Rect = { x: 16, y: 190, width: 358, height: 226 };
+  const cardWidth = 163;
+  const gap = 8;
+  const rowRight = viewport.x + cardWidth * 6 + gap * 5;
+  const slotAt = (index: number, scrollX: number): Rect => ({ x: viewport.x + index * (cardWidth + gap) - scrollX, y: viewport.y, width: cardWidth, height: viewport.height });
+
+  test("a card past the right edge scrolls just far enough to sit against it", () => {
+    let redraws = 0;
+    const hand = new HandScroll(() => redraws++);
+    hand.measure(viewport, rowRight);
+    hand.scrollIntoView(slotAt(2, hand.scrollX));
+    const drawn = slotAt(2, hand.scrollX);
+    expect(drawn.x + drawn.width).toBe(viewport.x + viewport.width);
+    expect(redraws).toBe(1);
+  });
+
+  test("a card past the left edge scrolls back to its own left edge", () => {
+    const hand = new HandScroll(() => {});
+    hand.measure(viewport, rowRight);
+    hand.scrollBy(400);
+    hand.scrollIntoView(slotAt(0, hand.scrollX));
+    expect(hand.scrollX).toBe(0);
+  });
+
+  test("a card already fully visible leaves the scroll alone", () => {
+    let redraws = 0;
+    const hand = new HandScroll(() => redraws++);
+    hand.measure(viewport, rowRight);
+    hand.scrollIntoView(slotAt(0, 0));
+    expect(hand.scrollX).toBe(0);
+    expect(redraws).toBe(0);
+  });
+
+  test("never scrolls past the last card", () => {
+    const hand = new HandScroll(() => {});
+    hand.measure(viewport, rowRight);
+    hand.scrollIntoView(slotAt(5, 0));
+    expect(hand.scrollX).toBe(rowRight - (viewport.x + viewport.width));
+  });
+});
