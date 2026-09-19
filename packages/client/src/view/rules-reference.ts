@@ -107,7 +107,8 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
   },
 ];
 
-function citeLabelOf(sources: readonly [GlossarySource, ...GlossarySource[]]): string {
+/** "RRG 1.8 p. 21", "February 28, 2026 - Ruling 4" — shared with `view/inspect-model.ts`'s Timing/Keywords boxes, so the two screens can never word a citation differently. */
+export function citeLabelOf(sources: readonly [GlossarySource, ...GlossarySource[]]): string {
   return sources
     .map((source) => {
       switch (source.kind) {

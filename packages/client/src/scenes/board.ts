@@ -34,7 +34,9 @@ import { cssOf } from "../ui/theme.js";
 import { McSelectionRing, McTabs, paintDotGrid } from "../ui/widgets.js";
 import { boardModel, type BoardModel } from "../view/board-model.js";
 import { highlights, type Highlights } from "../view/highlights.js";
+import { appendCardHistory, emptyCardHistoryLog, type CardHistoryLog } from "../view/card-history.js";
 import { appendEvents, emptyLog, type LogState } from "../view/log-lines.js";
+import type { PaymentView } from "../view/payment-model.js";
 import { tabsTouchedBy } from "../view/tab-badges.js";
 import { playerName } from "../view/names.js";
 import type { GamepadIntent } from "../view/gamepad.js";
@@ -63,6 +65,14 @@ export class BoardScene extends Phaser.Scene {
   #marks: Highlights | null = null;
   #layout: BoardLayout | null = null;
   #log: LogState = emptyLog();
+  /**
+   * "This card, this game" (Inspect, `view/card-history.ts`): a second, wider fold of the same event stream `#log`
+   * folds, kept for as long as this scene is alive — the whole session, since overlays launch on top of Board
+   * rather than replacing it. Deliberately not merged into `#log`: that log is the shared table log and drops the
+   * bookkeeping (a card drawn, a card discarded to pay) a single card's own history wants back — see that
+   * module's own header.
+   */
+  #cardHistory: CardHistoryLog = emptyCardHistoryLog();
   /** What the last draw left behind: hit rects, focus rects, and the widgets to destroy before the next one. */
   #frame: BoardFrame = emptyFrame();
   #version = -1;
@@ -209,6 +219,7 @@ export class BoardScene extends Phaser.Scene {
       // an empty log starts counting from the state's round rather than "R0".
       if (this.#log.round === 0) this.#log = { ...this.#log, round: state.game.round };
       this.#log = appendEvents(this.#log, state.lastEvents, state.game, state.perspectiveId, POOL_DEPS);
+      this.#cardHistory = appendCardHistory(this.#cardHistory, state.lastEvents);
       this.#noteTabChanges(state);
       this.#motion.land(state.lastEvents);
       // A hero going down is the one change nobody may miss. The last one
@@ -506,5 +517,20 @@ export class BoardScene extends Phaser.Scene {
 
   #onInspectUseAbility(instanceId: InstanceId, abilityId: AbilityId): void {
     this.#controller.useAbilityById(instanceId, abilityId);
+  }
+
+  /** "This card, this game" — read by the Inspect overlay (`scenes/inspect.ts#model`), which has no store of its own for it. */
+  cardHistory(): CardHistoryLog {
+    return this.#cardHistory;
+  }
+
+  /** The open payment, if any — read by the Inspect overlay to gate its "Use as resource" button and word "Right now" mid-payment. */
+  paymentView(): PaymentView | null {
+    return this.#controller.paymentView();
+  }
+
+  /** Spends `id` for the payment currently open, if it's one of its sources. See `BoardController#payWithCard`'s own comment. */
+  payWithCard(id: InstanceId): boolean {
+    return this.#controller.payWithCard(id);
   }
 }

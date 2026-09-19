@@ -497,6 +497,22 @@ export class BoardController {
   }
 
   /**
+   * The Inspect overlay's "Use as resource"/"Pay with" button (docs/phase4-screen-gaps.md §3 "W8"): spends a card
+   * for the payment currently open, exactly as tapping it on the board during payment mode would. Returns whether
+   * a payment was open and this card was one of its sources — Inspect uses that to decide whether the button did
+   * anything, since it closes itself either way and has no other way to report failure. No-op, and returns false,
+   * outside payment mode or read-only mode: never opens a payment of its own (that's the Board's own tap-to-play
+   * path, `playCard`) and never spends a card the engine hasn't already listed as spendable.
+   */
+  payWithCard(id: InstanceId): boolean {
+    if (this.#readOnly || this.#selection.kind !== "paying") return false;
+    const source = this.#selection.payment.query.sources.find((candidate) => candidate.instanceId === id);
+    if (!source) return false;
+    this.#togglePayment(source.optionId);
+    return true;
+  }
+
+  /**
    * Spends or un-spends one source by its option id. The engine re-judges the
    * whole selection. Public for the payment strip, where a card offering two
    * resource abilities is two tiles and a tap must mean one of them.
