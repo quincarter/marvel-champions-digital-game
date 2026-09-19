@@ -67,8 +67,8 @@ import {
   satisfies,
   scalePool,
   TYPED_RESOURCES,
+  type ResolvedRequirement,
   type ResourcePool,
-  type ResourceRequirement,
 } from "./resources.js";
 import {
   activeAbilityRefs,
@@ -316,7 +316,7 @@ function discountFor(state: GameState, deps: EngineDeps, playerId: PlayerId, car
  * "When paying this card's resource cost, you must spend the following resources: [resources]"). A wild resource can be
  * spent as any of them (RRG 1.8 "Wild Resource", p. 48). Validation admits only physical, mental and energy.
  */
-function requiredResources(card: AnyCard): Required<ResourceRequirement> {
+function requiredResources(card: AnyCard): ResolvedRequirement {
   const required = { generic: 0, physical: 0, mental: 0, energy: 0 };
   for (const keyword of "keywords" in card ? card.keywords : []) {
     const counts = requirementResources(keyword);
@@ -600,14 +600,14 @@ const handCardsIn = (payment: readonly Payment[]): ReadonlySet<InstanceId> =>
 /** A cost, checked and resolved into what paying it will bind — nothing is paid yet. */
 export interface CostPlan {
   /** Resources the payment must cover for this cost (card cost excluded). */
-  readonly requirement: Required<ResourceRequirement>;
+  readonly requirement: ResolvedRequirement;
   readonly bindings: Bindings;
   readonly vars: Vars;
   /** The card resources are being spent on, for "while paying for an [aspect] card". */
   readonly payingFor: InstanceId | null;
 }
 
-const NO_REQUIREMENT: Required<ResourceRequirement> = { generic: 0, physical: 0, mental: 0, energy: 0 };
+const NO_REQUIREMENT: ResolvedRequirement = { generic: 0, physical: 0, mental: 0, energy: 0 };
 
 function zoneMatches(
   state: GameState,
@@ -817,10 +817,12 @@ function planInPlayPick(
  * "for each resource you overpaid" (Ant-Man ally), "for each [energy] resource you overpaid" (Wasp ally).
  * docs/phase7-wave2.md §3.8.
  */
-function overpaidVars(pool: ResourcePool, requirement: Required<ResourceRequirement>): Record<string, number> {
+function overpaidVars(pool: ResourcePool, requirement: ResolvedRequirement): Record<string, number> {
   const over = Math.max(0, poolTotal(pool) - requirementTotal(requirement));
   const vars: Record<string, number> = { "overpaid.total": over };
-  for (const type of TYPED_RESOURCES) vars[`overpaid.${type}`] = Math.max(0, Math.min(over, countUsableAs(pool, type) - requirement[type]));
+  // A wild slot consumes wilds that can then be no other type, so they are out of every `overpaid.<type>` count.
+  const freeWilds = Math.max(0, pool.wild - (requirement.wild ?? 0));
+  for (const type of TYPED_RESOURCES) vars[`overpaid.${type}`] = Math.max(0, Math.min(over, pool[type] + freeWilds - requirement[type]));
   return vars;
 }
 
@@ -828,7 +830,7 @@ function overpaidVars(pool: ResourcePool, requirement: Required<ResourceRequirem
 function resourceVars(
   pool: ResourcePool,
   cost: AbilityCost | undefined,
-  requirement: Required<ResourceRequirement>,
+  requirement: ResolvedRequirement,
 ): Vars | PriceFault {
   const vars: Record<string, number> = {
     "paid.physical": pool.physical,
@@ -910,11 +912,11 @@ export function playRequirement(
   state: GameState,
   playerId: PlayerId,
   cardInstanceId: InstanceId,
-  abilityRequirement: Required<ResourceRequirement>,
+  abilityRequirement: ResolvedRequirement,
   deps: EngineDeps = DEFAULT_DEPS,
   attachTo: InstanceId | null = null,
   x = 0,
-): Required<ResourceRequirement> {
+): ResolvedRequirement {
   const own = ownPlayCost(state, playerId, cardInstanceId, deps, attachTo, x);
   // A Requirement keyword turns part of the card's own cost into typed slots (see `requiredResources`).
   const required = requiredResources(mustCardOf(state, cardInstanceId));

@@ -86,8 +86,11 @@ function checkRestricted(ctx: Ctx, playerId: PlayerId | null): void {
   });
 }
 
+/**
+ * Announces a card entering play. The enter-play keywords are the event's own apply step (`resolve/event.ts`), not
+ * something done before the announcement, so an "Interrupt: when X enters play" ability gets a window first.
+ */
 export function enterPlay(ctx: Ctx, id: InstanceId, playerId: PlayerId | null): void {
-  applyEnterPlayKeywords(ctx, id);
   announce(ctx, { kind: "cardEntersPlay", instanceId: id, playerId });
 }
 

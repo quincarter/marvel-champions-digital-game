@@ -580,6 +580,289 @@ A pack whose cards need an unbuilt primitive stays data only.
 - **"Place a status card on a character"** with a choice of status (Hex Bolt, 3+).
 - **"the villain's stage number"** (Muster Courage, Running Interference, United We Stand, Browbeat): wave 1's `villainStageNumber`.
 
+### 3.13 The scripting-blocked primitives (docs/phase7-wave2-scripting.md §6)
+
+> **Progress / next up (2026-09-19, `game-rules-architect`). Done: everything in the table below is either landed
+> and tested, or recorded in §3.13.11 with the reason it was not built.** The gaps `ability-scripting-engineer`
+> recorded while scripting `trors` (docs/phase7-wave2-scripting.md §6), in the task's priority order. Every shape
+> below is additive: no existing `AbilityDefinition` changes, and engine tests are green after each.
+>
+> | Gap | Shape | Status |
+> |---|---|---|
+> | §6.1 attack-keyword grant | `attack.keywords`, `modifyAttack.keywords`, `RuleSpec attackKeywords` | **Landed**, §3.13.1 |
+> | §6.2 OR of aspects | `TargetQuery.anyAspect` | **Landed**, §3.13.2 |
+> | §6.3 wild-resource cost | `ResourceRequirement.wild` | **Landed**, §3.13.3 |
+> | §6.6 prevent this attack's damage | `modifyAttack.preventAllDamage` | **Landed**, §3.13.4 |
+> | §6.4 crisis-ignoring thwart | `thwart.ignoreCrisis` / `removeThreat.ignoreCrisis` | **Landed**, §3.13.5 |
+> | §6.5 a card's printed resource icons | `ValueSpec totalPrintedResources` | **Landed**, §3.13.6 |
+> | §6.7 the defeating player | `PlayerRef defeatingPlayer` | **Landed**, §3.13.7 |
+> | §6.11 once per round per aspect | `AbilityLimit.per` | **Landed**, §3.13.8 |
+> | §6.10 "after a player changes to hero form" | `EventPattern.eventIs` | **Landed**, §3.13.9 |
+> | §6.9 Interrupt on a card entering play, and "each other" | `cardEntersPlay` is interruptible; `TargetQuery.excluding` | **Landed**, §3.13.10 |
+> | §6.11 blanking a class of cards (Tech Theft) | — | **Not done**, §3.13.11 |
+> | §3.8 play a card inside an ability with a reduction | — | **Not done**, §3.13.11 |
+> | §3.6 / §4.8 boost counts made by card effects | — | **Not done**, §3.13.11 (open rules question) |
+>
+> Tests: `packages/engine/src/primitives-wave2b.test.ts` (18 tests). Nothing below renumbers or removes an existing
+> field; the only observable shape change anywhere is §3.13.3's, and it is opt-in.
+
+#### 3.13.1 An attack keyword granted to one attack (§6.1)
+
+RRG 1.8 words piercing (p. 32), ranged (p. 35) and overkill (p. 31) as properties of *an attack* — "An attack with
+the … keyword" — not of a character, so a grant can be scoped to a single attack. `AttackKeyword = "piercing" |
+"ranged" | "overkill"` (`spec.ts`). Three ways to grant one, all folded together once, when the attack pushes its
+damage, by `attackKeywordsOf` (`keywords.ts`), and then stamped on the events it pushes (`dealDamage.piercing`,
+`characterAttacked.ranged`, the existing `dealDamage.overkill`):
+
+1. **On the attack effect** — "this attack gains piercing" (Vibranium Arrow 04009, Piercing Strike 04044):
+   ```ts
+   { kind: "attack", target: theVillain, amount: { kind: "const", value: 6 }, keywords: ["piercing"] }
+   ```
+2. **On the activation in progress** — "the attack gains piercing" (Crossfire's boost 04027), "when attached enemy
+   attacks, the attack gains ranged" (Crossfire's Rifle 04029), from an interrupt/boost ability:
+   ```ts
+   { kind: "modifyAttack", keywords: ["piercing"] }
+   ```
+3. **As a constant rule** — "each of your [Arrow] attacks gain ranged" (Hawkeye's Bow 04002). `attacker` matches the
+   attacking character, `via` matches the card whose ability is making the attack (the event, for a
+   "Hero Action (attack)"); both optional, ANDed, and a basic attack never matches a rule with `via`:
+   ```ts
+   { kind: "attackKeywords", keywords: ["ranged"], via: { trait: ARROW, owner: "you" } }
+   ```
+
+`keywords: ["overkill"]` is the same as the existing `attack.overkill` / `modifyAttack.overkill` boolean (they share
+the `overkill` frame var), so both spellings work and compose. The attacker's own printed or granted keyword is
+unchanged and still read in `applyDamage` / `applyRetaliate`, which is why a persistent character's grant (Black
+Knight 04012, Crossbones' own constant) keeps working with no script change.
+
+Interactions pinned by test: piercing discards the target's tough card and then deals full damage; ranged suppresses
+retaliate but **does not** let the attack past a guard minion (RRG 1.8 "Guard", p. 22); "cannot take damage" still
+beats piercing, so no tough card is discarded when no damage would be dealt (RRG 1.8 "Piercing", p. 32).
+
+#### 3.13.2 An OR of aspects in a `TargetQuery` (§6.2)
+
+**`TargetQuery.anyAspect?: readonly string[]`** (`spec.ts`, matched in `select.ts` `explainQuery`), the aspect
+sibling of `anyTrait`: at least one of the listed aspects, read off `aspect` **or** `printedAspect` exactly as the
+single-valued `aspect` field already is (§1.2). ANDed with `aspect` if both are given; an empty list matches nothing.
+
+```ts
+// "generate a [wild] resource for an aspect card" (Finesse 04033)
+{ trigger: { kind: "resource" }, generates: 1, generatesFor: { anyAspect: ["aggression", "justice", "leadership", "protection"] } }
+// "search the top 5 cards of your deck for an aspect card" (Jessica Drew's Apartment 04034)
+chooseCards({ ..., filter: { anyAspect: CORE_ASPECTS } })
+```
+
+Deliberately **not** `isAspectCard: true`: `anyAspect` covers "an aspect card" and also "an Aggression or Justice
+card" with one field, and it costs the caller one constant in `@mc/cards`.
+
+#### 3.13.3 A cost requiring a wild resource specifically (§6.3)
+
+**`ResourceRequirement.wild?: number`** (`resources.ts`), a slot filled only from `pool.wild`. RRG 1.8 "Wild
+Resource" (p. 48): "Some card abilities specifically require wild resources to be spent", and a generated wild "may
+specify which resource type (energy, mental, physical, or wild) it is being used as" — a wild may be declared wild,
+but no typed resource can be declared a wild. `satisfies` pays the wild slots first, then the typed slots, then lets
+the wilds *left over* cover a typed shortfall, then the generic part.
+
+```ts
+// "Hero Action: Exhaust your hero and spend a [wild] resource → …" (Crossfire's Rifle 04029)
+{ trigger: { kind: "action", form: "hero" }, cost: { exhaustIdentity: true, resources: { wild: 1 } }, effects: [ … ] }
+```
+
+**Shape change to watch:** `Required<ResourceRequirement>` now has five keys, so `paymentFor(...).requirement` and
+the `spendResources` prompt carry `wild: 0` where they used to carry four keys. Two engine tests asserting the exact
+object were updated; nothing else in the repo reads the shape key-by-key.
+
+**Client follow-up (`game-client-engineer`):** `packages/client/src/view/payment-model.ts` `outstandingTypes` loops
+over the three typed slots only, so an unpaid `wild` slot shows in the "required" total but not in the "outstanding"
+list. `required: poolTotal(query.requirement)` is already right.
+
+#### 3.13.4 "Prevent all damage from that attack", from attack initiation (§6.6)
+
+**`modifyAttack.preventAllDamage?: boolean`.** The `preventDamage` effect only adjusts an already-pushed `dealDamage`
+frame, so it is a silent no-op for an interrupt that fires at attack *initiation* (docs/phase7-wave2-scripting.md
+§4.1). This flag instead rides the **activation's own event frame** — the same place `overkill`, `atkBonus` and
+`extraBoost` already live — so it is set before a defender is declared and read when that attack finally deals
+damage, whoever ends up defending and whatever the defense arithmetic produces. It expires with the attack, because
+the frame does.
+
+```ts
+// "Interrupt: When the villain initiates an attack against you, … → prevent all damage from that attack." (Mockingbird 04004)
+{ trigger: { kind: "interrupt", on: { on: "enemyAttack", playerIs: "controller" } },
+  cost: { resources: 1, returnToHand: { … } },
+  effects: [{ kind: "modifyAttack", preventAllDamage: true }] }
+```
+
+Semantics, per RRG 1.8 "Prevent" (p. 34), pinned by test:
+- the damage is still **dealt** — excess damage is measured before the check, so an `excessDamageAsThreat` rule still
+  fires — but the target **takes** none;
+- **no tough status card is spent** (the attack never reaches the tough step);
+- the attack records no `damage` / `damaged` result, so "after [enemy] attacks and damages you" does not trigger;
+- **only the attack's own damage.** Damage a Boost ability (or any other card effect) deals during the same attack
+  has no `parentFrameId` pointing at the activation and is untouched.
+
+**Flagged, unconfirmed reading** (also in a code comment at `resolve/event.ts` `applyDamage`): a fully prevented
+*piercing* attack discards no tough status cards here. RRG 1.8 "Piercing" (p. 32) exempts an attack that "would deal
+no damage", while p. 34 says prevented damage is still dealt, so the two readings disagree. No cycle 1 card reaches
+the combination.
+
+**Not built:** "prevent N of this attack's damage" (a value rather than all) — no card in the pool needs it, and the
+existing `preventDamage` effect covers the partial case once a `dealDamage` frame exists. The defend-preview
+(`defend-preview.ts` `plannedAttackDamage`, which feeds the client's defend prompt) does **not** know about the flag,
+so the prompt still shows the unprevented range; the damage actually dealt is correct.
+
+#### 3.13.5 "Ignoring any crisis icons in play" (§6.4)
+
+**`thwart.ignoreCrisis?: boolean`** and **`removeThreat.ignoreCrisis?: boolean`**, carried onto the `removeThreat`
+event and read by `threatRemovalBlocked` (`resolve/event.ts`).
+
+```ts
+// "Hero Action (thwart): … → remove 3 threat from a scheme, ignoring any crisis icons in play." (Cable Arrow 04008)
+{ kind: "thwart", target: theMainScheme, amount: { kind: "const", value: 3 }, ignoreCrisis: true }
+```
+
+Scope, deliberately narrow: it steps over **only** the RRG 1.8 "Crisis Icon" (p. 14) check, for that one removal. A
+`threatCannotBeRemoved` rule (Countdown to Oblivion, Held Hostage) is a "cannot" — RRG 1.8 "'Cannot'" (p. 11), "an
+absolute prohibition" — and still blocks. The command-level refusal of a *basic* thwart against the main scheme
+under a crisis icon (`actions.ts`) is untouched; no card grants that.
+
+#### 3.13.6 A referenced card's printed resource icons (§6.5)
+
+**`ValueSpec { kind: "totalPrintedResources"; cards: TargetRef; types?: ("physical"|"mental"|"energy"|"wild")[] }`**,
+the sibling of `totalPrintedCost`. Printed icons only (RRG 1.8 "Printed", p. 35), summed over whatever the ref names,
+read wherever those cards are — so a card already discarded to pay the ability's own cost still counts. `types`
+absent counts all four, a printed wild icon included.
+
+```ts
+// "discard 1 card from your hand → deal X damage to an enemy, where X is the number of printed resources on that
+// card" (the Hawkeye ally 04011): the cost's own `discard` slot is the ref.
+{ kind: "dealDamage", target: anEnemy, amount: { kind: "totalPrintedResources", cards: { kind: "slot", slot: "discard" } } }
+```
+
+Use this rather than `<bind>.<type>` when the cards come from a `TargetRef` (a cost slot, a `bindTargets` slot, a
+card in play); `<bind>.<type>` stays the way to read a `moveCards` / `discardEncounterCards` pool.
+
+#### 3.13.7 "The player who defeated this scheme" (§6.7)
+
+**`PlayerRef { kind: "defeatingPlayer" }`**, reading the `defeatedByPlayerId` on the `schemeDefeated` or
+`characterDefeated` event in context. Where `on.defeated({ byYou: true })` is a yes/no trigger gate, this hands the
+player back as a value.
+
+```ts
+// "When Defeated: Crossbones activates against the player who defeated this scheme." (Crossbones' Assault 04070)
+whenDefeated(enemyAttack(theVillain, { against: { kind: "defeatingPlayer" } }))
+```
+
+Two supporting changes, both additive:
+- **`schemeDefeated` now carries `defeatedByPlayerId`** — the player whose thwart the removal belonged to, else the
+  controller of whatever removed the last threat, else null. It is also the event's player subject, so
+  `playerIs: "controller"` now works on a `schemeDefeated` pattern the way it already did on `characterDefeated`
+  ("after *you* defeat a side scheme"). No card in the pool used that pattern before, so nothing changes behaviour.
+- **A side scheme's When Defeated abilities now resolve with the `schemeDefeated` event in context** (a minion's
+  already got its `characterDefeated` event). Checked against every Core, wave 1 and wave 2 `whenDefeated` script:
+  none reads an event-scoped ref, so nothing else moves.
+
+#### 3.13.8 A limit counted per aspect (docs/phase7-wave2-scripting.md §6.11, §3.11)
+
+**`AbilityLimit.per?: "aspectOfEventCard"`.** The ability keeps one count per value of the key instead of one shared
+count, so "(limit once per round **for each aspect**)" is a `count: 1` limit that resets per aspect.
+
+```ts
+// "Interrupt: When you play an aspect card, … (limit once per round for each aspect.)" (Superhuman Agility 04031a)
+{ trigger: { kind: "interrupt", on: { on: "cardBeingPlayed", playerIs: "controller", sourceIs: { anyAspect: CORE_ASPECTS } } },
+  limit: { count: 1, period: "round", per: "aspectOfEventCard" },
+  effects: [ … ] }
+```
+
+The key is the triggering event's card's `printedAspect ?? aspect`, so an identity-specific card that prints an
+aspect (§1.2) counts under the aspect it prints. Mechanically the `abilityUses` key becomes
+`<instance>:<ability>#<aspect>`; `#` never occurs in an ability id, and `clearAbilityUses` strips the qualifier back
+off to find the definition. An ability with no triggering event (an "Action" used by command) falls back to the one
+shared count, exactly as today — so this is inert for every existing limit.
+
+#### 3.13.9 A string field on the triggering event (docs/phase7-wave2-scripting.md §6.10)
+
+**`EventPattern.eventIs?: Readonly<Record<string, string>>`**, the string counterpart of `eventAtLeast`: fields the
+event itself carries must equal these. `formChanged` already recorded `to: "hero" | "alterEgo"`; nothing could read
+it.
+
+```ts
+// "Forced Response: After a player changes to hero form, they …" (Taskmaster I–III, 04093–04095)
+{ trigger: { kind: "response", forced: true, on: { on: "formChanged", eventIs: { to: "hero" } } },
+  effects: [ /* "they" is PlayerRef { kind: "eventPlayer" } */ ] }
+```
+
+The "any player" half needed nothing new: **omit `playerIs`** and the pattern is "after *a player* …" rather than
+"after *you* …" (`on.youChangeForm`'s hardcoded `playerIs: "controller"` is the DSL's, not the engine's).
+
+#### 3.13.10 An Interrupt on a card entering play, and "each other" (docs/phase7-wave2-scripting.md §6.9)
+
+Two changes, both needed by "Forced Interrupt: When an environment enters play, discard each other environment card
+in play" (None Shall Pass 1A, 04079b).
+
+**`cardEntersPlay` is no longer announcement-only.** The enter-play keywords — toughness's status card, Uses X's
+counters, the Restricted and ally-limit checks (`applyEnterPlayKeywords`) — are now that event's **apply step**
+(`resolve/event.ts`), instead of running before it was announced. So the order is: interrupt window → keywords →
+response window. That is also what RRG 1.8 "Ally Limit" (p. 7) asks for ("this check occurs before abilities that
+resolve upon entering play"), and it makes the interrupt window mean something: previously an "Interrupt: when X
+enters play" ability was silently never offered. Every Core, wave 1 and wave 2 test passes unchanged; no existing
+script had an interrupt on this event, and responses still see the keywords resolved.
+
+**`TargetQuery.excluding?: TargetRef`**, the ref counterpart of `excludeSlots`: everything the ref names is out of
+the query.
+
+```ts
+// "discard each other environment card in play", on an ability triggered by one entering
+{ kind: "discardFromPlay", target: { kind: "each", query: { categories: ["environment"], excluding: { kind: "eventTarget" } } } }
+```
+
+`self: false` already excluded the ability's *own* card; this excludes a card the ability names some other way (the
+triggering event's subject, a slot, the host). Useful well beyond this card — any "each other …" text.
+
+#### 3.13.11 Recorded as NOT done, with reasons
+
+**Blanking a whole class of cards' text** — "Treat the printed text box of each [Tech] player card as if it were
+blank" (Tech Theft 12026, a side scheme's constant; `ant`, not started). **Not built.** `textBoxBlank` (`query.ts`)
+reads only lasting effects, and it is consulted by `activeAbilityRefs` (`select.ts`), `printedKeywordsOf`
+(`keywords.ts`) and `gameAbilityFrames` (`resolve/frames.ts`) — which are exactly the functions that would have to
+find the blanking rule. Two concrete problems, both structural rather than fiddly:
+
+- **Recursion.** Finding a constant rule means `activeRules` → `activeAbilityRefs` → `textBoxBlank`; and matching the
+  rule's `{ trait: TECH }` target means `traitsOf` → `activeAbilityRefs` → `textBoxBlank` again. It is breakable (a
+  printed-refs-only scan for the blanking rules, with the rule's own query matched under `DEFAULT_DEPS` so granted
+  traits and keywords are not consulted — the same trick `traitsOf` already uses for trait grants), but it has to be
+  written deliberately, not bolted on.
+- **Cost.** `activeAbilityRefs` is the engine's hottest read, called once per in-play card inside `activeRules`,
+  `traitsOf`, `grantedKeywords` and `modifiers`, each of which is itself called per query candidate. Making it scan
+  every in-play card for a blanking rule turns those loops quadratic. The right shape is a **blanked-set layer**
+  computed once per scan and handed down, not a predicate called from the leaf.
+
+Neither is hard; both are a focused refactor of the ability-lookup layer rather than an additive field, and the only
+card in the pool that needs it is in a pack nobody has started. Recommendation: do it as its own change, with the
+layering above, before `ant` is scripted.
+
+**Playing a card inside an ability with a cost reduction** — "play a card from your hand that shares a trait with
+your hero, reducing its resource cost by 1" (Team-Building Exercise 12024/30022/46021; `ant`, not started).
+**Not built.** `playFromHand` today only plays a card *ignoring* its cost, which needs no payment. A reduced cost
+needs a second prompt inside the same effect step (choose the card, then choose the payment) and the whole
+`playCard` legality and pricing path reached from inside an effect — including the judgement calls `playIgnoringCost`
+currently side-steps by being conservative: whether a card the player cannot afford is offered at all, whether an
+event with its own ability cost may be chosen, and which host an upgrade attaches to. Each of those is a rules
+decision, and getting one subtly wrong is worse than leaving the card unscripted (docs/phase7-wave2-scripting.md
+§4.1). The shape when it is built: `playFromHand` gains `costReduction?: ValueSpec` (and `ignoreCost` becomes
+optional rather than required), with the reduction expressed as a lasting `costReduction` created for that player
+and consumed by `commitPlay`'s existing `consumeCostReductions`, so the client's price note explains it for free.
+
+**Boost counts made by card effects** — Hex Bolt (15004), Taskmaster's and Crossbones' "discard the top card of the
+encounter deck … boost icons on that card". **Not built, deliberately: it is §4.8's open rules question,** not an
+engine gap. The `boostIconsCounting` window exists only inside an activation's boost step; extending it to
+`<bind>.boostIcons` reads by card effects *is* choosing the reading that Chaos Control's "when boost icons on an
+encounter card would be counted" reaches those counts. The doc's own proposal (§4.8: "every count, since the text
+says 'an encounter card', not 'a boost card'") is marked unconfirmed, and there is no FFG ruling in
+`marvel-champions-rulings-post-rrg-1-7.md`. **Surfaced for the user rather than picked quietly.** Note that the
+cards themselves are only blocked on the *interaction*: Hex Bolt's own counting already works through
+`<bind>.boostIcons`, and FAQ "Hex Bolt (#4)" (RRG 1.8 p. 61) settles its internal order. Scripting them is fine
+today; what is undecided is whether Chaos Control (`scw`, not started) can replace those counts.
+
 ---
 
 ## 4. Open questions (for the user or FFG)

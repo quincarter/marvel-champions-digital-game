@@ -193,6 +193,7 @@ export function applyEffect(
           schemeInstanceId: id,
           amount,
           sourceInstanceId: frame.selfInstanceId,
+          ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
         })),
         reportTo(effect.bind),
       );
@@ -238,6 +239,7 @@ export function applyEffect(
           amount,
           basic: false,
           overkill: effect.overkill === true,
+          ...(effect.keywords && effect.keywords.length > 0 ? { keywords: effect.keywords } : {}),
           sourceInstanceId: frame.selfInstanceId,
         })),
         reportTo(effect.bind),
@@ -259,6 +261,7 @@ export function applyEffect(
           playerId: controller,
           amount,
           basic: false,
+          ...(effect.ignoreCrisis ? { ignoreCrisis: true } : {}),
           sourceInstanceId: frame.selfInstanceId,
         })),
         reportTo(effect.bind),
@@ -270,6 +273,10 @@ export function applyEffect(
       if (!activation) return;
       const delta: Record<string, number> = {};
       if (effect.overkill) delta.overkill = 1;
+      // "The attack gains piercing": one var per keyword on the activation's own event frame, read when it deals
+      // damage (`attackKeywordsOf`). `overkill` has always used this var name, so `keywords: ["overkill"]` is the same.
+      for (const keyword of effect.keywords ?? []) delta[keyword] = 1;
+      if (effect.preventAllDamage) delta.preventAllDamage = 1;
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
       if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
       const extra = effect.extraBoostCards === undefined ? 0 : typeof effect.extraBoostCards === "number" ? effect.extraBoostCards : Math.max(0, value(effect.extraBoostCards));
@@ -472,7 +479,6 @@ export function applyEffect(
           engagedWith: isMinion ? controller : instance.engagedWith,
           faceup: true,
         }));
-        applyEnterPlayKeywords(ctx, id);
       }
       const entered: TriggerEvent[] = entering.map((id) => ({
         kind: "cardEntersPlay",

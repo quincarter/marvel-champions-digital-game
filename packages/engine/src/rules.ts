@@ -2,7 +2,7 @@ import type { EngineDeps, RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { getInstance, villainOf } from "./query.js";
 import { activeAbilityRefs, cardsInPlay, categoriesOf, controllerOf, evaluate, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
-import type { PlayerRef } from "./spec.js";
+import type { AttackKeyword, PlayerRef } from "./spec.js";
 import type { Form, GameState } from "./state.js";
 
 /**
@@ -110,6 +110,25 @@ export const allyLimitFor = (state: GameState, deps: EngineDeps, playerId: Playe
 /** An ally that does not count against its controller's ally limit (`excludedFromAllyLimit`). */
 export const excludedFromAllyLimit = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "excludedFromAllyLimit").some(({ rule, context }) => matchesQuery(state, id, rule.target, context));
+
+/**
+ * The `AttackKeyword`s constant abilities in play grant to one attack (`attackKeywords`; Hawkeye's Bow). `viaId` is
+ * the card whose ability is making the attack, or null for a basic attack.
+ */
+export function grantedAttackKeywords(
+  state: GameState,
+  deps: EngineDeps,
+  attackerId: InstanceId,
+  viaId: InstanceId | null,
+): readonly AttackKeyword[] {
+  const granted: AttackKeyword[] = [];
+  for (const { rule, context } of activeRules(state, deps, "attackKeywords")) {
+    if (rule.attacker && !matchesQuery(state, attackerId, rule.attacker, context)) continue;
+    if (rule.via && (viaId === null || !matchesQuery(state, viaId, rule.via, context))) continue;
+    for (const keyword of rule.keywords) if (!granted.includes(keyword)) granted.push(keyword);
+  }
+  return granted;
+}
 
 /** Whether a basic thwart against this scheme may use ATK instead of THW (`thwartWithAtk`). */
 export const mayThwartWithAtk = (state: GameState, deps: EngineDeps, schemeId: InstanceId): boolean =>

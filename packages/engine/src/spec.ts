@@ -11,6 +11,20 @@ import type { FacedownRole, Form, GameStep } from "./state.js";
  * plain JSON so an ability definition can be inspected, logged, and replayed.
  */
 
+/**
+ * The keywords that belong to an *attack* rather than to a character (RRG 1.8 "Piercing", p. 32; "Ranged", p. 35;
+ * "Overkill", p. 31). Each is defined as "an attack with the … keyword", so a card may grant one to a single attack
+ * without granting it to the attacker: "this attack gains piercing" (Piercing Strike, Vibranium Arrow), "the attack
+ * gains piercing" (Crossfire's boost), "each of your [Arrow] attacks gain ranged" (Hawkeye's Bow).
+ *
+ * Three ways to grant one, all read through the same check when the attack deals its damage
+ * (`attackHasKeyword`, `keywords.ts`), so they compose:
+ * - the attacker's own printed or granted keyword (the character case, unchanged);
+ * - `attack.keywords` / `modifyAttack.keywords`, this activation only;
+ * - a constant `RuleSpec attackKeywords`, which matches on the attacker and/or the card making the attack.
+ */
+export type AttackKeyword = "piercing" | "ranged" | "overkill";
+
 /** Card categories a target query can filter on. Broader than `AnyCard["type"]` on purpose. */
 export type TargetCategory =
   | "character"
@@ -81,6 +95,14 @@ export interface TargetQuery {
   readonly owner?: "you";
   /** Player-card aspect, e.g. "aggression" ("while paying for an Aggression card"). */
   readonly aspect?: string;
+  /**
+   * At least one of these aspects: "an aspect card" (Finesse 04033, Jessica Drew's Apartment 04034) is the OR of the
+   * four — `["aggression", "justice", "leadership", "protection"]` — which `aspect` (exactly one) cannot say, the way
+   * `anyTrait` is to `trait`. Matches `printedAspect` as well as `aspect` for the same reason `aspect` does
+   * (§1.2: Spider-Woman's signature cards print an aspect but belong to her set). ANDed with `aspect` if both are
+   * given. An empty list matches nothing.
+   */
+  readonly anyAspect?: readonly string[];
   readonly exhausted?: boolean;
   readonly hasThreat?: boolean;
   readonly damaged?: boolean;
@@ -106,6 +128,13 @@ export interface TargetQuery {
   readonly attackableBy?: TargetRef;
   /** Excludes cards already bound to these slots: "remove 2 threat from a *different* scheme". */
   readonly excludeSlots?: readonly string[];
+  /**
+   * Excludes whatever this ref names: "discard each **other** environment card in play" (None Shall Pass 1A) is
+   * `query("environment", { excluding: eventTarget })` on an ability triggered by one entering. `self: false`
+   * already excludes the ability's *own* card; this excludes a card the ability names some other way (the
+   * triggering event's subject, a slot an earlier step bound, the host).
+   */
+  readonly excluding?: TargetRef;
   /** Only cards already bound to this slot: a choice among candidates an earlier step narrowed (tied villains). */
   readonly inSlot?: string;
   /** Controlled by one of these players: "each character *that player* controls" (a chosen player). */
@@ -206,7 +235,15 @@ export type PlayerRef =
   /** Every player except these: "each other hero" (Whirlwind). */
   | { readonly kind: "others"; readonly of: PlayerRef }
   /** The player a card is engaged with: "the engaged player" on a minion's own ability. */
-  | { readonly kind: "engagedWith"; readonly of: TargetRef };
+  | { readonly kind: "engagedWith"; readonly of: TargetRef }
+  /**
+   * "The player who defeated this scheme" (Crossbones' Assault 04070) / "the defeating player" (Mystique's
+   * Manipulations, errata RRG 1.8 p. 66): the defeating player recorded on the `schemeDefeated` or
+   * `characterDefeated` event in context. Unlike an `on.defeated({ byYou: true })` trigger filter, which is a yes/no
+   * gate, this hands the player back as a value a later effect can use. Empty outside a defeat, and for a defeat no
+   * player caused (an encounter card's own effect).
+   */
+  | { readonly kind: "defeatingPlayer" };
 
 export type ValueSpec =
   | { readonly kind: "const"; readonly value: number }
@@ -275,6 +312,16 @@ export type ValueSpec =
   | { readonly kind: "printedCost"; readonly of: TargetRef }
   /** The sum of the printed costs of every card a ref names, wherever they are: "the total cost of all allies beneath it" (Hydra Prison). */
   | { readonly kind: "totalPrintedCost"; readonly cards: TargetRef }
+  /**
+   * The total printed resource icons on every card a ref names, wherever they are: "X is the number of printed
+   * resources on that card" (the Hawkeye ally 04011, counting a card discarded as the ability's own cost).
+   *
+   * `types` narrows it to some icon types ("each [mental] icon"); absent counts all four, wild included, because a
+   * printed wild icon is a printed resource. The sibling of `totalPrintedCost`; unlike `<bind>.<type>`, which reports
+   * a pool summed over a `moveCards`/`discardEncounterCards` bind, this reads whatever a `TargetRef` names, so a card
+   * bound by a cost's own `discardFromHand` slot (which reports only a count) can be measured.
+   */
+  | { readonly kind: "totalPrintedResources"; readonly cards: TargetRef; readonly types?: readonly ("physical" | "mental" | "energy" | "wild")[] }
   /**
    * A villain's printed stage number (Death from Above, Wicked Ambitions): the numeral printed on the stage card
    * (`VillainStage.stageNumber`), not its index in the deck — expert play starts on stage II, whose number is 2.
@@ -389,7 +436,12 @@ export type EffectSpec =
   /** "Heal N damage"; with `bind`, "if no damage was healed this way" reads `<bind>.amount`. */
   | { readonly kind: "heal"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
   | { readonly kind: "placeThreat"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
-  | { readonly kind: "removeThreat"; readonly target: TargetRef; readonly amount: ValueSpec; readonly bind?: string }
+  /**
+   * `ignoreCrisis`: "…, ignoring any crisis icons in play" (Cable Arrow 04008). RRG 1.8 "Crisis Icon" (p. 14) stops
+   * *players* removing threat from the main scheme while one is in play; this one effect steps over that check only.
+   * It does not touch a `threatCannotBeRemoved` rule, which is a "cannot" (RRG 1.8 "'Cannot'", p. 11) and absolute.
+   */
+  | { readonly kind: "removeThreat"; readonly target: TargetRef; readonly amount: ValueSpec; readonly ignoreCrisis?: boolean; readonly bind?: string }
   /**
    * "(attack)": "Deal N damage to an enemy" resolved as an attack by your
    * identity (or `attacker`): guard, retaliate, "after X attacks" and overkill
@@ -402,11 +454,26 @@ export type EffectSpec =
       readonly amount: ValueSpec;
       readonly attacker?: TargetRef;
       readonly overkill?: boolean;
+      /**
+       * "This attack gains piercing" (Piercing Strike, Vibranium Arrow): attack keywords for this attack only, not for
+       * the attacker. `["overkill"]` is the same as `overkill: true`; both are accepted and unioned.
+       */
+      readonly keywords?: readonly AttackKeyword[];
       readonly moveDamageFrom?: TargetRef;
       readonly bind?: string;
     }
-  /** "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with `label: ["thwart"]`. */
-  | { readonly kind: "thwart"; readonly target: TargetRef; readonly amount: ValueSpec; readonly thwarter?: TargetRef; readonly bind?: string }
+  /**
+   * "(thwart)": "Remove N threat from a scheme" resolved as a thwart by your identity (or `thwarter`). Pair with
+   * `label: ["thwart"]`. `ignoreCrisis` is `removeThreat.ignoreCrisis`, carried through to the removal this makes.
+   */
+  | {
+      readonly kind: "thwart";
+      readonly target: TargetRef;
+      readonly amount: ValueSpec;
+      readonly thwarter?: TargetRef;
+      readonly ignoreCrisis?: boolean;
+      readonly bind?: string;
+    }
   /**
    * Changes the attack/activation in progress: "the attack gains overkill",
    * "give him 1 additional boost card for this activation", "+N ATK until the
@@ -415,6 +482,23 @@ export type EffectSpec =
   | {
       readonly kind: "modifyAttack";
       readonly overkill?: boolean;
+      /**
+       * "The attack gains piercing" / "the attack gains ranged" (Crossfire's boost, Crossfire's Rifle): attack
+       * keywords for the activation in progress. `["overkill"]` is the same as `overkill: true`.
+       */
+      readonly keywords?: readonly AttackKeyword[];
+      /**
+       * "Prevent all damage from that attack" (Mockingbird 04004), set from an interrupt at attack *initiation* —
+       * before a defender is declared and long before a `dealDamage` frame exists, which is why the `preventDamage`
+       * effect (an interrupt to one damage event) cannot express it. The flag rides the activation's own event frame
+       * and is read when that attack finally deals its damage, so it survives `declareDefender` and the defense
+       * arithmetic, and it expires with the attack.
+       *
+       * RRG 1.8 "Prevent" (p. 34): the damage is still *dealt* (excess damage is measured, and "the attacking
+       * character is considered to have dealt damage"), but the target takes none, so no tough status card is used,
+       * "attacked and damaged" is false, and the attack's `damage`/`damaged` results stay 0.
+       */
+      readonly preventAllDamage?: boolean;
       /** A number, or a value: "give him an additional boost card for each side scheme in play" (Master Strategist; §3.11). */
       readonly extraBoostCards?: number | ValueSpec;
       readonly atkBonus?: ValueSpec;

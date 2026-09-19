@@ -1,7 +1,7 @@
 import type { AbilityId, KeywordInstance, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
-import type { EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
+import type { AttackKeyword, EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
 import type { Form } from "./state.js";
 import type { TriggerEventKind } from "./trigger-events.js";
 
@@ -48,6 +48,16 @@ export interface EventPattern {
    * icons on that card", which cannot trigger on a card with none (FAQ "Attacrobatics (#6)", p. 59).
    */
   readonly eventAtLeast?: Readonly<Record<string, number>>;
+  /**
+   * String fields the event itself carries must equal these, in both windows — the string counterpart of
+   * `eventAtLeast`. `{ to: "hero" }` is "After a player changes to **hero form**" (Taskmaster 04093–04095), which
+   * `formChanged`'s own `to` field already records but no pattern field could read. An event without the field, or
+   * with a different value, never matches.
+   *
+   * Pair it with *no* `playerIs`, and the pattern is "after **a player** …" rather than "after **you** …"; the
+   * effect body then names them with `PlayerRef { kind: "eventPlayer" }`.
+   */
+  readonly eventIs?: Readonly<Record<string, string>>;
 }
 
 /**
@@ -228,6 +238,24 @@ export type RuleSpec =
   /** "When a character thwarts this side scheme, they may use their ATK instead of their THW" (The Red House): `basicThwart.useAtk`. */
   | { readonly kind: "thwartWithAtk"; readonly scheme: TargetQuery; readonly while?: Predicate }
   /**
+   * "Each of your [Arrow] attacks gain ranged" (Hawkeye's Bow): an `AttackKeyword` granted to *attacks*, not to a
+   * character. RRG 1.8 defines piercing, ranged and overkill as properties of an attack ("An attack with the …
+   * keyword"), so a grant can be keyed on either end of one:
+   * - `attacker` matches the attacking character ("attacks made by your allies gain overkill");
+   * - `via` matches the card whose ability is making the attack — the event for a "Hero Action (attack)", the
+   *   upgrade or ally for an ability on one. A basic attack has no such card and never matches a rule with `via`.
+   *
+   * Both are optional and ANDed. A rule with neither grants the keyword to every attack in the game, which no card
+   * does; `@mc/cards` should always set at least one.
+   */
+  | {
+      readonly kind: "attackKeywords";
+      readonly keywords: readonly AttackKeyword[];
+      readonly attacker?: TargetQuery;
+      readonly via?: TargetQuery;
+      readonly while?: Predicate;
+    }
+  /**
    * "You cannot play hero-specific cards." (Depowered): `player` cannot play cards matching `cards`. FAQ "Depowered
    * (#20)" (RRG 1.8 p. 60): Invocation cards "are merely resolved, not played", so a resolve is not blocked.
    */
@@ -388,6 +416,17 @@ export interface InPlayCostPick {
 export interface AbilityLimit {
   readonly count: number;
   readonly period: "turn" | "phase" | "round";
+  /**
+   * "(Limit once per round **for each aspect**.)" (Superhuman Agility, 04031a): the count is kept separately for
+   * each value of this key, so the ability may resolve `count` times per period *per* value.
+   *
+   * - `"aspectOfEventCard"`: the aspect of the card the triggering event names — its `printedAspect` if it has one
+   *   (an identity-specific card that prints an aspect, §1.2), else its `aspect`.
+   *
+   * Only meaningful on a triggered ability: with no triggering event (an "Action" used by command) the ability falls
+   * back to one shared count, exactly as an unqualified limit behaves today.
+   */
+  readonly per?: "aspectOfEventCard";
 }
 
 /**

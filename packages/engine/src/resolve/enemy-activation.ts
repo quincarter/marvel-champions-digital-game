@@ -5,6 +5,7 @@ import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame
 import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
+import { attackKeywordsOf } from "../keywords.js";
 import { boostIconsFor } from "../modifiers.js";
 import {
   cardOf,
@@ -338,6 +339,9 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         defenseReduction: planned.defenseReduction,
         damageDealt: planned.damage,
       });
+      // "The attack gains piercing/ranged" (Crossfire's boost, Crossfire's Rifle): a `modifyAttack` grant made during
+      // this activation, folded in with the enemy's own keywords once and stamped on the events below.
+      const keywords = attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: frame.enemyInstanceId, vars });
       pushEvents(ctx, [
         {
           kind: "dealDamage",
@@ -347,12 +351,14 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           fromAttack: true,
           parentFrameId: frame.eventFrameId,
           overkill: (vars.overkill ?? 0) > 0,
+          ...(keywords.includes("piercing") ? { piercing: true } : {}),
         },
         {
           kind: "characterAttacked",
           attackerInstanceId: frame.enemyInstanceId,
           targetInstanceId: frame.targetInstanceId,
           playerId: frame.attackedPlayerId,
+          ...(keywords.includes("ranged") ? { ranged: true } : {}),
         },
       ]);
       return;

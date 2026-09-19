@@ -2,8 +2,9 @@ import type { KeywordInstance, KeywordName } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
 import { cardOf, encounterFace, identityFace, isVillain, mainSchemeStageOf, mainSchemeStateOf, textBoxBlank, villainStageOf } from "./query.js";
+import { grantedAttackKeywords } from "./rules.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, type EffectContext } from "./select.js";
-import type { StatusName } from "./spec.js";
+import type { AttackKeyword, StatusName } from "./spec.js";
 import type { GameState } from "./state.js";
 
 /**
@@ -87,6 +88,44 @@ export const usesKeyword = (
   keywordsOf(state, id, deps).find(
     (keyword): keyword is Extract<KeywordInstance, { name: "uses" }> => keyword.name === "uses",
   );
+
+export const ATTACK_KEYWORDS: readonly AttackKeyword[] = ["piercing", "ranged", "overkill"];
+
+/**
+ * Everything an attack needs to know for `attackKeywordsOf`. Nothing here is stored: an attack's keywords are
+ * recomputed once, when the attack pushes its damage, and stamped on that damage event.
+ */
+export interface AttackKeywordContext {
+  readonly attackerInstanceId: InstanceId;
+  /** The card whose ability is making the attack ("your [Arrow] attacks"); null for a basic attack or an enemy activation. */
+  readonly viaInstanceId?: InstanceId | null;
+  /** Keywords the attack carries itself: `attack.keywords` ("this attack gains piercing"). */
+  readonly keywords?: readonly AttackKeyword[];
+  /** The attack/activation event frame's vars, where `modifyAttack` records a grant made mid-activation. */
+  readonly vars?: Readonly<Record<string, number>>;
+}
+
+/**
+ * The `AttackKeyword`s one attack has, from every source at once (RRG 1.8 "Piercing", p. 32; "Ranged", p. 35;
+ * "Overkill", p. 31 — each is worded as a property of an attack, not of a character):
+ *
+ * 1. the attacker's own printed or granted keyword (Crossbones "gains piercing while …");
+ * 2. `attack.keywords` on the effect that made it ("this attack gains piercing", Piercing Strike);
+ * 3. `modifyAttack.keywords` during the activation, recorded as a var named after the keyword on the attack's own
+ *    event frame ("the attack gains piercing", Crossfire's boost) — the same var `overkill` has always used;
+ * 4. a constant `attackKeywords` rule in play ("each of your [Arrow] attacks gain ranged", Hawkeye's Bow).
+ */
+export function attackKeywordsOf(state: GameState, deps: EngineDeps, attack: AttackKeywordContext): readonly AttackKeyword[] {
+  const via = attack.viaInstanceId ?? null;
+  const fromRules = grantedAttackKeywords(state, deps, attack.attackerInstanceId, via);
+  return ATTACK_KEYWORDS.filter(
+    (name) =>
+      hasKeyword(state, attack.attackerInstanceId, name, deps) ||
+      attack.keywords?.includes(name) === true ||
+      (attack.vars?.[name] ?? 0) > 0 ||
+      fromRules.includes(name),
+  );
+}
 
 /**
  * RRG "Status Cards": one of each type per character. Steady allows a second

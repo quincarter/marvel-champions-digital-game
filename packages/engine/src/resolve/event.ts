@@ -3,8 +3,8 @@
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
 import { discardFromPlay, expireEventLastingEffects, healDamage, pierceTough, readyCard } from "../effects.js";
-import type { FrameId, InstanceId } from "../ids.js";
-import { hasKeyword, keywordTotal } from "../keywords.js";
+import type { FrameId, InstanceId, PlayerId } from "../ids.js";
+import { attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import {
   activeVillain,
   cardOf,
@@ -26,6 +26,7 @@ import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { checkDefeats, checkMainSchemeCompletion, eliminatePlayer } from "./defeat.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
+import { applyEnterPlayKeywords } from "./enter-play.js";
 import {
   addFrameSlots,
   addFrameVars,
@@ -241,6 +242,11 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "cardReadying":
       readyCard(ctx, event.instanceId);
       return;
+    case "cardEntersPlay":
+      // The keywords that resolve as a card enters play are this event's change, so an "Interrupt: when X enters
+      // play" ability runs before them and a Response after (docs/phase7-wave2.md §3.13.10).
+      applyEnterPlayKeywords(ctx, event.instanceId);
+      return;
     default:
       return;
   }
@@ -289,6 +295,12 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   return true;
 }
 
+/** Whether the attack this damage belongs to is carrying a "prevent all damage from that attack" flag. */
+function preventedByAttackFlag(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): boolean {
+  const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
+  return parent?.kind === "event" && (parent.vars.preventAllDamage ?? 0) > 0;
+}
+
 /** RRG "Tough": a tough status prevents all damage and is discarded instead. */
 /** `sweep` false: a `damageGroup` applies several at once and sweeps for defeats itself afterwards. */
 export function applyDamage(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>, frameId: FrameId, sweep = true): void {
@@ -304,12 +316,26 @@ export function applyDamage(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
     addFrameVars(ctx, event.parentFrameId, { excessDealt });
     placeExcessDamageAsThreat(ctx, event, excessDealt);
   }
+  // The attacker's own keyword, or one granted to this attack alone and stamped on the event (`attackKeywordsOf`).
   const attackKeyword = (name: "piercing" | "overkill"): boolean =>
-    event.fromAttack && source !== null && hasKeyword(ctx.state, source, name, ctx.deps);
+    event.fromAttack && (event[name] === true || (source !== null && hasKeyword(ctx.state, source, name, ctx.deps)));
 
   // RRG "Cannot": "cannot take damage" beats everything, including tough (which then isn't used).
   if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [source, event.viaInstanceId])) {
     emit(ctx, { type: "damagePrevented", targetInstanceId: event.targetInstanceId, amount: event.amount, reason: "cannotTakeDamage" });
+    return;
+  }
+  // "Prevent all damage from that attack" (`modifyAttack.preventAllDamage`, set at attack initiation): the flag lives
+  // on the attack's own event frame, so it reaches whatever damage that attack eventually deals, whoever defends.
+  // RRG 1.8 "Prevent" (p. 34): the damage is dealt but not taken — excess damage above has already been measured, and
+  // nothing below runs, so no tough card is used and the attack records no `damage`/`damaged` result.
+  //
+  // UNCONFIRMED READING, flagged rather than hidden: this returns before piercing, so a fully prevented piercing
+  // attack discards no tough status cards. RRG 1.8 "Piercing" (p. 32) exempts an attack that "would deal no damage",
+  // and prevented damage is still *dealt* (p. 34), which argues the other way. No cycle 1 card reaches the case
+  // (the one prevention effect answers a villain attack; the one piercing grant belongs to a minion's boost).
+  if (event.fromAttack && preventedByAttackFlag(ctx, event)) {
+    emit(ctx, { type: "damagePrevented", targetInstanceId: event.targetInstanceId, amount: event.amount, reason: "effect" });
     return;
   }
   if (attackKeyword("piercing")) pierceTough(ctx, event.targetInstanceId);
@@ -398,7 +424,8 @@ function placeExcessDamageAsThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind
  * ignores retaliate entirely.
  */
 function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterAttacked" }>): void {
-  if (hasKeyword(ctx.state, event.attackerInstanceId, "ranged", ctx.deps)) return;
+  // Ranged printed on the attacker, or granted to this attack alone ("each of your [Arrow] attacks gain ranged").
+  if (event.ranged === true || hasKeyword(ctx.state, event.attackerInstanceId, "ranged", ctx.deps)) return;
   const inPlay = cardsInPlay(ctx.state);
   if (!inPlay.includes(event.targetInstanceId) || !inPlay.includes(event.attackerInstanceId)) return;
   const amount = keywordTotal(ctx.state, event.targetInstanceId, "retaliate", ctx.deps);
@@ -419,11 +446,13 @@ export function threatRemovalBlocked(
   schemeId: InstanceId,
   sourceInstanceId: InstanceId | null,
   byThwart = false,
+  ignoreCrisis = false,
 ): "crisis" | "rule" | null {
-  // RRG "Crisis Icon": while a crisis icon is in play, players cannot remove threat from the main scheme.
+  // RRG "Crisis Icon": while a crisis icon is in play, players cannot remove threat from the main scheme. One effect
+  // may step over that check ("ignoring any crisis icons in play"), but never over a `threatCannotBeRemoved` rule.
   const byPlayer = sourceInstanceId === null || controllerOf(state, sourceInstanceId) !== null;
   // With separate game areas, only the icons in the scheme's own area count (docs/phase7-wave2.md §3.1).
-  if (mainSchemeStateOf(state, schemeId) && byPlayer && countSchemeIcons(state, "crisis", areaOfCard(state, schemeId)) > 0) return "crisis";
+  if (!ignoreCrisis && mainSchemeStateOf(state, schemeId) && byPlayer && countSchemeIcons(state, "crisis", areaOfCard(state, schemeId)) > 0) return "crisis";
   return threatCannotBeRemoved(state, deps, schemeId, byThwart) ? "rule" : null;
 }
 
@@ -442,13 +471,23 @@ function applyPlaceThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "placeT
   if (mainSchemeStateOf(ctx.state, event.schemeInstanceId)) checkMainSchemeCompletion(ctx);
 }
 
+/**
+ * Who "the player who defeated this scheme" is: the player whose thwart this removal belongs to, else the controller
+ * of whatever removed the threat (an ally's or an event's own effect). Null for a removal no player made.
+ */
+function defeatingPlayerOf(state: GameState, event: Extract<TriggerEvent, { kind: "removeThreat" }>): PlayerId | null {
+  const parent = event.parentFrameId ? findFrame(state, event.parentFrameId) : undefined;
+  if (parent?.kind === "event" && parent.event.kind === "thwart") return parent.event.playerId;
+  return event.sourceInstanceId === null ? null : controllerOf(state, event.sourceInstanceId);
+}
+
 function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "removeThreat" }>, frameId: FrameId): void {
   const scheme = getInstance(ctx.state, event.schemeInstanceId);
   if (!scheme) return;
   // "Threat cannot be removed from attached scheme by thwarting" (Held Hostage) looks at the thwart this removal belongs to.
   const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
   const byThwart = parent?.kind === "event" && parent.event.kind === "thwart";
-  const blocked = threatRemovalBlocked(ctx.state, ctx.deps, event.schemeInstanceId, event.sourceInstanceId, byThwart);
+  const blocked = threatRemovalBlocked(ctx.state, ctx.deps, event.schemeInstanceId, event.sourceInstanceId, byThwart, event.ignoreCrisis === true);
   if (blocked) {
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
     return;
@@ -486,10 +525,18 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
       event: null,
       eventFrameId: null,
     };
+    // "When Defeated: … the player who defeated this scheme" (Crossbones' Assault): the defeat event is handed to the
+    // When Defeated abilities too — a minion's already got its `characterDefeated` event — so `defeatingPlayer`
+    // resolves inside them. No Core or wave 1 When Defeated script reads an event-scoped ref, so nothing changes.
+    const defeated: TriggerEvent = {
+      kind: "schemeDefeated",
+      instanceId: event.schemeInstanceId,
+      defeatedByPlayerId: defeatingPlayerOf(ctx.state, event),
+    };
     pushFrames(ctx, [
-      ...gameAbilityFrames(ctx, event.schemeInstanceId, ["whenDefeated"], null, undefined, ctx.state.firstPlayerId),
+      ...gameAbilityFrames(ctx, event.schemeInstanceId, ["whenDefeated"], defeated, undefined, ctx.state.firstPlayerId),
       effectsFrame,
-      eventFrame(ctx, { kind: "schemeDefeated", instanceId: event.schemeInstanceId }),
+      eventFrame(ctx, defeated),
     ]);
   }
 }
@@ -500,10 +547,17 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   if (profile?.missing.includes("atk")) return;
   const amount = event.amount ?? profile?.atk;
   if (amount === undefined) return;
-  // "That attack gains overkill" (Hulk Smash): an interrupt's `modifyAttack` records the grant on this attack's event
-  // frame, the same var an enemy attack reads when it deals its damage (`enemy-activation.ts`).
+  // "That attack gains overkill" (Hulk Smash) / "this attack gains piercing" (Piercing Strike): every way of granting
+  // an attack keyword is folded in here, once, and stamped on the events the attack pushes. An interrupt's
+  // `modifyAttack` records its grant as a var on this attack's own event frame, the same var an enemy attack reads
+  // when it deals its damage (`enemy-activation.ts`).
   const attackFrame = findFrame(ctx.state, frameId);
-  const granted = attackFrame?.kind === "event" && (attackFrame.vars.overkill ?? 0) > 0;
+  const keywords = attackKeywordsOf(ctx.state, ctx.deps, {
+    attackerInstanceId: event.attackerInstanceId,
+    viaInstanceId: event.sourceInstanceId ?? null,
+    ...(event.keywords ? { keywords: event.keywords } : {}),
+    ...(attackFrame?.kind === "event" ? { vars: attackFrame.vars } : {}),
+  });
   pushEvents(ctx, [
     {
       kind: "dealDamage",
@@ -512,14 +566,17 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
       sourceInstanceId: event.attackerInstanceId,
       fromAttack: true,
       parentFrameId: frameId,
-      overkill: event.overkill === true || granted,
+      overkill: event.overkill === true || keywords.includes("overkill"),
       viaInstanceId: event.sourceInstanceId ?? null,
+      // Only set when true, so an attack with no granted keyword logs exactly as it always has.
+      ...(keywords.includes("piercing") ? { piercing: true } : {}),
     },
     {
       kind: "characterAttacked",
       attackerInstanceId: event.attackerInstanceId,
       targetInstanceId: event.targetInstanceId,
       playerId: event.playerId,
+      ...(keywords.includes("ranged") ? { ranged: true } : {}),
     },
   ]);
 }
@@ -548,5 +605,6 @@ function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwar
     amount,
     sourceInstanceId: event.thwarterInstanceId,
     parentFrameId: frameId,
+    ...(event.ignoreCrisis ? { ignoreCrisis: true } : {}),
   });
 }

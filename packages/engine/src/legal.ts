@@ -44,7 +44,7 @@ import {
   mainSchemeStates,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
-import { printedResources, requirementTotal, type ResourceRequirement } from "./resources.js";
+import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, type EffectContext } from "./select.js";
 import type { GameState } from "./state.js";
 
@@ -483,7 +483,7 @@ export interface PaymentSource {
 
 export interface PaymentQuery {
   /** What the action costs, as the engine computes it (generic plus typed). */
-  readonly requirement: Required<ResourceRequirement>;
+  readonly requirement: ResolvedRequirement;
   readonly sources: readonly PaymentSource[];
   /**
    * The engine's own smallest working payment, as option ids: the overlay's
@@ -517,7 +517,7 @@ interface Payable {
   /** What the resources are being spent on, for "while paying for an [aspect] card". */
   readonly payingFor: InstanceId | null;
   /** Null when the engine refuses the cost as configured; `tryPayment` then says why. */
-  readonly requirement: Required<ResourceRequirement> | null;
+  readonly requirement: ResolvedRequirement | null;
   /** True when there is something to decide: a non-zero cost, or "spend X resources". */
   readonly spendable: boolean;
 }
@@ -534,7 +534,7 @@ const optionIdsOf = (payment: readonly Payment[]): readonly string[] =>
   payment.map((entry) => ("fromHand" in entry ? `hand:${entry.fromHand}` : `ability:${entry.ability.instanceId}:${entry.ability.abilityId}`));
 
 /** True when the player may still choose to spend even though the fixed cost is 0 ("Spend X resources…"). */
-const isSpendable = (requirement: Required<ResourceRequirement> | null, cost: AbilityCost | undefined): boolean =>
+const isSpendable = (requirement: ResolvedRequirement | null, cost: AbilityCost | undefined): boolean =>
   requirement !== null && (requirementTotal(requirement) > 0 || cost?.resourcesX !== undefined);
 
 /**

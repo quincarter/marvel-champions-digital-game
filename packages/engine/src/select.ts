@@ -31,7 +31,7 @@ import {
   villainStageOf,
 } from "./query.js";
 import { boostIconsFor } from "./modifiers.js";
-import { printedResources } from "./resources.js";
+import { printedResources, RESOURCE_TYPES } from "./resources.js";
 import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
 import type { LastingReach, LastingScope } from "./lasting.js";
 import type { PlayerRef, Predicate, TargetCategory, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
@@ -310,6 +310,13 @@ export function explainQuery(
     // docs/phase7-wave2.md §1.2); card effects asking for an aspect's cards count it.
     if (!card || !("aspect" in card) || (card.aspect !== query.aspect && card.printedAspect !== query.aspect)) return "wrongAspect";
   }
+  // "An aspect card": the OR of the four core aspects, read the same way `aspect` is.
+  if (query.anyAspect !== undefined) {
+    const card = cardOf(state, id);
+    const aspects =
+      card && "aspect" in card ? [String(card.aspect), ...(card.printedAspect === undefined ? [] : [String(card.printedAspect)])] : [];
+    if (!query.anyAspect.some((wanted) => aspects.includes(wanted))) return "wrongAspect";
+  }
   if (query.exhausted !== undefined && instance.exhausted !== query.exhausted) return query.exhausted ? "ready" : "exhausted";
   if (query.hasThreat !== undefined && instance.threat > 0 !== query.hasThreat) return query.hasThreat ? "noThreat" : "hasThreat";
   if (query.damaged !== undefined && instance.damage > 0 !== query.damaged) return query.damaged ? "notDamaged" : "damaged";
@@ -336,6 +343,8 @@ export function explainQuery(
     if (!attacker || !canAttack(state, attacker, id, context.deps)) return "cannotBeAttacked";
   }
   if (query.excludeSlots?.some((slot) => (context.bindings[slot] ?? []).includes(id))) return "alreadyChosen";
+  // "each *other* environment card in play": everything this ref names is out.
+  if (query.excluding !== undefined && resolveRef(state, query.excluding, context).includes(id)) return "alreadyChosen";
   if (query.inSlot !== undefined && !(context.bindings[query.inSlot] ?? []).includes(id)) return "notInSlot";
   if (query.controlledBy) {
     const controller = controllerOf(state, id);
@@ -501,6 +510,12 @@ export function resolvePlayers(
         .map((id) => getInstance(state, id)?.engagedWith ?? null)
         .filter((id): id is PlayerId => id !== null);
       return [...new Set(engaged)];
+    }
+    case "defeatingPlayer": {
+      const event = context.event;
+      if (event?.kind !== "schemeDefeated" && event?.kind !== "characterDefeated") return [];
+      const player = event.defeatedByPlayerId ?? null;
+      return player !== null && getPlayer(state, player) ? [player] : [];
     }
   }
 }
@@ -705,6 +720,17 @@ export function resolveValue(
         const card = cardOf(state, id);
         return sum + (card && "cost" in card && typeof card.cost === "number" ? card.cost : 0);
       }, 0);
+    case "totalPrintedResources": {
+      // Printed icons only (RRG 1.8 "Printed", p. 35), read wherever the cards are — a card discarded to pay a cost
+      // is already in the discard pile by the time the ability's effects resolve.
+      const types = value.types ?? RESOURCE_TYPES;
+      return resolveRef(state, value.cards, context).reduce((sum, id) => {
+        const card = cardOf(state, id);
+        if (!card) return sum;
+        const pool = printedResources(card);
+        return sum + types.reduce((total, type) => total + pool[type], 0);
+      }, 0);
+    }
     case "villainStageNumber": {
       const [id] = value.of ? resolveRef(state, value.of, context) : [activeVillainIdFor(state, contextArea(state, context)) ?? activeVillain(state).instanceId];
       return id && isVillain(state, id) ? villainStageOf(state, id).stageNumber : 0;
