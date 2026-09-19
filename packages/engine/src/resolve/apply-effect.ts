@@ -42,6 +42,7 @@ import {
   maxHitPoints,
   mustInstance,
   mustPlayer,
+  turnInProgress,
   villainOf,
 } from "../query.js";
 import { addPools, EMPTY_POOL, printedResources } from "../resources.js";
@@ -745,6 +746,8 @@ export function applyEffect(
         if (!activation) return;
         duration = { kind: "endOfEvent", frameId: activation };
       } else {
+        // "Until the end of this turn" outside a turn cannot be initiated (RRG 1.8 "Lasting Effects", p. 26; §13).
+        if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
         duration = { kind: effect.until };
       }
       const reach = {
@@ -770,7 +773,10 @@ export function applyEffect(
       const ids = targets(effect.target);
       const activation = effect.until === "endOfAttack" ? currentActivationFrameId(ctx.state.stack) : null;
       if (ids.length === 0 || (effect.until === "endOfAttack" && !activation)) return;
-      const duration: LastingDuration = activation ? { kind: "endOfEvent", frameId: activation } : { kind: effect.until === "endOfRound" ? "endOfRound" : "endOfPhase" };
+      if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
+      const duration: LastingDuration = activation
+        ? { kind: "endOfEvent", frameId: activation }
+        : { kind: effect.until === "endOfRound" || effect.until === "endOfTurn" ? effect.until : "endOfPhase" };
       addLastingEffect(ctx, { kind: "blankTextBox", targets: ids }, duration);
       return;
     }
@@ -1135,6 +1141,7 @@ export function applyEffect(
       const amount = value(effect.amount);
       // Signed: a positive amount reduces, a negative one increases ("costs N additional resources"). 0 does nothing.
       if (amount === 0) return;
+      if (effect.duration === "turn" && !turnInProgress(ctx.state)) return;
       const filter = effect.cardFilter ? { cardFilter: effect.cardFilter } : {};
       for (const playerId of resolvePlayers(ctx.state, effect.player, context)) {
         addLastingEffect(
@@ -1142,7 +1149,7 @@ export function applyEffect(
           { kind: "costReduction", playerId, amount, ...filter },
           effect.duration === "untilPlayed"
             ? { kind: "untilCardPlayed", playerId, ...filter }
-            : { kind: effect.duration === "phase" ? "endOfPhase" : "endOfRound" },
+            : { kind: effect.duration === "phase" ? "endOfPhase" : effect.duration === "turn" ? "endOfTurn" : "endOfRound" },
         );
       }
       return;

@@ -322,7 +322,7 @@ export const reduceNextCardCost = (player: PlayerRef, n: Amount, duration: NextC
  * round limit at all, however many rounds it takes ("The **next** event you play costs 3 additional resources",
  * Physical Toll, `drs` pack). Use `"phase"`/`"round"` only when the card prints that bound.
  */
-export type NextCardCostDuration = "phase" | "round" | "untilPlayed";
+export type NextCardCostDuration = "phase" | "round" | "turn" | "untilPlayed";
 /**
  * "The next [card] you play costs N additional resources" (Physical Toll, `drs` pack) — the mirror of
  * `reduceNextCardCost`, which the engine stores as the same signed lasting effect. The price is floored at 0.

@@ -575,10 +575,16 @@ export function paymentsFromOptionIds(optionIds: readonly string[]): readonly Pa
   return payments;
 }
 
-export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payment[]): void {
+/**
+ * Spends a priced payment. Returns the cards it discarded from hand, in payment order — the cards that were *spent*,
+ * which the caller announces with `announceResourcesSpent` once the thing being paid for is on the stack.
+ */
+export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payment[]): readonly InstanceId[] {
+  const spent: InstanceId[] = [];
   for (const entry of payment) {
     if ("fromHand" in entry) {
       discardFromHand(ctx, playerId, entry.fromHand);
+      spent.push(entry.fromHand);
       continue;
     }
     const { instanceId, abilityId } = entry.ability;
@@ -601,6 +607,27 @@ export function payPayment(ctx: Ctx, playerId: PlayerId, payment: readonly Payme
       pool: generated,
     });
   }
+  return spent;
+}
+
+/**
+ * "After you spend this card" / "When you spend this card" (docs/phase7-wave2.md §12): announces the cards one payment
+ * spent (`resourcesSpent`). Call it **after** pushing the card or ability the payment was for, so the event sits above
+ * it on the stack and its windows resolve first — between paying the costs and the card commencing being played (RRG
+ * 1.8 "Initiating Abilities", p. 24, steps 5–6; "Cost Arrow Icon", p. 14; ruling, Feb 28, 2026 (1)).
+ *
+ * Pushed only when an ability could react, so a payment nothing cares about leaves the stack and the log as they were.
+ */
+export function announceResourcesSpent(
+  ctx: Ctx,
+  playerId: PlayerId,
+  spent: readonly InstanceId[],
+  payingForInstanceId: InstanceId | null,
+  purpose: "playCard" | "ability" | "effect",
+): void {
+  if (spent.length === 0) return;
+  const event: TriggerEvent = { kind: "resourcesSpent", cardInstanceIds: spent, playerId, forPlayerId: playerId, payingForInstanceId, purpose };
+  if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
 }
 
 /**
@@ -1023,10 +1050,13 @@ export function pricePlay(
   return { pool, plan, vars: { ...plan.vars, ...vars, ...(printedX ? { x: xValue } : {}) } };
 }
 
-/** Pays for a priced play and records it; the caller pushes the play frame. */
-export function commitPlay(ctx: Ctx, playerId: PlayerId, cardInstanceId: InstanceId, payment: readonly Payment[], priced: PricedPlay): void {
+/**
+ * Pays for a priced play and records it; the caller pushes the play frame, then passes the returned spent cards to
+ * `announceResourcesSpent`.
+ */
+export function commitPlay(ctx: Ctx, playerId: PlayerId, cardInstanceId: InstanceId, payment: readonly Payment[], priced: PricedPlay): readonly InstanceId[] {
   consumeCostReductions(ctx, ctx.deps, playerId, cardInstanceId);
-  payPayment(ctx, playerId, payment);
+  const spent = payPayment(ctx, playerId, payment);
   // Counted as played now, so a card cancelled later still counts toward "Max N per round" (RRG 1.8 "Max, Maximum").
   const played = mustCardOf(ctx.state, cardInstanceId);
   const byPlayer = `${playerId}:${played.type}`;
@@ -1046,6 +1076,7 @@ export function commitPlay(ctx: Ctx, playerId: PlayerId, cardInstanceId: Instanc
   });
   // RRG "Event": a played event is out of play while it resolves, then it is discarded.
   if (cardOf(ctx.state, cardInstanceId)?.type === "event") moveCard(ctx, cardInstanceId, { kind: "resolving", playerId });
+  return spent;
 }
 
 export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): EngineError | null {
@@ -1160,7 +1191,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   const priced = pricePlay(ctx, command.playerId, command.cardInstanceId, ability?.cost, command.payment, command.costChoices ?? {}, attachTo, command.x);
   if (isFault(priced)) return engineError(priced.code, priced.message, command);
 
-  commitPlay(ctx, command.playerId, command.cardInstanceId, command.payment, priced);
+  const spent = commitPlay(ctx, command.playerId, command.cardInstanceId, command.payment, priced);
   pushPlayCardFrame(
     ctx,
     command.cardInstanceId,
@@ -1171,6 +1202,7 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     controllerId,
   );
   payCost(ctx, command.cardInstanceId, command.playerId, ability?.cost, priced.plan);
+  announceResourcesSpent(ctx, command.playerId, spent, command.cardInstanceId, "playCard");
   return null;
 }
 
@@ -1320,9 +1352,10 @@ export function playWithPayment(
   const ability = card.type === "event" ? eventActionAbility(ctx, card) : undefined;
   const priced = pricePlay(ctx, playerId, id, ability?.cost, payment, {}, attachTo, undefined, extraReduction);
   if (isFault(priced)) return false;
-  commitPlay(ctx, playerId, id, payment, priced);
+  const spent = commitPlay(ctx, playerId, id, payment, priced);
   pushPlayCardFrame(ctx, id, playerId, attachTo, undefined, { bindings: priced.plan.bindings, vars: priced.vars });
   payCost(ctx, id, playerId, ability?.cost, priced.plan);
+  announceResourcesSpent(ctx, playerId, spent, id, "playCard");
   return true;
 }
 
@@ -1398,12 +1431,13 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   const vars = resourceVars(pool, definition.cost, plan.requirement);
   if (isFault(vars)) return engineError(vars.code, vars.message, command);
 
-  payPayment(ctx, command.playerId, command.payment);
+  const spent = payPayment(ctx, command.playerId, command.payment);
   pushActionAbility(ctx, command.cardInstanceId, command.abilityId, command.playerId, plan.bindings, {
     ...plan.vars,
     ...vars,
   });
   payCost(ctx, command.cardInstanceId, command.playerId, definition.cost, plan);
+  announceResourcesSpent(ctx, command.playerId, spent, command.cardInstanceId, "ability");
   return null;
 }
 
@@ -1434,6 +1468,8 @@ function payBasicPowerCost(
   command: Command & { type: "basicAttack" | "basicThwart" },
   characterId: InstanceId,
   power: "attack" | "thwart",
+  /** Receives the cards the payment spent, for the caller to announce once the power is on the stack. */
+  spentOut: InstanceId[],
 ): EngineError | null {
   const cost = basicPowerCost(ctx.state, ctx.deps, characterId, power);
   if (!cost) return null;
@@ -1445,7 +1481,7 @@ function payBasicPowerCost(
   if (!satisfies(pool, plan.requirement)) {
     return engineError("insufficient_resources", `need ${requirementTotal(plan.requirement)}, paid ${poolTotal(pool)}`, command);
   }
-  payPayment(ctx, command.playerId, payment);
+  spentOut.push(...payPayment(ctx, command.playerId, payment));
   payCost(ctx, characterId, command.playerId, cost, plan);
   return null;
 }
@@ -1467,7 +1503,27 @@ function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attac
   });
 }
 
-export function basicAttack(ctx: Ctx, command: Command & { type: "basicAttack" }): EngineError | null {
+/**
+ * A basic power whose extra cost spent cards announces them on top of everything the power pushed, so "after you spend
+ * this card" resolves before the power does (docs/phase7-wave2.md §12) — also when a stun or confusion cancels the
+ * power, since its costs are still paid (RRG 1.8 "Stun, Stunned", p. 41; "Confuse, Confused", p. 13).
+ */
+function withSpentAnnounced<C extends Command & { type: "basicAttack" | "basicThwart" }>(
+  run: (ctx: Ctx, command: C, spent: InstanceId[]) => EngineError | null,
+  characterOf: (command: C) => InstanceId,
+): (ctx: Ctx, command: C) => EngineError | null {
+  return (ctx, command) => {
+    const spent: InstanceId[] = [];
+    const error = run(ctx, command, spent);
+    if (!error) announceResourcesSpent(ctx, command.playerId, spent, characterOf(command), "ability");
+    return error;
+  };
+}
+
+export const basicAttack = withSpentAnnounced(basicAttackPaying, (command) => command.attackerInstanceId);
+export const basicThwart = withSpentAnnounced(basicThwartPaying, (command) => command.thwarterInstanceId);
+
+function basicAttackPaying(ctx: Ctx, command: Command & { type: "basicAttack" }, spent: InstanceId[]): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const unusable = usableCharacter(ctx, command.playerId, command.attackerInstanceId, command);
@@ -1493,7 +1549,7 @@ export function basicAttack(ctx: Ctx, command: Command & { type: "basicAttack" }
   if (characterProfile(ctx.state, command.attackerInstanceId, ctx.deps)?.missing.includes("atk")) {
     return engineError("no_valid_target", "a character with a printed '—' ATK cannot attack", command);
   }
-  const unpaid = payBasicPowerCost(ctx, command, command.attackerInstanceId, "attack");
+  const unpaid = payBasicPowerCost(ctx, command, command.attackerInstanceId, "attack", spent);
   if (unpaid) return unpaid;
   exhaustCard(ctx, command.attackerInstanceId);
   if (statusActive(ctx.state, command.attackerInstanceId, "stunned", ctx.deps)) {
@@ -1536,7 +1592,7 @@ export function basicAttack(ctx: Ctx, command: Command & { type: "basicAttack" }
   return null;
 }
 
-export function basicThwart(ctx: Ctx, command: Command & { type: "basicThwart" }): EngineError | null {
+function basicThwartPaying(ctx: Ctx, command: Command & { type: "basicThwart" }, spent: InstanceId[]): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const unusable = usableCharacter(ctx, command.playerId, command.thwarterInstanceId, command);
@@ -1583,7 +1639,7 @@ export function basicThwart(ctx: Ctx, command: Command & { type: "basicThwart" }
   if (scheme.threat < 1 && !confused) {
     return engineError("no_valid_target", "scheme has no threat to remove", command);
   }
-  const unpaid = payBasicPowerCost(ctx, command, command.thwarterInstanceId, "thwart");
+  const unpaid = payBasicPowerCost(ctx, command, command.thwarterInstanceId, "thwart", spent);
   if (unpaid) return unpaid;
 
   exhaustCard(ctx, command.thwarterInstanceId);

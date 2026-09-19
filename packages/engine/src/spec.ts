@@ -1,6 +1,14 @@
 import type { Trait } from "@mc/content";
-/** When a lasting effect ends: "until the end of the phase" / "…of the round" / "…of this attack". */
-export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack";
+/**
+ * When a lasting effect ends: "until the end of the phase" / "…of the round" / "…of this attack" / "…of this turn".
+ *
+ * `endOfTurn` (docs/phase7-wave2.md §13): the active player's turn, which is shorter than the player phase once several
+ * players take turns inside it (RRG 1.8 "Player Phase", p. 34: "each player (in player order) takes one turn"). It
+ * expires the moment that turn ends. Created while no turn is in progress it is not created at all — RRG 1.8 "Lasting
+ * Effects" (p. 26): "A lasting effect that expires at the end of a specified time period can only be initiated during
+ * that time period."
+ */
+export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfTurn";
 import type { PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep } from "./state.js";
@@ -1081,7 +1089,8 @@ export type EffectSpec =
       readonly kind: "reduceNextCardCost";
       readonly player: PlayerRef;
       readonly amount: ValueSpec;
-      readonly duration: "phase" | "round" | "untilPlayed";
+      /** `"turn"`: "…the next superpower card you play this turn" (Deft Focus, `magneto` 49023; docs/phase7-wave2.md §13). */
+      readonly duration: "phase" | "round" | "turn" | "untilPlayed";
       readonly cardFilter?: TargetQuery;
     }
   /**

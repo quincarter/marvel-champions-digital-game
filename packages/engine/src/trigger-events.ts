@@ -140,6 +140,43 @@ export type TriggerEventBody =
   | { readonly kind: "cardBeingPlayed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly kind: "cardRevealed"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /**
+   * Cards were spent from a player's hand to generate resources for one payment (docs/phase7-wave2.md §12): "Hero
+   * Response: After you spend this card, …" (Pym Particles 12006 and seven more), "Interrupt: When you spend this card
+   * to play an ally, …". One event per payment, listing every card that payment spent, so the responses of several
+   * spent cards share one window and their controller orders them (RRG 1.8 "Response", p. 38: responses to triggering
+   * conditions one effect causes "can be resolved in any order").
+   *
+   * **When.** Pushed once the costs are paid (step 5 of RRG 1.8 "Initiating Abilities", p. 24) and on top of the card
+   * or ability being paid for, so both windows resolve before that card commences being played (step 6). RRG 1.8
+   * "Cost Arrow Icon" (p. 14): "Responses to the text preceding the cost arrow icon resolve before the text following
+   * the icon resolves"; ruling, Feb 28, 2026 (1): "Any abilities triggered by paying a cost resolve immediately before
+   * the effect following the arrow resolves." Pushed only when an ability could react (`heard`).
+   *
+   * **Where the ability is.** The spent cards are in the discard pile by now, which the trigger scan does not read. RRG
+   * 1.8 "Resource Card" (p. 37): "Some resource cards have card text that is active while using the card to generate
+   * resources", and a spent resource "is also considered to be spent by that player's identity" — so while this event
+   * resolves, each spent card's own abilities on this event are live, controlled by the spender (`resolve/triggers.ts`).
+   *
+   * - `cardInstanceIds`: the cards discarded from hand, in payment order. A "Resource:" ability of a card in play is not
+   *   a card being spent, so it is not listed.
+   * - `playerId`: whose hand they came from ("you"). `forPlayerId`: the player whose cost they paid — "After you spend
+   *   this card **for a player**, heal 1 damage from that player's identity" (Everyday Hero 28019). The same player
+   *   today, since no payment yet spans players (Alliance, RRG 1.8 p. 6, is not built); kept apart so that card is
+   *   right the day it is.
+   * - `payingForInstanceId` / `purpose`: what the payment was for — the card being played (`playCard`), the card whose
+   *   ability's cost it paid (`ability`), or neither (`effect`: "spend X resources" inside an effect). The played card
+   *   is the event's *target*, so "When you spend this card to play a THWART event" is a `targetIs` query; an
+   *   ability's source is deliberately not a target, so a query for "an ally" cannot match an ally's own ability cost.
+   */
+  | {
+      readonly kind: "resourcesSpent";
+      readonly cardInstanceIds: readonly InstanceId[];
+      readonly playerId: PlayerId;
+      readonly forPlayerId: PlayerId;
+      readonly payingForInstanceId: InstanceId | null;
+      readonly purpose: "playCard" | "ability" | "effect";
+    }
+  /**
    * An ally or minion at 0 hit points is being defeated. Interruptible ("when
    * attached minion would be defeated … instead", "when attached minion is
    * defeated"); the card leaves play when it applies. `overkill` carries excess
@@ -278,6 +315,10 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "turnEnding":
     case "surgeResolving":
     case "cardBeingPlayed":
+    // "When you spend this card" (an interrupt) and "After you spend this card" (a response) both have a window. The
+    // cards are already discarded when it is pushed — every cost is paid at once (RRG 1.8 "Cost", p. 13) — so its
+    // apply step changes nothing; see docs/phase7-wave2.md §12.2 for what that does and does not let an interrupt do.
+    case "resourcesSpent":
     /**
      * "Forced Interrupt: When an environment enters play, …" (None Shall Pass 1A): the card is already in the play
      * area by the time this is pushed, but nothing it does *on* entering has happened yet — the enter-play keywords
@@ -367,6 +408,13 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       return of([event.instanceId], [event.instanceId], [event.playerId]);
     case "abilityResolved":
       return of([event.instanceId], [], [event.controllerId]);
+    case "resourcesSpent":
+      // `forPlayerId` first, so `eventPlayer` is "that player" (Everyday Hero); the spender is "you" either way.
+      return of(
+        event.cardInstanceIds,
+        [event.purpose === "playCard" ? event.payingForInstanceId : null],
+        event.forPlayerId === event.playerId ? [event.playerId] : [event.forPlayerId, event.playerId],
+      );
     default:
       return of([], [], []);
   }
