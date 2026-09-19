@@ -12,6 +12,8 @@
     "desktop:build": "pnpm --filter @mc/client desktop:build",
     "ios": "pnpm --filter @mc/client ios",
     "android": "pnpm --filter @mc/client android",
+    "cap": "pnpm --filter @mc/client cap",
+    "android:build": "pnpm --filter @mc/client android:build",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
@@ -22,7 +24,7 @@
   },
   "devDependencies": {
     "playwright": "^1.63.0",
-    "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.1"
   }
 }
