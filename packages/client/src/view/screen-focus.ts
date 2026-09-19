@@ -252,6 +252,7 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
       "full-game-log",
       "rules-reference",
       "settings",
+      "save-quit",
       ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["concede"]),
       ...input.keywordIds.map((id) => `keyword:${id}`),
     ];

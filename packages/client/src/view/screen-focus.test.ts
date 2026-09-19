@@ -258,12 +258,13 @@ describe("screen focus routes", () => {
   });
 
   test("Pause (wide, D13) reads the left menu top to bottom, then the keyword grid", () => {
-    expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).toEqual(["resume", "full-game-log", "rules-reference", "settings", "concede"]);
+    expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).toEqual(["resume", "full-game-log", "rules-reference", "settings", "save-quit", "concede"]);
     expect(pauseFocusOrder({ kind: "wide", keywordIds: ["guard", "stunned"], confirmingConcede: false })).toEqual([
       "resume",
       "full-game-log",
       "rules-reference",
       "settings",
+      "save-quit",
       "concede",
       "keyword:guard",
       "keyword:stunned",
@@ -274,7 +275,7 @@ describe("screen focus routes", () => {
     const order = pauseFocusOrder({ kind: "wide", keywordIds: ["guard"], confirmingConcede: true });
     expect(order).not.toContain("concede");
     expect(order).toContain("resume");
-    expect(order.slice(4, 6)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
+    expect(order.slice(5, 7)).toEqual(["concede-confirm-yes", "concede-confirm-cancel"]);
     expect(order[order.length - 1]).toBe("keyword:guard");
   });
 

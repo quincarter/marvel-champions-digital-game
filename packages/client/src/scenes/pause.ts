@@ -288,6 +288,7 @@ export class PauseOverlay extends Phaser.Scene {
     this.#menuButton(stops, "full-game-log", "onInk", "Full game log", layout.menu.fullGameLog, () => this.#toggleFullGameLog(), this.#logExpanded);
     this.#menuButton(stops, "rules-reference", "onInk", "Rules reference", layout.menu.rulesReference, () => this.#openRules({ initialTab: "glossary" satisfies RulesTab }));
     this.#menuButton(stops, "settings", "onInk", "Settings", layout.menu.settings, () => this.scene.launch(SCENES.settings));
+    this.#menuButton(stops, "save-quit", "onInk", "Save & quit", layout.menu.saveQuit, () => this.#saveAndQuit());
 
     if (this.#confirmingConcede) this.#drawWideConcedeConfirm(layout, stops);
     else this.#drawDimButton(layout.concede, "Concede", () => this.#setConfirmingConcede(true), stops, "concede");

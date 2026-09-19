@@ -87,6 +87,8 @@ export interface PauseMenuLayout {
   readonly fullGameLog: Rect;
   readonly rulesReference: Rect;
   readonly settings: Rect;
+  /** Not in D13, which has no way to leave a game without conceding it; the phone footer has always had one. */
+  readonly saveQuit: Rect;
 }
 
 export interface PauseWideLayout {
@@ -132,7 +134,7 @@ function wideLayout(bounds: Rect, keywordCount: number): PauseWideLayout {
   const menuButtonHeight = hit.primary;
   const menuWidth = title.width;
   const menuRect = (index: number): Rect => ({ x: title.x, y: menuTop + index * (menuButtonHeight + MENU_GAP), width: menuWidth, height: menuButtonHeight });
-  const menu: PauseMenuLayout = { resume: menuRect(0), fullGameLog: menuRect(1), rulesReference: menuRect(2), settings: menuRect(3) };
+  const menu: PauseMenuLayout = { resume: menuRect(0), fullGameLog: menuRect(1), rulesReference: menuRect(2), settings: menuRect(3), saveQuit: menuRect(4) };
 
   const concede: Rect = { x: title.x, y: left.y + left.height - LEFT_PAD - menuButtonHeight, width: menuWidth, height: menuButtonHeight };
   const concedeConfirmYes: Rect = concede;
@@ -271,7 +273,7 @@ export function pauseLayout(bounds: Rect, input: PauseLayoutInput): PauseLayout 
 /** Every rect this layout places, for a no-overlap test — excluding heading/label text bands, which aren't controls (the same convention `settings-layout.test.ts` and `rules-layout.test.ts` use). */
 export function pauseLayoutRects(layout: PauseLayout): readonly Rect[] {
   if (layout.kind === "wide") {
-    return [layout.menu.resume, layout.menu.fullGameLog, layout.menu.rulesReference, layout.menu.settings, layout.concede, ...layout.keywordGrid.cells];
+    return [layout.menu.resume, layout.menu.fullGameLog, layout.menu.rulesReference, layout.menu.settings, layout.menu.saveQuit, layout.concede, ...layout.keywordGrid.cells];
   }
   return [layout.closeButton, layout.search, ...layout.quickReferenceRows, ...layout.tableRows, layout.resume, layout.saveQuit, layout.concede];
 }
