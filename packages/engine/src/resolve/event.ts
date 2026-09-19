@@ -10,6 +10,7 @@ import {
   cardOf,
   characterProfile,
   countSchemeIcons,
+  titleShowing,
   getInstance,
   getPlayer,
   isMinion,
@@ -17,6 +18,7 @@ import {
   villainOf,
   areaOfCard,
   mainSchemeStateOf,
+  turnInProgress,
 } from "../query.js";
 import type { EngineDeps } from "../abilities.js";
 import { cannotTakeDamage, defeatedIntoEncounterDeck, excessDamageThreatSchemes, notDefeatedWithoutThreat, threatCannotBeRemoved } from "../rules.js";
@@ -236,6 +238,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
       return event.kind === "enemyAttack" ? pushEnemyAttackFrame(ctx, event, frame.frameId) : pushEnemySchemeFrame(ctx, event, frame.frameId);
     }
     case "characterAttacked":
+      recordAttackThisTurn(ctx, event.attackerInstanceId, event.targetInstanceId);
       return applyRetaliate(ctx, event);
     case "characterDefeated":
       return applyDefeat(ctx, event);
@@ -424,7 +427,6 @@ function placeExcessDamageAsThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind
  * ignores retaliate entirely.
  */
 function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterAttacked" }>): void {
-  recordAttackThisTurn(ctx, event.attackerInstanceId, event.targetInstanceId);
   // Ranged printed on the attacker, or granted to this attack alone ("each of your [Arrow] attacks gain ranged").
   if (event.ranged === true || hasKeyword(ctx.state, event.attackerInstanceId, "ranged", ctx.deps)) return;
   const inPlay = cardsInPlay(ctx.state);
@@ -441,15 +443,19 @@ function applyRetaliate(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characte
 }
 
 /**
- * Remembers that `attackerId` attacked `targetId` this turn (`GameState.attackedThisTurn`; docs/phase7-wave2.md
- * §11.3). Every attack passes through the `characterAttacked` event, player-made and enemy-made alike, so this is
- * the one place it has to be written. The list is a set in attack order, so the same attacker attacking twice is
- * recorded once and a replay produces the same array.
+ * Remembers that `attackerId` attacked `targetId` this turn, under the title it is showing now (`GameState.
+ * attackedThisTurn`; docs/phase7-wave2.md §11.3, §14). Every attack passes through the `characterAttacked` event,
+ * player-made and enemy-made alike, so this is the one place it has to be written. Outside a player's turn there is
+ * no "this turn" to record into. The list is a set in attack order, so the same attacker attacking twice under one
+ * title is recorded once and a replay produces the same array.
  */
 function recordAttackThisTurn(ctx: Ctx, attackerId: InstanceId, targetId: InstanceId): void {
+  if (!turnInProgress(ctx.state)) return;
+  const attackerTitle = titleShowing(ctx.state, attackerId) ?? "";
   const already = ctx.state.attackedThisTurn[targetId] ?? [];
-  if (already.includes(attackerId)) return;
-  ctx.state = { ...ctx.state, attackedThisTurn: { ...ctx.state.attackedThisTurn, [targetId]: [...already, attackerId] } };
+  if (already.some((r) => r.attackerInstanceId === attackerId && r.attackerTitle === attackerTitle)) return;
+  const record = { attackerInstanceId: attackerId, attackerTitle };
+  ctx.state = { ...ctx.state, attackedThisTurn: { ...ctx.state.attackedThisTurn, [targetId]: [...already, record] } };
 }
 
 /** Why threat cannot be removed from this scheme right now, or null. Shared by removal and `moveThreat`. */

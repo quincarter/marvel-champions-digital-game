@@ -269,7 +269,7 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     expect(hosts(state, { kind: "superlative", among: "friendlyCharacter", order: "highest", measure: "printedCost" })).toEqual([ids[1]]);
   });
 
-  it("`titleContains` matches a substring of the title showing, and `attackedThisTurnBy` matches nothing yet", () => {
+  it("`titleContains` matches a substring of the title showing", () => {
     const spidey = stubAlly({ id: "Spider-Woman", cost: 1, atk: 1, thw: 1, hp: 3 });
     const identities = seatIdentities(HERO, 1);
     const result = createGame(
@@ -296,24 +296,27 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
   });
 
   /**
-   * docs/phase7-wave2.md §11.3. "Attach to an enemy that X-23 or Honey Badger attacked this turn." (Puncture Wound
-   * 43012.) The one temporal qualifier: it reads `GameState.attackedThisTurn`, written at every attack and cleared
-   * when each turn begins (RRG 1.8 "Turn", p. 45).
+   * docs/phase7-wave2.md §11.3, §14. "Attach to an enemy that X-23 or Honey Badger attacked this turn." (Puncture Wound
+   * 43012.) The one temporal qualifier: it reads `GameState.attackedThisTurn`, written at every attack made during a
+   * player's turn and cleared when each turn begins and ends (RRG 1.8 "Player Phase", p. 34).
    */
+  const HERO_TITLE = HERO.hero.faceName;
+  const byHero: AttachmentHost = { kind: "qualified", category: "enemy", attackedThisTurnBy: [HERO_TITLE] };
+
   it("`attackedThisTurnBy` matches only an enemy one of the named cards has attacked this turn", () => {
     const start = game({ encounter: [ELITE_MINION.id, PLAIN_MINION.id, ...copies(BLANK.id, 14)] });
     const attacked = intoPlay(start, ELITE_MINION.id);
     const untouched = intoPlay(attacked.state, PLAIN_MINION.id);
     const state = untouched.state;
     const identity = mustPlayer(state, p1).identity.instanceId;
-    // An identity is matched by its card title, the same face `namedCard` compares against (`currentName`).
-    const byHero: AttachmentHost = { kind: "qualified", category: "enemy", attackedThisTurnBy: [HERO.name] };
     // Nothing attacked yet.
     expect(hosts(state, byHero)).toEqual([]);
     const hero = ok(state, { type: "changeForm", playerId: p1 });
     const struck = settleUntil(ok(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: attacked.id }), "declareDefender", deps);
-    expect(struck.attackedThisTurn[attacked.id]).toEqual([identity]);
+    // Recorded under the hero side's title — not the identity card's, and not the alter-ego's (RRG 1.8 "Identity", p. 23).
+    expect(struck.attackedThisTurn[attacked.id]).toEqual([{ attackerInstanceId: identity, attackerTitle: HERO_TITLE }]);
     expect(hosts(struck, byHero)).toEqual([attacked.id]);
+    expect(hosts(struck, { kind: "qualified", category: "enemy", attackedThisTurnBy: [HERO.alterEgo.faceName] })).toEqual([]);
     // The minion nobody attacked is no host, and neither is the attacked one under a different attacker's name.
     expect(hosts(struck, byHero)).not.toContain(untouched.id);
     expect(hosts(struck, { kind: "qualified", category: "enemy", attackedThisTurnBy: ["Honey Badger"] })).toEqual([]);
@@ -321,6 +324,37 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     const nextTurn = settle(ok(struck, { type: "endTurn", playerId: p1 }), defaultPick, deps);
     expect(nextTurn.step).toMatchObject({ phase: "player", kind: "turn" });
     expect(nextTurn.attackedThisTurn).toEqual({});
+  });
+
+  it("an attack stays recorded under the title it was made with after the attacker changes form (RRG 1.8 'Identity', p. 23)", () => {
+    const start = game({ encounter: [ELITE_MINION.id, ...copies(BLANK.id, 15)] });
+    const attacked = intoPlay(start, ELITE_MINION.id);
+    const identity = mustPlayer(attacked.state, p1).identity.instanceId;
+    const hero = ok(attacked.state, { type: "changeForm", playerId: p1 });
+    const struck = settleUntil(ok(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: attacked.id }), "declareDefender", deps);
+    // Test surgery: the identity is now showing its alter-ego side (a card effect, or last turn's hero form flipped).
+    const flipped: GameState = {
+      ...struck,
+      players: struck.players.map((pl) => (pl.playerId === p1 ? { ...pl, identity: { ...pl.identity, form: "alterEgo" } } : pl)),
+    };
+    // The hero attacked it, so it is still a legal host, although no one is showing the hero's title any more.
+    expect(hosts(flipped, byHero)).toEqual([attacked.id]);
+  });
+
+  it("an attack outside a player's turn is not recorded, so the villain phase does not read as 'this turn'", () => {
+    // The villain (0 ATK) attacks first; the engaged minion's attack is the prompt after it, by which point the
+    // villain's attack has fully resolved.
+    const start = game({ encounter: [ELITE_MINION.id, ...copies(BLANK.id, 15)] });
+    const engaged = intoPlay(start, ELITE_MINION.id);
+    // In hero form, so there is a defender to ask about and each attack stops at its own defend prompt.
+    const hero = ok(engaged.state, { type: "changeForm", playerId: p1 });
+    const villainAttack = settleUntil(ok(hero, { type: "endTurn", playerId: p1 }), "declareDefender", deps);
+    expect(villainAttack.step.phase).toBe("villain");
+    const choice = villainAttack.pendingChoice;
+    if (!choice) throw new Error("expected the villain's attack to ask for a defender");
+    const minionAttack = ok(villainAttack, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: ["decline"] });
+    expect(minionAttack.pendingChoice?.prompt.kind).toBe("declareDefender");
+    expect(minionAttack.attackedThisTurn).toEqual({});
   });
 });
 
