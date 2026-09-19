@@ -1776,3 +1776,46 @@ triggers Atonement, but that needs confirming before it is built.
 **Parser mapping:** `card_set_code: "hercules_labor_deck"` → encounter card with `separateDeck: "Labor"`,
 `encounterSetIds: []`. `"hercules_gift_deck"` → player card with `separateDeck: "Gift"`, `deckLimit: 0`. The
 identity lists both decks as above.
+
+---
+
+## 16. Review: an action's pre-cost condition, `trigger.while` (owner: `game-rules-architect`; landed 2026-09-19)
+
+Item 5 of this batch reviews a change made outside this role's ownership. Action triggers gained `while?: Predicate`
+(`AbilityTriggerSpec` in `abilities.ts`; DSL `action`/`heroAction`/`alterEgoAction({ while })`). It models a
+condition printed before the cost: "Hero Action: If you are in Tiny hero form, exhaust Army of Ants → deal 1 damage
+to an enemy." (`ant` 12007.) Tests: `packages/engine/src/action-condition.test.ts` (2 tests).
+
+### 16.1 The rules reading: confirmed
+
+RRG 1.8 "Play Restrictions and Permissions" (p. 33): cards contain "specific conditions that must be true in order
+to use them", and "In order to use an ability or play a card, all of its play restrictions must be observed".
+"Initiating Abilities" (p. 24) checks play restrictions at **step 2**, before the cost is determined (step 3) or paid
+(step 5). So an unmet pre-arrow condition means the action **cannot be initiated**, and nothing is paid. That is
+what the change does in `useAbility`: it refuses the command before any cost is planned.
+
+It is a different sentence from a condition **after** the arrow ("Exhaust X → if you are in Tiny form, draw 1
+card"). There the cost is paid and only the effect is conditional, so it is an effect-level `if`. **Scripters: use
+`while` only for text between the timing word and the arrow.**
+
+### 16.2 The legal-move enumeration: confirmed
+
+`legalActions` (`legal.ts`) builds each action's real `useAbility`/`playCard` command and trial-runs it through the
+pure `applyCommand`. A false condition therefore comes back in `illegal` with the engine's reason
+(`no_valid_target`, "that ability cannot be triggered: its condition is not met") and never in `legal`. The client can show it greyed out
+with a reason. No enumeration-side change was needed, and a test asserts it for both a card in play and an event.
+
+### 16.3 What was adjusted: events
+
+The check existed only in `useAbility`, but an event's action is initiated by **playing the card**. An event
+scripted with `heroAction({ while }, …)` could be played with the condition false, and its cost paid for nothing, by:
+- `playCard`;
+- `playFromHand` paying for it (Team-Building Exercise, §9);
+- `playFromHand` ignoring its cost (Chaos Magic, §3.8).
+
+All four paths now share one check, `actionConditionUnmet(state, deps, definition, sourceId, playerId)`
+(`actions.ts`), placed next to each path's existing form gate. "You" is the initiating player; "this card" is the
+card the action is on (for an event, the card in hand). `useAbility`'s own message changed from the generic "that
+ability cannot be triggered right now" to "that ability cannot be triggered: its condition is not met". A client can
+tell it apart from the `cannotTriggerActions` rule, which keeps the first message, and the scripter's existing
+`/cannot be triggered/` assertions still hold.

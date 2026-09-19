@@ -939,6 +939,24 @@ export function payCost(
 // ---------------------------------------------------------------------------
 
 /** The action ability an event resolves when played from hand, if it has one. */
+/**
+ * Whether an action's pre-cost condition is false right now, so the action cannot be initiated at all (docs/phase7-
+ * wave2.md §16): "Hero Action: If you are in Tiny hero form, exhaust Army of Ants → …" (`trigger.while`).
+ *
+ * RRG 1.8 "Play Restrictions and Permissions" (p. 33): cards contain "specific conditions that must be true in order to
+ * use them", and "In order to use an ability or play a card, all of its play restrictions must be observed". "Initiating
+ * Abilities" (p. 24) checks them at step 2, before the cost is determined (step 3) or paid (step 5), so a false
+ * condition refuses the action with nothing spent. One check for every way an action is initiated: `useAbility` on a
+ * card in play, and every path that plays an event whose ability is the action (`playCard`, `playFromHand` paying or
+ * ignoring the cost). "You" is the player initiating it; "this card" is the card the action is on (for an event, the
+ * card in hand).
+ */
+export function actionConditionUnmet(state: GameState, deps: EngineDeps, definition: AbilityDefinition | undefined, sourceId: InstanceId, playerId: PlayerId): boolean {
+  if (definition?.trigger.kind !== "action" || !definition.trigger.while) return false;
+  const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+  return !evaluate(state, definition.trigger.while, context);
+}
+
 export function eventActionAbility(ctx: Ctx, card: AnyCard): AbilityDefinition | undefined {
   if (card.type !== "event") return undefined;
   for (const ref of printedAbilityRefs(card)) {
@@ -1116,6 +1134,9 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   if (card.type === "event" && ability?.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form) {
     return engineError("wrong_form", `this event requires ${ability.trigger.form} form`, command);
   }
+  if (card.type === "event" && actionConditionUnmet(ctx.state, ctx.deps, ability, command.cardInstanceId, command.playerId)) {
+    return engineError("no_valid_target", "this event's condition is not met", command);
+  }
 
   // RRG "Restricted": a player cannot control more than two at a time, so playing
   // a third is not a legal action in the first place.
@@ -1245,6 +1266,7 @@ export function playIgnoringCostFault(ctx: Ctx, playerId: PlayerId, id: Instance
     const ability = eventActionAbility(ctx, card);
     if (!ability || ability.cost) return "an event with no cost-free action";
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form) return "wrong form";
+    if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
   }
   return null;
 }
@@ -1270,6 +1292,7 @@ export function playWithPaymentFault(ctx: Ctx, playerId: PlayerId, id: InstanceI
     const ability = eventActionAbility(ctx, card);
     if (!ability) return "an event with no action ability";
     if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form) return "wrong form";
+    if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
   }
   // The ability's own cost has to be settleable without asking: `planCost` fills in a pick with exactly one legal
   // candidate, and anything more ambiguous has nowhere to prompt from inside this effect (§9's capability note).
@@ -1394,10 +1417,8 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   if (cannotTriggerAction(ctx.state, ctx.deps, command.cardInstanceId, definition.trigger.form)) {
     return engineError("no_valid_target", "that ability cannot be triggered right now", command);
   }
-  const condition = definition.trigger.while;
-  if (condition) {
-    const context: EffectContext = { selfInstanceId: command.cardInstanceId, controllerId: command.playerId, event: null, bindings: {}, deps: ctx.deps };
-    if (!evaluate(ctx.state, condition, context)) return engineError("no_valid_target", "that ability cannot be triggered right now", command);
+  if (actionConditionUnmet(ctx.state, ctx.deps, definition, command.cardInstanceId, command.playerId)) {
+    return engineError("no_valid_target", "that ability cannot be triggered: its condition is not met", command);
   }
   const controller = controllerOf(ctx.state, command.cardInstanceId);
   if (controller !== null && controller !== command.playerId) {
