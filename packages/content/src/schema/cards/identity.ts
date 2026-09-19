@@ -174,8 +174,33 @@ export interface IdentitySeparateDeck {
   readonly cards: readonly { readonly cardId: CardId; readonly quantity: number }[];
   /** "play with the top card of the [...] deck faceup at all times". */
   readonly topCardFaceup: boolean;
-  /** "a special discard pile that belongs to the [...] deck", separate from the owner's discard pile. */
-  readonly discardPile: "own";
-  /** "If the [...] deck is ever empty, shuffle the [...] discard pile back into the [...] deck. There is no penalty for doing this." */
-  readonly whenEmpty: "reshuffleDiscardWithoutPenalty";
+  /**
+   * `"own"`: "a special discard pile that belongs to the [...] deck", separate from the owner's discard pile (Doctor
+   * Strange). `"none"`: its cards can never enter a discard pile at all (Hercules, below).
+   */
+  readonly discardPile: "own" | "none";
+  /**
+   * `"reshuffleDiscardWithoutPenalty"`: "If the [...] deck is ever empty, shuffle the [...] discard pile back into the
+   * [...] deck. There is no penalty for doing this." (Doctor Strange.) `"stayEmpty"`: an empty deck stays empty, with
+   * no penalty; nothing refills it (Hercules — a 3-card deck whose cards never reach a discard pile).
+   */
+  readonly whenEmpty: "reshuffleDiscardWithoutPenalty" | "stayEmpty";
+  /**
+   * Which kind of card the deck holds (docs/phase7-wave2.md §15). Absent means `"player"` — every deck before
+   * Hercules — so existing data is unchanged.
+   *
+   * `"encounter"`: the Hercules Hero Pack insert, "The Gift and Labor Decks": "he begins each game with two special
+   * 3-card decks. To create the GIFT and LABOR decks, shuffle the three GIFT cards together to form the GIFT deck and
+   * the three LABOR cards to form the LABOR deck. Then, place both of these decks facedown in your play area." Its
+   * "Alternate Player & Encounter Card Backs" section: the pack's "variation on the standard player and encounter card
+   * backs" exists because "the rules for these cards prevent them from entering a deck, a discard pile, or a player's
+   * hand". The Labor cards (Defeat the Hydra, Embody Pathos, Protect Humanity) are the encounter-backed ones — typed
+   * attachment/obligation, "Victory 0." — and each carries `EncounterCardCommon.separateDeck`. The Gift deck is a
+   * `"player"` deck of Permanent upgrades.
+   *
+   * **Data only.** The engine builds `"player"` decks with `discardPile: "own"` (Doctor Strange) and refuses to seat
+   * an identity with any other kind (`createGame`), since building one as if it were Doctor Strange's would play a
+   * different game.
+   */
+  readonly cardFamily?: "player" | "encounter";
 }

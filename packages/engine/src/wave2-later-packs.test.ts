@@ -317,12 +317,19 @@ const SPDR: HeroIdentityCard = {
     alterEgoCardOtherSide: { cardType: "upgrade", name: "SP//dr", traits: [], keywords: [], text: unerrataedText("x"), abilities: [] },
   },
 };
+/** Hercules (59001): a Labor deck of encounter-backed cards and a Gift deck with no discard pile (§15). */
+const HERC: HeroIdentityCard = {
+  ...stubIdentity({ id: "herc", hp: 14, atk: 3, thw: 1, def: 2, rec: 4, heroHandSize: 5, alterEgoHandSize: 6 }),
+  separateDecks: [
+    { name: "Labor", cardFamily: "encounter", cards: [{ cardId: cardId("labor"), quantity: 1 }], topCardFaceup: false, discardPile: "none", whenEmpty: "stayEmpty" },
+  ],
+};
 const FUTURIST: PlayerCard = { ...stubEvent({ id: "futurist", cost: 1 }), specificTo: { kind: "competitive", encounterSetId: encounterSetId("iron_man_leader") } };
 
 describe("cards that cannot be used in a standard game are refused (docs/phase7-wave2.md §6.3, §6.4, §6.10)", () => {
   const base: GameSetupConfig = {
     seed: 1,
-    cards: [...DEFAULT_CARDS, EVIDENCE, SPDR],
+    cards: [...DEFAULT_CARDS, EVIDENCE, SPDR, HERC],
     villainCardId: VILLAIN.id,
     mainSchemeCardId: MAIN_SCHEME.id,
     encounterDeck: [],
@@ -342,6 +349,20 @@ describe("cards that cannot be used in a standard game are refused (docs/phase7-
     const deck: DeckContents = { identityCardId: SPDR.id, aspects: ["justice"], cards: [] };
     const verdict = validateDeck(deck, [SPDR]);
     expect(verdict.ok ? [] : verdict.problems.map((p) => p.code)).toContain("unsupported_identity");
+  });
+
+  it("an identity whose separate deck the engine cannot build (Hercules's Labor deck) is refused, not built as an Invocation deck (§15)", () => {
+    const result = createGame({ ...base, players: [{ identityCardId: HERC.id, deck: DEFAULT_DECK }] });
+    expect(result.ok ? null : result.error.message).toMatch(/Labor deck is a kind of separate deck this engine cannot build/);
+    const verdict = validateDeck({ identityCardId: HERC.id, aspects: ["justice"], cards: [] }, [HERC]);
+    expect(verdict.ok ? [] : verdict.problems.map((p) => p.code)).toContain("unsupported_identity");
+    // The same deck of player cards with its own discard pile — Doctor Strange's kind — is still accepted.
+    const invocationLike: HeroIdentityCard = {
+      ...HERC,
+      separateDecks: [{ name: "Labor", cards: [{ cardId: cardId("labor"), quantity: 1 }], topCardFaceup: false, discardPile: "own", whenEmpty: "reshuffleDiscardWithoutPenalty" }],
+    };
+    const accepted = validateDeck({ identityCardId: HERC.id, aspects: ["justice"], cards: [] }, [invocationLike]);
+    expect(accepted.ok ? [] : accepted.problems.map((p) => p.code)).not.toContain("unsupported_identity");
   });
 
   it("a competitive-mode card and an evidence card are refused in a decklist", () => {

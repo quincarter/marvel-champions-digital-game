@@ -269,6 +269,38 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     expect(hosts(state, { kind: "superlative", among: "friendlyCharacter", order: "highest", measure: "printedCost" })).toEqual([ids[1]]);
   });
 
+  it("'the ally with the lowest THW' ranks allies by current THW (Possessed, storm 36038; docs/phase7-wave2.md §11.1)", () => {
+    const thinker = stubAlly({ id: "thinker-ally", cost: 1, atk: 1, thw: 3, hp: 3 });
+    const brawler = stubAlly({ id: "brawler-ally", cost: 1, atk: 3, thw: 1, hp: 3 });
+    const identities = seatIdentities(HERO, 1);
+    const result = createGame(
+      {
+        seed: 7,
+        cards: [...CARDS, thinker, brawler, ...identities],
+        villainCardId: QUIET_VILLAIN.id,
+        mainSchemeCardId: LONG_SCHEME.id,
+        encounterDeck: copies(BLANK.id, 16),
+        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copies(thinker.id, 2), ...copies(brawler.id, 2)] }],
+      },
+      deps,
+    );
+    if (!result.ok) throw new Error(result.error.message);
+    let state = runCommands(result.state, deps).state;
+    const ids: InstanceId[] = [];
+    for (const card of [thinker.id, brawler.id]) {
+      const given = giveCard(state, p1, card);
+      ids.push(given.id);
+      state = {
+        ...given.state,
+        players: given.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] } : pl)),
+        instances: { ...given.state.instances, [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 } },
+      };
+    }
+    const possessed: AttachmentHost = { kind: "superlative", among: "ally", order: "lowest", measure: "thw", withoutAttachmentNamed: "Possessed" };
+    expect(hosts(state, possessed)).toEqual([ids[1]]);
+    expect(hosts(state, { ...possessed, order: "highest" })).toEqual([ids[0]]);
+  });
+
   it("`titleContains` matches a substring of the title showing", () => {
     const spidey = stubAlly({ id: "Spider-Woman", cost: 1, atk: 1, thw: 1, hp: 3 });
     const identities = seatIdentities(HERO, 1);
