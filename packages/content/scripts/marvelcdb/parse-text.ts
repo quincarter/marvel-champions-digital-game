@@ -561,7 +561,12 @@ function parseAttach(
               ? "atk"
               : descriptor === "sch"
                 ? "sch"
-                : // Wave 2 (docs/phase7-wave2.md §6.7): "the villain with the highest activation order value" (The
+                : // "the ally with the lowest THW without Possessed attached" (Possessed, `storm` 36038) — the
+                  // card's printed THW, the `thw` counterpart of `printedAtk`/`printedCost` (docs/
+                  // phase7-wave2-data.md Part 4/5 §5 item 2b, landed as `HostMeasure "thw"`).
+                  descriptor === "thw"
+                  ? "thw"
+                  : // Wave 2 (docs/phase7-wave2.md §6.7): "the villain with the highest activation order value" (The
                   // Sinister Six), "the minion with the most traits" (Cyborg Tech).
                   descriptor === "activation order value"
                   ? "activationOrder"

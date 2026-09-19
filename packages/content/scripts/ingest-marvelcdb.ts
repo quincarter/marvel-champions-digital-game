@@ -78,6 +78,8 @@ import { VALK_CURATION } from "./marvelcdb/curation/valk.ts";
 import { DEADPOOL_CURATION } from "./marvelcdb/curation/deadpool.ts";
 import { SPIDERHAM_CURATION } from "./marvelcdb/curation/spiderham.ts";
 import { MOJO_CURATION } from "./marvelcdb/curation/mojo.ts";
+import { ANGEL_CURATION } from "./marvelcdb/curation/angel.ts";
+import { STORM_CURATION } from "./marvelcdb/curation/storm.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -136,7 +138,9 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   deadpool: DEADPOOL_CURATION,
   spiderham: SPIDERHAM_CURATION,
   mojo: MOJO_CURATION,
-  // storm, hercules, fne, gmw, psylocke: curated (survey.ts), but NOT registered here — each has at least
+  angel: ANGEL_CURATION,
+  storm: STORM_CURATION,
+  // hercules, fne, gmw, psylocke: curated (survey.ts), but NOT registered here — each has at least
   // one card still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
   // game-rules-architect" / parser-gap log).
 };
