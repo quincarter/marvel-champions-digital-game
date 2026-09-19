@@ -80,6 +80,8 @@ const SET_HEADER_HEIGHT = 34;
 const SECTION_LABEL_HEIGHT = 26;
 /** Reserved at the bottom of the Villain phase tab for its own citation, outside the scrolling list. */
 const VILLAIN_PHASE_CITATION_HEIGHT = 24;
+/** The Card list grid's own left inset — matches `poolCellRect`'s cell-to-`cardRect` gutter (`cell.x + 4`) so a section label or set header lines up under the card art below it instead of starting flush under the list's outer border. */
+const CARD_LIST_INSET = 4;
 
 export type RulesScope = "table" | "all";
 
@@ -565,13 +567,28 @@ export class RulesOverlay extends Phaser.Scene {
   }
 
   #renderCardListSlot(rect: Rect, slot: CardListSlot, geometry: ReturnType<typeof poolGridGeometry>, game: GameState | null): VirtualListRow {
+    // Matches the grid cells' own left inset (`cardRect.x = cell.x + 4` below) so a header/label
+    // row's own text lines up under the card art's own left edge instead of starting flush under
+    // the list's outer border.
     if (slot.kind === "sectionLabel") {
-      return { objects: [label(this, rect.x, rect.y + rect.height / 2, slot.text, typeRole.label, surface.ink.hex, ink.secondary).setOrigin(0, 0.5).setFontSize(11)] };
+      return { objects: [label(this, rect.x + CARD_LIST_INSET, rect.y + rect.height / 2, slot.text, typeRole.label, surface.ink.hex, ink.secondary).setOrigin(0, 0.5).setFontSize(11)] };
     }
     if (slot.kind === "header") {
+      // Every object `sectionHeader` draws must land in this row's own `objects` — anything
+      // created straight off `scene.add.*` and not returned here is parented outside
+      // `McVariableList`'s row layer, the one thing that actually gets masked and repositioned by
+      // scroll (`ui/variable-list.ts`'s own doc comment) — a header drawn that way stays put while
+      // the grid rows around it scroll past.
       const objects: Phaser.GameObjects.GameObject[] = [];
-      const y = sectionHeader(this, rect.x, rect.y + 4, rect.width, `${slot.group.setName.toUpperCase()} · ${slot.group.cards.length} CARD${slot.group.cards.length === 1 ? "" : "S"}`);
-      void y;
+      sectionHeader(
+        this,
+        rect.x + CARD_LIST_INSET,
+        rect.y + 4,
+        rect.width - CARD_LIST_INSET * 2,
+        `${slot.group.setName.toUpperCase()} · ${slot.group.cards.length} CARD${slot.group.cards.length === 1 ? "" : "S"}`,
+        surface.ink.hex,
+        objects,
+      );
       return { objects };
     }
 

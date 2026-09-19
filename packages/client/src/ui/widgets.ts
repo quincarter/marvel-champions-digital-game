@@ -334,13 +334,33 @@ export function label(
  * Champions game screens/Screens - Desktop.dc.html`'s `#s14`: a Bangers label
  * beside `<span style="flex:1;height:3px;background:#14110E">`). Returns the
  * next free `y`.
+ *
+ * `collect`, when passed, receives the text and rule objects this creates —
+ * a virtualized-list row (`ui/variable-list.ts`'s `McVariableList`) must
+ * return every object it draws in its own `VirtualListRow.objects` so the
+ * list's row layer (the one thing that actually gets masked and scrolled)
+ * owns them; a caller that calls `scene.add.*` itself via this helper and
+ * throws the return value away leaves those objects parented straight to
+ * the scene, outside the scroll/mask container, where they never move again
+ * (the Rules overlay's Card list tab's own encounter-set headers not
+ * scrolling with their own cards was exactly this bug).
  */
-export function sectionHeader(scene: Phaser.Scene, x: number, y: number, width: number, text: string, color: number = surface.ink.hex): number {
+export function sectionHeader(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  width: number,
+  text: string,
+  color: number = surface.ink.hex,
+  collect?: Phaser.GameObjects.GameObject[],
+): number {
   const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setLetterSpacing(typeRole.barTitle.letterSpacing).setFontSize(19);
+  collect?.push(heading);
   const ruleX = x + heading.width + 10;
   if (ruleX < x + width) {
     const rule = scene.add.graphics();
     rule.fillStyle(color, 1).fillRect(ruleX, y + heading.height / 2 - 1.5, x + width - ruleX, 3);
+    collect?.push(rule);
   }
   return y + heading.height + 12;
 }
