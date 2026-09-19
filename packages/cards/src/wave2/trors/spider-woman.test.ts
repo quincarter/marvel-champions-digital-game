@@ -1,5 +1,22 @@
-import { characterProfile, type InstanceId } from "@mc/engine";
-import { firstLegal, identityOf, inst, moveToHand, P1, payWith, picking, play, playerOf, settle, toHero, use } from "../../testing/harness.js";
+import { applyCommand, characterProfile, type InstanceId } from "@mc/engine";
+import {
+  answer,
+  firstLegal,
+  identityOf,
+  inst,
+  moveToHand,
+  P1,
+  payWith,
+  picking,
+  play,
+  playerOf,
+  putOnTopOfDeck,
+  resourceAbility,
+  settle,
+  settleUntil,
+  toHero,
+  use,
+} from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
@@ -30,6 +47,59 @@ describe("Spider-Woman kit", () => {
     // attack/confused thwart) are pinned in `primitives-wave2.test.ts`. Here it's enough to prove the ability
     // resolved into the registry, wired to it, on the actual precon card.
     expect(WAVE2_DEPS.abilities["04032.captain-marvel-response"]).toBeDefined();
+  });
+
+  it("Superhuman Agility: Interrupt, when you play an aspect card, Spider-Woman gets +1 THW/+1 ATK/+1 DEF until end of round", () => {
+    const start = spiderWomanVsRhino();
+    const hero = runWave2(start, toHero());
+    const identity = identityOf(hero);
+    const baseline = characterProfile(hero, identity, WAVE2_DEPS);
+    const given = moveToHand(hero, P1, "04035"); // Venom Blast, printed Aggression
+    const [venomBlast] = given.ids as [InstanceId];
+    const villain = given.state.villains[0]!.instanceId;
+    const offered = settleUntil(
+      runWave2(given.state, play(P1, venomBlast, payWith(given.state, P1, 2, [venomBlast]))),
+      "chooseTriggers",
+      firstLegal,
+      WAVE2_DEPS,
+    );
+    const option = `${identity}:04031a.superhuman-agility`;
+    expect(offered.pendingChoice?.options.map((o) => o.optionId)).toContain(option);
+    const chose = answer(offered, [option], WAVE2_DEPS);
+    const boosted = settle(chose, picking(villain), undefined, WAVE2_DEPS);
+    const profile = characterProfile(boosted, identity, WAVE2_DEPS);
+    expect(profile?.thw).toBe((baseline?.thw ?? 0) + 1);
+    expect(profile?.atk).toBe((baseline?.atk ?? 0) + 1);
+    expect(profile?.def).toBe((baseline?.def ?? 0) + 1);
+  });
+
+  it("Finesse: Hero Resource, exhausting Finesse, generates a [wild] resource for an aspect card", () => {
+    const start = spiderWomanVsRhino();
+    const hero = runWave2(start, toHero());
+    const given = moveToHand(hero, P1, "04033", "04035"); // Finesse, Venom Blast (Aggression)
+    const [finesse, venomBlast] = given.ids as [InstanceId, InstanceId];
+    const withFinesse = settle(runWave2(given.state, play(P1, finesse, payWith(given.state, P1, 2, [finesse, venomBlast]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = applyCommand(
+      withFinesse,
+      play(P1, venomBlast, payWith(withFinesse, P1, 1, [venomBlast, finesse]), { abilities: [resourceAbility(finesse, "04033.finesse-resource")] }),
+      WAVE2_DEPS,
+    );
+    expect(played.ok).toBe(true);
+    if (played.ok) expect(inst(played.state, finesse).exhausted).toBe(true);
+  });
+
+  it("Jessica Drew's Apartment: Alter-Ego Action, exhausting it, searches the top 5 cards of the deck for an aspect card into hand, then shuffles", () => {
+    const start = spiderWomanVsRhino();
+    const withTop = putOnTopOfDeck(start, P1, "04035"); // Venom Blast, printed Aggression
+    const [venomBlast] = withTop.ids as [InstanceId];
+    const given = moveToHand(withTop.state, P1, "04034");
+    const [apartment] = given.ids as [InstanceId];
+    const played = settle(runWave2(given.state, play(P1, apartment, payWith(given.state, P1, 1, [apartment]))), firstLegal, undefined, WAVE2_DEPS);
+    const before = playerOf(played, P1).hand.length;
+    const settled = settle(runWave2(played, use(P1, apartment, "04034.jessica-drews-apartment-action")), picking(venomBlast), undefined, WAVE2_DEPS);
+    expect(inst(settled, apartment).exhausted).toBe(true);
+    expect(playerOf(settled, P1).hand).toContain(venomBlast);
+    expect(playerOf(settled, P1).hand.length).toBe(before + 1);
   });
 
   it("Venom Blast: an (attack) event — deals 5 damage to an enemy", () => {
@@ -104,6 +174,21 @@ describe("Spider-Woman kit", () => {
     expect(inst(after, villain).damage).toBe(damageBefore + 2);
     // -1 the played card itself, -1 the resource payment, +1 for the draw.
     expect(playerOf(after, P1).hand.length).toBe(before - 2 + 1);
+  });
+
+  it("Piercing Strike: an (attack) event — deals 3 damage and gains piercing (discards the enemy's tough status card instead of being fully absorbed by it)", () => {
+    const start = spiderWomanVsRhino();
+    const hero = runWave2(start, toHero());
+    const villain = hero.villains[0]!.instanceId;
+    const toughened = { ...hero, instances: { ...hero.instances, [villain]: { ...hero.instances[villain]!, statuses: { ...hero.instances[villain]!.statuses, tough: 1 } } } };
+    const given = moveToHand(toughened, P1, "04044");
+    const [piercingStrike] = given.ids as [InstanceId];
+    const before = inst(given.state, villain).damage;
+    const after = settle(runWave2(given.state, play(P1, piercingStrike, payWith(given.state, P1, 2, [piercingStrike]))), picking(villain), undefined, WAVE2_DEPS);
+    // A tough card without piercing would absorb the whole attack (0 damage, tough discarded). With piercing, the
+    // tough card is discarded *and* the full 3 damage still lands (RRG 1.8 "Piercing", p. 32).
+    expect(inst(after, villain).statuses.tough).toBe(0);
+    expect(inst(after, villain).damage).toBe(before + 3);
   });
 
   it("Skilled Investigator: after a side scheme is defeated, exhausts to draw 1 card", () => {

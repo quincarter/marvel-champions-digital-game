@@ -80,37 +80,17 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // dumping `allRefs.filter((id) => !(id in WAVE2_ABILITIES))`) whenever this list needs updating; hand-typing
   // ability slugs from memory is exactly how this list drifted from reality the first time it was written.
   trors: [
-    // --- Hawkeye kit (wave2/trors/hawkeye-kit.ts): missing-primitive blocks, see that file's module docblock. ---
-    "04002.hawkeyes-bow-constant",
-    "04004.mockingbird-interrupt",
-    "04008.cable-arrow-action",
-    "04009.vibranium-arrow-action",
-    "04011.hawkeye-action",
-    // --- Hawkeye obligation/nemesis (wave2/trors/hawkeye-obligation-nemesis.ts): missing-primitive blocks. ---
-    "04027.boost",
+    // --- Hawkeye obligation/nemesis (wave2/trors/hawkeye-obligation-nemesis.ts): missing-primitive block. ---
     "04028.when-revealed",
-    "04029.crossfires-rifle-action",
-    // --- Spider-Woman kit (wave2/trors/spider-woman-kit.ts): missing-primitive blocks. ---
-    "04031a.superhuman-agility",
-    "04033.finesse-resource",
-    "04034.jessica-drews-apartment-action",
-    "04044.piercing-strike-action",
-    // --- Crossbones scenario (wave2/trors/crossbones.ts): missing-primitive block, see that file's docblock. ---
-    "04070.when-defeated",
-    // --- Absorbing Man scenario (wave2/trors/absorbing-man.ts): missing-primitive block, see that file's docblock
-    //     (`cardEntersPlay` is announcement-only — docs/phase7-wave2-scripting.md §6.9). ---
-    "04079b.none-shall-pass-forced-interrupt",
     // --- Taskmaster scenario (wave2/trors/taskmaster.ts): missing-primitive block (`formChanged` has no `to`
     //     direction filter — docs/phase7-wave2-scripting.md §6.10) and a data gap (Captured by Hydra's "When
     //     Defeated" half has no ability ref), see that file's module docblock. ---
     "04093.taskmaster-forced-response",
     "04094.taskmaster-forced-response",
     "04095.taskmaster-forced-response",
-    // --- Red Skull scenario (wave2/trors/red-skull.ts): missing-primitive block (the same "player who defeated
-    //     this scheme" `PlayerRef` gap Crossbones' Assault is skipped for — docs/phase7-wave2-scripting.md §6.7),
-    //     see that file's module docblock. ---
-    "04141.when-defeated",
-    "04143.when-defeated",
+    // --- Absorbing Man scenario (wave2/trors/absorbing-man.ts): missing-primitive block, see that file's docblock
+    //     (`cardEntersPlay` is announcement-only — docs/phase7-wave2-scripting.md §6.9). ---
+    "04079b.none-shall-pass-forced-interrupt",
     // --- Hydra Campaign cards: data only while campaign mode is deferred (docs/phase7-wave2.md, PLAN.md Phase 7). ---
     "04155.adrenal-stims-action",
     "04156.tactical-scanner-action",

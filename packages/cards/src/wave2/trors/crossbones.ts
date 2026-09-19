@@ -7,10 +7,12 @@ import {
   constant,
   coveredByEngineRule,
   dealIndirectDamage,
+  defeatingPlayer,
   defineAbilities,
   discardEncounterCards,
   discardFromHand,
   discardEncounterUntil,
+  enemyAttack,
   exists,
   firstPlayer,
   forcedInterrupt,
@@ -31,6 +33,7 @@ import {
   theVillain,
   varOf,
   when,
+  whenDefeated,
   whenRevealed,
   whenRevealedAlterEgo,
   whenRevealedHero,
@@ -53,6 +56,9 @@ const WEAPON = trait("WEAPON");
  *   attacks gain piercing" IS scriptable as a conditional constant (`gainsKeyword` with `while: exists(...)`) and
  *   is scripted below — not actually blocked (an earlier pass over this text mistook it for the one-shot-event
  *   gap; a villain's own conditional keyword grant reads the villain's own keywords correctly).
+ *
+ * `04070.when-defeated` (Crossbones' Assault) was pinned pending a "player who defeated this scheme" `PlayerRef`;
+ * the engine's `defeatingPlayer` primitive (docs/phase7-wave2.md §3) now covers it.
  */
 export const CROSSBONES_SET = defineAbilities({
   // Crossbones (I) — [star] While Crossbones has a Weapon attachment, his attacks gain piercing.
@@ -128,11 +134,9 @@ export const CROSSBONES_SET = defineAbilities({
   // Weapon attachment is discarded. Reveal that card.
   "04069.when-revealed": whenRevealed(discardEncounterUntil(query("attachment", { trait: WEAPON }), "found"), revealCard(chosen("found"), firstPlayer)),
 
-  // Crossbones' Assault — When Defeated: Crossbones activates against the player who defeated this scheme.
-  // SKIPPED: needs a "player who defeated it" reference (the defeating player of a *scheme*, not a character — no
-  // TargetRef/PlayerRef reads a scheme's own `characterDefeated`/`schemeDefeated` defeating player today). Closest
-  // existing primitive: `on.defeated`'s `byYou` filter on the *responding* ability, which can't name that player
-  // as a `PlayerRef` for a later effect the way this needs.
+  // Crossbones' Assault — When Defeated: Crossbones activates against the player who defeated this scheme. An
+  // additional, out-of-sequence activation (the same shape Klaw's own "attacks another player" effect uses).
+  "04070.when-defeated": whenDefeated(enemyAttack(theVillain, { against: defeatingPlayer, additionalResolution: true })),
 
   // Cornered Staff — When Revealed: Discard 1 [per_hero] cards from the top of the encounter deck. Place 1
   // additional threat here for each boost icon discarded this way.

@@ -2,9 +2,11 @@ import { trait } from "@mc/content";
 import {
   action,
   anAttackableEnemy,
+  anEnemy,
   atEndOfPhase,
   attachCard,
   attack,
+  attacksGainKeywords,
   chooseCards,
   choosePlayer,
   chosen,
@@ -14,6 +16,7 @@ import {
   dealDamage,
   defineAbilities,
   discard,
+  discardFromHandCost,
   each,
   exhaust,
   exhaustCardsCost,
@@ -25,18 +28,25 @@ import {
   hasStatus,
   heroAction,
   ifElse,
+  interrupt,
+  modifyAttack,
   modifyStat,
   moveCards,
   playableAttachments,
   query,
   ready,
   resource,
+  returnToHandCost,
   self,
   shuffleDeck,
   spend,
   stun,
   theVillain,
+  thwart,
+  totalPrintedResources,
+  when,
   you,
+  YOUR_HERO,
   zone,
 } from "../../dsl/index.js";
 import { cardName } from "../names.js";
@@ -51,41 +61,24 @@ const BOW = query("upgrade", { name: BOW_NAME });
  * 04018, The Power of Leadership 04019, Avengers Tower 04021) are aliased from Core/wave 1 by `../reprints.ts`,
  * not scripted here.
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
- * - `04002.hawkeyes-bow-constant` — "each of your Arrow attacks gain ranged" needs an effect-level keyword grant
- *   scoped to one played event's own attack, which the engine doesn't have: piercing/ranged are read from the
- *   *attacking character's* own keywords (`resolve/event.ts` `applyDamage`'s `attackKeyword`, off the `dealDamage`
- *   event's `sourceInstanceId`, set to the attacker's own instance for a player attack — never the ability's
- *   card). A persistent character/attachment granting itself or its host the keyword works fine (Black Knight,
- *   below); a played event granting it to only its own one-shot attack does not. Dropping the "ranged" clause
- *   while keeping "+1 ATK" would silently misrepresent the card, so the whole ref is skipped.
- * - `04009.vibranium-arrow-action` — same gap: "this attack gains piercing" on a played event.
- * - `04008.cable-arrow-action` — "remove 3 threat from a scheme, ignoring any crisis icons in play" needs an
- *   `ignoreCrisis`-shaped override on `thwart`/`removeThreat` (today's crisis check in `actions.ts`/`resolve/
- *   event.ts` is unconditional). Closest existing primitive: `dealDamage.ignoreTough`, an inline per-effect
- *   override of a similar shape.
- * - `04011.hawkeye-action` (Kate Bishop) — "deal X damage … where X is the number of printed resources on that
- *   card" needs a `ValueSpec` reading the summed printed resource icons of a specific referenced card; the engine
- *   currently only reports resource pools summed across a *bind* of several moved/discarded cards
- *   (`<bind>.physical`/`.mental`/`.energy`/`.wild` on `moveCards`/`discardEncounterCards`), and a `discardFromHand`
- *   cost's `bind` reports only a card *count*, not its icons.
- * - `04004.mockingbird-interrupt` — "Interrupt: When the villain initiates an attack against you, ... → prevent
- *   all damage from this attack." Confirmed by a scenario test (`hawkeye.test.ts`) that this genuinely doesn't work
- *   with today's `preventDamage`: it fires as an interrupt to the `enemyAttack` event (attack *initiation*, before
- *   a defender is even declared or a `dealDamage` event frame exists), and `preventDamage` (`resolve/apply-effect.ts`
- *   `case "preventDamage"`) only ever adjusts an *already-pushed* `dealDamage` event frame (`frame.eventFrameId`'s
- *   target) — outside one it silently does nothing, unlike Backflip (01003, Core), whose own interrupt is on
- *   `when.damage(...)` specifically so a live `dealDamage` frame exists to prevent. Mockingbird needs a lasting
- *   "this attack's damage is fully prevented, however much it turns out to be" flag that survives from attack
- *   initiation through to the eventual damage step (which happens after `declareDefender` and depends on whether —
- *   and what — defends), not a point-in-time amount subtraction. Closest existing primitive: `RuleSpec
- *   cannotTakeDamage`'s `while` predicate (used elsewhere for a *standing* immunity), which would need a way to
- *   scope `while` to "the attack this interrupt is currently resolving inside," the way `undefendedAttack`
- *   (`Predicate { kind: "currentAttack" }`) already scopes a read to the in-progress attack.
+ * `04002.hawkeyes-bow-constant`, `04004.mockingbird-interrupt`, `04008.cable-arrow-action`,
+ * `04009.vibranium-arrow-action` and `04011.hawkeye-action` were all pinned in `KNOWN_SKIPPED` pending engine
+ * primitives that have since landed (docs/phase7-wave2.md §3): `RuleSpec attackKeywords`/`attack(...).keywords` for
+ * the two attack-keyword grants, `modifyAttack.preventAllDamage` for Mockingbird, `EffectSpec.thwart.ignoreCrisis`
+ * for Cable Arrow, and `totalPrintedResources` for Kate Bishop's Hawkeye.
  */
 export const HAWKEYE_KIT = defineAbilities({
   // "Quick Draw" — Action: Exhaust Hawkeye → ready Hawkeye's bow.
   "04001a.quick-draw": action({ cost: exhaustThis }, ready({ kind: "named", name: BOW_NAME })),
+
+  // Hawkeye's Bow — Restricted (data). Your hero gets +1 ATK and each of your Arrow attacks gain ranged. `via`
+  // matches the Arrow-trait event whose own ability makes the attack (Sonic/Electric/Vibranium Arrow) — the card
+  // `sourceInstanceId` names for a played event's attack (`applyPlayerAttack`, engine/src/resolve/event.ts) —
+  // rather than `attacker`, since the attacker is always Hawkeye's identity, not the bow.
+  "04002.hawkeyes-bow-constant": constant(
+    gets("atk", 1, YOUR_HERO),
+    attacksGainKeywords(["ranged"], { via: query("event", { trait: ARROW, controller: "you" }) }),
+  ),
 
   // Weapon of Choice — Action: Spend 1 resource of any type → search your deck and discard pile for Hawkeye's Bow
   // and add it to your hand. Shuffle your deck. (Limit once per phase).
@@ -107,8 +100,14 @@ export const HAWKEYE_KIT = defineAbilities({
   ),
 
   // Mockingbird — Interrupt: When the villain initiates an attack against you, spend 1 resource of any type and
-  // return Mockingbird to your hand → prevent all damage from this attack.
-  // SKIPPED (missing primitive — see module docblock): `preventDamage()` at this timing is a no-op.
+  // return Mockingbird to your hand → prevent all damage from this attack. `returnToHandCost` with a self-matching
+  // query returns Mockingbird herself (the same "return this card" shape a cost paid with in-play cards already
+  // has); `modifyAttack.preventAllDamage` rides the attack's own frame from initiation to its eventual damage step.
+  "04004.mockingbird-interrupt": interrupt(
+    when.villainAttacks({ againstYou: true }),
+    { cost: [spend(1), returnToHandCost(query("ally", { self: true }))] },
+    modifyAttack({ preventAllDamage: true }),
+  ),
 
   // Sonic Arrow — Hero Action (attack): Exhaust Hawkeye's Bow → confuse an enemy and deal 3 damage to it (5
   // instead if it is already confused). The amount reads "already confused" before this ability's own confuse.
@@ -135,6 +134,31 @@ export const HAWKEYE_KIT = defineAbilities({
     anAttackableEnemy(),
     attack(ifElse(hasStatus(chosen("enemy"), "stunned"), 5, 3), chosen("enemy")),
     stun(chosen("enemy")),
+  ),
+
+  // Cable Arrow — Hero Action (thwart): Exhaust Hawkeye's Bow → remove 3 threat from a scheme, ignoring any crisis
+  // icons in play.
+  "04008.cable-arrow-action": heroAction(
+    { label: "thwart", cost: exhaustCardsCost(BOW) },
+    { kind: "chooseTarget", slot: "scheme", query: query("scheme"), chooser: you },
+    thwart(3, chosen("scheme"), { ignoreCrisis: true }),
+  ),
+
+  // Vibranium Arrow — Hero Action (attack): Exhaust Hawkeye's Bow → deal 6 damage to an enemy. This attack gains
+  // piercing. A played event's own one-shot attack: `attack(...).keywords` (not a persistent `constant` rule).
+  "04009.vibranium-arrow-action": heroAction(
+    { label: "attack", cost: exhaustCardsCost(BOW) },
+    anAttackableEnemy(),
+    attack(6, chosen("enemy"), { keywords: ["piercing"] }),
+  ),
+
+  // Hawkeye (Kate Bishop) — Action: Exhaust this ally and discard 1 card from your hand → deal X damage to an
+  // enemy, where X is the number of printed resources on that card. `discardFromHandCost` binds the discarded
+  // card(s) to the fixed slot "discard"; `totalPrintedResources` reads it wherever it now is.
+  "04011.hawkeye-action": action(
+    { cost: [exhaustThis, discardFromHandCost(1, 1)] },
+    anEnemy(),
+    dealDamage(totalPrintedResources(chosen("discard")), chosen("enemy")),
   ),
 
   // Expert Marksman — Resource: Exhaust Expert Marksman → generate a [wild] resource for an Arrow event.

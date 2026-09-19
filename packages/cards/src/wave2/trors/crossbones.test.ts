@@ -1,4 +1,10 @@
+import { cardsInPlay } from "@mc/engine";
+import { firstLegal, identityOf, inst, instancesOf, P1, patchInstance, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { wave2Scenario } from "../setup.js";
+import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { CROSSBONES_SET } from "./crossbones.js";
+
+const crossbonesVsHawkeye = () => startWave2Game(wave2Scenario("crossbones", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 5 }));
 
 /**
  * The Crossbones scenario's own scripted cards (`crossbones.ts`). A full villain-stage-advance harness for "When
@@ -9,6 +15,33 @@ import { CROSSBONES_SET } from "./crossbones.js";
  * targets were wrong (`query("villain", { self: true })`, a `TargetQuery`, passed where a `TargetRef` was needed —
  * `{ kind: "villain" }`/`theVillain` — and masked with an `as never` cast) until this pass fixed them.
  */
+describe("Crossbones' Assault: when defeated, Crossbones attacks the defeating player", () => {
+  it("deals damage to the player who defeated the scheme, as an additional out-of-sequence activation", () => {
+    // A filler card on top, ahead of Crossbones' Assault: the villain's own activation is dealt its boost card
+    // from the top of the deck before any player's own encounter card (docs/phase7-wave2-scripting.md §5) — with no
+    // filler, this scenario's own reveal would consume Crossbones' Assault as boost fodder instead of revealing it.
+    const start = stackEncounterDeck(crossbonesVsHawkeye(), "01186", "04070");
+    const hero = runWave2(start, toHero());
+    const revealed = settle(runWave2(hero, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE2_DEPS);
+    const scheme = instancesOf(revealed, "04070").find((id) => cardsInPlay(revealed).includes(id))!;
+    const identity = identityOf(revealed);
+    // Crossbones' Assault starts at 2 [per_hero] threat; patch it down to Hawkeye's printed THW (1) so a single
+    // basic thwart finishes it off in one command, isolating the "when defeated" attack from the thwart itself.
+    const before = revealed.villains[0]!.instanceId;
+    const villainDamageBefore = inst(revealed, before).damage;
+    const ready = patchInstance(patchInstance(revealed, scheme, { threat: 1 }), identity, { exhausted: false });
+    const identityDamageBefore = inst(ready, identity).damage;
+    const settled = settle(
+      runWave2(ready, { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, schemeInstanceId: scheme }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(inst(settled, before).damage).toBe(villainDamageBefore); // the villain itself takes no damage from its own attack
+    expect(inst(settled, identity).damage).toBeGreaterThan(identityDamageBefore); // Crossbones' extra attack landed on P1
+  });
+});
+
 describe("Crossbones scenario cards", () => {
   it("Crossbones (II)'s When Revealed attaches Crossbones' Machine Gun to the villain (a TargetRef, not a query)", () => {
     const definition = CROSSBONES_SET["04059.when-revealed"]!;

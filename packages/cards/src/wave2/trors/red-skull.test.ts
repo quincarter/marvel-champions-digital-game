@@ -1,10 +1,29 @@
-import { cardsInPlay, characterProfile, createGame } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, P1, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { cardsInPlay, characterProfile, createGame, type GameState, type InstanceId } from "@mc/engine";
+import { endTurn, firstLegal, identityOf, inst, instancesOf, P1, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
 const redSkullVsHeroes = () => startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
 const ADVANCE = "01186";
+
+/**
+ * Every Red Skull side scheme other than the one in play at setup is shuffled into the separate "side-scheme"
+ * scenario deck (errata #128A), not the main encounter deck — revealed by New World Hydra's own "after step one"
+ * ability (`04129b.new-world-hydra-forced-response`), not a normal player encounter draw. The `stackEncounterDeck`
+ * test helper only reaches the main deck/discard, so this is its side-scheme-deck counterpart.
+ */
+function stackSideSchemeDeck(state: GameState, code: string): GameState {
+  const pile = state.scenarioDecks["side-scheme"]!;
+  const id = pile.deck.find((i) => state.instances[i]?.cardId === code) ?? pile.discard.find((i) => state.instances[i]?.cardId === code);
+  if (!id) throw new Error(`no ${code} in the side-scheme deck or discard`);
+  return {
+    ...state,
+    scenarioDecks: {
+      ...state.scenarioDecks,
+      "side-scheme": { ...pile, deck: [id, ...pile.deck.filter((i) => i !== id)], discard: pile.discard.filter((i) => i !== id) },
+    },
+  };
+}
 
 describe("Red Skull scenario", () => {
   it("standalone setup: the Red House is in play, The Sleeper is set aside, the side-scheme deck is built, and the game is legal", () => {
@@ -112,9 +131,51 @@ describe("Red Skull scenario", () => {
     expect(WAVE2_DEPS.abilities["04146.boost"]).toBeDefined();
   });
 
-  it("Prison Camps and Hydra Reinforcements are skipped for a missing 'defeating player' primitive (module docblock)", () => {
-    expect(WAVE2_DEPS.abilities["04141.when-defeated"]).toBeUndefined();
-    expect(WAVE2_DEPS.abilities["04143.when-defeated"]).toBeUndefined();
+  it("Prison Camps: when defeated, the defeating player searches their deck/discard for an ally, puts it into play, and shuffles", () => {
+    const start = stackSideSchemeDeck(redSkullVsHeroes(), "04141");
+    const hero = runWave2(start, toHero());
+    const revealed = settle(runWave2(hero, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const scheme = instancesOf(revealed, "04141").find((id) => cardsInPlay(revealed).includes(id))!;
+    // Prison Camps starts at 3 [per_hero] threat; patch it down to Hawkeye's printed THW (1) so a single basic
+    // thwart finishes it off in one command, isolating the "when defeated" ability from the thwart itself.
+    const identity = identityOf(revealed);
+    const lowThreat = patchInstance(patchInstance(revealed, scheme, { threat: 1 }), identity, { exhausted: false });
+    const before = playerOf(lowThreat, P1).playArea.length;
+    const settled = settle(
+      runWave2(lowThreat, { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, schemeInstanceId: scheme }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(inst(settled, scheme).home.kind).not.toBe("encounterDeck"); // left play (defeated)
+    expect(playerOf(settled, P1).playArea.length).toBe(before + 1); // the found ally entered play
+  });
+
+  it("Hydra Reinforcements: when defeated, the defeating player discards a non-Elite minion", () => {
+    const withMinion = settle(
+      runWave2(stackEncounterDeck(redSkullVsHeroes(), ADVANCE, "04145"), toHero(), endTurn()),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const minion = instancesOf(withMinion, "04145").find((id) => cardsInPlay(withMinion).includes(id)) as InstanceId;
+    expect(minion).toBeDefined();
+    const start = stackSideSchemeDeck(withMinion, "04143");
+    const revealed = settle(runWave2(start, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const scheme = instancesOf(revealed, "04143").find((id) => cardsInPlay(revealed).includes(id))!;
+    // Hydra Reinforcements starts at 2 [per_hero] threat; patch it down to Hawkeye's printed THW (1) so a single
+    // basic thwart finishes it off in one command.
+    const identity = identityOf(revealed);
+    const ready = patchInstance(patchInstance(revealed, scheme, { threat: 1 }), identity, { exhausted: false });
+    const settled = settle(
+      runWave2(ready, { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, schemeInstanceId: scheme }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    // A minion is an encounter card (no owner): it goes to the encounter deck's own discard pile, not a player's.
+    expect(cardsInPlay(settled)).not.toContain(minion);
+    expect(inst(settled, minion).home.kind).toBe("encounterDeck");
   });
 
   it("Censor the Past: each player chooses up to 3 discarded cards and shuffles them into their deck", () => {

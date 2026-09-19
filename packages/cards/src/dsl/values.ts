@@ -35,6 +35,12 @@ export const chosenPlayer = (slot = "player"): PlayerRef => ({ kind: "slot", slo
 export const otherPlayers = (of: PlayerRef = you): PlayerRef => ({ kind: "others", of });
 /** "The engaged player" of a minion. */
 export const engagedPlayerOf = (of: TargetRef): PlayerRef => ({ kind: "engagedWith", of });
+/**
+ * "The player who defeated this scheme" (Crossbones' Assault 04070, Prison Camps 04141, Hydra Reinforcements
+ * 04143): the defeating player recorded on the `schemeDefeated`/`characterDefeated` event a `whenDefeated` ability
+ * is reacting to. Empty outside a defeat, and for a defeat no player caused.
+ */
+export const defeatingPlayer: PlayerRef = { kind: "defeatingPlayer" };
 export const ownerOf = (target: TargetRef): PlayerRef => ({ kind: "ownerOf", target });
 
 // ---------------------------------------------------------------------------
@@ -101,6 +107,15 @@ export const TRAIT = {
 
 export type Amount = number | ValueSpec;
 export const amount = (value: Amount): ValueSpec => (typeof value === "number" ? { kind: "const", value } : value);
+
+/**
+ * Mirrors `@mc/engine`'s own `AttackKeyword` (`spec.ts`) structurally: keywords that belong to an *attack* rather
+ * than a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"). `packages/engine/src/index.ts`'s public barrel doesn't
+ * export the type itself yet (only the `EffectSpec`/`RuleSpec` shapes that use it), and `@mc/cards` doesn't own that
+ * file — this local alias is string-literal-for-string-literal identical, so it's structurally assignable wherever
+ * the engine's own type is expected. Replace with a direct import once the barrel catches up.
+ */
+export type AttackKeyword = "piercing" | "ranged" | "overkill";
 
 /** "N [per_hero]" (plus an optional flat base). */
 export const perHero = (perPlayer: number, base = 0): ValueSpec => ({ kind: "perPlayer", base, perPlayer });
@@ -223,3 +238,11 @@ export const firstThisRound = (cardType: string, player: PlayerRef = you): Predi
 
 /** "The total cost of all allies beneath it" (Hydra Prison, `trors`). */
 export const totalPrintedCost = (cardsRef: TargetRef): ValueSpec => ({ kind: "totalPrintedCost", cards: cardsRef });
+/**
+ * "X is the number of printed resources on that card" (the Hawkeye ally 04011, Kate Bishop, reading a card
+ * discarded to pay its own cost). `types` narrows to some icon types; absent counts all four, wild included.
+ */
+export const totalPrintedResources = (
+  cardsRef: TargetRef,
+  types?: readonly ("physical" | "mental" | "energy" | "wild")[],
+): ValueSpec => ({ kind: "totalPrintedResources", cards: cardsRef, ...(types ? { types } : {}) });

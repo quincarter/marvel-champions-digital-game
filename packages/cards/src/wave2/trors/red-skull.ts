@@ -11,6 +11,7 @@ import {
   countOf,
   dealDamage,
   dealEncounterCard,
+  defeatingPlayer,
   defineAbilities,
   discard,
   eachPlayer,
@@ -40,6 +41,7 @@ import {
   self,
   selectCards,
   setup,
+  shuffleDeck,
   spend,
   stun,
   theMainScheme,
@@ -52,6 +54,7 @@ import {
   whenRevealedHero,
   you,
   yourIdentity,
+  zone,
 } from "../../dsl/index.js";
 import { cards, modifyAttack } from "../../dsl/effects.js";
 import { cardName } from "../names.js";
@@ -67,12 +70,10 @@ const HYDRA = trait("HYDRA");
  * 04145/04146 are new — 04147 is a Core/wave 1 reprint), Weapon Master (04148–04151) and Hydra Patrol (04152–04154,
  * only 04154 is new) modular cards.
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
- * - `04141.when-defeated` (Prison Camps) and `04143.when-defeated` (Hydra Reinforcements) — both print "the player
- *   who defeated this scheme," the same missing `PlayerRef` primitive Crossbones' Assault (04070, `crossbones.ts`)
- *   is already skipped for — no `TargetRef`/`PlayerRef` reads a scheme's own defeating player for a later effect
- *   in the same ability (docs/phase7-wave2-scripting.md §6.7). Test Subjects (04123, `zola.ts`) is unaffected —
- *   it names "the first player" explicitly, not the defeating player.
+ * `04141.when-defeated` (Prison Camps) and `04143.when-defeated` (Hydra Reinforcements) — both print "the player who
+ * defeated this scheme," the same missing `PlayerRef` Crossbones' Assault (04070, `crossbones.ts`) was pinned for —
+ * were pinned pending that primitive; the engine's `defeatingPlayer` (docs/phase7-wave2.md §3) now covers all three.
+ * Test Subjects (04123, `zola.ts`) is unaffected — it names "the first player" explicitly, not the defeating player.
  *
  * **Reading: "Set The Sleeper aside, out of play"** (1A Setup) is modeled at the scenario-builder level
  * (`../setup.ts`'s `redSkullScenario`, `GameSetupConfig.setAside`) rather than as a scripted effect — the same
@@ -195,6 +196,14 @@ export const RED_SKULL_SET = defineAbilities({
     putIntoPlay(chosen("sleeper"), firstPlayer),
   ),
 
+  // Prison Camps — When Defeated: The player who defeated this scheme searches their deck and discard pile for an
+  // ally, puts it into play, and shuffles their deck.
+  "04141.when-defeated": whenDefeated(
+    chooseCards("found", zone(["deck", "discard"], defeatingPlayer, { filter: query("ally") }), { min: 1, max: 1, chooser: defeatingPlayer }),
+    putIntoPlay(chosen("found"), defeatingPlayer),
+    shuffleDeck(defeatingPlayer),
+  ),
+
   // Censor the Past — When Defeated: each player chooses up to 3 cards in their discard pile and shuffles them
   // into their deck.
   "04142.when-defeated": whenDefeated(
@@ -202,6 +211,12 @@ export const RED_SKULL_SET = defineAbilities({
       chooseCards("returned", { kind: "zone", zone: "discard", player: thatPlayer }, { min: 0, max: 3, chooser: thatPlayer }),
       moveCards(cards(chosen("returned")), "deckShuffle"),
     ]),
+  ),
+
+  // Hydra Reinforcements — When Defeated: The player who defeated this scheme discards a non-Elite minion.
+  "04143.when-defeated": whenDefeated(
+    chooseTarget("minion", query("minion", { withoutTrait: ELITE }), { chooser: defeatingPlayer }),
+    discard(chosen("minion")),
   ),
 
   // Mass Chaos — When Revealed: each player discards the top 5 cards of their deck and places 1 threat here for

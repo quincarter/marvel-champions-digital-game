@@ -202,12 +202,41 @@ being `null` not `undefined`, and not inventing a card's data, applies unchanged
   an enemy for a later activation) — the validator (`dsl/validate.ts`) refuses the latter inside a Boost ability
   specifically because the two are easy to conflate from the printed wording alone (Hydra Exo-Soldier, 04131,
   `red-skull.ts`).
+- **`payForAbility`'s own `minSelections` can be `0` even for a cost that is not actually optional** (a plain
+  `spend({ wild: 1 })`/`spend(1)` resource cost on a triggered ability, as opposed to a card's own play cost) — the
+  engine allows a payment prompt to be answered with zero explicit picks (auto-top-up from elsewhere), but with
+  nothing else to draw from, `firstLegal`'s `slice(0, minSelections)` pays **nothing**, and the ability's cost is
+  never actually satisfied — not an error, just a triggered ability that silently does nothing (Mockingbird's
+  interrupt, `hawkeye.test.ts`, before this was found: `settle(..., picking(theTrigger))` alone picked the trigger
+  correctly but then paid its cost with an empty selection at the very next prompt). Answer a `payForAbility` prompt
+  reached through a resource-spend cost with an explicit pick (`answer(state, [state.pendingChoice.options[0]!.
+  optionId], deps)`), not `firstLegal`/`picking`'s fallback.
+- **`answer`/`settleUntil` default to `CORE_DEPS` when `deps` is omitted** — a wave 2 (or any non-Core) test that
+  calls either without passing `WAVE2_DEPS` explicitly gets a state where the ability being tested is invisible to
+  `heard`/`hasCandidates` (it isn't in `CORE_DEPS.abilities`), so its trigger window never opens. This looks exactly
+  like "the interrupt didn't fire" — the same failure mode a genuine ability bug would produce — so always pass
+  `deps` explicitly on every `settle`/`settleUntil`/`answer` call in a non-Core pack's test, not just the first one
+  in a chain.
 
 ## 6. Engine primitive gaps found scripting `trors` (ranked by how many cards each blocks so far)
 
 The same discipline as `docs/phase7-wave1-scripting.md` §6/§4: each is a rule write-up (text, then
 state/resolution/interaction consequences) with the closest existing primitive named, so `game-rules-architect` has
 a starting point. None of these were hacked around — every card that needs one is in `KNOWN_SKIPPED` instead.
+
+**LANDED (2026-09-19), un-skipped in this same pass:** §6.1 through §6.7, and the "once per round for each aspect"
+half of §6.11, all landed in `packages/engine` (`AttackKeyword`/`RuleSpec attackKeywords`, `TargetQuery.anyAspect`,
+`ResourceRequirement.wild`, `EffectSpec.{removeThreat,thwart}.ignoreCrisis`, `ValueSpec totalPrintedResources`,
+`modifyAttack.preventAllDamage`, `PlayerRef defeatingPlayer`, `AbilityLimit.per: "aspectOfEventCard"`) in the same
+session that pinned them. The DSL builders (`attacksGainKeywords`, `attack(...).keywords`, `modifyAttack(...).
+keywords`/`.preventAllDamage`, `thwart(...).ignoreCrisis`, `totalPrintedResources`, `defeatingPlayer`, `ANY_ASPECT_
+CARD`, `on.youPlay`) were added in `packages/cards/src/dsl/{effects,values,abilities}.ts`, and every card these
+blocked (Hawkeye's Bow 04002, Vibranium Arrow 04009, Crossfire's boost 04027, Piercing Strike 04044, Finesse 04033,
+Jessica Drew's Apartment 04034, Superhuman Agility 04031a, Crossfire's Rifle 04029, Cable Arrow 04008, Kate Bishop's
+Hawkeye 04011, Mockingbird 04004, Crossbones' Assault 04070, Prison Camps 04141, Hydra Reinforcements 04143) is
+un-skipped, scripted and behaviorally tested (`hawkeye.test.ts`, `spider-woman.test.ts`, `crossbones.test.ts`,
+`red-skull.test.ts`). §6.9 and §6.10 (below) are still open. Write-ups below are kept as-is (now historical) since
+they're still the most complete account of *why* each primitive has the shape it does.
 
 ### 6.1 A one-shot played event granting piercing/ranged to only its own attack (4 cards blocked, the largest gap)
 
@@ -349,10 +378,10 @@ a starting point. None of these were hacked around — every card that needs one
 
 ### 6.11 Already known, not newly found (see `docs/phase7-wave2.md` §3.11)
 
-- **"Once per round for each aspect"** (Superhuman Agility, 04031a): needs a limit keyed by the played card's
-  aspect, not a flat once-per-round.
+- **"Once per round for each aspect"** (Superhuman Agility, 04031a): LANDED as `AbilityLimit.per: "aspectOfEventCard"`
+  (see the top of §6) and scripted (`spider-woman-kit.ts`).
 - **Blanking a whole class of cards' text** (Tech Theft, `ant` pack — not yet reached in `trors`, listed here so a
-  future `ant` agent doesn't rediscover it): `textBoxBlank` is read without the ability registry today.
+  future `ant` agent doesn't rediscover it): `textBoxBlank` is read without the ability registry today. Still open.
 
 ### 6.12 Not a primitive gap: a stale DSL wrapper, fixed in this pass
 
@@ -367,7 +396,7 @@ a starting point. None of these were hacked around — every card that needs one
 
 | Pack | Code | Status | Notes |
 |---|---|---|---|
-| The Rise of Red Skull | `trors` | **Scripted.** 152 cards, 248 ability refs: 201 resolve (15 as reprint aliases, 186 hand-scripted), 47 in `KNOWN_SKIPPED` — 19 genuinely missing-primitive/data-gap blocks (§6) and 28 Hydra Campaign refs, pinned regardless of any primitive since campaign mode is deferred. | All five scenarios are scripted: Hawkeye/Spider-Woman kits (`hawkeye-kit.ts`, `hawkeye-obligation-nemesis.ts`, `spider-woman-kit.ts`, `spider-woman-obligation-nemesis.ts`), Crossbones (`crossbones.ts`), Absorbing Man (`absorbing-man.ts`), Taskmaster (`taskmaster.ts`), Zola (`zola.ts`) and Red Skull (`red-skull.ts`), each with its own `wave2Scenario(...)` entry in `../setup.ts` and its own ruling-level `.test.ts` (95 tests total across the pack's test files) plus a standalone setup test proving each scenario's own 1A/1B setup ability actually runs (setAside, scenario decks, engaged minions, revealed side schemes, etc.). Real-game tests: `wave2/trors/e2e.test.ts` (Hawkeye and Spider-Woman precons vs. Rhino, solo, to a real outcome; Crossbones standalone 2-player setup). **Data gaps flagged for `card-data-pipeline`:** (1) the Attack on Mount Athena 1A text prints "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` has no "Legions of Hydra" `EncounterSet` — `crossbonesScenario` uses only the two that exist; (2) several cards carry more ability refs than their printed text has independent clauses for (Omni-Morph Duplication 04089's four extra "-constant" refs, The Mad Doctor 04113b's and Neurological Implants 04119's second refs, The Rise of Red Skull 1A's 04128a and New World Hydra's 04129b's "-constant" refs) — each is stood up as an empty `coveredByEngineRule()` rather than left unscripted, since the card's own primary ability ref already carries the full printed behavior; (3) Captured by Hydra (04107) prints a "When Defeated" clause with no ability ref to hang it on (contrast Hydra Prison, 04122, which prints an equivalent shape with two refs) — only its "When Revealed" half is scripted. |
+| The Rise of Red Skull | `trors` | **Scripted.** 152 cards, 248 ability refs: 215 resolve (15 as reprint aliases, 200 hand-scripted), 33 in `KNOWN_SKIPPED` — 5 genuinely missing-primitive/data-gap blocks (§6.9/§6.10 plus data gaps) and 28 Hydra Campaign refs, pinned regardless of any primitive since campaign mode is deferred. §6.1–§6.7 (14 refs across Hawkeye's Bow, Vibranium Arrow, Crossfire's boost, Piercing Strike, Finesse, Jessica Drew's Apartment, Superhuman Agility, Crossfire's Rifle, Cable Arrow, Kate Bishop's Hawkeye, Mockingbird, Crossbones' Assault, Prison Camps, Hydra Reinforcements) landed and were un-skipped in a later pass over the same pack — see §6's "LANDED" note. | All five scenarios are scripted: Hawkeye/Spider-Woman kits (`hawkeye-kit.ts`, `hawkeye-obligation-nemesis.ts`, `spider-woman-kit.ts`, `spider-woman-obligation-nemesis.ts`), Crossbones (`crossbones.ts`), Absorbing Man (`absorbing-man.ts`), Taskmaster (`taskmaster.ts`), Zola (`zola.ts`) and Red Skull (`red-skull.ts`), each with its own `wave2Scenario(...)` entry in `../setup.ts` and its own ruling-level `.test.ts` plus a standalone setup test proving each scenario's own 1A/1B setup ability actually runs (setAside, scenario decks, engaged minions, revealed side schemes, etc.). Real-game tests: `wave2/trors/e2e.test.ts` (Hawkeye and Spider-Woman precons vs. Rhino, solo, to a real outcome; Crossbones standalone 2-player setup). **Data gaps flagged for `card-data-pipeline`:** (1) the Attack on Mount Athena 1A text prints "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` has no "Legions of Hydra" `EncounterSet` — `crossbonesScenario` uses only the two that exist; (2) several cards carry more ability refs than their printed text has independent clauses for (Omni-Morph Duplication 04089's four extra "-constant" refs, The Mad Doctor 04113b's and Neurological Implants 04119's second refs, The Rise of Red Skull 1A's 04128a and New World Hydra's 04129b's "-constant" refs) — each is stood up as an empty `coveredByEngineRule()` rather than left unscripted, since the card's own primary ability ref already carries the full printed behavior; (3) Captured by Hydra (04107) prints a "When Defeated" clause with no ability ref to hang it on (contrast Hydra Prison, 04122, which prints an equivalent shape with two refs) — only its "When Revealed" half is scripted. |
 | The Once and Future Kang | `toafk` | **Not started.** | Needs `GameState.gameAreas`-shaped setup (landed per docs/phase7-wave2.md §3.1) and its own `wave2Scenario` entry once scripted — it's a scenario pack, no hero kit. |
 | Ant-Man | `ant` | **Not started.** | Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md, landed). Known gap ahead of time: Tech Theft's class-wide text-blanking (§6.11). |
 | Wasp | `wsp` | **Not started.** | Three-sided identity; divided basic powers (§3.7, landed). |
@@ -376,20 +405,40 @@ a starting point. None of these were hacked around — every card that needs one
 
 ## 8. Progress / next up (update this every session)
 
-**Last updated:** 2026-09-19, by the session that finished `trors` end to end: Absorbing Man, Taskmaster, Zola and
-Red Skull (the four scenarios the previous checkpoint, commit `4a630fb`, left as "next up"), each with its own
-`wave2Scenario(...)` entry, standalone setup test and ruling-level test file. `trors` is now `"scripted"` in
-`PACK_STATUS` (§7) — every unresolved ability ref is a documented primitive/data gap (§6) or a Hydra Campaign card
-pinned for the deferred-campaign-mode reason, never a "not reached yet." Root `pnpm typecheck` and `pnpm test` are
-both green (content 374, engine 638, cards 548, client 1376) as of this checkpoint.
+**Last updated:** 2026-09-19, by the session that, after `trors` was verified and committed end to end (commit
+`953e284`), went back over its own `KNOWN_SKIPPED` pins and un-skipped every one whose primitive had since landed in
+a concurrent `packages/engine` session: §6.1–§6.7 and the per-aspect-limit half of §6.11 (`AttackKeyword`/`RuleSpec
+attackKeywords`, `TargetQuery.anyAspect`, `ResourceRequirement.wild`, `EffectSpec.{removeThreat,thwart}.
+ignoreCrisis`, `ValueSpec totalPrintedResources`, `modifyAttack.preventAllDamage`, `PlayerRef defeatingPlayer`,
+`AbilityLimit.per`). Added the matching DSL builders (`packages/cards/src/dsl/{effects,values,abilities}.ts`:
+`attacksGainKeywords`, `attack(...).keywords`, `modifyAttack(...).keywords`/`.preventAllDamage`, `thwart(...).
+ignoreCrisis`, `removeThreat(...).ignoreCrisis`, `totalPrintedResources`, `defeatingPlayer`, `ANY_ASPECT_CARD`,
+`on.youPlay`), scripted the 14 previously-blocked ability refs across `hawkeye-kit.ts`, `hawkeye-obligation-
+nemesis.ts`, `spider-woman-kit.ts`, `crossbones.ts` and `red-skull.ts`, and added real behavioral tests for each
+(not just "is it defined") — see §6's "LANDED" note for the full list and §5's new lessons below. `trors`'s own
+`KNOWN_SKIPPED` shrank from 47 to 33 (§7). One primitive (`AttackKeyword`) landed at the *very start* of this
+session and was inspected in detail before the rest showed up mid-session in the same batch; the DSL layer for all
+of them was added together, once the full batch was confirmed landed.
 
-**`trors` is done. Next: `toafk`, then `ant`, `wsp`, `qsv`, `scw` in that order (release order) — none of these
-five packs has been started.** Each begins the same way this file's §2 describes: registry (`<pack>/index.ts`
-exporting `<PACK>_ABILITIES`) + a `wave2/coverage.test.ts` entry (flip `PACK_STATUS[code]` to `"in progress"` and
-pin the pack's *entire* ability-ref list in `KNOWN_SKIPPED` before writing a single card script, computed the
-programmatic way §1 describes, never hand-typed) + (for `toafk`, which has no hero kit) a scenario entry in
-`../setup.ts`, before any actual card scripting — so the tree stays green at every stopping point, the same
-discipline `trors` used at each of its five scenario boundaries this session and last.
+Two new lessons for §5: (1) `payForAbility`'s own `minSelections` can be 0 even for a mandatory resource-spend cost
+(the engine allows auto-top-up) — `firstLegal` then pays *nothing*, silently failing the cost; a test exercising a
+resource-spend cost through a `chooseTriggers`/`payForAbility` sequence must answer that prompt explicitly (pick a
+specific offered card), not lean on `firstLegal`/`picking`'s fallback. (2) `settleUntil`/`answer` calls default to
+`CORE_DEPS` if `deps` isn't passed explicitly — always pass `WAVE2_DEPS` (or the pack's own deps) or the ability
+being tested is invisible to `heard`/`hasCandidates` and its trigger window never opens, which looks exactly like
+"the ability didn't fire" rather than "the test forgot `deps`."
+
+**`trors` is otherwise done (only §6.9/§6.10 and the listed data gaps remain skipped). Next: `toafk`, then `ant`,
+`wsp`, `qsv`, `scw` in that order (release order) — none of these five packs has been started.** Each begins the
+same way this file's §2 describes: registry (`<pack>/index.ts` exporting `<PACK>_ABILITIES`) + a `wave2/
+coverage.test.ts` entry (flip `PACK_STATUS[code]` to `"in progress"` and pin the pack's *entire* ability-ref list in
+`KNOWN_SKIPPED` before writing a single card script, computed the programmatic way §1 describes, never hand-typed)
++ (for `toafk`, which has no hero kit) a scenario entry in `../setup.ts`, before any actual card scripting — so the
+tree stays green at every stopping point, the same discipline `trors` used at each of its five scenario boundaries
+across earlier sessions. **Also re-check §6.9/§6.10 and any `KNOWN_SKIPPED` pins in whichever pack you're working at
+each pack/scenario boundary** — this session found that primitives land out from under a pinned card without
+anyone telling the scripting session directly; the only reliable signal is re-reading `docs/phase7-wave2.md` §3 and
+diffing the actual engine source against each `KNOWN_SKIPPED` entry's write-up.
 
 1. **The Once and Future Kang (`toafk`)** — a scenario pack, no hero kit. The whole scenario depends on separate
    game areas (docs/phase7-wave2.md §3.1, landed 2026-09-18) — read that section and §2.3 closely before starting;

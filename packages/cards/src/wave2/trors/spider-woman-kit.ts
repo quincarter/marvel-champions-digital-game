@@ -1,8 +1,12 @@
 import {
   action,
   after,
+  alterEgoAction,
+  ANY_ASPECT_CARD,
   anyOf,
   attack,
+  cards,
+  chooseCards,
   chooseTarget,
   choosePlayer,
   chosen,
@@ -12,6 +16,7 @@ import {
   defineAbilities,
   divide,
   draw,
+  exhaustThis,
   gainTraitUntil,
   hasStatus,
   heal,
@@ -19,15 +24,22 @@ import {
   heroResponse,
   ifThen,
   giveTough,
+  interrupt,
+  modifyStat,
+  moveCards,
   perHero,
   query,
   ready,
   removeThreat,
+  resource,
   response,
   selectCards,
+  shuffleDeck,
   stun,
   thwart,
   valueAtMost,
+  when,
+  you,
   yourIdentity,
   zone,
 } from "../../dsl/index.js";
@@ -39,21 +51,25 @@ const AERIAL = trait("AERIAL");
  * Spider-Woman / Jessica Drew (04031a/b) and her hero kit (04032–04039). Reprints in this pack (Combat Training,
  * Tac Team, Heroic Intuition, Interrogation Room) are aliased from Core by `../reprints.ts`.
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
- * - `04031a.superhuman-agility` — "limit once per round for each aspect" needs a limit keyed by the played card's
- *   aspect (docs/phase7-wave2.md §3.11, "Not done": Superhuman Agility's own limit).
- * - `04033.finesse-resource` and `04034.jessica-drews-apartment-action` — "for an aspect card" / "for an aspect
- *   card" need a `TargetQuery` matching *any* of the four core aspects (aggression/justice/leadership/protection),
- *   not one fixed value. `TargetQuery.aspect` (`select.ts` `matchesQuery`) is an exact single-string match against
- *   `card.aspect`/`card.printedAspect`; there is no `anyAspect`/`isAspectCard` OR, unlike `anyTrait`/
- *   `anyPrintedResource`. Closest existing primitive: `anyTrait: readonly Trait[]`.
- * - `04044.piercing-strike-action` (a plain Aggression aspect card in this pack, not part of her own signature
- *   set) — "This attack gains piercing" on a played event's own one-shot attack: the same gap as Vibranium Arrow
- *   (`hawkeye-kit.ts`'s module docblock) and Crossfire's boost (`hawkeye-obligation-nemesis.ts`); no attachment or
- *   character persists to grant the keyword "from". Closest existing primitive: `attack()`'s own `overkill`
- *   option, which is the same per-effect-override shape a `piercing`/`ranged` option would need.
+ * `04031a.superhuman-agility`, `04033.finesse-resource`, `04034.jessica-drews-apartment-action` and
+ * `04044.piercing-strike-action` were all pinned pending engine primitives that have since landed
+ * (docs/phase7-wave2.md §3): `TargetQuery.anyAspect` (`ANY_ASPECT_CARD`, `dsl/effects.ts`) for "an aspect card",
+ * `AbilityLimit.per: "aspectOfEventCard"` for Superhuman Agility's own per-aspect limit, and `AttackKeyword`/
+ * `attack(...).keywords` for Piercing Strike (the same one-shot-attack grant as Vibranium Arrow, `hawkeye-kit.ts`).
  */
 export const SPIDER_WOMAN_KIT = defineAbilities({
+  // Superhuman Agility — Interrupt: When you play an aspect card, Spider-Woman gets +1 THW, +1 ATK, and +1 DEF
+  // until the end of the round. (limit once per round for each aspect.) A printed hero-face ability: plain
+  // `interrupt`, not `heroInterrupt` — face membership (this ref only lives on the hero face) already gates it,
+  // the same convention Hawkeye's "Quick Draw" (04001a.quick-draw, `hawkeye-kit.ts`) uses.
+  "04031a.superhuman-agility": interrupt(
+    when.youPlay(ANY_ASPECT_CARD),
+    { limit: { count: 1, period: "round", per: "aspectOfEventCard" } },
+    modifyStat("thw", 1, yourIdentity, "endOfRound"),
+    modifyStat("atk", 1, yourIdentity, "endOfRound"),
+    modifyStat("def", 1, yourIdentity, "endOfRound"),
+  ),
+
   // Double Agent — Choose two aspects instead of one during deck-building (data, `deckbuilding`).
   "04031b.jessica-drew-constant": coveredByEngineRule(),
   // Jessica Drew — Action: Look at the top card of any deck. (Limit once per round.)
@@ -65,6 +81,18 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
 
   // Captain Marvel — Response: After Captain Marvel uses a basic power, draw 1 card.
   "04032.captain-marvel-response": response(after.basicPowerUsed("self"), draw(1)),
+
+  // Finesse — Hero Resource: Exhaust Finesse → generate a [wild] resource for an aspect card.
+  "04033.finesse-resource": resource({ wild: 1 }, { cost: exhaustThis, generatesFor: ANY_ASPECT_CARD }),
+
+  // Jessica Drew's Apartment — Alter-Ego Action: Exhaust Jessica Drew's Apartment → search the top 5 cards of your
+  // deck for an aspect card and add it to your hand. Shuffle your deck.
+  "04034.jessica-drews-apartment-action": alterEgoAction(
+    { cost: exhaustThis },
+    chooseCards("found", zone("deck", you, { top: 5, filter: ANY_ASPECT_CARD }), { min: 0, max: 1 }),
+    moveCards(cards(chosen("found")), "hand"),
+    shuffleDeck(),
+  ),
 
   // Venom Blast (04035, printed Aggression, her own aspect-coloured signature set — §1.2) — Hero Action (attack):
   // Deal 5 damage to an enemy.
@@ -104,6 +132,14 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
     chooseTarget("enemy", query("enemy", { attackableBy: yourIdentity })),
     attack(2, chosen("enemy")),
     ifThen(anyOf(hasStatus(chosen("enemy"), "stunned"), hasStatus(chosen("enemy"), "confused")), draw(1)),
+  ),
+
+  // Piercing Strike — Hero Action (attack): Deal 3 damage to an enemy. This attack gains piercing. A played event's
+  // own one-shot attack: `attack(...).keywords` (not a persistent constant rule — no card stays in play to grant it).
+  "04044.piercing-strike-action": heroAction(
+    { label: "attack" },
+    chooseTarget("enemy", query("enemy", { attackableBy: yourIdentity })),
+    attack(3, chosen("enemy"), { keywords: ["piercing"] }),
   ),
 
   // Spider-Man — Response: After you play Spider-Man from your hand, remove 3 [per_hero] threat from a side scheme.

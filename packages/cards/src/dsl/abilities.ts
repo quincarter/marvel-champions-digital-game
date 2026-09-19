@@ -24,7 +24,7 @@ import type {
   TypedResource,
 } from "@mc/engine";
 import { flatten, ifThen, type EffectArg } from "./effects.js";
-import { isAlterEgo, isHero, type Amount } from "./values.js";
+import { isAlterEgo, isHero, type Amount, type AttackKeyword } from "./values.js";
 
 /**
  * Abilities — the sentence structure of the DSL. `heroInterrupt(when.x, …)`
@@ -254,6 +254,27 @@ export const gainsTraitsOf = (traitsOf: TargetQuery, target: TargetQuery, opts: 
   traitGrants: [{ traitsOf, target, ...(opts.while ? { while: opts.while } : {}) }],
 });
 export const rule = (r: RuleSpec): ConstantPart => ({ rules: [r] });
+/**
+ * "Each of your [trait] attacks gain [keyword]" (Hawkeye's Bow, `trors`): an `AttackKeyword` granted to attacks
+ * matching `attacker` and/or `via`, not to a character (RRG 1.8 "Piercing"/"Ranged"/"Overkill"; `RuleSpec
+ * attackKeywords`, docs/phase7-wave2.md §3). `via` matches the card whose ability makes the attack (the event for a
+ * "Hero Action (attack)"); a persistent character/attachment granting itself the keyword should use `gainsKeyword`
+ * instead — this builder is for a grant that outlives the one card making the attack.
+ */
+export const attacksGainKeywords = (
+  keywords: readonly AttackKeyword[],
+  opts: { readonly attacker?: TargetQuery; readonly via?: TargetQuery; readonly while?: Predicate } = {},
+): ConstantPart => ({
+  rules: [
+    {
+      kind: "attackKeywords",
+      keywords,
+      ...(opts.attacker ? { attacker: opts.attacker } : {}),
+      ...(opts.via ? { via: opts.via } : {}),
+      ...(opts.while ? { while: opts.while } : {}),
+    },
+  ],
+});
 /** "Double the number of resources this card generates while paying for an [aspect] card." */
 export const doublesResourcesWhilePayingFor = (whilePayingFor: TargetQuery): ConstantPart => ({ resourceMultiplier: { factor: 2, whilePayingFor } });
 
@@ -409,6 +430,11 @@ export const on = {
   entersPlay: (what: Who): EventPattern => pattern("cardEntersPlay", asTarget(what)),
   /** "After you play [this card]" — playing, not merely putting into play. */
   youPlayThis: (): EventPattern => pattern("cardPlayed", { selfIs: "target" }),
+  /**
+   * "Interrupt: When you play [an X card]" (Superhuman Agility, 04031a) — the point of playing, before it resolves
+   * (`cardBeingPlayed`, interruptible unlike `cardPlayed`/`cardEntersPlay`). `what` filters which played card.
+   */
+  youPlay: (what: TargetQuery): EventPattern => pattern("cardBeingPlayed", { targetIs: what, playerIs: "controller" }),
   /** "When X would take damage" / "after X takes damage" (`taken`: some damage was actually dealt). */
   damage: (to: Who, opts: { readonly fromAttack?: boolean; readonly taken?: boolean } = {}): EventPattern =>
     pattern(

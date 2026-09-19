@@ -26,6 +26,7 @@ import {
   theVillain,
   theMainScheme,
   type Amount,
+  type AttackKeyword,
 } from "./values.js";
 
 /**
@@ -69,11 +70,16 @@ export const placeThreat = (n: Amount, target: TargetRef, opts: { readonly bind?
   amount: amount(n),
   ...withBind(opts.bind),
 });
-/** "Remove N threat" — not a thwart (unless the ability is labeled; then use `thwart`). */
-export const removeThreat = (n: Amount, target: TargetRef, opts: { readonly bind?: string } = {}): EffectSpec => ({
+/**
+ * "Remove N threat" — not a thwart (unless the ability is labeled; then use `thwart`). `ignoreCrisis`: "…, ignoring
+ * any crisis icons in play" (Cable Arrow, `trors`): steps over the RRG 1.8 "Crisis Icon" (p. 14) check that
+ * otherwise stops players removing threat from the main scheme while one is in play.
+ */
+export const removeThreat = (n: Amount, target: TargetRef, opts: { readonly bind?: string; readonly ignoreCrisis?: boolean } = {}): EffectSpec => ({
   kind: "removeThreat",
   target,
   amount: amount(n),
+  ...(opts.ignoreCrisis ? { ignoreCrisis: true } : {}),
   ...withBind(opts.bind),
 });
 export const placeDamage = (n: Amount, target: TargetRef): EffectSpec => ({ kind: "placeDamage", target, amount: amount(n) });
@@ -83,11 +89,23 @@ export const placeDamage = (n: Amount, target: TargetRef): EffectSpec => ({ kind
  */
 export const setRemainingHitPoints = (n: Amount, target: TargetRef): EffectSpec => ({ kind: "setRemainingHitPoints", target, amount: amount(n) });
 
-/** The "(attack)" body: resolves as an attack by your identity (guard, retaliate, "after X attacks" apply). */
+/**
+ * The "(attack)" body: resolves as an attack by your identity (guard, retaliate, "after X attacks" apply).
+ *
+ * `keywords` is this activation's own attack-keyword grant — "this attack gains piercing" (Vibranium Arrow, Piercing
+ * Strike): exact for a played event's one-shot attack, unlike a persistent `constant(...attacksGainKeywords(...))`
+ * grant, which needs the granting card to stay in play (docs/phase7-wave2.md §3, `RuleSpec attackKeywords`).
+ */
 export const attack = (
   n: Amount,
   target: TargetRef,
-  opts: { readonly overkill?: boolean; readonly attacker?: TargetRef; readonly moveDamageFrom?: TargetRef; readonly bind?: string } = {},
+  opts: {
+    readonly overkill?: boolean;
+    readonly attacker?: TargetRef;
+    readonly moveDamageFrom?: TargetRef;
+    readonly bind?: string;
+    readonly keywords?: readonly AttackKeyword[];
+  } = {},
 ): EffectSpec => ({
   kind: "attack",
   target,
@@ -95,14 +113,23 @@ export const attack = (
   ...(opts.overkill ? { overkill: true } : {}),
   ...(opts.attacker ? { attacker: opts.attacker } : {}),
   ...(opts.moveDamageFrom ? { moveDamageFrom: opts.moveDamageFrom } : {}),
+  ...(opts.keywords && opts.keywords.length > 0 ? { keywords: opts.keywords } : {}),
   ...withBind(opts.bind),
 });
-/** The "(thwart)" body: resolves as a thwart by your identity (confused and crisis apply). */
-export const thwart = (n: Amount, target: TargetRef, opts: { readonly thwarter?: TargetRef; readonly bind?: string } = {}): EffectSpec => ({
+/**
+ * The "(thwart)" body: resolves as a thwart by your identity (confused and crisis apply). `ignoreCrisis`: "…,
+ * ignoring any crisis icons in play" (Cable Arrow, `trors`) — carried through to the removal this thwart makes.
+ */
+export const thwart = (
+  n: Amount,
+  target: TargetRef,
+  opts: { readonly thwarter?: TargetRef; readonly bind?: string; readonly ignoreCrisis?: boolean } = {},
+): EffectSpec => ({
   kind: "thwart",
   target,
   amount: amount(n),
   ...(opts.thwarter ? { thwarter: opts.thwarter } : {}),
+  ...(opts.ignoreCrisis ? { ignoreCrisis: true } : {}),
   ...withBind(opts.bind),
 });
 
@@ -214,12 +241,34 @@ export const enemyScheme = (
  * ("sideScheme"))`, and the engine's own `EffectSpec` (`packages/engine/src/spec.ts`) already types the field as
  * `number | ValueSpec`; this DSL wrapper hadn't been updated to match until Master Strategist needed it.
  */
-export const modifyAttack = (change: { readonly overkill?: boolean; readonly extraBoostCards?: Amount; readonly atkBonus?: Amount; readonly threatBonus?: Amount }): EffectSpec => ({
+/**
+ * `keywords` — "the attack gains piercing" (Crossfire's Rifle boost, `trors`): the engine reads the granted var only
+ * while an *attack* activation is on the stack (`resolve/apply-effect.ts` `case "modifyAttack"` stamps the var
+ * unconditionally, but `enemy-activation.ts`'s scheme path never reads it), so "if this boost resolves during an
+ * attack" needs no separate condition here — a boost that resolves during a scheme activation harmlessly no-ops.
+ */
+export const modifyAttack = (change: {
+  readonly overkill?: boolean;
+  readonly extraBoostCards?: Amount;
+  readonly atkBonus?: Amount;
+  readonly threatBonus?: Amount;
+  readonly keywords?: readonly AttackKeyword[];
+  /**
+   * "Prevent all damage from this attack" (Mockingbird 04004), set from an interrupt at attack *initiation* — before
+   * a defender is declared, so `preventDamage()` (which adjusts an already-pushed `dealDamage` frame) can't express
+   * it. The flag rides the activation's own event frame through `declareDefender` and the eventual damage step
+   * (RRG 1.8 "Prevent", p. 34): the damage is still dealt (for "the attacking character dealt damage" purposes,
+   * excess measured), but the target takes none, so no tough card is used.
+   */
+  readonly preventAllDamage?: boolean;
+}): EffectSpec => ({
   kind: "modifyAttack",
   ...(change.overkill ? { overkill: true } : {}),
   ...(change.extraBoostCards !== undefined ? { extraBoostCards: amount(change.extraBoostCards) } : {}),
   ...(change.atkBonus !== undefined ? { atkBonus: amount(change.atkBonus) } : {}),
   ...(change.threatBonus !== undefined ? { threatBonus: amount(change.threatBonus) } : {}),
+  ...(change.keywords && change.keywords.length > 0 ? { keywords: change.keywords } : {}),
+  ...(change.preventAllDamage ? { preventAllDamage: true } : {}),
 });
 export const atEndOfAttack = (...effects: readonly EffectArg[]): EffectSpec => ({ kind: "atEndOfAttack", effects: flatten(effects) });
 export const atEndOfRound = (...effects: readonly EffectArg[]): EffectSpec => ({ kind: "atEndOfRound", effects: flatten(effects) });
@@ -386,6 +435,16 @@ export const discardFromHand = (
  * lists. Printed icons only — the bottom-left corner, not a resource an ability generates (ruling, Jan 11, 2026 (3)).
  */
 export const ANY_RESOURCE: TargetQuery = { anyPrintedResource: ["physical", "mental", "energy", "wild"] };
+/**
+ * "An aspect card": a player card printing one of the four core aspects (Finesse 04033, Jessica Drew's Apartment
+ * 04034, Superhuman Agility 04031a — docs/phase7-wave2.md §1.2, `TargetQuery.anyAspect`). Matches `printedAspect` as
+ * well as `aspect`, the same as `aspect` itself does, so an identity-specific card that prints an aspect but belongs
+ * to a hero's own signature set (Spider-Woman's Venom Blast) still counts. Player card categories only — a hero/
+ * alter-ego identity has no printed aspect of its own.
+ */
+export const ANY_ASPECT_CARD: TargetQuery = query(["ally", "event", "upgrade", "support"], {
+  anyAspect: ["aggression", "justice", "leadership", "protection"],
+});
 /** "Discard 1 card at random from your hand". */
 export const discardAtRandom = (n: Amount = 1, player: PlayerRef = you): EffectSpec => discardFromHand(n, player, { random: true });
 export const putIntoPlay = (card: TargetRef, controller: PlayerRef = you): EffectSpec => ({ kind: "putIntoPlay", card, controller });

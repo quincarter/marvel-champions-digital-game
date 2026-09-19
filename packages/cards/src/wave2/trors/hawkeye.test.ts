@@ -1,6 +1,7 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeckId, applyCommand, characterProfile, hasKeyword, traitsOf, type GameState, type InstanceId } from "@mc/engine";
+import { activeEncounterDeckId, applyCommand, cardsInPlay, characterProfile, hasKeyword, traitsOf, type GameState, type InstanceId } from "@mc/engine";
 import {
+  answer,
   endTurn,
   firstLegal,
   identityOf,
@@ -16,6 +17,7 @@ import {
   putOnTopOfDeck,
   resourceAbility,
   settle,
+  settleUntil,
   toHero,
   use,
 } from "../../testing/harness.js";
@@ -52,6 +54,27 @@ function stackSetAside(state: GameState, code: string, player = P1): GameState {
   };
 }
 
+/**
+ * A scenario-level set-aside card (`GameState.encounterSetAside`, distinct from a player's own `PlayerState.
+ * setAside` above — a villain's own signature encounter card, e.g. The Sleeper) staged as the *second* card of the
+ * encounter deck, behind one filler: the villain's own activation is dealt its boost card from the top before any
+ * player's own encounter card (docs/phase7-wave2-scripting.md §5), so a stage-onto-the-very-top card would be
+ * consumed as boost fodder and never reach a player's reveal.
+ */
+function stageScenarioSetAsideForReveal(state: GameState, code: string): GameState {
+  const deckId = activeEncounterDeckId(state);
+  const pile = state.encounterDecks[deckId]!;
+  const filler = pile.deck[0];
+  const id = state.encounterSetAside.find((i) => state.instances[i]?.cardId === cardId(code));
+  if (!id || !filler) throw new Error(`no ${code} set aside, or no filler card on top of the encounter deck`);
+  const rest = pile.deck.slice(1).filter((i) => i !== id);
+  return {
+    ...state,
+    encounterSetAside: state.encounterSetAside.filter((i) => i !== id),
+    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [filler, id, ...rest] } },
+  };
+}
+
 describe("Hawkeye kit", () => {
   it("Quick Draw: exhausts Hawkeye to ready Hawkeye's Bow", () => {
     const { state, bow } = heroWithBow();
@@ -60,6 +83,111 @@ describe("Hawkeye kit", () => {
     const after = runWave2(exhaustedBow, use(P1, identity, "04001a.quick-draw"));
     expect(inst(after, identity).exhausted).toBe(true);
     expect(inst(after, bow).exhausted).toBe(false);
+  });
+
+  it("Hawkeye's Bow: +1 ATK, and each of your Arrow attacks gain ranged (ignoring a retaliate enemy's damage back)", () => {
+    // Red Skull scenario for The Sleeper (04130: Guard, Retaliate 1, Toughness) — Rhino has no retaliate keyword.
+    const start = startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+    const hero = runWave2(start, toHero());
+    const staged = stageScenarioSetAsideForReveal(hero, "04130");
+    const revealed = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const sleeper = instancesOf(revealed, "04130").find((id) => inst(revealed, id).engagedWith === P1);
+    if (!sleeper) throw new Error("The Sleeper never engaged P1");
+    const identity = identityOf(revealed);
+    const baseAtk = characterProfile(revealed, identity, WAVE2_DEPS)?.atk ?? 0;
+
+    const given = moveToHand(revealed, P1, "04002", "04005");
+    const [bow, sonicArrow] = given.ids as [InstanceId, InstanceId];
+    const withBow = settle(runWave2(given.state, play(P1, bow, [])), firstLegal, undefined, WAVE2_DEPS);
+    expect(characterProfile(withBow, identity, WAVE2_DEPS)?.atk).toBe(baseAtk + 1);
+
+    const before = inst(withBow, identity).damage;
+    const after = settle(
+      runWave2(withBow, play(P1, sonicArrow, payWith(withBow, P1, 2, [sonicArrow, bow]))),
+      picking(sleeper),
+      undefined,
+      WAVE2_DEPS,
+    );
+    // Ranged ignores retaliate entirely (RRG 1.8 "Ranged", p. 35): the hero's own damage total is unchanged.
+    expect(inst(after, identity).damage).toBe(before);
+  });
+
+  it("Hawkeye's Bow: without ranged, the same first attack against The Sleeper takes its retaliate 1 back (the control this pack's ranged grant is checked against)", () => {
+    const start = startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+    const hero = runWave2(start, toHero());
+    const staged = stageScenarioSetAsideForReveal(hero, "04130");
+    const revealed = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const sleeper = instancesOf(revealed, "04130").find((id) => inst(revealed, id).engagedWith === P1);
+    if (!sleeper) throw new Error("The Sleeper never engaged P1");
+    const identity = identityOf(revealed);
+    const before = inst(revealed, identity).damage;
+    const after = settle(
+      runWave2(revealed, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: sleeper }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(inst(after, identity).damage).toBe(before + 1);
+  });
+
+  it("Mockingbird: Interrupt, spending 1 resource of any type and returning her to hand, prevents all damage from the villain's initiated attack against you", () => {
+    // Seed 1 (unlike this file's usual seed 11) has Rhino attack rather than scheme on the very first villain
+    // phase, so Mockingbird's interrupt window (attack *initiation*, before a defender is even declared) is reached.
+    const start = startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 1 }));
+    const hero = runWave2(start, toHero());
+    const given = moveToHand(hero, P1, "04004");
+    const [mockingbird] = given.ids as [InstanceId];
+    const played = settle(runWave2(given.state, play(P1, mockingbird, payWith(given.state, P1, 3, [mockingbird]))), firstLegal, undefined, WAVE2_DEPS);
+    const identity = identityOf(played);
+    const before = inst(played, identity).damage;
+    // Answered explicitly, three steps only (discard down to hand size, choose the interrupt, pay its 1-resource
+    // cost) rather than a generic `settle` loop: later this same villain phase Rhino may activate again (a second
+    // attack, a boost-granted extra activation), which would offer the same interrupt a second time and this test
+    // only means to observe the one attack it answers.
+    const withInterruptOffered = settleUntil(runWave2(played, endTurn()), "chooseTriggers", firstLegal, WAVE2_DEPS);
+    const chose = answer(withInterruptOffered, [`${mockingbird}:04004.mockingbird-interrupt`], WAVE2_DEPS);
+    // `payForAbility`'s own `minSelections` is 0 (a resource payment may be topped up automatically), but paying
+    // nothing here would leave the 1-resource cost unmet, so the payment is picked explicitly.
+    const paid = answer(chose, [chose.pendingChoice!.options[0]!.optionId], WAVE2_DEPS);
+    const settled = settleUntil(paid, "declareDefender", firstLegal, WAVE2_DEPS);
+    // Mockingbird is back in hand (returned as the interrupt's own cost); the villain's attack dealt no damage.
+    expect(playerOf(settled, P1).hand).toContain(mockingbird);
+    expect(inst(settled, identity).damage).toBe(before);
+  });
+
+  it("Cable Arrow: an (thwart) event — exhausts Hawkeye's Bow, removes 3 threat from a scheme, ignoring crisis icons", () => {
+    const withBow = heroWithBow();
+    const given = moveToHand(withBow.state, P1, "04008");
+    const [cableArrow] = given.ids as [InstanceId];
+    const scheme = given.state.mainScheme.instanceId;
+    const before = inst(given.state, scheme).threat;
+    const after = settle(
+      runWave2(given.state, play(P1, cableArrow, payWith(given.state, P1, 1, [cableArrow, withBow.bow]))),
+      picking(scheme),
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(inst(after, withBow.bow).exhausted).toBe(true);
+    expect(inst(after, scheme).threat).toBe(Math.max(0, before - 3));
+  });
+
+  it("Hawkeye (Kate Bishop): exhausts herself and discards a card, dealing damage equal to that card's printed resources", () => {
+    const start = hawkeyeVsRhino();
+    const given = moveToHand(runWave2(start, toHero()), P1, "04011");
+    const [kate] = given.ids as [InstanceId];
+    const played = settle(runWave2(given.state, play(P1, kate, payWith(given.state, P1, 2, [kate]))), firstLegal, undefined, WAVE2_DEPS);
+    // Discard Hawkeye's Bow (04002, cost 0, one [wild] printed resource) as the ability's own cost: X = 1.
+    const withDiscardable = moveToHand(played, P1, "04002");
+    const [bow] = withDiscardable.ids as [InstanceId];
+    const villain = withDiscardable.state.villains[0]!.instanceId;
+    const before = inst(withDiscardable.state, villain).damage;
+    const result = applyCommand(withDiscardable.state, use(P1, kate, "04011.hawkeye-action", [], { discard: [bow] }), WAVE2_DEPS);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const after = settle(result.state, picking(villain), undefined, WAVE2_DEPS);
+    expect(inst(after, kate).exhausted).toBe(true);
+    expect(playerOf(after, P1).discard).toContain(bow);
+    expect(inst(after, villain).damage).toBe(before + 1);
   });
 
   it("Weapon of Choice: spends 1 resource of any type to find Hawkeye's Bow into hand and shuffle", () => {
@@ -153,6 +281,26 @@ describe("Hawkeye kit", () => {
     expect(inst(after, withBow.bow).exhausted).toBe(true);
     expect(inst(after, villain).damage).toBe(before + 3);
     expect(inst(after, villain).statuses.stunned).toBeGreaterThan(0);
+  });
+
+  it("Vibranium Arrow: an (attack) event — exhausts Hawkeye's Bow, deals 6 damage, and gains piercing (discards the enemy's tough status card instead of being fully absorbed by it)", () => {
+    const withBow = heroWithBow();
+    const given = moveToHand(withBow.state, P1, "04009");
+    const [vibraniumArrow] = given.ids as [InstanceId];
+    const villain = given.state.villains[0]!.instanceId;
+    const toughened = patchInstance(given.state, villain, { statuses: { ...inst(given.state, villain).statuses, tough: 1 } });
+    const before = inst(toughened, villain).damage;
+    const after = settle(
+      runWave2(toughened, play(P1, vibraniumArrow, payWith(toughened, P1, 2, [vibraniumArrow, withBow.bow]))),
+      picking(villain),
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(inst(after, withBow.bow).exhausted).toBe(true);
+    // A tough card without piercing would absorb the whole attack (0 damage, tough discarded). With piercing, the
+    // tough card is discarded *first* (RRG 1.8 "Piercing", p. 32) and the full 6 damage still lands.
+    expect(inst(after, villain).statuses.tough).toBe(0);
+    expect(inst(after, villain).damage).toBe(before + 6);
   });
 
   it("Expert Marksman: exhausts to generate a wild resource, usable for an Arrow event's cost", () => {
@@ -250,6 +398,48 @@ describe("Hawkeye's obligation and nemesis (Criminal Past, Crossfire)", () => {
 
   it("Crossfire's Rifle: the attached enemy's attacks gain ranged (a constant keyword grant on the host)", () => {
     expect(WAVE2_DEPS.abilities["04029.crossfires-rifle-constant"]).toBeDefined();
+  });
+
+  it("Crossfire's Rifle: Hero Action, exhausting your hero and spending a [wild] resource, discards it", () => {
+    // Crossfire's Rifle attaches to Crossfire if he's in play, else the villain (data, `AttachmentHost.ifAble`) —
+    // staged on top of the encounter deck (behind a filler for the villain's own boost draw) so its generic
+    // attachment-reveal rule attaches it to Rhino, the only enemy in this scenario.
+    const start = stackSetAside(hawkeyeVsRhino(), "04029");
+    const deckId = activeEncounterDeckId(start);
+    const pile = start.encounterDecks[deckId]!;
+    const filler = pile.deck[1]!; // index 0 is Crossfire's Rifle, just staged onto the very top
+    const rest = pile.deck.slice(2);
+    const staged = { ...start, encounterDecks: { ...start.encounterDecks, [deckId]: { ...pile, deck: [filler, pile.deck[0]!, ...rest] } } };
+    const hero = runWave2(staged, toHero());
+    const revealed = settle(runWave2(hero, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const rifle = instancesOf(revealed, "04029").find((id) => cardsInPlay(revealed).includes(id));
+    if (!rifle) throw new Error("Crossfire's Rifle never attached");
+    const identity = identityOf(revealed);
+    const ready = patchInstance(revealed, identity, { exhausted: false });
+    // "Spend a [wild] resource" (`ResourceRequirement.wild`) demands an actual printed wild icon, not any resource
+    // — Hawkeye's Bow (04002, one printed [wild] icon) moved to hand pays it exactly.
+    const withWild = moveToHand(ready, P1, "04002");
+    const [bow] = withWild.ids as [InstanceId];
+    const after = runWave2(withWild.state, use(P1, rifle, "04029.crossfires-rifle-action", [{ fromHand: bow }]));
+    expect(inst(after, identity).exhausted).toBe(true);
+    expect(cardsInPlay(after)).not.toContain(rifle);
+  });
+
+  it("Crossfire: if his card is dealt as the boost card during an enemy's attack, that attack gains piercing (discards the defender's tough status card instead of being fully absorbed by it)", () => {
+    // Crossfire's nemesis-set card is set aside per player (RRG 1.8 Appendix II step 5), never shuffled into the
+    // deck — staged onto the very top so the villain's own activation (Rhino, no retaliate/piercing of his own)
+    // draws it as its boost card, resolving "[star] Boost:" rather than his minion body (which stays out of play).
+    const start = hawkeyeVsRhino();
+    const hero = runWave2(start, toHero());
+    const identity = identityOf(hero);
+    const toughened = patchInstance(hero, identity, { statuses: { ...inst(hero, identity).statuses, tough: 1 } });
+    const staged = stackSetAside(toughened, "04027");
+    const before = inst(staged, identity).damage;
+    const settled = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    // A tough card without piercing would have absorbed Rhino's attack entirely (0 damage, tough discarded). With
+    // piercing granted by Crossfire's boost, the tough card is discarded *and* damage still lands.
+    expect(inst(settled, identity).statuses.tough).toBe(0);
+    expect(inst(settled, identity).damage).toBeGreaterThan(before);
   });
 
   it("Sniper Shot: in hero form, deals 3 damage to your hero", () => {
