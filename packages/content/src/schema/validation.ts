@@ -504,8 +504,17 @@ export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResu
           }
         }
         if (typeof deck.topCardFaceup !== "boolean") errors.push(`${label} topCardFaceup must be a boolean`);
-        if (deck.discardPile !== "own") errors.push(`${label} discardPile must be 'own'`);
-        if (deck.whenEmpty !== "reshuffleDiscardWithoutPenalty") errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty'`);
+        if (deck.discardPile !== "own" && deck.discardPile !== "none") errors.push(`${label} discardPile must be 'own' or 'none'`);
+        if (deck.whenEmpty !== "reshuffleDiscardWithoutPenalty" && deck.whenEmpty !== "stayEmpty") {
+          errors.push(`${label} whenEmpty must be 'reshuffleDiscardWithoutPenalty' or 'stayEmpty'`);
+        }
+        // With no discard pile there is nothing to reshuffle (docs/phase7-wave2.md §15).
+        if (deck.discardPile === "none" && deck.whenEmpty === "reshuffleDiscardWithoutPenalty") {
+          errors.push(`${label} has no discard pile, so it cannot reshuffle one when empty`);
+        }
+        if (deck.cardFamily !== undefined && deck.cardFamily !== "player" && deck.cardFamily !== "encounter") {
+          errors.push(`${label} cardFamily must be 'player' or 'encounter'`);
+        }
       }
     }
   }
@@ -640,7 +649,7 @@ function flipSideErrors(card: { readonly flipSide?: EncounterCardFlipSide; reado
 }
 
 function encounterCommonErrors(
-  card: { boostIcons: number; keywords: unknown; abilities: unknown; text: unknown; flipSide?: EncounterCardFlipSide },
+  card: { boostIcons: number; keywords: unknown; abilities: unknown; text: unknown; flipSide?: EncounterCardFlipSide; separateDeck?: unknown },
   label: string,
 ): string[] {
   return [
@@ -649,6 +658,8 @@ function encounterCommonErrors(
     ...abilityRefErrors(card.abilities, label),
     ...(isCardText(card.text) ? [] : [`${label} text must have non-empty printed and current strings`]),
     ...flipSideErrors(card, label),
+    // An identity's encounter-backed separate deck (Hercules's Labor deck; docs/phase7-wave2.md §15).
+    ...(card.separateDeck === undefined || isNonEmptyString(card.separateDeck) ? [] : [`${label} separateDeck must name the deck`]),
   ];
 }
 

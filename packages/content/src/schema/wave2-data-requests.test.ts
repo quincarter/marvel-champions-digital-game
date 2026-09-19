@@ -13,7 +13,7 @@ import {
   validateAttachmentHost,
   validateCard,
 } from "./index.js";
-import type { AttachmentHost, KeywordInstance, MainSchemeCard, MinionCard, UpgradeCard, VillainCard } from "./index.js";
+import type { AttachmentCard, AttachmentHost, HeroIdentityCard, KeywordInstance, MainSchemeCard, MinionCard, UpgradeCard, VillainCard } from "./index.js";
 
 /**
  * docs/phase7-wave2.md §7: the schema requests `card-data-pipeline` raised in `docs/phase7-wave2-data.md`
@@ -251,5 +251,82 @@ describe("§7.6 the two older gaps the pipeline pinned exclusions for", () => {
     expect(validateCard(minion).errors).toEqual([]);
     expect(validateCard({ ...minion, boostIcons: -1 }).errors).not.toEqual([]);
     expect(validateCard({ ...minion, boostIcons: 1.5 }).errors).not.toEqual([]);
+  });
+});
+
+/**
+ * docs/phase7-wave2.md §15: Hercules's Labor and Gift decks (request 4). Source: the Hercules Hero Pack insert, "The
+ * Gift and Labor Decks" and "Alternate Player & Encounter Card Backs". Fixtures copy MarvelCDB's 59001–59004 records.
+ */
+describe("§15 an identity's encounter-backed separate deck (Hercules's Labor deck)", () => {
+  const LABOR = trait("Labor");
+  const labor: AttachmentCard = {
+    id: cardId("59002"),
+    name: "Defeat the Hydra",
+    setCode: setCode("hercules"),
+    cycleId: CYCLE,
+    collectorNumber: "002",
+    quantityInSet: 1,
+    unique: false,
+    type: "attachment",
+    // Listed by the identity, never by an encounter set or a scenario.
+    encounterSetIds: [],
+    boostIcons: 0,
+    traits: [LABOR],
+    keywords: [{ name: "victory", value: 0 }],
+    text: text("Victory 0.\nAttached minion gets +6 hit points and gains the [[Elite]] trait. …"),
+    abilities: [{ id: abilityId("59002.when-revealed") }],
+    attachesTo: { kind: "qualified", category: "minion", withoutTrait: trait("Elite") },
+    separateDeck: "Labor",
+  };
+  const hercules: HeroIdentityCard = {
+    id: cardId("59001a"),
+    type: "hero_identity",
+    name: "Hercules",
+    setCode: setCode("hercules"),
+    cycleId: CYCLE,
+    collectorNumber: "001",
+    quantityInSet: 1,
+    unique: true,
+    hp: 14,
+    hero: { faceName: "Hercules", atk: 3, thw: 1, def: 2, handSize: 5, keywords: [], traits: [trait("Avenger")], text: text("Atonement — Response: …"), abilities: [] },
+    alterEgo: { faceName: "Hercules", rec: 4, handSize: 6, keywords: [], traits: [], text: text("Hercules begins the game with a labor deck and a gift deck. (See insert.)"), abilities: [] },
+    obligationCardId: cardId("59018"),
+    nemesisEncounterSetId: encounterSetId("hercules_nemesis"),
+    separateDecks: [
+      {
+        name: "Labor",
+        cardFamily: "encounter",
+        cards: ["59002", "59003", "59004"].map((id) => ({ cardId: cardId(id), quantity: 1 })),
+        topCardFaceup: false,
+        discardPile: "none",
+        whenEmpty: "stayEmpty",
+      },
+      {
+        name: "Gift",
+        cardFamily: "player",
+        cards: ["59005", "59006", "59007"].map((id) => ({ cardId: cardId(id), quantity: 1 })),
+        topCardFaceup: false,
+        discardPile: "none",
+        whenEmpty: "stayEmpty",
+      },
+    ],
+  };
+
+  it("an identity lists a Labor deck of encounter cards and a Gift deck, neither with a discard pile", () => {
+    expect(validateCard(hercules).errors).toEqual([]);
+  });
+
+  it("a Labor card names its deck and belongs to no encounter set", () => {
+    expect(validateCard(labor).errors).toEqual([]);
+    expect(validateCard({ ...labor, separateDeck: "" }).valid).toBe(false);
+  });
+
+  it("refuses a deck with no discard pile that reshuffles one, and an unknown card family", () => {
+    const [laborDeck, giftDeck] = hercules.separateDecks ?? [];
+    if (!laborDeck || !giftDeck) throw new Error("fixture has two decks");
+    expect(validateCard({ ...hercules, separateDecks: [{ ...laborDeck, whenEmpty: "reshuffleDiscardWithoutPenalty" }, giftDeck] }).valid).toBe(false);
+    const oddFamily = { ...hercules, separateDecks: [{ ...laborDeck, cardFamily: "villain" }, giftDeck] } as unknown as HeroIdentityCard;
+    expect(validateCard(oddFamily).valid).toBe(false);
   });
 });

@@ -25,9 +25,18 @@
  * rules (MarvelCDB's builder, Hall of Heroes) were not used as a source.
  */
 
-import type { AbilityReference, AnyCard, CardId, CoreAspect, DeckCardEntry, DeckContents, HeroIdentityCard, PlayerCard } from "@mc/content";
+import type { AbilityReference, AnyCard, CardId, CoreAspect, DeckCardEntry, DeckContents, HeroIdentityCard, IdentitySeparateDeck, PlayerCard } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import { cardsMatch, isUnique, uniqueLabel } from "./unique.js";
+
+/**
+ * The first separate deck this identity brings that the engine cannot build yet, or undefined (docs/phase7-wave2.md
+ * §15). Only Doctor Strange's kind is built: a deck of player cards with its own discard pile. Hercules's Labor deck
+ * (encounter-backed cards) and Gift deck (no discard pile) are data only.
+ */
+export function unbuildableSeparateDeck(identity: HeroIdentityCard): IdentitySeparateDeck | undefined {
+  return (identity.separateDecks ?? []).find((deck) => (deck.cardFamily ?? "player") !== "player" || deck.discardPile !== "own");
+}
 
 export type DeckProblemCode =
   /** A decklist line whose quantity is not a whole number of at least 1. */
@@ -67,7 +76,8 @@ export type DeckProblemCode =
   | "competitive_card"
   /**
    * The identity uses a rule this build does not model, so it cannot be seated: a separated identity split across two
-   * cards (SP//dr; `HeroIdentityCard.separatedIdentity`, docs/phase7-wave2.md §6.10).
+   * cards (SP//dr; `HeroIdentityCard.separatedIdentity`, docs/phase7-wave2.md §6.10), or a separate deck of a kind
+   * the engine cannot build (Hercules's Labor and Gift decks; `unbuildableSeparateDeck`, §15).
    */
   | "unsupported_identity"
   /** The card data lacks a field legality needs, so the rule cannot be checked. Never guessed. */
@@ -279,6 +289,10 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     identity = identityCard;
     if (identityCard.separatedIdentity !== undefined) {
       add("unsupported_identity", `${uniqueLabel(identityCard)} is split across two identity cards (a separated identity), which this build cannot play yet.`, [identityCard.id]);
+    }
+    const unbuilt = unbuildableSeparateDeck(identityCard);
+    if (unbuilt) {
+      add("unsupported_identity", `${uniqueLabel(identityCard)} brings a ${unbuilt.name} deck of a kind this build cannot play yet.`, [identityCard.id]);
     }
   }
   const identityName = identity ? uniqueLabel(identity) : null;

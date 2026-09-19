@@ -49,6 +49,14 @@ interface EncounterCardCommon extends BaseCard {
   readonly abilities: readonly AbilityReference[];
   /** Present on a double-sided card: the face it flips to (see `EncounterCardFlipSide`). */
   readonly flipSide?: EncounterCardFlipSide;
+  /**
+   * The identity separate deck this encounter card belongs to (docs/phase7-wave2.md §15): Hercules's Labor cards,
+   * which have an alternate encounter card back and never enter the encounter deck, a discard pile or a hand (Hercules
+   * Hero Pack insert). Listed by that identity's `IdentitySeparateDeck` with `cardFamily: "encounter"`, never by a
+   * scenario or an encounter set, so `encounterSetIds` is empty. The encounter-side sibling of
+   * `PlayerCardCommon.separateDeck`.
+   */
+  readonly separateDeck?: string;
 }
 
 export interface MinionCard extends EncounterCardCommon {

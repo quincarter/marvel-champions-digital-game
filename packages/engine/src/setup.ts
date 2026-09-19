@@ -1,6 +1,6 @@
 import type { AnyCard, CardId, CoreAspect, DeckCardEntry, DeckContents, HeroIdentityCard, ScenarioSeparateDeck, VillainSideLetter } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
-import { validateDeck } from "./deck.js";
+import { unbuildableSeparateDeck, validateDeck } from "./deck.js";
 import { createCtx, emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
 import { giveStatus, shuffleZone } from "./effects.js";
 import { engineError, type EngineError } from "./errors.js";
@@ -322,6 +322,13 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     // ordinary identity would silently play a different game (docs/phase7-wave2.md §6.10).
     if (identityCard.separatedIdentity !== undefined) {
       return invalid(`${identityLabel(identityCard)} is a separated identity (two identity cards), which this engine cannot seat yet`);
+    }
+    // Only Doctor Strange's kind of separate deck is built (a player-card deck with its own discard pile). Hercules's
+    // Labor deck (encounter cards) and Gift deck (no discard pile) are data only (docs/phase7-wave2.md §15); building
+    // either as if it were the Invocation deck would silently play a different game.
+    const unbuilt = unbuildableSeparateDeck(identityCard);
+    if (unbuilt) {
+      return invalid(`${identityLabel(identityCard)}'s ${unbuilt.name} deck is a kind of separate deck this engine cannot build yet`);
     }
     // RRG 1.8 "Unique Icon" — identities chosen at setup cannot match (see `cardsMatch`).
     const taken = seatedIdentities.find((seated) => cardsMatch(seated.card, identityCard));

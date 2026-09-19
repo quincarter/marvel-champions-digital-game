@@ -1388,7 +1388,9 @@ existing `VillainCard.sides` A/B shape — one stage card with a front and a bac
 card text — exactly what Green Goblin/Norman Osborn already uses. Confirmed against the raw data: `16080a`
 (hp 8, "Forced Interrupt: When Collector would be defeated, … flip this card instead") has `linked_card` `16080b`
 ("Collector cannot be defeated. Forced Interrupt: When the round ends, flip this card, then set Collector's hit
-point dial to his printed hit points."), same title, no `stage` of its own.
+point dial to his printed hit points."), same title, no `stage` of its own. **Correction (§15.2):** 16080b does
+print a stage, `"A2"`, and its own ATK/SCH (0/0; the expert back 16081b prints 2/2). The example below copies the
+front's stats onto the back, which the raw data does not support.
 
 The one thing missing was that the back face **prints no hit points at all**, and `VillainStage.hp` is required:
 
@@ -1655,3 +1657,122 @@ Fixing it means `currentName` returning `titleShowing`, which could change how e
 identity behave in alter-ego form. That needs a sweep of `@mc/cards` for identity names in queries and refs (an
 `ability-scripting-engineer` + `rules-qa-engineer` pass), so it is **left for a dedicated change** rather than made
 silently here.
+
+---
+
+## 15. The pipeline's remaining schema requests, re-checked (owner: `game-rules-architect`; landed 2026-09-19)
+
+Item 4 of this batch: `docs/phase7-wave2-data.md` Part 4 §5 still lists three open requests (2b, 3, 4). That section
+predates §11, so each is re-checked here against the code rather than the doc. Tests:
+`packages/content/src/schema/wave2-data-requests.test.ts` §15 (3), `packages/engine/src/wave2-later-packs.test.ts`
+(1) and `packages/engine/src/attachment-hosts.test.ts` (the Possessed test).
+
+### 15.1 Storm's Possessed, `HostMeasure "thw"` (request 2b): landed in §11.1; now exercised by the engine
+
+The schema, the validator and the engine's `hostMeasure` all had it. The only thing missing was an engine test,
+which this pass adds: two allies with THW 3 and 1, where `{ kind: "superlative", among: "ally", order: "lowest",
+measure: "thw", withoutAttachmentNamed: "Possessed" }` picks the THW 1 ally. **Pipeline: emit it now.** The
+request's "printed THW" is answered by §11.1: the card says "THW", so it is the current value.
+
+### 15.2 The Collector and Hela (request 3): the schema is complete, and the rest is a parser mapping plus one engine primitive
+
+**Schema: nothing left.** The raw records (`raw/marvelcdb/gmw.json`, `mts.json`) show the whole shape:
+
+| Code | `stage` | Face | HP (raw) | ATK/SCH (raw) |
+|---|---|---|---|---|
+| 16080a / 16080b | `A1` / `A2` | Collector front / "cannot be defeated" back, **standard** | 8 per player / 0 | 1/1 / 0/0 |
+| 16081a / 16081b | `B1` / `B2` | the same, **expert** | 10 per player / 0 | 2/2 / 2/2 |
+| 21136a / 21136b | `A1` / `A2` | Hela front / back, **standard** | 8 per player / 0 | 1/1 / 0/0 |
+| 21137a / 21137b | `B1` / `B2` | the same, **expert** | 9 per player / 0 | 2/2 / 1/1 |
+
+**The label has two parts: the letter is standard/expert, and the digit is the face** (1 = front, 2 = back). That
+is exactly §11.2's shape, with one correction: each back face prints its **own** ATK and SCH, so the back side's
+stage takes the raw `attack`/`scheme`, not the front's. **Emit per mode (`A`, `B`)** one `VillainCard` with
+`sides: [{ side: "A", stages: [face 1] }, { side: "B", stages: [face 2] }]`, `stageNumber: 1` on both. On face 2,
+set `hp` to face 1's hit points and `hpNotPrinted: true`; the raw `health: 0` is "not printed", not zero, and the
+validator checks the carry-over.
+
+**Parser: not handled yet.** `stageOrder` (`scripts/marvelcdb/normalize/villains.ts`) reads only a roman numeral
+or a single letter, so `"A1"`/`"A2"` both come out as 0 and the pack fails with "not a roman numeral". That is the
+real remaining blocker, and it is the pipeline's. **No collision with the MaGog rule:** that rule groups a linked
+pair whose faces print *different* stages as standard/expert versions (39001a `"A"` / 39001b `"B"`). A1/A2 compare
+as 0 and 0 today, so the rule doesn't fire. **When the parser learns "A1", it must compare the letters, not the
+whole label.** A1 vs A2 is the same mode (flip faces, the rule above); A vs B is a different mode (MaGog's
+versions). Comparing whole labels would misfile the Collector as MaGog.
+
+**Engine, when the pack is scripted:** both front faces print a replacement for the villain's defeat ("When
+Collector would be defeated, remove 3 per player threat from the main scheme and flip this card instead"). Hela's
+and MaGog's are the same shape ("When MaGog would be defeated, reset his hit points … instead"). Both back faces
+print "cannot be defeated". The engine's villain defeat (`defeatVillainStage`, `resolve/defeat.ts`) is **not an
+event**. It runs inline from the defeat sweep with no interrupt window, and there is no villain-level "cannot be
+defeated" rule. Both are needed before `gmw`/`mts`/`mojo`'s villains can be scripted:
+- a `characterDefeated` event for a villain stage, pushed only when heard (the same pattern the identity's defeat
+  already uses in `checkDefeats`), so an interrupt can replace it;
+- a `RuleSpec cannotBeDefeated { target }` that the defeat sweep reads.
+
+Not built in this pass. It changes the core defeat path, which needs its own tests against RRG 1.8 "Villain Defeat"
+(p. 47) and the Risky Business ordering, and none of these three packs is scheduled for scripting.
+
+### 15.3 Hercules's Labor deck (request 4): data shape landed, engine refuses it
+
+§11.4 left this open for want of the Hercules insert. **The insert is readable.** Hall of Heroes' Hercules page
+links a scan of the printed FFG insert (`hallofheroeslcg.com/wp-content/uploads/2026/02/hercules-pdf.jpg`, viewed
+and deleted from the scratchpad). Two sections settle the shape:
+- **"The Gift and Labor Decks":** "he begins each game with two special 3-card decks. To create the GIFT and LABOR
+  decks, shuffle the three GIFT cards together to form the GIFT deck and the three LABOR cards to form the LABOR
+  deck. Then, place both of these decks facedown in your play area. During the game, while in alter-ego form you
+  may use Hercules's 'New Labors of Hercules' action to reveal the top card of the LABOR deck. After a LABOR card
+  enters the victory display while in hero form, you may use Hercules's 'Atonement' ability to put the top card of
+  the GIFT deck into play."
+- **"Alternate Player & Encounter Card Backs":** "This product contains a variation on the standard player and
+  encounter card backs. These card backs allow players to differentiate these cards from other cards of the same
+  type as the rules for these cards prevent them from entering a deck, a discard pile, or a player's hand."
+
+So **Labor cards are encounter cards** with an alternate back, owned by an identity's separate deck, and **Gift
+cards are player cards** (Permanent upgrades). Neither deck has a discard pile, and neither refills. Two rulings
+fill in what the insert does not say. Mar 6, 2026 (3) answer 2: "If a Labor card cannot enter play, place it on the
+bottom of the Labor deck." Jun 2, 2026 (2) answer 3: Embody Pathos can find set-aside cards.
+
+**The shape (additive; every existing card validates unchanged):**
+
+```ts
+IdentitySeparateDeck {
+  …,
+  discardPile: "own" | "none";                               // + "none"
+  whenEmpty: "reshuffleDiscardWithoutPenalty" | "stayEmpty"; // + "stayEmpty"
+  cardFamily?: "player" | "encounter";                       // new; absent = "player"
+}
+EncounterCardCommon { …, separateDeck?: string }             // new: the encounter-side sibling of PlayerCardCommon.separateDeck
+
+// Hercules (59001a)
+separateDecks: [
+  { name: "Labor", cardFamily: "encounter", cards: [59002, 59003, 59004 ×1], topCardFaceup: false, discardPile: "none", whenEmpty: "stayEmpty" },
+  { name: "Gift",  cardFamily: "player",    cards: [59005, 59006, 59007 ×1], topCardFaceup: false, discardPile: "none", whenEmpty: "stayEmpty" },
+]
+// Defeat the Hydra (59002): type "attachment", traits [Labor], keywords [{ name: "victory", value: 0 }],
+// encounterSetIds: [], separateDeck: "Labor"
+```
+
+The validator refuses a deck with no discard pile that reshuffles one, and an unknown `cardFamily`.
+
+**Engine: refused, not guessed.** `createGame` builds every separate deck as Doctor Strange's (player cards, own
+discard pile). Building the Labor deck that way would play a different game, so an identity with any other kind is
+refused at setup. `validateDeck` reports it as `unsupported_identity`, exactly as it already does for SP//dr's
+separated identity. The shared check is `unbuildableSeparateDeck` (`deck.ts`). The Hercules pack stays data only.
+
+**What building it needs** (a follow-up, not a schema question):
+- setup shuffles both decks into the player's play area;
+- the "New Labors of Hercules" action reveals the top Labor card through the ordinary reveal procedure (RRG 1.8
+  "Reveal", p. 38: "If a player is instructed by card text to reveal an encounter card from … any other game area,
+  this same resolution procedure applies");
+- a Labor card that cannot enter play goes to the bottom of the Labor deck;
+- Labor and Gift cards never enter a deck, a discard pile or a hand.
+
+One question the insert leaves open is **flagged, not decided**. Protect Humanity is an obligation with "Uses (3
+labor counters)", and a Uses card is discarded when it has no counters left (RRG 1.8 "Uses", p. 46). But it cannot
+enter a discard pile. The likely answer is that it goes to the victory display ("Victory 0."), which is what
+triggers Atonement, but that needs confirming before it is built.
+
+**Parser mapping:** `card_set_code: "hercules_labor_deck"` → encounter card with `separateDeck: "Labor"`,
+`encounterSetIds: []`. `"hercules_gift_deck"` → player card with `separateDeck: "Gift"`, `deckLimit: 0`. The
+identity lists both decks as above.
