@@ -188,6 +188,8 @@ interface DefeatHint {
   readonly overkill: { readonly amount: number; readonly toInstanceId: InstanceId; readonly sourceInstanceId: InstanceId | null } | undefined;
   /** The controller of the damage's source ("after you defeat a minion"). */
   readonly defeatedByPlayerId?: PlayerId | null;
+  /** The damage's source card itself ("after *Wasp* — or an event you play — defeats a minion"). */
+  readonly sourceInstanceId?: InstanceId | null;
 }
 
 const defeatPending = (state: GameState, id: InstanceId): boolean =>
@@ -229,6 +231,7 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
               parentFrameId: hint.parentFrameId,
               ...(hint.overkill ? { overkill: hint.overkill } : {}),
               ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
+              ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
             }
           : {};
       defeatFrames.push(eventFrame(ctx, { kind: "characterDefeated", instanceId: id, ...context }));

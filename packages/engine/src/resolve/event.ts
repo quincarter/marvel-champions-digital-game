@@ -385,6 +385,7 @@ export function applyDamage(ctx: Ctx, event: Extract<TriggerEvent, { kind: "deal
     parentFrameId: event.parentFrameId ?? null,
     overkill: recipient ? { amount: excess, toInstanceId: recipient, sourceInstanceId: source } : undefined,
     defeatedByPlayerId: source !== null ? controllerOf(ctx.state, source) : null,
+    sourceInstanceId: source,
   });
 
   // Allies and minions report their defeat when the defeat event applies; a villain stage falls now.
@@ -551,6 +552,9 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
       kind: "schemeDefeated",
       instanceId: event.schemeInstanceId,
       defeatedByPlayerId: defeatingPlayerOf(ctx.state, event),
+      // What removed the last threat. A thwart's own removal is already sourced to the thwarting character
+      // (`applyPlayerThwart`), so this needs no thwart special case of its own, unlike the defeating *player* above.
+      sourceInstanceId: event.sourceInstanceId,
     };
     pushFrames(ctx, [
       ...gameAbilityFrames(ctx, event.schemeInstanceId, ["whenDefeated"], defeated, undefined, ctx.state.firstPlayerId),

@@ -17,12 +17,14 @@ import { matchesQuery, type EffectContext } from "./select.js";
 import { createGame } from "./setup.js";
 import type { CardInstance, GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { stubIdentity, stubMainScheme, stubMinion, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, giveCards, RESOURCE, runWith, settle } from "./testing/scenario.js";
+import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubMinion, stubSideScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import { DEFAULT_CARDS, DEFAULT_DECK, giveCards, newGame, RESOURCE, runWith, settle } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const p2 = playerId("p2");
 const def = (definition: AbilityDefinition) => definition;
+const toHero: Command = { type: "changeForm", playerId: p1 };
+const endTurn: Command = { type: "endTurn", playerId: p1 };
 const play = (id: InstanceId): Command => ({ type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null });
 const copies = (id: CardId, n = 4): readonly CardId[] => Array.from({ length: n }, () => id);
 
@@ -153,5 +155,151 @@ describe("§17.1 `TargetQuery.nemesisMinionOf`: the minion of that player's own 
     expect(engaged.map((id) => mustInstance(after, id).cardId)).toEqual([NEMESIS_1.id]);
     // The other player's minion stays set aside: the query is per-player, not "any nemesis minion".
     expect(mustPlayer(after, p2).setAside.some((id) => mustInstance(after, id).cardId === NEMESIS_2.id)).toBe(true);
+  });
+});
+
+// ---- §17.2 what defeated it -----------------------------------------------------------------------------------------
+
+describe("§17.2 `characterDefeated`/`schemeDefeated`.sourceInstanceId: what defeated it, not just who", () => {
+  /** "Response: After [your identity, or an event you play] defeats a minion or side scheme, add a counter." */
+  const byCardAbility = stubAbility("by-card.response", def({
+    trigger: {
+      kind: "response",
+      forced: true,
+      on: { on: ["characterDefeated", "schemeDefeated"], sourceIs: { categories: ["identity", "event"], owner: "you" } },
+    },
+    effects: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "byCard", amount: { kind: "const", value: 1 } }],
+  }));
+  /** The same response written the only way it could be written before: "after *you* defeat …" (any card you control). */
+  const byPlayerAbility = stubAbility("by-player.response", def({
+    trigger: { kind: "response", forced: true, on: { on: ["characterDefeated", "schemeDefeated"], playerIs: "controller" } },
+    effects: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "byPlayer", amount: { kind: "const", value: 1 } }],
+  }));
+  const WATCHER = stubSupport({ id: "watcher", cost: 0, abilities: [byCardAbility.ref, byPlayerAbility.ref] });
+
+  /** Test scaffolding, not a card: pulls one named encounter card out of the deck and puts it into play. */
+  const summon = (name: string) =>
+    stubAbility(`summon-${name}.action`, def({
+      trigger: { kind: "action" },
+      effects: [
+        { kind: "selectCards", slot: "found", cards: { kind: "encounter", zones: ["deck"], filter: { name } } },
+        { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: { kind: "controller" } },
+      ],
+    }));
+
+  /** "Hero Action: Deal 3 damage to an enemy." — a card effect's own damage, sourced to the event card. */
+  const boltAbility = stubAbility("bolt.action", def({
+    trigger: { kind: "action", form: "hero" },
+    effects: [{ kind: "dealDamage", target: { kind: "each", query: { categories: ["minion"] } }, amount: { kind: "const", value: 3 } }],
+  }));
+  const BOLT = stubEvent({ id: "bolt", cost: 0, abilities: [boltAbility.ref] });
+  /** "Hero Action: Remove 3 threat from a scheme." */
+  const clueAbility = stubAbility("clue.action", def({
+    trigger: { kind: "action", form: "hero" },
+    effects: [{ kind: "removeThreat", target: { kind: "each", query: { categories: ["sideScheme"] } }, amount: { kind: "const", value: 3 } }],
+  }));
+  const CLUE = stubEvent({ id: "clue", cost: 0, abilities: [clueAbility.ref] });
+
+  const MINION = stubMinion({ id: "weakling", atk: 1, sch: 1, hp: 2, boostIcons: 0 });
+  const SIDE = stubSideScheme({ id: "side", startingThreat: 2 });
+  const ALLY_2 = stubAlly({ id: "ally2", cost: 0, atk: 2, thw: 2, hp: 3 });
+  /** "When Revealed: Deal 3 damage to each ally." — a defeat the encounter side caused. */
+  const nastyAbility = stubAbility("nasty.when-revealed", def({
+    trigger: { kind: "whenRevealed" },
+    effects: [{ kind: "dealDamage", target: { kind: "each", query: { categories: ["ally"] } }, amount: { kind: "const", value: 3 } }],
+  }));
+  const NASTY = stubTreachery({ id: "nasty", boostIcons: 0, abilities: [nastyAbility.ref] });
+  const summonMinion = summon(MINION.id);
+  const summonSide = summon(SIDE.id);
+  /** Test scaffolding: reveals the treachery out of the encounter deck, the way a villain phase would deal it. */
+  const revealNasty = stubAbility("reveal-nasty.action", def({
+    trigger: { kind: "action" },
+    effects: [
+      { kind: "selectCards", slot: "found", cards: { kind: "encounter", zones: ["deck"], filter: { name: NASTY.id } } },
+      { kind: "revealCard", cards: { kind: "slot", slot: "found" }, player: { kind: "controller" } },
+    ],
+  }));
+  const SUMMONER = stubSupport({ id: "summoner", cost: 0, abilities: [summonMinion.ref, summonSide.ref, revealNasty.ref] });
+
+  const deps = depsOf(byCardAbility, byPlayerAbility, boltAbility, clueAbility, summonMinion, summonSide, revealNasty, nastyAbility);
+  const counters = (state: GameState) => mustInstance(state, mustPlayer(state, p1).identity.instanceId).counters;
+
+  /** A hero-form game with the watcher in play, a minion engaged and a side scheme in play. */
+  function ready(extra: readonly CardId[] = []): { state: GameState; ids: readonly InstanceId[] } {
+    const base = newGame({
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, WATCHER, SUMMONER, BOLT, CLUE, MINION, SIDE, ALLY_2, NASTY],
+      deck: [...copies(RESOURCE.id, 10), ...copies(WATCHER.id, 2), ...copies(SUMMONER.id, 2), ...copies(BOLT.id, 2), ...copies(CLUE.id, 2), ...copies(ALLY_2.id, 2)],
+      encounterDeck: [MINION.id, SIDE.id, NASTY.id, ...copies(BLANK.id, 13)],
+      deps,
+    });
+    const hero = runWith(deps, base, toHero);
+    const given = giveCards(hero, p1, WATCHER.id, SUMMONER.id, ...extra);
+    const [watcherId, summonerId] = given.ids as readonly InstanceId[];
+    let current = settle(runWith(deps, given.state, play(watcherId as InstanceId)), undefined, deps);
+    current = settle(runWith(deps, current, play(summonerId as InstanceId)), undefined, deps);
+    // The minion and the side scheme are put into play out of the encounter deck rather than dealt by a villain
+    // phase, so this fixture has one encounter card in play and no shuffled-deck luck in it.
+    for (const ability of [summonMinion, summonSide]) {
+      const use: Command = { type: "useAbility", playerId: p1, cardInstanceId: summonerId as InstanceId, abilityId: ability.ref.id, payment: [] };
+      current = settle(runWith(deps, current, use), undefined, deps);
+    }
+    return { state: current, ids: given.ids.slice(2) };
+  }
+
+  const summonerIdIn = (state: GameState) => mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === SUMMONER.id) as InstanceId;
+  const minionIn = (state: GameState) => mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === MINION.id) as InstanceId;
+  const sideIn = (state: GameState) => state.villainArea.find((id) => mustInstance(state, id).cardId === SIDE.id) as InstanceId;
+
+  it("a basic attack by your identity is a defeat by that card; an ally's attack is a defeat by the ally", () => {
+    const { state } = ready([ALLY_2.id]);
+    const minion = minionIn(state);
+    expect(minion).toBeDefined();
+
+    const byHero = settle(runWith(deps, state, { type: "basicAttack", playerId: p1, attackerInstanceId: mustPlayer(state, p1).identity.instanceId, targetInstanceId: minion, payment: [] }), undefined, deps);
+    expect(counters(byHero).byCard).toBe(1);
+    expect(counters(byHero).byPlayer).toBe(1);
+
+    // The same defeat, by an ally this player controls: still "you defeated it", no longer "this card defeated it".
+    const allyCard = giveCards(state, p1, ALLY_2.id);
+    const withAlly = settle(runWith(deps, allyCard.state, play(allyCard.ids[0] as InstanceId)), undefined, deps);
+    const allyId = mustPlayer(withAlly, p1).playArea.find((id) => mustInstance(withAlly, id).cardId === ALLY_2.id) as InstanceId;
+    const byAlly = settle(runWith(deps, withAlly, { type: "basicAttack", playerId: p1, attackerInstanceId: allyId, targetInstanceId: minionIn(withAlly), payment: [] }), undefined, deps);
+    expect(counters(byAlly).byCard).toBeUndefined();
+    expect(counters(byAlly).byPlayer).toBe(1);
+  });
+
+  it("an event's own damage is a defeat by that event card", () => {
+    const { state, ids } = ready([BOLT.id]);
+    const after = settle(runWith(deps, state, play(ids[0] as InstanceId)), undefined, deps);
+    expect(mustPlayer(after, p1).playArea.some((id) => mustInstance(after, id).cardId === MINION.id)).toBe(false);
+    expect(counters(after).byCard).toBe(1);
+  });
+
+  it("a side scheme's defeat records the thwarting character, or the card whose effect removed the threat", () => {
+    const { state } = ready();
+    const side = sideIn(state);
+    expect(side).toBeDefined();
+    const byThwart = settle(runWith(deps, state, { type: "basicThwart", playerId: p1, thwarterInstanceId: mustPlayer(state, p1).identity.instanceId, schemeInstanceId: side, payment: [] }), undefined, deps);
+    // Two basic thwarts of 2 THW each are not needed: the stub's side scheme starts at 2 threat.
+    expect(counters(byThwart).byCard).toBe(1);
+    expect(counters(byThwart).byPlayer).toBe(1);
+
+    const withEvent = ready([CLUE.id]);
+    const byEvent = settle(runWith(deps, withEvent.state, play(withEvent.ids[0] as InstanceId)), undefined, deps);
+    expect(counters(byEvent).byCard).toBe(1);
+  });
+
+  it("a defeat the encounter side caused fires neither response: no defeating player, and an encounter card as the source", () => {
+    const { state } = ready([ALLY_2.id]);
+    const allyCard = giveCards(state, p1, ALLY_2.id);
+    const withAlly = settle(runWith(deps, allyCard.state, play(allyCard.ids[0] as InstanceId)), undefined, deps);
+    expect(mustPlayer(withAlly, p1).playArea.some((id) => mustInstance(withAlly, id).cardId === ALLY_2.id)).toBe(true);
+    const use: Command = { type: "useAbility", playerId: p1, cardInstanceId: summonerIdIn(withAlly), abilityId: revealNasty.ref.id, payment: [] };
+    const after = settle(runWith(deps, withAlly, use), undefined, deps);
+    expect(mustPlayer(after, p1).playArea.some((id) => mustInstance(after, id).cardId === ALLY_2.id)).toBe(false);
+    expect(counters(after).byCard).toBeUndefined();
+    expect(counters(after).byPlayer).toBeUndefined();
   });
 });

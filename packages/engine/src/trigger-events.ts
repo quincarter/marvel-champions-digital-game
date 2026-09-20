@@ -193,6 +193,14 @@ export type TriggerEventBody =
        * source. It is the event's player subject, so `playerIs: "controller"` matches it.
        */
       readonly defeatedByPlayerId?: PlayerId | null;
+      /**
+       * **What** dealt the defeating damage, where `defeatedByPlayerId` is **who**: the card that was the damage's
+       * source (the attacking character, or the card whose effect dealt it). It is the event's source subject, so
+       * `sourceIs` matches it — which is how "After Wasp (or an event you play) defeats a minion" (Small but Mighty,
+       * 13001a) says what "you defeat" cannot: an ally's attack has the same defeating *player* and a different
+       * defeating *card*. Null when nothing player- or card-driven defeated it.
+       */
+      readonly sourceInstanceId?: InstanceId | null;
     }
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -200,8 +208,17 @@ export type TriggerEventBody =
    * A side scheme reached no threat and is defeated (RRG 1.8 "Defeat", p. 15). `defeatedByPlayerId` is the player
    * whose thwart or card effect removed the last threat — "the player who defeated this scheme" (Crossbones' Assault
    * 04070), "the defeating player" (Mystique's Manipulations errata, RRG 1.8 p. 66). Null when no player did it.
+   *
+   * `sourceInstanceId` is the card that removed that last threat, the `characterDefeated` field of the same name: the
+   * thwarting character for a thwart (basic or "(thwart)"-labeled — the character performs it, RRG 1.8 "Thwart",
+   * p. 44), the card whose effect removed the threat otherwise.
    */
-  | { readonly kind: "schemeDefeated"; readonly instanceId: InstanceId; readonly defeatedByPlayerId?: PlayerId | null }
+  | {
+      readonly kind: "schemeDefeated";
+      readonly instanceId: InstanceId;
+      readonly defeatedByPlayerId?: PlayerId | null;
+      readonly sourceInstanceId?: InstanceId | null;
+    }
   | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** `schemeInstanceId` is set only for a separate game area's own stage (docs/phase7-wave2.md §3.1). */
   | { readonly kind: "mainSchemeAdvanced"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
@@ -381,11 +398,13 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "cardRevealed":
     case "encounterCardRevealing":
       return of([event.instanceId], [event.instanceId], [event.playerId]);
+    // The defeating card is the event's source, so `sourceIs` reads "after [this card] defeats …"; the defeated card
+    // stays the target, and the defeating player the player subject.
     case "characterDefeated":
-      return of([], [event.instanceId], [event.defeatedByPlayerId ?? null]);
+      return of([event.sourceInstanceId ?? null], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "schemeDefeated":
       // The defeating player, so "after *you* defeat a side scheme" reads like the `characterDefeated` case above.
-      return of([], [event.instanceId], [event.defeatedByPlayerId ?? null]);
+      return of([event.sourceInstanceId ?? null], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "cardFlipped":
       return of([], [event.instanceId], []);
     case "mainSchemeCompleted":
