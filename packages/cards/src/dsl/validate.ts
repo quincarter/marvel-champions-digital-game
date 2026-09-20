@@ -293,7 +293,10 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
 }
 
 function checkBindings(definition: AbilityDefinition, problems: string[]): void {
-  const scope: Scope = { slots: new Set(), vars: new Set(), prefixes: new Set(["paid.", "sequence.", "self.counters."]) };
+  // `"x"`: the play's own var for a cost printed "X" (`specialCost: "X"`; Speed Cyclone 14006, docs/phase7-wave2.md
+  // §3.8) — bound by `playCard.x` before any of the card's own abilities run, the same class of externally-supplied
+  // var `"paid."`/`"overpaid."` already are (never bound *by* the ability itself, so nothing here could bind it).
+  const scope: Scope = { slots: new Set(), vars: new Set(["x"]), prefixes: new Set(["paid.", "overpaid.", "sequence.", "self.counters."]) };
   const cost = definition.cost;
   if (cost?.discardFromHand) {
     scope.slots.add("discard");

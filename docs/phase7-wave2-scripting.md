@@ -548,6 +548,52 @@ needed, and deciding which is out of `ability-scripting-engineer`'s remit.
   sentinel `via` value meaning "no via at all", the mirror image of today's "some via" match).
 - **Pinned:** `13008.red-room-training-constant-2` (full write-up in `wsp/kit.ts`'s module docblock).
 
+### 6.20 No trigger event announces a completed ready — only the interrupt to replace one (found scripting `qsv`)
+
+- **Card:** Friction Resistance (14009, Quicksilver): "Hero Response: After you ready Quicksilver, ready this
+  card." (its own Resource ability needs nothing new and is scripted.)
+- **The gap.** `cardReadying` (`packages/engine/src/trigger-events.ts`) is the *interrupt* twin only ("when [a
+  card] would ready"), pushed solely so an ability can replace the ready (Frozen in Time, docs/phase7-wave2.md
+  §3.11) — it is explicitly excluded from the response-window scan (the same kind list `basicPowerUsing`,
+  `encounterCardRevealing`, and the rest of the "-ing" events sit in, all interrupt-only by design). Nothing fires
+  *after* a ready completes, the way `basicPowerUsed` fires after a basic power resolves, or `cardEntersPlay`/
+  `characterDefeated` announce after their own event.
+- **Closest existing primitive:** the same "-ing"/"-ed" pair the engine already uses for `basicPowerUsing`/
+  `basicPowerUsed` — a `cardReadied` announcement, pushed once `readyOrAnnounce` (`resolve/event.ts`) actually
+  readies the card (mirroring how `cardReadying`'s own interrupt is pushed today), would let this (and any future
+  "after X readies" card) be written the same way.
+- **Pinned:** `14009.friction-resistance-response` (full write-up in `qsv/kit.ts`'s module docblock).
+
+### 6.21 "Cannot ready … until your next turn ends" — a sibling gap to Care for Cassie's "cannot change form" (found scripting `qsv`)
+
+- **Card:** Need for Speed (14024), Quicksilver's own obligation: "…Exhaust your identity. **You cannot ready your
+  identity until your next turn ends.** Discard this obligation."
+- **The gap.** The same shape Care for Cassie's own restriction (12025, `ant/obligation-nemesis.ts`, §6 above) is
+  pinned for, except this is "cannot **ready**", a different standing rule than "cannot change form" —
+  `LastingEffectBody` has no `cannotReady`-kind sibling to `statModifier`/`traitGrant`/`costReduction`/
+  `blankTextBox` for either restriction, and "until your next turn ends" isn't one of `LastingUntil`'s four values
+  either. Otherwise the Core obligation shape (`core/obligations.ts`'s `obligation` helper already handles "give to
+  X, may flip, exhaust-to-remove-or-alternative").
+- **Closest existing primitive:** `LastingEffectBody`'s own shape, needing a `cannotReady`-kind sibling (and, like
+  Care for Cassie, a "until your next turn ends" duration) — the same fix would very likely close both cards at
+  once, since they're the identical shape of restriction on two different standing rules.
+- **Pinned:** `14024.obligation` (full write-up in `qsv/obligation-nemesis.ts`'s module docblock).
+
+### 6.22 Not primitive gaps: two small `@mc/cards`-owned catch-ups, found scripting `qsv`
+
+- **`oncePerRound`'s own sibling was missing.** "(Limit once per phase.)" (Super Speed, 14001a) needed
+  `AbilityLimit { count: 1, period: "phase" }` — the engine already supports `period: "phase"` (docs/phase7-wave1-
+  scripting.md's own `AbilityLimit` shape), just no DSL constant for it. Added `oncePerPhase` next to
+  `oncePerRound` (`dsl/abilities.ts`).
+- **`dsl/validate.ts`'s `checkBindings` didn't know about `playCard.x`.** Speed Cyclone's (14006) "Stun X Enemies"
+  reads `varOf("x")` — the play's own var for a cost printed "X" (`commands.ts`'s own docblock, built for this
+  exact card) — but the validator's bound-var scope only pre-seeded the `"paid."`/`"sequence."`/`"self.counters."`
+  *prefixes*, not the bare `"x"` name, so any card reading it failed `defineAbilities`'s own "var read before it is
+  bound" check even though the var is genuinely supplied externally (the same class as `paid.*`, just not a
+  dotted prefix). Added `"x"` to the pre-seeded scope, and `"overpaid."` alongside `"paid."` while there (`playCard`
+  also exposes `overpaid.*` to a card's own abilities per the same docblock; nothing in the pool reads it yet, but
+  the validator would have hit the identical false-positive the moment something did).
+
 ## 7. Status
 
 | Pack | Code | Status | Notes |
@@ -556,7 +602,7 @@ needed, and deciding which is out of `ability-scripting-engineer`'s remit.
 | The Once and Future Kang | `toafk` | **Scripted.** 51 cards, 82 ability refs: 77 resolve, 5 in `KNOWN_SKIPPED` — 4 pre-existing primitive/data-gap blocks on the Temporal obligations (a resource-type-filtered discard cost; two "two clauses, one ref" data-shape gaps), 1 identical "two clauses, one ref" gap on the Expert set's own Fear of Kang. All §6.13/§6.14/§6.16 gaps have landed (docs/phase7-wave2.md §10, §17.1) and are un-skipped: 11008b's both refs (the acceleration-token redirect and the join restriction — the latter needed no rule at all, §10.4), 11013a (Kang III added, the tucked Kang's Dominion revealed via the new `TargetRef { kind: "tuckedUnder" }`/`tuckedUnderRef`), and **11013b.when-revealed (2026-09-19, `ability-scripting-engineer`)** — "each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion and puts it into play engaged with them", `TargetQuery.nemesisMinionOf` inside the already-landed `anyOfCards` pool, one `forEachPlayer`/`selectCards`/`putIntoPlay` triple. The Expert encounter set (11040–11051), not started as of an earlier session, is fully scripted. **Two real bugs were found and fixed, not just new scripting:** (1, earlier session) `11007a.setup`'s "remove each player's obligation cards from the game" used `query("obligation")` — *every* obligation-type card — which broke once the Temporal set's own four obligations (11018–11021, also type "obligation") existed; fixed with `withoutTrait: TEMPORAL`. (2, this session, a *data* gap, not fixed here — out of `@mc/cards`' remit) `TargetQuery.nemesisMinionOf` requires the `nemesisMinion: true` flag unconditionally, but Hawkeye's own single-minion nemesis set (Crossfire, 04027, `trors`) carries no such flag (real cards only print the disambiguating parenthelical for a multi-minion set, RRG 1.8 p. 30) — found by testing Kang's Wrath 4B with a Hawkeye player and getting nothing back; the real test in `kang.test.ts` uses Ant-Man instead and documents the gap inline (also written up in §6, new subsection). | Kang's villain (standard and Expert), "Kang's Arrival" 1A/1B, "The Master of Time" 2A/2B, "Kang's Wrath" 4A/4B, and all four stage 3 alternatives are scripted in `kang.ts`; the Kang/Temporal encounter set plus the Expert set (11014–11033, 11040–11051, minus the two-clauses-one-ref obligations) is scripted in `kang-encounter-set.ts`. `wave2Scenario("kang", …)` (`../setup.ts`'s `kangScenario`) is data-driven off `WAVE2_SCENARIOS`. `kang.test.ts` has a standalone setup test (standard and expert), ruling-level tests, a full one-player split-and-rejoin playthrough exercising 11008b and 11013a end to end through real commands (defeat Kang (I) → stage 3 area created → defeat that area's Kang (II) → area rejoins the center → center advances straight to Kang's Wrath → Kang (III) and the tucked Dominion appear), and a second full playthrough (Ant-Man) proving 11013b's own search-and-engage fires automatically right after 11013a's, in the same stage advance. `kang-encounter-set.test.ts` covers Time-Travel Hijinks' highest-cost discard-and-tuck with a real playthrough, plus definition-level checks for the rest. **A second, purely data-side gap remains, not fixed (out of `@mc/cards`' remit): the Kang/Temporal set's own four obligations (11018–11021) carry `encounterSetIds: []` in `@mc/content`** — they are never shuffled into any deck in a real game, so they are currently unreachable content despite being correctly scripted. Flagged for `card-data-pipeline`; `kang-encounter-set.test.ts`'s own Time-Travel Hijinks test works around it by relabeling an already-in-the-deck filler card's `cardId`, documented inline as a stand-in for the real fix. |
 | Ant-Man | `ant` | **Scripted.** 33 cards, 37 ability refs: 32 resolve (reprints aliased by `../reprints.ts` plus hand-scripted refs across `kit.ts`/`obligation-nemesis.ts`/`pack-cards.ts`), 5 in `KNOWN_SKIPPED` — Care for Cassie's "cannot change form" lasting rule, Yellowjacket's Plan's "belongs to encounter set X" query, Ant-Man's own overpaid-from-a-later-interrupt read, Team-Building Exercise's "shares a trait with your hero" query and Muster Courage's dynamic `chooseCards.max`. **Yellowjacket's two form-conditional constants (§6.15) are un-skipped (2026-09-19, `ability-scripting-engineer`)**, scripted exactly as the crash-inducing attempt originally was (`gainsTrait`/`gets(..., { while: hasTrait(identityOf(engagedPlayerOf(self)), GIANT) })`), now safe under `traitsOf`'s §17.5 guard — confirmed with a real reveal-from-encounter-deck test reading its live traits/stats, not re-added on faith. Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md) and Tech Theft's class-wide text-blanking (§8 there) are both landed and used (`kit.ts`'s `changeToOtherHeroForm`/`youHaveTrait`, `obligation-nemesis.ts`'s `blanksTextBox`, verified with a real behavioral test attaching a TECH upgrade and confirming its own text goes blank). Pym Particles' "after you spend this card" trigger (`resourcesSpent`/`on.youSpendThis()`) and Giant Strength's `LastingUntil.endOfTurn` both landed mid-session (commits `1036be7`, `c53ad0b`) and were un-skipped with real behavioral tests the same session. | Ant-Man's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-aspect cards (`pack-cards.ts`) each have ruling-level tests (`kit.test.ts`) driving real commands — form changes, Hero Actions gated by `while`, a Team-Up legality check, a reveal-from-encounter-deck helper for the nemesis set's own cards, Yellowjacket's own live form-conditional trait/keyword/stat grants — plus `e2e.test.ts` (Rhino, standard, solo, Ant-Man Leadership precon to a real outcome, replayed deep-equal). |
 | Wasp | `wsp` | **Scripted (2026-09-19, `ability-scripting-engineer`).** 34 cards, ~50 ability refs: all but 1 resolve. `KNOWN_SKIPPED.wsp` is down to `13012.wasp-interrupt`, a pre-existing missing-primitive block (reading an overpayment from a later interrupt) unrelated to this pass. **All five §17 refs are un-skipped, each with a real behavioral test:** Small but Mighty (`on.defeats`, an identity-or-event-not-ally defeat, proven both ways — Wasp's own basic attack damages the villain, the Ant-Man ally's identical defeat does not); the Ant-Man ally's two form-conditional constants (same shape and same §17.5 fix as Yellowjacket's, verified live); Rapid Growth (`on.basicPowerUsing`/`modifyBasicPower`, a real basic attack raised 2→4 damage mid-attack, played as a reactive event from hand inside the interrupt window, form change and "for this use" expiry both checked); Red Room Training's Tiny-form piercing half (`attacksGainKeywords({ basicOnly: true })`, a real tough-status-card discard distinguishing a basic attack from Pinpoint Strike's own ability attack). | Wasp's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`, Red Dreams/Mother's Orders/Beetle/Beetle Armor MK IV/Beetle Mania) and the pack's own generic-aspect cards (`pack-cards.ts`) are scripted, each with real behavioral tests (`kit.test.ts`, `obligation-nemesis.test.ts`, `pack-cards.test.ts`). No standalone scenario/e2e test yet (`wsp` owns no scenario of its own; the Rhino Core scenario is used for every test, the same way `ant/kit.test.ts` does). Reused Ant-Man's own three-sided-identity and divided-basic-power patterns throughout, per the task brief. |
-| Quicksilver | `qsv` | **Not started.** | `basicPowerUsed` trigger event (landed, used already by Spider-Woman's Captain Marvel in `trors`). |
+| Quicksilver | `qsv` | **Scripted (2026-09-19, `ability-scripting-engineer`).** 32 cards, ~35 ability refs: all but 2 resolve (Armored Vest and the three basic resources are Core reprints, aliased by `../reprints.ts`, not counted as hand-scripted). `KNOWN_SKIPPED.qsv` is `14009.friction-resistance-response` (§6.20, new: no trigger event announces a completed ready) and `14024.obligation` (§6.21, new: a "cannot ready … until your next turn ends" sibling to Care for Cassie's own "cannot change form" gap). Reused `on.basicPowerUsing`/`modifyBasicPower` (§17.4) for Scarlet Witch's own interrupt (a live `ValueSpec` bonus, not a fixed one), `chooseOptions`/`RuleSpec attackKeywords.basicOnly`/`playCard.x` (all landed already, none previously exercised by a scripted card) for Double Time, Brute Force and Speed Cyclone respectively, and `atEndOfAttack` + `eventDealt`/`not(...)` (Sweeping Swoop's own precedent, `core/heroes/spider-man.ts`) to defer Never Back Down's "if you take no damage" half to the attack's own end. Two small DSL/validator catch-ups, not primitive gaps (§6.22): `oncePerPhase`, and `playCard.x` missing from the validator's own pre-seeded var scope. | Quicksilver's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-aspect cards (`pack-cards.ts`) are scripted, each with real behavioral tests (`kit.test.ts`, `obligation-nemesis.test.ts`, `pack-cards.test.ts`) driving real commands — a real villain-phase defended attack for Never Back Down/Side Step (declaring a defender, playing a reactive event inside its own interrupt/payment windows, `wave1/cap/expert-defense.test.ts`'s own precedent), a real reveal from the encounter deck for Multiple Man/Avalanche/Earthquake, a real `basicAttack` with an "X" cost for Speed Cyclone. Brute Force (Aggression), Sense of Justice (Justice), United We Stand (Leadership) and Beat 'Em Up (Basic, absent from the precon's own curated list) are `toBeDefined()`-only — unreachable from Quicksilver's single-aspect Protection precon, the same situation `wsp/pack-cards.test.ts` records for her own off-aspect cards. A genuine two-player "each player independently" integration test for Avalanche was attempted and dropped (`obligation-nemesis.test.ts`'s own comment): both branches of that choice are proven with a real reveal in a solo game, and the `forEachPlayer(eachPlayer, chooseOneBy(thatPlayer, …))` shape itself is the same one already used by Under Attack (Core, `core/scenarios/ultron.ts`) and several wave 1/2 cards — the two-player table's own villain-phase dynamics (surge chains, a second enemy's own scheme once the nemesis minion is engaged) raced the scenario to an early loss before a deterministic assertion point could be reached, a scenario-level testing obstacle rather than evidence about the ability. |
 | Scarlet Witch | `scw` | **Not started.** | Two copies of her own obligation shuffled in (§1.10, landed); boost-icon counting as an event (§3.6, landed for activation counts; card-effect counts — Hex Bolt — still open per §4.8). |
 
 ## 8. Progress / next up (update this every session)
@@ -888,3 +934,72 @@ row stays `"scripted"`. `pnpm --filter @mc/cards test` (623 tests) and root `pnp
 own *unblocked* `basicPowerUsing` sibling in `wsp`) — read Quicksilver's and Scarlet Witch's own product inserts
 before scripting either (docs/phase7-wave2.md §0 flags both as "not yet read"), and re-check §3.13/§6/§17 before
 assuming any gap recorded anywhere in this file is still open, the same habit every session so far has depended on.
+
+**2026-09-19, next session: `qsv` finished, promoted to `"scripted"`.** **Flagged, not silently skipped: this
+session had no tool that fetches an external URL, so Quicksilver's own product insert (docs/phase7-wave2.md §0,
+"not yet read") could not actually be read** — every card's ability was scripted from `@mc/content`'s own printed
+`text` (the Golden Rule that outranks a product insert anyway, RRG 1.8 "The Golden Rules", p. 4) plus RRG/FAQ
+citations, and nothing in the insert (a spoiler-free scenario rulebook and precon decklist, per how `toafk`'s own
+insert read) would change a hero-pack card's own text. Recorded here rather than quietly proceeding as if the step
+were done.
+
+Scripted Quicksilver's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-
+aspect cards (`pack-cards.ts`) — see §7's own table row for the full per-card account. Two new primitive gaps
+found and written up (§6.20, §6.21 — a completed-ready announcement; Need for Speed's "cannot ready" restriction,
+a sibling to Care for Cassie's own gap), and two small `@mc/cards`-owned catch-ups that were *not* primitive gaps
+(§6.22 — `oncePerPhase`, and `playCard.x` missing from `dsl/validate.ts`'s own pre-seeded var scope, found the
+moment Speed Cyclone's `varOf("x")` failed `defineAbilities`'s "read before bound" check despite being genuinely
+supplied by the engine).
+
+**Load-bearing lessons this session added to test-writing itself, not just to the card pool:**
+- **A `chooseCards` prompt's own options are the candidate instance ids, never slot-keyed** — `firstLegal` alone
+  picks its own `min` (often 0, since "shuffle up to 2"-shaped abilities are deliberately optional), so a picker
+  matching by *label text* (`accepting(...)`, the convention every prior pack's tests already use for
+  `chooseTriggers`) silently matches nothing here and a test believes an effect fired when it picked zero cards.
+  Needed a dedicated "take every offered candidate, up to the prompt's own max" picker (`pickAllCards`, `pack-
+  cards.test.ts`) for Multiple Man and Serval Industries.
+- **`declareDefender`'s own "no defense" answer is `["decline"]`, not `[]`** — `firstLegal` already knows this
+  (`if (choice.prompt.kind === "declareDefender") return ["decline"]`), but a test driving the choice by hand
+  (to declare a *specific* defender first) must remember it too; answering `[]` is rejected outright as an invalid
+  selection count, not treated as declining.
+- **An upgrade attaches rather than sitting in `playArea`** — `cardsInPlay(state)`, not `playerOf(state, p
+  ).playArea`, is what finds it once played (Nerves of Steel's own test found this the hard way: `playArea` was
+  empty, the card was attached to the identity instead, per RRG's own default host when none is named).
+- **A multi-copy card's own precon quantity means `instancesOf(...)[0]` is not necessarily the one in play** — with
+  3 copies of Nerves of Speed printed only 3, always pick the in-play one explicitly (`cardsInPlay(state).find(...)`
+  ), the same lesson as the previous bullet stacked on top of it.
+- **`moveToHand`'s returned `.state` must actually be used** — computing `.ids` from one call and then spreading
+  the *original* pre-call state for further surgery (rather than the returned post-move state) leaves a card
+  simultaneously "moved" (by the id bookkeeping) and "not moved" (by the state), producing a card instance visible
+  in two zones at once — caught by a `deck.includes(id) && discard.includes(id)` sanity check while debugging
+  Serval Industries' own test, not by any assertion failure message that pointed at the actual mistake.
+- **`chooseOne`'s own option ids are index-based (`"0"`, `"1"`, or `"<index>#<n>"` under `allowRepeat`), never the
+  option's label text** — a picker matching by label must inspect `option.label` itself (`choice.options.find(o =>
+  o.label === wanted)`), not try to match the label against `optionId`.
+- **A villain phase's `declareDefender` interrupt for "when you defend" resolves *after* the defending character's
+  own `basicPowerUsed` response, not before** — both get pushed onto the stack at the same moment (`setDefender`
+  announces `defended` first, then `basicPowerUsing`/`basicPowerUsed` are pushed after it), and the stack is LIFO,
+  so whichever event's own trigger fires *last* on the stack resolves *first*. A test asserting an exact
+  `chooseTriggers` prompt order for a card whose own controller *also* has a `basicPowerUsed` reaction (Quicksilver's
+  own Super Speed, reacting to his own basic defense) should accept the trigger whenever it's offered rather than
+  asserting it's the very next prompt — this is not a bug in the ability itself, confirmed by the fully-resolved
+  outcome (DEF applied, damage prevented) being correct either way.
+- **A second real encounter-deck reveal, once an earlier one already put an engaged minion into play, needs a
+  filler boost card per *activating* enemy that phase, not one** — every enemy attack draws its own boost card
+  (RRG 1.8 "Attack (Enemy Activation)", p. 9), not only a villainous minion's scheme (the boost-skipping rule is
+  scheme-specific, RRG 1.8 "Scheme (Enemy Activation)", p. 39). `stageNemesisCardForReveal`'s own `fillers` count
+  needed to grow from 1 (Rhino alone) to 2 once a nemesis minion was also in play and activating — and a *third*
+  reveal, in a fresh round, is a real risk of racing the scenario's own main scheme to an early loss (this session's
+  own two-player Avalanche test hit exactly that), not a testing technique to reach for by default once more than
+  one enemy is active.
+
+`pnpm --filter @mc/cards test` (647 tests) and root `pnpm typecheck` are both green.
+
+**Not reached this session: `scw`.** `qsv`'s own primitive gaps, the `chooseCards`/`declareDefender`/attachment
+test-writing lessons above (each cost real debugging time, not just scripting time), and the two-player Avalanche
+detour together filled this session's budget. **Next session starts with `scw`** — re-check §3.13/§6/§17 before
+assuming any gap recorded anywhere in this file is still open (Scarlet Witch's own two obligation cards, §1.10,
+and boost-icon-counting-as-an-event, §3.6, were both already landed as of `toafk`'s own session; Hex Bolt's
+card-effect boost-icon count, §4.8, was flagged as still open — re-verify rather than assume), and the fresh
+lessons immediately above (`pickAllCards`, `["decline"]`, `cardsInPlay` for attachments, `moveToHand`'s returned
+state) apply to any pack's own tests just as much as they did to `qsv`'s.

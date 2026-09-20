@@ -407,6 +407,8 @@ export const payPrintedCostOf = (slot: string, from: CardZoneQuery, options: { e
 
 /** "(Limit once per round.)" */
 export const oncePerRound: AbilityLimit = { count: 1, period: "round" };
+/** "(Limit once per phase.)" (Super Speed, Quicksilver 14001a). */
+export const oncePerPhase: AbilityLimit = { count: 1, period: "phase" };
 
 // ---------------------------------------------------------------------------
 // Event patterns: `when.*` for interrupts, `after.*` for responses

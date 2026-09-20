@@ -66,7 +66,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   toafk: "scripted",
   ant: "scripted",
   wsp: "scripted",
-  qsv: "not started",
+  qsv: "scripted",
   scw: "not started",
 };
 
@@ -147,6 +147,15 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   wsp: [
     // --- Pack cards (wave2/wsp/pack-cards.ts): missing-primitive block, see that file's module docblock. ---
     "13012.wasp-interrupt",
+  ],
+  // Computed 2026-09-19 against QSV_CARDS/WAVE2_ABILITIES, same method as the other packs' own lists above.
+  qsv: [
+    // --- Quicksilver's kit (wave2/qsv/kit.ts): missing-primitive block, see that file's module docblock (no
+    //     trigger event announces a completed ready). ---
+    "14009.friction-resistance-response",
+    // --- Obligation/nemesis (wave2/qsv/obligation-nemesis.ts): missing-primitive block, see that file's module
+    //     docblock (a "cannot ready … until your next turn ends" standing restriction). ---
+    "14024.obligation",
   ],
 };
 
