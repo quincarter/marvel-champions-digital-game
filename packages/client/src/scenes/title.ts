@@ -107,6 +107,7 @@ export class TitleScene extends Phaser.Scene {
     this.#starting = false;
     this.#art = pickTitleArt(TITLE_ART, lastTitleArtKey);
     lastTitleArtKey = this.#art?.key ?? null;
+    appSession().music?.playTitle();
     this.#rebuild();
     void appSession()
       .store.latestSave()

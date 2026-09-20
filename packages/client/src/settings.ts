@@ -20,6 +20,10 @@ export interface Settings {
    * than every text object app-wide; a future pass can widen where it applies.
    */
   readonly largeCardText: boolean;
+  /**
+   * Background music and audio across menus and games.
+   */
+  readonly sound: boolean;
 }
 
 export function defaultSettings(): Settings {
@@ -30,5 +34,6 @@ export function defaultSettings(): Settings {
     // Capped at `SHARP_TEXT_RESOLUTION_CEILING`: beyond that the texture cost buys nothing visible.
     textResolution: Math.min(SHARP_TEXT_RESOLUTION_CEILING, Math.max(1, globalThis.devicePixelRatio || 1)),
     largeCardText: false,
+    sound: true,
   };
 }

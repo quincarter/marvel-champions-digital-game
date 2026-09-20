@@ -75,6 +75,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    appSession().music?.playTitle();
     this.scale.on("resize", this.#rebuild, this);
     // The villain stage-I card-scan fallback (`#renderScenarioCard`) is drawn through `cardArt(this).request`,
     // which only *asks* the loader — nothing about that call redraws the scene once the scan actually arrives.

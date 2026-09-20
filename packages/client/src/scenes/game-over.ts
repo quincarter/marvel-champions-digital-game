@@ -84,6 +84,9 @@ export class GameOverScene extends Phaser.Scene {
     this.#route = new FocusRoute(this);
     const { game, config } = appSession().store.state;
     this.#outcomeArt = game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
+    if (game?.outcome && config) {
+      appSession().music?.playOutcome(config.scenarioId, game.outcome.result);
+    }
     this.#draw();
   }
 

@@ -34,6 +34,8 @@ export const SCENES = {
    * Title too (`scenes/settings.ts`'s own doc comment is that button's entry point).
    */
   settings: "SettingsOverlay",
+  /** Background soundtrack controller running across screen transitions. */
+  music: "MusicScene",
 } as const;
 
 export type SceneKey = (typeof SCENES)[keyof typeof SCENES];

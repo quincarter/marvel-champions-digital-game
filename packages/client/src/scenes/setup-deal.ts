@@ -163,6 +163,7 @@ export class SetupDealScene extends Phaser.Scene {
     this.#logScrollTop = 0;
     this.#hand = new HandScroll(() => this.#draw());
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
+    appSession().music?.playTitle();
 
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));

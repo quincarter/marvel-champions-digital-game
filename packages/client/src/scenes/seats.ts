@@ -60,7 +60,7 @@ import { drawCompactChipStrip, drawPackGrid, drawSearchField, drawShelfRosterPan
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
-import { deckStorage } from "../session.js";
+import { appSession, deckStorage } from "../session.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { TableSetupData } from "./table-setup.js";
 import { destroyChildren } from "../ui/destroy-children.js";
@@ -131,6 +131,7 @@ export class SeatsScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    appSession().music?.playTitle();
     this.scale.on("resize", this.#rebuild, this);
     // Seat-card thumbnails and roster cards both draw through `cardArt(this).request`, which only *asks* the
     // loader — nothing about that call redraws the scene once a scan actually arrives. Without this, whichever

@@ -140,6 +140,7 @@ export class TableSetupScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    appSession().music?.playTitle();
     this.#compactScroll = new VariableListScroll();
     this.scale.on("resize", this.#rebuild, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {

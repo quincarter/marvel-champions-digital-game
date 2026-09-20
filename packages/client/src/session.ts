@@ -13,11 +13,16 @@ import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
 import { SessionStore } from "./store/session-store.js";
 import { defaultSettings, type Settings } from "./settings.js";
 import { emptyLog, type LogState } from "./view/log-lines.js";
+import type { MusicController } from "./audio/music-controller.js";
 
 export interface AppSession {
   readonly host: EngineHost;
   readonly store: SessionStore;
   settings: Settings;
+  /**
+   * Background music controller, populated when the client game boots.
+   */
+  music?: MusicController;
   /**
    * The current game's log, for any scene that needs its history rather than
    * just the latest command's `lastEvents` — Pause's "Jump to a moment"

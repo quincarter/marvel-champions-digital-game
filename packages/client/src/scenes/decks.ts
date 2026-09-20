@@ -250,6 +250,7 @@ export class DecksScene extends Phaser.Scene {
 
     const onResize = (): void => this.#rebuild();
     this.scale.on("resize", onResize, this);
+    appSession().music?.playTitle();
     const artOff = cardArt(this).onArrived(() => this.#rebuild());
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
       this.scale.off("resize", onResize, this);
