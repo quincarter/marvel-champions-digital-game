@@ -15,6 +15,7 @@ import {
   firstPlayer,
   forcedInterrupt,
   forcedResponse,
+  forEachPlayer,
   gainsKeyword,
   gets,
   joinGameArea,
@@ -25,6 +26,7 @@ import {
   on,
   option,
   placeThreat,
+  putIntoPlay,
   query,
   removeMainSchemeStage,
   revealCard,
@@ -34,12 +36,13 @@ import {
   shuffleEncounterDeck,
   stateCheck,
   theMainScheme,
+  thatPlayer,
   tuckedUnderRef,
   whenRevealed,
   you,
 } from "../../dsl/index.js";
 import { areaPlayersDefeated, gameAreasSplit } from "../../dsl/values.js";
-import { encounterSetAside } from "../../dsl/effects.js";
+import { anyOfCards, encounterCards, encounterSetAside, setAside } from "../../dsl/effects.js";
 import { cardName } from "../names.js";
 
 /** The trait every Kang/Temporal modular-set obligation carries, distinguishing it from a player's own identity
@@ -80,24 +83,23 @@ const TEMPORAL = trait("TEMPORAL");
  *   existed. `firstPlayer` (not `you`) because a main scheme's own ability has no single "revealing player" the way
  *   an encounter card does; `packages/engine/src/game-areas.test.ts`'s own reference test uses the same player.
  *
- * **Still skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
+ * **Un-skipped this pass (docs/phase7-wave2.md §17.1, landed 2026-09-19):**
  * - `11013b.when-revealed` — "Each player searches the encounter deck, discard pile, and set-aside area for their
- *   nemesis minion and puts it into play engaged with them." The "search several zones as one pool" half of this
- *   landed (§10.1, `CardSelector { kind: "anyOf" }`, its own worked example is this exact card), but the
- *   *identification* half didn't: nothing reads "the minion belonging to *this player's own* chosen hero's nemesis
- *   set" dynamically. `CardSelector { kind: "setAside", player }` already finds *a* player's whole set-aside pool,
- *   and `TargetQuery.name` can match one fixed card by its exact printed name — but no query field varies that name
- *   *per player* the way `PlayerRef defeatingPlayer` now reads a defeated scheme's own defeating player. This is a
- *   **new** primitive request, not a re-flagging of the landed §10.1 gap: a `TargetQuery.nemesisMinionOf?: PlayerRef`
- *   (or equivalently a boolean `nemesisMinion` card-data flag — already present, `packages/content/src/schema/
- *   validation.ts` — combined with a way to scope a query to "the set belonging to that player's own identity")
- *   would let this card's search be written as one `anyOf` selector, no per-player special-casing. Kang insert,
- *   "Setup" (§2.3): "Kang's Wrath 4B searches for each player's nemesis minion."
+ *   nemesis minion and puts it into play engaged with them." The "search several zones as one pool" half (§10.1,
+ *   `CardSelector { kind: "anyOf" }`, `anyOfCards` here) already had its worked example be this exact card; what was
+ *   still missing was the *identification* half, now `TargetQuery.nemesisMinionOf?: PlayerRef` (§17.1) — "belongs to
+ *   *that player's own* nemesis set", checked both by the card's own `(X's nemesis minion.)` parenthetical
+ *   (`nemesisMinion: true`) and by encounter-set membership against that player's identity's own
+ *   `nemesisEncounterSetId`. One `forEachPlayer`/`selectCards`/`putIntoPlay` triple, no per-player special-casing.
+ *   "Puts it into play engaged with them" needs no separate `engage` effect: `putIntoPlay`'s own `controller`
+ *   already engages a minion with that player (`zola.ts`'s Island of Dr. Zola setup uses the same shape). Kang
+ *   insert, "Setup" (§2.3): "Kang's Wrath 4B searches for each player's nemesis minion."
+ *
+ * **Still a data gap (`card-data-pipeline`), not a primitive gap:**
  * - `11007b.when-revealed` and `11013b.when-revealed` each carry only one ability ref for text with two distinct
- *   clauses (the "When Revealed" sentence, scripted below for 11007b and skipped above for 11013b, plus a "When
- *   Completed Abilities" (RRG 1.8 p. 48) "If this stage is completed, the players lose the game" sentence with no
- *   ref of its own — the same data-shape gap Captured by Hydra (04107, `taskmaster.ts`) has for its "When
- *   Defeated" half). **Data gap flagged for `card-data-pipeline`.**
+ *   clauses (the "When Revealed" sentence, scripted below for both, plus a "When Completed Abilities" (RRG 1.8
+ *   p. 48) "If this stage is completed, the players lose the game" sentence with no ref of its own — the same
+ *   data-shape gap Captured by Hydra (04107, `taskmaster.ts`) has for its "When Defeated" half).
  */
 
 /** "Toughness (data). [star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack." (Kang (I)/Kang (III), standard and expert). */
@@ -282,6 +284,20 @@ export const KANG_SET = defineAbilities({
     addVillain(chosen("kang"), { reveal: true }),
     revealCard(tuckedUnderRef(centralMainScheme), firstPlayer),
   ),
-  // Kang's Wrath 4B — SKIPPED (module docblock): "each player searches the encounter deck, discard pile, and
-  // set-aside area for their nemesis minion" needs a still-missing per-player "your own nemesis minion" query.
+  // Kang's Wrath 4B — When Revealed: each player searches the encounter deck, discard pile, and set-aside area for
+  // their nemesis minion and puts it into play engaged with them (module docblock, §17.1). The "loses the game if
+  // completed" half has no ability ref — module docblock.
+  "11013b.when-revealed": whenRevealed(
+    forEachPlayer(
+      eachPlayer,
+      selectCards(
+        "nemesis",
+        anyOfCards(
+          encounterCards(["deck", "discard"], query("minion", { nemesisMinionOf: thatPlayer })),
+          setAside(thatPlayer, query("minion", { nemesisMinionOf: thatPlayer })),
+        ),
+      ),
+      putIntoPlay(chosen("nemesis"), thatPlayer),
+    ),
+  ),
 });

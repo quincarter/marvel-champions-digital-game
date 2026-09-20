@@ -65,7 +65,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   trors: "scripted",
   toafk: "scripted",
   ant: "scripted",
-  wsp: "in progress",
+  wsp: "scripted",
   qsv: "not started",
   scw: "not started",
 };
@@ -120,9 +120,6 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // 11013a) and §10.1's `superlative`/`printedCostOf` DSL follow-up (11021.when-revealed), and scripting the
   // previously-not-started Expert encounter set (11040-11051, all but the two-clauses-one-ref 11049.obligation).
   toafk: [
-    // --- Kang's own villain/main scheme (wave2/toafk/kang.ts): a genuine missing-primitive block and a data-gap
-    //     block, see that file's module docblock. ---
-    "11013b.when-revealed",
     // --- Kang/Temporal encounter set + Expert set (wave2/toafk/kang-encounter-set.ts): missing-primitive blocks (a
     //     resource-type-filtered discard cost; a dynamic "your own hero" match) and two-clauses-one-ref data gaps,
     //     see that file's module docblock. ---
@@ -132,28 +129,22 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "11021.time-travel-hijinks-action",
     "11049.obligation",
   ],
-  // Computed 2026-09-19 against ANT_CARDS/WAVE2_ABILITIES, same method as trors'/toafk's own lists above.
+  // Regenerated 2026-09-19 (later session) against ANT_CARDS/WAVE2_ABILITIES, after un-skipping Yellowjacket's two
+  // form-conditional constants (docs/phase7-wave2.md §17.5) once traitsOf's recursion guard landed — same method
+  // as the other packs' own lists above.
   ant: [
-    // --- Ant-Man obligation/nemesis (wave2/ant/obligation-nemesis.ts): missing-primitive blocks, plus a
-    //     found-by-testing engine crash (traitsOf's unguarded recursion through a `while: hasTrait(...)` on a
-    //     constant trait/stat grant) — see that file's module docblock. ---
+    // --- Ant-Man obligation/nemesis (wave2/ant/obligation-nemesis.ts): missing-primitive blocks, see that file's
+    //     module docblock. ---
     "12025.obligation",
-    "12027.yellowjacket-constant",
-    "12027.yellowjacket-constant-2",
     "12029.when-revealed",
     // --- Pack cards (wave2/ant/pack-cards.ts): missing-primitive blocks. ---
     "12011.ant-man-interrupt",
     "12024.team-building-exercise-action",
     "12032.muster-courage-action",
   ],
-  // Computed 2026-09-19 against WSP_CARDS/WAVE2_ABILITIES, same method as the other packs' own lists above.
+  // Regenerated 2026-09-19 (later session), after un-skipping the five §17 refs (docs/phase7-wave2.md §17.6) once
+  // their primitives landed — same method as the other packs' own lists above.
   wsp: [
-    // --- Wasp's kit (wave2/wsp/kit.ts): missing-primitive blocks, see that file's module docblock. ---
-    "13001a.small-but-mighty",
-    "13002.ant-man-constant",
-    "13002.ant-man-constant-2",
-    "13005.rapid-growth-interrupt",
-    "13008.red-room-training-constant-2",
     // --- Pack cards (wave2/wsp/pack-cards.ts): missing-primitive block, see that file's module docblock. ---
     "13012.wasp-interrupt",
   ],

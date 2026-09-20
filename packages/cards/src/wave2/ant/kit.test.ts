@@ -1,6 +1,6 @@
 import { cardId } from "@mc/content";
 import type { GameState, InstanceId } from "@mc/engine";
-import { activeEncounterDeckId, cardsInPlay, characterProfile, traitsOf } from "@mc/engine";
+import { activeEncounterDeckId, cardsInPlay, characterProfile, hasKeyword, traitsOf } from "@mc/engine";
 import { firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, use, type Picker } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
@@ -249,9 +249,17 @@ describe("Ant-Man's obligation and nemesis (Care for Cassie, Yellowjacket)", () 
     expect(characterProfile(withTechTheft, wasp, WAVE2_DEPS)?.maxHp).toBe(3);
   });
 
-  // Yellowjacket's own form-conditional constants (12027.yellowjacket-constant, 12027.yellowjacket-constant-2) are
-  // in `KNOWN_SKIPPED` (`../coverage.test.ts`) — see `obligation-nemesis.ts`'s module docblock: an earlier version
-  // of this test proved a `while: hasTrait(...)` on a constant trait/stat grant crashes the engine with an
-  // unconditional infinite recursion in `traitsOf` the instant the ability is ever evaluated (reveal Yellowjacket,
-  // then read *any* card's traits or stats), so it was pulled rather than shipped catastrophically wrong.
+  it("Yellowjacket: gains the Giant trait and retaliate 1 while the engaged player is in Giant hero form; the Tiny trait and +1 ATK while Tiny (docs/phase7-wave2.md §17.5 — the shape that used to crash the engine, now proven safe with a real reveal-then-read-traits test, not just re-added on faith)", () => {
+    const giant = withForm(antManVsRhino(), GIANT);
+    const { state, id: yellowjacket } = revealFromEncounterDeck(giant, "12027");
+    expect(traitsOf(state, yellowjacket, WAVE2_DEPS).map(String)).toContain("GIANT");
+    expect(hasKeyword(state, yellowjacket, "retaliate", WAVE2_DEPS)).toBe(true);
+    expect(characterProfile(state, yellowjacket, WAVE2_DEPS)?.atk).toBe(2); // printed 2, no Tiny bonus in Giant form
+
+    const tiny = withForm(state, TINY);
+    expect(traitsOf(tiny, yellowjacket, WAVE2_DEPS).map(String)).toContain("TINY");
+    expect(traitsOf(tiny, yellowjacket, WAVE2_DEPS).map(String)).not.toContain("GIANT");
+    expect(hasKeyword(tiny, yellowjacket, "retaliate", WAVE2_DEPS)).toBe(false);
+    expect(characterProfile(tiny, yellowjacket, WAVE2_DEPS)?.atk).toBe(3); // printed 2 + 1
+  });
 });

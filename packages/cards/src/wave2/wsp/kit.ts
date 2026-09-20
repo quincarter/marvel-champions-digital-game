@@ -3,12 +3,15 @@ import {
   action,
   anAttackableEnemy,
   attack,
+  attacksGainKeywords,
   cards,
+  changeToHeroFormWithTrait,
   changeToOtherHeroForm,
   chooseCards,
   chooseTarget,
   chosen,
   constant,
+  dealDamage,
   defineAbilities,
   divide,
   draw,
@@ -18,8 +21,10 @@ import {
   gets,
   heal,
   heroAction,
+  heroInterrupt,
   interrupt,
   ifThen,
+  modifyBasicPower,
   moveCards,
   on,
   oncePerRound,
@@ -27,7 +32,9 @@ import {
   query,
   ready,
   removeThreat,
+  response,
   heroResponse,
+  theVillain,
   when,
   yourIdentity,
   you,
@@ -49,42 +56,32 @@ const AERIAL = trait("AERIAL");
  * Help, Wasp Sting): `RuleSpec divideBasicPower` for the identity's own basic THW/ATK, `EffectSpec divide` for an
  * event's own printed "a total of N … divided among …".
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
- * - `13001a.small-but-mighty` — "Response: After Wasp (**or an event you play**) defeats a minion or side scheme,
- *   deal 1 damage to the villain." `on.defeated({ byYou: true })` matches `characterDefeated`/`schemeDefeated`'s own
- *   `defeatedByPlayerId`, which is set for *any* player-controlled source of the defeating damage — an ally's own
- *   attack included. The printed text deliberately narrows to "Wasp (or an event)", excluding allies, and nothing
- *   reads *which card* (as opposed to which player) caused a defeat, so there is no way to exclude an ally-caused
- *   defeat without also silently accepting it. Closest existing primitive: the `overkill.sourceInstanceId` field
- *   `characterDefeated` already carries for its own overkill case — a general `sourceInstanceId` on the same event
- *   (whatever dealt the defeating damage, character or event) would let this be read directly.
+ * **Un-skipped this pass (docs/phase7-wave2.md §17, landed 2026-09-19):**
+ * - `13001a.small-but-mighty` — "Response: After Wasp (or an event you play) defeats a minion or side scheme, deal
+ *   1 damage to the villain." `on.defeats(source)` (§17.2, a `characterDefeated`/`schemeDefeated` `sourceIs`, not
+ *   `playerIs`) says what "you defeat" cannot: an ally's own attack has the same defeating *player* but a different
+ *   defeating *card*, so `source` names Wasp's identity or an event (`query(["identity", "event"], { owner: "you"
+ *   })`) rather than accepting any card the player controls.
  * - `13002.ant-man-constant` / `13002.ant-man-constant-2` — "While you are in Giant/Tiny hero form, Ant-Man gains
- *   the Giant/Tiny trait and gets +1 ATK/THW." The identical poisoned shape Yellowjacket (12027, `ant/obligation-
- *   nemesis.ts` §6.15) has: a constant *trait grant* whose own `while` is `hasTrait(...)`, which crashes
- *   `traitsOf`'s unguarded recursive trait-grant scan the instant it is evaluated for *anything* — a found-by-
- *   precedent engine bug (not re-tested here; the crash is unconditional and already confirmed once). Not
- *   scripted, to avoid re-introducing a known crash.
+ *   the Giant/Tiny trait and gets +1 ATK/THW." The identical shape Yellowjacket (12027, `ant/obligation-
+ *   nemesis.ts`) has, safe now that `traitsOf`'s constant trait-grant scan evaluates a grant's own `while`/`target`
+ *   under `DEFAULT_DEPS` (§17.5) — printed traits and lasting effects only, never another constant ability's own
+ *   grant. Ant-Man's own Giant/Tiny trait is *printed* on Wasp's/Ant-Man's three-sided identity's own additional
+ *   hero forms (§1.1/§3.2), so `youHaveTrait` still tracks a live form change correctly under that guard.
  * - `13005.rapid-growth-interrupt` — "Hero Interrupt: When you use one of your hero's basic powers (THW, ATK, or
- *   DEF), change to your Giant hero form and get +2 to that power for this use." Changing to Giant hero form is
- *   `changeToHeroFormWithTrait(GIANT)`, but "+2 to that power for this use" needs a bonus scoped to exactly the
- *   basic-power activation currently resolving, for *any* of the four basic powers. `LastingUntil.endOfAttack`
- *   (the closest existing "just this activation" scope) is keyed to `currentActivationFrameId`
- *   (`packages/engine/src/stack.ts`), which only recognizes `attack`/`enemyAttack`/`enemyScheme`/`thwart` event
- *   frames — a basic *defense* or *recover* use pushes no frame kind that scope recognizes, so a `DEF` use of this
- *   card could not be scoped correctly even though the printed text explicitly includes DEF. Closest existing
- *   primitive: `enemyAttack`/`enemyScheme`'s own inline `atkBonus` (a bonus scoped to exactly the activation an
- *   *effect* initiates) — there is no equivalent for a basic power a *player command* initiates, which an
- *   interrupt would need to hook into before the amount is computed.
- * - `13008.red-room-training-constant-2` — "While you are in Tiny hero form, your basic attacks gain piercing."
- *   `RuleSpec attackKeywords`'s `via` field (docs/phase7-wave2.md §3.13.1) can *exclude* a basic attack (a rule
- *   with `via` set never matches one, since a basic attack's own `viaId` is always null), but there is no way to
- *   require the opposite — match *only* a basic attack, excluding an event-sourced one — so "your basic attacks"
- *   cannot be scripted without also over-granting piercing to the player's own event attacks. Closest existing
- *   primitive: `via`'s own null-exclusion, generalized to a `basicOnly: true` field (or a sentinel `via` value
- *   meaning "no via at all").
+ *   DEF), change to your Giant hero form and get +2 to that power for this use." `on.basicPowerUsing` (the
+ *   interrupt twin of `basicPowerUsed`) fires before the power's own value is read, and `modifyBasicPower` (§17.4)
+ *   reads which power off that event and applies a `statModifier` lasting exactly that one use, composing correctly
+ *   whichever order this ability's own effects run in (change form, then get +2 to the *new* form's power). Covers
+ *   DEF as well as ATK/THW (the window opens where the defender is declared, before DEF is read).
+ * - `13008.red-room-training-constant-2` — "While you are in Tiny hero form, your basic attacks gain piercing." is
+ *   now `attacksGainKeywords([...], { basicOnly: true })` (§17.3): matches how the attack was made (a basic attack,
+ *   whoever makes it), which `via`'s own null-exclusion could only ever say the opposite of.
  */
 export const WASP_KIT = defineAbilities({
-  // Small but Mighty (13001a.small-but-mighty) is SKIPPED — module docblock.
+  // Small but Mighty — Response: after Wasp (or an event you play) defeats a minion or side scheme, deal 1 damage
+  // to the villain (module docblock, §17.2).
+  "13001a.small-but-mighty": response(on.defeats(query(["identity", "event"], { owner: "you" })), dealDamage(1, theVillain)),
 
   // G.I.R.L. — Action: Shuffle up to 2 cards with a printed [mental] resource from your discard pile into your
   // deck. (Limit once per round.)
@@ -100,8 +97,10 @@ export const WASP_KIT = defineAbilities({
   "13001c.wasp-constant": constant({ rules: [{ kind: "divideBasicPower", power: "thwart", target: YOUR_IDENTITY }] }),
   "13001c.wasp-constant-2": constant({ rules: [{ kind: "divideBasicPower", power: "attack", target: YOUR_IDENTITY }] }),
 
-  // Ant-Man (13002, ally) — both constants SKIPPED — module docblock (the found-by-testing `traitsOf` recursion
-  // crash, §6.15 in `ant/obligation-nemesis.ts`).
+  // Ant-Man (13002, ally) — while you are in Giant/Tiny hero form, Ant-Man gains the Giant/Tiny trait and gets +1
+  // ATK/THW (module docblock, §17.5).
+  "13002.ant-man-constant": constant(gainsTrait(GIANT, { self: true }, { while: youHaveTrait(GIANT) }), gets("atk", 1, { self: true }, { while: youHaveTrait(GIANT) })),
+  "13002.ant-man-constant-2": constant(gainsTrait(TINY, { self: true }, { while: youHaveTrait(TINY) }), gets("thw", 1, { self: true }, { while: youHaveTrait(TINY) })),
 
   // Giant Help — Hero Action (thwart): Remove 3 threat from a scheme (remove a total of 4 threat divided among
   // schemes as you choose instead if you are in Giant hero form).
@@ -122,7 +121,10 @@ export const WASP_KIT = defineAbilities({
     ifThen(youHaveTrait(TINY), attack(8, chosen("enemy"), { overkill: true }), attack(7, chosen("enemy"))),
   ),
 
-  // Rapid Growth (13005.rapid-growth-interrupt) is SKIPPED — module docblock.
+  // Rapid Growth — Hero Interrupt: when you use one of your hero's basic powers (THW, ATK, or DEF), change to your
+  // Giant hero form and get +2 to that power for this use (module docblock, §17.4). `YOUR_IDENTITY`, not `self`:
+  // the printed text is "your hero's basic powers", which excludes an ally's own basic power use.
+  "13005.rapid-growth-interrupt": heroInterrupt(on.basicPowerUsing(YOUR_IDENTITY), changeToHeroFormWithTrait(GIANT), modifyBasicPower(2)),
 
   // Wasp Sting — two Hero Actions (attack), each gated to one hero form (the form check precedes the effect, as
   // Ant-Man's own form-gated actions do): if Giant, deal a total of 4 damage divided among enemies you choose; if
@@ -135,9 +137,10 @@ export const WASP_KIT = defineAbilities({
   // (12006, `ant/kit.ts`) — "Hero Response" already gates to hero form, so the else branch is exactly Tiny.
   "13007.pym-particles-response": heroResponse(on.youSpendThis(), ifThen(youHaveTrait(GIANT), heal(2, yourIdentity), draw(1))),
 
-  // Red Room Training — While you are in Giant hero form, you gain retaliate 1. (The Tiny-form piercing half,
-  // `13008.red-room-training-constant-2`, is SKIPPED — module docblock.)
+  // Red Room Training — While you are in Giant hero form, you gain retaliate 1. While you are in Tiny hero form,
+  // your basic attacks gain piercing (module docblock, §17.3).
   "13008.red-room-training-constant": constant(gainsKeyword({ name: "retaliate", value: 1 }, YOUR_IDENTITY, { while: youHaveTrait(GIANT) })),
+  "13008.red-room-training-constant-2": constant(attacksGainKeywords(["piercing"], { attacker: YOUR_IDENTITY, basicOnly: true, while: youHaveTrait(TINY) })),
 
   // Bio-Synthetic Wings — Wasp gains the Aerial trait (unconditional — safe: `traitsOf`'s poisoned scan only
   // recurses on a *conditional* `while: hasTrait(...)` trait grant, and this one has no `while` at all).

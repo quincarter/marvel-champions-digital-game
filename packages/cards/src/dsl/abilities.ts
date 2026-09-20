@@ -288,10 +288,17 @@ export const blanksTextBox = (target: TargetQuery, opts: { readonly while?: Pred
  * attackKeywords`, docs/phase7-wave2.md §3). `via` matches the card whose ability makes the attack (the event for a
  * "Hero Action (attack)"); a persistent character/attachment granting itself the keyword should use `gainsKeyword`
  * instead — this builder is for a grant that outlives the one card making the attack.
+ *
+ * `basicOnly`: "your **basic** attacks gain [keyword]" (Red Room Training 13008, Brute Force `qsv`, Psi-Katana
+ * `psylocke`, Wolverine's own upgrade; docs/phase7-wave2.md §17.3) — matches only how the attack was made (a basic
+ * attack, whoever makes it), not who made it, so `basicOnly: true` with no `attacker` reaches every basic attack in
+ * the game and no villain attack; pair it with `attacker` to scope to "your" basic attacks specifically. `via`
+ * already excludes a basic attack (a basic attack's own `viaId` is null); `basicOnly` is the opposite requirement —
+ * excluding an event-sourced attack — which `via` alone cannot say.
  */
 export const attacksGainKeywords = (
   keywords: readonly AttackKeyword[],
-  opts: { readonly attacker?: TargetQuery; readonly via?: TargetQuery; readonly while?: Predicate } = {},
+  opts: { readonly attacker?: TargetQuery; readonly via?: TargetQuery; readonly while?: Predicate; readonly basicOnly?: boolean } = {},
 ): ConstantPart => ({
   rules: [
     {
@@ -300,6 +307,7 @@ export const attacksGainKeywords = (
       ...(opts.attacker ? { attacker: opts.attacker } : {}),
       ...(opts.via ? { via: opts.via } : {}),
       ...(opts.while ? { while: opts.while } : {}),
+      ...(opts.basicOnly ? { basicOnly: true } : {}),
     },
   ],
 });
@@ -479,6 +487,14 @@ export const on = {
   defeated: (what: Who, opts: { readonly byYou?: boolean } = {}): EventPattern =>
     pattern("characterDefeated", asTarget(what), opts.byYou ? { playerIs: "controller" } : {}),
   /**
+   * "After [X] (or an event you play) defeats a minion or side scheme" (Small but Mighty, 13001a; docs/phase7-
+   * wave2.md §17.2): matches both `characterDefeated` and `schemeDefeated` by *source* — which card dealt the
+   * defeating damage or removed the last threat — not by player. `on.defeated({ byYou: true })`'s `playerIs` also
+   * accepts an ally's own attack, which a card naming a specific card ("Wasp, or an event") needs to exclude;
+   * `source` should therefore name the card(s), not just `controller: "you"` alone.
+   */
+  defeats: (source: TargetQuery): EventPattern => pattern(["characterDefeated", "schemeDefeated"], { sourceIs: source }),
+  /**
    * "When/After [a scheme] is defeated" (a side scheme reaching 0 threat, or a scenario rule's own defeat) —
    * distinct trigger event from `defeated`, which is characters only. "When attached scheme is defeated"
    * (Followed, `cap` pack): `on.schemeDefeated("host")`.
@@ -507,6 +523,15 @@ export const on = {
    * would need to be exposed on `EventPattern`).
    */
   basicPowerUsed: (who: Who): EventPattern => pattern("basicPowerUsed", asTarget(who)),
+  /**
+   * "When you use one of your hero's basic powers (THW, ATK, or DEF)" (Rapid Growth 13005, Venom's Pistol;
+   * docs/phase7-wave2.md §17.4) — the *interrupt* twin of `basicPowerUsed`, pushed before the power's own value is
+   * read, which is what "get +N to that power for this use" (`modifyBasicPower`) needs to precede. `power` narrows
+   * to one named power ("your basic ATK") via `eventIs`; omit it for "one of … (THW, ATK, or DEF)", which reacts to
+   * any of the three (recovery has no event frame of its own — see the engine docblock on `basicPowerUsing`).
+   */
+  basicPowerUsing: (who: Who, opts: { readonly power?: "attack" | "thwart" | "defense" | "recover" } = {}): EventPattern =>
+    pattern("basicPowerUsing", asTarget(who), opts.power ? { eventIs: { power: opts.power } } : {}),
   /** "When attached character would ready" (Frozen in Time; docs/phase7-wave2.md §3.11). */
   cardReadying: (what: Who): EventPattern => pattern("cardReadying", asTarget(what)),
   /** "When boost icons on an encounter card would be counted" (Chaos Control, Crest; docs/phase7-wave2.md §3.6). */

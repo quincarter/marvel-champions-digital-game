@@ -88,6 +88,13 @@ export const placeDamage = (n: Amount, target: TargetRef): EffectSpec => ({ kind
  * directly. Not a heal — the card doesn't say "heal" — so it fires no heal event (docs/phase7-wave1.md §3.13).
  */
 export const setRemainingHitPoints = (n: Amount, target: TargetRef): EffectSpec => ({ kind: "setRemainingHitPoints", target, amount: amount(n) });
+/**
+ * "…get +N to that power for this use" (Rapid Growth 13005, Venom's Pistol; docs/phase7-wave2.md §17.4): a bonus to
+ * whichever basic power is being used, read off the `basicPowerUsing` event on the stack (`on.basicPowerUsing`
+ * must be this ability's own trigger) and lasting only for that one activation. Does nothing outside a basic-power
+ * use — an ability that reaches for this effect with no `basicPowerUsing` on the stack resolves into nothing.
+ */
+export const modifyBasicPower = (n: Amount): EffectSpec => ({ kind: "modifyBasicPower", amount: amount(n) });
 
 /**
  * The "(attack)" body: resolves as an attack by your identity (guard, retaliate, "after X attacks" apply).
@@ -393,6 +400,12 @@ export const encounterSetAside = (filter?: TargetQuery): CardSelector => ({ kind
 export const setActiveVillain = (villain: TargetRef): EffectSpec => ({ kind: "setActiveVillain", villain });
 export const setAside = (player: PlayerRef = you, filter?: TargetQuery): CardSelector => ({ kind: "setAside", player, ...(filter ? { filter } : {}) });
 export const tuckedUnder = (under: TargetRef): CardSelector => ({ kind: "tucked", under });
+/**
+ * "Search the encounter deck, discard pile, **and set-aside area** for X" (Kang's Wrath 4B, 11013b; docs/phase7-
+ * wave2.md §10.1/§17.1): every card any listed selector names, each once, in the order listed — one pool across
+ * several zones for a single `selectCards`/`chooseCards`, rather than searching each zone as a separate effect.
+ */
+export const anyOfCards = (...of: readonly CardSelector[]): CardSelector => ({ kind: "anyOf", of });
 
 export const moveCards = (from: CardSelector, to: CardDestination, bind?: string): EffectSpec => ({ kind: "moveCards", cards: from, to, ...withBind(bind) });
 export const chooseCards = (

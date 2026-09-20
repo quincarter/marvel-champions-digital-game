@@ -1,5 +1,5 @@
 import { cardsInPlay, createGame } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, P1, settle, toHero } from "../../testing/harness.js";
+import { endTurn, firstLegal, identityOf, inst, instancesOf, P1, playerOf, settle, toHero } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { KANG_SET } from "./kang.js";
@@ -123,5 +123,35 @@ describe("Kang scenario", () => {
     expect(state.mainScheme.stageIndex).toBe(6);
     expect(state.villains.some((v) => v.cardId === "11006")).toBe(true);
     expect(cardsInPlay(state).some((id) => state.instances[id]?.cardId === "11023")).toBe(true);
+  });
+
+  it("Kang's Wrath 4B: each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion and puts it into play engaged with them (docs/phase7-wave2.md §17.1)", () => {
+    // Ant-Man, not Hawkeye: Ant-Man's nemesis minion (Yellowjacket, 12027) carries the `nemesisMinion` parenthetical
+    // flag `TargetQuery.nemesisMinionOf` reads; Hawkeye's own single-minion nemesis set (Crossfire, 04027) does not
+    // print one (real card behavior — a single-minion set needs no disambiguating parenthetical, RRG 1.8 "Nemesis
+    // Encounter Set" p. 30), so `nemesisMinionOf` correctly finds nothing for a Hawkeye player — a data-completeness
+    // gap flagged in docs/phase7-wave2-scripting.md, not a scripting bug in this ability.
+    // A three-sided identity's `changeForm` needs an explicit hero form (`toHero()` alone is ambiguous, Tiny or
+    // Giant); which one is irrelevant here, since the test only cares about Yellowjacket's own defeat/engage state.
+    // `settle`: Ant-Man's own kit responds to "after you change to hero form" (Puny Pest/Giant Nuisance) with an
+    // optional prompt, which must be resolved (declined) before another command can be issued.
+    let state = settle(runWave2(startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 })), { type: "changeForm", playerId: P1, to: { heroForm: 0 } }), firstLegal, undefined, WAVE2_DEPS);
+    const kang1 = state.villains[0]!.instanceId;
+    const yellowjacket = instancesOf(state, "12027")[0]!;
+    expect(playerOf(state, P1).setAside).toContain(yellowjacket);
+
+    state = defeatWithAttack(state, kang1);
+    state = settle(runWave2(state, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const areaKang = state.gameAreas[0]!.villainIds[0]!;
+    state = defeatWithAttack(state, areaKang);
+    state = settle(runWave2(state, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+
+    // Kang's Wrath (stage index 6) is now active, and its own base-stage When Revealed (11013b) resolved right
+    // after the A side's (11013a) as part of the very same advance (RRG-modeled ordering, `resolve/defeat.ts`'s
+    // `advanceMainScheme`: "the new stage's A side is revealed first … then the B side").
+    expect(state.mainScheme.stageIndex).toBe(6);
+    expect(playerOf(state, P1).setAside).not.toContain(yellowjacket);
+    expect(playerOf(state, P1).playArea).toContain(yellowjacket);
+    expect(inst(state, yellowjacket).engagedWith).toBe(P1);
   });
 });
