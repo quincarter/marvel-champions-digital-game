@@ -1,5 +1,4 @@
-import { cardId } from "@mc/content";
-import { activeVillain, applyCommand, remainingHitPoints, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { activeVillain, applyCommand, remainingHitPoints, type InstanceId } from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -20,30 +19,12 @@ import {
   use,
   type Picker,
 } from "../../testing/harness.js";
+import { moveToDiscard } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { MSM_DEPS, runMsm, startMsmGame } from "./testing.js";
 
 // Real wave 1 content: the Ms. Marvel (Protection) precon against Rhino, standard, solo.
 const msmVsRhino = () => startMsmGame(wave1Scenario("rhino", { players: [{ starterDeckId: "msm-protection" }], seed: 7 }));
-
-/** Test-only surgery: moves a copy of `code` straight from hand/deck to the player's discard pile, matching
- * `../../testing/harness.ts`'s `moveToHand`/`putOnTopOfDeck` shape. Used so a test doesn't have to actually play a
- * card (and juggle hero/alter-ego form restrictions) just to get something into the discard pile to read back out. */
-function moveToDiscard(state: GameState, player: PlayerId, code: string): { readonly state: GameState; readonly id: InstanceId } {
-  const owner = playerOf(state, player);
-  const wanted = (id: InstanceId) => state.instances[id]?.cardId === cardId(code);
-  const id = owner.hand.find(wanted) ?? owner.deck.find(wanted);
-  if (!id) throw new Error(`${player} has no ${code} in hand or deck`);
-  return {
-    id,
-    state: {
-      ...state,
-      players: state.players.map((p) =>
-        p.playerId === player ? { ...p, hand: p.hand.filter((x) => x !== id), deck: p.deck.filter((x) => x !== id), discard: [...p.discard, id] } : p,
-      ),
-    },
-  };
-}
 
 /**
  * A picker that never discards `protect` at a "discard down to hand size" check (end-of-turn hand size, hero 5 /

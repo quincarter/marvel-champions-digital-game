@@ -1,5 +1,6 @@
 import { cannotLeavePlay, encounterDeckOf, notDefeatedWithoutThreat, remainingHitPoints, schemeThreatDestination, villainOf, type GameState, type InstanceId } from "@mc/engine";
 import { answer, P1, endTurn, firstLegal, identityOf, inst, moveToHand, patchInstance, payWith, play as playCard, playerOf, settle, settleUntil, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
+import { withActive } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
@@ -9,7 +10,6 @@ const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): Ga
 
 const thunderballId = (state: GameState) => state.villains[1]!.instanceId;
 const thunderstruckId = (state: GameState) => villainOf(state, thunderballId(state))!.signatureSideSchemeId!;
-const withActive = (state: GameState, id: InstanceId): GameState => ({ ...state, activeVillainId: id });
 
 describe("Thunderball (07017/07018)", () => {
   it("redirects his own scheme threat to Thunderstruck instead of the main scheme", () => {

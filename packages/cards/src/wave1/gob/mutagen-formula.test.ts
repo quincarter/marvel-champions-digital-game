@@ -1,5 +1,6 @@
 import { activeVillain, characterProfile, mainSchemeValue, type Command, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
-import { applyOk, endTurn, firstLegal, identityOf, inst, P1, P2, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { endTurn, firstLegal, identityOf, inst, P1, P2, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { driveEvents } from "../testing.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
 
@@ -7,28 +8,6 @@ const spiderManVsMutagenFormula = (players = [{ starterDeckId: "core-spider-man-
   startGobGame(wave1Scenario("mutagen-formula", { players, seed: 13, modularSetIds }));
 
 const play = (state: GameState, ...commands: readonly Command[]): GameState => settle(runGob(state, ...commands), undefined, undefined, GOB_DEPS);
-
-/** Like `play`, but also collects every event along the way (commands and every auto-settled choice). */
-function driveEvents(state: GameState, ...commands: readonly Command[]): { readonly state: GameState; readonly events: readonly GameEvent[] } {
-  let current = state;
-  const events: GameEvent[] = [];
-  const settleOne = () => {
-    while (current.pendingChoice && !current.outcome) {
-      const choice = current.pendingChoice;
-      const result = applyOk(current, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: firstLegal(current) }, GOB_DEPS);
-      current = result.state;
-      events.push(...result.events);
-    }
-  };
-  settleOne();
-  for (const command of commands) {
-    const result = applyOk(current, command, GOB_DEPS);
-    current = result.state;
-    events.push(...result.events);
-    settleOne();
-  }
-  return { state: current, events };
-}
 
 const goblinThrallsOf = (state: GameState, player: string) => Object.entries(state.instances).filter(([, i]) => i?.cardId === "02024" && i.engagedWith === player);
 const inPlayIdOf = (state: GameState, code: string): InstanceId | undefined =>

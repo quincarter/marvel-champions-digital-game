@@ -1,5 +1,6 @@
-import { cannotLeavePlay, notDefeatedWithoutThreat, schemeThreatDestination, villainOf, type GameState, type InstanceId } from "@mc/engine";
+import { cannotLeavePlay, notDefeatedWithoutThreat, schemeThreatDestination, villainOf, type GameState } from "@mc/engine";
 import { P1, endTurn, identityOf, inst, patchInstance, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { withActive } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
@@ -9,7 +10,6 @@ const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): Ga
 
 const piledriverId = (state: GameState) => state.villains[2]!.instanceId;
 const pileItOnId = (state: GameState) => villainOf(state, piledriverId(state))!.signatureSideSchemeId!;
-const withActive = (state: GameState, id: InstanceId): GameState => ({ ...state, activeVillainId: id });
 
 describe("Piledriver (07032/07033)", () => {
   it("redirects his own scheme threat to Pile It On! instead of the main scheme", () => {

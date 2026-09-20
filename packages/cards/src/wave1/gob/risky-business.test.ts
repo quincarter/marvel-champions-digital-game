@@ -1,5 +1,6 @@
-import { activeVillain, currentName, type Command, type GameEvent, type GameState } from "@mc/engine";
-import { answer, applyOk, endTurn, firstLegal, identityOf, inst, P1, patchInstance, playerOf, settle, settleUntil, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { activeVillain, currentName, type Command, type GameState } from "@mc/engine";
+import { answer, endTurn, firstLegal, identityOf, inst, P1, patchInstance, playerOf, settle, settleUntil, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { driveEvents } from "../testing.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
 
@@ -8,28 +9,6 @@ const spiderManVsRiskyBusiness = (difficulty: "standard" | "expert" = "standard"
 
 /** Runs commands and settles every resulting choice with the default (least-committal) pick. */
 const play = (state: GameState, ...commands: readonly Command[]): GameState => settle(runGob(state, ...commands), undefined, undefined, GOB_DEPS);
-
-/** Like `play`, but also collects every event along the way (commands and every auto-settled choice). */
-function driveEvents(state: GameState, ...commands: readonly Command[]): { readonly state: GameState; readonly events: readonly GameEvent[] } {
-  let current = state;
-  const events: GameEvent[] = [];
-  const settleOne = () => {
-    while (current.pendingChoice && !current.outcome) {
-      const choice = current.pendingChoice;
-      const result = applyOk(current, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: firstLegal(current) }, GOB_DEPS);
-      current = result.state;
-      events.push(...result.events);
-    }
-  };
-  settleOne();
-  for (const command of commands) {
-    const result = applyOk(current, command, GOB_DEPS);
-    current = result.state;
-    events.push(...result.events);
-    settleOne();
-  }
-  return { state: current, events };
-}
 
 const criminalEnterpriseId = (state: ReturnType<typeof spiderManVsRiskyBusiness>) =>
   [...state.villainArea, ...state.removedFromGame].find((id) => state.instances[id]?.cardId === "02006a")!;

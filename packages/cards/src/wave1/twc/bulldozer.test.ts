@@ -1,5 +1,6 @@
-import { cannotLeavePlay, mustDefendWithAlly, notDefeatedWithoutThreat, schemeThreatDestination, villainOf, type GameState, type InstanceId } from "@mc/engine";
+import { cannotLeavePlay, mustDefendWithAlly, notDefeatedWithoutThreat, schemeThreatDestination, villainOf, type GameState } from "@mc/engine";
 import { P1, endTurn, identityOf, inst, patchInstance, playerOf, settle, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
+import { withActive } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
@@ -9,7 +10,6 @@ const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): Ga
 
 const bulldozerId = (state: GameState) => state.villains[3]!.instanceId;
 const clearTheRoadId = (state: GameState) => villainOf(state, bulldozerId(state))!.signatureSideSchemeId!;
-const withActive = (state: GameState, id: InstanceId): GameState => ({ ...state, activeVillainId: id });
 
 describe("Bulldozer (07046/07047)", () => {
   it("redirects his own scheme threat to Clear the Road instead of the main scheme", () => {

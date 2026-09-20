@@ -1,27 +1,12 @@
 import { cardId, trait } from "@mc/content";
 import { activeEncounterDeck, activeVillain, characterProfile, remainingHitPoints, traitsOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
 import { endTurn, firstLegal, identityOf, inst, moveToHand, P1, patchInstance, payWith, picking, play, playerOf, settle, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
+import { moveToDiscard } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { DRS_DEPS, runDrs, stackInvocation, startDrsGame } from "./testing.js";
 
 // Real wave 1 content: the Doctor Strange (Protection) precon against Rhino, standard, solo.
 const drsVsRhino = (seed = 2001) => startDrsGame(wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed }));
-
-/** Test-only surgery: moves a copy of `code` straight from deck to the player's discard pile, matching
- * `wave1/msm/ms-marvel.test.ts`'s identically-shaped `moveToDiscard`. */
-function moveToDiscard(state: GameState, player: PlayerId, code: string): { readonly state: GameState; readonly id: InstanceId } {
-  const owner = playerOf(state, player);
-  const wanted = (id: InstanceId) => state.instances[id]?.cardId === cardId(code);
-  const id = owner.deck.find(wanted) ?? owner.hand.find(wanted);
-  if (!id) throw new Error(`${player} has no ${code} in deck or hand`);
-  return {
-    id,
-    state: {
-      ...state,
-      players: state.players.map((p) => (p.playerId === player ? { ...p, deck: p.deck.filter((x) => x !== id), hand: p.hand.filter((x) => x !== id), discard: [...p.discard, id] } : p)),
-    },
-  };
-}
 
 /** The card code of the active encounter deck's current top card. */
 function encounterTop(state: GameState): string {

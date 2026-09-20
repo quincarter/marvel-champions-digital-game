@@ -1,5 +1,5 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeVillain, handSize, remainingHitPoints, type Command, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { activeEncounterDeck, activeVillain, handSize, remainingHitPoints, type Command, type InstanceId } from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -34,18 +34,6 @@ const ADVANCE = "01186";
 const CROWD_CONTROL = "01108";
 
 const basicAttack = (attacker: InstanceId, target: InstanceId): Command => ({ type: "basicAttack", playerId: P1, attackerInstanceId: attacker, targetInstanceId: target });
-
-/** Test-only surgery: moves a copy of `code` straight from deck to the player's discard pile. */
-function moveToDiscard(state: GameState, player: PlayerId, code: string): { readonly state: GameState; readonly id: InstanceId } {
-  const owner = playerOf(state, player);
-  const wanted = (id: InstanceId) => state.instances[id]?.cardId === cardId(code);
-  const id = owner.deck.find(wanted) ?? owner.hand.find(wanted);
-  if (!id) throw new Error(`${player} has no ${code} in deck or hand`);
-  return {
-    id,
-    state: { ...state, players: state.players.map((p) => (p.playerId === player ? { ...p, deck: p.deck.filter((x) => x !== id), hand: p.hand.filter((x) => x !== id), discard: [...p.discard, id] } : p)) },
-  };
-}
 
 /**
  * Brother Voodoo (09012), Clea (09013), Iron Fist (09014), Momentum Shift (09016), The Night Nurse (09019), Warning
