@@ -59,10 +59,10 @@ export class SettingsOverlay extends Phaser.Scene {
   }
 
   #toggle(row: SettingsRowInfo): void {
-    if (row.id === "sound") return; // Drawn unavailable; nothing to toggle.
     const { settings } = appSession();
     const next = nextSettingsAfterToggle(settings, row.id, globalThis.devicePixelRatio || 1);
     if (row.id === "sharper-text") setTextResolution(next.textResolution);
+    if (row.id === "sound") appSession().music?.syncSettings(next);
     appSession().settings = next;
     this.#draw();
   }

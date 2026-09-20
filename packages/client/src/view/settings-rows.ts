@@ -42,9 +42,8 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
     {
       id: "sound",
       title: "Sound",
-      detail: "Not built yet.",
-      on: false,
-      unavailable: "Sound isn't built yet (PLAN.md Phase 8).",
+      detail: "Background music and audio across menus and games.",
+      on: settings.sound,
     },
   ];
 }
@@ -57,9 +56,7 @@ export function sharperTextTargetResolution(devicePixelRatio: number): number {
 /**
  * `settings` with one row's toggle applied — the one place that logic lives,
  * so Pause's inline "Table" group and the standalone Settings screen flip the
- * same field the same way. `"sound"` is a no-op (drawn unavailable; there is
- * nothing to toggle yet), returned unchanged rather than throwing, since a
- * caller may route every row id through this uniformly.
+ * same field the same way.
  */
 export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, devicePixelRatio: number): Settings {
   switch (id) {
@@ -70,6 +67,6 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
     case "large-card-text":
       return { ...settings, largeCardText: !settings.largeCardText };
     case "sound":
-      return settings;
+      return { ...settings, sound: !settings.sound };
   }
 }

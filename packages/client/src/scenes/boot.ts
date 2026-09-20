@@ -142,6 +142,8 @@ export class BootScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setLetterSpacing(typeRole.label.letterSpacing);
 
+    this.scene.launch(SCENES.music);
+
     void this.#awaitFonts()
       .then(() => devScreenJump())
       .then((jump) => {

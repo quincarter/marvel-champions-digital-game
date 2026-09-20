@@ -36,6 +36,7 @@ import { DeckCheckScene } from "./scenes/deck-check.js";
 import { PauseOverlay } from "./scenes/pause.js";
 import { RulesOverlay } from "./scenes/rules.js";
 import { SettingsOverlay } from "./scenes/settings.js";
+import { MusicScene } from "./audio/music-controller.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -83,6 +84,7 @@ const game = new Phaser.Game({
     PauseOverlay,
     RulesOverlay,
     SettingsOverlay,
+    MusicScene,
   ],
 });
 

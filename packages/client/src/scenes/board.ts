@@ -24,7 +24,7 @@
  */
 
 import Phaser from "phaser";
-import { POOL_DEPS } from "../content/pool.js";
+import { POOL_DEPS, POOL_SCENARIOS } from "../content/pool.js";
 import type { AbilityId } from "@mc/content";
 import type { GameEvent, InstanceId } from "@mc/engine";
 import { cardArt, type CardArt } from "../art/card-art.js";
@@ -140,6 +140,11 @@ export class BoardScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor(cssOf(surface.ink.hex));
     const { store } = appSession();
     this.#unsubscribe = store.subscribe((state) => this.#onState(state));
+    const config = store.state.config;
+    if (config?.scenarioId) {
+      const scenario = POOL_SCENARIOS.find((s) => s.id === config.scenarioId);
+      appSession().music?.playBattle({ scenarioId: config.scenarioId, packCode: scenario?.packCode });
+    }
     const onResize = (): void => this.#draw();
     /**
      * The resize listener MUST be removed on shutdown.
