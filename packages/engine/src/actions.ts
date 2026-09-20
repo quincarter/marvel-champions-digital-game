@@ -715,13 +715,19 @@ export function planCost(
   }
   if (cost.discardFromHand) {
     const picks = choices.discard ?? [];
-    const { min, max, bind } = cost.discardFromHand;
+    const { min, max, bind, filter } = cost.discardFromHand;
     if (picks.length < min || (max !== undefined && picks.length > max)) {
       return { code: "invalid_choice", message: `discard ${min}–${max ?? "any number of"} cards to pay this cost` };
     }
+    // "Discard a [physical] resource from your hand →" (docs/phase7-wave2.md §19): every pick must match, read
+    // from the paying player's point of view, so `identitySetOf: you` means their own hero's set.
+    const filterContext: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
     for (const id of picks) {
       if (!player.hand.includes(id) || id === sourceId || reserved.has(id)) {
         return { code: "card_not_in_zone", message: `${id} cannot be discarded from hand for this cost` };
+      }
+      if (filter && !matchesQuery(state, id, filter, filterContext)) {
+        return { code: "no_valid_target", message: `${id} does not match what this cost must be paid with` };
       }
     }
     if (new Set(picks).size !== picks.length) return { code: "invalid_choice", message: "duplicate discard choice" };

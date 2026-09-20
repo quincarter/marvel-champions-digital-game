@@ -395,8 +395,15 @@ export interface AbilityCost {
    * discard up to 5 cards" (min 0, max 5) / "Discard X cards from your hand →" with no printed cap (Shield Toss:
    * `max` omitted — bounded only by hand size, since a player can never select a card twice or one not in hand).
    * Picked in `costChoices.discard`; the cards are bound to slot `discard` and their count to var `bind`.
+   *
+   * `filter` narrows *which* hand cards can pay: "Discard a [physical] resource from your hand →" (the Temporal
+   * obligations, `toafk` 11018/11019/11021) is `{ printedResource: "physical" }`; "Discard a hero-specific card from
+   * your hand →" (Depowered 11020) is `{ identitySetOf: you }`. Every pick must match, and a hand holding fewer than
+   * `min` matching cards cannot pay the cost at all, so the ability is never offered (RRG 1.8 "Initiating Abilities",
+   * p. 24, steps 3 and 5; "Cost", p. 13: a cost is paid in full). The effect-side sibling is
+   * `EffectSpec discardFromHand.filter`. docs/phase7-wave2.md §19.
    */
-  readonly discardFromHand?: { readonly min: number; readonly max?: number; readonly bind?: string };
+  readonly discardFromHand?: { readonly min: number; readonly max?: number; readonly bind?: string; readonly filter?: TargetQuery };
   /**
    * "Pay the printed cost of an ally in any player's discard pile →" (Make the
    * Call): the card picked in `costChoices[slot]` adds its printed cost to the

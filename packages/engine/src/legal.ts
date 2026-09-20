@@ -45,7 +45,7 @@ import {
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, type EffectContext } from "./select.js";
+import { activeAbilityRefs, cardsInPlay, controllerOf, matchesQuery, type EffectContext } from "./select.js";
 import type { GameState } from "./state.js";
 
 /** One thing a player could do on their turn, independent of target and payment. */
@@ -175,11 +175,27 @@ function leavingCardsToDiscard(tryWallets: readonly (readonly Payment[])[], cost
   });
 }
 
-/** "Choose and discard N cards" cost picks: the cards worth the fewest resources, keeping resource cards for paying. */
-function discardPicks(state: GameState, playerId: PlayerId, source: InstanceId, cost: AbilityCost | undefined): readonly InstanceId[] {
+/**
+ * "Choose and discard N cards" cost picks: the cards worth the fewest resources, keeping resource cards for paying.
+ *
+ * A `filter` ("Discard a [physical] resource from your hand →", docs/phase7-wave2.md §19) narrows the candidates
+ * first, so a hand with too few matching cards yields fewer than `min` picks and `planCost` refuses the cost — which
+ * is what makes `legalActions` grey the ability out rather than offer an unpayable one.
+ */
+function discardPicks(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+): readonly InstanceId[] {
   const min = cost?.discardFromHand?.min ?? 0;
   if (min === 0) return [];
-  const hand = (getPlayer(state, playerId)?.hand ?? []).filter((id) => id !== source);
+  const filter = cost?.discardFromHand?.filter;
+  const context: EffectContext = { selfInstanceId: source, controllerId: playerId, event: null, bindings: {}, deps };
+  const hand = (getPlayer(state, playerId)?.hand ?? [])
+    .filter((id) => id !== source)
+    .filter((id) => !filter || matchesQuery(state, id, filter, context));
   const cheapest = [...hand].sort((a, b) => resourceCount(state, a) - resourceCount(state, b) || isResourceCard(state, a) - isResourceCard(state, b));
   return cheapest.slice(0, min);
 }
@@ -285,7 +301,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
   const card = cardOf(state, id);
   if (!card) return null;
   const cost = eventActionAbility(createCtx(state, deps), card)?.cost;
-  const picks = discardPicks(state, playerId, id, cost);
+  const picks = discardPicks(state, deps, playerId, id, cost);
   const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]));
   const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
   const candidateHosts = card.type === "upgrade" && card.attachesTo ? attachmentHostCandidates(state, card.attachesTo, context) : [];
@@ -318,7 +334,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
 
 function evaluateAbility(state: GameState, deps: EngineDeps, playerId: PlayerId, instanceId: InstanceId, abilityId: AbilityId): Evaluated {
   const cost = deps.abilities[abilityId]?.cost;
-  const picks = discardPicks(state, playerId, instanceId, cost);
+  const picks = discardPicks(state, deps, playerId, instanceId, cost);
   const spend = spendOrder(state, deps, playerId, new Set(picks));
   const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).map(({ costChoices, target }) => ({
     target,
@@ -416,7 +432,7 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   ];
   // A basic power with an additional "discard N cards" cost gets the cheapest picks filled in (`basicPowerCosts`).
   const withPicks = (character: InstanceId, power: "attack" | "thwart", command: Command): Command => {
-    const picks = discardPicks(state, playerId, character, basicPowerCost(state, deps, character, power));
+    const picks = discardPicks(state, deps, playerId, character, basicPowerCost(state, deps, character, power));
     return picks.length > 0 && (command.type === "basicAttack" || command.type === "basicThwart") ? { ...command, costChoices: { discard: picks } } : command;
   };
   for (const attacker of characters) {
@@ -553,7 +569,7 @@ function payableFor(
     const id = action.instanceId;
     const card = cardOf(state, id);
     const cost = card ? eventActionAbility(createCtx(state, deps), card)?.cost : undefined;
-    const picks = options.costChoices?.discard ?? discardPicks(state, playerId, id, cost);
+    const picks = options.costChoices?.discard ?? discardPicks(state, deps, playerId, id, cost);
     const sets = costChoiceSets(state, deps, playerId, id, cost, picks);
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);
@@ -584,7 +600,7 @@ function payableFor(
   if (action.kind === "useAbility") {
     const { instanceId, abilityId } = action;
     const cost = deps.abilities[abilityId]?.cost;
-    const picks = options.costChoices?.discard ?? discardPicks(state, playerId, instanceId, cost);
+    const picks = options.costChoices?.discard ?? discardPicks(state, deps, playerId, instanceId, cost);
     const sets = costChoiceSets(state, deps, playerId, instanceId, cost, picks);
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);

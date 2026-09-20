@@ -12,11 +12,13 @@ import { flat, type AnyCard, type CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command, Payment } from "./commands.js";
+import { applyCommand } from "./engine.js";
+import { legalActions } from "./legal.js";
 import { playerId, type InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEvent, stubMainScheme, stubResource, stubSideScheme, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import { stubAlly, stubEvent, stubMainScheme, stubResource, stubSideScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
 import { giveCards, newGame, RESOURCE, runWith, settle, settleUntil } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -265,5 +267,104 @@ describe("§18.3 `anyOf(zone, ref(each(query)))`: one pool across hand/deck/disc
     const tucked = tuckedUnderMarked(after);
     expect(tucked).toHaveLength(1);
     expect(mustInstance(after, tucked[0] as InstanceId).cardId).toBe(MOCKINGBIRD.id);
+  });
+});
+
+// ---- §19 a resource-type-filtered discard *cost* ---------------------------------------------------------------------
+
+/**
+ * "Alter-Ego Action: Discard a [physical] resource from your hand → discard this obligation." (Weakened 11018;
+ * Stolen Memories 11019 reads `[mental]`, Time-Travel Hijinks 11021 `[energy]`.)
+ *
+ * `AbilityCost.discardFromHand` gains `filter` (docs/phase7-wave2.md §19), the cost-side twin of the effect's own
+ * `discardFromHand.filter`. RRG 1.8 "Cost" (p. 13): a cost is paid in full — so a hand with no matching card cannot
+ * pay it, and `legalActions` does not offer the ability (RRG 1.8 "Initiating Abilities", p. 24, steps 3 and 5).
+ */
+describe("§19 `AbilityCost.discardFromHand.filter`", () => {
+  const PHYSICAL = stubResource({ id: "phys19", icons: 0, produces: { physical: 1 } });
+  const MENTAL = stubResource({ id: "mental19", icons: 0, produces: { mental: 1 } });
+  /** A printed wild icon is only ever "wild" (RRG 1.8 "Wild Resource", p. 48), so it never pays a [physical] cost. */
+  const WILD = stubResource({ id: "wild19", icons: 1 });
+
+  const purge = stubAbility("purge.action", def({
+    trigger: { kind: "action", form: "hero" },
+    cost: { discardFromHand: { min: 1, max: 1, bind: "paid", filter: { printedResource: "physical" } } },
+    effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "var", name: "paid" } }],
+  }));
+  const PURGE = stubSupport({ id: "purge", cost: 0, abilities: [purge.ref] });
+
+  /** Hero form, Purge in play, and exactly the named resource cards in hand. */
+  function board(hand: readonly CardId[]): { deps: EngineDeps; state: GameState; purge: InstanceId } {
+    const { deps, state } = setup({
+      cards: [PURGE, PHYSICAL, MENTAL, WILD],
+      abilities: [purge],
+      deck: [...copies(PURGE.id, 2), ...copies(PHYSICAL.id, 6), ...copies(MENTAL.id, 6), ...copies(WILD.id, 6)],
+    });
+    const given = giveCards(state, p1, PURGE.id, ...hand);
+    const support = given.ids[0] as InstanceId;
+    let out = settle(runWith(deps, given.state, toHero, play(support)), undefined, deps);
+    // Drop everything else, so the hand holds exactly the cards this test named.
+    const keep = new Set(given.ids.slice(1));
+    out = { ...out, players: out.players.map((p) => (p.playerId === p1 ? { ...p, hand: p.hand.filter((id) => keep.has(id)) } : p)) };
+    return { deps, state: out, purge: support };
+  }
+
+  const use = (id: InstanceId, discard: readonly InstanceId[]): Command => ({
+    type: "useAbility",
+    playerId: p1,
+    cardInstanceId: id,
+    abilityId: purge.ref.id,
+    payment: [],
+    costChoices: { discard },
+  });
+  const villainId = (state: GameState) => state.villains[0]?.instanceId as InstanceId;
+
+  it("accepts a hand card carrying the named printed icon", () => {
+    const { deps, state, purge: support } = board([PHYSICAL.id, MENTAL.id]);
+    const physical = mustPlayer(state, p1).hand.find((id) => state.instances[id]?.cardId === PHYSICAL.id) as InstanceId;
+    const after = settle(runWith(deps, state, use(support, [physical])), undefined, deps);
+    expect(mustInstance(after, villainId(after)).damage).toBe(1);
+    expect(mustPlayer(after, p1).discard).toContain(physical);
+  });
+
+  it("refuses a hand card that does not, without paying anything", () => {
+    const { deps, state, purge: support } = board([PHYSICAL.id, MENTAL.id]);
+    const mental = mustPlayer(state, p1).hand.find((id) => state.instances[id]?.cardId === MENTAL.id) as InstanceId;
+    const result = applyCommand(state, use(support, [mental]), deps);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a rejection");
+    expect(result.error.code).toBe("no_valid_target");
+    // Nothing moved: the whole cost is refused before any of it is paid.
+    expect(mustPlayer(state, p1).discard).not.toContain(mental);
+  });
+
+  it("refuses a printed wild icon for a typed cost (RRG 1.8 'Wild Resource', p. 48)", () => {
+    const { deps, state, purge: support } = board([WILD.id]);
+    const wild = mustPlayer(state, p1).hand.find((id) => state.instances[id]?.cardId === WILD.id) as InstanceId;
+    const result = applyCommand(state, use(support, [wild]), deps);
+    if (result.ok) throw new Error("expected a rejection");
+    expect(result.error.code).toBe("no_valid_target");
+  });
+
+  it("is offered by `legalActions` only while a matching card is in hand", () => {
+    const offered = (hand: readonly CardId[]): boolean => {
+      const { deps, state, purge: support } = board(hand);
+      const actions = legalActions(state, p1, deps);
+      if (actions.kind !== "turn") throw new Error("not a turn");
+      return actions.legal.some((a) => a.action.kind === "useAbility" && a.action.instanceId === support);
+    };
+    expect(offered([PHYSICAL.id, MENTAL.id])).toBe(true);
+    expect(offered([MENTAL.id, MENTAL.id])).toBe(false);
+    expect(offered([])).toBe(false);
+  });
+
+  it("fills the cost pick in for the client, choosing a matching card", () => {
+    const { deps, state, purge: support } = board([MENTAL.id, PHYSICAL.id]);
+    const actions = legalActions(state, p1, deps);
+    if (actions.kind !== "turn") throw new Error("not a turn");
+    const offered = actions.legal.find((a) => a.action.kind === "useAbility" && a.action.instanceId === support);
+    if (!offered || offered.example.type !== "useAbility") throw new Error("not offered");
+    const [picked] = offered.example.costChoices?.discard ?? [];
+    expect(picked && state.instances[picked]?.cardId).toBe(PHYSICAL.id);
   });
 });

@@ -2189,3 +2189,49 @@ Once that lands, the engine side is a `ValueSpec { kind: "starIcons", cards: Tar
 `totalPrintedResources`, plus a `<bind>.starIcons` total on `discardEncounterCards` — and a `TargetQuery.starIcon?:
 boolean` for Longshot (`wolv`), which needs the same fact as a yes/no rather than a count. Not built here: an engine
 read with no data behind it is worse than no read at all.
+
+---
+
+## 19. A resource-type-filtered discard **cost** (owner: `game-rules-architect`; landed 2026-09-19)
+
+"Alter-Ego Action: Discard a [physical] resource from your hand → discard this obligation." (Weakened 11018;
+Stolen Memories 11019 reads `[mental]`, Time-Travel Hijinks 11021 `[energy]`, Depowered 11020 "a hero-specific
+card".) Tests: `packages/engine/src/primitives-wave2d.test.ts` §19 (5 tests).
+
+**The shape: `AbilityCost.discardFromHand` gains `filter?: TargetQuery`.** One field, additive, defaulting to the
+old behaviour. The effect-side `EffectSpec discardFromHand` has had a `filter` since Power Drain; the cost side had
+`{ min, max, bind }` and nothing to say *which* cards may pay.
+
+```ts
+// "Discard a [physical] resource from your hand →"
+cost: { discardFromHand: { min: 1, max: 1, filter: { printedResource: "physical" } } }
+// "Discard a hero-specific card from your hand →" (Depowered)
+cost: { discardFromHand: { min: 1, max: 1, filter: { identitySetOf: { kind: "controller" } } } }
+```
+
+**Where it is enforced, and why in two places:**
+
+- `planCost` (`actions.ts`) checks every pick against the filter, in the paying player's own context
+  (`controllerId: playerId`, `selfInstanceId: source`) so `identitySetOf: you` means *their* hero's set. A pick that
+  fails is `no_valid_target` and the whole cost is refused **before any of it is paid** — RRG 1.8 "Cost" (p. 13): a
+  cost is paid in full, and RRG 1.8 "Initiating Abilities" (p. 24) step 5 aborts "without paying any costs".
+- `discardPicks` (`legal.ts`) narrows the auto-filled candidates the same way, so `legalActions` offers the ability
+  only while a matching card is in hand, and the `example` command it hands the client picks a matching card rather
+  than the cheapest card in hand. `discardPicks` now takes `deps`, since a `TargetQuery` needs an `EffectContext`.
+
+**Rules calls, both settled by the RRG rather than chosen:**
+
+- **A printed wild icon does not pay a typed cost.** RRG 1.8 "Wild Resource" (p. 48): "When resources are not being
+  generated for a cost, a wild resource does not have any characteristic other than 'wild resource'." The card is not
+  being spent for resources here — it is being discarded as a cost, and the cost names a printed icon — so
+  `printedResource: "physical"` does not match a wild. This is the reading `TargetQuery.printedResource` already
+  documented ("Wild is its own type") and the ruling of Jan 11, 2026 (3) ("a 'printed resource' is the bottom-left
+  icon"); the test pins it.
+- **A card already committed to the resource payment cannot also be the discard**, and neither can the ability's own
+  card. Both were already true (`reserved`, `id === sourceId`) and are unchanged: RRG 1.8 "Cost" (p. 13), multiple
+  costs "must be paid simultaneously".
+
+**What it deliberately does not do.** It does not filter `discardRandomFromHand` ("discard a random card", Fear of
+Kang 11049): a random discard has no choice to constrain, and no card in the pool asks for a *filtered* random
+discard. If one arrives it needs its own decision about what happens when the filtered pool is empty, which is not a
+question this field can answer silently.
