@@ -145,21 +145,62 @@ exact values in the process: both totals turn out to be pinned-seed-deterministi
 own base threat placement / Rhino's own attack-or-scheme numbers, plus Sniper Shot's own printed effect), not
 floors.
 
+### `pnpm card` — one card, everything needed to script it
+
+```bash
+MC_CARD=15023 pnpm card
+MC_CARD="11020 11049" pnpm card
+```
+
+Printed text, type, pack, traits, keywords, cost, `boostIcons`, `starIcon`, every ability ref with whether it
+resolves and which module defines it, and the pack's transcription path. Replaces the five-or-so file reads a
+scripter otherwise does per card, which cost tokens and are easy to get subtly wrong.
+
+Two things it surfaces that are cheap to miss by eye and expensive to miss in a script:
+
+- **Errata.** When `text.current` differs from `text.printed` it prints a loud `!! ERRATA — script THIS`. 51
+  cards in the pool carry errata; Marked for Death (04028) is one, and its errata'd wording ("tucks her faceup
+  beneath" rather than "places her faceup beneath") is exactly the kind of difference a scripter reading the
+  printed text alone would get wrong.
+- **`starIcon`,** flagged with the reminder that it is not `boostIcons`.
+
+### `pnpm dsl` — what can the DSL express, and what is it called
+
+```bash
+pnpm dsl                        # all 266 builders, grouped by module
+MC_DSL=trait pnpm dsl           # name, signature or doc mentions "trait"
+MC_DSL="ready exhaust" pnpm dsl
+```
+
+Step 3 of §2 is "find the primitive that expresses this sentence", and by hand that is grep-the-engine-and-hope:
+expensive in tokens and non-deterministic, because what you find depends on which word you happened to guess.
+Searching names *and* doc comments turns it into a lookup. Generated from source on every run, so unlike a
+checked-in index it cannot go stale.
+
 ## 6. Tooling that would plausibly pay for itself
 
 Ranked by measured pain, not by how nice they'd be:
 
 1. ~~**Scenario-reach helpers for tests.**~~ Built 2026-09-20 — see §5's `testing/staging.ts`.
 2. ~~**A vacuous-assertion check.**~~ Built 2026-09-20 — see §5's `testing/trace.ts`.
-3. **A DSL index** — the 266 builders, grouped by what they express, generated from source. Step 3 is
-   currently "grep the engine and hope". Cheap to generate, needs to stay generated or it rots.
-4. **A card brief command** — `pnpm card 15023` printing printed text, refs, which resolve, traits, type,
-   stats and the pack's module path in one shot. Saves ~5 file reads per card. Modest but broad.
+3. ~~**A DSL index.**~~ Built 2026-09-20 — see §5's `pnpm dsl`.
+4. ~~**A card brief command.**~~ Built 2026-09-20 — see §5's `pnpm card`.
 5. **A primitive-gap ledger with staleness checking** — `KNOWN_SKIPPED` entries carry the doc section claiming
    the gap; a check that re-reads those sections and flags ones now marked landed would have caught all four
    stale skips automatically.
 
+6. **A scenario-reach cookbook** — the helpers in `testing/staging.ts` solve the mechanics, but *which* setup
+   reaches a given situation is still per-card reasoning. A short table ("to test a nemesis reveal, use X; to
+   reach the villain phase with one enemy, use Y") would cut the remaining guesswork.
+
 Explicitly *not* worth building: more card-text extraction. That problem is solved.
+
+### A note on token cost and determinism
+
+Every tool above replaces something an agent otherwise does by reading files and guessing. That matters twice
+over: fewer tokens per card, and — more importantly — the *same* answer every time. `pnpm refs`, `pnpm card` and
+`pnpm dsl` are all generated from the current source, so two sessions asking the same question get the same
+answer, which is the property that stops `KNOWN_SKIPPED`-style drift from recurring.
 
 ## 7. Standing traps
 

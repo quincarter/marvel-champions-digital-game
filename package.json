@@ -22,7 +22,9 @@
     "campaign:scrape": "uv run scripts/scrape_campaign_markdown.py",
     "ingest": "pnpm --filter @mc/content ingest --",
     "clean": "rm -rf packages/*/dist",
-    "refs": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false"
+    "refs": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false refs-report",
+    "card": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false card-brief",
+    "dsl": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false dsl-index"
   },
   "devDependencies": {
     "playwright": "^1.63.0",
