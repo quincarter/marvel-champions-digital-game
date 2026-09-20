@@ -67,7 +67,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   ant: "scripted",
   wsp: "scripted",
   qsv: "scripted",
-  scw: "not started",
+  scw: "scripted",
 };
 
 /**
@@ -156,6 +156,13 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     // --- Obligation/nemesis (wave2/qsv/obligation-nemesis.ts): missing-primitive block, see that file's module
     //     docblock (a "cannot ready … until your next turn ends" standing restriction). ---
     "14024.obligation",
+  ],
+  // Computed 2026-09-19 against SCW_CARDS/WAVE2_ABILITIES, same method as the other packs' own lists above.
+  scw: [
+    // --- Obligation/nemesis (wave2/scw/obligation-nemesis.ts): missing-primitive block, see that file's module
+    //     docblock (no primitive counts star icons — as opposed to boost icons — among a discarded pool of
+    //     boost-area cards; confirmed genuinely missing, not just a missing DSL wrapper). ---
+    "15023.obligation",
   ],
 };
 

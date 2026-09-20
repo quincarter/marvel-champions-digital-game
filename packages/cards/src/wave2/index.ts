@@ -22,7 +22,7 @@ import { TOAFK_ABILITIES } from "./toafk/index.js";
 import { ANT_ABILITIES } from "./ant/index.js";
 import { WSP_ABILITIES } from "./wsp/index.js";
 import { QSV_ABILITIES } from "./qsv/index.js";
-// import { SCW_ABILITIES } from "./scw/index.js";
+import { SCW_ABILITIES } from "./scw/index.js";
 
 /**
  * Every scripted ability in the wave 2 pool, keyed by `AbilityReference` id: Core's own scripts (`WAVE2_CARDS`
@@ -37,7 +37,7 @@ export const WAVE2_ABILITIES: AbilityRegistry = mergeRegistries(
   ANT_ABILITIES,
   WSP_ABILITIES,
   QSV_ABILITIES,
-  // SCW_ABILITIES,
+  SCW_ABILITIES,
 );
 
 /** Engine dependencies for games that use the wave 2 (cycle 1) pool (Core plus every scripted cycle 1 pack). */
