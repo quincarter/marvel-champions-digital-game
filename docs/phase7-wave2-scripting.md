@@ -465,6 +465,51 @@ historical) since they're still the most complete account of *why* each primitiv
   with this one) would benefit from the pooling half alone.
 - **Pinned:** `11013b.when-revealed` (`wave2/coverage.test.ts`'s `KNOWN_SKIPPED.toafk`).
 
+### 6.17 "X (or an event you play) defeats" — narrower than "you defeat" (found scripting `wsp`)
+
+- **Card:** Small but Mighty, Wasp's own hero-face ability (13001a): "Response: After Wasp (or an event you play)
+  defeats a minion or side scheme, deal 1 damage to the villain."
+- **The gap.** `on.defeated({ byYou: true })` matches `characterDefeated`/`schemeDefeated`'s own `defeatedByPlayerId`
+  (`packages/engine/src/trigger-events.ts`), set "when the defeat came from a damage event with a player-controlled
+  source" — any player-controlled source, an ally's own attack included. Small but Mighty's printed text
+  deliberately narrows to "Wasp (or an event)", excluding allies, and nothing on the event names *which card* (as
+  opposed to which player) dealt the defeating damage, so there is no way to exclude an ally-caused defeat without
+  also silently accepting it as "you".
+- **Closest existing primitive:** the `overkill.sourceInstanceId` field `characterDefeated` already carries for its
+  own overkill case — a general `sourceInstanceId` on the same event (whatever dealt the defeating damage,
+  character or event, alongside the existing `defeatedByPlayerId`) would let this be read directly.
+- **Pinned:** `13001a.small-but-mighty` (`wave2/coverage.test.ts`'s `KNOWN_SKIPPED.wsp`; full write-up in
+  `wsp/kit.ts`'s module docblock).
+
+### 6.18 A bonus scoped to "the basic power activation currently resolving", for any of the four basic powers (found scripting `wsp`)
+
+- **Card:** Rapid Growth (13005): "Hero Interrupt: When you use one of your hero's basic powers (THW, ATK, or DEF),
+  change to your Giant hero form and get +2 to that power for this use."
+- **The gap.** `LastingUntil.endOfAttack` (the closest existing "just this activation" scope) is keyed to
+  `currentActivationFrameId` (`packages/engine/src/stack.ts`), which only recognizes `attack`/`enemyAttack`/
+  `enemyScheme`/`thwart` event frames. A basic *defense* or *recover* use pushes no frame kind that scope
+  recognizes, so a DEF use of this card — which the printed text explicitly includes — could not be scoped
+  correctly even though ATK/THW could.
+- **Closest existing primitive:** `enemyAttack`/`enemyScheme`'s own inline `atkBonus`/`schBonus` (a bonus scoped to
+  exactly the activation an *effect* initiates) — there is no equivalent for a basic power a *player command*
+  initiates, which an interrupt would need to hook into before the amount is computed. Generalizing
+  `currentActivationFrameId` to recognize a basic defense/recover frame too would also close this, if those pushes
+  a comparable frame kind already (unconfirmed).
+- **Pinned:** `13005.rapid-growth-interrupt` (full write-up in `wsp/kit.ts`'s module docblock).
+
+### 6.19 An attack-keyword rule that matches *only* a basic attack, excluding an event-sourced one (found scripting `wsp`)
+
+- **Card:** Red Room Training (13008): "While you are in Tiny hero form, your basic attacks gain piercing."
+- **The gap.** `RuleSpec attackKeywords`'s `via` field (docs/phase7-wave2.md §3.13.1) can *exclude* a basic attack
+  (a rule with `via` set never matches one, since a basic attack's own `viaId` is always null — "a basic attack
+  never matches a rule with `via`"), but there is no way to require the opposite: match *only* a basic attack,
+  excluding an event-sourced one. Without it, "your basic attacks gain piercing" can only be scripted as "your
+  attacks gain piercing" (omitting `via` entirely), which over-grants piercing to the player's own event attacks
+  too — a real rules bug, not an approximation of the same behavior.
+- **Closest existing primitive:** `via`'s own null-exclusion, generalized to a `basicOnly: true` field (or a
+  sentinel `via` value meaning "no via at all", the mirror image of today's "some via" match).
+- **Pinned:** `13008.red-room-training-constant-2` (full write-up in `wsp/kit.ts`'s module docblock).
+
 ## 7. Status
 
 | Pack | Code | Status | Notes |
@@ -472,7 +517,7 @@ historical) since they're still the most complete account of *why* each primitiv
 | The Rise of Red Skull | `trors` | **Scripted.** 152 cards, 248 ability refs: 219 resolve (15 as reprint aliases, 204 hand-scripted), 29 in `KNOWN_SKIPPED` — 1 genuine data-gap block (Captured by Hydra's missing "When Defeated" ref) and 28 Hydra Campaign refs, pinned regardless of any primitive since campaign mode is deferred. Every §6 primitive gap found scripting `trors` (§6.1–§6.7, §6.9, §6.10, plus the per-aspect-limit half of §6.11 — 18 refs total across Hawkeye's Bow, Vibranium Arrow, Crossfire's boost, Piercing Strike, Finesse, Jessica Drew's Apartment, Superhuman Agility, Crossfire's Rifle, Cable Arrow, Kate Bishop's Hawkeye, Mockingbird, Crossbones' Assault, Prison Camps, Hydra Reinforcements, Taskmaster I/II/III's forced response, None Shall Pass's forced interrupt) has since landed and was un-skipped in later passes over the same pack — see §6's "LANDED" notes. | All five scenarios are scripted: Hawkeye/Spider-Woman kits (`hawkeye-kit.ts`, `hawkeye-obligation-nemesis.ts`, `spider-woman-kit.ts`, `spider-woman-obligation-nemesis.ts`), Crossbones (`crossbones.ts`), Absorbing Man (`absorbing-man.ts`), Taskmaster (`taskmaster.ts`), Zola (`zola.ts`) and Red Skull (`red-skull.ts`), each with its own `wave2Scenario(...)` entry in `../setup.ts` and its own ruling-level `.test.ts` plus a standalone setup test proving each scenario's own 1A/1B setup ability actually runs (setAside, scenario decks, engaged minions, revealed side schemes, etc.). Real-game tests: `wave2/trors/e2e.test.ts` (Hawkeye and Spider-Woman precons vs. Rhino, solo, to a real outcome; Crossbones standalone 2-player setup). **Data gaps flagged for `card-data-pipeline`:** (1) the Attack on Mount Athena 1A text prints "Three modular sets (Hydra Assault, Weapon Master, and Legions of Hydra)", but `trors/encounterSets.ts` has no "Legions of Hydra" `EncounterSet` — `crossbonesScenario` uses only the two that exist; (2) several cards carry more ability refs than their printed text has independent clauses for (Omni-Morph Duplication 04089's four extra "-constant" refs, The Mad Doctor 04113b's and Neurological Implants 04119's second refs, The Rise of Red Skull 1A's 04128a and New World Hydra's 04129b's "-constant" refs) — each is stood up as an empty `coveredByEngineRule()` rather than left unscripted, since the card's own primary ability ref already carries the full printed behavior; (3) Captured by Hydra (04107) prints a "When Defeated" clause with no ability ref to hang it on (contrast Hydra Prison, 04122, which prints an equivalent shape with two refs) — only its "When Revealed" half is scripted. |
 | The Once and Future Kang | `toafk` | **Scripted.** 51 cards, 82 ability refs: 76 resolve, 6 in `KNOWN_SKIPPED` — 1 new primitive gap (§6.16, "your own nemesis minion" as a live query, Kang's Wrath 4B), 4 pre-existing primitive/data-gap blocks on the Temporal obligations (a resource-type-filtered discard cost; two "two clauses, one ref" data-shape gaps), 1 identical "two clauses, one ref" gap on the Expert set's own Fear of Kang. All four §6.13/§6.14 gaps landed (docs/phase7-wave2.md §10) and were un-skipped this pass: 11008b's both refs (the acceleration-token redirect and the join restriction — the latter needed no rule at all, §10.4), and 11013a (Kang III added, the tucked Kang's Dominion revealed via the new `TargetRef { kind: "tuckedUnder" }`/`tuckedUnderRef`). The Expert encounter set (11040–11051), not started as of the previous session, is now fully scripted. **A real bug was found and fixed in the same pass, not just new scripting:** `11007a.setup`'s "remove each player's obligation cards from the game" used `query("obligation")` — *every* obligation-type card — which was correct only until the Temporal set's own four obligations (11018–11021, also type "obligation") existed; once scripted, this silently removed them at setup too, discovered only by a real test (`kang-encounter-set.test.ts`) failing to find 11021 anywhere in the game. Fixed with `withoutTrait: TEMPORAL` (every identity obligation is untraited; all four Temporal obligations carry it) — see `kang.ts`'s own comment on that ability. | Kang's villain (standard and Expert), "Kang's Arrival" 1A/1B, "The Master of Time" 2A/2B, "Kang's Wrath" 4A, and all four stage 3 alternatives are scripted in `kang.ts`; the Kang/Temporal encounter set plus the Expert set (11014–11033, 11040–11051, minus the two-clauses-one-ref obligations) is scripted in `kang-encounter-set.ts`. `wave2Scenario("kang", …)` (`../setup.ts`'s `kangScenario`) is data-driven off `WAVE2_SCENARIOS`. `kang.test.ts` has a standalone setup test (standard and expert), ruling-level tests, and a full one-player split-and-rejoin playthrough exercising 11008b and 11013a end to end through real commands (defeat Kang (I) → stage 3 area created → defeat that area's Kang (II) → area rejoins the center → center advances straight to Kang's Wrath → Kang (III) and the tucked Dominion appear). `kang-encounter-set.test.ts` (new this pass) covers Time-Travel Hijinks' highest-cost discard-and-tuck with a real playthrough, plus definition-level checks for the rest. **A second, purely data-side gap was found, not fixed (out of `@mc/cards`' remit): the Kang/Temporal set's own four obligations (11018–11021) carry `encounterSetIds: []` in `@mc/content`** — they are never shuffled into any deck in a real game, so they are currently unreachable content despite being correctly scripted. Flagged for `card-data-pipeline`; `kang-encounter-set.test.ts`'s own Time-Travel Hijinks test works around it by relabeling an already-in-the-deck filler card's `cardId`, documented inline as a stand-in for the real fix. |
 | Ant-Man | `ant` | **Scripted.** 33 cards, 37 ability refs: 30 resolve (reprints aliased by `../reprints.ts` plus hand-scripted refs across `kit.ts`/`obligation-nemesis.ts`/`pack-cards.ts`), 7 in `KNOWN_SKIPPED` — see §6.15 (Yellowjacket's two form-conditional constants, found-by-testing engine crash), plus missing-primitive blocks for Care for Cassie's "cannot change form" lasting rule, Yellowjacket's Plan's "belongs to encounter set X" query, Ant-Man's own overpaid-from-a-later-interrupt read, Team-Building Exercise's "shares a trait with your hero" query and Muster Courage's dynamic `chooseCards.max`. Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md) and Tech Theft's class-wide text-blanking (§8 there) are both landed and used (`kit.ts`'s `changeToOtherHeroForm`/`youHaveTrait`, `obligation-nemesis.ts`'s `blanksTextBox`, verified with a real behavioral test attaching a TECH upgrade and confirming its own text goes blank). Pym Particles' "after you spend this card" trigger (`resourcesSpent`/`on.youSpendThis()`) and Giant Strength's `LastingUntil.endOfTurn` both landed mid-session (commits `1036be7`, `c53ad0b`) and were un-skipped with real behavioral tests the same session. | Ant-Man's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-aspect cards (`pack-cards.ts`) each have ruling-level tests (`kit.test.ts`) driving real commands — form changes, Hero Actions gated by `while`, a Team-Up legality check, a reveal-from-encounter-deck helper for the nemesis set's own cards — plus `e2e.test.ts` (Rhino, standard, solo, Ant-Man Leadership precon to a real outcome, replayed deep-equal). |
-| Wasp | `wsp` | **Not started.** | Three-sided identity; divided basic powers (§3.7, landed). |
+| Wasp | `wsp` | **In progress.** 34 cards, ~50 ability refs: all but 6 resolve. `KNOWN_SKIPPED.wsp` — 3 new primitive gaps found this pass (§6.17–§6.19: an identity-or-event-not-ally defeat distinction, a basic-power-activation-scoped bonus covering all four powers, a basic-attack-only keyword grant), plus the same two `ant`-precedented gaps reused verbatim (§6.15's `traitsOf` recursion crash, for the identical "gains a trait conditional on your own current form" shape on Wasp's own Ant-Man ally; the overpaid-from-a-later-interrupt gap, for Wasp's own ally). | Wasp's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`, Red Dreams/Mother's Orders/Beetle/Beetle Armor MK IV/Beetle Mania) and the pack's own generic-aspect cards (`pack-cards.ts`) are scripted, each with real behavioral tests (`kit.test.ts`, `obligation-nemesis.test.ts`, `pack-cards.test.ts`) — including a real damage exchange proving Bio-Synthetic Wings/Red Room Training/Wasp's Helmet (constants gated by `while: hasTrait(...)` on a *stat modifier or keyword grant, never a trait grant*) don't trip §6.15's crash, the load-bearing check this pass needed before trusting any of them. No standalone scenario/e2e test yet (`wsp` owns no scenario of its own; the Rhino Core scenario is used for every test, the same way `ant/kit.test.ts` does). Reused Ant-Man's own three-sided-identity and divided-basic-power patterns throughout, per the task brief. |
 | Quicksilver | `qsv` | **Not started.** | `basicPowerUsed` trigger event (landed, used already by Spider-Woman's Captain Marvel in `trors`). |
 | Scarlet Witch | `scw` | **Not started.** | Two copies of her own obligation shuffled in (§1.10, landed); boost-icon counting as an event (§3.6, landed for activation counts; card-effect counts — Hex Bolt — still open per §4.8). |
 
@@ -701,11 +746,49 @@ of the Expert set), not a full retroactive audit of the pre-existing cards. Give
 end to end (the same way this session's predecessor did for `ant`'s Tech Theft/Yellowjacket) would not be wasted
 time — flagged here rather than attempted, to stay inside this session's own budget once `toafk` closed out.
 
-**Not reached this session: `wsp`, `qsv`, `scw`.** `toafk`'s primitive-gap re-audit, the Expert set, and the
-`11007a.setup`/11021 bug hunt took the rest of this session's budget. **Next session starts with `wsp`** (three-sided
-identity, same landed primitives `ant` used; divided basic powers, §3.7, landed) — re-check §3.13 for anything
-landed since this was written, the same habit every session so far has depended on. Also worth carrying forward:
-**grep any new pack's constant abilities for a `while` that reaches `hasTrait`/`traitsOf` before trusting it
-compiles-and-therefore-works** — §6.15's crash was silent at the type level and only surfaced through a real
-behavioral test, exactly the "compiling is not evidence of correctness" lesson CLAUDE.md and this brief's own §4.1
-both already warn about, now with two more concrete instances (`11007a.setup`, this same session).
+**Not reached that session: `wsp`, `qsv`, `scw`.** `toafk`'s primitive-gap re-audit, the Expert set, and the
+`11007a.setup`/11021 bug hunt took the rest of that session's budget.
+
+**2026-09-19, next session: `wsp` started, promoted to `"in progress"` (from `"not started"`).** Scripted Wasp's kit
+(`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-aspect cards (`pack-cards.ts`),
+reusing Ant-Man's own three-sided-identity (§1.1/§3.2) and divided-basic-power (§3.7) patterns throughout, per the
+task brief. 6 refs skipped, all newly-documented or reused primitive gaps (§6.15's `traitsOf` recursion crash on
+Wasp's own Ant-Man ally, identical shape to Yellowjacket's; the overpaid-from-a-later-interrupt gap on Wasp's own
+ally, identical to Ant-Man's own ally; three genuinely new gaps found scripting this pack, §6.17–§6.19: Small but
+Mighty's "identity-or-event, not ally" defeat distinction, Rapid Growth's basic-power-activation-scoped bonus
+needing to cover THW/ATK/DEF (not just the two `LastingUntil.endOfAttack` already tracks), Red Room Training's
+"basic attacks only" keyword grant).
+
+**The session's own load-bearing finding wasn't a new primitive — it was confirming three form-conditional
+constants that *looked* like Yellowjacket's crash-inducing shape were actually safe, and proving it with a real
+test rather than trusting the reasoning alone** (this brief's own §4.1 rule, cutting the other way from usual:
+"verify a *skip* claim is real" also means "verify a *script* claim is safe" before shipping it). §6.15's crash is
+specifically triggered by a constant **trait grant** whose own `while` calls `hasTrait(...)` — re-reading
+`traitsOf`'s scan loop (`packages/engine/src/select.ts`) line by line found it only inspects `definition.trigger.
+traitGrants`, never `.modifiers` or `.keywordGrants`, so a `while: hasTrait(...)` on a pure stat modifier (Wasp's
+Helmet) or keyword grant (Red Room Training's Giant-form retaliate) or an *unconditional* trait grant (Bio-Synthetic
+Wings' "gains the Aerial trait", no `while` at all) never re-enters the poisoned scan. `kit.test.ts`'s own Bio-
+Synthetic Wings test drives a real `basicAttack` against Rhino with both of those constants active in play
+specifically to prove this out loud rather than leaving it as an inference — the closest this pack gets to `ant`'s
+own found-by-testing crash, except this time testing confirmed the reasoning instead of overturning it.
+
+**Also found and fixed, not just flagged:** `13012.wasp-interrupt`/Ant-Man's own `12002` in Wasp's deck both needed
+the "gets +1 hit point for each pym counter" constant only — the overpay interrupt half was skipped, cleanly split
+from the constant the same way `ant/pack-cards.ts` already does for `12011.ant-man-constant`.
+
+**Every wsp test drives real commands, not `toBeDefined()`, except cards genuinely unreachable from Wasp's own
+single-aspect Aggression precon** (Running Interference, Athletic Conditioning, and the rest of the Justice/
+Leadership/Protection/Basic-aspect cards printed in her set but built for *any* hero's deck — `pack-cards.test.ts`'s
+own docblock explains why, rather than silently settling for the weaker bar). `pnpm --filter @mc/cards test` (618
+tests) and root `pnpm typecheck` are both green.
+
+**Not reached this session: `qsv`, `scw`.** `wsp`'s kit alone — three genuinely new primitive gaps, each needing the
+same rules research toafk's own session did, plus the §6.15 safety verification — filled this session's budget.
+**Next session starts with `qsv`** (`basicPowerUsed`, already proven twice now — Spider-Woman's Captain Marvel in
+`trors`, Rapid Growth's own *skipped* interrupt in `wsp` shows what it *can't* yet do) — re-check §3.13/§6 before
+assuming any gap recorded here is still open, the same habit every session so far has depended on. Also worth
+carrying forward: **grep any new pack's constant abilities for a `while` that reaches `hasTrait`/`traitsOf` before
+trusting it compiles-and-therefore-works, but don't stop at the grep** — this session found the grep alone
+over-flags (a `while: hasTrait(...)` on a modifier/keyword grant is safe; only a trait grant's own `while` is
+poisoned), so read what `traitsOf`'s own scan loop actually inspects before skipping a card that merely resembles
+Yellowjacket's shape.

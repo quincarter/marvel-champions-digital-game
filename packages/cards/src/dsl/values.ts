@@ -167,6 +167,13 @@ export const sum = (...values: readonly Amount[]): ValueSpec => ({ kind: "sum", 
  * "for each treachery looked at this way" (Falcon: `countAmong(chosen("looked"), query("treachery"))`).
  */
 export const countAmong = (cardsRef: TargetRef, q: TargetQuery): ValueSpec => ({ kind: "countInRef", cards: cardsRef, query: q });
+/**
+ * "Where X is equal to the villain's stage number" (Death from Above, Wicked Ambitions, Regenerative Healing,
+ * Muster Courage, Running Interference, United We Stand, Browbeat): `of` defaults to the active villain. Several
+ * packs (`wave1/gob/local.ts` first) carried an identical per-pack copy of this builder predating its
+ * centralization here, the same situation `superlative`/`printedCostOf` were in.
+ */
+export const villainStageNumberOf = (of?: TargetRef): ValueSpec => ({ kind: "villainStageNumber", ...(of ? { of } : {}) });
 export const damageOn = (of: TargetRef): ValueSpec => ({ kind: "damage", of });
 export const threatOn = (of: TargetRef): ValueSpec => ({ kind: "threat", of });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });

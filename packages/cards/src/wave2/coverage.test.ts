@@ -65,7 +65,7 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
   trors: "scripted",
   toafk: "scripted",
   ant: "scripted",
-  wsp: "not started",
+  wsp: "in progress",
   qsv: "not started",
   scw: "not started",
 };
@@ -145,6 +145,17 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "12011.ant-man-interrupt",
     "12024.team-building-exercise-action",
     "12032.muster-courage-action",
+  ],
+  // Computed 2026-09-19 against WSP_CARDS/WAVE2_ABILITIES, same method as the other packs' own lists above.
+  wsp: [
+    // --- Wasp's kit (wave2/wsp/kit.ts): missing-primitive blocks, see that file's module docblock. ---
+    "13001a.small-but-mighty",
+    "13002.ant-man-constant",
+    "13002.ant-man-constant-2",
+    "13005.rapid-growth-interrupt",
+    "13008.red-room-training-constant-2",
+    // --- Pack cards (wave2/wsp/pack-cards.ts): missing-primitive block, see that file's module docblock. ---
+    "13012.wasp-interrupt",
   ],
 };
 
