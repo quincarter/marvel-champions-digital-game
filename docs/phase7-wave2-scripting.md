@@ -247,6 +247,18 @@ is now landed; only the two data gaps (Captured by Hydra 04028/04107, no ability
 half) and the deferred Hydra Campaign refs remain in `KNOWN_SKIPPED`. Write-ups below are kept as-is (now
 historical) since they're still the most complete account of *why* each primitive has the shape it does.
 
+**LANDED (2026-09-19, `game-rules-architect`): §6.15 through §6.19, the `toafk`/`wsp` batch.** Full write-up,
+including the two places the shape differs from the request and one open corner, in docs/phase7-wave2.md §17; engine
+tests in `packages/engine/src/primitives-wave2c.test.ts`. In short — §6.16 `TargetQuery.nemesisMinionOf: PlayerRef`;
+§6.17 `sourceInstanceId` on `characterDefeated`/`schemeDefeated`, matched by the existing `EventPattern.sourceIs`
+(use `owner: "you"`, not `controller`, for an event card); §6.18 a new interruptible `basicPowerUsing` event plus
+`EffectSpec modifyBasicPower { amount }` — **ATK/THW/DEF only**, recovery flagged and deliberately not built (§17.4
+says exactly why and what it would take); §6.19 `RuleSpec attackKeywords.basicOnly`; §6.15 fixed in `traitsOf` with a
+documented semantic call (a constant trait grant's condition reads *printed* traits, never constant-granted ones —
+§17.5). No DSL builders were written: the two the scripter needs are described in §17.4. Un-skippable now:
+`11013b.when-revealed`, `13001a.small-but-mighty`, `13005.rapid-growth-interrupt`,
+`13008.red-room-training-constant-2`, `12027.yellowjacket-constant(-2)`, `13002.ant-man-constant(-2)`.
+
 ### 6.1 A one-shot played event granting piercing/ranged to only its own attack (4 cards blocked, the largest gap)
 
 - **Cards:** Hawkeye's Bow (04002, constant: "each of your Arrow attacks gain ranged"), Vibranium Arrow (04009,

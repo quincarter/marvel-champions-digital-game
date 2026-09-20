@@ -1819,3 +1819,235 @@ card the action is on (for an event, the card in hand). `useAbility`'s own messa
 ability cannot be triggered right now" to "that ability cannot be triggered: its condition is not met". A client can
 tell it apart from the `cannotTriggerActions` rule, which keeps the first message, and the scripter's existing
 `/cannot be triggered/` assertions still hold.
+
+---
+
+## 17. The `wsp`/`toafk` primitives, and the `traitsOf` crash (owner: `game-rules-architect`; landed 2026-09-19)
+
+The four gaps `ability-scripting-engineer` recorded while scripting `toafk` and `wsp`
+(docs/phase7-wave2-scripting.md §6.16–§6.19), plus the found-by-testing engine crash recorded as §6.15. Tests:
+`packages/engine/src/primitives-wave2c.test.ts` (20 tests, one `describe` per item below), all with synthetic cards —
+engine code never names a card.
+
+| Gap | Shape | Status |
+|---|---|---|
+| §6.16 "their nemesis minion" | `TargetQuery.nemesisMinionOf: PlayerRef` | **Landed**, §17.1 |
+| §6.17 what defeated it | `characterDefeated`/`schemeDefeated`.`sourceInstanceId` (an event *source*) | **Landed**, §17.2 |
+| §6.19 basic attacks only | `RuleSpec attackKeywords.basicOnly` | **Landed**, §17.3 |
+| §6.18 "+N to that power for this use" | `basicPowerUsing` event + `EffectSpec modifyBasicPower` | **Landed** for ATK/THW/DEF, §17.4; recovery flagged, not built |
+| §6.15 `traitsOf` recursion | a `DEFAULT_DEPS` guard on a constant trait grant's own condition | **Landed**, §17.5 (a semantic call, read it) |
+
+Everything is additive: no existing `AbilityDefinition`, event, log line or script changes shape, and the full suite
+(engine, cards, client) is green after each commit.
+
+### 17.1 "Their nemesis minion" as a live per-player query (§6.16)
+
+**`TargetQuery.nemesisMinionOf?: PlayerRef`** (`spec.ts`, matched in `select.ts` `explainQuery`; new `QueryExclusion`
+`notNemesisMinion`, with its one wording string added to the client's exhaustive table).
+
+RRG 1.8 "Nemesis Encounter Set" (p. 30) defines the term in two halves, and both are checked:
+
+> "An identity's 'nemesis minion' is the minion belonging to that identity's nemesis set. If a nemesis set has
+> multiple minions in it, the 'nemesis minion' is designated by parenthetical text printed on one or more of those
+> minions."
+
+So: the card carries the "(X's nemesis minion.)" parenthetical — `MinionCard.nemesisMinion`, already in the content
+schema — **and** one of its `encounterSetIds` is that player's identity's own `nemesisEncounterSetId`. A minion
+flagged in a set nobody at the table plays matches nobody; the *other* minion of a nemesis set matches nobody.
+
+```ts
+// "Each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion and puts it
+//  into play engaged with them." (Kang's Wrath 4B, 11013b — the §10.1 `anyOf` pool with this as the filter.)
+{ kind: "anyOf", of: [
+  { kind: "encounter", zones: ["deck", "discard"], filter: { nemesisMinionOf: { kind: "scoped" } } },
+  { kind: "setAside", player: { kind: "scoped" }, filter: { nemesisMinionOf: { kind: "scoped" } } },
+] }
+```
+
+- **Not a widened `identitySetOf`**, which reads a *player* card's set icon out of `aspect`; a nemesis set is
+  encounter-side (ruling, Jun 25, 2026 (4): "Nemesis sets belong to that identity" — set ownership, not the
+  deckbuilding filter), so it needs its own field rather than a special case inside that one.
+- **Matches wherever the card is** — in play, in a deck or discard pile, or set aside (RRG 1.8 "Set Aside", p. 39:
+  set-aside cards are out of play "until they are referenced by … a card ability"). That is what makes one selector
+  enough; nothing about the field is search-specific.
+- **`{ kind: "each" }` works**, so "each player … their nemesis minion" is one query rather than a per-player loop:
+  the field resolves the `PlayerRef` and asks whether the card belongs to *any* of the players it names.
+- **Sizing:** four cards in the emitted pool need it today — Kang's Wrath 4B, The Hood's Ambush (`hood`), Face the
+  Past (`magneto`, the card the Jan 17, 2026 (5) ruling is about), and Advance (Core, "reveal your set-aside nemesis
+  minion"). Nothing about it is Kang-specific.
+
+### 17.2 What defeated it, beside who (§6.17)
+
+**`characterDefeated.sourceInstanceId` and `schemeDefeated.sourceInstanceId`** (`trigger-events.ts`), optional and
+absent when nothing caused the defeat, beside the `defeatedByPlayerId` each already carried.
+
+They are the event's **source subject** (`eventSubjects`), so an existing `EventPattern.sourceIs` reads them with no
+new pattern field:
+
+```ts
+// "Response: After Wasp (or an event you play) defeats a minion or side scheme, deal 1 damage to the villain."
+// (Small but Mighty, 13001a.)
+{ kind: "response", forced: false, on: {
+  on: ["characterDefeated", "schemeDefeated"],
+  sourceIs: { categories: ["identity", "event"], owner: "you" },
+} }
+```
+
+`on.defeated({ byYou: true })` matches the defeating *player*, which an ally's own attack satisfies too; this says
+which **card** did it. Where each field comes from:
+
+- `characterDefeated`: the defeating `dealDamage`'s `sourceInstanceId`, carried on the defeat sweep's existing hint.
+  For an attack that is the attacking character — so an attack made by an "(attack)" event is sourced to the
+  *identity*, with the event as the attack's `via`. For a card effect's damage it is the card itself.
+- `schemeDefeated`: the `removeThreat`'s own `sourceInstanceId`. A thwart's removal is already sourced to the
+  thwarting character (RRG 1.8 "Thwart", p. 44 — the character performs it, basic or "(thwart)"-labeled), so unlike
+  the defeating *player* this needs no thwart special case.
+
+**One consequence to know, flagged rather than hidden:** because an attack- or thwart-labeled event's power is
+performed by the identity, "an event you play defeated it" and "your identity defeated it" are the *same* answer for
+those cards. Small but Mighty accepts both halves, so it reads correctly either way; a future card that wants only
+the event half (none in the pool) would need the attack's `via` on the defeat event as well. Use `owner: "you"`
+rather than `controller: "you"` in the query: an event card's controller is cleared once it is discarded, its owner
+never is.
+
+Logging: no log-shape change at all. The whole trigger event is already written to the log by `triggerEvent`
+(`initiated`/`resolved`), so the replay trace records the new field for free.
+
+### 17.3 An attack keyword granted to basic attacks only (§6.19)
+
+**`RuleSpec attackKeywords.basicOnly?: boolean`** (`abilities.ts`; read in `rules.ts` `grantedAttackKeywords`, which
+now takes the attack's own `basic` flag through `AttackKeywordContext`).
+
+`via` could already *exclude* a basic attack (a basic attack's `viaId` is null, so it never matches a rule with
+`via`); nothing could require one. "While you are in Tiny hero form, your basic attacks gain piercing" (Red Room
+Training 13008) could therefore only be scripted as "your attacks gain piercing", which over-grants to the player's
+own event attacks — a rules bug, not an approximation.
+
+```ts
+{ kind: "attackKeywords", keywords: ["piercing"], attacker: { categories: ["identity"], controller: "you" }, basicOnly: true }
+```
+
+- **"Basic" is how the attack was made, not who made it** (RRG 1.8 "Basic Power", p. 10: ATK "can be used by a
+  character to perform a basic attack"), which is exactly the `attack` event's own `basic` flag. So an ally's basic
+  attack is one, and an enemy activation is not — a rule with `basicOnly` and no `attacker` filter reaches every
+  basic attack in the game and no villain attack. All three are pinned by test.
+- **Sizing:** four cards today — Red Room Training, Brute Force (`qsv`), Psi-Katana (`psylocke`), Wolverine's own
+  upgrade (`wolv`) — all with the identical "your basic attacks gain piercing" wording.
+
+### 17.4 "+N to that power for this use" (§6.18)
+
+Two additive pieces. The request asked for "a basic-power-activation scope"; the scope turned out to exist already
+(`endOfAttack`'s activation frame covers a basic attack, a basic thwart *and* a basic defense, since a defense
+belongs to the enemy attack's frame). What was actually missing was a **window** and a **dynamic stat**, so that is
+what was built.
+
+**1. `basicPowerUsing`** (`trigger-events.ts`), the interrupt twin of `basicPowerUsed`, in the engine's existing
+"-ing" idiom (`cardReadying`, `encounterCardRevealing`, `cardBeingPlayed`): same three fields
+(`characterInstanceId`, `power`, `playerId`), interruptible, pushed **on top of** the power's own events so its
+interrupt window resolves before the power's value is read. Pushed only when an ability could react, so nothing about
+an unheard power changes. A stunned attack or a confused thwart reaches neither event (the cancel returns first), so
+a cancelled power is not "used" for any timing — FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61).
+
+Why one new event rather than an `on: ["attack", "thwart", "defended"]` list: those three have different shapes and
+different subjects (the thwarter is the source; the defender is the *target* of `defended`; `attackKind` only applies
+to two of them), so a single ability could not say "the character using the power is your hero" across them. Rapid
+Growth is one printed ability and therefore one trigger.
+
+**2. `EffectSpec modifyBasicPower { amount: ValueSpec }`** (`spec.ts`, applied in `resolve/apply-effect.ts`): "get
++N to **that** power for this use". It reads the power off the `basicPowerUsing` event on the stack, maps it to the
+stat (attack→`atk`, thwart→`thw`, defense→`def`, recover→`rec`), and adds a `statModifier` lasting effect on the
+character using the power, scoped `endOfEvent` to the activation the use belongs to.
+
+```ts
+// "Hero Interrupt: When you use one of your hero's basic powers (THW, ATK, or DEF), change to your Giant hero form
+//  and get +2 to that power for this use." (Rapid Growth 13005.)
+{ trigger: { kind: "interrupt", forced: false, form: "hero", on: { on: "basicPowerUsing", playerIs: "controller", targetIs: { categories: ["identity"], controller: "you" } } },
+  effects: [ …changeForm…, { kind: "modifyBasicPower", amount: { kind: "const", value: 2 } }] }
+```
+
+- **A `statModifier`, not a frozen number**, so it composes with every other modifier and is read when the power's
+  value is read — which is why the same ability can change form *first* and still get the new form's power +2,
+  whatever order its effects are written in.
+- **"For this use"** is the activation frame, so it expires with that attack / that thwart / that enemy attack and
+  never carries into the next use. Outside a basic-power use the effect does nothing at all (tested).
+- **It lands on the character using the power**, not on the controller's hero: an ally's own basic attack gets it.
+- **DEF is included.** The window opens where the defender is declared and exhausted, before step 4 reads DEF (RRG
+  1.8 "Attack (Enemy Activation)", p. 9). Tested as a difference: 5 ATK − (2 + 2) versus 5 ATK − 2.
+- **DSL surface for `@mc/cards`** (not written here — `ability-scripting-engineer` owns it): a pattern builder
+  `on.basicPowerUsing({ power?, playerIs })` beside the existing `on.basicPowerUsed`, and an effect builder
+  `modifyBasicPower(amount)`. A card that names one power ("when you use your basic ATK") narrows with
+  `eventIs: { power: "attack" }`.
+
+**Recovery: deliberately not wired, and here is the exact reason.** Recovery is the one basic power with no event
+frame of its own — `basicRecover` heals inside the command — so there is nothing for an interrupt to precede and
+nothing for "this use" to expire with. No card in the emitted pool needs one: recovery is an alter-ego power (RRG 1.8
+"Recover, Recovery", p. 36; "Basic Power", p. 11, "Generally, only alter-egos have recovery power"), and every card
+in the pool that interrupts a basic power is either a **Hero** Interrupt (Rapid Growth, Venom's Pistol) or names
+"(THW, ATK, or DEF)" explicitly (Nova's Supernova Helmet, Quicksilver's Super Speed, Psylocke's Psi-Energy Control),
+or sits on an ally, which has neither DEF nor REC (the Scarlet Witch ally, `qsv` 14002). The `power` field already
+covers all four values, so nothing changes shape when one arrives. **The change it would need:** give the recovery
+its own event frame the way `attack` and `thwart` have one — an event whose apply step heals by the character's
+current REC — so the window precedes it and REC is re-read after the window closes. Flagged for the user rather than
+half-built.
+
+**Open corner, flagged not resolved: a divided basic attack.** Wasp's Giant form divides her basic ATK among enemies
+(FAQ "Wasp (#1C)"), and the shares are declared and validated *when the power is used* — before this window opens —
+as fixed per-target amounts. So a `modifyBasicPower` during a divided basic attack changes the character's ATK but
+not the shares, and the bonus is lost. Whether the printed rules even allow a division to grow after it is declared
+(the shares must total the power's value at declaration) is not something the RRG answers; the engine's behaviour is
+the conservative one and is recorded here rather than guessed at in code.
+
+### 17.5 A constant trait grant conditional on a trait (§6.15) — a semantic call
+
+`traitsOf` (`select.ts`) evaluated every constant `traitGrant`'s `while` under the full registry, so a
+`while: hasTrait(...)` re-entered `traitsOf`, unconditionally and with inputs that never changed:
+`RangeError: Maximum call stack size exceeded` for **any** card on the board, the moment such an ability was in play.
+`statBonus`/`modifiersFor` reach the same scan, so a stat modifier of the same shape crashed identically. Four tests
+reproduce it with generic fixtures before the fix.
+
+**The fix:** a constant trait grant's own `while` and `target` are evaluated under `DEFAULT_DEPS` — printed
+characteristics and lasting effects only, never traits (or keywords, or anything else) that *constant abilities*
+grant. That is the guard `blankedByConstantRules` (immediately below it) already uses for the identical class of
+self-reference, with the same justification written into its own docblock.
+
+**This is the engine's reading, not a printed rule.** The RRG does not settle it: "Modifiers" (p. 29) recalculates a
+quantity "from the start, considering the unmodified base value and all active modifiers", with no rule for a
+modifier whose own condition depends on the result; "Constant Abilities" (p. 5) only says a conditional one is active
+"anytime the specific condition is met". Two properties decided it:
+
+1. **It terminates** for every board, including mutually-referential grants (two cards each "while the other has
+   TAGGED, gain TAGGED"): both conditions read the printed base, so neither fires. Tested.
+2. **It is order-independent**: every condition reads the same fixed base, so no answer depends on which card the
+   scan visits first, or which card the caller asked about. Tested with a pair where one card *prints* the trait: the
+   other gains it, and the printed one does not gain a second copy back.
+
+**What it costs:** "while X has the Giant trait" does not see a Giant trait another *constant ability* granted X (a
+lasting "gains the trait until the end of the phase" still counts — lasting effects are applied before the guarded
+scan). No card in the pool chains two constant trait grants, and the cards that need this work correctly because a
+three-sided identity **prints** Giant/Tiny on its own hero face (§1.1, §3.2): the condition reads a printed trait and
+still tracks form changes live, which is also tested.
+
+**A sibling hole left open, deliberately, and recorded here:** `modifiersFor`'s own `while` is still evaluated under
+the full registry. It can no longer loop through `traitsOf`, but a stat modifier whose condition compares *the same
+stat it modifies* (`while: compare({ kind: "stat", … })`) would recurse the same way. Nothing in the pool writes
+that, and guarding it the same way would change what existing stat-modifier conditions can see, so it is flagged
+rather than changed on spec.
+
+### 17.6 What this unblocks in `KNOWN_SKIPPED`
+
+For `ability-scripting-engineer` (`packages/cards/src/wave2/coverage.test.ts`; the engine side does not touch card
+scripts). Every other entry in those lists is blocked on something else and stays put.
+
+| Ref | Card | Primitive |
+|---|---|---|
+| `11013b.when-revealed` | Kang's Wrath 4B (`toafk`) | §17.1 |
+| `13001a.small-but-mighty` | Wasp's hero face (`wsp`) | §17.2 |
+| `13008.red-room-training-constant-2` | Red Room Training (`wsp`) | §17.3 |
+| `13005.rapid-growth-interrupt` | Rapid Growth (`wsp`) | §17.4 |
+| `12027.yellowjacket-constant`, `12027.yellowjacket-constant-2` | Yellowjacket (`ant`) | §17.5 |
+| `13002.ant-man-constant`, `13002.ant-man-constant-2` | Ant-Man ally (`wsp`) | §17.5 |
+
+Still blocked on their own gaps, for the avoidance of doubt: `04028.when-revealed` (a fixed-name search across a
+player's hand/deck/discard *and* the play area — a different pool from §17.1's), `13012.wasp-interrupt` and
+`12011.ant-man-interrupt` (reading an overpayment from a later interrupt), `12024`, `12032`, `12025.obligation`,
+`12029.when-revealed`, and `toafk`'s four data-shape/resource-cost blocks.
