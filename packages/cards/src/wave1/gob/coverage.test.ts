@@ -1,6 +1,7 @@
-import { GOB_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
+import { GOB_CARDS, type AbilityReference } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { GOB_ABILITIES } from "./index.js";
+import { abilityRefIds } from "../../ability-refs.js";
 
 /**
  * Local coverage check for the Green Goblin (`gob`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5):
@@ -8,22 +9,6 @@ import { GOB_ABILITIES } from "./index.js";
  * reprint aliasing. The main session's `wave1/coverage.test.ts` does the same check across every pack once this one
  * is registered in `WAVE1_ABILITIES` — this file is the pack-local version a pack agent owns in the meantime.
  */
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities.map((ref) => ref.id)));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities].map((ref) => ref.id));
-    default: {
-      const abilities = "abilities" in card ? (card.abilities as readonly AbilityReference[]).map((ref) => ref.id) : [];
-      const flipAbilities = "flipSide" in card && card.flipSide ? (card.flipSide.abilities as readonly AbilityReference[]).map((ref) => ref.id) : [];
-      return [...abilities, ...flipAbilities];
-    }
-  }
-}
 
 const reprintIds = new Set<string>();
 {

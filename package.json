@@ -21,7 +21,8 @@
     "capture:screens": "node scripts/capture-design-screenshots.mjs",
     "campaign:scrape": "uv run scripts/scrape_campaign_markdown.py",
     "ingest": "pnpm --filter @mc/content ingest --",
-    "clean": "rm -rf packages/*/dist"
+    "clean": "rm -rf packages/*/dist",
+    "refs": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false"
   },
   "devDependencies": {
     "playwright": "^1.63.0",

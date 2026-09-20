@@ -1,6 +1,7 @@
-import { DRS_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
+import { DRS_CARDS, type AbilityReference } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { DRS_ABILITIES } from "./index.js";
+import { abilityRefIds } from "../../ability-refs.js";
 
 /**
  * Local coverage check for the Doctor Strange (`drs`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5):
@@ -11,19 +12,6 @@ import { DRS_ABILITIES } from "./index.js";
  * version a pack agent owns in the meantime. Desperate Defense (09015) was a fifth skip until the 2026-09-15
  * `isAnnouncement`/`defended` fix landed; it's scripted in `pack-cards.ts` now.
  */
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities.map((ref) => ref.id)));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities].map((ref) => ref.id));
-    default:
-      return "abilities" in card ? (card.abilities as readonly AbilityReference[]).map((ref) => ref.id) : [];
-  }
-}
 
 const reprintIds = new Set<string>();
 {

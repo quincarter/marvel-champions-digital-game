@@ -11,6 +11,7 @@
 import { ANT_CARDS, QSV_CARDS, SCW_CARDS, TOAFK_CARDS, TRORS_CARDS, WSP_CARDS, type AnyCard } from "@mc/content";
 import { CORE_ABILITIES } from "../core/index.js";
 import { WAVE2_ABILITIES, wave2ReprintPairs } from "./index.js";
+import { abilityRefIds } from "../ability-refs.js";
 
 // `WAVE2_CARDS` includes Core, and the engine skips an unregistered ability silently, so a missing Core script
 // would quietly play Rhino, Klaw or Ultron (or a Core hero) with no abilities in any wave 2 game.
@@ -19,24 +20,6 @@ describe("wave 2 ability registry", () => {
     for (const [id, definition] of Object.entries(CORE_ABILITIES)) expect(WAVE2_ABILITIES[id], id).toBe(definition);
   });
 });
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities, ...(card.additionalHeroForms ?? []).flatMap((face) => face.abilities)].map((ref) => ref.id);
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities.map((ref) => ref.id)));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities].map((ref) => ref.id));
-    default: {
-      // A double-sided card (a campaign upgrade pair, an encounter card's flip side, …) carries its other face's
-      // abilities on `flipSide`, not on the card itself (docs/phase7-wave2.md §1.5).
-      const own = "abilities" in card ? card.abilities.map((ref) => ref.id) : [];
-      const flip = "flipSide" in card && card.flipSide ? card.flipSide.abilities.map((ref) => ref.id) : [];
-      return [...own, ...flip];
-    }
-  }
-}
 
 /**
  * Every ability id `reprints.ts` supplies for this pack's own cards (it aliases pairs across every wave 2 pack).

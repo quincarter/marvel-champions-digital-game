@@ -5,18 +5,10 @@
  * own `BKW_ABILITIES`, or aliased as a Core reprint by `../reprints.ts` — except the two recorded, cited gaps (see
  * the doc comments on `BKW_NEMESIS` in `./nemesis.ts` and `BKW_OBLIGATION` in `./obligation.ts`).
  */
-import { BKW_CARDS, type AnyCard } from "@mc/content";
+import { BKW_CARDS } from "@mc/content";
 import { WAVE1_REPRINT_ABILITIES } from "../reprints.js";
 import { BKW_ABILITIES, BKW_NEMESIS_SKIPPED, BKW_OBLIGATION_SKIPPED } from "./index.js";
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    default:
-      return "abilities" in card ? card.abilities.map((ref) => ref.id) : [];
-  }
-}
+import { abilityRefIds } from "../../ability-refs.js";
 
 /** Ability ids intentionally left unscripted (see the doc comments on `BKW_NEMESIS`/`BKW_OBLIGATION` for the full citation). */
 const SKIPPED = new Set<string>([...BKW_NEMESIS_SKIPPED, ...BKW_OBLIGATION_SKIPPED]);

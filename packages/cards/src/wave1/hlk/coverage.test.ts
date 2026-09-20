@@ -1,6 +1,7 @@
-import { HLK_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
+import { HLK_CARDS, type AbilityReference } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { HLK_ABILITIES } from "./index.js";
+import { abilityRefIds } from "../../ability-refs.js";
 
 /**
  * Local coverage check for the Hulk (`hlk`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5): every
@@ -10,19 +11,6 @@ import { HLK_ABILITIES } from "./index.js";
  * Hulk Smash (10003) and Beat Cop's second action (10029) were both skips (missing engine primitives) until
  * 2026-09-15's fixes landed — see `kit.ts` and `pack-cards.ts`.
  */
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities.map((ref) => ref.id)));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities].map((ref) => ref.id));
-    default:
-      return "abilities" in card ? (card.abilities as readonly AbilityReference[]).map((ref) => ref.id) : [];
-  }
-}
 
 const reprintIds = new Set<string>();
 {

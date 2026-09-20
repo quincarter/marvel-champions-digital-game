@@ -7,18 +7,10 @@
  * `cardEffectBonus` fix, and `ValueSpec` `sum` landed (2026-09-15). Teen Spirit (05001b) was the pack's last skip
  * until `discardDeckUntil` landed (2026-09-17) — see the doc comment on `MSM_KIT` in `./kit.ts`.
  */
-import { MSM_CARDS, type AnyCard } from "@mc/content";
+import { MSM_CARDS } from "@mc/content";
 import { WAVE1_REPRINT_ABILITIES } from "../reprints.js";
 import { MSM_ABILITIES } from "./index.js";
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    default:
-      return "abilities" in card ? card.abilities.map((ref) => ref.id) : [];
-  }
-}
+import { abilityRefIds } from "../../ability-refs.js";
 
 describe("msm pack ability coverage", () => {
   const allRefs = MSM_CARDS.flatMap(abilityRefIds);

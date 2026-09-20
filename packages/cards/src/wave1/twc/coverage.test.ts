@@ -1,6 +1,7 @@
-import { TWC_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
+import { TWC_CARDS, type AbilityReference } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { TWC_ABILITIES } from "./index.js";
+import { abilityRefIds } from "../../ability-refs.js";
 
 /**
  * Local coverage check for The Wrecking Crew (`twc`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5):
@@ -10,22 +11,6 @@ import { TWC_ABILITIES } from "./index.js";
  * (the pack-local version a pack agent owns; `TWC_ABILITIES` is not merged into the shared `wave1/index.ts` in this
  * pass, so there is no session-wide `wave1/coverage.test.ts` row for `twc` to flip yet).
  */
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities.map((ref) => ref.id)));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities].map((ref) => ref.id));
-    default: {
-      const abilities = "abilities" in card ? (card.abilities as readonly AbilityReference[]).map((ref) => ref.id) : [];
-      const flipAbilities = "flipSide" in card && card.flipSide ? (card.flipSide.abilities as readonly AbilityReference[]).map((ref) => ref.id) : [];
-      return [...abilities, ...flipAbilities];
-    }
-  }
-}
 
 const reprintIds = new Set<string>();
 {

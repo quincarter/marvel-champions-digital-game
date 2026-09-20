@@ -10,6 +10,7 @@
 import { BKW_CARDS, CAP_CARDS, DRS_CARDS, GOB_CARDS, HLK_CARDS, MSM_CARDS, THOR_CARDS, TWC_CARDS, type AnyCard } from "@mc/content";
 import { CORE_ABILITIES } from "../core/index.js";
 import { WAVE1_ABILITIES, wave1ReprintPairs } from "./index.js";
+import { abilityRefIds } from "../ability-refs.js";
 
 // `WAVE1_CARDS` includes Core, and the engine skips an unregistered ability silently, so a missing Core script would
 // quietly play Rhino, Klaw or Ultron (or a Core hero) with no abilities in any wave 1 game.
@@ -18,24 +19,6 @@ describe("wave 1 ability registry", () => {
     for (const [id, definition] of Object.entries(CORE_ABILITIES)) expect(WAVE1_ABILITIES[id], id).toBe(definition);
   });
 });
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities.map((ref) => ref.id)));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities].map((ref) => ref.id));
-    default: {
-      // A double-sided encounter card (Criminal Enterprise / State of Madness) carries its other face's abilities on
-      // `flipSide`, not on the card itself.
-      const own = "abilities" in card ? card.abilities.map((ref) => ref.id) : [];
-      const flip = "flipSide" in card && card.flipSide ? card.flipSide.abilities.map((ref) => ref.id) : [];
-      return [...own, ...flip];
-    }
-  }
-}
 
 /** Every ability id `reprints.ts` supplies for this pack's own cards (it aliases pairs across every wave 1 pack). */
 const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
