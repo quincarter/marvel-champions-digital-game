@@ -12,3 +12,6 @@ docs/design-renders/
 # Output of packages/content/scripts/scraper (card images and a duplicate raw cache)
 packages/content/scripts/assets/
 packages/content/scripts/raw/
+
+# Python bytecode from scripts/
+__pycache__/
