@@ -1,23 +1,7 @@
-import { activeEncounterDeck, cardsInPlay, type GameState, type InstanceId } from "@mc/engine";
-import {
-  endTurn,
-  firstLegal,
-  identityOf,
-  inst,
-  instancesOf,
-  mainThreat,
-  moveToHand,
-  P1,
-  payWith,
-  play,
-  playerOf,
-  settle,
-  stackEncounterDeck,
-  toHero,
-  type Picker,
-} from "../../testing/harness.js";
+import { activeEncounterDeck, cardsInPlay, type InstanceId } from "@mc/engine";
+import { endTurn, firstLegal, identityOf, inst, instancesOf, mainThreat, moveToHand, P1, play, playerOf, settle, stackEncounterDeck, toHero, type Picker } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
-import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
 // Real wave 2 content: the Scarlet Witch (Justice) precon against Rhino, standard, solo. Wanda starts in alter-ego.
 const scwVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "scw-justice" }], seed: 2026 }));
@@ -46,14 +30,6 @@ const pickingLabel =
     }
     return firstLegal(state);
   };
-
-/** Moves the card into P1's hand and plays it, paying with other hand cards. */
-function playFromHand(state: GameState, code: string, cost: number, pick: Picker = firstLegal): { readonly state: GameState; readonly id: InstanceId } {
-  const given = moveToHand(state, P1, code);
-  const [id] = given.ids as [InstanceId];
-  const played = settle(runWave2(given.state, play(P1, id, payWith(given.state, P1, cost, [id]))), pick, undefined, WAVE2_DEPS);
-  return { state: played, id };
-}
 
 describe("Scarlet Witch kit", () => {
   it("Chaos Control: replaces a boost-step count with a freshly discarded card's own icons (Limit once per phase)", () => {

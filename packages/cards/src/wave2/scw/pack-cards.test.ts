@@ -1,7 +1,8 @@
 import { activeEncounterDeck, type GameState, type InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, mainThreat, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, toHero, type Picker } from "../../testing/harness.js";
+import { endTurn, firstLegal, identityOf, inst, instancesOf, mainThreat, moveToHand, P1, playerOf, settle, stackEncounterDeck, toHero, type Picker } from "../../testing/harness.js";
+import { withDamage } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
-import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { SCW_PACK_CARDS } from "./pack-cards.js";
 
 // Real wave 2 content: the Scarlet Witch (Justice) precon against Rhino, standard, solo. Wanda starts in alter-ego.
@@ -16,20 +17,8 @@ const accepting =
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
 
-/** Moves the card into P1's hand and plays it, paying with other hand cards. */
-function playFromHand(state: GameState, code: string, cost: number, pick: Picker = firstLegal): { readonly state: GameState; readonly id: InstanceId } {
-  const given = moveToHand(state, P1, code);
-  const [id] = given.ids as [InstanceId];
-  const played = settle(runWave2(given.state, play(P1, id, payWith(given.state, P1, cost, [id]))), pick, undefined, WAVE2_DEPS);
-  return { state: played, id };
-}
-
 function withThreat(state: GameState, threat: number): GameState {
   return { ...state, instances: { ...state.instances, [state.mainScheme.instanceId]: { ...state.instances[state.mainScheme.instanceId]!, threat } } };
-}
-
-function withDamage(state: GameState, id: InstanceId, damage: number): GameState {
-  return { ...state, instances: { ...state.instances, [id]: { ...state.instances[id]!, damage } } };
 }
 
 describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Protection off-aspect)", () => {
