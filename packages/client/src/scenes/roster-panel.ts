@@ -219,6 +219,8 @@ export interface ShelfCardOptions {
   readonly warning: string | null;
   /** A small tag in the card's own top-right corner — "SELECTED", "SEAT 2", "AT THE TABLE" (D02/D03 both tag the top-right, not the top-left). Null draws none. */
   readonly tag: string | null;
+  /** Coloured stamps on the art's bottom-left corner — a deck's aspects (`view/aspect-stamp.ts`). Omitted or empty draws none. */
+  readonly stamps?: readonly { readonly label: string; readonly fill: number; readonly ink: number }[];
   readonly selected: boolean;
 }
 
@@ -259,6 +261,26 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
   const subtitle = label(scene, textX, textY + title.height + 3, subtitleText, typeRole.label, subtitleColor, options.warning ? 1 : ink.label * dim);
   fitText(subtitle, textWidth);
   objects.push(subtitle);
+
+  // Stamps sit on the art, bottom-left, above the footer: the one place a tag (top-right) and the title never are.
+  let stampX = rect.x + 8;
+  for (const stamp of options.stamps ?? []) {
+    const text = label(scene, 0, 0, stamp.label, { ...typeRole.label, size: 11 }, stamp.ink, dim);
+    const width = Math.ceil(text.width) + 16;
+    const height = 24;
+    if (stampX + width > rect.x + rect.width - 8) {
+      text.destroy();
+      break;
+    }
+    const y = artRect.y + artRect.height - height - 8;
+    const plate = scene.add.graphics();
+    plate.fillStyle(stamp.fill, dim).fillRect(stampX, y, width, height);
+    plate.lineStyle(1.5, surface.ink.hex, dim).strokeRect(stampX + 0.75, y + 0.75, width - 1.5, height - 1.5);
+    text.setPosition(stampX + 8, y + height / 2).setOrigin(0, 0.5);
+    scene.children.bringToTop(text);
+    objects.push(plate, text);
+    stampX += width + 4;
+  }
 
   const border = scene.add.graphics();
   if (options.selected) {

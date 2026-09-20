@@ -18,6 +18,7 @@
  * be legal?" (`#seatOptionsExcludingActive`) rather than "is this legal to
  * add as a fifth seat?", which always said no once four seats were filled.
  */
+import { aspectStampsOf, titleWithoutAspects } from "../view/aspect-stamp.js";
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
 import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import Phaser from "phaser";
@@ -633,8 +634,9 @@ export class SeatsScene extends Phaser.Scene {
     return renderShelfCard(this, rect, {
       artKey,
       titleRole: typeRole.barTitle,
-      title: option.deck.name.split(" — ")[0]!,
+      title: titleWithoutAspects(option.deck.name.split(" — ")[0]!, option.deck.aspects),
       subtitle: `${sourceText} · ${option.identityName ?? "unknown identity"}`,
+      stamps: aspectStampsOf(option.deck.aspects),
       blockedBy,
       warning: seatedElsewhere ? null : (entry?.warning ?? null),
       tag,
