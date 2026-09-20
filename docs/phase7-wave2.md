@@ -2051,3 +2051,141 @@ Still blocked on their own gaps, for the avoidance of doubt: `04028.when-reveale
 player's hand/deck/discard *and* the play area — a different pool from §17.1's), `13012.wasp-interrupt` and
 `12011.ant-man-interrupt` (reading an overpayment from a later interrupt), `12024`, `12032`, `12025.obligation`,
 `12029.when-revealed`, and `toafk`'s four data-shape/resource-cost blocks.
+
+---
+
+## 18. The wave 2 skip-backlog audit (owner: `game-rules-architect`; landed 2026-09-19)
+
+`packages/cards/src/wave2/coverage.test.ts`'s `KNOWN_SKIPPED` had drifted: `12024.team-building-exercise-action` was
+still listed as blocked on `playFromHand.costReduction` (§9) months after that landed. This section is the audit that
+found how far the drift went, and §§19–22 are what it turned up as genuinely missing. The **30 Hydra Campaign refs**
+in `KNOWN_SKIPPED.trors` (04155–04166) are out of scope throughout: they are deferred by design while campaign mode
+is unbuilt (PLAN.md Phase 7).
+
+Method: for each of the fifteen non-campaign refs, read the engine source for the primitive the module docblock
+claims is missing, and — where it turned out to exist — **prove it end to end with a real command sequence**, never
+off the type alone. Evidence for the three "already there" verdicts is
+`packages/engine/src/primitives-wave2d.test.ts` (8 tests, one `describe` per claim).
+
+### 18.1 The verdicts
+
+| Ref | Pack | Verdict |
+|---|---|---|
+| `04028.when-revealed` | `trors` | **Already unblocked** — `anyOf` (§10.1) + `CardSelector ref` over `each(query)` + `tuckCards` (§3.10). §18.4 |
+| `11018.weakened-action` | `toafk` | **Still blocked** — `AbilityCost.discardFromHand` has no `filter`. Built in §19 |
+| `11019.stolen-memories-action` | `toafk` | **Still blocked** — same. Built in §19 |
+| `11021.time-travel-hijinks-action` | `toafk` | **Still blocked** — same. Built in §19 |
+| `11020.obligation` | `toafk` | **Not a primitive gap** — a data gap (`@mc/content`): one ref carries two clauses. §18.2 |
+| `11049.obligation` | `toafk` | **Not a primitive gap** — same shape. §18.2 |
+| `12011.ant-man-interrupt` | `ant` | **Already unblocked** — `overpaid.*` reaches a `cardEntersPlay` interrupt. §18.3 |
+| `13012.wasp-interrupt` | `wsp` | **Already unblocked** — same, per resource type. §18.3 |
+| `12024.team-building-exercise-action` | `ant` | **Still blocked** on the *second* half only: a "shares a trait with" query. Built in §20.1 |
+| `12032.muster-courage-action` | `ant` | **Already unblocked** — `chooseTarget.count: ValueSpec` + `optional`, not `chooseCards.max`. §18.5 |
+| `12029.when-revealed` | `ant` | **Still blocked** — no query matches "belongs to encounter set X". Built in §20.2 |
+| `12025.obligation` | `ant` | **Still blocked** — no lasting "cannot change form". Built in §22 |
+| `14024.obligation` | `qsv` | **Still blocked** — no lasting "cannot ready". Built in §22 |
+| `14009.friction-resistance-response` | `qsv` | **Still blocked** — no "after a card readies" event. Built in §21 |
+| `15023.obligation` | `scw` | **Still blocked, and not on the engine** — the content schema records no star icon. §18.6 |
+
+### 18.2 `11020` and `11049`: a data gap, owned by `card-data-pipeline`
+
+Both cards print **two independent clauses** and `@mc/content` gives them **one** ability ref:
+
+- Depowered (11020): "You cannot play hero-specific cards." + "Alter-Ego Action: Discard a hero-specific card from
+  your hand → discard this obligation."
+- Fear of Kang (11049): "You cannot attack Kang." + "Alter-Ego Action: Discard a random card from your hand →
+  discard this obligation."
+
+An `AbilityDefinition` carries exactly one `AbilityTriggerSpec`, so one ref cannot be both a `constant` and an
+`action`. **Every primitive each clause needs already exists**, which is what makes this purely a data shape:
+`RuleSpec cannotPlay` (whose own docblock names Depowered) with `TargetQuery.identitySetOf` for "hero-specific";
+`RuleSpec cannotAttack`; `AbilityCost.discardRandomFromHand`; and §19's new `discardFromHand.filter` for
+11020's own chosen discard. The fix is the same split the pipeline already made for 11018/11019/11021: a
+`.<name>-constant` ref beside the `.<name>-action` ref. No engine change.
+
+### 18.3 `12011`/`13012`: an overpayment is already readable from a later interrupt
+
+"Interrupt: When Ant-Man enters play, place 1 pym counter on him (to a maximum of 4) for each resource you overpaid
+for Ant-Man's cost." The skip recorded that `overpaid.*` was bound only inside the resolution that paid the cost,
+"confirmed by the validator". Neither half holds today:
+
+- `abilityFrame` (`resolve/frames.ts`) merges `playPaymentVars(ctx, candidate.instanceId)` into **every** ability
+  frame for a card that still has a `playCard` frame on the stack — not only the frame that paid.
+- `enterPlay` (`resolve/enter-play.ts`) announces `cardEntersPlay` from inside that `playCard` frame, so the
+  interrupt's frame is built while the payment vars are still visible.
+- `@mc/cards`' validator has `"overpaid."` in its ambient-prefix set (`dsl/validate.ts`), so it does not reject the
+  read either.
+
+Tested three ways: 3 resources for a cost-1 ally gives 2 counters; an exact payment gives 0; and `overpaid.energy`
+counts 2 of a 3-resource overpayment made of 2 `[energy]` + 2 `[physical]` (Wasp's wording), and 0 when the whole
+overpayment is the wrong type. RRG 1.8 "Cost" (p. 13): "Resources generated beyond the specified cost are considered
+to have been overpaid for that cost."
+
+### 18.4 `04028`: the play area is reachable as part of one search pool
+
+"The Clint Barton player searches their hand, deck, discard pile, **and play area** for Mockingbird and tucks her
+faceup beneath this card." (Errata, RRG 1.8 p. 66.) `CardSelector zone` genuinely cannot reach the play area —
+`PlayerZone` is `"hand" | "deck" | "discard"` and should stay that way, since a play area is not an out-of-play zone.
+But `anyOf` (§10.1) exists precisely to union selectors into **one pool and one choice**, and `CardSelector ref` over
+`TargetRef each` *is* the play area:
+
+```ts
+{ kind: "anyOf", of: [
+  { kind: "zone", zone: ["hand", "deck", "discard"], player: eventPlayer, filter: { name: "Mockingbird" } },
+  { kind: "ref", ref: { kind: "each", query: { categories: ["ally"], controller: "any" } }, filter: { name: "Mockingbird" } },
+] }
+```
+
+`tuckCards` already handles the in-play case: it calls `leavePlay` rather than `moveCard`, so the ally's attachments
+are discarded and she comes back as a new instance (RRG 1.8 "Leaves Play", p. 27). Both halves are tested — found in
+the deck, and found in play and taken out of it. The `anyOf` docblock in `spec.ts` already cited card 04028 by
+number; the skip simply predated it.
+
+### 18.5 `12032`: "up to X" is a `chooseTarget`, not a `chooseCards`
+
+"Give up to X friendly characters a tough status card… (to a maximum of 3)", X being the villain's stage number. The
+skip named `EffectSpec chooseCards.max`, which is indeed a fixed `number` — but `chooseCards` is the *out-of-play*
+selector ("search your deck", "look at the top 3"). A choice among characters **in play** is `chooseTarget`, whose
+`count` has been `number | ValueSpec` since Shield Toss, and whose `optional: true` is exactly "up to" (RRG 1.8
+"Choose (Game Element)", p. 12: an effect resolves as much as it can). `ValueSpec villainStageNumber` and
+`scaled.max` supply the rest:
+
+```ts
+{ kind: "chooseTarget", slot: "brave", query: { categories: ["hero", "ally"], controller: "any" },
+  chooser: controller, count: { kind: "scaled", value: { kind: "villainStageNumber" }, max: 3 }, optional: true }
+```
+
+Tested as a live read, not a constant: with three friendly characters on the board the prompt offers all three as
+options but bounds the selection at `0–1` on villain stage I, and the same card bounds it at `0–2` after the villain
+advances to stage II. Selecting none is legal and gives nothing.
+
+### 18.6 `15023`: blocked on card data, not on the engine
+
+"Discard the top 5 cards of the encounter deck. For each star icon (★) **in the boost area** discarded this way,
+place 1 threat on the main scheme." (Slipping Sanity.) RRG 1.8 "Boost" (p. 11): "A star icon is not itself considered
+a boost icon", so `<bind>.boostIcons` is the wrong number and there is no right one.
+
+**The fact is a printed characteristic and `@mc/content` does not record it.** The card schema has `boostIcons` (a
+pip count) and nothing that says a card's boost area carries a star. The engine's only star-adjacent derivation is
+`hasBoostAbility` (`defend-preview.ts`, module-private): "does this card carry a printed ability whose `trigger.kind`
+is `boost`?", asked of `deps.abilities`.
+
+**Deliberately not generalised into a `ValueSpec`**, and the reason is the drift this very section is about: that
+derivation reads the *ability registry*, so a card whose Boost ability is unscripted — including one sitting in
+`KNOWN_SKIPPED` — would silently contribute 0 stars, and a scripter un-skipping an unrelated card would silently
+change how much threat Slipping Sanity places. A printed icon must not depend on what has been scripted.
+
+**What `card-data-pipeline` needs to add**, stated precisely so the engine half is a one-liner afterwards:
+
+- Field: `starIcon?: boolean` on every encounter-side card type that can carry a boost area (`treachery`, `minion`,
+  `side_scheme`, `attachment`, `obligation`, `environment`), beside the existing `boostIcons`. Absent reads as
+  `false`. A single boolean, not a count: a boost area carries at most one star.
+- Backfill: true exactly for the cards that print ★ in the boost area — which is the same set as the cards printing a
+  "★ Boost:" ability, so the existing per-card text is enough to derive it at ingest without new source material.
+- Validation: a card with a `boost`-triggered ability ref and `starIcon: false` (or the reverse) is worth an
+  ingest-time warning, since the two should agree.
+
+Once that lands, the engine side is a `ValueSpec { kind: "starIcons", cards: TargetRef }` beside
+`totalPrintedResources`, plus a `<bind>.starIcons` total on `discardEncounterCards` — and a `TargetQuery.starIcon?:
+boolean` for Longshot (`wolv`), which needs the same fact as a yes/no rather than a count. Not built here: an engine
+read with no data behind it is worse than no read at all.
