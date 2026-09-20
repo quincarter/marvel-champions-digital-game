@@ -2235,3 +2235,68 @@ cost: { discardFromHand: { min: 1, max: 1, filter: { identitySetOf: { kind: "con
 Kang 11049): a random discard has no choice to constrain, and no card in the pool asks for a *filtered* random
 discard. If one arrives it needs its own decision about what happens when the filtered pool is empty, which is not a
 question this field can answer silently.
+
+---
+
+## 20. Two dynamic card queries (owner: `game-rules-architect`; landed 2026-09-19)
+
+Two `TargetQuery` fields, both additive, both for the same underlying shape: a filter whose criterion is **another
+card's current characteristics**, which the existing fixed-value fields (`trait`, `anyTrait`, `name`, `aspect`)
+cannot say. Tests: `packages/engine/src/primitives-wave2d.test.ts` §20.1 (1 test) and §20.2 (2 tests).
+
+### 20.1 `sharesTraitWith?: TargetRef` (Team-Building Exercise 12024)
+
+"Action: Play a card from your hand **that shares a trait with your hero**, reducing its resource cost by 1."
+
+`playFromHand.costReduction` landed in §9; this is the other half of the same sentence. The card is a generic
+basic-aspect card any hero can run, so "your hero" is not a trait a script can hardcode — it has to be read off the
+identity at resolution time.
+
+```ts
+{ kind: "playFromHand", player: controller, costReduction: 1,
+  filter: { sharesTraitWith: { kind: "identityOf", player: { kind: "controller" } } } }
+```
+
+- **Both sides are read live** through `traitsOf`, so a granted trait counts on either end (RRG 1.8 "Gains", p. 21):
+  an ally that gained Avenger this phase shares it, and a hero in a form that prints Giant shares Giant.
+- **One shared trait is enough**, and a card with no traits — or a ref naming nothing — matches nothing, because
+  there is no trait to share. Both pinned by the test (a two-trait card sharing only one of them matches; a
+  trait-less ally and a resource card do not).
+- **Termination.** The query's ref is a finite spec tree, so a `sharesTraitWith` cannot reach itself, and inside a
+  constant trait grant's own `target` the §17.5 guard already forces `DEFAULT_DEPS` — printed traits on both sides,
+  no re-entry into the grant scan. No new guard was needed; this note records why.
+- New `QueryExclusion` `noSharedTrait`, with its wording added to the client's exhaustive table
+  (`packages/client/src/view/highlights.ts`: "shares no trait with that card").
+
+### 20.2 `encounterSetOf?: TargetRef` (Yellowjacket's Plan 12029)
+
+"When Revealed: Discard cards from the encounter deck until a card from the **Ant-Man Nemesis set** is discarded this
+way. Reveal that card."
+
+Nothing matched "belongs to encounter set X". `nemesisMinionOf` (§17.1) already reads `encounterSetIds` off card
+data, but asks a narrower question — *that player's* nemesis set, **and** the "(X's nemesis minion.)" parenthetical —
+so it cannot serve "any card from this set".
+
+```ts
+{ kind: "discardEncounterUntil", filter: { encounterSetOf: { kind: "self" } }, bind: "found" }
+```
+
+**Why a `TargetRef`, not an `EncounterSetId`.** A set id would work for this card, but it makes every script that
+names a set carry a string that has to stay in step with the data, and it puts a set name inside `@mc/cards` —
+exactly the kind of card-specific constant the engine boundary exists to avoid. Every printed "a card from the
+<X> set" in cycle 1 sits on a card that is **itself** a member of that set, so `self` says it without naming
+anything. A card that one day names another set can use any ref that reaches a member of it.
+
+- **Reads card data, so it is zone-independent**: a card in an encounter deck, a discard pile, the set-aside area or
+  in play all answer the same way. That is what the printed text needs, since the search runs over a deck. Tested by
+  matching an instance still in the encounter deck.
+- **A player card never matches**, and neither does an encounter card belonging to no set (an obligation): both have
+  no `encounterSetIds` to share. Tested.
+- New `QueryExclusion` `wrongEncounterSet`, wording added to the client table ("not from that encounter set").
+
+### 20.3 What §19 and §20 do *not* settle, and is recorded rather than guessed
+
+`11029.when-revealed` ("Each player searches the encounter deck and discard pile for a **different** obligation")
+is still scripted as "each player's own choice": nothing compares one player's pick against another's inside
+`forEachPlayer`, and `encounterSetOf` does not help. It is an `excludeSlots` that would have to span a per-player
+scope — flagged here because §20 is the section a future reader will check first, not because it is being fixed now.

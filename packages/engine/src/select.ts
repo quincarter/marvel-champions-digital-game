@@ -256,6 +256,8 @@ export type QueryExclusion =
   | "notEngagedWithPlayer"
   | "wrongIdentitySet"
   | "notNemesisMinion"
+  | "noSharedTrait"
+  | "wrongEncounterSet"
   /** In a different separate game area from the effect's (docs/phase7-wave2.md §3.1). */
   | "otherGameArea";
 
@@ -393,7 +395,28 @@ export function explainQuery(
       .map((identity) => (identity?.type === "hero_identity" ? identity.nemesisEncounterSetId : undefined));
     if (!owned.some((setId) => setId !== undefined && sets.includes(setId))) return "notNemesisMinion";
   }
+  if (query.sharesTraitWith) {
+    // "A card that shares a trait with your hero" (docs/phase7-wave2.md §20.1): both sides read live, so a granted
+    // trait counts either way (RRG 1.8 "Gains", p. 21).
+    const mine = traitsOf(state, id, context.deps);
+    const theirs = new Set(resolveRef(state, query.sharesTraitWith, context).flatMap((other) => traitsOf(state, other, context.deps)));
+    if (!mine.some((trait) => theirs.has(trait))) return "noSharedTrait";
+  }
+  if (query.encounterSetOf) {
+    // "A card from the <X> encounter set" (docs/phase7-wave2.md §20.2): read off card data, so it matches wherever
+    // the card is — an encounter deck, a discard pile, set aside, in play.
+    const sets = encounterSetsOf(state, id);
+    if (sets.length === 0) return "wrongEncounterSet";
+    const wanted = new Set(resolveRef(state, query.encounterSetOf, context).flatMap((other) => encounterSetsOf(state, other)));
+    if (!sets.some((setId) => wanted.has(setId))) return "wrongEncounterSet";
+  }
   return null;
+}
+
+/** The encounter sets a card belongs to (`encounterSetIds`); empty for a player card. */
+function encounterSetsOf(state: GameState, id: InstanceId): readonly string[] {
+  const card = cardOf(state, id);
+  return card && "encounterSetIds" in card ? (card.encounterSetIds as readonly string[]) : [];
 }
 
 /**

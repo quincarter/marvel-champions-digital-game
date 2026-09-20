@@ -175,6 +175,33 @@ export interface TargetQuery {
    * (Jun 25, 2026 (4)). Matches wherever the card is: in play, in a deck, in a discard pile or set aside.
    */
   readonly nemesisMinionOf?: PlayerRef;
+  /**
+   * The card has at least one trait in common with the cards this ref names: "play a card from your hand **that
+   * shares a trait with your hero**" (Team-Building Exercise, `ant` 12024) is `{ sharesTraitWith: identityOf(you) }`.
+   *
+   * `trait`/`anyTrait` name traits the *script* fixes; this one is whatever traits another card happens to have right
+   * now, which a generic basic-aspect card played by any hero cannot hardcode. Both sides are read live through
+   * `traitsOf`, so a granted trait counts on either end (RRG 1.8 "Gains", p. 21) — with the same `DEFAULT_DEPS` guard
+   * §17.5 put on a constant trait grant's own condition, which is what stops a grant whose target uses this field
+   * from re-entering the trait scan.
+   *
+   * A ref that names nothing, or names only cards with no traits, matches nothing: there is no trait to share.
+   * docs/phase7-wave2.md §20.1.
+   */
+  readonly sharesTraitWith?: TargetRef;
+  /**
+   * The card belongs to an encounter set that the cards this ref names belong to: "discard cards from the encounter
+   * deck until a card from the **Ant-Man Nemesis set** is discarded" (Yellowjacket's Plan, `ant` 12029) is
+   * `{ encounterSetOf: self }` — the card doing the searching is itself in that set, which is how every printed
+   * "a card from the <X> set" in cycle 1 is worded (the card naming the set is always a member of it).
+   *
+   * Reads `encounterSetIds` off the card data, so it matches wherever the card is (in an encounter deck, a discard
+   * pile, set aside, in play). A player card, or an encounter card belonging to no set, never matches.
+   *
+   * The sibling of `nemesisMinionOf`, which asks a narrower question (that player's nemesis set, *and* the
+   * parenthetical) through the same `encounterSetIds` field. docs/phase7-wave2.md §20.2.
+   */
+  readonly encounterSetOf?: TargetRef;
 }
 
 /** Names one instance without knowing its id at authoring time. */

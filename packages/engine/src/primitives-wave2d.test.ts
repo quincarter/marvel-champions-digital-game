@@ -8,18 +8,19 @@
  * "Leaves Play" (p. 27).
  */
 
-import { flat, type AnyCard, type CardId } from "@mc/content";
+import { flat, trait, type AnyCard, type CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command, Payment } from "./commands.js";
 import { applyCommand } from "./engine.js";
 import { legalActions } from "./legal.js";
 import { playerId, type InstanceId } from "./ids.js";
-import { mustInstance, mustPlayer } from "./query.js";
+import { activeEncounterDeck, mustInstance, mustPlayer } from "./query.js";
+import { matchesQuery } from "./select.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEvent, stubMainScheme, stubResource, stubSideScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { giveCards, newGame, RESOURCE, runWith, settle, settleUntil } from "./testing/scenario.js";
+import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubResource, stubSideScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import { giveCards, newGame, RESOURCE, runWith, settle, settleUntil, withEncounterPiles } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const def = (definition: AbilityDefinition) => definition;
@@ -366,5 +367,162 @@ describe("§19 `AbilityCost.discardFromHand.filter`", () => {
     if (!offered || offered.example.type !== "useAbility") throw new Error("not offered");
     const [picked] = offered.example.costChoices?.discard ?? [];
     expect(picked && state.instances[picked]?.cardId).toBe(PHYSICAL.id);
+  });
+});
+
+// ---- §20.1 "shares a trait with" -------------------------------------------------------------------------------------
+
+/**
+ * "Action: Play a card from your hand that shares a trait with your hero, reducing its resource cost by 1."
+ * (Team-Building Exercise 12024.)
+ *
+ * `TargetQuery.sharesTraitWith: TargetRef` (docs/phase7-wave2.md §20.1). `trait`/`anyTrait` name traits the script
+ * fixes; this one is whatever traits another card happens to have right now, which a generic basic-aspect card
+ * played by any hero cannot hardcode.
+ */
+describe("§20.1 `TargetQuery.sharesTraitWith`", () => {
+  const AVENGER = trait("AVENGER");
+  const XMEN = trait("X-MEN");
+  const SPY = trait("SPY");
+
+  const AVENGER_HERO = stubIdentity({ id: "avenger-hero", hp: 10, atk: 2, thw: 2, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6, heroTraits: [AVENGER, SPY] });
+  const SHARED = stubAlly({ id: "shared", cost: 2, atk: 1, thw: 1, hp: 2, traits: [AVENGER] });
+  const ALSO_SHARED = stubAlly({ id: "also-shared", cost: 2, atk: 1, thw: 1, hp: 2, traits: [XMEN, SPY] });
+  const UNSHARED = stubAlly({ id: "unshared", cost: 2, atk: 1, thw: 1, hp: 2, traits: [XMEN] });
+  const TRAITLESS = stubAlly({ id: "traitless", cost: 2, atk: 1, thw: 1, hp: 2 });
+
+  const exercise = stubAbility("exercise.action", def({
+    trigger: { kind: "action" },
+    effects: [
+      {
+        kind: "playFromHand",
+        player: { kind: "controller" },
+        costReduction: { kind: "const", value: 1 },
+        filter: { sharesTraitWith: { kind: "identityOf", player: { kind: "controller" } } },
+      },
+    ],
+  }));
+  const EXERCISE = stubEvent({ id: "exercise", cost: 0, abilities: [exercise.ref] });
+
+  /** Every hand card the "play a card that shares a trait with your hero" step would offer. */
+  function offered(): readonly CardId[] {
+    const deps = depsOf(exercise);
+    const state = newGame({
+      deps,
+      identity: AVENGER_HERO,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, EXERCISE, SHARED, ALSO_SHARED, UNSHARED, TRAITLESS],
+      encounterDeck: copies(BLANK.id, 20),
+      deck: [...copies(EXERCISE.id, 2), ...copies(SHARED.id, 2), ...copies(ALSO_SHARED.id, 2), ...copies(UNSHARED.id, 2), ...copies(TRAITLESS.id, 2), ...copies(RESOURCE.id, 12)],
+    });
+    const given = giveCards(state, p1, EXERCISE.id, SHARED.id, ALSO_SHARED.id, UNSHARED.id, TRAITLESS.id, RESOURCE.id, RESOURCE.id);
+    const event = given.ids[0] as InstanceId;
+    const prompted = settleUntil(runWith(deps, given.state, toHero, play(event)), "chooseCards", deps);
+    const choice = prompted.pendingChoice;
+    if (!choice) throw new Error("no choice");
+    return choice.options.map((o) => prompted.instances[o.optionId as InstanceId]?.cardId as CardId);
+  }
+
+  it("offers only the hand cards sharing at least one trait with the named card", () => {
+    const cards = new Set(offered());
+    expect(cards.has(SHARED.id)).toBe(true);
+    // One shared trait out of two is enough.
+    expect(cards.has(ALSO_SHARED.id)).toBe(true);
+    expect(cards.has(UNSHARED.id)).toBe(false);
+    expect(cards.has(TRAITLESS.id)).toBe(false);
+    // A resource card has no traits either, so it can never share one.
+    expect(cards.has(RESOURCE.id)).toBe(false);
+  });
+});
+
+// ---- §20.2 "a card from the <X> encounter set" ------------------------------------------------------------------------
+
+/**
+ * "When Revealed: Discard cards from the encounter deck until a card from the Ant-Man Nemesis set is discarded this
+ * way. Reveal that card." (Yellowjacket's Plan 12029.)
+ *
+ * `TargetQuery.encounterSetOf: TargetRef` (docs/phase7-wave2.md §20.2): the candidate belongs to an encounter set the
+ * named card belongs to. Every printed "a card from the <X> set" in cycle 1 sits on a card that is itself in that
+ * set, so the ref is `self`.
+ */
+describe("§20.2 `TargetQuery.encounterSetOf`", () => {
+  const NEMESIS = "ant-nemesis";
+  const OTHER = "some-other-set";
+  /** In the named set, and the only card in the deck that is. */
+  const MINE = stubTreachery({ id: "mine", boostIcons: 0, encounterSetIds: [NEMESIS] });
+  /** In a different set. */
+  const THEIRS = stubTreachery({ id: "theirs", boostIcons: 0, encounterSetIds: [OTHER] });
+  /** In no set at all (an obligation, a basic-encounter card). */
+  const UNSET = stubTreachery({ id: "unset", boostIcons: 0 });
+
+  const search = stubAbility("plan.action", def({
+    trigger: { kind: "action", form: "hero" },
+    effects: [{ kind: "discardEncounterUntil", filter: { encounterSetOf: { kind: "self" } }, bind: "found" }],
+  }));
+  /** The searching card: a side scheme, so it stays in play and its Hero Action can be triggered on demand. */
+  const PLAN = stubSideScheme({ id: "plan", startingThreat: 9, boostIcons: 0, encounterSetIds: [NEMESIS], abilities: [search.ref] });
+
+  const deps = depsOf(search);
+  const ENCOUNTER: readonly CardId[] = [...copies(PLAN.id, 17), THEIRS.id, UNSET.id, MINE.id];
+
+  /** The encounter deck ordered exactly as listed, by instance, whatever the setup shuffle did. */
+  function arrange(state: GameState, order: readonly CardId[]): GameState {
+    const deck = activeEncounterDeck(state).deck;
+    const taken = new Set<InstanceId>();
+    const ordered = order.map((card) => {
+      const id = deck.find((candidate) => state.instances[candidate]?.cardId === card && !taken.has(candidate));
+      if (!id) throw new Error(`fixture: no spare ${card} in the encounter deck`);
+      taken.add(id);
+      return id;
+    });
+    return withEncounterPiles(state, { deck: [...ordered, ...deck.filter((id) => !taken.has(id))] });
+  }
+
+  /** A game whose villain phase has revealed the searching side scheme into play. */
+  function inPlay(): { state: GameState; plan: InstanceId } {
+    const fresh = newGame({ deps, mainScheme: SCHEME, extraCards: [BLANK, PLAN, MINE, THEIRS, UNSET], encounterDeck: ENCOUNTER });
+    // Every card the villain phase touches (boost cards, then the dealt card) is a copy of the side scheme, so the
+    // reveal is deterministic without depending on the setup shuffle.
+    const stacked = arrange(fresh, copies(PLAN.id, 17));
+    const after = settle(runWith(deps, stacked, toHero, endTurn), undefined, deps);
+    const plan = after.villainArea.find((id) => after.instances[id]?.cardId === PLAN.id);
+    if (!plan) throw new Error("the side scheme did not enter play");
+    return { state: after, plan };
+  }
+
+  it("matches a card in the named set wherever it is, and nothing else", () => {
+    const { state, plan } = inPlay();
+    const context = { selfInstanceId: plan, controllerId: p1, event: null, bindings: {}, deps };
+    const query = { encounterSetOf: { kind: "self" as const } };
+    const instanceOf = (card: CardId): InstanceId => {
+      const found = Object.values(state.instances).find((i) => i.cardId === card);
+      if (!found) throw new Error(`no ${card}`);
+      return found.instanceId;
+    };
+    // Still in the encounter deck, so this is the zone-independence the printed text needs.
+    expect(matchesQuery(state, instanceOf(MINE.id), query, context)).toBe(true);
+    expect(matchesQuery(state, instanceOf(THEIRS.id), query, context)).toBe(false);
+    expect(matchesQuery(state, instanceOf(UNSET.id), query, context)).toBe(false);
+    // The searching card is in its own set, so it matches itself; and a player card never does.
+    expect(matchesQuery(state, plan, query, context)).toBe(true);
+    expect(matchesQuery(state, mustPlayer(state, p1).hand[0] as InstanceId, query, context)).toBe(false);
+  });
+
+  it("`discardEncounterUntil` stops on it, discarding the off-set cards before it", () => {
+    const { state, plan } = inPlay();
+    const ordered = arrange(state, [THEIRS.id, UNSET.id, MINE.id]);
+    const before = activeEncounterDeck(ordered).discard.length;
+    const after = settle(
+      runWith(deps, ordered, { type: "useAbility", playerId: p1, cardInstanceId: plan, abilityId: search.ref.id, payment: [] }),
+      undefined,
+      deps,
+    );
+    const discarded = activeEncounterDeck(after).discard.slice(0, activeEncounterDeck(after).discard.length - before);
+    const cards = discarded.map((id) => after.instances[id]?.cardId);
+    expect(cards).toContain(MINE.id);
+    expect(cards).toContain(THEIRS.id);
+    expect(cards).toContain(UNSET.id);
+    // It stopped there: exactly the three cards, not the rest of the deck.
+    expect(discarded).toHaveLength(3);
   });
 });

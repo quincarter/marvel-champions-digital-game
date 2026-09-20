@@ -196,6 +196,8 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notEngagedWithPlayer: "not engaged with the right player",
   wrongIdentitySet: "not from this identity's set",
   notNemesisMinion: "not this player's nemesis minion",
+  noSharedTrait: "shares no trait with that card",
+  wrongEncounterSet: "not from that encounter set",
   otherGameArea: "in another game area",
   notInPlay: "not in play",
   alterEgoForm: "in alter-ego form",
