@@ -334,11 +334,14 @@ export function stubMinion(spec: {
   readonly boostIcons?: number;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
+  /** The "(X's nemesis minion.)" parenthetical (RRG 1.8 "Nemesis Encounter Set", p. 30). */
+  readonly nemesisMinion?: boolean;
 }): MinionCard {
   return {
     ...base(spec.id, spec.id),
     type: "minion",
     encounterSetIds: (spec.encounterSetIds ?? []).map((id) => encounterSetId(id)),
+    ...(spec.nemesisMinion === undefined ? {} : { nemesisMinion: spec.nemesisMinion }),
     boostIcons: spec.boostIcons ?? 1,
     traits: spec.traits ?? [],
     keywords: spec.keywords ?? [],

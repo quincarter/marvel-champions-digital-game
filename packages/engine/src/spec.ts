@@ -159,6 +159,22 @@ export interface TargetQuery {
    * is about set ownership, not about these deckbuilding filters).
    */
   readonly identitySetOf?: PlayerRef;
+  /**
+   * The minion of this player's own nemesis set: "each player searches the encounter deck, discard pile, and
+   * set-aside area for **their** nemesis minion" (Kang's Wrath 4B, 11013), "search … for **your** nemesis minion"
+   * (The Hood's Ambush; Face the Past, `magneto`), "reveal **your** set-aside nemesis minion" (Advance, Core).
+   *
+   * RRG 1.8 "Nemesis Encounter Set" (p. 30): "An identity's 'nemesis minion' is the minion belonging to that
+   * identity's nemesis set. If a nemesis set has multiple minions in it, the 'nemesis minion' is designated by
+   * parenthetical text printed on one or more of those minions." Both halves are checked: the card carries the
+   * parenthetical (`MinionCard.nemesisMinion`) **and** belongs to an encounter set that is this player's identity's
+   * own `nemesisEncounterSetId`.
+   *
+   * Unlike `identitySetOf` (player cards, read off the set icon in `aspect`), a nemesis set is encounter-side, which
+   * is why it needs its own field rather than a wider `identitySetOf` — see the same ruling's set-ownership note
+   * (Jun 25, 2026 (4)). Matches wherever the card is: in play, in a deck, in a discard pile or set aside.
+   */
+  readonly nemesisMinionOf?: PlayerRef;
 }
 
 /** Names one instance without knowing its id at authoring time. */

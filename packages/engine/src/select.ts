@@ -238,6 +238,7 @@ export type QueryExclusion =
   | "wrongSignatureSideScheme"
   | "notEngagedWithPlayer"
   | "wrongIdentitySet"
+  | "notNemesisMinion"
   /** In a different separate game area from the effect's (docs/phase7-wave2.md §3.1). */
   | "otherGameArea";
 
@@ -362,6 +363,18 @@ export function explainQuery(
     const aspect = card && "aspect" in card ? String(card.aspect) : null;
     const identities = resolvePlayers(state, query.identitySetOf, context).map((playerId) => getPlayer(state, playerId)?.identity.cardId);
     if (!aspect || !identities.some((cardId) => cardId !== undefined && aspect === `hero:${cardId}`)) return "wrongIdentitySet";
+  }
+  if (query.nemesisMinionOf) {
+    // RRG 1.8 "Nemesis Encounter Set" (p. 30): the minion belonging to that identity's nemesis set, designated by the
+    // parenthetical text a set with several minions prints on one of them (the card data's `nemesisMinion` flag).
+    const card = cardOf(state, id);
+    if (!card || !("nemesisMinion" in card) || card.nemesisMinion !== true) return "notNemesisMinion";
+    const sets = "encounterSetIds" in card ? card.encounterSetIds : [];
+    const owned = resolvePlayers(state, query.nemesisMinionOf, context)
+      .map((playerId) => getPlayer(state, playerId)?.identity.instanceId)
+      .map((instanceId) => (instanceId === undefined ? undefined : cardOf(state, instanceId)))
+      .map((identity) => (identity?.type === "hero_identity" ? identity.nemesisEncounterSetId : undefined));
+    if (!owned.some((setId) => setId !== undefined && sets.includes(setId))) return "notNemesisMinion";
   }
   return null;
 }
