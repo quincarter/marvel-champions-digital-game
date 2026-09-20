@@ -1,9 +1,14 @@
 import { trait } from "@mc/content";
 import {
   blanksTextBox,
+  cannotChangeFormUntil,
+  chosen,
   constant,
   coveredByEngineRule,
   defineAbilities,
+  discardEncounterUntil,
+  discardFromHand,
+  encounterSetOf,
   engagedPlayerOf,
   forcedResponse,
   gainsKeyword,
@@ -14,8 +19,11 @@ import {
   on,
   query,
   removeCountersFrom,
+  revealCard,
   self,
+  whenRevealed,
 } from "../../dsl/index.js";
+import { obligation } from "../../core/obligations.js";
 
 const TECH = trait("TECH");
 const GIANT = trait("GIANT");
@@ -25,15 +33,15 @@ const TINY = trait("TINY");
  * Care for Cassie (12025), Ant-Man's obligation, and his nemesis set: Tech Theft (12026), Yellowjacket (12027),
  * Size Increase (12028), Yellowjacket's Plan (12029).
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
- * - `12025.obligation` — "Choose and discard 1 card from your hand. **You cannot change form until your next turn
- *   ends.** Discard this obligation." is otherwise the Core obligation shape (`core/obligations.ts`'s `obligation`
- *   helper handles "give to X, may flip, exhaust-to-remove-or-alternative" already), but the bolded restriction has
- *   no primitive: `RuleSpec cannotChangeForm` is a *standing* constant rule (`while: Predicate`), and there is no
- *   lasting-effect kind for "cannot change form" the way `LastingEffectBody`'s `statModifier`/`traitGrant`/
- *   `costReduction`/`blankTextBox` exist for other standing changes with a clock on them. "Until your next turn
- *   ends" also isn't one of `LastingUntil`'s three values. Closest existing primitive: `LastingEffectBody`'s own
- *   shape, needing a `cannotChangeForm`-kind sibling.
+ * **`12025.obligation` is now scripted** (docs/phase7-wave2.md §22/§23): "Choose and discard 1 card from your
+ * hand. **You cannot change form until your next turn ends.** Discard this obligation." is the Core obligation
+ * shape (`core/obligations.ts`'s `obligation` helper: "give to X, may flip, exhaust-to-remove-or-alternative")
+ * plus `EffectSpec applyRuleUntil` (`dsl/effects.ts`'s `cannotChangeFormUntil`) for the bolded restriction — a
+ * `RuleSpec` that outlives the obligation card discarding itself in the same breath that imposes it, unlike a
+ * constant ability's own standing rule. "Until your next turn ends" reads as the turn *after* the current one when
+ * created during a player's own turn (never zero-length); both obligations actually resolve in the villain phase,
+ * where that reading doesn't matter.
+ *
  * **Un-skipped this pass (docs/phase7-wave2.md §17.5, landed 2026-09-19):**
  * - `12027.yellowjacket-constant` / `12027.yellowjacket-constant-2` — "While you are in Giant/Tiny hero form,
  *   Yellowjacket gains the Giant/Tiny trait and retaliate 1 / +1 ATK." Scripted exactly as first attempted (see
@@ -45,12 +53,20 @@ const TINY = trait("TINY");
  *   re-entering the poisoned scan. Confirmed with a real reveal-from-encounter-deck test reading Yellowjacket's own
  *   live traits and stats, not re-added on the strength of the engine's own fix alone.
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
- * - `12029.when-revealed` — "discard cards from the encounter deck until a card from the **Ant-Man Nemesis set**
- *   is discarded" needs a `TargetQuery` matching "belongs to encounter set X" — no field does (only `categories`/
- *   `trait`/`name`/etc., none of which name a card's `encounterSetIds` membership).
+ * **`12029.when-revealed` is now scripted** (docs/phase7-wave2.md §20.2/§23): "discard cards from the encounter
+ * deck until a card from the **Ant-Man Nemesis set** is discarded" is `TargetQuery.encounterSetOf` (`dsl/values.ts`'s
+ * `encounterSetOf(ref)`) — `self` says "the Ant-Man Nemesis set" without naming it, since Yellowjacket's Plan is
+ * itself a member of the set it names, the same shape every printed "a card from the <X> set" in cycle 1 uses.
  */
 export const ANT_MAN_OBLIGATION_NEMESIS = defineAbilities({
+  // Care for Cassie — Give to the Scott Lang player. You may flip to alter-ego form. Choose:
+  // • Exhaust Scott Lang → remove Care for Cassie from the game.
+  // • Choose and discard 1 card from your hand. You cannot change form until your next turn ends.
+  "12025.obligation": obligation("Scott Lang", {
+    label: "Choose and discard 1 card from your hand. You cannot change form until your next turn ends",
+    effects: [discardFromHand(1), cannotChangeFormUntil("endOfNextTurn")],
+  }),
+
   // Tech Theft — Treat the printed text box of each Tech player card as if it were blank.
   "12026.tech-theft-constant": constant(blanksTextBox({ trait: TECH, categories: ["ally", "upgrade", "support"] })),
 
@@ -74,9 +90,6 @@ export const ANT_MAN_OBLIGATION_NEMESIS = defineAbilities({
   "12028.size-increase-forced-response": forcedResponse(on.enemySchemesOrAttacks("host"), removeCountersFrom(self, "size", 1)),
 
   // Yellowjacket's Plan — When Revealed: discard cards from the encounter deck until a card from the Ant-Man
-  // Nemesis set is discarded this way. Reveal that card. SKIPPED (missing primitive — module docblock addendum
-  // below): no `TargetQuery` field matches "belongs to encounter set X" (only `categories`/`trait`/`name`/etc.,
-  // none of which name a card's `encounterSetIds` membership) — `discardEncounterUntil`'s own `filter` has nothing
-  // to search for. Closest existing primitive: `TargetQuery.trait`, the same shape an `encounterSetId?:
-  // EncounterSetId` field would need.
+  // Nemesis set is discarded this way. Reveal that card (module docblock, §20.2).
+  "12029.when-revealed": whenRevealed(discardEncounterUntil(encounterSetOf(self), "found"), revealCard(chosen("found"))),
 });

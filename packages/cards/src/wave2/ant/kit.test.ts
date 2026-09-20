@@ -1,7 +1,7 @@
 import { cardId } from "@mc/content";
 import type { GameState, InstanceId } from "@mc/engine";
-import { activeEncounterDeckId, cardsInPlay, characterProfile, hasKeyword, traitsOf } from "@mc/engine";
-import { firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, use, type Picker } from "../../testing/harness.js";
+import { activeEncounterDeckId, applyCommand, cardsInPlay, characterProfile, hasKeyword, traitsOf } from "@mc/engine";
+import { endTurn, firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, use, type Picker } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { ANT_MAN_KIT } from "./kit.js";
@@ -229,6 +229,25 @@ function revealFromEncounterDeck(state: GameState, code: string): { readonly sta
   return { state: revealed, id };
 }
 
+/**
+ * Moves a *different* nemesis-set card from `PlayerState.setAside` a few cards down into the shared encounter
+ * deck — standing in for "eventually got shuffled in" (a real game only unpacks the rest of a nemesis set via
+ * Shadow of the Past, Core 01190) so `discardEncounterUntil(encounterSetOf(self))` (12029's own module docblock)
+ * has a real target to find, with real (guaranteed non-nemesis) filler cards ahead of it to actually discard.
+ */
+function stageNemesisCardIntoDeck(state: GameState, code: string, depth: number, player = P1): GameState {
+  const owner = playerOf(state, player);
+  const id = owner.setAside.find((i) => state.instances[i]?.cardId === cardId(code));
+  if (!id) throw new Error(`no ${code} set aside for ${player}`);
+  const deckId = activeEncounterDeckId(state);
+  const pile = state.encounterDecks[deckId]!;
+  return {
+    ...state,
+    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
+    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [...pile.deck.slice(0, depth), id, ...pile.deck.slice(depth)] } },
+  };
+}
+
 describe("Ant-Man's obligation and nemesis (Care for Cassie, Yellowjacket)", () => {
   it("Tech Theft: treats the printed text box of each Tech player card as if it were blank", () => {
     // Reinforced Suit (12018, TECH) attached to Wasp (12002) grants +2 hit points constantly.
@@ -261,5 +280,46 @@ describe("Ant-Man's obligation and nemesis (Care for Cassie, Yellowjacket)", () 
     expect(traitsOf(tiny, yellowjacket, WAVE2_DEPS).map(String)).not.toContain("GIANT");
     expect(hasKeyword(tiny, yellowjacket, "retaliate", WAVE2_DEPS)).toBe(false);
     expect(characterProfile(tiny, yellowjacket, WAVE2_DEPS)?.atk).toBe(3); // printed 2 + 1
+  });
+
+  // docs/phase7-wave2.md §22/§23: `applyRuleUntil`/`cannotChangeFormUntil` — a `RuleSpec` restriction that outlives
+  // the obligation discarding itself in the same breath that imposes it. Care for Cassie (12025) is Ant-Man's own
+  // obligation, shuffled directly into the shared encounter deck at setup (`HeroIdentityCard.obligationCardId`) —
+  // unlike a nemesis-set card, `stackEncounterDeck` alone reaches it. Revealed during the villain phase (no turn in
+  // progress), so both readings of "your next turn" agree: it covers the very next turn the player takes.
+  it("Care for Cassie: choosing to discard a card imposes 'you cannot change form until your next turn ends', which lifts after that turn", () => {
+    const staged = stackEncounterDeck(antManVsRhino(), "01186", "12025");
+    const pickAlternative: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      const alt = choice.options.find((o) => o.label.startsWith("Choose and discard"));
+      if (alt) return [alt.optionId];
+      return firstLegal(state);
+    };
+    // Round N+1's own player turn: the reveal happened in round N's villain phase (no turn in progress), so the
+    // restriction already covers *this* turn, the first the player begins after it was created.
+    const revealed = settle(runWave2(staged, endTurn()), pickAlternative, undefined, WAVE2_DEPS);
+    expect(instancesOf(revealed, "12025").some((id) => playerOf(revealed, P1).playArea.includes(id))).toBe(false);
+    expect(applyCommand(revealed, { type: "changeForm", playerId: P1, to: TINY }, WAVE2_DEPS).ok).toBe(false);
+
+    // The end of that turn is the timing point (RRG 1.8 "Lasting Effects", p. 26): round N+2 is free again.
+    const after = settle(runWave2(revealed, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(applyCommand(after, { type: "changeForm", playerId: P1, to: TINY }, WAVE2_DEPS).ok).toBe(true);
+  });
+
+  // docs/phase7-wave2.md §20.2/§23: `TargetQuery.encounterSetOf`. Tech Theft (12026), Yellowjacket's Plan's own
+  // nemesis-set sibling, is planted a few cards down in the shared deck (module docblock, `stageNemesisCardIntoDeck`)
+  // so the search genuinely discards real filler cards before finding — and revealing — it.
+  it("Yellowjacket's Plan: When Revealed, discards cards from the encounter deck until a card from the Ant-Man Nemesis set is discarded, then reveals it", () => {
+    const withTechTheft = stageNemesisCardIntoDeck(antManVsRhino(), "12026", 3);
+    const staged = stageNemesisCardForReveal(withTechTheft, "12029");
+    const deckId = activeEncounterDeckId(staged);
+    const discardBefore = staged.encounterDecks[deckId]!.discard.length;
+    const revealed = settle(runWave2(staged, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE2_DEPS);
+    // Tech Theft is now in play (revealed), not sitting discarded — its own constant ability is live.
+    const techTheft = instancesOf(revealed, "12026").find((id) => cardsInPlay(revealed).includes(id));
+    expect(techTheft).toBeDefined();
+    // At least the filler cards planted ahead of it were genuinely discarded along the way.
+    expect(revealed.encounterDecks[deckId]!.discard.length).toBeGreaterThan(discardBefore);
   });
 });

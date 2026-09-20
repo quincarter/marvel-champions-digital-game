@@ -76,14 +76,12 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * other ref must resolve, and each listed ref must still be unresolved, so an entry can't go stale.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // Computed 2026-09-19 against TRORS_CARDS/WAVE2_ABILITIES — regenerate the same way (a small throwaway test
-  // dumping `allRefs.filter((id) => !(id in WAVE2_ABILITIES))`) whenever this list needs updating; hand-typing
-  // ability slugs from memory is exactly how this list drifted from reality the first time it was written.
+  // Regenerated 2026-09-20 against TRORS_CARDS/WAVE2_ABILITIES (the throwaway-test method these comments describe)
+  // after un-skipping `04028.when-revealed` (docs/phase7-wave2.md §18.4/§23: the skip had gone stale — `anyOf` +
+  // `ref`/`each` + `tuckCards` were all already there).
   trors: [
-    // --- Hawkeye obligation/nemesis (wave2/trors/hawkeye-obligation-nemesis.ts): missing-primitive block, see
-    //     that file's module docblock (needs searching a player's hand/deck/discard *and* play area as one pool). ---
-    "04028.when-revealed",
-    // --- Hydra Campaign cards: data only while campaign mode is deferred (docs/phase7-wave2.md, PLAN.md Phase 7). ---
+    // --- Hydra Campaign cards: data only while campaign mode is deferred (PLAN.md, "Campaign mode"; `trors` is
+    //     slated to be the first box built). ---
     "04155.adrenal-stims-action",
     "04156.tactical-scanner-action",
     "04157.emergency-teleporter-action",
@@ -115,53 +113,35 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "04165.obligation",
     "04166.obligation",
   ],
-  // Regenerated 2026-09-19 (later session) against TOAFK_CARDS/WAVE2_ABILITIES, same method as trors' own list
-  // above, after un-skipping the four refs whose primitives landed in docs/phase7-wave2.md §10 (11008b's two refs,
-  // 11013a) and §10.1's `superlative`/`printedCostOf` DSL follow-up (11021.when-revealed), and scripting the
-  // previously-not-started Expert encounter set (11040-11051, all but the two-clauses-one-ref 11049.obligation).
+  // Regenerated 2026-09-20 against TOAFK_CARDS/WAVE2_ABILITIES, after un-skipping 11018/11019/11021's own
+  // "Alter-Ego Action" refs (docs/phase7-wave2.md §19/§23: `AbilityCost.discardFromHand` gained `filter`). Only
+  // 11020/11049 remain — a data gap, not an engine gap (§18.2/§23): each prints two independent clauses under one
+  // ability ref, and an `AbilityDefinition` can only carry one `AbilityTriggerSpec`. Every primitive both clauses
+  // need already exists; the fix is `card-data-pipeline` splitting the ref the same way 11018/11019/11021 already
+  // were.
   toafk: [
-    // --- Kang/Temporal encounter set + Expert set (wave2/toafk/kang-encounter-set.ts): missing-primitive blocks (a
-    //     resource-type-filtered discard cost; a dynamic "your own hero" match) and two-clauses-one-ref data gaps,
-    //     see that file's module docblock. ---
-    "11018.weakened-action",
-    "11019.stolen-memories-action",
     "11020.obligation",
-    "11021.time-travel-hijinks-action",
     "11049.obligation",
   ],
-  // Regenerated 2026-09-19 (later session) against ANT_CARDS/WAVE2_ABILITIES, after un-skipping Yellowjacket's two
-  // form-conditional constants (docs/phase7-wave2.md §17.5) once traitsOf's recursion guard landed — same method
-  // as the other packs' own lists above.
-  ant: [
-    // --- Ant-Man obligation/nemesis (wave2/ant/obligation-nemesis.ts): missing-primitive blocks, see that file's
-    //     module docblock. ---
-    "12025.obligation",
-    "12029.when-revealed",
-    // --- Pack cards (wave2/ant/pack-cards.ts): missing-primitive blocks. ---
-    "12011.ant-man-interrupt",
-    "12024.team-building-exercise-action",
-    "12032.muster-courage-action",
-  ],
-  // Regenerated 2026-09-19 (later session), after un-skipping the five §17 refs (docs/phase7-wave2.md §17.6) once
-  // their primitives landed — same method as the other packs' own lists above.
-  wsp: [
-    // --- Pack cards (wave2/wsp/pack-cards.ts): missing-primitive block, see that file's module docblock. ---
-    "13012.wasp-interrupt",
-  ],
-  // Computed 2026-09-19 against QSV_CARDS/WAVE2_ABILITIES, same method as the other packs' own lists above.
-  qsv: [
-    // --- Quicksilver's kit (wave2/qsv/kit.ts): missing-primitive block, see that file's module docblock (no
-    //     trigger event announces a completed ready). ---
-    "14009.friction-resistance-response",
-    // --- Obligation/nemesis (wave2/qsv/obligation-nemesis.ts): missing-primitive block, see that file's module
-    //     docblock (a "cannot ready … until your next turn ends" standing restriction). ---
-    "14024.obligation",
-  ],
+  // Regenerated 2026-09-20 against ANT_CARDS/WAVE2_ABILITIES, after un-skipping all five remaining refs
+  // (docs/phase7-wave2.md §18/§23): `12011.ant-man-interrupt` and `12032.muster-courage-action` were already
+  // unblocked (stale skips, §18.3/§18.5); `12024.team-building-exercise-action` and `12029.when-revealed` needed
+  // `TargetQuery.sharesTraitWith`/`encounterSetOf` (§20.1/§20.2); `12025.obligation` needed `applyRuleUntil` (§22).
+  ant: [],
+  // Regenerated 2026-09-20 against WSP_CARDS/WAVE2_ABILITIES, after un-skipping `13012.wasp-interrupt` (docs/
+  // phase7-wave2.md §18.3/§23: `overpaid.energy` was already readable from a later `cardEntersPlay` interrupt).
+  wsp: [],
+  // Regenerated 2026-09-20 against QSV_CARDS/WAVE2_ABILITIES, after un-skipping both remaining refs (docs/
+  // phase7-wave2.md §23): `14009.friction-resistance-response` needed the new `cardReadied` announcement (§21);
+  // `14024.obligation` needed `applyRuleUntil` (§22), the same primitive `12025.obligation` (`ant`) needed.
+  qsv: [],
   // Computed 2026-09-19 against SCW_CARDS/WAVE2_ABILITIES, same method as the other packs' own lists above.
   scw: [
     // --- Obligation/nemesis (wave2/scw/obligation-nemesis.ts): missing-primitive block, see that file's module
     //     docblock (no primitive counts star icons — as opposed to boost icons — among a discarded pool of
-    //     boost-area cards; confirmed genuinely missing, not just a missing DSL wrapper). ---
+    //     boost-area cards; confirmed genuinely missing, not just a missing DSL wrapper). Data gap, not an engine
+    //     gap (docs/phase7-wave2.md §18.6/§23): `card-data-pipeline` needs a `starIcon?: boolean` field on
+    //     encounter-side cards, backfilled; the engine read is a one-liner afterwards. ---
     "15023.obligation",
   ],
 };

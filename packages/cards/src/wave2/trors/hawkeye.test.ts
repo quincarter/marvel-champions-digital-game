@@ -75,6 +75,25 @@ function stageScenarioSetAsideForReveal(state: GameState, code: string): GameSta
   };
 }
 
+/**
+ * The `stackSetAside` sibling of `stageScenarioSetAsideForReveal` above, for a *player's own* set-aside nemesis card:
+ * the same "villain's boost draw eats the very top of the deck first" trap (`enemy-activation.ts`'s `getsBoostCard`,
+ * unconditional for a villain; villain-phase step order in `flow.ts` runs `enemyActivations` before
+ * `dealEncounterCards`/`revealEncounterCards`), which `stackSetAside` alone does not protect against — confirmed by
+ * instrumenting `04028`/`04030` staged bare: both end up faceup in the encounter deck's own discard, never in
+ * `villainArea`/dealing their printed effect, having been drawn and discarded as Rhino's own boost card instead. One
+ * throwaway filler card (whatever was already second from the top) absorbs that boost draw, so the staged card lands
+ * as the villain phase's actual player reveal.
+ */
+function stackSetAsideBehindBoost(state: GameState, code: string, player = P1): GameState {
+  const staged = stackSetAside(state, code, player);
+  const deckId = activeEncounterDeckId(staged);
+  const pile = staged.encounterDecks[deckId]!;
+  const [card, filler, ...rest] = pile.deck;
+  if (!card || !filler) throw new Error(`no filler card behind the staged ${code} on the encounter deck`);
+  return { ...staged, encounterDecks: { ...staged.encounterDecks, [deckId]: { ...pile, deck: [filler, card, ...rest] } } };
+}
+
 describe("Hawkeye kit", () => {
   it("Quick Draw: exhausts Hawkeye to ready Hawkeye's Bow", () => {
     const { state, bow } = heroWithBow();
@@ -402,14 +421,9 @@ describe("Hawkeye's obligation and nemesis (Criminal Past, Crossfire)", () => {
 
   it("Crossfire's Rifle: Hero Action, exhausting your hero and spending a [wild] resource, discards it", () => {
     // Crossfire's Rifle attaches to Crossfire if he's in play, else the villain (data, `AttachmentHost.ifAble`) —
-    // staged on top of the encounter deck (behind a filler for the villain's own boost draw) so its generic
-    // attachment-reveal rule attaches it to Rhino, the only enemy in this scenario.
-    const start = stackSetAside(hawkeyeVsRhino(), "04029");
-    const deckId = activeEncounterDeckId(start);
-    const pile = start.encounterDecks[deckId]!;
-    const filler = pile.deck[1]!; // index 0 is Crossfire's Rifle, just staged onto the very top
-    const rest = pile.deck.slice(2);
-    const staged = { ...start, encounterDecks: { ...start.encounterDecks, [deckId]: { ...pile, deck: [filler, pile.deck[0]!, ...rest] } } };
+    // staged behind a filler for the villain's own boost draw so its generic attachment-reveal rule attaches it to
+    // Rhino, the only enemy in this scenario.
+    const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04029");
     const hero = runWave2(staged, toHero());
     const revealed = settle(runWave2(hero, endTurn()), firstLegal, undefined, WAVE2_DEPS);
     const rifle = instancesOf(revealed, "04029").find((id) => cardsInPlay(revealed).includes(id));
@@ -443,17 +457,59 @@ describe("Hawkeye's obligation and nemesis (Criminal Past, Crossfire)", () => {
   });
 
   it("Sniper Shot: in hero form, deals 3 damage to your hero", () => {
-    const start = stackSetAside(hawkeyeVsRhino(), "04030");
-    const hero = runWave2(start, toHero());
+    // Bare `stackSetAside` (no filler) silently reaches Rhino's own automatic boost draw instead of the player's
+    // own reveal (every villain gets one unconditionally, drawn from the very top of the deck before any player's
+    // own encounter card — `enemy-activation.ts`'s `getsBoostCard`, `flow.ts`'s villain-phase step order): confirmed
+    // by instrumenting this exact test, which previously passed only because Rhino's own attack that same villain
+    // phase happened to deal >= 3 damage on its own, never actually revealing Sniper Shot at all.
+    const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04030");
+    const hero = runWave2(staged, toHero());
     const before = inst(hero, identityOf(hero)).damage;
     const settled = settle(runWave2(hero, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    // Still a lower bound, not an exact match: an engaged Rhino may also attack this same villain phase, dealing
+    // damage of his own on top of Sniper Shot's printed 3.
     expect(inst(settled, identityOf(settled)).damage).toBeGreaterThanOrEqual(before + 3);
   });
 
   it("Sniper Shot: in alter-ego form, places 3 threat on the main scheme", () => {
-    const start = stackSetAside(hawkeyeVsRhino(), "04030");
-    const before = inst(start, start.mainScheme.instanceId).threat;
-    const settled = settle(runWave2(start, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04030");
+    const before = inst(staged, staged.mainScheme.instanceId).threat;
+    const settled = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    // Still a lower bound: the villain phase's own step-one threat placement adds to the main scheme independently
+    // of Sniper Shot every round.
     expect(inst(settled, settled.mainScheme.instanceId).threat).toBeGreaterThanOrEqual(before + 3);
+  });
+
+  it("Marked for Death: When Revealed, finds Mockingbird in the deck and tucks her faceup beneath it (errata, RRG 1.8 p. 66)", () => {
+    // The same boost-draw trap Sniper Shot's own tests hit above — `stackSetAsideBehindBoost`, not bare
+    // `stackSetAside`, or Rhino's own automatic boost draw eats this card before it ever reaches a player's reveal.
+    const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04028");
+    const settled = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const marked = instancesOf(settled, "04028").find((id) => settled.villainArea.includes(id));
+    if (!marked) throw new Error("Marked for Death never entered play");
+    const tucked = inst(settled, marked).tucked;
+    expect(tucked).toHaveLength(1);
+    const mockingbird = tucked[0]!;
+    expect(inst(settled, mockingbird).cardId).toBe(cardId("04004"));
+    expect(inst(settled, mockingbird).faceup).toBe(true);
+    expect(playerOf(settled, P1).deck).not.toContain(mockingbird);
+  });
+
+  it("Marked for Death: finds Mockingbird already in play, takes her out of it, and tucks the resulting instance", () => {
+    const hero = runWave2(hawkeyeVsRhino(), toHero());
+    const given = moveToHand(hero, P1, "04004");
+    const [mockingbird] = given.ids as [InstanceId];
+    const played = settle(runWave2(given.state, play(P1, mockingbird, payWith(given.state, P1, 3, [mockingbird]))), firstLegal, undefined, WAVE2_DEPS);
+    expect(playerOf(played, P1).playArea).toContain(mockingbird);
+    const staged = stackSetAsideBehindBoost(played, "04028");
+    const settled = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(playerOf(settled, P1).playArea).not.toContain(mockingbird);
+    const marked = instancesOf(settled, "04028").find((id) => settled.villainArea.includes(id));
+    if (!marked) throw new Error("Marked for Death never entered play");
+    const tucked = inst(settled, marked).tucked;
+    expect(tucked).toHaveLength(1);
+    // A card that leaves play is a new instance of the same card (docs/phase7-wave2-scripting.md §5) — match on
+    // the card id, not the old in-play instance id.
+    expect(inst(settled, tucked[0]!).cardId).toBe(cardId("04004"));
   });
 });

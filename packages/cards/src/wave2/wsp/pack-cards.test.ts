@@ -49,6 +49,24 @@ describe("Wasp pack cards", () => {
     expect(WSP_PACK_CARDS["13012.wasp-constant"]).toBeDefined();
   });
 
+  // docs/phase7-wave2.md §18.3: `overpaid.energy` is readable from Wasp's own later `cardEntersPlay` interrupt, per
+  // resource type. Wasp costs 0, so a single paid card is entirely overpaid; her own deck's two basic resource
+  // cards (13021 Energy: 2 [energy] icons, 13023 Strength: 2 [physical] icons — `producesIcons`, since a
+  // "resource"-type card's own printed resource is what it *produces*) isolate the type filter with a real command.
+  it("Wasp (ally): Interrupt places 1 pym counter for each [energy] resource overpaid for her cost", () => {
+    const given = moveToHand(waspVsRhino(), P1, "13012", "13021");
+    const [wasp, energy] = given.ids as [InstanceId, InstanceId];
+    const after = settle(runWave2(given.state, play(P1, wasp, [energy])), firstLegal, undefined, WAVE2_DEPS);
+    expect(inst(after, wasp).counters.pym).toBe(2);
+  });
+
+  it("Wasp (ally): a [physical] overpayment counts nothing toward her pym counters", () => {
+    const given = moveToHand(waspVsRhino(), P1, "13012", "13023");
+    const [wasp, strength] = given.ids as [InstanceId, InstanceId];
+    const after = settle(runWave2(given.state, play(P1, wasp, [strength])), firstLegal, undefined, WAVE2_DEPS);
+    expect(inst(after, wasp).counters.pym ?? 0).toBe(0);
+  });
+
   // Justice/Leadership/Protection/Basic-aspect cards (13031-13034) print no printedResources of their own aspect
   // in Wasp's own single-aspect Aggression precon (docs/phase7-wave2.md §2.1), so they're never in her starter
   // deck to move into hand for a real playthrough the way the pack's own Aggression cards above are — same modest

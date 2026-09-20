@@ -17,6 +17,7 @@ import {
   exhaustThis,
   gets,
   heroAction,
+  heroResponse,
   ifThen,
   inPlay,
   interrupt,
@@ -72,16 +73,11 @@ import { cardName } from "../names.js";
  * lets the (voluntary, Alter-Ego) Action be taken — the same reading Ant-Man's/Wasp's own "up to N" shuffle-back
  * abilities use for an identically-shaped effect.
  *
- * **Skipped (missing engine primitive):**
- * - `14009.friction-resistance-response` — "Hero Response: After you ready Quicksilver, ready this card." No
- *   trigger event announces a completed ready: `cardReadying` (`packages/engine/src/trigger-events.ts`) is the
- *   *interrupt* twin only ("when [a card] would ready"), pushed solely so an ability can replace the ready (Frozen
- *   in Time), and it is explicitly excluded from the response-window scan — so nothing fires *after* a ready
- *   completes, the way `basicPowerUsed` fires after a basic power resolves. Closest existing primitive: the same
- *   "-ing"/"-ed" pair the engine already uses elsewhere (`basicPowerUsing`/`basicPowerUsed`) — a `cardReadied`
- *   announcement, pushed once `readyOrAnnounce` actually readies the card, would let this (and any future "after X
- *   readies" card) be written the same way. The Resource half of the same card
- *   (`14009.friction-resistance-resource`) needs nothing new and is scripted below.
+ * **`14009.friction-resistance-response` is now scripted** (docs/phase7-wave2.md §21/§23): "Hero Response: After
+ * you ready Quicksilver, ready this card." is `on.cardReadied(YOUR_IDENTITY)` — the "-ed" twin of `cardReadying`,
+ * an announcement pushed only once a ready actually happens (a "cannot ready" rule in play, or a card already
+ * ready, announces nothing). The Resource half of the same card (`14009.friction-resistance-resource`) needed
+ * nothing new and was already scripted.
  *
  * **Data gap, not an engine gap:**
  * - `14005.maximum-velocity-constant` — "Max 1 per phase." is `playRestrictions.maxPerPhase` (`packages/engine/
@@ -163,7 +159,8 @@ export const QSV_KIT = defineAbilities({
   // Accelerated Reflex — Quicksilver gets +1 DEF.
   "14008.accelerated-reflex-constant": constant(gets("def", 1, YOUR_IDENTITY)),
 
-  // Friction Resistance — Hero Response (14009.friction-resistance-response) is SKIPPED — module docblock.
+  // Friction Resistance — Hero Response: After you ready Quicksilver, ready this card (module docblock, §21).
+  "14009.friction-resistance-response": heroResponse(on.cardReadied(YOUR_IDENTITY), ready(self)),
   // Resource: Exhaust Friction Resistance → generate a [physical] resource.
   "14009.friction-resistance-resource": resource({ physical: 1 }, { cost: exhaustThis }),
 

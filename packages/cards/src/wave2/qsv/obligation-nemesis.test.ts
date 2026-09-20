@@ -4,7 +4,6 @@ import { activeEncounterDeck, activeEncounterDeckId, cardsInPlay } from "@mc/eng
 import { firstLegal, identityOf, inst, instancesOf, P1, playerOf, settle, stackEncounterDeck, toHero, use, type Picker } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
-import { QUICKSILVER_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
 
 // Real wave 2 content: the Quicksilver (Protection) precon against Rhino, standard, solo. Pietro starts in alter-ego.
 const qsvVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "qsv-protection" }], seed: 2026 }));
@@ -53,8 +52,29 @@ const accepting =
   };
 
 describe("Quicksilver's obligation and nemesis (Need for Speed, Avalanche)", () => {
-  it("Need for Speed (14024.obligation) is SKIPPED — module docblock (a 'cannot ready … until your next turn ends' standing restriction)", () => {
-    expect("14024.obligation" in QUICKSILVER_OBLIGATION_NEMESIS).toBe(false);
+  // docs/phase7-wave2.md §22/§23: `applyRuleUntil`/`cannotReadyUntil` — the sibling of Care for Cassie's own
+  // "cannot change form" restriction (12025, `ant`), a different standing rule on the same lasting-effect shape.
+  // Need for Speed is Quicksilver's own obligation, shuffled directly into the shared encounter deck at setup
+  // (`HeroIdentityCard.obligationCardId`) — unlike a nemesis-set card, `stackEncounterDeck` alone reaches it.
+  it("Need for Speed: choosing to exhaust your identity imposes 'you cannot ready your identity until your next turn ends', which lifts after that turn", () => {
+    const staged = stackEncounterDeck(qsvVsRhino(), "01186", "14024");
+    const pickAlternative: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      const alt = choice.options.find((o) => o.label.startsWith("Exhaust your identity"));
+      if (alt) return [alt.optionId];
+      return firstLegal(state);
+    };
+    // Round N+1's own player turn: the reveal happened in round N's villain phase (no turn in progress), so the
+    // restriction already blocks *this* round's own ready step, the first the player begins after it was created.
+    const revealed = settle(runWave2(staged, { type: "endTurn", playerId: P1 }), pickAlternative, undefined, WAVE2_DEPS);
+    const identity = identityOf(revealed);
+    expect(instancesOf(revealed, "14024").some((id) => playerOf(revealed, P1).playArea.includes(id))).toBe(false);
+    expect(inst(revealed, identity).exhausted).toBe(true);
+
+    // The end of that turn is the timing point (RRG 1.8 "Lasting Effects", p. 26): round N+2's own ready step works.
+    const after = settle(runWave2(revealed, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE2_DEPS);
+    expect(inst(after, identity).exhausted).toBe(false);
   });
 
   it("Avalanche: When Revealed, each player must choose to take 2 indirect damage or exhaust their identity", () => {

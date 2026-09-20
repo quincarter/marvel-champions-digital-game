@@ -1,5 +1,6 @@
 import { trait } from "@mc/content";
 import {
+  addCounters,
   attack,
   cards,
   chooseCards,
@@ -17,6 +18,7 @@ import {
   each,
   eventTarget,
   exhaust,
+  forcedInterrupt,
   gets,
   giveTough,
   heroAction,
@@ -49,11 +51,12 @@ const AVENGER = trait("AVENGER");
  * (13034). Verbatim Core reprints (The Power of Aggression 13015, Energy 13021, Genius 13022, Strength 13023,
  * Quincarrier 13025) are aliased by `../reprints.ts`, not scripted here.
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
+ * **Previously skipped, now scripted (docs/phase7-wave2.md §18.3/§23):**
  * - `13012.wasp-interrupt` — "place 1 pym counter on her (to a maximum of 3) for each [energy] resource you
- *   overpaid for Wasp's cost" needs `overpaid.total` (docs/phase7-wave2.md §3.8) readable from a *later*
- *   `cardEntersPlay` interrupt on the same card — the identical gap Ant-Man's own overpay interrupt (12011,
- *   `ant/pack-cards.ts`) is skipped for.
+ *   overpaid for Wasp's cost" reads `overpaid.energy` from the `cardEntersPlay` interrupt itself: `abilityFrame`
+ *   merges the play's own payment vars into every ability frame for a card still on a `playCard` frame, so a later
+ *   interrupt on the same card already sees them, per resource type — the identical shape Ant-Man's own overpay
+ *   interrupt (12011, `ant/pack-cards.ts`) is scripted for, `.total` there vs. `.energy` here.
  */
 export const WSP_PACK_CARDS = defineAbilities({
   // Thor (Jane Foster) — Response: After you play Thor from your hand, deal 2 damage to the villain (3 damage
@@ -62,8 +65,10 @@ export const WSP_PACK_CARDS = defineAbilities({
   "13011.thor-response": response(on.entersPlay("self"), dealDamage(ifElse(paidWith("physical"), 3, 2), theVillain)),
 
   // Wasp (Janet Van Dyne) — Wasp gets +1 hit point for each pym counter on her (safe: a plain counter-scaled stat
-  // modifier, no `while`). Interrupt (13012.wasp-interrupt) is SKIPPED — module docblock.
+  // modifier, no `while`). Interrupt: when Wasp enters play, place 1 pym counter on her (to a maximum of 3) for
+  // each [energy] resource overpaid for her cost (module docblock).
   "13012.wasp-constant": constant(gets("hp", countersOn(self, "pym"), query("ally", { self: true }))),
+  "13012.wasp-interrupt": forcedInterrupt(on.entersPlay("self"), addCounters("pym", scaled(varOf("overpaid.energy"), { max: 3 }), self)),
 
   // Into the Fray — Hero Action (attack): Deal 6 damage to a minion. For each point of excess damage dealt by this
   // attack, remove 1 threat from the main scheme.

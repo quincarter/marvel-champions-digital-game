@@ -2,6 +2,7 @@ import { trait } from "@mc/content";
 import {
   adjustBoostCount,
   allOf,
+  alterEgoAction,
   attachCard,
   bindTargets,
   boost,
@@ -18,6 +19,7 @@ import {
   discardEncounterCards,
   discardEncounterUntil,
   discard,
+  discardFromHandCost,
   discardThis,
   each,
   eachPlayer,
@@ -78,6 +80,7 @@ import {
   zone,
 } from "../../dsl/index.js";
 import { atEndOfAttack } from "../../dsl/effects.js";
+import { discardThisObligation } from "../../core/obligations.js";
 import { cardName } from "../names.js";
 
 /** The trait Expert Kang minions and Kang's Chosen search for/among (`packages/content`'s upper-cased spelling). */
@@ -100,16 +103,16 @@ const TEMPORAL = trait("TEMPORAL");
  * **11021 (Time-Travel Hijinks)'s "When Revealed" half is now scripted** — `superlative`/`printedCostOf` (`dsl/
  * values.ts`, added this pass) supply "the highest-cost card you control" (a gap the module docblock previously
  * claimed had no primitive at all; `TargetRef { kind: "superlative" }` already existed for other packs, just not as
- * a shared `@mc/cards` builder — see `superlative`'s own doc comment). Its Alter-Ego Action half stays skipped
- * (below) for the same resource-type-filtered cost gap as 11018/11019.
+ * a shared `@mc/cards` builder — see `superlative`'s own doc comment).
+ *
+ * **11018/11019/11021's own "Alter-Ego Action" refs are now scripted too** (docs/phase7-wave2.md §19,
+ * `ability-scripting-engineer`): `AbilityCost.discardFromHand` gained `filter?: TargetQuery`, the cost-side twin of
+ * the effect's own `discardFromHand.filter` (Power Drain's "discard 1 resource of any type"). `discardFromHandCost`
+ * (`dsl/abilities.ts`) grew a matching fourth argument. A wild icon never pays one of these — RRG 1.8 "Wild
+ * Resource" (p. 48): "When resources are not being generated for a cost, a wild resource does not have any
+ * characteristic other than 'wild resource'" — the engine enforces this directly, not this file.
  *
  * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
- * - `11018.weakened-action`, `11019.stolen-memories-action`, `11021.time-travel-hijinks-action` — each "Alter-Ego
- *   Action: Discard a [physical/mental/energy] resource from your hand → discard this obligation" needs a
- *   *resource-type-filtered* discard **cost**. `AbilityCost.discardFromHand` (`{min, max, bind}`) has no `filter`
- *   field the way the *effect* version does (`EffectSpec.discardFromHand.filter`, used by Power Drain's "discard 1
- *   resource of any type" — `ANY_RESOURCE`) — there is no way to require the discarded hand card carry a specific
- *   printed resource icon as part of paying a cost.
  * - `11029.when-revealed` — "Each player searches the encounter deck and discard pile for a **different**
  *   obligation and reveals it" is scripted below reading "different" as "this player's own choice" only: no
  *   primitive compares one player's pick against another's within `forEachPlayer`, so cross-player distinctness
@@ -126,16 +129,19 @@ const TEMPORAL = trait("TEMPORAL");
  * skipped for the identical reason.
  */
 export const KANG_ENCOUNTER_SET = defineAbilities({
-  // Weakened — Forced Response: after you use a basic hero power, take 1 damage. Alter-Ego Action (skipped, module
-  // docblock): discard a [physical] resource → discard this obligation.
+  // Weakened — Forced Response: after you use a basic hero power, take 1 damage. Alter-Ego Action: discard a
+  // [physical] resource from your hand → discard this obligation (docs/phase7-wave2.md §19).
   "11018.obligation": coveredByEngineRule(),
   "11018.weakened-forced-response": forcedResponse(on.basicPowerUsed(query("hero", { controller: "you" })), takeDamage(1)),
+  "11018.weakened-action": alterEgoAction({ cost: discardFromHandCost(1, 1, undefined, { printedResource: "physical" }) }, discardThisObligation),
 
-  // Stolen Memories — When Revealed: place the top 8 cards of your deck facedown under this card. Alter-Ego
-  // Action (skipped, module docblock): discard a [mental] resource → discard this obligation (and the tucked
-  // cards with it).
+  // Stolen Memories — When Revealed: place the top 8 cards of your deck facedown under this card. Alter-Ego Action:
+  // discard a [mental] resource from your hand → discard this obligation (and the tucked cards with it — `RRG
+  // "Tuck"`: a card that leaves play discards whatever is tucked beneath it, `discardThisObligation`'s own
+  // `moveCards` calls `leavePlay` for an in-play card, so no separate effect is needed here).
   "11019.obligation": coveredByEngineRule(),
   "11019.when-revealed": whenRevealed(tuckCards(topOfDeck(8, you), self, true)),
+  "11019.stolen-memories-action": alterEgoAction({ cost: discardFromHandCost(1, 1, undefined, { printedResource: "mental" }) }, discardThisObligation),
 
   // Depowered — SKIPPED (missing primitive — module docblock): "You cannot play hero-specific cards" needs a
   // `TargetQuery` matching "belongs to *your own* hero's signature set" dynamically — `aspect` is an exact
@@ -144,8 +150,8 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // Team-Building Exercise needs (`pack-cards.ts`'s own module docblock).
 
   // Time-Travel Hijinks — When Revealed: discard the highest-cost card you control, then place it facedown under
-  // this card. Alter-Ego Action (skipped, module docblock): discard an [energy] resource → discard this obligation
-  // (and the tucked card with it).
+  // this card. Alter-Ego Action: discard an [energy] resource from your hand → discard this obligation (and the
+  // tucked card with it, same "Tuck" rule as Stolen Memories above).
   "11021.obligation": coveredByEngineRule(),
   "11021.when-revealed": whenRevealed(
     bindTargets("highestCost", superlative("highest", each(query(["ally", "upgrade", "support"], { controller: "you" })), printedCostOf(chosen("candidate")))),
@@ -153,6 +159,7 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
     discard(chosen("pick")),
     tuckCards(cards(chosen("pick")), self, true),
   ),
+  "11021.time-travel-hijinks-action": alterEgoAction({ cost: discardFromHandCost(1, 1, undefined, { printedResource: "energy" }) }, discardThisObligation),
 
   // Temporal Shield — Attach to Kang. Forced Interrupt: When Kang is attacked, discard Temporal Shield → prevent
   // all damage from this attack and deal 1 damage to the attacker. "(Max 1 per attack.)" is a narrow edge case (two

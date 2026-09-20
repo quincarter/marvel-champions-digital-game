@@ -1,6 +1,6 @@
 import type { GameState, InstanceId } from "@mc/engine";
 import { characterProfile } from "@mc/engine";
-import { firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, toHero, use, type Picker } from "../../testing/harness.js";
+import { firstLegal, identityOf, inst, instancesOf, moveToHand, P1, patchInstance, payWith, play, playerOf, settle, stackEncounterDeck, toHero, use, type Picker } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { QSV_KIT } from "./kit.js";
@@ -56,6 +56,26 @@ describe("Quicksilver kit", () => {
     );
     // The limit (once per phase) was already spent, so this time he stays exhausted.
     expect(inst(afterSecond, identity).exhausted).toBe(true);
+  });
+
+  // docs/phase7-wave2.md §21/§23: `on.cardReadied`, the "-ed" twin of `cardReadying`, an announcement pushed only
+  // once a ready actually happens — proven here by chaining off Super Speed's own real ready of Quicksilver.
+  it("Friction Resistance: Hero Response, after you ready Quicksilver, readies this card too", () => {
+    const hero = runWave2(qsvVsRhino(), toHero());
+    const { state: withFriction, id: friction } = playFromHand(hero, "14009", 3);
+    const identity = identityOf(withFriction);
+    const villain = withFriction.villains[0]!.instanceId;
+    // Exhausted directly (its own Resource ability would normally do this): something for its own Response to
+    // ready once Super Speed readies Quicksilver.
+    const staged = patchInstance(withDamage(withFriction, villain, 0), friction, { exhausted: true });
+    const after = settle(
+      runWave2(staged, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }),
+      accepting("14001a.super-speed", "14009.friction-resistance-response"),
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(inst(after, identity).exhausted).toBe(false); // Super Speed readied him
+    expect(inst(after, friction).exhausted).toBe(false); // Friction Resistance's own Response readied it too
   });
 
   it("Superpowered Siblings: discards 2 and draws 2, or 3 if Scarlet Witch is in play (limit once per round)", () => {
@@ -178,8 +198,7 @@ describe("Quicksilver kit", () => {
     expect(characterProfile(withAtk.state, identity, WAVE2_DEPS)?.atk).toBe(before.atk + 1);
   });
 
-  it("Friction Resistance: Resource, exhaust it to generate a [physical] resource (Hero Response half SKIPPED — module docblock)", () => {
+  it("Friction Resistance: Resource, exhaust it to generate a [physical] resource", () => {
     expect(QSV_KIT["14009.friction-resistance-resource"]).toBeDefined();
-    expect("14009.friction-resistance-response" in QSV_KIT).toBe(false);
   });
 });
