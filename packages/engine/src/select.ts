@@ -136,7 +136,22 @@ function printedTraitsOf(state: GameState, id: InstanceId): readonly Trait[] {
   return "traits" in card ? card.traits : [];
 }
 
-/** Printed traits plus traits gained from constant abilities and lasting effects (RRG "Gains"). */
+/**
+ * Printed traits plus traits gained from constant abilities and lasting effects (RRG "Gains").
+ *
+ * **A constant trait grant's own `while` and `target` are read against printed characteristics and lasting effects
+ * only, never against traits (or keywords, or anything else) that constant abilities grant** — the same guard
+ * `blankedByConstantRules` uses below, and for the same reason: a condition like "while you have the Giant trait"
+ * (Yellowjacket 12027, Ant-Man's ally 13002) re-enters this function, which would otherwise recurse forever whatever
+ * the board looks like, and two grants each conditional on the other's granted trait have no answer at all.
+ *
+ * The RRG does not settle this: "Modifiers" (p. 29) says a modified quantity is recalculated from its base value and
+ * all active modifiers, with no rule for a modifier whose own condition depends on the result, and "Constant
+ * Abilities" (p. 5) only says a conditional one is active "anytime the specific condition is met". So this is the
+ * engine's reading, chosen because it terminates and because no answer depends on the order cards are visited (see
+ * docs/phase7-wave2.md §17.5). It costs the cards that need it nothing: a three-sided identity prints Giant/Tiny on
+ * its own hero face, so a form-conditional grant reads a printed trait.
+ */
 export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly Trait[] {
   const traits = [...printedTraitsOf(state, id)];
   for (const effect of state.lastingEffects) {
@@ -147,7 +162,9 @@ export function traitsOf(state: GameState, id: InstanceId, deps: EngineDeps = DE
       for (const ref of activeAbilityRefs(state, sourceId, deps)) {
         const definition = deps.abilities[ref.id];
         if (definition?.trigger.kind !== "constant" || !definition.trigger.traitGrants) continue;
-        const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
+        // `DEFAULT_DEPS`: printed characteristics only, so neither the condition nor the target query can re-enter
+        // this function (a `while: hasTrait(...)`, a `target` that asks what a card may attack, …).
+        const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps: DEFAULT_DEPS };
         for (const grant of definition.trigger.traitGrants) {
           if (grant.while && !evaluate(state, grant.while, context)) continue;
           // Trait grants can't depend on traits being granted: every trait filter here only sees printed traits (reading

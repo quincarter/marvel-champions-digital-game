@@ -7,13 +7,13 @@
  * "Basic Power" (pp. 10–11), "Recover, Recovery" (p. 36), "Piercing" (p. 32), "Interrupt" (p. 25).
  */
 
-import { flat, type AnyCard, type CardId } from "@mc/content";
+import { flat, trait, type AnyCard, type CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { playerId, type InstanceId } from "./ids.js";
-import { mustInstance, mustPlayer } from "./query.js";
-import { matchesQuery, type EffectContext } from "./select.js";
+import { characterProfile, mustInstance, mustPlayer } from "./query.js";
+import { matchesQuery, traitsOf, type EffectContext } from "./select.js";
 import { createGame } from "./setup.js";
 import type { CardInstance, GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
@@ -550,5 +550,100 @@ describe("§17.4 `basicPowerUsing` + `modifyBasicPower`: a bonus to the basic po
     const minion = minionIn(after);
     const attacked = settle(runWith(deps, after, { type: "basicAttack", playerId: p1, attackerInstanceId: heroOf(after), targetInstanceId: minion, payment: [] }), undefined, deps);
     expect(mustInstance(attacked, minion).damage).toBe(2);
+  });
+});
+
+// ---- §17.5 a constant trait grant whose condition asks about traits -------------------------------------------------
+
+describe("§17.5 `traitsOf`: a constant trait grant conditional on a trait query", () => {
+  const BIG = trait("BIG");
+  const TAGGED = trait("TAGGED");
+  const BIG_HERO = stubIdentity({ id: "big-hero", hp: 10, atk: 2, thw: 2, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6, heroTraits: [BIG] });
+
+  /** "While you have the BIG trait, this card gains the TAGGED trait and gets +1 ATK." */
+  const selfGrant = stubAbility("mirror.constant", def({
+    trigger: {
+      kind: "constant",
+      traitGrants: [{ trait: TAGGED, target: { self: true }, while: { kind: "hasTrait", of: { kind: "identityOf", player: { kind: "controller" } }, trait: BIG } }],
+      modifiers: [{ stat: "atk", amount: 1, target: { self: true }, while: { kind: "hasTrait", of: { kind: "identityOf", player: { kind: "controller" } }, trait: BIG } }],
+    },
+    effects: [],
+  }));
+  const MIRROR = stubAlly({ id: "mirror", cost: 0, atk: 1, thw: 1, hp: 3, abilities: [selfGrant.ref] });
+
+  /** Two grants, each conditional on the *other* card's trait: "While <the other> has TAGGED, this card gains TAGGED." */
+  const pairGrant = (id: string, otherName: string) =>
+    stubAbility(`${id}.constant`, def({
+      trigger: {
+        kind: "constant",
+        traitGrants: [{ trait: TAGGED, target: { self: true }, while: { kind: "hasTrait", of: { kind: "named", name: otherName }, trait: TAGGED } }],
+      },
+      effects: [],
+    }));
+  const leftGrant = pairGrant("left", "right-card");
+  const rightGrant = pairGrant("right", "left-card");
+  const LEFT = stubSupport({ id: "left-card", cost: 0, abilities: [leftGrant.ref] });
+  const RIGHT = stubSupport({ id: "right-card", cost: 0, abilities: [rightGrant.ref] });
+  /** The same pair, but this one prints the trait the other's condition asks for. */
+  const PRINTED = stubSupport({ id: "right-card", cost: 0, traits: [TAGGED], abilities: [rightGrant.ref] });
+
+  const traitsFor = (state: GameState, deps: EngineDeps, id: InstanceId) => traitsOf(state, id, deps);
+
+  function table(cards: readonly AnyCard[], abilities: readonly ReturnType<typeof stubAbility>[], hand: readonly CardId[]): { state: GameState; deps: EngineDeps } {
+    const deps = depsOf(...abilities);
+    const base = newGame({
+      identity: BIG_HERO,
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, ...cards],
+      deck: [...copies(RESOURCE.id, 10), ...cards.flatMap((card) => copies(card.id, 2))],
+      encounterDeck: copies(BLANK.id, 16),
+      deps,
+    });
+    const hero = runWith(deps, base, toHero);
+    const given = giveCards(hero, p1, ...hand);
+    let current = given.state;
+    for (const id of given.ids) current = settle(runWith(deps, current, play(id)), undefined, deps);
+    return { state: current, deps };
+  }
+
+  it("grants the trait instead of recursing forever (the condition reads printed traits)", () => {
+    const { state, deps } = table([MIRROR], [selfGrant], [MIRROR.id]);
+    const ally = mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === MIRROR.id) as InstanceId;
+    // Before the guard this threw `RangeError: Maximum call stack size exceeded` for *any* card on the board.
+    expect(traitsFor(state, deps, ally)).toContain(TAGGED);
+    expect(traitsFor(state, deps, mustPlayer(state, p1).identity.instanceId)).toContain(BIG);
+    // The stat sibling of the same shape reaches the same scan and is equally safe.
+    expect(characterProfile(state, ally, deps)?.atk).toBe(2);
+  });
+
+  it("stays live: the condition is re-read, so the grant stops when the trait goes away", () => {
+    const { state, deps } = table([MIRROR], [selfGrant], [MIRROR.id]);
+    const ally = mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === MIRROR.id) as InstanceId;
+    // In alter-ego form the identity's printed traits are the alter-ego face's, which do not include BIG.
+    const nextRound = settle(runWith(deps, state, endTurn), undefined, deps);
+    const alterEgo = settle(runWith(deps, nextRound, { type: "changeForm", playerId: p1 }), undefined, deps);
+    expect(traitsFor(alterEgo, deps, ally)).not.toContain(TAGGED);
+    expect(characterProfile(alterEgo, ally, deps)?.atk).toBe(1);
+  });
+
+  it("two grants that depend on each other terminate, and neither fires", () => {
+    const { state, deps } = table([LEFT, RIGHT], [leftGrant, rightGrant], [LEFT.id, RIGHT.id]);
+    const left = mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === LEFT.id) as InstanceId;
+    const right = mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === RIGHT.id) as InstanceId;
+    expect(traitsFor(state, deps, left)).not.toContain(TAGGED);
+    expect(traitsFor(state, deps, right)).not.toContain(TAGGED);
+  });
+
+  it("one printed trait breaks the tie in one direction only, whichever card is asked about first", () => {
+    const { state, deps } = table([LEFT, PRINTED], [leftGrant, rightGrant], [LEFT.id, PRINTED.id]);
+    const left = mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === LEFT.id) as InstanceId;
+    const right = mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === PRINTED.id) as InstanceId;
+    // The left card's condition sees the right card's *printed* trait, so it gains it; the right card's condition
+    // sees only the left card's granted one, which a condition never reads, so it does not gain it twice over.
+    expect(traitsFor(state, deps, left)).toContain(TAGGED);
+    expect(traitsFor(state, deps, right)).toContain(TAGGED);
+    // Asking in the other order gives the same answer: no result depends on which card is visited first.
+    expect(traitsFor(state, deps, right).filter((t) => t === TAGGED)).toHaveLength(1);
   });
 });
