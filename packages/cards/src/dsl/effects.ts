@@ -621,7 +621,7 @@ export const scenarioDeck = (
 /** "The player who defeated it takes that ally into their hand" (Captured by Hydra, `trors` pack): docs/phase7-wave2.md §3.10. */
 export const takeIntoHand = (from: CardSelector, player: PlayerRef = you): EffectSpec => ({ kind: "takeIntoHand", cards: from, player });
 
-/** "Play a card from your hand, ignoring its resource cost." (Chaos Magic, `qsv` pack): docs/phase7-wave2.md §3.8. */
+/** "Play a card from your hand, ignoring its resource cost." (Chaos Magic, `scw` pack): docs/phase7-wave2.md §3.8. */
 export const playFromHandIgnoringCost = (player: PlayerRef = you, opts: { readonly filter?: TargetQuery; readonly optional?: boolean } = {}): EffectSpec => ({
   kind: "playFromHand",
   player,
