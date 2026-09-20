@@ -16,11 +16,14 @@ import {
   playerOf,
   putOnTopOfDeck,
   resourceAbility,
+  runWith,
   settle,
   settleUntil,
   toHero,
   use,
 } from "../../testing/harness.js";
+import { stackSetAside, stackSetAsideBehindBoost } from "../../testing/staging.js";
+import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
@@ -34,24 +37,6 @@ function heroWithBow(state = hawkeyeVsRhino()) {
   const [bow] = given.ids as [InstanceId];
   const played = settle(runWave2(given.state, play(P1, bow, [])), firstLegal, undefined, WAVE2_DEPS);
   return { state: played, bow };
-}
-
-/**
- * A set-aside nemesis-set card (RRG 1.8 Appendix II step 5, "set aside", kept per-player on `PlayerState.setAside`
- * — never shuffled into the encounter deck at setup) moved onto the top of the encounter deck for a reveal test,
- * the test-only-surgery counterpart of `stackEncounterDeck` for cards that never reach the deck.
- */
-function stackSetAside(state: GameState, code: string, player = P1): GameState {
-  const owner = playerOf(state, player);
-  const id = owner.setAside.find((i) => state.instances[i]?.cardId === cardId(code));
-  if (!id) throw new Error(`no ${code} set aside for ${player}`);
-  const deckId = activeEncounterDeckId(state);
-  const pile = state.encounterDecks[deckId]!;
-  return {
-    ...state,
-    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
-    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [id, ...pile.deck] } },
-  };
 }
 
 /**
@@ -73,25 +58,6 @@ function stageScenarioSetAsideForReveal(state: GameState, code: string): GameSta
     encounterSetAside: state.encounterSetAside.filter((i) => i !== id),
     encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [filler, id, ...rest] } },
   };
-}
-
-/**
- * The `stackSetAside` sibling of `stageScenarioSetAsideForReveal` above, for a *player's own* set-aside nemesis card:
- * the same "villain's boost draw eats the very top of the deck first" trap (`enemy-activation.ts`'s `getsBoostCard`,
- * unconditional for a villain; villain-phase step order in `flow.ts` runs `enemyActivations` before
- * `dealEncounterCards`/`revealEncounterCards`), which `stackSetAside` alone does not protect against — confirmed by
- * instrumenting `04028`/`04030` staged bare: both end up faceup in the encounter deck's own discard, never in
- * `villainArea`/dealing their printed effect, having been drawn and discarded as Rhino's own boost card instead. One
- * throwaway filler card (whatever was already second from the top) absorbs that boost draw, so the staged card lands
- * as the villain phase's actual player reveal.
- */
-function stackSetAsideBehindBoost(state: GameState, code: string, player = P1): GameState {
-  const staged = stackSetAside(state, code, player);
-  const deckId = activeEncounterDeckId(staged);
-  const pile = staged.encounterDecks[deckId]!;
-  const [card, filler, ...rest] = pile.deck;
-  if (!card || !filler) throw new Error(`no filler card behind the staged ${code} on the encounter deck`);
-  return { ...staged, encounterDecks: { ...staged.encounterDecks, [deckId]: { ...pile, deck: [filler, card, ...rest] } } };
 }
 
 describe("Hawkeye kit", () => {
@@ -462,22 +428,35 @@ describe("Hawkeye's obligation and nemesis (Criminal Past, Crossfire)", () => {
     // own encounter card — `enemy-activation.ts`'s `getsBoostCard`, `flow.ts`'s villain-phase step order): confirmed
     // by instrumenting this exact test, which previously passed only because Rhino's own attack that same villain
     // phase happened to deal >= 3 damage on its own, never actually revealing Sniper Shot at all.
+    // `traceAbilities` closes that hole for good: `expectResolved` fails loudly (rather than passing on a
+    // coincidence) if Sniper Shot's own ability is never actually looked up, e.g. if it's eaten as a boost card
+    // again.
     const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04030");
     const hero = runWave2(staged, toHero());
     const before = inst(hero, identityOf(hero)).damage;
-    const settled = settle(runWave2(hero, endTurn()), firstLegal, undefined, WAVE2_DEPS);
-    // Still a lower bound, not an exact match: an engaged Rhino may also attack this same villain phase, dealing
-    // damage of his own on top of Sniper Shot's printed 3.
-    expect(inst(settled, identityOf(settled)).damage).toBeGreaterThanOrEqual(before + 3);
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    trace.reset();
+    const settled = settle(runWith(deps, hero, endTurn()), firstLegal, undefined, deps);
+    expectResolved(trace, "04030.when-revealed-hero");
+    // Exact, not a lower bound (seed 11 is pinned, so this whole villain phase is deterministic): an untargeted
+    // Rhino attacks in hero form (ATK 2, undefended, plus 2 boost icons off this round's own dealt boost card = 4),
+    // and Sniper Shot's own printed 3 lands on top of it.
+    expect(inst(settled, identityOf(settled)).damage).toBe(before + 4 + 3);
   });
 
   it("Sniper Shot: in alter-ego form, places 3 threat on the main scheme", () => {
     const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04030");
     const before = inst(staged, staged.mainScheme.instanceId).threat;
-    const settled = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
-    // Still a lower bound: the villain phase's own step-one threat placement adds to the main scheme independently
-    // of Sniper Shot every round.
-    expect(inst(settled, settled.mainScheme.instanceId).threat).toBeGreaterThanOrEqual(before + 3);
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    trace.reset();
+    const settled = settle(runWith(deps, staged, endTurn()), firstLegal, undefined, deps);
+    expectResolved(trace, "04030.when-revealed-alter-ego");
+    // Exact, not a lower bound (seed 11 pinned): the villain phase's own unconditional step-one threat placement
+    // (+1) always lands regardless of Sniper Shot; an alter-ego hero can't be attacked, so Rhino schemes instead
+    // (SCH 1, undefended, plus 2 boost icons off this round's own dealt boost card = 3); Sniper Shot's own printed 3
+    // is the third term. This reveal alone completes the main scheme (a real, pinned-seed consequence, not a test
+    // artifact) — reading the resulting state is still legitimate.
+    expect(inst(settled, settled.mainScheme.instanceId).threat).toBe(before + 1 + 3 + 3);
   });
 
   it("Marked for Death: When Revealed, finds Mockingbird in the deck and tucks her faceup beneath it (errata, RRG 1.8 p. 66)", () => {

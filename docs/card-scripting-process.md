@@ -119,17 +119,38 @@ unresolved.
 One implementation of "every ability ref id a card carries", imported by all ten coverage tests and by
 `pnpm refs`.
 
+### `packages/cards/src/testing/staging.ts`
+
+Shared scenario-reach helpers (§6 #1, built 2026-09-20): `withDamage`, `withForm`, `withActive`, `moveToDiscard`,
+`stackSetAside`, `stackSetAsideBehindBoost`, `stageNemesisCardForReveal` are deps-agnostic pure state surgery,
+importable directly by any pack test. `playFromHand`, `revealFromEncounterDeck`, `driveEvents`, `defeatWithAttack`
+take an explicit leading `deps: EngineDeps` (the same convention `../testing/harness.ts`'s `runWith` uses);
+`../wave1/testing.ts` and `../wave2/testing.ts` re-export `WAVE1_DEPS`/`WAVE2_DEPS`-bound wrappers of those under
+the same names, so a pack's tests read exactly as they did before this file existed. Collapsed what were 7 copies
+of `playFromHand`, 6 of `withDamage`, 3 each of `stageNemesisCardForReveal`/`revealFromEncounterDeck`/`withForm`/
+`moveToDiscard`/`driveEvents`, and 2–3 each of `withActive`/`defeatWithAttack` (all previously byte-identical or
+differing only in a parameter default) onto one implementation apiece. `stackSetAsideBehindBoost`'s docblock
+carries the single most expensive lesson in the file (below, and §7): bare `stackSetAside` silently loses the
+reveal to the villain's own unconditional boost draw.
+
+### `packages/cards/src/testing/trace.ts`
+
+`traceAbilities(deps)` wraps `EngineDeps.abilities` in a `Proxy` and returns `{ deps, trace }`: pass `deps`
+anywhere a test would have passed the real one, then `expectResolved(trace, abilityId)` /
+`expectNotResolved(trace, abilityId)` assert whether the engine actually handed that ability's `.effects` to the
+effect runner — not merely that it was looked up while enumerating legal actions (`trace.considered()`), and not
+that the resulting state merely looks consistent with it having fired. Built to answer §6 #2 and retro-fitted onto
+`wave2/trors/hawkeye.test.ts`'s two Sniper Shot tests, whose `toBeGreaterThanOrEqual` assertions were tightened to
+exact values in the process: both totals turn out to be pinned-seed-deterministic composites (the villain phase's
+own base threat placement / Rhino's own attack-or-scheme numbers, plus Sniper Shot's own printed effect), not
+floors.
+
 ## 6. Tooling that would plausibly pay for itself
 
 Ranked by measured pain, not by how nice they'd be:
 
-1. **Scenario-reach helpers for tests.** The single biggest cost. `stackSetAsideBehindBoost` is the pattern:
-   a named helper that encodes a hard-won fact about the turn structure. Candidates: "reveal this specific
-   encounter card to this player", "reach the villain phase with exactly one enemy active", "advance N rounds
-   without losing". Each one is written *once* and then every later test is cheap.
-2. **A vacuous-assertion check.** The Sniper Shot tests passed without exercising the card. A helper that
-   asserts *the ability actually fired* (the game log contains its ref) would have caught it, and would catch
-   the next one.
+1. ~~**Scenario-reach helpers for tests.**~~ Built 2026-09-20 — see §5's `testing/staging.ts`.
+2. ~~**A vacuous-assertion check.**~~ Built 2026-09-20 — see §5's `testing/trace.ts`.
 3. **A DSL index** — the 266 builders, grouped by what they express, generated from source. Step 3 is
    currently "grep the engine and hope". Cheap to generate, needs to stay generated or it rots.
 4. **A card brief command** — `pnpm card 15023` printing printed text, refs, which resolve, traits, type,
@@ -142,7 +163,7 @@ Explicitly *not* worth building: more card-text extraction. That problem is solv
 
 ## 7. Standing traps
 
-- **Bare `stackSetAside` does not reveal the card.** Use `stackSetAsideBehindBoost` (`wave2/trors/hawkeye.test.ts`).
+- **Bare `stackSetAside` does not reveal the card.** Use `stackSetAsideBehindBoost` (`testing/staging.ts`, §5).
 - **`starIcons` and `boostIcons` are different counts.** Of 159 starred cards only 43 also print pips, so a
   typo between them passes on any pile where they happen to agree. Test on a pile where they differ.
 - **Loose assertions hide non-firing abilities.** Prefer an exact expected value over `toBeGreaterThanOrEqual`.
