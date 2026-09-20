@@ -2300,3 +2300,44 @@ anything. A card that one day names another set can use any ref that reaches a m
 is still scripted as "each player's own choice": nothing compares one player's pick against another's inside
 `forEachPlayer`, and `encounterSetOf` does not help. It is an `excludeSlots` that would have to span a per-player
 scope — flagged here because §20 is the section a future reader will check first, not because it is being fixed now.
+
+---
+
+## 21. "After you ready X": the `cardReadied` announcement (owner: `game-rules-architect`; landed 2026-09-19)
+
+"Hero Response: After you ready Quicksilver, ready this card." (Friction Resistance, `qsv` 14009.) Tests:
+`packages/engine/src/primitives-wave2d.test.ts` §21 (4 tests).
+
+**The shape.** `TriggerEvent cardReadied { instanceId }` — the "-ed" twin of `cardReadying`, in the idiom the engine
+already uses for `basicPowerUsing`/`basicPowerUsed`. It is an announcement (`isAnnouncement` default), so it opens a
+response window and nothing else, and like every other optional announcement it goes on the stack only when an
+ability could react.
+
+```ts
+// "Hero Response: After you ready Quicksilver, ready this card."
+{ trigger: { kind: "response", forced: false, form: "hero",
+             on: { on: "cardReadied", targetIs: { categories: ["identity"], controller: "you" } } },
+  effects: [{ kind: "ready", target: { kind: "self" } }] }
+```
+
+The readied card is the event's **target**, matching `cardReadying`. Neither carries a player subject: "after **you**
+ready X" is said by the query's own `controller: "you"`, which is the ability controller's card — one `playerIs`
+would have been ambiguous anyway, since an effect can ready a card its controller does not own.
+
+**Where it is announced.** A new `readyAndAnnounce` (`resolve/event.ts`), used by both ready paths — the direct one
+in `readyOrAnnounce` (the common case: the end-of-phase ready of a whole table, where nothing pushes a
+`cardReadying` event at all) and the `cardReadying` event's own apply step. It is guarded on the card actually going
+from exhausted to ready.
+
+**Why not just respond to `cardReadying`.** It would have half-worked and been wrong in one case, which is the whole
+reason for the new event. `cardReadying` is not an announcement, so it opens a response window after its apply step,
+and `heard` counts response candidates — so a `response` on `cardReadying` *would* have fired. But its apply step
+calls `readyCard`, which returns without readying when RRG 1.8 "'Cannot'" (p. 11) forbids it (All Tied Up: "…cannot
+ready"), and the event resolves anyway. The response would then fire on a ready that never happened. The same holds
+for a card an interrupt readied first. Both are pinned as tests: with a "cannot ready" rule in play the hero stays
+exhausted **and** the response does not fire; a card that was already ready does not fire it either.
+
+**Exactly one announcement per ready, for the card that readied.** The fourth test ends a turn so the end-of-phase
+step readies both the identity and the upgrade: the response's `targetIs` names only the identity, so it fires once,
+not twice. (The tally is a test-only counter the printed card does not have — "ready this card" is not observable on
+a step that was going to ready it anyway.)
