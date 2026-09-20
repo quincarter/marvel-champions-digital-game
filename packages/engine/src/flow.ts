@@ -1,6 +1,6 @@
 import type { ChoiceOption } from "./choices.js";
 import { emit, pushFrames, requestChoice, setStep, updatePlayer, type Ctx } from "./ctx.js";
-import { drawCards, endLastingEffect, expireLastingEffects } from "./effects.js";
+import { drawCards, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
@@ -191,6 +191,8 @@ export function finishTurn(ctx: Ctx, playerId: PlayerId): void {
   // "Until the end of this turn" (docs/phase7-wave2.md §13): expires as soon as the turn's end is reached (RRG 1.8
   // "Lasting Effects", p. 26), before the next player's turn begins or the end-of-phase steps start.
   expireLastingEffects(ctx, "endOfTurn");
+  // …and "until your next turn ends" (§22), which is the same timing point for a different player's clock.
+  expirePlayerTurnEffects(ctx, playerId);
   // …and "attacked this turn" is empty until the next turn begins, so the end-of-phase steps and the villain phase
   // never read the last player's attacks as their own (§14).
   ctx.state = { ...ctx.state, attackedThisTurn: {} };

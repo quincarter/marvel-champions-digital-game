@@ -9,6 +9,10 @@ import type { Trait } from "@mc/content";
  * that time period."
  */
 export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfTurn";
+// Type-only, and the only reference spec.ts makes to `abilities.ts` (which imports types back from here):
+// `EffectSpec applyRuleUntil` carries the same `RuleSpec` union a constant ability's own `rules` do, so a
+// restriction is written once whether a card in play or a lasting effect imposes it (docs/phase7-wave2.md §22).
+import type { RuleSpec } from "./abilities.js";
 import type { PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep } from "./state.js";
@@ -640,6 +644,32 @@ export type EffectSpec =
     }
   /** "Until the end of the phase, treat this card's printed text box as if it were blank" (Edison's Giant Robot). */
   | { readonly kind: "blankTextBox"; readonly target: TargetRef; readonly until: LastingUntil }
+  /**
+   * "You cannot change form **until your next turn ends**" (Care for Cassie, `ant` 12025) / "You cannot ready your
+   * identity until your next turn ends" (Need for Speed, `qsv` 14024): a `RuleSpec` with a clock on it, as a
+   * `LastingEffectBody ruleGrant`. Both cards discard themselves as they resolve, so there is no card left in play
+   * to carry the restriction as a constant ability — the restriction has to outlive its source (RRG 1.8 "Lasting
+   * Effects", p. 26). docs/phase7-wave2.md §22.
+   *
+   * `until`:
+   * - `"endOfPhase"` / `"endOfRound"` — the ordinary boundaries;
+   * - `"endOfTurn"` — the turn in progress; like every other "this turn" effect it is **not created** outside one
+   *   (RRG 1.8 "Lasting Effects", p. 26, and §13.3);
+   * - `"endOfNextTurn"` — "until your next turn ends": the first turn `player` *begins* from now on. Created
+   *   whenever the effect resolves, including in the villain phase, which is where both obligations resolve.
+   *
+   * `player` is whose turn `"endOfNextTurn"` waits for; absent, the ability's controller ("**your** next turn").
+   * It is read for that duration only.
+   *
+   * `"endOfAttack"` is deliberately absent: no card prints a restriction scoped to one attack, and an
+   * attack-scoped one would have to name the activation frame the way `modifyStatUntil` does.
+   */
+  | {
+      readonly kind: "applyRuleUntil";
+      readonly rule: RuleSpec;
+      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn";
+      readonly player?: PlayerRef;
+    }
   /** "Gain the Aerial trait until the end of the phase" (Rocket Boots). */
   | { readonly kind: "grantTraitUntil"; readonly trait: Trait; readonly target?: TargetRef; readonly affects?: TargetQuery; readonly until: LastingUntil }
   /** A delayed effect: "At the end of the round, if Nick Fury is still in play, discard him." Fires after round-end lasting effects expire. */

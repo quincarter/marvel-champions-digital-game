@@ -362,6 +362,21 @@ export function expireLastingEffects(ctx: Ctx, boundary: "endOfPhase" | "endOfRo
 }
 
 /**
+ * "Until your next turn ends" (docs/phase7-wave2.md §22): `playerId` has just finished a turn, so every
+ * `endOfPlayerTurn` effect waiting on one of theirs reaches its timing point — except one created during that very
+ * turn, which was waiting for the turn *after* it (`skipRound`, the round that turn belongs to).
+ */
+export function expirePlayerTurnEffects(ctx: Ctx, playerId: PlayerId): void {
+  for (const effect of [...ctx.state.lastingEffects]) {
+    const duration = effect.duration;
+    if (duration.kind !== "endOfPlayerTurn" || duration.playerId !== playerId) continue;
+    if (duration.skipRound === ctx.state.round) continue;
+    if (effect.kind === "delayedEffects") continue;
+    endLastingEffect(ctx, effect.id, "expired");
+  }
+}
+
+/**
  * "Increase the amount of damage *that event* deals" (Embiggen!): a bonus that lasts while one card resolves ends
  * when that card's play finishes, so a card returned to hand and replayed in the same phase does not keep it.
  */

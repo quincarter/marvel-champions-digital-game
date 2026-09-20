@@ -1,7 +1,7 @@
 import type { EngineDeps, RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { getInstance, villainOf } from "./query.js";
-import { activeAbilityRefs, cardsInPlay, categoriesOf, controllerOf, evaluate, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
+import { activeAbilityRefs, cardsInPlay, categoriesOf, controllerOf, evaluate, lastingContext, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
 import type { AttackKeyword, PlayerRef } from "./spec.js";
 import type { Form, GameState } from "./state.js";
 
@@ -13,8 +13,19 @@ import type { Form, GameState } from "./state.js";
 interface ActiveRule<K extends RuleSpec["kind"]> {
   readonly rule: Extract<RuleSpec, { kind: K }>;
   readonly context: EffectContext;
+  /** Who "you" is for a player-scoped rule (`rulePlayers`): the card's speaker, or a lasting effect's controller. */
+  readonly speakerId: PlayerId | null;
 }
 
+/**
+ * Every rule of this kind in force right now: from constant abilities on cards in play, **and** from
+ * `ruleGrant` lasting effects (docs/phase7-wave2.md §22, "you cannot change form until your next turn ends").
+ *
+ * A lasting rule's source card is usually gone by the time it is read — both obligations that need this discard
+ * themselves as they resolve — so its `speakerId` is the creating ability's own controller rather than anything
+ * derived from the card's current position (RRG 1.8 "Lasting Effects", p. 26: a lasting effect keeps working
+ * "whether or not the card that created the lasting effect is in play").
+ */
 function activeRules<K extends RuleSpec["kind"]>(state: GameState, deps: EngineDeps, kind: K): readonly ActiveRule<K>[] {
   const found: ActiveRule<K>[] = [];
   for (const sourceId of cardsInPlay(state)) {
@@ -31,9 +42,15 @@ function activeRules<K extends RuleSpec["kind"]>(state: GameState, deps: EngineD
           deps,
         };
         if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
-        found.push({ rule: rule as Extract<RuleSpec, { kind: K }>, context });
+        found.push({ rule: rule as Extract<RuleSpec, { kind: K }>, context, speakerId: speakerOf(state, sourceId) });
       }
     }
+  }
+  for (const effect of state.lastingEffects) {
+    if (effect.kind !== "ruleGrant" || effect.rule.kind !== kind) continue;
+    const context = lastingContext(effect.scope, deps);
+    if ("while" in effect.rule && effect.rule.while && !evaluate(state, effect.rule.while, context)) continue;
+    found.push({ rule: effect.rule as Extract<RuleSpec, { kind: K }>, context, speakerId: effect.scope.controllerId });
   }
   return found;
 }
@@ -73,16 +90,16 @@ function speakerOf(state: GameState, sourceId: InstanceId | null): PlayerId | nu
   return state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
 }
 
-const rulePlayers = (state: GameState, rule: { readonly player: PlayerRef }, context: EffectContext): readonly PlayerId[] =>
-  resolvePlayers(state, rule.player, { ...context, controllerId: speakerOf(state, context.selfInstanceId) });
+const rulePlayers = (state: GameState, rule: { readonly player: PlayerRef }, active: { readonly context: EffectContext; readonly speakerId: PlayerId | null }): readonly PlayerId[] =>
+  resolvePlayers(state, rule.player, { ...active.context, controllerId: active.speakerId });
 
 /** "While Baron Zemo is engaged with you, you cannot thwart." */
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
-  activeRules(state, deps, "cannotThwart").some(({ rule, context }) => rulePlayers(state, rule, context).includes(playerId));
+  activeRules(state, deps, "cannotThwart").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
 
 /** "You cannot change form." */
 export const cannotChangeForm = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
-  activeRules(state, deps, "cannotChangeForm").some(({ rule, context }) => rulePlayers(state, rule, context).includes(playerId));
+  activeRules(state, deps, "cannotChangeForm").some((active) => rulePlayers(state, active.rule, active).includes(playerId));
 
 /** "… cannot ready." */
 export const cannotReady = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
@@ -91,7 +108,7 @@ export const cannotReady = (state: GameState, deps: EngineDeps, id: InstanceId):
 /** How many additional times this player resolves each When Revealed ability they reveal (Media Coverage). */
 export const whenRevealedRepeats = (state: GameState, deps: EngineDeps, playerId: PlayerId): number =>
   activeRules(state, deps, "repeatWhenRevealed")
-    .filter(({ rule, context }) => rulePlayers(state, rule, context).includes(playerId))
+    .filter((active) => rulePlayers(state, active.rule, active).includes(playerId))
     .reduce((sum, { rule }) => sum + rule.times, 0);
 
 /** RRG 1.8 "Ally Limit" (p. 7): "a maximum of three allies in play". */
@@ -141,7 +158,7 @@ export const mayThwartWithAtk = (state: GameState, deps: EngineDeps, schemeId: I
 /** Whether `playerId` is forbidden to play this card (`cannotPlay`; Depowered). */
 export const cannotPlayCard = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
   activeRules(state, deps, "cannotPlay").some(
-    ({ rule, context }) => rulePlayers(state, rule, context).includes(playerId) && matchesQuery(state, id, rule.cards, context),
+    (active) => rulePlayers(state, active.rule, active).includes(playerId) && matchesQuery(state, id, active.rule.cards, active.context),
   );
 
 /** Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). */

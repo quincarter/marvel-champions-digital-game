@@ -614,3 +614,163 @@ describe("§21 the `cardReadied` announcement", () => {
     expect(firings(after, upgrade)).toBe(1);
   });
 });
+
+// ---- §22 a restriction with a clock on it ------------------------------------------------------------------------------
+
+/**
+ * "• Choose and discard 1 card from your hand. **You cannot change form until your next turn ends.** Discard this
+ * obligation." (Care for Cassie 12025.) "• Exhaust your identity. **You cannot ready your identity until your next
+ * turn ends.** Discard this obligation." (Need for Speed 14024.)
+ *
+ * `LastingEffectBody ruleGrant` + `LastingDuration endOfPlayerTurn` + `EffectSpec applyRuleUntil`
+ * (docs/phase7-wave2.md §22). Both obligations discard themselves as they resolve, so the restriction has to outlive
+ * its own card — RRG 1.8 "Lasting Effects" (p. 26): a lasting effect keeps working "whether or not the card that
+ * created the lasting effect is in play".
+ */
+describe("§22 `applyRuleUntil`: a `RuleSpec` that outlives its card", () => {
+  const noForm = stubAbility("cassie.action", def({
+    trigger: { kind: "action" },
+    effects: [{ kind: "applyRuleUntil", rule: { kind: "cannotChangeForm", player: { kind: "controller" } }, until: "endOfNextTurn" }],
+  }));
+  const CASSIE = stubEvent({ id: "cassie", cost: 0, abilities: [noForm.ref] });
+
+  const noReady = stubAbility("speed.action", def({
+    trigger: { kind: "action" },
+    effects: [
+      { kind: "exhaust", target: { kind: "identityOf", player: { kind: "controller" } } },
+      { kind: "applyRuleUntil", rule: { kind: "cannotReady", target: { categories: ["identity"], controller: "you" } }, until: "endOfNextTurn" },
+    ],
+  }));
+  const SPEED = stubEvent({ id: "speed", cost: 0, abilities: [noReady.ref] });
+
+  /**
+   * The same restriction created with **no turn in progress**, which is where the printed obligations resolve (a
+   * villain-phase encounter-card reveal). Delayed to the end of the round so the moment is deterministic and the
+   * encounter deck stays out of it.
+   */
+  const delayed = stubAbility("delayed.action", def({
+    trigger: { kind: "action" },
+    effects: [
+      {
+        kind: "atEndOfRound",
+        effects: [{ kind: "applyRuleUntil", rule: { kind: "cannotChangeForm", player: { kind: "controller" } }, until: "endOfNextTurn" }],
+      },
+    ],
+  }));
+  const DELAYED = stubEvent({ id: "delayed", cost: 0, abilities: [delayed.ref] });
+
+  const canChangeForm = (state: GameState, deps: EngineDeps): boolean => applyCommand(state, toHero, deps).ok;
+
+  it("keeps working after the card that made it has gone, and through the player's *next* turn", () => {
+    const { deps, state } = setup({ cards: [CASSIE], abilities: [noForm] });
+    const given = giveCards(state, p1, CASSIE.id);
+    const played = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
+    // The event is in the discard pile and the restriction is in force.
+    expect(mustPlayer(played, p1).discard).toContain(given.ids[0]);
+    expect(canChangeForm(played, deps)).toBe(false);
+
+    // Made during this player's own turn, so ending *this* turn is not "your next turn ends".
+    const nextTurn = settle(runWith(deps, played, endTurn), undefined, deps);
+    expect(nextTurn.round).toBe(2);
+    expect(canChangeForm(nextTurn, deps)).toBe(false);
+
+    // The end of that next turn is the timing point (RRG 1.8 "Lasting Effects", p. 26).
+    const after = settle(runWith(deps, nextTurn, endTurn), undefined, deps);
+    expect(after.round).toBe(3);
+    expect(canChangeForm(after, deps)).toBe(true);
+  });
+
+  it("is created with no turn in progress, and then lifts at the end of the next turn", () => {
+    const { deps, state } = setup({ cards: [DELAYED], abilities: [delayed] });
+    const given = giveCards(state, p1, DELAYED.id);
+    const armed = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
+    // Nothing yet: the restriction is still a delayed effect waiting for the end of the round.
+    expect(canChangeForm(armed, deps)).toBe(true);
+
+    // The round ends in the villain phase, where no player's turn is in progress. Unlike "until the end of this
+    // turn" (§13.3), this duration *is* created there — its time period has not started yet.
+    const round2 = settle(runWith(deps, armed, endTurn), undefined, deps);
+    expect(round2.round).toBe(2);
+    expect(canChangeForm(round2, deps)).toBe(false);
+
+    const round3 = settle(runWith(deps, round2, endTurn), undefined, deps);
+    expect(round3.round).toBe(3);
+    expect(canChangeForm(round3, deps)).toBe(true);
+  });
+
+  it("stops the identity readying at the end of the phase, and stops doing so once it expires", () => {
+    const { deps, state } = setup({ cards: [SPEED], abilities: [noReady] });
+    const given = giveCards(state, p1, SPEED.id);
+    const played = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
+    const hero = mustPlayer(played, p1).identity.instanceId;
+    expect(mustInstance(played, hero).exhausted).toBe(true);
+
+    // The end-of-phase ready step runs and is refused (RRG 1.8 "'Cannot'", p. 11).
+    const round2 = settle(runWith(deps, played, endTurn), undefined, deps);
+    expect(mustInstance(round2, hero).exhausted).toBe(true);
+
+    // The restriction expires when that next turn ends, so the following ready step works.
+    const round3 = settle(runWith(deps, round2, endTurn), undefined, deps);
+    expect(mustInstance(round3, hero).exhausted).toBe(false);
+  });
+
+  it("freezes the rule's player ref, one effect per player, each on that player's own clock", () => {
+    const everyone = stubAbility("everyone.action", def({
+      trigger: { kind: "action" },
+      effects: [{ kind: "applyRuleUntil", rule: { kind: "cannotChangeForm", player: { kind: "each" } }, until: "endOfNextTurn" }],
+    }));
+    const EVERYONE = stubEvent({ id: "everyone", cost: 0, abilities: [everyone.ref] });
+    const deps = depsOf(everyone);
+    const twoPlayer = newGame({
+      deps,
+      players: 2,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, EVERYONE],
+      encounterDeck: copies(BLANK.id, 30),
+      deck: [...copies(EVERYONE.id, 4), ...copies(RESOURCE.id, 16)],
+    });
+    const given = giveCards(twoPlayer, p1, EVERYONE.id);
+    const played = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
+    const p2 = playerId("p2");
+
+    // One lasting effect per player, each naming its player outright rather than re-asking a ref later.
+    const grants = played.lastingEffects.filter((e) => e.kind === "ruleGrant");
+    expect(grants).toHaveLength(2);
+    expect(grants.map((e) => (e.duration.kind === "endOfPlayerTurn" ? e.duration.playerId : null)).sort()).toEqual([p1, p2]);
+    expect(applyCommand(played, toHero, deps).ok).toBe(false);
+
+    // p1's was made during p1's own turn, so it waits for p1's *next* turn; p2's turn is still to come this round,
+    // so p2's own next turn is this one and theirs lifts at its end.
+    const p2Turn = settle(runWith(deps, played, endTurn), undefined, deps);
+    expect(applyCommand(p2Turn, { type: "changeForm", playerId: p2 }, deps).ok).toBe(false);
+
+    // Round 2 (first player has passed, so p2 leads): p2 is free again, p1 is not.
+    const round2 = settle(runWith(deps, p2Turn, { type: "endTurn", playerId: p2 }), undefined, deps);
+    expect(round2.round).toBe(2);
+    expect(applyCommand(round2, { type: "changeForm", playerId: p2 }, deps).ok).toBe(true);
+    expect(round2.lastingEffects.filter((e) => e.kind === "ruleGrant")).toHaveLength(1);
+
+    const p1Turn = settle(runWith(deps, round2, { type: "endTurn", playerId: p2 }), undefined, deps);
+    expect(applyCommand(p1Turn, toHero, deps).ok).toBe(false);
+    const afterP1 = settle(runWith(deps, p1Turn, endTurn), undefined, deps);
+    expect(afterP1.lastingEffects.filter((e) => e.kind === "ruleGrant")).toEqual([]);
+  });
+
+  it("reads 'you' as the ability's controller, not whoever is acting when it is checked", () => {
+    const deps = depsOf(noForm);
+    const twoPlayer = newGame({
+      deps,
+      players: 2,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, CASSIE],
+      encounterDeck: copies(BLANK.id, 30),
+      deck: [...copies(CASSIE.id, 4), ...copies(RESOURCE.id, 16)],
+    });
+    const given = giveCards(twoPlayer, p1, CASSIE.id);
+    const played = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
+    const p2 = playerId("p2");
+    const handOff = settle(runWith(deps, played, endTurn), undefined, deps);
+    // It is p2's turn now, and p2 is not the player the restriction was made for.
+    expect(applyCommand(handOff, { type: "changeForm", playerId: p2 }, deps).ok).toBe(true);
+  });
+});

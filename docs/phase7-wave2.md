@@ -2341,3 +2341,142 @@ exhausted **and** the response does not fire; a card that was already ready does
 step readies both the identity and the upgrade: the response's `targetIs` names only the identity, so it fires once,
 not twice. (The tally is a test-only counter the printed card does not have — "ready this card" is not observable on
 a step that was going to ready it anyway.)
+
+---
+
+## 22. A restriction with a clock on it: `applyRuleUntil` (owner: `game-rules-architect`; landed 2026-09-20)
+
+> "• Choose and discard 1 card from your hand. **You cannot change form until your next turn ends.** Discard this
+> obligation." (Care for Cassie, `ant` 12025.)
+> "• Exhaust your identity. **You cannot ready your identity until your next turn ends.** Discard this obligation."
+> (Need for Speed, `qsv` 14024.)
+
+Tests: `packages/engine/src/primitives-wave2d.test.ts` §22 (5 tests, two of them two-player).
+
+Both restrictions already exist as `RuleSpec`s — `cannotChangeForm` and `cannotReady` were built for All Tied Up.
+What was missing is that a `RuleSpec` could only come from a **constant ability on a card in play**, and these two
+obligations *discard themselves* in the same sentence that imposes the restriction. There is no card left to carry
+it. Three additive pieces:
+
+### 22.1 `LastingEffectBody ruleGrant`
+
+```ts
+{ kind: "ruleGrant", rule: RuleSpec, scope: LastingScope }
+```
+
+The **same** `RuleSpec` union a constant ability's `rules` carry, so a restriction is written once and behaves
+identically whether a card in play or a lasting effect imposes it. `activeRules` (`rules.ts`) now scans
+`state.lastingEffects` beside the cards in play; every consumer (`cannotChangeForm`, `cannotReady`, `cannotThwart`,
+`cannotPlay`, the ally limit, …) picks them up with no change of its own. RRG 1.8 "Lasting Effects" (p. 26): a
+lasting effect "continues to affect the game … whether or not the card that created the lasting effect is in play".
+
+`ActiveRule` gained a `speakerId` so a lasting rule's "you" is the creating ability's controller rather than
+`speakerOf`'s card-position fallback, which has nothing to read once the card is gone. Constant-ability rules keep
+exactly the `speakerOf` behaviour they had.
+
+**One judgement call, made explicitly: a player-scoped rule's `player` ref is resolved when the effect is created
+and frozen into it**, one `ruleGrant` per player named. A lasting effect is read long after its ability finished,
+with no triggering event and usually no source card, so `eventPlayer` (an obligation's "When Revealed") or `scoped`
+(inside `forEachPlayer`) would otherwise resolve to nobody and the restriction would silently do nothing. Freezing
+also makes it inspectable: the effect in `GameState.lastingEffects` names the player it binds. Tested with
+`player: { kind: "each" }` at a two-player table — two effects, one per player, each on that player's own clock.
+
+### 22.2 `LastingDuration endOfPlayerTurn` — "until your next turn ends"
+
+```ts
+{ kind: "endOfPlayerTurn", playerId, skipRound?: number }
+```
+
+It ends when `playerId` finishes the first turn they **begin** after the effect was created. `skipRound` is set only
+when the effect is created during that player's own turn, and names the round that turn belongs to: a turn already
+under way is not their "next" one. A player takes exactly one turn per round (RRG 1.8 "Player Phase", p. 34), so a
+round number identifies that turn uniquely — which is why this needs no mutation as rounds pass and why the state
+stays readable. Expiry happens in `finishTurn`, beside `endOfTurn`'s (§13.2), and is logged as
+`lastingEffectEnded { reason: "expired" }` like every other duration.
+
+**The reading of "your next turn", which the RRG does not settle — recorded as a design choice.** The RRG defines no
+"next", and no FFG ruling covers these two cards (checked against `marvel-champions-rulings-post-rrg-1-7.md`, which
+has nothing on either card or on "next turn"). Two readings exist when the effect is created *during* that player's
+own turn: "your next turn" is the current one, or the one after it. This engine takes **the one after it**, for
+three reasons:
+
+1. It is what the words say — a turn in progress is not the one that comes next.
+2. It never produces a zero-length restriction. Under the other reading a card that resolved late in your turn would
+   restrict nothing at all, which is not a thing either obligation can be trying to do.
+3. It does not depend on evaluation order or on how much of the turn is left, so the same board always answers the
+   same way (§17.5's precedent for picking the terminating, order-independent reading where the RRG is silent).
+
+In practice both obligations resolve in the **villain phase**, where no turn is in progress and the two readings
+agree; the choice only shows up if a card effect reveals one during a player's turn.
+
+**This duration is created outside a turn, unlike `endOfTurn`.** §13.3 established that an "until the end of this
+turn" effect made outside a turn is *not created at all* — RRG 1.8 "Lasting Effects" (p. 26): "A lasting effect that
+expires at the end of a specified time period can only be initiated during that time period." That rule does not
+bite here: the time period this one specifies is "from now until the end of your next turn", which **includes now**.
+Both obligations depend on that, since they resolve in the villain phase. Tested.
+
+### 22.3 `EffectSpec applyRuleUntil`
+
+```ts
+// "You cannot change form until your next turn ends."
+{ kind: "applyRuleUntil", rule: { kind: "cannotChangeForm", player: controller }, until: "endOfNextTurn" }
+// "You cannot ready your identity until your next turn ends."
+{ kind: "applyRuleUntil", rule: { kind: "cannotReady", target: { categories: ["identity"], controller: "you" } }, until: "endOfNextTurn" }
+```
+
+`until` is `"endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn"`. `"endOfTurn"` keeps §13.3's rule (not
+created outside a turn). `player` names whose turn `"endOfNextTurn"` waits for; absent, the player the rule itself
+binds, then the ability's controller.
+
+**`"endOfAttack"` is deliberately absent.** No card in the pool prints a restriction scoped to one attack, and one
+would have to name the activation frame the way `modifyStatUntil` does — a different shape, not a missing value.
+
+**Observable behaviour worth knowing:** a `cannotReady` restriction survives the end-of-phase ready step, so the
+identity stays exhausted through it (RRG 1.8 "'Cannot'", p. 11 — `readyCard` refuses, and §21's `cardReadied` is
+therefore not announced either). Tested end to end: exhausted, still exhausted after one ready step, ready after the
+next.
+
+### 22.4 One type-only import, and why
+
+`spec.ts` now has `import type { RuleSpec } from "./abilities.js"`, and `abilities.ts` already imports types back
+from `spec.ts`. The cycle is type-only and erased, and it is the price of `applyRuleUntil` carrying the *same*
+`RuleSpec` union as a constant ability rather than a parallel "restrictions that can have a clock" union that would
+have to be kept in step with it. Recorded here so the next reader knows it is deliberate.
+
+---
+
+## 23. What §§18–22 unblock in `KNOWN_SKIPPED` (owner: `game-rules-architect`; 2026-09-20)
+
+For `ability-scripting-engineer` (`packages/cards/src/wave2/coverage.test.ts`; nothing here touches card scripts).
+Twelve of the fifteen non-campaign refs can now be scripted; the other three are not engine work.
+
+| Ref | Card | What it needs, and where it landed |
+|---|---|---|
+| `04028.when-revealed` | Marked for Death (`trors`) | Already there: `anyOf` + `ref`/`each` + `tuckCards` (§18.4) |
+| `12011.ant-man-interrupt` | Ant-Man ally (`ant`) | Already there: `overpaid.total` in a `cardEntersPlay` interrupt (§18.3) |
+| `13012.wasp-interrupt` | Wasp ally (`wsp`) | Already there: `overpaid.energy`, same window (§18.3) |
+| `12032.muster-courage-action` | Muster Courage (`ant`) | Already there: `chooseTarget.count` + `optional` (§18.5) |
+| `11018.weakened-action` | Weakened (`toafk`) | `AbilityCost.discardFromHand.filter` (§19) |
+| `11019.stolen-memories-action` | Stolen Memories (`toafk`) | Same (§19) |
+| `11021.time-travel-hijinks-action` | Time-Travel Hijinks (`toafk`) | Same (§19) |
+| `12024.team-building-exercise-action` | Team-Building Exercise (`ant`) | `playFromHand.costReduction` (§9) + `TargetQuery.sharesTraitWith` (§20.1) |
+| `12029.when-revealed` | Yellowjacket's Plan (`ant`) | `TargetQuery.encounterSetOf` (§20.2) |
+| `14009.friction-resistance-response` | Friction Resistance (`qsv`) | `TriggerEvent cardReadied` (§21) |
+| `12025.obligation` | Care for Cassie (`ant`) | `applyRuleUntil` + `endOfNextTurn` (§22) |
+| `14024.obligation` | Need for Speed (`qsv`) | Same (§22) |
+
+**Not unblocked, and not engine work:**
+
+| Ref | Card | Owner |
+|---|---|---|
+| `11020.obligation` | Depowered (`toafk`) | `card-data-pipeline`: split the one ref into a constant and an action (§18.2). Every primitive both clauses need already exists. |
+| `11049.obligation` | Fear of Kang (`toafk`) | Same split, same reason (§18.2) |
+| `15023.obligation` | Slipping Sanity (`scw`) | `card-data-pipeline`: a `starIcon?: boolean` field on encounter-side cards, backfilled (§18.6). The engine read is a one-liner afterwards and deliberately was not written on top of absent data. |
+
+**The 30 Hydra Campaign refs (`trors` 04155–04166) stay skipped by design** while campaign mode is unbuilt
+(PLAN.md Phase 7). Nothing in §§18–22 was built for them.
+
+**DSL surface `@mc/cards` will want** (not written here — `ability-scripting-engineer` owns it): a `filter` option on
+the existing discard-cost builder; `sharesTraitWith(ref)` and `encounterSetOf(ref)` query helpers; `on.cardReadied(
+query)`; and `applyRuleUntil` builders — most usefully two named ones, `cannotChangeFormUntil(...)` and
+`cannotReadyUntil(...)`, since those are the two the printed cards need.

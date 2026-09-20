@@ -796,6 +796,42 @@ export function applyEffect(
       );
       return;
     }
+    case "applyRuleUntil": {
+      const scope: LastingScope = {
+        selfInstanceId: frame.selfInstanceId,
+        controllerId: frame.controllerId,
+        vars: frame.vars,
+        bindings: frame.bindings,
+      };
+      /**
+       * A player-scoped rule's own `player` ref is **resolved now and frozen** into the lasting effect, one effect
+       * per player it names. A lasting effect is read long after its ability finished, with no triggering event and
+       * often no source card (docs/phase7-wave2.md §22), so a ref that depends on either — `eventPlayer` on an
+       * obligation's "When Revealed", `scoped` inside `forEachPlayer` — would quietly resolve to nobody and the
+       * restriction would do nothing at all. Freezing it also makes the restriction inspectable in the game state:
+       * the effect names the player it binds.
+       */
+      const players = "player" in effect.rule ? resolvePlayers(ctx.state, effect.rule.player, context) : [null];
+      for (const rulePlayerId of players) {
+        let duration: LastingDuration;
+        if (effect.until === "endOfNextTurn") {
+          // "Until your next turn ends": whose turn, and whether a turn of theirs is already under way — one that
+          // is under way is not their *next* one (§22).
+          const [playerId] = effect.player ? resolvePlayers(ctx.state, effect.player, context) : [rulePlayerId ?? frame.controllerId];
+          if (!playerId) continue;
+          const step = ctx.state.step;
+          const ownTurnNow = step.phase === "player" && step.kind === "turn" && step.activePlayerId === playerId;
+          duration = { kind: "endOfPlayerTurn", playerId, ...(ownTurnNow ? { skipRound: ctx.state.round } : {}) };
+        } else {
+          // "Until the end of this turn" outside a turn cannot be initiated (RRG 1.8 "Lasting Effects", p. 26; §13.3).
+          if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
+          duration = { kind: effect.until };
+        }
+        const rule = rulePlayerId && "player" in effect.rule ? { ...effect.rule, player: { kind: "id" as const, playerId: rulePlayerId } } : effect.rule;
+        addLastingEffect(ctx, { kind: "ruleGrant", rule, scope }, duration);
+      }
+      return;
+    }
     case "blankTextBox": {
       const ids = targets(effect.target);
       const activation = effect.until === "endOfAttack" ? currentActivationFrameId(ctx.state.stack) : null;
