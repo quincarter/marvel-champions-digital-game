@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `10001a` | Hulk | Hero | Hulk | THW:0 ATK:3 DEF:3 HP:18 | - | `hlk` |
-| `10001b` | Bruce Banner | Alter-Ego | Hulk | HP:18 | - | `hlk` |
+| `10001b` | Bruce Banner | Alter-Ego | Hulk | REC:4 HP:18 | - | `hlk` |
 | `10002` | Crushing Blow | Event | Hulk | - | - | `hlk` |
 | `10003` | Hulk Smash | Event | Hulk | - | - | `hlk` |
 | `10004` | Sub-Orbital Leap | Event | Hulk | - | - | `hlk` |
@@ -59,10 +64,10 @@ This document is an authoritative, complete card database generated directly fro
 | `10022` | Strength | Resource | Pack Position: 22 | - | - | `hlk` |
 | `10023` | Avengers Mansion | Support | Pack Position: 23 | - | - | `hlk` |
 | `10024` | Helicarrier | Support | Pack Position: 24 | - | - | `hlk` |
-| `10025` | Inner Demons | Obligation | Hulk | - | 3 pips | `hlk` |
-| `10026` | Abomination | Minion | Hulk Nemesis | SCH:2 ATK:3 HP:6 | 3 pips | `hlk` |
-| `10027` | Total Destruction | Side Scheme | Hulk Nemesis | - | 3 pips | `hlk` |
-| `10028` | Clash Of The Titans | Treachery | Hulk Nemesis | - | 3 pips | `hlk` |
+| `10025` | Inner Demons | Obligation | Hulk | - | 3 icons | `hlk` |
+| `10026` | Abomination | Minion | Hulk Nemesis | SCH:2 ATK:3 HP:6 | 3 icons | `hlk` |
+| `10027` | Total Destruction | Side Scheme | Hulk Nemesis | - | 3 icons | `hlk` |
+| `10028` | Clash Of The Titans | Treachery | Hulk Nemesis | - | 3 icons | `hlk` |
 | `10029` | Beat Cop | Support | Pack Position: 29 | - | - | `hlk` |
 | `10030` | Inspiring Presence | Event | Pack Position: 30 | - | - | `hlk` |
 | `10031` | Electrostatic Armor | Upgrade | Pack Position: 31 | - | - | `hlk` |
@@ -86,6 +91,7 @@ This document is an authoritative, complete card database generated directly fro
   > "Enraged" — **Forced Interrupt**: When your turn ends, discard your hand.
 - **Flavor**: *"Hulk is not sorry. Hulk is Hulk."*
 - **Image Asset**: `assets/card-art/bundles/cards/10001a.png` (300×418 px, 241.4 KB)
+
 ### [10001b] Bruce Banner
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -98,6 +104,7 @@ This document is an authoritative, complete card database generated directly fro
   > Experimental Research — **Action**: Draw 1 card. Choose and discard 1 card from your hand. (Limit once per round.)
 - **Flavor**: *"Don't make me angry. You wouldn't like me when I'm angry."*
 - **Image Asset**: `assets/card-art/bundles/cards/10001b.png` (300×418 px, 224.7 KB)
+
 ### [10002] Crushing Blow
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -110,6 +117,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal damage to an enemy equal to your ATK.
 - **Flavor**: *"Puny monster." —Hulk*
 - **Image Asset**: `assets/card-art/bundles/cards/10002.png` (300×419 px, 39.3 KB)
+
 ### [10003] Hulk Smash
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -121,6 +129,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Interrupt**: When you make a basic attack, you get +10 ATK for that attack. If you paid for this card using only [physical] resources, that attack gains overkill.
 - **Flavor**: *"When Hulk smash something, it stay smashed!" —Hulk*
 - **Image Asset**: `assets/card-art/bundles/cards/10003.png` (300×418 px, 236.5 KB)
+
 ### [10004] Sub-Orbital Leap
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -132,6 +141,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(thwart)*: Remove 3 threat from a scheme (5 threat instead if you paid for this card using only [physical] resources).
 - **Flavor**: *"Leave Hulk alone!" —Hulk*
 - **Image Asset**: `assets/card-art/bundles/cards/10004.png` (300×419 px, 36.4 KB)
+
 ### [10005] Thunderclap
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -143,6 +153,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Choose up to 3 different enemies. Deal 3 damage to each of them.
 - **Flavor**: *"Are you afraid of Hulk's little wind?" —Hulk*
 - **Image Asset**: `assets/card-art/bundles/cards/10005.png` (300×419 px, 30.6 KB)
+
 ### [10006] Unstoppable Force
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -153,6 +164,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Ready Hulk. If you paid for this card using only [physical] resources, draw 1 card.
 - **Flavor**: *"Nobody stop Hulk!" —Hulk*
 - **Image Asset**: `assets/card-art/bundles/cards/10006.png` (300×419 px, 41.4 KB)
+
 ### [10007] Limitless Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Hero
@@ -162,6 +174,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Spend this card only in hero form.
 - **Image Asset**: `assets/card-art/bundles/cards/10007.png` (300×419 px, 42.2 KB)
+
 ### [10008] Banner's Laboratory
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -175,6 +188,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Resource**: Exhaust Banner's Laboratory → generate a [mental] resource.
 - **Flavor**: *"The best thing about my lab is that nobody ever bothers me here." —Bruce Banner*
 - **Image Asset**: `assets/card-art/bundles/cards/10008.png` (300×419 px, 39.0 KB)
+
 ### [10009] Boundless Rage
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -187,6 +201,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Response**: After you change form, discard this card.
 - **Flavor**: *"The angrier I get, the stronger I get." —Bruce Banner*
 - **Image Asset**: `assets/card-art/bundles/cards/10009.png` (300×418 px, 251.7 KB)
+
 ### [10010] Immovable Object
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -198,6 +213,7 @@ This document is an authoritative, complete card database generated directly fro
   > You get +4 hit points.
   > Hulk gains retaliate 1.
 - **Image Asset**: `assets/card-art/bundles/cards/10010.png` (300×419 px, 41.0 KB)
+
 ### [10025] Inner Demons
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -211,7 +227,10 @@ This document is an authoritative, complete card database generated directly fro
   > Change form *(flip your identity)*.
   > • If you are Bruce Banner, discard 2 cards from your hand. Discard this obligation.
   > • If you are Hulk, exhaust your hero. Discard this obligation.
+- **Errata (FFG)**:
+  > Removed “Then:”. (RRG 1.4)
 - **Image Asset**: `assets/card-art/bundles/cards/10025.png` (300×419 px, 38.7 KB)
+
 
 ### Set: Aggression
 
@@ -227,6 +246,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After Brawn attacks, remove 1 threat from a scheme.
 - **Flavor**: *"I'm the strongest one there is. And the smartest. That's all the authority I need."*
 - **Image Asset**: `assets/card-art/bundles/cards/10011.png` (300×419 px, 38.7 KB)
+
 ### [10012] Sentry — *Robert Reynolds*
 - **Type**: `Ally`
 - **Faction / Aspect**: Aggression
@@ -239,6 +259,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Response**: After Sentry enters play under your control, deal yourself 1 encounter card.
 - **Flavor**: *"When I use my powers of a million exploding suns, I unleash the Void. He attacks the world every time I try to save it."*
 - **Image Asset**: `assets/card-art/bundles/cards/10012.png` (300×419 px, 38.1 KB)
+
 ### [10013] She-Hulk — *Jennifer Walters*
 - **Type**: `Ally`
 - **Faction / Aspect**: Aggression
@@ -251,6 +272,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] She-Hulk gets +1 ATK for each damage token here.
 - **Flavor**: *"I'd ask your to surrender... but I'm really hoping you'll put up a fight."*
 - **Image Asset**: `assets/card-art/bundles/cards/10013.png` (300×419 px, 40.1 KB)
+
 ### [10014] Drop Kick
 - **Type**: `Event`
 - **Faction / Aspect**: Aggression
@@ -262,6 +284,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 4 damage to an enemy. If you paid for this card using only [physical] resources, stun that enemy and draw 1 card.
 - **Flavor**: *"Smashing is what Hulk does best!" —Hulk*
 - **Image Asset**: `assets/card-art/bundles/cards/10014.png` (300×419 px, 37.0 KB)
+
 ### [10015] Toe to Toe
 - **Type**: `Event`
 - **Faction / Aspect**: Aggression
@@ -273,6 +296,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Choose an enemy. That enemy attacks you. Deal 5 damage to that enemy.
 - **Flavor**: *"How about a taste of your own medicine?" —Captain Marvel*
 - **Image Asset**: `assets/card-art/bundles/cards/10015.png` (300×418 px, 231.8 KB)
+
 ### [10016] "You'll Pay for That!"
 - **Type**: `Event`
 - **Faction / Aspect**: Aggression
@@ -283,6 +307,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Response** *(thwart)*: After the villain attacks you, remove 1 threat from a scheme for each damage you took from the attack (to a maximum of 5).
 - **Image Asset**: `assets/card-art/bundles/cards/10016.png` (300×419 px, 34.6 KB)
+
 ### [10017] The Power of Aggression
 - **Type**: `Resource`
 - **Faction / Aspect**: Aggression
@@ -292,6 +317,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > Double the number of resources this card generates while paying for a Aggression *(red)* card.
+
 ### [10018] Martial Prowess
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Aggression
@@ -305,6 +331,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Resource**: Exhaust Martial Prowess → generate a [physical] resource for an [[Attack]] event.
 - **Image Asset**: `assets/card-art/bundles/cards/10018.png` (300×419 px, 30.5 KB)
 
+
 ### Set: Basic
 
 ### [10019] To the Rescue!
@@ -317,6 +344,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(thwart)*: Remove 2 threat from a scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/10019.png` (300×419 px, 34.6 KB)
+
 ### [10020] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -325,6 +353,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [10021] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -333,6 +362,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [10022] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -341,6 +371,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [10023] Avengers Mansion
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -352,6 +383,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Action**: Exhaust Avengers Mansion → choose a player. That player draws 1 card.
 - **Flavor**: *"Did you remember to turn off the stove?" —Janet Van Dyne*
+
 ### [10024] Helicarrier
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -363,6 +395,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Action**: Exhaust Helicarrier → choose a player. Reduce the resource cost of the next card that player plays this phase by 1.
 - **Flavor**: *"A flying aircraft carrier? You're kidding, right?" —Jennifer Walters*
+
 ### [10032] Resourceful
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -374,6 +407,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Resource**: Discard Resourceful → generate a [wild] resource.
 - **Flavor**: *"Innovation is the ultimate weapon." —Vision*
 - **Image Asset**: `assets/card-art/bundles/cards/10032.png` (300×419 px, 34.3 KB)
+
 
 ### Set: Hulk Nemesis
 
@@ -392,6 +426,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Forced Response**: After Abomination attacks you, discard the top card of your deck. If a [physical] resource was discarded this way, take 2 damage.
 - **Flavor**: *"Foolish rabble! Your pitiful display is nothing to my newfound power!"*
 - **Image Asset**: `assets/card-art/bundles/cards/10026.png` (300×419 px, 40.6 KB)
+
 ### [10027] Total Destruction
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -405,6 +440,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Threat cannot be removed from this scheme while Abomination is in play.
 - **Image Asset**: `assets/card-art/bundles/cards/10027.png` (419×300 px, 35.3 KB)
+
 ### [10028] Clash Of The Titans
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -417,6 +453,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Revealed**: The enemy with the highest ATK attacks the hero or ally with the highest ATK (first player decides ties.) If no attack was made this way, this card gains surge.
 - **Flavor**: *"You are all beneath me!" —Abomination*
 - **Image Asset**: `assets/card-art/bundles/cards/10028.png` (300×419 px, 40.1 KB)
+
 
 ### Set: Justice
 
@@ -432,6 +469,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Exhaust and discard Beat Cop → deal 1 damage to a minion for each threat here.
 - **Image Asset**: `assets/card-art/bundles/cards/10029.png` (300×419 px, 37.3 KB)
 
+
 ### Set: Leadership
 
 ### [10030] Inspiring Presence
@@ -444,6 +482,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[Avenger]] trait.
   > **Hero Action**: Heal 1 damage from an ally and ready it.
 - **Image Asset**: `assets/card-art/bundles/cards/10030.png` (300×419 px, 38.0 KB)
+
 
 ### Set: Protection
 
@@ -459,4 +498,5 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Response**: After you defend against an attack, deal 1 damage to the attacking character.
 - **Image Asset**: `assets/card-art/bundles/cards/10031.png` (300×419 px, 36.1 KB)
+
 

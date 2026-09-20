@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `62001a` | Luke Cage | Hero | Luke Cage | THW:2 ATK:2 DEF:1 HP:10 | - | `luke_cage` |
-| `62001b` | Luke Cage | Alter-Ego | Luke Cage | HP:10 | - | `luke_cage` |
+| `62001b` | Luke Cage | Alter-Ego | Luke Cage | REC:4 HP:10 | - | `luke_cage` |
 | `62002` | Jessica Jones | Ally | Luke Cage | THW:1 ATK:2 HP:3 | - | `luke_cage` |
 | `62003` | Harlem's Hero | Event | Luke Cage | - | - | `luke_cage` |
 | `62004` | Knuckle Sandwich | Event | Luke Cage | - | - | `luke_cage` |
@@ -62,12 +67,12 @@ This document is an authoritative, complete card database generated directly fro
 | `62025` | Energy | Resource | Pack Position: 25 | - | - | `luke_cage` |
 | `62026` | Genius | Resource | Pack Position: 26 | - | - | `luke_cage` |
 | `62027` | Strength | Resource | Pack Position: 27 | - | - | `luke_cage` |
-| `62028` | Internal Injury | Obligation | Luke Cage | - | 2 pips | `luke_cage` |
-| `62029` | Cottonmouth | Minion | Luke Cage Nemesis | SCH:2 ATK:1 HP:5 | Star | `luke_cage` |
-| `62030` | Venomous Whispers | Side Scheme | Luke Cage Nemesis | - | 2 pips | `luke_cage` |
-| `62031` | Augmented Jaws | Attachment | Luke Cage Nemesis | ATK:1 | 2 pips | `luke_cage` |
-| `62032` | Asp | Minion | Luke Cage Nemesis | SCH:1 ATK:2 HP:4 | 2 pips | `luke_cage` |
-| `62033` | Sidewinder | Minion | Luke Cage Nemesis | SCH:1 ATK:2 HP:3 | 2 pips | `luke_cage` |
+| `62028` | Internal Injury | Obligation | Luke Cage | - | 2 icons | `luke_cage` |
+| `62029` | Cottonmouth | Minion | Luke Cage Nemesis | SCH:2 ATK:1 HP:5 | 0 icons + star | `luke_cage` |
+| `62030` | Venomous Whispers | Side Scheme | Luke Cage Nemesis | - | 2 icons + star | `luke_cage` |
+| `62031` | Augmented Jaws | Attachment | Luke Cage Nemesis | ATK:1 | 2 icons | `luke_cage` |
+| `62032` | Asp | Minion | Luke Cage Nemesis | SCH:1 ATK:2 HP:4 | 2 icons + star | `luke_cage` |
+| `62033` | Sidewinder | Minion | Luke Cage Nemesis | SCH:1 ATK:2 HP:3 | 2 icons | `luke_cage` |
 | `62034` | Size Advantage | Event | Pack Position: 34 | - | - | `luke_cage` |
 | `62035` | Observe | Event | Pack Position: 35 | - | - | `luke_cage` |
 | `62036` | Toughen Up | Upgrade | Pack Position: 36 | - | - | `luke_cage` |
@@ -91,6 +96,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Unbreakable Skin* — Luke Cage can have any number of tough status cards. Attacks against Luke Cage lose piercing.
   > **Forced Response**: After a tough status card is discarded from Luke Cage, he takes 1 unpreventable damage *(ignoring tough)*.
 - **Image Asset**: `assets/card-art/bundles/cards/62001a.png` (300×419 px, 239.3 KB)
+
 ### [62001b] Luke Cage
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -103,6 +109,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Unbreakable Skin* — Luke Cage can have any number of tough status cards. Attacks against Luke Cage lose piercing.
   > **Action**: Search your deck and discard pile for the Burstein Process upgrade and add it to your hand. (Limit once per phase.)
 - **Image Asset**: `assets/card-art/bundles/cards/62001b.png` (300×419 px, 218.5 KB)
+
 ### [62002] Jessica Jones
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -115,6 +122,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] Jessica Jones gets +1 THW for each tough status card on your identity (to a maximum of +4 THW).
 - **Flavor**: *"I'm here, and I'm not going anywhere."*
 - **Image Asset**: `assets/card-art/bundles/cards/62002.png` (300×419 px, 208.6 KB)
+
 ### [62003] Harlem's Hero
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -125,6 +133,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action**: Give Luke Cage a tough status card. For each tough status card on Luke Cage, choose a character you control and ready it.
 - **Flavor**: *"It ain't just me. I've got family to back me up." —Luke Cage*
+
 ### [62004] Knuckle Sandwich
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -135,6 +144,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(attack)*: Deal 3 damage to an enemy. You may discard a tough status card from Luke Cage to return this event to your hand.
 - **Image Asset**: `assets/card-art/bundles/cards/62004.png` (300×419 px, 259.1 KB)
+
 ### [62005] "Stand with Me!"
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -146,17 +156,19 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(thwart)*: Give Luke Cage a tough status card. Remove 1 threat from a scheme for each tough status card on Luke Cage (to a maximum of 5).
 - **Flavor**: *"This is the greatest city in the world. I will not allow it to fall into chaos." —Luke Cage*
 - **Image Asset**: `assets/card-art/bundles/cards/62005.png` (300×419 px, 228.4 KB)
+
 ### [62006] "Sweet Christmas!"
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
 - **Pack**: Luke Cage (`luke_cage`)
 - **Deck / Set**: Luke Cage (7–8/15, Qty: 2)
-- **Stats**: **Cost**: 5, **Resources**: [energy]
+- **Stats**: **Cost**: 5 [star], **Resources**: [energy]
 - **Traits**: *Attack.*
 - **Rules Text**:
   > [star] Reduce the cost to play this card by 1 for each tough status card on Luke Cage.
   > **Hero Action** *(attack)*: Deal 5 damage to the villain and each minion engaged with you.
 - **Image Asset**: `assets/card-art/bundles/cards/62006.png` (300×419 px, 234.4 KB)
+
 ### [62007] Fogwell's Gym
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -168,6 +180,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Response**: After a tough status card is discarded from a [[Defender]] character, exhaust Fogwell's gym → ready that character.
 - **Flavor**: *"Busted a lot of punching bags at this old place, and they never kicked me out." —Luke Cage*
+
 ### [62008] Burstein Process
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -179,6 +192,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Alter-Ego Action**: Exhaust Burstein Process → give Luke Cage a tough status card (2 tough status cards instead if he has none).
 - **Flavor**: *"I got skin like steel and muscles to match." —Luke Cage*
+
 ### [62009] Cruisin' for a Bruisin'
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -190,6 +204,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to a minion. Max 1 per minion.
   > Attacks against attached minion deal 2 additional damage and gain overkill.
   > **Response**: After you play this card, engage attached minion.
+
 ### [62010] Metal Bracer
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -200,6 +215,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Luke Cage gets retaliate 1.
   > **Hero Interrupt**: When any amount of damage would be dealt to Luke Cage, exhaust Metal Bracer → reduce that damage by 1.
+
 ### [62011] Power Man
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -212,6 +228,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response**: After a tough status card is discarded from Luke Cage, exhaust Power Man → draw a card.
 - **Flavor**: *"Tremble before the power of Power Man! That sounded weird. Luke Cage. Tremble before Luke Cage." —Luke Cage*
 - **Image Asset**: `assets/card-art/bundles/cards/62011.png` (300×419 px, 250.6 KB)
+
 ### [62028] Internal Injury
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -224,6 +241,7 @@ This document is an authoritative, complete card database generated directly fro
   > ***Give to the Luke Cage player.***
   > **Forced Response**: After the player phase ends, take 3 unpreventable damage *(ignoring tough status cards)*.
   > **Alter-Ego Response**: After you recover, remove Internal Injury from the game.
+
 
 ### Set: Leadership
 
@@ -238,6 +256,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Interrupt**: When Iron Fist defends against an enemy attack, prevent damage from that attack equal to Iron Fist's ATK.
 - **Flavor**: *"I've forgotten more about fighting than you'll ever know." —Iron Fist*
+
 ### [62013] Misty Knight
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -251,6 +270,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] Misty Knight gets +2 ATK and +2 THW while she has a tough status card.
 - **Flavor**: *"Come on, hoeroes. We've got to help save this city."*
 - **Image Asset**: `assets/card-art/bundles/cards/62013.png` (300×419 px, 254.5 KB)
+
 ### [62014] Valkyrie — *Brunnhilde*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -262,6 +282,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Toughness.
   > **Interrupt**: When another ally would be defeated, discard Valkyrie *(from play)* → instead heal that ally until they have 1 hit point remaining.
+
 ### [62015] Take a Stand
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -273,6 +294,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response**: After your hero defends, each ally you control gets +1 THW and +1 ATK until the end of the player phase.
 - **Flavor**: *"It takes a lot more than that to keep me down." —Luke Cage*
 - **Image Asset**: `assets/card-art/bundles/cards/62015.png` (300×419 px, 232.8 KB)
+
 ### [62016] Innovation
 - **Type**: `Resource`
 - **Faction / Aspect**: Leadership
@@ -282,6 +304,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 1 per deck.
   > **Hero Response**: After you spend this card, heal 1 damage from an ally you control.
+
 ### [62017] The Power of Leadership
 - **Type**: `Resource`
 - **Faction / Aspect**: Leadership
@@ -291,6 +314,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > Double the number of resources this card generates while paying for a Leadership *(blue)* card.
+
 ### [62018] Defensive Formation
 - **Type**: `Support`
 - **Faction / Aspect**: Leadership
@@ -302,6 +326,7 @@ This document is an authoritative, complete card database generated directly fro
   > Uses (3 block counters).
   > **Action**: Exhaust this card and remove 1 block counter from it → give a [[Defender]] ally a tough status card.
 - **Image Asset**: `assets/card-art/bundles/cards/62018.png` (300×419 px, 276.3 KB)
+
 ### [62019] Righteous Purpose
 - **Type**: `Support`
 - **Faction / Aspect**: Leadership
@@ -314,6 +339,7 @@ This document is an authoritative, complete card database generated directly fro
   > Each character you control that has exactly 1 hit point remaining gets +2 THW and +2 ATK.
 - **Flavor**: *"No more running." —Daredevil*
 - **Image Asset**: `assets/card-art/bundles/cards/62019.png` (300×419 px, 272.7 KB)
+
 
 ### Set: Basic
 
@@ -328,6 +354,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Hulk gets +1 ATK for each rage counter here.
   > **Response**: After the villain attacks you, place 1 rage counter here.
+
 ### [62021] She-Hulk — *Jennifer Walters*
 - **Type**: `Ally`
 - **Faction / Aspect**: Basic
@@ -340,6 +367,7 @@ This document is an authoritative, complete card database generated directly fro
   > Toughness.
   > **Response**: After She-Hulk enters play, give your identity a tough status card.
 - **Flavor**: *"You interrupted my workout."*
+
 ### [62022] Dynamic Duo
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -349,6 +377,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Action**: Search your deck and discard pile for a Team-Up card and an ally named by that card's Team-Up keyword. Add those cards to your hand. *(Shuffle.)*
 - **Image Asset**: `assets/card-art/bundles/cards/62022.png` (300×419 px, 248.6 KB)
+
 ### [62023] Power Man and Iron Fist
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -359,6 +388,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Team-Up *(Iron Fist and Luke Cage)*. Max 1 per deck.
   > **Hero Action** *(attack)*: Deal 2 damage to an enemy and give a tough status card to a character.
+
 ### [62024] Unbreakable Bond
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -369,6 +399,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Team-Up *(Jessica Jones and Luke Cage)*. Max 1 per deck.
   > **Hero Action**: *(thwart)*: Remove 3 threat from a scheme. Heal a total of 3 damage from among Jessica Jones and Luke Cage.
+
 ### [62025] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -377,6 +408,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [62026] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -385,6 +417,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [62027] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -393,6 +426,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [62037] Black Belt
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -405,6 +439,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to a friendly character. Max 1 per character.
   > Attached character gets +1 hit point and gains the [[Martial Artist]] trait.
 
+
 ### Set: Luke Cage Nemesis
 
 ### [62029] Cottonmouth
@@ -415,8 +450,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Properties**: Unique
 - **Stats**: **SCH**: 2, **ATK**: 1 [star], **HP**: 5
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Luke Cage Nemesis Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Serpent Society.*
 - **Rules Text**:
@@ -426,6 +461,7 @@ This document is an authoritative, complete card database generated directly fro
   > ---
   >
   > [star] **Boost**: Deal this card to the Luke Cage player as a facedown encounter card.
+
 ### [62030] Venomous Whispers
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -434,7 +470,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Base Threat**: 3 per hero
 - **Bottom-Right Encounter Logos**:
   - **Boost Icons**: 2 icons (Adds +2 to Villain ATK/SCH during activation)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Luke Cage Nemesis Set Icon (printed bottom-right next to deck number)
 - **Rules Text**:
   > Each [[Serpent Society]] minion cannot be attacked.
@@ -443,6 +479,7 @@ This document is an authoritative, complete card database generated directly fro
   > ---
   >
   > [star] **Boost**: You are confused.
+
 ### [62031] Augmented Jaws
 - **Type**: `Attachment`
 - **Faction / Aspect**: Encounter
@@ -457,6 +494,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to Cottonmouth. Otherwise, attach to the villain.
   > [star] **Forced Interrupt**: When attached enemy attacks a character, discard each tough status card from that character.
   > **Hero Action**: Spend [mental] [mental] resources → discard this card.
+
 ### [62032] Asp
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -466,7 +504,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **SCH**: 1 [star], **ATK**: 2, **HP**: 4
 - **Bottom-Right Encounter Logos**:
   - **Boost Icons**: 2 icons (Adds +2 to Villain ATK/SCH during activation)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Luke Cage Nemesis Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Serpent Society.*
 - **Rules Text**:
@@ -476,6 +514,7 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: You are stunned.
 - **Flavor**: *"You deserve a taste of venom!"*
+
 ### [62033] Sidewinder
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -491,6 +530,7 @@ This document is an authoritative, complete card database generated directly fro
   > Quickstrike.
   > **Forced Interrupt**: When Sidewinder is attacked, discard the top card of the encounter deck. If the discarded card has a "**Boost**" ability, deal Sidewinder to the attacking player as a facedown encounter card.
 
+
 ### Set: Aggression
 
 ### [62034] Size Advantage
@@ -503,6 +543,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(attack)*: Deal 3 damage to an enemy (6 damage instead if you have the [[Giant]] trait or more remaining hit points than that enemy).
 - **Flavor**: *"Puny runt!" —Hulk*
+
 
 ### Set: Justice
 
@@ -517,6 +558,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: The villain schemes. Give your hero a tough status card.
 - **Flavor**: *"There are other ways to see." —Daredevil*
 
+
 ### Set: Protection
 
 ### [62036] Toughen Up
@@ -528,4 +570,5 @@ This document is an authoritative, complete card database generated directly fro
 - **Traits**: *Condition.*
 - **Rules Text**:
   > **Response**: After you recover, if your remaining hit points are equal to or greater than your base hit points, exhaust Toughen Up → give your identity a tough status card.
+
 

@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `15001a` | Scarlet Witch | Hero | Scarlet Witch | THW:2 ATK:1 DEF:2 HP:10 | - | `scw` |
-| `15001b` | Wanda Maximoff | Alter-Ego | Scarlet Witch | HP:10 | - | `scw` |
+| `15001b` | Wanda Maximoff | Alter-Ego | Scarlet Witch | REC:3 HP:10 | - | `scw` |
 | `15002` | Quicksilver | Ally | Scarlet Witch | THW:1 ATK:2 HP:4 | - | `scw` |
 | `15003` | Chaos Magic | Event | Scarlet Witch | - | - | `scw` |
 | `15004` | Hex Bolt | Event | Scarlet Witch | - | - | `scw` |
@@ -57,11 +62,11 @@ This document is an authoritative, complete card database generated directly fro
 | `15020` | Energy | Resource | Pack Position: 20 | - | - | `scw` |
 | `15021` | Genius | Resource | Pack Position: 21 | - | - | `scw` |
 | `15022` | Strength | Resource | Pack Position: 22 | - | - | `scw` |
-| `15023` | Slipping Sanity | Obligation | Scarlet Witch | - | 3 pips | `scw` |
-| `15024` | The Next Evolution | Side Scheme | Scarlet Witch Nemesis | - | 2 pips | `scw` |
-| `15025` | Luminous | Minion | Scarlet Witch Nemesis | SCH:2 ATK:2 HP:5 | 2 pips | `scw` |
-| `15026` | Magical Suspension | Attachment | Scarlet Witch Nemesis | - | 2 pips | `scw` |
-| `15027` | Chaos Manipulation | Treachery | Scarlet Witch Nemesis | - | 2 pips | `scw` |
+| `15023` | Slipping Sanity | Obligation | Scarlet Witch | - | 3 icons | `scw` |
+| `15024` | The Next Evolution | Side Scheme | Scarlet Witch Nemesis | - | 2 icons | `scw` |
+| `15025` | Luminous | Minion | Scarlet Witch Nemesis | SCH:2 ATK:2 HP:5 | 2 icons | `scw` |
+| `15026` | Magical Suspension | Attachment | Scarlet Witch Nemesis | - | 2 icons | `scw` |
+| `15027` | Chaos Manipulation | Treachery | Scarlet Witch Nemesis | - | 2 icons | `scw` |
 | `15028` | Browbeat | Event | Pack Position: 28 | - | - | `scw` |
 | `15029` | Last Stand | Event | Pack Position: 29 | - | - | `scw` |
 | `15030` | Bait and Switch | Event | Pack Position: 30 | - | - | `scw` |
@@ -84,6 +89,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Chaos Control* — **Interrupt:** When boost icons on an encounter card would be counted, discard the top card of the encounter deck and count the number of boost icons on that card instead. (Limit once per phase.)
 - **Image Asset**: `assets/card-art/bundles/cards/15001a.png` (300×418 px, 225.4 KB)
+
 ### [15001b] Wanda Maximoff
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -95,6 +101,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Superpowered Siblings* — **Action:** Discard 2 cards from your hand → draw 2 cards (draw 3 cards instead if Pietro Maximoff is in play). (Limit once per round.)
 - **Image Asset**: `assets/card-art/bundles/cards/15001b.png` (300×418 px, 227.1 KB)
+
 ### [15002] Quicksilver — *Pietro Maximoff*
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -107,6 +114,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action:** Ready Quicksilver. (Limit once per phase.)
 - **Flavor**: *"I've warned you never to threaten my sister!"*
 - **Image Asset**: `assets/card-art/bundles/cards/15002.png` (726×1041 px, 178.9 KB)
+
 ### [15003] Chaos Magic
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -118,6 +126,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action:** Play a card from your hand, ignoring its resource cost. Discard cards from the top of the encounter deck equal to that card's printed resource cost.
 - **Flavor**: *"I will shape the world as I see fit." —Scarlet Witch*
 - **Image Asset**: `assets/card-art/bundles/cards/15003.png` (727×1041 px, 187.4 KB)
+
 ### [15004] Hex Bolt
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -132,6 +141,7 @@ This document is an authoritative, complete card database generated directly fro
   > - 2, draw 1 card.
   > - 3+, place a status card on a character.
 - **Image Asset**: `assets/card-art/bundles/cards/15004.png` (725×1043 px, 165.5 KB)
+
 ### [15005] Molecular Decay
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -143,6 +153,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 5 damage to an enemy and discard the top 2 cards of the encounter deck. For each boost icon discarded this way, deal 1 additional damage to that enemy.
 - **Flavor**: *"There is no defense against the Scarlet Witch!"*
 - **Image Asset**: `assets/card-art/bundles/cards/15005.png` (721×1039 px, 165.7 KB)
+
 ### [15006] Warp Reality
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -153,6 +164,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt:** When an encounter card is revealed from the encounter deck, cancel all of its effects and discard it. Discard cards from the top of the encounter deck equal to the number of boost icons on that card.
 - **Image Asset**: `assets/card-art/bundles/cards/15006.png` (728×1041 px, 176.3 KB)
+
 ### [15007] Agatha Harkness
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -165,6 +177,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action:** Exhaust Agatha Harkness → look at the top 3 cards of your deck. Add 1 of those to your hand and place the rest on the bottom of your deck in any order.
 - **Flavor**: *"Don't let your anger get the best of you, Wanda."*
 - **Image Asset**: `assets/card-art/bundles/cards/15007.png` (728×1043 px, 194.4 KB)
+
 ### [15008] Magic Shield
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -175,6 +188,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt:** When a friendly character would take any amount of damage, discard Magic Shield → prevent 3 of that damage.
 - **Image Asset**: `assets/card-art/bundles/cards/15008.png` (728×1044 px, 172.2 KB)
+
 ### [15009] Scarlet Witch's Crest
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -185,6 +199,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Interrupt:** When boost icons on an encounter card are counted, exhaust Scarlet Witch's Crest → increase or decrease the number of boost icons on that card by 1 for this count.
 - **Image Asset**: `assets/card-art/bundles/cards/15009.png` (726×1041 px, 164.3 KB)
+
 ### [15023] Slipping Sanity
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -197,8 +212,9 @@ This document is an authoritative, complete card database generated directly fro
   > ***Give to the Wanda Maximoff player.***
   > You may flip to alter-ego form. Choose:
   > • Exhaust Wanda Maximoff → remove Slipping Sanity from the game.
-  > • Discard the top 5 cards of the encounter deck. For each star icon([star]) in the boost area discarded this way, place 1 threat on the main scheme. Discard this obligation.
+  > • Discard the top 5 cards of the encounter deck. For each star icon ([star]) in the boost area discarded this way, place 1 threat on the main scheme. Discard this obligation.
 - **Image Asset**: `assets/card-art/bundles/cards/15023.png` (726×1043 px, 175.4 KB)
+
 
 ### Set: Justice
 
@@ -214,6 +230,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After Speed thwarts, ready him. (Limit once per round.)
 - **Flavor**: *"Hey! Geriatrics! Let's get a move on. The Avengers need us!"*
 - **Image Asset**: `assets/card-art/bundles/cards/15010.png` (722×1046 px, 160.9 KB)
+
 ### [15011] Wiccan — *William Kaplan*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -226,6 +243,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response:** After Wiccan thwarts, discard the top card of the encounter deck. For each boost icon discarded this way, deal 1 damage to an enemy.
 - **Flavor**: *"I'm the child of a witch and an android. I'm their wish come true."*
 - **Image Asset**: `assets/card-art/bundles/cards/15011.png` (727×1042 px, 161.5 KB)
+
 ### [15012] Crisis Averted
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -236,6 +254,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(thwart)*: Remove 6 threat from the main scheme. If you paid for this card using a [mental] resource, this thwart ignores the crisis icon ([crisis]).
 - **Image Asset**: `assets/card-art/bundles/cards/15012.png` (719×1041 px, 167.5 KB)
+
 ### [15013] Multitasking
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -247,6 +266,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(thwart)*: Remove 2 threat from a scheme. If you paid for this card using a [mental] resource, remove 2 threat from a different scheme.
 - **Flavor**: *"A hero isn't the one who always wins. They're the one who always tries." —Spider-Man*
 - **Image Asset**: `assets/card-art/bundles/cards/15013.png` (728×1042 px, 177.4 KB)
+
 ### [15014] Swift Retribution
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -258,6 +278,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: The villain schemes. Deal 4 damage to the villain.
 - **Flavor**: *"Return what you've taken and I'll let you go. This time. But next time, you won't be so lucky. And I won't be so kind." —Moon Knight*
 - **Image Asset**: `assets/card-art/bundles/cards/15014.png` (726×1023 px, 265.5 KB)
+
 ### [15015] Turn the Tide
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -269,6 +290,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response** *(attack)*: After your hero thwarts and removes all threat from a scheme, deal 3 damage to an enemy.
 - **Flavor**: *"Back, you rabble!" —Scarlet Witch*
 - **Image Asset**: `assets/card-art/bundles/cards/15015.png` (727×1043 px, 145.3 KB)
+
 ### [15016] The Power of Justice
 - **Type**: `Resource`
 - **Faction / Aspect**: Justice
@@ -278,6 +300,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > Double the number of resources this card generates while paying for a Justice *(yellow)* card.
+
 ### [15017] Heroic Intuition
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -288,6 +311,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Play under any player's control. Max 1 per player.
   > Your hero gets +1 THW.
+
 
 ### Set: Basic
 
@@ -300,6 +324,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Team-Up (Quicksilver and Scarlet Witch). Max 1 per deck.
   > **Hero Interrupt**: When a treachery card is revealed from the encounter deck, cancel its "**When Revealed**" effects, then deal 2 damage to the villain.
+
 ### [15019] Spiritual Meditation
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -312,6 +337,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Draw 2 cards. Choose and discard 1 card from your hand.
 - **Flavor**: *"Every spell, every sigil, every manipulation... you must keep a close eye on everything so it doesn't backfire."*
 - **Image Asset**: `assets/card-art/bundles/cards/15019.png` (729×1044 px, 177.4 KB)
+
 ### [15020] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -320,6 +346,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [15021] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -328,6 +355,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [15022] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -336,6 +364,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [15031] Recuperation
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -346,6 +375,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action**: Heal damage from your alter-ego equal to your REC.
 - **Flavor**: *"You look to be feeling better." —Stephen Strange*
 - **Image Asset**: `assets/card-art/bundles/cards/15031.png` (729×1044 px, 172.1 KB)
+
 
 ### Set: Scarlet Witch Nemesis
 
@@ -362,6 +392,7 @@ This document is an authoritative, complete card database generated directly fro
   > Increase the number of boost icons on each encounter card by 1.
 - **Flavor**: *"The High Evolutionary intends to build a god fit for the twenty-first century!" —High Evolutionary*
 - **Image Asset**: `assets/card-art/bundles/cards/15024.png` (1045×725 px, 150.9 KB)
+
 ### [15025] Luminous
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -377,6 +408,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Response:** After Luminous activates against you, discard the top card of the encounter deck. If 2 or more boost icons were discarded this way, deal yourself 1 encounter card.
   > *(Scarlet Witch's nemesis minion.)*
 - **Image Asset**: `assets/card-art/bundles/cards/15025.png` (727×1043 px, 182.8 KB)
+
 ### [15026] Magical Suspension
 - **Type**: `Attachment`
 - **Faction / Aspect**: Encounter
@@ -391,6 +423,7 @@ This document is an authoritative, complete card database generated directly fro
   > . Each card you play costs 1 additional resource.
   > **Hero Action**: Exhaust your hero → discard this card.
 - **Image Asset**: `assets/card-art/bundles/cards/15026.png` (728×1043 px, 164.1 KB)
+
 ### [15027] Chaos Manipulation
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -402,6 +435,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **When Revealed**: Search the encounter deck and discard pile for Luminous and put her into play engaged with you. Discard the top card of the encounter deck. If 2 or more boost icons were discarded this way, Luminous activates against you.
 - **Image Asset**: `assets/card-art/bundles/cards/15027.png` (728×1041 px, 183.2 KB)
+
 
 ### Set: Aggression
 
@@ -417,6 +451,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 2 damage to the villain. Deal X additional damage to the villain (to a maximum of 3), where X is equal to the villain's stage number.
 - **Image Asset**: `assets/card-art/bundles/cards/15028.png` (729×1045 px, 179.5 KB)
 
+
 ### Set: Leadership
 
 ### [15029] Last Stand
@@ -431,6 +466,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *"Heed, great fiend! Thou shalt not defeat me easily!" —Lady Sif*
 - **Image Asset**: `assets/card-art/bundles/cards/15029.png` (727×1042 px, 179.9 KB)
 
+
 ### Set: Protection
 
 ### [15030] Bait and Switch
@@ -444,4 +480,5 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(thwart)*: The villain attacks you. Remove 4 threat from the main scheme.
 - **Flavor**: *"You didn't really think I'd let you get away with that, did you?" —Spider-Man*
 - **Image Asset**: `assets/card-art/bundles/cards/15030.png` (730×1045 px, 184.8 KB)
+
 

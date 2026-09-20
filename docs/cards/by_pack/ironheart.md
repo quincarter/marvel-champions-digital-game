@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,20 +30,21 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `29001a` | Ironheart | Hero | Ironheart | THW:1 ATK:2 DEF:3 HP:10 | - | `ironheart` |
-| `29001b` | Riri Williams | Alter-Ego | Ironheart | HP:10 | - | `ironheart` |
+| `29001b` | Riri Williams | Alter-Ego | Ironheart | REC:3 HP:10 | - | `ironheart` |
 | `29002a` | Ironheart | Hero | Ironheart | THW:2 ATK:2 DEF:3 HP:10 | - | `ironheart` |
-| `29002b` | Riri Williams | Alter-Ego | Ironheart | HP:10 | - | `ironheart` |
+| `29002b` | Riri Williams | Alter-Ego | Ironheart | REC:3 HP:10 | - | `ironheart` |
 | `29003a` | Ironheart | Hero | Ironheart | THW:3 ATK:2 DEF:3 HP:10 | - | `ironheart` |
-| `29003b` | Riri Williams | Alter-Ego | Ironheart | HP:10 | - | `ironheart` |
+| `29003b` | Riri Williams | Alter-Ego | Ironheart | REC:3 HP:10 | - | `ironheart` |
 | `29004` | Brawn | Ally | Ironheart | THW:2 ATK:3 HP:3 | - | `ironheart` |
 | `29005` | Fly Over | Event | Ironheart | - | - | `ironheart` |
 | `29006` | Photon Beam | Event | Ironheart | - | - | `ironheart` |
@@ -64,19 +69,19 @@ This document is an authoritative, complete card database generated directly fro
 | `29025` | "Go for Champions!" | Event | Pack Position: 25 | - | - | `ironheart` |
 | `29026` | Helicarrier | Support | Pack Position: 26 | - | - | `ironheart` |
 | `29027` | Ingenuity | Upgrade | Pack Position: 27 | - | - | `ironheart` |
-| `29028` | A Minor Setback | Obligation | Ironheart | - | 2 pips | `ironheart` |
-| `29029` | Rule by Force | Side Scheme | Ironheart Nemesis | - | 2 pips | `ironheart` |
-| `29030` | Lucia von Bardas | Minion | Ironheart Nemesis | SCH:2 ATK:1 HP:4 | 3 pips | `ironheart` |
-| `29031` | Cyborg Tech | Attachment | Ironheart Nemesis | - | Star | `ironheart` |
-| `29032` | Political Retribution | Treachery | Ironheart Nemesis | - | 1 pips | `ironheart` |
+| `29028` | A Minor Setback | Obligation | Ironheart | - | 2 icons | `ironheart` |
+| `29029` | Rule by Force | Side Scheme | Ironheart Nemesis | - | 2 icons | `ironheart` |
+| `29030` | Lucia von Bardas | Minion | Ironheart Nemesis | SCH:2 ATK:1 HP:4 | 3 icons | `ironheart` |
+| `29031` | Cyborg Tech | Attachment | Ironheart Nemesis | - | 0 icons + star | `ironheart` |
+| `29032` | Political Retribution | Treachery | Ironheart Nemesis | - | 1 icon | `ironheart` |
 | `29033` | Bombshell | Ally | Pack Position: 33 | THW:2 ATK:3 HP:3 | - | `ironheart` |
 | `29034` | Wasp | Ally | Pack Position: 34 | THW:2 ATK:1 HP:3 | - | `ironheart` |
 | `29035` | Pinpoint | Ally | Pack Position: 35 | THW:1 ATK:2 HP:2 | - | `ironheart` |
-| `29036` | Feedback Loop | Side Scheme | Zzzax | - | 3 pips | `ironheart` |
-| `29037` | Zzzax | Minion | Zzzax | SCH:2 ATK:2 HP:4 | Star | `ironheart` |
-| `29038` | Haywire | Attachment | Zzzax | - | 1 pips | `ironheart` |
-| `29039` | Air Static | Environment | Zzzax | - | 2 pips | `ironheart` |
-| `29040` | Zzzap! | Treachery | Zzzax | - | 1 pips | `ironheart` |
+| `29036` | Feedback Loop | Side Scheme | Zzzax | - | 3 icons | `ironheart` |
+| `29037` | Zzzax | Minion | Zzzax | SCH:2 ATK:2 HP:4 | 0 icons + star | `ironheart` |
+| `29038` | Haywire | Attachment | Zzzax | - | 1 icon | `ironheart` |
+| `29039` | Air Static | Environment | Zzzax | - | 2 icons | `ironheart` |
+| `29040` | Zzzap! | Treachery | Zzzax | - | 1 icon | `ironheart` |
 
 ---
 
@@ -95,6 +100,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Level Up!* — **Action**: Remove 6 progress counters from Ironheart → ready her and swap her with [[Version 2]] Ironheart.
 - **Flavor**: *"Time to try this untested bit of business..."*
 - **Image Asset**: `assets/card-art/bundles/cards/29001a.png` (300×418 px, 195.0 KB)
+
 ### [29001b] Riri Williams
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -107,6 +113,7 @@ This document is an authoritative, complete card database generated directly fro
   > Begin the game with this card. Set your other identities aside. *(See insert.)*
   > *Child Prodigy* — **Action**: Spend a [mental] resource → place 1 progress counter on Riri Williams. (Limit once per round.)
 - **Image Asset**: `assets/card-art/bundles/cards/29001b.png` (300×418 px, 198.4 KB)
+
 ### [29002a] Ironheart
 - **Type**: `Hero`
 - **Faction / Aspect**: Hero
@@ -118,6 +125,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Level Up!* — **Action**: Remove 6 progress counters from Ironheart → ready her, give her a tough status card, and swap her with [[Version 3]] Ironheart.
 - **Flavor**: *"It's Ironheart, bro."*
+
 ### [29002b] Riri Williams
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -129,6 +137,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Child Prodigy* — **Action**: Spend a [mental] resource or 2 resources of any type → place 1 progress counter on Riri Williams. (Limit once per round.)
 - **Flavor**: *"Just let me finish this up, then I'll eat and frolic and do whatever."*
+
 ### [29003a] Ironheart
 - **Type**: `Hero`
 - **Faction / Aspect**: Hero
@@ -140,6 +149,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Maximum Efficiency* — **Hero Action**: Remove 1 progress counter from Ironheart → deal 2 damage to an enemy.
 - **Flavor**: *"Oh, you wanna play, villain person? Let's play."*
+
 ### [29003b] Riri Williams
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -151,6 +161,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Child Prodigy* — **Action**: Spend 1 resource of any type → place 1 progress counter on Riri Williams. (Limit once per round.)
 - **Flavor**: *"I can build something lighter, faster, stronger."*
+
 ### [29004] Brawn — *Amadeus Cho*
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -163,6 +174,7 @@ This document is an authoritative, complete card database generated directly fro
   > While Brawn is exhausted, he gains: "**Resource**: Generate a [mental] resource. (Limit once per phase.)"
 - **Flavor**: *"No, I'm not Banner. I'm better."*
 - **Image Asset**: `assets/card-art/bundles/cards/29004.png` (710×1030 px, 380.6 KB)
+
 ### [29005] Fly Over
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -174,6 +186,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(thwart)*: Remove 3 threat from a scheme and place 1 progress counter on Ironheart (2 progress counters instead if this thwart removes the last threat from that scheme).
 - **Flavor**: *VRROOOSSHH!*
 - **Image Asset**: `assets/card-art/bundles/cards/29005.png` (710×1030 px, 398.4 KB)
+
 ### [29006] Photon Beam
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -185,6 +198,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 4 damage to an enemy and place 1 progress counter on Ironheart (2 progress counters instead if this attack defeats that enemy).
 - **Flavor**: *FSHHAAMMM!*
 - **Image Asset**: `assets/card-art/bundles/cards/29006.png` (710×1030 px, 390.6 KB)
+
 ### [29007] New and Improved
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -198,6 +212,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Give Ironheart a tough status card.
   > • Ready Ironheart.
 - **Image Asset**: `assets/card-art/bundles/cards/29007.png` (710×1030 px, 377.1 KB)
+
 ### [29008] Sector Scan
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -208,6 +223,7 @@ This document is an authoritative, complete card database generated directly fro
   > Reduce the cost to play Sector Scan by X, where X is equal to Ironheart's [[version]] number.
   > **Hero Action**: Until the end of the round, you may look at the top card of the encounter deck at any time.
 - **Image Asset**: `assets/card-art/bundles/cards/29008.png` (710×1030 px, 373.2 KB)
+
 ### [29009] Stroke of Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Hero
@@ -217,6 +233,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Response**: After you spend this card, place 1 progress counter on your identity and draw 1 card.
 - **Image Asset**: `assets/card-art/bundles/cards/29009.png` (710×1030 px, 404.3 KB)
+
 ### [29010] Ronnie Williams
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -230,6 +247,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Heal 2 damage from Riri Williams.
   > • Place 1 progress counter on Riri Williams.
 - **Image Asset**: `assets/card-art/bundles/cards/29010.png` (710×1030 px, 303.2 KB)
+
 ### [29011] Tony Stark A.I.
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -242,6 +260,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Exhaust Tony Stark A.I. → look at the top 2 cards of your deck. Add 1 to your hand and discard the other.
 - **Flavor**: *"I downloaded my fabulous self into a digital frame in case my body was ever... you know, not working anymore."*
 - **Image Asset**: `assets/card-art/bundles/cards/29011.png` (710×1030 px, 418.3 KB)
+
 ### [29012] Photon Blasters
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -253,6 +272,7 @@ This document is an authoritative, complete card database generated directly fro
   > You get +2 hit points.
   > **Hero Action**: Exhaust Photon Blasters → deal damage to an enemy equal to Ironheart's [[Version]] number.
 - **Image Asset**: `assets/card-art/bundles/cards/29012.png` (710×1030 px, 388.9 KB)
+
 ### [29013] Propulsion Jets
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -264,6 +284,7 @@ This document is an authoritative, complete card database generated directly fro
   > You get +2 hit points.
   > **Hero Action**: Exhaust Propulsion Jets → remove threat from a scheme equal to Ironheart's [[Version]] number.
 - **Image Asset**: `assets/card-art/bundles/cards/29013.png` (710×1030 px, 404.0 KB)
+
 ### [29028] A Minor Setback
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -276,6 +297,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Give to the Riri Williams player.**
   > Remove 1 progress counter from your identity, then discard this card. If no progress counter was removed this way, deal yourself 1 facedown encounter card, then shuffle this card into the encounter deck.
 - **Image Asset**: `assets/card-art/bundles/cards/29028.png` (710×1030 px, 336.3 KB)
+
 
 ### Set: Leadership
 
@@ -291,6 +313,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Exhaust Cloud 9 → choose a player. Until the end of the phase, each [[Aerial]] character that player controls gets +1 THW.
 - **Flavor**: *"I'm only here 'cause I wanna fly!"*
 - **Image Asset**: `assets/card-art/bundles/cards/29014.png` (710×1030 px, 401.5 KB)
+
 ### [29015] Falcon — *Joaquin Torres*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -303,6 +326,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response**: After Falcon attacks or thwarts, spend a [energy] resource → ready another [[champion]] character you control.
 - **Flavor**: *"Hey, uh, it's Joaquín. I'm here to rescue you. And, uh, good thing, right?"*
 - **Image Asset**: `assets/card-art/bundles/cards/29015.png` (710×1030 px, 375.8 KB)
+
 ### [29016] Patriot — *Rayshaun Lucas*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -315,6 +339,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response**: After Patriot enters play, choose a [[champion]] character → that character gets +1 to each of its basic powers until the end of the round.
 - **Flavor**: *"I'm surrounded by those who risk their lives for principles most people take for granted."*
 - **Image Asset**: `assets/card-art/bundles/cards/29016.png` (710×1030 px, 411.9 KB)
+
 ### [29017] Go All Out
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -326,6 +351,7 @@ This document is an authoritative, complete card database generated directly fro
   > Requirement ([energy]). *(While paying for this card, spend the listed resources.)*
   > **Hero Action** *(attack)*: Exhaust your hero → deal damage to an enemy equal to the total of your hero's THW, ATK, and DEF values.
 - **Image Asset**: `assets/card-art/bundles/cards/29017.png` (710×1030 px, 401.5 KB)
+
 ### [29018] Push Ahead
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -337,6 +363,7 @@ This document is an authoritative, complete card database generated directly fro
   > Requirement ([mental]). *(While paying for this card, spend the listed resources.)*
   > **Hero Action** *(thwart)*: Exhaust your hero → remove threat from a scheme equal to the total of your hero's THW, ATK, and DEF values.
 - **Image Asset**: `assets/card-art/bundles/cards/29018.png` (710×1030 px, 384.2 KB)
+
 ### [29019] Morale Boost
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -346,6 +373,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action**: Choose a hero. Until the end of the round, that hero gets +1 THW, +1 ATK, and +1 DEF
 - **Flavor**: *"This is a stand I need to take. This time, no compromises." —Sam Wilson*
+
 ### [29020] R&D Facility
 - **Type**: `Support`
 - **Faction / Aspect**: Leadership
@@ -357,6 +385,7 @@ This document is an authoritative, complete card database generated directly fro
   > Requirement ([mental][mental]). Uses (3 research counters).
   > **Hero Action**: Exhaust R&D Facility and remove 1 research counter from it → choose a friendly character in play. That character gets +1 THW and +1 ATK until the end of the phase.
 - **Image Asset**: `assets/card-art/bundles/cards/29020.png` (710×1030 px, 398.3 KB)
+
 ### [29021] The Power of Leadership
 - **Type**: `Resource`
 - **Faction / Aspect**: Leadership
@@ -366,6 +395,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > Double the number of resources this card generates while paying for a Leadership *(blue)* card.
+
 
 ### Set: Basic
 
@@ -380,6 +410,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > [star] **Response**: After Agent 13 attacks or thwarts, choose a [[S.H.I.E.L.D.]] support → ready that support.
 - **Flavor**: *"I bear the scars of the past all over me. But there's more to me than that. I'm better now. Stronger. Wiser."*
+
 ### [29023] Snowguard — *Amka Aliyak*
 - **Type**: `Ally`
 - **Faction / Aspect**: Basic
@@ -394,6 +425,7 @@ This document is an authoritative, complete card database generated directly fro
   > (2) +3 THW and gains the [[Aerial]] trait.
   > (3) +5 hit points and gains retaliate 1.
 - **Image Asset**: `assets/card-art/bundles/cards/29023.png` (710×1030 px, 356.2 KB)
+
 ### [29024] Vivian
 - **Type**: `Ally`
 - **Faction / Aspect**: Basic
@@ -405,6 +437,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Response**: After Vivian enters play, choose an attachment, non-[[Elite]] minion, or non-permanent side scheme. Until the end of the round, treat that card's printed text box as if it were blank (except for [[Traits]]).
 - **Image Asset**: `assets/card-art/bundles/cards/29024.png` (710×1030 px, 343.6 KB)
+
 ### [29025] "Go for Champions!"
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -415,7 +448,10 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per deck.
   > Play only if your identity has the [[Champion]] trait.
   > **Hero Action**: Remove "Go for Champions!" from the game → Each [[champion]] character in play cannot take damage until the end of the round.
+- **Errata (FFG)**:
+  > Added “Remove ‘Go for Champions!’ from the game →”. (RRG 1.5)
 - **Image Asset**: `assets/card-art/bundles/cards/29025.png` (710×1030 px, 369.2 KB)
+
 ### [29026] Helicarrier
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -427,6 +463,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Action**: Exhaust Helicarrier → choose a player. Reduce the resource cost of the next card that player plays this phase by 1.
 - **Flavor**: *"A flying aircraft carrier? You're kidding, right?" —Jennifer Walters*
+
 ### [29027] Ingenuity
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -438,6 +475,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[Genius]] trait. Max 1 per player.
   > **Resource**: Exhaust Ingenuity → generate a [mental] resource.
 - **Image Asset**: `assets/card-art/bundles/cards/29027.png` (710×1030 px, 344.5 KB)
+
 
 ### Set: Ironheart Nemesis
 
@@ -454,6 +492,7 @@ This document is an authoritative, complete card database generated directly fro
   > While Lucia von Bardas is in play, this card gains a hazard icon ([hazard]). While Lucia von Bardas is not in play, this card gains an acceleration icon ([acceleration]).
 - **Flavor**: *Lucia von Bardas has taken control of Latveria and will stop at nothing to prove the country's might once and for all.*
 - **Image Asset**: `assets/card-art/bundles/cards/29029.png` (1030×710 px, 341.3 KB)
+
 ### [29030] Lucia von Bardas
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -469,14 +508,15 @@ This document is an authoritative, complete card database generated directly fro
   > While Lucia von Bardas has tough status card, she gets +1 SCH and +1 ATK.
   > **Forced Response**: After the villain phase ends, give Lucia von Bardas a tough status card.
 - **Image Asset**: `assets/card-art/bundles/cards/29030.png` (710×1030 px, 325.3 KB)
+
 ### [29031] Cyborg Tech
 - **Type**: `Attachment`
 - **Faction / Aspect**: Encounter
 - **Pack**: Ironheart (`ironheart`)
 - **Deck / Set**: Ironheart Nemesis (3/5)
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Ironheart Nemesis Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Tech.*
 - **Rules Text**:
@@ -487,6 +527,7 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: Deal this card to yourself as a facedown encounter card.
 - **Image Asset**: `assets/card-art/bundles/cards/29031.png` (710×1030 px, 381.6 KB)
+
 ### [29032] Political Retribution
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -498,6 +539,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **When Revealed**: If Lucia von Bardas is in play, she schemes. If Rule by Force is in play, place 3 threat on it. If neither is in play, this card gains surge.
 - **Image Asset**: `assets/card-art/bundles/cards/29032.png` (710×1030 px, 377.3 KB)
+
 
 ### Set: Aggression
 
@@ -513,6 +555,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[Champion]] trait.
   > [star] Divide damage from Bombshell's attack among each enemy as evenly as possible.
 - **Image Asset**: `assets/card-art/bundles/cards/29033.png` (710×1030 px, 387.6 KB)
+
 
 ### Set: Justice
 
@@ -530,6 +573,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *"Gotta find me first!"*
 - **Image Asset**: `assets/card-art/bundles/cards/29034.png` (710×1030 px, 395.7 KB)
 
+
 ### Set: Protection
 
 ### [29035] Pinpoint — *Qureshi Gupta*
@@ -544,6 +588,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[Champion]] trait.
   > **Hero Interrupt**: When a player card would be placed into a discard pile from play, exhaust Pinpoint → shuffle that card into its owner's deck instead.
 - **Image Asset**: `assets/card-art/bundles/cards/29035.png` (710×1030 px, 364.0 KB)
+
 
 ### Set: Zzzax
 
@@ -561,6 +606,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Revealed**: Each player must place threat here equal to the total number [energy] resources in their hand and on cards they control
 - **Flavor**: *Zzzax controls the city's power supply and is causing havoc within the system!*
 - **Image Asset**: `assets/card-art/bundles/cards/29036.png` (1030×710 px, 362.8 KB)
+
 ### [29037] Zzzax
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -569,8 +615,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Properties**: Unique
 - **Stats**: **SCH**: 2, **ATK**: 2 [star], **HP**: 4
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Zzzax Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Criminal.*
 - **Rules Text**:
@@ -580,6 +626,7 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: If you have at least [energy] [energy] resources in your hand, put Zzzax into play engaged with you.
 - **Image Asset**: `assets/card-art/bundles/cards/29037.png` (710×1030 px, 414.4 KB)
+
 ### [29038] Haywire
 - **Type**: `Attachment`
 - **Faction / Aspect**: Encounter
@@ -593,6 +640,7 @@ This document is an authoritative, complete card database generated directly fro
   > Treat the printed resource of each card in your hand as if it were [energy].
   > **Hero Action**: Choose to either discard a card you control with a printed [energy] resource or take 2 indirect damage → discard this card.
 - **Image Asset**: `assets/card-art/bundles/cards/29038.png` (710×1030 px, 397.5 KB)
+
 ### [29039] Air Static
 - **Type**: `Environment`
 - **Faction / Aspect**: Encounter
@@ -606,6 +654,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Interrupt**: When the villain phase begins, deal 2 indirect damage to each player with a [energy] resource in their hand and/or on a card they control.
   > **Hero Action**: Choose to either discard a card you control with a printed [energy] resource or take 2 indirect damage → discard this card.
 - **Image Asset**: `assets/card-art/bundles/cards/29039.png` (710×1030 px, 412.3 KB)
+
 ### [29040] Zzzap!
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -618,4 +667,5 @@ This document is an authoritative, complete card database generated directly fro
   > **When Revealed**: Take indirect damage equal to the total number of [energy] resources in your hand. If your identity was dealt 1 or fewer damage this way, this card gains surge.
 - **Flavor**: *"Me Zzzax! You zzzap!"*
 - **Image Asset**: `assets/card-art/bundles/cards/29040.png` (710×1030 px, 363.3 KB)
+
 

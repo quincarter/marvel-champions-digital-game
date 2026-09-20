@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `61001a` | Jessica Jones | Hero | Jessica Jones | THW:3 ATK:2 DEF:1 HP:11 | - | `jj` |
-| `61001b` | Jessica Jones | Alter-Ego | Jessica Jones | HP:11 | - | `jj` |
+| `61001b` | Jessica Jones | Alter-Ego | Jessica Jones | REC:4 HP:11 | - | `jj` |
 | `61002` | Alias Investigations | Support | Jessica Jones | - | - | `jj` |
 | `61003` | Luke Cage | Ally | Jessica Jones | THW:2 ATK:2 HP:3 | - | `jj` |
 | `61004` | "Big Mistake" | Event | Jessica Jones | - | - | `jj` |
@@ -64,12 +69,12 @@ This document is an authoritative, complete card database generated directly fro
 | `61027` | Unbreakable Bond | Event | Pack Position: 27 | - | - | `jj` |
 | `61028` | Second Chance | Player Side Scheme | Pack Position: 28 | - | - | `jj` |
 | `61029` | Defend Our City | Player Side Scheme | Pack Position: 29 | - | - | `jj` |
-| `61030` | Work-Life Balance | Obligation | Jessica Jones | - | 2 pips | `jj` |
-| `61031` | Purple Man | Minion | Jessica Jones Nemesis | HP:6 | 3 pips | `jj` |
-| `61032` | Indomitable Will | Side Scheme | Jessica Jones Nemesis | - | 1 pips | `jj` |
-| `61033a` | Suggestion ([energy]) | Obligation | Jessica Jones Nemesis | - | 2 pips | `jj` |
-| `61033b` | Suggestion ([mental]) | Obligation | Jessica Jones Nemesis | - | 2 pips | `jj` |
-| `61033c` | Suggestion ([physical]) | Obligation | Jessica Jones Nemesis | - | 2 pips | `jj` |
+| `61030` | Work-Life Balance | Obligation | Jessica Jones | - | 2 icons | `jj` |
+| `61031` | Purple Man | Minion | Jessica Jones Nemesis | HP:6 | 3 icons | `jj` |
+| `61032` | Indomitable Will | Side Scheme | Jessica Jones Nemesis | - | 1 icon | `jj` |
+| `61033a` | Suggestion ([energy]) | Obligation | Jessica Jones Nemesis | - | 2 icons | `jj` |
+| `61033b` | Suggestion ([mental]) | Obligation | Jessica Jones Nemesis | - | 2 icons | `jj` |
+| `61033c` | Suggestion ([physical]) | Obligation | Jessica Jones Nemesis | - | 2 icons | `jj` |
 | `61034` | Innate Aggression | Upgrade | Pack Position: 34 | - | - | `jj` |
 | `61035` | Shakedown | Upgrade | Pack Position: 35 | - | - | `jj` |
 | `61036` | Innate Perception | Upgrade | Pack Position: 36 | - | - | `jj` |
@@ -96,6 +101,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] *Gather Evidence* — **Response**: After you use a basic power, place 1 evidence counter on Alias Investigations.
 - **Flavor**: *"These things rarely end well."*
 - **Image Asset**: `assets/card-art/bundles/cards/61001a.png` (300×426 px, 235.3 KB)
+
 ### [61001b] Jessica Jones
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -108,6 +114,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Incognito Mode* — **Action**: Change to hero form. You cannot change back to alter-ego form this phase.
   > **Setup**: Put the Alias Investigations support into play.
 - **Image Asset**: `assets/card-art/bundles/cards/61001b.png` (300×426 px, 233.7 KB)
+
 ### [61002] Alias Investigations
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -120,6 +127,7 @@ This document is an authoritative, complete card database generated directly fro
   > Permanent.
   > **Response**: After a side scheme is defeated, exhaust this card → place 2 evidence counters here. Then, you may remove evidence counters from here equal to the villain's remaining hit points to defeat the villain's current stage.
 - **Image Asset**: `assets/card-art/bundles/cards/61002.png` (295×419 px, 249.4 KB)
+
 ### [61003] Luke Cage
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -133,6 +141,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Exhaust Luke Cage and deal 1 damage to him → give him a tough status card.
 - **Flavor**: *"He may have skin like steel, but he's got a heart of gold." —Jessica Jones*
 - **Image Asset**: `assets/card-art/bundles/cards/61003.png` (295×419 px, 241.8 KB)
+
 ### [61004] "Big Mistake"
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -144,6 +153,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 3 damage to an enemy. You may remove 1 evidence counter from Alias Investigations to deal 2 additional damage and for this attack to gain either overkill or piercing.
 - **Flavor**: *"You messed with the wrong lady." —Jessica Jones*
 - **Image Asset**: `assets/card-art/bundles/cards/61004.png` (295×419 px, 248.0 KB)
+
 ### [61005] Breakthrough
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -154,6 +164,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After an evidence counter is placed on Alias Investigations, ready your identity. Shuffle this card into your deck.
 - **Flavor**: *"Tell me more." —Jessica Jones*
 - **Image Asset**: `assets/card-art/bundles/cards/61005.png` (295×419 px, 244.1 KB)
+
 ### [61006] Snooping Around
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -164,6 +175,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Alter-Ego Action** *(thwart)*: Remove 4 threat from a scheme and place 2 evidence counters on Alias Investigations. Discard the top card of the encounter deck. If that card is a minion or side scheme, reveal it.
 - **Image Asset**: `assets/card-art/bundles/cards/61006.png` (295×419 px, 241.3 KB)
+
 ### [61007] Piecing It All Together
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Hero
@@ -175,6 +187,7 @@ This document is an authoritative, complete card database generated directly fro
   > This scheme does not count against the player side scheme limit.
   > **When Defeated**: The defeating player draws 3 cards.
 - **Flavor**: *Sometimes, you take a step back to look at the big picture and it all falls into place.*
+
 ### [61008] Calling in Favors
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -184,6 +197,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Alter-Ego Action**: Remove 2 evidence counters from Alias Investigations and exhaust Calling in Favors → search your deck for an ally and play it as if it were in your hand, reducing its resource cost by 2. *(Shuffle.)*
 - **Image Asset**: `assets/card-art/bundles/cards/61008.png` (295×419 px, 230.3 KB)
+
 ### [61009] 4K Digital Camcorder
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -195,6 +209,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action**: Exhaust this card and choose a non-[[Elite]] minion. Remove X evidence counters from Alias Investigations, where X is equal to 2 less than that minion's remaining hit points → discard that minion.
 - **Flavor**: *"...gotcha." —Jessica Jones*
 - **Image Asset**: `assets/card-art/bundles/cards/61009.png` (295×419 px, 242.3 KB)
+
 ### [61010] Circumstantial Evidence
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -206,6 +221,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After an enemy is defeated, exhaust Circumstantial Evidence → place 1 evidence counter on Alias Investigations.
 - **Flavor**: *"Nice find! That'll come in handy." —Daredevil*
 - **Image Asset**: `assets/card-art/bundles/cards/61010.png` (295×419 px, 253.4 KB)
+
 ### [61011] Leather Jacket
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -218,6 +234,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After you defend, place 1 evidence counter on Alias Investigations.
 - **Flavor**: *"Luke, does she own any jackets that aren't black leather?" —Iron Fist*
 - **Image Asset**: `assets/card-art/bundles/cards/61011.png` (295×419 px, 236.7 KB)
+
 ### [61012] "Now I'm Ticked Off!"
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -228,6 +245,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Forced Response** *(attack)*: After the villain activates against a player, if you are in alter-ego form, change to hero form. Deal 5 damage to the villain and each minion engaged with that player. Discard this card.
 - **Flavor**: *"What did you just say to her?" —Jessica Jones*
+
 ### [61013] Reluctant Flier
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -238,6 +256,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt** *(defense)*: When you would take at least 3 damage from an attack, discard this card → prevent all of that attack's damage. Take 1 damage.
 - **Flavor**: *"I think I'm gonna puke." —Jessica Jones*
+
 ### [61014] Stakeout
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -249,6 +268,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: If this card is in your play area, attach it to a non-permanent encounter side scheme.
   > **Interrupt**: When a character thwarts attached scheme, that thwart removes 2 additional threat. If that thwart defeats attached scheme, place 2 evidence counters on Alias Investigations.
 - **Image Asset**: `assets/card-art/bundles/cards/61014.png` (295×419 px, 260.0 KB)
+
 ### [61030] Work-Life Balance
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -264,6 +284,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Remove an ally you control from the game → remove this card from the game.
   > • Confuse your identity → discard this card.
 
+
 ### Set: Justice
 
 ### [61015] Captain Marvel — *Carol Danvers*
@@ -277,6 +298,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Response**: After Captain Marvel enters play, discard the top 4 cards of your deck. If you discard a printed [energy] resource, remove 2 threat from a scheme. If you discard more than one printed [energy] resource, also confuse an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/61015.png` (295×419 px, 233.5 KB)
+
 ### [61016] Spider-Woman — *Mattie Franklin*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -287,6 +309,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Traits**: *Web-Warrior.*
 - **Rules Text**:
   > **Response**: After a character you control thwarts, place 1 limb counter here (to a maximum of 8). You may discard Spider-Woman to deal 1 damage to an enemy for each limb counter here.
+
 ### [61017] Squirrel Girl — *Doreen Green*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -299,6 +322,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After you play Squirrel Girl from your hand, place 1 squirrel counter here for each card in your hand (to a maximum of 4).
   > **Action**: Remove 1 squirrel counter from here → remove 1 threat from a scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/61017.png` (295×419 px, 243.4 KB)
+
 ### [61018] Lay Down the Law
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -309,6 +333,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Response** *(thwart)*: After you change form, remove 3 threat from a scheme (4 threat instead if you paid for this card using a [mental] resource).
 - **Flavor**: *"Maybe this will teach you!" —Captain America*
+
 ### [61019] Strategy Session
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -321,6 +346,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(thwart)*: Remove 3 threat from a player side scheme.
 - **Flavor**: *"Okay, gang, I've got a plan." —Nova*
 - **Image Asset**: `assets/card-art/bundles/cards/61019.png` (295×419 px, 234.1 KB)
+
 ### [61020] Run Them to Ground
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Justice
@@ -335,6 +361,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Deal each player 1 facedown encounter card *(immediately)*.
   > • The villain cannot take damage until the start of the next *(unskipped)* villain phase.
 - **Image Asset**: `assets/card-art/bundles/cards/61020.png` (419×295 px, 242.1 KB)
+
 ### [61021] Lay the Trap
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Justice
@@ -344,12 +371,13 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Cost**: 1, **Base Threat**: 3 per hero, **Resources**: [energy]
 - **Rules Text**:
   > Victory 0.
-  > **When Defeated**: The player who defeated this scheme deals 5[per_hero] damage to the villain.
+  > **When Defeated**: The player who defeated this scheme deals 5 [per_hero] damage to the villain.
 - **Flavor**: *"You go right, I'll go left."
 "I always go right."
 "Fine, go left."
 "I like going right."
 —Daredevil and Iron Fist*
+
 ### [61022] Determination
 - **Type**: `Resource`
 - **Faction / Aspect**: Justice
@@ -359,6 +387,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 1 per deck.
   > **Hero Response**: After you spend this card, remove 1 threat from the main scheme.
+
 ### [61023] Grapnel Launcher
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -370,6 +399,7 @@ This document is an authoritative, complete card database generated directly fro
   > Restricted.
   > **Hero Action**: Discard this card → make a basic thwart without exhausting *(even if you are exhausted)*. For this thwart, your hero gets +1 THW and ignores the patrol keyword and any crisis icons *([crisis])* in play.
 - **Image Asset**: `assets/card-art/bundles/cards/61023.png` (295×419 px, 240.5 KB)
+
 ### [61024] Entrapment
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -381,6 +411,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Alter-Ego Response** *(attack)*: After the villain schemes, change to hero form and discard this card → deal damage to the villain equal to the amount of threat placed by that activation.
 - **Image Asset**: `assets/card-art/bundles/cards/61024.png` (295×419 px, 222.8 KB)
+
 ### [61036] Innate Perception
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -392,6 +423,7 @@ This document is an authoritative, complete card database generated directly fro
   > Starting. *(You may add this card to your hand before drawing your starting hand.)*
   > Your hero gets +1 THW.
 - **Flavor**: *WHOOOSH!*
+
 
 ### Set: Basic
 
@@ -406,6 +438,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > If your identity has the [[Defender]] trait, this card gains: "**Action**: Put Hellcat into play from your hand. At the end of the phase, discard her."
 - **Flavor**: *"Hi Fellas! Well, tootles."*
+
 ### [61026] Joys of Life
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -418,6 +451,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Exhaust a [[Civilian]] alter-ego → ready a hero or ally.
   > • Exhaust a hero or ally → ready a [[Civilian]] alter-ego.
 - **Image Asset**: `assets/card-art/bundles/cards/61026.png` (295×419 px, 216.4 KB)
+
 ### [61027] Unbreakable Bond
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -429,6 +463,7 @@ This document is an authoritative, complete card database generated directly fro
   > Team-Up *(Jessica Jones and Luke Cage)*. Max 1 per deck.
   > **Hero Action**: *(thwart)*: Remove 3 threat from a scheme. Heal a total of 3 damage from among Jessica Jones and Luke Cage.
 - **Image Asset**: `assets/card-art/bundles/cards/61027.png` (295×419 px, 204.3 KB)
+
 ### [61028] Second Chance
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Basic
@@ -440,18 +475,20 @@ This document is an authoritative, complete card database generated directly fro
   > Victory 0.
   > **When Defeated**: Each player may shuffle all of their identity-specific cards from their discard pile into their deck.
 - **Flavor**: *"Let's do what heroes do best: save the day!" —Ms. Marvel*
+
 ### [61029] Defend Our City
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Basic
 - **Pack**: Jessica Jones (`jj`)
 - **Deck / Set**: Pack Position: 29
 - **Properties**: Unique
-- **Stats**: **Cost**: 0, **Base Threat**: 3 per hero, **Resources**: [physical]
+- **Stats**: **Cost**: 0, **Base Threat**: 3 [star] per hero, **Resources**: [physical]
 - **Rules Text**:
-  > [star] Hinder 1[per_hero].
+  > [star] Hinder 1 [per_hero].
   > Prerequisite ([[Defender]]). Victory 0.
   > **When Defeated**: Each player may search their deck and discard pile for a Team-Up card and add it to their hand. Until the end of the phase, reduce the cost to play each Team-Up card by 1.
 - **Image Asset**: `assets/card-art/bundles/cards/61029.png` (419×295 px, 232.2 KB)
+
 
 ### Set: Jessica Jones Nemesis
 
@@ -469,19 +506,21 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > [star] Purple Man's SCH is equal to the highest SCH or THW among characters in play. His ATK is equal to the highest ATK among characters in play.
 - **Flavor**: *Zebediah Killgrave's chemically-modified pheromones influence everybody in close proximity.*
+
 ### [61032] Indomitable Will
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
 - **Pack**: Jessica Jones (`jj`)
 - **Deck / Set**: Jessica Jones Nemesis (2/5)
-- **Stats**: **Base Threat**: 2 per hero
+- **Stats**: **Base Threat**: 2 [star] per hero
 - **Bottom-Right Encounter Logos**:
   - **Boost Icons**: 1 icon (Adds +1 to Villain ATK/SCH during activation)
   - **Encounter Set Emblem**: Jessica Jones Nemesis Set Icon (printed bottom-right next to deck number)
 - **Rules Text**:
-  > [star] Hinder 3[per_hero].
+  > [star] Hinder 3 [per_hero].
   > **When Revealed**: Place 2 pheromone counters on each Suggestion obligation in play.
   > **Forced Response**: After a Suggestion obligation enters play, place 2 *(additional)* pheromone counters on it.
+
 ### [61033a] Suggestion ([energy])
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -494,6 +533,7 @@ This document is an authoritative, complete card database generated directly fro
   > Uses (3 pheromone counters).
   > **Forced Action**: Exhaust this card and remove 1 pheromone counter from it → choose to either play a card that has a printed [energy] resource icon *(paying its costs)* or add 2 threat to the main scheme.
 - **Flavor**: *"Do me a favor..." —Purple Man*
+
 ### [61033b] Suggestion ([mental])
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -506,6 +546,7 @@ This document is an authoritative, complete card database generated directly fro
   > Uses (3 pheromone counters).
   > **Forced Action**: Exhaust this card and remove 1 pheromone counter from it → choose to either play a card that has a printed [mental] resource icon *(paying its costs)* or add 2 threat to the main scheme.
 - **Flavor**: *"Simon didn't say so." —Purple Man*
+
 ### [61033c] Suggestion ([physical])
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -518,6 +559,7 @@ This document is an authoritative, complete card database generated directly fro
   > Uses (3 pheromone counters).
   > **Forced Action**: Exhaust this card and remove 1 pheromone counter from it → choose to either play a card that has a printed [physical] resource icon *(paying its costs)* or add 2 threat to the main scheme.
 - **Flavor**: *"Nuh-uh-uh." —Purple Man*
+
 
 ### Set: Aggression
 
@@ -532,6 +574,7 @@ This document is an authoritative, complete card database generated directly fro
   > Starting. *(You may add this card to your hand before drawing your starting hand.)*
   > Your hero gets +1 ATK.
 - **Flavor**: *SMACK!*
+
 ### [61035] Shakedown
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Aggression
@@ -543,6 +586,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play under any player's control. Max 1 per player.
   > **Response**: After you attack and exactly defeat a minion, exhaust this card → remove threat from a scheme equal to that minion's base SCH.
 - **Flavor**: *"I'm not your bro." —Jessica Jones*
+
 
 ### Set: Leadership
 
@@ -558,6 +602,7 @@ This document is an authoritative, complete card database generated directly fro
   > Each ally you control gets +1 hit point.
 - **Flavor**: *PA-PA_POW!*
 
+
 ### Set: Protection
 
 ### [61038] Echo — *Maya Lopez*
@@ -571,6 +616,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Reduce the amount of damage Echo takes from each enemy attack by your hero's DEF.
 - **Flavor**: *The facepaint Echo applies is in remembrance of her late father's last touch.*
+
 ### [61039] Lay Low
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Protection
@@ -582,6 +628,7 @@ This document is an authoritative, complete card database generated directly fro
   > Victory 0.
   > **When Defeated**: Each player may change to alter-ego form. Heal damage from each alter-ego equal to its REC.
 - **Flavor**: *"I'm sure the nice old Estonian couple that owns this place won't mind if we crash here for a bit." —Jessica Jones*
+
 ### [61040] Mitigated Threat
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Protection
@@ -592,4 +639,5 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Attach to a card. Attached card loses each [acceleration], [amplify], [crisis], and [hazard] icon.
   > **Forced Response**: At the end of the round, each player may spend 1 resource of any type. If any player does not, discard this card.
+
 

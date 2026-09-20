@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `52001a` | Silk | Hero | Silk | THW:1 ATK:2 DEF:3 HP:10 | - | `silk` |
-| `52001b` | Cindy Moon | Alter-Ego | Silk | HP:10 | - | `silk` |
+| `52001b` | Cindy Moon | Alter-Ego | Silk | REC:3 HP:10 | - | `silk` |
 | `52002` | Smooth as Silk | Event | Silk | - | - | `silk` |
 | `52003` | Swinging Silk Kick | Event | Silk | - | - | `silk` |
 | `52004` | Wallcrawl | Event | Silk | - | - | `silk` |
@@ -62,17 +67,17 @@ This document is an authoritative, complete card database generated directly fro
 | `52025` | Energy | Resource | Pack Position: 25 | - | - | `silk` |
 | `52026` | Genius | Resource | Pack Position: 26 | - | - | `silk` |
 | `52027` | Strength | Resource | Pack Position: 27 | - | - | `silk` |
-| `52028` | Silk Sense Overload | Obligation | Silk | - | 2 pips | `silk` |
-| `52029` | Morlun | Minion | Silk Nemesis | SCH:1 ATK:1 HP:5 | 3 pips | `silk` |
-| `52030` | The Great Hunt | Side Scheme | Silk Nemesis | - | 2 pips | `silk` |
-| `52031` | Hunting the Spider-Bride | Treachery | Silk Nemesis | - | 1 pips | `silk` |
+| `52028` | Silk Sense Overload | Obligation | Silk | - | 2 icons | `silk` |
+| `52029` | Morlun | Minion | Silk Nemesis | SCH:1 ATK:1 HP:5 | 3 icons | `silk` |
+| `52030` | The Great Hunt | Side Scheme | Silk Nemesis | - | 2 icons | `silk` |
+| `52031` | Hunting the Spider-Bride | Treachery | Silk Nemesis | - | 1 icon | `silk` |
 | `52032` | Spider-Man 2099 | Ally | Pack Position: 32 | THW:2 ATK:2 HP:3 | - | `silk` |
 | `52033` | Spider-Woman | Ally | Pack Position: 33 | THW:1 ATK:2 HP:3 | - | `silk` |
 | `52034` | Quick Quip | Event | Pack Position: 34 | - | - | `silk` |
-| `52035` | Atlas | Minion | Growing Strong | SCH:0 ATK:3 HP:18 | 4 pips | `silk` |
-| `52036` | Grow Invulnerable | Side Scheme | Growing Strong | - | 3 pips | `silk` |
-| `52037` | Growing Strong | Treachery | Growing Strong | - | 1 pips | `silk` |
-| `52038` | Titanic Proportions | Treachery | Growing Strong | - | 1 pips | `silk` |
+| `52035` | Atlas | Minion | Growing Strong | SCH:0 ATK:3 HP:18 | 4 icons | `silk` |
+| `52036` | Grow Invulnerable | Side Scheme | Growing Strong | - | 3 icons | `silk` |
+| `52037` | Growing Strong | Treachery | Growing Strong | - | 1 icon + star | `silk` |
+| `52038` | Titanic Proportions | Treachery | Growing Strong | - | 1 icon + star | `silk` |
 
 ---
 
@@ -92,6 +97,7 @@ This document is an authoritative, complete card database generated directly fro
   > If there are more than 4 tucked cards here, discard all but 4 of those cards.
   > *Silk Sense* — **Response**: After you defeat a minion or side scheme, or resolve a treachery card, tuck that card under here from the encounter discard pile.
 - **Image Asset**: `assets/card-art/bundles/cards/52001a.png` (300×426 px, 254.1 KB)
+
 ### [52001b] Cindy Moon
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -105,6 +111,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Discard a card tucked here → draw 2 cards. (Limit once per round.)
 - **Flavor**: *"Something about this story doesn't add up."*
 - **Image Asset**: `assets/card-art/bundles/cards/52001b.png` (300×426 px, 243.9 KB)
+
 ### [52002] Smooth as Silk
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -114,6 +121,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action**: Choose an enemy or scheme in play → discard cards from the top of the encounter deck until a card from the same encounter set as the chosen card is discarded. Tuck that discarded card under Silk.
 - **Image Asset**: `assets/card-art/bundles/cards/52002.png` (710×1030 px, 352.0 KB)
+
 ### [52003] Swinging Silk Kick
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -124,6 +132,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(attack)*: Deal 7 damage to an enemy. You may discard a card tucked under Silk from the same encounter set as that enemy. If you do, this attack deals 2 additional damage and gains overkill.
 - **Image Asset**: `assets/card-art/bundles/cards/52003.jpg` (710×1030 px, 359.9 KB)
+
 ### [52004] Wallcrawl
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -134,6 +143,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(thwart)*: Remove 2 threat from a scheme. Choose a scheme. You may discard a card tucked under Silk from the same encounter set as the chosen scheme to remove 3 threat from the chosen scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/52004.png` (710×1030 px, 369.3 KB)
+
 ### [52005] Get the Scoop
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Hero
@@ -145,6 +155,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action**: Exhaust your identity → remove 2 threat from here. Any player may trigger this ability.
   > **When Defeated**: The Cindy Moon player looks at the top 2 cards of the encounter deck and tucks 1 of those cards under their identity.
 - **Image Asset**: `assets/card-art/bundles/cards/52005.jpg` (1030×710 px, 346.7 KB)
+
 ### [52006] Albert Moon
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -158,6 +169,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Tuck the top card of the encounter deck under Cindy Moon.
   > • Heal 1 damage from Cindy Moon for each card tucked under her.
 - **Image Asset**: `assets/card-art/bundles/cards/52006.jpg` (710×1030 px, 372.7 KB)
+
 ### [52007] J. Jonah Jameson
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -171,6 +183,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Exhaust this card → remove 2 threat from a side scheme.
 - **Flavor**: *"I like you, Analog."*
 - **Image Asset**: `assets/card-art/bundles/cards/52007.png` (710×1030 px, 364.0 KB)
+
 ### [52008] Eidetic Memory
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -181,6 +194,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Interrupt**: When you reveal a card from the same encounter set as a card tucked under your identity, exhaust Eidetic Memory → swap those cards. Reveal the card that had been tucked under Silk instead.
 - **Image Asset**: `assets/card-art/bundles/cards/52008.png` (710×1030 px, 372.6 KB)
+
 ### [52009] Organic Webbing
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -192,6 +206,7 @@ This document is an authoritative, complete card database generated directly fro
   > Silk gets +1 THW.
   > **Hero Action**: Exhaust Organic Webbing and discard a card tucked under Silk → ready Silk. She gains the [[Aerial]] trait until the end of the round.
 - **Image Asset**: `assets/card-art/bundles/cards/52009.jpg` (710×1030 px, 297.4 KB)
+
 ### [52010] Outwit
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -202,6 +217,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt**: When Silk makes a basic thwart, exhaust Outwit → for this thwart she gets +1 THW for each card tucked under her from the same encounter set as the thwarted scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/52010.png` (710×1030 px, 369.1 KB)
+
 ### [52011] Spider Claws
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -212,6 +228,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt**: When Silk makes a basic attack, exhaust Spider Claws → for this attack she gets +1 ATK for each card tucked under her from the same encounter set as the attacked enemy. This attack gains piercing.
 - **Image Asset**: `assets/card-art/bundles/cards/52011.jpg` (710×1030 px, 302.8 KB)
+
 ### [52012] Spider Reflexes
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -222,6 +239,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt**: When Silk defends, exhaust Spider Reflexes → for this attack she gets +1 DEF for each card tucked under her from the same encounter set as the attacking enemy. After this attack, tuck the top card of the encounter discard pile under Silk.
 - **Image Asset**: `assets/card-art/bundles/cards/52012.jpg` (710×1030 px, 365.0 KB)
+
 ### [52028] Silk Sense Overload
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -234,6 +252,7 @@ This document is an authoritative, complete card database generated directly fro
   > ***Give to the Cindy Moon player.***
   > **Forced Interrupt**: When a card would be tucked under your identity by a player card effect, tuck it under here instead. Then, if there are 2 tucked cards here, you may discard this card (remove it from the game instead if there are 3 or more tucked cards here).
 - **Image Asset**: `assets/card-art/bundles/cards/52028.jpg` (710×1030 px, 357.8 KB)
+
 
 ### Set: Protection
 
@@ -250,6 +269,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *"Roses are red, spiders are two,
 One comes in scarlet, the other in blue!"*
 - **Image Asset**: `assets/card-art/bundles/cards/52013.png` (710×1030 px, 365.4 KB)
+
 ### [52014] Spider-Byte — *Margo Kess*
 - **Type**: `Ally`
 - **Faction / Aspect**: Protection
@@ -262,6 +282,7 @@ One comes in scarlet, the other in blue!"*
   > Reduce the cost to play Spider-Byte by 1 for each [[Tech]] card you control.
 - **Flavor**: *"I'm just your friendly virtual reality webslinger!"*
 - **Image Asset**: `assets/card-art/bundles/cards/52014.jpg` (710×1030 px, 354.0 KB)
+
 ### [52015] Not Today!
 - **Type**: `Event`
 - **Faction / Aspect**: Protection
@@ -272,6 +293,7 @@ One comes in scarlet, the other in blue!"*
 - **Rules Text**:
   > **Hero Interrupt** *(defense)*: When your hero defends against an attack, it gets +2 DEF for that attack. If you take no damage from that attack, remove 2 threat from a scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/52015.png` (710×1030 px, 354.0 KB)
+
 ### [52016] "Stop Hitting Yourself"
 - **Type**: `Event`
 - **Faction / Aspect**: Protection
@@ -282,6 +304,7 @@ One comes in scarlet, the other in blue!"*
 - **Rules Text**:
   > **Hero Response** *(attack)*: After you defend against an enemy attack and take no damage, deal damage to that enemy equal to your DEF for that attack.
 - **Image Asset**: `assets/card-art/bundles/cards/52016.png` (710×1030 px, 352.5 KB)
+
 ### [52017] Dr. Sinclair
 - **Type**: `Support`
 - **Faction / Aspect**: Protection
@@ -293,6 +316,7 @@ One comes in scarlet, the other in blue!"*
 - **Rules Text**:
   > **Alter-Ego Action**: Exhaust Dr. Sinclair and spend a [mental] resource → heal damage from your alter-ego equal to your REC. You may discard 1 status card from your identity. Any player may trigger this ability.
 - **Image Asset**: `assets/card-art/bundles/cards/52017.jpg` (710×1030 px, 367.8 KB)
+
 ### [52018] Energy Shield
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Protection
@@ -304,6 +328,7 @@ One comes in scarlet, the other in blue!"*
   > Attach to a character. Max 1 per character.
   > **Interrupt**: When attached character would take any amount of damage, spend X [energy] resources → prevent X of that damage.
 - **Image Asset**: `assets/card-art/bundles/cards/52018.jpg` (710×1030 px, 374.3 KB)
+
 ### [52019] Ready for a Fight
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Protection
@@ -315,6 +340,7 @@ One comes in scarlet, the other in blue!"*
   > Requirement ([physical]). Max 1 per player.
   > **Interrupt**: When an enemy would scheme, discard Ready for a Fight → change to hero form. That enemy attacks you instead.
 - **Image Asset**: `assets/card-art/bundles/cards/52019.png` (710×1030 px, 371.8 KB)
+
 ### [52020] Stun Gun
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Protection
@@ -329,6 +355,7 @@ One comes in scarlet, the other in blue!"*
   > • 2 charge counters, stun the villain.
 - **Image Asset**: `assets/card-art/bundles/cards/52020.png` (710×1030 px, 292.1 KB)
 
+
 ### Set: Basic
 
 ### [52021] Madame Web — *Julia Carpenter*
@@ -342,6 +369,7 @@ One comes in scarlet, the other in blue!"*
 - **Rules Text**:
   > **Response**: After Madame Web enters play, look at the top X cards of the encounter deck, where X is the number of [[Web-Warrior]] cards you control. You may discard 1 card looked at this way and put the rest back in any order.
 - **Image Asset**: `assets/card-art/bundles/cards/52021.jpg` (710×1030 px, 370.8 KB)
+
 ### [52022] Spider-Man — *Peter Parker*
 - **Type**: `Ally`
 - **Faction / Aspect**: Basic
@@ -354,6 +382,7 @@ One comes in scarlet, the other in blue!"*
   > Requirement ([energy] [mental] [physical]). *(While paying for this card, spend the listed resources.)*
   > **Response**: After Spider-Man attacks or thwarts, choose another [[Web-Warrior]] character → ready that character.
 - **Flavor**: *"See, Miles, that's how you do it."*
+
 ### [52023] Across the Spider-Verse
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -363,6 +392,7 @@ One comes in scarlet, the other in blue!"*
 - **Rules Text**:
   > Max 1 per deck.
   > **Hero Action**: Exhaust a [[Web-Warrior]] card you control → search your discard pile for a [[Web-Warrior]] ally and put it into play, then choose a player. That player may spend 3 resources of any type to repeat this ability.
+
 ### [52024] Investigative Journalism
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -374,6 +404,7 @@ One comes in scarlet, the other in blue!"*
   > Team-Up (Cindy Moon and Peter Parker). Max 1 per deck.
   > **Alter-Ego Interrupt**: When an enemy would scheme, cancel that activation and confuse that enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/52024.jpg` (710×1030 px, 347.7 KB)
+
 ### [52025] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -382,6 +413,7 @@ One comes in scarlet, the other in blue!"*
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [52026] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -390,6 +422,7 @@ One comes in scarlet, the other in blue!"*
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [52027] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -398,6 +431,7 @@ One comes in scarlet, the other in blue!"*
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 
 ### Set: Silk Nemesis
 
@@ -416,6 +450,7 @@ One comes in scarlet, the other in blue!"*
   > [star] Morlun gets +1 SCH and +1 ATK for each encounter card tucked under each identity.
   > **When Defeated**: Discard each copy of Hunting the Spider-Bride tucked under each identity.
 - **Image Asset**: `assets/card-art/bundles/cards/52029.png` (710×1030 px, 317.7 KB)
+
 ### [52030] The Great Hunt
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -430,6 +465,7 @@ One comes in scarlet, the other in blue!"*
   > **When Revealed**: Place 1 additional threat here for each card tucked under each identity.
 - **Flavor**: *"There you are. The spinner at the center of the web. It's time. The Great Hunt begins." —Morlun*
 - **Image Asset**: `assets/card-art/bundles/cards/52030.jpg` (1030×710 px, 305.2 KB)
+
 ### [52031] Hunting the Spider-Bride
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -443,6 +479,7 @@ One comes in scarlet, the other in blue!"*
   > **When Revealed**: If you have 4 cards tucked under your identity, discard 1 of those cards at random. Tuck this card under your identity.
   > **Forced Response**: After a player card effect discards this card from under an identity, that identity takes 2 damage.
 - **Image Asset**: `assets/card-art/bundles/cards/52031.png` (710×1030 px, 345.3 KB)
+
 
 ### Set: Leadership
 
@@ -459,6 +496,7 @@ One comes in scarlet, the other in blue!"*
 - **Flavor**: *"That's me: the Spider-Man of tomorrow, here to save today!"*
 - **Image Asset**: `assets/card-art/bundles/cards/52032.png` (710×1030 px, 293.8 KB)
 
+
 ### Set: Aggression
 
 ### [52033] Spider-Woman — *Jessica Drew*
@@ -474,6 +512,7 @@ One comes in scarlet, the other in blue!"*
 - **Flavor**: *"Everyone should see what's about to happen next!"*
 - **Image Asset**: `assets/card-art/bundles/cards/52033.jpg` (710×1030 px, 339.6 KB)
 
+
 ### Set: Justice
 
 ### [52034] Quick Quip
@@ -488,6 +527,7 @@ One comes in scarlet, the other in blue!"*
   > **Hero Action**: Deal 1 damage to a [[Web-Warrior]] character you control → place a total of 2 confused status cards on up to 2 enemies.
 - **Flavor**: *"We got more tentacles than a sushi bar!" —Spider-Man*
 - **Image Asset**: `assets/card-art/bundles/cards/52034.png` (710×1030 px, 364.0 KB)
+
 
 ### Set: Growing Strong
 
@@ -507,6 +547,7 @@ One comes in scarlet, the other in blue!"*
   > [star] Atlas gets +2 hit points for each growth counter on him.
   > **Forced Response**: After the villain phase ends, place 1 growth counter on Atlas.
 - **Image Asset**: `assets/card-art/bundles/cards/52035.jpg` (710×1030 px, 351.3 KB)
+
 ### [52036] Grow Invulnerable
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -521,6 +562,7 @@ One comes in scarlet, the other in blue!"*
   > **When Revealed**: Place 1 additional threat here for each growth counter on Atlas.
   > **If Atlas has 10 or more growth counters on him, the players lose the game.**
 - **Image Asset**: `assets/card-art/bundles/cards/52036.jpg` (1030×710 px, 347.4 KB)
+
 ### [52037] Growing Strong
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -528,7 +570,7 @@ One comes in scarlet, the other in blue!"*
 - **Deck / Set**: Growing Strong (3–4/6, Qty: 2)
 - **Bottom-Right Encounter Logos**:
   - **Boost Icons**: 1 icon (Adds +1 to Villain ATK/SCH during activation)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Growing Strong Set Icon (printed bottom-right next to deck number)
 - **Rules Text**:
   > **When Revealed**: Find Atlas and reveal him. *(If he is already in play, he engages you.)* Atlas activates against you. If no enemy activated this way, this card gains surge.
@@ -537,6 +579,7 @@ One comes in scarlet, the other in blue!"*
   >
   > [star] **Boost**: Give the activating enemy a tough status card.
 - **Image Asset**: `assets/card-art/bundles/cards/52037.png` (710×1030 px, 384.7 KB)
+
 ### [52038] Titanic Proportions
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -544,7 +587,7 @@ One comes in scarlet, the other in blue!"*
 - **Deck / Set**: Growing Strong (5–6/6, Qty: 2)
 - **Bottom-Right Encounter Logos**:
   - **Boost Icons**: 1 icon (Adds +1 to Villain ATK/SCH during activation)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Growing Strong Set Icon (printed bottom-right next to deck number)
 - **Rules Text**:
   > **When Revealed**: The players as a group take X indirect damage, where X is the number of growth counters on Atlas. If X is less than 3, this card gains surge.
@@ -553,4 +596,5 @@ One comes in scarlet, the other in blue!"*
   >
   > [star] **Boost**: If Atlas is in play, place 1 growth counter on him.
 - **Image Asset**: `assets/card-art/bundles/cards/52038.png` (710×1030 px, 368.9 KB)
+
 

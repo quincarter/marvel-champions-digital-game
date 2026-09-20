@@ -3,10 +3,15 @@
 Marvel Champions Card Art & Metadata Parser -> AI-Ready Markdown Generator
 
 Scans card art images in assets/card-art/bundles/cards, correlates them with
-the authoritative card database in packages/content/raw/marvelcdb/*.json,
+the cached MarvelCDB card records in packages/content/raw/marvelcdb/*.json,
 extracts all stats, card types, deck numbers (e.g. 19/28), bottom-right logos
-(boost icons, boost stars, set emblems, scheme icons), and formats everything
-into structured, AI-optimized Markdown.
+(boost icons, boost stars, set emblems, scheme icons), errata and reverse-side
+text, and formats everything into structured, AI-optimized Markdown.
+
+Source of truth: MarvelCDB is a community database, NOT an authority (see
+CLAUDE.md). The generated documents say so in their own header, and this script
+never invents a value the source does not carry -- a field MarvelCDB omits is
+reported as "not recorded in this source", never as a confident zero.
 """
 
 from __future__ import annotations
@@ -27,7 +32,20 @@ try:
 except ImportError:
     HAS_PIL = False
 
-# HTML tags to clean up or convert to Markdown
+REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Icon tokens MarvelCDB encodes as <span class="icon-NAME"></span>. Closed set, taken from the
+# cache itself -- used both to render the token and to re-insert the space the markup swallows.
+ICON_NAMES = (
+    "star", "physical", "mental", "energy", "wild", "per_hero", "per_group",
+    "crisis", "hazard", "acceleration", "amplify", "boost",
+)
+ICON_TOKEN_RE = re.compile(r"\[(" + "|".join(ICON_NAMES) + r")\]")
+
+# Only real HTML tags are stripped. A catch-all `<[^>]+>` would also eat genuine card prose that
+# happens to sit in angle brackets -- Echo's flavor text is literally "<Need help?>".
+HTML_TAG_NAMES = ("b", "i", "em", "strong", "p", "br", "hr", "span", "u", "del", "sub", "sup", "div")
+
 HTML_REPLACEMENTS = [
     (re.compile(r"<b>(.*?)</b>", re.IGNORECASE | re.DOTALL), r"**\1**"),
     (re.compile(r"<strong>(.*?)</strong>", re.IGNORECASE | re.DOTALL), r"**\1**"),
@@ -37,7 +55,7 @@ HTML_REPLACEMENTS = [
     (re.compile(r"<br\s*/?>", re.IGNORECASE), r"\n"),
     (re.compile(r"<hr\s*/?>", re.IGNORECASE), r"\n---\n"),
     (re.compile(r'<span class="icon-([a-zA-Z0-9_-]+)"[^>]*></span>', re.IGNORECASE), r"[\1]"),
-    (re.compile(r"<[^>]+>"), ""),  # strip remaining tags
+    (re.compile(r"</?(?:" + "|".join(HTML_TAG_NAMES) + r")\b[^>]*>", re.IGNORECASE), ""),
 ]
 
 def clean_text(text: Optional[str]) -> str:
@@ -47,9 +65,54 @@ def clean_text(text: Optional[str]) -> str:
     result = text
     for pattern, repl in HTML_REPLACEMENTS:
         result = pattern.sub(repl, result)
+    # The icon markup carries no whitespace of its own, so "star icon<span…>" collapses to
+    # "star icon[star]". Restore the space on either side when a token is glued to a word.
+    result = re.sub(r"(?<=[A-Za-z0-9])" + ICON_TOKEN_RE.pattern, r" [\1]", result)
+    result = re.sub(ICON_TOKEN_RE.pattern + r"(?=[A-Za-z])", r"[\1] ", result)
+    # MarvelCDB also writes some icons as literal tokens, occasionally glued to the word before
+    # the parenthesis that holds them: "star icon([star])" for a card printed "star icon (*)".
+    result = re.sub(r"(?<=[A-Za-z])\((?=" + ICON_TOKEN_RE.pattern + r"\))", " (", result)
     # Collapse multiple blank lines
     result = re.sub(r"\n{3,}", "\n\n", result).strip()
     return result
+
+
+def is_encounter_card(card: Dict[str, Any]) -> bool:
+    """True for cards that carry the bottom-right encounter furniture (boost area, set emblem)."""
+    return (
+        card.get("faction_code") in ("encounter", "campaign")
+        or card.get("type_code") in (
+            "villain", "minion", "treachery", "attachment",
+            "main_scheme", "side_scheme", "environment", "obligation"
+        )
+    )
+
+
+# Card types that never sit in the encounter deck as a boost card, so a missing boost value on one
+# of them is expected rather than a gap in the source.
+NON_BOOST_TYPES = ("main_scheme", "environment", "villain")
+
+
+def boost_summary(card: Dict[str, Any]) -> Optional[str]:
+    """
+    One short phrase describing the boost area, shared by the detail entry and the Quick Index so
+    the two views of the same card can never disagree. `None` means "nothing to say about it".
+
+    MarvelCDB never stores `boost: 0`, so an absent value is genuinely ambiguous: it is 0 pips for
+    a card whose boost area shows a star, and simply unrecorded otherwise. Reporting the second
+    case as "0" would be this script inventing data the source does not have.
+    """
+    boost = card.get("boost")
+    star = bool(card.get("boost_star"))
+    if boost is not None:
+        plural = "icon" if boost == 1 else "icons"
+        return f"{boost} {plural} + star" if star else f"{boost} {plural}"
+    if star:
+        return "0 icons + star"
+    if is_encounter_card(card) and card.get("type_code") not in NON_BOOST_TYPES:
+        return "not recorded in this source"
+    return None
+
 
 class CardDatabase:
     """Loads and indexes all card data from raw MarvelCDB JSON caches."""
@@ -62,7 +125,7 @@ class CardDatabase:
         self.set_totals: Dict[Tuple[str, str], int] = {}
         self.pack_names: Dict[str, str] = {}
         self.images_cache: Dict[str, Dict[str, Any]] = {}
-        
+
         self._load_images()
         self._load_cards()
         self._calculate_set_totals()
@@ -77,11 +140,13 @@ class CardDatabase:
             if entry.is_file() and entry.name.lower().endswith((".png", ".jpg", ".jpeg")):
                 base_code = Path(entry.name).stem
                 file_size = entry.stat().st_size
-                
-                # We store metadata for the image
+
+                # Paths are emitted relative to the repo root, not the working directory, so the
+                # generated markdown reads the same however the script was invoked.
                 self.images_cache[base_code] = {
                     "filename": entry.name,
-                    "path": os.path.relpath(entry.path),
+                    "path": os.path.relpath(entry.path, REPO_ROOT),
+                    "abs_path": entry.path,
                     "size_bytes": file_size,
                     "size_kb": round(file_size / 1024, 1),
                 }
@@ -117,11 +182,13 @@ class CardDatabase:
                 self.cards_by_code[code] = card
                 self.cards_by_pack[card.get("pack_code", pack_code)].append(card)
 
-                # Check linked card (e.g. Alter-Ego side, Scheme B-side)
+                # Check linked card (e.g. Alter-Ego side, Scheme B-side). Indexed by pack too, so a
+                # pack reachable only through a linked card still gets its own split file.
                 linked = card.get("linked_card")
                 if isinstance(linked, dict) and linked.get("code"):
                     l_code = linked["code"]
                     self.cards_by_code[l_code] = linked
+                    self.cards_by_pack[linked.get("pack_code", card.get("pack_code", pack_code))].append(linked)
 
     def _calculate_set_totals(self):
         """Calculates total card count for each set (e.g., 28 in Red Skull, 15 in Spider-Man)."""
@@ -153,10 +220,10 @@ class CardDatabase:
         info = self.images_cache.get(code)
         if not info:
             return None
-        
+
         if "width" not in info and HAS_PIL:
             try:
-                with Image.open(info["path"]) as im:
+                with Image.open(info["abs_path"]) as im:
                     info["width"], info["height"] = im.size
             except Exception:
                 pass
@@ -201,14 +268,42 @@ class CardDatabase:
                 return f"{set_name} (Card {set_pos}–{set_pos + qty - 1}, Qty: {qty})"
             return f"{set_name} (Card {set_pos})"
 
+    @staticmethod
+    def _scaling_suffix(card: Dict[str, Any], prefix: str) -> str:
+        """' per group' / ' per hero' for a stat that scales with the number of players."""
+        if card.get(f"{prefix}_per_group"):
+            return " per group"
+        if card.get(f"{prefix}_per_hero"):
+            return " per hero"
+        return ""
+
+    @staticmethod
+    def _threat_scaling_suffix(card: Dict[str, Any], prefix: str) -> str:
+        """
+        Threat stats invert the flag: MarvelCDB stores `<prefix>_fixed`, and *not* fixed means the
+        printed value is per player. A separate `_per_group` flag beats both (it is a flat amount
+        for the whole group, which is not the same thing as 'per hero').
+        """
+        if card.get(f"{prefix}_per_group"):
+            return " per group"
+        if not card.get(f"{prefix}_fixed"):
+            return " per hero"
+        return ""
+
+    @staticmethod
+    def _star(card: Dict[str, Any], prefix: str) -> str:
+        """' [star]' when the printed value is a star (variable, governed by card text)."""
+        return " [star]" if card.get(f"{prefix}_star") else ""
+
     def format_stats(self, card: Dict[str, Any]) -> List[str]:
         """Extracts and formats combat/scheme stats."""
         stats = []
 
         # Cost
         cost = card.get("cost")
-        if cost is not None:
-            cost_str = f"{cost}"
+        if cost is not None or card.get("cost_star"):
+            cost_str = f"{cost}" if cost is not None else "X"
+            cost_str += self._star(card, "cost")
             if card.get("cost_per_hero"):
                 cost_str += " per hero"
             stats.append(f"**Cost**: {cost_str}")
@@ -216,9 +311,7 @@ class CardDatabase:
         # Thwart (THW)
         thw = card.get("thwart")
         if thw is not None:
-            thw_str = f"{thw}"
-            if card.get("thwart_star"):
-                thw_str += " [star]"
+            thw_str = f"{thw}{self._star(card, 'thwart')}"
             if card.get("thwart_cost"):
                 thw_str += f" (Consequential: {card['thwart_cost']})"
             stats.append(f"**THW**: {thw_str}")
@@ -226,17 +319,12 @@ class CardDatabase:
         # Scheme (SCH)
         sch = card.get("scheme")
         if sch is not None:
-            sch_str = f"{sch}"
-            if card.get("scheme_star"):
-                sch_str += " [star]"
-            stats.append(f"**SCH**: {sch_str}")
+            stats.append(f"**SCH**: {sch}{self._star(card, 'scheme')}")
 
         # Attack (ATK)
         atk = card.get("attack")
         if atk is not None:
-            atk_str = f"{atk}"
-            if card.get("attack_star"):
-                atk_str += " [star]"
+            atk_str = f"{atk}{self._star(card, 'attack')}"
             if card.get("attack_cost"):
                 atk_str += f" (Consequential: {card['attack_cost']})"
             stats.append(f"**ATK**: {atk_str}")
@@ -244,9 +332,7 @@ class CardDatabase:
         # Defense (DEF)
         defense = card.get("defense")
         if defense is not None:
-            def_str = f"{defense}"
-            if card.get("defense_star"):
-                def_str += " [star]"
+            def_str = f"{defense}{self._star(card, 'defense')}"
             if card.get("defense_cost"):
                 def_str += f" (Consequential: {card['defense_cost']})"
             stats.append(f"**DEF**: {def_str}")
@@ -254,19 +340,15 @@ class CardDatabase:
         # Recover (REC)
         rec = card.get("recover")
         if rec is not None:
-            rec_str = f"{rec}"
-            if card.get("recover_star"):
-                rec_str += " [star]"
+            rec_str = f"{rec}{self._star(card, 'recover')}"
+            if card.get("recover_cost"):
+                rec_str += f" (Consequential: {card['recover_cost']})"
             stats.append(f"**REC**: {rec_str}")
 
         # Health (HP)
         hp = card.get("health")
         if hp is not None:
-            hp_str = f"{hp}"
-            if card.get("health_per_hero"):
-                hp_str += " per hero"
-            if card.get("health_star"):
-                hp_str += " [star]"
+            hp_str = f"{hp}{self._scaling_suffix(card, 'health')}{self._star(card, 'health')}"
             stats.append(f"**HP**: {hp_str}")
 
         # Hand Size
@@ -277,23 +359,17 @@ class CardDatabase:
         # Scheme Threat Attributes
         base_threat = card.get("base_threat")
         if base_threat is not None:
-            bt_str = f"{base_threat}"
-            if card.get("base_threat_per_group") or not card.get("base_threat_fixed"):
-                bt_str += " per hero"
+            bt_str = f"{base_threat}{self._star(card, 'base_threat')}{self._threat_scaling_suffix(card, 'base_threat')}"
             stats.append(f"**Base Threat**: {bt_str}")
 
         threat = card.get("threat")
         if threat is not None:
-            t_str = f"{threat}"
-            if card.get("threat_per_group") or not card.get("threat_fixed"):
-                t_str += " per hero"
+            t_str = f"{threat}{self._star(card, 'threat')}{self._threat_scaling_suffix(card, 'threat')}"
             stats.append(f"**Target Threat**: {t_str}")
 
         esc = card.get("escalation_threat")
         if esc is not None:
-            esc_str = f"{esc}"
-            if not card.get("escalation_threat_fixed"):
-                esc_str += " per hero"
+            esc_str = f"{esc}{self._star(card, 'escalation_threat')}{self._threat_scaling_suffix(card, 'escalation_threat')}"
             stats.append(f"**Escalation Threat**: +{esc_str}/round")
 
         # Resources provided when spent
@@ -313,30 +389,29 @@ class CardDatabase:
         Includes Boost Icons, Boost Stars, Set Icons, and Scheme Icons.
         """
         logos = []
-        is_encounter = (
-            card.get("faction_code") in ("encounter", "campaign")
-            or card.get("type_code") in (
-                "villain", "minion", "treachery", "attachment",
-                "main_scheme", "side_scheme", "environment", "obligation"
-            )
-        )
+        is_encounter = is_encounter_card(card)
 
         boost = card.get("boost")
-        boost_star = card.get("boost_star", False)
-        boost_text = card.get("boost_text")
+        boost_star = bool(card.get("boost_star"))
 
         # 1. Boost Icons (Pips)
         if boost is not None:
             plural = "icon" if boost == 1 else "icons"
             logos.append(f"**Boost Icons**: {boost} {plural} (Adds +{boost} to Villain ATK/SCH during activation)")
-        elif is_encounter and card.get("type_code") not in ("main_scheme", "side_scheme", "environment", "villain"):
-            logos.append("**Boost Icons**: None (0)")
+        elif boost_star:
+            logos.append("**Boost Icons**: 0 (the boost area shows a star instead of pips)")
+        elif is_encounter and card.get("type_code") not in NON_BOOST_TYPES:
+            logos.append(
+                "**Boost Icons**: not recorded in this source "
+                "(MarvelCDB omits the field; treat as unknown, not as 0)"
+            )
 
-        # 2. Boost Star & Ability Text
-        if boost_star or boost_text:
-            logos.append("**Boost Star**: Yes (`[star]` icon triggers special Boost Ability)")
-            if boost_text:
-                logos.append(f"**Boost Ability Text**: {clean_text(boost_text)}")
+        # 2. Boost Star. MarvelCDB has no separate field for the boost ability's text -- it is
+        #    printed inline in the card's own rules text, below, prefixed **Boost:**.
+        if boost_star:
+            logos.append(
+                "**Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)"
+            )
 
         # 3. Encounter Set Emblem
         set_name = card.get("card_set_name")
@@ -346,18 +421,35 @@ class CardDatabase:
         # 4. Scheme Icons (Crisis, Hazard, Acceleration, Amplify)
         scheme_icons = []
         if card.get("scheme_crisis"):
-            scheme_icons.append(f"Crisis (`[crisis]`: Prevents threat removal from Main Scheme)")
+            scheme_icons.append("Crisis (`[crisis]`: Prevents threat removal from Main Scheme)")
         if card.get("scheme_hazard"):
-            scheme_icons.append(f"Hazard (`[hazard]`: Deals +1 additional encounter card during Villain Phase)")
+            scheme_icons.append("Hazard (`[hazard]`: Deals +1 additional encounter card during Villain Phase)")
         if card.get("scheme_acceleration"):
-            scheme_icons.append(f"Acceleration (`[acceleration]`: Places +1 additional threat on Main Scheme each round)")
+            scheme_icons.append("Acceleration (`[acceleration]`: Places +1 additional threat on Main Scheme each round)")
         if card.get("scheme_amplify"):
-            scheme_icons.append(f"Amplify (`[amplify]`: Adds +1 boost pip to boost cards drawn during activation)")
+            scheme_icons.append("Amplify (`[amplify]`: Adds +1 boost pip to boost cards drawn during activation)")
 
         if scheme_icons:
             logos.append(f"**Scheme Icons**: {', '.join(scheme_icons)}")
 
         return logos
+
+    @staticmethod
+    def _italic(text: str) -> str:
+        """
+        Wraps flavor text in emphasis, unless `clean_text` already produced a fully emphasized
+        string -- `<b><i>x</i></b>` becomes `***x***`, and wrapping that again yields `****x****`,
+        which renders as neither bold nor italic.
+        """
+        stripped = text.strip()
+        if stripped.startswith("*") and stripped.endswith("*"):
+            return stripped
+        return f"*{stripped}*"
+
+    @staticmethod
+    def _blockquote(text: str) -> str:
+        """Indents a block of text as a blockquote nested inside the current list item."""
+        return "\n".join(f"  > {line}" if line else "  >" for line in text.splitlines())
 
     def format_card_entry(self, card: Dict[str, Any]) -> str:
         """Formats a single card into a structured Markdown block."""
@@ -371,7 +463,7 @@ class CardDatabase:
         title_parts = [f"[{code}] {name}"]
         if subname:
             title_parts.append(f"*{subname}*")
-        
+
         lines = [f"### {' — '.join(title_parts)}"]
 
         # Core Metadata
@@ -379,7 +471,7 @@ class CardDatabase:
         if card.get("faction_name"):
             lines.append(f"- **Faction / Aspect**: {card['faction_name']}")
         lines.append(f"- **Pack**: {pack_name} (`{pack_code}`)")
-        
+
         # Deck position
         deck_str = self.format_deck_position(card)
         lines.append(f"- **Deck / Set**: {deck_str}")
@@ -418,14 +510,30 @@ class CardDatabase:
         rules_text = clean_text(card.get("real_text") or card.get("text"))
         if rules_text:
             lines.append("- **Rules Text**:")
-            # Indent text into blockquote
-            bq_text = "\n".join(f"  > {line}" if line else "  >" for line in rules_text.splitlines())
-            lines.append(bq_text)
+            lines.append(self._blockquote(rules_text))
+
+        # Errata. FFG has changed this card's printed text; the rules engine follows the errata,
+        # not the printed wording above (CLAUDE.md: the RRG/FAQ/errata are the authorities).
+        errata = clean_text(card.get("errata"))
+        if errata:
+            lines.append("- **Errata (FFG)**:")
+            lines.append(self._blockquote(errata))
+
+        # Reverse side of a double-sided card (scheme backs, villain stage backs, setup text).
+        back_name = card.get("back_name")
+        back_text = clean_text(card.get("back_text"))
+        back_flavor = clean_text(card.get("back_flavor"))
+        if back_name or back_text or back_flavor:
+            lines.append(f"- **Reverse Side**{f': {back_name}' if back_name else ''}")
+            if back_text:
+                lines.append(self._blockquote(back_text))
+            if back_flavor:
+                lines.append(f"  - **Back Flavor**: {self._italic(back_flavor)}")
 
         # Flavor Text
-        flavor = card.get("flavor")
+        flavor = clean_text(card.get("flavor"))
         if flavor:
-            lines.append(f"- **Flavor**: *{flavor.strip()}*")
+            lines.append(f"- **Flavor**: {self._italic(flavor)}")
 
         # Image File Reference
         img_info = self.get_image_info(code)
@@ -433,8 +541,11 @@ class CardDatabase:
             dims = f"{img_info['width']}×{img_info['height']} px" if "width" in img_info else "scanned"
             lines.append(f"- **Image Asset**: `{img_info['path']}` ({dims}, {img_info['size_kb']} KB)")
 
-        lines.append("")  # blank line separator
+        lines.extend(["", ""])  # blank line between entries
         return "\n".join(lines)
+
+
+SUMMARY_CARD_CAP = 500
 
 
 def generate_markdown(
@@ -448,9 +559,13 @@ def generate_markdown(
     """Generates the main Markdown reference document."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Filter cards
+    # Filter cards. `position` can be present-but-null, so `or 0` rather than a dict default --
+    # otherwise sorted() compares None against int and raises.
     filtered_cards = []
-    for code, card in sorted(db.cards_by_code.items(), key=lambda item: (item[1].get("pack_code", ""), item[1].get("position", 0), item[0])):
+    for code, card in sorted(
+        db.cards_by_code.items(),
+        key=lambda item: (item[1].get("pack_code") or "", item[1].get("position") or 0, item[0]),
+    ):
         if pack_filter and card.get("pack_code") != pack_filter:
             continue
         if set_filter and card.get("card_set_code") != set_filter:
@@ -465,10 +580,19 @@ def generate_markdown(
         # Header & Documentation
         out.write("# Marvel Champions Card Reference Database\n\n")
         out.write(
-            "This document is an authoritative, complete card database generated directly from the "
-            "game card assets and metadata. It is formatted specifically for AI and rules engine consumption.\n\n"
+            "A complete, generated transcription of the cached MarvelCDB card records in "
+            "`packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. "
+            "Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.\n\n"
+            "**This document is not authoritative.** MarvelCDB is a community database. The "
+            "authorities on how a card behaves are the Rules Reference Guide "
+            "(`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata "
+            "(`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in "
+            "`@mc/content`. Where this file and any of those disagree, they win and this file is "
+            "wrong. Use it to read printed text quickly, not to settle a rules question.\n\n"
+            "Fields absent from the source are reported as \"not recorded in this source\" rather "
+            "than guessed at, so a missing value is never silently rendered as a zero.\n\n"
         )
-        
+
         # Explain Game Mechanics & Card Logos
         out.write("## Rules & Symbol Legend\n\n")
         out.write("### 1. Bottom-Right Encounter Logos\n")
@@ -477,7 +601,8 @@ def generate_markdown(
             "there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a "
             "Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.\n"
             "- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special "
-            "**Boost Ability** printed in the card's text box.\n"
+            "**Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon "
+            "(RRG 1.8, \"Boost\"), so a starred card can also carry 0 or more pips.\n"
             "- **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which "
             "modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).\n"
             "- **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:\n"
@@ -504,33 +629,41 @@ def generate_markdown(
             "- **ATK**: Attack value (deals damage to targets).\n"
             "- **DEF**: Defense value (reduces incoming villain/minion damage).\n"
             "- **REC**: Recover value (Alter-Ego heals HP).\n"
-            "- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).\n"
+            "- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).\n"
             "- **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.\n"
-            "- **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.\n\n"
+            "- **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.\n"
+            "- **Consequential**: the damage or threat a hero takes for using that stat on an ally.\n\n"
         )
 
         # Quick Summary Table (if enabled)
-        if include_summary and len(filtered_cards) <= 500:
-            out.write("## Quick Index\n\n")
-            out.write("| Code | Name | Type | Deck / Set | Stats | Boost | Pack |\n")
-            out.write("|---|---|---|---|---|---|---|\n")
-            for c in filtered_cards:
-                code = c.get("code", "")
-                name = c.get("name", "")
-                ctype = c.get("type_name", "")
-                deck = db.format_deck_position(c).split("(")[0].strip()
-                stats = []
-                if c.get("thwart") is not None: stats.append(f"THW:{c['thwart']}")
-                if c.get("scheme") is not None: stats.append(f"SCH:{c['scheme']}")
-                if c.get("attack") is not None: stats.append(f"ATK:{c['attack']}")
-                if c.get("defense") is not None: stats.append(f"DEF:{c['defense']}")
-                if c.get("health") is not None: stats.append(f"HP:{c['health']}")
-                stat_str = " ".join(stats) if stats else "-"
-                boost = c.get("boost")
-                b_str = f"{boost} pips" if boost is not None else ("Star" if c.get("boost_star") else "-")
-                pack = c.get("pack_code", "")
-                out.write(f"| `{code}` | {name} | {ctype} | {deck} | {stat_str} | {b_str} | `{pack}` |\n")
-            out.write("\n---\n\n")
+        if include_summary:
+            if len(filtered_cards) > SUMMARY_CARD_CAP:
+                out.write(
+                    f"## Quick Index\n\n_Omitted: {len(filtered_cards)} cards exceeds the "
+                    f"{SUMMARY_CARD_CAP}-row cap for this table. Use the per-pack files in "
+                    "`docs/cards/by_pack/`, or re-run with `--pack <code>`._\n\n---\n\n"
+                )
+            else:
+                out.write("## Quick Index\n\n")
+                out.write("| Code | Name | Type | Deck / Set | Stats | Boost | Pack |\n")
+                out.write("|---|---|---|---|---|---|---|\n")
+                for c in filtered_cards:
+                    code = c.get("code", "")
+                    name = c.get("name", "")
+                    ctype = c.get("type_name", "")
+                    deck = db.format_deck_position(c).split("(")[0].strip()
+                    stats = []
+                    if c.get("thwart") is not None: stats.append(f"THW:{c['thwart']}")
+                    if c.get("scheme") is not None: stats.append(f"SCH:{c['scheme']}")
+                    if c.get("attack") is not None: stats.append(f"ATK:{c['attack']}")
+                    if c.get("defense") is not None: stats.append(f"DEF:{c['defense']}")
+                    if c.get("recover") is not None: stats.append(f"REC:{c['recover']}")
+                    if c.get("health") is not None: stats.append(f"HP:{c['health']}")
+                    stat_str = " ".join(stats) if stats else "-"
+                    b_str = boost_summary(c) or "-"
+                    pack = c.get("pack_code", "")
+                    out.write(f"| `{code}` | {name} | {ctype} | {deck} | {stat_str} | {b_str} | `{pack}` |\n")
+                out.write("\n---\n\n")
 
         # Group cards by Pack and Set
         by_pack: Dict[str, Dict[str, List[Dict[str, Any]]]] = defaultdict(lambda: defaultdict(list))
@@ -561,15 +694,17 @@ def main():
     parser.add_argument("--set", dest="set_code", help="Filter by card set code (e.g. 'red_skull', 'spider_man')")
     parser.add_argument("--type", dest="type_code", help="Filter by card type (e.g. 'hero', 'villain', 'treachery')")
     parser.add_argument("--split-dir", help="Directory to output split markdown files by pack (e.g. 'docs/cards/by_pack')")
-    parser.add_argument("--summary", action="store_true", help="Include summary index table at the top")
+    parser.add_argument(
+        "--summary", action=argparse.BooleanOptionalAction, default=True,
+        help=f"Include the summary index table (omitted above {SUMMARY_CARD_CAP} cards). Applies to every file written.",
+    )
 
     args = parser.parse_args()
 
     # Resolve paths relative to repo root
-    repo_root = Path(__file__).resolve().parent.parent
-    raw_dir = repo_root / args.raw_dir
-    images_dir = repo_root / args.images_dir
-    output_path = repo_root / args.output
+    raw_dir = REPO_ROOT / args.raw_dir
+    images_dir = REPO_ROOT / args.images_dir
+    output_path = REPO_ROOT / args.output
 
     print(f"Loading Marvel Champions Card Database from {raw_dir}...")
     db = CardDatabase(str(raw_dir), str(images_dir))
@@ -587,10 +722,10 @@ def main():
 
     # Optional: Generate split pack files if requested
     if args.split_dir:
-        split_dir = repo_root / args.split_dir
+        split_dir = REPO_ROOT / args.split_dir
         split_dir.mkdir(parents=True, exist_ok=True)
         print(f"Exporting individual pack files to {split_dir}...")
-        
+
         packs = sorted(db.cards_by_pack.keys())
         for p_code in packs:
             p_out = split_dir / f"{p_code}.md"
@@ -598,7 +733,7 @@ def main():
                 db=db,
                 output_path=p_out,
                 pack_filter=p_code,
-                include_summary=True
+                include_summary=args.summary
             )
         print(f"Exported {len(packs)} pack files to {split_dir}")
 

@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `36001a` | Storm | Hero | Storm | THW:1 ATK:2 DEF:1 HP:10 | - | `storm` |
-| `36001b` | Ororo Munroe | Alter-Ego | Storm | HP:10 | - | `storm` |
+| `36001b` | Ororo Munroe | Alter-Ego | Storm | REC:3 HP:10 | - | `storm` |
 | `36002` | Clear Skies | Support | Weather Deck | - | - | `storm` |
 | `36003` | Hurricane | Support | Weather Deck | - | - | `storm` |
 | `36004` | Thunderstorm | Support | Weather Deck | - | - | `storm` |
@@ -64,16 +69,16 @@ This document is an authoritative, complete card database generated directly fro
 | `36027` | Energy | Resource | Pack Position: 27 | - | - | `storm` |
 | `36028` | Genius | Resource | Pack Position: 28 | - | - | `storm` |
 | `36029` | Strength | Resource | Pack Position: 29 | - | - | `storm` |
-| `36030` | Claustrophobia | Obligation | Storm | - | 2 pips | `storm` |
-| `36031` | Callisto | Minion | Storm Nemesis | SCH:1 ATK:3 HP:5 | 3 pips | `storm` |
-| `36032` | Leader of the Morlocks | Side Scheme | Storm Nemesis | - | 3 pips | `storm` |
-| `36033` | Switchblade | Attachment | Storm Nemesis | ATK:2 | 2 pips | `storm` |
-| `36034` | Knife Fight | Treachery | Storm Nemesis | - | 2 pips | `storm` |
+| `36030` | Claustrophobia | Obligation | Storm | - | 2 icons | `storm` |
+| `36031` | Callisto | Minion | Storm Nemesis | SCH:1 ATK:3 HP:5 | 3 icons | `storm` |
+| `36032` | Leader of the Morlocks | Side Scheme | Storm Nemesis | - | 3 icons | `storm` |
+| `36033` | Switchblade | Attachment | Storm Nemesis | ATK:2 | 2 icons | `storm` |
+| `36034` | Knife Fight | Treachery | Storm Nemesis | - | 2 icons | `storm` |
 | `36035` | Hangar Bay | Support | Pack Position: 35 | - | - | `storm` |
-| `36036` | The Shadow King | Minion | Shadow King | SCH:3 ATK:3 HP:6 | 3 pips | `storm` |
-| `36037` | Ruler of the Astral Plane | Side Scheme | Shadow King | - | Star | `storm` |
-| `36038` | Possessed | Attachment | Shadow King | - | 2 pips | `storm` |
-| `36039` | Astral Attack | Treachery | Shadow King | - | Star | `storm` |
+| `36036` | The Shadow King | Minion | Shadow King | SCH:3 ATK:3 HP:6 | 3 icons | `storm` |
+| `36037` | Ruler of the Astral Plane | Side Scheme | Shadow King | - | 0 icons + star | `storm` |
+| `36038` | Possessed | Attachment | Shadow King | - | 2 icons | `storm` |
+| `36039` | Astral Attack | Treachery | Shadow King | - | 0 icons + star | `storm` |
 
 ---
 
@@ -92,6 +97,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Weather Control* — **Action**: Swap your [[WEATHER]] support in play with a support of your choice from the [[WEATHER]] deck. Resolve the "**Special**" ability on your [[WEATHER]] support in play. (Limit once per round).
 - **Image Asset**: `assets/card-art/bundles/cards/36001a.png` (607×880 px, 148.9 KB)
+
 ### [36001b] Ororo Munroe
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -104,6 +110,7 @@ This document is an authoritative, complete card database generated directly fro
   > Ororo Munroe begins the game with a [[WEATHER]] deck. (See insert.)
   > *"I feel a storm coming..."* — **Setup**: Choose a support from the [[WEATHER]] deck and put it into play.
 - **Image Asset**: `assets/card-art/bundles/cards/36001b.png` (607×880 px, 166.1 KB)
+
 ### [36006] Storm's Crown
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -116,6 +123,7 @@ This document is an authoritative, complete card database generated directly fro
   > Storm gets +1 THW.
   > **Hero Resource**: Exhaust Storm's Crown → generate the printed resource on your [[WEATHER]] support.
 - **Image Asset**: `assets/card-art/bundles/cards/36006.png` (607×880 px, 134.8 KB)
+
 ### [36007] Storm's Cape
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -128,6 +136,7 @@ This document is an authoritative, complete card database generated directly fro
   > Storm gets +1 DEF and gains the [[AERIAL]] trait.
   > **Hero Response**: After you resolve the  "**Special**" ability on your [[WEATHER]] support, exhaust Storm's Cape → ready Storm.
 - **Image Asset**: `assets/card-art/bundles/cards/36007.png` (607×880 px, 131.5 KB)
+
 ### [36008] Ororo's Garden
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -139,6 +148,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Alter-Ego Action**: Exhaust Ororo's Garden → heal 2 damage from your identity.
 - **Image Asset**: `assets/card-art/bundles/cards/36008.png` (607×880 px, 143.4 KB)
+
 ### [36009] Weather Goddess
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -149,6 +159,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action**:  Swap your [[WEATHER]] support in play with a support of your choice from the [[WEATHER]] deck. Resolve the "**Special**" ability on your [[WEATHER]] support in play.
 - **Image Asset**: `assets/card-art/bundles/cards/36009.png` (607×880 px, 147.1 KB)
+
 ### [36010] Torrential Rain
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -159,6 +170,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(thwart)*: Remove 3 threat from among schemes in play. If Hurricane is in play, resolve its "**Special**" ability.
 - **Image Asset**: `assets/card-art/bundles/cards/36010.png` (607×880 px, 157.8 KB)
+
 ### [36011] Lightning Bolt
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -169,6 +181,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(attack)*: Deal 8 damage to an enemy. If Thunderstorm is in play, resolve its "**Special**" ability.
 - **Image Asset**: `assets/card-art/bundles/cards/36011.png` (607×880 px, 135.5 KB)
+
 ### [36012] Flash Freeze
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -179,6 +192,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt** *(defense)*: When the villain attacks you, the villain and each minion engaged with you get -3 ATK while attacking you this phase. If Blizzard is in play, resolve its "**Special**" ability.
 - **Image Asset**: `assets/card-art/bundles/cards/36012.png` (607×880 px, 137.8 KB)
+
 ### [36013] Blast of Wind
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -189,6 +203,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action**: Choose a player → deal 3 damage to the villain and each minion engaged with that player. Resolve the "**Special**" ability of your [[WEATHER]] support.
 - **Image Asset**: `assets/card-art/bundles/cards/36013.png` (607×880 px, 150.3 KB)
+
 ### [36030] Claustrophobia
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -201,7 +216,10 @@ This document is an authoritative, complete card database generated directly fro
   > ***Give to the Ororo Munroe player.***
   > Flip to alter-ego form. You cannot change to hero form.
   > **Alter-Ego Action:** Exhaust Ororo Munroe → remove Claustrophobia from the game.
+- **Errata (FFG)**:
+  > Changed “change forms” to “change to hero form”. (RRG 1.6)
 - **Image Asset**: `assets/card-art/bundles/cards/36030.png` (607×880 px, 136.4 KB)
+
 
 ### Set: Weather Deck
 
@@ -218,6 +236,7 @@ This document is an authoritative, complete card database generated directly fro
   > Each character gains stalwart.
   > **Special**: Draw 1 card.
 - **Image Asset**: `assets/card-art/bundles/cards/36002.png` (607×880 px, 128.2 KB)
+
 ### [36003] Hurricane
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -231,6 +250,7 @@ This document is an authoritative, complete card database generated directly fro
   > Each character gains retaliate 1.
   > **Special**: Remove 2 threat from a scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/36003.png` (607×880 px, 145.8 KB)
+
 ### [36004] Thunderstorm
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -244,6 +264,7 @@ This document is an authoritative, complete card database generated directly fro
   > Each character gets +1 ATK.
   > **Special**: Deal 2 damage to an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/36004.png` (607×880 px, 136.4 KB)
+
 ### [36005] Blizzard
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -258,6 +279,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Special**: Choose a non-[[ELITE]] minion → until the end of the round, treat that minion's text box as if it were blank *(except for **TRAITS***).
 - **Image Asset**: `assets/card-art/bundles/cards/36005.png` (607×880 px, 168.1 KB)
 
+
 ### Set: Leadership
 
 ### [36014] Havok — *Alex Summers*
@@ -271,6 +293,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > [star] **Forced Interrupt**: When Havok attacks, discard the top card of the encounter deck. For each boost icon ([boost]) discarded this way, Havok gets +1 ATK for this attack and takes +1 consequential damage ([cost]).
 - **Image Asset**: `assets/card-art/bundles/cards/36014.png` (607×880 px, 135.1 KB)
+
 ### [36015] Mirage — *Dani Moonstar*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -282,6 +305,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Response**: After Mirage enters play, choose an enemy whose SCH is less than Mirage's THW → stun that enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/36015.png` (607×880 px, 127.6 KB)
+
 ### [36016] Gentle — *Nezhno Abidemi*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -293,6 +317,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > [star] Gentle takes +1 consequential damage ([cost]) after he attacks the villain.
 - **Image Asset**: `assets/card-art/bundles/cards/36016.png` (607×880 px, 140.7 KB)
+
 ### [36017] Pixie — *Megan Gwynn*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -304,6 +329,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Response**: After you play Pixie from your hand, add an [[X-MEN]] ally from your discard pile to your hand.
 - **Image Asset**: `assets/card-art/bundles/cards/36017.png` (607×880 px, 135.1 KB)
+
 ### [36018] Uncanny X-Men
 - **Type**: `Support`
 - **Faction / Aspect**: Leadership
@@ -315,6 +341,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play under any player's control. Max 1 [[TEAM]] card per player.
   > Each of your [[X-MEN]] allies gets +1 hit point. If each of your characters has the [[X-MEN]] trait, each of your [[X-MEN]] allies costs 1 fewer resource to play.
 - **Image Asset**: `assets/card-art/bundles/cards/36018.png` (607×880 px, 153.8 KB)
+
 ### [36019] Leadership Skill
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Leadership
@@ -326,6 +353,7 @@ This document is an authoritative, complete card database generated directly fro
   > Uses (3 leadership counters). Max 1 per player.
   > **Interrupt**: When an ally makes a basic thwart or basic attack action, remove 1 leadership counter from here → that ally gets +1 THW and +1 ATK for that action.
 - **Image Asset**: `assets/card-art/bundles/cards/36019.png` (607×880 px, 141.1 KB)
+
 ### [36020] "To Me, My X-Men!"
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -337,6 +365,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[X-MEN]] trait.
   > **Hero Action**: Search the top 5 cards of your deck for an [[X-MEN]] ally and put it into play. If that ally is still in play at the end of the phase, add it to your hand.
 - **Image Asset**: `assets/card-art/bundles/cards/36020.png` (607×880 px, 154.9 KB)
+
 ### [36021] Effective Leadership
 - **Type**: `Resource`
 - **Faction / Aspect**: Leadership
@@ -346,6 +375,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > **Interrupt**: When you spend this card to play an ally, that ally gets +1 THW and +1 ATK until the end of the phase.
+
 
 ### Set: Basic
 
@@ -360,6 +390,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Response**: After Forge enters play, search your deck and discard pile for an [[X-MEN]] or [[X-FORCE]] support and add it to your hand. *(Shuffle.)*
 - **Image Asset**: `assets/card-art/bundles/cards/36022.png` (607×880 px, 135.1 KB)
+
 ### [36023] The X-Jet
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -370,6 +401,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Traits**: *Vehicle. X-Men.*
 - **Rules Text**:
   > **Resource**: Exhaust The X-Jet → generate a [wild] resource for a player whose identity has the [[X-MEN]] trait.
+
 ### [36024] Utopia
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -381,6 +413,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > If each of your allies has the [[X-MEN]] trait, increase your ally limit by 1.
   > **Response:** After an [[X-MEN]] ally enters play, exhaust Utopia → ready an [[X-MEN]] character.
+
 ### [36025] X-Mansion
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -391,6 +424,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Traits**: *Location. X-Men.*
 - **Rules Text**:
   > **Alter-Ego Action**: Exhaust X-Mansion → heal 1 damage from a [[MUTANT]] or [[X-MEN]] character. Any player whose alter-ego has the [[MUTANT]] trait may trigger this ability.
+
 ### [36026] Endurance
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -402,6 +436,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play under any player's control. Max 1 per player.
   > You get +3 hit points.
 - **Image Asset**: `assets/card-art/bundles/cards/36026.png` (607×880 px, 118.5 KB)
+
 ### [36027] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -410,6 +445,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [36028] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -418,6 +454,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [36029] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -426,6 +463,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 
 ### Set: Storm Nemesis
 
@@ -445,6 +483,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Interrupt**: When a Knife Fight treachery is revealed, give Callisto a tough status card.
 - **Flavor**: *"I'm going to ruin that pretty face of yours!"*
 - **Image Asset**: `assets/card-art/bundles/cards/36031.png` (607×880 px, 138.2 KB)
+
 ### [36032] Leader of the Morlocks
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -459,6 +498,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Defeated**: The player who defeated this scheme searches the encounter deck, discard pile, and set-aside area for Knife Fight and reveals it.
 - **Flavor**: *Callisto protects the Morlocks, but she won't let anyone question her authority.*
 - **Image Asset**: `assets/card-art/bundles/cards/36032.png` (880×607 px, 218.3 KB)
+
 ### [36033] Switchblade
 - **Type**: `Attachment`
 - **Faction / Aspect**: Encounter
@@ -472,6 +512,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to the minion with the highest printed ATK. Otherwise, this card gains surge.
   > [star] Attached minion's attacks gain piercing.
 - **Image Asset**: `assets/card-art/bundles/cards/36033.png` (607×880 px, 122.7 KB)
+
 ### [36034] Knife Fight
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -484,6 +525,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Revealed (Alter-Ego)**: This card gains surge.
   > **When Revealed (Hero)**: Choose an enemy with the highest ATK → take damage equal to its ATK. Deal damage to that enemy equal to your ATK.
 - **Image Asset**: `assets/card-art/bundles/cards/36034.png` (607×880 px, 138.1 KB)
+
 
 ### Set: Protection
 
@@ -498,6 +540,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Response**: After an ally defends against an attack and is not defeated, exhaust this card → ready that ally.
 - **Image Asset**: `assets/card-art/bundles/cards/36035.png` (607×880 px, 131.1 KB)
+
 
 ### Set: Shadow King
 
@@ -516,6 +559,7 @@ This document is an authoritative, complete card database generated directly fro
   > While a [[Controlled]] minion is in play, The Shadow King cannot take damage.
   > **When Revealed**: Search the encounter deck and discard pile for a copy of the Possessed attachment and reveal it. *(Shuffle.)*
 - **Image Asset**: `assets/card-art/bundles/cards/36036.png` (607×880 px, 141.5 KB)
+
 ### [36037] Ruler of the Astral Plane
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -523,7 +567,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Deck / Set**: Shadow King (2/5)
 - **Stats**: **Base Threat**: 6
 - **Bottom-Right Encounter Logos**:
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Shadow King Set Icon (printed bottom-right next to deck number)
   - **Scheme Icons**: Acceleration (`[acceleration]`: Places +1 additional threat on Main Scheme each round)
 - **Rules Text**:
@@ -533,6 +578,7 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: If you are engaged with a [[Controlled]] minion, reveal this card.
 - **Image Asset**: `assets/card-art/bundles/cards/36037.png` (880×607 px, 195.1 KB)
+
 ### [36038] Possessed
 - **Type**: `Attachment`
 - **Faction / Aspect**: Encounter
@@ -545,15 +591,18 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Treat attached ally as a [[Controlled]] minion with a blank text box. Attached minion's SCH is equal to its printed THW and it does not take consequential damage.
   > **When Revealed**: Attach to the ally with the lowest THW without Possessed attached. Attached ally engages its controller. If you cannot, this card gains surge.
+- **Errata (FFG)**:
+  > Added “Attached ally engages its controller.” (RRG 1.6)
 - **Image Asset**: `assets/card-art/bundles/cards/36038.png` (607×880 px, 148.8 KB)
+
 ### [36039] Astral Attack
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
 - **Pack**: Storm (`storm`)
 - **Deck / Set**: Shadow King (5/5)
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Shadow King Set Icon (printed bottom-right next to deck number)
 - **Rules Text**:
   > **When Revealed**: Each [[Controlled]] minion activates against you. If there are no [[Controlled]] minions in play, this card gains surge.
@@ -562,4 +611,5 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: Shuffle each Shadow King card from the discard pile into the encounter deck.
 - **Image Asset**: `assets/card-art/bundles/cards/36039.png` (607×880 px, 141.2 KB)
+
 

@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `60001a` | Daredevil | Hero | Daredevil | THW:1 ATK:2 DEF:2 HP:10 | - | `fne` |
-| `60001b` | Matt Murdock | Alter-Ego | Daredevil | HP:10 | - | `fne` |
+| `60001b` | Matt Murdock | Alter-Ego | Daredevil | REC:3 HP:10 | - | `fne` |
 | `60002` | Acute Tactility | Upgrade | Sense Deck | - | - | `fne` |
 | `60003` | Enhanced Olfaction | Upgrade | Sense Deck | - | - | `fne` |
 | `60004` | Heightened Hearing | Upgrade | Sense Deck | - | - | `fne` |
@@ -66,13 +71,13 @@ This document is an authoritative, complete card database generated directly fro
 | `60029` | Stick | Support | Pack Position: 29 | - | - | `fne` |
 | `60030` | Contingency Planning | Upgrade | Pack Position: 30 | - | - | `fne` |
 | `60031` | Dance with the Devil | Upgrade | Pack Position: 31 | - | - | `fne` |
-| `60032` | Sensory Overload | Obligation | Daredevil | - | 2 pips | `fne` |
-| `60033` | Bullseye | Minion | Daredevil Nemesis | SCH:1 ATK:3 HP:5 | 3 pips | `fne` |
-| `60034` | Deadliest Man Alive | Side Scheme | Daredevil Nemesis | - | 2 pips | `fne` |
-| `60035` | Stolen Sai | Attachment | Daredevil Nemesis | ATK:1 | 1 pips | `fne` |
-| `60036` | Eye on the Target | Treachery | Daredevil Nemesis | - | 2 pips | `fne` |
+| `60032` | Sensory Overload | Obligation | Daredevil | - | 2 icons | `fne` |
+| `60033` | Bullseye | Minion | Daredevil Nemesis | SCH:1 ATK:3 HP:5 | 3 icons | `fne` |
+| `60034` | Deadliest Man Alive | Side Scheme | Daredevil Nemesis | - | 2 icons | `fne` |
+| `60035` | Stolen Sai | Attachment | Daredevil Nemesis | ATK:1 | 1 icon + star | `fne` |
+| `60036` | Eye on the Target | Treachery | Daredevil Nemesis | - | 2 icons | `fne` |
 | `60037a` | Echo | Hero | Echo | THW:2 ATK:2 DEF:2 HP:9 | - | `fne` |
-| `60037b` | Maya Lopez | Alter-Ego | Echo | HP:9 | - | `fne` |
+| `60037b` | Maya Lopez | Alter-Ego | Echo | REC:3 HP:9 | - | `fne` |
 | `60038` | Innate Reflexes | Upgrade | Pack Position: 38 | - | - | `fne` |
 | `60039` | Daredevil | Ally | Echo | THW:2 ATK:2 HP:3 | - | `fne` |
 | `60040a` | Photographic Reflexes | Event | Echo | - | - | `fne` |
@@ -97,11 +102,11 @@ This document is an authoritative, complete card database generated directly fro
 | `60057` | Energy | Resource | Pack Position: 57 | - | - | `fne` |
 | `60058` | Genius | Resource | Pack Position: 58 | - | - | `fne` |
 | `60059` | Strength | Resource | Pack Position: 59 | - | - | `fne` |
-| `60060` | Raised by the Kingpin | Obligation | Echo | - | 2 pips | `fne` |
-| `60061` | Kingpin | Minion | Echo Nemesis | SCH:3 ATK:2 HP:6 | 3 pips | `fne` |
-| `60062` | Master Manipulator | Side Scheme | Echo Nemesis | - | Star | `fne` |
-| `60063` | Kingpin's Henchman | Minion | Echo Nemesis | SCH:1 ATK:2 HP:4 | 1 pips | `fne` |
-| `60064` | Pawn of the Kingpin | Treachery | Echo Nemesis | - | 2 pips | `fne` |
+| `60060` | Raised by the Kingpin | Obligation | Echo | - | 2 icons | `fne` |
+| `60061` | Kingpin | Minion | Echo Nemesis | SCH:3 ATK:2 HP:6 | 3 icons | `fne` |
+| `60062` | Master Manipulator | Side Scheme | Echo Nemesis | - | 0 icons + star | `fne` |
+| `60063` | Kingpin's Henchman | Minion | Echo Nemesis | SCH:1 ATK:2 HP:4 | 1 icon | `fne` |
+| `60064` | Pawn of the Kingpin | Treachery | Echo Nemesis | - | 2 icons | `fne` |
 
 ---
 
@@ -120,6 +125,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Superhuman Senses* — **Action**: Play the top card of the [[Sense]] deck as if it were in your hand *(paying its cost)*.
 - **Image Asset**: `assets/card-art/bundles/cards/60001a.png` (300×426 px, 252.3 KB)
+
 ### [60001b] Matt Murdock
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -132,6 +138,7 @@ This document is an authoritative, complete card database generated directly fro
   > Matt Murdock begins the game with a [[Sense]] deck. *(See rulebook p. 26.)*
   > **Forced Interrupt**: When a [[Sense]] upgrade would leave play, place it on the bottom of the [[Sense]] deck instead.
 - **Image Asset**: `assets/card-art/bundles/cards/60001b.png` (300×426 px, 226.0 KB)
+
 ### [60007] Elektra — *Elektra Natchios*
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -144,6 +151,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Forced Interrupt (Hero)**: When Elektra would take consequential damage, Daredevil takes that damage instead.
 - **Flavor**: *"I don't need your protection, Matt."*
 - **Image Asset**: `assets/card-art/bundles/cards/60007.png` (710×1030 px, 326.4 KB)
+
 ### [60008] Cross-Examination
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -155,6 +163,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 3 damage to an enemy. For each upgrade attached to that enemy, you may deal 1 additional damage to it.
 - **Flavor**: *"No further questions, punk." —Daredevil*
 - **Image Asset**: `assets/card-art/bundles/cards/60008.png` (710×1030 px, 332.6 KB)
+
 ### [60009] Deposition
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -166,6 +175,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action** *(thwart)*: You may choose any upgrade from the [[Sense]] deck and play it, ignoring its resource cost. *(Do not shuffle.)* Remove 2 threat from a scheme.
 - **Flavor**: *"Tell us everything." —Matt Murdock*
 - **Image Asset**: `assets/card-art/bundles/cards/60009.jpg` (710×1030 px, 322.3 KB)
+
 ### [60010] Living Lie Detector
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -177,6 +187,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action** *(thwart)*: Remove 2 threat from a scheme. For each upgrade attached to that scheme, you may remove 1 additional threat from it.
 - **Flavor**: *Thump-Thump     Thump-Thump    Thump-Thump   Thump-Thump  Thump-Thump Thump-Thump*
 - **Image Asset**: `assets/card-art/bundles/cards/60010.png` (710×1030 px, 347.4 KB)
+
 ### [60011] Raising Hell
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -188,6 +199,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 2 damage to each enemy for each upgrade attached to that enemy (3 damage instead if Daredevil has the [[Aerial]] trait).
 - **Flavor**: *"I cannot see the light. So I will be the light. I am Daredevil, and I am not afraid." —Daredevil*
 - **Image Asset**: `assets/card-art/bundles/cards/60011.jpg` (710×1030 px, 293.6 KB)
+
 ### [60012] Focus the Senses
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Hero
@@ -199,6 +211,7 @@ This document is an authoritative, complete card database generated directly fro
   > Threat cannot be removed from this scheme except by Daredevil or Matt Murdock.
   > **When Defeated**: You may move any number of [[Sense]] upgrades in play to other cards they can attach to. Choose any number of upgrades from the [[Sense]] deck and put them into play. *(Do not shuffle.)*
 - **Image Asset**: `assets/card-art/bundles/cards/60012.jpg` (1030×710 px, 283.3 KB)
+
 ### [60013] Foggy Nelson
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -211,6 +224,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action**: Exhaust Foggy Nelson → remove 2 threat from a scheme.
 - **Flavor**: *"Everything's okay now, Matt! Ol' Fog is on it!"*
 - **Image Asset**: `assets/card-art/bundles/cards/60013.png` (710×1030 px, 319.6 KB)
+
 ### [60014] Karen Page
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -223,6 +237,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Exhaust Karen Page → shuffle 1 Daredevil card from your discard pile into your deck. If you are in alter-ego form, draw 1 card.
 - **Flavor**: *"What would you boys do without me?"*
 - **Image Asset**: `assets/card-art/bundles/cards/60014.jpg` (710×1030 px, 349.9 KB)
+
 ### [60015] Nelson and Murdock
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -235,6 +250,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After an [[Attorney]] character or support defeats a side scheme, confuse an enemy.
 - **Flavor**: *"Let's see them pull off their heist with their vehicle impounded." —Matt Murdock*
 - **Image Asset**: `assets/card-art/bundles/cards/60015.png` (710×1030 px, 310.9 KB)
+
 ### [60016] Sister Maggie
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -248,6 +264,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After you recover, discard a status card from your identity.
 - **Flavor**: *As both a Catholic nun and Matt's mother, Sister Maggie often nurses her son back to health.*
 - **Image Asset**: `assets/card-art/bundles/cards/60016.png` (710×1030 px, 332.0 KB)
+
 ### [60017] Daredevil's Billy Club
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -262,6 +279,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Deal 1 damage to an enemy.
   > • Daredevil gains the [[Aerial]] trait until the end of the round.
 - **Image Asset**: `assets/card-art/bundles/cards/60017.jpg` (710×1030 px, 337.4 KB)
+
 ### [60018] The Man Without Fear
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -275,6 +293,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Choose any upgrade from the [[Sense]] deck and play it, ignoring its resource cost. *(Do not shuffle.)*
   > • Ready Daredevil.
 - **Image Asset**: `assets/card-art/bundles/cards/60018.jpg` (710×1030 px, 303.9 KB)
+
 ### [60032] Sensory Overload
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -290,6 +309,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *Daredevil's heightened senses make him vulnerable to intense stimuli.*
 - **Image Asset**: `assets/card-art/bundles/cards/60032.png` (710×1030 px, 309.2 KB)
 
+
 ### Set: Sense Deck
 
 ### [60002] Acute Tactility
@@ -303,6 +323,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to an enemy or scheme.
   > **Interrupt**: When you defeat attached enemy or remove the last threat from attached scheme, discard this card → ready your identity.
 - **Image Asset**: `assets/card-art/bundles/cards/60002.png` (710×1030 px, 330.5 KB)
+
 ### [60003] Enhanced Olfaction
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -314,6 +335,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to an enemy or scheme.
   > **Interrupt**: When you defeat attached enemy or remove the last threat from attached scheme, discard this card → reduce the cost of the next card you play this phase by 2.
 - **Image Asset**: `assets/card-art/bundles/cards/60003.jpg` (710×1030 px, 337.6 KB)
+
 ### [60004] Heightened Hearing
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -325,6 +347,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to an enemy.
   > **Hero Interrupt** *(defense)*: When attached enemy attacks, discard this card → that enemy gets -3 ATK for that attack. *(You become the target of that attack.)*
 - **Image Asset**: `assets/card-art/bundles/cards/60004.png` (710×1030 px, 346.8 KB)
+
 ### [60005] Radar Sense
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -337,6 +360,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response** *(attack)*: After you attack attached enemy, discard this card → deal 3 damage to that enemy.
 - **Flavor**: *The accident that cost Matt his eyesight gave him a new, radar-like sense.*
 - **Image Asset**: `assets/card-art/bundles/cards/60005.jpg` (710×1030 px, 341.4 KB)
+
 ### [60006] Superior Taste
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -348,6 +372,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to a scheme.
   > **Response** *(thwart)*: After you thwart attached scheme, discard this card → remove 2 threat from that scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/60006.jpg` (710×1030 px, 325.7 KB)
+
 
 ### Set: Justice
 
@@ -363,6 +388,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Response**: After Blindspot thwarts, confuse an enemy with an upgrade attached.
 - **Flavor**: *"I'm invisible, but I'm still here. Chinatown is where I live and I'm going to protect it."*
 - **Image Asset**: `assets/card-art/bundles/cards/60019.png` (710×1030 px, 291.8 KB)
+
 ### [60020] Cloak — *Tyrone Johnson*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -376,6 +402,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Action**: Exhaust Cloak and spend [energy] [energy] resources → find Dagger and put her into play.
 - **Image Asset**: `assets/card-art/bundles/cards/60020.png` (710×1030 px, 243.5 KB)
+
 ### [60021] Dagger — *Tandy Bowen*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -389,6 +416,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] If Cloak is in play, Dagger takes -1 consequential damage after she uses a basic power.
 - **Flavor**: *"I'll be the light in your dark, Ty."*
 - **Image Asset**: `assets/card-art/bundles/cards/60021.jpg` (710×1030 px, 294.5 KB)
+
 ### [60022] Ghost Rider — *Johnny Blaze*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -401,18 +429,20 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Interrupt**: When Ghost Rider attacks an enemy, spend a [energy] resource ([energy] [energy] resources instead if that enemy is the villain) → confuse that enemy.
 - **Flavor**: *"My penance stare reveals all of your past sins!"*
 - **Image Asset**: `assets/card-art/bundles/cards/60022.jpg` (710×1030 px, 337.4 KB)
+
 ### [60023] Know Your Enemy
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
 - **Pack**: Fear No Evil (`fne`)
 - **Deck / Set**: Pack Position: 23
-- **Stats**: **Cost**: 1, **Resources**: [mental]
+- **Stats**: **Cost**: 1 [star], **Resources**: [mental]
 - **Traits**: *Thwart.*
 - **Rules Text**:
   > [star] Discount 1 ([[Martial Artist]]).
   > **Hero Action** *(thwart)*: Remove 1 threat from a scheme. Remove 1 threat from a scheme.
 - **Flavor**: *"I don't need to see you to know your next move." —Iron Fist*
 - **Image Asset**: `assets/card-art/bundles/cards/60023.png` (710×1030 px, 298.9 KB)
+
 ### [60024] De-escalation
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Justice
@@ -425,6 +455,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Defeated**: Remove an acceleration token from play.
 - **Flavor**: *"I can see my house from here!" —Civilian*
 - **Image Asset**: `assets/card-art/bundles/cards/60024.jpg` (1030×710 px, 284.5 KB)
+
 ### [60025] Chance Encounter
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -435,12 +466,13 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Attach to a side scheme. Max 1 per scheme.
   > **Interrupt:** When attached side scheme is defeated, search your deck and discard pile for an ally and add it to your hand. Shuffle your deck.
+
 ### [60026] Legal Trouble
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
 - **Pack**: Fear No Evil (`fne`)
 - **Deck / Set**: Pack Position: 26
-- **Stats**: **Cost**: 1, **Resources**: [mental]
+- **Stats**: **Cost**: 1 [star], **Resources**: [mental]
 - **Traits**: *Condition.*
 - **Rules Text**:
   > [star] Discount 1 ([[Attorney]] or [[Police]]).
@@ -448,18 +480,20 @@ This document is an authoritative, complete card database generated directly fro
   > Attached minion gets -2 SCH.
 - **Flavor**: *"You got a permit for that?" —Police officer*
 - **Image Asset**: `assets/card-art/bundles/cards/60026.png` (710×1030 px, 312.6 KB)
+
 ### [60027] Move in Shadow
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
 - **Pack**: Fear No Evil (`fne`)
 - **Deck / Set**: Pack Position: 27
-- **Stats**: **Cost**: 2, **Resources**: [energy]
+- **Stats**: **Cost**: 2 [star], **Resources**: [energy]
 - **Traits**: *Skill.*
 - **Rules Text**:
   > [star] Discount 1 ([[Martial Artist]] or [[Spy]]).
   > Temporary. Max 1 per player.
   > **Response** *(thwart)*: After you play a card *(including this one)*, remove 1 threat from a scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/60027.jpg` (710×1030 px, 316.4 KB)
+
 ### [60028] Stealth Training
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -471,6 +505,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play under any player's control. Max 1 per player.
   > **Response**: After you thwart and exactly defeat a side scheme, exhaust Stealth Training → stun an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/60028.jpg` (710×1030 px, 311.9 KB)
+
 
 ### Set: Basic
 
@@ -487,6 +522,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Exhaust Stick → that character gets +1 to that basic power for this use.
   > • That character gets -1 to that basic power for this use. Ready Stick.
 - **Image Asset**: `assets/card-art/bundles/cards/60029.png` (710×1030 px, 345.5 KB)
+
 ### [60030] Contingency Planning
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -499,6 +535,7 @@ This document is an authoritative, complete card database generated directly fro
   > You may play the upgrade tucked here as if it were in your hand.
   > **Action**: Choose 1 upgrade in your hand that can attach to a minion or side scheme. Tuck that upgrade under here (to a maximum of 1).
 - **Image Asset**: `assets/card-art/bundles/cards/60030.jpg` (710×1030 px, 357.3 KB)
+
 ### [60031] Dance with the Devil
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -513,6 +550,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to an enemy.
   > **Hero Action** *(attack)*: Discard this card → deal 3 damage to attached enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/60031.png` (710×1030 px, 261.5 KB)
+
 ### [60055] See No Evil, Hear No Evil
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -526,6 +564,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Deal 3 damage to an enemy.
   > • Remove 3 threat from a scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/60055.jpg` (710×1030 px, 320.8 KB)
+
 ### [60056] Superpower Training
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Basic
@@ -538,6 +577,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Defeated**: Each player may search their deck and discard pile for an identity-specific upgrade and put it into play. *(Shuffle.)*
 - **Flavor**: *"Eat light daggers, you purple punk!" —Dagger*
 - **Image Asset**: `assets/card-art/bundles/cards/60056.jpg` (1030×710 px, 297.4 KB)
+
 ### [60057] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -547,6 +587,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 1 per deck.
 - **Image Asset**: `assets/card-art/bundles/cards/60057.png` (710×1030 px, 332.4 KB)
+
 ### [60058] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -556,6 +597,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 1 per deck.
 - **Image Asset**: `assets/card-art/bundles/cards/60058.png` (710×1030 px, 341.0 KB)
+
 ### [60059] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -565,6 +607,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 1 per deck.
 - **Image Asset**: `assets/card-art/bundles/cards/60059.jpg` (710×1030 px, 332.0 KB)
+
 
 ### Set: Daredevil Nemesis
 
@@ -585,6 +628,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Bullseye attacks you *(even in alter-ego form)*.
 - **Flavor**: *"In my hands, anything is a deadly weapon!"*
 - **Image Asset**: `assets/card-art/bundles/cards/60033.jpg` (710×1030 px, 294.4 KB)
+
 ### [60034] Deadliest Man Alive
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -599,6 +643,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Interrupt**: When Bullseye attacks, give him a facedown boost card.
 - **Flavor**: *"C'mon, Hornhead, let's give the people a show!" —Bullseye*
 - **Image Asset**: `assets/card-art/bundles/cards/60034.png` (1030×710 px, 306.1 KB)
+
 ### [60035] Stolen Sai
 - **Type**: `Attachment`
 - **Faction / Aspect**: Encounter
@@ -607,7 +652,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **ATK**: 1 [star]
 - **Bottom-Right Encounter Logos**:
   - **Boost Icons**: 1 icon (Adds +1 to Villain ATK/SCH during activation)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Daredevil Nemesis Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Weapon.*
 - **Rules Text**:
@@ -619,6 +664,7 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: If this activation is an attack, it gains piercing.
 - **Image Asset**: `assets/card-art/bundles/cards/60035.jpg` (710×1030 px, 324.7 KB)
+
 ### [60036] Eye on the Target
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -634,6 +680,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *"Catch!" —Bullseye*
 - **Image Asset**: `assets/card-art/bundles/cards/60036.jpg` (710×1030 px, 250.9 KB)
 
+
 ### Set: Echo
 
 ### [60037a] Echo
@@ -647,6 +694,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Watch and Learn* — **Response**: After a player plays an aspect or basic event, tuck that event under here from that player's discard pile. Then, if there are more than 3 tucked cards here, discard all but 3 of those cards.
 - **Image Asset**: `assets/card-art/bundles/cards/60037a.png` (300×426 px, 231.7 KB)
+
 ### [60037b] Maya Lopez
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -659,6 +707,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Practice Makes Perfect* — **Interrupt**: When you change to hero form, search your deck for an aspect or basic event and add it to your hand. *(Shuffle.)*
 - **Flavor**: *Maya can recreate any physical movement she sees.*
 - **Image Asset**: `assets/card-art/bundles/cards/60037b.png` (300×426 px, 196.7 KB)
+
 ### [60039] Daredevil — *Matt Murdock*
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -671,6 +720,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Response**: After Daredevil uses a basic power, reduce the cost of the next event you play this round by 1.
 - **Flavor**: *"Follow my lead."*
 - **Image Asset**: `assets/card-art/bundles/cards/60039.jpg` (710×1030 px, 298.8 KB)
+
 ### [60040a] Photographic Reflexes
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -680,6 +730,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > [star] If you are in hero form, you can discard Photographic Reflexes from your hand to play an event tucked under Echo as if it were in your hand. Reduce the cost to play that event by 2. You cannot trigger Echo's *"Watch and Learn"* ability for that event.
 - **Image Asset**: `assets/card-art/bundles/cards/60040a.png` (289×419 px, 235.9 KB)
+
 ### [60040b] Photographic Reflexes
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -689,6 +740,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > [star] If you are in hero form, you can discard Photographic Reflexes from your hand to play an event tucked under Echo as if it were in your hand. Reduce the cost to play that event by 2. You cannot trigger Echo's *"Watch and Learn"* ability for that event.
 - **Image Asset**: `assets/card-art/bundles/cards/60040b.png` (289×419 px, 235.2 KB)
+
 ### [60040c] Photographic Reflexes
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -698,6 +750,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > [star] If you are in hero form, you can discard Photographic Reflexes from your hand to play an event tucked under Echo as if it were in your hand. Reduce the cost to play that event by 2. You cannot trigger Echo's *"Watch and Learn"* ability for that event.
 - **Image Asset**: `assets/card-art/bundles/cards/60040c.png` (289×419 px, 237.1 KB)
+
 ### [60041] Study the Tape
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -709,6 +762,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Search any player's discard pile for 1 aspect event, 1 basic event, or 1 copy of Photographic Reflexes and add that card to your hand.
 - **Flavor**: *"I watch tape after tape to train for a fight." —Echo*
 - **Image Asset**: `assets/card-art/bundles/cards/60041.jpg` (710×1030 px, 317.3 KB)
+
 ### [60042] The Rez
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -721,6 +775,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action**: Exhaust The Rez → heal X damage from Maya Lopez, where X is the highest cost among cards tucked under her.
 - **Flavor**: *The Rez is not a real reservation or Native nation, but a place for all tribes.*
 - **Image Asset**: `assets/card-art/bundles/cards/60042.jpg` (710×1030 px, 354.6 KB)
+
 ### [60043] American Sign Language
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -733,6 +788,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *<Need help?>* —Echo
 *Translated from ASL.*
 - **Image Asset**: `assets/card-art/bundles/cards/60043.png` (710×1030 px, 355.5 KB)
+
 ### [60044] Choreography
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -744,6 +800,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Exhaust this card → shuffle 1 aspect or basic event from your discard pile into your deck. If you are in alter-ego form, draw 1 card.
 - **Flavor**: *Maya uses her physical gifts to express herself in dance.*
 - **Image Asset**: `assets/card-art/bundles/cards/60044.jpg` (710×1030 px, 250.7 KB)
+
 ### [60045] Echo's Katana
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -756,6 +813,7 @@ This document is an authoritative, complete card database generated directly fro
   > Restricted.
   > **Hero Response** *(attack)*: After you play an event, exhaust Echo's Katana → deal damage to an enemy equal to that event's printed cost. This attack gains piercing.
 - **Image Asset**: `assets/card-art/bundles/cards/60045.png` (710×1030 px, 343.2 KB)
+
 ### [60046] Improvisation
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -769,6 +827,7 @@ This document is an authoritative, complete card database generated directly fro
   > • [[Defense]] — remove 1 threat from a scheme.
   > • [[Thwart]] — deal 1 damage to an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/60046.png` (710×1030 px, 280.5 KB)
+
 ### [60047] Muscle Memory
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -780,6 +839,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Exhaust this card → add an event tucked under Echo to your hand.
 - **Flavor**: *"I absorb an arsenal of actions, so when I need to, I can perform them with the same precision." —Echo*
 - **Image Asset**: `assets/card-art/bundles/cards/60047.jpg` (710×1030 px, 266.5 KB)
+
 ### [60060] Raised by the Kingpin
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -796,6 +856,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *Allie Preswick*
 - **Image Asset**: `assets/card-art/bundles/cards/60060.jpg` (710×1030 px, 329.2 KB)
 
+
 ### Set: Protection
 
 ### [60038] Innate Reflexes
@@ -810,17 +871,19 @@ This document is an authoritative, complete card database generated directly fro
   > Your hero gets +1 DEF.
 - **Flavor**: *KTINK!*
 - **Image Asset**: `assets/card-art/bundles/cards/60038.png` (710×1030 px, 289.6 KB)
+
 ### [60048] Army of One
 - **Type**: `Event`
 - **Faction / Aspect**: Protection
 - **Pack**: Fear No Evil (`fne`)
 - **Deck / Set**: Pack Position: 48
-- **Stats**: **Cost**: 1, **Resources**: [energy]
+- **Stats**: **Cost**: 1 [star], **Resources**: [energy]
 - **Rules Text**:
   > [star] Increase the cost to play this card by 1 for each ally you control.
   > **Hero Action**: Ready your hero.
 - **Flavor**: *"Two versus one is not a fair fight...for you." —Daredevil*
 - **Image Asset**: `assets/card-art/bundles/cards/60048.jpg` (710×1030 px, 317.8 KB)
+
 ### [60049] Get Their Attention
 - **Type**: `Event`
 - **Faction / Aspect**: Protection
@@ -834,17 +897,19 @@ This document is an authoritative, complete card database generated directly fro
 "What do you mean 'we'?"
 —Rocket Raccoon and Gamora*
 - **Image Asset**: `assets/card-art/bundles/cards/60049.png` (710×1030 px, 349.9 KB)
+
 ### [60050] In Harm's Way
 - **Type**: `Event`
 - **Faction / Aspect**: Protection
 - **Pack**: Fear No Evil (`fne`)
 - **Deck / Set**: Pack Position: 50
-- **Stats**: **Cost**: 3, **Resources**: [physical]
+- **Stats**: **Cost**: 3 [star], **Resources**: [physical]
 - **Traits**: *Attack. Thwart.*
 - **Rules Text**:
   > [star] Increase the cost to play this card by 1 for each ally you control.
   > **Hero Action** *(attack/thwart)*: Deal X damage to an enemy and remove X threat from a scheme, where X is your DEF.
 - **Image Asset**: `assets/card-art/bundles/cards/60050.jpg` (710×1030 px, 330.6 KB)
+
 ### [60051] Powerful Punch
 - **Type**: `Event`
 - **Faction / Aspect**: Protection
@@ -856,6 +921,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Interrupt** *(attack/defense)*: When an enemy initiates an attack, deal 4 damage to that enemy.
 - **Flavor**: *"That was my favorite shirt!" —Luke Cage*
 - **Image Asset**: `assets/card-art/bundles/cards/60051.png` (710×1030 px, 314.8 KB)
+
 ### [60052] The Best Offense...
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Protection
@@ -868,6 +934,7 @@ This document is an authoritative, complete card database generated directly fro
   > Your hero gets +1 DEF.
   > Use your DEF in place of your THW and ATK. *(Ignore any modifiers to your THW and ATK.)*
 - **Image Asset**: `assets/card-art/bundles/cards/60052.png` (710×1030 px, 334.0 KB)
+
 ### [60053] Ronin
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Protection
@@ -880,6 +947,7 @@ This document is an authoritative, complete card database generated directly fro
   > While you do not control any allies, your hero gets +1 DEF and gains retaliate 1.
 - **Flavor**: *"I am Ronin, the samurai with no master." —Ronin*
 - **Image Asset**: `assets/card-art/bundles/cards/60053.jpg` (710×1030 px, 314.9 KB)
+
 ### [60054] Stand Alone
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Protection
@@ -891,6 +959,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Hero Interrupt**: When an enemy attacks you *(before any defender is declared)*, if you do not control any allies, exhaust Stand Alone → ready your hero.
 - **Image Asset**: `assets/card-art/bundles/cards/60054.png` (710×1030 px, 283.8 KB)
+
 
 ### Set: Echo Nemesis
 
@@ -910,6 +979,7 @@ This document is an authoritative, complete card database generated directly fro
   > *(Echo's nemesis minion.)*
 - **Flavor**: *"In my own way, I grew to care for you, Maya. I loved you like a daughter. I still do."*
 - **Image Asset**: `assets/card-art/bundles/cards/60061.png` (710×1030 px, 308.9 KB)
+
 ### [60062] Master Manipulator
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -917,7 +987,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Deck / Set**: Echo Nemesis (2/5)
 - **Stats**: **Base Threat**: 2 per hero
 - **Bottom-Right Encounter Logos**:
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Echo Nemesis Set Icon (printed bottom-right next to deck number)
 - **Rules Text**:
   > Kingpin cannot take damage.
@@ -928,6 +999,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Boost**: If Kingpin is in play, reveal this scheme.
 - **Flavor**: *"If you lay a hand on me, you will regret it." —Kingpin*
 - **Image Asset**: `assets/card-art/bundles/cards/60062.png` (1030×710 px, 300.2 KB)
+
 ### [60063] Kingpin's Henchman
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -943,6 +1015,7 @@ This document is an authoritative, complete card database generated directly fro
   > Kingpin cannot take damage.
 - **Flavor**: *"Mr. Fisk would like a word wit' yous."*
 - **Image Asset**: `assets/card-art/bundles/cards/60063.jpg` (710×1030 px, 248.8 KB)
+
 ### [60064] Pawn of the Kingpin
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -956,4 +1029,5 @@ This document is an authoritative, complete card database generated directly fro
   > **When Revealed (Hero)**: Deal damage to a hero equal to your hero's ATK.
 - **Flavor**: *Kingpin convinced Echo that it was Daredevil, not Kingpin, who killed her father.*
 - **Image Asset**: `assets/card-art/bundles/cards/60064.png` (710×1030 px, 269.9 KB)
+
 

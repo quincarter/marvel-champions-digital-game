@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `08001a` | Black Widow | Hero | Black Widow | THW:2 ATK:2 DEF:2 HP:9 | - | `bkw` |
-| `08001b` | Natasha Romanoff | Alter-Ego | Black Widow | HP:9 | - | `bkw` |
+| `08001b` | Natasha Romanoff | Alter-Ego | Black Widow | REC:3 HP:9 | - | `bkw` |
 | `08002` | Winter Soldier | Ally | Black Widow | THW:2 ATK:2 HP:4 | - | `bkw` |
 | `08003` | Covert Ops | Event | Black Widow | - | - | `bkw` |
 | `08004` | Dance of Death | Event | Black Widow | - | - | `bkw` |
@@ -59,11 +64,11 @@ This document is an authoritative, complete card database generated directly fro
 | `08022` | Strength | Resource | Pack Position: 22 | - | - | `bkw` |
 | `08023` | Quincarrier | Support | Pack Position: 23 | - | - | `bkw` |
 | `08024` | Target Acquired | Upgrade | Pack Position: 24 | - | - | `bkw` |
-| `08025` | Burn Notice | Obligation | Black Widow | - | 2 pips | `bkw` |
-| `08026` | Taskmaster | Minion | Black Widow Nemesis | SCH:0 ATK:0 HP:4 | Star | `bkw` |
-| `08027` | Killer for Hire | Side Scheme | Black Widow Nemesis | - | 3 pips | `bkw` |
-| `08028` | Hydra Mercenary | Minion | Black Widow Nemesis | SCH:0 ATK:1 HP:3 | 1 pips | `bkw` |
-| `08029` | Deadly Shot | Treachery | Black Widow Nemesis | - | 1 pips | `bkw` |
+| `08025` | Burn Notice | Obligation | Black Widow | - | 2 icons | `bkw` |
+| `08026` | Taskmaster | Minion | Black Widow Nemesis | SCH:0 ATK:0 HP:4 | 0 icons + star | `bkw` |
+| `08027` | Killer for Hire | Side Scheme | Black Widow Nemesis | - | 3 icons | `bkw` |
+| `08028` | Hydra Mercenary | Minion | Black Widow Nemesis | SCH:0 ATK:1 HP:3 | 1 icon | `bkw` |
+| `08029` | Deadly Shot | Treachery | Black Widow Nemesis | - | 1 icon | `bkw` |
 | `08030` | Counterattack | Upgrade | Pack Position: 30 | - | - | `bkw` |
 | `08031` | Rapid Response | Upgrade | Pack Position: 31 | - | - | `bkw` |
 | `08032` | Defensive Stance | Upgrade | Pack Position: 32 | - | - | `bkw` |
@@ -87,6 +92,7 @@ This document is an authoritative, complete card database generated directly fro
   > "Widowmaker" — **Response**: After you trigger the ability of a [[Preparation]] card you control, deal 1 damage to an enemy.
 - **Flavor**: *"My name is Madame Natasha. But you can call me Black Widow!"*
 - **Image Asset**: `assets/card-art/bundles/cards/08001a.png` (300×418 px, 210.7 KB)
+
 ### [08001b] Natasha Romanoff
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -99,6 +105,7 @@ This document is an authoritative, complete card database generated directly fro
   > Mission Prep — **Response**: After you play a [[Preparation]] card, draw 1 card. (Limit once per phase.)
 - **Flavor**: *"This is my mission and I will succeed."*
 - **Image Asset**: `assets/card-art/bundles/cards/08001b.png` (300×418 px, 201.8 KB)
+
 ### [08002] Winter Soldier — *Bucky Barnes*
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -111,6 +118,7 @@ This document is an authoritative, complete card database generated directly fro
   > Reduce the cost to play Winter Soldier by 1 for each [[Preparation]] card you control.
 - **Flavor**: *"You shot at Natasha. That was your last act on Earth, pal."*
 - **Image Asset**: `assets/card-art/bundles/cards/08002.png` (300×419 px, 35.1 KB)
+
 ### [08003] Covert Ops
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -122,6 +130,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action** *(thwart)*: Remove 4 threat from a scheme. Confuse the villain.
 - **Flavor**: *"It's all about calculating how willfully blind a person is going to be. And then exploiting that." —Natasha Romanoff*
 - **Image Asset**: `assets/card-art/bundles/cards/08003.png` (300×419 px, 35.7 KB)
+
 ### [08004] Dance of Death
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -135,6 +144,7 @@ This document is an authoritative, complete card database generated directly fro
   > - Deal 2 damage to an enemy.
   > - Deal 3 damage to an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/08004.png` (300×419 px, 35.4 KB)
+
 ### [08005] Safe House #29
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -147,6 +157,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action**: Exhaust Safe House #29 and choose a [[Preparation]] card in your discard pile → add that card to your hand.
 - **Flavor**: *"We should be safe here." —Black Widow*
 - **Image Asset**: `assets/card-art/bundles/cards/08005.png` (300×419 px, 41.6 KB)
+
 ### [08006] Attacrobatics
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -157,6 +168,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt** *(attack)*: When a boost card is turned faceup, discard Attacrobatics → cancel the boost icons on that card. Deal 1 damage to the villain for each boost icon canceled this way.
 - **Image Asset**: `assets/card-art/bundles/cards/08006.png` (300×419 px, 45.1 KB)
+
 ### [08007] Black Widow's Gauntlet
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -168,6 +180,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Resource**: Exhaust Black Widow's Gauntlet → generate a [wild] resource for a [[Preparation]] card.
 - **Flavor**: *"Not only are they lethal, but they look good, too." —Black Widow*
 - **Image Asset**: `assets/card-art/bundles/cards/08007.png` (300×419 px, 36.8 KB)
+
 ### [08008] Grappling Hook
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -179,6 +192,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Interrupt**: When you reveal a treachery, discard Grappling Hook → cancel the effects of that treachery and discard it.
 - **Flavor**: *"Bozhe moi!" —Black Widow*
 - **Image Asset**: `assets/card-art/bundles/cards/08008.png` (300×419 px, 40.9 KB)
+
 ### [08009] Synth-Suit
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -191,6 +205,7 @@ This document is an authoritative, complete card database generated directly fro
   > Black Widow gets +1 DEF.
   > **Hero Response**: After you trigger the ability of a [[Preparation]] card you control, exhaust Synth-Suit → ready Black Widow.
 - **Image Asset**: `assets/card-art/bundles/cards/08009.png` (300×419 px, 32.6 KB)
+
 ### [08010] Widow's Bite
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -202,6 +217,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response** *(attack)*: After a minion enters play, discard Widow's Bite → deal 2 damage to that minion and stun it.
 - **Flavor**: *"Nighty night." —Black Widow*
 - **Image Asset**: `assets/card-art/bundles/cards/08010.png` (300×419 px, 40.0 KB)
+
 ### [08025] Burn Notice
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -217,6 +233,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Discard the [[Preparation]] card you control with the highest cost. If you cannot, this card gains surge. Discard this obligation.
 - **Image Asset**: `assets/card-art/bundles/cards/08025.png` (300×419 px, 40.4 KB)
 
+
 ### Set: Justice
 
 ### [08011] Agent Coulson
@@ -231,6 +248,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After Agent Coulson enters play, search your deck and discard pile for a [[Preparation]] card and add it to your hand. Shuffle your deck.
 - **Flavor**: *"I'm a guy with a plan."*
 - **Image Asset**: `assets/card-art/bundles/cards/08011.png` (300×419 px, 36.6 KB)
+
 ### [08012] Quake — *Daisy Johnson*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -243,6 +261,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After a minion schemes, exhaust Quake → deal 2 damage to that minion.
 - **Flavor**: *"I will bring this building down around you!"*
 - **Image Asset**: `assets/card-art/bundles/cards/08012.png` (300×419 px, 40.3 KB)
+
 ### [08013] Stealth Strike
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -254,6 +273,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 4 damage to an enemy. If that enemy is defeated by this attack, remove 2 threat from a scheme.
 - **Flavor**: *"They'll never know what hit them." —Black Widow*
 - **Image Asset**: `assets/card-art/bundles/cards/08013.png` (300×419 px, 34.5 KB)
+
 ### [08014] The Power of Justice
 - **Type**: `Resource`
 - **Faction / Aspect**: Justice
@@ -263,6 +283,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > Double the number of resources this card generates while paying for a Justice *(yellow)* card.
+
 ### [08015] Interrogation Room
 - **Type**: `Support`
 - **Faction / Aspect**: Justice
@@ -274,6 +295,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Response**: After you defeat a minion, exhaust Interrogation Room → remove 1 threat from a scheme.
 - **Flavor**: *"Oh, she's sorry! Let me get the keys and call you a car service!" —Misty Knight*
+
 ### [08016] Surveillance Team
 - **Type**: `Support`
 - **Faction / Aspect**: Justice
@@ -284,6 +306,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Uses (3 snoop counters). *(Enters play with 3 counters. When those are gone, discard this card)*
   > **Action**: Exhaust Surveillance Team and remove 1 snoop counter from it → remove 1 threat from a scheme.
+
 ### [08017] Counterintelligence
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -295,6 +318,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Interrupt**: When any amount of threat would be placed on the main scheme, discard Counterintelligence → prevent 3 of that threat.
 - **Image Asset**: `assets/card-art/bundles/cards/08017.png` (300×419 px, 34.9 KB)
+
 ### [08018] Spycraft
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -306,6 +330,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if you control a [[Spy]] character.
   > **Interrupt**: When you reveal an encounter card, discard Spycraft → cancel the effects of that card and discard it. Then, reveal another card from the encounter deck.
 - **Image Asset**: `assets/card-art/bundles/cards/08018.png` (300×419 px, 32.2 KB)
+
 
 ### Set: Basic
 
@@ -319,6 +344,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Traits**: *S.H.I.E.L.D. Spy.*
 - **Rules Text**:
   > **Forced Response**: After Nick Fury enters play, choose one: remove 2 threat from a scheme, draw 3 cards, or deal 4 damage to an enemy. At the end of the round, if Nick Fury is still in play, discard him.
+
 ### [08020] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -327,6 +353,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [08021] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -335,6 +362,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [08022] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -343,6 +371,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [08023] Quincarrier
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -356,6 +385,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Resource**: Exhaust Quincarrier → generate a [wild] resource.
 - **Flavor**: *"Too bad we could only get one of these." —Hawkeye*
 - **Image Asset**: `assets/card-art/bundles/cards/08023.png` (300×419 px, 35.8 KB)
+
 ### [08024] Target Acquired
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -367,6 +397,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Hero Response**: After a boost card is turned faceup, discard Target Acquired → cancel that card's boost ability.
 - **Image Asset**: `assets/card-art/bundles/cards/08024.png` (300×419 px, 33.2 KB)
+
 ### [08033] Espionage
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -379,6 +410,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Interrupt**: When the surge keyword on an encounter card would be resolved, discard Espionage → draw 2 cards.
 - **Image Asset**: `assets/card-art/bundles/cards/08033.png` (300×419 px, 31.3 KB)
 
+
 ### Set: Black Widow Nemesis
 
 ### [08026] Taskmaster
@@ -389,8 +421,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Properties**: Unique
 - **Stats**: **SCH**: 0 [star], **ATK**: 0 [star], **HP**: 4
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Black Widow Nemesis Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Hydra. Elite.*
 - **Rules Text**:
@@ -400,6 +432,7 @@ This document is an authoritative, complete card database generated directly fro
   > ---
   > [star] **Boost**: For this activation, the villain gets +1 SCH and +1 ATK for each upgrade you control.
 - **Image Asset**: `assets/card-art/bundles/cards/08026.png` (300×419 px, 39.0 KB)
+
 ### [08027] Killer for Hire
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -411,8 +444,9 @@ This document is an authoritative, complete card database generated directly fro
   - **Encounter Set Emblem**: Black Widow Nemesis Set Icon (printed bottom-right next to deck number)
   - **Scheme Icons**: Acceleration (`[acceleration]`: Places +1 additional threat on Main Scheme each round)
 - **Rules Text**:
-  > **When Revealed**: Place an additional 1[per_hero] threat here.
+  > **When Revealed**: Place an additional 1 [per_hero] threat here.
 - **Image Asset**: `assets/card-art/bundles/cards/08027.png` (419×300 px, 34.2 KB)
+
 ### [08028] Hydra Mercenary
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -427,6 +461,7 @@ This document is an authoritative, complete card database generated directly fro
   > Guard. *(While this minion is engaged with you, you cannot attack the villain.)*
 - **Flavor**: *"What is Hydra doing here?" —Carol Danvers*
 - **Image Asset**: `assets/card-art/bundles/cards/08028.png` (300×419 px, 37.1 KB)
+
 ### [08029] Deadly Shot
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -439,6 +474,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Revealed (Alter-Ego)**: Discard an upgrade you control and place 1 threat on the main scheme.
   > **When Revealed (Hero)**: Discard an upgrade you control and take 1 damage.
 - **Image Asset**: `assets/card-art/bundles/cards/08029.png` (300×419 px, 38.6 KB)
+
 
 ### Set: Aggression
 
@@ -454,6 +490,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response** *(attack)*: After you take damage from an enemy attack, discard Counterattack → deal an equal amount of damage to that enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/08030.png` (300×419 px, 40.8 KB)
 
+
 ### Set: Leadership
 
 ### [08031] Rapid Response
@@ -468,6 +505,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response**: After an ally you control is defeated, discard Rapid Response → put that ally into play from your discard pile and deal 1 damage to it.
 - **Image Asset**: `assets/card-art/bundles/cards/08031.png` (300×419 px, 41.6 KB)
 
+
 ### Set: Protection
 
 ### [08032] Defensive Stance
@@ -481,4 +519,5 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Hero Interrupt**: When you would take any amount of damage, discard Defensive Stance → prevent 3 of that damage.
 - **Image Asset**: `assets/card-art/bundles/cards/08032.png` (300×419 px, 38.5 KB)
+
 

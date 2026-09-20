@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `49001a` | Magneto | Hero | Magneto | THW:2 ATK:2 DEF:2 HP:10 | - | `magneto` |
-| `49001b` | Erik Lehnsherr | Alter-Ego | Magneto | HP:10 | - | `magneto` |
+| `49001b` | Erik Lehnsherr | Alter-Ego | Magneto | REC:3 HP:10 | - | `magneto` |
 | `49002` | Asteroid M | Support | Magneto | - | - | `magneto` |
 | `49003` | Magneto's Helmet | Upgrade | Magneto | - | - | `magneto` |
 | `49004` | Magneto's Armor | Upgrade | Magneto | - | - | `magneto` |
@@ -61,22 +66,22 @@ This document is an authoritative, complete card database generated directly fro
 | `49024` | Energy | Resource | Pack Position: 24 | - | - | `magneto` |
 | `49025` | Genius | Resource | Pack Position: 25 | - | - | `magneto` |
 | `49026` | Strength | Resource | Pack Position: 26 | - | - | `magneto` |
-| `49027` | Old Grievances | Obligation | Magneto | - | 2 pips | `magneto` |
-| `49028` | Exodus | Minion | Magneto Nemesis | SCH:2 ATK:2 HP:6 | 3 pips | `magneto` |
-| `49029` | Martyr for Mutants | Side Scheme | Magneto Nemesis | - | 3 pips | `magneto` |
-| `49030` | Fabian Cortez | Minion | Magneto Nemesis | SCH:2 ATK:2 HP:4 | Star | `magneto` |
-| `49031` | Frenzy | Minion | Magneto Nemesis | SCH:2 ATK:2 HP:4 | Star | `magneto` |
-| `49032` | Angry Acolyte | Treachery | Magneto Nemesis | - | 2 pips | `magneto` |
+| `49027` | Old Grievances | Obligation | Magneto | - | 2 icons | `magneto` |
+| `49028` | Exodus | Minion | Magneto Nemesis | SCH:2 ATK:2 HP:6 | 3 icons | `magneto` |
+| `49029` | Martyr for Mutants | Side Scheme | Magneto Nemesis | - | 3 icons | `magneto` |
+| `49030` | Fabian Cortez | Minion | Magneto Nemesis | SCH:2 ATK:2 HP:4 | 0 icons + star | `magneto` |
+| `49031` | Frenzy | Minion | Magneto Nemesis | SCH:2 ATK:2 HP:4 | 0 icons + star | `magneto` |
+| `49032` | Angry Acolyte | Treachery | Magneto Nemesis | - | 2 icons | `magneto` |
 | `49033` | Surge | Ally | Pack Position: 33 | THW:2 ATK:2 HP:2 | - | `magneto` |
 | `49034` | Anole | Ally | Pack Position: 34 | THW:2 ATK:2 HP:2 | - | `magneto` |
 | `49035` | Bling! | Ally | Pack Position: 35 | THW:2 ATK:2 HP:2 | - | `magneto` |
 | `49036` | Indra | Ally | Pack Position: 36 | THW:2 ATK:2 HP:2 | - | `magneto` |
 | `49037` | Children of the Atom | Support | Pack Position: 37 | - | - | `magneto` |
-| `49038` | Sebastian Shaw | Minion | Hellfire | SCH:1 ATK:2 HP:5 | 3 pips | `magneto` |
-| `49039` | Selene | Minion | Hellfire | SCH:1 ATK:1 HP:4 | Star | `magneto` |
-| `49040` | Hellfire Pawn | Minion | Hellfire | SCH:1 ATK:2 HP:3 | Star | `magneto` |
-| `49041` | The Inner Circle | Side Scheme | Hellfire | - | 2 pips | `magneto` |
-| `49042` | Power and Decadence | Treachery | Hellfire | - | Star | `magneto` |
+| `49038` | Sebastian Shaw | Minion | Hellfire | SCH:1 ATK:2 HP:5 | 3 icons | `magneto` |
+| `49039` | Selene | Minion | Hellfire | SCH:1 ATK:1 HP:4 | 0 icons + star | `magneto` |
+| `49040` | Hellfire Pawn | Minion | Hellfire | SCH:1 ATK:2 HP:3 | 0 icons + star | `magneto` |
+| `49041` | The Inner Circle | Side Scheme | Hellfire | - | 2 icons | `magneto` |
+| `49042` | Power and Decadence | Treachery | Hellfire | - | 0 icons + star | `magneto` |
 
 ---
 
@@ -96,6 +101,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Magnetic Pull* — **Action**: Discard cards from the top of your deck until a [[Magnetic]] card is discarded → add that card to your hand. (Limit once per round.)
 - **Flavor**: *"I do not need to defend my decisions."*
 - **Image Asset**: `assets/card-art/bundles/cards/49001a.png` (300×426 px, 201.1 KB)
+
 ### [49001b] Erik Lehnsherr
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -108,6 +114,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Survivor* — **Response**: After you change to this form, shuffle the top 3 cards of your discard pile into your deck.
 - **Flavor**: *"All that I've endured, and everything I've done, it was all to preserve mutantkind."*
 - **Image Asset**: `assets/card-art/bundles/cards/49001b.png` (300×426 px, 197.1 KB)
+
 ### [49002] Asteroid M
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -120,6 +127,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action**: Exhaust Asteroid M → shuffle the topmost [[Magnetic]] card in your discard pile into your deck and heal 1 damage from your identity.
 - **Flavor**: *"It took considerable effort to rebuild my home. Let's not destroy it again." —Magneto*
 - **Image Asset**: `assets/card-art/bundles/cards/49002.png` (710×1030 px, 337.5 KB)
+
 ### [49003] Magneto's Helmet
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -133,6 +141,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Resource**: Exhaust Magneto's Helmet → generate a [wild] resource for a [[Magnetic]] card.
 - **Flavor**: *Magneto's helmet protects him from telepathic attacks.*
 - **Image Asset**: `assets/card-art/bundles/cards/49003.jpg` (710×1030 px, 268.2 KB)
+
 ### [49004] Magneto's Armor
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -147,6 +156,7 @@ This document is an authoritative, complete card database generated directly fro
   > [physical] — Magneto gets +1 ATK this round.
   > [energy] — Magneto gets +1 DEF this round.
 - **Image Asset**: `assets/card-art/bundles/cards/49004.png` (710×1030 px, 394.5 KB)
+
 ### [49005] Magneto's Cape
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -159,6 +169,7 @@ This document is an authoritative, complete card database generated directly fro
   > Magneto gains the [[Aerial]] trait.
   > **Response**: After you resolve your *"Magnetic Pull"* ability, exhaust Magneto's Cape → ready Magneto.
 - **Image Asset**: `assets/card-art/bundles/cards/49005.jpg` (710×1030 px, 340.6 KB)
+
 ### [49006] Magnetic Bubble
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -170,6 +181,7 @@ This document is an authoritative, complete card database generated directly fro
   > Magneto gains retaliate 1.
   > **Forced Interrupt**: When you would take any amount of damage, place it here. Then, if there is at least 6 damage here, discard Magnetic Bubble.
 - **Image Asset**: `assets/card-art/bundles/cards/49006.jpg` (710×1030 px, 369.4 KB)
+
 ### [49007] Wrapped in Metal
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -182,6 +194,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attached minion cannot activate. Treat its printed text box as if it were blank.
 - **Flavor**: *"Your power is no match for the Master of Magnetism!"—Magneto*
 - **Image Asset**: `assets/card-art/bundles/cards/49007.png` (710×1030 px, 353.1 KB)
+
 ### [49008] Electromagnetic Blast
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -192,6 +205,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(thwart)*: Remove 3 threat from a scheme. If this removes the last threat from that scheme, you may discard an attachment with the text **"Hero Action"** or **"Hero Response."**
 - **Image Asset**: `assets/card-art/bundles/cards/49008.png` (710×1030 px, 359.7 KB)
+
 ### [49009] Metal Shards
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -203,6 +217,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 7 damage to an enemy. If this attack defeats that enemy, gain a tough status card.
 - **Flavor**: *"The way to defend mutants is to defeat our enemies." —Magneto*
 - **Image Asset**: `assets/card-art/bundles/cards/49009.jpg` (710×1030 px, 358.9 KB)
+
 ### [49010] Magnetic Missile
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -214,6 +229,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Discard a minion with Wrapped in Metal attached → deal 5 damage to an enemy and stun it.
 - **Flavor**: *"I have heard your threats, and here is my reply."—Magneto*
 - **Image Asset**: `assets/card-art/bundles/cards/49010.png` (710×1030 px, 358.2 KB)
+
 ### [49011] Master of Magnetism
 - **Type**: `Resource`
 - **Faction / Aspect**: Hero
@@ -223,6 +239,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Traits**: *Magnetic.*
 - **Flavor**: *Magneto's power renders conventional firearms useless against him.*
 - **Image Asset**: `assets/card-art/bundles/cards/49011.jpg` (710×1030 px, 354.1 KB)
+
 ### [49027] Old Grievances
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -236,6 +253,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Response**: After you use your *"Magnetic Pull"* ability, take 1 damage for each card discarded by it.
   > **Alter-Ego Action**: Exhaust Erik Lehnsherr → discard Old Grievances.
 - **Image Asset**: `assets/card-art/bundles/cards/49027.jpg` (710×1030 px, 355.8 KB)
+
 
 ### Set: Leadership
 
@@ -251,6 +269,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After M enters play, defeat a minion with fewer remaining hit points than M.
 - **Flavor**: *"I don't mind being a bull in a china shop."*
 - **Image Asset**: `assets/card-art/bundles/cards/49012.jpg` (710×1030 px, 272.2 KB)
+
 ### [49013] Kid Omega — *Quentin Quire*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -264,6 +283,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Spend a [energy] resource → deal 1 damage to each enemy.
   > • Spend a [mental] resource → remove 1 threat from each scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/49013.png` (710×1030 px, 329.6 KB)
+
 ### [49014] Phoenix — *Jean Grey*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -276,6 +296,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After Phoenix enters play, choose an [[X-Men]] ally → ready that ally and heal 1 damage from it.
 - **Flavor**: *"Joining the X-Men means joining a family. It means you're never truly alone."*
 - **Image Asset**: `assets/card-art/bundles/cards/49014.jpg` (710×1030 px, 356.6 KB)
+
 ### [49015] Cyclops — *Scott Summers*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -288,6 +309,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After Cyclops enters play, choose an enemy. Until the end of the phase, increase the amount of damage that enemy takes from each attack by 1.
 - **Flavor**: *"To me, my X-Men!"*
 - **Image Asset**: `assets/card-art/bundles/cards/49015.png` (710×1030 px, 324.4 KB)
+
 ### [49016] Won't Stay Down
 - **Type**: `Support`
 - **Faction / Aspect**: Leadership
@@ -299,6 +321,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[X-Force]] or [[X-Men]] trait. Max 1 per player.
   > **Alter-Ego Action**: Discard this card → return an [[X-Force]] or [[X-Men]] ally from your discard pile to your hand.
 - **Image Asset**: `assets/card-art/bundles/cards/49016.png` (710×1030 px, 353.4 KB)
+
 ### [49017] Squared Off
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -310,6 +333,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Discard cards from the encounter deck until you discard a minion. Put that minion into play engaged with you → play an ally from your hand, reducing its cost by 3.
 - **Flavor**: *"Let's do this." —M*
 - **Image Asset**: `assets/card-art/bundles/cards/49017.jpg` (710×1030 px, 360.3 KB)
+
 ### [49018] Noble Sacrifice
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -321,6 +345,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Discard an ally you control → heal damage from your hero equal to that ally's printed hit points and give your hero a tough status card.
 - **Flavor**: *"Don't wait for me. Go!" —X-23*
 - **Image Asset**: `assets/card-art/bundles/cards/49018.jpg` (710×1030 px, 364.2 KB)
+
 ### [49019] "You Got This!"
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -331,6 +356,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Response**: After you exhaust your hero to make a basic thwart or attack, discard an ally you control → add that ally's matching power to your hero's power for this use. Ready your hero.
 - **Image Asset**: `assets/card-art/bundles/cards/49019.png` (710×1030 px, 295.8 KB)
+
 ### [49020] New Recruits
 - **Type**: `Player Side Scheme`
 - **Faction / Aspect**: Leadership
@@ -344,6 +370,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Defeated**: Each player chooses 1 set-aside [[New]] ally and adds it to their hand.
 - **Flavor**: *The dream of every student at Xavier's school is to join the X-Men.*
 - **Image Asset**: `assets/card-art/bundles/cards/49020.png` (1030×710 px, 342.3 KB)
+
 
 ### Set: Basic
 
@@ -360,6 +387,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After White Queen enters play, discard a status card from a character.
 - **Flavor**: *"Oh darling, I hardly need psionic powers to manipulate you."*
 - **Image Asset**: `assets/card-art/bundles/cards/49021.jpg` (710×1030 px, 364.7 KB)
+
 ### [49022] Face the Past
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -370,6 +398,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per deck.
   > **Hero Action**: Search the encounter deck, discard pile, and set-aside area for your nemesis minion and reveal it → ready your hero and draw 3 cards. You cannot attack the villain this phase. Remove this card from the game.
 - **Image Asset**: `assets/card-art/bundles/cards/49022.jpg` (710×1030 px, 335.8 KB)
+
 ### [49023] Deft Focus
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -381,6 +410,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Hero Action**: Exhaust Deft Focus → reduce the resource cost of the next [[superpower]] card you play this turn by 1.
 - **Image Asset**: `assets/card-art/bundles/cards/49023.png` (710×1030 px, 303.6 KB)
+
 ### [49024] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -389,6 +419,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [49025] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -397,6 +428,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [49026] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -405,6 +437,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [49033] Surge — *Noriko Ashida*
 - **Type**: `Ally`
 - **Faction / Aspect**: Basic
@@ -418,6 +451,7 @@ This document is an authoritative, complete card database generated directly fro
   > If you have the [[Mutant]] or [[X-Men]] trait, Surge gets +1 ATK and does not count against your ally limit.
 - **Flavor**: *"Touch my friends and you get 10,000 volts!"*
 - **Image Asset**: `assets/card-art/bundles/cards/49033.jpg` (710×1030 px, 316.8 KB)
+
 ### [49034] Anole — *Victor Borkowski*
 - **Type**: `Ally`
 - **Faction / Aspect**: Basic
@@ -431,6 +465,7 @@ This document is an authoritative, complete card database generated directly fro
   > If you have the [[Mutant]] or [[X-Men]] trait, Anole gets +1 THW and does not count against your ally limit.
 - **Flavor**: *"It's hard to be a kid when you look like a monster."*
 - **Image Asset**: `assets/card-art/bundles/cards/49034.png` (710×1030 px, 313.1 KB)
+
 ### [49035] Bling! — *Roxanne Washington*
 - **Type**: `Ally`
 - **Faction / Aspect**: Basic
@@ -444,6 +479,7 @@ This document is an authoritative, complete card database generated directly fro
   > If you have the [[Mutant]] or [[X-Men]] trait, Bling! gains toughness and does not count against your ally limit.
 - **Flavor**: *"This school sucks!"*
 - **Image Asset**: `assets/card-art/bundles/cards/49035.jpg` (710×1030 px, 367.7 KB)
+
 ### [49036] Indra — *Paras Gavaskar*
 - **Type**: `Ally`
 - **Faction / Aspect**: Basic
@@ -457,6 +493,7 @@ This document is an authoritative, complete card database generated directly fro
   > If you have the [[Mutant]] or [[X-Men]] trait, Indra gets +2 hit points and does not count against your ally limit.
 - **Flavor**: *"I have seen atrocities done to mutants. No more!"*
 - **Image Asset**: `assets/card-art/bundles/cards/49036.jpg` (710×1030 px, 349.0 KB)
+
 ### [49037] Children of the Atom
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -467,6 +504,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play under any player's control. Max 1 per player.
   > Each [[X-Factor]], [[X-Force]], and [[X-Men]] character you control gains the [[X-Factor]], [[X-Force]], and [[X-Men]] traits.
 - **Image Asset**: `assets/card-art/bundles/cards/49037.png` (710×1030 px, 377.8 KB)
+
 
 ### Set: Magneto Nemesis
 
@@ -486,6 +524,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Forced Response**: After Exodus attacks you, discard cards from the top of your deck equal to his total ATK.
   > *(Magneto's nemesis minion.)*
 - **Image Asset**: `assets/card-art/bundles/cards/49028.jpg` (710×1030 px, 371.0 KB)
+
 ### [49029] Martyr for Mutants
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -500,6 +539,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Defeated**: The defeating player discards the top 9 cards of their deck.
 - **Flavor**: *Magneto's former Acolytes felt betrayed by their leader's change of heart about mutant and human coexistence.*
 - **Image Asset**: `assets/card-art/bundles/cards/49029.png` (1030×710 px, 372.1 KB)
+
 ### [49030] Fabian Cortez
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -508,8 +548,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Properties**: Unique
 - **Stats**: **SCH**: 2, **ATK**: 2, **HP**: 4
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Magneto Nemesis Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Acolyte.*
 - **Rules Text**:
@@ -520,6 +560,7 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: Discard the top 4 cards of your deck.
 - **Image Asset**: `assets/card-art/bundles/cards/49030.jpg` (710×1030 px, 347.9 KB)
+
 ### [49031] Frenzy
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -528,8 +569,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Properties**: Unique
 - **Stats**: **SCH**: 2, **ATK**: 2 [star], **HP**: 4
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Magneto Nemesis Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Acolyte.*
 - **Rules Text**:
@@ -540,6 +581,7 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: Discard the top 4 cards of your deck.
 - **Image Asset**: `assets/card-art/bundles/cards/49031.png` (710×1030 px, 290.6 KB)
+
 ### [49032] Angry Acolyte
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -551,6 +593,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **When Revealed**: Each [[Acolyte]] minion engaged with a player activates against that player. If no minion activates this way, discard cards from the top of the encounter deck until an [[Acolyte]] minion is discarded. Reveal that minion.
 - **Image Asset**: `assets/card-art/bundles/cards/49032.png` (710×1030 px, 309.3 KB)
+
 
 ### Set: Hellfire
 
@@ -570,6 +613,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Response**: After Sebastian Shaw is attacked, give him a facedown boost card. He cannot be attacked again this phase.
 - **Flavor**: *"Never raise a hand to your betters, serf!"*
 - **Image Asset**: `assets/card-art/bundles/cards/49038.png` (710×1030 px, 332.8 KB)
+
 ### [49039] Selene
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -578,8 +622,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Properties**: Unique
 - **Stats**: **SCH**: 1, **ATK**: 1, **HP**: 4
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Hellfire Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Hellfire.*
 - **Rules Text**:
@@ -591,6 +635,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Boost**: Discard an ally you control.
 - **Flavor**: *"Foolish child! Countless thousands have gone to the fire in my name."*
 - **Image Asset**: `assets/card-art/bundles/cards/49039.jpg` (710×1030 px, 308.5 KB)
+
 ### [49040] Hellfire Pawn
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -598,8 +643,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Deck / Set**: Hellfire (3/5)
 - **Stats**: **SCH**: 1, **ATK**: 2, **HP**: 3
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Hellfire Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Hellfire.*
 - **Rules Text**:
@@ -610,6 +655,7 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: Put Hellfire Pawn into play engaged with you.
 - **Image Asset**: `assets/card-art/bundles/cards/49040.png` (710×1030 px, 276.0 KB)
+
 ### [49041] The Inner Circle
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -624,14 +670,15 @@ This document is an authoritative, complete card database generated directly fro
   > **When Revealed**: Place 2 additional threat here for each [[Hellfire]] card in play.
 - **Flavor**: *The inner circle of the Hellfire Club uses its wealth and power to plot the course of mutant affairs in secret.*
 - **Image Asset**: `assets/card-art/bundles/cards/49041.jpg` (1030×710 px, 292.0 KB)
+
 ### [49042] Power and Decadence
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
 - **Pack**: Magneto (`magneto`)
 - **Deck / Set**: Hellfire (5/5)
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Hellfire Set Icon (printed bottom-right next to deck number)
 - **Rules Text**:
   > **When Revealed**: Give the villain a tough status card. Give this card to that villain as a facedown boost card.
@@ -640,4 +687,5 @@ This document is an authoritative, complete card database generated directly fro
   >
   > [star] **Boost**: After this activation, the activating enemy activates against you again. Do not give it a boost card for that activation.
 - **Image Asset**: `assets/card-art/bundles/cards/49042.jpg` (710×1030 px, 301.4 KB)
+
 

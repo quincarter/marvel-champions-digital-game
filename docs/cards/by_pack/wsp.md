@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `13001a` | Wasp | Hero | Wasp | THW:1 ATK:1 DEF:2 HP:11 | - | `wsp` |
-| `13001b` | Nadia Van Dyne | Alter-Ego | Wasp | HP:11 | - | `wsp` |
+| `13001b` | Nadia Van Dyne | Alter-Ego | Wasp | REC:3 HP:11 | - | `wsp` |
 | `13001c` | Wasp | Hero | Wasp | THW:2 ATK:2 DEF:3 HP:11 | - | `wsp` |
 | `13002` | Ant-Man | Ally | Wasp | THW:2 ATK:2 HP:3 | - | `wsp` |
 | `13003` | Giant Help | Event | Wasp | - | - | `wsp` |
@@ -61,11 +66,11 @@ This document is an authoritative, complete card database generated directly fro
 | `13023` | Strength | Resource | Pack Position: 23 | - | - | `wsp` |
 | `13024` | The Power in All of Us | Resource | Pack Position: 24 | - | - | `wsp` |
 | `13025` | Quincarrier | Support | Pack Position: 25 | - | - | `wsp` |
-| `13026` | Red Dreams | Obligation | Wasp | - | 2 pips | `wsp` |
-| `13027` | Mother's Orders | Side Scheme | Wasp Nemesis | - | 3 pips | `wsp` |
-| `13028` | Beetle | Minion | Wasp Nemesis | SCH:1 ATK:1 HP:4 | 2 pips | `wsp` |
-| `13029` | Beetle Armor MK IV | Attachment | Wasp Nemesis | - | 2 pips | `wsp` |
-| `13030` | Beetle Mania | Treachery | Wasp Nemesis | - | 1 pips | `wsp` |
+| `13026` | Red Dreams | Obligation | Wasp | - | 2 icons | `wsp` |
+| `13027` | Mother's Orders | Side Scheme | Wasp Nemesis | - | 3 icons | `wsp` |
+| `13028` | Beetle | Minion | Wasp Nemesis | SCH:1 ATK:1 HP:4 | 2 icons | `wsp` |
+| `13029` | Beetle Armor MK IV | Attachment | Wasp Nemesis | - | 2 icons | `wsp` |
+| `13030` | Beetle Mania | Treachery | Wasp Nemesis | - | 1 icon | `wsp` |
 | `13031` | Running Interference | Event | Pack Position: 31 | - | - | `wsp` |
 | `13032` | All for One | Event | Pack Position: 32 | - | - | `wsp` |
 | `13033` | Perseverance | Event | Pack Position: 33 | - | - | `wsp` |
@@ -89,6 +94,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Small but Mighty* — **Response:** After Wasp *(or an event you play)* defeats a minion or side scheme, deal 1 damage to the villain.
 - **Flavor**: *"You should learn to play nice!"*
 - **Image Asset**: `assets/card-art/bundles/cards/13001a.png` (300×419 px, 42.4 KB)
+
 ### [13001b] Nadia Van Dyne
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -101,6 +107,7 @@ This document is an authoritative, complete card database generated directly fro
   > *G.I.R.L.* — **Action:** Shuffle up to 2 cards with a printed [mental] resource from your discard pile into your deck. (Limit once per round.)
 - **Flavor**: *"G.I.R.L. is dedicated to finding brilliant women who will not only save the world, but change it."*
 - **Image Asset**: `assets/card-art/bundles/cards/13001b.png` (300×419 px, 41.4 KB)
+
 ### [13001c] Wasp
 - **Type**: `Hero`
 - **Faction / Aspect**: Hero
@@ -114,6 +121,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] Damage you deal using your basic attack power (ATK) can be divided among enemies as you choose.
 - **Flavor**: *"Aww, you're all so tiny and cute."*
 - **Image Asset**: `assets/card-art/bundles/cards/13001c.png` (418×599 px, 415.7 KB)
+
 ### [13002] Ant-Man — *Scott Lang*
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -126,6 +134,7 @@ This document is an authoritative, complete card database generated directly fro
   > While you are in [[Giant]] hero form, Ant-Man gains the [[Giant]] trait and gets +1 ATK.
   > While you are in [[Tiny]] hero form, Ant-Man gains the [[Tiny]] trait and gets +1 THW.
 - **Image Asset**: `assets/card-art/bundles/cards/13002.png` (300×419 px, 39.2 KB)
+
 ### [13003] Giant Help
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -137,6 +146,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(thwart)*: Remove 3 threat from a scheme (remove a total of 4 threat divided among schemes as you choose instead if you are in [[Giant]] hero form).
 - **Flavor**: *"Glad to be of service!" —Wasp*
 - **Image Asset**: `assets/card-art/bundles/cards/13003.png` (300×419 px, 36.5 KB)
+
 ### [13004] Pinpoint Strike
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -148,6 +158,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 7 damage to an enemy. If you are in [[Tiny]] hero form, this attack deals 1 additional damage to that enemy and gains overkill.
 - **Flavor**: *"You're going to want to ice that in the morning." —Wasp*
 - **Image Asset**: `assets/card-art/bundles/cards/13004.png` (300×419 px, 38.7 KB)
+
 ### [13005] Rapid Growth
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -159,6 +170,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Interrupt**: When you use one of your hero's basic powers (THW, ATK, or DEF), change to your [[Giant]] hero form and get +2 to that power for this use.
 - **Flavor**: *"Bet you didn't expect to see that." —Wasp*
 - **Image Asset**: `assets/card-art/bundles/cards/13005.png` (300×419 px, 40.5 KB)
+
 ### [13006] Wasp Sting
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -170,6 +182,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: If you are in [[Giant]] hero form, deal a total of 4 damage divided among enemies you choose.
   > **Hero Action** *(attack)*: If you are in [[Tiny]] hero form, deal 5 damage to an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/13006.png` (300×419 px, 38.3 KB)
+
 ### [13007] Pym Particles
 - **Type**: `Resource`
 - **Faction / Aspect**: Hero
@@ -179,6 +192,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Response**: After you spend this card, heal 2 damage from your hero if you are in [[Giant]] hero form or draw 1 card if you are in [[Tiny]] hero form.
 - **Image Asset**: `assets/card-art/bundles/cards/13007.png` (300×419 px, 39.4 KB)
+
 ### [13008] Red Room Training
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -190,6 +204,7 @@ This document is an authoritative, complete card database generated directly fro
   > While you are in [[Giant]] hero form, you gain retaliate 1.
   > While you are in [[Tiny]] hero form, your basic attacks gain piercing. *(Discard any tough status cards from the target before dealing damage.)*
 - **Image Asset**: `assets/card-art/bundles/cards/13008.png` (300×419 px, 40.9 KB)
+
 ### [13009] Bio-Synthetic Wings
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -202,6 +217,7 @@ This document is an authoritative, complete card database generated directly fro
   > Wasp gains the [[Aerial]] trait.
   > **Interrupt:** When you would take any amount of damage, if you are in [[Tiny]] hero form, exhaust Bio-Synthetic Wings → prevent 1 of that damage.
 - **Image Asset**: `assets/card-art/bundles/cards/13009.png` (300×419 px, 42.4 KB)
+
 ### [13010] Wasp's Helmet
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -214,6 +230,7 @@ This document is an authoritative, complete card database generated directly fro
   > While you are in [[Giant]] hero form, you get +1 THW.
   > While you are in [[Tiny]] hero form, you get +1 ATK.
 - **Image Asset**: `assets/card-art/bundles/cards/13010.png` (300×419 px, 32.8 KB)
+
 ### [13026] Red Dreams
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -229,6 +246,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Discard each card with a printed [mental] resource from your hand and take 1 damage. Discard this obligation.
 - **Image Asset**: `assets/card-art/bundles/cards/13026.png` (300×419 px, 33.3 KB)
 
+
 ### Set: Aggression
 
 ### [13011] Thor — *Jane Foster*
@@ -243,6 +261,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response:** After you play Thor from your hand, deal 2 damage to the villain (3 damage instead if you paid for this card using a [physical] resource).
 - **Flavor**: *"You wanna eat my hammer? Then by all means, take a big bite!"*
 - **Image Asset**: `assets/card-art/bundles/cards/13011.png` (300×419 px, 43.3 KB)
+
 ### [13012] Wasp — *Janet Van Dyne*
 - **Type**: `Ally`
 - **Faction / Aspect**: Aggression
@@ -255,6 +274,7 @@ This document is an authoritative, complete card database generated directly fro
   > Wasp gets +1 hit point for each pym counter on her.
   > **Interrupt:** When Wasp enters play, place 1 pym counter on her (to a maximum of 3) for each [energy] resource you overpaid for Wasp's cost.
 - **Image Asset**: `assets/card-art/bundles/cards/13012.png` (300×419 px, 42.7 KB)
+
 ### [13013] Into the Fray
 - **Type**: `Event`
 - **Faction / Aspect**: Aggression
@@ -265,6 +285,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(attack)*: Deal 6 damage to a minion. For each point of excess damage dealt by this attack, remove 1 threat from the main scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/13013.png` (300×419 px, 39.4 KB)
+
 ### [13014] Surprise Attack
 - **Type**: `Event`
 - **Faction / Aspect**: Aggression
@@ -275,6 +296,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Response** *(attack)*: After you change form, deal 3 damage to an enemy (4 damage instead if you paid for this card using [physical] resource).
 - **Image Asset**: `assets/card-art/bundles/cards/13014.png` (300×419 px, 35.3 KB)
+
 ### [13015] The Power of Aggression
 - **Type**: `Resource`
 - **Faction / Aspect**: Aggression
@@ -284,6 +306,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > Double the number of resources this card generates while paying for a Aggression *(red)* card.
+
 ### [13016] Boot Camp
 - **Type**: `Support`
 - **Faction / Aspect**: Aggression
@@ -296,6 +319,7 @@ This document is an authoritative, complete card database generated directly fro
   > Each ally you control gets +1 ATK.
 - **Flavor**: *"YOU CALL THAT A PUSHUP! MY GRANDMOTHER DOES BETTER PUSHUPS!"*
 - **Image Asset**: `assets/card-art/bundles/cards/13016.png` (300×419 px, 35.0 KB)
+
 ### [13017] Lie in Wait
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Aggression
@@ -307,6 +331,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > **Hero Response** *(attack)*: After a minion engages you, discard Lie in Wait → deal 3 damage to that minion.
 - **Image Asset**: `assets/card-art/bundles/cards/13017.png` (300×419 px, 43.0 KB)
+
 
 ### Set: Basic
 
@@ -322,6 +347,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After you play Ironheart from your hand, draw 1 card.
 - **Flavor**: *"I'm totally going to be like Tony Stark! Except for that weird facial hair."*
 - **Image Asset**: `assets/card-art/bundles/cards/13018.png` (300×419 px, 35.8 KB)
+
 ### [13019] Spider-Man — *Miles Morales*
 - **Type**: `Ally`
 - **Faction / Aspect**: Basic
@@ -334,6 +360,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response:** After you play Spider-Man from your hand, choose THW or ATK. Spider-Man gets +2 to the chosen power until the end of the phase.
 - **Flavor**: *"I'm needed. And just like that, none of the rest of it matters."*
 - **Image Asset**: `assets/card-art/bundles/cards/13019.png` (300×419 px, 40.6 KB)
+
 ### [13020] Swarm Tactics
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -345,6 +372,7 @@ This document is an authoritative, complete card database generated directly fro
   > Team-Up (Ant-Man and Wasp). Max 1 per deck.
   > **Hero Action:** Change to your other hero form. Ready your hero.
 - **Image Asset**: `assets/card-art/bundles/cards/13020.png` (300×419 px, 37.5 KB)
+
 ### [13021] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -353,6 +381,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [13022] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -361,6 +390,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [13023] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -369,6 +399,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [13024] The Power in All of Us
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -379,6 +410,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 2 per deck.
   > Double the number of resources this card generates when paying for a Basic (gray) card.
 - **Image Asset**: `assets/card-art/bundles/cards/13024.png` (300×419 px, 39.5 KB)
+
 ### [13025] Quincarrier
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -391,6 +423,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[Avenger]] trait.
   > **Resource**: Exhaust Quincarrier → generate a [wild] resource.
 - **Flavor**: *"Too bad we could only get one of these." —Hawkeye*
+
 ### [13034] Athletic Conditioning
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -401,6 +434,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Discard 1 stun or confuse status card from your hero.
 - **Flavor**: *"Don't worry, the ringing in your ears will go away... eventually." —Nadia Van Dyne*
 - **Image Asset**: `assets/card-art/bundles/cards/13034.png` (300×419 px, 35.0 KB)
+
 
 ### Set: Wasp Nemesis
 
@@ -417,6 +451,7 @@ This document is an authoritative, complete card database generated directly fro
   > As an additional cost for each hero to make a basic attack, that hero must spend 1 of any resource.
 - **Flavor**: *Mother has sent one of her most devious henchmen after Wasp, hoping to recapture the Red Room escapee.*
 - **Image Asset**: `assets/card-art/bundles/cards/13027.png` (419×300 px, 37.5 KB)
+
 ### [13028] Beetle
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -432,6 +467,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Interrupt**: When Beetle is defeated, choose to either spend a [physical] resource or shuffle Beetle into the encounter deck.
   > *(Wasp's nemesis minion.)*
 - **Image Asset**: `assets/card-art/bundles/cards/13028.png` (300×419 px, 40.5 KB)
+
 ### [13029] Beetle Armor MK IV
 - **Type**: `Attachment`
 - **Faction / Aspect**: Encounter
@@ -447,6 +483,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attached Character gets +4 hit points.
 - **Flavor**: *"Ugh, why can't I ever find anything around here?" —Janice Lincoln*
 - **Image Asset**: `assets/card-art/bundles/cards/13029.png` (300×419 px, 40.6 KB)
+
 ### [13030] Beetle Mania
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -460,6 +497,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Revealed (Hero)**: Beetle attacks you with +1 ATK. If no attack was made this way, this card gains surge.
 - **Flavor**: *"I was waiting for this moment to arise." —Beetle*
 - **Image Asset**: `assets/card-art/bundles/cards/13030.png` (300×419 px, 41.0 KB)
+
 
 ### Set: Justice
 
@@ -475,6 +513,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(thwart)*: Remove 2 threat from the main scheme. Remove X additional threat from the main scheme (to a maximum of 3), where X is equal to the villain's stage number.
 - **Image Asset**: `assets/card-art/bundles/cards/13031.png` (300×419 px, 33.4 KB)
 
+
 ### Set: Leadership
 
 ### [13032] All for One
@@ -487,6 +526,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Action** *(attack)*: Deal 3 damage to an enemy and exhaust any number of [[Avenger]] characters you control. Deal 1 additional damage to that enemy for each character exhausted this way.
 - **Image Asset**: `assets/card-art/bundles/cards/13032.png` (300×419 px, 36.0 KB)
+
 
 ### Set: Protection
 
@@ -501,4 +541,5 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response**: After you change form, give your hero a tough status card.
 - **Flavor**: *"You do know the front door is unlocked, right?" —Spider-Man*
 - **Image Asset**: `assets/card-art/bundles/cards/13033.png` (300×419 px, 38.4 KB)
+
 

@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `22001a` | Nebula | Hero | Nebula | THW:2 ATK:2 DEF:2 HP:9 | - | `nebu` |
-| `22001b` | Nebula | Alter-Ego | Nebula | HP:9 | - | `nebu` |
+| `22001b` | Nebula | Alter-Ego | Nebula | REC:3 HP:9 | - | `nebu` |
 | `22002` | Gamora | Ally | Nebula | THW:2 ATK:2 HP:3 | - | `nebu` |
 | `22003` | Nebula's Ship | Support | Nebula | - | - | `nebu` |
 | `22004` | Cutthroat Ambition | Upgrade | Nebula | - | - | `nebu` |
@@ -61,11 +66,11 @@ This document is an authoritative, complete card database generated directly fro
 | `22024` | Energy | Resource | Pack Position: 24 | - | - | `nebu` |
 | `22025` | Genius | Resource | Pack Position: 25 | - | - | `nebu` |
 | `22026` | Strength | Resource | Pack Position: 26 | - | - | `nebu` |
-| `22027` | Inferiority Complex | Obligation | Nebula | - | 2 pips | `nebu` |
-| `22028` | Gamora | Minion | Nebula Nemesis | SCH:2 ATK:2 HP:6 | 3 pips | `nebu` |
-| `22029` | Self-Preservation | Side Scheme | Nebula Nemesis | - | 2 pips | `nebu` |
-| `22030` | Lethal Weapon | Attachment | Nebula Nemesis | - | 2 pips | `nebu` |
-| `22031` | Old Rivals | Treachery | Nebula Nemesis | - | 1 pips | `nebu` |
+| `22027` | Inferiority Complex | Obligation | Nebula | - | 2 icons | `nebu` |
+| `22028` | Gamora | Minion | Nebula Nemesis | SCH:2 ATK:2 HP:6 | 3 icons | `nebu` |
+| `22029` | Self-Preservation | Side Scheme | Nebula Nemesis | - | 2 icons | `nebu` |
+| `22030` | Lethal Weapon | Attachment | Nebula Nemesis | - | 2 icons | `nebu` |
+| `22031` | Old Rivals | Treachery | Nebula Nemesis | - | 1 icon | `nebu` |
 | `22032` | Energy Spear | Upgrade | Pack Position: 32 | - | - | `nebu` |
 | `22033` | Guardians of the Galaxy | Support | Pack Position: 33 | - | - | `nebu` |
 | `22034` | Defensive Training | Support | Pack Position: 34 | - | - | `nebu` |
@@ -88,6 +93,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > *Combat Protocols* - **Forced Response**: After your turn begins, resolve the "Special" ability on each [[technique]] upgrade you control, then discard each [[technique]] upgrade resolved this way.
 - **Image Asset**: `assets/card-art/bundles/cards/22001a.png` (300×418 px, 195.9 KB)
+
 ### [22001b] Nebula
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -100,6 +106,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Cybernetic Upgrades* - **Response**: After you play a [[technique]] upgrade, draw 2 cards. (Limit once per round.)
 - **Flavor**: *"Thanos built me for one purpose: To kill. In time, he will regret that."*
 - **Image Asset**: `assets/card-art/bundles/cards/22001b.png` (300×418 px, 226.4 KB)
+
 ### [22002] Gamora
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -112,6 +119,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response:** After you play Gamora, choose a [[technique]] upgrade you control, then resolve its "Special" ability.
 - **Flavor**: *"Thanos trained us both for the same purpose."*
 - **Image Asset**: `assets/card-art/bundles/cards/22002.png` (729×1045 px, 169.5 KB)
+
 ### [22003] Nebula's Ship
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -123,6 +131,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Resource**: Exhaust Nebula's Ship → generate a [wild] resource.
 - **Flavor**: *"I liked it better when I was the one targeting your ship." —Gamora*
 - **Image Asset**: `assets/card-art/bundles/cards/22003.png` (730×1045 px, 167.5 KB)
+
 ### [22004] Cutthroat Ambition
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -135,6 +144,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Special** *(thwart)*: Remove 3 threat from a scheme.
 - **Flavor**: *"I am every bit the warrior you are!" —Nebula*
 - **Image Asset**: `assets/card-art/bundles/cards/22004.png` (729×1044 px, 172.0 KB)
+
 ### [22005] Evasive Maneuvering
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -146,6 +156,7 @@ This document is an authoritative, complete card database generated directly fro
   > While in hero form, Nebula ignores the guard keyword, the patrol keyword, and the crisis icon.
   > **Special** : Choose to either stun or confuse an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/22005.png` (729×1044 px, 184.9 KB)
+
 ### [22006] Unyielding Persistence
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -157,6 +168,7 @@ This document is an authoritative, complete card database generated directly fro
   > While in hero form, Nebula gets +1 THW, +1 ATK, and gains stalwart.
   > **Special** : Give Nebula a tough status card.
 - **Image Asset**: `assets/card-art/bundles/cards/22006.png` (728×1044 px, 173.5 KB)
+
 ### [22007] Weapons Master
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -168,6 +180,7 @@ This document is an authoritative, complete card database generated directly fro
   > While in hero form, Nebula gains retaliate 1.
   > **Special** *(attack)*: Deal 4 damage to an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/22007.png` (728×1044 px, 168.1 KB)
+
 ### [22008] Wide Stance
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -179,6 +192,7 @@ This document is an authoritative, complete card database generated directly fro
   > While Nebula is in hero form, reduce the amount of damage she takes from each attack by 1.
   > **Special** : Look at the top 3 cards of the encounter deck. Discard 1 and put the others back in any order.
 - **Image Asset**: `assets/card-art/bundles/cards/22008.png` (728×1045 px, 176.9 KB)
+
 ### [22009] Combat Ready
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -191,6 +205,7 @@ This document is an authoritative, complete card database generated directly fro
   > Shuffle up to 2 [[technique]] upgrades from your discard pile into your deck.
   > Discard cards from the top of your deck until you discard a [[technique]] upgrade. Put that upgrade into play, then resolve its "Special" ability.
 - **Image Asset**: `assets/card-art/bundles/cards/22009.png` (728×1041 px, 167.2 KB)
+
 ### [22010] Lethal Intent
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -201,6 +216,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Choose up to X [[technique]] upgrades you control. Resolve each of their "Special" abilities (in the order of your choice).
 - **Flavor**: *"The Guardians were wise to fear me, and even smarter to hire me on." —Nebula*
 - **Image Asset**: `assets/card-art/bundles/cards/22010.png` (729×1044 px, 177.5 KB)
+
 ### [22027] Inferiority Complex
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -216,6 +232,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Choose and discard 2 [[Technique]] upgrades you control. If no upgrade was discarded this way, this card gains surge. Discard this obligation.
 - **Image Asset**: `assets/card-art/bundles/cards/22027.png` (728×1041 px, 277.1 KB)
 
+
 ### Set: Justice
 
 ### [22011] Eros
@@ -230,6 +247,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response:** After you play Eros from your hand, confuse a minion for each [mental] resource you used to pay for him.
 - **Flavor**: *"This will not be easy, but we will save this universe...we will guard this galaxy."*
 - **Image Asset**: `assets/card-art/bundles/cards/22011.png` (729×1045 px, 169.3 KB)
+
 ### [22012] Wraith — *Zak-Del*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -242,6 +260,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Interrupt:** When a boost card is turned faceup, exhaust Wraith and deal 1 damage to him → cancel that card's "Boost" effect.
 - **Flavor**: *"Do not despair: Destiny makes slaves of us all."*
 - **Image Asset**: `assets/card-art/bundles/cards/22012.png` (728×1045 px, 171.1 KB)
+
 ### [22013] Venom — *Flash Thompson*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -254,6 +273,7 @@ This document is an authoritative, complete card database generated directly fro
   > While there is no threat on the main scheme, reduce all consequential damage Venom takes by 1.
 - **Flavor**: *"So much for doing this the easy way."*
 - **Image Asset**: `assets/card-art/bundles/cards/22013.png` (728×1045 px, 161.9 KB)
+
 ### [22014] Justice Served
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -264,6 +284,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play under any player's control. Max 1 per player.
   > **Hero Response**: After you thwart and remove the last threat from a scheme, discard Justice Served → ready your hero.
 - **Image Asset**: `assets/card-art/bundles/cards/22014.png` (729×1045 px, 166.6 KB)
+
 ### [22015] One Way or Another
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -274,6 +295,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per round.
   > **Hero Action**: Search the encounter deck for a side scheme. Reveal that side scheme → draw 3 cards (shuffle the encounter deck).
 - **Image Asset**: `assets/card-art/bundles/cards/22015.png` (729×1044 px, 176.9 KB)
+
 ### [22016] Determination
 - **Type**: `Resource`
 - **Faction / Aspect**: Justice
@@ -283,6 +305,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 1 per deck.
   > **Hero Response**: After you spend this card, remove 1 threat from the main scheme.
+
 ### [22017] The Power of Justice
 - **Type**: `Resource`
 - **Faction / Aspect**: Justice
@@ -292,6 +315,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > Double the number of resources this card generates while paying for a Justice *(yellow)* card.
+
 ### [22018] Brains Over Brawn
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -303,6 +327,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response** *(attack)*: After your hero makes a basic thwart, deal damage to an enemy equal to your hero's THW.
 - **Flavor**: *Despite his incredible strength, Spider-Man often triumphs by outwitting his foes.*
 - **Image Asset**: `assets/card-art/bundles/cards/22018.png` (728×1045 px, 176.1 KB)
+
 ### [22019] Heroic Intuition
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -313,6 +338,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Play under any player's control. Max 1 per player.
   > Your hero gets +1 THW.
+
 
 ### Set: Basic
 
@@ -326,6 +352,9 @@ This document is an authoritative, complete card database generated directly fro
 - **Traits**: *Guardian.*
 - **Rules Text**:
   > **Interrupt**: When Cosmo attacks or thwarts, name a card type, then discard the top card of a player deck or the encounter deck. If that card is of the named type, Cosmo does not take consequential damage for this use.
+- **Errata (FFG)**:
+  > Changed “a deck” to “a player deck or the encounter deck”. Removed reminder text. (RRG 1.5)
+
 ### [22021] Knowhere
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -338,6 +367,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[guardian]] trait.
   > Increase your ally limit by 1.
   > **Response**: After a player plays a [[guardian]] ally, exhaust Knowhere → that player draws 1 card.
+
 ### [22022] Daughters of Thanos
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -349,6 +379,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Draw 3 cards.
 - **Flavor**: *"Thanos pitted us against each other as children, but now we are sisters. United at last." —Gamora*
 - **Image Asset**: `assets/card-art/bundles/cards/22022.png` (727×1045 px, 150.7 KB)
+
 ### [22023] First Aid
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -358,6 +389,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Action**: Heal 2 damage from any character.
 - **Flavor**: *"Does it still qualify as first aid if it's your second day in the hospital?" —Clint Barton*
+
 ### [22024] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -366,6 +398,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [22025] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -374,6 +407,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [22026] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -382,6 +416,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [22035] Honorary Guardian
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -394,6 +429,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to a friendly character. Max 1 per character.
   > Attached character gets +1 hit point and gains the [[guardian]] trait.
 - **Image Asset**: `assets/card-art/bundles/cards/22035.png` (727×1046 px, 194.1 KB)
+
 
 ### Set: Nebula Nemesis
 
@@ -413,6 +449,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Forced Response**: After Gamora attacks and damages you, choose and discard an upgrade you control.
   > *(Nebula's nemesis minion.)*
 - **Image Asset**: `assets/card-art/bundles/cards/22028.png` (729×1045 px, 179.4 KB)
+
 ### [22029] Self-Preservation
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -427,6 +464,7 @@ This document is an authoritative, complete card database generated directly fro
   > Gamora gets +1 ATK and her attacks gain piercing.
 - **Flavor**: *"We both did what we had to in order to survive. Why won't you let it go?" —Gamora*
 - **Image Asset**: `assets/card-art/bundles/cards/22029.png` (1042×728 px, 171.8 KB)
+
 ### [22030] Lethal Weapon
 - **Type**: `Attachment`
 - **Faction / Aspect**: Encounter
@@ -441,6 +479,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action:** Discard an upgrade you control → discard this attachment.
 - **Flavor**: *"There's only one 'Most Dangerous Woman in the Galaxy', and that's me!" —Gamora*
 - **Image Asset**: `assets/card-art/bundles/cards/22030.png` (718×1036 px, 173.6 KB)
+
 ### [22031] Old Rivals
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -451,8 +490,11 @@ This document is an authoritative, complete card database generated directly fro
   - **Encounter Set Emblem**: Nebula Nemesis Set Icon (printed bottom-right next to deck number)
 - **Rules Text**:
   > **When Revealed:** Gamora attacks you. If the Gamora hero or ally is in play, she attacks you *(resolve her ATK against you without exhausting her)*. If no attack was made this way, this card gains surge.
+- **Errata (FFG)**:
+  > Changed reminder text to rules text to function with the updated rules on referential abilities. (RRG 1.6)
 - **Flavor**: *"This was a mistake." —Gamora*
 - **Image Asset**: `assets/card-art/bundles/cards/22031.png` (735×1044 px, 157.8 KB)
+
 
 ### Set: Aggression
 
@@ -468,6 +510,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attached ally gets +2 ATK and gains piercing.
 - **Image Asset**: `assets/card-art/bundles/cards/22032.png` (728×1044 px, 177.1 KB)
 
+
 ### Set: Leadership
 
 ### [22033] Guardians of the Galaxy
@@ -482,6 +525,7 @@ This document is an authoritative, complete card database generated directly fro
   > If each of your characters has the [[guardian]] trait, this card gains: "**Response**: After you play an upgrade on an ally, draw 1 card."
 - **Image Asset**: `assets/card-art/bundles/cards/22033.png` (729×1045 px, 181.6 KB)
 
+
 ### Set: Protection
 
 ### [22034] Defensive Training
@@ -495,4 +539,5 @@ This document is an authoritative, complete card database generated directly fro
   > Max 2 per deck. Uses (2 training counters).
   > **Alter-Ego Action**: Exhaust this card and remove 1 training counter from this → choose a Protection (green) event in your discard pile and shuffle it into your deck.
 - **Image Asset**: `assets/card-art/bundles/cards/22034.png` (728×1045 px, 204.7 KB)
+
 

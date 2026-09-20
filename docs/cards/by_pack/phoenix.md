@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `34001a` | Phoenix | Hero | Phoenix | THW:3 ATK:1 DEF:2 HP:9 | - | `phoenix` |
-| `34001b` | Jean Grey | Alter-Ego | Phoenix | HP:9 | - | `phoenix` |
+| `34001b` | Jean Grey | Alter-Ego | Phoenix | REC:3 HP:9 | - | `phoenix` |
 | `34002a` | Phoenix Force | Upgrade | Phoenix | - | - | `phoenix` |
 | `34002b` | Phoenix Force | Upgrade | Phoenix | - | - | `phoenix` |
 | `34003` | Cyclops | Ally | Phoenix | THW:2 ATK:2 HP:3 | - | `phoenix` |
@@ -63,10 +68,10 @@ This document is an authoritative, complete card database generated directly fro
 | `34025` | Energy | Resource | Pack Position: 25 | - | - | `phoenix` |
 | `34026` | Genius | Resource | Pack Position: 26 | - | - | `phoenix` |
 | `34027` | Strength | Resource | Pack Position: 27 | - | - | `phoenix` |
-| `34028` | Burning Hunger | Obligation | Phoenix | - | 2 pips | `phoenix` |
-| `34029` | Dark Phoenix | Minion | Phoenix Nemesis | SCH:2 ATK:2 HP:12 | 3 pips | `phoenix` |
-| `34030` | Consume the World | Side Scheme | Phoenix Nemesis | - | 3 pips | `phoenix` |
-| `34031` | Fiery Rage | Treachery | Phoenix Nemesis | - | 2 pips | `phoenix` |
+| `34028` | Burning Hunger | Obligation | Phoenix | - | 2 icons | `phoenix` |
+| `34029` | Dark Phoenix | Minion | Phoenix Nemesis | SCH:2 ATK:2 HP:12 | 3 icons | `phoenix` |
+| `34030` | Consume the World | Side Scheme | Phoenix Nemesis | - | 3 icons | `phoenix` |
+| `34031` | Fiery Rage | Treachery | Phoenix Nemesis | - | 2 icons | `phoenix` |
 | `34032` | Psychic Assault | Event | Pack Position: 32 | - | - | `phoenix` |
 | `34033` | Psychic Misdirection | Event | Pack Position: 33 | - | - | `phoenix` |
 | `34034` | Psychic Kicker | Event | Pack Position: 34 | - | - | `phoenix` |
@@ -90,6 +95,7 @@ This document is an authoritative, complete card database generated directly fro
   > *Psionic Bond* — **Hero Resource**: Remove 1 power counter from Phoenix Force → generate a [wild] resource. (Limit once per phase.)
 - **Flavor**: *"The Phoenix chose me, but I alone decide who I am!"*
 - **Image Asset**: `assets/card-art/bundles/cards/34001a.png` (607×880 px, 143.3 KB)
+
 ### [34001b] Jean Grey
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -102,6 +108,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Setup**: Put your Phoenix Force upgrade into play, [[RESTRAINED]] side faceup. Place 4 power counters on it.
   > [star] **Response**: After you make a basic recovery, place 1 power counter on Phoenix Force.
 - **Image Asset**: `assets/card-art/bundles/cards/34001b.png` (607×880 px, 146.6 KB)
+
 ### [34002a] Phoenix Force
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -115,6 +122,7 @@ This document is an authoritative, complete card database generated directly fro
   > You gain the [[RESTRAINED]] trait.
   > **Forced Response**: After the last power counter is removed from here, flip this card.
 - **Image Asset**: `assets/card-art/bundles/cards/34002a.png` (607×880 px, 134.9 KB)
+
 ### [34002b] Phoenix Force
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -129,6 +137,7 @@ This document is an authoritative, complete card database generated directly fro
   > Phoenix gets -2 THW and +2 ATK.
   > **Forced Response**: After a power counter is placed here, if there are 4 or more power counters here, flip this card.
 - **Image Asset**: `assets/card-art/bundles/cards/34002b.png` (607×880 px, 139.9 KB)
+
 ### [34003] Cyclops — *Scott Summers*
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -141,6 +150,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After Cyclops enters play, place 2 power counters on Phoenix Force.
   > **Response**: When Cyclops leaves play, remove 2 power counters from Phoenix Force.
 - **Image Asset**: `assets/card-art/bundles/cards/34003.png` (607×880 px, 134.0 KB)
+
 ### [34004] White Hot Room
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -154,6 +164,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Place 1 power counter on Phoenix Force.
   > • Heal 2 damage from Jean Grey.
 - **Image Asset**: `assets/card-art/bundles/cards/34004.png` (607×880 px, 110.1 KB)
+
 ### [34005] Phoenix Suit
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -167,6 +178,7 @@ This document is an authoritative, complete card database generated directly fro
   > While you have the [[RESTRAINED]] trait, you gain steady.
   > While you have the [[UNLEASHED]] trait, you gain retaliate 1.
 - **Image Asset**: `assets/card-art/bundles/cards/34005.png` (607×880 px, 151.6 KB)
+
 ### [34006] Rise from the Ashes
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -177,6 +189,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Interrupt**: When you would be defeated, remove this card from the game → ready your identity and restore it to its printed hit point value instead. Remove each power counter from Phoenix Force.
 - **Image Asset**: `assets/card-art/bundles/cards/34006.png` (607×880 px, 150.7 KB)
+
 ### [34007] Telekinetic Shield
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -188,6 +201,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to a friendly character.
   > **Forced Interrupt**: When attached character would take damage from an enemy attack, place that damage here instead. Then, if there is at least 5 damage here, discard Telekinetic Shield.
 - **Image Asset**: `assets/card-art/bundles/cards/34007.png` (607×880 px, 152.0 KB)
+
 ### [34008] Mental Paralysis
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -200,6 +214,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attached minion cannot activate.
   > **Forced Response**: After you flip to alter-ego form, discard this card.
 - **Image Asset**: `assets/card-art/bundles/cards/34008.png` (607×880 px, 142.7 KB)
+
 ### [34009] Mind Control
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -211,6 +226,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to a non-[[ELITE]] minion.
   > Take control of attached minion and treat it as a [[CONTROLLED]] ally with a blank text box. Its THW is equal to its printed SCH and it takes 1 consequential damage after it thwarts or attacks.
 - **Image Asset**: `assets/card-art/bundles/cards/34009.png` (607×880 px, 149.8 KB)
+
 ### [34010] Telekinetic Attack
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -222,6 +238,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 7 damage to an enemy. If you have the [[UNLEASHED]] trait, this attack deals 2 additional damage and gains overkill.
 - **Flavor**: *"Poor fool, you have no idea how hopelessly outmatched you are!" —Phoenix*
 - **Image Asset**: `assets/card-art/bundles/cards/34010.png` (607×880 px, 145.7 KB)
+
 ### [34011] Psychic Blast
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -233,6 +250,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Deal 4 damage to the villain. If you have the [[UNLEASHED]] trait, deal 4 damage to each minion engaged with you.
 - **Flavor**: *"We fight on different battlefields. Your strength won't help you in mine." —Phoenix*
 - **Image Asset**: `assets/card-art/bundles/cards/34011.png` (607×880 px, 143.2 KB)
+
 ### [34012] Telepathic Trickery
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -244,6 +262,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(thwart)*: Remove 4 threat from a scheme. If you have the [[UNLEASHED]] trait, stun and confuse an enemy.
 - **Flavor**: *"They can't see us because I won't let them." —Phoenix*
 - **Image Asset**: `assets/card-art/bundles/cards/34012.png` (607×880 px, 134.4 KB)
+
 ### [34013] Phoenix Firebird
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -256,6 +275,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Remove 1 power counter from Phoenix Force → ready Phoenix.
   > • Place 2 power counters on Phoenix Force.
 - **Image Asset**: `assets/card-art/bundles/cards/34013.png` (607×880 px, 119.6 KB)
+
 ### [34028] Burning Hunger
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -265,6 +285,7 @@ This document is an authoritative, complete card database generated directly fro
   - **Boost Icons**: 2 icons (Adds +2 to Villain ATK/SCH during activation)
   - **Encounter Set Emblem**: Phoenix Set Icon (printed bottom-right next to deck number)
 - **Image Asset**: `assets/card-art/bundles/cards/34028.png` (607×880 px, 144.1 KB)
+
 
 ### Set: Justice
 
@@ -280,6 +301,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Response**: After Banshee thwarts, confuse a minion.
 - **Flavor**: *"Ye'd best cover yer ears, lads...this is goin' to hurt!"*
 - **Image Asset**: `assets/card-art/bundles/cards/34014.png` (607×880 px, 120.1 KB)
+
 ### [34015] Marvel Girl — *Rachel Summers*
 - **Type**: `Ally`
 - **Faction / Aspect**: Justice
@@ -292,6 +314,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Interrupt**: When Marvel Girl attacks a minion, remove X threat from the main scheme, where X is that minion's printed SCH.
 - **Flavor**: *"Whatever it is you're up to, it's over now."*
 - **Image Asset**: `assets/card-art/bundles/cards/34015.png` (607×880 px, 128.2 KB)
+
 ### [34016] Mission Training
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -303,6 +326,7 @@ This document is an authoritative, complete card database generated directly fro
   > Attach to an [[X-MEN]] ally. Max 1 [[TRAINING]] upgrade per ally.
   > Attached ally gets +1 THW point and +2 hit points.
 - **Image Asset**: `assets/card-art/bundles/cards/34016.png` (607×880 px, 136.7 KB)
+
 ### [34017] Psychic Manipulation
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -314,6 +338,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[PSIONIC]] trait.
   > **Interrupt** *(thwart)*: When the villain schemes, this activation removes threat instead of placing it.
 - **Image Asset**: `assets/card-art/bundles/cards/34017.png` (607×880 px, 129.9 KB)
+
 ### [34018] Mutant Peacekeepers
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -325,6 +350,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[X-MEN]] trait.
   > **Hero Action** *(thwart)*: Exhaust your hero and any number of [[X-MEN]] allies → remove X threat from among schemes in play, where X is the total THW of those characters.
 - **Image Asset**: `assets/card-art/bundles/cards/34018.png` (607×880 px, 133.2 KB)
+
 ### [34019] Swift Retribution
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -336,6 +362,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: The villain schemes. Deal 4 damage to the villain.
 - **Flavor**: *"Return what you've taken and I'll let you go. This time. But next time, you won't be so lucky. And I won't be so kind." —Moon Knight*
 - **Image Asset**: `assets/card-art/bundles/cards/34019.png` (607×880 px, 129.6 KB)
+
 ### [34020] Passion for Justice
 - **Type**: `Resource`
 - **Faction / Aspect**: Justice
@@ -346,6 +373,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 2 per deck.
   > **Interrupt**: When you spend this card to play a [[THWART]] event, that event removes 1 additional threat.
 - **Image Asset**: `assets/card-art/bundles/cards/34020.png` (607×880 px, 130.0 KB)
+
 
 ### Set: Basic
 
@@ -361,6 +389,7 @@ This document is an authoritative, complete card database generated directly fro
   > Reduce the cost to play Storm by 1 if your identity has the [[MUTANT]] or [[X-MEN]] trait.
   > [star] **Interrupt**: When Storm thwarts a scheme, move 2 threat from that scheme to another scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/34021.png` (607×880 px, 148.3 KB)
+
 ### [34022] Cerebro
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -373,6 +402,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[MUTANT]] trait.
   > **Alter-Ego Action**: Exhaust Cerebro → search the top 5 cards of your deck for an [[X-MEN]] ally (search your whole deck instead if you control a [[PSIONIC]] character) and add that ally to your hand. *(Shuffle.)*
 - **Image Asset**: `assets/card-art/bundles/cards/34022.png` (607×880 px, 134.6 KB)
+
 ### [34023] Psychic Rapport
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -382,6 +412,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Team-Up (Cyclops and Phoenix). Max 1 per deck.
   > **Hero Action**: Ready Cyclops and Phoenix. Choose to either return a Cyclops card from your discard pile to your hand or place 2 power counters on Phoenix Force.
+
 ### [34024] Down Time
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -394,6 +425,7 @@ This document is an authoritative, complete card database generated directly fro
   > Your alter-ego gets +2 REC.
 - **Flavor**: *"We should do this more often."*
 - **Image Asset**: `assets/card-art/bundles/cards/34024.png` (607×880 px, 134.0 KB)
+
 ### [34025] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -402,6 +434,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [34026] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -410,6 +443,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [34027] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -418,6 +452,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [34035] Soul Sisters
 - **Type**: `Event`
 - **Faction / Aspect**: Basic
@@ -428,6 +463,7 @@ This document is an authoritative, complete card database generated directly fro
   > Team-Up (Phoenix and Storm). Max 1 per deck.
   > **Hero Action**: Ready Phoenix and Storm. Heal 2 damage from each of them.
 - **Image Asset**: `assets/card-art/bundles/cards/34035.png` (607×880 px, 141.3 KB)
+
 
 ### Set: Phoenix Nemesis
 
@@ -447,6 +483,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] When Dark Phoenix schemes, place that threat on Consume the World, if able.
   > **When Revealed**: Search the encounter deck, discard pile, and set-aside area for Consume the World and reveal it.
 - **Image Asset**: `assets/card-art/bundles/cards/34029.png` (607×880 px, 135.4 KB)
+
 ### [34030] Consume the World
 - **Type**: `Side Scheme`
 - **Faction / Aspect**: Encounter
@@ -463,6 +500,7 @@ This document is an authoritative, complete card database generated directly fro
   > While there is no threat here, this scheme loses the [amplify] icon.
   > **Forced Response**: After threat is placed here, if there is at least 12 threat here, the players lose the game.
 - **Image Asset**: `assets/card-art/bundles/cards/34030.png` (1030×710 px, 300.0 KB)
+
 ### [34031] Fiery Rage
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
@@ -474,6 +512,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Peril.
 - **Image Asset**: `assets/card-art/bundles/cards/34031.png` (607×880 px, 129.5 KB)
+
 
 ### Set: Aggression
 
@@ -489,6 +528,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 3 damage to an enemy. Confuse that enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/34032.png` (607×880 px, 127.7 KB)
 
+
 ### Set: Protection
 
 ### [34033] Psychic Misdirection
@@ -503,6 +543,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Interrupt** *(defense)*: When an enemy attacks you, choose a different enemy → damage from that attack is dealt to the chosen enemy instead of you.
 - **Image Asset**: `assets/card-art/bundles/cards/34033.png` (607×880 px, 143.8 KB)
 
+
 ### Set: Leadership
 
 ### [34034] Psychic Kicker
@@ -516,4 +557,5 @@ This document is an authoritative, complete card database generated directly fro
   > Play only if your identity has the [[PSIONIC]] trait.
   > **Hero Action**: Ready an ally. That ally gets +2 THW and +2 ATK for its next basic thwart or attack action this phase.
 - **Image Asset**: `assets/card-art/bundles/cards/34034.png` (607×880 px, 129.1 KB)
+
 

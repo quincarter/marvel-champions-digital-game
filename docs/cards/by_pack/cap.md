@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `03001a` | Captain America | Hero | Captain America | THW:2 ATK:2 DEF:2 HP:11 | - | `cap` |
-| `03001b` | Steve Rogers | Alter-Ego | Captain America | HP:11 | - | `cap` |
+| `03001b` | Steve Rogers | Alter-Ego | Captain America | REC:3 HP:11 | - | `cap` |
 | `03002` | Agent 13 | Ally | Captain America | THW:2 ATK:1 HP:3 | - | `cap` |
 | `03003` | Fearless Determination | Event | Captain America | - | - | `cap` |
 | `03004` | Heroic Strike | Event | Captain America | - | - | `cap` |
@@ -60,11 +65,11 @@ This document is an authoritative, complete card database generated directly fro
 | `03023` | Strength | Resource | Pack Position: 23 | - | - | `cap` |
 | `03024` | Avengers Tower | Support | Pack Position: 24 | - | - | `cap` |
 | `03025` | Honorary Avenger | Upgrade | Pack Position: 25 | - | - | `cap` |
-| `03026` | Man Out of Time | Obligation | Captain America | - | 2 pips | `cap` |
-| `03027` | Hit Squad | Side Scheme | Captain America Nemesis | - | 3 pips | `cap` |
-| `03028` | Baron Zemo | Minion | Captain America Nemesis | SCH:1 ATK:3 HP:5 | 2 pips | `cap` |
-| `03029` | Hydra Soldier | Minion | Captain America Nemesis | SCH:1 ATK:2 HP:4 | 1 pips | `cap` |
-| `03030` | Hail Hydra! | Treachery | Captain America Nemesis | - | - | `cap` |
+| `03026` | Man Out of Time | Obligation | Captain America | - | 2 icons | `cap` |
+| `03027` | Hit Squad | Side Scheme | Captain America Nemesis | - | 3 icons | `cap` |
+| `03028` | Baron Zemo | Minion | Captain America Nemesis | SCH:1 ATK:3 HP:5 | 2 icons | `cap` |
+| `03029` | Hydra Soldier | Minion | Captain America Nemesis | SCH:1 ATK:2 HP:4 | 1 icon | `cap` |
+| `03030` | Hail Hydra! | Treachery | Captain America Nemesis | - | not recorded in this source | `cap` |
 | `03031` | Enraged | Upgrade | Pack Position: 31 | - | - | `cap` |
 | `03032` | Followed | Upgrade | Pack Position: 32 | - | - | `cap` |
 | `03033` | Expert Defense | Event | Pack Position: 33 | - | - | `cap` |
@@ -88,6 +93,7 @@ This document is an authoritative, complete card database generated directly fro
   > "I Can Do This All Day!" — **Action**: Discard 1 card from your hand → ready Captain America. (Limit once per round.)
 - **Flavor**: *"My duty to my country comes first, no matter the cost!"*
 - **Image Asset**: `assets/card-art/bundles/cards/03001a.png` (300×419 px, 43.9 KB)
+
 ### [03001b] Steve Rogers
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -100,6 +106,7 @@ This document is an authoritative, complete card database generated directly fro
   > Living Legend — Reduce the cost of the first ally played each round by 1.
   > **Setup**: Search your deck and discard pile for the Captain America's Shield upgrade and add it to your hand. Shuffle your deck.
 - **Image Asset**: `assets/card-art/bundles/cards/03001b.png` (300×419 px, 38.4 KB)
+
 ### [03002] Agent 13 — *Sharon Carter*
 - **Type**: `Ally`
 - **Faction / Aspect**: Hero
@@ -112,6 +119,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After Agent 13 enters play, remove 2 threat from a scheme.
 - **Flavor**: *"Cap, you said we'd fight as a team! I want to come with you!"*
 - **Image Asset**: `assets/card-art/bundles/cards/03002.png` (300×419 px, 39.1 KB)
+
 ### [03003] Fearless Determination
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -123,6 +131,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Captain America gets +1 THW until the end of the phase. Draw 1 card.
 - **Flavor**: *"No one dies on my watch." —Captain America*
 - **Image Asset**: `assets/card-art/bundles/cards/03003.png` (300×419 px, 41.3 KB)
+
 ### [03004] Heroic Strike
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -134,6 +143,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 6 damage to an enemy. If you paid for this card using a [physical] resource, stun that enemy.
 - **Flavor**: *"No, you move." —Captain America*
 - **Image Asset**: `assets/card-art/bundles/cards/03004.png` (300×419 px, 42.9 KB)
+
 ### [03005] Shield Block
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -145,6 +155,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Interrupt** *(defense)*: When you would take any amount of damage, exhaust Captain America's Shield → prevent all of that damage.
 - **Flavor**: *"Is that all you've got?" —Captain America*
 - **Image Asset**: `assets/card-art/bundles/cards/03005.png` (300×419 px, 36.3 KB)
+
 ### [03006] Shield Toss
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -156,6 +167,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Discard X cards from your hand, then return Captain America's Shield from play to your hand → deal 4 damage to X enemies.
 - **Flavor**: *"Sharon! Duck!" —Captain America*
 - **Image Asset**: `assets/card-art/bundles/cards/03006.png` (300×419 px, 38.5 KB)
+
 ### [03007] Steve's Apartment
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -168,6 +180,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action**: Exhaust Steve's Apartment → draw 1 card and heal 1 damage from Steve Rogers.
 - **Flavor**: *Even Captain America needs a place to get away and rest.*
 - **Image Asset**: `assets/card-art/bundles/cards/03007.png` (300×419 px, 43.3 KB)
+
 ### [03008] Captain America's Helmet
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -180,6 +193,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Interrupt**: When Captain America would be defeated, set his hit point dial to 1 instead. Then, discard this card.
 - **Flavor**: *"A soldier, even a super-soldier, is only as strong as his ideals." —Steve Rogers*
 - **Image Asset**: `assets/card-art/bundles/cards/03008.png` (300×419 px, 43.7 KB)
+
 ### [03009] Captain America's Shield
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -193,6 +207,7 @@ This document is an authoritative, complete card database generated directly fro
   > Captain America gets +1 DEF and gains retaliate 1.
 - **Flavor**: *"This shield is a symbol of freedom." —Captain America*
 - **Image Asset**: `assets/card-art/bundles/cards/03009.png` (300×419 px, 35.7 KB)
+
 ### [03010] Super-Soldier Serum
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -204,6 +219,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Resource**: Exhaust Super-Soldier Serum → generate a [physical] resource.
 - **Flavor**: *"The serum gave Cap his super-strength. But his heart, his unrelenting determination — those were Steve's long before he picked up the shield." —Sharon Carter*
 - **Image Asset**: `assets/card-art/bundles/cards/03010.png` (300×419 px, 36.6 KB)
+
 ### [03026] Man Out of Time
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -219,6 +235,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Discard half of the cards in your hand, rounded down. Discard this obligation.
 - **Image Asset**: `assets/card-art/bundles/cards/03026.png` (300×419 px, 39.8 KB)
 
+
 ### Set: Leadership
 
 ### [03011] Falcon — *Sam Wilson*
@@ -232,6 +249,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Response**: After Falcon enters play, look at the top 3 cards of the encounter deck. For each treachery looked at this way, remove 1 threat from a scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/03011.png` (300×419 px, 39.0 KB)
+
 ### [03012] Hawkeye — *Clint Barton*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -243,6 +261,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Hawkeye enters play with 4 arrow counters on him.
   > **Response**: After a minion enters play, remove 1 arrow counter from Hawkeye → deal 2 damage to that minion.
+
 ### [03013] Squirrel Girl — *Doreen Green*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -255,6 +274,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response**: After Squirrel Girl enters play, deal 1 damage to each enemy.
 - **Flavor**: *"Come on squirrels, let's get 'im!"*
 - **Image Asset**: `assets/card-art/bundles/cards/03013.png` (300×419 px, 35.7 KB)
+
 ### [03014] Wonder Man — *Simon Williams*
 - **Type**: `Ally`
 - **Faction / Aspect**: Leadership
@@ -267,6 +287,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] As an additional cost for Wonder Man to attack, you must discard 1 card from your hand.
 - **Flavor**: *"It's time for a reckoning!"*
 - **Image Asset**: `assets/card-art/bundles/cards/03014.png` (300×419 px, 36.7 KB)
+
 ### [03015] Avengers Assemble!
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -277,6 +298,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per round.
   > **Hero Action**: Ready each [[Avenger]] character you control. Until the end of the phase, each [[Avenger]] character in play gets +1 THW and +1 ATK.
 - **Image Asset**: `assets/card-art/bundles/cards/03015.png` (300×419 px, 41.0 KB)
+
 ### [03016] Make the Call
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -286,6 +308,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Action**: Pay the printed cost of an ally in any player's discard pile → put that ally into play under your control.
 - **Flavor**: *"This is a code red! All hands on deck!" —Maria Hill*
+
 ### [03017] Strength In Numbers
 - **Type**: `Event`
 - **Faction / Aspect**: Leadership
@@ -296,6 +319,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action**: Exhaust any number of allies you control → draw 1 card for each ally exhausted this way.
 - **Flavor**: *"Good thing I brought friends." —Captain America*
 - **Image Asset**: `assets/card-art/bundles/cards/03017.png` (300×419 px, 39.4 KB)
+
 ### [03018] The Power of Leadership
 - **Type**: `Resource`
 - **Faction / Aspect**: Leadership
@@ -305,6 +329,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > Double the number of resources this card generates while paying for a Leadership *(blue)* card.
+
 ### [03019] Quinjet
 - **Type**: `Support`
 - **Faction / Aspect**: Leadership
@@ -316,6 +341,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response:** After your turn begins, place 1 time counter on Quinjet.
   > **Action:** Put an [[Avenger]] ally from your hand into play with printed cost equal to or less than the number of time counters on Quinjet. Then, discard Quinjet.
 - **Image Asset**: `assets/card-art/bundles/cards/03019.png` (300×419 px, 36.8 KB)
+
 
 ### Set: Basic
 
@@ -329,6 +355,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Traits**: *S.H.I.E.L.D. Spy.*
 - **Rules Text**:
   > **Response**: After Mockingbird enters play, stun an enemy.
+
 ### [03021] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -337,6 +364,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [03022] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -345,6 +373,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [03023] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -353,6 +382,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [03024] Avengers Tower
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -365,6 +395,7 @@ This document is an authoritative, complete card database generated directly fro
   > If each of your allies has the [[Avenger]] trait, increase your ally limit by 1.
   > **Action:** Exhaust Avengers Tower → reduce the cost of the next [[Avenger]] ally played this phase by 1.
 - **Image Asset**: `assets/card-art/bundles/cards/03024.png` (300×419 px, 31.0 KB)
+
 ### [03025] Honorary Avenger
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -377,7 +408,10 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per character.
   > Attach to a friendly character.
   > Attached character gets +1 hit point and gains the [[Avenger]] trait.
+- **Errata (FFG)**:
+  > Added “Max 1 per character.” (RRG 1.4)
 - **Image Asset**: `assets/card-art/bundles/cards/03025.png` (300×419 px, 38.6 KB)
+
 ### [03034] Enhanced Awareness
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -389,6 +423,7 @@ This document is an authoritative, complete card database generated directly fro
   > Uses (3 mental counters).
   > **Hero Resource**: Exhaust Enhanced Awareness and remove 1 mental counter from it → generate a [mental] resource.
 - **Image Asset**: `assets/card-art/bundles/cards/03034.png` (300×419 px, 35.4 KB)
+
 
 ### Set: Captain America Nemesis
 
@@ -406,6 +441,7 @@ This document is an authoritative, complete card database generated directly fro
   > **When Revealed**: In player order, each player discards the top card of the encounter deck and takes 1 damage for each boost icon discarded this way.
 - **Flavor**: *Baron Zemo leads a Hydra taskforce into the city to hunt down Avengers.*
 - **Image Asset**: `assets/card-art/bundles/cards/03027.png` (419×300 px, 38.4 KB)
+
 ### [03028] Baron Zemo
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -423,6 +459,7 @@ This document is an authoritative, complete card database generated directly fro
   > *(Captain America's nemesis minion.)*
 - **Flavor**: *"To avenge my father, Captain America must die."*
 - **Image Asset**: `assets/card-art/bundles/cards/03028.png` (300×419 px, 40.7 KB)
+
 ### [03029] Hydra Soldier
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -437,17 +474,19 @@ This document is an authoritative, complete card database generated directly fro
   > Guard. *(While this minion is engaged with you, you cannot attack the villain.)*
   > **When Defeated**: Deal the engaged player an encounter card.
 - **Image Asset**: `assets/card-art/bundles/cards/03029.png` (300×419 px, 39.6 KB)
+
 ### [03030] Hail Hydra!
 - **Type**: `Treachery`
 - **Faction / Aspect**: Encounter
 - **Pack**: Captain America (`cap`)
 - **Deck / Set**: Captain America Nemesis (5/5)
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
+  - **Boost Icons**: not recorded in this source (MarvelCDB omits the field; treat as unknown, not as 0)
   - **Encounter Set Emblem**: Captain America Nemesis Set Icon (printed bottom-right next to deck number)
 - **Rules Text**:
   > **When Revealed**: Each [[Hydra]] minion engaged with a hero attacks that hero. Each player who was not attacked this way searches the encounter deck and discard pile for a [[Hydra]] minion and puts it into play engaged with them. Shuffle the encounter deck if it was searched.
 - **Image Asset**: `assets/card-art/bundles/cards/03030.png` (300×419 px, 47.3 KB)
+
 
 ### Set: Aggression
 
@@ -464,6 +503,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *"Should I be worried about him?" —Spider-Man*
 - **Image Asset**: `assets/card-art/bundles/cards/03031.png` (300×419 px, 39.3 KB)
 
+
 ### Set: Justice
 
 ### [03032] Followed
@@ -475,7 +515,10 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Attach to a side scheme. Max 1 per scheme.
   > **Interrupt**: When attached scheme is defeated, deal 4 damage to an enemy.
+- **Errata (FFG)**:
+  > Changed “Response” to “Interrupt”. (RRG 1.3)
 - **Image Asset**: `assets/card-art/bundles/cards/03032.png` (300×419 px, 43.2 KB)
+
 
 ### Set: Protection
 
@@ -490,4 +533,5 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Interrupt** *(defense)*: When your hero defends against an attack, it gets +3 DEF for that attack.
 - **Flavor**: *"Do these guys ever run out of ammo!" —Captain America*
 - **Image Asset**: `assets/card-art/bundles/cards/03033.png` (300×419 px, 34.2 KB)
+
 

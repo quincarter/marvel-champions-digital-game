@@ -1,12 +1,16 @@
 # Marvel Champions Card Reference Database
 
-This document is an authoritative, complete card database generated directly from the game card assets and metadata. It is formatted specifically for AI and rules engine consumption.
+A complete, generated transcription of the cached MarvelCDB card records in `packages/content/raw/marvelcdb/`, formatted for AI and rules-engine consumption. Regenerate with `scripts/generate_cards_markdown.py`; do not hand-edit.
+
+**This document is not authoritative.** MarvelCDB is a community database. The authorities on how a card behaves are the Rules Reference Guide (`mc_rulesreference_v18_compressed.pdf`), FFG's rulings and errata (`marvel-champions-rulings-post-rrg-1-7.md`), and the structured card data in `@mc/content`. Where this file and any of those disagree, they win and this file is wrong. Use it to read printed text quickly, not to settle a rules question.
+
+Fields absent from the source are reported as "not recorded in this source" rather than guessed at, so a missing value is never silently rendered as a zero.
 
 ## Rules & Symbol Legend
 
 ### 1. Bottom-Right Encounter Logos
 - **Boost Icons (Pips)**: In the lower-right corner of Villain, Minion, Treachery, and Attachment cards, there are triangular boost icons (0 to 4). When the card is flipped face-down as a Boost Card during a Villain attack or scheme activation, each boost icon adds +1 to the Villain's ATK or SCH.
-- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost Ability** printed in the card's text box.
+- **Boost Star (`[star]`)**: An icon in the boost area indicating that drawing this card triggers a special **Boost** ability, printed inline in that card's own rules text. A star is not itself a boost icon (RRG 1.8, "Boost"), so a starred card can also carry 0 or more pips.
 - **Encounter Set Logo**: An emblem printed on the bottom margin next to the deck number indicating which modular set or villain deck the card belongs to (e.g. Rhino horn, Red Skull emblem, Bomb Scare bomb, Standard shield).
 - **Scheme Icons**: Main Schemes and Side Schemes feature board-wide status icons:
   - `[crisis]`: Prevents players from removing threat from the Main Scheme.
@@ -26,16 +30,17 @@ This document is an authoritative, complete card database generated directly fro
 - **ATK**: Attack value (deals damage to targets).
 - **DEF**: Defense value (reduces incoming villain/minion damage).
 - **REC**: Recover value (Alter-Ego heals HP).
-- **HP**: Hit Points (health pool; may be fixed or multiplied *per hero*).
+- **HP**: Hit Points (health pool; may be fixed, *per hero*, or *per group*).
 - **`[star]`**: Asterisk/Star indicating a dynamic or variable stat governed by card text.
 - **`[mental]` / `[physical]` / `[energy]` / `[wild]`**: Resource icons used to pay card costs.
+- **Consequential**: the damage or threat a hero takes for using that stat on an ally.
 
 ## Quick Index
 
 | Code | Name | Type | Deck / Set | Stats | Boost | Pack |
 |---|---|---|---|---|---|---|
 | `20001a` | Venom | Hero | Venom | THW:1 ATK:2 DEF:2 HP:12 | - | `vnm` |
-| `20001b` | Flash Thompson | Alter-Ego | Venom | HP:12 | - | `vnm` |
+| `20001b` | Flash Thompson | Alter-Ego | Venom | REC:4 HP:12 | - | `vnm` |
 | `20002` | Behind Enemy Lines | Event | Venom | - | - | `vnm` |
 | `20003` | Grasping Tendrils | Event | Venom | - | - | `vnm` |
 | `20004` | Locked and Loaded | Event | Venom | - | - | `vnm` |
@@ -57,9 +62,9 @@ This document is an authoritative, complete card database generated directly fro
 | `20020` | Resourceful | Upgrade | Pack Position: 20 | - | - | `vnm` |
 | `20021` | Side Holster | Upgrade | Pack Position: 21 | - | - | `vnm` |
 | `20022` | Plasma Pistol | Upgrade | Pack Position: 22 | - | - | `vnm` |
-| `20023` | Struggle for Control | Obligation | Venom | - | 2 pips | `vnm` |
-| `20024` | Klyntar Frenzy | Side Scheme | Venom Nemesis | - | 3 pips | `vnm` |
-| `20025` | Enraged Symbiote | Minion | Venom Nemesis | SCH:1 ATK:2 HP:2 | Star | `vnm` |
+| `20023` | Struggle for Control | Obligation | Venom | - | 2 icons | `vnm` |
+| `20024` | Klyntar Frenzy | Side Scheme | Venom Nemesis | - | 3 icons | `vnm` |
+| `20025` | Enraged Symbiote | Minion | Venom Nemesis | SCH:1 ATK:2 HP:2 | 0 icons + star | `vnm` |
 | `20026` | Fusillade | Event | Pack Position: 26 | - | - | `vnm` |
 | `20027` | "Welcome Aboard" | Event | Pack Position: 27 | - | - | `vnm` |
 | `20028` | Shake it Off | Event | Pack Position: 28 | - | - | `vnm` |
@@ -83,6 +88,7 @@ This document is an authoritative, complete card database generated directly fro
   > You can control 1 additional upgrade that has the restricted keyword.
   > *Symbiotic Bond* - **Resource**: Take 1 damage → generate a [wild] resource. (Limit once per phase)
 - **Image Asset**: `assets/card-art/bundles/cards/20001a.png` (300×418 px, 226.9 KB)
+
 ### [20001b] Flash Thompson
 - **Type**: `Alter-Ego`
 - **Faction / Aspect**: Hero
@@ -95,6 +101,7 @@ This document is an authoritative, complete card database generated directly fro
   > You can control 1 additional upgrade that has the restricted keyword.
   > *Armed and Ready* - **Setup**: Discard cards from the top of your deck until you discard a [[weapon]] upgrade, then add that card to your hand.
 - **Image Asset**: `assets/card-art/bundles/cards/20001b.png` (300×418 px, 202.6 KB)
+
 ### [20002] Behind Enemy Lines
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -106,6 +113,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action:** *(thwart)*: Remove 3 threat from a scheme. If you paid for this card using only [mental] resources, confuse an enemy.
 - **Flavor**: *"Yes, sir, I understand. Country first." —Venom*
 - **Image Asset**: `assets/card-art/bundles/cards/20002.png` (729×1045 px, 182.6 KB)
+
 ### [20003] Grasping Tendrils
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -116,6 +124,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt** *(defense)*: When the villain initiates an attack against you, cancel that attack. If you paid for this card using only [physical] resources, stun the villain.
 - **Image Asset**: `assets/card-art/bundles/cards/20003.png` (728×1047 px, 172.6 KB)
+
 ### [20004] Locked and Loaded
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -126,6 +135,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Action** Search your deck for a [[weapon]] upgrade and add it to your hand. Shuffle your deck.
 - **Flavor**: *"I've been looking forward to this!" —Venom*
 - **Image Asset**: `assets/card-art/bundles/cards/20004.png` (728×1045 px, 170.6 KB)
+
 ### [20005] Run and Gun
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -137,6 +147,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action**: Ready Venom and each [[weapon]] upgrade you control.
 - **Flavor**: *"So much for doing this the easy way." —Venom*
 - **Image Asset**: `assets/card-art/bundles/cards/20005.png` (729×1047 px, 161.5 KB)
+
 ### [20006] Savage Attack
 - **Type**: `Event`
 - **Faction / Aspect**: Hero
@@ -148,6 +159,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action** *(attack)*: Deal 5 damage to an enemy. If you paid for this card using only [energy] resources, this attack gains overkill.
 - **Flavor**: *"The rage feeds my symbiote. The rage makes it strong." —Flash Thompson*
 - **Image Asset**: `assets/card-art/bundles/cards/20006.png` (728×1045 px, 176.6 KB)
+
 ### [20007] Project Rebirth 2.0
 - **Type**: `Support`
 - **Faction / Aspect**: Hero
@@ -159,6 +171,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Alter-Ego Action**: Exhaust Project Rebirth 2.0 → choose to either draw 1 card or heal 3 damage from Flash Thompson.
 - **Flavor**: *"The U.S. government's second super-soldier project, binding symbiotes to talented veterans."*
 - **Image Asset**: `assets/card-art/bundles/cards/20007.png` (727×1045 px, 184.6 KB)
+
 ### [20008] Multi-Gun
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -174,6 +187,7 @@ This document is an authoritative, complete card database generated directly fro
   > Choose a player. Deal 1 damage to each minion engaged with that player.
   > Remove 2 threat from a scheme.
 - **Image Asset**: `assets/card-art/bundles/cards/20008.png` (731×1043 px, 195.6 KB)
+
 ### [20009] Spider-Sense
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -185,6 +199,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Interrupt**: When the villain initiates an attack against you, draw 1 card.
 - **Flavor**: *"I feel... tingly." —Venom*
 - **Image Asset**: `assets/card-art/bundles/cards/20009.png` (728×1046 px, 164.3 KB)
+
 ### [20010] Venom's Pistol
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Hero
@@ -196,6 +211,7 @@ This document is an authoritative, complete card database generated directly fro
   > Restricted.
   > **Hero Interrupt**: When you use one of Venom's basic powers, exhaust Venom's Pistol → Venom gets +1 to that power for this use.
 - **Image Asset**: `assets/card-art/bundles/cards/20010.png` (728×1045 px, 180.7 KB)
+
 ### [20023] Struggle for Control
 - **Type**: `Obligation`
 - **Faction / Aspect**: Encounter
@@ -211,6 +227,7 @@ This document is an authoritative, complete card database generated directly fro
   > • Put 1 set-aside copy of Enraged Symbiote into play engaged with the first player. If you cannot, this card gains surge. Discard this obligation.
 - **Image Asset**: `assets/card-art/bundles/cards/20023.png` (728×1047 px, 201.0 KB)
 
+
 ### Set: Justice
 
 ### [20011] Jack Flag — *Jack Harrison*
@@ -225,6 +242,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Response:** After Jack Flag thwarts, place 1 ammo counter on him.
   > **Hero Action**: Exhaust Jack Flag and remove 1 ammo counter from him → deal 2 damage to an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/20011.png` (728×1045 px, 176.2 KB)
+
 ### [20012] Scare Tactic
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -236,6 +254,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Action:** *(attack)*: Deal 3 damage to a confused enemy.
 - **Flavor**: *"Boo!"*
 - **Image Asset**: `assets/card-art/bundles/cards/20012.png` (728×1047 px, 154.7 KB)
+
 ### [20013] Making an Entrance
 - **Type**: `Event`
 - **Faction / Aspect**: Justice
@@ -246,6 +265,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Hero Interrupt:** When your hero makes a basic thwart, it gets +2 THW for that thwart. After that thwart ends, if your hero removed all threat from a scheme that way, heal 2 damage from your hero.
 - **Image Asset**: `assets/card-art/bundles/cards/20013.png` (729×1047 px, 173.6 KB)
+
 ### [20014] The Power of Justice
 - **Type**: `Resource`
 - **Faction / Aspect**: Justice
@@ -255,6 +275,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > Max 2 per deck.
   > Double the number of resources this card generates while paying for a Justice *(yellow)* card.
+
 ### [20015] Sonic Rifle
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Justice
@@ -266,6 +287,7 @@ This document is an authoritative, complete card database generated directly fro
   > Restricted. Uses (2 charge counters).
   > **Hero Action**: Exhaust Sonic Rifle and remove 1 charge counter from it → confuse an enemy (deal 3 damage to that enemy instead if it is already confused).
 - **Image Asset**: `assets/card-art/bundles/cards/20015.png` (728×1047 px, 172.0 KB)
+
 
 ### Set: Basic
 
@@ -282,6 +304,7 @@ This document is an authoritative, complete card database generated directly fro
   > **Forced Response**: After Star-Lord enters play under your control, deal yourself 1 facedown encounter card.
 - **Flavor**: *"Gotta risk it to get the biscuit."*
 - **Image Asset**: `assets/card-art/bundles/cards/20016.png` (729×1044 px, 181.4 KB)
+
 ### [20017] Energy
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -290,6 +313,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [energy] [energy]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [20018] Genius
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -298,6 +322,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [mental] [mental]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [20019] Strength
 - **Type**: `Resource`
 - **Faction / Aspect**: Basic
@@ -306,6 +331,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Stats**: **Resources**: [physical] [physical]
 - **Rules Text**:
   > Max 1 per deck.
+
 ### [20020] Resourceful
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -316,6 +342,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Rules Text**:
   > **Resource**: Discard Resourceful → generate a [wild] resource.
 - **Flavor**: *"Innovation is the ultimate weapon." —Vision*
+
 ### [20021] Side Holster
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -328,6 +355,7 @@ This document is an authoritative, complete card database generated directly fro
   > Max 1 per player.
   > You can control 1 additional [[weapon]] upgrade that has the restricted keyword.
 - **Image Asset**: `assets/card-art/bundles/cards/20021.png` (727×1045 px, 167.0 KB)
+
 ### [20022] Plasma Pistol
 - **Type**: `Upgrade`
 - **Faction / Aspect**: Basic
@@ -340,6 +368,7 @@ This document is an authoritative, complete card database generated directly fro
   > Uses (3 charge counters).
   > **Hero Action**: Exhaust Plasma Pistol and remove 1 charge counter from it → deal 1 damage to an enemy.
 - **Image Asset**: `assets/card-art/bundles/cards/20022.png` (728×1045 px, 188.3 KB)
+
 ### [20029] Crew Quarters
 - **Type**: `Support`
 - **Faction / Aspect**: Basic
@@ -351,6 +380,7 @@ This document is an authoritative, complete card database generated directly fro
   > Play under any player's control. Max 1 per player.
   > **Alter-Ego Action**: Exhaust Crew Quarters → heal 1 damage from an alter-ego.
 - **Image Asset**: `assets/card-art/bundles/cards/20029.png` (729×1049 px, 197.3 KB)
+
 
 ### Set: Venom Nemesis
 
@@ -366,8 +396,9 @@ This document is an authoritative, complete card database generated directly fro
   - **Scheme Icons**: Hazard (`[hazard]`: Deals +1 additional encounter card during Villain Phase)
 - **Rules Text**:
   > Threat cannot be removed from this scheme while a [[Symbiote]] enemy is in play.
-- **Flavor**: *<b><i>The Venom symbiote is distraught, bonding with everyone it touches and sending them into a destructive rage.</i></b>*
+- **Flavor**: ***The Venom symbiote is distraught, bonding with everyone it touches and sending them into a destructive rage.***
 - **Image Asset**: `assets/card-art/bundles/cards/20024.png` (1049×725 px, 177.2 KB)
+
 ### [20025] Enraged Symbiote
 - **Type**: `Minion`
 - **Faction / Aspect**: Encounter
@@ -375,8 +406,8 @@ This document is an authoritative, complete card database generated directly fro
 - **Deck / Set**: Venom Nemesis (2–5/5, Qty: 4)
 - **Stats**: **SCH**: 1, **ATK**: 2, **HP**: 2
 - **Bottom-Right Encounter Logos**:
-  - **Boost Icons**: None (0)
-  - **Boost Star**: Yes (`[star]` icon triggers special Boost Ability)
+  - **Boost Icons**: 0 (the boost area shows a star instead of pips)
+  - **Boost Star**: Yes (`[star]` icon triggers the **Boost:** ability printed in the Rules Text below)
   - **Encounter Set Emblem**: Venom Nemesis Set Icon (printed bottom-right next to deck number)
 - **Traits**: *Symbiote.*
 - **Rules Text**:
@@ -388,6 +419,7 @@ This document is an authoritative, complete card database generated directly fro
   > [star] **Boost**: Put Enraged Symbiote into play engaged with you.
 - **Flavor**: *"You will kneel before the true Destroyer!"*
 - **Image Asset**: `assets/card-art/bundles/cards/20025.png` (729×1045 px, 181.1 KB)
+
 
 ### Set: Aggression
 
@@ -403,6 +435,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *"Give me something to shoot."*
 - **Image Asset**: `assets/card-art/bundles/cards/20026.png` (728×1046 px, 168.1 KB)
 
+
 ### Set: Leadership
 
 ### [20027] "Welcome Aboard"
@@ -417,6 +450,7 @@ This document is an authoritative, complete card database generated directly fro
 - **Flavor**: *"Guardians gather? Group up? Man, I don't know." —Peter Quill*
 - **Image Asset**: `assets/card-art/bundles/cards/20027.png` (729×1045 px, 185.7 KB)
 
+
 ### Set: Protection
 
 ### [20028] Shake it Off
@@ -430,4 +464,5 @@ This document is an authoritative, complete card database generated directly fro
   > **Hero Response**: After a [[guardian]] character takes any amount of damage from an attack, give that character a tough status card.
 - **Flavor**: *"Groot, buddy, I get that you can regrow and all but you've gotta be more careful." —Rocket Raccoon*
 - **Image Asset**: `assets/card-art/bundles/cards/20028.png` (728×1045 px, 201.2 KB)
+
 
