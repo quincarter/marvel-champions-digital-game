@@ -96,17 +96,13 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "04165.obligation",
     "04166.obligation",
   ],
-  // Regenerated 2026-09-20 (`pnpm refs`) after scripting 11020 (Depowered, both refs — `cannotPlay` +
-  // `identitySetOf: eachPlayer`, not `you`: `kang-encounter-set.ts`'s own docblock found by testing that
-  // `cannotPlay`'s `cards` query reads an obligation's raw (controller-less) context, not the speaker-resolved one
-  // `player` uses) and 11049's own `-action` ref (Fear of Kang's random-discard clause). `11049.fear-of-kang-
-  // constant` ("You cannot attack Kang") stays skipped: `RuleSpec cannotAttack` has no `player` field, so the only
-  // shape it can express is a *global* "players cannot attack X" (Distracting Taunts' own shape), proven to
-  // over-block every other player at the table in a real two-player game
-  // (`toafk/fear-of-kang-constant.test.ts`) rather than assumed — see `kang-encounter-set.ts`'s dedicated docblock
-  // note. Needs an engine change (a `player?: PlayerRef` field on `cannotAttack`, mirroring `cannotPlay`'s);
-  // flagged for `game-rules-architect`, out of `@mc/cards`' own boundary.
-  toafk: ["11049.fear-of-kang-constant"],
+  // Regenerated 2026-09-20 (`pnpm refs`) after scripting `11049.fear-of-kang-constant` ("You cannot attack Kang",
+  // `player: you`) — the last non-campaign ref in the wave 2 skip backlog: `game-rules-architect` gave `RuleSpec
+  // cannotAttack` a `player?: PlayerRef` field mirroring `cannotPlay`'s (docs/phase7-wave2.md §25), so the
+  // over-broad table-wide reading that kept this ref skipped is gone; `kang-encounter-set.ts`'s docblock and
+  // `toafk/fear-of-kang-constant.test.ts` have the two-player proof for both the fixed shape and the still-correct
+  // bare/table-wide shape Distracting Taunts (`twc` 07035) genuinely needs. Fully scripted.
+  toafk: [],
   // Regenerated 2026-09-20 against ANT_CARDS/WAVE2_ABILITIES, after un-skipping all five remaining refs
   // (docs/phase7-wave2.md §18/§23): `12011.ant-man-interrupt` and `12032.muster-courage-action` were already
   // unblocked (stale skips, §18.3/§18.5); `12024.team-building-exercise-action` and `12029.when-revealed` needed

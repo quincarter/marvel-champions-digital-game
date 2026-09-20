@@ -105,25 +105,22 @@ const TEMPORAL = trait("TEMPORAL");
  * `discardThisObligation` — `you` here is fine, because `planCost` (§19) deliberately evaluates a cost's filter in
  * the *paying player's own* context. `11020.depowered-constant` is `RuleSpec cannotPlay` with `player: you` (scopes
  * *who* is restricted — fine, `rulePlayers` falls back to whichever player's play area holds the obligation) and
- * `cards: { identitySetOf: eachPlayer }` — **not** `you`, found by testing rather than assumed (§4.1): `cannotPlay`
- * checks its `cards` query against the *source card's own* raw `EffectContext` (`activeRules`, `packages/engine/
- * src/rules.ts`), and an obligation's `instance.controllerId` is `null` (obligations aren't controller-owned the
- * way player cards are — confirmed by inspecting a revealed 11020 instance directly), so `identitySetOf: you`
- * resolves to no players and never matches anything; the constant silently did nothing. `eachPlayer` reads the
- * printed text at least as faithfully — "hero-specific cards" prints no "your own" — and produces the identical
- * result in practice, since RRG 1.8 "Identity-Specific Card" (p. 23) deckbuilding rules mean a hero-specific card
- * can only ever be found in its own hero's hand to begin with. Flagged for `game-rules-architect`: `cannotPlay`'s
- * `cards` field can't reach "the restricted player" for any rule sourced from a controller-less card (any
- * obligation), only for rules sourced from a player-controlled card — the same gap class as 11049's `cannotAttack`
- * note below, one level less severe since `eachPlayer` is a correct workaround here and there isn't one there.
+ * `cards: { identitySetOf: you }` — the printed text's own reading ("you cannot play *your* hero-specific cards").
+ * `game-rules-architect` closed the gap this used to route around (docs/phase7-wave2.md §25.3): `cannotPlay`'s
+ * `cards` query now matches against `ActiveRule.speakerContext`, not the source card's raw (controller-less, for an
+ * obligation) context, so `you` resolves correctly instead of silently matching nobody. `eachPlayer` was the
+ * workaround while that gap stood; it produced the identical result in practice (RRG 1.8 "Identity-Specific Card",
+ * p. 23: a hero-specific card can only ever be in its own hero's hand to begin with), but `you` is the narrower,
+ * more literal reading of "you" and no longer needs a workaround to work.
  *
- * **11049 (Fear of Kang) is only half scripted, and the missing half is a real primitive gap, not a data gap.**
- * §18.2's brief said "every primitive [`cannotAttack` included] already exists" for this pair; that is true for the
- * action half and **not** true for the constant half. `11049.fear-of-kang-action` (discard a random card from hand
- * → discard this obligation) is scripted below with `discardRandomFromHandCost(1)`, the same builder Magic Crowbar
- * (`07018`) already uses. `11049.fear-of-kang-constant` ("You cannot attack Kang") is **not** scripted — see the
- * dedicated note below the Expert-set paragraph for why, and `fear-of-kang-constant.test.ts` for the two-player
- * proof.
+ * **11049 (Fear of Kang) is now fully scripted too** (docs/phase7-wave2.md §25): `RuleSpec cannotAttack` gained the
+ * same `player?: PlayerRef` field `cannotPlay`/`cannotThwart`/`cannotChangeForm` already carried, so
+ * `11049.fear-of-kang-constant` ("You cannot attack Kang") is `player: you` — scoped to this obligation's own
+ * controller, not the whole table. `11049.fear-of-kang-action` (discard a random card from hand → discard this
+ * obligation) is scripted below with `discardRandomFromHandCost(1)`, the same builder Magic Crowbar (`07018`)
+ * already uses. `fear-of-kang-constant.test.ts` keeps the two-player proof: it still pins that a *bare*, target-only
+ * `cannotAttack` rule (the shape Distracting Taunts, `twc` 07035, genuinely needs) is table-wide by design, and now
+ * also proves the scoped shape this card ships with blocks only its own controller.
  *
  * **11021 (Time-Travel Hijinks)'s "When Revealed" half is now scripted** — `superlative`/`printedCostOf` (`dsl/
  * values.ts`, added this pass) supply "the highest-cost card you control" (a gap the module docblock previously
@@ -142,37 +139,6 @@ const TEMPORAL = trait("TEMPORAL");
  *   obligation and reveals it" is scripted below reading "different" as "this player's own choice" only: no
  *   primitive compares one player's pick against another's within `forEachPlayer`, so cross-player distinctness
  *   isn't enforced. Flagged, not silently assumed correct.
- * - `11049.fear-of-kang-constant` — **`RuleSpec cannotAttack` has no way to scope "you cannot attack" to one
- *   player; today it can only ever say "*players* cannot attack \<target\>"**, matching its one existing user,
- *   Distracting Taunts (`wave1/twc/piledriver.ts` 07035: "**Players** cannot attack other villains" — genuinely
- *   plural, genuinely global, no "you"). Its shape is `{ target: TargetQuery; while?: Predicate }`: `target`
- *   describes the thing that cannot be *attacked* (Kang), and neither `target` nor `while` is ever handed the
- *   attacking character or its controller — `attackForbidden` (`packages/engine/src/select.ts`) calls
- *   `matchesQuery(state, targetId, rule.target, context)` with a `context` built from the *source card* (the
- *   obligation) alone; the function it lives in, `attackForbidden(state, targetId, deps)`, doesn't even take an
- *   attacker parameter. There is no `TargetQuery` trick that recovers attacker information the enclosing function
- *   was never given. Contrast `cannotThwart`/`cannotChangeForm`/`cannotPlay`, each of which *does* carry a
- *   `player: PlayerRef` for exactly this "you cannot …" shape (`cannotPlay` is what makes 11020's own constant half
- *   scriptable, immediately above). `cannotAttack` is the one restriction in this family that was never given the
- *   same field, because its one existing user never needed it.
- *
- *   **Proven, not assumed** (`fear-of-kang-constant.test.ts`, docs/card-scripting-process.md §3's "a rules-scoping
- *   question answered by building a two-player game and looking"): a synthetic `cannotAttack` rule scoped only by
- *   `target: query("villain", { name: cardName("11001") })` — the only shape the primitive can express — blocks **both**
- *   players' attacks against Kang in a two-player game, including the player who never revealed Fear of Kang. RRG
- *   1.8 has no entry for "You" as a term, but every other player-scoped restriction in this pool (`cannotThwart`,
- *   `cannotChangeForm`, `cannotPlay`, and the printed obligations that use them: Baron Zemo, All Tied Up, Depowered
- *   itself) reads a personal obligation's "you" as *the player who controls it*, never the table: RRG 1.8
- *   "Obligation" (p. 30) gives an obligation "to the player whose identity it belongs to; that player reveals it"
- *   (`resolve/reveal.ts`'s own citation) — it is a card one specific player alone controls, resolves, and (per its
- *   own printed text here) discards. Nothing in "Obligation" or elsewhere in the RRG says a personal obligation's
- *   restriction binds the whole table merely because it was revealed by one player's deck. Shipping a bare
- *   `cannotAttack` here would be a strictly worse outcome than
- *   leaving it unscripted: it would silently over-restrict every other player at the table, which is exactly the
- *   "subtly wrong ability implementation" this project's own conventions single out as worse than an unimplemented
- *   one. **Needs an engine change** (`RuleSpec cannotAttack` gaining a `player?: PlayerRef` field mirroring
- *   `cannotPlay`'s, plus `attackForbidden` threading the attacking player's id through to check it) — flagged for
- *   `game-rules-architect`, out of `@mc/cards`' own boundary.
  *
  * **The Expert encounter set (11040–11051, scripted this pass)** substitutes for the Kang/Temporal set in expert
  * mode (docs/phase7-wave2.md §2.3). Every "[star] Boost: … Give this enemy another boost card" reads "this enemy"
@@ -201,13 +167,9 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // Depowered — You cannot play hero-specific cards. Alter-Ego Action: discard a hero-specific card from your
   // hand → discard this obligation (module docblock: `cannotPlay` + `identitySetOf: you` reads "hero-specific" as
   // "belongs to *your own* hero's signature set" live, off the identity you actually control, so nothing here
-  // hardcodes a specific hero's aspect string).
-  // `cards: { identitySetOf: eachPlayer }`, not `you` — module docblock: `cannotPlay`'s own `cards` TargetQuery is
-  // read against the *source card's* raw context, and an obligation's `controllerId` is null, so `you` there
-  // resolves to nobody and never matches. `eachPlayer` sidesteps it and reads the printed text at least as
-  // faithfully: "hero-specific cards" prints no "your own", and RRG 1.8 "Identity-Specific Card" (p. 23)
-  // deckbuilding rules mean a hero-specific card can only ever be in its own hero's hand to begin with.
-  "11020.depowered-constant": constant(rule({ kind: "cannotPlay", player: you, cards: { identitySetOf: eachPlayer } })),
+  // hardcodes a specific hero's aspect string). `cards: { identitySetOf: you }` matches the `player` field's own
+  // "you" (module docblock, §25.3): `cannotPlay` now matches `cards` in the rule's speaker context.
+  "11020.depowered-constant": constant(rule({ kind: "cannotPlay", player: you, cards: { identitySetOf: you } })),
   "11020.depowered-action": alterEgoAction({ cost: discardFromHandCost(1, 1, undefined, { identitySetOf: you }) }, discardThisObligation),
 
   // Time-Travel Hijinks — When Revealed: discard the highest-cost card you control, then place it facedown under
@@ -375,11 +337,10 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // Time-Displaced Soldier — Incite 1. Surge (data). [star] Boost: deal yourself 1 facedown encounter card.
   "11048.boost": boost(dealEncounterCard(you)),
 
-  // Fear of Kang — "You cannot attack Kang" (11049.fear-of-kang-constant) is SKIPPED — module docblock's dedicated
-  // note above: `RuleSpec cannotAttack` has no `player` field to scope the restriction to this obligation's own
-  // controller, and a bare (target-only) rule proves out, in a real two-player game
-  // (`fear-of-kang-constant.test.ts`), to block every player at the table rather than just this one. Needs an
-  // engine change; flagged for `game-rules-architect`.
+  // Fear of Kang — You cannot attack Kang. `RuleSpec cannotAttack` gained `player?: PlayerRef` (docs/phase7-wave2.md
+  // §25); `player: you` scopes the restriction to this obligation's own controller (`fear-of-kang-constant.test.ts`
+  // now proves the scoped reading, not just the table-wide one the primitive used to be stuck with).
+  "11049.fear-of-kang-constant": constant(rule({ kind: "cannotAttack", target: query("villain", { name: cardName("11001") }), player: you })),
   // Alter-Ego Action: discard a random card from your hand → discard this obligation.
   "11049.fear-of-kang-action": alterEgoAction({ cost: discardRandomFromHandCost(1) }, discardThisObligation),
 
