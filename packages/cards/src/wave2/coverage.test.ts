@@ -114,14 +114,18 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "04166.obligation",
   ],
   // Regenerated 2026-09-20 against TOAFK_CARDS/WAVE2_ABILITIES, after un-skipping 11018/11019/11021's own
-  // "Alter-Ego Action" refs (docs/phase7-wave2.md §19/§23: `AbilityCost.discardFromHand` gained `filter`). Only
-  // 11020/11049 remain — a data gap, not an engine gap (§18.2/§23): each prints two independent clauses under one
-  // ability ref, and an `AbilityDefinition` can only carry one `AbilityTriggerSpec`. Every primitive both clauses
-  // need already exists; the fix is `card-data-pipeline` splitting the ref the same way 11018/11019/11021 already
-  // were.
+  // "Alter-Ego Action" refs (docs/phase7-wave2.md §19/§23: `AbilityCost.discardFromHand` gained `filter`).
+  // `card-data-pipeline` has since split 11020/11049's own single combined ref into a `-constant` ref and a
+  // `-action` ref apiece, the same shape 11018/11019/11021 already use (docs/phase7-wave2.md §18.2,
+  // docs/phase7-wave2-data.md) — mechanically required here since this list is pinned to whatever ability ref ids
+  // `@mc/content` actually emits. Every primitive all four refs need already exists (RuleSpec `cannotPlay`/
+  // `cannotAttack`, `TargetQuery.identitySetOf`, `AbilityCost.discardFromHand.filter`, `discardRandomFromHand`);
+  // none are scripted yet — that is `ability-scripting-engineer`'s follow-up.
   toafk: [
-    "11020.obligation",
-    "11049.obligation",
+    "11020.depowered-constant",
+    "11020.depowered-action",
+    "11049.fear-of-kang-constant",
+    "11049.fear-of-kang-action",
   ],
   // Regenerated 2026-09-20 against ANT_CARDS/WAVE2_ABILITIES, after un-skipping all five remaining refs
   // (docs/phase7-wave2.md §18/§23): `12011.ant-man-interrupt` and `12032.muster-courage-action` were already
