@@ -4,14 +4,6 @@ import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { KANG_ENCOUNTER_SET } from "./kang-encounter-set.js";
 
-/** Damages `target` to the brink, then lands the killing blow with a real `basicAttack` — the same trick
- * `kang.test.ts` uses, so the engine's own defeat pipeline (When Defeated triggers included) runs normally. */
-function defeatWithAttack(state: GameState, target: InstanceId) {
-  const near = { ...state, instances: { ...state.instances, [target]: { ...state.instances[target]!, damage: 999 } } };
-  const identity = identityOf(near);
-  return settle(runWave2(near, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: target }), firstLegal, undefined, WAVE2_DEPS);
-}
-
 const kangVsHeroes = () => startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
 
 /**

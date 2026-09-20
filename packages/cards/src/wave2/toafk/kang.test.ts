@@ -1,16 +1,8 @@
 import { cardsInPlay, createGame } from "@mc/engine";
 import { endTurn, firstLegal, identityOf, inst, instancesOf, P1, playerOf, settle, toHero } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
-import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { defeatWithAttack, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { KANG_SET } from "./kang.js";
-
-/** Damages `target` to the brink, then lands the killing blow with a real `basicAttack`, so the engine's own defeat
- * pipeline (When Defeated triggers included) runs normally — the same trick the existing Kang (I) test below uses. */
-function defeatWithAttack(state: import("@mc/engine").GameState, target: import("@mc/engine").InstanceId) {
-  const near = { ...state, instances: { ...state.instances, [target]: { ...state.instances[target]!, damage: 999 } } };
-  const identity = identityOf(near);
-  return settle(runWave2(near, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: target }), firstLegal, undefined, WAVE2_DEPS);
-}
 
 const kangVsHeroes = () => startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
 
