@@ -19,6 +19,7 @@
     "typecheck": "pnpm -r typecheck",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "capture:screens": "node scripts/capture-design-screenshots.mjs",
+    "campaign:scrape": "uv run scripts/scrape_campaign_markdown.py",
     "ingest": "pnpm --filter @mc/content ingest --",
     "clean": "rm -rf packages/*/dist"
   },

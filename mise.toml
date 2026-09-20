@@ -7,6 +7,7 @@
 [tools]
 go = "latest"
 pnpm = "11.24"
+uv = "0.12.11"
 
 [tasks.setup]
 description = "Install workspace dependencies"
@@ -40,6 +41,10 @@ run = ["pnpm typecheck", "pnpm test", "pnpm build"]
 [tasks.ingest]
 description = "Regenerate card data. Pass flags after --, e.g. mise run ingest -- --pack core --offline"
 run = "pnpm ingest"
+
+[tasks.scrape-campaigns]
+description = "Convert campaign mode PDFs to AI-ready Markdown"
+run = "uv run scripts/scrape_campaign_markdown.py"
 
 [tasks.clean]
 description = "Remove every package's build output"
