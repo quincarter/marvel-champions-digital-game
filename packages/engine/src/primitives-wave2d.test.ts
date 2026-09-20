@@ -19,7 +19,7 @@ import { activeEncounterDeck, mustInstance, mustPlayer } from "./query.js";
 import { matchesQuery } from "./select.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubResource, stubSideScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubResource, stubSideScheme, stubSupport, stubTreachery, stubUpgrade, stubVillain } from "./testing/fixtures.js";
 import { giveCards, newGame, RESOURCE, runWith, settle, settleUntil, withEncounterPiles } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -524,5 +524,93 @@ describe("§20.2 `TargetQuery.encounterSetOf`", () => {
     expect(cards).toContain(UNSET.id);
     // It stopped there: exactly the three cards, not the rest of the deck.
     expect(discarded).toHaveLength(3);
+  });
+});
+
+// ---- §21 "after you ready X" ------------------------------------------------------------------------------------------
+
+/**
+ * "Hero Response: After you ready Quicksilver, ready this card." (Friction Resistance 14009.)
+ *
+ * `TriggerEvent cardReadied` (docs/phase7-wave2.md §21), the "-ed" twin of `cardReadying`, announced from
+ * `readyAndAnnounce` once the card has actually gone from exhausted to ready.
+ */
+describe("§21 the `cardReadied` announcement", () => {
+  const resistance = stubAbility("resistance.response", def({
+    trigger: { kind: "response", forced: true, form: "hero", on: { on: "cardReadied", targetIs: { categories: ["identity"], controller: "you" } } },
+    effects: [
+      { kind: "ready", target: { kind: "self" } },
+      // Not printed on the card: a tally, so "the response fired" stays observable even when something else would
+      // have readied the upgrade anyway (the end-of-phase step).
+      { kind: "addCounters", target: { kind: "self" }, counterType: "fired", amount: { kind: "const", value: 1 } },
+    ],
+  }));
+  const RESISTANCE = stubUpgrade({ id: "resistance", cost: 0, abilities: [resistance.ref] });
+
+  const surge = stubAbility("surge.action", def({
+    trigger: { kind: "action", form: "hero" },
+    effects: [{ kind: "ready", target: { kind: "identityOf", player: { kind: "controller" } } }],
+  }));
+  const SURGE = stubEvent({ id: "surge", cost: 0, abilities: [surge.ref] });
+
+  /** "… cannot ready" on the hero (All Tied Up), as a constant rule on a support in play. */
+  const tied = stubAbility("tied.constant", def({
+    trigger: { kind: "constant", rules: [{ kind: "cannotReady", target: { categories: ["identity"], controller: "any" } }] },
+    effects: [],
+  }));
+  const TIED = stubSupport({ id: "tied", cost: 0, abilities: [tied.ref] });
+
+  /** Hero form, Friction Resistance out and exhausted, the hero exhausted, plus whatever else is asked for. */
+  function board(extra: readonly AnyCard[] = [], extraAbilities: readonly StubAbility[] = []) {
+    const { deps, state } = setup({ cards: [RESISTANCE, SURGE, ...extra], abilities: [resistance, surge, ...extraAbilities] });
+    const given = giveCards(state, p1, RESISTANCE.id, SURGE.id, ...extra.map((c) => c.id));
+    const [upgrade, event, ...rest] = given.ids as readonly InstanceId[];
+    if (!upgrade || !event) throw new Error("fixture");
+    let out = settle(runWith(deps, given.state, toHero, play(upgrade), ...rest.map((id) => play(id))), undefined, deps);
+    const hero = mustPlayer(out, p1).identity.instanceId;
+    // Exhaust both by hand: what the printed card does with them is not what is under test.
+    out = {
+      ...out,
+      instances: {
+        ...out.instances,
+        [upgrade]: { ...mustInstance(out, upgrade), exhausted: true },
+        [hero]: { ...mustInstance(out, hero), exhausted: true },
+      },
+    };
+    return { deps, state: out, upgrade, event, hero };
+  }
+
+  const firings = (state: GameState, upgrade: InstanceId): number => mustInstance(state, upgrade).counters.fired ?? 0;
+
+  it("fires after a card actually readies", () => {
+    const { deps, state, upgrade, event, hero } = board();
+    const after = settle(runWith(deps, state, play(event)), undefined, deps);
+    expect(mustInstance(after, hero).exhausted).toBe(false);
+    expect(mustInstance(after, upgrade).exhausted).toBe(false);
+    expect(firings(after, upgrade)).toBe(1);
+  });
+
+  it("does not fire when the ready was blocked (RRG 1.8 \"'Cannot'\", p. 11)", () => {
+    const { deps, state, upgrade, event, hero } = board([TIED], [tied]);
+    const after = settle(runWith(deps, state, play(event)), undefined, deps);
+    // The hero stayed exhausted, so nothing readied and the response never triggered.
+    expect(mustInstance(after, hero).exhausted).toBe(true);
+    expect(firings(after, upgrade)).toBe(0);
+  });
+
+  it("does not fire for a card that was already ready", () => {
+    const { deps, state, upgrade, event, hero } = board();
+    const ready = { ...state, instances: { ...state.instances, [hero]: { ...mustInstance(state, hero), exhausted: false } } };
+    const after = settle(runWith(deps, ready, play(event)), undefined, deps);
+    expect(firings(after, upgrade)).toBe(0);
+  });
+
+  it("fires at the end-of-phase ready too, and only for the card the pattern names", () => {
+    const { deps, state, upgrade, hero } = board();
+    // The end-of-phase step readies every card (RRG 1.8 "End of the Player Phase"): the identity and the upgrade
+    // both ready, but only the identity matches this response's `targetIs`, so the tally is 1, not 2.
+    const after = settle(runWith(deps, state, endTurn), undefined, deps);
+    expect(mustInstance(after, hero).exhausted).toBe(false);
+    expect(firings(after, upgrade)).toBe(1);
   });
 });

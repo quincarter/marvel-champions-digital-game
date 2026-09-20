@@ -243,7 +243,7 @@ function applyEvent(ctx: Ctx, frame: Frame<"event">): boolean | void {
     case "characterDefeated":
       return applyDefeat(ctx, event);
     case "cardReadying":
-      readyCard(ctx, event.instanceId);
+      readyAndAnnounce(ctx, event.instanceId);
       return;
     case "cardEntersPlay":
       // The keywords that resolve as a card enters play are this event's change, so an "Interrupt: when X enters
@@ -614,7 +614,24 @@ export function readyOrAnnounce(ctx: Ctx, id: InstanceId): void {
   if (!instance?.exhausted) return;
   const event: TriggerEvent = { kind: "cardReadying", instanceId: id };
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
-  else readyCard(ctx, id);
+  else readyAndAnnounce(ctx, id);
+}
+
+/**
+ * Readies a card and announces `cardReadied` if the ready actually happened: "Hero Response: After you ready
+ * Quicksilver, ready this card." (Friction Resistance; docs/phase7-wave2.md §21.)
+ *
+ * The announcement is guarded on the card actually changing from exhausted to ready, so it is not made for a card
+ * that was already ready (an interrupt readied it first) nor for one RRG 1.8 "'Cannot'" (p. 11) stopped — "after you
+ * ready X" is a fact about a ready that happened. Like every other optional announcement it goes on the stack only
+ * when an ability could react, so the end-of-phase ready of a whole table resolves exactly as it did before.
+ */
+function readyAndAnnounce(ctx: Ctx, id: InstanceId): void {
+  if (!getInstance(ctx.state, id)?.exhausted) return;
+  readyCard(ctx, id);
+  if (getInstance(ctx.state, id)?.exhausted !== false) return;
+  const readied: TriggerEvent = { kind: "cardReadied", instanceId: id };
+  if (heard(ctx.state, ctx.deps, readied)) pushEvent(ctx, readied);
 }
 
 function applyPlayerThwart(ctx: Ctx, event: Extract<TriggerEvent, { kind: "thwart" }>, frameId: FrameId): void {

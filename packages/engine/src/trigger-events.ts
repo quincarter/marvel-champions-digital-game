@@ -277,6 +277,16 @@ export type TriggerEventBody =
    * instead" (Frozen in Time) replaces it. Pushed only when an ability could react; otherwise the card readies at once.
    */
   | { readonly kind: "cardReadying"; readonly instanceId: InstanceId }
+  /**
+   * A card **has** readied (docs/phase7-wave2.md §21): "Hero Response: After you ready Quicksilver, ready this card."
+   * (Friction Resistance, `qsv` 14009.) The "-ed" twin of `cardReadying`, in the same idiom as
+   * `basicPowerUsing`/`basicPowerUsed`: an announcement, so it opens a response window and nothing else.
+   *
+   * Announced only when the ready actually changed the card from exhausted to ready — never when the card was
+   * already ready, and never when RRG 1.8 "'Cannot'" (p. 11) stopped it (All Tied Up). "After you ready X" is a
+   * fact about a ready that happened.
+   */
+  | { readonly kind: "cardReadied"; readonly instanceId: InstanceId }
   | { readonly kind: "turnStarted"; readonly playerId: PlayerId }
   /**
    * A minion engaged a player (RRG 1.8 "Engage", p. 18): it entered play in their area, was put into play engaged with
@@ -442,6 +452,10 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "basicPowerUsing":
       return of([event.characterInstanceId], [event.characterInstanceId], [event.playerId]);
     case "cardReadying":
+    // The readied card is the event's *target*, so "after you ready Quicksilver" is
+    // `targetIs: { categories: ["identity"], controller: "you" }` — the query's own `controller` says whose ready it
+    // was, which is why neither of these carries a player subject.
+    case "cardReadied":
       return of([], [event.instanceId], []);
     case "boostCardTurnedFaceup":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);

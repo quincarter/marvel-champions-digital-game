@@ -1014,6 +1014,112 @@ Findings:
 - **Survey at the start (`survey.ts`, cycle 1 packs):** none of the 6 normalize. There are 94 issues: 30 attachment host rules the parser can't read, 20 records that never become a card, 12 unknown `campaign` factions (trors), 7 missing art references, Ant-Man's and Wasp's third hero faces, 4 missing `deck_limit`s, and Kang's stage names and main-scheme threat.
 - **Order:** the rules architect does the cycle 1 schema and `docs/phase7-wave2.md` while the data pipeline does schema-neutral parser work across all packs. Then cycle 1 curation and emission, then the remaining packs as data, then cycle 1 scripting, then rules QA and client wiring.
 
+### Campaign mode (decided 2026-09-20)
+
+Campaign mode is a **capability built once, then content added per box** — not a feature of any one expansion, and
+not a phase at the end. RRG 1.8 "Modes of Play → Campaign Mode" (p. 29) is the frame:
+
+- **"The rules for each are found in the campaign's associated rulebook."** The RRG defines the mode and delegates
+  every campaign's actual rules to its product rulebook. So the engine owns the *mechanism* and each box's rulebook
+  owns its *content* — the same engine/content split the rest of this project uses.
+- **"Each campaign comes with its own campaign log. The campaign log is a record of what effects or cards persist
+  between games in a campaign."** The log is the unit of persistence, and it lives outside any single game's state.
+- **"If a card is removed from a campaign, that card can no longer be used during the rest of the campaign, even if
+  players retry the scenario wherein that card was removed."** Retrying a scenario is explicitly part of the mode,
+  and the log outlives a replayed scenario. A campaign is therefore not a save-game with more rounds in it.
+- **"Players can choose which other mode(s) they wish to play for each individual scenario"** — campaign composes
+  with expert, heroic and skirmish, per scenario. Modes are orthogonal; campaign is not a difficulty flag.
+
+**Rules source: `docs/campaign-modes/` (supplied by the user, 2026-09-19/20).** Official FFG rulebooks and campaign
+log sheets for all ten campaign boxes, as PDFs, plus `docs/campaign-modes/markdown/` — page-by-page Markdown
+conversions with the PUA font glyphs normalized to the same `[per_hero]`/`[star]`/`[crisis]` tokens the card data
+uses, indexed by `markdown/index.md`. **These are primary sources and the authority on campaign rules**, ranking
+with the RRG rather than with community writeups. Cite them by box code and page (e.g. "MC10 p. 3, Campaign Mode
+Rules"). Where a rulebook and the RRG disagree, the rulebook is the product-specific rule the RRG defers to; where
+an FFG ruling is later than both, the ruling wins — flag the conflict, never pick silently.
+
+#### Decisions settled by the user (2026-09-20)
+
+| Decision | Choice |
+|---|---|
+| **Gating** | Foundation once, then each box's campaign right after that box's heroes/villains are scripted. Campaign is a normal step in the per-set pipeline, not a trailing phase. |
+| **Rules source** | `docs/campaign-modes/` — the official rulebooks, treated as primary. |
+| **Persistence** | Local, single-player, in IndexedDB beside the existing saved games. No backend; campaign mode does not wait on Phase 5. |
+| **Mode scope** | **Standard *and* expert campaign** per box. Heroic and skirmish stay out of scope, but the mode model is built composable so adding them later is not a redesign. |
+
+#### C1. The one-time foundation (owners: `game-rules-architect`, `card-data-pipeline`, `game-client-engineer`)
+
+Built once, before any box's campaign content. Nothing here names a specific campaign.
+
+- [ ] **A mode set, not a difficulty enum.** `ScenarioDifficulty` ("standard" | "expert") already exists and already
+      drives `expertEncounterSetIds` and Kang's `expertVillains`. Campaign is a *second, orthogonal* axis, chosen per
+      scenario per RRG p. 29. Model modes as a composable set so heroic/skirmish can join later without touching
+      callers.
+- [ ] **The campaign log as first-class state.** A serializable record that outlives any one game: the ordered
+      scenario sequence and which are completed, each seat's locked identity, cards added to decks, cards removed
+      from the campaign permanently, and per-box freeform fields (MC10 records "the name of each EXPERIMENTAL
+      attachment that entered the game"). Plain data, like engine state, so a backend can adopt it later.
+- [ ] **Campaign setup and victory hooks.** Each scenario carries campaign instructions applied *after* normal setup,
+      and victory instructions applied on a win, both "in the order in which they are listed" (MC10 p. 3).
+      **These read like card text and should be scripted through the ability DSL, not hardcoded per box** — the same
+      rule the rest of the project follows. `@mc/cards` owns them; the engine never names a campaign.
+- [ ] **Identity lock and between-scenario deck editing.** "Each player must use their chosen identity for the entire
+      campaign, but they are free to change aspects and alter the contents of their deck following the deck
+      customization rules" (MC10 p. 3). `validateDeck` (Phase 9) grows a campaign context.
+- [ ] **Campaign-added cards bypass deck size.** "Cards added to the deck as part of a campaign do not count toward a
+      player's minimum or maximum deck size" (MC10 p. 3).
+- [ ] **Campaign-specific cards become playable.** `@mc/content` already carries `SetSummary.campaignSpecific` and
+      `specificTo: { kind: "campaign" }`, and `validation.ts` currently *refuses* a scenario that names a
+      campaign-specific set ("campaign mode is not built"). That refusal becomes a real rule: legal inside a campaign
+      from the same product, illegal outside it (RRG 1.8 "Campaign-Specific Card", p. 11).
+- [ ] **Loss and retry.** A lost scenario does not advance the campaign; the log persists across the retry, including
+      permanent removals. **The penalty for losing is per-box** — MC10 is "reset and try again with no penalty"; do
+      not generalize MC10's answer into the engine.
+- [ ] **Expert campaign as a modifier on the campaign, not a separate campaign.** Per-box expert rules add their own
+      sets and standing rules (MC10 p. 17: Expert Campaign Set, persistent damage, obligations in player decks).
+- [ ] **Persistence and UI.** Campaign log in IndexedDB beside saved games; a campaign browser (start, resume,
+      abandon), the log rendered as a readable sheet, and the between-scenario deck-edit step.
+- [ ] **Undo across a scenario boundary is out of scope.** Phase 8's undo is within a game. Replaying a lost scenario
+      is the campaign-level "undo", and it is the paper game's own answer.
+
+#### C2. The per-box increment (repeat for each box, after that box's cards are scripted)
+
+- [ ] Campaign-specific cards ingested as data (**already done for all ten boxes** — 115 `campaign`-faction cards).
+- [ ] That box's own heroes, villains and scenarios scripted and passing scenario tests. **This gates the rest.**
+- [ ] Campaign definition encoded from the rulebook in `docs/campaign-modes/markdown/`: scenario order, per-scenario
+      setup and victory instructions, log fields, villain-deck composition per scenario and its expert substitutions.
+- [ ] Campaign-specific card abilities scripted (`ability-scripting-engineer`) — for `trors` these are the 30 refs
+      currently parked in `KNOWN_SKIPPED.trors` (04155–04166), deferred *only* because campaign mode was unbuilt.
+- [ ] Expert campaign rules for the box.
+- [ ] `rules-qa-engineer` scenarios: a full campaign played end to end, a lost-and-retried scenario proving the log
+      survives, and a permanent removal proving it sticks across the retry.
+- [ ] Client wiring for anything the box needs that the foundation does not already cover.
+
+#### C3. The boxes
+
+All ten rulebooks and log sheets are in `docs/campaign-modes/`. "Cards scripted" is the C2 gate.
+
+| Code | Box | Pack | Scenarios | Cards scripted? |
+|---|---|---|---|---|
+| MC10 | The Rise of Red Skull | `trors` | 5 | ✅ (wave 2) — **first campaign to build** |
+| MC16 | The Galaxy's Most Wanted | `gmw` | 5 | ❌ data only |
+| MC21 | The Mad Titan's Shadow | `mts` | 5 | ❌ data only |
+| MC27 | Sinister Motives | `sm` | 5 | ❌ data only |
+| MC32 | Mutant Genesis | `mut_gen` | 5 | ❌ data only |
+| MC40 | NeXt Evolution | `next_evol` | 5 | ❌ data only |
+| MC45 | Age of Apocalypse | `aoa` | 5 | ❌ data only |
+| MC50 | Agents of S.H.I.E.L.D. | `aos` | 5 | ❌ data only |
+| MC56 | Civil War | `cw` | 2 | ❌ data only |
+| MC60 | Fear No Evil | `fne` | 6 | ❌ data only |
+
+**The Once and Future Kang (`toafk`) is not in this table.** It is a scenario pack, not a campaign box, and has no
+rulebook in `docs/campaign-modes/`; its insert supplies an "Adjustable Difficulty" rule already quoted in
+`schema/sets.ts`. If it turns out to have campaign rules of its own, its insert needs adding alongside the others.
+
+**Sequencing:** the foundation (C1) is worth building against MC10 specifically, because `trors` is the only box
+whose cards are scripted — its 30 parked refs are the real test that the foundation works. Build C1 and MC10's C2
+together, then every later box is content only.
+
 ## Phase 8 — Polish
 
 - [ ] Tutorial/onboarding flow for players unfamiliar with the paper game.
