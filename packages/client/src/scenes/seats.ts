@@ -18,6 +18,8 @@
  * be legal?" (`#seatOptionsExcludingActive`) rather than "is this legal to
  * add as a fifth seat?", which always said no once four seats were filled.
  */
+import { HERO_ART, heroArtFor } from "../art/hero-art.js";
+import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import Phaser from "phaser";
 import type { CardId, Deck } from "@mc/content";
 import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_PACKS, POOL_SCENARIOS, POOL_VERSION, packNameOf } from "../content/pool.js";
@@ -119,6 +121,7 @@ export class SeatsScene extends Phaser.Scene {
   }
 
   #seedDecks: readonly Deck[] = [];
+  readonly #heroArtCache = new Map<string, Picture | null>();
 
   init(data: SeatsData): void {
     this.#draft = data.draft;
@@ -591,10 +594,33 @@ export class SeatsScene extends Phaser.Scene {
     this.#stops.set("clear-seat", { rect: clearRect, activate: clear });
   }
 
+  /**
+   * The hero's own artwork (`art/heroes/`, `art/hero-art.ts`), picked once per visit so a redraw doesn't reshuffle a
+   * hero with several pictures. A hero printed as more than one identity card (Ironheart's three versions) shares
+   * the picture filed under any of them: same name, same set.
+   */
+  #heroPictureFor(identityId: string): Picture | null {
+    if (!this.#heroArtCache.has(identityId)) {
+      const identity = CARDS_BY_ID.get(identityId);
+      const sameHero = identity
+        ? POOL_CARDS.filter((card) => card.type === "hero_identity" && card.name === identity.name && card.setCode === identity.setCode).map((card) => card.id as string)
+        : [];
+      const found = [identityId, ...sameHero].map((id) => heroArtFor(HERO_ART, id)).find((picture) => picture !== null) ?? null;
+      this.#heroArtCache.set(identityId, found);
+    }
+    return this.#heroArtCache.get(identityId) ?? null;
+  }
+
   #renderHeroCard(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>, rect: Rect): ReturnType<typeof renderShelfCard> {
     const identity = CARDS_BY_ID.get(option.deck.identityCardId as string);
-    const source = identity ? artFor(identity, { kind: "hero" }) : null;
-    const artKey = cardArt(this).request(this, source);
+    // The hero's artwork where there is some, the way Scenario select shows a villain's; otherwise the identity
+    // card's own scan, as before.
+    const picture = this.#heroPictureFor(option.deck.identityCardId as string);
+    let artKey = picture ? ensurePictureLoaded(this, picture, () => this.#rebuild()) : null;
+    if (!artKey) {
+      const source = identity ? artFor(identity, { kind: "hero" }) : null;
+      artKey = cardArt(this).request(this, source);
+    }
     const entry = active.get(option.deck.id as string);
     const sourceText = option.deck.source.kind === "precon" ? "Precon" : option.deck.source.kind === "imported" ? "Imported" : "Built";
     const seatedElsewhere = entry?.seatIndex !== null && entry?.seatIndex !== undefined && !entry.isActiveSeat;
