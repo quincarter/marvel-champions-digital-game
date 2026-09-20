@@ -218,6 +218,7 @@ export {
   getInstance,
   getPlayer,
   handSize,
+  hasStarIcon,
   isMinion,
   isTerminal,
   maxHitPoints,

@@ -11,6 +11,7 @@ import {
   getInstance,
   getPlayer,
   handSize,
+  hasStarIcon,
   heroFacesOf,
   identityFace,
   isMinion,
@@ -234,6 +235,7 @@ export type QueryExclusion =
   | "hasExcludedTrait"
   | "wrongName"
   | "wrongFacedown"
+  | "wrongStarIcon"
   | "notHostOfSelf"
   | "notAttachedToHost"
   | "wrongOwner"
@@ -304,6 +306,10 @@ export function explainQuery(
   // The name showing now: a facedown card has none; a villain or flipped card has its current face's.
   if (query.name !== undefined && currentName(state, id) !== query.name) return "wrongName";
   if (query.facedown !== undefined && (instance.facedownAs !== null) !== query.facedown) return "wrongFacedown";
+  // "If that card has a star icon (★) in the boost area" (Longshot, `wolv`). A printed fact (`hasStarIcon`), not a
+  // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
+  // a boost icon, so this clause says nothing about the card's pip count.
+  if (query.starIcon !== undefined && hasStarIcon(state, id) !== query.starIcon) return "wrongStarIcon";
   if (query.hostOfSelf !== undefined) {
     const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
     if ((host === id) !== query.hostOfSelf) return "notHostOfSelf";
@@ -740,6 +746,12 @@ export function resolveValue(
       const card = id ? cardOf(state, id) : undefined;
       return card && "boostIcons" in card ? card.boostIcons : 0;
     }
+    case "starIcons":
+      // "For each star icon in the boost area discarded this way" (Slipping Sanity, `scw`). Independent of
+      // `boostIcons`: RRG 1.8 "Boost, Boost Icon" (p. 11), "A star icon is not itself considered a boost icon". A
+      // boost area carries at most one star, so each card adds 0 or 1; read wherever the cards are, since the pile
+      // being counted is normally already in a discard pile by now.
+      return resolveRef(state, value.cards, context).filter((id) => hasStarIcon(state, id)).length;
     case "handSize": {
       const [playerId] = resolvePlayers(state, value.player, context);
       if (!playerId) return 0;

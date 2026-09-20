@@ -37,6 +37,7 @@ import {
   encounterDeckOf,
   getInstance,
   getPlayer,
+  hasStarIcon,
   inAnyEncounterDiscard,
   isMinion,
   maxHitPoints,
@@ -865,6 +866,9 @@ export function applyEffect(
         // "… takes 1 damage for each boost icon discarded this way" (Hit Squad, `cap` pack): the printed count plus
         // any "gets +1 boost icon if …" modifier (§3.9's `boostIconsFor`), summed across every card this bind moved.
         const boostIcons = ids.reduce((sum, id) => sum + boostIconsFor(ctx.state, ctx.deps, id), 0);
+        // A star icon is not a boost icon (RRG 1.8 "Boost, Boost Icon", p. 11), so this is its own total over the
+        // same cards; a card printing both pips and a star adds to both.
+        const starIcons = ids.filter((id) => hasStarIcon(ctx.state, id)).length;
         const bind = effect.bind;
         updateFrame(ctx, frame.frameId, (f) =>
           f.kind === "effects"
@@ -879,6 +883,7 @@ export function applyEffect(
                   [`${bind}.energy`]: pool.energy,
                   [`${bind}.wild`]: pool.wild,
                   [`${bind}.boostIcons`]: boostIcons,
+                  [`${bind}.starIcons`]: starIcons,
                 },
               }
             : f,
@@ -1102,6 +1107,10 @@ export function applyEffect(
       // card this discard actually reached — so a discard cut short by the empty-deck rule above counts only what it
       // got. Each card's icons are read the moment it is discarded, before it moves, exactly as `moveCards` does.
       let boostIcons = 0;
+      // "For each star icon in the boost area discarded this way" (Slipping Sanity, `scw`): counted over exactly the
+      // cards this discard reached, and separately from `boostIcons` — RRG 1.8 "Boost, Boost Icon" (p. 11), "A star
+      // icon is not itself considered a boost icon". Printed data, never the ability registry (§18.6).
+      let starIcons = 0;
       let pool = EMPTY_POOL;
       for (let i = 0; i < count; i++) {
         if (discarded.length > 0 && encounterDeckOf(ctx.state, deckId).deck.length === 0) break;
@@ -1109,6 +1118,7 @@ export function applyEffect(
         if (!id) break;
         updateInstance(ctx, id, (instance) => ({ ...instance, faceup: true }));
         boostIcons += boostIconsFor(ctx.state, ctx.deps, id);
+        if (hasStarIcon(ctx.state, id)) starIcons += 1;
         const card = cardOf(ctx.state, id);
         if (card) pool = addPools(pool, printedResources(card));
         // Each card goes to its own deck's discard pile (its `home`), not necessarily the deck it came from.
@@ -1119,6 +1129,7 @@ export function applyEffect(
       if (bind) {
         const totals = pool;
         const icons = boostIcons;
+        const stars = starIcons;
         updateFrame(ctx, frame.frameId, (f) =>
           f.kind === "effects"
             ? {
@@ -1128,6 +1139,7 @@ export function applyEffect(
                   ...f.vars,
                   [`${bind}.count`]: discarded.length,
                   [`${bind}.boostIcons`]: icons,
+                  [`${bind}.starIcons`]: stars,
                   [`${bind}.physical`]: totals.physical,
                   [`${bind}.mental`]: totals.mental,
                   [`${bind}.energy`]: totals.energy,

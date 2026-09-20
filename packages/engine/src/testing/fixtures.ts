@@ -332,6 +332,8 @@ export function stubMinion(spec: {
   readonly sch: number | "X" | null;
   readonly hp: number;
   readonly boostIcons?: number;
+  /** The boost area prints a star icon (★): a printed fact, separate from `boostIcons` (RRG 1.8 "Boost", p. 11). */
+  readonly starIcon?: boolean;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
   /** The "(X's nemesis minion.)" parenthetical (RRG 1.8 "Nemesis Encounter Set", p. 30). */
@@ -343,6 +345,7 @@ export function stubMinion(spec: {
     encounterSetIds: (spec.encounterSetIds ?? []).map((id) => encounterSetId(id)),
     ...(spec.nemesisMinion === undefined ? {} : { nemesisMinion: spec.nemesisMinion }),
     boostIcons: spec.boostIcons ?? 1,
+    ...(spec.starIcon === undefined ? {} : { starIcon: spec.starIcon }),
     traits: spec.traits ?? [],
     keywords: spec.keywords ?? [],
     text,
@@ -358,6 +361,8 @@ export function stubTreachery(spec: {
   /** Encounter sets the card belongs to (a nemesis set, for setup tests). */
   readonly encounterSetIds?: readonly string[];
   readonly boostIcons?: number;
+  /** The boost area prints a star icon (★): a printed fact, separate from `boostIcons` (RRG 1.8 "Boost", p. 11). */
+  readonly starIcon?: boolean;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
 }): TreacheryCard {
@@ -366,6 +371,7 @@ export function stubTreachery(spec: {
     type: "treachery",
     encounterSetIds: (spec.encounterSetIds ?? []).map((id) => encounterSetId(id)),
     boostIcons: spec.boostIcons ?? 1,
+    ...(spec.starIcon === undefined ? {} : { starIcon: spec.starIcon }),
     traits: [],
     keywords: spec.keywords ?? [],
     text,
@@ -380,6 +386,8 @@ export function stubSideScheme(spec: {
   readonly startingThreat: number;
   readonly icons?: readonly SchemeIcon[];
   readonly boostIcons?: number;
+  /** The boost area prints a star icon (★): a printed fact, separate from `boostIcons` (RRG 1.8 "Boost", p. 11). */
+  readonly starIcon?: boolean;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
 }): SideSchemeCard {
@@ -390,6 +398,7 @@ export function stubSideScheme(spec: {
     startingThreat: flat(spec.startingThreat),
     icons: spec.icons ?? [],
     boostIcons: spec.boostIcons ?? 1,
+    ...(spec.starIcon === undefined ? {} : { starIcon: spec.starIcon }),
     traits: [],
     keywords: spec.keywords ?? [],
     text,

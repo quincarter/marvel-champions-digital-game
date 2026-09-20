@@ -2480,3 +2480,112 @@ Twelve of the fifteen non-campaign refs can now be scripted; the other three are
 the existing discard-cost builder; `sharesTraitWith(ref)` and `encounterSetOf(ref)` query helpers; `on.cardReadied(
 query)`; and `applyRuleUntil` builders — most usefully two named ones, `cannotChangeFormUntil(...)` and
 `cannotReadyUntil(...)`, since those are the two the printed cards need.
+
+---
+
+## 24. Three reads of the printed star icon (owner: `game-rules-architect`; landed 2026-09-20)
+
+The engine half of §18.6, now that the data exists. `card-data-pipeline` landed `starIcon?: boolean` on
+`EncounterCardCommon` and `SideSchemeCard` (absent reads as `false`), backfilled for 159 cards across 32 packs from
+printed text and cross-checked against MarvelCDB's independent `boost_star` with no disagreements. Tests:
+`packages/engine/src/primitives-wave2e.test.ts` §24 (14 tests).
+
+**One correction to the brief this section was written from**, since a wrong number here would mislead scripting: of
+the 159 starred cards, **43 also print boost pips and 116 print a star with no pips at all** (counted over
+`packages/content/src/data/*/cards.ts`: `starIcon: true` against `boostIcons`, distribution 0 ×116, 1 ×32, 2 ×10,
+3 ×1; spot-checked against MarvelCDB, which reports `boost: null, boost_star: true` for e.g. Weapons Runner 01121
+and `boost: 2, boost_star: true` for Hired Gun 02007). The claim that 134 cards print both does not hold. The
+engine's behaviour is unaffected — both cases are counted independently either way — but the both-pips-and-a-star
+case is the *minority* case, which makes pinning it more important, not less.
+
+**The rule this is all built on.** RRG 1.8 "Boost, Boost Icon" (p. 11): "If the boost field has a star icon, it
+indicates that the card has a 'Boost' ability … **A star icon is not itself considered a boost icon, and does not
+contribute to the villain's ATK or SCH value.**" So stars and boost pips are two independent printed facts about the
+same corner of the same card, and the engine counts them separately — a card printing both adds to both totals, and
+neither number is derivable from the other. §24.2 pins exactly that: over a pile of
+`[2 pips + star, star only, 2 pips, plain, 2 pips + star]`, `starIcons` is 3 and `boostIcons` is 6.
+
+Only the *boost-area* star. RRG 1.8 "Star Icon" (p. 40) also puts stars beside an enemy's ATK/SCH value and in an
+attachment's ATK/SCH field; those are a different printed fact, the content field does not record them, and no card
+in the pool counts them. If one ever does, that is a new field, not a widening of this one.
+
+### 24.1 One printed read: `hasStarIcon`
+
+`hasStarIcon(state, instanceId)` (`query.ts`, beside `cardOf`, exported from the package root). It reads the
+`@mc/content` field and nothing else — no `EngineDeps`, so it *cannot* consult the ability registry. That signature
+is the point of the design, not an accident: §18.6 rejected deriving the star from "does this card carry an ability
+whose `trigger.kind` is `boost`?" (`defend-preview.ts`'s module-private `hasBoostAbility`) because that derivation
+reads `deps.abilities` — an unscripted Boost ability would contribute zero stars, and a scripter un-skipping an
+unrelated card would silently change how much threat Slipping Sanity places. §24.5 pins both halves: a starred card
+whose Boost ability is *not* in the registry still counts 1, and a card carrying a scripted `boost`-triggered ability
+but no printed star counts 0.
+
+Unlike `boostIconsFor`, there are no modifiers to apply. Nothing in the pool says "this card gains a star icon", and
+a star has no game effect of its own (RRG 1.8 "Star Icon", p. 40: "In and of itself, the star icon has no effect") —
+it is only ever a thing cards *count*. If a card ever grants one, this becomes a `ModifiedStat`; until then it stays
+a printed read.
+
+### 24.2 `ValueSpec { kind: "starIcons", cards: TargetRef }`
+
+"How many of the cards this ref names print a star", read wherever they are — the sibling of
+`totalPrintedResources`, and shaped the same way (`cards`, not `of`, because it is a count over a set rather than a
+read of one card). Zone-independent by construction, which matters because the pile being counted is normally already
+in a discard pile by the time the question is asked. A boost area carries at most one star, so each matching card
+adds exactly 1; an empty ref is 0.
+
+### 24.3 `<bind>.starIcons`
+
+A new total on `discardEncounterCards` and on `moveCards`, beside the existing `<bind>.count`, `<bind>.boostIcons`
+and `<bind>.physical`/`.mental`/`.energy`/`.wild`. Both effects were given it so the bind shape stays one shape: "for
+each star icon discarded this way" reads `<bind>.starIcons` whichever effect did the discarding, exactly as
+`<bind>.boostIcons` already did.
+
+It covers exactly the cards the effect reached. A `discardEncounterCards` cut short by RRG 1.8 "Encounter Deck"
+(p. 17) — deck emptied mid-discard, "do not continue the discard effect with the newly shuffled encounter deck" —
+counts only what it got, which §24.1's fourth test pins (two starred cards reached out of a requested five, two
+threat placed, not four).
+
+**Slipping Sanity end to end.** "Discard the top 5 cards of the encounter deck. For each star icon (★) in the boost
+area discarded this way, place 1 threat on the main scheme." (15023, `scw`.) The whole sentence is two effects:
+
+```ts
+[
+  { kind: "discardEncounterCards", count: { kind: "const", value: 5 }, bind: "sanity" },
+  { kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "var", name: "sanity.starIcons" } },
+]
+```
+
+Tested as a real discard of five off a real encounter deck, with a sixth starred card left on top to prove the count
+is bounded by the discard rather than by the deck.
+
+### 24.4 `TargetQuery.starIcon?: boolean`
+
+The same fact as a yes/no, for Longshot (35033, `wolv`): "Response: After Longshot attacks a non-ELITE minion,
+discard the top card of the encounter deck. If that card has a star icon (★) in the boost area, defeat the attacked
+minion." Paired with the existing `refMatches` predicate and its `anywhere` flag, which is what reads a card sitting
+in a discard pile:
+
+```ts
+{ kind: "if",
+  condition: { kind: "refMatches", ref: { kind: "slot", slot: "flip" }, query: { starIcon: true }, anywhere: true },
+  then: [ /* defeat the attacked minion */ ] }
+```
+
+A card with no boost area — any player card — has no star, so it never matches `{ starIcon: true }`. The clause's
+rejection code is `QueryExclusion "wrongStarIcon"`, worded for the client in
+`packages/client/src/view/highlights.ts` ("wrong star icon in the boost area") — the only client edit, needed for
+that table's `Record<ExclusionCode, string>` to typecheck.
+
+### 24.5 What `ability-scripting-engineer` needs
+
+Nothing in `packages/cards` was touched here (`KNOWN_SKIPPED` is untouched). Two refs are now unblocked, and both
+need only DSL surface over primitives that exist:
+
+| Ref | Card | What it now needs |
+|---|---|---|
+| `15023.obligation` | Slipping Sanity (`scw`) | `discardEncounterCards(5, bind)` + `placeThreat(mainScheme, v("<bind>.starIcons"))`. The builder for the bound total is the same one `<bind>.boostIcons` already uses; nothing new beyond letting the `.starIcons` name through. |
+| `35033.longshot-response` | Longshot (`wolv`) | `discardEncounterCards(1, bind)` + `refMatches(slot(bind), { starIcon: true }, { anywhere: true })` in an `if`, then the existing defeat effect. A `starIcon()` query helper (or just the raw field on the `query(...)` builder) is the whole DSL surface. |
+
+One warning worth carrying into the DSL: `starIcons` and `boostIcons` are **not** interchangeable, and a card that
+reads "for each boost icon" must not be scripted with `starIcons` (or vice versa). The two numbers disagree on 116 of
+the pool's 159 starred cards (a star, no pips) and on every unstarred card that prints pips.

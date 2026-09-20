@@ -92,6 +92,16 @@ export interface TargetQuery {
   readonly host?: TargetRef;
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
+  /**
+   * The card's boost area prints a star icon (★), or does not: "If that card has a star icon (★) in the boost area,
+   * defeat the attacked minion" (Longshot 35033, `wolv`) is `{ starIcon: true }` over the discarded card.
+   *
+   * The same printed fact `ValueSpec starIcons` counts, asked as a yes/no (`hasStarIcon`): read from
+   * `@mc/content`'s `starIcon` field, not from whether a `boost`-triggered ability is scripted (§18.6). A card with
+   * no boost area — any player card — never matches `true`. RRG 1.8 "Boost, Boost Icon" (p. 11): a star is not a
+   * boost icon, so this says nothing about the card's pip count.
+   */
+  readonly starIcon?: boolean;
   /** Cards with at least one printed icon of this resource type ("each card with a printed [mental] resource"). Wild is its own type. */
   readonly printedResource?: "physical" | "mental" | "energy" | "wild";
   /**
@@ -362,6 +372,20 @@ export type ValueSpec =
   | { readonly kind: "threat"; readonly of: TargetRef }
   /** Boost icons printed on a card: "1 more than the number of boost icons on the discarded card" (with `scaled`). */
   | { readonly kind: "boostIcons"; readonly of: TargetRef }
+  /**
+   * How many of the cards a ref names print a star icon (★) in the boost area, wherever they are: "For each star icon
+   * in the boost area discarded this way, place 1 threat on the main scheme" (Slipping Sanity 15023, `scw`).
+   *
+   * **A star icon is not a boost icon** — RRG 1.8 "Boost, Boost Icon" (p. 11): "A star icon is not itself considered
+   * a boost icon, and does not contribute to the villain's ATK or SCH value." `starIcons` and `boostIcons` are
+   * therefore independent counts over the same pile; a card printing both pips and a star contributes to both
+   * (docs/phase7-wave2.md §24). A boost area carries at most one star, so each matching card adds exactly 1.
+   *
+   * Printed data (`hasStarIcon`), read wherever the cards are, and deliberately *not* derived from whether the card
+   * has a scripted `boost` ability — see §18.6. The sibling of `totalPrintedResources`; `<bind>.starIcons` is the
+   * same number summed over a `moveCards`/`discardEncounterCards` bind.
+   */
+  | { readonly kind: "starIcons"; readonly cards: TargetRef }
   /** A player's hand size; `printed` ignores modifiers ("draw up to your printed hand size"). */
   | { readonly kind: "handSize"; readonly player: PlayerRef; readonly printed?: boolean }
   /** Cards in a player's hand. */
@@ -919,9 +943,14 @@ export type EffectSpec =
    * reset first (with its acceleration token), and the discarding then happens from the new deck.
    *
    * `bind` binds the discarded cards to that slot, their number to `<bind>.count`, the sum of their boost icons
-   * (printed plus modifiers) to `<bind>.boostIcons` and their printed resource icons to `<bind>.physical` /
+   * (printed plus modifiers) to `<bind>.boostIcons`, how many of them print a star icon in the boost area to
+   * `<bind>.starIcons`, and their printed resource icons to `<bind>.physical` /
    * `.mental` / `.energy` / `.wild` — the same bind shape `moveCards` reports, so "1 indirect damage for each boost
-   * icon discarded this way" reads `<bind>.boostIcons` whichever effect did the discarding. The totals cover exactly
+   * icon discarded this way" reads `<bind>.boostIcons` whichever effect did the discarding. `<bind>.starIcons` is a
+   * separate total, not a part of `<bind>.boostIcons` (RRG 1.8 "Boost, Boost Icon", p. 11: "A star icon is not itself
+   * considered a boost icon"): "Discard the top 5 cards of the encounter deck. For each star icon in the boost area
+   * discarded this way, place 1 threat on the main scheme" (Slipping Sanity 15023, `scw`) reads `<bind>.starIcons`,
+   * and a discarded card printing both pips and a star adds to both totals. The totals cover exactly
    * the cards this effect reached: a discard cut short by the empty-deck rule above counts only what it got.
    * `forEachDiscarded` runs its
    * effects once per discarded card, in discard order, with that card bound to its `slot` ("Each time a Goblin minion

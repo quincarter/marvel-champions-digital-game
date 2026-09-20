@@ -59,6 +59,26 @@ export function mustCardOf(state: GameState, id: InstanceId): AnyCard {
   return mustCard(state, mustInstance(state, id).cardId);
 }
 
+/**
+ * Does this card's boost area print a star icon (★)? RRG 1.8 "Boost, Boost Icon" (p. 11): "If the boost field has a
+ * star icon, it indicates that the card has a 'Boost' ability … A star icon is not itself considered a boost icon,
+ * and does not contribute to the villain's ATK or SCH value." So this is a *separate* fact from `boostIconsFor`, not
+ * a part of it: a card can print pips and a star, either, or neither, and the two counts are independent.
+ *
+ * Read from the printed field `@mc/content` records (`EncounterCardCommon.starIcon` / `SideSchemeCard.starIcon`),
+ * never from the ability registry. The tempting derivation — "does this card carry an ability whose trigger is
+ * `boost`?" — would make a printed icon depend on what has been scripted, so an unscripted Boost ability would count
+ * zero stars and scripting an unrelated card would silently change how much threat "for each star icon discarded
+ * this way" places (docs/phase7-wave2.md §18.6, §24).
+ *
+ * Only the boost-area star. RRG 1.8 "Star Icon" (p. 40) also puts stars beside an enemy's ATK/SCH value and in an
+ * attachment's ATK/SCH field; those are a different printed fact, not recorded by this field, and no card counts them.
+ */
+export const hasStarIcon = (state: GameState, id: InstanceId): boolean => {
+  const card = cardOf(state, id);
+  return card !== undefined && "starIcon" in card && card.starIcon === true;
+};
+
 /** A hero face with its traits: the identity's `hero`, or one of its `additionalHeroForms`. */
 export type HeroFaceWithTraits = HeroFace & { readonly traits: readonly Trait[] };
 
