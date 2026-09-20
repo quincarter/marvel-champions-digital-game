@@ -603,7 +603,7 @@ needed, and deciding which is out of `ability-scripting-engineer`'s remit.
 | Ant-Man | `ant` | **Scripted.** 33 cards, 37 ability refs: 32 resolve (reprints aliased by `../reprints.ts` plus hand-scripted refs across `kit.ts`/`obligation-nemesis.ts`/`pack-cards.ts`), 5 in `KNOWN_SKIPPED` — Care for Cassie's "cannot change form" lasting rule, Yellowjacket's Plan's "belongs to encounter set X" query, Ant-Man's own overpaid-from-a-later-interrupt read, Team-Building Exercise's "shares a trait with your hero" query and Muster Courage's dynamic `chooseCards.max`. **Yellowjacket's two form-conditional constants (§6.15) are un-skipped (2026-09-19, `ability-scripting-engineer`)**, scripted exactly as the crash-inducing attempt originally was (`gainsTrait`/`gets(..., { while: hasTrait(identityOf(engagedPlayerOf(self)), GIANT) })`), now safe under `traitsOf`'s §17.5 guard — confirmed with a real reveal-from-encounter-deck test reading its live traits/stats, not re-added on faith. Three-sided identity (§1.1/§3.2 of docs/phase7-wave2.md) and Tech Theft's class-wide text-blanking (§8 there) are both landed and used (`kit.ts`'s `changeToOtherHeroForm`/`youHaveTrait`, `obligation-nemesis.ts`'s `blanksTextBox`, verified with a real behavioral test attaching a TECH upgrade and confirming its own text goes blank). Pym Particles' "after you spend this card" trigger (`resourcesSpent`/`on.youSpendThis()`) and Giant Strength's `LastingUntil.endOfTurn` both landed mid-session (commits `1036be7`, `c53ad0b`) and were un-skipped with real behavioral tests the same session. | Ant-Man's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-aspect cards (`pack-cards.ts`) each have ruling-level tests (`kit.test.ts`) driving real commands — form changes, Hero Actions gated by `while`, a Team-Up legality check, a reveal-from-encounter-deck helper for the nemesis set's own cards, Yellowjacket's own live form-conditional trait/keyword/stat grants — plus `e2e.test.ts` (Rhino, standard, solo, Ant-Man Leadership precon to a real outcome, replayed deep-equal). |
 | Wasp | `wsp` | **Scripted (2026-09-19, `ability-scripting-engineer`).** 34 cards, ~50 ability refs: all but 1 resolve. `KNOWN_SKIPPED.wsp` is down to `13012.wasp-interrupt`, a pre-existing missing-primitive block (reading an overpayment from a later interrupt) unrelated to this pass. **All five §17 refs are un-skipped, each with a real behavioral test:** Small but Mighty (`on.defeats`, an identity-or-event-not-ally defeat, proven both ways — Wasp's own basic attack damages the villain, the Ant-Man ally's identical defeat does not); the Ant-Man ally's two form-conditional constants (same shape and same §17.5 fix as Yellowjacket's, verified live); Rapid Growth (`on.basicPowerUsing`/`modifyBasicPower`, a real basic attack raised 2→4 damage mid-attack, played as a reactive event from hand inside the interrupt window, form change and "for this use" expiry both checked); Red Room Training's Tiny-form piercing half (`attacksGainKeywords({ basicOnly: true })`, a real tough-status-card discard distinguishing a basic attack from Pinpoint Strike's own ability attack). | Wasp's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`, Red Dreams/Mother's Orders/Beetle/Beetle Armor MK IV/Beetle Mania) and the pack's own generic-aspect cards (`pack-cards.ts`) are scripted, each with real behavioral tests (`kit.test.ts`, `obligation-nemesis.test.ts`, `pack-cards.test.ts`). No standalone scenario/e2e test yet (`wsp` owns no scenario of its own; the Rhino Core scenario is used for every test, the same way `ant/kit.test.ts` does). Reused Ant-Man's own three-sided-identity and divided-basic-power patterns throughout, per the task brief. |
 | Quicksilver | `qsv` | **Scripted (2026-09-19, `ability-scripting-engineer`).** 32 cards, ~35 ability refs: all but 2 resolve (Armored Vest and the three basic resources are Core reprints, aliased by `../reprints.ts`, not counted as hand-scripted). `KNOWN_SKIPPED.qsv` is `14009.friction-resistance-response` (§6.20, new: no trigger event announces a completed ready) and `14024.obligation` (§6.21, new: a "cannot ready … until your next turn ends" sibling to Care for Cassie's own "cannot change form" gap). Reused `on.basicPowerUsing`/`modifyBasicPower` (§17.4) for Scarlet Witch's own interrupt (a live `ValueSpec` bonus, not a fixed one), `chooseOptions`/`RuleSpec attackKeywords.basicOnly`/`playCard.x` (all landed already, none previously exercised by a scripted card) for Double Time, Brute Force and Speed Cyclone respectively, and `atEndOfAttack` + `eventDealt`/`not(...)` (Sweeping Swoop's own precedent, `core/heroes/spider-man.ts`) to defer Never Back Down's "if you take no damage" half to the attack's own end. Two small DSL/validator catch-ups, not primitive gaps (§6.22): `oncePerPhase`, and `playCard.x` missing from the validator's own pre-seeded var scope. | Quicksilver's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-aspect cards (`pack-cards.ts`) are scripted, each with real behavioral tests (`kit.test.ts`, `obligation-nemesis.test.ts`, `pack-cards.test.ts`) driving real commands — a real villain-phase defended attack for Never Back Down/Side Step (declaring a defender, playing a reactive event inside its own interrupt/payment windows, `wave1/cap/expert-defense.test.ts`'s own precedent), a real reveal from the encounter deck for Multiple Man/Avalanche/Earthquake, a real `basicAttack` with an "X" cost for Speed Cyclone. Brute Force (Aggression), Sense of Justice (Justice), United We Stand (Leadership) and Beat 'Em Up (Basic, absent from the precon's own curated list) are `toBeDefined()`-only — unreachable from Quicksilver's single-aspect Protection precon, the same situation `wsp/pack-cards.test.ts` records for her own off-aspect cards. A genuine two-player "each player independently" integration test for Avalanche was attempted and dropped (`obligation-nemesis.test.ts`'s own comment): both branches of that choice are proven with a real reveal in a solo game, and the `forEachPlayer(eachPlayer, chooseOneBy(thatPlayer, …))` shape itself is the same one already used by Under Attack (Core, `core/scenarios/ultron.ts`) and several wave 1/2 cards — the two-player table's own villain-phase dynamics (surge chains, a second enemy's own scheme once the nemesis minion is engaged) raced the scenario to an early loss before a deterministic assertion point could be reached, a scenario-level testing obstacle rather than evidence about the ability. |
-| Scarlet Witch | `scw` | **Not started.** | Two copies of her own obligation shuffled in (§1.10, landed); boost-icon counting as an event (§3.6, landed for activation counts; card-effect counts — Hex Bolt — still open per §4.8). |
+| Scarlet Witch | `scw` | **Scripted (2026-09-19, `ability-scripting-engineer`).** 31 physical cards (plus the reprinted resources/upgrade), 34 ability refs: 33 resolve, 1 in `KNOWN_SKIPPED` — `15023.obligation` (Slipping Sanity), a genuine missing-primitive block confirmed by inspection (docs/phase7-wave2-scripting.md §4.1's "verify a skip claim is real" rule): no `TargetQuery`/`ValueSpec` counts *star* icons (as opposed to boost icons) among a discarded pool, and the one place the engine derives "has a star icon" (`defend-preview.ts`'s private `hasBoostAbility`) isn't surfaced to card scripts. Chaos Control (15001a) is scripted **only** against the `boostIconsCounting` activation-boost window (§3.6's own primitive, landed) — whether it also reaches a card effect's own `<bind>.boostIcons` count (Hex Bolt, Molecular Decay, Wiccan, Luminous, Chaos Manipulation, and the `qsv` Scarlet Witch ally) is the still-open §3.6/§4.8 rules question, deliberately left undecided rather than guessed at; see `kit.ts`'s own module docblock. Two found-by-testing script bugs (not primitive gaps, §4.1): Chaos Manipulation's own Luminous search needed `{ min: 1 }`, not `{ min: 0 }` — `firstLegal` (which always answers with the fewest legal selections) silently declined the pick even when she genuinely was found; and `playFromHandIgnoringCost`'s own doc comment mislabeled Chaos Magic as a `qsv` card (a one-line fix, `dsl/effects.ts`). Every test drives real commands — including a synthetic side-scheme surgery (`trors/red-skull.test.ts`'s own precedent) to prove Turn the Tide's "thwarts and defeats a scheme" Response, since the *main* scheme reaching 0 threat never fires a `schemeDefeated` event — except Browbeat (Aggression), Last Stand (Leadership), Bait and Switch (Protection) and Recuperation (Basic, absent from the `scw-justice` precon's own curated card list), which are `toBeDefined()`-only, the same situation `qsv/pack-cards.test.ts` records for her own off-aspect cards. | Scarlet Witch's kit (`kit.ts`), obligation/nemesis (`obligation-nemesis.ts`) and the pack's own generic-aspect cards (`pack-cards.ts`) are scripted, each with real behavioral tests (`kit.test.ts`, `obligation-nemesis.test.ts`, `pack-cards.test.ts`). No standalone scenario/e2e test yet (`scw` owns no scenario of its own; the Rhino Core scenario is used for every test, the same way `wsp`/`qsv` do). The Next Evolution/Luminous/Magical Suspension/Chaos Manipulation (her nemesis set) are all reached through real reveals: Shadow of the Past (01190, a Core Standard card) for the first two, and set-aside-to-deck-or-discard test surgery (mirroring `stageNemesisCardForReveal`) for the latter two, since her nemesis set's own non-minion cards only re-enter a real game once Shadow of the Past shuffles them in. |
 
 ## 8. Progress / next up (update this every session)
 
@@ -1003,3 +1003,102 @@ and boost-icon-counting-as-an-event, §3.6, were both already landed as of `toaf
 card-effect boost-icon count, §4.8, was flagged as still open — re-verify rather than assume), and the fresh
 lessons immediately above (`pickAllCards`, `["decline"]`, `cardsInPlay` for attachments, `moveToHand`'s returned
 state) apply to any pack's own tests just as much as they did to `qsv`'s.
+
+**2026-09-19, next session: `scw` finished, promoted to `"scripted"`.** The whole of cycle 1's hero-pack lineup is
+now done. Re-checked §3.13/§6/§17 first, per the standing habit: Scarlet Witch's own two obligation cards (§1.10)
+and boost-icon-counting-as-an-event (§3.6) were both confirmed landed, and §4.8 (whether Chaos Control's own "would
+be counted" reaches a card effect's own boost-icon count, not only an activation's) was re-confirmed still open —
+no FFG ruling landed on it since `toafk`'s own session, so it stays a live open question rather than something to
+quietly resolve.
+
+**Chaos Control (15001a) is scripted only against the window that exists** — `on.boostIconsCounted()`, the
+activation-boost-step primitive §3.6 landed — per this session's own task brief, which named this exact decision
+and asked it be surfaced rather than picked quietly. It does **not** reach the several *other* boost-icon reads in
+this same pack that go through a card effect's own `discardEncounterCards`/`<bind>.boostIcons` (Hex Bolt, Molecular
+Decay, Wiccan, Luminous, Chaos Manipulation, and the `qsv` Scarlet Witch ally) — those cards' own counting already
+works, since `<bind>.boostIcons` needs nothing from Chaos Control at all; what's undecided is only whether Chaos
+Control's own replacement effect could someday reach them too. **Recorded precisely, not guessed at**, in `kit.ts`'s
+own module docblock, in this file's §7 table row, and here — the change this file's own §4.8 write-up describes (an
+engine-side widening of the `boostIconsCounting` window) is the only thing that would ever need to change if the
+user later decides the broader reading is correct; Chaos Control's own script would not need to change at all.
+
+**Slipping Sanity (15023) is genuinely blocked, confirmed rather than assumed (§4.1's own rule).** "For each star
+icon ([star]) in the boost area discarded this way, place 1 threat on the main scheme" needs a count of *star*
+icons (RRG 1.8 "Boost", p. 11: "a star icon is not itself considered a boost icon") among a discarded pool — reading
+`packages/content/src/schema/validation.ts` found no schema field recording "this card has a star icon" at all
+(only the numeric `boostIcons` pip count), and reading `packages/engine/src/defend-preview.ts` found the *only*
+place the engine derives that fact today is a private, unexported `hasBoostAbility` (a structural "does this card
+carry a printed ability whose `trigger.kind === 'boost'`?" check), used only for that module's own defend-prompt
+bound and never surfaced as a `TargetQuery`/`ValueSpec` a card script could read. Closest existing primitive: the
+same shape `<bind>.boostIcons` already has — a `<bind>.starIcons` (or `.boostAbilityCount`) sibling on
+`discardEncounterCards`, reusing `hasBoostAbility`'s own check rather than duplicating it. Not scw-specific:
+Longshot (`wolv` pack, not yet scripted) needs the identical underlying fact as a yes/no read. Because the whole
+obligation is one ability ref (`core/obligations.ts`'s `obligation()` helper builds a single `AbilityDefinition`
+for both the "exhaust to remove" and "discard 5, count stars" branches), the ref is pinned as a whole rather than
+half-scripted — `15023.obligation` is `KNOWN_SKIPPED.scw`'s only entry.
+
+**A found-by-testing script bug, not a primitive gap (§4.1 again, the "compiles ≠ correct" direction):** Chaos
+Manipulation's own "search the encounter deck and discard pile for Luminous and put her into play" was first
+written as `chooseCards(..., { min: 0, max: 1 })`, reasoning by analogy to Zola's own "the minion may already be in
+play" case (`zola.ts`'s `04112a.setup`). A real test (staging Luminous into the encounter discard pile, then
+revealing Chaos Manipulation) found she was never actually put into play: `firstLegal` always answers with the
+*fewest* legal selections, and for `min: 0` that means declining the pick even when she genuinely was found.
+`executeChooseCards` (`packages/engine/src/resolve/effects-frame.ts`) already special-cases zero legal candidates
+*before* `min` is ever consulted, so `min: 1` is safe even when she isn't findable at all — it only forces the pick
+when there is exactly one real candidate, which is what "search … for Luminous and put her into play" (no "you
+may") actually means. Fixed in `obligation-nemesis.ts`, with the full account in that file's own docblock.
+
+**Also fixed, a doc-only slip found while reading the primitive `playFromHandIgnoringCost` was built for:**
+`dsl/effects.ts`'s own comment on that builder cited Chaos Magic as "(Chaos Magic, `qsv` pack)" — Chaos Magic is
+15003, `scw`, not a `qsv` card. One-line fix, no shape change.
+
+**Load-bearing test-writing lessons this session added, beyond the ones already listed above:**
+- **`stackEncounterDeck` can place a card *already in the deck* (from earlier test surgery) at an exact position
+  relative to others** — since it finds a named card wherever it currently sits (deck or discard) and moves it to
+  the front in the given order, a card moved into the deck by one surgery step (e.g. `stageFromSetAside`) can be
+  named again in the *same* `stackEncounterDeck` call to fix its exact position among several other stacked cards,
+  rather than needing a second, separate splice.
+- **`endTurn()`/a villain phase never forces a form change on its own** (RRG 1.8 "Form, Change Form": a change is
+  always voluntary, or forced by a specific card) — a hero who ends a round in hero form is *still* in hero form at
+  the start of the next round. The harness's own `toHero()` is a bare `changeForm` command with no `to` field, which
+  the engine reads as *toggle*, not "switch to hero" — calling it a second time on an already-hero identity flips it
+  back to alter-ego instead of erroring, silently producing the wrong form for whatever the test does next. Check
+  (or track) the actual current form before a second `toHero()` in the same test, rather than assuming every round
+  starts fresh in alter-ego.
+- **The *main* scheme reaching 0 threat never fires a `schemeDefeated` event** — only a side scheme's own defeat
+  does (RRG 1.8 draws this distinction structurally: the main scheme advances a stage instead). A card reading
+  "after your hero thwarts and removes all threat from a scheme" (Turn the Tide, 15015) needs a real side scheme to
+  test against; a synthetic one, injected directly via `villainArea`/a hand-built `CardInstance` with `threat: 1`,
+  is the same technique `trors/red-skull.test.ts`'s own "gets +1 ATK for each side scheme in play" test already
+  uses for the identical need.
+- **A same-shaped ability that is itself the trigger's own reactive play** (a printed Response on an event card,
+  played reactively rather than by command) still needs its own trigger-acceptance option id (`<instance>:<ability>`)
+  in the `accepting(...)` picker's own wanted list *in addition to* whatever target it names — a picker matching
+  only the target's own slot name (e.g. `"enemy"`) never reaches the trigger-acceptance step at all, so the whole
+  ability silently never fires, looking exactly like "the ability doesn't work" rather than "the test forgot the
+  trigger's own option id."
+- **Composing two "patch one field of state" test helpers requires composing through the first's own returned
+  state, not the original** — `{ ...helperA(state, x), instances: { ...state.instances, ... } }` silently discards
+  whatever `helperA` changed, since the second `instances` spread reads from the *original* `state`, not
+  `helperA`'s output. The same class of mistake `docs/phase7-wave2-scripting.md`'s own `moveToHand`-returned-state
+  lesson (qsv's session) already named, recurring here across two different single-purpose helpers
+  (`withThreat`/`withDamage`) instead of one multi-step effect.
+- **A card's own precon aspect determines which of its non-hero-specific pack cards are real-command-testable** —
+  Scarlet Witch's own `scw-justice` starter deck (`@mc/content`'s `SCW_STARTER_DECKS`) curates exactly 15002–15022,
+  so Browbeat/Last Stand/Bait and Switch (Aggression/Leadership/Protection) and Recuperation (Basic, *not* in that
+  curated list either, despite being a Basic-aspect card any hero could nominally run) are unreachable from her own
+  precon and get `toBeDefined()`-only tests, following `qsv/pack-cards.test.ts`'s own precedent for the identical
+  situation.
+
+Re-ran the `KNOWN_SKIPPED` regeneration check (§1) against `SCW_CARDS`/`WAVE2_ABILITIES` before promoting the pack:
+34 refs, 33 resolve, 1 skipped (`15023.obligation`, the confirmed-genuine primitive gap above) — matching this
+pack's own bar. `pnpm --filter @mc/cards test` (674 tests), root `pnpm typecheck`, and root `pnpm test` (content,
+engine, cards, client — 3248 tests total) are all green.
+
+**Cycle 1's hero-pack lineup (`trors`, `toafk`, `ant`, `wsp`, `qsv`, `scw`) is now fully scripted.** No pack is
+`"not started"` or `"in progress"` in this file's own §7 table any longer. What remains open across the whole
+cycle, for whoever picks this file up next: the Hydra Campaign cards (`trors`, deferred pending campaign mode), the
+Temporal obligations and Expert-only refs (`toafk`), a handful of pre-existing overpaid-from-a-later-interrupt and
+"cannot ready/change form until your next turn ends" primitive gaps (`ant`, `wsp`, `qsv`), and now Slipping Sanity's
+own star-icon-counting gap (`scw`) — each already written up in its own §6.x subsection or module docblock, none
+newly discovered by this session beyond the two found-by-testing script bugs above.
