@@ -2488,7 +2488,7 @@ query)`; and `applyRuleUntil` builders — most usefully two named ones, `cannot
 The engine half of §18.6, now that the data exists. `card-data-pipeline` landed `starIcon?: boolean` on
 `EncounterCardCommon` and `SideSchemeCard` (absent reads as `false`), backfilled for 159 cards across 32 packs from
 printed text and cross-checked against MarvelCDB's independent `boost_star` with no disagreements. Tests:
-`packages/engine/src/primitives-wave2e.test.ts` §24 (14 tests).
+`packages/engine/src/primitives-wave2e.test.ts` §24 (15 tests).
 
 **One correction to the brief this section was written from**, since a wrong number here would mislead scripting: of
 the 159 starred cards, **43 also print boost pips and 116 print a star with no pips at all** (counted over
@@ -2571,6 +2571,11 @@ in a discard pile:
   then: [ /* defeat the attacked minion */ ] }
 ```
 
+Note for the scripter: `@mc/cards`' `refMatches(ref, query)` builder does not expose the engine's `anywhere` flag,
+and the discarded card is in a discard pile by the time the question is asked, so either that builder grows an
+options argument or Longshot reads the count instead — `valueAtLeast(starIcons(slot("flip")), 1)`, which is
+zone-independent by construction and needs no flag. Both routes are tested (§24.4).
+
 A card with no boost area — any player card — has no star, so it never matches `{ starIcon: true }`. The clause's
 rejection code is `QueryExclusion "wrongStarIcon"`, worded for the client in
 `packages/client/src/view/highlights.ts` ("wrong star icon in the boost area") — the only client edit, needed for
@@ -2584,7 +2589,7 @@ need only DSL surface over primitives that exist:
 | Ref | Card | What it now needs |
 |---|---|---|
 | `15023.obligation` | Slipping Sanity (`scw`) | `discardEncounterCards(5, bind)` + `placeThreat(mainScheme, v("<bind>.starIcons"))`. The builder for the bound total is the same one `<bind>.boostIcons` already uses; nothing new beyond letting the `.starIcons` name through. |
-| `35033.longshot-response` | Longshot (`wolv`) | `discardEncounterCards(1, bind)` + `refMatches(slot(bind), { starIcon: true }, { anywhere: true })` in an `if`, then the existing defeat effect. A `starIcon()` query helper (or just the raw field on the `query(...)` builder) is the whole DSL surface. |
+| `35033.longshot-response` | Longshot (`wolv`) | `discardEncounterCards(1, bind)` + an `if` on the discarded card, then the existing defeat effect. Two spellings, both tested: `valueAtLeast(starIcons(slot(bind)), 1)` — needs only a `starIcons(ref)` value builder — or `refMatches(slot(bind), { starIcon: true })` **with `anywhere: true`**, which the current `refMatches` builder cannot express. The first is the shorter path. |
 
 One warning worth carrying into the DSL: `starIcons` and `boostIcons` are **not** interchangeable, and a card that
 reads "for each boost icon" must not be scripted with `starIcons` (or vice versa). The two numbers disagree on 116 of

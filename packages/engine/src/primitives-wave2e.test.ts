@@ -252,6 +252,22 @@ describe("§24.4 `TargetQuery.starIcon` as a yes/no on one card", () => {
     expect(counter(resolve({ effects: longshot(), top: [STAR_ONLY.id] }), "defeated")).toBe(1);
   });
 
+  // The same sentence written as a count instead of a query — the route `@mc/cards` can take today, since its
+  // `refMatches` builder does not expose `anywhere` and the discarded card is in a discard pile by now.
+  const counted: readonly EffectSpec[] = [
+    { kind: "discardEncounterCards", count: num(1), bind: "flip" },
+    {
+      kind: "if",
+      condition: { kind: "compare", left: { kind: "starIcons", cards: { kind: "slot", slot: "flip" } }, op: "atLeast", right: num(1) },
+      then: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "defeated", amount: num(1) }],
+    },
+  ];
+
+  it("reads the same yes/no through `compare` + `starIcons`, which needs no `anywhere` flag", () => {
+    expect(counter(resolve({ effects: counted, top: [STAR_ONLY.id] }), "defeated")).toBe(1);
+    expect(counter(resolve({ effects: counted, top: [PIPS_ONLY.id] }), "defeated")).toBe(0);
+  });
+
   it("does not fire on a card that prints boost icons but no star", () => {
     expect(counter(resolve({ effects: longshot(), top: [PIPS_ONLY.id] }), "defeated")).toBe(0);
     expect(counter(resolve({ effects: longshot(), top: [PLAIN.id] }), "defeated")).toBe(0);
