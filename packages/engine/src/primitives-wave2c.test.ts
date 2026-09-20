@@ -18,7 +18,7 @@ import { createGame } from "./setup.js";
 import type { CardInstance, GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubMinion, stubSideScheme, stubSupport, stubTreachery, stubUpgrade, stubVillain } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, giveCards, newGame, RESOURCE, runWith, settle } from "./testing/scenario.js";
+import { DEFAULT_CARDS, DEFAULT_DECK, giveCards, newGame, resolvePending, RESOURCE, runWith, settle, settleUntil } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const p2 = playerId("p2");
@@ -413,5 +413,142 @@ describe("§17.3 `RuleSpec attackKeywords.basicOnly`: a keyword granted to basic
     // The villain's 2 was absorbed by the tough card and only the engaged minion's own 1 landed. With piercing the
     // villain's attack would have discarded the card first and dealt its 2 as well.
     expect(mustInstance(villainPhase, heroId).damage).toBe(1);
+  });
+});
+
+// ---- §17.4 "+2 to that power for this use" --------------------------------------------------------------------------
+
+describe("§17.4 `basicPowerUsing` + `modifyBasicPower`: a bonus to the basic power being used", () => {
+  const STRONG_VILLAIN = stubVillain({ id: "strong-villain", stages: [{ hp: flat(40), atk: 5, sch: 0 }] });
+  const MINION = stubMinion({ id: "target-minion", atk: 1, sch: 1, hp: 9, boostIcons: 0 });
+  const SIDE = stubSideScheme({ id: "big-side", startingThreat: 9 });
+  const ALLY_4 = stubAlly({ id: "ally4", cost: 0, atk: 2, thw: 2, hp: 3 });
+
+  const summonMinion = stubAbility("summon-target.action", def({
+    trigger: { kind: "action" },
+    effects: [
+      { kind: "selectCards", slot: "found", cards: { kind: "encounter", zones: ["deck"], filter: { name: MINION.id } } },
+      { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: { kind: "controller" } },
+    ],
+  }));
+  const summonSide = stubAbility("summon-big-side.action", def({
+    trigger: { kind: "action" },
+    effects: [
+      { kind: "selectCards", slot: "found", cards: { kind: "encounter", zones: ["deck"], filter: { name: SIDE.id } } },
+      { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: { kind: "controller" } },
+    ],
+  }));
+  const SUMMONER = stubSupport({ id: "summoner-3", cost: 0, abilities: [summonMinion.ref, summonSide.ref] });
+
+  /** "Interrupt: When you use one of your hero's basic powers, get +2 to that power for this use." */
+  const growthAbility = stubAbility("growth.interrupt", def({
+    trigger: { kind: "interrupt", forced: true, on: { on: "basicPowerUsing", playerIs: "controller" } },
+    effects: [{ kind: "modifyBasicPower", amount: { kind: "const", value: 2 } }],
+  }));
+  const GROWTH = stubUpgrade({ id: "growth", cost: 0, abilities: [growthAbility.ref] });
+  /** The same effect with no basic power being used: "Hero Action: get +2 to that power" resolves into nothing. */
+  const strayAbility = stubAbility("stray.action", def({
+    trigger: { kind: "action", form: "hero" },
+    effects: [{ kind: "modifyBasicPower", amount: { kind: "const", value: 2 } }],
+  }));
+  const STRAY = stubSupport({ id: "stray", cost: 0, abilities: [strayAbility.ref] });
+  /** "Hero Action (attack): Deal 2 damage to an enemy." — an ability's attack, not a use of a basic power. */
+  const swingAbility = stubAbility("swing2.action", def({
+    trigger: { kind: "action", form: "hero" },
+    label: ["attack"],
+    effects: [{ kind: "attack", target: { kind: "each", query: { categories: ["minion"] } }, amount: { kind: "const", value: 2 } }],
+  }));
+  const SWING = stubEvent({ id: "swing2", cost: 0, abilities: [swingAbility.ref] });
+
+  const deps = depsOf(summonMinion, summonSide, growthAbility, strayAbility, swingAbility);
+  const heroOf = (state: GameState) => mustPlayer(state, p1).identity.instanceId;
+
+  function ready(cards: readonly CardId[], options: { readonly villain?: typeof VILLAIN } = {}): { state: GameState; ids: readonly InstanceId[] } {
+    const base = newGame({
+      villain: options.villain ?? VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, MINION, SIDE, SUMMONER, GROWTH, STRAY, SWING, ALLY_4],
+      deck: [...copies(RESOURCE.id, 10), ...copies(SUMMONER.id, 2), ...copies(GROWTH.id, 2), ...copies(STRAY.id, 2), ...copies(SWING.id, 2), ...copies(ALLY_4.id, 2)],
+      encounterDeck: [MINION.id, SIDE.id, ...copies(BLANK.id, 14)],
+      deps,
+    });
+    const hero = runWith(deps, base, toHero);
+    const given = giveCards(hero, p1, SUMMONER.id, ...cards);
+    const [summonerId] = given.ids as readonly InstanceId[];
+    let current = settle(runWith(deps, given.state, play(summonerId as InstanceId)), undefined, deps);
+    for (const id of given.ids.slice(1)) {
+      if (mustInstance(current, id).cardId === SWING.id) continue; // an event: played by the test itself
+      current = settle(runWith(deps, current, play(id)), undefined, deps);
+    }
+    for (const ability of [summonMinion, summonSide]) {
+      const use: Command = { type: "useAbility", playerId: p1, cardInstanceId: summonerId as InstanceId, abilityId: ability.ref.id, payment: [] };
+      current = settle(runWith(deps, current, use), undefined, deps);
+    }
+    return { state: current, ids: given.ids.slice(1) };
+  }
+
+  const minionIn = (state: GameState) => mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === MINION.id) as InstanceId;
+  const sideIn = (state: GameState) => state.villainArea.find((id) => mustInstance(state, id).cardId === SIDE.id) as InstanceId;
+
+  it("raises a basic attack (ATK 2 → 4) and expires with that attack", () => {
+    const { state } = ready([GROWTH.id]);
+    const minion = minionIn(state);
+    const after = settle(runWith(deps, state, { type: "basicAttack", playerId: p1, attackerInstanceId: heroOf(state), targetInstanceId: minion, payment: [] }), undefined, deps);
+    expect(mustInstance(after, minion).damage).toBe(4);
+    // "For this use": the modifier is gone with the attack it belonged to (RRG 1.8 "Lasting Effects", p. 26).
+    expect(after.lastingEffects).toHaveLength(0);
+  });
+
+  it("raises a basic thwart (THW 2 → 4) from the same one ability", () => {
+    const { state } = ready([GROWTH.id]);
+    const side = sideIn(state);
+    const after = settle(runWith(deps, state, { type: "basicThwart", playerId: p1, thwarterInstanceId: heroOf(state), schemeInstanceId: side, payment: [] }), undefined, deps);
+    expect(mustInstance(after, side).threat).toBe(5);
+    expect(after.lastingEffects).toHaveLength(0);
+  });
+
+  it("raises a basic defense (DEF 2 → 4) against an attack of 5, and expires with that attack", () => {
+    // The villain phase also has the engaged minion attack for 1, undefended (the hero is exhausted by the defense),
+    // so the measure is the difference: 5 − (2 + 2) + 1 = 2 with the bonus, 5 − 2 + 1 = 4 without it.
+    const defend = (cards: readonly CardId[]): GameState => {
+      const { state } = ready(cards, { villain: STRONG_VILLAIN });
+      const prompted = settleUntil(runWith(deps, state, endTurn), "declareDefender", deps);
+      expect(prompted.pendingChoice?.prompt.kind).toBe("declareDefender");
+      return settle(resolvePending(prompted, [heroOf(state)], deps), undefined, deps);
+    };
+    const withBonus = defend([GROWTH.id]);
+    expect(mustInstance(withBonus, heroOf(withBonus)).damage).toBe(2);
+    expect(withBonus.lastingEffects).toHaveLength(0);
+    const without = defend([]);
+    expect(mustInstance(without, heroOf(without)).damage).toBe(4);
+  });
+
+  it("lands on the character using the power, not on the hero: an ally's own basic attack", () => {
+    const { state } = ready([GROWTH.id, ALLY_4.id]);
+    const ally = mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === ALLY_4.id) as InstanceId;
+    const minion = minionIn(state);
+    const after = settle(runWith(deps, state, { type: "basicAttack", playerId: p1, attackerInstanceId: ally, targetInstanceId: minion, payment: [] }), undefined, deps);
+    expect(mustInstance(after, minion).damage).toBe(4);
+    // The hero, who used no power, is unchanged.
+    expect(mustInstance(after, heroOf(after)).damage).toBe(0);
+  });
+
+  it("does not fire for an attack an ability makes: only a basic power is a basic power (RRG 1.8 p. 10)", () => {
+    const { state, ids } = ready([GROWTH.id, SWING.id]);
+    const swing = ids.find((id) => mustInstance(state, id).cardId === SWING.id) as InstanceId;
+    const minion = minionIn(state);
+    const after = settle(runWith(deps, state, play(swing)), undefined, deps);
+    expect(mustInstance(after, minion).damage).toBe(2);
+  });
+
+  it("does nothing at all outside a basic-power use", () => {
+    const { state } = ready([STRAY.id]);
+    const stray = mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === STRAY.id) as InstanceId;
+    const use: Command = { type: "useAbility", playerId: p1, cardInstanceId: stray, abilityId: strayAbility.ref.id, payment: [] };
+    const after = settle(runWith(deps, state, use), undefined, deps);
+    expect(after.lastingEffects).toHaveLength(0);
+    const minion = minionIn(after);
+    const attacked = settle(runWith(deps, after, { type: "basicAttack", playerId: p1, attackerInstanceId: heroOf(after), targetInstanceId: minion, payment: [] }), undefined, deps);
+    expect(mustInstance(attacked, minion).damage).toBe(2);
   });
 });

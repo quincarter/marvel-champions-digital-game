@@ -266,6 +266,10 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
         const used: TriggerEvent = { kind: "basicPowerUsed", characterInstanceId: defenderId, power: "defense", playerId: defenderPlayer };
         if (heard(ctx.state, ctx.deps, used)) announce(ctx, used);
+        // "When you use one of your hero's basic powers … DEF" (§17.4), pushed second so it resolves first — before
+        // the attack's own damage step reads the defender's DEF (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9).
+        const using: TriggerEvent = { kind: "basicPowerUsing", characterInstanceId: defenderId, power: "defense", playerId: defenderPlayer };
+        if (heard(ctx.state, ctx.deps, using)) announce(ctx, using);
         return;
       }
       // RRG "Defend, Defense": with a "(defense)" defender already set, only that

@@ -237,12 +237,37 @@ export type TriggerEventBody =
   | { readonly kind: "boostIconsCounting"; readonly enemyInstanceId: InstanceId; readonly cardInstanceId: InstanceId; readonly playerId: PlayerId }
   /**
    * A character used a basic power (docs/phase7-wave2.md §3.11): "After you use a basic power" (Quicksilver's Super
-   * Speed; Captain Marvel ally 04032; Rapid Growth). FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61): a stunned attack or a
+   * Speed; Captain Marvel ally 04032). FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61): a stunned attack or a
    * confused thwart "is not considered to have used a basic power", so it is announced only once the power resolves.
-   * Announced only when an ability could react.
+   * Announced only when an ability could react. The *interrupt* side of the same moment is `basicPowerUsing`.
    */
   | {
       readonly kind: "basicPowerUsed";
+      readonly characterInstanceId: InstanceId;
+      readonly power: "attack" | "thwart" | "defense" | "recover";
+      readonly playerId: PlayerId;
+    }
+  /**
+   * A character is using a basic power, before the power's own value is read (docs/phase7-wave2.md §17.4): "Hero
+   * Interrupt: When you use one of your hero's basic powers (THW, ATK, or DEF), … get +2 to that power for this use"
+   * (Rapid Growth 13005), "When you use one of Venom's basic powers, … Venom gets +1 to that power for this use"
+   * (Venom's Pistol). The interrupt twin of `basicPowerUsed`, the way `cardReadying` is to a ready and
+   * `encounterCardRevealing` is to a reveal: one event whose shape is the same for every power, so a card that names
+   * several of them at once is one trigger rather than one per power (each power's own event — `attack`, `thwart`,
+   * the enemy attack a defense belongs to — has a different shape and a different subject).
+   *
+   * Pushed **on top of** the power's own events, so it resolves first: an interrupt to it runs before the power's
+   * value is read, which is what "for this use" needs. Its *response* window therefore also runs before the power
+   * resolves — "after you use a basic power" is `basicPowerUsed`, which is announced beneath the power.
+   *
+   * Not pushed for a basic recovery: that power has no event frame of its own (`basicRecover` heals in the command),
+   * so there is nothing for an interrupt to precede. No card in the pool needs one — recovery is an alter-ego power
+   * (RRG 1.8 "Recover, Recovery", p. 36; "Basic Power", p. 11) and every card that interrupts a basic power is either
+   * a Hero Interrupt or names "(THW, ATK, or DEF)". The `power` field still covers all four so nothing changes shape
+   * the day one does; see docs/phase7-wave2.md §17.4 for the change that would need.
+   */
+  | {
+      readonly kind: "basicPowerUsing";
       readonly characterInstanceId: InstanceId;
       readonly power: "attack" | "thwart" | "defense" | "recover";
       readonly playerId: PlayerId;
@@ -329,6 +354,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "boostIconsCounting":
     // "When attached character would ready" (docs/phase7-wave2.md §3.11): the ready is still to come.
     case "cardReadying":
+    // "When you use one of your hero's basic powers" (§17.4): the power is still to come.
+    case "basicPowerUsing":
     case "turnEnding":
     case "surgeResolving":
     case "cardBeingPlayed":
@@ -412,6 +439,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "boostIconsCounting":
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
     case "basicPowerUsed":
+    case "basicPowerUsing":
       return of([event.characterInstanceId], [event.characterInstanceId], [event.playerId]);
     case "cardReadying":
       return of([], [event.instanceId], []);

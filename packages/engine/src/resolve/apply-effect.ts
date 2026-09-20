@@ -59,7 +59,7 @@ import {
   resolveRef,
   resolveValue,
 } from "../select.js";
-import type { EffectSpec } from "../spec.js";
+import type { EffectSpec, StatName } from "../spec.js";
 import { currentActivationFrameId, type DeferredEffects, type ReportTarget, type StackFrame } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { matchingCardInPlay } from "../unique.js";
@@ -292,6 +292,33 @@ export function applyEffect(
         delta.extraBoost = extra;
       }
       addFrameVars(ctx, activation, delta);
+      return;
+    }
+    case "modifyBasicPower": {
+      // "Get +N to that power for this use": which power is read off the `basicPowerUsing` event this effect is
+      // resolving inside (docs/phase7-wave2.md §17.4), so one effect serves every basic power a card names at once.
+      const using = ctx.state.stack.find(
+        (f): f is Frame<"event"> => f.kind === "event" && f.event.kind === "basicPowerUsing",
+      );
+      if (!using || using.event.kind !== "basicPowerUsing") return;
+      const stat: StatName =
+        using.event.power === "attack" ? "atk" : using.event.power === "thwart" ? "thw" : using.event.power === "defense" ? "def" : "rec";
+      // "For this use": the activation the power belongs to (its own `attack`/`thwart` event, or the enemy attack a
+      // basic defense answers), which is on the stack beneath this window and ends when that use does.
+      const activation = currentActivationFrameId(ctx.state.stack);
+      if (!activation) return;
+      addLastingEffect(
+        ctx,
+        {
+          kind: "statModifier",
+          stat,
+          amount: effect.amount,
+          targets: [using.event.characterInstanceId],
+          affects: null,
+          scope: { selfInstanceId: frame.selfInstanceId, controllerId: frame.controllerId, vars: frame.vars, bindings: frame.bindings },
+        },
+        { kind: "endOfEvent", frameId: activation },
+      );
       return;
     }
     case "cancelBoostIcons":

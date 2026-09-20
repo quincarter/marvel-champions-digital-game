@@ -536,6 +536,21 @@ export type EffectSpec =
       /** Scheme activations: "reduce the amount of threat placed on the scheme by 1" (Emergency) → `-1`. */
       readonly threatBonus?: ValueSpec;
     }
+  /**
+   * "Get +N to that power for this use" (Rapid Growth 13005; Venom's Pistol; Scarlet Witch ally `qsv`): a bonus to the
+   * basic power currently being used, on the character using it, for that use only.
+   *
+   * Resolves against the `basicPowerUsing` event on the stack (docs/phase7-wave2.md §17.4), so "that power" is read
+   * rather than named — one effect covers ATK, THW and DEF, which is what a card that says "one of your hero's basic
+   * powers (THW, ATK, or DEF)" needs from a single ability. It is a `statModifier` on that character for the matching
+   * stat, so it composes with every other modifier and is read when the power's value is read, whatever else the same
+   * ability did first (a form change, for instance). Its duration is the activation the power belongs to — the
+   * attack, the thwart, or the enemy attack a defense answers — so it expires with that use, never carrying into the
+   * next one. Outside a basic-power use it does nothing.
+   *
+   * `amount` is signed: a negative is "reduce your hero's ATK for that attack" (Ultimate Nullifier).
+   */
+  | { readonly kind: "modifyBasicPower"; readonly amount: ValueSpec }
   /** "At the end of this attack, …" — runs after the current attack's responses. The triggering event carries its `results`. */
   | { readonly kind: "atEndOfAttack"; readonly effects: readonly EffectSpec[] }
   /** "After this activation ends, shuffle this card into the encounter deck" (Goblin Knight's boost): `atEndOfAttack`'s timing, for an attack or a scheme. */

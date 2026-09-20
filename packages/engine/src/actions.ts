@@ -1602,14 +1602,15 @@ function basicAttackPaying(ctx: Ctx, command: Command & { type: "basicAttack" },
       playerId: command.playerId,
       basic: true,
     });
-    return null;
+  } else {
+    // "Wasp is considered to attack each target affected by her divided basic attack" (FAQ "Wasp (#1C)"): one attack per
+    // target, in the order given, so each retaliate resolves in the order of her choice.
+    pushEvents(
+      ctx,
+      shares.map(({ targetInstanceId, amount }) => ({ kind: "attack" as const, attackerInstanceId: command.attackerInstanceId, targetInstanceId, playerId: command.playerId, basic: true, amount })),
+    );
   }
-  // "Wasp is considered to attack each target affected by her divided basic attack" (FAQ "Wasp (#1C)"): one attack per
-  // target, in the order given, so each retaliate resolves in the order of her choice.
-  pushEvents(
-    ctx,
-    shares.map(({ targetInstanceId, amount }) => ({ kind: "attack" as const, attackerInstanceId: command.attackerInstanceId, targetInstanceId, playerId: command.playerId, basic: true, amount })),
-  );
+  announceBasicPowerUsing(ctx, command.attackerInstanceId, "attack", command.playerId);
   return null;
 }
 
@@ -1694,13 +1695,14 @@ function basicThwartPaying(ctx: Ctx, command: Command & { type: "basicThwart" },
       basic: true,
       ...(useAtk ? { useAtk: true } : {}),
     });
-    return null;
+  } else {
+    // "simultaneously remove threat from each scheme that Wasp chooses" (FAQ "Wasp (#1C)"): one thwart per scheme.
+    pushEvents(
+      ctx,
+      shares.map(({ targetInstanceId, amount }) => ({ kind: "thwart" as const, thwarterInstanceId: command.thwarterInstanceId, schemeInstanceId: targetInstanceId, playerId: command.playerId, basic: true, amount })),
+    );
   }
-  // "simultaneously remove threat from each scheme that Wasp chooses" (FAQ "Wasp (#1C)"): one thwart per scheme.
-  pushEvents(
-    ctx,
-    shares.map(({ targetInstanceId, amount }) => ({ kind: "thwart" as const, thwarterInstanceId: command.thwarterInstanceId, schemeInstanceId: targetInstanceId, playerId: command.playerId, basic: true, amount })),
-  );
+  announceBasicPowerUsing(ctx, command.thwarterInstanceId, "thwart", command.playerId);
   return null;
 }
 
@@ -1757,6 +1759,17 @@ export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover"
  */
 export function announceBasicPower(ctx: Ctx, characterId: InstanceId, power: "attack" | "thwart" | "defense" | "recover", playerId: PlayerId): void {
   const event: TriggerEvent = { kind: "basicPowerUsed", characterInstanceId: characterId, power, playerId };
+  if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
+}
+
+/**
+ * "When you use one of your hero's basic powers" (docs/phase7-wave2.md §17.4): pushed *on top of* the power's own
+ * events, so its interrupt window resolves before the power's value is read. Like its "used" twin it goes on the stack
+ * only when an ability could react, and a stunned attack or confused thwart never reaches either of them (the cancel
+ * returns before both), so a power that is cancelled is not "used" for any timing.
+ */
+export function announceBasicPowerUsing(ctx: Ctx, characterId: InstanceId, power: "attack" | "thwart" | "defense" | "recover", playerId: PlayerId): void {
+  const event: TriggerEvent = { kind: "basicPowerUsing", characterInstanceId: characterId, power, playerId };
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
 }
 
