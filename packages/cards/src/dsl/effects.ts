@@ -8,6 +8,7 @@ import type {
   PlayerZone,
   Predicate,
   ResourceRequirement,
+  RuleSpec,
   StatName,
   StatusName,
   TargetQuery,
@@ -312,6 +313,33 @@ export const modifyStatOf = (stat: StatName | "hp" | "handSize", n: Amount, affe
   until,
 });
 export const gainTraitUntil = (t: Trait, target: TargetRef, until: LastingUntil): EffectSpec => ({ kind: "grantTraitUntil", trait: t, target, until });
+/**
+ * A `RuleSpec` restriction that outlives its own card — "You cannot change form until your next turn ends." (Care
+ * for Cassie, `ant` 12025) / "You cannot ready your identity until your next turn ends." (Need for Speed, `qsv`
+ * 14024): both discard themselves in the same breath that imposes the restriction, so it has to survive as a
+ * lasting effect rather than a constant ability (RRG 1.8 "Lasting Effects", p. 26). `until` also accepts the
+ * ordinary phase/round/turn boundaries any other lasting effect does; `"endOfNextTurn"` is the one both printed
+ * obligations need (docs/phase7-wave2.md §22 — the reading of "your next turn" when created during that player's
+ * own turn: the turn after this one, never zero-length). `player` names whose turn `"endOfNextTurn"` waits for;
+ * absent, the rule's own player, then the ability's controller. `cannotChangeFormUntil`/`cannotReadyUntil` below
+ * are the two named conveniences the pool's own cards need; reach for `applyRuleUntil` directly for any other
+ * `RuleSpec`.
+ */
+export const applyRuleUntil = (rule: RuleSpec, until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn", player?: PlayerRef): EffectSpec => ({
+  kind: "applyRuleUntil",
+  rule,
+  until,
+  ...(player ? { player } : {}),
+});
+/** "You cannot change form until your next turn ends." */
+export const cannotChangeFormUntil = (until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn", player: PlayerRef = you): EffectSpec =>
+  applyRuleUntil({ kind: "cannotChangeForm", player }, until, player);
+/** "You cannot ready [target] until your next turn ends." */
+export const cannotReadyUntil = (
+  target: TargetQuery,
+  until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn",
+  player?: PlayerRef,
+): EffectSpec => applyRuleUntil({ kind: "cannotReady", target }, until, player);
 /**
  * "Reduce the cost of the next card that player plays this phase/round by N." `cardFilter` narrows which played
  * card consumes it — "the next Avenger ally played this phase" (Avengers Tower, `cap` pack): `{ trait: AVENGER,

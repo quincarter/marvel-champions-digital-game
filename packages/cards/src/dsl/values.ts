@@ -114,6 +114,21 @@ export const query = (
   rest: Omit<TargetQuery, "categories"> = {},
 ): TargetQuery => ({ categories: typeof categories === "string" ? [categories] : categories, ...rest });
 
+/**
+ * "… that shares a trait with your hero" (Team-Building Exercise, `ant` 12024): `query(categories, sharesTraitWith(
+ * identityOf(you)))`. Both sides are read live through `traitsOf` — a granted trait counts on either end (RRG 1.8
+ * "Gains", p. 21) — and a ref naming nothing, or naming only trait-less cards, matches nothing (there is no trait
+ * to share). docs/phase7-wave2.md §20.1.
+ */
+export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitWith"> => ({ sharesTraitWith: ref });
+/**
+ * "… a card from the [X] Nemesis set" (Yellowjacket's Plan, `ant` 12029): `query(categories, encounterSetOf(self))`
+ * — every printed "a card from the <X> set" in cycle 1 sits on a card that is itself a member of that set, so
+ * `self` says it without naming the set anywhere in `@mc/cards`. Reads `encounterSetIds` off card data, so it
+ * matches wherever the card is (deck, discard, set aside, in play). docs/phase7-wave2.md §20.2.
+ */
+export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
+
 /** "Friendly character": any identity or ally (every player's, RRG "Friendly"). */
 export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
 /** "Your hero": your identity while it is in hero form. */

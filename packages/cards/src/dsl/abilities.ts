@@ -356,9 +356,13 @@ export const exhaustYourHero: AbilityCost = { exhaustIdentity: true };
  * "Choose and discard N (up to M) cards from your hand →" — the cards are bound to slot `discard`, their count to
  * `bind`. Omit `max` for "Discard X cards from your hand" with no printed cap (Shield Toss, `cap` pack): bounded
  * only by hand size, since a payment can never repeat a card or pick one not in hand.
+ *
+ * `filter` narrows *which* hand cards may pay it: "Discard a [physical] resource from your hand →" (Weakened,
+ * `toafk` 11018) is `discardFromHandCost(1, 1, undefined, { printedResource: "physical" })`. docs/phase7-wave2.md
+ * §19 — the cost-side twin of the effect's own `discardFromHand`'s `filter`.
  */
-export const discardFromHandCost = (min: number, max?: number, bind?: string): AbilityCost => ({
-  discardFromHand: { min, ...(max !== undefined ? { max } : {}), ...(bind ? { bind } : {}) },
+export const discardFromHandCost = (min: number, max?: number, bind?: string, filter?: TargetQuery): AbilityCost => ({
+  discardFromHand: { min, ...(max !== undefined ? { max } : {}), ...(bind ? { bind } : {}), ...(filter ? { filter } : {}) },
 });
 /**
  * "Discard N card(s) at random from your hand →" (Magic Crowbar: `[exhaustYourHero, discardRandomFromHandCost(1)]`).
@@ -536,6 +540,13 @@ export const on = {
     pattern("basicPowerUsing", asTarget(who), opts.power ? { eventIs: { power: opts.power } } : {}),
   /** "When attached character would ready" (Frozen in Time; docs/phase7-wave2.md §3.11). */
   cardReadying: (what: Who): EventPattern => pattern("cardReadying", asTarget(what)),
+  /**
+   * "Hero Response: After you ready Quicksilver, ready this card." (Friction Resistance, `qsv` 14009): the "-ed"
+   * twin of `cardReadying`, an announcement pushed only once a ready actually happens (a "cannot ready" rule in
+   * play, or a card already ready, announces nothing — docs/phase7-wave2.md §21). The readied card is the event's
+   * own target, matching `cardReadying`; "after **you** ready X" is said by the query's own `controller: "you"`.
+   */
+  cardReadied: (what: Who): EventPattern => pattern("cardReadied", asTarget(what)),
   /** "When boost icons on an encounter card would be counted" (Chaos Control, Crest; docs/phase7-wave2.md §3.6). */
   boostIconsCounted: (): EventPattern => pattern("boostIconsCounting", {}),
   /**
