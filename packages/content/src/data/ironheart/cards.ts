@@ -833,6 +833,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
     attachesTo: { kind: "superlative", among: "minion", order: "highest", measure: "traitCount" },
     encounterSetIds: [encounterSetId("ironheart_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("TECH")],
     keywords: [],
     text: {
@@ -988,6 +989,7 @@ export const IRONHEART_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("zzzax")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [],
     text: {

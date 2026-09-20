@@ -815,6 +815,7 @@ export const BP_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/51035.jpg") },
     encounterSetIds: [encounterSetId("black_panther_shuri_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -990,6 +991,7 @@ export const BP_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/51042.jpg") },
     encounterSetIds: [encounterSetId("extreme_risk")],
     boostIcons: 2,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

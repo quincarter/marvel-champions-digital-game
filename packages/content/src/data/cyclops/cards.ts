@@ -667,6 +667,7 @@ export const CYCLOPS_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("cyclops_nemesis")],
     boostIcons: 2,
+    starIcon: true,
     traits: [trait("ELITE"), trait("MARAUDER")],
     keywords: [{ name: "stalwart" }, { name: "toughness" }, { name: "villainous" }],
     text: {

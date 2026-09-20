@@ -732,6 +732,7 @@ export const WOLV_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/35031.png") },
     encounterSetIds: [encounterSetId("wolverine_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -874,6 +875,7 @@ export const WOLV_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/35037.png") },
     encounterSetIds: [encounterSetId("deathstrike")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

@@ -698,6 +698,7 @@ export const ICEMAN_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/46028.jpg") },
     encounterSetIds: [encounterSetId("iceman_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -721,6 +722,7 @@ export const ICEMAN_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("sauron")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("BROTHERHOOD OF MUTANTS")],
     keywords: [],
     text: {

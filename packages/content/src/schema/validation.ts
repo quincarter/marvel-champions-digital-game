@@ -311,9 +311,38 @@ function baseErrors(card: AnyCard): string[] {
 /**
  * Printed boost icons: a whole number of at least 0. There is no upper bound: Joystick (51039), Fixer (53038) and
  * Blizzard (54034) print 4 (docs/phase7-wave2.md §6.13; the old cap of 3 was a placeholder no rule states).
+ *
+ * `starIcon` is a plain boolean when present at all (docs/phase7-wave2-data.md): a boost area carries at most one
+ * star, so there is no count to validate, just the type.
  */
-function boostErrors(card: { boostIcons: number }, label: string): string[] {
-  return isNonNegativeInteger(card.boostIcons) ? [] : [`${label} boostIcons must be a whole number of at least 0`];
+function boostErrors(card: { boostIcons: number; starIcon?: unknown }, label: string): string[] {
+  const errors: string[] = [];
+  if (!isNonNegativeInteger(card.boostIcons)) errors.push(`${label} boostIcons must be a whole number of at least 0`);
+  if (card.starIcon !== undefined && typeof card.starIcon !== "boolean") {
+    errors.push(`${label} starIcon must be a boolean when present`);
+  }
+  return errors;
+}
+
+/**
+ * A card's `starIcon` and its own printed `Boost:` ability should never disagree: RRG 1.8 "Boost, Boost Icon" ties
+ * the star exactly to "the card has a 'Boost' ability" — a `.boost`-suffixed ability ref is `@mc/content`'s own
+ * naming convention for that ability (every pack, checked in `wave2-data-requests.test.ts`: 703/703 encounter-side
+ * cards agree). This is an ingest-quality signal, not a hard schema error — a card can legitimately have a `.boost`
+ * ref named differently in principle — so it is surfaced as a warning string for a test to assert is empty across
+ * the pool, not folded into `ValidationResult`.
+ */
+export function starIconAbilityMismatch(
+  card: { readonly cardCode?: string; readonly starIcon?: boolean; readonly abilities: readonly AbilityReference[] },
+  label: string,
+): string | null {
+  if (!Array.isArray(card.abilities)) return null;
+  const hasBoostRef = card.abilities.some((ref) => typeof ref?.id === "string" && ref.id.endsWith(".boost"));
+  const starIcon = card.starIcon === true;
+  if (hasBoostRef === starIcon) return null;
+  return hasBoostRef
+    ? `${label} has a ".boost" ability ref but starIcon is not true`
+    : `${label} has starIcon: true but no ".boost" ability ref`;
 }
 
 /** Fields every player-deck card shares: text, keywords, abilities, deck limit, play restrictions, separate deck. */

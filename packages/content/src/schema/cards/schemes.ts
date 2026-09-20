@@ -91,6 +91,9 @@ export interface SideSchemeCard extends BaseCard {
   readonly startingThreat: ScalingValue;
   readonly icons: readonly SchemeIcon[];
   readonly boostIcons: number;
+  /** See `EncounterCardCommon.starIcon` (`encounter-cards.ts`) — same field, same backfill, side schemes just
+   * aren't part of that shared interface. */
+  readonly starIcon?: boolean;
   readonly traits: readonly Trait[];
   readonly keywords: readonly KeywordInstance[];
   readonly text: CardText;

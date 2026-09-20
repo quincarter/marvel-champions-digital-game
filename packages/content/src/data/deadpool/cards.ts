@@ -800,6 +800,7 @@ export const DEADPOOL_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("deadpool_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("SCIENTIST")],
     keywords: [],
     text: {
@@ -849,6 +850,7 @@ export const DEADPOOL_CARDS: readonly AnyCard[] = [
     attachesTo: { kind: "yourIdentity" },
     encounterSetIds: [encounterSetId("deadpool_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

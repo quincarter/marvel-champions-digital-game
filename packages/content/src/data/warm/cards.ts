@@ -746,6 +746,7 @@ export const WARM_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/23031.png") },
     encounterSetIds: [encounterSetId("warm_nemesis")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

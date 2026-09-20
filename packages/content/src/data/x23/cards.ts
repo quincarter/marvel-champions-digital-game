@@ -782,6 +782,7 @@ export const X23_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/43033.png") },
     encounterSetIds: [encounterSetId("x23_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

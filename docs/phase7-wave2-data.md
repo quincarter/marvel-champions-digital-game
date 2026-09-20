@@ -38,6 +38,12 @@ below cites of it):
 8. **2026-09-19, eighth pass ("Part 7" below):** re-surveyed `psylocke`/`jubilee` clean, curated `jubilee` (zero
    corrections, Cycle 8), registered both packs and emitted them, and ran a full 63-pack survey to rank the 14
    remaining non-importing packs by blocker (artwork vs. schema vs. parser) for whoever picks them up next.
+9. **2026-09-20, ninth pass ("Part 8" below):** closed the last three refs in the wave 2 skip backlog that
+   `game-rules-architect`'s audit (docs/phase7-wave2.md §18) stopped at this package's boundary: split
+   `11020`/`11049` (`toafk`)'s single combined ability ref into a `-constant` ref and a `-action` ref apiece, and
+   added `starIcon?: boolean` (backfilled across all 703 encounter-side cards in the repo, 159 `true`) so
+   `15023` (Slipping Sanity, `scw`) can eventually read a printed boost-area star without deriving it from the
+   ability registry.
 
 ## Result
 
@@ -1306,3 +1312,163 @@ changed.
   data-only.test.ts}`, the new `packages/content/src/data/{psylocke,jubilee}/` folders, and this doc. No
   `packages/content/src/schema/**`, `packages/engine/**`, `packages/cards/**` or `packages/client/**` file was
   touched.
+
+---
+
+## Part 8: the wave 2 skip-backlog's last two `@mc/content` data gaps closed
+
+Scope: `game-rules-architect`'s audit (docs/phase7-wave2.md §18) verified twelve of the fifteen skipped wave 2
+refs were either already unblocked or fixable with new engine primitives, and landed all of that (§§19–22). It
+deliberately stopped at three refs it diagnosed as **not** engine gaps — `11020.obligation`/`11049.obligation`
+(§18.2) and `15023.obligation` (§18.6) — and handed them here. This pass closes both.
+
+### 1. `11020`/`11049` (`toafk`): the two-clauses-one-ref split
+
+Both cards print a constant restriction and an independent Alter-Ego Action under a single ability ref, which
+cannot work: an `AbilityDefinition` carries exactly one `AbilityTriggerSpec`. `packages/content/src/data/toafk/
+cards.ts` already carries the fix's own precedent — 11018 (Weakened), 11019 (Stolen Memories) and 11021
+(Time-Travel Hijinks) each split their two clauses into their own named refs (`.weakened-forced-response`/
+`.weakened-action`, etc.) plus a leftover `.obligation` marker ref the cards package stands up empty
+(`coveredByEngineRule()`). 11020/11049 never got that split; they still carried one ref (`11020.obligation`,
+`11049.obligation`) for both clauses.
+
+The fix, following that precedent's naming (`<name>-constant`/`<name>-action`, not the marker-plus-clauses shape,
+since there is no existing empty marker ref on these two cards to preserve):
+
+```ts
+// Depowered (11020): "You cannot play hero-specific cards." + "Alter-Ego Action: Discard a hero-specific card
+// from your hand → discard this obligation."
+abilities: [
+  { id: abilityId("11020.depowered-constant") },
+  { id: abilityId("11020.depowered-action") },
+],
+// Fear of Kang (11049): "You cannot attack Kang." + "Alter-Ego Action: Discard a random card from your hand →
+// discard this obligation."
+abilities: [
+  { id: abilityId("11049.fear-of-kang-constant") },
+  { id: abilityId("11049.fear-of-kang-action") },
+],
+```
+
+Card text (`text.printed`/`text.current`) is unchanged — it already held both clauses as one string, which is
+correct regardless of how many ability refs point at it (18/19/21 do the same). Cross-checked against
+`docs/cards/by_pack/toafk.md`'s own transcription of 11020/11049: identical wording, no disagreement. Per the
+architect's audit, every primitive both clauses need already exists (`RuleSpec cannotPlay` with
+`TargetQuery.identitySetOf` for 11020's constant, `RuleSpec cannotAttack` for 11049's, §19's
+`AbilityCost.discardFromHand.filter` for 11020's own chosen discard, `AbilityCost.discardRandomFromHand` for
+11049's random one) — this pass is a pure data split, no engine change, and neither ref is scripted yet.
+
+**A boundary note, flagged rather than silently done:** the task specified "do not edit `packages/cards`" and
+"leave `KNOWN_SKIPPED` alone." Both are satisfiable for the `15023` half of this pass (§2), but not for this one:
+`packages/cards/src/wave2/coverage.test.ts`'s `KNOWN_SKIPPED.toafk` is pinned to the *literal* unscripted ability
+ref ids `@mc/content` emits (`expect(missing).toEqual(expect.arrayContaining(skipped))` plus a length check), and
+renaming `11020.obligation`/`11049.obligation` to four new ref ids is exactly what this split requires. Leaving
+the list untouched after the rename would make it wrong on its own terms (it would no longer name any ref that
+actually exists), and the four new refs would show up in `missing` unexplained, failing the pack's own coverage
+test. I updated only the two `toafk` list entries — four ref ids replacing two, same "not yet scripted" status,
+comment updated to cite this pass — and touched nothing else in that file (no other pack's list, no `scw` entry,
+no scripting). `pnpm --filter @mc/cards test` is green with this change; `ability-scripting-engineer` still owns
+writing the four `AbilityDefinition`s themselves.
+
+### 2. `starIcon?: boolean`: schema, backfill, and validation
+
+RRG 1.8 "Boost, Boost Icon" (p. 11): "If the boost field has a star icon, it indicates that the card has a
+'Boost' ability [...] A star icon is not itself considered a boost icon." `boostIcons` (a pip count) cannot
+represent this, and nothing else in the schema did either — Slipping Sanity's "For each star icon in the boost
+area discarded this way, place 1 threat on the main scheme" had no field to read.
+
+**Schema** (`packages/content/src/schema/cards/encounter-cards.ts`, `schemes.ts`): `starIcon?: boolean` added
+beside `boostIcons` on `EncounterCardCommon` (covers `minion`, `attachment`, `treachery`, `obligation`,
+`environment`) and separately on `SideSchemeCard` (the one boost-area-carrying type outside that shared
+interface, per the architect's spec). Absent reads as `false`; it is a flag, not a count, since a boost area
+carries at most one star.
+
+**Backfill methodology.** The naive rule ("a star token immediately before the literal text `Boost:`") turns out
+to be wrong: Supporting Actor (39029, `mojo`) prints `"[star] Forced Response: ... \nBoost: ..."` — the star sits
+before an *earlier* paragraph, not immediately before `Boost:`. MarvelCDB's own raw record for this card
+(`packages/content/raw/marvelcdb/mojo.json`) has `"boost_star": true` and shows why: its `text` field carries an
+explicit `<hr />` between the two paragraphs, i.e. the star is printed near the top of the whole text box (not
+inline with "Boost:" specifically) but still describes the ability *beneath the divider line*, exactly as the
+RRG's own wording says. The correct rule, confirmed below: **`starIcon` is true iff the card's text (printed or
+current) contains a `[star]` token and a `Boost:` ability label, anywhere — not necessarily adjacent.** (A first
+pass also hit a decoding bug — extracting raw, still-escaped `\"...\\n...\"` substrings from the TypeScript
+source and testing `/\bBoost:/` against them, so a literal backslash-`n` broke the `\b` word boundary — fixed by
+`JSON.parse`-decoding each extracted string literal before testing it.)
+
+**Validated three ways**, not asserted from the rule alone:
+1. **Against MarvelCDB's own `boost_star` field**, per-pack raw cache (`packages/content/raw/marvelcdb/*.json`),
+   across every one of the 703 `treachery`/`minion`/`attachment`/`obligation`/`environment`/`side_scheme` cards in
+   the repo (Core + wave 1 + wave 2 + the 33-pack data-only pool, de-duplicated by id since `WAVE1_CARDS`/
+   `WAVE2_CARDS` both already include `CORE_CARDS`): **703/703 agree**, including 39029 once the rule above was
+   corrected (before that fix: 1 disagreement, 39029, false negative). No card in the pool disagrees with
+   MarvelCDB's `boost_star` under the corrected rule — nothing to report as an unresolved conflict.
+   (Separately, MarvelCDB is missing the *pip-count* `boost` field, not `boost_star`, for cards whose boost area
+   is 0 pips + no star — `scripts/generate_cards_markdown.py`'s own `boost_summary()` docblock names this; it
+   does not affect `starIcon`, which MarvelCDB reports as an explicit boolean on every one of these 703 cards.)
+2. **Against `@mc/content`'s own `.boost`-suffixed ability-ref naming convention**: every `Boost:`-ability ref in
+   the repo is named exactly `<cardCode>.boost` (no exceptions, no `-2` variants — checked directly). Whether a
+   card's `abilities` array contains such a ref agrees with its backfilled `starIcon` for all 703 cards, 0
+   mismatches. This check is now also a standing content test (`packages/content/src/schema/star-icon.test.ts`)
+   via the new `starIconAbilityMismatch()` (`validation.ts`) — the "worth an ingest-time warning" check the
+   architect's spec asked for, surfaced as a pool-wide assertion rather than folded into `ValidationResult`'s hard
+   errors, since a disagreement is a data-quality signal, not necessarily a malformed record.
+3. **Docs cross-check**: `docs/cards/by_pack/*.md`'s Quick Index "Boost" column and per-card "Boost Star" line are
+   generated from the same MarvelCDB raw cache (`scripts/generate_cards_markdown.py`), so this is the same
+   evidence as #1 by construction — spot-checked toafk's 11017/11048 (`[star] Boost:` cards) and confirmed the
+   doc agrees, rather than treated as an independent third source.
+
+**Result: 159 of 703 encounter-side cards get `starIcon: true`** (76 treachery, 61 minion, 10 attachment, 8 side
+scheme, 4 environment, 0 obligation — Slipping Sanity itself is not one of them; see below). Applied as a
+mechanical codemod (insert `starIcon: true,` immediately after each matching card's own `boostIcons: N,` line,
+verified against the same bracket-depth object parser used for the cross-checks, not hand-edited) across 32 pack
+files: `angel`, `bkw`, `bp`, `core`, `cyclops`, `deadpool`, `falcon`, `gambit`, `gob`, `hood`, `iceman`,
+`ironheart`, `magneto`, `mojo`, `ncrawler`, `nova`, `psylocke`, `qsv`, `ron`, `silk`, `spdr`, `storm`, `thor`,
+`toafk`, `trors`, `twc`, `vnm`, `warm`, `winter`, `wolv`, `wonder_man`, `x23`.
+
+**Slipping Sanity (15023, `scw`) does not get `starIcon: true`.** Its own printed text — "For each star icon
+([star]) in the boost area discarded this way, place 1 threat on the main scheme" — talks about stars on *other*
+cards drawn from the encounter deck, not a star in its own boost area (its own boost area is 3 plain pips, no
+divider, no `Boost:` ability of its own). This is exactly the distinction the field exists to make precise: the
+card that asks "how many stars did I just discard" is not itself one of the starred cards.
+
+**Validation.** `boostErrors()` (`validation.ts`) now also rejects a non-boolean `starIcon` when present, wired
+into every `EncounterCardCommon` validator (`validateMinionCard`, `encounterCommonErrors` for
+attachment/treachery/obligation/environment/side scheme). New test file `packages/content/src/schema/
+star-icon.test.ts` (7 tests): the boolean-type checks on both a minion and a side scheme (the one type outside
+`EncounterCardCommon`), the `starIconAbilityMismatch` unit behavior, the pool-wide zero-mismatch assertion, the
+exact 159-card count (pinned so a future backfill drift is caught, the same style `coverage.test.ts` uses for
+ability refs), and Slipping Sanity's own `starIcon` being absent.
+
+### 3. What the engine needs next (not built here)
+
+Per the architect's spec (docs/phase7-wave2.md §18.6), unchanged by this pass: a `ValueSpec { kind: "starIcons",
+cards: TargetRef }` beside `totalPrintedResources`, a `<bind>.starIcons` total on `discardEncounterCards`, and a
+`TargetQuery.starIcon?: boolean` for Longshot (`wolv`), which needs the same fact as a yes/no rather than a
+count. All three are one-liners now that the data exists (`card.starIcon === true`) — this pass deliberately does
+not touch `packages/engine` or `packages/cards`, per the task boundary.
+
+### 4. Verification
+
+`pnpm --filter @mc/content test` (425, up from 418), `pnpm --filter @mc/content typecheck`, `pnpm --filter @mc/
+cards test` (688, up from 687 — the `KNOWN_SKIPPED.toafk` update, no scripting), and root `pnpm test`/`pnpm
+typecheck` (all four packages: content 425, engine 733, cards 688, client 1448 — 3,294 tests, zero failures) all
+green. `git status` after the changes shows only the intended paths (`packages/content/**`,
+`packages/cards/src/wave2/coverage.test.ts`, `docs/phase7-wave2-data.md`) touched.
+
+### 5. Files touched this pass
+
+- `packages/content/src/schema/cards/encounter-cards.ts`, `schemes.ts` — `starIcon?: boolean`.
+- `packages/content/src/schema/validation.ts` — `starIcon` boolean-type check in `boostErrors()`, new
+  `starIconAbilityMismatch()`.
+- `packages/content/src/schema/star-icon.test.ts` (new).
+- `packages/content/src/data/toafk/cards.ts` — the 11020/11049 ref split.
+- `packages/content/src/data/{angel,bkw,bp,core,cyclops,deadpool,falcon,gambit,gob,hood,iceman,ironheart,magneto,
+  mojo,ncrawler,nova,psylocke,qsv,ron,silk,spdr,storm,thor,toafk,trors,twc,vnm,warm,winter,wolv,wonder_man,x23}/
+  cards.ts` — the 159-card `starIcon: true` backfill.
+- `packages/cards/src/wave2/coverage.test.ts` — `KNOWN_SKIPPED.toafk` updated to the four new ref ids (see §1's
+  boundary note). No other change in that package.
+- This doc.
+
+**Handoff:** `game-rules-architect` picks up §3's engine primitives next; once those land, `ability-scripting-
+engineer` un-skips all three original refs (`11020`/`11049`'s four split refs, plus `15023.obligation` once
+`starIcons`/`starIcon` exist to script against) and can remove the corresponding `KNOWN_SKIPPED` entries.

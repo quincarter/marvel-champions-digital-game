@@ -784,6 +784,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("falcon_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("SERPENT SOCIETY")],
     keywords: [{ name: "quickstrike" }],
     text: {
@@ -1022,6 +1023,7 @@ export const FALCON_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/53042.jpg") },
     encounterSetIds: [encounterSetId("techno")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

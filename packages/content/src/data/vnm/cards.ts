@@ -588,6 +588,7 @@ export const VNM_CARDS: readonly AnyCard[] = [
     hp: 2,
     encounterSetIds: [encounterSetId("vnm_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("SYMBIOTE")],
     keywords: [{ name: "guard" }, { name: "patrol" }],
     text: {

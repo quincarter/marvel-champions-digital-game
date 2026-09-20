@@ -240,6 +240,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     hp: 2,
     encounterSetIds: [encounterSetId("wrecker")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [{ name: "surge" }],
     text: {
@@ -260,6 +261,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07010.png") },
     encounterSetIds: [encounterSetId("wrecker")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -280,6 +282,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07011.png") },
     encounterSetIds: [encounterSetId("wrecker")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -340,6 +343,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07014.png") },
     encounterSetIds: [encounterSetId("wrecker")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -360,6 +364,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07015.png") },
     encounterSetIds: [encounterSetId("wrecker")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -581,6 +586,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     hp: 2,
     encounterSetIds: [encounterSetId("thunderball")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [{ name: "surge" }],
     text: {
@@ -601,6 +607,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07025.png") },
     encounterSetIds: [encounterSetId("thunderball")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -621,6 +628,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07026.png") },
     encounterSetIds: [encounterSetId("thunderball")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -641,6 +649,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07027.png") },
     encounterSetIds: [encounterSetId("thunderball")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -681,6 +690,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07029.png") },
     encounterSetIds: [encounterSetId("thunderball")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -888,6 +898,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     hp: 2,
     encounterSetIds: [encounterSetId("piledriver")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [{ name: "surge" }],
     text: {
@@ -908,6 +919,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07039.png") },
     encounterSetIds: [encounterSetId("piledriver")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -948,6 +960,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07041.png") },
     encounterSetIds: [encounterSetId("piledriver")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -968,6 +981,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07042.png") },
     encounterSetIds: [encounterSetId("piledriver")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -988,6 +1002,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07043.png") },
     encounterSetIds: [encounterSetId("piledriver")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1028,6 +1043,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07045.png") },
     encounterSetIds: [encounterSetId("piledriver")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1227,6 +1243,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     hp: 2,
     encounterSetIds: [encounterSetId("bulldozer")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [{ name: "surge" }],
     text: {
@@ -1247,6 +1264,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07054.png") },
     encounterSetIds: [encounterSetId("bulldozer")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1287,6 +1305,7 @@ export const TWC_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/07056.png") },
     encounterSetIds: [encounterSetId("bulldozer")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

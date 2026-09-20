@@ -479,6 +479,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     attachesTo: { kind: "yourIdentity" },
     encounterSetIds: [encounterSetId("kang")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("TEMPORAL")],
     keywords: [],
     text: {
@@ -502,6 +503,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("kang")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ROBOT"), trait("TEMPORAL")],
     keywords: [{ name: "guard" }, { name: "retaliate", value: 1 }],
     text: {
@@ -753,6 +755,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/11028.png") },
     encounterSetIds: [encounterSetId("kang")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "surge" }],
     text: {
@@ -796,6 +799,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 2,
     encounterSetIds: [encounterSetId("temporal")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("SOLDIER"), trait("TEMPORAL")],
     keywords: [{ name: "quickstrike" }],
     text: {
@@ -1098,6 +1102,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [],
     text: {
@@ -1121,6 +1126,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [{ name: "toughness" }, { name: "villainous" }],
     text: {
@@ -1144,6 +1150,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [{ name: "guard" }, { name: "retaliate", value: 1 }],
     text: {
@@ -1167,6 +1174,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [{ name: "quickstrike" }],
     text: {
@@ -1190,6 +1198,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [],
     text: {
@@ -1278,6 +1287,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("mot")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [{ name: "incite", value: 1 }, { name: "surge" }],
     text: {

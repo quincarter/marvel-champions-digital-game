@@ -883,6 +883,7 @@ export const SILK_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/52037.jpg") },
     encounterSetIds: [encounterSetId("growing_strong")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -903,6 +904,7 @@ export const SILK_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/52038.jpg") },
     encounterSetIds: [encounterSetId("growing_strong")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

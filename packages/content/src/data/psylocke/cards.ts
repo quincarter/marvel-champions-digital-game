@@ -711,6 +711,7 @@ export const PSYLOCKE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/41029.png") },
     encounterSetIds: [encounterSetId("psylocke_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

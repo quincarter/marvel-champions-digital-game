@@ -651,6 +651,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("hawkeye_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("MERCENARY")],
     keywords: [{ name: "quickstrike" }],
     text: {
@@ -1623,6 +1624,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04068.png") },
     encounterSetIds: [encounterSetId("crossbones")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1909,6 +1911,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04080.png") },
     encounterSetIds: [encounterSetId("absorbing_man")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("WOOD")],
     keywords: [{ name: "surge" }],
     text: {
@@ -1929,6 +1932,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04081.png") },
     encounterSetIds: [encounterSetId("absorbing_man")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ICE")],
     keywords: [{ name: "surge" }],
     text: {
@@ -1949,6 +1953,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04082.png") },
     encounterSetIds: [encounterSetId("absorbing_man")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("STONE")],
     keywords: [{ name: "surge" }],
     text: {
@@ -1969,6 +1974,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04083.png") },
     encounterSetIds: [encounterSetId("absorbing_man")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("METAL")],
     keywords: [{ name: "surge" }],
     text: {
@@ -1991,6 +1997,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     statModifiers: { atk: 1, sch: 1 },
     encounterSetIds: [encounterSetId("absorbing_man")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("WEAPON")],
     keywords: [],
     text: {
@@ -2011,6 +2018,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04085.png") },
     encounterSetIds: [encounterSetId("absorbing_man")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -2071,6 +2079,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04088.png") },
     encounterSetIds: [encounterSetId("absorbing_man")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -2117,6 +2126,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04090.png") },
     encounterSetIds: [encounterSetId("absorbing_man")],
     boostIcons: 2,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -2161,6 +2171,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     startingThreat: { base: 0, perPlayer: 3 },
     icons: [],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -2400,6 +2411,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("taskmaster")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("HYDRA")],
     keywords: [],
     text: {
@@ -2713,6 +2725,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("zola")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("HYDRA"), trait("MUTATE")],
     keywords: [{ name: "toughness" }],
     text: {
@@ -2736,6 +2749,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("zola")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("HYDRA"), trait("MUTATE")],
     keywords: [],
     text: {
@@ -2759,6 +2773,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("zola")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("HYDRA"), trait("MUTATE")],
     keywords: [{ name: "quickstrike" }],
     text: {
@@ -2891,6 +2906,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04121.png") },
     encounterSetIds: [encounterSetId("zola")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "incite", value: 1 }],
     text: {
@@ -3143,6 +3159,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("red_skull")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("HYDRA")],
     keywords: [{ name: "toughness" }],
     text: {
@@ -3166,6 +3183,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     statModifiers: { atk: 1, sch: 1 },
     encounterSetIds: [encounterSetId("red_skull")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("WEAPON")],
     keywords: [],
     text: {
@@ -3269,6 +3287,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     },
     encounterSetIds: [encounterSetId("red_skull")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -3290,6 +3309,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/04137.png") },
     encounterSetIds: [encounterSetId("red_skull")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -3475,6 +3495,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("hydra_assault")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("HYDRA")],
     keywords: [],
     text: {
@@ -3503,6 +3524,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("hydra_assault")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("HYDRA")],
     keywords: [{ name: "quickstrike" }],
     text: {

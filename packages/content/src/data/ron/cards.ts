@@ -23,6 +23,7 @@ export const RON_CARDS: readonly AnyCard[] = [
     hp: 9,
     encounterSetIds: [encounterSetId("kree_fanatic")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ACCUSER CORPS"), trait("ELITE"), trait("KREE")],
     keywords: [{ name: "toughness" }],
     text: {
@@ -49,6 +50,7 @@ export const RON_CARDS: readonly AnyCard[] = [
     startingThreat: { base: 0, perPlayer: 3 },
     icons: ["acceleration"],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -75,6 +77,7 @@ export const RON_CARDS: readonly AnyCard[] = [
     attachesTo: { kind: "yourIdentity" },
     encounterSetIds: [encounterSetId("kree_fanatic")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CONDITION")],
     keywords: [],
     text: {
@@ -99,6 +102,7 @@ export const RON_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/90004.png") },
     encounterSetIds: [encounterSetId("kree_fanatic")],
     boostIcons: 3,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -119,6 +123,7 @@ export const RON_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/90005.png") },
     encounterSetIds: [encounterSetId("kree_fanatic")],
     boostIcons: 2,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

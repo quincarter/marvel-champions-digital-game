@@ -882,6 +882,7 @@ export const WINTER_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/54037.jpg") },
     encounterSetIds: [encounterSetId("whiteout")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

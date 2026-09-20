@@ -772,6 +772,7 @@ export const SPDR_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("ironspider_sinister")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [],
     text: {
@@ -865,6 +866,7 @@ export const SPDR_CARDS: readonly AnyCard[] = [
     hp: 7,
     encounterSetIds: [encounterSetId("ironspider_sinister")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [],
     text: {
@@ -888,6 +890,7 @@ export const SPDR_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("ironspider_sinister")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [],
     text: {
