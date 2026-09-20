@@ -1,15 +1,12 @@
-import type { GameState, InstanceId } from "@mc/engine";
-import { firstLegal, inst, moveToHand, P1, payWith, play, playerOf, settle, type Picker } from "../../testing/harness.js";
+import type { InstanceId } from "@mc/engine";
+import { firstLegal, inst, moveToHand, P1, play, playerOf, settle, type Picker } from "../../testing/harness.js";
+import { withDamage } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
-import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { WSP_PACK_CARDS } from "./pack-cards.js";
 
 // Real wave 2 content: the Wasp (Aggression) precon against Rhino, standard, solo. Nadia Van Dyne starts in alter-ego.
 const waspVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "wsp-aggression" }], seed: 2026 }));
-
-function withDamage(state: GameState, id: InstanceId, damage: number): GameState {
-  return { ...state, instances: { ...state.instances, [id]: { ...state.instances[id]!, damage } } };
-}
 
 const accepting =
   (...wanted: readonly string[]): Picker =>
@@ -19,14 +16,6 @@ const accepting =
     const hits = choice.options.map((o) => o.optionId).filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
-
-/** Moves the card into P1's hand and plays it, paying with other hand cards. */
-function playFromHand(state: GameState, code: string, cost: number, pick: Picker = firstLegal): { readonly state: GameState; readonly id: InstanceId } {
-  const given = moveToHand(state, P1, code);
-  const [id] = given.ids as [InstanceId];
-  const played = settle(runWave2(given.state, play(P1, id, payWith(given.state, P1, cost, [id]))), pick, undefined, WAVE2_DEPS);
-  return { state: played, id };
-}
 
 describe("Wasp pack cards", () => {
   it("Thor (Jane Foster): deals 2 damage to the villain when played, 3 if paid with a physical resource (Responses are optional even without 'you may' — `firstLegal` alone would decline it)", () => {

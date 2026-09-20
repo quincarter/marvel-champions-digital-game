@@ -1,8 +1,9 @@
 import type { GameState, InstanceId } from "@mc/engine";
 import { characterProfile, hasKeyword, traitsOf } from "@mc/engine";
 import { endTurn, firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, type Picker } from "../../testing/harness.js";
+import { withDamage, withForm } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
-import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { WASP_KIT } from "./kit.js";
 
 // Real wave 2 content: the Wasp (Aggression) precon against Rhino, standard, solo. Nadia Van Dyne starts in alter-ego.
@@ -10,17 +11,6 @@ const waspVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ st
 
 const TINY = { heroForm: 0 } as const;
 const GIANT = { heroForm: 1 } as const;
-
-/** Test-only surgery: sets the identity's current form directly, the same convention `ant/kit.test.ts` uses. */
-function withForm(state: GameState, to: { heroForm: number } | "alterEgo", player = P1): GameState {
-  const owner = state.players.find((p) => p.playerId === player)!;
-  const identity = to === "alterEgo" ? { ...owner.identity, form: "alterEgo" as const, heroFormIndex: null } : { ...owner.identity, form: "hero" as const, heroFormIndex: to.heroForm };
-  return { ...state, players: state.players.map((p) => (p.playerId === player ? { ...p, identity: { ...identity, changedFormThisRound: false } } : p)) };
-}
-
-function withDamage(state: GameState, id: InstanceId, damage: number): GameState {
-  return { ...state, instances: { ...state.instances, [id]: { ...state.instances[id]!, damage } } };
-}
 
 const accepting =
   (...wanted: readonly string[]): Picker =>
@@ -31,19 +21,11 @@ const accepting =
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
 
-/** Moves the card into P1's hand and plays it, paying with other hand cards. */
-function playFromHand(state: GameState, code: string, cost: number, pick: Picker = firstLegal): { readonly state: GameState; readonly id: InstanceId } {
-  const given = moveToHand(state, P1, code);
-  const [id] = given.ids as [InstanceId];
-  const played = settle(runWave2(given.state, play(P1, id, payWith(given.state, P1, cost, [id]))), pick, undefined, WAVE2_DEPS);
-  return { state: played, id };
-}
-
 /**
  * Reveals a fresh Hydra Mercenary (01101, Rhino's own encounter set, printed 3 HP) as P1's own villain-phase
  * encounter card and damages it to the brink, so a single real attack lands the killing blow — the same "stage a
- * filler boost card ahead of it" trick `ant/kit.test.ts`'s `stageNemesisCardForReveal` uses (Advance, 01186, a
- * Standard treachery in every wave 2 scenario's deck, consumed as the villain's own boost instead).
+ * filler boost card ahead of it" trick `../../testing/staging.js`'s `stageNemesisCardForReveal` uses (Advance,
+ * 01186, a Standard treachery in every wave 2 scenario's deck, consumed as the villain's own boost instead).
  */
 function readyMinion(state: GameState): { readonly state: GameState; readonly id: InstanceId } {
   const staged = stackEncounterDeck(state, "01186", "01101");

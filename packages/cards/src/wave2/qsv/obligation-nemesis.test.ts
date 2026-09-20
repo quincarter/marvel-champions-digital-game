@@ -1,46 +1,11 @@
-import { cardId } from "@mc/content";
-import type { GameState, InstanceId } from "@mc/engine";
-import { activeEncounterDeck, activeEncounterDeckId, cardsInPlay } from "@mc/engine";
+import type { GameState } from "@mc/engine";
+import { activeEncounterDeck } from "@mc/engine";
 import { firstLegal, identityOf, inst, instancesOf, P1, playerOf, settle, stackEncounterDeck, toHero, use, type Picker } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
-import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { revealFromEncounterDeck, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
 // Real wave 2 content: the Quicksilver (Protection) precon against Rhino, standard, solo. Pietro starts in alter-ego.
 const qsvVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "qsv-protection" }], seed: 2026 }));
-
-/**
- * A nemesis-set card is set aside per player at setup (`PlayerState.setAside`, RRG 1.8 Appendix II step 5), not in
- * the encounter deck — the same `stageNemesisCardForReveal`/`revealFromEncounterDeck` pair `ant/kit.test.ts` and
- * `wsp/kit.test.ts` each carry their own copy of (not centralized, per docs/phase7-wave2-scripting.md's per-pack
- * convention). Stages the set-aside card to the very top of the active encounter deck, then `fillers` filler cards
- * (Advance, 01186 — a Core "Standard" treachery already in every wave 2 scenario's deck, whose "the villain
- * schemes" is never resolved as a boost card) ahead of it, so every enemy needing a boost card that villain phase
- * (Rhino, plus any nemesis minion already in play and now engaged — every enemy attack draws a boost card, not
- * only a villainous one's scheme, RRG 1.8 "Attack (Enemy Activation)" p. 9) consumes a filler instead, and the
- * nemesis card is dealt to the player as their own encounter card instead. `fillers` defaults to 1 (Rhino alone);
- * pass more once other enemies are also in play and will activate that same phase.
- */
-function stageNemesisCardForReveal(state: GameState, code: string, player = P1, fillers = 1): GameState {
-  const owner = playerOf(state, player);
-  const id = owner.setAside.find((i) => state.instances[i]?.cardId === cardId(code));
-  if (!id) throw new Error(`no ${code} set aside for ${player}`);
-  const deckId = activeEncounterDeckId(state);
-  const pile = state.encounterDecks[deckId]!;
-  const staged: GameState = {
-    ...state,
-    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
-    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [id, ...pile.deck] } },
-  };
-  return stackEncounterDeck(staged, ...Array.from({ length: fillers }, () => "01186"));
-}
-
-/** Reveals a nemesis-set `code`, returning the revealed card's in-play instance id. */
-function revealFromEncounterDeck(state: GameState, code: string, pick: Picker = firstLegal, fillers = 1): { readonly state: GameState; readonly id: InstanceId } {
-  const staged = stageNemesisCardForReveal(state, code, P1, fillers);
-  const revealed = settle(runWave2(staged, { type: "endTurn", playerId: P1 }), pick, undefined, WAVE2_DEPS);
-  const id = instancesOf(revealed, code).find((candidate) => cardsInPlay(revealed).includes(candidate))!;
-  return { state: revealed, id };
-}
 
 const accepting =
   (...wanted: readonly string[]): Picker =>

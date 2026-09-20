@@ -2,8 +2,9 @@ import { cardId } from "@mc/content";
 import type { GameState, InstanceId } from "@mc/engine";
 import { activeEncounterDeckId, applyCommand, cardsInPlay, characterProfile, hasKeyword, traitsOf } from "@mc/engine";
 import { endTurn, firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, use, type Picker } from "../../testing/harness.js";
+import { stageNemesisCardForReveal, withDamage, withForm } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
-import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { playFromHand, revealFromEncounterDeck, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { ANT_MAN_KIT } from "./kit.js";
 
 // Real wave 2 content: the Ant-Man (Leadership) precon against Rhino, standard, solo. Scott Lang starts in alter-ego.
@@ -11,22 +12,6 @@ const antManVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ 
 
 const TINY = { heroForm: 0 } as const;
 const GIANT = { heroForm: 1 } as const;
-
-/**
- * Test-only surgery: sets the identity's current form directly (`heroFormIndex`/`form`) and clears
- * `changedFormThisRound`, so a test can start from a specific face and still issue *one* real `changeForm` command
- * this round to trigger the response under test — a second real command in the same round would otherwise hit the
- * once-per-round voluntary-change limit (RRG 1.8 "Form, Change Form").
- */
-function withForm(state: GameState, to: { heroForm: number } | "alterEgo", player = P1): GameState {
-  const owner = state.players.find((p) => p.playerId === player)!;
-  const identity = to === "alterEgo" ? { ...owner.identity, form: "alterEgo" as const, heroFormIndex: null } : { ...owner.identity, form: "hero" as const, heroFormIndex: to.heroForm };
-  return { ...state, players: state.players.map((p) => (p.playerId === player ? { ...p, identity: { ...identity, changedFormThisRound: false } } : p)) };
-}
-
-function withDamage(state: GameState, id: InstanceId, damage: number): GameState {
-  return { ...state, instances: { ...state.instances, [id]: { ...state.instances[id]!, damage } } };
-}
 
 /**
  * Accepts the named optional responses (a trigger's option id is `<instance>:<ability>`) and picks the named
@@ -43,14 +28,6 @@ const accepting =
 
 const changeTo = (state: GameState, to: { heroForm: number } | "alterEgo", pick: Picker) =>
   settle(runWave2(state, { type: "changeForm", playerId: P1, to }), pick, undefined, WAVE2_DEPS);
-
-/** Moves the card into P1's hand and plays it, paying with other hand cards. */
-function playFromHand(state: GameState, code: string, cost: number, pick: Picker = firstLegal): { readonly state: GameState; readonly id: InstanceId } {
-  const given = moveToHand(state, P1, code);
-  const [id] = given.ids as [InstanceId];
-  const played = settle(runWave2(given.state, play(P1, id, payWith(given.state, P1, cost, [id]))), pick, undefined, WAVE2_DEPS);
-  return { state: played, id };
-}
 
 const traits = (state: GameState) => traitsOf(state, identityOf(state), WAVE2_DEPS).map(String);
 
@@ -198,36 +175,6 @@ describe("Ant-Man kit", () => {
     expect(() => runWave2(given.state, play(P1, swarmTactics, payWith(given.state, P1, 1, [swarmTactics])))).toThrow(/Team-Up needs Wasp/);
   });
 });
-
-/**
- * A nemesis-set card is set aside per player at setup (`PlayerState.setAside`, RRG 1.8 Appendix II step 5), not in
- * the encounter deck — `stackEncounterDeck` alone can't reach it (docs/phase7-wave2-scripting.md §5's own
- * `stackSetAside`, `hawkeye.test.ts`). This stages it to the very top of the active encounter deck, then a filler
- * card (Advance, 01186 — a Core "Standard" treachery already in every wave 2 scenario's deck, whose "villain
- * schemes" is never resolved as a boost card) ahead of it, so the villain's own activation consumes the filler as
- * its boost and the nemesis card is dealt to the player as their own encounter card instead.
- */
-function stageNemesisCardForReveal(state: GameState, code: string, player = P1): GameState {
-  const owner = playerOf(state, player);
-  const id = owner.setAside.find((i) => state.instances[i]?.cardId === cardId(code));
-  if (!id) throw new Error(`no ${code} set aside for ${player}`);
-  const deckId = activeEncounterDeckId(state);
-  const pile = state.encounterDecks[deckId]!;
-  const staged: GameState = {
-    ...state,
-    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
-    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [id, ...pile.deck] } },
-  };
-  return stackEncounterDeck(staged, "01186");
-}
-
-/** Reveals a nemesis-set `code`, returning the revealed card's in-play instance id. */
-function revealFromEncounterDeck(state: GameState, code: string): { readonly state: GameState; readonly id: InstanceId } {
-  const staged = stageNemesisCardForReveal(state, code);
-  const revealed = settle(runWave2(staged, { type: "endTurn", playerId: P1 }), firstLegal, undefined, WAVE2_DEPS);
-  const id = instancesOf(revealed, code).find((candidate) => cardsInPlay(revealed).includes(candidate))!;
-  return { state: revealed, id };
-}
 
 /**
  * Moves a *different* nemesis-set card from `PlayerState.setAside` a few cards down into the shared encounter

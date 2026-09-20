@@ -1,37 +1,11 @@
-import { cardId } from "@mc/content";
-import { activeEncounterDeckId, cardsInPlay, characterProfile, type GameState, type InstanceId } from "@mc/engine";
-import { firstLegal, identityOf, inst, instancesOf, P1, playerOf, settle, stackEncounterDeck } from "../../testing/harness.js";
+import { cardsInPlay, characterProfile } from "@mc/engine";
+import { firstLegal, identityOf, inst, instancesOf, P1, settle, stackEncounterDeck } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
-import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { revealFromEncounterDeck, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { WASP_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
 
 // Real wave 2 content: the Wasp (Aggression) precon against Rhino, standard, solo.
 const waspVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "wsp-aggression" }], seed: 2026 }));
-
-/** A nemesis-set card set aside per player at setup (`PlayerState.setAside`) staged for reveal, ahead of one
- * filler (Advance, 01186) so the villain's own activation consumes the filler as its boost card instead — the
- * same convention `ant/kit.test.ts`'s `stageNemesisCardForReveal` uses. */
-function stageNemesisCardForReveal(state: GameState, code: string, player = P1): GameState {
-  const owner = playerOf(state, player);
-  const id = owner.setAside.find((i) => state.instances[i]?.cardId === cardId(code));
-  if (!id) throw new Error(`no ${code} set aside for ${player}`);
-  const deckId = activeEncounterDeckId(state);
-  const pile = state.encounterDecks[deckId]!;
-  const staged: GameState = {
-    ...state,
-    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
-    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [id, ...pile.deck] } },
-  };
-  return stackEncounterDeck(staged, "01186");
-}
-
-/** Reveals a nemesis-set `code`, returning the revealed card's in-play instance id, the same pick the reveal itself needs. */
-function revealFromEncounterDeck(state: GameState, code: string, pick = firstLegal) {
-  const staged = stageNemesisCardForReveal(state, code);
-  const revealed = settle(runWave2(staged, { type: "endTurn", playerId: P1 }), pick, undefined, WAVE2_DEPS);
-  const id = instancesOf(revealed, code).find((candidate) => cardsInPlay(revealed).includes(candidate))!;
-  return { state: revealed, id };
-}
 
 describe("Wasp's obligation and nemesis (Red Dreams, Mother's Orders, Beetle)", () => {
   it("Red Dreams: shuffled into the encounter deck at setup, dealt and resolved like any encounter card", () => {

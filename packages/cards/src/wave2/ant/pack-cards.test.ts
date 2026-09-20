@@ -1,6 +1,7 @@
+import type { InstanceId } from "@mc/engine";
 import { cardsInPlay } from "@mc/engine";
-import type { GameState, InstanceId } from "@mc/engine";
 import { firstLegal, inst, moveToHand, P1, payWith, play, playerOf, settle, use, type Picker } from "../../testing/harness.js";
+import { withForm } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { ANT_PACK_CARDS } from "./pack-cards.js";
@@ -9,19 +10,6 @@ import { ANT_PACK_CARDS } from "./pack-cards.js";
 const antManVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 }));
 
 const TINY = { heroForm: 0 } as const;
-
-/**
- * Test-only surgery (`kit.test.ts`'s own established helper for this three-sided identity): sets Ant-Man's current
- * form directly, since a real `changeForm` command needs a separate choice of *which* hero face to change to.
- */
-function withForm(state: GameState, to: { heroForm: number }, player = P1): GameState {
-  return {
-    ...state,
-    players: state.players.map((p) =>
-      p.playerId === player ? { ...p, identity: { ...p.identity, form: "hero" as const, heroFormIndex: to.heroForm, changedFormThisRound: false } } : p,
-    ),
-  };
-}
 
 describe("Ant-Man pack cards", () => {
   // docs/phase7-wave2.md §18.3: `overpaid.total` is readable from Ant-Man's own later `cardEntersPlay` interrupt.
