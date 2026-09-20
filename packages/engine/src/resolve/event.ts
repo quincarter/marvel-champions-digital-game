@@ -578,6 +578,7 @@ function applyPlayerAttack(ctx: Ctx, event: Extract<TriggerEvent, { kind: "attac
   const keywords = attackKeywordsOf(ctx.state, ctx.deps, {
     attackerInstanceId: event.attackerInstanceId,
     viaInstanceId: event.sourceInstanceId ?? null,
+    basic: event.basic === true,
     ...(event.keywords ? { keywords: event.keywords } : {}),
     ...(attackFrame?.kind === "event" ? { vars: attackFrame.vars } : {}),
   });

@@ -113,18 +113,22 @@ export const excludedFromAllyLimit = (state: GameState, deps: EngineDeps, id: In
 
 /**
  * The `AttackKeyword`s constant abilities in play grant to one attack (`attackKeywords`; Hawkeye's Bow). `viaId` is
- * the card whose ability is making the attack, or null for a basic attack.
+ * the card whose ability is making the attack, or null for a basic attack; `basic` is whether the attack is a
+ * character's basic attack (RRG 1.8 "Basic Power", p. 10), which an enemy activation is not.
  */
 export function grantedAttackKeywords(
   state: GameState,
   deps: EngineDeps,
   attackerId: InstanceId,
   viaId: InstanceId | null,
+  basic = false,
 ): readonly AttackKeyword[] {
   const granted: AttackKeyword[] = [];
   for (const { rule, context } of activeRules(state, deps, "attackKeywords")) {
     if (rule.attacker && !matchesQuery(state, attackerId, rule.attacker, context)) continue;
     if (rule.via && (viaId === null || !matchesQuery(state, viaId, rule.via, context))) continue;
+    // "Your *basic* attacks gain piercing": an attack made by a card's ability is not one, whoever makes it.
+    if (rule.basicOnly === true && !basic) continue;
     for (const keyword of rule.keywords) if (!granted.includes(keyword)) granted.push(keyword);
   }
   return granted;

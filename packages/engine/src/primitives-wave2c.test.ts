@@ -17,7 +17,7 @@ import { matchesQuery, type EffectContext } from "./select.js";
 import { createGame } from "./setup.js";
 import type { CardInstance, GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubMinion, stubSideScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubMinion, stubSideScheme, stubSupport, stubTreachery, stubUpgrade, stubVillain } from "./testing/fixtures.js";
 import { DEFAULT_CARDS, DEFAULT_DECK, giveCards, newGame, RESOURCE, runWith, settle } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -301,5 +301,117 @@ describe("§17.2 `characterDefeated`/`schemeDefeated`.sourceInstanceId: what def
     expect(mustPlayer(after, p1).playArea.some((id) => mustInstance(after, id).cardId === ALLY_2.id)).toBe(false);
     expect(counters(after).byCard).toBeUndefined();
     expect(counters(after).byPlayer).toBeUndefined();
+  });
+});
+
+// ---- §17.3 "your basic attacks gain piercing" ----------------------------------------------------------------------
+
+describe("§17.3 `RuleSpec attackKeywords.basicOnly`: a keyword granted to basic attacks only", () => {
+  const MINION = stubMinion({ id: "tough-minion", atk: 1, sch: 1, hp: 6, boostIcons: 0 });
+  const summonMinion = stubAbility("summon.action", def({
+    trigger: { kind: "action" },
+    effects: [
+      { kind: "selectCards", slot: "found", cards: { kind: "encounter", zones: ["deck"], filter: { name: MINION.id } } },
+      { kind: "putIntoPlay", card: { kind: "slot", slot: "found" }, controller: { kind: "controller" } },
+    ],
+  }));
+  const SUMMONER = stubSupport({ id: "summoner-2", cost: 0, abilities: [summonMinion.ref] });
+
+  /** "Hero Action (attack): Deal 2 damage to an enemy." — an attack an event makes, not a basic attack. */
+  const swingAbility = stubAbility("swing.action", def({
+    trigger: { kind: "action", form: "hero" },
+    label: ["attack"],
+    effects: [{ kind: "attack", target: { kind: "each", query: { categories: ["minion"] } }, amount: { kind: "const", value: 2 } }],
+  }));
+  const SWING = stubEvent({ id: "swing", cost: 0, abilities: [swingAbility.ref] });
+
+  /** "While …, your basic attacks gain piercing." */
+  const basicOnlyRule = stubAbility("training.constant", def({
+    trigger: { kind: "constant", rules: [{ kind: "attackKeywords", keywords: ["piercing"], attacker: { controller: "you" }, basicOnly: true }] },
+    effects: [],
+  }));
+  const TRAINING = stubUpgrade({ id: "training", cost: 0, abilities: [basicOnlyRule.ref] });
+  /** The same rule without `basicOnly`: "your attacks gain piercing", which over-grants. */
+  const anyAttackRule = stubAbility("wide-training.constant", def({
+    trigger: { kind: "constant", rules: [{ kind: "attackKeywords", keywords: ["piercing"], attacker: { controller: "you" } }] },
+    effects: [],
+  }));
+  const WIDE = stubUpgrade({ id: "wide-training", cost: 0, abilities: [anyAttackRule.ref] });
+  /** "Basic attacks gain piercing" with no attacker filter at all: every basic attack in the game, nothing else. */
+  const anyBasicRule = stubAbility("field.constant", def({
+    trigger: { kind: "constant", rules: [{ kind: "attackKeywords", keywords: ["piercing"], basicOnly: true }] },
+    effects: [],
+  }));
+  const FIELD = stubUpgrade({ id: "field", cost: 0, abilities: [anyBasicRule.ref] });
+
+  const ALLY_3 = stubAlly({ id: "ally3", cost: 0, atk: 2, thw: 1, hp: 3 });
+  const deps = depsOf(summonMinion, swingAbility, basicOnlyRule, anyAttackRule, anyBasicRule);
+
+  /** Hero form, the named upgrade in play, the minion in play carrying a tough status card. */
+  function ready(upgrade: string, extra: readonly CardId[] = []): { state: GameState; ids: readonly InstanceId[] } {
+    const base = newGame({
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, MINION, SUMMONER, SWING, TRAINING, WIDE, FIELD, ALLY_3],
+      deck: [...copies(RESOURCE.id, 10), ...copies(SUMMONER.id, 2), ...copies(SWING.id, 2), ...copies(TRAINING.id, 2), ...copies(WIDE.id, 2), ...copies(FIELD.id, 2), ...copies(ALLY_3.id, 2)],
+      encounterDeck: [MINION.id, ...copies(BLANK.id, 15)],
+      deps,
+    });
+    const hero = runWith(deps, base, toHero);
+    const given = giveCards(hero, p1, SUMMONER.id, upgrade, ...extra);
+    const [summonerId, upgradeId] = given.ids as readonly InstanceId[];
+    let current = settle(runWith(deps, given.state, play(summonerId as InstanceId)), undefined, deps);
+    current = settle(runWith(deps, current, play(upgradeId as InstanceId)), undefined, deps);
+    const use: Command = { type: "useAbility", playerId: p1, cardInstanceId: summonerId as InstanceId, abilityId: summonMinion.ref.id, payment: [] };
+    current = settle(runWith(deps, current, use), undefined, deps);
+    const minion = mustPlayer(current, p1).playArea.find((id) => mustInstance(current, id).cardId === MINION.id) as InstanceId;
+    // A tough status card is the only observable difference piercing makes (RRG 1.8 "Piercing", p. 32).
+    const tough: GameState = { ...current, instances: { ...current.instances, [minion]: { ...mustInstance(current, minion), statuses: { stunned: 0, confused: 0, tough: 1 } } } };
+    return { state: tough, ids: given.ids.slice(2) };
+  }
+
+  const minionIn = (state: GameState) => mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === MINION.id) as InstanceId;
+  const basicAttack = (state: GameState, attacker: InstanceId): Command => ({ type: "basicAttack", playerId: p1, attackerInstanceId: attacker, targetInstanceId: minionIn(state), payment: [] });
+
+  it("a basic attack gets the keyword and an attack made by an event does not", () => {
+    const { state, ids } = ready(TRAINING.id, [SWING.id]);
+    const minion = minionIn(state);
+
+    const basic = settle(runWith(deps, state, basicAttack(state, mustPlayer(state, p1).identity.instanceId)), undefined, deps);
+    expect(mustInstance(basic, minion).statuses.tough).toBe(0);
+    expect(mustInstance(basic, minion).damage).toBe(2);
+
+    // The same player, the same attacker, the same target — but the attack is the event's, so the rule misses it and
+    // the tough card absorbs the whole attack.
+    const byEvent = settle(runWith(deps, state, play(ids[0] as InstanceId)), undefined, deps);
+    expect(mustInstance(byEvent, minion).statuses.tough).toBe(0);
+    expect(mustInstance(byEvent, minion).damage).toBe(0);
+  });
+
+  it("without `basicOnly` the same rule over-grants to the event's attack (the bug it exists to fix)", () => {
+    const { state, ids } = ready(WIDE.id, [SWING.id]);
+    const minion = minionIn(state);
+    const byEvent = settle(runWith(deps, state, play(ids[0] as InstanceId)), undefined, deps);
+    expect(mustInstance(byEvent, minion).statuses.tough).toBe(0);
+    expect(mustInstance(byEvent, minion).damage).toBe(2);
+  });
+
+  it("an ally's basic attack is a basic attack; an enemy's activation never is", () => {
+    const { state, ids } = ready(FIELD.id, [ALLY_3.id]);
+    const withAlly = settle(runWith(deps, state, play(ids[0] as InstanceId)), undefined, deps);
+    const allyId = mustPlayer(withAlly, p1).playArea.find((id) => mustInstance(withAlly, id).cardId === ALLY_3.id) as InstanceId;
+    const byAlly = settle(runWith(deps, withAlly, basicAttack(withAlly, allyId)), undefined, deps);
+    expect(mustInstance(byAlly, minionIn(byAlly)).statuses.tough).toBe(0);
+    expect(mustInstance(byAlly, minionIn(byAlly)).damage).toBe(2);
+
+    // The villain's own attack is an enemy activation, not a basic attack, so this unfiltered rule cannot reach it:
+    // the hero's tough status card survives it.
+    const heroId = mustPlayer(withAlly, p1).identity.instanceId;
+    const toughHero: GameState = { ...withAlly, instances: { ...withAlly.instances, [heroId]: { ...mustInstance(withAlly, heroId), statuses: { stunned: 0, confused: 0, tough: 1 } } } };
+    const villainPhase = settle(runWith(deps, toughHero, endTurn), undefined, deps);
+    expect(mustInstance(villainPhase, heroId).statuses.tough).toBe(0);
+    // The villain's 2 was absorbed by the tough card and only the engaged minion's own 1 landed. With piercing the
+    // villain's attack would have discarded the card first and dealt its 2 as well.
+    expect(mustInstance(villainPhase, heroId).damage).toBe(1);
   });
 });

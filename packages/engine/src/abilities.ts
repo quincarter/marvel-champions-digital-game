@@ -249,14 +249,20 @@ export type RuleSpec =
    * - `via` matches the card whose ability is making the attack — the event for a "Hero Action (attack)", the
    *   upgrade or ally for an ability on one. A basic attack has no such card and never matches a rule with `via`.
    *
-   * Both are optional and ANDed. A rule with neither grants the keyword to every attack in the game, which no card
-   * does; `@mc/cards` should always set at least one.
+   * - `basicOnly` matches only a **basic** attack — "your basic attacks gain piercing" (Red Room Training 13008,
+   *   Brute Force `qsv`, Psi-Katana `psylocke`). RRG 1.8 "Basic Power" (p. 10): a basic attack is a character using
+   *   its ATK, which is exactly what `attack.basic` records, so an attack an event or ability makes is excluded even
+   *   when the same character makes it. The mirror of `via`, which excludes a basic attack rather than requiring one.
+   *
+   * All three are optional and ANDed. A rule with none of them grants the keyword to every attack in the game, which
+   * no card does; `@mc/cards` should always set at least one.
    */
   | {
       readonly kind: "attackKeywords";
       readonly keywords: readonly AttackKeyword[];
       readonly attacker?: TargetQuery;
       readonly via?: TargetQuery;
+      readonly basicOnly?: boolean;
       readonly while?: Predicate;
     }
   /**

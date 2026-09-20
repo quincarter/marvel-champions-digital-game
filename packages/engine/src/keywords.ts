@@ -101,6 +101,8 @@ export interface AttackKeywordContext {
   readonly attackerInstanceId: InstanceId;
   /** The card whose ability is making the attack ("your [Arrow] attacks"); null for a basic attack or an enemy activation. */
   readonly viaInstanceId?: InstanceId | null;
+  /** Whether this is a character's basic attack ("your basic attacks gain piercing"); false for an enemy activation. */
+  readonly basic?: boolean;
   /** Keywords the attack carries itself: `attack.keywords` ("this attack gains piercing"). */
   readonly keywords?: readonly AttackKeyword[];
   /** The attack/activation event frame's vars, where `modifyAttack` records a grant made mid-activation. */
@@ -119,7 +121,7 @@ export interface AttackKeywordContext {
  */
 export function attackKeywordsOf(state: GameState, deps: EngineDeps, attack: AttackKeywordContext): readonly AttackKeyword[] {
   const via = attack.viaInstanceId ?? null;
-  const fromRules = grantedAttackKeywords(state, deps, attack.attackerInstanceId, via);
+  const fromRules = grantedAttackKeywords(state, deps, attack.attackerInstanceId, via, attack.basic === true);
   return ATTACK_KEYWORDS.filter(
     (name) =>
       hasKeyword(state, attack.attackerInstanceId, name, deps) ||
