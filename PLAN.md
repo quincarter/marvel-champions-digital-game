@@ -565,6 +565,7 @@ Owner: `card-data-pipeline` + `ability-scripting-engineer`, tracked by `content-
 - [ ] Cycle 1 (The Rise of Red Skull) as the next full content pass, then subsequent cycles/campaign boxes in release order.
 - [ ] Each new cycle's new keywords get added to `game-rules-architect`'s keyword set before that cycle's cards are scripted.
 - [ ] Ongoing: `content-release-tracker` watches for new releases/errata/taboo changes and files content-pipeline work rather than letting the card pool go stale.
+- [ ] **Campaign mode** is built once as a capability, then added per box as each box's cards finish scripting — see "Campaign mode" below for the decisions, the one-time foundation and the repeatable per-box checklist.
 
 ### Scope decided (2026-09-13)
 
@@ -1010,7 +1011,7 @@ Findings:
 
 - **Scripted: cycle 1, in release order.** The Rise of Red Skull box (`trors`: Hawkeye, Spider-Woman and five scenarios), The Once and Future Kang (`toafk`), and the Ant-Man, Wasp, Quicksilver and Scarlet Witch hero packs (`ant`, `wsp`, `qsv`, `scw`).
 - **Data only: every remaining pack.** The other ~48 packs become card data that the builder can show and `validateDeck` can judge, marked not playable yet, as wave 1 did.
-- **Campaign mode comes later.** Every cycle 1 scenario plays standalone. The campaign log, state carried between scenarios, reward cards in play, and expert campaign setup are a later step; campaign cards are ingested as data now.
+- **Campaign mode comes later.** Every cycle 1 scenario plays standalone. The campaign log, state carried between scenarios, reward cards in play, and expert campaign setup are a later step; campaign cards are ingested as data now. **Superseded 2026-09-20** — "later" now has a shape: see "Campaign mode" below. `trors` is the first box to get one, because its cards are the only campaign box's cards that are scripted.
 - **Survey at the start (`survey.ts`, cycle 1 packs):** none of the 6 normalize. There are 94 issues: 30 attachment host rules the parser can't read, 20 records that never become a card, 12 unknown `campaign` factions (trors), 7 missing art references, Ant-Man's and Wasp's third hero faces, 4 missing `deck_limit`s, and Kang's stage names and main-scheme threat.
 - **Order:** the rules architect does the cycle 1 schema and `docs/phase7-wave2.md` while the data pipeline does schema-neutral parser work across all packs. Then cycle 1 curation and emission, then the remaining packs as data, then cycle 1 scripting, then rules QA and client wiring.
 
@@ -1084,7 +1085,9 @@ Built once, before any box's campaign content. Nothing here names a specific cam
 
 #### C2. The per-box increment (repeat for each box, after that box's cards are scripted)
 
-- [ ] Campaign-specific cards ingested as data (**already done for all ten boxes** — 115 `campaign`-faction cards).
+- [ ] Campaign-specific cards ingested as data. **Already done where they exist:** 115 `campaign`-faction cards across
+      seven boxes. Three (`aos`, `cw`, `fne`) carry none in the current data — confirm against that box's rulebook
+      whether its campaign genuinely adds no player cards, or MarvelCDB files them under another faction.
 - [ ] That box's own heroes, villains and scenarios scripted and passing scenario tests. **This gates the rest.**
 - [ ] Campaign definition encoded from the rulebook in `docs/campaign-modes/markdown/`: scenario order, per-scenario
       setup and victory instructions, log fields, villain-deck composition per scenario and its expert substitutions.
@@ -1099,18 +1102,18 @@ Built once, before any box's campaign content. Nothing here names a specific cam
 
 All ten rulebooks and log sheets are in `docs/campaign-modes/`. "Cards scripted" is the C2 gate.
 
-| Code | Box | Pack | Scenarios | Cards scripted? |
-|---|---|---|---|---|
-| MC10 | The Rise of Red Skull | `trors` | 5 | ✅ (wave 2) — **first campaign to build** |
-| MC16 | The Galaxy's Most Wanted | `gmw` | 5 | ❌ data only |
-| MC21 | The Mad Titan's Shadow | `mts` | 5 | ❌ data only |
-| MC27 | Sinister Motives | `sm` | 5 | ❌ data only |
-| MC32 | Mutant Genesis | `mut_gen` | 5 | ❌ data only |
-| MC40 | NeXt Evolution | `next_evol` | 5 | ❌ data only |
-| MC45 | Age of Apocalypse | `aoa` | 5 | ❌ data only |
-| MC50 | Agents of S.H.I.E.L.D. | `aos` | 5 | ❌ data only |
-| MC56 | Civil War | `cw` | 2 | ❌ data only |
-| MC60 | Fear No Evil | `fne` | 6 | ❌ data only |
+| Code | Box | Pack | Scenarios | Campaign cards | Cards scripted? |
+|---|---|---|---|---|---|
+| MC10 | The Rise of Red Skull | `trors` | 5 | 12 | ✅ (wave 2) — **first campaign to build** |
+| MC16 | The Galaxy's Most Wanted | `gmw` | 5 | 28 | ❌ data only |
+| MC21 | The Mad Titan's Shadow | `mts` | 5 | 14 | ❌ data only |
+| MC27 | Sinister Motives | `sm` | 5 | 16 | ❌ data only |
+| MC32 | Mutant Genesis | `mut_gen` | 5 | 25 | ❌ data only |
+| MC40 | NeXt Evolution | `next_evol` | 5 | 14 | ❌ data only |
+| MC45 | Age of Apocalypse | `aoa` | 5 | 6 | ❌ data only |
+| MC50 | Agents of S.H.I.E.L.D. | `aos` | 5 | 0 | ❌ data only |
+| MC56 | Civil War | `cw` | 2 | 0 | ❌ data only |
+| MC60 | Fear No Evil | `fne` | 6 | 0 | ❌ data only |
 
 **The Once and Future Kang (`toafk`) is not in this table.** It is a scenario pack, not a campaign box, and has no
 rulebook in `docs/campaign-modes/`; its insert supplies an "Adjustable Difficulty" rule already quoted in
