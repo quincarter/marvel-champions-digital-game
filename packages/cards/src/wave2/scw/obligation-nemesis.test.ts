@@ -1,9 +1,9 @@
 import { cardId } from "@mc/content";
 import { activeEncounterDeck, activeEncounterDeckId, boostIconsFor, cardsInPlay, type GameState, type InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { answer, endTurn, firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, type Picker, runWith, settle, settleUntil, stackEncounterDeck, toHero } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
-import { SCW_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
+import { expectResolved, traceAbilities } from "../../testing/trace.js";
 
 // Real wave 2 content: the Scarlet Witch (Justice) precon against Rhino, standard, solo. Wanda starts in alter-ego.
 const scwVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "scw-justice" }], seed: 2026 }));
@@ -63,8 +63,79 @@ function stageChaosManipulation(hero: GameState): GameState {
 }
 
 describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evolution, Luminous, Magical Suspension, Chaos Manipulation)", () => {
-  it("Slipping Sanity (15023.obligation) is SKIPPED — module docblock (no primitive for counting star icons among a discarded boost-area pool)", () => {
-    expect("15023.obligation" in SCW_OBLIGATION_NEMESIS).toBe(false);
+  /**
+   * Stages Slipping Sanity as Wanda Maximoff's own linked obligation (`HeroIdentityCard.obligationCardId`, module
+   * docblock precedent, `ant/kit.test.ts`'s Care for Cassie comment — a plain `stackEncounterDeck` reaches it, no
+   * `stageNemesisCardForReveal` detour needed) and relabels the five cards it then discards
+   * (`patchInstance`'s own "swap the data, keep the instance" convention, `kang-encounter-set.test.ts`'s
+   * `revealAsObligation` precedent) to `codes`, then resolves the whole villain phase, choosing Slipping Sanity's
+   * "discard 5" alternative over exhausting Wanda to remove it.
+   */
+  function slippingSanityWithDiscardPile(codes: readonly [string, string, string, string, string]) {
+    const stagedTop = stackEncounterDeck(scwVsRhino(), "01186", "15023");
+    const deckId = activeEncounterDeckId(stagedTop);
+    const [, , ...rest] = stagedTop.encounterDecks[deckId]!.deck;
+    const [c1, c2, c3, c4, c5] = rest as [InstanceId, InstanceId, InstanceId, InstanceId, InstanceId];
+    const relabeled = [c1, c2, c3, c4, c5].reduce(
+      (instances, id, i) => ({ ...instances, [id]: { ...instances[id]!, cardId: cardId(codes[i]!) } }),
+      stagedTop.instances,
+    );
+    const staged: GameState = { ...stagedTop, instances: relabeled };
+    const pickAlternative: Picker = (state) => {
+      const choice = state.pendingChoice;
+      if (!choice) return [];
+      const alt = choice.options.find((o) => o.label.startsWith("Discard the top 5"));
+      if (alt) return [alt.optionId];
+      return firstLegal(state);
+    };
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    const after = settle(runWith(deps, staged, endTurn()), pickAlternative, undefined, deps);
+    expectResolved(trace, "15023.obligation");
+    return after;
+  }
+
+  it("Slipping Sanity: discarding the top 5 places 1 threat per star icon discarded — NOT per boost icon (a pile where the two counts genuinely differ)", () => {
+    // Two runs, same seed and scenario, differing only in the five discarded cards' own printed icons — the villain
+    // phase's own base threat placement and Rhino's own scheme/attack activation land identically in both, so
+    // diffing the two isolates exactly what Slipping Sanity itself contributed (the `expectResolved` above already
+    // confirms the ability ran at all; this isolates its *effect*, the same two-signal split `trace.ts` documents).
+    // All-blank control: five plain 0-star/0-pip cards (Advance ×5 — a real Core "Standard" filler, 0 icons either
+    // way) contribute 0 threat on their own.
+    const blank = slippingSanityWithDiscardPile(["01186", "01186", "01186", "01186", "01186"]);
+    const blankThreat = inst(blank, blank.mainScheme.instanceId).threat;
+
+    // Two star-only/star+pip Core treacheries (Weapons Runner 01121: star, 0 pips; Repair Sequence 01146: star, 1
+    // pip) alongside three plain boost-pip cards with no star (01099/01100 — Charge, Enhanced Ivory Horn — plus one
+    // more blank). starIcons = 2 (01121 + 01146); boostIcons = 0 + 1 + 2 + 2 + 0 = 5 — the two totals disagree, so a
+    // `starIcons`/`boostIcons` mix-up would show up as the wrong diff (5, not 2), not merely as a pass/fail on a
+    // pile where they happen to coincide.
+    const starred = slippingSanityWithDiscardPile(["01121", "01146", "01099", "01100", "01186"]);
+    const starredThreat = inst(starred, starred.mainScheme.instanceId).threat;
+
+    expect(starredThreat - blankThreat).toBe(2); // starIcons (2), never boostIcons (5)
+    expect(instancesOf(starred, "15023").some((id) => playerOf(starred, P1).playArea.includes(id))).toBe(false); // discarded
+  });
+
+  // The Core obligation shape's other branch (`core/obligations.ts`'s `obligation()`), already exercised end to
+  // end for Spider-Man's own obligation (`core/heroes/spider-man.test.ts`'s "Eviction Notice") — this pins it for
+  // Slipping Sanity specifically, so the whole printed text (not only the "discard 5" half above) is covered here.
+  it("You may flip to alter-ego form, then exhaust Wanda Maximoff to remove Slipping Sanity from the game instead", () => {
+    const stagedTop = stackEncounterDeck(scwVsRhino(), "01186", "15023");
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    const atFlip = settleUntil(runWith(deps, stagedTop, toHero(), endTurn()), "chooseOption", firstLegal, deps);
+    expect(atFlip.pendingChoice?.playerId).toBe(P1);
+    expect(atFlip.pendingChoice?.options.map((o) => o.label)).toEqual(["Flip to alter-ego form", "Stay in hero form"]);
+    const flipped = answer(atFlip, ["0"], deps);
+    expect(playerOf(flipped, P1).identity.form).toBe("alterEgo");
+    expect(flipped.pendingChoice?.options.map((o) => o.label)).toEqual([
+      "Exhaust Wanda Maximoff → remove this obligation from the game",
+      "Discard the top 5 cards of the encounter deck. For each star icon in the boost area discarded this way, place 1 threat on the main scheme",
+    ]);
+    const removed = settle(answer(flipped, ["0"], deps), firstLegal, undefined, deps);
+    expectResolved(trace, "15023.obligation");
+    const notice = instancesOf(removed, "15023")[0]!;
+    expect(removed.removedFromGame).toContain(notice);
+    expect(inst(removed, identityOf(removed)).exhausted).toBe(true);
   });
 
   it("The Next Evolution: increases the number of boost icons on every encounter card by 1, once revealed", () => {

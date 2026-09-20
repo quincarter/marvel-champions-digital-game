@@ -96,20 +96,17 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "04165.obligation",
     "04166.obligation",
   ],
-  // Regenerated 2026-09-20 against TOAFK_CARDS/WAVE2_ABILITIES, after un-skipping 11018/11019/11021's own
-  // "Alter-Ego Action" refs (docs/phase7-wave2.md §19/§23: `AbilityCost.discardFromHand` gained `filter`).
-  // `card-data-pipeline` has since split 11020/11049's own single combined ref into a `-constant` ref and a
-  // `-action` ref apiece, the same shape 11018/11019/11021 already use (docs/phase7-wave2.md §18.2,
-  // docs/phase7-wave2-data.md) — mechanically required here since this list is pinned to whatever ability ref ids
-  // `@mc/content` actually emits. Every primitive all four refs need already exists (RuleSpec `cannotPlay`/
-  // `cannotAttack`, `TargetQuery.identitySetOf`, `AbilityCost.discardFromHand.filter`, `discardRandomFromHand`);
-  // none are scripted yet — that is `ability-scripting-engineer`'s follow-up.
-  toafk: [
-    "11020.depowered-constant",
-    "11020.depowered-action",
-    "11049.fear-of-kang-constant",
-    "11049.fear-of-kang-action",
-  ],
+  // Regenerated 2026-09-20 (`pnpm refs`) after scripting 11020 (Depowered, both refs — `cannotPlay` +
+  // `identitySetOf: eachPlayer`, not `you`: `kang-encounter-set.ts`'s own docblock found by testing that
+  // `cannotPlay`'s `cards` query reads an obligation's raw (controller-less) context, not the speaker-resolved one
+  // `player` uses) and 11049's own `-action` ref (Fear of Kang's random-discard clause). `11049.fear-of-kang-
+  // constant` ("You cannot attack Kang") stays skipped: `RuleSpec cannotAttack` has no `player` field, so the only
+  // shape it can express is a *global* "players cannot attack X" (Distracting Taunts' own shape), proven to
+  // over-block every other player at the table in a real two-player game
+  // (`toafk/fear-of-kang-constant.test.ts`) rather than assumed — see `kang-encounter-set.ts`'s dedicated docblock
+  // note. Needs an engine change (a `player?: PlayerRef` field on `cannotAttack`, mirroring `cannotPlay`'s);
+  // flagged for `game-rules-architect`, out of `@mc/cards`' own boundary.
+  toafk: ["11049.fear-of-kang-constant"],
   // Regenerated 2026-09-20 against ANT_CARDS/WAVE2_ABILITIES, after un-skipping all five remaining refs
   // (docs/phase7-wave2.md §18/§23): `12011.ant-man-interrupt` and `12032.muster-courage-action` were already
   // unblocked (stale skips, §18.3/§18.5); `12024.team-building-exercise-action` and `12029.when-revealed` needed
@@ -122,15 +119,10 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
   // phase7-wave2.md §23): `14009.friction-resistance-response` needed the new `cardReadied` announcement (§21);
   // `14024.obligation` needed `applyRuleUntil` (§22), the same primitive `12025.obligation` (`ant`) needed.
   qsv: [],
-  // Computed 2026-09-19 against SCW_CARDS/WAVE2_ABILITIES, same method as the other packs' own lists above.
-  scw: [
-    // --- Obligation/nemesis (wave2/scw/obligation-nemesis.ts): missing-primitive block, see that file's module
-    //     docblock (no primitive counts star icons — as opposed to boost icons — among a discarded pool of
-    //     boost-area cards; confirmed genuinely missing, not just a missing DSL wrapper). Data gap, not an engine
-    //     gap (docs/phase7-wave2.md §18.6/§23): `card-data-pipeline` needs a `starIcon?: boolean` field on
-    //     encounter-side cards, backfilled; the engine read is a one-liner afterwards. ---
-    "15023.obligation",
-  ],
+  // Regenerated 2026-09-20 (`pnpm refs`) after scripting `15023.obligation` (Slipping Sanity) — `card-data-
+  // pipeline` landed a printed `starIcon` field (docs/phase7-wave2.md §24), the engine grew `<bind>.starIcons`
+  // on `discardEncounterCards`, and `obligation-nemesis.ts`'s docblock has the rest. Fully scripted.
+  scw: [],
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [

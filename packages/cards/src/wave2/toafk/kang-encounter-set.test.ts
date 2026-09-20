@@ -1,7 +1,8 @@
-import type { GameState, InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, toHero, use } from "../../testing/harness.js";
+import { applyCommand, type GameState, type InstanceId } from "@mc/engine";
+import { endTurn, firstLegal, identityOf, instancesOf, moveToHand, P1, payWith, play, playerOf, runWith, settle, toHero, use } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
+import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { KANG_ENCOUNTER_SET } from "./kang-encounter-set.js";
 
 const kangVsHeroes = () => startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
@@ -139,5 +140,63 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
 
   it("Ancient Grudge (11051): Kang (Master of Time) activates against you; if he isn't in play, searches and puts him into play engaged with you", () => {
     expect(KANG_ENCOUNTER_SET["11051.when-revealed"]).toBeDefined();
+  });
+
+  describe("Depowered (11020)", () => {
+    // Hawkeye's Bow (04002, cost 0, aspect "hero:04001a") is hero-specific for the Hawkeye precon; Earth's Mightiest
+    // Heroes (04022, cost 0, aspect "basic") is not — the negative control that proves the query discriminates
+    // rather than blocking everything (docs/card-scripting-process.md §7's own "build a pile where the two facts
+    // genuinely differ"). Not a resource card (04023 Energy, tried first): resource cards are never `playCard`-
+    // legal at all ("resource cards are discarded to pay costs, not played"), which would make that control
+    // vacuous — rejected for the wrong reason, not because Depowered let it through.
+    it("constant: blocks playing a hero-specific card, but not a basic-aspect one", () => {
+      const revealed = revealAsObligation(kangVsHeroes(), "11020");
+      const obligation = instancesOf(revealed, "11020").find((id) => playerOf(revealed, P1).playArea.includes(id));
+      if (!obligation) throw new Error("Depowered never entered play");
+
+      const withBow = moveToHand(revealed, P1, "04002");
+      const [bow] = withBow.ids as [InstanceId];
+      const blocked = applyCommand(withBow.state, play(P1, bow, []), WAVE2_DEPS);
+      expect(blocked.ok, "expected Hawkeye's Bow to be blocked by Depowered").toBe(false);
+
+      const withBasic = moveToHand(revealed, P1, "04022");
+      const [heroesEvent] = withBasic.ids as [InstanceId];
+      const inHeroForm = settle(runWave2(withBasic.state, toHero(P1)), firstLegal, undefined, WAVE2_DEPS);
+      const allowed = applyCommand(inHeroForm, play(P1, heroesEvent, []), WAVE2_DEPS);
+      expect(allowed.ok, "expected a basic-aspect card to stay playable under Depowered").toBe(true);
+    });
+
+    it("action: discards a hero-specific card from hand to discard this obligation", () => {
+      const revealed = revealAsObligation(kangVsHeroes(), "11020");
+      const obligation = instancesOf(revealed, "11020").find((id) => playerOf(revealed, P1).playArea.includes(id));
+      if (!obligation) throw new Error("Depowered never entered play");
+      const given = moveToHand(revealed, P1, "04002");
+      const [bow] = given.ids as [InstanceId];
+      const { deps, trace } = traceAbilities(WAVE2_DEPS);
+      const after = settle(runWith(deps, given.state, use(P1, obligation, "11020.depowered-action", [], { discard: [bow] })), firstLegal, undefined, deps);
+      expectResolved(trace, "11020.depowered-action");
+      expect(playerOf(after, P1).playArea).not.toContain(obligation);
+      expect(playerOf(after, P1).hand).not.toContain(bow);
+    });
+  });
+
+  describe("Fear of Kang (11049)", () => {
+    it("action: discards a random card from hand to discard this obligation", () => {
+      const revealed = revealAsObligation(kangVsHeroes(), "11049");
+      const obligation = instancesOf(revealed, "11049").find((id) => playerOf(revealed, P1).playArea.includes(id));
+      if (!obligation) throw new Error("Fear of Kang never entered play");
+      const handBefore = playerOf(revealed, P1).hand;
+      expect(handBefore.length).toBeGreaterThan(0);
+      const { deps, trace } = traceAbilities(WAVE2_DEPS);
+      const after = settle(runWith(deps, revealed, use(P1, obligation, "11049.fear-of-kang-action")), firstLegal, undefined, deps);
+      expectResolved(trace, "11049.fear-of-kang-action");
+      expect(playerOf(after, P1).playArea).not.toContain(obligation);
+      const discarded = handBefore.filter((id) => !playerOf(after, P1).hand.includes(id));
+      expect(discarded).toHaveLength(1);
+      expect(playerOf(after, P1).discard).toContain(discarded[0]);
+    });
+
+    // "You cannot attack Kang" (11049.fear-of-kang-constant) is not scripted — see this module's own docblock and
+    // `fear-of-kang-constant.test.ts` for the two-player scoping proof behind that decision.
   });
 });

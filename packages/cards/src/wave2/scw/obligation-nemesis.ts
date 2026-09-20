@@ -15,14 +15,17 @@ import {
   heroAction,
   ifThen,
   on,
+  placeThreat,
   putIntoPlay,
   query,
   self,
+  theMainScheme,
   valueAtLeast,
   varOf,
   whenRevealed,
   you,
 } from "../../dsl/index.js";
+import { obligation } from "../../core/obligations.js";
 import { cardName } from "../names.js";
 
 /**
@@ -30,28 +33,16 @@ import { cardName } from "../names.js";
  * wave2.md §1.10), and her nemesis set: The Next Evolution (15024), Luminous (15025), Magical Suspension (15026),
  * Chaos Manipulation (15027).
  *
- * **Skipped (missing engine primitive) — `15023.obligation`.** "• Discard the top 5 cards of the encounter deck.
- * For each **star icon** ([star]) **in the boost area** discarded this way, place 1 threat on the main scheme."
- * RRG 1.8 "Boost" (p. 11): "A star icon is not itself considered a boost icon" — it marks a card's own mandatory
- * Boost ability, not a countable pip. Confirmed there is genuinely no primitive for this today, not merely a
- * missing DSL wrapper (task brief's own "verify a skip claim is real" rule, docs/phase7-wave2-scripting.md §4.1):
- * - The content schema (`packages/content/src/schema/validation.ts`) has no field recording "this card has a star
- *   icon" at all — only the numeric `boostIcons` pip count (`boostErrors`).
- * - The one place the engine derives "has a star icon" today is `packages/engine/src/defend-preview.ts`'s own
- *   private, unexported `hasBoostAbility` — a structural check ("does this card carry a printed ability whose
- *   `trigger.kind === 'boost'`?") used only to compute that module's own defend-prompt bound
- *   (`mayTriggerBoostAbility`), never surfaced as a `TargetQuery` field (`select.ts`'s `explainQuery`) or a
- *   `ValueSpec` (`resolveValue`) either card scripts could read from.
- * - `discardEncounterCards`'s own `<bind>` (docs/phase7-wave1-scripting.md §6) reports `.count`/`.boostIcons`/the
- *   four resource-type totals over a discarded pool — no `.starIcons`/`.withBoostAbility` sibling.
- * Closest existing primitive: the same shape as `<bind>.boostIcons` itself (a per-card structural read, summed
- * over a `discardEncounterCards` pool) — a `<bind>.starIcons` (or `<bind>.boostAbilityCount`) counting how many of
- * the discarded cards carry a printed Boost ability, mirroring `hasBoostAbility`'s own existing check instead of
- * duplicating it. Longshot (wolv pack, not yet scripted) needs the same underlying fact as a yes/no read ("if that
- * card has a star icon … defeat the attacked minion"), so this is not scw-specific. Until this lands, Slipping
- * Sanity's alter-ego side ("Exhaust Wanda Maximoff → remove Slipping Sanity from the game") also has no home,
- * since the whole obligation is one ability ref (`core/obligations.ts`'s `obligation()` helper builds a single
- * `AbilityDefinition` for both branches) — the ref is pinned as a whole rather than half-scripted.
+ * **`15023.obligation` is now scripted** (docs/phase7-wave2.md §18.6/§24, landed after `card-data-pipeline` added
+ * `starIcon?: boolean` — a printed characteristic, backfilled for 159 cards, distinct from `boostIcons`). "• Discard
+ * the top 5 cards of the encounter deck. For each **star icon** ([star]) **in the boost area** discarded this way,
+ * place 1 threat on the main scheme. Discard this obligation." is the Core obligation shape (`core/obligations.ts`'s
+ * `obligation()` helper: "give to X, may flip, exhaust-to-remove-or-alternative") with `discardEncounterCards(5,
+ * { bind: "sanity" })` + `placeThreat(varOf("sanity.starIcons"), theMainScheme)` as the alternative — the same
+ * `<bind>.boostIcons`-shaped total `discardEncounterCards` already exposed, with a `.starIcons` sibling (§24.3).
+ * RRG 1.8 "Boost" (p. 11): "A star icon is not itself considered a boost icon" — `starIcons` and `boostIcons` count
+ * independently (§24's own correction: only 43 of the pool's 159 starred cards print both; a typo swapping one for
+ * the other would still pass on a pile where the two happen to agree, docs/card-scripting-process.md §7).
  *
  * **The Next Evolution (15024)** — "Increase the number of boost icons on each encounter card by 1" is the exact
  * card docs/phase7-wave2.md §3.6 names as the constant-modifier half of the boost-icon-counting primitive: a
@@ -83,8 +74,14 @@ import { cardName } from "../names.js";
  * which is what "search … for Luminous and put her into play" (no "you may") actually means.
  */
 export const SCW_OBLIGATION_NEMESIS = defineAbilities({
-  // Slipping Sanity (15023.obligation) is SKIPPED — module docblock (no primitive for counting star icons among a
-  // discarded pool of boost-area cards).
+  // Slipping Sanity — Give to the Wanda Maximoff player. You may flip to alter-ego form. Choose:
+  // • Exhaust Wanda Maximoff → remove Slipping Sanity from the game.
+  // • Discard the top 5 cards of the encounter deck. For each star icon in the boost area discarded this way,
+  //   place 1 threat on the main scheme. Discard this obligation.
+  "15023.obligation": obligation("Wanda Maximoff", {
+    label: "Discard the top 5 cards of the encounter deck. For each star icon in the boost area discarded this way, place 1 threat on the main scheme",
+    effects: [discardEncounterCards(5, { bind: "sanity" }), placeThreat(varOf("sanity.starIcons"), theMainScheme)],
+  }),
 
   // The Next Evolution — Increase the number of boost icons on each encounter card by 1 (module docblock).
   "15024.the-next-evolution-constant": constant(gets("boostIcons", 1, { controller: "encounter" })),
