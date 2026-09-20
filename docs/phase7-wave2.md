@@ -2594,3 +2594,95 @@ need only DSL surface over primitives that exist:
 One warning worth carrying into the DSL: `starIcons` and `boostIcons` are **not** interchangeable, and a card that
 reads "for each boost icon" must not be scripted with `starIcons` (or vice versa). The two numbers disagree on 116 of
 the pool's 159 starred cards (a star, no pips) and on every unstarred card that prints pips.
+
+---
+
+## 25. "You cannot attack X": a player scope for `cannotAttack` (owner: `game-rules-architect`; landed 2026-09-20)
+
+> "**You cannot attack Kang.** Alter-Ego Action: Discard a random card from your hand → discard this obligation."
+> (Fear of Kang, `toafk` 11049.)
+
+Tests: `packages/engine/src/primitives-wave2e.test.ts` §25 (6 tests, five of them two-player). The last non-campaign
+ref in the wave 2 skip backlog (§23's "not unblocked" table listed 11049 as a data split; that was only half the
+story — the constant half needed this).
+
+### 25.1 `RuleSpec cannotAttack` gains `player?: PlayerRef`
+
+```ts
+{ kind: "cannotAttack"; target: TargetQuery; player?: PlayerRef; while?: Predicate }
+```
+
+`cannotAttack` was the one restriction in its family with no player scope — `cannotThwart`, `cannotChangeForm`,
+`cannotReady` and `cannotPlay` all carry one. It was built for Distracting Taunts (`twc` 07035, "**Players** cannot
+attack other villains"), which is genuinely global, and nothing needed otherwise until Fear of Kang. `player` is
+**optional**, so every existing caller keeps the table-wide meaning it has today; that is pinned by its own test
+rather than left as an assumption.
+
+`player` is resolved with "you" as the rule card's speaker (`speakerOf`), the same as `cannotThwart`'s. For an
+obligation — a card no player *controls* — the speaker is the player whose play area holds it. RRG 1.8 "Obligation"
+(p. 30): "Abilities on obligations that use the words 'you' or 'your' apply only to the player whose play area the
+obligation is in."
+
+**Who counts as the attacking player: the attacker's controller.** Not the active player, and emphatically not the
+rule card's controller (an obligation's is `null`). RRG 1.8 "Guard" (p. 21) settles this for the whole family: "While
+a minion with the guard keyword is engaged with a player, that player cannot use cards they control to attack a
+villain … The guard keyword is **equivalent to** the following constant ability: 'The engaged player cannot attack
+any villain.'" The RRG equates "cannot use cards they control to attack" with "cannot attack", so a player's ally
+attacking is that player attacking, and a scoped `cannotAttack` blocks it. Tested with allies on both sides of the
+scope.
+
+An attack made by an enemy is nobody's attack: `canAttack` returns early when the attacker has no controller, so
+neither guard nor `cannotAttack` (both worded about *players*) ever touches a villain's or minion's activation. That
+early return already existed; it is now the documented reason the new parameter is always a real `PlayerId`.
+
+`attackForbidden` (`packages/engine/src/select.ts`) took only the target; it now takes the attacking player as well.
+Every caller of `canAttack` — the `basicAttack` command (`actions.ts`), the `attack` effect (`resolve/apply-effect.ts`,
+which covers an event's or an ally ability's attack) and the `attackableBy` query (`select.ts`) — already supplies
+an attacker instance, so nothing above it changed shape and `canAttack`'s exported signature is untouched
+(`@mc/cards`' `testing/driver.ts` calls it).
+
+### 25.2 One rule scan, so constant and lasting rules behave alike
+
+`attackForbidden` had its own hand-rolled loop over constant abilities, written before `activeRules` existed. That
+loop never saw `ruleGrant` lasting effects (§22.1), so `applyRuleUntil({ kind: "cannotAttack", … })` would have been
+accepted by the type system, created a lasting effect, appeared in the log — and silently restricted nothing. No card
+in the pool does that today, which is exactly why it would have been found late. `attackForbidden` now reads through
+`activeRules` like every other restriction, and a lasting `cannotAttack` works; tested.
+
+To make that possible without a `select.ts` ↔ `rules.ts` import cycle, `activeRules`, `speakerOf` and `rulePlayers`
+moved from `rules.ts` into `select.ts` (unchanged in behaviour) and `rules.ts` imports them back. `rules.ts` is still
+where every *consumer* lives; only the scan moved, because its oldest caller lives in `select.ts`.
+
+### 25.3 `cannotPlay`'s `cards` query now reads the speaker's "you"
+
+The lesser version of the same gap, found by `ability-scripting-engineer` while scripting Depowered (`toafk` 11020):
+`cannotPlay` resolves its `player` field in the speaker context but matched its `cards` query in the source card's
+raw context. On an obligation that context has `controllerId: null`, so `identitySetOf: you` (or any other `you` ref)
+matched nothing and the restriction quietly did nothing at all — worse than erroring. `ActiveRule` now carries a
+`speakerContext` beside `context`, and `cannotPlayCard` matches `cards` in it. The two clauses of one printed
+sentence ("*you* cannot play *your* hero-specific cards") now agree on who "you" is. On a player-controlled card the
+two contexts are identical, so nothing that worked before changes.
+
+**Deliberately not done, and why.** The general form of this — every `target`/`enemy`/`scheme` query and every
+`while` predicate on every `RuleSpec` reading the speaker context — is a bigger change than it looks and is *not*
+made here (the §3.13.11 precedent for recording a non-fix rather than half-doing it). It would alter how `while`
+predicates evaluate for every rule on every controller-less card in a play area (obligations, engaged minions), which
+is a behaviour change to rules that are working today, for no card that needs it. The narrow fix covers the one
+shape that is provably broken: a query that is the companion of a `player` field. If a future card needs "you" inside
+a rule's `target`, do the general change on purpose, with its own tests, rather than widening this one.
+
+### 25.4 What `ability-scripting-engineer` needs to do next
+
+Nothing in `packages/cards` was touched here (`KNOWN_SKIPPED` included). To close 11049:
+
+1. Script `11049.fear-of-kang-constant` as `constant(rule({ kind: "cannotAttack", target: query("villain", { name:
+   cardName("11001") }), player: you }))` — the `rule` builder passes a `RuleSpec` straight through, so no DSL change
+   is needed — and add it to `KANG_ENCOUNTER_SET`.
+2. Drop it from `KNOWN_SKIPPED` in `wave2/coverage.test.ts`.
+3. `wave2/toafk/fear-of-kang-constant.test.ts` is still worth keeping, but its second half now asserts the *fixed*
+   behaviour: rewrite it to build the rule **with** `player` and expect P2 to be unblocked, or retarget it at the
+   shipped ability. Its current first test asserts the old, wrong behaviour of a bare target-only rule and will still
+   pass (a rule with no `player` is still table-wide by design) — so it needs its docblock updated, not deleting.
+4. `11020.depowered-constant`'s `cards: { identitySetOf: eachPlayer }` workaround can become `you` if you prefer the
+   narrower reading; both now work, and §25.3 is why. Simplify the comment in `wave2/toafk/kang-encounter-set.ts`
+   either way — the "silently does nothing" hazard it documents is gone.

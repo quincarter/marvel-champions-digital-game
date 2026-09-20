@@ -11,15 +11,17 @@
 import { flat, type AnyCard, type CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { AbilityDefinition, EngineDeps } from "./abilities.js";
+import { applyCommand } from "./engine.js";
+import { cannotPlayCard } from "./rules.js";
 import type { Command, Payment } from "./commands.js";
-import type { EffectSpec, ValueSpec } from "./spec.js";
-import { playerId, type InstanceId } from "./ids.js";
+import type { EffectSpec, PlayerRef, TargetQuery, ValueSpec } from "./spec.js";
+import { playerId, type InstanceId, type PlayerId } from "./ids.js";
 import { activeEncounterDeck, mustInstance, mustPlayer } from "./query.js";
-import { matchesQuery } from "./select.js";
+import { canAttack, matchesQuery } from "./select.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubEvent, stubMainScheme, stubSideScheme, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { giveCards, newGame, RESOURCE, runWith, settle, withEncounterPiles } from "./testing/scenario.js";
+import { stubEvent, stubIdentity, stubMainScheme, stubObligation, stubSideScheme, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import { ALLY, giveCards, newGame, RESOURCE, runWith, settle, withEncounterPiles } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const def = (definition: AbilityDefinition) => definition;
@@ -315,5 +317,167 @@ describe("§24.5 the star is read from printed data, not from what has been scri
     const state = resolve({ effects: SANITY, top: copies(MISCOUNTED.id, 5), extra: [MISCOUNTED], abilities: [boostAbility] });
     expect(threat(state)).toBe(0);
     expect(counter(state, "pips")).toBe(5);
+  });
+});
+
+// ---- §25 `cannotAttack`'s player scope -------------------------------------------------------------------------
+
+/**
+ * docs/phase7-wave2.md §25: "You cannot attack Kang" (Fear of Kang, `toafk` 11049) beside "Players cannot attack
+ * other villains" (Distracting Taunts, `twc` 07035). Both are the same `RuleSpec cannotAttack`; the only difference
+ * is the optional `player` field, so the two scopes are pinned against each other rather than one at a time —
+ * `@mc/cards` proved (`wave2/toafk/fear-of-kang-constant.test.ts`) that a target-only rule on one player's
+ * obligation used to block the whole table.
+ *
+ * Sources: RRG 1.8 "Obligation" (p. 30) — "Abilities on obligations that use the words 'you' or 'your' apply only to
+ * the player whose play area the obligation is in"; "Guard" (p. 21) — "that player cannot use cards they control to
+ * attack a villain" is stated to be equivalent to the constant ability "The engaged player cannot attack any
+ * villain", which is why the attacking player is the attacker's *controller*.
+ */
+describe("§25 `RuleSpec cannotAttack` scopes by the attacking player", () => {
+  const you: PlayerRef = { kind: "controller" };
+  const anyVillain: TargetQuery = { categories: ["villain"] };
+  const stats = { hp: 30, atk: 2, thw: 2, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6 } as const;
+
+  /** "Players cannot attack other villains": no `player`, so the whole table — the shape that predates §25. */
+  const tableWide = stubAbility("taunts.constant", def({ trigger: { kind: "constant", rules: [{ kind: "cannotAttack", target: anyVillain }] }, effects: [] }));
+  /** "You cannot attack Kang": the same rule with a `player`, read as the obligation's own player. */
+  const yoursOnly = stubAbility("fear.constant", def({ trigger: { kind: "constant", rules: [{ kind: "cannotAttack", target: anyVillain, player: you }] }, effects: [] }));
+  /** "You cannot play your cards": `cannotPlay`'s `cards` query, which reads the same "you" its `player` does (§25.3). */
+  const noPlaying = stubAbility("depower.constant", def({
+    trigger: { kind: "constant", rules: [{ kind: "cannotPlay", player: you, cards: { controlledBy: you } }] },
+    effects: [],
+  }));
+
+  const TAUNTED = stubIdentity({ id: "taunted", ...stats });
+  const FEARFUL = stubIdentity({ id: "fearful", ...stats });
+  const DEPOWERED = stubIdentity({ id: "depowered", ...stats });
+  // `stubIdentity` names its obligation `${id}-obligation`, and setup shuffles one copy per seat into the encounter
+  // deck (RRG 1.8 "Obligation", p. 30) — the real instance-creation path, so only the reveal below is surgery.
+  const TAUNTS = stubObligation({ id: "taunted-obligation", abilities: [tableWide.ref] });
+  const FEAR = stubObligation({ id: "fearful-obligation", abilities: [yoursOnly.ref] });
+  const DEPOWER = stubObligation({ id: "depowered-obligation", abilities: [noPlaying.ref] });
+
+  const p2 = playerId("p2");
+  const seats: Record<string, { readonly identity: ReturnType<typeof stubIdentity>; readonly obligation: AnyCard; readonly ability: StubAbility }> = {
+    taunts: { identity: TAUNTED, obligation: TAUNTS, ability: tableWide },
+    fear: { identity: FEARFUL, obligation: FEAR, ability: yoursOnly },
+    depower: { identity: DEPOWERED, obligation: DEPOWER, ability: noPlaying },
+  };
+
+  /**
+   * Test surgery, not a reveal: the obligation goes from the encounter deck straight into `owner`'s play area. What
+   * is under test is whose attacks the rule reaches, not how the card got there (`resolve/reveal.ts` owns that).
+   */
+  function intoPlayArea(state: GameState, card: AnyCard, owner: PlayerId): GameState {
+    const deck = activeEncounterDeck(state).deck;
+    const id = deck.find((candidate) => state.instances[candidate]?.cardId === card.id);
+    if (!id) throw new Error(`fixture: no ${card.id} in the encounter deck`);
+    const drawn = withEncounterPiles(state, { deck: deck.filter((candidate) => candidate !== id) });
+    return {
+      ...drawn,
+      instances: { ...drawn.instances, [id]: { ...drawn.instances[id]!, faceup: true } },
+      players: drawn.players.map((p) => (p.playerId === owner ? { ...p, playArea: [...p.playArea, id] } : p)),
+    };
+  }
+
+  /** A two-player table with the named obligation already in p1's play area. */
+  function table(which: keyof typeof seats): { readonly deps: EngineDeps; readonly state: GameState } {
+    const seat = seats[which]!;
+    const deps = depsOf(seat.ability);
+    const state = newGame({
+      deps,
+      players: 2,
+      identity: seat.identity,
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [PLAIN, seat.obligation],
+      encounterDeck: copies(PLAIN.id, 25),
+    });
+    return { deps, state: intoPlayArea(state, seat.obligation, p1) };
+  }
+
+  const villainOf = (state: GameState): InstanceId => state.villains[0]!.instanceId;
+  const identityOf = (state: GameState, player: PlayerId): InstanceId => mustPlayer(state, player).identity.instanceId;
+  /** An ally out of that player's own deck and into their play area, to attack with (`controllerOf` is them). */
+  function withAlly(state: GameState, owner: PlayerId): { readonly state: GameState; readonly ally: InstanceId } {
+    const ally = mustPlayer(state, owner).deck.find((id) => state.instances[id]?.cardId === ALLY.id);
+    if (!ally) throw new Error(`fixture: ${owner} has no ally in their deck`);
+    return {
+      ally,
+      state: {
+        ...state,
+        players: state.players.map((p) => (p.playerId === owner ? { ...p, deck: p.deck.filter((id) => id !== ally), playArea: [...p.playArea, ally] } : p)),
+      },
+    };
+  }
+
+  it("with no `player`, still blocks every player at the table (Distracting Taunts is genuinely plural)", () => {
+    const { deps, state } = table("taunts");
+    expect(canAttack(state, identityOf(state, p1), villainOf(state), deps)).toBe(false);
+    expect(canAttack(state, identityOf(state, p2), villainOf(state), deps)).toBe(false);
+  });
+
+  it("with a `player`, blocks only that player — the other player's attack is untouched", () => {
+    const { deps, state } = table("fear");
+    // The obligation is in p1's play area and controls nothing, so its "you" is p1 (RRG 1.8 "Obligation", p. 30).
+    expect(canAttack(state, identityOf(state, p1), villainOf(state), deps)).toBe(false);
+    expect(canAttack(state, identityOf(state, p2), villainOf(state), deps)).toBe(true);
+  });
+
+  it("restricts the attacker's controller, so the restricted player's ally is blocked and another player's is not", () => {
+    const { deps, state } = table("fear");
+    const mine = withAlly(state, p1);
+    const theirs = withAlly(mine.state, p2);
+    // RRG 1.8 "Guard" (p. 21): "cannot use cards they control to attack" ≡ "the engaged player cannot attack".
+    expect(canAttack(theirs.state, mine.ally, villainOf(theirs.state), deps)).toBe(false);
+    expect(canAttack(theirs.state, theirs.ally, villainOf(theirs.state), deps)).toBe(true);
+  });
+
+  it("refuses the restricted player's basic attack command and allows the other player's, through a real turn", () => {
+    const { deps, state } = table("fear");
+    const villain = villainOf(state);
+    const heroP1 = settle(runWith(deps, state, { type: "changeForm", playerId: p1 }), undefined, deps);
+    const attack = (s: GameState, player: PlayerId) =>
+      applyCommand(s, { type: "basicAttack", playerId: player, attackerInstanceId: identityOf(s, player), targetInstanceId: villain }, deps);
+    expect(attack(heroP1, p1).ok).toBe(false);
+
+    // Hand the turn over: the villain phase runs, then p2 flips up and attacks the same villain unimpeded.
+    const p2Turn = settle(runWith(deps, heroP1, { type: "endTurn", playerId: p1 }), undefined, deps);
+    const heroP2 = settle(runWith(deps, p2Turn, { type: "changeForm", playerId: p2 }), undefined, deps);
+    expect(attack(heroP2, p2).ok).toBe(true);
+  });
+
+  it("is read from a `ruleGrant` lasting effect too, not only from a card in play (§25.2)", () => {
+    const grant = stubAbility("grant.action", def({
+      trigger: { kind: "action" },
+      effects: [{ kind: "applyRuleUntil", rule: { kind: "cannotAttack", target: anyVillain, player: you }, until: "endOfTurn" }],
+    }));
+    const EVENT = stubEvent({ id: "grant-event", cost: 0, abilities: [grant.ref] });
+    const deps = depsOf(grant);
+    const state = newGame({
+      deps,
+      players: 2,
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [PLAIN, EVENT],
+      encounterDeck: copies(PLAIN.id, 25),
+      deck: [...copies(EVENT.id, 4), ...copies(RESOURCE.id, 16)],
+    });
+    const given = giveCards(state, p1, EVENT.id);
+    const played = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
+    expect(played.lastingEffects.filter((e) => e.kind === "ruleGrant")).toHaveLength(1);
+    expect(canAttack(played, identityOf(played, p1), villainOf(played), deps)).toBe(false);
+    expect(canAttack(played, identityOf(played, p2), villainOf(played), deps)).toBe(true);
+  });
+
+  it("reads a `cannotPlay` rule's `cards` query in the same 'you' as its `player` (§25.3)", () => {
+    const { deps, state } = table("depower");
+    const mine = mustPlayer(state, p1).hand[0]!;
+    const theirs = mustPlayer(state, p2).hand[0]!;
+    // Before §25.3 the obligation's `controllerId` was null, `controlledBy: you` matched nobody's cards, and the
+    // whole restriction quietly did nothing.
+    expect(cannotPlayCard(state, deps, p1, mine)).toBe(true);
+    expect(cannotPlayCard(state, deps, p2, theirs)).toBe(false);
   });
 });

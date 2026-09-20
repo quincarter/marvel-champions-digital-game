@@ -1,59 +1,9 @@
-import type { EngineDeps, RuleSpec } from "./abilities.js";
+import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { getInstance, villainOf } from "./query.js";
-import { activeAbilityRefs, cardsInPlay, categoriesOf, controllerOf, evaluate, lastingContext, matchesQuery, resolvePlayers, resolveRef, type EffectContext } from "./select.js";
-import type { AttackKeyword, PlayerRef } from "./spec.js";
+import { villainOf } from "./query.js";
+import { activeRules, cardsInPlay, categoriesOf, matchesQuery, resolveRef, rulePlayers } from "./select.js";
+import type { AttackKeyword } from "./spec.js";
 import type { Form, GameState } from "./state.js";
-
-/**
- * Rule restrictions from constant abilities in play ("cannot take damage",
- * "threat cannot be removed", ally limit, "must defend with an ally"). Like
- * modifiers, they are recomputed on every check (RRG "Constant Abilities").
- */
-interface ActiveRule<K extends RuleSpec["kind"]> {
-  readonly rule: Extract<RuleSpec, { kind: K }>;
-  readonly context: EffectContext;
-  /** Who "you" is for a player-scoped rule (`rulePlayers`): the card's speaker, or a lasting effect's controller. */
-  readonly speakerId: PlayerId | null;
-}
-
-/**
- * Every rule of this kind in force right now: from constant abilities on cards in play, **and** from
- * `ruleGrant` lasting effects (docs/phase7-wave2.md §22, "you cannot change form until your next turn ends").
- *
- * A lasting rule's source card is usually gone by the time it is read — both obligations that need this discard
- * themselves as they resolve — so its `speakerId` is the creating ability's own controller rather than anything
- * derived from the card's current position (RRG 1.8 "Lasting Effects", p. 26: a lasting effect keeps working
- * "whether or not the card that created the lasting effect is in play").
- */
-function activeRules<K extends RuleSpec["kind"]>(state: GameState, deps: EngineDeps, kind: K): readonly ActiveRule<K>[] {
-  const found: ActiveRule<K>[] = [];
-  for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
-      const definition = deps.abilities[ref.id];
-      if (definition?.trigger.kind !== "constant") continue;
-      for (const rule of definition.trigger.rules ?? []) {
-        if (rule.kind !== kind) continue;
-        const context: EffectContext = {
-          selfInstanceId: sourceId,
-          controllerId: controllerOf(state, sourceId),
-          event: null,
-          bindings: {},
-          deps,
-        };
-        if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
-        found.push({ rule: rule as Extract<RuleSpec, { kind: K }>, context, speakerId: speakerOf(state, sourceId) });
-      }
-    }
-  }
-  for (const effect of state.lastingEffects) {
-    if (effect.kind !== "ruleGrant" || effect.rule.kind !== kind) continue;
-    const context = lastingContext(effect.scope, deps);
-    if ("while" in effect.rule && effect.rule.while && !evaluate(state, effect.rule.while, context)) continue;
-    found.push({ rule: effect.rule as Extract<RuleSpec, { kind: K }>, context, speakerId: effect.scope.controllerId });
-  }
-  return found;
-}
 
 /** "X cannot take damage [while …] [from …]". `sources` are the damage's source and the card it came through. */
 export function cannotTakeDamage(
@@ -75,23 +25,6 @@ export const threatCannotBeRemoved = (state: GameState, deps: EngineDeps, scheme
   activeRules(state, deps, "threatCannotBeRemoved").some(
     ({ rule, context }) => (rule.by !== "thwart" || byThwart) && matchesQuery(state, schemeId, rule.target, context),
   );
-
-/**
- * Who "you" is for a player-scoped rule on a card: its controller, else the controller of the card it is attached to
- * (Media Coverage on your identity), else the player whose area it is in (an engaged minion, an obligation).
- */
-function speakerOf(state: GameState, sourceId: InstanceId | null): PlayerId | null {
-  if (!sourceId) return null;
-  const controller = controllerOf(state, sourceId);
-  if (controller) return controller;
-  const host = getInstance(state, sourceId)?.attachedTo;
-  const hostController = host ? controllerOf(state, host) : null;
-  if (hostController) return hostController;
-  return state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
-}
-
-const rulePlayers = (state: GameState, rule: { readonly player: PlayerRef }, active: { readonly context: EffectContext; readonly speakerId: PlayerId | null }): readonly PlayerId[] =>
-  resolvePlayers(state, rule.player, { ...active.context, controllerId: active.speakerId });
 
 /** "While Baron Zemo is engaged with you, you cannot thwart." */
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>
@@ -155,10 +88,18 @@ export function grantedAttackKeywords(
 export const mayThwartWithAtk = (state: GameState, deps: EngineDeps, schemeId: InstanceId): boolean =>
   activeRules(state, deps, "thwartWithAtk").some(({ rule, context }) => matchesQuery(state, schemeId, rule.scheme, context));
 
-/** Whether `playerId` is forbidden to play this card (`cannotPlay`; Depowered). */
+/**
+ * Whether `playerId` is forbidden to play this card (`cannotPlay`; Depowered, `toafk` 11020).
+ *
+ * `cards` is matched in the rule's **speaker** context, the same "you" its `player` field is resolved in: the two
+ * clauses of one printed sentence ("*you* cannot play *your* hero-specific cards") have to agree on who "you" is.
+ * On a player-controlled card the two contexts are identical; they differ only on a card no player controls — an
+ * obligation, where `controllerId` is `null` and a `you` ref in `cards` used to match nobody, silently turning the
+ * whole restriction off (RRG 1.8 "Obligation", p. 30; docs/phase7-wave2.md §25.3).
+ */
 export const cannotPlayCard = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
   activeRules(state, deps, "cannotPlay").some(
-    (active) => rulePlayers(state, active.rule, active).includes(playerId) && matchesQuery(state, id, active.rule.cards, active.context),
+    (active) => rulePlayers(state, active.rule, active).includes(playerId) && matchesQuery(state, id, active.rule.cards, active.speakerContext),
   );
 
 /** Whether an action ability with this form label on this card cannot be triggered (`cannotTriggerActions`). */

@@ -1,5 +1,5 @@
 import type { AbilityReference, AnyCard, Trait } from "@mc/content";
-import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import { DEFAULT_DEPS, type EngineDeps, type RuleSpec } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import {
@@ -461,6 +461,98 @@ export const matchesQuery = (
   context: EffectContext,
 ): boolean => explainQuery(state, id, query, context) === null;
 
+/**
+ * Rule restrictions from constant abilities in play ("cannot take damage",
+ * "threat cannot be removed", ally limit, "must defend with an ally"). Like
+ * modifiers, they are recomputed on every check (RRG "Constant Abilities").
+ *
+ * Lives here rather than in `rules.ts` (which is where every consumer of it lives) only so that `canAttack`, an
+ * older and much more widely called resident of this module, can read rules through the same one scan as everything
+ * else instead of its own hand-rolled copy that saw constant abilities but not lasting ones (docs/phase7-wave2.md
+ * §25.2). `rules.ts` imports it straight back out.
+ */
+export interface ActiveRule<K extends RuleSpec["kind"]> {
+  readonly rule: Extract<RuleSpec, { kind: K }>;
+  readonly context: EffectContext;
+  /** Who "you" is for a player-scoped rule (`rulePlayers`): the card's speaker, or a lasting effect's controller. */
+  readonly speakerId: PlayerId | null;
+  /**
+   * `context` with "you" resolved to `speakerId` — the context a query that is part of a *player-scoped* restriction
+   * reads, so the restricted player and the cards/targets the restriction names agree on who "you" is. A card whose
+   * controller is a player resolves both identically; the two differ only for a card no player controls but that
+   * still speaks to one (an obligation, an engaged minion), where the plain `context` has `controllerId: null` and a
+   * `you` ref in the query would silently match nobody. docs/phase7-wave2.md §25.3.
+   */
+  readonly speakerContext: EffectContext;
+}
+
+/**
+ * Every rule of this kind in force right now: from constant abilities on cards in play, **and** from
+ * `ruleGrant` lasting effects (docs/phase7-wave2.md §22, "you cannot change form until your next turn ends").
+ *
+ * A lasting rule's source card is usually gone by the time it is read — both obligations that need this discard
+ * themselves as they resolve — so its `speakerId` is the creating ability's own controller rather than anything
+ * derived from the card's current position (RRG 1.8 "Lasting Effects", p. 26: a lasting effect keeps working
+ * "whether or not the card that created the lasting effect is in play").
+ */
+export function activeRules<K extends RuleSpec["kind"]>(state: GameState, deps: EngineDeps, kind: K): readonly ActiveRule<K>[] {
+  const found: ActiveRule<K>[] = [];
+  const record = (rule: RuleSpec, context: EffectContext, speakerId: PlayerId | null) => {
+    found.push({
+      rule: rule as Extract<RuleSpec, { kind: K }>,
+      context,
+      speakerId,
+      speakerContext: speakerId === context.controllerId ? context : { ...context, controllerId: speakerId },
+    });
+  };
+  for (const sourceId of cardsInPlay(state)) {
+    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
+      const definition = deps.abilities[ref.id];
+      if (definition?.trigger.kind !== "constant") continue;
+      for (const rule of definition.trigger.rules ?? []) {
+        if (rule.kind !== kind) continue;
+        const context: EffectContext = {
+          selfInstanceId: sourceId,
+          controllerId: controllerOf(state, sourceId),
+          event: null,
+          bindings: {},
+          deps,
+        };
+        if ("while" in rule && rule.while && !evaluate(state, rule.while, context)) continue;
+        record(rule, context, speakerOf(state, sourceId));
+      }
+    }
+  }
+  for (const effect of state.lastingEffects) {
+    if (effect.kind !== "ruleGrant" || effect.rule.kind !== kind) continue;
+    const context = lastingContext(effect.scope, deps);
+    if ("while" in effect.rule && effect.rule.while && !evaluate(state, effect.rule.while, context)) continue;
+    record(effect.rule, context, effect.scope.controllerId);
+  }
+  return found;
+}
+
+/**
+ * Who "you" is for a player-scoped rule on a card: its controller, else the controller of the card it is attached to
+ * (Media Coverage on your identity), else the player whose area it is in (an engaged minion, an obligation).
+ *
+ * RRG 1.8 "Obligation" (p. 30): "Abilities on obligations that use the words 'you' or 'your' apply only to the
+ * player whose play area the obligation is in" — the third branch.
+ */
+export function speakerOf(state: GameState, sourceId: InstanceId | null): PlayerId | null {
+  if (!sourceId) return null;
+  const controller = controllerOf(state, sourceId);
+  if (controller) return controller;
+  const host = getInstance(state, sourceId)?.attachedTo;
+  const hostController = host ? controllerOf(state, host) : null;
+  if (hostController) return hostController;
+  return state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
+}
+
+/** The players a rule's `player` ref binds, with "you" read as the rule's speaker rather than the card's controller. */
+export const rulePlayers = (state: GameState, rule: { readonly player: PlayerRef }, active: Pick<ActiveRule<RuleSpec["kind"]>, "speakerContext">): readonly PlayerId[] =>
+  resolvePlayers(state, rule.player, active.speakerContext);
+
 const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps): boolean =>
   cardsInPlay(state).some(
     (id) =>
@@ -480,29 +572,30 @@ const guardEngagedWith = (state: GameState, playerId: PlayerId, deps: EngineDeps
  */
 export function canAttack(state: GameState, attackerId: InstanceId, targetId: InstanceId, deps: EngineDeps = DEFAULT_DEPS): boolean {
   const controller = controllerOf(state, attackerId);
+  // An attack by an enemy is nobody's attack: neither guard nor `cannotAttack` (both worded about *players*) apply.
   if (controller === null) return true;
-  if (attackForbidden(state, targetId, deps)) return false;
+  if (attackForbidden(state, controller, targetId, deps)) return false;
   if (!isVillain(state, targetId)) return true;
   if (hasKeyword(state, targetId, "guard", deps)) return true;
   return !guardEngagedWith(state, controller, deps);
 }
 
-/** "Players cannot attack other villains" (Distracting Taunts): a constant `cannotAttack` rule in play matches the target. */
-function attackForbidden(state: GameState, targetId: InstanceId, deps: EngineDeps): boolean {
-  if (Object.keys(deps.abilities).length === 0) return false;
-  for (const sourceId of cardsInPlay(state)) {
-    for (const ref of activeAbilityRefs(state, sourceId, deps)) {
-      const trigger = deps.abilities[ref.id]?.trigger;
-      if (trigger?.kind !== "constant") continue;
-      for (const rule of trigger.rules ?? []) {
-        if (rule.kind !== "cannotAttack") continue;
-        const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
-        if (rule.while && !evaluate(state, rule.while, context)) continue;
-        if (matchesQuery(state, targetId, rule.target, context)) return true;
-      }
-    }
-  }
-  return false;
+/**
+ * A `cannotAttack` rule in force forbids this attack: "Players cannot attack other villains" (Distracting Taunts,
+ * `twc` 07035 — no `player`, so the whole table) or "You cannot attack Kang" (Fear of Kang, `toafk` 11049 — a
+ * `player`, so only them). docs/phase7-wave2.md §25.
+ *
+ * `attackerPlayerId` is the **attacker's controller**, which is what "you cannot attack" restricts: RRG 1.8 "Guard"
+ * (p. 21) equates "that player cannot use cards they control to attack a villain" with the constant ability "The
+ * engaged player cannot attack any villain", so a player's allies attack on their behalf. It is deliberately not the
+ * rule card's own controller, which for an obligation is nobody.
+ */
+function attackForbidden(state: GameState, attackerPlayerId: PlayerId, targetId: InstanceId, deps: EngineDeps): boolean {
+  return activeRules(state, deps, "cannotAttack").some((active) => {
+    const { player, target } = active.rule;
+    if (player && !rulePlayers(state, { player }, active).includes(attackerPlayerId)) return false;
+    return matchesQuery(state, targetId, target, active.speakerContext);
+  });
 }
 
 /** A minion's controller is null (it belongs to the encounter side) even while engaged. */

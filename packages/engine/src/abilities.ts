@@ -216,8 +216,20 @@ export type RuleSpec =
   | { readonly kind: "cannotReady"; readonly target: TargetQuery; readonly while?: Predicate }
   /** "You cannot change form" (All Tied Up). */
   | { readonly kind: "cannotChangeForm"; readonly player: PlayerRef; readonly while?: Predicate }
-  /** "Players cannot attack other villains." (Distracting Taunts): player attacks against a matching card are illegal. */
-  | { readonly kind: "cannotAttack"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Players cannot attack other villains." (Distracting Taunts): player attacks against a matching `target` are
+   * illegal. `player` scopes the restriction to one player — "You cannot attack Kang" (Fear of Kang, `toafk` 11049).
+   * Absent, it binds the whole table, which is what Distracting Taunts' plural printed wording means; every caller
+   * that predates the field keeps that meaning. Resolved with "you" as the rule card's speaker (`speakerOf`), so an
+   * obligation's "you" is the player whose play area holds it (RRG 1.8 "Obligation", p. 30: "Abilities on
+   * obligations that use the words 'you' or 'your' apply only to the player whose play area the obligation is in").
+   *
+   * **The attacking player is the attacker's controller**, not whoever's turn it is: RRG 1.8 "Guard" (p. 21) states
+   * that "that player cannot use cards they control to attack a villain" is *equivalent to* the constant ability
+   * "The engaged player cannot attack any villain", so an attack by a player's ally is that player's attack. An
+   * attack by an enemy has no controller and is never restricted by this rule. docs/phase7-wave2.md §25.
+   */
+  | { readonly kind: "cannotAttack"; readonly target: TargetQuery; readonly player?: PlayerRef; readonly while?: Predicate }
   /** "Resolve each 'When Revealed' ability that you reveal 1 additional time." (Media Coverage). */
   | { readonly kind: "repeatWhenRevealed"; readonly player: PlayerRef; readonly times: number; readonly while?: Predicate }
   /**
