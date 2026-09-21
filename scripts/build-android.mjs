@@ -93,7 +93,37 @@ function ensureJavaHome() {
   }
 }
 
+function ensureAndroidSdk() {
+  const candidates = [
+    process.env.ANDROID_HOME,
+    process.env.ANDROID_SDK_ROOT,
+    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Android", "Sdk") : null,
+    path.join(os.homedir(), "Library", "Android", "sdk"),
+    path.join(os.homedir(), "Android", "Sdk"),
+  ].filter(Boolean);
+
+  const sdkDir = candidates.find((p) => p && fs.existsSync(p));
+  if (!sdkDir) return null;
+
+  if (!process.env.ANDROID_HOME) {
+    process.env.ANDROID_HOME = sdkDir;
+  }
+  if (!process.env.ANDROID_SDK_ROOT) {
+    process.env.ANDROID_SDK_ROOT = sdkDir;
+  }
+
+  const localProps = path.join(androidDir, "local.properties");
+  if (!fs.existsSync(localProps)) {
+    const escaped = sdkDir.replace(/\\/g, "\\\\");
+    fs.writeFileSync(localProps, `sdk.dir=${escaped}\n`, "utf8");
+    console.log(`[build-android] Created ${localProps} pointing to ${sdkDir}`);
+  }
+
+  return sdkDir;
+}
+
 ensureJavaHome();
+ensureAndroidSdk();
 
 // Ensure apksigner is in PATH
 const apksignerDir = findApkSignerDir();

@@ -11,8 +11,8 @@ uv = "0.12.11"
 node = "24"
 # The desktop build (Tauri) needs cargo on PATH; mise drives it through rustup.
 rust = "stable"
-# Android Gradle requires Java 17 or 21 (Java 27 causes class file major version 71 error)
-java = "temurin-17"
+# Android Gradle and Capacitor require Java 21
+java = "temurin-21"
 gradle = "latest"
 
 [tasks.setup]
