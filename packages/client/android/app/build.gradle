@@ -22,13 +22,16 @@ android {
     // phone only says "App not installed". Same key, and either installs over the other in place.
     // The keystore is gitignored; without it (CI, a fresh clone) debug falls back to the default debug key.
     def sharedKeystore = file(System.getenv("ANDROID_KEYSTORE_PATH") ?: "../../../../marvel-champions.keystore")
-    if (sharedKeystore.exists()) {
+    def keystorePass = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+    def keystoreAlias = System.getenv("ANDROID_KEY_ALIAS") ?: System.getenv("ANDROID_KEYSTORE_ALIAS")
+    def keyPass = System.getenv("ANDROID_KEY_PASSWORD") ?: keystorePass
+    if (sharedKeystore.exists() && keystorePass && keystoreAlias) {
         signingConfigs {
             shared {
                 storeFile sharedKeystore
-                storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "rocket"
-                keyAlias System.getenv("ANDROID_KEYSTORE_ALIAS") ?: "marvel-champions"
-                keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: (System.getenv("ANDROID_KEYSTORE_PASSWORD") ?: "rocket")
+                storePassword keystorePass
+                keyAlias keystoreAlias
+                keyPassword keyPass
             }
         }
         buildTypes.debug.signingConfig = signingConfigs.shared
