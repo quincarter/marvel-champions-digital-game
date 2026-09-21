@@ -19,7 +19,7 @@ on:
       publish:
         description: "Publish immediately (false = draft release)"
         required: false
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -94,7 +94,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BUMP_INPUT: ${{ github.event.inputs.bump || 'auto' }}
-          PUBLISH_INPUT: ${{ github.event.inputs.publish || 'false' }}
+          PUBLISH_INPUT: ${{ github.event.inputs.publish || 'true' }}
         run: |
           # 1. Determine next version
           NEXT_TAG=""
@@ -350,11 +350,11 @@ jobs:
             echo "Warning: No release assets found to checksum."
           fi
 
-      - name: Publish Release if requested
-        if: needs.check-and-cut-release.outputs.publish == 'true'
+      - name: Publish Release
+        if: needs.check-and-cut-release.outputs.publish != 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${{ needs.check-and-cut-release.outputs.tag }}"
           echo "Publishing release ${TAG}..."
-          gh release edit "${TAG}" --draft=false
+          gh release edit "${TAG}" --draft=false --prerelease=false --latest
