@@ -342,7 +342,9 @@ export class TitleScene extends Phaser.Scene {
       return;
     }
     this.scale.off("resize", this.#rebuild, this);
-    goToScreen(this, SCENES.board);
+    // A game saved before its mulligans were done resumes on the setup deal screen, the only place a mulligan can
+    // be taken properly; that scene hands off to the Board itself once setup is over.
+    goToScreen(this, store.state.game?.step.phase === "setup" ? SCENES.setupDeal : SCENES.board);
   }
 }
 
