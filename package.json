@@ -1,11 +1,13 @@
 {
   "name": "marvel-champions-game",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "pnpm --filter @mc/client dev",
     "preview": "pnpm --filter @mc/client build && pnpm --filter @mc/client preview",
     "desktop:dev": "pnpm --filter @mc/client desktop:dev",
     "desktop:build": "pnpm --filter @mc/client desktop:build",
+    "ship-it": "node scripts/ship-it.mjs",
     "ios": "pnpm --filter @mc/client ios",
     "android": "pnpm --filter @mc/client android",
     "cap": "pnpm --filter @mc/client cap",

@@ -53,13 +53,7 @@ description = "Everything CI runs: lint, format check, typecheck, then tests, th
 # A sequential array, so a failure stops the run and the output stays readable.
 # The pre-commit hook (.githooks/pre-commit, installed by `pnpm install`) runs the
 # first two on the staged files only; this runs them over the whole tree.
-run = [
-  "pnpm lint",
-  "pnpm fmt:check",
-  "pnpm typecheck",
-  "pnpm test",
-  "pnpm build",
-]
+run = ["pnpm lint", "pnpm fmt:check", "pnpm typecheck", "pnpm test", "pnpm build"]
 
 [tasks.ingest]
 description = "Regenerate card data. Pass flags after --, e.g. mise run ingest -- --pack core --offline"
@@ -85,5 +79,5 @@ description = "Clean Start Dev Build"
 run = ["mise run clean", "mise run build", "mise run dev"]
 
 [tasks.ship-it]
-description = "Build the release assets this machine can make: the desktop installers for its own OS (Tauri bundles with the host toolchain: .app/.dmg on macOS, .msi/-setup.exe on Windows, .deb/.rpm/.AppImage on Linux), then the signed Android APK"
-run = ["pnpm desktop:build", "pnpm android:build"]
+description = "Build all release assets (desktop installers + Android APK) into release/, create git tag, and draft/publish GitHub release"
+run = "node scripts/ship-it.mjs"

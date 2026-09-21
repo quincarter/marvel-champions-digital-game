@@ -8,6 +8,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { defaultReleaseDir, writeChecksumManifest } from "./lib/release-collector.mjs";
 import { pnpm, run } from "./lib/run.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -149,19 +150,29 @@ if (verifyResult.status !== 0) {
 // "App not installed". Uploading the wrong one of the two is an easy mistake, so the file to send lives alone.
 const gradle = fs.readFileSync(path.join(androidDir, "app", "build.gradle"), "utf8");
 const versionName = gradle.match(/versionName\s+"([^"]+)"/)?.[1] ?? "0";
+
+// Stage to dist/android for backwards compatibility
 const shareDir = path.join(repoRoot, "dist", "android");
 fs.mkdirSync(shareDir, { recursive: true });
 for (const stale of fs.readdirSync(shareDir)) if (stale.endsWith(".apk")) fs.rmSync(path.join(shareDir, stale));
 const shareApk = path.join(shareDir, `marvel-champions-${versionName}.apk`);
 fs.copyFileSync(signedApk, shareApk);
-const sha256 = crypto.createHash("sha256").update(fs.readFileSync(shareApk)).digest("hex");
 
-const stats = fs.statSync(shareApk);
+// Stage to the unified release/ directory
+fs.mkdirSync(defaultReleaseDir, { recursive: true });
+const releaseApk = path.join(defaultReleaseDir, `marvel-champions-${versionName}.apk`);
+fs.copyFileSync(signedApk, releaseApk);
+writeChecksumManifest();
+
+const sha256 = crypto.createHash("sha256").update(fs.readFileSync(releaseApk)).digest("hex");
+
+const stats = fs.statSync(releaseApk);
 const sizeMb = (stats.size / (1024 * 1024)).toFixed(2);
 
 console.log("\n========================================================");
 console.log("  Android Release Build Successful!");
-console.log(`  Share THIS file: ${shareApk}`);
+console.log(`  Staged to release/: ${releaseApk}`);
+console.log(`  (Also at: ${shareApk})`);
 console.log(`  ${stats.size} bytes (${sizeMb} MB) · sha256 ${sha256.slice(0, 16)}…`);
 console.log("  After downloading it on the phone, the size should match to the byte.");
 console.log("  Signatures verified: APK Signature Scheme v2 & v3 active");

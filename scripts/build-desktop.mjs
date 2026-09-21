@@ -15,6 +15,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { collectDesktopBundles, defaultReleaseDir, writeChecksumManifest } from "./lib/release-collector.mjs";
 import { pnpm } from "./lib/run.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -59,6 +60,20 @@ if (status !== 0 && process.platform === "darwin") {
   // With CI set, Tauri passes --skip-jenkins to bundle_dmg.sh, which skips the AppleScript/Finder part.
   status = tauriBuild(["--bundles", "dmg", ...extraArgs], { ...process.env, CI: "true" });
   if (status === 0) console.log("[build-desktop] DMG built (plain window layout). The .app bundle is unaffected.");
+}
+
+if (status === 0) {
+  const staged = collectDesktopBundles();
+  if (staged.length > 0) {
+    writeChecksumManifest();
+    console.log("\n========================================================");
+    console.log(`  Desktop build staged to: ${defaultReleaseDir}`);
+    for (const file of staged) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+      console.log(`  - ${file.name} (${sizeMb} MB) · sha256 ${file.sha256.slice(0, 16)}…`);
+    }
+    console.log("========================================================");
+  }
 }
 
 process.exit(status);
