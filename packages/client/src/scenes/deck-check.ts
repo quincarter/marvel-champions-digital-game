@@ -358,7 +358,6 @@ export class DeckCheckScene extends Phaser.Scene {
       g.lineStyle(border.object, surface.ink.hex, chosen ? 1 : 0.4).strokeRect(tileRect.x, tileRect.y, tileRect.width, tileRect.height);
       const text = this.add
         .text(tileRect.x + 11, tileRect.y + tileRect.height / 2, aspect.toUpperCase(), { ...textStyle(typeRole.barTitle, chosen ? surface.paper.hex : surface.ink.hex), fontSize: "16px" })
-        .setLetterSpacing(typeRole.barTitle.letterSpacing)
         .setOrigin(0, 0.5);
       if (!chosen) text.setAlpha(ink.disabled);
     });
@@ -441,8 +440,7 @@ export class DeckCheckScene extends Phaser.Scene {
     const panel = this.add.graphics();
     paintPanel(panel, chartRect, "card", "rest");
     const heading = this.add
-      .text(chartRect.x + 12, chartRect.y + 10, "RESOURCE CURVE", { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "18px" })
-      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+      .text(chartRect.x + 12, chartRect.y + 10, "RESOURCE CURVE", { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "18px" });
     if (stats.averageCost !== null) {
       label(this, chartRect.x + chartRect.width - 12, chartRect.y + 10 + heading.height / 2, `avg ${stats.averageCost.toFixed(1)}`, typeRole.label, surface.ink.hex, ink.meta).setOrigin(1, 0.5);
     }
@@ -567,8 +565,7 @@ export class DeckCheckScene extends Phaser.Scene {
   #renderGroupHeaderRow(rect: Rect, group: DeckListGroup): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const heading = this.add
-      .text(rect.x + 4, rect.y + 4, `${group.label.toUpperCase()} · ${group.count}`, { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "19px" })
-      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+      .text(rect.x + 4, rect.y + 4, `${group.label.toUpperCase()} · ${group.count}`, { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "19px" });
     objects.push(heading);
     const ruleX = rect.x + 4 + heading.width + 10;
     if (ruleX < rect.x + rect.width) {

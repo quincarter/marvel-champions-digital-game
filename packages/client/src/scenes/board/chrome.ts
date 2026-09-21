@@ -79,8 +79,7 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
       bg.lineStyle(2, surface.paper.hex, active ? 1 : ink.meta).strokeRect(box.x, box.y, box.width, box.height);
       scene.add
         .text(box.x + box.width / 2, box.y + box.height / 2, phase.toUpperCase(), textStyle(typeRole.label, active ? surface.ink.hex : surface.paper.hex, active ? 1 : ink.meta))
-        .setOrigin(0.5)
-        .setLetterSpacing(typeRole.label.letterSpacing);
+        .setOrigin(0.5);
     });
     left += 86 * 2 + 18;
   }
@@ -93,7 +92,6 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
     const warning = scene.add
       .text(menuRect.x - 8, rect.y + rect.height / 2, "⚠ NOT SAVING", textStyle(typeRole.label, surface.ink.hex))
       .setOrigin(1, 0.5)
-      .setLetterSpacing(typeRole.label.letterSpacing)
       .setPadding(6, 3, 6, 3)
       .setBackgroundColor(cssOf(signal.caution.hex));
     rightEdge = warning.x - warning.width - 8;
@@ -107,8 +105,7 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
   if (firstPlayer) {
     scene.add
       .text(menuRect.x - 10, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
-      .setOrigin(1, 0.5)
-      .setLetterSpacing(typeRole.label.letterSpacing);
+      .setOrigin(1, 0.5);
   }
 }
 

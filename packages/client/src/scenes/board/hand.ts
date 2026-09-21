@@ -1,6 +1,6 @@
 /**
  * The player's hand: the row of cards, its scroll on the tabbed board, and each
- * card's face — full, collapsed to a spine, or the generated fallback.
+ * card's face — a scan, or the generated fallback.
  */
 
 import type Phaser from "phaser";
@@ -14,7 +14,6 @@ import { caseOf, cssOf, textStyle } from "../../ui/theme.js";
 import { McSelectionRing, fitText, label, paintPanel } from "../../ui/widgets.js";
 import { faceOf, type BoardModel, type HandCardView } from "../../view/board-model.js";
 import type { DiscardChoiceView } from "../../view/discard-choice-model.js";
-import { HandScroll, showsFanToggle } from "../../view/hand-scroll.js";
 import type { IllegalReason } from "../../view/highlights.js";
 import { handRow, type HandRowLayout } from "../../view/hand-row.js";
 import type { Rect } from "../../view/layout.js";
@@ -25,27 +24,25 @@ import { drawDiscardBar } from "./discard-bar.js";
 import { drawPaymentBar } from "./payment-bar.js";
 import { drawMyPiles } from "./piles.js";
 import { focusKey } from "./selection.js";
+import { setMask } from "../../ui/rex.js";
 import { addTapTarget } from "./tap-target.js";
 
 export { HandScroll } from "../../view/hand-scroll.js";
 
-/** The hand's caption row height off the tabbed board, or on it with no fan toggle to make room for. */
+/** The hand's caption row height. */
 const HAND_CAPTION_HEIGHT = 20;
-/**
- * The caption row's height on the tabbed board: taller than `HAND_CAPTION_HEIGHT` so `drawFanToggle`'s touch target
- * fits without crowding the card row under it — see that function's own comment for the touch-target story.
- */
-const FAN_TOGGLE_CAPTION_HEIGHT = 30;
 
 /**
- * The hand row. On the tabbed board (`Board - Phone`) a crowded hand fans
- * instead of shrinking below a readable size: full-size cards for as many
- * as fit, the rest collapsed to spines, the whole row scrollable by wheel
- * or drag, with a "Fan out" pill to trade the spines for more scrolling in
- * exchange for every card being immediately readable (PLAN.md Phase 4,
- * "the phone hand crowds at six cards"). The long table never crowds this
- * badly at any realistic hand size, so it keeps the older shrink-and-
- * overlap row (`cardRow`'s default).
+ * The hand row. On the tabbed board (`Board - Phone`) a crowded hand scrolls
+ * instead of shrinking below a readable size: every card at full size, the row
+ * dragged or wheeled sideways (PLAN.md Phase 4, "the phone hand crowds at six
+ * cards"). The long table never crowds this badly at any realistic hand size,
+ * so it keeps the older shrink-and-overlap row (`cardRow`'s default).
+ *
+ * The tabbed row is one masked container, and a scroll only moves it
+ * (`HandScroll#attach`): the cards are clipped to `cardArea`, so they slide
+ * under the pile column and the payment strip rather than across them, and the
+ * board is not rebuilt once per pointer move.
  */
 export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const { scene, hand, tabbed } = ctx;
@@ -59,10 +56,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const payment = ctx.controller.paymentView();
   const discard = ctx.controller.discardChoiceView();
   const controllerChoice = ctx.controller.controllerChoice();
-  // The caption row's own height: taller on the tabbed board, where it also carries the fan toggle, so that pill
-  // has room for a touch target closer to the design's 44px minimum than its old 14px (`drawFanToggle`) without
-  // crowding into the card row under it.
-  let top = rect.y + (tabbed ? FAN_TOGGLE_CAPTION_HEIGHT : HAND_CAPTION_HEIGHT);
+  let top = rect.y + HAND_CAPTION_HEIGHT;
   if (controllerChoice) {
     drawControllerBar(ctx, { x: rect.x, y: rect.y, width: rect.width, height: hit.target }, controllerChoice);
     top = rect.y + hit.target + 4;
@@ -86,7 +80,7 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   }
 
   const inner: Rect = { x: rect.x + 10, y: top, width: rect.width - 20, height: rect.y + rect.height - top - 8 };
-  const fan: boolean | "expanded" = tabbed ? (hand.fannedOut ? "expanded" : true) : false;
+  const fan: false | "expanded" = tabbed ? "expanded" : false;
   const row = handRow(inner, {
     handCount: model.hand.length,
     tableTiles: payment ? paymentTileCount(payment) : 0,
@@ -99,79 +93,41 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
   const rowRight = slots.reduce((max, slot) => Math.max(max, slot.x + slot.width), row.cardArea.x);
   hand.measure(row.cardArea, rowRight);
 
-  // The pill only earns its place once there's something to fan or unfan (a
-  // hand that already fits has nothing to expand and nowhere to scroll), and
-  // never while another bar already owns this same strip — `barOpen` used to
-  // check `payment` alone, so the pill kept drawing over a discard-cost pick
-  // or a "play under whose control" choice's own bar too.
-  if (showsFanToggle(tabbed, controllerChoice !== null || payment !== null || discard !== null, hand.canScroll, hand.fannedOut)) {
-    drawFanToggle(ctx, rect);
-  }
+  const drawCards = (scrollX: number): void => {
+    model.hand.forEach((card, index) => {
+      const slot = slots[index];
+      if (!slot) return;
+      const drawn: Rect = { ...slot, x: slot.x - scrollX };
+      ctx.frame.hitRects.set(card.instanceId, drawn);
+      ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: card.instanceId }), drawn);
+    });
+  };
+  const drawnAt = hand.scrollX;
+  drawCards(drawnAt);
 
+  const before = scene.children.list.length;
   model.hand.forEach((card, index) => {
     const slot = slots[index];
-    if (!slot) return;
-    const drawn: Rect = { ...slot, x: slot.x - hand.scrollX };
-    ctx.frame.hitRects.set(card.instanceId, drawn);
-    ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: card.instanceId }), drawn);
-    if (slot.kind === "spine") drawHandSpine(ctx, drawn, card, index, payment, discard);
-    else drawHandCard(ctx, drawn, card, payment, discard);
+    if (slot) drawHandCard(ctx, { ...slot, x: slot.x - drawnAt }, card, payment, discard);
   });
+  if (tabbed) {
+    // Everything the cards just added (frames, scans, tags, rings, tap zones), reparented into one clipped strip —
+    // `SetupDealScene#drawOpeningHand`'s trick. The rects above follow it, so beats, travels and the focus ring
+    // still find a card where it is.
+    const strip = scene.add.container(0, 0);
+    const drawn = scene.children.list.slice(before, -1);
+    if (drawn.length > 0) strip.add(drawn);
+    const mask = scene.make.graphics({}, false);
+    mask.fillStyle(0xffffff).fillRect(row.cardArea.x, rect.y, row.cardArea.width, rect.height);
+    ctx.frame.masks.push(mask);
+    setMask(strip, mask, "world");
+    hand.attach((scrollX) => {
+      strip.setX(drawnAt - scrollX);
+      drawCards(scrollX);
+    });
+  }
 
-  // After the cards: on the tabbed board the hand scrolls, and a scrolled card
-  // should slide under the pile column rather than across it.
-  const backing: Rect | null = tabbed ? { x: rect.x, y: top, width: row.cardArea.x - rect.x, height: rect.y + rect.height - top } : null;
-  drawMyPiles(ctx, row, model, backing);
-}
-
-/**
- * The tabbed hand's "Fan out" pill (`Board - Phone`): toggles between the
- * default row (full-size cards for as many as fit, the rest collapsed to
- * spines) and every card shown full-size, both scrollable. An outlined chip
- * rather than a filled button, the design's own language for a toggle
- * rather than a committing action.
- *
- * Reported from play (2026-09-17): the pill was there, then "disappeared and
- * never came back" as the hand emptied and refilled across a round. The
- * show/hide rule itself checks out under test (`view/hand-scroll.test.ts`) —
- * this was the actual defect: a 62×14px chip, its own raw `zone.on("pointerup"
- * ...)` with no down/up pairing, sitting in a 20px-tall strip alongside the
- * "HAND N" caption. Fourteen pixels is a third of the design's own 44px
- * touch-target floor (`tokens.ts`'s `hit.target`); missing it by a few
- * pixels landed on the hand card behind it instead (`Inspect`'s sheet,
- * unrelated to fanning), which reads exactly like "the button doesn't work."
- *
- * Fixed two ways: the chip itself is bigger and legible (`CHIP` below), and
- * its actual tap target is bigger still — padded well past the drawn chip
- * on every side, the same generous-hit-area-around-a-small-visual pattern a
- * phone's own controls use — registered through `addTapTarget`, the one tap
- * primitive every other card and control on this board already answers to,
- * rather than a bespoke listener with none of its down/up or hold handling.
- * `FAN_TOGGLE_CAPTION_HEIGHT` gives this strip the extra height the padded
- * zone needs; it still falls short of a full 44px given how little vertical
- * room a caption row has to give without crowding the cards under it — a
- * later pass could move this control off the caption row entirely to close
- * that last gap.
- */
-function drawFanToggle(ctx: BoardDrawContext, handRect: Rect): void {
-  const { scene, hand } = ctx;
-  const chip: Rect = { x: handRect.x + handRect.width - 92, y: handRect.y + 4, width: 84, height: 22 };
-  const g = scene.add.graphics();
-  g.lineStyle(2, surface.paper.hex, 1).strokeRect(chip.x, chip.y, chip.width, chip.height);
-  scene.add
-    .text(chip.x + chip.width / 2, chip.y + chip.height / 2, (hand.fannedOut ? "Collapse" : "Fan out").toUpperCase(), textStyle(typeRole.label, surface.paper.hex))
-    .setOrigin(0.5)
-    .setLetterSpacing(typeRole.label.letterSpacing);
-
-  // The actual tap target: padded out from the chip on every side, clamped to the caption row's own band —
-  // `FAN_TOGGLE_CAPTION_HEIGHT` — so it never reaches up into whichever tab's own content is on screen above it,
-  // nor down into the card row's first slot below it.
-  const pad = 8;
-  const band: Rect = { x: handRect.x, y: handRect.y, width: handRect.width, height: FAN_TOGGLE_CAPTION_HEIGHT };
-  const zoneTop = Math.max(band.y, chip.y - pad);
-  const zoneBottom = Math.min(band.y + band.height, chip.y + chip.height + pad);
-  const zone: Rect = { x: chip.x - pad, y: zoneTop, width: chip.width + pad * 2, height: zoneBottom - zoneTop };
-  addTapTarget(scene, zone, { onTap: () => hand.toggleFan(), onInspect: () => hand.toggleFan() });
+  drawMyPiles(ctx, row, model);
 }
 
 /**
@@ -258,7 +214,6 @@ function tableTag(scene: Phaser.Scene, tile: Rect, text: string, ground: number,
   const tag = scene.add
     .text(tile.x + tile.width - 3, edge === "top" ? tile.y + 4 : tile.y + tile.height - 4, caseOf(typeRole.label, text), textStyle(typeRole.label, surface.paper.hex))
     .setOrigin(1, edge === "top" ? 0 : 1)
-    .setLetterSpacing(typeRole.label.letterSpacing)
     .setPadding(4, 2, 4, 2)
     .setBackgroundColor(cssOf(ground));
   fitText(tag, tile.width - 6, typeRole.label.size);
@@ -324,35 +279,6 @@ function paintHandSlot(ctx: BoardDrawContext, slot: Rect, card: HandCardView, pa
 }
 
 /**
- * A collapsed hand card (`cardRow`'s "spine" slot): a position number and
- * the card's name running vertically, standing in for a card that has no
- * room to show its face this draw. Still a full tap target — tap, hold and
- * right-click all mean exactly what they mean on a full card — and still
- * drags to scroll like every other card in this row.
- */
-function drawHandSpine(ctx: BoardDrawContext, slot: Rect, card: HandCardView, handIndex: number, payment: PaymentView | null, discard: DiscardChoiceView | null = null): void {
-  const { scene } = ctx;
-  const { spent, alpha } = paintHandSlot(ctx, slot, card, payment, discard);
-
-  label(scene, slot.x + 3, slot.y + 4, String(handIndex + 1), typeRole.label, surface.ink.hex, ink.label * alpha);
-
-  const name = scene.add
-    .text(slot.x + slot.width / 2, slot.y + slot.height - 6, card.name, textStyle(typeRole.label, surface.ink.hex, alpha))
-    .setOrigin(0.5, 1)
-    .setAngle(-90);
-  // Pre-rotation width becomes the strip's readable height once turned on
-  // its side, so that — not `slot.width` — is what `fitText` has to fit.
-  fitText(name, slot.height - 22, typeRole.label.size);
-
-  if (spent) {
-    const wash = scene.add.graphics();
-    wash.fillStyle(surface.ink.hex, 0.3).fillRect(slot.x, slot.y, slot.width, slot.height);
-  }
-
-  ctx.makeTapTarget(slot, card.instanceId, () => ctx.controller.tapHandCard(card.instanceId), (deltaX) => ctx.hand.scrollBy(-deltaX));
-}
-
-/**
  * One card in hand, in the Long Table canvas's layout: a header strip of cost
  * chip + name + type line, an art band, the rules text, then the resource
  * pips the card generates when spent. An illegal card keeps its place at 38%
@@ -396,7 +322,6 @@ function drawHandCard(ctx: BoardDrawContext, slot: Rect, card: HandCardView, pay
     scene.add
       .text(slot.x + slot.width - 3, payment || discard ? slot.y + 4 : slot.y - 9, caseOf(typeRole.label, tag.text), textStyle(typeRole.label, surface.paper.hex))
       .setOrigin(1, 0)
-      .setLetterSpacing(typeRole.label.letterSpacing)
       .setPadding(4, 2, 4, 2)
       .setBackgroundColor(cssOf(tag.ground));
   }

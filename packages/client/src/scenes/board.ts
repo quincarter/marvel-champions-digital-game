@@ -331,6 +331,7 @@ export class BoardScene extends Phaser.Scene {
     const previous = this.#frame;
     for (const button of previous.buttons) button.destroy();
     for (const ring of previous.rings) ring.destroy();
+    for (const mask of previous.masks) mask.destroy();
     this.#tabs?.destroy();
     this.#tabs = null;
     this.#frame = emptyFrame();

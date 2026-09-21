@@ -322,8 +322,7 @@ export class PauseOverlay extends Phaser.Scene {
     }
 
     const headerTitle = this.add
-      .text(layout.rulesHeader.x, layout.rulesHeader.y, caseOf(typeRole.barTitle, "Rules reference"), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "20px" })
-      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+      .text(layout.rulesHeader.x, layout.rulesHeader.y, caseOf(typeRole.barTitle, "Rules reference"), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "20px" });
     const filterText = game ? "Filtered to what's on your table" : "No game in progress";
     const filterLabel = label(this, layout.rulesHeader.x + layout.rulesHeader.width, layout.rulesHeader.y + 8, filterText, typeRole.label, surface.ink.hex, ink.secondary)
       .setOrigin(1, 0)
@@ -360,8 +359,7 @@ export class PauseOverlay extends Phaser.Scene {
     const textColor = isStatus ? surface.paper.hex : surface.ink.hex;
     const pad = 10;
     const term = this.add
-      .text(rect.x + pad, rect.y + 8, caseOf(typeRole.barTitle, entry.displayName), { ...textStyle(typeRole.barTitle, textColor), fontSize: "16px" })
-      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+      .text(rect.x + pad, rect.y + 8, caseOf(typeRole.barTitle, entry.displayName), { ...textStyle(typeRole.barTitle, textColor), fontSize: "16px" });
     fitText(term, rect.width - pad * 2, 16);
     this.add
       .text(rect.x + pad, rect.y + 8 + term.height + 4, entry.definition, textStyle(typeRole.body, textColor, isStatus ? 1 : ink.body))
@@ -406,7 +404,7 @@ export class PauseOverlay extends Phaser.Scene {
   }
 
   #drawLogSection(headerRect: Rect, boxRect: Rect, title: string): void {
-    this.add.text(headerRect.x, headerRect.y, caseOf(typeRole.barTitle, title), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "18px" }).setLetterSpacing(typeRole.barTitle.letterSpacing);
+    this.add.text(headerRect.x, headerRect.y, caseOf(typeRole.barTitle, title), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "18px" });
     this.#drawLogBox(boxRect);
   }
 
@@ -414,8 +412,7 @@ export class PauseOverlay extends Phaser.Scene {
   #drawExpandedLog(layout: PauseWideLayout): void {
     const rect = layout.rightContent;
     const titleText = this.add
-      .text(rect.x, rect.y, caseOf(typeRole.barTitle, "Full game log"), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "20px" })
-      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+      .text(rect.x, rect.y, caseOf(typeRole.barTitle, "Full game log"), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "20px" });
     const note = this.add
       .text(rect.x, rect.y + titleText.height + 4, "Every retained beat, newest first. Tap “Full game log” again to go back to the keyword grid.", textStyle(typeRole.label, surface.ink.hex, ink.secondary))
       .setFontSize(9)

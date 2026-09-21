@@ -161,6 +161,8 @@ export function textStyle(spec: TypeSpec, color: number, alpha = 1): Phaser.Type
     fontStyle: spec.weight === 400 ? "normal" : `${spec.weight}`,
     color: cssOf(color, alpha),
     resolution: textResolution,
+    // In the style rather than a `setLetterSpacing` after: every setter on a `Text` re-rasterises its canvas.
+    ...(spec.letterSpacing ? { letterSpacing: spec.letterSpacing } : {}),
     ...(spec.family === font.display ? { padding: { right: BANGERS_RIGHT_PADDING } } : {}),
   };
 }

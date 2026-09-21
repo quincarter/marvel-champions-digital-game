@@ -24,16 +24,9 @@ import type { Rect } from "../../view/layout.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { addTapTarget } from "./tap-target.js";
 
-/**
- * Draws both piles. `backing` is ink painted behind the pile column first, so a
- * scrolled hand slides under the piles instead of across them.
- */
-export function drawMyPiles(ctx: BoardDrawContext, row: HandRowLayout, model: BoardModel, backing: Rect | null): void {
+/** Draws both piles. */
+export function drawMyPiles(ctx: BoardDrawContext, row: HandRowLayout, model: BoardModel): void {
   const { scene } = ctx;
-  if (backing) {
-    const g = scene.add.graphics();
-    g.fillStyle(surface.ink.hex, 1).fillRect(backing.x, backing.y, backing.width, backing.height);
-  }
   const narrow = row.deck.width < 64;
   drawPile(ctx, row.deck, "deck", model.myPiles.deck, CARD_BACKS.player);
   drawPile(ctx, row.discard, narrow ? "disc." : "discard", model.myPiles.discard, model.myDiscardTop);

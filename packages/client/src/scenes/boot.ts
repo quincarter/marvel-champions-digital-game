@@ -139,8 +139,7 @@ export class BootScene extends Phaser.Scene {
     const { width, height } = this.scale.gameSize;
     this.add
       .text(width / 2, height / 2, "LOADING", textStyle(typeRole.label, surface.paper.hex, 0.6))
-      .setOrigin(0.5)
-      .setLetterSpacing(typeRole.label.letterSpacing);
+      .setOrigin(0.5);
 
     this.scene.launch(SCENES.music);
 

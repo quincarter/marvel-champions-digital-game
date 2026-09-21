@@ -601,7 +601,7 @@ export class InspectOverlay extends Phaser.Scene {
     let x = rect.x + 18;
     let y = top + 16;
     for (const item of items) {
-      const text = this.add.text(x + 8, y + 5, caseOf(typeRole.label, item.text), textStyle(typeRole.label, surface.paper.hex)).setLetterSpacing(typeRole.label.letterSpacing);
+      const text = this.add.text(x + 8, y + 5, caseOf(typeRole.label, item.text), textStyle(typeRole.label, surface.paper.hex));
       const chipWidth = text.width + 16;
       if (x + chipWidth > rect.x + 18 + inner) {
         x = rect.x + 18;
@@ -700,7 +700,7 @@ export class InspectOverlay extends Phaser.Scene {
       let cx = textLeft;
       let cy = ty;
       for (const chip of model.keywordChips) {
-        const text = this.add.text(cx + 6, cy + 3, caseOf(typeRole.label, chip.text), textStyle(typeRole.label, surface.ink.hex)).setLetterSpacing(typeRole.label.letterSpacing).setFontSize(9);
+        const text = this.add.text(cx + 6, cy + 3, caseOf(typeRole.label, chip.text), textStyle(typeRole.label, surface.ink.hex)).setFontSize(9);
         const chipWidth = text.width + 12;
         if (cx + chipWidth > textLeft + textWidth) {
           cx = textLeft;

@@ -309,7 +309,6 @@ export class RulesOverlay extends Phaser.Scene {
     else g.lineStyle(2, surface.paper.hex, ink.secondary).strokeRect(rect.x, rect.y, rect.width, rect.height);
     this.add
       .text(rect.x + rect.width / 2, rect.y + rect.height / 2, caseOf(typeRole.label, text), textStyle(typeRole.label, selected ? surface.ink.hex : surface.paper.hex, selected ? 1 : ink.secondary))
-      .setLetterSpacing(typeRole.label.letterSpacing)
       .setOrigin(0.5);
     const zone = this.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
     zone.on("pointerup", onClick);
@@ -384,7 +383,7 @@ export class RulesOverlay extends Phaser.Scene {
 
       // The status hue alone never carries the meaning (colorblind-safe): the term itself is
       // always the plain word "Stunned"/"Confused"/"Tough", never only the stripe's colour.
-      const term = this.add.text(textX, y, caseOf(typeRole.barTitle, entry.displayName), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "20px" }).setLetterSpacing(typeRole.barTitle.letterSpacing);
+      const term = this.add.text(textX, y, caseOf(typeRole.barTitle, entry.displayName), { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "20px" });
       fitText(term, textWidth, 20);
       objects.push(term);
       y += term.height + 6;
@@ -493,7 +492,7 @@ export class RulesOverlay extends Phaser.Scene {
     if (step.current) {
       objects.push(label(this, textX, cardRect.y + 8, "← HAPPENING NOW", typeRole.label, ink1, 1));
     }
-    const title = this.add.text(textX, cardRect.y + (step.current ? 22 : 12), caseOf({ ...typeRole.barTitle }, step.label), { ...textStyle(typeRole.barTitle, ink1), fontSize: "18px" }).setLetterSpacing(typeRole.barTitle.letterSpacing);
+    const title = this.add.text(textX, cardRect.y + (step.current ? 22 : 12), caseOf({ ...typeRole.barTitle }, step.label), { ...textStyle(typeRole.barTitle, ink1), fontSize: "18px" });
     objects.push(title);
     const detail = this.add.text(textX, cardRect.y + (step.current ? 22 : 12) + title.height + 4, step.detail, textStyle(typeRole.body, ink1, step.current ? 0.9 : ink.body)).setWordWrapWidth(textWidth);
     objects.push(detail);

@@ -218,8 +218,7 @@ export class LogPanel {
     for (const tag of line.tags) {
       const chip = scene.add.graphics();
       const name = scene.add
-        .text(cursor + 3, tagY + 1, caseOf(typeRole.label, tag.status), textStyle(typeRole.label, tag.status === "confused" ? surface.paper.hex : surface.ink.hex, tag.spent ? 0.75 : 1))
-        .setLetterSpacing(typeRole.label.letterSpacing);
+        .text(cursor + 3, tagY + 1, caseOf(typeRole.label, tag.status), textStyle(typeRole.label, tag.status === "confused" ? surface.paper.hex : surface.ink.hex, tag.spent ? 0.75 : 1));
       const chipWidth = Math.ceil(name.width) + 6;
       chip.fillStyle(status[tag.status].hex, tag.spent ? 0.45 : 1).fillRect(cursor, tagY, chipWidth, 13);
       if (tag.spent) chip.lineStyle(1.5, surface.ink.hex, 1).lineBetween(cursor + 2, tagY + 6.5, cursor + chipWidth - 2, tagY + 6.5);

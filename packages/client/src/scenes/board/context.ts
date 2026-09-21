@@ -34,9 +34,14 @@ export interface BoardFrame {
   /** Widgets that own listeners, destroyed before the next draw. */
   readonly buttons: McButton[];
   readonly rings: McSelectionRing[];
+  /**
+   * Mask shapes this draw made. A mask shape is never on the display list (it would render), so clearing the
+   * scene's children does not reach it and the next draw has to destroy it by name.
+   */
+  readonly masks: Phaser.GameObjects.Graphics[];
 }
 
-export const emptyFrame = (): BoardFrame => ({ hitRects: new Map(), focusRects: new Map(), pileRects: new Map(), buttons: [], rings: [] });
+export const emptyFrame = (): BoardFrame => ({ hitRects: new Map(), focusRects: new Map(), pileRects: new Map(), buttons: [], rings: [], masks: [] });
 
 /**
  * A pile's key in `BoardFrame.pileRects`: the zone kind, whose pile it is when

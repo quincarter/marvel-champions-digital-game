@@ -368,7 +368,7 @@ export class DecksScene extends Phaser.Scene {
     // A large Bangers screen title beside the Back button (point 1 of the 2026-09-18 fidelity pass: D14's own
     // title reads far bigger than a bar-title chip's usual 22px).
     const title = this.add.text(backRect.x + backRect.width + 12, layout.header.y + layout.header.height / 2, "DECKS & COLLECTION", { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "28px" });
-    title.setOrigin(0, 0.5).setLetterSpacing(typeRole.barTitle.letterSpacing);
+    title.setOrigin(0, 0.5);
     fitText(title, layout.header.width - backRect.width - 24 - (poolMeta ? poolMeta.width + 16 : 0), 28);
 
     const allOptions = this.#deckOptions();
@@ -670,7 +670,7 @@ export class DecksScene extends Phaser.Scene {
 
     // The short "HERO / ASPECT" title for a precon, or the deck's own name otherwise (`cardTitleOf`) — Bangers,
     // fit to width rather than truncated mid-word where that's avoidable (point 2).
-    const name = this.add.text(card.x + 10, card.y + 8, caseOf(CARD_TITLE_TYPE, cardTitleOf(option)), textStyle(CARD_TITLE_TYPE, titleColor)).setLetterSpacing(CARD_TITLE_TYPE.letterSpacing);
+    const name = this.add.text(card.x + 10, card.y + 8, caseOf(CARD_TITLE_TYPE, cardTitleOf(option)), textStyle(CARD_TITLE_TYPE, titleColor));
     fitText(name, card.width - 20, CARD_TITLE_TYPE.size);
     objects.push(name);
     const meta = this.add.text(card.x + 10, card.y + 8 + name.height + 3, deckMetaLine(option, POOL_CARDS), textStyle(typeRole.label, metaColor, metaAlpha));
@@ -846,7 +846,7 @@ export class DecksScene extends Phaser.Scene {
    * own row of chips below). Returns the next free `y`.
    */
   #drawPoolHeader(left: number, y: number, column: number, chipDefs: readonly ChipDef[]): number {
-    const heading = this.add.text(left, y, "CARD POOL", { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "19px" }).setLetterSpacing(typeRole.barTitle.letterSpacing);
+    const heading = this.add.text(left, y, "CARD POOL", { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "19px" });
     const chipHeight = COMPACT_ROW;
     const chipY = y + (heading.height - chipHeight) / 2;
     const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, "right");
@@ -976,7 +976,7 @@ export class DecksScene extends Phaser.Scene {
     const stats = deckStatsOf(deck, POOL_CARDS);
     const status = deckStatusOf(option);
 
-    const name = this.add.text(left, y, caseOf(typeRole.barTitle, cardTitleOf(option)), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "26px" }).setLetterSpacing(typeRole.barTitle.letterSpacing).setWordWrapWidth(column);
+    const name = this.add.text(left, y, caseOf(typeRole.barTitle, cardTitleOf(option)), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "26px" }).setWordWrapWidth(column);
     y += name.height + 6;
     label(this, left, y, `${stats.totalCards} CARDS · MINIMUM ${DECK_MIN_CARDS} · ${status.text.toUpperCase()} · ${SOURCE_LABEL[deck.source.kind].toUpperCase()}`, typeRole.label, surface.paper.hex, ink.label);
     y += 20;

@@ -143,7 +143,7 @@ export class McButton {
     this.#label = scene.add
       .text(0, 0, caseOf(options.type, options.label), textStyle(options.type, 0))
       .setOrigin(0.5, 0.5);
-    if (options.type.letterSpacing) this.#label.setLetterSpacing(options.type.letterSpacing);
+    if (options.type.letterSpacing) this.#label;
     this.#value = options.value
       ? scene.add.text(0, 0, options.value, textStyle(options.type, 0)).setOrigin(0.5, 0.5)
       : null;
@@ -324,7 +324,7 @@ export function label(
   alpha: number = ink.label,
 ): Phaser.GameObjects.Text {
   const object = scene.add.text(x, y, caseOf(spec, text), textStyle(spec, color, alpha));
-  if (spec.letterSpacing) object.setLetterSpacing(spec.letterSpacing);
+  if (spec.letterSpacing) object;
   return object;
 }
 
@@ -361,7 +361,7 @@ export function sectionHeader(
   rightLabel?: string,
   collect?: Phaser.GameObjects.GameObject[],
 ): number {
-  const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setLetterSpacing(typeRole.barTitle.letterSpacing).setFontSize(19);
+  const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setFontSize(19);
   collect?.push(heading);
   let rightWidth = 0;
   if (rightLabel) {
@@ -573,16 +573,48 @@ export const CAPTION_HEIGHT = 26;
  * complete unreadable one.
  */
 export function fitText(text: Phaser.GameObjects.Text, maxWidth: number, startSize: number = typeRole.rowTitle.size): void {
-  const full = text.text;
-  for (let size = startSize; size >= CAPTION_FLOOR; size -= 1) {
+  // Every `setFontSize`/`setText` re-rasterises the label onto its own canvas, and a board redraw fits dozens of
+  // them, so this asks for as few as the answer needs: none when the label already fits as created, and a binary
+  // search otherwise. Width only grows with size and with length, so both searches land where a linear scan would.
+  if (Number.parseFloat(String(text.style.fontSize)) !== startSize) text.setFontSize(startSize);
+  if (text.width <= maxWidth) return;
+
+  let low = CAPTION_FLOOR;
+  let high = startSize - 1;
+  let fits: number | null = null;
+  while (low <= high) {
+    const size = (low + high) >> 1;
     text.setFontSize(size);
-    if (text.width <= maxWidth) return;
+    if (text.width <= maxWidth) {
+      fits = size;
+      low = size + 1;
+    } else {
+      high = size - 1;
+    }
   }
-  let trimmed = full;
-  while (trimmed.length > 1 && text.width > maxWidth) {
-    trimmed = trimmed.slice(0, -1);
-    text.setText(`${trimmed.trimEnd()}…`);
+  if (fits !== null) {
+    if (Number.parseFloat(String(text.style.fontSize)) !== fits) text.setFontSize(fits);
+    return;
   }
+
+  // A label created below the floor is never grown to it.
+  text.setFontSize(Math.min(CAPTION_FLOOR, startSize));
+  const full = text.text;
+  const clipped = (length: number): string => `${full.slice(0, length).trimEnd()}…`;
+  let short = 1;
+  let long = full.length - 1;
+  let best = 1;
+  while (short <= long) {
+    const length = (short + long) >> 1;
+    text.setText(clipped(length));
+    if (text.width <= maxWidth) {
+      best = length;
+      short = length + 1;
+    } else {
+      long = length - 1;
+    }
+  }
+  text.setText(clipped(best));
 }
 
 /** How wide the scroll track (and its thumb) draws, on either ground. */
@@ -632,7 +664,7 @@ export class McScrollPanel {
     const trackFill = onInk ? surface.paper.hex : surface.ink.hex;
 
     const textObject = scene.add.text(0, 0, "", textStyle(type, textColor, options.alpha ?? 1));
-    if (type.letterSpacing) textObject.setLetterSpacing(type.letterSpacing);
+    if (type.letterSpacing) textObject;
 
 
     const track = scene.add.rectangle(0, 0, SCROLL_TRACK_WIDTH, 10, trackFill, onInk ? 0.22 : 0.14).setOrigin(0.5);
@@ -1063,7 +1095,7 @@ export class McStatBadge {
     this.#ribbon = scene.add.graphics();
     this.#number = scene.add.text(0, 0, "", textStyle(typeRole.stat, surface.paper.hex)).setOrigin(0.5, 0.5);
     this.#label = scene.add.text(0, 0, "", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5, 0.5);
-    if (typeRole.label.letterSpacing) this.#label.setLetterSpacing(typeRole.label.letterSpacing);
+    if (typeRole.label.letterSpacing) this.#label;
     this.#chip = scene.add.graphics();
     this.#chipText = scene.add.text(0, 0, "", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5, 0.5);
     this.container = scene.add.container(options.cx, options.cy, [
@@ -1177,7 +1209,7 @@ export class McHpPlate {
     this.#options = options;
     this.#graphics = scene.add.graphics();
     this.#caption = scene.add.text(0, 0, caseOf(typeRole.label, "hp"), textStyle(typeRole.label, surface.ink.hex)).setOrigin(0, 0.5);
-    if (typeRole.label.letterSpacing) this.#caption.setLetterSpacing(typeRole.label.letterSpacing);
+    if (typeRole.label.letterSpacing) this.#caption;
     this.#current = scene.add.text(0, 0, "", textStyle(typeRole.stat, surface.ink.hex)).setOrigin(0, 0.5);
     this.#max = scene.add.text(0, 0, "", textStyle(typeRole.statSmall, surface.ink.hex)).setOrigin(0, 0.5);
     this.#chip = scene.add.graphics();

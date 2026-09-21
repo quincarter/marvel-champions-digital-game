@@ -331,8 +331,7 @@ export class SetupDealScene extends Phaser.Scene {
         const prefix = item.state === "done" ? "✓ " : item.state === "current" ? "▸ " : "";
         const text = this.add
           .text(rect.x + 10, rect.y + rect.height / 2, `${prefix}${item.label}`, { ...textStyle(CHIP_TYPE, skin.text, skin.textAlpha), fontStyle: "800" })
-          .setOrigin(0, 0.5)
-          .setLetterSpacing(CHIP_TYPE.letterSpacing);
+          .setOrigin(0, 0.5);
         fitText(text, rect.width - 18, CHIP_TYPE.size);
       });
     });
@@ -511,8 +510,7 @@ export class SetupDealScene extends Phaser.Scene {
       bandG.fillStyle(accent.heroRed.hex, 1).fillRect(band.x, band.y, band.width, band.height);
       const tagText = this.add
         .text(band.x + band.width / 2, band.y + band.height / 2, "MULLIGAN", textStyle(typeRole.label, surface.paper.hex))
-        .setOrigin(0.5)
-        .setLetterSpacing(typeRole.label.letterSpacing);
+        .setOrigin(0.5);
       fitText(tagText, band.width - 6, typeRole.label.size);
     }
 

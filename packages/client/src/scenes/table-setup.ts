@@ -846,7 +846,6 @@ export class TableSetupScene extends Phaser.Scene {
     if (maxLines < 1) return;
     this.add
       .text(rect.x + 10, nameBottom, text, textStyle(typeRole.label, color, alpha))
-      .setLetterSpacing(typeRole.label.letterSpacing)
       .setWordWrapWidth(rect.width - 20)
       .setMaxLines(maxLines);
   }
