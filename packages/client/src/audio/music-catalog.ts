@@ -124,7 +124,11 @@ export function parseMusicCatalog(files: Readonly<Record<string, string>>): Musi
 /**
  * One track at random from `pool` — never `avoidKey` (the one played last) unless it's the only choice.
  */
-export function pickTrack(pool: readonly Track[], avoidKey: string | null = null, random: () => number = Math.random): Track | null {
+export function pickTrack(
+  pool: readonly Track[],
+  avoidKey: string | null = null,
+  random: () => number = Math.random,
+): Track | null {
   if (pool.length === 0) return null;
   const candidates = pool.length > 1 && avoidKey ? pool.filter((t) => t.key !== avoidKey) : pool;
   const index = Math.min(candidates.length - 1, Math.floor(random() * candidates.length));
@@ -139,7 +143,11 @@ export function pickTrack(pool: readonly Track[], avoidKey: string | null = null
  */
 export function battleTrackFor(
   catalog: MusicCatalog,
-  context: { readonly scenarioId?: string | undefined; readonly campaignId?: string | undefined; readonly packCode?: string | undefined },
+  context: {
+    readonly scenarioId?: string | undefined;
+    readonly campaignId?: string | undefined;
+    readonly packCode?: string | undefined;
+  },
   random: () => number = Math.random,
 ): Track | null {
   if (context.scenarioId) {
@@ -181,25 +189,57 @@ export function outcomeTrackFor(
 /**
  * A title track at random, avoiding `avoidKey` when multiple tracks exist.
  */
-export function titleTrackFor(catalog: MusicCatalog, avoidKey: string | null = null, random: () => number = Math.random): Track | null {
+export function titleTrackFor(
+  catalog: MusicCatalog,
+  avoidKey: string | null = null,
+  random: () => number = Math.random,
+): Track | null {
   return pickTrack(catalog.title, avoidKey, random);
 }
 
 /**
  * A campaign interlude track, or null when none is defined.
  */
-export function interludeTrackFor(catalog: MusicCatalog, campaignId: string, random: () => number = Math.random): Track | null {
+export function interludeTrackFor(
+  catalog: MusicCatalog,
+  campaignId: string,
+  random: () => number = Math.random,
+): Track | null {
   const tracks = catalog.campaigns.get(campaignId)?.interlude ?? [];
   return pickTrack(tracks, null, random);
 }
 
 const files = {
-  ...(import.meta.glob("../../../../music/title/*.{mp3,ogg,m4a}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
-  ...(import.meta.glob("../../../../music/gameplay/*.{mp3,ogg,m4a}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
-  ...(import.meta.glob("../../../../music/scenarios/*/*.{mp3,ogg,m4a}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
-  ...(import.meta.glob("../../../../music/campaigns/*/*.{mp3,ogg,m4a}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
-  ...(import.meta.glob("../../../../music/packs/*/*.{mp3,ogg,m4a}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
-  ...(import.meta.glob("../../../../music/outcomes/*.{mp3,ogg,m4a}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
+  ...(import.meta.glob("../../../../music/title/*.{mp3,ogg,m4a}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
+  ...(import.meta.glob("../../../../music/gameplay/*.{mp3,ogg,m4a}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
+  ...(import.meta.glob("../../../../music/scenarios/*/*.{mp3,ogg,m4a}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
+  ...(import.meta.glob("../../../../music/campaigns/*/*.{mp3,ogg,m4a}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
+  ...(import.meta.glob("../../../../music/packs/*/*.{mp3,ogg,m4a}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
+  ...(import.meta.glob("../../../../music/outcomes/*.{mp3,ogg,m4a}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
 };
 
 /** Everything in `music/`. */

@@ -22,7 +22,10 @@ export interface ScenarioCardListGroup {
   readonly cardNames: readonly string[];
 }
 
-export function scenarioCardListOf(game: GameState, encounterSets: readonly EncounterSet[]): readonly ScenarioCardListGroup[] {
+export function scenarioCardListOf(
+  game: GameState,
+  encounterSets: readonly EncounterSet[],
+): readonly ScenarioCardListGroup[] {
   const setNames = new Map(encounterSets.map((set) => [set.id as string, set.name]));
   const namesBySet = new Map<string, Set<string>>();
   for (const card of Object.values(game.cardPool)) {

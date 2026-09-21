@@ -80,7 +80,11 @@ import {
   type SetupWalkthroughLog,
   type SetupWalkthroughView,
 } from "../view/setup-walkthrough.js";
-import { CHECKLIST_HEIGHT, setupWalkthroughLayout, type SetupWalkthroughLayout } from "../view/setup-walkthrough-layout.js";
+import {
+  CHECKLIST_HEIGHT,
+  setupWalkthroughLayout,
+  type SetupWalkthroughLayout,
+} from "../view/setup-walkthrough-layout.js";
 import type { LogLine } from "../view/log-lines.js";
 import type { HandCardView } from "../view/board-model.js";
 import type { SessionState } from "../store/session-store.js";
@@ -89,22 +93,63 @@ import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { addTapTarget } from "./board/tap-target.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 /**
  * The checklist's state matrix (fidelity pass): a green-outlined dark wash for a done step ("done fill"/"done
  * stroke" sampled off D06's own chips — the stroke lands exactly on `signal.heal`), solid Hero Red for the one in
  * progress, a dim paper-on-ink outline for what's still ahead.
  */
-const CHIP_SKIN: Readonly<Record<"done" | "current" | "pending", { readonly fill: number; readonly fillAlpha: number; readonly stroke: number; readonly strokeAlpha: number; readonly text: number; readonly textAlpha: number }>> = {
-  done: { fill: 0x1c281c, fillAlpha: 1, stroke: signal.heal.hex, strokeAlpha: 1, text: surface.paper.hex, textAlpha: 1 },
-  current: { fill: accent.heroRed.hex, fillAlpha: 1, stroke: accent.heroRed.hex, strokeAlpha: 1, text: surface.paper.hex, textAlpha: 1 },
-  pending: { fill: surface.ink.hex, fillAlpha: 1, stroke: surface.paper.hex, strokeAlpha: 0.3, text: surface.paper.hex, textAlpha: ink.label },
+const CHIP_SKIN: Readonly<
+  Record<
+    "done" | "current" | "pending",
+    {
+      readonly fill: number;
+      readonly fillAlpha: number;
+      readonly stroke: number;
+      readonly strokeAlpha: number;
+      readonly text: number;
+      readonly textAlpha: number;
+    }
+  >
+> = {
+  done: {
+    fill: 0x1c281c,
+    fillAlpha: 1,
+    stroke: signal.heal.hex,
+    strokeAlpha: 1,
+    text: surface.paper.hex,
+    textAlpha: 1,
+  },
+  current: {
+    fill: accent.heroRed.hex,
+    fillAlpha: 1,
+    stroke: accent.heroRed.hex,
+    strokeAlpha: 1,
+    text: surface.paper.hex,
+    textAlpha: 1,
+  },
+  pending: {
+    fill: surface.ink.hex,
+    fillAlpha: 1,
+    stroke: surface.paper.hex,
+    strokeAlpha: 0.3,
+    text: surface.paper.hex,
+    textAlpha: ink.label,
+  },
 };
 const CHIP_TYPE: TypeSpec = { ...typeRole.label, size: 10 };
 /** Section headers ("YOUR OPENING HAND — <hero>", "OTHER SEATS", "SETUP LOG"): Bangers, then a rule to the column's own right edge. */
 const SECTION_HEADER_TYPE: TypeSpec = typeRole.barTitle;
 /** The header's inline step caption, beside the Bangers title. */
-const STEP_CAPTION_TYPE: TypeSpec = { family: typeRole.body.family, size: 14, weight: 700, lineHeight: 1.3, letterSpacing: 0, uppercase: false };
+const STEP_CAPTION_TYPE: TypeSpec = {
+  family: typeRole.body.family,
+  size: 14,
+  weight: 700,
+  lineHeight: 1.3,
+  letterSpacing: 0,
+  uppercase: false,
+};
 /** A colour for a seat's monogram square, cycling by seat index. Never Hero Red: that's the screen's one action colour. */
 const MONOGRAM_PALETTE: readonly number[] = [statHue.thw.hex, statHue.def.hex, statHue.sch.hex, statHue.rec.hex];
 const OTHER_SEAT_SLOT_WIDTH = 16;
@@ -114,7 +159,12 @@ const OTHER_SEAT_SLOT_HEIGHT = 22;
 function initialsOf(name: string): string {
   const words = name.split(/\s+/).filter(Boolean);
   if (words.length >= 2) return (words[0]!.charAt(0) + words[1]!.charAt(0)).toUpperCase();
-  return name.replace(/[^A-Za-z]/g, "").slice(0, 2).toUpperCase() || "?";
+  return (
+    name
+      .replace(/[^A-Za-z]/g, "")
+      .slice(0, 2)
+      .toUpperCase() || "?"
+  );
 }
 
 export class SetupDealScene extends Phaser.Scene {
@@ -133,7 +183,6 @@ export class SetupDealScene extends Phaser.Scene {
   #route: readonly string[] = [];
   #focusRects = new Map<string, Rect>();
   #focusRing: McSelectionRing | null = null;
-  #logScrollTop = 0;
   /**
    * The opening hand's sideways scroll, on a width where the cards would otherwise not read
    * (`view/opening-hand-layout.ts`). Every scrolled pixel redraws the scene, the way the Board's own tabbed hand
@@ -160,7 +209,6 @@ export class SetupDealScene extends Phaser.Scene {
     this.#selected = [];
     this.#choiceId = null;
     this.#focus = null;
-    this.#logScrollTop = 0;
     this.#hand = new HandScroll(() => this.#draw());
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
     appSession().music?.playTitle();
@@ -194,6 +242,10 @@ export class SetupDealScene extends Phaser.Scene {
       this.#unsubscribe = null;
       if (this.scene.isActive(SCENES.choice)) this.scene.stop(SCENES.choice);
     });
+
+    // `store.subscribe` above delivers the current state synchronously, so the first `#draw()` has
+    // already happened by the time we get here.
+    fadeScreenIn(this);
   }
 
   #onState(state: SessionState): void {
@@ -208,7 +260,7 @@ export class SetupDealScene extends Phaser.Scene {
     // Setup is over: hand off to the Board, exactly as `TableSetupScene#start` used to do directly.
     if (state.game.step.phase !== "setup") {
       this.#handedOff = true;
-      this.scene.start(SCENES.board);
+      goToScreen(this, SCENES.board);
       return;
     }
 
@@ -278,7 +330,9 @@ export class SetupDealScene extends Phaser.Scene {
 
     const choice = appSession().store.state.game?.pendingChoice ?? null;
     const mulliganChoice = choice && choice.prompt.kind === "mulligan" ? choice : null;
-    this.#route = mulliganChoice ? setupWalkthroughFocusOrder({ optionIds: cardChoiceDisplayOrder(mulliganChoice.options, this.#selected) }) : [];
+    this.#route = mulliganChoice
+      ? setupWalkthroughFocusOrder({ optionIds: cardChoiceDisplayOrder(mulliganChoice.options, this.#selected) })
+      : [];
 
     if (layout.mode === "allSeats") this.#drawAllSeats(layout, view, mulliganChoice);
     else this.#drawFocus(layout, view, mulliganChoice);
@@ -289,17 +343,31 @@ export class SetupDealScene extends Phaser.Scene {
   /** Title inline with "Step N of M · …" (fidelity pass): the caption follows the title's own measured width, so it always sits right beside it rather than a fixed far-corner box. */
   #drawHeader(layout: SetupWalkthroughLayout, view: SetupWalkthroughView): void {
     const barG = this.add.graphics();
-    barG.fillStyle(surface.ink.hex, 1).fillRect(layout.headerBar.x, layout.headerBar.y, layout.headerBar.width, layout.headerBar.height);
+    barG
+      .fillStyle(surface.ink.hex, 1)
+      .fillRect(layout.headerBar.x, layout.headerBar.y, layout.headerBar.width, layout.headerBar.height);
 
     const { titleRow } = layout;
-    const title = this.add.text(titleRow.x, titleRow.y + titleRow.height / 2, "Setting up the table", textStyle(typeRole.screenTitle, surface.paper.hex)).setOrigin(0, 0.5);
+    const title = this.add
+      .text(
+        titleRow.x,
+        titleRow.y + titleRow.height / 2,
+        "Setting up the table",
+        textStyle(typeRole.screenTitle, surface.paper.hex),
+      )
+      .setOrigin(0, 0.5);
     fitText(title, titleRow.width * 0.62, typeRole.screenTitle.size);
 
     const captionX = titleRow.x + title.width + 16;
     const captionWidth = titleRow.x + titleRow.width - captionX;
     if (captionWidth > 40) {
       const caption = this.add
-        .text(captionX, titleRow.y + titleRow.height / 2, view.stepLabel, textStyle(STEP_CAPTION_TYPE, surface.paper.hex, ink.secondary))
+        .text(
+          captionX,
+          titleRow.y + titleRow.height / 2,
+          view.stepLabel,
+          textStyle(STEP_CAPTION_TYPE, surface.paper.hex, ink.secondary),
+        )
         .setOrigin(0, 0.5);
       fitText(caption, captionWidth, STEP_CAPTION_TYPE.size);
     }
@@ -317,20 +385,40 @@ export class SetupDealScene extends Phaser.Scene {
   }
 
   /** `rows` is `wrapChipsToRows`' own split of the checklist's five labels, at the actual viewport width (`#draw`) — a narrow phone gets two rows instead of five truncated chips. */
-  #drawChecklist(layout: SetupWalkthroughLayout, rows: readonly (readonly { readonly id: string; readonly text: string; readonly item: { readonly state: "done" | "current" | "pending"; readonly label: string } }[])[]): void {
+  #drawChecklist(
+    layout: SetupWalkthroughLayout,
+    rows: readonly (readonly {
+      readonly id: string;
+      readonly text: string;
+      readonly item: { readonly state: "done" | "current" | "pending"; readonly label: string };
+    }[])[],
+  ): void {
     rows.forEach((row, rowIndex) => {
       const rowY = layout.checklist.y + rowIndex * (CHECKLIST_HEIGHT + 6);
       const cellWidth = (layout.checklist.width - (row.length - 1) * 8) / row.length;
       row.forEach((cell, index) => {
         const item = cell.item;
-        const rect: Rect = { x: layout.checklist.x + index * (cellWidth + 8), y: rowY, width: cellWidth, height: CHECKLIST_HEIGHT };
+        const rect: Rect = {
+          x: layout.checklist.x + index * (cellWidth + 8),
+          y: rowY,
+          width: cellWidth,
+          height: CHECKLIST_HEIGHT,
+        };
         const skin = CHIP_SKIN[item.state];
         const g = this.add.graphics();
         g.fillStyle(skin.fill, skin.fillAlpha).fillRect(rect.x, rect.y, rect.width, rect.height);
-        g.lineStyle(2, skin.stroke, skin.strokeAlpha).strokeRect(rect.x + 1, rect.y + 1, rect.width - 2, rect.height - 2);
+        g.lineStyle(2, skin.stroke, skin.strokeAlpha).strokeRect(
+          rect.x + 1,
+          rect.y + 1,
+          rect.width - 2,
+          rect.height - 2,
+        );
         const prefix = item.state === "done" ? "✓ " : item.state === "current" ? "▸ " : "";
         const text = this.add
-          .text(rect.x + 10, rect.y + rect.height / 2, `${prefix}${item.label}`, { ...textStyle(CHIP_TYPE, skin.text, skin.textAlpha), fontStyle: "800" })
+          .text(rect.x + 10, rect.y + rect.height / 2, `${prefix}${item.label}`, {
+            ...textStyle(CHIP_TYPE, skin.text, skin.textAlpha),
+            fontStyle: "800",
+          })
           .setOrigin(0, 0.5);
         fitText(text, rect.width - 18, CHIP_TYPE.size);
       });
@@ -343,19 +431,39 @@ export class SetupDealScene extends Phaser.Scene {
     const others = view.seats.filter((seat) => seat.playerId !== view.decidingPlayerId);
 
     if (decider && mulliganChoice) {
-      this.#sectionHeader(layout.handLabel.x, layout.handLabel.y + layout.handLabel.height / 2, layout.handLabel.width, `Your opening hand — ${decider.name}`);
+      this.#sectionHeader(
+        layout.handLabel.x,
+        layout.handLabel.y + layout.handLabel.height / 2,
+        layout.handLabel.width,
+        `Your opening hand — ${decider.name}`,
+      );
       this.#drawOpeningHand(layout.handRow, decider);
       this.#drawCommit(layout.commitRow, decider, mulliganChoice, layout.formFactor === "phone");
     } else {
-      this.#sectionHeader(layout.handLabel.x, layout.handLabel.y + layout.handLabel.height / 2, layout.handLabel.width, "Opening hands");
+      this.#sectionHeader(
+        layout.handLabel.x,
+        layout.handLabel.y + layout.handLabel.height / 2,
+        layout.handLabel.width,
+        "Opening hands",
+      );
       this.add
-        .text(layout.handRow.x, layout.handRow.y, "Waiting on another decision before the mulligan continues…", textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+        .text(
+          layout.handRow.x,
+          layout.handRow.y,
+          "Waiting on another decision before the mulligan continues…",
+          textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+        )
         .setWordWrapWidth(layout.handRow.width);
     }
 
     // A solo game has no other seats, and a header over nothing reads as a bug.
     if (others.length > 0) {
-      this.#sectionHeader(layout.otherSeatsLabel.x, layout.otherSeatsLabel.y + layout.otherSeatsLabel.height / 2, layout.otherSeatsLabel.width, "Other seats");
+      this.#sectionHeader(
+        layout.otherSeatsLabel.x,
+        layout.otherSeatsLabel.y + layout.otherSeatsLabel.height / 2,
+        layout.otherSeatsLabel.width,
+        "Other seats",
+      );
     }
     others.forEach((seat, index) => {
       const rect = layout.otherSeats[index];
@@ -367,7 +475,11 @@ export class SetupDealScene extends Phaser.Scene {
   }
 
   /** Tablet landscape (L05): one column per seat, every hand visible at once. */
-  #drawAllSeats(layout: SetupWalkthroughLayout, view: SetupWalkthroughView, mulliganChoice: PendingChoice | null): void {
+  #drawAllSeats(
+    layout: SetupWalkthroughLayout,
+    view: SetupWalkthroughView,
+    mulliganChoice: PendingChoice | null,
+  ): void {
     view.seats.forEach((seat, index) => {
       const column = layout.seatColumns[index];
       if (column) this.#drawSeatColumn(column, seat, seat.playerId === view.decidingPlayerId);
@@ -380,11 +492,17 @@ export class SetupDealScene extends Phaser.Scene {
         ? `${kept} seat${kept === 1 ? " has" : "s have"} kept. ${decider.name} is deciding.`
         : "Every seat has answered — moving on.";
       this.add
-        .text(layout.footerNote.x, layout.footerNote.y + layout.footerNote.height / 2, note, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+        .text(
+          layout.footerNote.x,
+          layout.footerNote.y + layout.footerNote.height / 2,
+          note,
+          textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+        )
         .setOrigin(0, 0.5)
         .setWordWrapWidth(layout.footerNote.width);
     }
-    if (layout.footerCommit && decider && mulliganChoice) this.#drawCommit(layout.footerCommit, decider, mulliganChoice, false);
+    if (layout.footerCommit && decider && mulliganChoice)
+      this.#drawCommit(layout.footerCommit, decider, mulliganChoice, false);
   }
 
   #drawSeatColumn(rect: Rect, seat: SetupSeatStatus, isDeciding: boolean): void {
@@ -409,14 +527,24 @@ export class SetupDealScene extends Phaser.Scene {
         wash.fillStyle(accent.heroRed.hex, 0.15).fillRect(rowRect.x, rowRect.y, rowRect.width, rowRect.height);
       }
       const costText = card.cost !== null ? String(card.cost) : "–";
-      this.add.text(rowRect.x + 4, rowRect.y + rowRect.height / 2, costText, textStyle(typeRole.statSmall, surface.ink.hex)).setOrigin(0, 0.5);
+      this.add
+        .text(rowRect.x + 4, rowRect.y + rowRect.height / 2, costText, textStyle(typeRole.statSmall, surface.ink.hex))
+        .setOrigin(0, 0.5);
       const nameText = this.add
         .text(rowRect.x + 26, rowRect.y + rowRect.height / 2, card.name, textStyle(typeRole.body, surface.ink.hex))
         .setOrigin(0, 0.5)
         .setMaxLines(1);
       fitText(nameText, rowRect.width - (picked ? 60 : 30), typeRole.body.size);
       if (picked) {
-        label(this, rowRect.x + rowRect.width - 4, rowRect.y + rowRect.height / 2, "swap", typeRole.label, accent.heroRed.hex, 1).setOrigin(1, 0.5);
+        label(
+          this,
+          rowRect.x + rowRect.width - 4,
+          rowRect.y + rowRect.height / 2,
+          "swap",
+          typeRole.label,
+          accent.heroRed.hex,
+          1,
+        ).setOrigin(1, 0.5);
       }
       if (isDeciding) {
         this.#focusRects.set(`option:${card.instanceId}`, rowRect);
@@ -457,7 +585,9 @@ export class SetupDealScene extends Phaser.Scene {
 
     const strip = this.add.container(0, 0);
     const mask = this.make.graphics({}, false);
-    mask.fillStyle(0xffffff).fillRect(layout.viewport.x, layout.viewport.y, layout.viewport.width, layout.viewport.height);
+    mask
+      .fillStyle(0xffffff)
+      .fillRect(layout.viewport.x, layout.viewport.y, layout.viewport.width, layout.viewport.height);
     this.#stripMask = mask;
     setMask(strip, mask, "world");
 
@@ -472,7 +602,9 @@ export class SetupDealScene extends Phaser.Scene {
     const thumb = openingHandThumb(layout, scrollX);
     if (layout.indicator && thumb) {
       const track = this.add.graphics();
-      track.fillStyle(surface.paper.hex, 0.15).fillRect(layout.indicator.x, layout.indicator.y, layout.indicator.width, layout.indicator.height);
+      track
+        .fillStyle(surface.paper.hex, 0.15)
+        .fillRect(layout.indicator.x, layout.indicator.y, layout.indicator.width, layout.indicator.height);
       track.fillStyle(surface.paper.hex, 0.7).fillRect(thumb.x, thumb.y, thumb.width, thumb.height);
     }
   }
@@ -493,7 +625,12 @@ export class SetupDealScene extends Phaser.Scene {
     const drawn = drawArt(this, key, inner, { fit: "contain" });
     if (!drawn) {
       this.add
-        .text(inner.x + inner.width / 2, inner.y + inner.height / 2, card.name, textStyle(typeRole.rowTitle, surface.ink.hex))
+        .text(
+          inner.x + inner.width / 2,
+          inner.y + inner.height / 2,
+          card.name,
+          textStyle(typeRole.rowTitle, surface.ink.hex),
+        )
         .setOrigin(0.5)
         .setWordWrapWidth(inner.width - 8)
         .setMaxLines(3);
@@ -505,11 +642,21 @@ export class SetupDealScene extends Phaser.Scene {
 
       const tagWidth = Math.min(inner.width - 8, 96);
       const tagHeight = 20;
-      const band: Rect = { x: inner.x + (inner.width - tagWidth) / 2, y: inner.y + inner.height - tagHeight - 6, width: tagWidth, height: tagHeight };
+      const band: Rect = {
+        x: inner.x + (inner.width - tagWidth) / 2,
+        y: inner.y + inner.height - tagHeight - 6,
+        width: tagWidth,
+        height: tagHeight,
+      };
       const bandG = this.add.graphics();
       bandG.fillStyle(accent.heroRed.hex, 1).fillRect(band.x, band.y, band.width, band.height);
       const tagText = this.add
-        .text(band.x + band.width / 2, band.y + band.height / 2, "MULLIGAN", textStyle(typeRole.label, surface.paper.hex))
+        .text(
+          band.x + band.width / 2,
+          band.y + band.height / 2,
+          "MULLIGAN",
+          textStyle(typeRole.label, surface.paper.hex),
+        )
         .setOrigin(0.5);
       fitText(tagText, band.width - 6, typeRole.label.size);
     }
@@ -536,18 +683,34 @@ export class SetupDealScene extends Phaser.Scene {
     monoG.fillStyle(monoColor, 1).fillRect(monoRect.x, monoRect.y, monoRect.width, monoRect.height);
     monoG.lineStyle(1.5, surface.ink.hex, 1).strokeRect(monoRect.x, monoRect.y, monoRect.width, monoRect.height);
     this.add
-      .text(monoRect.x + monoRect.width / 2, monoRect.y + monoRect.height / 2, initialsOf(seat.name), textStyle({ ...typeRole.rowTitle, size: 11 }, surface.paper.hex))
+      .text(
+        monoRect.x + monoRect.width / 2,
+        monoRect.y + monoRect.height / 2,
+        initialsOf(seat.name),
+        textStyle({ ...typeRole.rowTitle, size: 11 }, surface.paper.hex),
+      )
       .setOrigin(0.5);
 
     const textLeft = monoRect.x + monoRect.width + 8;
     this.add.text(textLeft, rect.y + 8, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex)).setMaxLines(1);
-    label(this, textLeft, rect.y + 8 + 16, seat.statusLabel.toUpperCase(), typeRole.label, surface.paper.hex, seat.state === "waiting" ? ink.secondary : 1);
+    label(
+      this,
+      textLeft,
+      rect.y + 8 + 16,
+      seat.statusLabel.toUpperCase(),
+      typeRole.label,
+      surface.paper.hex,
+      seat.state === "waiting" ? ink.secondary : 1,
+    );
 
     const slotsTop = monoRect.y + monoRect.height + 10;
     const count = Math.max(0, seat.handSize);
     const gap = 3;
     const available = rect.width - 16;
-    const slotWidth = count > 0 ? Math.max(9, Math.min(OTHER_SEAT_SLOT_WIDTH, (available - gap * (count - 1)) / count)) : OTHER_SEAT_SLOT_WIDTH;
+    const slotWidth =
+      count > 0
+        ? Math.max(9, Math.min(OTHER_SEAT_SLOT_WIDTH, (available - gap * (count - 1)) / count))
+        : OTHER_SEAT_SLOT_WIDTH;
     const slotHeight = Math.min(OTHER_SEAT_SLOT_HEIGHT, rect.y + rect.height - slotsTop - 4);
     if (slotHeight > 8) {
       const redrawn = seat.state === "mulliganed" ? (seat.mulliganedCount ?? 0) : 0;
@@ -557,11 +720,16 @@ export class SetupDealScene extends Phaser.Scene {
         const slotRect: Rect = { x: sx, y: slotsTop, width: slotWidth, height: slotHeight };
         if (isRedrawn) {
           dashedRect(this.add.graphics(), slotRect, 1.5);
-          this.add.graphics().lineStyle(1.5, accent.heroRed.hex, 1).strokeRect(slotRect.x, slotRect.y, slotRect.width, slotRect.height);
+          this.add
+            .graphics()
+            .lineStyle(1.5, accent.heroRed.hex, 1)
+            .strokeRect(slotRect.x, slotRect.y, slotRect.width, slotRect.height);
         } else {
           const slotG = this.add.graphics();
           slotG.fillStyle(surface.void.hex, 1).fillRect(slotRect.x, slotRect.y, slotRect.width, slotRect.height);
-          slotG.lineStyle(1, surface.paper.hex, 0.3).strokeRect(slotRect.x, slotRect.y, slotRect.width, slotRect.height);
+          slotG
+            .lineStyle(1, surface.paper.hex, 0.3)
+            .strokeRect(slotRect.x, slotRect.y, slotRect.width, slotRect.height);
         }
       }
     }
@@ -575,7 +743,12 @@ export class SetupDealScene extends Phaser.Scene {
 
     if (!view.revealedCard) {
       this.add
-        .text(rect.x + 10, rect.y + 8 + 16, "No setup card revealed yet.", textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .text(
+          rect.x + 10,
+          rect.y + 8 + 16,
+          "No setup card revealed yet.",
+          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+        )
         .setWordWrapWidth(rect.width - 20);
       return;
     }
@@ -685,7 +858,12 @@ export class SetupDealScene extends Phaser.Scene {
       const noteWidth = rect.x + rect.width - noteX;
       if (noteWidth > 100) {
         this.add
-          .text(noteX, rect.y + rect.height / 2, "One mulligan per player: discard any number, draw back up, shuffle the discards in.", textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+          .text(
+            noteX,
+            rect.y + rect.height / 2,
+            "One mulligan per player: discard any number, draw back up, shuffle the discards in.",
+            textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+          )
           .setOrigin(0, 0.5)
           .setWordWrapWidth(noteWidth);
       }
@@ -703,7 +881,10 @@ export class SetupDealScene extends Phaser.Scene {
   }
 
   #inspect(instanceId: InstanceId, picked: boolean): void {
-    this.scene.launch(SCENES.inspect, { instanceId, choice: { optionId: instanceId as unknown as string, label: picked ? "Deselect" : "Select" } });
+    this.scene.launch(SCENES.inspect, {
+      instanceId,
+      choice: { optionId: instanceId as unknown as string, label: picked ? "Deselect" : "Select" },
+    });
   }
 
   #inspectInstance(instanceId: InstanceId): void {
@@ -758,7 +939,8 @@ export class SetupDealScene extends Phaser.Scene {
       void this.#confirm();
       return;
     }
-    if (focus === "confirm" && canConfirmChoice(choice, this.#selected.length) && this.#selected.length > 0) void this.#confirm();
+    if (focus === "confirm" && canConfirmChoice(choice, this.#selected.length) && this.#selected.length > 0)
+      void this.#confirm();
   }
 
   /** Static, not pulsing: the ring says "here you are", not "act now" — the same convention `ChoiceOverlay` uses. */

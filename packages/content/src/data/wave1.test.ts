@@ -44,7 +44,9 @@ interface PackFixture {
 }
 
 function rawCacheOf(code: string): { cards: RawRecord[] } {
-  return JSON.parse(readFileSync(new URL(`../../raw/marvelcdb/${code}.json`, import.meta.url), "utf8")) as { cards: RawRecord[] };
+  return JSON.parse(readFileSync(new URL(`../../raw/marvelcdb/${code}.json`, import.meta.url), "utf8")) as {
+    cards: RawRecord[];
+  };
 }
 
 const PACKS: readonly PackFixture[] = [
@@ -68,7 +70,9 @@ const abilityIds = (c: { abilities: readonly { id: string }[] }) => c.abilities.
 
 describe("wave 1 data — integrity (every pack)", () => {
   it("every emitted card passes validateCard()", () => {
-    const failures = WAVE1_CARDS.map((c) => ({ id: c.id, errors: validateCard(c).errors })).filter((f) => f.errors.length > 0);
+    const failures = WAVE1_CARDS.map((c) => ({ id: c.id, errors: validateCard(c).errors })).filter(
+      (f) => f.errors.length > 0,
+    );
     expect(failures).toEqual([]);
   });
 
@@ -78,22 +82,25 @@ describe("wave 1 data — integrity (every pack)", () => {
     expect(WAVE1_CARDS.length).toBe(CORE_CARDS.length + PACKS.reduce((n, p) => n + p.cards.length, 0));
   });
 
-  it.each(PACKS.map((p) => [p.code, p] as const))("%s: card counts and every non-aggregate MarvelCDB record is covered exactly once", (code, pack) => {
-    const raw = rawCacheOf(code);
-    const dropped = new Set(pack.dropped.map((d) => d.marvelcdbCode));
-    const rawCodes = new Set(raw.cards.flatMap((r) => (r.linked_card ? [r.code, r.linked_card.code] : [r.code])));
-    const isAggregate = (c: string) => /\d$/.test(c) && rawCodes.has(`${c}a`);
-    const expectedTopLevel = [...rawCodes].filter((c) => !isAggregate(c));
-    for (const c of expectedTopLevel) if (isAggregate(c)) continue;
-    const coveredCodes = new Set(pack.provenance.flatMap((p) => p.marvelcdbCodes));
-    for (const c of rawCodes) {
-      if (dropped.has(c)) continue;
-      expect(coveredCodes.has(c), `${code} ${c} not covered by any emitted card`).toBe(true);
-    }
-    // Every card the provenance names is really in the pack's card list.
-    const cardIds = new Set(pack.cards.map((c) => c.id as string));
-    for (const p of pack.provenance) expect(cardIds.has(p.cardId as string), `${code} ${p.cardId}`).toBe(true);
-  });
+  it.each(PACKS.map((p) => [p.code, p] as const))(
+    "%s: card counts and every non-aggregate MarvelCDB record is covered exactly once",
+    (code, pack) => {
+      const raw = rawCacheOf(code);
+      const dropped = new Set(pack.dropped.map((d) => d.marvelcdbCode));
+      const rawCodes = new Set(raw.cards.flatMap((r) => (r.linked_card ? [r.code, r.linked_card.code] : [r.code])));
+      const isAggregate = (c: string) => /\d$/.test(c) && rawCodes.has(`${c}a`);
+      const expectedTopLevel = [...rawCodes].filter((c) => !isAggregate(c));
+      for (const c of expectedTopLevel) if (isAggregate(c)) continue;
+      const coveredCodes = new Set(pack.provenance.flatMap((p) => p.marvelcdbCodes));
+      for (const c of rawCodes) {
+        if (dropped.has(c)) continue;
+        expect(coveredCodes.has(c), `${code} ${c} not covered by any emitted card`).toBe(true);
+      }
+      // Every card the provenance names is really in the pack's card list.
+      const cardIds = new Set(pack.cards.map((c) => c.id as string));
+      for (const p of pack.provenance) expect(cardIds.has(p.cardId as string), `${code} ${p.cardId}`).toBe(true);
+    },
+  );
 
   it.each(PACKS.map((p) => [p.code, p] as const))("%s: every card belongs to its own pack/cycle", (code, pack) => {
     for (const c of pack.cards) {
@@ -235,8 +242,17 @@ describe("Green Goblin — curated corrections and structure", () => {
   });
 
   it("modular sets present: Goblin Gimmicks, A Mess of Things, Power Drain, Running Interference", () => {
-    const ids = WAVE1_ENCOUNTER_SETS.filter((s) => (s.packCodes as readonly string[]).includes("gob")).map((s) => s.id).sort();
-    expect(ids).toEqual(["a_mess_of_things", "goblin_gimmicks", "mutagen_formula", "power_drain", "risky_business", "running_interference"]);
+    const ids = WAVE1_ENCOUNTER_SETS.filter((s) => (s.packCodes as readonly string[]).includes("gob"))
+      .map((s) => s.id)
+      .sort();
+    expect(ids).toEqual([
+      "a_mess_of_things",
+      "goblin_gimmicks",
+      "mutagen_formula",
+      "power_drain",
+      "risky_business",
+      "running_interference",
+    ]);
   });
 });
 
@@ -250,7 +266,9 @@ describe("The Wrecking Crew — curated corrections and structure", () => {
 
   it("multipleVillains: four villains, printed order, each with its own encounter set and signature side scheme", () => {
     const [s] = TWC_SCENARIOS;
-    expect(s?.multipleVillains?.villains.map((v) => [v.villainCardId, v.encounterSetIds, v.signatureSideSchemeCardId])).toEqual([
+    expect(
+      s?.multipleVillains?.villains.map((v) => [v.villainCardId, v.encounterSetIds, v.signatureSideSchemeCardId]),
+    ).toEqual([
       ["07002", ["wrecker"], "07004"],
       ["07017", ["thunderball"], "07019"],
       ["07032", ["piledriver"], "07034"],
@@ -315,12 +333,21 @@ describe("hero packs — obligation/nemesis links and errata", () => {
     ["hlk", HLK_CARDS, "10001a", "10025", ["10026", "10027", "10028"]],
   ];
 
-  it.each(packsOf)("%s: identity links its obligation and nemesis set", (_code, cards, identityId, obligationId, nemesisIds) => {
-    const identity = byId<HeroIdentityCard>(cards, identityId, "hero_identity");
-    expect(identity.obligationCardId).toBe(obligationId);
-    const nemesisMembers = cards.filter((c) => "encounterSetIds" in c && (c.encounterSetIds as readonly string[]).includes(identity.nemesisEncounterSetId)).map((c) => c.id).sort();
-    expect(nemesisMembers).toEqual([...nemesisIds].sort());
-  });
+  it.each(packsOf)(
+    "%s: identity links its obligation and nemesis set",
+    (_code, cards, identityId, obligationId, nemesisIds) => {
+      const identity = byId<HeroIdentityCard>(cards, identityId, "hero_identity");
+      expect(identity.obligationCardId).toBe(obligationId);
+      const nemesisMembers = cards
+        .filter(
+          (c) =>
+            "encounterSetIds" in c && (c.encounterSetIds as readonly string[]).includes(identity.nemesisEncounterSetId),
+        )
+        .map((c) => c.id)
+        .sort();
+      expect(nemesisMembers).toEqual([...nemesisIds].sort());
+    },
+  );
 
   it("Black Widow (08001a) and Synth-Suit (08009): 'trigger' -> 'resolve' errata, printed text unchanged", () => {
     const widow = byId<HeroIdentityCard>(BKW_CARDS, "08001a", "hero_identity");
@@ -400,7 +427,10 @@ describe("wave 1 starter decks (content-level; legality is checked in @mc/cards)
   it("Doctor Strange's starter deck never lists an Invocation card", () => {
     const [deck] = DRS_STARTER_DECKS;
     for (const code of ["09032", "09033", "09034", "09035", "09036"]) {
-      expect(deck?.cards.some((e) => e.cardId === code), code).toBe(false);
+      expect(
+        deck?.cards.some((e) => e.cardId === code),
+        code,
+      ).toBe(false);
     }
   });
 });

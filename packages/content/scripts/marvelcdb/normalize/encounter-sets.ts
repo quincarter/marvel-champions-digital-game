@@ -8,11 +8,18 @@ import type { NormalizeContext } from "./context.ts";
  * Campaign upgrades' `hydra_camp` and the campaign obligations' `expcamp` — just marked `campaignSpecific`, and
  * built from records this function otherwise skips (a player-side `faction_code`, or `type_code: "obligation"`).
  */
-function campaignSetCode(r: { readonly faction_code: string; readonly type_code: string; readonly card_set_code?: string | null }): string | undefined {
+function campaignSetCode(r: {
+  readonly faction_code: string;
+  readonly type_code: string;
+  readonly card_set_code?: string | null;
+}): string | undefined {
   return r.faction_code === "campaign" && r.card_set_code ? r.card_set_code : undefined;
 }
 
-export function normalizeEncounterSets(ctx: NormalizeContext): { encounterSets: EncounterSet[]; setNames: Map<string, string> } {
+export function normalizeEncounterSets(ctx: NormalizeContext): {
+  encounterSets: EncounterSet[];
+  setNames: Map<string, string>;
+} {
   const setNames = new Map<string, string>();
   const campaignSets = new Set<string>();
   for (const r of ctx.topLevel) {

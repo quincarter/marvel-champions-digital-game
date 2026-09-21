@@ -121,7 +121,12 @@ export function setupWalkthroughLayout(input: SetupWalkthroughLayoutInput): Setu
   const { pad, gap } = setupMetrics(width, height);
 
   const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
-  const titleRow: Rect = { x: pad, y: TITLE_TOP_PAD, width: width - pad * 2, height: HEADER_HEIGHT - TITLE_TOP_PAD - 14 };
+  const titleRow: Rect = {
+    x: pad,
+    y: TITLE_TOP_PAD,
+    width: width - pad * 2,
+    height: HEADER_HEIGHT - TITLE_TOP_PAD - 14,
+  };
   const checklistRows = Math.max(1, input.checklistRows ?? 1);
   const checklistHeight = checklistRows * CHECKLIST_HEIGHT + (checklistRows - 1) * 6;
   const checklist: Rect = { x: pad, y: HEADER_HEIGHT + gap, width: width - pad * 2, height: checklistHeight };
@@ -129,9 +134,32 @@ export function setupWalkthroughLayout(input: SetupWalkthroughLayoutInput): Setu
   const hasRevealedCard = input.hasRevealedCard ?? true;
 
   if (formFactor === "tabletLandscape") {
-    return allSeatsLayout({ width, height, headerBar, titleRow, checklist, formFactor, bodyTop, pad, gap, seatCount: Math.max(1, input.seatCount) });
+    return allSeatsLayout({
+      width,
+      height,
+      headerBar,
+      titleRow,
+      checklist,
+      formFactor,
+      bodyTop,
+      pad,
+      gap,
+      seatCount: Math.max(1, input.seatCount),
+    });
   }
-  return focusLayout({ width, height, headerBar, titleRow, checklist, formFactor, bodyTop, pad, gap, otherSeatCount: Math.max(0, input.otherSeatCount), hasRevealedCard });
+  return focusLayout({
+    width,
+    height,
+    headerBar,
+    titleRow,
+    checklist,
+    formFactor,
+    bodyTop,
+    pad,
+    gap,
+    otherSeatCount: Math.max(0, input.otherSeatCount),
+    hasRevealedCard,
+  });
 }
 
 interface Shared {
@@ -221,7 +249,9 @@ function focusLayoutAt(
   let revealedPanel: Rect | null = null;
   let logPanel: Rect | null = null;
   if (split) {
-    const revealedHeight = !hasRevealedCard ? REVEALED_EMPTY_HEIGHT : (revealedHeightOverride ?? Math.min(230, Math.max(160, height * 0.28)));
+    const revealedHeight = !hasRevealedCard
+      ? REVEALED_EMPTY_HEIGHT
+      : (revealedHeightOverride ?? Math.min(230, Math.max(160, height * 0.28)));
     revealedPanel = { x: sidebarLeft, y: bodyTop, width: sidebarWidth, height: revealedHeight };
     const logTop = revealedPanel.y + revealedPanel.height + gap;
     logPanel = { x: sidebarLeft, y: logTop, width: sidebarWidth, height: Math.max(80, height - pad - logTop) };
@@ -264,7 +294,9 @@ function focusLayoutAt(
  * revealed-card panel (down to `MIN_REVEALED_HEIGHT_STACKED`, still enough for a name and one line of rules text)
  * — never the checklist, the commit row's 44px+ touch targets, or the log panel's own floor.
  */
-function focusLayout(shared: Shared & { readonly otherSeatCount: number; readonly hasRevealedCard: boolean }): SetupWalkthroughLayout {
+function focusLayout(
+  shared: Shared & { readonly otherSeatCount: number; readonly hasRevealedCard: boolean },
+): SetupWalkthroughLayout {
   const trial = focusLayoutAt(shared);
   if (!trial.logPanel) return trial;
   const floor = trial.commitSticky ? trial.commitRow.y - shared.gap : shared.height;

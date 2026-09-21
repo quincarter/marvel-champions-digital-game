@@ -1,11 +1,14 @@
 #!/usr/bin/env node
+// Signed release APK, from any OS with the Android SDK installed (Gradle runs everywhere; apksigner is a .bat
+// wrapper on Windows, which is why every command below goes through ./lib/run.mjs).
 
-import { execSync, spawnSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { pnpm, run } from "./lib/run.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
@@ -90,11 +93,7 @@ console.log(`[build-android] Using keystore: ${keystorePath} (alias: ${keystoreA
 
 // Step 1: Mobile sync (client build + cap sync)
 console.log("[build-android] Step 1: Syncing mobile assets...");
-const syncResult = spawnSync("pnpm", ["mobile:sync"], {
-  cwd: clientDir,
-  env: process.env,
-  stdio: "inherit",
-});
+const syncResult = pnpm(["mobile:sync"], { cwd: clientDir });
 
 if (syncResult.status !== 0) {
   console.error("[build-android] ERROR: mobile:sync failed.");
@@ -103,8 +102,7 @@ if (syncResult.status !== 0) {
 
 // Step 2: Capacitor build android with apksigner (v2/v3 signature scheme)
 console.log("[build-android] Step 2: Building release APK with apksigner...");
-const buildResult = spawnSync(
-  "pnpm",
+const buildResult = pnpm(
   [
     "cap",
     "build",
@@ -122,11 +120,7 @@ const buildResult = spawnSync(
     "--keystorealiaspass",
     keystoreKeyPass,
   ],
-  {
-    cwd: clientDir,
-    env: process.env,
-    stdio: "inherit",
-  }
+  { cwd: clientDir },
 );
 
 if (buildResult.status !== 0) {
@@ -142,10 +136,7 @@ if (!fs.existsSync(signedApk)) {
 }
 
 console.log("[build-android] Step 3: Verifying APK signature scheme...");
-const verifyResult = spawnSync("apksigner", ["verify", "-v", signedApk], {
-  env: process.env,
-  encoding: "utf8",
-});
+const verifyResult = run("apksigner", ["verify", "-v", signedApk], { capture: true });
 
 if (verifyResult.status !== 0) {
   console.error("[build-android] ERROR: APK signature verification failed!");

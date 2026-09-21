@@ -35,7 +35,13 @@ export function collectSeparateDecks(ctx: NormalizeContext): SeparateDecks {
       deckCards.push({ cardId: brand("card", code), quantity: raw.quantity });
     }
     const list = byIdentity.get(sd.identityCode) ?? [];
-    list.push({ name: sd.deckName, cards: deckCards, topCardFaceup: true, discardPile: "own", whenEmpty: "reshuffleDiscardWithoutPenalty" });
+    list.push({
+      name: sd.deckName,
+      cards: deckCards,
+      topCardFaceup: true,
+      discardPile: "own",
+      whenEmpty: "reshuffleDiscardWithoutPenalty",
+    });
     byIdentity.set(sd.identityCode, list);
   }
   return { ofCode, byIdentity };

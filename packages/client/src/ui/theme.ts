@@ -75,7 +75,10 @@ export function skin(kind: WidgetKind, state: WidgetState): Skin {
         case "hover":
           return solid(accent.redDeep.hex, surface.paper.hex, accent.redDeep.hex, border.object);
         case "unavailable":
-          return { ...solid(surface.paper.hex, surface.ink.hex, surface.ink.hex, border.object), textAlpha: ink.disabled };
+          return {
+            ...solid(surface.paper.hex, surface.ink.hex, surface.ink.hex, border.object),
+            textAlpha: ink.disabled,
+          };
         default:
           return solid(accent.heroRed.hex, surface.paper.hex, accent.heroRed.hex, border.object);
       }
@@ -87,18 +90,31 @@ export function skin(kind: WidgetKind, state: WidgetState): Skin {
         case "selected":
           return solid(surface.ink.hex, surface.paper.hex, surface.ink.hex, border.control);
         case "unavailable":
-          return { ...solid(surface.paper.hex, surface.ink.hex, surface.ink.hex, border.control), textAlpha: ink.disabled };
+          return {
+            ...solid(surface.paper.hex, surface.ink.hex, surface.ink.hex, border.control),
+            textAlpha: ink.disabled,
+          };
         default:
           return solid(surface.paper.hex, surface.ink.hex, surface.ink.hex, border.control);
       }
     case "quiet":
       switch (state) {
         case "hover":
-          return { ...solid(surface.parchment.hex, surface.ink.hex, surface.ink.hex, border.detail), textAlpha: ink.body };
+          return {
+            ...solid(surface.parchment.hex, surface.ink.hex, surface.ink.hex, border.detail),
+            textAlpha: ink.body,
+          };
         case "unavailable":
-          return { ...solid(surface.paper.hex, surface.ink.hex, surface.ink.hex, border.detail), textAlpha: ink.disabled, dashed: true };
+          return {
+            ...solid(surface.paper.hex, surface.ink.hex, surface.ink.hex, border.detail),
+            textAlpha: ink.disabled,
+            dashed: true,
+          };
         default:
-          return { ...solid(surface.paper.hex, surface.ink.hex, surface.ink.hex, border.detail), textAlpha: ink.secondary };
+          return {
+            ...solid(surface.paper.hex, surface.ink.hex, surface.ink.hex, border.detail),
+            textAlpha: ink.secondary,
+          };
       }
     case "onInk":
       switch (state) {
@@ -108,9 +124,15 @@ export function skin(kind: WidgetKind, state: WidgetState): Skin {
         case "selected":
           return solid(accent.heroRed.hex, surface.paper.hex, accent.heroRed.hex, border.control);
         case "unavailable":
-          return { ...solid(surface.ink.hex, surface.paper.hex, surface.paper.hex, border.control), textAlpha: ink.disabled };
+          return {
+            ...solid(surface.ink.hex, surface.paper.hex, surface.paper.hex, border.control),
+            textAlpha: ink.disabled,
+          };
         default:
-          return { ...solid(surface.ink.hex, surface.paper.hex, surface.paper.hex, border.control), textAlpha: ink.body };
+          return {
+            ...solid(surface.ink.hex, surface.paper.hex, surface.paper.hex, border.control),
+            textAlpha: ink.body,
+          };
       }
     case "card":
       switch (state) {
@@ -120,14 +142,18 @@ export function skin(kind: WidgetKind, state: WidgetState): Skin {
           return solid(surface.card.hex, surface.ink.hex, accent.heroRed.hex, border.object);
         case "unavailable":
           // Present but illegal this instant: 38% ink, still exactly in place.
-          return { ...solid(surface.card.hex, surface.ink.hex, surface.ink.hex, border.object), fillAlpha: ink.illegal, textAlpha: ink.illegal };
+          return {
+            ...solid(surface.card.hex, surface.ink.hex, surface.ink.hex, border.object),
+            fillAlpha: ink.illegal,
+            textAlpha: ink.illegal,
+          };
         default:
           return solid(surface.card.hex, surface.ink.hex, surface.ink.hex, border.object);
       }
     case "rail":
       return state === "selected"
-        // Active tab = ink fill, not an underline.
-        ? solid(surface.ink.hex, surface.paper.hex, surface.ink.hex, border.detail)
+        ? // Active tab = ink fill, not an underline.
+          solid(surface.ink.hex, surface.paper.hex, surface.ink.hex, border.detail)
         : { ...solid(surface.parchment.hex, surface.ink.hex, surface.ink.hex, border.detail), textAlpha: ink.label };
   }
 }

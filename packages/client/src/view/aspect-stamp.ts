@@ -72,7 +72,10 @@ export function aspectStampsOf(aspects: readonly CoreAspect[]): readonly AspectS
 export function titleWithoutAspects(title: string, aspects: readonly CoreAspect[]): string {
   const match = /^(.*\S)\s*\(([^()]*)\)\s*$/.exec(title);
   if (!match || aspects.length === 0) return title;
-  const named = match[2]!.split(/\s*(?:\+|\/|,|&)\s*/).map((word) => word.trim().toLowerCase().replace(/^'/, "")).sort();
+  const named = match[2]!
+    .split(/\s*(?:\+|\/|,|&)\s*/)
+    .map((word) => word.trim().toLowerCase().replace(/^'/, ""))
+    .sort();
   const own = [...aspects].map((aspect) => aspect.toLowerCase()).sort();
   return named.length === own.length && named.every((word, index) => word === own[index]) ? match[1]! : title;
 }

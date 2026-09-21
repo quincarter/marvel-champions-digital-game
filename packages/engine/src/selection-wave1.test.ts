@@ -22,12 +22,28 @@ import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import { runCommands } from "./testing/drive.js";
-import { stubAlly, stubEvent, stubMainScheme, stubMinion, stubSideScheme, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, giveCard, HERO, seatIdentities, settleUntil, withEncounterPiles } from "./testing/scenario.js";
+import {
+  stubAlly,
+  stubEvent,
+  stubMainScheme,
+  stubMinion,
+  stubSideScheme,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
+import {
+  DEFAULT_CARDS,
+  DEFAULT_DECK,
+  giveCard,
+  HERO,
+  seatIdentities,
+  settleUntil,
+  withEncounterPiles,
+} from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const p2 = playerId("p2");
-const self = { kind: "self" } as const;
+
 const you = { kind: "controller" } as const;
 const candidate: TargetRef = { kind: "slot", slot: "candidate" };
 const one: ValueSpec = { kind: "const", value: 1 };
@@ -37,11 +53,27 @@ const num = (value: number): ValueSpec => ({ kind: "const", value });
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 const GOON = stubMinion({ id: "goon", atk: 0, sch: 0, hp: 3, boostIcons: 0 });
 const OTHER = stubMinion({ id: "other", atk: 0, sch: 0, hp: 3, boostIcons: 0 });
-const QUIET_VILLAIN = stubVillain({ id: "quiet", stages: [{ hp: flat(30), atk: 0, sch: 0 }, { hp: flat(30), atk: 0, sch: 0 }] });
-const LONG_SCHEME = stubMainScheme({ id: "long", stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }] });
+const QUIET_VILLAIN = stubVillain({
+  id: "quiet",
+  stages: [
+    { hp: flat(30), atk: 0, sch: 0 },
+    { hp: flat(30), atk: 0, sch: 0 },
+  ],
+});
+const LONG_SCHEME = stubMainScheme({
+  id: "long",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }],
+});
 
 /** A card of HERO's identity set: the set icon is the card's `aspect` (RRG 1.8 "Identity-Specific Card", p. 23). */
-const SIGNATURE_ALLY = stubAlly({ id: "signature-ally", cost: 1, atk: 1, thw: 1, hp: 2, aspect: `hero:${HERO.id}` as Aspect });
+const SIGNATURE_ALLY = stubAlly({
+  id: "signature-ally",
+  cost: 1,
+  atk: 1,
+  thw: 1,
+  hp: 2,
+  aspect: `hero:${HERO.id}` as Aspect,
+});
 const BASIC_ALLY = stubAlly({ id: "basic-ally", cost: 3, atk: 1, thw: 1, hp: 2 });
 
 // --- §3.12 superlatives, as a ref anyone can resolve ------------------------------------------------------------
@@ -54,7 +86,12 @@ const actionEvent = (id: string, effects: readonly EffectSpec[], cost = 0) => {
 /** "Discard the top N cards of the encounter deck", with the discarded cards bound. */
 const DISCARD_THREE = actionEvent("discard-three", [
   { kind: "discardEncounterCards", count: num(3), bind: "dumped" },
-  { kind: "addCounters", target: { kind: "identityOf", player: you }, counterType: "dumped", amount: { kind: "var", name: "dumped.count" } },
+  {
+    kind: "addCounters",
+    target: { kind: "identityOf", player: you },
+    counterType: "dumped",
+    amount: { kind: "var", name: "dumped.count" },
+  },
 ]);
 /** "Each time a [goon] is discarded this way, place 1 counter." */
 const DISCARD_EACH = actionEvent("discard-each", [
@@ -67,8 +104,15 @@ const DISCARD_EACH = actionEvent("discard-each", [
         {
           kind: "if",
           // The card is in a discard pile by now, so the question is about the card wherever it is.
-          condition: { kind: "refMatches", ref: { kind: "slot", slot: "card" }, query: { name: GOON.name }, anywhere: true },
-          then: [{ kind: "addCounters", target: { kind: "identityOf", player: you }, counterType: "goons", amount: one }],
+          condition: {
+            kind: "refMatches",
+            ref: { kind: "slot", slot: "card" },
+            query: { name: GOON.name },
+            anywhere: true,
+          },
+          then: [
+            { kind: "addCounters", target: { kind: "identityOf", player: you }, counterType: "goons", amount: one },
+          ],
         },
       ],
     },
@@ -79,11 +123,19 @@ const DISCARD_EACH_PLAYER = actionEvent("discard-each-player", [
   { kind: "forEachPlayer", players: { kind: "each" }, effects: [{ kind: "discardEncounterCards", count: num(2) }] },
 ]);
 /** "Deal 2 encounter cards to each player." */
-const DEAL_TWO_EACH = actionEvent("deal-two-each", [{ kind: "dealEncounterCard", player: { kind: "each" }, count: num(2) }]);
+const DEAL_TWO_EACH = actionEvent("deal-two-each", [
+  { kind: "dealEncounterCard", player: { kind: "each" }, count: num(2) },
+]);
 const DEAL_ONE_YOU = actionEvent("deal-one-you", [{ kind: "dealEncounterCard", player: you }]);
 /** "Deal 1 damage to X enemies", X being the number of minions in play. */
 const X_ENEMIES = actionEvent("x-enemies", [
-  { kind: "chooseTarget", slot: "enemies", query: { categories: ["enemy"] }, chooser: you, count: { kind: "count", query: { categories: ["minion"] } } },
+  {
+    kind: "chooseTarget",
+    slot: "enemies",
+    query: { categories: ["enemy"] },
+    chooser: you,
+    count: { kind: "count", query: { categories: ["minion"] } },
+  },
   { kind: "dealDamage", target: { kind: "slot", slot: "enemies" }, amount: one },
 ]);
 /** "Deal 1 damage to up to 3 different enemies." */
@@ -101,9 +153,19 @@ const FEWEST_HP = stubAbility("mad-genius.when-revealed", {
     {
       kind: "bindTargets",
       slot: "tied",
-      target: { kind: "superlative", among: { kind: "each", query: { categories: ["identity"] } }, order: "lowest", measure: { kind: "remainingHp", of: candidate } },
+      target: {
+        kind: "superlative",
+        among: { kind: "each", query: { categories: ["identity"] } },
+        order: "lowest",
+        measure: { kind: "remainingHp", of: candidate },
+      },
     },
-    { kind: "chooseTarget", slot: "hurt", query: { categories: ["identity"], inSlot: "tied" }, chooser: { kind: "firstPlayer" } },
+    {
+      kind: "chooseTarget",
+      slot: "hurt",
+      query: { categories: ["identity"], inSlot: "tied" },
+      chooser: { kind: "firstPlayer" },
+    },
     { kind: "dealDamage", target: { kind: "slot", slot: "hurt" }, amount: num(2) },
   ],
 });
@@ -125,7 +187,13 @@ const CARDS = [
   ...EVENTS.map((e) => e.card),
 ];
 
-function game(options: { readonly players?: number; readonly encounter?: readonly CardId[]; readonly startStageIndex?: number } = {}): GameState {
+function game(
+  options: {
+    readonly players?: number;
+    readonly encounter?: readonly CardId[];
+    readonly startStageIndex?: number;
+  } = {},
+): GameState {
   const identities = seatIdentities(HERO, options.players ?? 1);
   const config: GameSetupConfig = {
     seed: 5,
@@ -155,7 +223,13 @@ const context = (state: GameState, bindings: Record<string, readonly InstanceId[
 
 function play(state: GameState, card: { readonly id: CardId }, player = p1) {
   const given = giveCard(state, player, card.id);
-  return runCommands(given.state, deps, { type: "playCard", playerId: player, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+  return runCommands(given.state, deps, {
+    type: "playCard",
+    playerId: player,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  });
 }
 
 /** Test surgery: the first copy of `card` in the active encounter deck enters play engaged with p1. */
@@ -170,7 +244,10 @@ function engage(state: GameState, cardId: CardId, player = p1): { readonly state
       ...state,
       encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((x) => x !== id) } },
       players: state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
-      instances: { ...state.instances, [id]: { ...mustInstance(state, id), faceup: true, engagedWith: player, controllerId: null } },
+      instances: {
+        ...state.instances,
+        [id]: { ...mustInstance(state, id), faceup: true, engagedWith: player, controllerId: null },
+      },
     },
   };
 }
@@ -183,7 +260,12 @@ const damaged = (state: GameState, id: InstanceId, damage: number): GameState =>
 const endTurn = (player = p1): Command => ({ type: "endTurn", playerId: player });
 
 describe("§3.12 superlatives", () => {
-  const superlative = (order: "highest" | "lowest", measure: ValueSpec, among: TargetRef, extra: { readonly ties?: "all" | "first" } = {}): TargetRef => ({
+  const superlative = (
+    order: "highest" | "lowest",
+    measure: ValueSpec,
+    among: TargetRef,
+    extra: { readonly ties?: "all" | "first" } = {},
+  ): TargetRef => ({
     kind: "superlative",
     among,
     order,
@@ -194,13 +276,28 @@ describe("§3.12 superlatives", () => {
   it("'the hero with the fewest hit points remaining' picks the one hurt most, and a tie names every tied card", () => {
     const start = game({ players: 2 });
     const [first, second] = start.players.map((p) => p.identity.instanceId) as [InstanceId, InstanceId];
-    const ref = superlative("lowest", { kind: "remainingHp", of: candidate }, { kind: "each", query: { categories: ["identity"] } });
+    const ref = superlative(
+      "lowest",
+      { kind: "remainingHp", of: candidate },
+      { kind: "each", query: { categories: ["identity"] } },
+    );
 
     // Untouched heroes are tied: the ref names both, and the effect that needs one breaks the tie.
     expect(resolveRef(start, ref, context(start))).toEqual([first, second]);
     expect(resolveRef(damaged(start, second, 4), ref, context(start))).toEqual([second]);
     // `ties: "first"` takes the first in the pool's stable order for a card the choice cannot matter to.
-    expect(resolveRef(start, superlative("lowest", { kind: "remainingHp", of: candidate }, { kind: "each", query: { categories: ["identity"] } }, { ties: "first" }), context(start))).toEqual([first]);
+    expect(
+      resolveRef(
+        start,
+        superlative(
+          "lowest",
+          { kind: "remainingHp", of: candidate },
+          { kind: "each", query: { categories: ["identity"] } },
+          { ties: "first" },
+        ),
+        context(start),
+      ),
+    ).toEqual([first]);
   });
 
   it("measures a value read off another card: 'the villain whose side scheme has the most threat'", () => {
@@ -213,7 +310,11 @@ describe("§3.12 superlatives", () => {
     );
     // Signature side schemes entered play with 1 and 3 threat.
     expect(resolveRef(state, ref, context(state))).toEqual([thunderball]);
-    const lowest = superlative("lowest", { kind: "threat", of: { kind: "signatureSideSchemeOf", villain: candidate } }, { kind: "each", query: { categories: ["villain"] } });
+    const lowest = superlative(
+      "lowest",
+      { kind: "threat", of: { kind: "signatureSideSchemeOf", villain: candidate } },
+      { kind: "each", query: { categories: ["villain"] } },
+    );
     expect(resolveRef(state, lowest, context(state))).toEqual([wrecker]);
   });
 
@@ -221,7 +322,11 @@ describe("§3.12 superlatives", () => {
     const start = game({ encounter: [GOON.id, ...copies(BLANK.id, 15)] });
     const withGoon = engage(start, GOON.id);
     const villain = withGoon.state.villains[0]?.instanceId as InstanceId;
-    const byAtk = superlative("highest", { kind: "stat", of: candidate, stat: "atk" }, { kind: "each", query: { categories: ["enemy"] } });
+    const byAtk = superlative(
+      "highest",
+      { kind: "stat", of: candidate, stat: "atk" },
+      { kind: "each", query: { categories: ["enemy"] } },
+    );
     // The villain's stage ATK is 0 and the goon's is 0, so both tie; give the goon an edge through damage-free surgery.
     expect(resolveRef(withGoon.state, byAtk, context(withGoon.state))).toEqual([villain, withGoon.id]);
 
@@ -251,7 +356,12 @@ describe("§3.12 superlatives", () => {
     expect(choice?.playerId).toBe(tied.firstPlayerId);
     expect(choice?.options.map((option) => option.optionId)).toEqual([firstIdentity, secondIdentity]);
 
-    const chosen = ok(tied, { type: "resolveChoice", playerId: choice!.playerId, choiceId: choice!.choiceId, selectedOptionIds: [secondIdentity] });
+    const chosen = ok(tied, {
+      type: "resolveChoice",
+      playerId: choice!.playerId,
+      choiceId: choice!.choiceId,
+      selectedOptionIds: [secondIdentity],
+    });
     expect(mustInstance(chosen, secondIdentity).damage).toBe(2);
     expect(mustInstance(chosen, firstIdentity).damage).toBe(0);
 
@@ -277,15 +387,41 @@ describe("§3.12 the identity-set filter and the new values", () => {
   it("printedCost, distinctCardTypes and villainStageNumber read what is printed", () => {
     const start = game({ encounter: [GOON.id, ...copies(BLANK.id, 15)] });
     const handed = giveCard(start, p1, BASIC_ALLY.id);
-    const ally = handed.state.players[0]?.hand.find((id) => mustInstance(handed.state, id).cardId === BASIC_ALLY.id) as InstanceId;
-    expect(resolveValue(handed.state, { kind: "printedCost", of: { kind: "slot", slot: "c" } }, context(handed.state, { c: [ally] }))).toBe(BASIC_ALLY.cost);
+    const ally = handed.state.players[0]?.hand.find(
+      (id) => mustInstance(handed.state, id).cardId === BASIC_ALLY.id,
+    ) as InstanceId;
+    expect(
+      resolveValue(
+        handed.state,
+        { kind: "printedCost", of: { kind: "slot", slot: "c" } },
+        context(handed.state, { c: [ally] }),
+      ),
+    ).toBe(BASIC_ALLY.cost);
     // A card with no printed cost (a minion) is 0.
     const goon = engage(start, GOON.id);
-    expect(resolveValue(goon.state, { kind: "printedCost", of: { kind: "slot", slot: "c" } }, context(goon.state, { c: [goon.id] }))).toBe(0);
+    expect(
+      resolveValue(
+        goon.state,
+        { kind: "printedCost", of: { kind: "slot", slot: "c" } },
+        context(goon.state, { c: [goon.id] }),
+      ),
+    ).toBe(0);
 
     const mixed = [ally, goon.id];
-    expect(resolveValue(goon.state, { kind: "distinctCardTypes", cards: { kind: "slot", slot: "c" } }, context(goon.state, { c: mixed }))).toBe(2);
-    expect(resolveValue(goon.state, { kind: "distinctCardTypes", cards: { kind: "slot", slot: "c" } }, context(goon.state, { c: [goon.id] }))).toBe(1);
+    expect(
+      resolveValue(
+        goon.state,
+        { kind: "distinctCardTypes", cards: { kind: "slot", slot: "c" } },
+        context(goon.state, { c: mixed }),
+      ),
+    ).toBe(2);
+    expect(
+      resolveValue(
+        goon.state,
+        { kind: "distinctCardTypes", cards: { kind: "slot", slot: "c" } },
+        context(goon.state, { c: [goon.id] }),
+      ),
+    ).toBe(1);
 
     // The printed numeral, not the index: expert play starts on stage II.
     expect(resolveValue(start, { kind: "villainStageNumber" }, context(start))).toBe(1);
@@ -330,7 +466,9 @@ describe("§3.12 discarding from the encounter deck", () => {
   it("forEachDiscarded runs once per discarded card, in discard order", () => {
     const start = game({ encounter: [GOON.id, OTHER.id, GOON.id, OTHER.id, ...copies(BLANK.id, 12)] });
     const stacked = withEncounterPiles(start, {
-      deck: [...activeEncounterDeck(start).deck].sort((a, b) => Number(mustInstance(start, b).cardId === GOON.id) - Number(mustInstance(start, a).cardId === GOON.id)),
+      deck: [...activeEncounterDeck(start).deck].sort(
+        (a, b) => Number(mustInstance(start, b).cardId === GOON.id) - Number(mustInstance(start, a).cardId === GOON.id),
+      ),
     });
     const { state } = play(stacked, DISCARD_EACH.card);
     expect(mustInstance(state, mustPlayer(state, p1).identity.instanceId).counters.goons).toBe(2);
@@ -342,7 +480,13 @@ describe("§3.12 dealing several cards to each player", () => {
     const start = game({ players: 2, encounter: copies(BLANK.id, 16) });
     const [a, b, c, d] = activeEncounterDeck(start).deck as [InstanceId, InstanceId, InstanceId, InstanceId];
     const given = giveCard(start, p1, DEAL_TWO_EACH.card.id);
-    const atOrder = ok(given.state, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+    const atOrder = ok(given.state, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    });
 
     const choice = atOrder.pendingChoice;
     expect(choice?.prompt).toEqual({ kind: "orderPlayers", reason: "dealEncounterCards" });
@@ -351,7 +495,12 @@ describe("§3.12 dealing several cards to each player", () => {
     expect(choice?.ordered).toBe(true);
 
     // BBAA: the first player sends both of p2's cards first.
-    const dealt = ok(atOrder, { type: "resolveChoice", playerId: choice!.playerId, choiceId: choice!.choiceId, selectedOptionIds: [p2, p1] });
+    const dealt = ok(atOrder, {
+      type: "resolveChoice",
+      playerId: choice!.playerId,
+      choiceId: choice!.choiceId,
+      selectedOptionIds: [p2, p1],
+    });
     expect(mustPlayer(dealt, p2).dealtEncounter).toEqual([a, b]);
     expect(mustPlayer(dealt, p1).dealtEncounter).toEqual([c, d]);
   });
@@ -372,7 +521,13 @@ describe("§3.12 'X enemies' and 'up to 3 different enemies'", () => {
     const second = engage(first.state, OTHER.id);
     const villain = second.state.villains[0]?.instanceId as InstanceId;
     const given = giveCard(second.state, p1, X_ENEMIES.card.id);
-    const atChoice = ok(given.state, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+    const atChoice = ok(given.state, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    });
 
     const choice = atChoice.pendingChoice;
     // Two minions in play, so X is 2.
@@ -381,7 +536,12 @@ describe("§3.12 'X enemies' and 'up to 3 different enemies'", () => {
     // The villain deck has two stages but is one enemy, offered once.
     expect(choice?.options.filter((option) => option.optionId === villain)).toHaveLength(1);
 
-    const hit = ok(atChoice, { type: "resolveChoice", playerId: p1, choiceId: choice!.choiceId, selectedOptionIds: [first.id, second.id] });
+    const hit = ok(atChoice, {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: choice!.choiceId,
+      selectedOptionIds: [first.id, second.id],
+    });
     expect(mustInstance(hit, first.id).damage).toBe(1);
     expect(mustInstance(hit, second.id).damage).toBe(1);
   });
@@ -390,13 +550,24 @@ describe("§3.12 'X enemies' and 'up to 3 different enemies'", () => {
     const start = game({ encounter: [GOON.id, OTHER.id, ...copies(BLANK.id, 14)] });
     const first = engage(start, GOON.id);
     const given = giveCard(first.state, p1, UP_TO_THREE.card.id);
-    const atChoice = ok(given.state, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+    const atChoice = ok(given.state, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    });
 
     const choice = atChoice.pendingChoice;
     expect(choice?.minSelections).toBe(0);
     // One villain and one minion in play, so at most two of the three may be taken.
     expect(choice?.maxSelections).toBe(2);
-    const none = ok(atChoice, { type: "resolveChoice", playerId: p1, choiceId: choice!.choiceId, selectedOptionIds: [] });
+    const none = ok(atChoice, {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: choice!.choiceId,
+      selectedOptionIds: [],
+    });
     expect(mustInstance(none, first.id).damage).toBe(0);
   });
 });

@@ -118,7 +118,12 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
   const backWidth = 90;
   const stepWidth = Math.min(140, Math.max(80, width * 0.3));
   const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
-  const step: Rect = { x: width - headerPad - stepWidth, y: (HEADER_HEIGHT - hit.target) / 2, width: stepWidth, height: hit.target };
+  const step: Rect = {
+    x: width - headerPad - stepWidth,
+    y: (HEADER_HEIGHT - hit.target) / 2,
+    width: stepWidth,
+    height: hit.target,
+  };
 
   const left = gutter;
   const detailWidth = wide ? DETAIL_WIDTH : width - gutter * 2;
@@ -141,11 +146,36 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
     const detailHeight = bodyBottom - bodyTop;
     const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, bodyBottom - y - gap - statStripHeight);
     const shelves: Rect = { x: left, y, width: shelvesWidth, height: shelvesHeight };
-    const statStrip: Rect = { x: left, y: shelves.y + shelves.height + gap, width: shelvesWidth, height: statStripHeight };
+    const statStrip: Rect = {
+      x: left,
+      y: shelves.y + shelves.height + gap,
+      width: shelvesWidth,
+      height: statStripHeight,
+    };
     const detail: Rect = { x: left + shelvesWidth + gap, y: bodyTop, width: detailWidth, height: detailHeight };
-    const next: Rect = { x: detail.x + 16, y: detail.y + detail.height - 16 - ctaBlockHeight, width: detail.width - 32, height: hit.primary };
+    const next: Rect = {
+      x: detail.x + 16,
+      y: detail.y + detail.height - 16 - ctaBlockHeight,
+      width: detail.width - 32,
+      height: hit.primary,
+    };
     const footer: Rect = { x: next.x, y: next.y + next.height + 4, width: next.width, height: FOOTER_HEIGHT };
-    return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail, next, footer, detailOverlay: false };
+    return {
+      formFactor,
+      wide,
+      headerBar,
+      back,
+      step,
+      search,
+      chips,
+      shelves,
+      statStrip,
+      statStripRows,
+      detail,
+      next,
+      footer,
+      detailOverlay: false,
+    };
   }
 
   // Narrow: the stages panel is a disclosure (`detailCollapsed`). The roster is always laid out as if it were
@@ -155,12 +185,32 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
   // stays where it was at the sheet's foot, so opening and closing never moves the thing you tapped.
   const next: Rect = { x: left, y: bodyBottom - hit.primary, width: detailWidth, height: hit.primary };
   const footer: Rect = { x: left, y: next.y - FOOTER_HEIGHT - 4, width: detailWidth, height: FOOTER_HEIGHT };
-  const bar: Rect = { x: left, y: footer.y - gap - DETAIL_COLLAPSED_HEIGHT, width: detailWidth, height: DETAIL_COLLAPSED_HEIGHT };
+  const bar: Rect = {
+    x: left,
+    y: footer.y - gap - DETAIL_COLLAPSED_HEIGHT,
+    width: detailWidth,
+    height: DETAIL_COLLAPSED_HEIGHT,
+  };
   const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, bar.y - gap - y);
   const shelves: Rect = { x: left, y, width: shelvesWidth, height: shelvesHeight };
   if (input.detailCollapsed) {
     const statStrip: Rect = { x: left, y: bar.y, width: detailWidth, height: 0 };
-    return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail: bar, next, footer, detailOverlay: false };
+    return {
+      formFactor,
+      wide,
+      headerBar,
+      back,
+      step,
+      search,
+      chips,
+      shelves,
+      statStrip,
+      statStripRows,
+      detail: bar,
+      next,
+      footer,
+      detailOverlay: false,
+    };
   }
   // A few pixels above the chips: their borders are stroked *around* their rects, and a sheet that starts flush
   // with them leaves those strokes poking out of its top edge.
@@ -168,5 +218,20 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
   // …and the same few pixels either side, for the chips' and cards' left and right strokes.
   const detail: Rect = { x: left - 4, y: sheetTop, width: detailWidth + 8, height: bar.y + bar.height - sheetTop };
   const statStrip: Rect = { x: left + 12, y: sheetTop + 12, width: detailWidth - 24, height: statStripHeight };
-  return { formFactor, wide, headerBar, back, step, search, chips, shelves, statStrip, statStripRows, detail, next, footer, detailOverlay: true };
+  return {
+    formFactor,
+    wide,
+    headerBar,
+    back,
+    step,
+    search,
+    chips,
+    shelves,
+    statStrip,
+    statStripRows,
+    detail,
+    next,
+    footer,
+    detailOverlay: true,
+  };
 }

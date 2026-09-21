@@ -128,7 +128,15 @@ describe("game log", () => {
     const scheme = played.state.mainScheme.instanceId;
 
     const plain = logLine(
-      { type: "schemeResolved", enemyInstanceId: villain, schemeInstanceId: scheme, baseSch: 1, boostIcons: 2, threatBonus: 0, threatPlaced: 3 },
+      {
+        type: "schemeResolved",
+        enemyInstanceId: villain,
+        schemeInstanceId: scheme,
+        baseSch: 1,
+        boostIcons: 2,
+        threatBonus: 0,
+        threatPlaced: 3,
+      },
       played.state,
       played.viewer,
       POOL_DEPS,
@@ -138,7 +146,15 @@ describe("game log", () => {
     expect(plain!.voice).toBe("villain");
 
     const reduced = logLine(
-      { type: "schemeResolved", enemyInstanceId: villain, schemeInstanceId: scheme, baseSch: 1, boostIcons: 2, threatBonus: -1, threatPlaced: 2 },
+      {
+        type: "schemeResolved",
+        enemyInstanceId: villain,
+        schemeInstanceId: scheme,
+        baseSch: 1,
+        boostIcons: 2,
+        threatBonus: -1,
+        threatPlaced: 2,
+      },
       played.state,
       played.viewer,
       POOL_DEPS,
@@ -150,11 +166,21 @@ describe("game log", () => {
   test("a cancelled boost card says which part was cancelled", () => {
     const villain = activeVillain(played.state).instanceId;
 
-    const icons = logLine({ type: "boostCancelled", instanceId: villain, scope: "icons" }, played.state, played.viewer, POOL_DEPS);
+    const icons = logLine(
+      { type: "boostCancelled", instanceId: villain, scope: "icons" },
+      played.state,
+      played.viewer,
+      POOL_DEPS,
+    );
     expect(icons!.text).toContain("boost icons are cancelled");
     expect(icons!.voice).toBe("player");
 
-    const ability = logLine({ type: "boostCancelled", instanceId: villain, scope: "ability" }, played.state, played.viewer, POOL_DEPS);
+    const ability = logLine(
+      { type: "boostCancelled", instanceId: villain, scope: "ability" },
+      played.state,
+      played.viewer,
+      POOL_DEPS,
+    );
     expect(ability!.text).toContain("Boost ability is cancelled");
   });
 
@@ -168,7 +194,13 @@ describe("game log", () => {
     const scheme = played.state.mainScheme.instanceId;
 
     const noEffect = logLine(
-      { type: "uniqueEntryBlocked", instanceId: scheme, cardId: played.state.instances[scheme]!.cardId, matchedInstanceId: villain, disposition: "noEffect" },
+      {
+        type: "uniqueEntryBlocked",
+        instanceId: scheme,
+        cardId: played.state.instances[scheme]!.cardId,
+        matchedInstanceId: villain,
+        disposition: "noEffect",
+      },
       played.state,
       played.viewer,
       POOL_DEPS,
@@ -177,7 +209,13 @@ describe("game log", () => {
     expect(noEffect!.text).not.toContain("discarded");
 
     const discarded = logLine(
-      { type: "uniqueEntryBlocked", instanceId: scheme, cardId: played.state.instances[scheme]!.cardId, matchedInstanceId: villain, disposition: "discarded" },
+      {
+        type: "uniqueEntryBlocked",
+        instanceId: scheme,
+        cardId: played.state.instances[scheme]!.cardId,
+        matchedInstanceId: villain,
+        disposition: "discarded",
+      },
       played.state,
       played.viewer,
       POOL_DEPS,
@@ -199,7 +237,12 @@ describe("game log", () => {
   test("stays quiet for a resolved ability with nothing to say — no printed label, no cost, not a Special", () => {
     const deps = { abilities: { "test.bare": { trigger: { kind: "response" }, effects: [] } as never } };
     const beat = logLine(
-      { type: "abilityResolved", instanceId: activeVillain(played.state).instanceId, abilityId: "test.bare" as never, controllerId: played.viewer },
+      {
+        type: "abilityResolved",
+        instanceId: activeVillain(played.state).instanceId,
+        abilityId: "test.bare" as never,
+        controllerId: played.viewer,
+      },
       played.state,
       played.viewer,
       deps,
@@ -222,9 +265,16 @@ describe("game log: abilityResolved", () => {
     const store = new SessionStore(new LocalEngineHost());
     // Seed 3 deals Master of the Mystic Arts (09005) into the opening hand (see `board-model-invocation.test.ts`'s
     // own note on this seed).
-    await store.start({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "drs-protection" }], seed: 3 });
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "drs-protection" }],
+      seed: 3,
+    });
     for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
-      const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+      const { choice } = store.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
       await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
     }
     let legal = store.state.legal!.actions;
@@ -236,7 +286,8 @@ describe("game log: abilityResolved", () => {
     legal = store.state.legal!.actions;
     if (legal.kind !== "turn") throw new Error("expected a turn");
     const playMota = legal.legal.find(
-      (entry) => entry.action.kind === "playCard" && store.state.game!.instances[entry.action.instanceId]?.cardId === "09005",
+      (entry) =>
+        entry.action.kind === "playCard" && store.state.game!.instances[entry.action.instanceId]?.cardId === "09005",
     );
     if (!playMota) throw new Error("expected Master of the Mystic Arts to be playable");
     let log = emptyLog();
@@ -247,7 +298,9 @@ describe("game log: abilityResolved", () => {
     // same generic answer `board-model-invocation.test.ts` uses.
     let afterLegal = store.state.legal?.actions;
     while (afterLegal?.kind === "choice") {
-      await store.resolveChoice(afterLegal.choice.options.slice(0, afterLegal.choice.minSelections).map((option) => option.optionId));
+      await store.resolveChoice(
+        afterLegal.choice.options.slice(0, afterLegal.choice.minSelections).map((option) => option.optionId),
+      );
       log = appendEvents(log, store.state.lastEvents, store.state.game!, store.state.perspectiveId, POOL_DEPS);
       afterLegal = store.state.legal?.actions;
     }

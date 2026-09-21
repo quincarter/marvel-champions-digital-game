@@ -1,11 +1,13 @@
 # Phase 7 working spec: wave 1
 
 This is the shared brief for every agent working Phase 7's first content wave:
+
 - `card-data-pipeline`, `game-rules-architect`, `ability-scripting-engineer`, `encounter-ai-designer` and `rules-qa-engineer`.
 - It turns PLAN.md Phase 7's "Scope decided" and "Pack survey" into concrete schema decisions, per-pack setup needs, and a prioritized list of engine primitives.
 - The model is `docs/phase2-core-set.md`. If you change a decision here, update this file in the same change.
 
 **Wave 1** is what released before The Rise of Red Skull:
+
 - the Green Goblin (`gob`) and The Wrecking Crew (`twc`) scenario packs;
 - the Captain America (`cap`), Ms. Marvel (`msm`), Thor (`thor`), Black Widow (`bkw`), Doctor Strange (`drs`) and Hulk (`hlk`) hero packs.
 
@@ -81,7 +83,7 @@ Authorities, in the order they win (RRG 1.8 "The Golden Rules", p. 4: card text 
 - **`EncounterCardFlipSide`** on `EncounterCardCommon.flipSide?`: the face the card flips to (name, subtitle, traits, keywords, text, abilities, image).
 - The top-level fields are the face that enters play.
 - Back-face ability ids must not repeat front-face ids.
-- A back face of a *different* card type is not modeled; no wave 1 card needs one.
+- A back face of a _different_ card type is not modeled; no wave 1 card needs one.
 - **Sources:**
   - RRG 1.8 "Double-Sided Card" (p. 17).
   - RRG 1.8 "Flip" (p. 20): "The same card type as the previous face, the card retains all attached cards, tucked cards, status cards, and tokens."
@@ -96,19 +98,20 @@ Authorities, in the order they win (RRG 1.8 "The Golden Rules", p. 4: card text 
 
 New `AttachmentHost` kinds:
 
-| Kind | Printed example |
-|---|---|
-| `namedVillain` | "Attach to Wrecker." |
-| `scheme` | "Attach to a scheme." |
-| `villainSideScheme { of: "activeVillain" \| { villainName } }` | Held Hostage |
-| `yourIdentity { form? }` | "Attach to your identity card." (All Tied Up, Media Coverage); "Attach to your hero." (Counterspell) |
-| `friendlyCharacter` | Honorary Avenger |
-| `qualified { category, trait?, withoutTrait?, withoutAttachmentNamed? }` | later packs' trait-qualified hosts |
-| `superlative { among, order, measure, …qualifiers }` | Goblin Glider: "the enemy with the highest printed hit points and without another Goblin Glider attached" |
+| Kind                                                                     | Printed example                                                                                           |
+| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| `namedVillain`                                                           | "Attach to Wrecker."                                                                                      |
+| `scheme`                                                                 | "Attach to a scheme."                                                                                     |
+| `villainSideScheme { of: "activeVillain" \| { villainName } }`           | Held Hostage                                                                                              |
+| `yourIdentity { form? }`                                                 | "Attach to your identity card." (All Tied Up, Media Coverage); "Attach to your hero." (Counterspell)      |
+| `friendlyCharacter`                                                      | Honorary Avenger                                                                                          |
+| `qualified { category, trait?, withoutTrait?, withoutAttachmentNamed? }` | later packs' trait-qualified hosts                                                                        |
+| `superlative { among, order, measure, …qualifiers }`                     | Goblin Glider: "the enemy with the highest printed hit points and without another Goblin Glider attached" |
 
 `minionWithHighestPrintedHp` stays, because Core data uses it.
 
 Sources:
+
 - RRG 1.8 "Attach To" (p. 8): legality is checked "when the card would be attached … If such a card cannot remain in its prior state or game area, discard it."
 - RRG 1.8 FAQ "Counterspell (#30)" (p. 60): "Because it is unable to meet its condition, simply discard it. (Do not reveal a new encounter card in its place.)"
 - RRG 1.8 "Friendly" (p. 21): "cards the players control".
@@ -126,13 +129,14 @@ In a scenario with one villain, "Attach to Green Goblin" (Hysteria) is still `vi
 
 New `PlayRestrictions` fields:
 
-| Field | Printed example |
-|---|---|
-| `maxPerRound` | "Max 1 per round." (Avengers Assemble!) |
-| `requiresIdentityTrait` | "Play only if your identity has the Avenger trait." (Honorary Avenger, Quincarrier, Inspiring Presence); "Play only if you have the Mystic trait." (The Sorcerer Supreme) |
-| `requiresControlledCharacterTrait` | "Play only if you control a Spy character." (Spycraft, Espionage) |
+| Field                              | Printed example                                                                                                                                                           |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `maxPerRound`                      | "Max 1 per round." (Avengers Assemble!)                                                                                                                                   |
+| `requiresIdentityTrait`            | "Play only if your identity has the Avenger trait." (Honorary Avenger, Quincarrier, Inspiring Presence); "Play only if you have the Mystic trait." (The Sorcerer Supreme) |
+| `requiresControlledCharacterTrait` | "Play only if you control a Spy character." (Spycraft, Espionage)                                                                                                         |
 
 Sources:
+
 - RRG 1.8 "Max, Maximum" (p. 28): "'Max X per [period]' imposes a maximum number of times that copies of that card can be played … If a card with a maximum is canceled, the card is still counted toward the maximum."
 - RRG 1.8 "Play Restrictions and Permissions" (p. 33).
 - Honorary Avenger errata (RRG 1.8 p. 65) added "Max 1 per character.", which is the existing `maxPerHost`.
@@ -140,15 +144,18 @@ Sources:
 ### 1.9 An identity's separate deck (the Invocation deck)
 
 **Schema:**
+
 - **`HeroIdentityCard.separateDecks?: IdentitySeparateDeck[]`**, where `IdentitySeparateDeck` is `{ name, cards: { cardId, quantity }[], topCardFaceup, discardPile: "own", whenEmpty: "reshuffleDiscardWithoutPenalty" }`.
 - **`PlayerCardCommon.separateDeck?: string`** on each card of that deck, and such a card must have `deckLimit: 0`.
 - `Deck.cards` and `StarterDeck.cards` never list separate-deck cards. The identity defines them, and setup builds the deck.
 
 **Sources:**
+
 - RRG 1.8 "Deck" (p. 15): "Certain identities or scenarios may add other decks to the game."
 - Doctor Strange rules sheet, "The Invocation Deck": "he begins each game with a special, five-card 'Invocation deck' in addition to his player deck. To create the Invocation deck, shuffle all five of Doctor Strange's Invocation cards together … play with the top card of the Invocation deck faceup at all times … After that card is resolved, it is placed in a special discard pile that belongs to the Invocation deck. If the Invocation deck is ever empty, shuffle the Invocation discard pile back into the Invocation deck. There is no penalty for doing this."
 
 **Legality rule implemented in `validateDeck`:**
+
 - **Listing a separate-deck card is refused (`separate_deck_card`), and it is not counted toward deck size.** It is not part of the player deck: "in addition to his player deck". RRG 1.8 Appendix I (p. 50) counts only the player deck's cards.
 - **Separate-deck cards are not required members of the identity set** (`identity_set_mismatch` skips them). Their contents are fixed, and setup adds them.
 - **The identity's separate-deck definitions must be buildable from the pool.** Every listed card must exist and be marked for that deck, and every identity-set card marked for a deck must be listed. Otherwise the report is `missing_card_data`, never a guess.
@@ -169,17 +176,18 @@ Sources:
 
 Printed keyword lines in wave 1, verbatim from the raw text with HTML removed. The parser must accept every variant listed.
 
-| Keyword | Printed forms | Cards |
-|---|---|---|
-| Guard | `Guard. (While this minion is engaged with you, you cannot attack the villain.)` | 02008, 02024, 03029, 07008, 07023, 07037, 07052, 08028 |
-| Surge | `Surge` (no period: 07009, 07024) and `Surge.` (07038, 07053) | Escaped Convict ×4 |
-| Quickstrike | `Quickstrike. (After this minion engages your hero, it attacks you.)`, and bare `Quickstrike.` | 02038, 03028 |
-| Retaliate | `Retaliate 1.` | 07032, 07033 |
-| Restricted | `Restricted. (Max 2 restricted cards per player.)`, and bare `Restricted.` | 03009, 06009; 06019 |
-| Toughness | `Toughness. (This character enters play with a tough status card.)` | 06029 |
-| Uses | `Uses (3 mental counters).`, `Uses (3 physical counters).`, `Uses (3 medical counters).` (09018 is followed by a reminder); `Uses (3 snoop counters). (Enters play with 3 counters. When those are gone, discard this card)` (no closing period); `Uses (3 reflection counters). Interrupt: …` and `Uses (3 energy counters). Hero Resource: …`, each with an ability on the same line | 03034, 06034, 09018, 09019; 08016; 05017, 05024 |
+| Keyword     | Printed forms                                                                                                                                                                                                                                                                                                                                                                          | Cards                                                  |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Guard       | `Guard. (While this minion is engaged with you, you cannot attack the villain.)`                                                                                                                                                                                                                                                                                                       | 02008, 02024, 03029, 07008, 07023, 07037, 07052, 08028 |
+| Surge       | `Surge` (no period: 07009, 07024) and `Surge.` (07038, 07053)                                                                                                                                                                                                                                                                                                                          | Escaped Convict ×4                                     |
+| Quickstrike | `Quickstrike. (After this minion engages your hero, it attacks you.)`, and bare `Quickstrike.`                                                                                                                                                                                                                                                                                         | 02038, 03028                                           |
+| Retaliate   | `Retaliate 1.`                                                                                                                                                                                                                                                                                                                                                                         | 07032, 07033                                           |
+| Restricted  | `Restricted. (Max 2 restricted cards per player.)`, and bare `Restricted.`                                                                                                                                                                                                                                                                                                             | 03009, 06009; 06019                                    |
+| Toughness   | `Toughness. (This character enters play with a tough status card.)`                                                                                                                                                                                                                                                                                                                    | 06029                                                  |
+| Uses        | `Uses (3 mental counters).`, `Uses (3 physical counters).`, `Uses (3 medical counters).` (09018 is followed by a reminder); `Uses (3 snoop counters). (Enters play with 3 counters. When those are gone, discard this card)` (no closing period); `Uses (3 reflection counters). Interrupt: …` and `Uses (3 energy counters). Hero Resource: …`, each with an ability on the same line | 03034, 06034, 09018, 09019; 08016; 05017, 05024        |
 
 Granted keywords appear inside ability text, not as keyword lines:
+
 - "gains retaliate 1" (03009, 10010);
 - "This attack gains overkill." (06005);
 - "the attack gains overkill" (07046, 07047);
@@ -190,6 +198,7 @@ Granted keywords appear inside ability text, not as keyword lines:
 ### 1.11 Deliberately not schema
 
 These are engine state or setup configuration, not card data:
+
 - the active villain counter;
 - infamy and madness counters (ordinary named counters);
 - a per-villain choice of version A or B, and the extreme challenge;
@@ -200,14 +209,14 @@ These are engine state or setup configuration, not card data:
 
 Survey (`scripts/marvelcdb/survey.ts`, all eight packs) against the schema:
 
-| Survey category | Resolved by |
-|---|---|
-| "attach rule shape not recognized" (02019, 02033, 02048, 02049, 03025, 09030) | §1.6 kinds; the parser needs updating |
-| "record never turned into a card" (02001a–02003a, 02006b, plus the attachments above) | §1.3, §1.4 |
-| "villain stage label is not a roman numeral" (07002–07047) | §1.2 |
-| "hero card in a set with no identity" and "deck_limit missing" (09032–09036) | §1.9 |
-| "unexpected linked card on an environment" (02006a) | §1.4 |
-| "no artwork reference" | art policy for reprints (pipeline), not schema |
+| Survey category                                                                       | Resolved by                                    |
+| ------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| "attach rule shape not recognized" (02019, 02033, 02048, 02049, 03025, 09030)         | §1.6 kinds; the parser needs updating          |
+| "record never turned into a card" (02001a–02003a, 02006b, plus the attachments above) | §1.3, §1.4                                     |
+| "villain stage label is not a roman numeral" (07002–07047)                            | §1.2                                           |
+| "hero card in a set with no identity" and "deck_limit missing" (09032–09036)          | §1.9                                           |
+| "unexpected linked card on an environment" (02006a)                                   | §1.4                                           |
+| "no artwork reference"                                                                | art policy for reprints (pipeline), not schema |
 
 Raw-data problems. None is a schema issue, and each needs a curation entry citing its source.
 
@@ -241,14 +250,14 @@ Quantities are MarvelCDB `quantity`.
 - **Nemesis set.** Each nemesis set is set aside at step 5.
 - **Other setup.** Identity `Setup:` abilities resolve at step 16.
 
-| Pack | Identity | Obligation | Nemesis set (nemesis minion in bold) | Other setup |
-|---|---|---|---|---|
-| `cap` | Captain America / Steve Rogers (03001a/b) | Man Out of Time (03026) | **Baron Zemo** (03028), Hydra Soldier ×2, Hit Squad (side scheme), Hail Hydra! | Steve Rogers `Setup:` search deck and discard for Captain America's Shield. FAQ "Steve Rogers (#1B)" (p. 59): only the deck and discard are searched. |
-| `msm` | Ms. Marvel / Kamala Khan (05001a/b) | Home by Dawn (05025) | **Thomas Edison** (05027), Edison's Giant Robot, Generation Why?, Harvest ×2 | none |
-| `thor` | Thor / Odinson (06001a/b) | Odin's Anger (06026) | **Loki** (06028), Frost Giant ×2, Family Feud, Trickster | none |
-| `bkw` | Black Widow / Natasha Romanoff (08001a/b) | Burn Notice (08025) | **Taskmaster** (08026), Hydra Mercenary ×2, Killer for Hire, Deadly Shot | none |
-| `drs` | Doctor Strange / Stephen Strange (09001a/b) | Physical Toll (09027) | **Baron Mordo** (09028), Open the Dark Dimension, Counterspell ×2, Thoughtcasting | Build the Invocation deck from 09032–09036, shuffled and set beside the identity with the top card faceup (§1.9, §3.5). |
-| `hlk` | Hulk / Bruce Banner (10001a/b) | Inner Demons (10025) | **Abomination** (10026), Total Destruction, Clash of the Titans ×3 | none |
+| Pack   | Identity                                    | Obligation              | Nemesis set (nemesis minion in bold)                                              | Other setup                                                                                                                                           |
+| ------ | ------------------------------------------- | ----------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cap`  | Captain America / Steve Rogers (03001a/b)   | Man Out of Time (03026) | **Baron Zemo** (03028), Hydra Soldier ×2, Hit Squad (side scheme), Hail Hydra!    | Steve Rogers `Setup:` search deck and discard for Captain America's Shield. FAQ "Steve Rogers (#1B)" (p. 59): only the deck and discard are searched. |
+| `msm`  | Ms. Marvel / Kamala Khan (05001a/b)         | Home by Dawn (05025)    | **Thomas Edison** (05027), Edison's Giant Robot, Generation Why?, Harvest ×2      | none                                                                                                                                                  |
+| `thor` | Thor / Odinson (06001a/b)                   | Odin's Anger (06026)    | **Loki** (06028), Frost Giant ×2, Family Feud, Trickster                          | none                                                                                                                                                  |
+| `bkw`  | Black Widow / Natasha Romanoff (08001a/b)   | Burn Notice (08025)     | **Taskmaster** (08026), Hydra Mercenary ×2, Killer for Hire, Deadly Shot          | none                                                                                                                                                  |
+| `drs`  | Doctor Strange / Stephen Strange (09001a/b) | Physical Toll (09027)   | **Baron Mordo** (09028), Open the Dark Dimension, Counterspell ×2, Thoughtcasting | Build the Invocation deck from 09032–09036, shuffled and set beside the identity with the top card faceup (§1.9, §3.5).                               |
+| `hlk`  | Hulk / Bruce Banner (10001a/b)              | Inner Demons (10025)    | **Abomination** (10026), Total Destruction, Clash of the Titans ×3                | none                                                                                                                                                  |
 
 ### 2.2 Green Goblin scenario pack
 
@@ -256,6 +265,7 @@ Quantities are MarvelCDB `quantity`.
 - **Modular sets.** Any number of modular sets may be used: "include no modular encounter sets for an easier challenge or multiple sets for a greater challenge". The scenario's `modularSetCount` is the printed recommendation (1), and setup must accept any count.
 
 **Risky Business**:
+
 - **Villain.** Norman Osborn I–II (standard) / II–III (expert), double-sided with Green Goblin, starting on Norman.
 - **Encounter sets.** Risky Business, Standard (plus Expert in expert mode), and one modular set (recommended: Goblin Gimmicks).
 - **Main scheme.** Hostile Takeover (1A/1B) → Corporate Acquisition (2A/2B).
@@ -273,6 +283,7 @@ Quantities are MarvelCDB `quantity`.
 - **FAQ (RRG 1.8):** "Norman Osborn (#1A)" (p. 58), "Green Goblin (#1B)" and "I See You (#30)" (p. 59).
 
 **Mutagen Formula**:
+
 - **Villain.** Green Goblin I–II / II–III, single-sided.
 - **Encounter sets.** Mutagen Formula, Standard (plus Expert), and one modular set (recommended: Goblin Gimmicks).
 - **Main scheme.** Unleashing the Mutagen (1B has **When Completed**) → Mutagen Cloud (2B acceleration X = the number of Goblin enemies, including Green Goblin).
@@ -280,6 +291,7 @@ Quantities are MarvelCDB `quantity`.
 - **Insert, "Goblin Minions Activation Timing."** A Goblin Soldier or Goblin Thrall put into play by its boost during step 2 activates in that step (§3.9).
 
 **Modular sets:**
+
 - Goblin Gimmicks: Goblin Glider ×2, Pumpkin Bombs ×2, Intimidation ×2, Regenerative Healing ×2.
 - A Mess of Things: A Mess of Things, Scorpion, Gang-Up, Tail Sweep ×2.
 - Power Drain: Power Drain, Electro, Electromagnetic Pulse, Lightning Bolt, Shock Therapy.
@@ -308,6 +320,7 @@ Quantities are MarvelCDB `quantity`.
 **Build the mechanism, not the card.** Engine code never names a card; card names below say where each primitive is needed.
 
 **Priority order:**
+
 - **First, state-shape changes that would force rewriting scripts:** §3.1–§3.5.
 - **Then activation and resolution primitives** that many cards share: §3.6–§3.11.
 - **Last, the vocabulary tail:** §3.12–§3.15.
@@ -317,12 +330,14 @@ Quantities are MarvelCDB `quantity`.
 ### 3.1 Several villains, and the active villain
 
 **Rules:**
+
 - The Wrecking Crew insert, "The Active Villain" (quoted in §1.1); plus "When the active villain is defeated, move the active counter to the villain whose side scheme has the most threat. (In case of a tie, the first player decides.) Note: Players may attack any villain or thwart any scheme regardless of which villain is the active villain."
 - The same insert, "Multiple Villains and Encounter Decks": "When a villain is defeated, their side scheme is also removed from the game. Any encounter cards from that villain's deck that are in play remain in play. If the players defeat all 4 villains, they win the game!"
 - RRG 1.8 "Guard" (p. 21): "that player cannot use cards they control to attack a villain without this keyword … 'The engaged player cannot attack any villain.'" Guard therefore blocks attacks on every villain, not only the active one.
 - RRG 1.8 "Villain Defeat" (p. 47) applies to each villain separately.
 
 **State.**
+
 - Replace `GameState.villain: VillainState` with `villains: readonly VillainState[]` (printed order) and `activeVillainId: InstanceId`.
 - **Single-villain scenarios** get a list of one, and are otherwise unchanged.
 - **`VillainState`** gains `encounterDeckId` (§3.2) and `signatureSideSchemeId: InstanceId | null`.
@@ -330,6 +345,7 @@ Quantities are MarvelCDB `quantity`.
 - **`GameOutcome`** gains `{ result: "win"; reason: "allVillainsDefeated" }`.
 
 **Resolution.**
+
 - **Two meanings of "the villain."** The 43 non-test reads of `state.villain` split into:
   - "the villain" (active): `TargetRef { kind: "villain" }`, villain phase activation, boost targets, overkill onto "the villain";
   - "a villain" (any undefeated): attack targets in `legalActions`/`actions.ts`, Guard's check in `select.ts`, `TargetCategory "villain"`, stat and keyword lookups per instance.
@@ -345,11 +361,13 @@ Quantities are MarvelCDB `quantity`.
 - **The extreme challenge** is ordinary stage advance, A to B.
 
 **Interactions:**
+
 - **Turn structure.** Villain phase step 2 (`villain/phase.ts` `executeEnemyActivations`) activates `activeVillain(state)`, read at each player's activation, not fixed at the start of the step. The counter can move between two players' activations (Escaped Convict's boost, a treachery surged into step 2), and the insert says only "the active villain will activate". Minions activate as before.
 - **Unique rule.** RRG 1.8 "Unique Icon" (p. 46) exempts villains ("A non-villain card …"), so four unique villains and a flipped villain never conflict.
 - **`legalActions`** lists every undefeated villain as an attack target unless Guard or a rule (§3.11 `cannotAttack`) forbids it.
 
 **Tests:**
+
 - setup with 4 villains, 4 signature side schemes, and Wrecker active;
 - step 2 activates only the active villain once per player, and minions still activate;
 - moving the counter between two players' activations changes which villain attacks the second player;
@@ -365,12 +383,14 @@ Quantities are MarvelCDB `quantity`.
 ### 3.2 An encounter deck per villain, and discard routing
 
 **Rules:**
+
 - The insert, "The Active Villain": "When the villain is dealt a boost card, it is dealt from the active villain's deck. When a player is dealt an encounter card, it is dealt from the active villain's deck."
 - The insert, "Multiple Villains and Encounter Decks": "When an encounter card leaves play, it is placed in the discard pile of its corresponding encounter deck. When a villain's encounter deck is empty, shuffle its discard pile back into its encounter deck and place an acceleration token on the main scheme."
 - **Ruling, Jan 17, 2026 (ruling 5):** "only the active villain's encounter deck can be interacted with. Playing Cosmic Entity shuffles it into the active villain's encounter deck … [the nemesis minion] once defeated, it is placed in the active villain's encounter discard pile."
 - RRG 1.8 "Encounter Deck" (p. 17).
 
 **State.**
+
 - `encounterDecks: Readonly<Record<EncounterDeckId, { deck: InstanceId[]; discard: InstanceId[] }>>` replaces `encounterDeck` / `encounterDiscard`. Single-villain scenarios have one deck.
 - `ZoneId` `encounterDeck` / `encounterDiscard` gain `deckId`.
 - **Card homes.** Every `CardInstance` gets a `home` saying where "discard" sends it:
@@ -380,21 +400,25 @@ Quantities are MarvelCDB `quantity`.
   - This one field serves both §3.2 and §3.5.
 
 **Resolution.**
+
 - **The "encounter deck" is resolved in one place.** Every reference (`drawEncounterCard`, boost dealing, `dealEncounterCard`, `revealTopOfEncounterDeck`, `discardEncounterUntil`, `shuffleEncounterDeck`, the `CardSelector` `encounter` zones) resolves through `activeEncounterDeck(state)`.
 - **Discards** go to the card's `home` deck.
   - A card with no encounter home (a nemesis card, or an obligation from another scenario's rules) goes to the active villain's discard, per the ruling.
 - **An empty deck** reshuffles its own discard and adds an acceleration token to the main scheme.
 
 **Interactions:**
+
 - **`PendingChoice`**: none new.
 - **Every existing Core scenario** must still see exactly one deck.
 - **Reveal procedure (`resolve/reveal.ts`)**: the card being revealed keeps its home for its discard.
 
 **Open (§4.2, §4.3):**
-- Buddy System's "Reveal the top card of *his* deck" names a non-active deck.
+
+- Buddy System's "Reveal the top card of _his_ deck" names a non-active deck.
 - It is not stated whether treacheries and boost cards, which never enter play, use their corresponding discard.
 
 **Tests:**
+
 - dealing, boosting and surging draw from the active deck;
 - a defeated minion from Wrecker's deck goes to Wrecker's discard while Thunderball is active;
 - a nemesis minion defeated in Breakout goes to the active villain's discard (Jan 17, 2026 ruling 5);
@@ -404,12 +428,14 @@ Quantities are MarvelCDB `quantity`.
 ### 3.3 Villain stage cards with two faces
 
 **Status: landed.** Tests: `packages/engine/src/flip.test.ts` ("§3.3" block).
+
 - `EffectSpec flipCard { target }` covers villains and double-sided encounter cards (§3.4); the spec's `flipVillain` is that effect on a villain. A villain with one side is not flipped.
 - "When Revealed (Face Name)" is `Predicate faceNamed { of, name }` rather than `villainFace`: it reads a villain's side or a flipped encounter card's face. `currentName` in `query.ts` is the one reader of the title showing.
 - `activateEnemy` and `EffectSpec enemyAttack/enemyScheme` now check stun/confuse **before** anything else (FAQ #1A, p. 58), then initiate the activation even for a "—" stat so a "would attack … instead" interrupt has an event to replace. **§4.4 reading:** an activation nothing replaces is skipped when it applies (`dashedStatSkipsActivation` in `resolve/enemy-activation.ts`, logged as `activationSkipped`): no boost card, no responses, `made` 0. An attack already in progress keeps going for 0 plus boost icons (FAQ #1B).
 - Stage advance keeps `side`. The RRG 1.8 "Villain Defeat" (p. 47) different-title branch is not modeled: every stage of one schema side shares its title.
 
 **Rules** (Green Goblin insert, Risky Business "New Rules"):
+
 - "After the villain changes form, all attachment cards, status cards, boost cards, damage, and other game elements associated with the villain remain as they are. Changing form will trigger Green Goblin's 'When Revealed' ability."
 - "After a villain stage is defeated, the next stage of the villain deck enters play on the same side as the just defeated stage."
 - "If an ability reads 'When Revealed (Green Goblin)', that ability triggers only if the Green Goblin side of the villain is in play."
@@ -421,6 +447,7 @@ Quantities are MarvelCDB `quantity`.
 **State.** `VillainState.side` already exists. Log `villainFlipped { instanceId, from, to }`.
 
 **Resolution.**
+
 - **`EffectSpec flipVillain { villain }`**:
   - changes `side` and keeps everything else on the instance;
   - then resolves the new face's When Revealed (not cancellable; RRG 1.8 "When Revealed Abilities", p. 48).
@@ -431,12 +458,14 @@ Quantities are MarvelCDB `quantity`.
 - **"When Revealed (Face Name)"** is a new `Predicate villainFace { villain, name }`.
 
 **Interactions:**
+
 - The stun check stays before any "would attack" interrupt window. `activateEnemy` already does this.
 - No unique-rule impact, since villains are exempt.
 
-**Open (§4.4):** whether a villain with a dashed ATK *initiates* an attack at all when nothing replaces it. The Core decision for "—" minions was to skip the activation.
+**Open (§4.4):** whether a villain with a dashed ATK _initiates_ an attack at all when nothing replaces it. The Core decision for "—" minions was to skip the activation.
 
 **Tests:**
+
 - a flip retains damage, statuses, attachments and boost cards;
 - a flip resolves the new face's When Revealed;
 - defeating Green Goblin I enters Green Goblin II;
@@ -449,6 +478,7 @@ Quantities are MarvelCDB `quantity`.
 ### 3.4 Double-sided encounter cards that flip, and state-based conditions
 
 **Status: landed.** Tests: `packages/engine/src/flip.test.ts` ("§3.4" block).
+
 - `CardInstance.flipped`; `encounterFace` / `currentName` in `query.ts` give the face's name, traits, keywords and abilities (`activeAbilityRefs`, `printedKeywordsOf`, `traitsOf`, `named`, `TargetQuery.name`).
 - `AbilityTriggerSpec { kind: "stateCheck", when }` with `resolve/state-checks.ts`, called by `runFlow` before every frame and step (not inside `checkDefeats`, which only runs after damage). Last values live in `GameState.stateChecks`. Registries without a state check skip the scan, so Core is unaffected.
 - **Edge-triggered, and a first observation only records.** A card entering play or flipping to a face with its condition already true does not fire until the condition has been false once. That is what lets "enters play with N counters" stay a forced response to `cardEntersPlay` (the Hawkeye pattern) without racing the check.
@@ -456,6 +486,7 @@ Quantities are MarvelCDB `quantity`.
 - A double-sided card leaving play for any out-of-play area but the victory display or set-aside area is removed from the game (RRG 1.8 "Double-Sided Card", p. 17), in `leavePlay`. Direct moves that skip `leavePlay` (a boost or treachery discard) do not apply it; no wave 1 double-sided card reaches those paths.
 
 **Rules:**
+
 - Criminal Enterprise: "Criminal Enterprise enter play with 2[per_hero] infamy counters on it. If there are no infamy counters here, flip Norman Osborn and Criminal Enterprise."
 - State of Madness: "State of Madness enter play with 2[per_hero] madness counters on it. If there are no madness counters here, flip Green Goblin and State of Madness."
 - RRG 1.8 "Flip" (p. 20).
@@ -464,6 +495,7 @@ Quantities are MarvelCDB `quantity`.
 **State.** `CardInstance.flipped: boolean`. A face accessor returns name, traits, keywords and abilities from `flipSide` while flipped; `named` targets and `hasTrait` read the current face. Log `cardFlipped`.
 
 **Resolution.**
+
 - **`EffectSpec flipCard { target }`**: no reveal, no When Revealed, and reveal-cancel responses cannot trigger.
 - **Condition-triggered forced abilities.** A trigger kind `{ kind: "stateCheck", when: Predicate }` fires once each time its predicate becomes true.
   - It is checked in the same place defeat checks run, between frames in `resolve/defeat.ts`, so FAQ #1B's mid-attack flip happens immediately.
@@ -474,6 +506,7 @@ Quantities are MarvelCDB `quantity`.
 **Settled (§4.1):** the new face's "enter play with N counters" applies on a flip — without it State of Madness arrives empty and flips straight back. The engine does not do it by itself; each face's script adds its own counters as a forced response to `cardEntersPlay`/`cardFlipped` (`wave1/gob/risky-business.ts`, `02006a.enters-with-infamy` / `02006b.enters-with-madness`).
 
 **Tests:**
+
 - a flip retains attachments and tokens;
 - a flipped environment does not fire reveal responses (rulings above);
 - the state check fires once when the last counter is removed;
@@ -483,6 +516,7 @@ Quantities are MarvelCDB `quantity`.
 ### 3.5 An identity's separate deck as a zone (Invocation)
 
 **Status: landed.** Tests: `packages/engine/src/separate-deck.test.ts`.
+
 - `PlayerState.separateDecks`, `ZoneId separateDeck / separateDiscard`, `CardHome separateDeck`; built from `HeroIdentityCard.separateDecks` and shuffled right after that player's deck (Core identities have `{}`, so Core's RNG sequence is unchanged).
 - The top card's `faceup` is kept by `syncSeparateDeckTop` (`ctx.ts`), run by `moveCard` and every shuffle.
 - `CardSelector separateDeck { player, name, zones?, top?, filter? }`; destinations `separateDiscard`, `separateDeckTop`, `separateDeckShuffle` follow each card's `home`. `discardZoneFor` routes a separate-deck card to that deck's discard, which covers tucked cards.
@@ -493,12 +527,14 @@ Quantities are MarvelCDB `quantity`.
 - Player elimination leaves the separate deck where it is; nothing reads it afterwards.
 
 **Rules:**
+
 - The Doctor Strange rules sheet (§1.9).
 - RRG 1.8 "Deck" (p. 15) and "Special" (p. 40): "Special abilities may only be resolved through the explicit instruction of another card ability."
 - FAQ "Depowered (#20)" (p. 60): "The abilities on cards in the Invocation deck are merely resolved, not played."
 - Contrast "Player Deck" (p. 33): an empty deck deals an encounter card. The Invocation deck has "no penalty".
 
 **State.**
+
 - `PlayerState.separateDecks: Readonly<Record<string, { deck: InstanceId[]; discard: InstanceId[] }>>`.
 - `ZoneId { kind: "separateDeck" | "separateDiscard"; playerId; name }`.
 - Built at setup, alongside player deck shuffling (Appendix II step 6, p. 51), from `HeroIdentityCard.separateDecks`, shuffled with the game RNG.
@@ -506,6 +542,7 @@ Quantities are MarvelCDB `quantity`.
 - The top card's `faceup` is kept true whenever `topCardFaceup`, updated on every change to the zone, so clients see it without a rule of their own.
 
 **Resolution:**
+
 - **`CardSelector { kind: "separateDeck", player, name, top? }`**, with destinations `separateDiscard`, `separateDeckTop` and `separateDeckShuffle`.
 - **Discard routing.** "Discard" of a card whose `home` is a separate deck goes to that deck's discard (§3.2's `home`). This includes RRG 1.8 "Tuck" (p. 45) discards when a host leaves play.
 - **Reshuffle when empty.** Whenever the deck is empty and its discard is not, the discard is immediately shuffled in, with no encounter card and no acceleration token.
@@ -520,11 +557,13 @@ Quantities are MarvelCDB `quantity`.
 - **Limits.** "Limit once per phase" is keyed by identity instance and persists across flips. Ruling, Jan 26, 2026 (ruling 6, answer 2): "Limits apply to cards. An identity never leaves play when flipping."
 
 **Interactions:**
+
 - **`legalActions`** offers Spell Mastery only when the top card's cost can be planned (`planCost`).
 - **Unique rule**: no effect (§1.9).
 - **Player elimination** (RRG 1.8 "Player Elimination", p. 34): the zone leaves with the player, like their deck.
 
 **Tests:**
+
 - setup builds and shuffles the 5-card deck with the top card faceup;
 - Spell Mastery pays the printed cost, resolves the Special, and the card lands in the Invocation discard, not the player discard;
 - emptying the deck reshuffles with no encounter card dealt;
@@ -537,15 +576,17 @@ Quantities are MarvelCDB `quantity`.
 ### 3.6 Enemy activations: replacement, redirection, suppression and queued attacks
 
 **Status: landed.** Tests: `packages/engine/src/activation-wave1.test.ts`, plus FAQ #1A / #1B in `flip.test.ts`.
+
 - **"Would" replacement** needed no new primitive: the `enemyAttack` / `enemyScheme` event's interrupt window already sits after the status check (moved there in §3.3) and before step 1, and `replaceTriggeringEvent` cancels the event, so no boost card is dealt and nothing responds.
 - **Deviation: `enemyActivated` is still logged for a replaced step-2 activation.** It is the villain audit's and the client log's record that the step-2 activation came up (the audit's `step2.villainOnce` would otherwise flag a replaced Norman). The cancelled `triggerEvent` is what marks that no attack was performed.
 - `RuleSpec schemeThreatDestination { enemy, scheme: "ownSignatureSideScheme", while? }` (`rules.ts`), read by the scheme procedure's step 3. It falls back to the main scheme when the signature side scheme is not in play.
 - `EffectSpec enemyAttack` gains `boost: false`, `targetCharacter` and `after: "currentActivation"`; `enemyScheme` gains `boost` and `after`. `boost: false` sets `noBoost` on the trigger event and procedure frame. It deals no boost card at all, additional ones included, and the audit's `boost.villain` count skips it.
 - `after: "currentActivation"` appends to the activation event's `endEffects`, which run after its response window. Several queued activations resolve in the order they were queued; the first player is **not** asked to order them (RRG 1.8 "Activation", p. 6) — not needed in wave 1.
-- `excessDealt` is reported by every `dealDamage` event and added to its parent attack's results, measured before tough / "cannot take damage" (ruling, Jan 26, 2026 (3)). It uses the amount after interrupts, so a prevention interrupt lowers it; ruling Mar 6, 2026 (1) says prevention reduces damage *taken*. Flagged; no wave 1 card combines the two.
+- `excessDealt` is reported by every `dealDamage` event and added to its parent attack's results, measured before tough / "cannot take damage" (ruling, Jan 26, 2026 (3)). It uses the amount after interrupts, so a prevention interrupt lowers it; ruling Mar 6, 2026 (1) says prevention reduces damage _taken_. Flagged; no wave 1 card combines the two.
 - `TargetRef villainOfSideScheme { scheme }` and `signatureSideSchemeOf { villain }`.
 
 **Rules and cards:**
+
 - **Norman Osborn's "would" interrupts.**
   - "Forced Interrupt: When Norman Osborn would attack, place 1 infamy counter on Criminal Enterprise instead."
   - The insert: "cards that trigger when the villain attacks do not resolve because no attack activation was performed". The same applies to Green Goblin's "would scheme".
@@ -571,6 +612,7 @@ Quantities are MarvelCDB `quantity`.
 - **"The villain corresponding to the attached side scheme attacks you"** (Held Hostage).
 
 **Model:**
+
 - `enemyAttack` / `enemyScheme` trigger events get a "would" interrupt window at initiation, after the status check and before boost dealing, where `replaceTriggeringEvent` applies. A replaced activation emits no `enemyActivated` and deals no boost.
 - A constant `RuleSpec schemeThreatDestination { enemy: TargetQuery, scheme: "ownSignatureSideScheme" }` read by `executeEnemySchemeFrame`.
 - `EffectSpec enemyAttack` gains `boost?: false`, `targetCharacter?: TargetRef` and `after?: "currentActivation"`. The last is a queue on the running activation frame, drained when it completes.
@@ -578,6 +620,7 @@ Quantities are MarvelCDB `quantity`.
 - `TargetRef villainOfSideScheme { scheme }`.
 
 **Tests:**
+
 - Norman's replacement: no attack trigger fires, no boost is dealt, and the stun is still consumed first;
 - Wrecker's scheme places threat on Day of Reckoning, and "after threat is placed here" responses fire there;
 - a no-boost attack deals zero boost cards;
@@ -588,6 +631,7 @@ Quantities are MarvelCDB `quantity`.
 ### 3.7 Indirect damage
 
 **Status: landed.** Tests: `packages/engine/src/indirect-damage.test.ts`.
+
 - `EffectSpec dealIndirectDamage { to: PlayerRef | "group", amount, bind? }`, resolved in `resolve/effects-frame.ts`.
 - **Assignment.** Each player gets one `assignIndirectDamage` choice (`authority: "player"`, `caps` per character = remaining hit points). Its options are `<instanceId>#1…#cap`, one damage per selected option, and exactly the assignable amount is selected.
 - **What is eligible.** Characters that cannot take the damage are left out. A split with one eligible character, or with every cap reached, is made without asking. Damage nobody can be assigned is ignored.
@@ -601,6 +645,7 @@ Quantities are MarvelCDB `quantity`.
 - **For `packages/cards`:** `dsl/validate.ts` `bindsOf` does not list `dealIndirectDamage`, so a script reading `<bind>.amount` from it would be flagged until a case is added.
 
 **Rule.** RRG 1.8 "Indirect Damage" (p. 24):
+
 - "Indirect damage dealt to a player can be divided as that player chooses among characters under their control."
 - "Indirect damage dealt to a group of players … can be divided as the group chooses among friendly characters in play."
 - "All indirect damage from a single source is first assigned and then resolved simultaneously."
@@ -612,6 +657,7 @@ Quantities are MarvelCDB `quantity`.
 **Cards:** Green Goblin (Risky Business) I–II, Pumpkin Bombs, Electro, Lightning Bolt.
 
 **Model.**
+
 - Generalize Core's `assignDamage` into `dealIndirectDamage { to: PlayerRef | "group", amount }`:
   - one `PendingChoice { kind: "assignIndirectDamage", caps }` per player, or one for the group;
   - then one simultaneous window of `dealDamage` events, one per character;
@@ -620,6 +666,7 @@ Quantities are MarvelCDB `quantity`.
 - **Authority.** A player's own assignment is `player`. For the group decision, see §4.7.
 
 **Tests:**
+
 - caps at remaining HP;
 - a tough character can be assigned up to its remaining HP and all of it is prevented;
 - cannot-take-damage characters are excluded;
@@ -629,6 +676,7 @@ Quantities are MarvelCDB `quantity`.
 ### 3.8 Scheme values, When Completed, and signature side schemes
 
 **Status: landed.** Tests: `packages/engine/src/scheme-values.test.ts`.
+
 - **Scheme values.** `SchemeValueName` (`acceleration`, `targetThreat`, `startingThreat`) are modifier stat keys. `query.ts` `mainSchemeValue` applies `printedX` as 0, then `setBase`, then modifiers; `startingThreatOf` does the same for side schemes. Every engine reader goes through them: step 1, completion, advance, setup, side schemes entering play, and the villain audit's step-1 check.
 - **When Completed.** `AbilityTriggerSpec whenCompleted` resolves before the advance, which is queued as the new `EffectSpec advanceMainScheme`. A completion is not re-detected while that advance is pending. A final stage's completion loses with no When Completed. Scenarios without one advance exactly as before.
 - `RuleSpec cannotLeavePlay` (checked in `leavePlay`, logged `leavePlayBlocked`) and `RuleSpec notDefeatedWithoutThreat` (checked where a side scheme reaches 0). `TargetQuery.signatureSideScheme` selects signature side schemes.
@@ -638,6 +686,7 @@ Quantities are MarvelCDB `quantity`.
 - **For `packages/client` / `packages/cards`:** `board-model.ts`, `game-over-model.ts` and `cards/src/testing/driver.ts` read the printed `targetThreat`/`startingThreat`; they should read `mainSchemeValue` to match the engine once modifiers exist.
 
 **Rules and cards:**
+
 - **X acceleration.** Mutagen Cloud 2B: "X is equal to the number of Goblin enemies (including Green Goblin) in play."
 - **Target threat modifier.** Under Surveillance: "Increase the target threat value of attached scheme by 4."
 - **When Completed.**
@@ -653,6 +702,7 @@ Quantities are MarvelCDB `quantity`.
 - **Moving threat between schemes.** "Move all threat from the side scheme with the least threat to the side scheme with the most threat. If that scheme's 'Forced Response' ability is not triggered this way, this card gains surge." (Tactical Prowess)
 
 **Model:**
+
 - **Scheme stat keys.** `StatModifierSpec` gains `acceleration`, `targetThreat` and `startingThreat` for schemes. `setBase` defines a `printedX` field.
 - **Readers of those values.** `villain/phase.ts` `executePlaceThreat`, the completion check and main scheme advance all read modified values, not `stage.acceleration`.
 - **Trigger kind `whenCompleted`** resolves before the advance, and never for a final stage's loss.
@@ -661,6 +711,7 @@ Quantities are MarvelCDB `quantity`.
   - Verify against RRG 1.8 "Move" (p. 30) whether moved threat counts as "placed" (§4.8).
 
 **Tests:**
+
 - X acceleration follows Goblin enemies entering and leaving play;
 - +4 target threat delays completion;
 - 1B When Completed resolves once, then advances;
@@ -671,8 +722,9 @@ Quantities are MarvelCDB `quantity`.
 ### 3.9 Boost cards as events
 
 **Status: landed.** Tests: `packages/engine/src/boost.test.ts`.
+
 - **Step order, from RRG 1.8 "Boost" (p. 11):** a boost card is turned faceup, then its "Boost" ability resolves, then its icons are added, then it is discarded.
-  - The engine used to discard it *before* its ability; that is fixed.
+  - The engine used to discard it _before_ its ability; that is fixed.
   - Each card is now its own step on the procedure frame (`BoostInProgress`): faceup, then a `boostCardTurnedFaceup` event (interrupts and responses), then the Boost ability unless cancelled, then icons unless cancelled, then discard.
   - A card its own ability moved (into play) is not discarded, and its icons still count.
 - `EventPattern.activation` ("while the villain attacks" / "during a scheme activation") and `EventPattern.eventAtLeast` (numbers the event carries, e.g. `{ boostIcons: 1 }`), so a 0-icon card offers no cancel (FAQ Attacrobatics #6).
@@ -684,6 +736,7 @@ Quantities are MarvelCDB `quantity`.
 - **Needed no primitive:** `putIntoPlay` of self from the boost zone, and step 2 activating a minion that entered during the villain's activation. Both are covered by tests.
 
 **Cards:**
+
 - **Cancelling boost icons.**
   - Preemptive Strike: "When a boost card is turned face up while the villain attacks, cancel all boost icons".
   - Attacrobatics; Foiled!: "during a scheme activation".
@@ -699,6 +752,7 @@ Quantities are MarvelCDB `quantity`.
   - Mystical Link's boost: "+3 ATK … unless you place 2 threat on his side scheme".
 
 **Model:**
+
 - **Trigger event `boostCardTurnedFaceup { enemyInstanceId, boostInstanceId, activation: "attack" | "scheme" }`**, with interrupts and responses before the boost ability resolves.
   - Confirm the step order against RRG 1.8 "Attack (Enemy Activation)" (pp. 8–10) and "Boost" (p. 11) before coding.
 - **Effects:** `cancelBoostIcons { bind }` (no valid target at 0 icons) and `cancelBoostAbility`.
@@ -707,6 +761,7 @@ Quantities are MarvelCDB `quantity`.
 - **`putIntoPlay` of self from the `boost` zone.** Step 2's minion list is already recomputed each pass (`villain/phase.ts`); lock that in with a test.
 
 **Tests:**
+
 - one test per card behavior above;
 - the Goblin Thrall boost in step 2 activates the new minion (insert);
 - cancelling icons of a 0-icon boost card is not offered (FAQ).
@@ -714,6 +769,7 @@ Quantities are MarvelCDB `quantity`.
 ### 3.10 Play, cost and resource restrictions
 
 **Status: landed.** Tests: `packages/engine/src/play-restrictions.test.ts` (one test per restriction, both FAQs).
+
 - **Round counters.** `GameState.playedThisRound` (by title, all players) and `playedByPlayerThisRound` (`<playerId>:<card type>`) are counted in `commitPlay`, so a cancelled card still counts, and reset when the round ends.
 - **§1.8 restrictions.** `actions.ts` `playRestrictionFault` enforces `maxPerRound`, `requiresIdentityTrait` and `requiresControlledCharacterTrait` (gained traits count), for `playCard` and for in-hand events offered in a window.
 - **Out-of-play text on the card itself.** New constant-ability fields are read from the card's own printed constants wherever it is (`printedConstants`), never from the in-play scan:
@@ -729,6 +785,7 @@ Quantities are MarvelCDB `quantity`.
 - **Not done:** `payWindowAbility` does not check `distinctResourceTypes`.
 
 **Cards and rules:**
+
 - **Enforcing §1.8:**
   - `maxPerRound` is counted across all copies by title and all players, and a cancelled card still counts (RRG 1.8 "Max, Maximum", p. 28);
   - `requiresIdentityTrait` and `requiresControlledCharacterTrait` count printed or gained traits (RRG 1.8 "'Gains'", p. 21).
@@ -755,6 +812,7 @@ Quantities are MarvelCDB `quantity`.
 - **"spend 2 resources of different types"** (Red Dagger).
 
 **Model:**
+
 - **Counters for Max and first-each-round.** `GameState.playedThisRound` (by title) and `firstPlayedThisRound` (by player and card type), reset in villain phase step 6.
 - **Checks in `actions.ts` pricing/`planCost` and `legalActions`:**
   - the play-restriction checks;
@@ -776,6 +834,7 @@ Quantities are MarvelCDB `quantity`.
 **Status: landed.** Tests: `packages/engine/src/triggers-wave1.test.ts`. All four trigger events, the six `RuleSpec` additions and the lasting `blankTextBox` are in. An announcement on an always-taken Core path (`turnEnding`, `surgeResolving`, `abilityResolved`, `minionEngaged`) only goes on the stack when an ability could react to it, so Core's event order and logs are unchanged.
 
 **Trigger events:**
+
 - **`minionEngaged { minionInstanceId, playerId }`**
   - Thor: "After you engage a minion". RRG 1.8 "Engage" (p. 18): entering a player's area engages, and so does an instruction to engage.
   - Ordering: keywords before responses on the same trigger. FAQ "Widow's Bite (#10)" (p. 60) and ruling Jan 17, 2026 (ruling 3, answer 2): "keywords have timing priority over triggered abilities."
@@ -790,6 +849,7 @@ Quantities are MarvelCDB `quantity`.
   - Verify the existing window. FAQ "Nova (#12)" (p. 59): defeating the attacker ends the attack.
 
 **`RuleSpec` additions:**
+
 - `cannotThwart { player }`: "While Baron Zemo is engaged with you, you cannot thwart."
 - `cannotReady { target }` and `cannotChangeForm { player }`: All Tied Up.
 - `cannotAttack { target }`: Distracting Taunts, "Players cannot attack other villains."
@@ -802,9 +862,10 @@ Quantities are MarvelCDB `quantity`.
 ### 3.12 Selection and value vocabulary
 
 **Status: landed.** Tests: `packages/engine/src/selection-wave1.test.ts`.
+
 - **`TargetRef superlative { among, order, measure, slot?, ties? }`** (`select.ts`). **Deviation:** `measure` is a
   `ValueSpec` evaluated once per candidate with that candidate bound to `slot` (default `"candidate"`), not a fixed
-  measure enum. One primitive then covers remaining HP, ATK, printed cost and "the villain *whose side scheme* has
+  measure enum. One primitive then covers remaining HP, ATK, printed cost and "the villain _whose side scheme_ has
   the most threat", and `among` may be a slot of out-of-play cards (cards in hand), which a query could not reach.
 - **Ties.** A ref is resolved without asking anyone, so a tie resolves to **every** tied card (`ties: "all"`, the
   default; `ties: "first"` takes the first in stable order). An effect that needs exactly one breaks the tie itself:
@@ -815,12 +876,12 @@ Quantities are MarvelCDB `quantity`.
 - **New `ValueSpec`s:** `distinctCardTypes { cards }`, `printedCost { of }` (0 for a card with no printed cost) and
   `villainStageNumber { of? }` (the printed numeral, `of` absent = the active villain).
 - **`EffectSpec discardEncounterCards { count, bind?, forEachDiscarded? }`.** RRG 1.8 "Encounter Deck" (p. 17):
-  discarding stops when *this effect* empties the deck and does not continue with the reshuffled deck; a deck already
+  discarding stops when _this effect_ empties the deck and does not continue with the reshuffled deck; a deck already
   empty when the effect begins is reset first, as any draw would. "Each player discards N" therefore resumes from the
   reset deck for the remaining players (RRG 1.8 "Each Player", p. 17), which the test pins.
   - **Deviation:** the reset stays lazy (`drawEncounterCard`), so the acceleration token is placed at the next draw
     from that deck rather than the instant it empties. Engine-wide behaviour since Core, not new here.
-  - **Deviation:** `forEachDiscarded` runs its effects once per discarded card in discard order, *after* every
+  - **Deviation:** `forEachDiscarded` runs its effects once per discarded card in discard order, _after_ every
     discard. No wave 1 card reads the deck between two of them.
 - **`EffectSpec dealEncounterCard` gains `count`**, and dealing to more than one player asks the first player for the
   order (`ChoicePrompt orderPlayers`, `authority: "firstPlayerOrders"`), dealing one player's whole share before the
@@ -857,6 +918,7 @@ Quantities are MarvelCDB `quantity`.
 ### 3.13 Card movement and placement
 
 **Status: landed.** Tests: `packages/engine/src/movement-wave1.test.ts`.
+
 - **Needed no primitive, now pinned by tests:** Morphogenetics (a response to `cardPlayed` moves the event from the
   discard pile to hand — the printed text is "return that event to your hand", not "instead of discarding it", so the
   discard-then-return order matches the card); Clea (`characterDefeated` is already interruptible, and
@@ -877,7 +939,7 @@ Quantities are MarvelCDB `quantity`.
   title, traits, keywords or abilities. **Reading:** its card type is left alone, because nothing asks what type a
   facedown attachment is. `TargetRef attachmentsOf { of, filter? }` reads "the cards attached here".
 - **`EffectSpec dealDamage` gains `ignoreTough`** (Lightning Strike, errata RRG 1.8 p. 65). **Reading:** the damage is
-  taken and the tough status card *stays*, because piercing is the keyword the RRG defines as discarding it (p. 44)
+  taken and the tough status card _stays_, because piercing is the keyword the RRG defines as discarding it (p. 44)
   and "ignores" says nothing about removing it.
 - **Per-instance event modifiers** (Embiggen!, Shrink): a new `cardBeingPlayed` trigger event gives "when you play an
   [Attack] event" an interrupt window before the card's own abilities resolve — on the stack only when an ability
@@ -919,6 +981,7 @@ Quantities are MarvelCDB `quantity`.
 ### 3.14 Attachment host resolution
 
 **Status: landed.** Tests: `packages/engine/src/attachment-hosts.test.ts`.
+
 - Every §1.6 kind resolves in `attachmentHostCandidates` (`resolve/reveal.ts`), the one place hosts are computed —
   for an encounter card being revealed, for a setup-keyword attachment, and for a player's upgrade (`legal.ts`). It
   is evaluated when the card would be attached and never cached (RRG 1.8 "Attach To", p. 8).
@@ -950,6 +1013,7 @@ Quantities are MarvelCDB `quantity`.
 ### 3.15 Setup
 
 **Status: landed.** Tests: `packages/engine/src/setup-wave1.test.ts`.
+
 - **`VillainSetup.version: "A" | "B" | "extreme"`** is the per-villain difficulty choice, shorthand for the two stage
   indexes (`A` → `[0, 0]`, `B` → `[1, 1]`, `extreme` → `[0, 1]`; §1.2). Each villain chooses its own, so a mixed
   table is legal. Setting it alongside `startStageIndex` / `lastStageIndex` is refused (`invalid_setup`) rather than
@@ -967,6 +1031,7 @@ Quantities are MarvelCDB `quantity`.
   list of card ids, so the count is the caller's (`@mc/cards`) composition choice. Pinned by a test so it stays true.
 
 RRG 1.8 Appendix II (p. 51), with scenario overrides:
+
 - **Steps 4–5** are skipped when `usesIdentityEncounterSets === false` (Wrecking Crew insert).
 - **Steps 8–9: villains and hit points.** For `multipleVillains`, every villain enters at its chosen version with its own hit points.
   - `GameSetupConfig` gains a per-villain version choice: `"A" | "B" | "extreme"`, where extreme means stage range `[1, 2]`.
@@ -984,6 +1049,7 @@ RRG 1.8 Appendix II (p. 51), with scenario overrides:
 
 **Status: landed.** Tests: `packages/engine/src/verify-wave1.test.ts` (the two gaps the review found); everything else
 was already proven and was checked rather than rebuilt.
+
 - **Verified where it already lives:** Guard against every villain (`multi-villain.test.ts`); Quickstrike, Retaliate
   (villain-side and granted), Restricted, Toughness, Uses, Surge, Ranged-vs-Retaliate (`keywords.test.ts`,
   `attacks.test.ts`, `e2e.test.ts`); `modifyAttack.overkill` (`attacks.test.ts`); `mustDefendWithAlly`
@@ -992,19 +1058,18 @@ was already proven and was checked rather than rebuilt.
   `player-cards.test.ts`, `resources.test.ts`); `chooseOne`, `spendResources`, `atEndOfRound`,
   `enemyAttack { against }` (`scenario-flow.test.ts`, `scripting-primitives.test.ts`, `lasting.test.ts`,
   `enemy-actions.test.ts`).
-- **Gap found and fixed: searching a deck *and* a discard pile.** `CardSelector.zone` took one zone, so "search your
+- **Gap found and fixed: searching a deck _and_ a discard pile.** `CardSelector.zone` took one zone, so "search your
   deck and discard pile for a Doctor Strange card" (Mystical Studies, For Asgard!, Agent Coulson, Hail Hydra!) could
   only have been scripted as two separate choices. It now accepts several zones, searched as one pool.
 - **Gap found and fixed: a stun against an ability that makes several attacks.** FAQ "Dance of Death (#4)" (p. 59):
   the card has no "(attack)" label, "its first sentence … defines each damage-dealing effect … as an individual
   attack", and a stun "will only prevent the first attack. The second and third attack can be performed as normal."
-  The engine only consumed a stun for a *labeled* ability (cancelling it whole, the RRG's rule for labels) or a basic
+  The engine only consumed a stun for a _labeled_ ability (cancelling it whole, the RRG's rule for labels) or a basic
   attack, so an unlabeled multi-attack ability ignored the stun entirely. An `attack` effect now checks the attacker's
   stun when it is initiated (RRG 1.8 "Stun", p. 41), which spends it on the first attack only. The labeled behaviour
   is unchanged, and both are pinned side by side.
   - **For `@mc/cards`:** `dsl/validate.ts` requires every `attack` effect to sit on an "(attack)"-labeled ability.
     Dance of Death is the counter-example, so that check needs an opt-out before the card can be scripted.
-
 
 - Guard (extend to every villain, §3.1), Quickstrike, Retaliate X (villain, and granted via constants), Restricted, Toughness, Uses (X "type"), Surge, and `modifyAttack.overkill`.
 - `mustDefendWithAlly` (Ramming Speed), `cancelRevealedCard` (Spycraft, Grappling Hook, Protective Ward) and `cancelWhenRevealed` (Get Behind Me!).

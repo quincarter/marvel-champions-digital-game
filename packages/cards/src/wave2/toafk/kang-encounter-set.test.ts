@@ -1,11 +1,25 @@
 import { applyCommand, type GameState, type InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, instancesOf, moveToHand, P1, payWith, play, playerOf, runWith, settle, toHero, use } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  instancesOf,
+  moveToHand,
+  P1,
+  payWith,
+  play,
+  playerOf,
+  runWith,
+  settle,
+  toHero,
+  use,
+} from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { KANG_ENCOUNTER_SET } from "./kang-encounter-set.js";
 
-const kangVsHeroes = () => startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+const kangVsHeroes = () =>
+  startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
 
 /**
  * The Kang/Temporal set's own four obligations (11018-11021) carry no `encounterSetIds` (a data gap flagged for
@@ -18,7 +32,10 @@ const kangVsHeroes = () => startWave2Game(wave2Scenario("kang", { players: [{ st
 function revealAsObligation(state: GameState, code: string): GameState {
   const deckId = Object.keys(state.encounterDecks)[0]!;
   const fillerId = state.encounterDecks[deckId]!.deck[1]!;
-  const relabeled = { ...state, instances: { ...state.instances, [fillerId]: { ...state.instances[fillerId]!, cardId: code as never } } };
+  const relabeled = {
+    ...state,
+    instances: { ...state.instances, [fillerId]: { ...state.instances[fillerId]!, cardId: code as never } },
+  };
   return settle(runWave2(relabeled, endTurn()), firstLegal, undefined, WAVE2_DEPS);
 }
 
@@ -44,7 +61,10 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
     // reveals) — relabel index 1, not the top card, so 11021 is what the player actually reveals.
     const deckId = Object.keys(state.encounterDecks)[0]!;
     const fillerId = state.encounterDecks[deckId]!.deck[1]!;
-    state = { ...state, instances: { ...state.instances, [fillerId]: { ...state.instances[fillerId]!, cardId: "11021" as never } } };
+    state = {
+      ...state,
+      instances: { ...state.instances, [fillerId]: { ...state.instances[fillerId]!, cardId: "11021" as never } },
+    };
     // `chooseTarget`'s own `optional: true` means `firstLegal` would decline it outright (it "declines every
     // optional thing"); with only one candidate, picking it explicitly is the real, intended resolution.
     // `picking(allyId)` alone is unsafe here: Kang (I) also attacks this round, and the ally (`i19`) is a legal
@@ -52,7 +72,9 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
     // answering 11021's own `chooseTarget`. Scope the pick to that one prompt (`slot: "pick"`, this ability's own
     // slot name) and decline everything else, including the defender prompt, like `firstLegal`.
     const pickForTimeTravelHijinks = (s: import("@mc/engine").GameState) =>
-      s.pendingChoice?.prompt.kind === "chooseTarget" && s.pendingChoice.prompt.slot === "pick" ? [allyId] : firstLegal(s);
+      s.pendingChoice?.prompt.kind === "chooseTarget" && s.pendingChoice.prompt.slot === "pick"
+        ? [allyId]
+        : firstLegal(s);
     state = settle(runWave2(state, endTurn()), pickForTimeTravelHijinks, undefined, WAVE2_DEPS);
 
     // The ally is gone from play, tucked facedown under the obligation instead of sitting in the discard pile.
@@ -173,7 +195,12 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
       const given = moveToHand(revealed, P1, "04002");
       const [bow] = given.ids as [InstanceId];
       const { deps, trace } = traceAbilities(WAVE2_DEPS);
-      const after = settle(runWith(deps, given.state, use(P1, obligation, "11020.depowered-action", [], { discard: [bow] })), firstLegal, undefined, deps);
+      const after = settle(
+        runWith(deps, given.state, use(P1, obligation, "11020.depowered-action", [], { discard: [bow] })),
+        firstLegal,
+        undefined,
+        deps,
+      );
       expectResolved(trace, "11020.depowered-action");
       expect(playerOf(after, P1).playArea).not.toContain(obligation);
       expect(playerOf(after, P1).hand).not.toContain(bow);
@@ -188,7 +215,12 @@ describe("Kang / Temporal encounter set (kang-encounter-set.ts)", () => {
       const handBefore = playerOf(revealed, P1).hand;
       expect(handBefore.length).toBeGreaterThan(0);
       const { deps, trace } = traceAbilities(WAVE2_DEPS);
-      const after = settle(runWith(deps, revealed, use(P1, obligation, "11049.fear-of-kang-action")), firstLegal, undefined, deps);
+      const after = settle(
+        runWith(deps, revealed, use(P1, obligation, "11049.fear-of-kang-action")),
+        firstLegal,
+        undefined,
+        deps,
+      );
       expectResolved(trace, "11049.fear-of-kang-action");
       expect(playerOf(after, P1).playArea).not.toContain(obligation);
       const discarded = handBefore.filter((id) => !playerOf(after, P1).hand.includes(id));

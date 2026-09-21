@@ -75,7 +75,10 @@ export class FocusRoute {
     this.#onCancel = options.onCancel;
     this.#onPage = options.onPage;
     this.#onHomeEnd = options.onHomeEnd;
-    const binding = { blocked: options.blocked ?? (() => false), onIntent: (intent: GamepadIntent) => this.#onIntent(intent) };
+    const binding = {
+      blocked: options.blocked ?? (() => false),
+      onIntent: (intent: GamepadIntent) => this.#onIntent(intent),
+    };
     bindKeyboard(scene, binding);
     bindGamepad(scene, binding);
   }

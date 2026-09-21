@@ -34,7 +34,12 @@
  */
 import type { ServerResponse } from "node:http";
 import type { Connect, Plugin } from "vite";
-import { deckImportError, interpretDeckResponse, marvelCdbDeckUrl, type DeckImportAnswer } from "./src/platform/marvelcdb-upstream.js";
+import {
+  deckImportError,
+  interpretDeckResponse,
+  marvelCdbDeckUrl,
+  type DeckImportAnswer,
+} from "./src/platform/marvelcdb-upstream.js";
 
 export const MARVELCDB_IMPORT_ROUTE = "/api/marvelcdb-import/";
 
@@ -75,7 +80,10 @@ const middleware = (): Connect.NextHandleFunction => {
         // the chain).
         upstream = await fetch(marvelCdbDeckUrl(kind, id));
       } catch (cause) {
-        send(response, deckImportError(502, `could not reach MarvelCDB: ${cause instanceof Error ? cause.message : String(cause)}`));
+        send(
+          response,
+          deckImportError(502, `could not reach MarvelCDB: ${cause instanceof Error ? cause.message : String(cause)}`),
+        );
         return;
       }
       const contentType = upstream.headers.get("content-type") ?? "";

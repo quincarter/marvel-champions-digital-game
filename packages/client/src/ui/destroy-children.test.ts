@@ -46,10 +46,14 @@ describe("destroyChildren", () => {
 describe("no scene clears its display list with children.removeAll(", () => {
   const offenders: string[] = [];
   for (const file of tsFilesUnder(SRC_DIR)) {
-    readFileSync(file, "utf8").split("\n").forEach((text, index) => {
-      const code = text.replace(/\/\/.*$/, "").replace(/^\s*\*.*$/, "");
-      if (/\bchildren\.removeAll\(/.test(code)) offenders.push(`${file.slice(SRC_DIR.length + 1)}:${index + 1}`);
-    });
+    // `\r?`: a CRLF checkout (Windows autocrlf) would otherwise leave a `\r` that stops the `*`-comment stripper below
+    // from reaching the end of the line, and `destroy-children.ts`'s own doc comment would count as an offender.
+    readFileSync(file, "utf8")
+      .split(/\r?\n/)
+      .forEach((text, index) => {
+        const code = text.replace(/\/\/.*$/, "").replace(/^\s*\*.*$/, "");
+        if (/\bchildren\.removeAll\(/.test(code)) offenders.push(`${file.slice(SRC_DIR.length + 1)}:${index + 1}`);
+      });
   }
   test("use destroyChildren(scene) instead", () => expect(offenders).toEqual([]));
 });

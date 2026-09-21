@@ -73,11 +73,10 @@ export const EXPERT_SET = defineAbilities({
   // Masterplan — When Revealed: Place 4 threat on each side scheme. If there are no side schemes in play, discard cards from the
   // top of the encounter deck until a side scheme is discarded. Reveal that side scheme.
   "01192.when-revealed": whenRevealed(
-    ifThen(
-      exists(query("sideScheme")),
-      placeThreat(4, each(query("sideScheme"))),
-      [discardEncounterUntil(query("sideScheme"), "found"), revealCard(chosen("found"))],
-    ),
+    ifThen(exists(query("sideScheme")), placeThreat(4, each(query("sideScheme"))), [
+      discardEncounterUntil(query("sideScheme"), "found"),
+      revealCard(chosen("found")),
+    ]),
   ),
   // Under Fire — Surge. When Revealed: Reveal the top card of the encounter deck.
   "01193.when-revealed": whenRevealed(revealEncounterCard(you)),

@@ -80,7 +80,8 @@ function arrange(state: GameState, player: PlayerId, piles: Piles): Arranged {
   };
 }
 
-const counterOn = (state: GameState, id: InstanceId, name: string): number | undefined => mustInstance(state, id).counters[name];
+const counterOn = (state: GameState, id: InstanceId, name: string): number | undefined =>
+  mustInstance(state, id).counters[name];
 const counter = (state: GameState, name: string, player: PlayerId = p1): number | undefined =>
   counterOn(state, mustPlayer(state, player).identity.instanceId, name);
 const cardIdsIn = (state: GameState, ids: readonly InstanceId[]): readonly CardId[] =>
@@ -118,7 +119,13 @@ const spiritGame = (players = 1, deps: EngineDeps = spiritDeps, extra: readonly 
 
 /** Plays a card already sitting in `player`'s hand. */
 const play = (state: GameState, deps: EngineDeps, card: InstanceId, player: PlayerId = p1): GameState =>
-  runCommands(state, deps, { type: "playCard", playerId: player, cardInstanceId: card, payment: [], attachToInstanceId: null }).state;
+  runCommands(state, deps, {
+    type: "playCard",
+    playerId: player,
+    cardInstanceId: card,
+    payment: [],
+    attachToInstanceId: null,
+  }).state;
 
 describe("`discardDeckUntil`: discard from the top of a player deck until a match", () => {
   it("discards down to the first matching card, binds it, and leaves the rest in the discard pile", () => {
@@ -191,12 +198,23 @@ describe("`discardDeckUntil`: discard from the top of a player deck until a matc
       trigger: { kind: "action" },
       effects: [
         { kind: "discardDeckUntil", player: { kind: "each" }, filter: { categories: ["ally"] }, bind: "found" },
-        { kind: "addCounters", target: yourIdentity, counterType: "found", amount: { kind: "var", name: "found.count" } },
+        {
+          kind: "addCounters",
+          target: yourIdentity,
+          counterType: "found",
+          amount: { kind: "var", name: "found.count" },
+        },
       ],
     });
     const CARD = stubEvent({ id: "each-deck", cost: 0, abilities: [EACH.ref] });
     const deps = depsOf(EACH);
-    const start = newGame({ players: 2, extraCards: [...SPIRIT_CARDS, CARD], deck: [...SPIRIT_DECK, CARD.id], deps, seed: 3 });
+    const start = newGame({
+      players: 2,
+      extraCards: [...SPIRIT_CARDS, CARD],
+      deck: [...SPIRIT_DECK, CARD.id],
+      deps,
+      seed: 3,
+    });
     const first = arrange(start, p1, { hand: [CARD.id], deck: [FILLER.id, SIGNATURE.id] });
     const second = arrange(first.state, p2, { deck: [SIGNATURE.id, FILLER.id] });
     const state = play(second.state, deps, first.hand[0] as InstanceId);
@@ -235,7 +253,12 @@ const POWER_DRAIN = stubAbility("power-drain.action", {
   trigger: { kind: "action" },
   effects: [
     { kind: "addCounters", target: yourIdentity, counterType: "icons", amount: { kind: "const", value: 0 } },
-    { kind: "discardFromHand", player: { kind: "each" }, amount: { kind: "var", name: "drained" }, filter: ANY_RESOURCE },
+    {
+      kind: "discardFromHand",
+      player: { kind: "each" },
+      amount: { kind: "var", name: "drained" },
+      filter: ANY_RESOURCE,
+    },
   ],
 });
 /** The same, with a fixed count, for the cases that don't need a bound var. */
@@ -259,15 +282,21 @@ const DRAIN_DECK: readonly CardId[] = [
   ...copies(DRAIN_THREE.card.id, 3),
 ];
 
-const drainGame = (players = 2): GameState => newGame({ players, extraCards: DRAIN_CARDS, deck: DRAIN_DECK, deps: drainDeps, seed: 3 });
+const drainGame = (players = 2): GameState =>
+  newGame({ players, extraCards: DRAIN_CARDS, deck: DRAIN_DECK, deps: drainDeps, seed: 3 });
 
 /**
  * Applies one command without auto-answering anything, so the test can inspect the choice the engine parked — the
  * shape a client reads straight off `legalActions`.
  */
-const step = (state: GameState, command: Command, deps: EngineDeps = drainDeps): GameState => expectOk(applyCommand(state, command, deps));
+const step = (state: GameState, command: Command, deps: EngineDeps = drainDeps): GameState =>
+  expectOk(applyCommand(state, command, deps));
 const playRaw = (state: GameState, card: InstanceId, deps: EngineDeps = drainDeps, player: PlayerId = p1): GameState =>
-  step(state, { type: "playCard", playerId: player, cardInstanceId: card, payment: [], attachToInstanceId: null }, deps);
+  step(
+    state,
+    { type: "playCard", playerId: player, cardInstanceId: card, payment: [], attachToInstanceId: null },
+    deps,
+  );
 
 /** The parked choice as `legalActions` hands it to a client. */
 const pending = (state: GameState, deps: EngineDeps = drainDeps) => {
@@ -277,10 +306,23 @@ const pending = (state: GameState, deps: EngineDeps = drainDeps) => {
 };
 
 /** Answers the parked choice with exactly these option ids. */
-const answer = (state: GameState, selectedOptionIds: readonly InstanceId[], deps: EngineDeps = drainDeps): GameState => {
+const answer = (
+  state: GameState,
+  selectedOptionIds: readonly InstanceId[],
+  deps: EngineDeps = drainDeps,
+): GameState => {
   const choice = state.pendingChoice;
   if (!choice) throw new Error("no pending choice");
-  return step(state, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: [...selectedOptionIds] }, deps);
+  return step(
+    state,
+    {
+      type: "resolveChoice",
+      playerId: choice.playerId,
+      choiceId: choice.choiceId,
+      selectedOptionIds: [...selectedOptionIds],
+    },
+    deps,
+  );
 };
 
 describe("`discardFromHand` with a `filter`: 'discard 1 resource of any type from their hand'", () => {
@@ -358,7 +400,13 @@ describe("`discardFromHand` with a `filter`: 'discard 1 resource of any type fro
     });
     const CARD = stubEvent({ id: "bound-drain", cost: 0, abilities: [BOUND.ref] });
     const deps = depsOf(BOUND);
-    const start = newGame({ players: 1, extraCards: [...DRAIN_CARDS, CARD], deck: [...DRAIN_DECK, CARD.id], deps, seed: 3 });
+    const start = newGame({
+      players: 1,
+      extraCards: [...DRAIN_CARDS, CARD],
+      deck: [...DRAIN_DECK, CARD.id],
+      deps,
+      seed: 3,
+    });
     const set = arrange(start, p1, { hand: [PHYSICAL.id, FILLER.id, ICONLESS.id, CARD.id] });
     const state = playRaw(set.state, set.hand[3] as InstanceId, deps);
 
@@ -382,8 +430,14 @@ describe("`discardFromHand` with a `filter`: 'discard 1 resource of any type fro
  * bonus on the `enemyAttack`/`enemyScheme` effect itself is what scopes it correctly.
  */
 const BOSS = stubVillain({ id: "bonus-boss", stages: [{ hp: flat(40), atk: 1, sch: 1 }] });
-const DASHED = stubVillain({ id: "dashed-boss", stages: [{ hp: flat(40), atk: 0, sch: 0, dashedStats: ["atk", "sch"] }] });
-const BONUS_SCHEME = stubMainScheme({ id: "bonus-scheme", stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }] });
+const DASHED = stubVillain({
+  id: "dashed-boss",
+  stages: [{ hp: flat(40), atk: 0, sch: 0, dashedStats: ["atk", "sch"] }],
+});
+const BONUS_SCHEME = stubMainScheme({
+  id: "bonus-scheme",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }],
+});
 const theVillain: TargetRef = { kind: "villain" };
 const you = { kind: "controller" } as const;
 
@@ -408,7 +462,8 @@ const WORKAROUND_SCH = phaseBonus("workaround-sch", "sch", "enemyScheme");
 const SCOPED_ATK = scopedBonus("scoped-atk", "enemyAttack", { atkBonus: c(2) });
 const SCOPED_SCH = scopedBonus("scoped-sch", "enemyScheme", { schBonus: c(2) });
 
-const bonusCard = (ability: { readonly ref: { readonly id: string } }, id: string) => stubEvent({ id, cost: 0, abilities: [ability.ref as never] });
+const bonusCard = (ability: { readonly ref: { readonly id: string } }, id: string) =>
+  stubEvent({ id, cost: 0, abilities: [ability.ref as never] });
 const WORKAROUND_ATK_CARD = bonusCard(WORKAROUND_ATK, "workaround-atk");
 const WORKAROUND_SCH_CARD = bonusCard(WORKAROUND_SCH, "workaround-sch");
 const SCOPED_ATK_CARD = bonusCard(SCOPED_ATK, "scoped-atk");
@@ -425,13 +480,25 @@ const BONUS_DECK: readonly CardId[] = [
 ];
 
 const bonusGame = (villain = BOSS): GameState =>
-  newGame({ players: 1, villain, mainScheme: BONUS_SCHEME, extraCards: BONUS_CARDS, deck: BONUS_DECK, deps: bonusDeps, seed: 3 });
+  newGame({
+    players: 1,
+    villain,
+    mainScheme: BONUS_SCHEME,
+    extraCards: BONUS_CARDS,
+    deck: BONUS_DECK,
+    deps: bonusDeps,
+    seed: 3,
+  });
 
 const heroDamage = (state: GameState): number => mustInstance(state, mustPlayer(state, p1).identity.instanceId).damage;
 const mainThreat = (state: GameState): number => mustInstance(state, state.mainScheme.instanceId).threat;
 
 /** Plays the card twice from one hand, resolving each fully; both plays are in the same player phase. */
-function playTwice(state: GameState, card: CardId, deps: EngineDeps = bonusDeps): { readonly first: GameState; readonly second: GameState } {
+function playTwice(
+  state: GameState,
+  card: CardId,
+  deps: EngineDeps = bonusDeps,
+): { readonly first: GameState; readonly second: GameState } {
   const set = arrange(state, p1, { hand: [card, card] });
   const first = play(set.state, deps, set.hand[0] as InstanceId);
   const second = play(first, deps, set.hand[1] as InstanceId);
@@ -439,7 +506,7 @@ function playTwice(state: GameState, card: CardId, deps: EngineDeps = bonusDeps)
 }
 
 describe("`enemyAttack.atkBonus` / `enemyScheme.schBonus`: a bonus scoped to the activation the effect starts", () => {
-  it("the `until: \"endOfPhase\"` workaround stacks: a second copy in the same phase attacks at +2X", () => {
+  it('the `until: "endOfPhase"` workaround stacks: a second copy in the same phase attacks at +2X', () => {
     const { first, second } = playTwice(bonusGame(), WORKAROUND_ATK_CARD.id);
     // ATK 1 + 2 = 3 for the first attack …
     expect(heroDamage(first)).toBe(3);

@@ -1,13 +1,29 @@
 import type { InstanceId } from "@mc/engine";
 import { characterProfile } from "@mc/engine";
-import { firstLegal, identityOf, inst, instancesOf, moveToHand, P1, patchInstance, payWith, playerOf, settle, stackEncounterDeck, toHero, use, type Picker } from "../../testing/harness.js";
+import {
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  moveToHand,
+  P1,
+  patchInstance,
+  payWith,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  use,
+  type Picker,
+} from "../../testing/harness.js";
 import { withDamage } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { QSV_KIT } from "./kit.js";
 
 // Real wave 2 content: the Quicksilver (Protection) precon against Rhino, standard, solo. Pietro starts in alter-ego.
-const qsvVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "qsv-protection" }], seed: 2026 }));
+const qsvVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "qsv-protection" }], seed: 2026 }));
 
 /**
  * Accepts the named optional responses/interrupts (a trigger's option id is `<instance>:<ability>`) and picks the
@@ -18,7 +34,9 @@ const accepting =
   (state) => {
     const choice = state.pendingChoice;
     if (!choice) return [];
-    const hits = choice.options.map((o) => o.optionId).filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
+    const hits = choice.options
+      .map((o) => o.optionId)
+      .filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
 
@@ -29,7 +47,12 @@ describe("Quicksilver kit", () => {
     const villain = hero.villains[0]!.instanceId;
 
     const afterFirst = settle(
-      runWave2(withDamage(hero, villain, 0), { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }),
+      runWave2(withDamage(hero, villain, 0), {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: villain,
+      }),
       accepting("14001a.super-speed"),
       undefined,
       WAVE2_DEPS,
@@ -38,7 +61,12 @@ describe("Quicksilver kit", () => {
     expect(inst(afterFirst, identity).exhausted).toBe(false);
 
     const afterSecond = settle(
-      runWave2(afterFirst, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }),
+      runWave2(afterFirst, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: villain,
+      }),
       accepting("14001a.super-speed"),
       undefined,
       WAVE2_DEPS,
@@ -102,7 +130,12 @@ describe("Quicksilver kit", () => {
     // Hydra Mercenary (01101, Rhino's own set) prints exactly 1 boost icon.
     const staged = stackEncounterDeck(withWitch, "01101");
     const attacked = settle(
-      runWave2(withDamage(staged, villain, 0), { type: "basicAttack", playerId: P1, attackerInstanceId: witch, targetInstanceId: villain }),
+      runWave2(withDamage(staged, villain, 0), {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: witch,
+        targetInstanceId: villain,
+      }),
       accepting("14002.scarlet-witch-interrupt"), // an optional Interrupt — `firstLegal` alone would decline it
       undefined,
       WAVE2_DEPS,
@@ -114,7 +147,10 @@ describe("Quicksilver kit", () => {
   it("Always Be Running: readies Quicksilver", () => {
     const hero = runWave2(qsvVsRhino(), toHero());
     const identity = identityOf(hero);
-    const exhausted = { ...hero, instances: { ...hero.instances, [identity]: { ...hero.instances[identity]!, exhausted: true } } };
+    const exhausted = {
+      ...hero,
+      instances: { ...hero.instances, [identity]: { ...hero.instances[identity]!, exhausted: true } },
+    };
     const { state } = playFromHand(exhausted, "14003", 1);
     expect(inst(state, identity).exhausted).toBe(false);
   });
@@ -147,7 +183,14 @@ describe("Quicksilver kit", () => {
     const villain = given.state.villains[0]!.instanceId;
     const payment = payWith(given.state, P1, 1, [speedCyclone]);
     const played = settle(
-      runWave2(given.state, { type: "playCard", playerId: P1, cardInstanceId: speedCyclone, payment: payment.map((id) => ({ fromHand: id })), attachToInstanceId: null, x: 1 }),
+      runWave2(given.state, {
+        type: "playCard",
+        playerId: P1,
+        cardInstanceId: speedCyclone,
+        payment: payment.map((id) => ({ fromHand: id })),
+        attachToInstanceId: null,
+        x: 1,
+      }),
       accepting("enemies"),
       undefined,
       WAVE2_DEPS,
@@ -161,15 +204,29 @@ describe("Quicksilver kit", () => {
     const pickAll: Picker = (state) => {
       const choice = state.pendingChoice;
       if (!choice) return [];
-      return choice.prompt.kind === "chooseCards" ? choice.options.slice(0, choice.maxSelections).map((o) => o.optionId) : firstLegal(state);
+      return choice.prompt.kind === "chooseCards"
+        ? choice.options.slice(0, choice.maxSelections).map((o) => o.optionId)
+        : firstLegal(state);
     };
     const start = qsvVsRhino(); // alter-ego already
     const { state: withBoth, ids: discardedIds } = moveToHand(start, P1, "14008", "14010");
     const discarded = discardedIds as InstanceId[];
-    const inDiscard = { ...withBoth, players: withBoth.players.map((p) => (p.playerId === P1 ? { ...p, hand: p.hand.filter((id) => !discarded.includes(id)), discard: [...p.discard, ...discarded] } : p)) };
+    const inDiscard = {
+      ...withBoth,
+      players: withBoth.players.map((p) =>
+        p.playerId === P1
+          ? { ...p, hand: p.hand.filter((id) => !discarded.includes(id)), discard: [...p.discard, ...discarded] }
+          : p,
+      ),
+    };
     const { state: withServal, id: serval } = playFromHand(inDiscard, "14007", 1);
     const deckBefore = playerOf(withServal, P1).deck.length;
-    const used = settle(runWave2(withServal, use(P1, serval, "14007.serval-industries-action")), pickAll, undefined, WAVE2_DEPS);
+    const used = settle(
+      runWave2(withServal, use(P1, serval, "14007.serval-industries-action")),
+      pickAll,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(playerOf(used, P1).deck.length).toBe(deckBefore + 2);
     expect(discarded.every((id) => playerOf(used, P1).discard.includes(id))).toBe(false);
   });

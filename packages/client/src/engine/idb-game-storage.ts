@@ -19,7 +19,14 @@
 
 import type { Command } from "@mc/engine";
 import type { StateWithoutPool } from "./host.js";
-import { newestActive, type GameStorage, type SaveMeta, type SaveProgress, type SaveStatus, type StoredGame } from "./game-storage.js";
+import {
+  newestActive,
+  type GameStorage,
+  type SaveMeta,
+  type SaveProgress,
+  type SaveStatus,
+  type StoredGame,
+} from "./game-storage.js";
 
 const DB_NAME = "mc-saves";
 const DB_VERSION = 1;
@@ -104,7 +111,9 @@ export class IdbGameStorage implements GameStorage {
       settle(transaction.objectStore("games").get(gameId) as IDBRequest<SaveMeta | undefined>),
       settle(transaction.objectStore("baselines").get(gameId) as IDBRequest<BaselineRow | undefined>),
       settle(
-        transaction.objectStore("commands").getAll(IDBKeyRange.bound([gameId, 0], [gameId, Infinity])) as IDBRequest<CommandRow[]>,
+        transaction.objectStore("commands").getAll(IDBKeyRange.bound([gameId, 0], [gameId, Infinity])) as IDBRequest<
+          CommandRow[]
+        >,
       ),
     ]);
     await done;

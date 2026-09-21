@@ -49,7 +49,11 @@ export interface ChoiceExclusion {
 
 /** The cards the open choice is offering, as a set, so the universe can be narrowed to what it left out. */
 const offeredIds = (state: GameState): ReadonlySet<string> =>
-  new Set((state.pendingChoice?.options ?? []).flatMap((option) => (option.ref.kind === "card" ? [option.ref.instanceId as string] : [])));
+  new Set(
+    (state.pendingChoice?.options ?? []).flatMap((option) =>
+      option.ref.kind === "card" ? [option.ref.instanceId as string] : [],
+    ),
+  );
 
 /**
  * Every card in play that the open choice did not offer, each labelled with the clause that rejected it.
@@ -85,7 +89,11 @@ export function choiceExclusions(state: GameState, deps: EngineDeps = DEFAULT_DE
  * The defend prompt's own three filters, reported the same way (`resolve/enemy-activation.ts`): who may defend at all,
  * then whether a "(defense)" defender has already been declared, then whether an ally is compulsory.
  */
-function defenderExclusions(state: GameState, deps: EngineDeps, offered: ReadonlySet<string>): readonly ChoiceExclusion[] {
+function defenderExclusions(
+  state: GameState,
+  deps: EngineDeps,
+  offered: ReadonlySet<string>,
+): readonly ChoiceExclusion[] {
   const choice = state.pendingChoice;
   const frame = choice ? state.stack.find((f) => f.frameId === choice.frameId) : undefined;
   if (frame?.kind !== "enemyAttack") return [];
@@ -95,7 +103,11 @@ function defenderExclusions(state: GameState, deps: EngineDeps, offered: Readonl
   const forcedAlly =
     existing === null &&
     mustDefendWithAlly(state, deps, frame.enemyInstanceId) &&
-    [...eligible].some((id) => cardOf(state, id as InstanceId)?.type === "ally" && controllerOf(state, id as InstanceId) === frame.attackedPlayerId);
+    [...eligible].some(
+      (id) =>
+        cardOf(state, id as InstanceId)?.type === "ally" &&
+        controllerOf(state, id as InstanceId) === frame.attackedPlayerId,
+    );
 
   const exclusions: ChoiceExclusion[] = [];
   for (const id of cardsInPlay(state)) {

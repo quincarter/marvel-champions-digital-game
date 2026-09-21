@@ -1,5 +1,14 @@
 import { describe, expect, test } from "vitest";
-import { cardCountForSet, descriptorForSet, modularCardLabel, modularSetCandidateIdsFor, modularSetOptionsFor, requiredCardLabel, requiredEncounterSetsFor, toggleModularSet } from "./modular-sets.js";
+import {
+  cardCountForSet,
+  descriptorForSet,
+  modularCardLabel,
+  modularSetCandidateIdsFor,
+  modularSetOptionsFor,
+  requiredCardLabel,
+  requiredEncounterSetsFor,
+  toggleModularSet,
+} from "./modular-sets.js";
 import { initialSetupDraft } from "./setup-draft.js";
 import { CARDS_BY_ID, POOL_SCENARIOS } from "../content/pool.js";
 
@@ -49,7 +58,9 @@ describe("modularSetOptionsFor", () => {
   test("Bomb Scare's descriptor is one of the real, derived labels — not a hand-written guess", () => {
     const options = modularSetOptionsFor(draftFor("rhino"), rhino, CARDS_BY_ID);
     const bombScare = options.find((o) => o.id === "bomb_scare")!;
-    expect(["Minions", "Side schemes", "Treacheries", "Attachments", "Environment", "Obligations"]).toContain(bombScare.descriptor);
+    expect(["Minions", "Side schemes", "Treacheries", "Attachments", "Environment", "Obligations"]).toContain(
+      bombScare.descriptor,
+    );
   });
 });
 
@@ -60,7 +71,10 @@ describe("cardCountForSet / descriptorForSet", () => {
     // Whatever descriptorForSet says, it must be one of the real labels this module knows how to derive — never a
     // hand-written string for this specific set.
     const descriptor = descriptorForSet("klaw", CARDS_BY_ID);
-    if (descriptor !== null) expect(["Minions", "Side schemes", "Treacheries", "Attachments", "Environment", "Obligations"]).toContain(descriptor);
+    if (descriptor !== null)
+      expect(["Minions", "Side schemes", "Treacheries", "Attachments", "Environment", "Obligations"]).toContain(
+        descriptor,
+      );
   });
 
   test("an id with no cards in the pool has a zero count and no descriptor", () => {
@@ -71,7 +85,10 @@ describe("cardCountForSet / descriptorForSet", () => {
 
 describe("requiredEncounterSetsFor", () => {
   test("Klaw's scenario names exactly its own villain set as required, with a real count", () => {
-    const required = requiredEncounterSetsFor(POOL_SCENARIOS.find((s) => (s.id as string) === "klaw")!, CARDS_BY_ID);
+    const required = requiredEncounterSetsFor(
+      POOL_SCENARIOS.find((s) => (s.id as string) === "klaw")!,
+      CARDS_BY_ID,
+    );
     expect(required.map((r) => r.id)).toEqual(["klaw"]);
     expect(required[0]!.cardCount).toBeGreaterThan(0);
   });
@@ -84,8 +101,12 @@ describe("requiredCardLabel / modularCardLabel", () => {
   });
 
   test("chosen vs available modular cards, with and without a descriptor", () => {
-    expect(modularCardLabel({ selected: true, cardCount: 7, descriptor: "Side schemes" })).toBe("Chosen · 7 cards · Side schemes");
-    expect(modularCardLabel({ selected: false, cardCount: 7, descriptor: "Side schemes" })).toBe("7 cards · Side schemes");
+    expect(modularCardLabel({ selected: true, cardCount: 7, descriptor: "Side schemes" })).toBe(
+      "Chosen · 7 cards · Side schemes",
+    );
+    expect(modularCardLabel({ selected: false, cardCount: 7, descriptor: "Side schemes" })).toBe(
+      "7 cards · Side schemes",
+    );
     expect(modularCardLabel({ selected: false, cardCount: 9, descriptor: null })).toBe("9 cards");
   });
 });

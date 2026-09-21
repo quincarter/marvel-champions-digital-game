@@ -1,10 +1,36 @@
-import { cannotLeavePlay, encounterDeckOf, notDefeatedWithoutThreat, remainingHitPoints, schemeThreatDestination, villainOf, type GameState, type InstanceId } from "@mc/engine";
-import { answer, P1, endTurn, firstLegal, identityOf, inst, moveToHand, patchInstance, payWith, play as playCard, playerOf, settle, settleUntil, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
+import {
+  cannotLeavePlay,
+  encounterDeckOf,
+  notDefeatedWithoutThreat,
+  schemeThreatDestination,
+  villainOf,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
+import {
+  answer,
+  P1,
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  moveToHand,
+  patchInstance,
+  payWith,
+  play as playCard,
+  playerOf,
+  settle,
+  settleUntil,
+  stackEncounterDeck,
+  toHero,
+  use,
+} from "../../testing/harness.js";
 import { withActive } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
-const spiderManVsBreakout = () => startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
+const spiderManVsBreakout = () =>
+  startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
 const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): GameState =>
   settle(runTwc(state, ...commands), undefined, (s) => s.step.phase === "player" && s.step.kind === "turn", TWC_DEPS);
 
@@ -105,7 +131,12 @@ describe("Radioactive Buildup (07022)", () => {
     state = patchInstance(state, thunderstruckId(state), { threat: 8 });
     const given = moveToHand(state, P1, "01002"); // Black Cat, printed HP 2, no printed DEF
     const [blackCat] = given.ids as [InstanceId];
-    state = settle(runTwc(given.state, playCard(P1, blackCat, payWith(given.state, P1, 2, [blackCat]))), firstLegal, undefined, TWC_DEPS);
+    state = settle(
+      runTwc(given.state, playCard(P1, blackCat, payWith(given.state, P1, 2, [blackCat]))),
+      firstLegal,
+      undefined,
+      TWC_DEPS,
+    );
     // Thunderball's own boost card this activation (07030, 2 icons): ATK 1 + 2 = 3 against Black Cat's 2 HP (no
     // printed DEF) overkills by exactly 1. "07023" (no ability) is the harmless following per-player card.
     state = stackEncounterDeck(state, "07030", "07023");

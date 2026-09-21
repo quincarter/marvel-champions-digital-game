@@ -153,8 +153,14 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // Weakened — Forced Response: after you use a basic hero power, take 1 damage. Alter-Ego Action: discard a
   // [physical] resource from your hand → discard this obligation (docs/phase7-wave2.md §19).
   "11018.obligation": coveredByEngineRule(),
-  "11018.weakened-forced-response": forcedResponse(on.basicPowerUsed(query("hero", { controller: "you" })), takeDamage(1)),
-  "11018.weakened-action": alterEgoAction({ cost: discardFromHandCost(1, 1, undefined, { printedResource: "physical" }) }, discardThisObligation),
+  "11018.weakened-forced-response": forcedResponse(
+    on.basicPowerUsed(query("hero", { controller: "you" })),
+    takeDamage(1),
+  ),
+  "11018.weakened-action": alterEgoAction(
+    { cost: discardFromHandCost(1, 1, undefined, { printedResource: "physical" }) },
+    discardThisObligation,
+  ),
 
   // Stolen Memories — When Revealed: place the top 8 cards of your deck facedown under this card. Alter-Ego Action:
   // discard a [mental] resource from your hand → discard this obligation (and the tucked cards with it — `RRG
@@ -162,7 +168,10 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // `moveCards` calls `leavePlay` for an in-play card, so no separate effect is needed here).
   "11019.obligation": coveredByEngineRule(),
   "11019.when-revealed": whenRevealed(tuckCards(topOfDeck(8, you), self, true)),
-  "11019.stolen-memories-action": alterEgoAction({ cost: discardFromHandCost(1, 1, undefined, { printedResource: "mental" }) }, discardThisObligation),
+  "11019.stolen-memories-action": alterEgoAction(
+    { cost: discardFromHandCost(1, 1, undefined, { printedResource: "mental" }) },
+    discardThisObligation,
+  ),
 
   // Depowered — You cannot play hero-specific cards. Alter-Ego Action: discard a hero-specific card from your
   // hand → discard this obligation (module docblock: `cannotPlay` + `identitySetOf: you` reads "hero-specific" as
@@ -170,19 +179,32 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // hardcodes a specific hero's aspect string). `cards: { identitySetOf: you }` matches the `player` field's own
   // "you" (module docblock, §25.3): `cannotPlay` now matches `cards` in the rule's speaker context.
   "11020.depowered-constant": constant(rule({ kind: "cannotPlay", player: you, cards: { identitySetOf: you } })),
-  "11020.depowered-action": alterEgoAction({ cost: discardFromHandCost(1, 1, undefined, { identitySetOf: you }) }, discardThisObligation),
+  "11020.depowered-action": alterEgoAction(
+    { cost: discardFromHandCost(1, 1, undefined, { identitySetOf: you }) },
+    discardThisObligation,
+  ),
 
   // Time-Travel Hijinks — When Revealed: discard the highest-cost card you control, then place it facedown under
   // this card. Alter-Ego Action: discard an [energy] resource from your hand → discard this obligation (and the
   // tucked card with it, same "Tuck" rule as Stolen Memories above).
   "11021.obligation": coveredByEngineRule(),
   "11021.when-revealed": whenRevealed(
-    bindTargets("highestCost", superlative("highest", each(query(["ally", "upgrade", "support"], { controller: "you" })), printedCostOf(chosen("candidate")))),
+    bindTargets(
+      "highestCost",
+      superlative(
+        "highest",
+        each(query(["ally", "upgrade", "support"], { controller: "you" })),
+        printedCostOf(chosen("candidate")),
+      ),
+    ),
     chooseTarget("pick", { inSlot: "highestCost" }, { optional: true }),
     discard(chosen("pick")),
     tuckCards(cards(chosen("pick")), self, true),
   ),
-  "11021.time-travel-hijinks-action": alterEgoAction({ cost: discardFromHandCost(1, 1, undefined, { printedResource: "energy" }) }, discardThisObligation),
+  "11021.time-travel-hijinks-action": alterEgoAction(
+    { cost: discardFromHandCost(1, 1, undefined, { printedResource: "energy" }) },
+    discardThisObligation,
+  ),
 
   // Temporal Shield — Attach to Kang. Forced Interrupt: When Kang is attacked, discard Temporal Shield → prevent
   // all damage from this attack and deal 1 damage to the attacker. "(Max 1 per attack.)" is a narrow edge case (two
@@ -202,7 +224,10 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   "11015.future-weapon-forced-interrupt": forcedInterrupt(
     when.villainAttacks(),
     modifyAttack({ overkill: true }),
-    atEndOfAttack(ifThen(allOf(eventDealt("damage"), refMatches(eventTarget, query("hero"))), stun(eventTarget)), discard(self)),
+    atEndOfAttack(
+      ifThen(allOf(eventDealt("damage"), refMatches(eventTarget, query("hero"))), stun(eventTarget)),
+      discard(self),
+    ),
   ),
 
   // Frozen in Time — Attach to your identity. Forced Interrupt: when attached character would ready, discard this
@@ -215,9 +240,17 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
 
   // Corrupted Timestream — Players cannot trigger "Alter-Ego Action" abilities on obligations. When Revealed: each
   // player must either discard 1 random card from hand, or place 2 threat here.
-  "11022.corrupted-timestream-constant": constant(rule({ kind: "cannotTriggerActions", on: query("obligation"), form: "alterEgo" })),
+  "11022.corrupted-timestream-constant": constant(
+    rule({ kind: "cannotTriggerActions", on: query("obligation"), form: "alterEgo" }),
+  ),
   "11022.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, chooseOne(option("Discard 1 random card from hand", discardAtRandom(1, thatPlayer)), option("Place 2 threat here", placeThreat(2, self)))),
+    forEachPlayer(
+      eachPlayer,
+      chooseOne(
+        option("Discard 1 random card from hand", discardAtRandom(1, thatPlayer)),
+        option("Place 2 threat here", placeThreat(2, self)),
+      ),
+    ),
   ),
 
   // Kang's Dominion — Kang cannot take damage. When Defeated: deal the player who defeated this scheme an
@@ -230,7 +263,10 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
 
   // Rampage — Acceleration (data). When Defeated: discard cards from the top of the encounter deck until a minion
   // is discarded. Put that minion into play engaged with the player who defeated this scheme.
-  "11025.when-defeated": whenDefeated(discardEncounterUntil(query("minion"), "found"), putIntoPlay(chosen("found"), defeatingPlayer)),
+  "11025.when-defeated": whenDefeated(
+    discardEncounterUntil(query("minion"), "found"),
+    putIntoPlay(chosen("found"), defeatingPlayer),
+  ),
 
   // Energy Blast — When Revealed (Alter-Ego): discard an ally or support you control. If you cannot, this card
   // gains surge. When Revealed (Hero): Kang attacks you.
@@ -253,7 +289,9 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
 
   // Time-Travel Tactics — Surge (data). When Revealed: each player takes 1 indirect damage for each obligation in
   // their play area. [star] Boost: this card gains [boost] for each obligation in your play area.
-  "11028.when-revealed": whenRevealed(forEachPlayer(eachPlayer, dealIndirectDamage(thatPlayer, countOf(query("obligation", { controller: "other" }))))),
+  "11028.when-revealed": whenRevealed(
+    forEachPlayer(eachPlayer, dealIndirectDamage(thatPlayer, countOf(query("obligation", { controller: "other" })))),
+  ),
   "11028.boost": boost(adjustBoostCount(countOf(query("obligation", { controller: "you" })))),
 
   // Past Machinations — Incite 1 (data). When Revealed: each player searches the encounter deck and discard pile
@@ -262,7 +300,11 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   "11029.when-revealed": whenRevealed(
     forEachPlayer(
       eachPlayer,
-      chooseCards("found", { kind: "encounter", zones: ["deck", "discard"], filter: query("obligation") }, { min: 0, max: 1, chooser: thatPlayer }),
+      chooseCards(
+        "found",
+        { kind: "encounter", zones: ["deck", "discard"], filter: query("obligation") },
+        { min: 0, max: 1, chooser: thatPlayer },
+      ),
       { kind: "revealCard", cards: chosen("found"), player: thatPlayer },
     ),
     { kind: "shuffleEncounterDeck" },
@@ -284,17 +326,24 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   ),
 
   // Tyrannosaurus Rex — Toughness (data). [star] Tyrannosaurus Rex's attacks gain piercing.
-  "11032.tyrannosaurus-rex-constant": constant(rule({ kind: "attackKeywords", keywords: ["piercing"], attacker: query("minion", { self: true }) })),
+  "11032.tyrannosaurus-rex-constant": constant(
+    rule({ kind: "attackKeywords", keywords: ["piercing"], attacker: query("minion", { self: true }) }),
+  ),
 
   // Time Portal — Hazard (data). Forced Interrupt: when this scheme is defeated, shuffle it into the encounter
   // deck instead of discarding it.
-  "11033.time-portal-forced-interrupt": constant(rule({ kind: "defeatedIntoEncounterDeck", target: query("sideScheme", { self: true }) })),
+  "11033.time-portal-forced-interrupt": constant(
+    rule({ kind: "defeatedIntoEncounterDeck", target: query("sideScheme", { self: true }) }),
+  ),
 
   // ---- The Expert encounter set (11040–11051), module docblock ----------------------------------------------
 
   // Apocryphus — When Revealed: discard an ally or support you control. [star] Boost: exhaust a character you
   // control. Give this enemy another boost card.
-  "11040.when-revealed": whenRevealed(chooseTarget("target", query(["ally", "support"], { controller: "you" }), { optional: true }), discard(chosen("target"))),
+  "11040.when-revealed": whenRevealed(
+    chooseTarget("target", query(["ally", "support"], { controller: "you" }), { optional: true }),
+    discard(chosen("target")),
+  ),
   "11040.boost": boost(
     chooseTarget("char", query("character", { controller: "you" }), { optional: true }),
     exhaust(chosen("char")),
@@ -310,7 +359,9 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
 
   // Terminatrix — Quickstrike (data). [star] Terminatrix's attacks gain piercing. [star] Boost: give this enemy 2
   // more boost cards.
-  "11043.terminatrix-constant": constant(rule({ kind: "attackKeywords", keywords: ["piercing"], attacker: query("minion", { self: true }) })),
+  "11043.terminatrix-constant": constant(
+    rule({ kind: "attackKeywords", keywords: ["piercing"], attacker: query("minion", { self: true }) }),
+  ),
   "11043.boost": boost(modifyAttack({ extraBoostCards: 2 })),
 
   // Wildrun — When Revealed: discard 1 random card from your hand. [star] Boost: discard 1 random card from your
@@ -320,18 +371,31 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
 
   // The Anachronauts — Hazard (data). When Defeated: shuffle each Temporal card in the encounter discard pile into
   // the encounter deck.
-  "11045.when-defeated": whenDefeated(moveCards(encounterCards(["discard"], { trait: TEMPORAL }), "encounterDeckShuffle")),
+  "11045.when-defeated": whenDefeated(
+    moveCards(encounterCards(["discard"], { trait: TEMPORAL }), "encounterDeckShuffle"),
+  ),
 
   // Kang's Chosen — Incite 1 (data). When Revealed: discard cards from the top of the encounter deck until a
   // Temporal minion is discarded. Reveal that minion.
-  "11046.when-revealed": whenRevealed(discardEncounterUntil(query("minion", { trait: TEMPORAL }), "found"), revealCard(chosen("found"), you)),
+  "11046.when-revealed": whenRevealed(
+    discardEncounterUntil(query("minion", { trait: TEMPORAL }), "found"),
+    revealCard(chosen("found"), you),
+  ),
 
   // Kang (Master of Time) — Toughness. Villainous (data). Gets +1 SCH and +1 ATK for each obligation in your (the
   // engaged player's) play area — the same "you" reading The Viper's own "while engaged with you" constant uses
   // (docs/phase7-wave2.md §3.2; `04054.the-viper-constant`, `trors/spider-woman-obligation-nemesis.ts`).
   "11047.kang-master-of-time-constant": constant(
-    gets("sch", { kind: "count", query: query("obligation", { controlledBy: engagedPlayerOf(self) }) }, query("minion", { self: true })),
-    gets("atk", { kind: "count", query: query("obligation", { controlledBy: engagedPlayerOf(self) }) }, query("minion", { self: true })),
+    gets(
+      "sch",
+      { kind: "count", query: query("obligation", { controlledBy: engagedPlayerOf(self) }) },
+      query("minion", { self: true }),
+    ),
+    gets(
+      "atk",
+      { kind: "count", query: query("obligation", { controlledBy: engagedPlayerOf(self) }) },
+      query("minion", { self: true }),
+    ),
   ),
 
   // Time-Displaced Soldier — Incite 1. Surge (data). [star] Boost: deal yourself 1 facedown encounter card.
@@ -340,14 +404,19 @@ export const KANG_ENCOUNTER_SET = defineAbilities({
   // Fear of Kang — You cannot attack Kang. `RuleSpec cannotAttack` gained `player?: PlayerRef` (docs/phase7-wave2.md
   // §25); `player: you` scopes the restriction to this obligation's own controller (`fear-of-kang-constant.test.ts`
   // now proves the scoped reading, not just the table-wide one the primitive used to be stuck with).
-  "11049.fear-of-kang-constant": constant(rule({ kind: "cannotAttack", target: query("villain", { name: cardName("11001") }), player: you })),
+  "11049.fear-of-kang-constant": constant(
+    rule({ kind: "cannotAttack", target: query("villain", { name: cardName("11001") }), player: you }),
+  ),
   // Alter-Ego Action: discard a random card from your hand → discard this obligation.
   "11049.fear-of-kang-action": alterEgoAction({ cost: discardRandomFromHandCost(1) }, discardThisObligation),
 
   // Light of Centuries Sphere — Hazard (data). When Defeated: discard cards from the top of the encounter deck
   // until a minion is discarded. Put that minion into play engaged with the player who defeated this scheme (the
   // same shape Rampage, 11025, above, uses).
-  "11050.when-defeated": whenDefeated(discardEncounterUntil(query("minion"), "found"), putIntoPlay(chosen("found"), defeatingPlayer)),
+  "11050.when-defeated": whenDefeated(
+    discardEncounterUntil(query("minion"), "found"),
+    putIntoPlay(chosen("found"), defeatingPlayer),
+  ),
 
   // Ancient Grudge — When Revealed: Kang (Master of Time) activates against you (module docblock: read as an
   // attack). If Kang (Master of Time) is not in play, search the encounter deck and discard pile for him and put

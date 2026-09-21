@@ -1,9 +1,22 @@
 import { cardsInPlay, characterProfile, createGame, type GameState, type InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, P1, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  P1,
+  patchInstance,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
-const redSkullVsHeroes = () => startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+const redSkullVsHeroes = () =>
+  startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
 const ADVANCE = "01186";
 
 /**
@@ -16,20 +29,29 @@ const ADVANCE = "01186";
  */
 function stackSideSchemeDeck(state: GameState, code: string): GameState {
   const pile = state.scenarioDecks["side-scheme deck"]!;
-  const id = pile.deck.find((i) => state.instances[i]?.cardId === code) ?? pile.discard.find((i) => state.instances[i]?.cardId === code);
+  const id =
+    pile.deck.find((i) => state.instances[i]?.cardId === code) ??
+    pile.discard.find((i) => state.instances[i]?.cardId === code);
   if (!id) throw new Error(`no ${code} in the side-scheme deck or discard`);
   return {
     ...state,
     scenarioDecks: {
       ...state.scenarioDecks,
-      "side-scheme deck": { ...pile, deck: [id, ...pile.deck.filter((i) => i !== id)], discard: pile.discard.filter((i) => i !== id) },
+      "side-scheme deck": {
+        ...pile,
+        deck: [id, ...pile.deck.filter((i) => i !== id)],
+        discard: pile.discard.filter((i) => i !== id),
+      },
     },
   };
 }
 
 describe("Red Skull scenario", () => {
   it("standalone setup: the Red House is in play, The Sleeper is set aside, the side-scheme deck is built, and the game is legal", () => {
-    const config = wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }], seed: 2026 });
+    const config = wave2Scenario("red-skull", {
+      players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }],
+      seed: 2026,
+    });
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const settled = startWave2Game(config);
@@ -45,7 +67,18 @@ describe("Red Skull scenario", () => {
     const villain = start.villains[0]!.instanceId;
     const baseAtk = characterProfile(start, villain, WAVE2_DEPS)?.atk ?? 0;
     // The Red House is already in play from setup — patch in one more side scheme to prove the count is live.
-    const withExtra = { ...start, villainArea: [...start.villainArea, "fake-side-scheme" as never], instances: { ...start.instances, "fake-side-scheme": { instanceId: "fake-side-scheme", cardId: "04141", home: { kind: "encounterDeck" as const, deckId: "e1" as never } } as never } };
+    const withExtra = {
+      ...start,
+      villainArea: [...start.villainArea, "fake-side-scheme" as never],
+      instances: {
+        ...start.instances,
+        "fake-side-scheme": {
+          instanceId: "fake-side-scheme",
+          cardId: "04141",
+          home: { kind: "encounterDeck" as const, deckId: "e1" as never },
+        } as never,
+      },
+    };
     const afterAtk = characterProfile(withExtra, villain, WAVE2_DEPS)?.atk ?? 0;
     expect(afterAtk).toBe(baseAtk + 1);
   });
@@ -144,7 +177,12 @@ describe("Red Skull scenario", () => {
     const lowThreat = patchInstance(patchInstance(revealed, scheme, { threat: 1 }), identity, { exhausted: false });
     const before = playerOf(lowThreat, P1).playArea.length;
     const settled = settle(
-      runWave2(lowThreat, { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, schemeInstanceId: scheme }),
+      runWave2(lowThreat, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identity,
+        schemeInstanceId: scheme,
+      }),
       firstLegal,
       undefined,
       WAVE2_DEPS,

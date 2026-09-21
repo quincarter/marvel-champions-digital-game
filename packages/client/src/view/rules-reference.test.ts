@@ -3,7 +3,13 @@ import type { GameState } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { cardKeywordNames, everyGlossaryEntry, rulesGlossaryOf, rulesGlossaryPoolOf, villainPhaseOrder } from "./rules-reference.js";
+import {
+  cardKeywordNames,
+  everyGlossaryEntry,
+  rulesGlossaryOf,
+  rulesGlossaryPoolOf,
+  villainPhaseOrder,
+} from "./rules-reference.js";
 
 describe("rulesGlossaryOf", () => {
   test("always includes the three table-state entries `@mc/content` doesn't carry", async () => {

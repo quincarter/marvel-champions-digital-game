@@ -3,7 +3,6 @@ import {
   addCounters,
   aScheme,
   cards,
-  chooseCards,
   chooseTarget,
   chosen,
   constant,
@@ -11,7 +10,6 @@ import {
   dealDamage,
   defineAbilities,
   discardDeckUntil,
-  each,
   eventResult,
   exhaustThis,
   exists,
@@ -71,10 +69,15 @@ export const ANT_PACK_CARDS = defineAbilities({
   "12011.ant-man-constant": constant(gets("hp", countersOn(self, "pym"), query("ally", { self: true }))),
   // Ant-Man — Interrupt: when Ant-Man enters play, place 1 pym counter on him (to a maximum of 4) for each
   // resource overpaid for his cost (docs/phase7-wave2.md §18.3, module docblock).
-  "12011.ant-man-interrupt": forcedInterrupt(on.entersPlay("self"), addCounters("pym", scaled(varOf("overpaid.total"), { max: 4 }), self)),
+  "12011.ant-man-interrupt": forcedInterrupt(
+    on.entersPlay("self"),
+    addCounters("pym", scaled(varOf("overpaid.total"), { max: 4 }), self),
+  ),
 
   // Giant-Man (12012) — Giant-Man gets +2 ATK while he has 3 or more remaining hit points.
-  "12012.giant-man-constant": constant(gets("atk", 2, query("ally", { self: true }), { while: valueAtLeast(remainingHpOf(self), 3) })),
+  "12012.giant-man-constant": constant(
+    gets("atk", 2, query("ally", { self: true }), { while: valueAtLeast(remainingHpOf(self), 3) }),
+  ),
 
   // Ronin (12013) — Ronin gets +1 THW and +1 ATK while an upgrade is attached to them.
   "12013.ronin-constant": constant(
@@ -88,7 +91,10 @@ export const ANT_PACK_CARDS = defineAbilities({
 
   // Call for Aid (12015) — Hero Action: discard cards from the top of your deck until you discard an Avenger
   // ally, then add that ally to your hand.
-  "12015.call-for-aid-action": heroAction(discardDeckUntil(query("ally", { trait: AVENGER }), "found"), moveCards(cards(chosen("found")), "hand")),
+  "12015.call-for-aid-action": heroAction(
+    discardDeckUntil(query("ally", { trait: AVENGER }), "found"),
+    moveCards(cards(chosen("found")), "hand"),
+  ),
 
   // Moxie (12016) — Hero Response: after you change form, your hero gets +1 THW, +1 ATK, +1 DEF until the end of
   // the round.
@@ -113,7 +119,10 @@ export const ANT_PACK_CARDS = defineAbilities({
   // Moment of Triumph (12030, Aggression) — Hero Response: after you attack and defeat an enemy, heal 1 damage
   // from your hero for each point of excess damage dealt to that enemy by that attack. `excessDealt` is the same
   // var overkill's own spillover reads (`resolve/event.ts`), reported on the attack's own event results.
-  "12030.moment-of-triumph-response": heroResponse(on.attacks("self", { defeats: true }), heal(eventResult("excessDealt"), yourIdentity)),
+  "12030.moment-of-triumph-response": heroResponse(
+    on.attacks("self", { defeats: true }),
+    heal(eventResult("excessDealt"), yourIdentity),
+  ),
 
   // Lay Down the Law (12031, Justice) — Hero Response (thwart): after you change form, remove 3 threat from a
   // scheme (4 instead if you paid for this card using a [mental] resource).
@@ -131,7 +140,10 @@ export const ANT_PACK_CARDS = defineAbilities({
   // `optional: true` is exactly "up to" (RRG 1.8 "Choose (Game Element)", p. 12: an effect resolves as much as it
   // can). docs/phase7-wave2.md §18.5.
   "12032.muster-courage-action": heroAction(
-    chooseTarget("brave", query(["hero", "ally"], { controller: "any" }), { optional: true, count: scaled(villainStageNumberOf(), { max: 3 }) }),
+    chooseTarget("brave", query(["hero", "ally"], { controller: "any" }), {
+      optional: true,
+      count: scaled(villainStageNumberOf(), { max: 3 }),
+    }),
     giveTough(chosen("brave")),
   ),
 

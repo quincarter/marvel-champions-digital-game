@@ -15,7 +15,8 @@ export const CYCLOPS_CURATION: PackCuration = {
   pack: {
     name: "Cyclops",
     releaseDate: "2022-09-30",
-    releaseDateSource: "Hall of Heroes Cyclops page (https://hallofheroeslcg.com/scott-summers-cyclops/): \"Release date: September 30, 2022\"",
+    releaseDateSource:
+      'Hall of Heroes Cyclops page (https://hallofheroeslcg.com/scott-summers-cyclops/): "Release date: September 30, 2022"',
   },
   outDir: "src/data/cyclops",
   exportPrefix: "CYCLOPS",

@@ -74,9 +74,20 @@ export type DeckSourceKind = DeckSource["kind"];
  * verdict for this deck at the current seating — null when it can be seated
  * (or is already seated); only `playableOnly` reads it.
  */
-export function heroRosterMatches(deck: Deck, identity: AnyCard | undefined, filter: RosterFilter, blockedBy: string | null = null): boolean {
+export function heroRosterMatches(
+  deck: Deck,
+  identity: AnyCard | undefined,
+  filter: RosterFilter,
+  blockedBy: string | null = null,
+): boolean {
   const hero = identity?.type === "hero_identity" ? (identity as HeroIdentityCard) : undefined;
-  if (!matchesSearch([deck.name, hero?.hero.faceName, hero?.alterEgo.faceName, ...deck.aspects, deck.source.kind], filter.text)) return false;
+  if (
+    !matchesSearch(
+      [deck.name, hero?.hero.faceName, hero?.alterEgo.faceName, ...deck.aspects, deck.source.kind],
+      filter.text,
+    )
+  )
+    return false;
   if (filter.aspect && !deck.aspects.includes(filter.aspect)) return false;
   if (filter.source && deck.source.kind !== filter.source) return false;
   if (filter.playableOnly && blockedBy !== null) return false;
@@ -90,8 +101,19 @@ export function heroRosterMatches(deck: Deck, identity: AnyCard | undefined, fil
  * still finds Breakout even though its row no longer names Wrecker specifically (`scenes/title.ts`'s own row
  * builds a crew-scoped subtitle instead, PLAN.md's "Wrecker can't be played from Title").
  */
-export function scenarioRosterMatches(scenario: Scenario, villains: readonly (AnyCard | undefined)[], encounterSetNames: readonly string[], filter: RosterFilter): boolean {
-  if (!matchesSearch([scenario.name, ...villains.map((villain) => villain?.name), scenario.packCode, ...encounterSetNames], filter.text)) return false;
+export function scenarioRosterMatches(
+  scenario: Scenario,
+  villains: readonly (AnyCard | undefined)[],
+  encounterSetNames: readonly string[],
+  filter: RosterFilter,
+): boolean {
+  if (
+    !matchesSearch(
+      [scenario.name, ...villains.map((villain) => villain?.name), scenario.packCode, ...encounterSetNames],
+      filter.text,
+    )
+  )
+    return false;
   if (filter.product && (scenario.packCode as string) !== filter.product) return false;
   return true;
 }
@@ -107,7 +129,11 @@ export function scenarioRosterMatches(scenario: Scenario, villains: readonly (An
  * top or bottom — "pinned" here means "exempted from the filter", not
  * "reordered".
  */
-export function withSelectionPinned<T>(items: readonly T[], matches: (item: T) => boolean, isSelected: (item: T) => boolean): readonly T[] {
+export function withSelectionPinned<T>(
+  items: readonly T[],
+  matches: (item: T) => boolean,
+  isSelected: (item: T) => boolean,
+): readonly T[] {
   return items.filter((item) => matches(item) || isSelected(item));
 }
 

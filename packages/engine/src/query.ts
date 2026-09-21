@@ -29,11 +29,9 @@ import type {
   ZoneId,
 } from "./state.js";
 
-export const scale = (value: ScalingValue, playerCount: number): number =>
-  value.base + value.perPlayer * playerCount;
+export const scale = (value: ScalingValue, playerCount: number): number => value.base + value.perPlayer * playerCount;
 
-export const getInstance = (state: GameState, id: InstanceId): CardInstance | undefined =>
-  state.instances[id];
+export const getInstance = (state: GameState, id: InstanceId): CardInstance | undefined => state.instances[id];
 
 export function mustInstance(state: GameState, id: InstanceId): CardInstance {
   const instance = state.instances[id];
@@ -41,8 +39,7 @@ export function mustInstance(state: GameState, id: InstanceId): CardInstance {
   return instance;
 }
 
-export const getCard = (state: GameState, cardId: CardId): AnyCard | undefined =>
-  state.cardPool[cardId];
+export const getCard = (state: GameState, cardId: CardId): AnyCard | undefined => state.cardPool[cardId];
 
 export function mustCard(state: GameState, cardId: CardId): AnyCard {
   const card = state.cardPool[cardId];
@@ -83,7 +80,10 @@ export const hasStarIcon = (state: GameState, id: InstanceId): boolean => {
 export type HeroFaceWithTraits = HeroFace & { readonly traits: readonly Trait[] };
 
 /** Every hero face of an identity, by `heroFormIndex`: `hero` first, then the inside faces of a three-sided card. */
-export const heroFacesOf = (card: HeroIdentityCard): readonly HeroFaceWithTraits[] => [card.hero, ...(card.additionalHeroForms ?? [])];
+export const heroFacesOf = (card: HeroIdentityCard): readonly HeroFaceWithTraits[] => [
+  card.hero,
+  ...(card.additionalHeroForms ?? []),
+];
 
 /**
  * The face of this player's identity that is up (docs/phase7-wave2.md §3.2): the hero face `heroFormIndex` names in hero
@@ -93,7 +93,9 @@ export const heroFacesOf = (card: HeroIdentityCard): readonly HeroFaceWithTraits
 export function identityFace(
   state: GameState,
   player: PlayerState,
-): { readonly form: "hero"; readonly face: HeroFaceWithTraits } | { readonly form: "alterEgo"; readonly face: AlterEgoFace & { readonly traits: readonly Trait[] } } {
+):
+  | { readonly form: "hero"; readonly face: HeroFaceWithTraits }
+  | { readonly form: "alterEgo"; readonly face: AlterEgoFace & { readonly traits: readonly Trait[] } } {
   const card = mustCard(state, player.identity.cardId);
   if (card.type !== "hero_identity") throw new EngineInvariantError("identity card is not an identity");
   if (player.identity.form === "alterEgo") return { form: "alterEgo", face: card.alterEgo };
@@ -155,7 +157,8 @@ export const isVillain = (state: GameState, id: InstanceId): boolean => villainO
 export const activeVillain = (state: GameState): VillainState => mustVillain(state, state.activeVillainId);
 
 /** "A villain": every villain still in play, in printed order. */
-export const undefeatedVillains = (state: GameState): readonly VillainState[] => state.villains.filter((villain) => !villain.defeated);
+export const undefeatedVillains = (state: GameState): readonly VillainState[] =>
+  state.villains.filter((villain) => !villain.defeated);
 
 function villainSideOf(state: GameState, villain: VillainState) {
   const card = mustCard(state, villain.cardId);
@@ -194,7 +197,8 @@ export function encounterDeckOf(state: GameState, deckId: EncounterDeckId): Enco
   return deck;
 }
 
-export const activeEncounterDeck = (state: GameState): EncounterDeckState => encounterDeckOf(state, activeEncounterDeckId(state));
+export const activeEncounterDeck = (state: GameState): EncounterDeckState =>
+  encounterDeckOf(state, activeEncounterDeckId(state));
 
 /** A player's separate deck by name (the Invocation deck; docs/phase7-wave1.md §3.5). */
 export function separateDeckOf(state: GameState, playerId: PlayerId, name: string): SeparateDeckState {
@@ -240,14 +244,22 @@ export function discardZoneFor(state: GameState, id: InstanceId): ZoneId {
   const instance = getInstance(state, id);
   if (instance?.home.kind === "player" && instance.ownerId) return { kind: "discard", playerId: instance.ownerId };
   // An Invocation card goes to its own deck's discard pile, never its owner's (RRG 1.8 "Tuck" discards included).
-  if (instance?.home.kind === "separateDeck" && instance.ownerId && getPlayer(state, instance.ownerId)?.separateDecks[instance.home.name]) {
+  if (
+    instance?.home.kind === "separateDeck" &&
+    instance.ownerId &&
+    getPlayer(state, instance.ownerId)?.separateDecks[instance.home.name]
+  ) {
     return { kind: "separateDiscard", playerId: instance.ownerId, name: instance.home.name };
   }
   // A card of a scenario deck with its own discard pile (the side-scheme deck; docs/phase7-wave2.md §3.3).
-  if (instance?.home.kind === "scenarioDeck" && state.scenarioDecks[instance.home.name]) return { kind: "scenarioDiscard", name: instance.home.name };
-  if (instance && instance.home.kind !== "player") return { kind: "encounterDiscard", deckId: homeEncounterDeckId(state, id) };
+  if (instance?.home.kind === "scenarioDeck" && state.scenarioDecks[instance.home.name])
+    return { kind: "scenarioDiscard", name: instance.home.name };
+  if (instance && instance.home.kind !== "player")
+    return { kind: "encounterDiscard", deckId: homeEncounterDeckId(state, id) };
   // A player card whose owner is unknown cannot exist; keep encounter routing as the safe default.
-  return instance?.ownerId ? { kind: "discard", playerId: instance.ownerId } : { kind: "encounterDiscard", deckId: activeEncounterDeckId(state) };
+  return instance?.ownerId
+    ? { kind: "discard", playerId: instance.ownerId }
+    : { kind: "encounterDiscard", deckId: activeEncounterDeckId(state) };
 }
 
 /**
@@ -270,7 +282,8 @@ export function currentName(state: GameState, id: InstanceId): string | undefine
   const card = cardOf(state, id);
   if (!instance || !card || instance.facedownAs) return undefined;
   const villain = villainOf(state, id);
-  if (villain && card.type === "villain") return card.sides.find((side) => side.side === villain.side)?.name ?? card.name;
+  if (villain && card.type === "villain")
+    return card.sides.find((side) => side.side === villain.side)?.name ?? card.name;
   // A main scheme stage with its own title ("Remove the Chronopolis from the game"; `MainSchemeStage.name`).
   const scheme = card.type === "main_scheme" ? mainSchemeStateOf(state, id) : undefined;
   if (scheme) return mainSchemeStageOf(state, scheme).name ?? card.name;
@@ -304,7 +317,12 @@ export const areaOfPlayer = (state: GameState, playerId: PlayerId): GameAreaStat
 export function areaOfCard(state: GameState, id: InstanceId): GameAreaState | null {
   if (state.gameAreas.length === 0) return null;
   for (const area of state.gameAreas) {
-    if (area.mainScheme?.instanceId === id || area.villainIds.includes(id) || area.sideSchemeIds.includes(id) || area.formerSchemeIds.includes(id)) {
+    if (
+      area.mainScheme?.instanceId === id ||
+      area.villainIds.includes(id) ||
+      area.sideSchemeIds.includes(id) ||
+      area.formerSchemeIds.includes(id)
+    ) {
       return area;
     }
   }
@@ -338,7 +356,8 @@ export function mainSchemeStates(state: GameState): readonly MainSchemeState[] {
 
 /** The main scheme state of a main scheme instance, central or an area's. */
 export const mainSchemeStateOf = (state: GameState, id: InstanceId): MainSchemeState | undefined =>
-  mainSchemeStates(state).find((scheme) => scheme.instanceId === id) ?? state.revealedMainSchemes.find((scheme) => scheme.instanceId === id);
+  mainSchemeStates(state).find((scheme) => scheme.instanceId === id) ??
+  state.revealedMainSchemes.find((scheme) => scheme.instanceId === id);
 
 /** "The main scheme" in an area: that area's own stage (null once removed), or the central one outside any area. */
 export const mainSchemeFor = (state: GameState, area: GameAreaState | null): MainSchemeState | null =>
@@ -390,7 +409,10 @@ export function startingThreatOf(state: GameState, id: InstanceId, deps: EngineD
   if (scheme) return mainSchemeValue(state, "startingThreat", deps, scheme);
   const card = cardOf(state, id);
   const printed = card && "startingThreat" in card ? scale(card.startingThreat, state.startingPlayerCount) : 0;
-  return Math.max(0, (baseOverride(state, deps, id, "startingThreat") ?? printed) + statBonus(state, deps, id, "startingThreat"));
+  return Math.max(
+    0,
+    (baseOverride(state, deps, id, "startingThreat") ?? printed) + statBonus(state, deps, id, "startingThreat"),
+  );
 }
 
 export function mainSchemeStageCount(state: GameState, scheme: MainSchemeState = state.mainScheme): number {
@@ -472,7 +494,16 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
     if (!player) return undefined;
     const up = identityFace(state, player);
     return up.form === "hero"
-      ? { kind: "identity", missing: [], atk: up.face.atk, thw: up.face.thw, def: up.face.def, rec: 0, sch: 0, maxHp: card.hp }
+      ? {
+          kind: "identity",
+          missing: [],
+          atk: up.face.atk,
+          thw: up.face.thw,
+          def: up.face.def,
+          rec: 0,
+          sch: 0,
+          maxHp: card.hp,
+        }
       : { kind: "identity", missing: [], atk: 0, thw: 0, def: 0, rec: up.face.rec, sch: 0, maxHp: card.hp };
   }
   if (card.type === "ally") {
@@ -539,11 +570,7 @@ export function printedHandSize(state: GameState, playerId: PlayerId): number {
   return identityFace(state, mustPlayer(state, playerId)).face.handSize;
 }
 
-export function handSize(
-  state: GameState,
-  playerId: PlayerId,
-  deps: EngineDeps = DEFAULT_DEPS,
-): number {
+export function handSize(state: GameState, playerId: PlayerId, deps: EngineDeps = DEFAULT_DEPS): number {
   const player = mustPlayer(state, playerId);
   const printed = identityFace(state, player).face.handSize;
   return Math.max(0, printed + statBonus(state, deps, player.identity.instanceId, "handSize"));
@@ -575,7 +602,8 @@ export function countSchemeIcons(state: GameState, icon: SchemeIcon, area: GameA
 }
 
 /** Two cards (or a player and a card) can interact: same area, or either is in every area (`null`). */
-export const sameGameArea = (a: GameAreaState | null, b: GameAreaState | null): boolean => !a || !b || a.areaId === b.areaId;
+export const sameGameArea = (a: GameAreaState | null, b: GameAreaState | null): boolean =>
+  !a || !b || a.areaId === b.areaId;
 
 export function minionsEngagedWith(state: GameState, playerId: PlayerId): readonly InstanceId[] {
   const player = getPlayer(state, playerId);
@@ -691,4 +719,5 @@ export function titleShowing(state: GameState, id: InstanceId): string | undefin
  * can be initiated (RRG 1.8 "Lasting Effects", p. 26; docs/phase7-wave2.md §13). False in the villain phase and during
  * the end-of-player-phase steps, which belong to no player's turn.
  */
-export const turnInProgress = (state: GameState): boolean => state.step.phase === "player" && state.step.kind === "turn";
+export const turnInProgress = (state: GameState): boolean =>
+  state.step.phase === "player" && state.step.kind === "turn";

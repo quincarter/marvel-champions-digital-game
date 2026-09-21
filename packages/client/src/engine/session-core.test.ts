@@ -31,7 +31,12 @@ function anyLegalCommand(legal: LegalActions, playerId: PlayerId): Command {
   if (legal.kind === "choice") {
     const option = legal.choice.options[0];
     if (!option) throw new Error("pending choice has no options");
-    return { type: "resolveChoice", playerId: legal.choice.playerId, choiceId: legal.choice.choiceId, selectedOptionIds: [option.optionId] };
+    return {
+      type: "resolveChoice",
+      playerId: legal.choice.playerId,
+      choiceId: legal.choice.choiceId,
+      selectedOptionIds: [option.optionId],
+    };
   }
   if (legal.kind !== "turn") throw new Error(`nothing legal for ${playerId} (${legal.kind})`);
   const action = legal.legal.find((a) => a.action.kind === "endTurn") ?? legal.legal[0];
@@ -98,7 +103,9 @@ describe("EngineSessionCore save compatibility", () => {
  */
 describe("EngineSessionCore and CorePlayer.deckId", () => {
   const spiderMan = CORE_STARTER_DECKS.find((d) => d.id === "core-spider-man-justice")!;
-  const spiderManDeckList = spiderMan.cards.flatMap(({ cardId, quantity }) => Array.from({ length: quantity }, () => cardId));
+  const spiderManDeckList = spiderMan.cards.flatMap(({ cardId, quantity }) =>
+    Array.from({ length: quantity }, () => cardId),
+  );
 
   const CUSTOM_SEAT_CONFIG_OLD_SHAPE: SessionConfig = {
     scenarioId: "rhino",
@@ -130,7 +137,9 @@ describe("EngineSessionCore and CorePlayer.deckId", () => {
     const withoutId = await new EngineSessionCore().start(CUSTOM_SEAT_CONFIG_OLD_SHAPE);
     const withId = await new EngineSessionCore().start({
       ...CUSTOM_SEAT_CONFIG_OLD_SHAPE,
-      players: [{ ...CUSTOM_SEAT_CONFIG_OLD_SHAPE.players[0], deckId: "local-deck-42" } as SessionConfig["players"][number]],
+      players: [
+        { ...CUSTOM_SEAT_CONFIG_OLD_SHAPE.players[0], deckId: "local-deck-42" } as SessionConfig["players"][number],
+      ],
     });
 
     expect(withId.snapshot.state).toEqual(withoutId.snapshot.state);

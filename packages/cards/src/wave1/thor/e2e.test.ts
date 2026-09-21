@@ -16,7 +16,9 @@ test("Rhino (standard, Bomb Scare), solo: Thor (Aggression)", () => {
   const created = createGame(config, THOR_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const result = playToOutcome(created.state, THOR_DEPS);
-  console.info(`[wave1 e2e] Rhino (standard) — Thor: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+  console.info(
+    `[wave1 e2e] Rhino (standard) — Thor: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
   expect(result.outcome).not.toBeNull();
   expect(result.rounds).toBeGreaterThanOrEqual(1);
   const replayed = replay(result.session.log, THOR_DEPS);

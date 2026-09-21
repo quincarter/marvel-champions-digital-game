@@ -356,9 +356,24 @@ function phoneLandscapeZones(viewport: Rect, options: LayoutOptions): Zones {
   const activeTab: PhoneTab = options.activeTab ?? "me";
 
   const chrome: Rect = { x: viewport.x, y: viewport.y, width: viewport.width, height: chromeHeight };
-  const actionBar: Rect = { x: viewport.x, y: viewport.y + viewport.height - barHeight, width: viewport.width, height: barHeight };
-  const hand: Rect = { x: viewport.x + railWidth, y: actionBar.y - handHeight, width: viewport.width - railWidth, height: handHeight };
-  const tabs: Rect = { x: viewport.x, y: chrome.y + chrome.height, width: railWidth, height: actionBar.y - (chrome.y + chrome.height) };
+  const actionBar: Rect = {
+    x: viewport.x,
+    y: viewport.y + viewport.height - barHeight,
+    width: viewport.width,
+    height: barHeight,
+  };
+  const hand: Rect = {
+    x: viewport.x + railWidth,
+    y: actionBar.y - handHeight,
+    width: viewport.width - railWidth,
+    height: handHeight,
+  };
+  const tabs: Rect = {
+    x: viewport.x,
+    y: chrome.y + chrome.height,
+    width: railWidth,
+    height: actionBar.y - (chrome.y + chrome.height),
+  };
   const content: Rect = {
     x: tabs.x + tabs.width + gutter,
     y: chrome.y + chrome.height + gutter,
@@ -370,11 +385,19 @@ function phoneLandscapeZones(viewport: Rect, options: LayoutOptions): Zones {
 
   const identityWidth = Math.round(content.width * 0.42);
   const me = on("me", { ...content, width: identityWidth });
-  const playArea = on("me", { ...content, x: content.x + identityWidth + gutter, width: content.width - identityWidth - gutter });
+  const playArea = on("me", {
+    ...content,
+    x: content.x + identityWidth + gutter,
+    width: content.width - identityWidth - gutter,
+  });
 
   const pileWidth = Math.min(150, Math.round(content.width * 0.2));
   const encounter = on("enemies", { ...content, width: pileWidth });
-  const enemies = on("enemies", { ...content, x: content.x + pileWidth + gutter, width: content.width - pileWidth - gutter });
+  const enemies = on("enemies", {
+    ...content,
+    x: content.x + pileWidth + gutter,
+    width: content.width - pileWidth - gutter,
+  });
 
   return {
     chrome,
@@ -564,13 +587,15 @@ export function cardRow(
   }
 
   // Too wide: shrink the cards until the row fits, down to a readable floor.
-  const scale = needed <= bounds.width ? 1 : Math.max(0.35, (bounds.width - gap * (count - 1)) / (widthAtFullHeight * count));
+  const scale =
+    needed <= bounds.width ? 1 : Math.max(0.35, (bounds.width - gap * (count - 1)) / (widthAtFullHeight * count));
   const cardHeight = height * scale;
   const cardWidth = cardHeight * CARD_ASPECT;
   const rowWidth = cardWidth * count + gap * (count - 1);
   // Overlap when even the floor doesn't fit, so the row never leaves the zone.
   const step = rowWidth <= bounds.width ? cardWidth + gap : (bounds.width - cardWidth) / Math.max(1, count - 1);
-  const startX = rowWidth <= bounds.width && options.align !== "start" ? bounds.x + (bounds.width - rowWidth) / 2 : bounds.x;
+  const startX =
+    rowWidth <= bounds.width && options.align !== "start" ? bounds.x + (bounds.width - rowWidth) / 2 : bounds.x;
 
   return Array.from({ length: count }, (_unused, index) => ({
     x: startX + step * index,
@@ -666,7 +691,9 @@ export function badgeExtent(size: number): { readonly above: number; readonly be
 export function statBlockLayout(rect: Rect, count: number, withHp: boolean): StatBlock {
   const hpHeight = withHp ? Math.max(24, Math.min(38, Math.round(rect.width * 0.26))) : 0;
   let size =
-    count > 0 ? Math.max(BADGE_FLOOR, Math.min(BADGE_MAX, Math.floor((rect.width - BADGE_GAP * (count - 1)) / count))) : 0;
+    count > 0
+      ? Math.max(BADGE_FLOOR, Math.min(BADGE_MAX, Math.floor((rect.width - BADGE_GAP * (count - 1)) / count)))
+      : 0;
   const requiredHeight = (candidate: number): number => {
     if (count === 0) return hpHeight;
     const { above, below } = badgeExtent(candidate);

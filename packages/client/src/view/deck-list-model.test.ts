@@ -62,7 +62,11 @@ describe("deckOptionOf", () => {
 
 describe("deckOptionsOf", () => {
   test("precons come first, then saved decks, each carrying its own status", () => {
-    const saved: Deck = { ...deckFromStarterDeck(CORE_STARTER_DECKS[1]!, CORE_POOL_VERSION), id: deckId("saved:1"), source: { kind: "userBuilt", createdAt: "2026-09-13T00:00:00.000Z" } };
+    const saved: Deck = {
+      ...deckFromStarterDeck(CORE_STARTER_DECKS[1]!, CORE_POOL_VERSION),
+      id: deckId("saved:1"),
+      source: { kind: "userBuilt", createdAt: "2026-09-13T00:00:00.000Z" },
+    };
     const options = deckOptionsOf([saved], CORE_CARDS, CORE_POOL_VERSION, CORE_DEPS);
     expect(options).toHaveLength(POOL_STARTER_DECKS.length + 1);
     expect(options.at(-1)!.deck.id).toBe(saved.id);

@@ -44,6 +44,10 @@ export const simultaneousOrderer = (state: GameState): PlayerId => state.firstPl
  * without saying "choose"; a "choose" on an encounter card is the resolving
  * player's own decision (RRG "Choose").
  */
-export function effectChoiceAuthority(state: GameState, sourceId: InstanceId | null, chooser: PlayerRef): DecisionAuthority {
+export function effectChoiceAuthority(
+  state: GameState,
+  sourceId: InstanceId | null,
+  chooser: PlayerRef,
+): DecisionAuthority {
   return chooser.kind === "firstPlayer" && isEncounterSide(state, sourceId) ? "firstPlayerTargets" : "player";
 }

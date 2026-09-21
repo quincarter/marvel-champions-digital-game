@@ -10,7 +10,11 @@ import {
 } from "./choice-focus.js";
 import { stepFocus } from "./focus.js";
 
-const options = ["a", "b", "c", "d"].map((optionId) => ({ optionId, label: optionId, ref: { kind: "none" } })) as unknown as PendingChoice["options"];
+const options = ["a", "b", "c", "d"].map((optionId) => ({
+  optionId,
+  label: optionId,
+  ref: { kind: "none" },
+})) as unknown as PendingChoice["options"];
 
 describe("choice sheet Confirm", () => {
   const one = options.slice(0, 1);

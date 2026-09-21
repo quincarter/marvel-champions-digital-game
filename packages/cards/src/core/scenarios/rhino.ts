@@ -56,13 +56,20 @@ export const RHINO = defineAbilities({
   ),
   // Charge — (+3 ATK printed as a stat modifier) [star] Forced Interrupt: When Rhino attacks, the attack gains overkill.
   // At the end of this attack, discard Charge.
-  "01099.charge-forced-interrupt": forcedInterrupt(when.villainAttacks(), modifyAttack({ overkill: true }), atEndOfAttack(discard(self))),
+  "01099.charge-forced-interrupt": forcedInterrupt(
+    when.villainAttacks(),
+    modifyAttack({ overkill: true }),
+    atEndOfAttack(discard(self)),
+  ),
   // Enhanced Ivory Horn — Hero Action: Spend [physical][physical][physical] resources → discard this card.
   "01100.enhanced-ivory-horn-action": heroAction({ cost: spend({ physical: 3 }) }, discard(self)),
   // Shocker — When Revealed: Deal 1 damage to each hero.
   "01103.when-revealed": whenRevealed(dealDamage(1, each(query("hero")))),
   // Hard to Keep Down — When Revealed: Rhino heals 4 damage. If no damage was healed this way, this card gains surge.
-  "01104.when-revealed": whenRevealed(heal(4, theVillain, { bind: "healed" }), ifThen(not(varAtLeast("healed.amount")), surge())),
+  "01104.when-revealed": whenRevealed(
+    heal(4, theVillain, { bind: "healed" }),
+    ifThen(not(varAtLeast("healed.amount")), surge()),
+  ),
   // "I'm Tough!" — When Revealed: Give Rhino a tough status card. If Rhino already has a tough status card, this card gains surge.
   "01105.when-revealed": whenRevealed(ifThen(hasStatus(theVillain, "tough"), surge(), giveTough(theVillain))),
   // Stampede — When Revealed (Alter-Ego): This card gains surge.

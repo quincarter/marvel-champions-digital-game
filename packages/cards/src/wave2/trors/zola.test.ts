@@ -1,10 +1,11 @@
 import { cardsInPlay, characterProfile, createGame, type GameState } from "@mc/engine";
 import { cardId } from "@mc/content";
-import { endTurn, firstLegal, identityOf, inst, P1, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import { endTurn, firstLegal, identityOf, inst, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
-const zolaVsHeroes = () => startWave2Game(wave2Scenario("zola", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+const zolaVsHeroes = () =>
+  startWave2Game(wave2Scenario("zola", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
 const ADVANCE = "01186";
 
 /**
@@ -20,7 +21,10 @@ function withoutBioServant(state: GameState): GameState {
 
 describe("Zola scenario", () => {
   it("standalone setup: Hydra Prison is revealed, each player has a Bio-Servant engaged with them, and the game is legal", () => {
-    const config = wave2Scenario("zola", { players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }], seed: 2026 });
+    const config = wave2Scenario("zola", {
+      players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }],
+      seed: 2026,
+    });
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const settled = startWave2Game(config);
@@ -53,14 +57,23 @@ describe("Zola scenario", () => {
       instances: {
         ...start.instances,
         [bioServant]: { ...start.instances[bioServant]!, attachments: ["fake-attachment-1" as never] },
-        "fake-attachment-1": { instanceId: "fake-attachment-1", cardId: cardId("04117"), attachedTo: bioServant, home: { kind: "encounterDeck" as const, deckId: "e1" as never } } as never,
+        "fake-attachment-1": {
+          instanceId: "fake-attachment-1",
+          cardId: cardId("04117"),
+          attachedTo: bioServant,
+          home: { kind: "encounterDeck" as const, deckId: "e1" as never },
+        } as never,
       },
     };
     expect((characterProfile(attached, bioServant, WAVE2_DEPS)?.atk ?? 0) - baseAtk).toBe(1);
   });
 
   it("Defensive Programming / Pain Inhibitors / Neurological Implants: all grant +2 hit points to their host", () => {
-    for (const id of ["04117.defensive-programming-constant", "04118.pain-inhibitors-constant", "04119.neurological-implants-constant"] as const) {
+    for (const id of [
+      "04117.defensive-programming-constant",
+      "04118.pain-inhibitors-constant",
+      "04119.neurological-implants-constant",
+    ] as const) {
       expect(WAVE2_DEPS.abilities[id], id).toBeDefined();
     }
   });

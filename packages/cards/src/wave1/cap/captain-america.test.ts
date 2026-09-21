@@ -23,7 +23,8 @@ import { wave1Scenario } from "../setup.js";
 import { runWave1, startWave1Game, WAVE1_DEPS } from "../testing.js";
 
 // Real wave 1 content: the Captain America (Leadership) precon against Rhino, standard, solo.
-const capVsRhino = () => startWave1Game(wave1Scenario("rhino", { players: [{ starterDeckId: "cap-leadership" }], seed: 11 }));
+const capVsRhino = () =>
+  startWave1Game(wave1Scenario("rhino", { players: [{ starterDeckId: "cap-leadership" }], seed: 11 }));
 // A neutral boost card (0 icons, no boost ability) — put on top of an obligation/nemesis card being stacked so
 // the villain phase's boost draw consumes it first, leaving the real target on top for the player's deal step
 // (matches `packages/cards/src/core/heroes/spider-man.test.ts`'s `ADVANCE`, same Rhino encounter pool).
@@ -32,7 +33,7 @@ const ADVANCE = "01186";
 const HARD_TO_KEEP_DOWN = "01104";
 
 describe("Captain America kit", () => {
-  it("\"I Can Do This All Day!\": discards 1 card, readies Captain America, once per round", () => {
+  it('"I Can Do This All Day!": discards 1 card, readies Captain America, once per round', () => {
     const start = capVsRhino();
     const hero = runWave1(start, toHero());
     const identity = identityOf(hero);
@@ -45,7 +46,11 @@ describe("Captain America kit", () => {
     // Limit once per round: cannot use again this round even once re-exhausted.
     const exhaustedAgain = patchInstance(after, identity, { exhausted: true });
     const discardedAgain = playerOf(exhaustedAgain, P1).hand[0]!;
-    const rejected = applyCommand(exhaustedAgain, use(P1, identity, "03001a.i-can-do-this-all-day", [], { discard: [discardedAgain] }), WAVE1_DEPS);
+    const rejected = applyCommand(
+      exhaustedAgain,
+      use(P1, identity, "03001a.i-can-do-this-all-day", [], { discard: [discardedAgain] }),
+      WAVE1_DEPS,
+    );
     expect(rejected.ok).toBe(false);
   });
 
@@ -57,14 +62,23 @@ describe("Captain America kit", () => {
     // Agent 13's printed cost is 3; paying only 2 proves the first-ally-this-round discount applied. Her own
     // Response ("remove 2 threat from a scheme") leaves a mandatory chooseTarget pending (only the main scheme
     // is a legal target this early) — settle it before issuing the next command.
-    const after1 = settle(runWave1(given.state, play(P1, agent13, payWith(given.state, P1, 2, [agent13, falcon]))), firstLegal, undefined, WAVE1_DEPS);
+    const after1 = settle(
+      runWave1(given.state, play(P1, agent13, payWith(given.state, P1, 2, [agent13, falcon]))),
+      firstLegal,
+      undefined,
+      WAVE1_DEPS,
+    );
     expect(playerOf(after1, P1).playArea).toContain(agent13);
 
     // Falcon's printed cost is 4; paying only 3 must fail (no discount left this round) — excluding The Power of
     // Leadership (03018) too, since it doubles its own value while paying for a Leadership card (Falcon's
     // aspect) and would otherwise make 3 cards worth 4 and mask the missing discount.
     const powerOfLeadership = instancesOf(after1, "03018");
-    const underpaid = applyCommand(after1, play(P1, falcon, payWith(after1, P1, 3, [falcon, ...powerOfLeadership])), WAVE1_DEPS);
+    const underpaid = applyCommand(
+      after1,
+      play(P1, falcon, payWith(after1, P1, 3, [falcon, ...powerOfLeadership])),
+      WAVE1_DEPS,
+    );
     expect(underpaid.ok).toBe(false);
     // … but paying the full 4 succeeds.
     const after2 = runWave1(after1, play(P1, falcon, payWith(after1, P1, 4, [falcon])));
@@ -178,8 +192,18 @@ describe("Captain America kit", () => {
     // Agent 13's and Falcon's Responses are optional triggered abilities (RRG "Response"): entering play leaves
     // a `chooseTriggers` choice pending even though the printed text has no "you may" — settle it after each play
     // (declining is a legal answer) before the next command.
-    const withAgent13 = settle(runWave1(given.state, play(P1, agent13, payWith(given.state, P1, 3, named))), firstLegal, undefined, WAVE1_DEPS);
-    const withBoth = settle(runWave1(withAgent13, play(P1, falcon, payWith(withAgent13, P1, 4, named))), firstLegal, undefined, WAVE1_DEPS);
+    const withAgent13 = settle(
+      runWave1(given.state, play(P1, agent13, payWith(given.state, P1, 3, named))),
+      firstLegal,
+      undefined,
+      WAVE1_DEPS,
+    );
+    const withBoth = settle(
+      runWave1(withAgent13, play(P1, falcon, payWith(withAgent13, P1, 4, named))),
+      firstLegal,
+      undefined,
+      WAVE1_DEPS,
+    );
     const handBefore = playerOf(withBoth, P1).hand.length;
     const after = runWave1(withBoth, play(P1, strength, [], { costChoices: { exhausted: [agent13, falcon] } }));
     expect(inst(after, agent13).exhausted).toBe(true);

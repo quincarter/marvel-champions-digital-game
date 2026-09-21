@@ -15,7 +15,13 @@ import { WAVE1_DEPS } from "@mc/cards";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
-import { beginDiscardChoice, discardCandidates, discardChoiceView, discardCostOf, toggleDiscardChoice } from "./discard-choice-model.js";
+import {
+  beginDiscardChoice,
+  discardCandidates,
+  discardChoiceView,
+  discardCostOf,
+  toggleDiscardChoice,
+} from "./discard-choice-model.js";
 
 // Seed 1 deals Shield Toss (03006), Captain America's Shield (03009, also found by his own
 // Setup) and several spare cards into the opening hand — found by brute search, recorded here
@@ -36,7 +42,9 @@ async function intoTurnWithShieldInPlay(): Promise<void> {
   store = new SessionStore(new LocalEngineHost());
   await store.start(CAP_VS_RHINO);
   for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
-    const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+    const { choice } = store.state.legal.actions as {
+      choice: { options: readonly { optionId: string }[]; minSelections: number };
+    };
     await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
   }
   let legal = store.state.legal?.actions;
@@ -146,7 +154,9 @@ describe("discard-choice mode", () => {
     // legal answer — resolve it the same way any other pending choice is.
     let legal = store.state.legal?.actions;
     while (legal?.kind === "choice") {
-      await store.resolveChoice(legal.choice.options.slice(0, legal.choice.maxSelections).map((option) => option.optionId));
+      await store.resolveChoice(
+        legal.choice.options.slice(0, legal.choice.maxSelections).map((option) => option.optionId),
+      );
       legal = store.state.legal?.actions;
     }
 

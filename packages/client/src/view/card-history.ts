@@ -151,9 +151,15 @@ export interface CardHistoryLine {
 function siblingWording(event: GameEvent, batch: readonly GameEvent[], state: GameState): string | null {
   if (event.type === "cardDrawn") return "Drawn.";
   if (event.type === "cardDiscardedFromHand") {
-    const playedFor = batch.find((sibling): sibling is Extract<GameEvent, { type: "cardPlayed" }> => sibling.type === "cardPlayed" && sibling.instanceId !== event.instanceId);
+    const playedFor = batch.find(
+      (sibling): sibling is Extract<GameEvent, { type: "cardPlayed" }> =>
+        sibling.type === "cardPlayed" && sibling.instanceId !== event.instanceId,
+    );
     if (playedFor) return `Discarded to pay for ${cardName(state, playedFor.instanceId)}.`;
-    const abilityFor = batch.find((sibling): sibling is Extract<GameEvent, { type: "abilityResolved" }> => sibling.type === "abilityResolved" && sibling.instanceId !== event.instanceId);
+    const abilityFor = batch.find(
+      (sibling): sibling is Extract<GameEvent, { type: "abilityResolved" }> =>
+        sibling.type === "abilityResolved" && sibling.instanceId !== event.instanceId,
+    );
     if (abilityFor) return `Discarded to pay for ${cardName(state, abilityFor.instanceId)}'s ability.`;
     return "Discarded to pay a cost.";
   }
@@ -178,7 +184,8 @@ export function cardHistoryOf(
     const parts: string[] = [];
     for (const event of entry.events) {
       if (!eventRefs(event).includes(instanceId)) continue;
-      const text = siblingWording(event, entry.events, state) ?? logLine(event, state, perspectiveId, deps)?.text ?? null;
+      const text =
+        siblingWording(event, entry.events, state) ?? logLine(event, state, perspectiveId, deps)?.text ?? null;
       if (text && !parts.includes(text)) parts.push(text);
     }
     if (parts.length === 0) continue;

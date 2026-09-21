@@ -8,6 +8,9 @@
 go = "latest"
 pnpm = "11.24"
 uv = "0.12.11"
+node = "24"
+# The desktop build (Tauri) needs cargo on PATH; mise drives it through rustup.
+rust = "stable"
 
 [tasks.setup]
 description = "Install workspace dependencies"
@@ -33,10 +36,30 @@ run = "pnpm test"
 description = "Typecheck every package"
 run = "pnpm typecheck"
 
+[tasks.lint]
+description = "Lint every package with oxlint (.oxlintrc.json). `mise run lint -- --fix` applies the safe fixes"
+run = "pnpm lint"
+
+[tasks.fmt]
+description = "Format the whole tree with oxfmt (.oxfmtrc.json). `mise run fmt-check` only reports"
+run = "pnpm fmt"
+
+[tasks.fmt-check]
+description = "Report files oxfmt would change, without writing"
+run = "pnpm fmt:check"
+
 [tasks.check]
-description = "Everything CI runs: typecheck, then tests, then build"
+description = "Everything CI runs: lint, format check, typecheck, then tests, then build"
 # A sequential array, so a failure stops the run and the output stays readable.
-run = ["pnpm typecheck", "pnpm test", "pnpm build"]
+# The pre-commit hook (.githooks/pre-commit, installed by `pnpm install`) runs the
+# first two on the staged files only; this runs them over the whole tree.
+run = [
+  "pnpm lint",
+  "pnpm fmt:check",
+  "pnpm typecheck",
+  "pnpm test",
+  "pnpm build",
+]
 
 [tasks.ingest]
 description = "Regenerate card data. Pass flags after --, e.g. mise run ingest -- --pack core --offline"
@@ -50,14 +73,17 @@ run = "uv run scripts/scrape_campaign_markdown.py"
 description = "Remove every package's build output"
 run = "pnpm clean"
 
+# Sequential arrays rather than `a && b`: mise runs inline tasks through sh on macOS/Linux and cmd.exe on
+# Windows, and an array is the one form that means "stop at the first failure" in both.
+
 [tasks.start]
 description = "Clean Start"
-run = "mise clean && mise build && mise preview"
+run = ["mise run clean", "mise run build", "mise run preview"]
 
 [tasks.start-dev]
 description = "Clean Start Dev Build"
-run = "mise clean && mise build && mise dev"
+run = ["mise run clean", "mise run build", "mise run dev"]
 
 [tasks.ship-it]
-description = "Build all the release assets"
-run = "pnpm desktop:build && pnpm android:build"
+description = "Build the release assets this machine can make: the desktop installers for its own OS (Tauri bundles with the host toolchain: .app/.dmg on macOS, .msi/-setup.exe on Windows, .deb/.rpm/.AppImage on Linux), then the signed Android APK"
+run = ["pnpm desktop:build", "pnpm android:build"]

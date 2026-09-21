@@ -6,7 +6,10 @@ import { expectNotResolved, expectResolved, traceAbilities } from "./trace.js";
 
 const fakeDeps = (ids: readonly string[]): EngineDeps => ({
   abilities: Object.fromEntries(
-    ids.map((id) => [id, { trigger: { kind: "action" }, effects: [{ kind: "drawCards", count: 1 }] } as unknown as AbilityDefinition]),
+    ids.map((id) => [
+      id,
+      { trigger: { kind: "action" }, effects: [{ kind: "drawCards", count: 1 }] } as unknown as AbilityDefinition,
+    ]),
   ),
 });
 
@@ -49,7 +52,9 @@ describe("expectResolved, against a real game", () => {
   // 01166 and 01190, and Spider-Sense is *offered* as an interrupt (`firstLegal` declines it) without firing.
   // That pair is the whole point of the helper: offered is not fired.
   const oneRound = () => {
-    const start = startCoreGame(coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }));
+    const start = startCoreGame(
+      coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }),
+    );
     const { deps, trace } = traceAbilities(CORE_DEPS);
     trace.reset();
     settle(runWith(deps, start, toHero(), endTurn()), firstLegal, undefined, deps);
@@ -63,7 +68,9 @@ describe("expectResolved, against a real game", () => {
   it("fails for an ability that was offered but never fired, and says so", () => {
     const trace = oneRound();
     expect(trace.considered()).toContain("01001a.spider-sense");
-    expect(() => expectResolved(trace, "01001a.spider-sense")).toThrow(/offered as a legal action or checked for a trigger/);
+    expect(() => expectResolved(trace, "01001a.spider-sense")).toThrow(
+      /offered as a legal action or checked for a trigger/,
+    );
   });
 
   it("fails differently for an ability whose card never reached play", () => {

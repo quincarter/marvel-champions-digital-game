@@ -2,7 +2,13 @@ import { describe, expect, test } from "vitest";
 import { CORE_CARDS } from "@mc/content";
 import { CORE_DEPS, coreScenario } from "@mc/cards";
 import { applyCommand, createGame, playerId, type GameState } from "@mc/engine";
-import { advanceSetupWalkthroughLog, emptySetupWalkthroughLog, setupWalkthroughViewOf, staticSetupLines, type SetupWalkthroughLog } from "./setup-walkthrough.js";
+import {
+  advanceSetupWalkthroughLog,
+  emptySetupWalkthroughLog,
+  setupWalkthroughViewOf,
+  staticSetupLines,
+  type SetupWalkthroughLog,
+} from "./setup-walkthrough.js";
 
 const CARDS_BY_ID = new Map(CORE_CARDS.map((card) => [card.id as string, card]));
 
@@ -18,7 +24,13 @@ function fourSeatGame(): { state: GameState; log: SetupWalkthroughLog } {
   });
   const result = createGame(config, CORE_DEPS);
   if (!result.ok) throw new Error(result.error.message);
-  const log = advanceSetupWalkthroughLog(emptySetupWalkthroughLog(), result.events, result.state, result.state.pendingChoice?.playerId ?? null, CORE_DEPS);
+  const log = advanceSetupWalkthroughLog(
+    emptySetupWalkthroughLog(),
+    result.events,
+    result.state,
+    result.state.pendingChoice?.playerId ?? null,
+    CORE_DEPS,
+  );
   return { state: result.state, log };
 }
 
@@ -26,7 +38,11 @@ describe("setupWalkthroughViewOf: right after Deal it out (Rhino, 4 seats)", () 
   const { state, log } = fourSeatGame();
 
   test("stops at the first seat's mulligan, not further", () => {
-    expect(state.step).toEqual({ phase: "setup", kind: "mulligan", remainingPlayerIds: [playerId("p1"), playerId("p2"), playerId("p3"), playerId("p4")] });
+    expect(state.step).toEqual({
+      phase: "setup",
+      kind: "mulligan",
+      remainingPlayerIds: [playerId("p1"), playerId("p2"), playerId("p3"), playerId("p4")],
+    });
   });
 
   test("checklist: placed and starting threat are already done; mulligan is current; first player token is still ahead", () => {
@@ -40,7 +56,12 @@ describe("setupWalkthroughViewOf: right after Deal it out (Rhino, 4 seats)", () 
 
   test("all four seats are listed, in the engine's own order, none complete yet", () => {
     const view = setupWalkthroughViewOf(state, log, CORE_DEPS, CARDS_BY_ID);
-    expect(view.seats.map((seat) => seat.playerId)).toEqual([playerId("p1"), playerId("p2"), playerId("p3"), playerId("p4")]);
+    expect(view.seats.map((seat) => seat.playerId)).toEqual([
+      playerId("p1"),
+      playerId("p2"),
+      playerId("p3"),
+      playerId("p4"),
+    ]);
     expect(view.seats[0]!.state).toBe("deciding");
     expect(view.seats[0]!.statusLabel).toBe("Deciding");
     for (const seat of view.seats.slice(1)) {
@@ -78,9 +99,19 @@ describe("setupWalkthroughViewOf: after the first seat keeps its hand", () => {
   test("the first seat reads 'kept N', the second becomes the decider", () => {
     const { state, log } = fourSeatGame();
     const choiceId = state.pendingChoice!.choiceId;
-    const result = applyCommand(state, { type: "resolveChoice", playerId: playerId("p1"), choiceId, selectedOptionIds: [] }, CORE_DEPS);
+    const result = applyCommand(
+      state,
+      { type: "resolveChoice", playerId: playerId("p1"), choiceId, selectedOptionIds: [] },
+      CORE_DEPS,
+    );
     if (!result.ok) throw new Error(result.error.message);
-    const nextLog = advanceSetupWalkthroughLog(log, result.events, result.state, result.state.pendingChoice?.playerId ?? null, CORE_DEPS);
+    const nextLog = advanceSetupWalkthroughLog(
+      log,
+      result.events,
+      result.state,
+      result.state.pendingChoice?.playerId ?? null,
+      CORE_DEPS,
+    );
     const view = setupWalkthroughViewOf(result.state, nextLog, CORE_DEPS, CARDS_BY_ID);
 
     const first = view.seats[0]!;
@@ -98,9 +129,19 @@ describe("setupWalkthroughViewOf: after the first seat mulligans some cards", ()
     const { state, log } = fourSeatGame();
     const choice = state.pendingChoice!;
     const toDiscard = choice.options.slice(0, 2).map((option) => option.optionId);
-    const result = applyCommand(state, { type: "resolveChoice", playerId: playerId("p1"), choiceId: choice.choiceId, selectedOptionIds: toDiscard }, CORE_DEPS);
+    const result = applyCommand(
+      state,
+      { type: "resolveChoice", playerId: playerId("p1"), choiceId: choice.choiceId, selectedOptionIds: toDiscard },
+      CORE_DEPS,
+    );
     if (!result.ok) throw new Error(result.error.message);
-    const nextLog = advanceSetupWalkthroughLog(log, result.events, result.state, result.state.pendingChoice?.playerId ?? null, CORE_DEPS);
+    const nextLog = advanceSetupWalkthroughLog(
+      log,
+      result.events,
+      result.state,
+      result.state.pendingChoice?.playerId ?? null,
+      CORE_DEPS,
+    );
     const view = setupWalkthroughViewOf(result.state, nextLog, CORE_DEPS, CARDS_BY_ID);
 
     const first = view.seats[0]!;
@@ -127,7 +168,7 @@ describe("staticSetupLines (fidelity pass, 2026-09-18): the setup log's own pref
     const texts = lines.map((line) => line.text);
     expect(texts.some((text) => text.startsWith("Seed ") && text.includes("encounter deck shuffled"))).toBe(true);
     expect(texts.some((text) => /^Rhino placed at stage 1 — \d+ HP$/.test(text))).toBe(true);
-    expect(texts.some((text) => /starting threat$/.test(text))).toBe(true);
+    expect(texts.some((text) => text.endsWith("starting threat"))).toBe(true);
     expect(texts.some((text) => text === "4 obligations shuffled into the encounter deck")).toBe(true);
     expect(texts.some((text) => /^Opening hands dealt: \d+ \/ \d+ \/ \d+ \/ \d+$/.test(text))).toBe(true);
   });
@@ -149,7 +190,9 @@ describe("staticSetupLines (fidelity pass, 2026-09-18): the setup log's own pref
     const { state, log } = fourSeatGame();
     const view = setupWalkthroughViewOf(state, log, CORE_DEPS, CARDS_BY_ID);
     const staticCount = staticSetupLines(state, CORE_DEPS, CARDS_BY_ID, log.seed).length;
-    expect(view.setupLog.slice(0, staticCount).map((line) => line.text)).toEqual(staticSetupLines(state, CORE_DEPS, CARDS_BY_ID, log.seed).map((line) => line.text));
+    expect(view.setupLog.slice(0, staticCount).map((line) => line.text)).toEqual(
+      staticSetupLines(state, CORE_DEPS, CARDS_BY_ID, log.seed).map((line) => line.text),
+    );
     // Rhino has no setup-time reveal, so nothing else has happened yet: the static prefix is the whole log.
     expect(view.setupLog).toHaveLength(staticCount);
   });

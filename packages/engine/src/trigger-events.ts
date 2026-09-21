@@ -97,7 +97,12 @@ export type TriggerEventBody =
       /** "That attack does not get a boost card" (Escaped Convict, I See You): step 1 deals nothing. */
       readonly noBoost?: boolean;
     }
-  | { readonly kind: "enemyScheme"; readonly enemyInstanceId: InstanceId; readonly playerId: PlayerId; readonly noBoost?: boolean }
+  | {
+      readonly kind: "enemyScheme";
+      readonly enemyInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly noBoost?: boolean;
+    }
   /**
    * A boost card was turned faceup during an activation (RRG 1.8 "Boost", p. 11), before its "Boost" ability resolves
    * and its icons are added: "When a boost card is turned faceup" (Attacrobatics, an interrupt) and "After a boost card is
@@ -186,7 +191,11 @@ export type TriggerEventBody =
       readonly kind: "characterDefeated";
       readonly instanceId: InstanceId;
       readonly parentFrameId?: FrameId | null;
-      readonly overkill?: { readonly amount: number; readonly toInstanceId: InstanceId; readonly sourceInstanceId: InstanceId | null };
+      readonly overkill?: {
+        readonly amount: number;
+        readonly toInstanceId: InstanceId;
+        readonly sourceInstanceId: InstanceId | null;
+      };
       /**
        * The player whose card dealt the defeating damage ("after *you* defeat a
        * minion"), when the defeat came from a damage event with a player-controlled
@@ -234,7 +243,12 @@ export type TriggerEventBody =
    * 1 for this count" (Scarlet Witch's Crest) interrupt it with `replaceBoostCount` / `adjustBoostCount`. Announced only
    * when an ability could react. Counts made by card effects (Hex Bolt) are not announced yet (§4.8).
    */
-  | { readonly kind: "boostIconsCounting"; readonly enemyInstanceId: InstanceId; readonly cardInstanceId: InstanceId; readonly playerId: PlayerId }
+  | {
+      readonly kind: "boostIconsCounting";
+      readonly enemyInstanceId: InstanceId;
+      readonly cardInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+    }
   /**
    * A character used a basic power (docs/phase7-wave2.md §3.11): "After you use a basic power" (Quicksilver's Super
    * Speed; Captain Marvel ally 04032). FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61): a stunned attack or a
@@ -306,7 +320,12 @@ export type TriggerEventBody =
    * An ability resolved: it was triggered and its effects resolved (RRG 1.8 "Resolve", p. 37). "After you resolve the
    * ability of a Preparation card you control" (Black Widow; Synth-Suit too, ruling Feb 28, 2026 (2)).
    */
-  | { readonly kind: "abilityResolved"; readonly instanceId: InstanceId; readonly abilityId: AbilityId; readonly controllerId: PlayerId | null }
+  | {
+      readonly kind: "abilityResolved";
+      readonly instanceId: InstanceId;
+      readonly abilityId: AbilityId;
+      readonly controllerId: PlayerId | null;
+    }
   /** A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened. */
   | { readonly kind: "cardFlipped"; readonly instanceId: InstanceId }
   /** A player changed form (by the once-per-round flip or a card effect): "after you change to this form". */
@@ -418,11 +437,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "thwart":
       return of([event.thwarterInstanceId], [event.schemeInstanceId], [event.playerId]);
     case "enemyAttack":
-      return of(
-        [event.enemyInstanceId],
-        [event.targetInstanceId],
-        [event.attackedPlayerId, event.targetPlayerId],
-      );
+      return of([event.enemyInstanceId], [event.targetInstanceId], [event.attackedPlayerId, event.targetPlayerId]);
     case "enemyScheme":
       return of([event.enemyInstanceId], [], [event.playerId]);
     case "characterAttacked":

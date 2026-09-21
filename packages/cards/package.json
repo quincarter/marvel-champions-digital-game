@@ -2,8 +2,8 @@
   "name": "@mc/cards",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Card ability scripts: the ability DSL (compiles to plain-data AbilityDefinitions), per-set ability modules, the assembled registry, and scenario/deck builders.",
+  "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

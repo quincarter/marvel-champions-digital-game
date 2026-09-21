@@ -1,5 +1,11 @@
 import { describe, expect, test } from "vitest";
-import { glossaryCardHeight, glossaryCellRect, glossaryGridColumns, glossaryRowHeight, glossaryRowHeights } from "./rules-glossary-grid.js";
+import {
+  glossaryCardHeight,
+  glossaryCellRect,
+  glossaryGridColumns,
+  glossaryRowHeight,
+  glossaryRowHeights,
+} from "./rules-glossary-grid.js";
 
 describe("glossaryGridColumns", () => {
   test("one column on a phone-width panel", () => {
@@ -33,7 +39,11 @@ describe("glossaryCardHeight / glossaryRowHeight", () => {
   test("a longer definition needs more height than a shorter one at the same width", () => {
     const short = glossaryCardHeight({ definition: "Short.", cardRefCount: 0 }, 300);
     const long = glossaryCardHeight(
-      { definition: "A much longer definition that wraps across several lines at this column width, needing real room to read without clipping.", cardRefCount: 0 },
+      {
+        definition:
+          "A much longer definition that wraps across several lines at this column width, needing real room to read without clipping.",
+        cardRefCount: 0,
+      },
       300,
     );
     expect(long).toBeGreaterThan(short);
@@ -46,15 +56,25 @@ describe("glossaryCardHeight / glossaryRowHeight", () => {
   });
 
   test("a narrower cell needs at least as much height for the same text (more wrapped lines, never fewer)", () => {
-    const wide = glossaryCardHeight({ definition: "A definition long enough to wrap at least once at a narrow width.", cardRefCount: 0 }, 380);
-    const narrow = glossaryCardHeight({ definition: "A definition long enough to wrap at least once at a narrow width.", cardRefCount: 0 }, 260);
+    const wide = glossaryCardHeight(
+      { definition: "A definition long enough to wrap at least once at a narrow width.", cardRefCount: 0 },
+      380,
+    );
+    const narrow = glossaryCardHeight(
+      { definition: "A definition long enough to wrap at least once at a narrow width.", cardRefCount: 0 },
+      260,
+    );
     expect(narrow).toBeGreaterThanOrEqual(wide);
   });
 
   test("glossaryRowHeight is the tallest entry among several, never less than the minimum", () => {
     const entries = [
       { definition: "Short.", cardRefCount: 0 },
-      { definition: "A longer one that wraps more than once and needs real room to read in full without clipping into the row below.", cardRefCount: 2 },
+      {
+        definition:
+          "A longer one that wraps more than once and needs real room to read in full without clipping into the row below.",
+        cardRefCount: 2,
+      },
     ];
     const height = glossaryRowHeight(entries, 300);
     expect(height).toBe(Math.max(...entries.map((e) => glossaryCardHeight(e, 300))));
@@ -65,7 +85,11 @@ describe("glossaryCardHeight / glossaryRowHeight", () => {
 describe("glossaryRowHeights", () => {
   test("one height per row of `columns` entries, not one height for the whole tab", () => {
     const short = { definition: "Short.", cardRefCount: 0 };
-    const tall = { definition: "A much longer definition that wraps across several lines at this column width, needing real room to read without clipping.", cardRefCount: 3 };
+    const tall = {
+      definition:
+        "A much longer definition that wraps across several lines at this column width, needing real room to read without clipping.",
+      cardRefCount: 3,
+    };
     // Two rows of two columns: the first row (both short) stays compact, the second (one tall
     // entry) grows to fit it — the whole point of a *per-row* height over one uniform height.
     const heights = glossaryRowHeights([short, short, short, tall], 2, 300);

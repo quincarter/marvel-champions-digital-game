@@ -237,7 +237,8 @@ export function currentActivationFrameId(stack: readonly StackFrame[]): FrameId 
   for (const frame of stack) {
     if (frame.kind !== "event") continue;
     const kind = frame.event.kind;
-    if (kind === "attack" || kind === "enemyAttack" || kind === "enemyScheme" || kind === "thwart") return frame.frameId;
+    if (kind === "attack" || kind === "enemyAttack" || kind === "enemyScheme" || kind === "thwart")
+      return frame.frameId;
   }
   return null;
 }

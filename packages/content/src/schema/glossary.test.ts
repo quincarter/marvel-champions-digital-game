@@ -49,7 +49,10 @@ describe("glossary entries", () => {
   it("every entry has a non-empty definition under a sane length cap (short paraphrase, not a rules-text dump)", () => {
     for (const entry of GLOSSARY_ENTRIES) {
       expect(entry.definition.trim().length, `${entry.id} definition is empty`).toBeGreaterThan(0);
-      expect(entry.definition.length, `${entry.id} definition is too long for a glossary paraphrase`).toBeLessThanOrEqual(420);
+      expect(
+        entry.definition.length,
+        `${entry.id} definition is too long for a glossary paraphrase`,
+      ).toBeLessThanOrEqual(420);
     }
   });
 
@@ -71,9 +74,10 @@ describe("glossary entries", () => {
         if (source.kind !== "rrg") continue;
         expect(Number.isInteger(source.page), `${entry.id}: RRG page must be an integer`).toBe(true);
         expect(source.page, `${entry.id}: RRG page must be positive`).toBeGreaterThan(0);
-        expect(source.page, `${entry.id}: RRG page ${source.page} is beyond the PDF's ${RRG_PAGE_COUNT} pages`).toBeLessThanOrEqual(
-          RRG_PAGE_COUNT,
-        );
+        expect(
+          source.page,
+          `${entry.id}: RRG page ${source.page} is beyond the PDF's ${RRG_PAGE_COUNT} pages`,
+        ).toBeLessThanOrEqual(RRG_PAGE_COUNT);
       }
     }
   });
@@ -162,7 +166,10 @@ describe("glossaryEntriesForKeywords against real pool cards", () => {
   });
 
   it("a minion with both Guard and Toughness resolves to both entries, in printed order, with no duplicates", () => {
-    const card = CORE_CARDS.find((c) => isMinion(c) && c.keywords.some((k) => k.name === "guard") && c.keywords.some((k) => k.name === "toughness"));
+    const card = CORE_CARDS.find(
+      (c) =>
+        isMinion(c) && c.keywords.some((k) => k.name === "guard") && c.keywords.some((k) => k.name === "toughness"),
+    );
     expect(card).toBeDefined();
     const entries = glossaryEntriesForKeywords((card as MinionCard).keywords);
     expect(entries.map((e) => e.id)).toEqual(["guard", "toughness"]);

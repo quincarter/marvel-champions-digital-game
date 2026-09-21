@@ -37,7 +37,8 @@ export const PHOENIX_CURATION: PackCuration = {
   pack: {
     name: "Phoenix",
     releaseDate: "2022-09-30",
-    releaseDateSource: 'Hall of Heroes Jean Grey/Phoenix page (https://hallofheroeslcg.com/jean-grey-phoenix/): "Release date: September 30, 2022"',
+    releaseDateSource:
+      'Hall of Heroes Jean Grey/Phoenix page (https://hallofheroeslcg.com/jean-grey-phoenix/): "Release date: September 30, 2022"',
   },
   outDir: "src/data/phoenix",
   exportPrefix: "PHOENIX",

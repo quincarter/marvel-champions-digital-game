@@ -8,7 +8,16 @@
 import { describe, expect, test } from "vitest";
 import { CORE_SCENARIOS, CORE_STARTER_DECKS, WAVE1_SCENARIOS, WAVE1_STARTER_DECKS, poolVersionOf } from "@mc/content";
 import { createGame } from "@mc/engine";
-import { POOL_CARDS, POOL_DEPS, POOL_PACKS, POOL_SCENARIOS, POOL_STARTER_DECKS, POOL_VERSION, buildScenario, packNameOf } from "./pool.js";
+import {
+  POOL_CARDS,
+  POOL_DEPS,
+  POOL_PACKS,
+  POOL_SCENARIOS,
+  POOL_STARTER_DECKS,
+  POOL_VERSION,
+  buildScenario,
+  packNameOf,
+} from "./pool.js";
 
 describe("POOL_CARDS", () => {
   test("is Core plus every wave 1 pack — noticeably more than Core alone", () => {
@@ -25,7 +34,9 @@ describe("POOL_SCENARIOS", () => {
 
 describe("POOL_STARTER_DECKS", () => {
   test("is Core's six precons then wave 1's six", () => {
-    expect(POOL_STARTER_DECKS.map((d) => d.id)).toEqual([...CORE_STARTER_DECKS, ...WAVE1_STARTER_DECKS].map((d) => d.id));
+    expect(POOL_STARTER_DECKS.map((d) => d.id)).toEqual(
+      [...CORE_STARTER_DECKS, ...WAVE1_STARTER_DECKS].map((d) => d.id),
+    );
     expect(POOL_STARTER_DECKS.length).toBe(12);
   });
 });
@@ -39,7 +50,9 @@ describe("POOL_VERSION", () => {
 describe("packNameOf", () => {
   test("names every scenario pack code the pool's scenarios actually use", () => {
     for (const scenario of POOL_SCENARIOS) {
-      expect(packNameOf(scenario.packCode as string), scenario.packCode as string).not.toBe(scenario.packCode as string);
+      expect(packNameOf(scenario.packCode as string), scenario.packCode as string).not.toBe(
+        scenario.packCode as string,
+      );
     }
     expect(packNameOf("twc")).toBe("The Wrecking Crew");
     expect(packNameOf("core")).toBe("Core Set");
@@ -57,7 +70,11 @@ describe("packNameOf", () => {
 
 describe("buildScenario", () => {
   test("builds a Core scenario (Rhino) unchanged", () => {
-    const config = buildScenario("rhino", { difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 1 });
+    const config = buildScenario("rhino", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
     const setup = createGame(config, POOL_DEPS);
     expect(setup.ok).toBe(true);
   });

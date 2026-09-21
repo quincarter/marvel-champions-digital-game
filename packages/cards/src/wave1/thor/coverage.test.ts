@@ -1,4 +1,4 @@
-import { THOR_CARDS, type AbilityReference } from "@mc/content";
+import { THOR_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { THOR_ABILITIES } from "./index.js";
 import { abilityRefIds } from "../../ability-refs.js";

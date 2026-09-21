@@ -1,4 +1,26 @@
-import { boost, chooseTarget, chosen, constant, countOf, defineAbilities, discard, engagedPlayerOf, gets, modifyStat, perHero, placeThreat, query, self, takeDamage, theMainScheme, theVillain, whenRevealed, whenRevealedAlterEgo, whenRevealedHero, you } from "../../dsl/index.js";
+import {
+  boost,
+  chooseTarget,
+  chosen,
+  constant,
+  countOf,
+  defineAbilities,
+  discard,
+  engagedPlayerOf,
+  gets,
+  modifyStat,
+  perHero,
+  placeThreat,
+  query,
+  self,
+  takeDamage,
+  theMainScheme,
+  theVillain,
+  whenRevealed,
+  whenRevealedAlterEgo,
+  whenRevealedHero,
+  you,
+} from "../../dsl/index.js";
 
 const YOUR_UPGRADES = query("upgrade", { controller: "you" });
 /** "Discard an upgrade you control" (Deadly Shot). A `chooseTarget` with zero candidates simply resolves to

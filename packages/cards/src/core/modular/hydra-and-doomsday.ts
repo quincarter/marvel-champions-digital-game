@@ -39,17 +39,29 @@ const MODOK = cardName("01184"); // current title "M.O.D.O.K." (RRG 1.5 errata)
 
 /** "If X is not in play, search the encounter deck and discard pile for X and put it into play engaged with you, then shuffle the encounter deck." */
 const fetchIntoPlay = (name: string, slot: string) =>
-  ifThen(not(inPlay(name)), [selectCards(slot, encounterCards(["deck", "discard"], { name })), putIntoPlay(chosen(slot), you), shuffleEncounterDeck()]);
+  ifThen(not(inPlay(name)), [
+    selectCards(slot, encounterCards(["deck", "discard"], { name })),
+    putIntoPlay(chosen(slot), you),
+    shuffleEncounterDeck(),
+  ]);
 
 /** The Legions of Hydra modular set (01180–01182). */
 export const LEGIONS_OF_HYDRA_SET = defineAbilities({
   // Legions of Hydra — When Revealed: If Madame Hydra is not in play, search the encounter deck and discard pile for Madame Hydra and put
   // her into play engaged with you, then shuffle the encounter deck. Place 2 additional threat here for each Hydra enemy in play.
-  "01180.when-revealed": whenRevealed(fetchIntoPlay(MADAME_HYDRA, "madame"), placeThreat(scaled(countOf(query("enemy", { trait: TRAIT.HYDRA })), { times: 2 }), self)),
+  "01180.when-revealed": whenRevealed(
+    fetchIntoPlay(MADAME_HYDRA, "madame"),
+    placeThreat(scaled(countOf(query("enemy", { trait: TRAIT.HYDRA })), { times: 2 }), self),
+  ),
   // Madame Hydra — Madame Hydra cannot take damage while the Legions of Hydra side scheme is in play.
-  "01181.madame-hydra-constant": constant(rule({ kind: "cannotTakeDamage", target: { self: true }, while: inPlay(LEGIONS_OF_HYDRA) })),
+  "01181.madame-hydra-constant": constant(
+    rule({ kind: "cannotTakeDamage", target: { self: true }, while: inPlay(LEGIONS_OF_HYDRA) }),
+  ),
   // [star] Forced Response: After Madame Hydra schemes or attacks, place 2 threat on the Legions of Hydra side scheme.
-  "01181.madame-hydra-forced-response": forcedResponse(after.enemySchemesOrAttacks("self"), placeThreat(2, named(LEGIONS_OF_HYDRA))),
+  "01181.madame-hydra-forced-response": forcedResponse(
+    after.enemySchemesOrAttacks("self"),
+    placeThreat(2, named(LEGIONS_OF_HYDRA)),
+  ),
   // Hydra Soldier — When Defeated: Deal the engaged player an encounter card. ("You" on a minion's When Defeated is the engaged player.)
   "01182.when-defeated": whenDefeated(dealEncounterCard(you)),
 });
@@ -60,5 +72,8 @@ export const DOOMSDAY_CHAIR_SET = defineAbilities({
   // into play engaged with you, then shuffle the encounter deck.
   "01183.when-revealed": whenRevealed(fetchIntoPlay(MODOK, "modok")),
   // Biomechanical Upgrades — Forced Interrupt: When attached minion would be defeated, heal all damage from it instead, then discard this card.
-  "01185.biomechanical-upgrades-forced-interrupt": forcedInterrupt(when.defeated("host"), instead(heal(damageOn(host), host), discard(self))),
+  "01185.biomechanical-upgrades-forced-interrupt": forcedInterrupt(
+    when.defeated("host"),
+    instead(heal(damageOn(host), host), discard(self)),
+  ),
 });

@@ -83,23 +83,44 @@ const THUNDERBALL = query("villain", { name: "Thunderball" });
 export const THUNDERBALL_SET = defineAbilities({
   // Thunderball (I/II) — [star] When Thunderball schemes, place the threat on his side scheme instead of the main
   // scheme.
-  "07017.thunderball-constant": constant(rule({ kind: "schemeThreatDestination", enemy: THUNDERBALL, scheme: "ownSignatureSideScheme" })),
-  "07018.thunderball-constant": constant(rule({ kind: "schemeThreatDestination", enemy: THUNDERBALL, scheme: "ownSignatureSideScheme" })),
+  "07017.thunderball-constant": constant(
+    rule({ kind: "schemeThreatDestination", enemy: THUNDERBALL, scheme: "ownSignatureSideScheme" }),
+  ),
+  "07018.thunderball-constant": constant(
+    rule({ kind: "schemeThreatDestination", enemy: THUNDERBALL, scheme: "ownSignatureSideScheme" }),
+  ),
   // Thunderball (I/II) — [star] Forced Response: After Thunderball attacks you, deal 1 damage to each character you
   // control. `enemyAttacks("self", { againstYou: true })`'s `usesAttackedPlayer` scopes "you" to the attacked player.
-  "07017.thunderball-forced-response": forcedResponse(when.enemyAttacks("self", { againstYou: true }), dealDamage(1, each(query(["identity", "ally"], { controller: "you" })))),
-  "07018.thunderball-forced-response": forcedResponse(when.enemyAttacks("self", { againstYou: true }), dealDamage(1, each(query(["identity", "ally"], { controller: "you" })))),
+  "07017.thunderball-forced-response": forcedResponse(
+    when.enemyAttacks("self", { againstYou: true }),
+    dealDamage(1, each(query(["identity", "ally"], { controller: "you" }))),
+  ),
+  "07018.thunderball-forced-response": forcedResponse(
+    when.enemyAttacks("self", { againstYou: true }),
+    dealDamage(1, each(query(["identity", "ally"], { controller: "you" }))),
+  ),
 
   // Thunderstruck — Thunderball's Side Scheme. This card cannot leave play while Thunderball is in play.
-  "07019.thunderstruck-constant": constant(rule({ kind: "cannotLeavePlay", target: query("sideScheme", { name: "Thunderstruck" }), while: exists(THUNDERBALL) })),
-  "07019.thunderstruck-constant-2": constant(rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Thunderstruck" }) })),
+  "07019.thunderstruck-constant": constant(
+    rule({
+      kind: "cannotLeavePlay",
+      target: query("sideScheme", { name: "Thunderstruck" }),
+      while: exists(THUNDERBALL),
+    }),
+  ),
+  "07019.thunderstruck-constant-2": constant(
+    rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Thunderstruck" }) }),
+  ),
   // Gamma Blast — Forced Response: After threat is placed here, if there is 10 or more threat here, stun each
   // friendly character. Remove all but 3 threat from this scheme. `threatAtLeast` (wave B primitives batch,
   // docs/phase7-wave1-scripting.md §6) is the same live-threat-vs-threshold read Day of Reckoning's Hard Hitter
   // needed (`wrecker.ts`).
   "07019.gamma-blast": forcedResponse(
     after.threatPlaced("self"),
-    ifThen(threatAtLeast(self, 10), [stun(each(FRIENDLY_CHARACTER)), removeThreat(scaled(threatOn(self), { plus: -3 }), self)]),
+    ifThen(threatAtLeast(self, 10), [
+      stun(each(FRIENDLY_CHARACTER)),
+      removeThreat(scaled(threatOn(self), { plus: -3 }), self),
+    ]),
   ),
 
   // Ball and Chain — Attach to Thunderball. [star] Forced Response: After Thunderball attacks, place 1 threat on
@@ -110,7 +131,9 @@ export const THUNDERBALL_SET = defineAbilities({
   "07020.ball-and-chain-action": heroAction({ cost: [exhaustYourHero, discardRandomFromHandCost(1)] }, discard(self)),
 
   // Held Hostage — same text as Wrecker's copy (07005).
-  "07021.held-hostage-constant": constant(rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" })),
+  "07021.held-hostage-constant": constant(
+    rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" }),
+  ),
   "07021.held-hostage-action": heroAction(enemyAttack(villainOfSideScheme(host), { against: you }), discard(self)),
 
   // Radioactive Buildup — Attach to Thunderball. Excess damage dealt by Thunderball is placed as threat on his
@@ -118,17 +141,30 @@ export const THUNDERBALL_SET = defineAbilities({
   // docs/phase7-wave1-scripting.md §6) is a **constant**, not a forced response on the attack: as a response it
   // would race this card's own "After Thunderball attacks, discard this card" below. Excess damage counts even
   // against a tough target (ruling, Jan 26, 2026 (3)); its interaction with overkill is open (both apply today).
-  "07022.radioactive-buildup-constant": constant(rule({ kind: "excessDamageAsThreat", source: { hostOfSelf: true }, scheme: signatureSideSchemeOf(host) })),
+  "07022.radioactive-buildup-constant": constant(
+    rule({ kind: "excessDamageAsThreat", source: { hostOfSelf: true }, scheme: signatureSideSchemeOf(host) }),
+  ),
   // [star] Forced Response: After Thunderball attacks, discard this card.
   "07022.radioactive-buildup-forced-response": forcedResponse(after.enemyAttacks("host"), discard(self)),
 
   // Escaped Convict — same text as Wrecker's copy (07009).
-  "07024.boost": boost(setActiveVillain(leastThreatVillain), ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you))),
+  "07024.boost": boost(
+    setActiveVillain(leastThreatVillain),
+    ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you)),
+  ),
 
   // Buddy System — same text as Wrecker's copy (07010).
   "07025.when-revealed": whenRevealed(
     pickVillainBy("lowest"),
-    selectCards("looked", encounterCards(["deck"], undefined, ifElse(not(exists(query("villain", { excludeSlots: [VILLAIN_PICK_SLOT] }))), 2, 1), pickedVillain)),
+    selectCards(
+      "looked",
+      encounterCards(
+        ["deck"],
+        undefined,
+        ifElse(not(exists(query("villain", { excludeSlots: [VILLAIN_PICK_SLOT] }))), 2, 1),
+        pickedVillain,
+      ),
+    ),
     revealCard(chosen("looked")),
   ),
   "07025.boost": boost(setActiveVillain(leastThreatVillain)),
@@ -138,13 +174,25 @@ export const THUNDERBALL_SET = defineAbilities({
     ifThen(
       exists(query("upgrade", { controller: "you" })),
       chooseOne(
-        option("Discard an upgrade you control", chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" })), discard(chosen("discarded-upgrade"))),
-        option("Place threat on the active villain's side scheme", placeThreat(countOf(query("upgrade", { controller: "you" })), signatureSideSchemeOf(theVillain))),
+        option(
+          "Discard an upgrade you control",
+          chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" })),
+          discard(chosen("discarded-upgrade")),
+        ),
+        option(
+          "Place threat on the active villain's side scheme",
+          placeThreat(countOf(query("upgrade", { controller: "you" })), signatureSideSchemeOf(theVillain)),
+        ),
       ),
       surge(),
     ),
   ),
-  "07026.boost": boost(ifThen(undefendedAttack, [chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" })), discard(chosen("chaos-boost-upgrade"))])),
+  "07026.boost": boost(
+    ifThen(undefendedAttack, [
+      chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" })),
+      discard(chosen("chaos-boost-upgrade")),
+    ]),
+  ),
 
   // Energy Projectiles — When Revealed: Deal 1 damage to each friendly character you control.
   "07027.when-revealed": whenRevealed(dealDamage(1, each(query(["identity", "ally"], { controller: "you" })))),

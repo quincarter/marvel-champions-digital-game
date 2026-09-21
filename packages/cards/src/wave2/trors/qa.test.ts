@@ -1,6 +1,17 @@
 import { cardId } from "@mc/content";
 import { createGame } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, P1, patchInstance, playerOf, settle, toHero } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  P1,
+  patchInstance,
+  playerOf,
+  settle,
+  toHero,
+} from "../../testing/harness.js";
 import { stackSetAsideBehindBoost } from "../../testing/staging.js";
 import { playToOutcome } from "../../testing/driver.js";
 import { WAVE2_DEPS } from "../index.js";
@@ -12,7 +23,8 @@ import { runWave2, startWave2Game } from "../testing.js";
  * reported to their owning specialist, not fixed here (see that doc's CLAUDE.md-mandated ownership boundary).
  */
 
-const hawkeyeVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 11 }));
+const hawkeyeVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 11 }));
 
 /**
  * Ruling-tied regression: Feb 28, 2026 ruling ("Marked for Death & Mister Knife Surge Timing", answer 1 —

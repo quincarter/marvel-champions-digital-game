@@ -26,7 +26,12 @@ export const signatureSideSchemeOf = (villain: TargetRef): TargetRef => ({ kind:
  * `wave1/gob/local.ts`'s identical helper, extended with an optional `ties` so a superlative that must resolve to
  * exactly one candidate without asking anyone (Oversized Hands' "the support … with the highest cost") can say so.
  */
-export const superlative = (order: "highest" | "lowest", among: TargetRef, measure: ValueSpec, opts: { readonly slot?: string; readonly ties?: "first" } = {}): TargetRef => ({
+export const superlative = (
+  order: "highest" | "lowest",
+  among: TargetRef,
+  measure: ValueSpec,
+  opts: { readonly slot?: string; readonly ties?: "first" } = {},
+): TargetRef => ({
   kind: "superlative",
   among,
   order,
@@ -36,12 +41,28 @@ export const superlative = (order: "highest" | "lowest", among: TargetRef, measu
 });
 
 /** "The villain whose side scheme has the least/most threat" (Escaped Convict, Buddy System, Get Wrecked!, …). */
-export const leastThreatVillain: TargetRef = superlative("lowest", each(query("villain")), threatOn(signatureSideSchemeOf(chosen("candidate"))));
-export const mostThreatVillain: TargetRef = superlative("highest", each(query("villain")), threatOn(signatureSideSchemeOf(chosen("candidate"))));
+export const leastThreatVillain: TargetRef = superlative(
+  "lowest",
+  each(query("villain")),
+  threatOn(signatureSideSchemeOf(chosen("candidate"))),
+);
+export const mostThreatVillain: TargetRef = superlative(
+  "highest",
+  each(query("villain")),
+  threatOn(signatureSideSchemeOf(chosen("candidate"))),
+);
 
 /** "The side scheme with the least/most threat" (Magic Crowbar, Lightning Blast, Tactical Prowess). */
-export const leastThreatSideScheme: TargetRef = superlative("lowest", each(query("sideScheme")), threatOn(chosen("candidate")));
-export const mostThreatSideScheme: TargetRef = superlative("highest", each(query("sideScheme")), threatOn(chosen("candidate")));
+export const leastThreatSideScheme: TargetRef = superlative(
+  "lowest",
+  each(query("sideScheme")),
+  threatOn(chosen("candidate")),
+);
+export const mostThreatSideScheme: TargetRef = superlative(
+  "highest",
+  each(query("sideScheme")),
+  threatOn(chosen("candidate")),
+);
 
 /**
  * "Choose the villain whose side scheme has the least/most threat" (Buddy System) and Breakout 1B's own "move the
@@ -55,7 +76,10 @@ const VILLAIN_CANDIDATES_SLOT = "twc-villain-candidates";
 /** The slot `pickVillainBy` binds its answer to — exported so a caller can say "no other villain is in play" via `excludeSlots`. */
 export const VILLAIN_PICK_SLOT = "twc-villain-pick";
 export const pickVillainBy = (order: "highest" | "lowest", chooser: PlayerRef = you): EffectSpec[] => [
-  bindTargets(VILLAIN_CANDIDATES_SLOT, superlative(order, each(query("villain")), threatOn(signatureSideSchemeOf(chosen("candidate"))))),
+  bindTargets(
+    VILLAIN_CANDIDATES_SLOT,
+    superlative(order, each(query("villain")), threatOn(signatureSideSchemeOf(chosen("candidate")))),
+  ),
   chooseTarget(VILLAIN_PICK_SLOT, query("villain", { inSlot: VILLAIN_CANDIDATES_SLOT }), { chooser }),
 ];
 export const pickedVillain: TargetRef = chosen(VILLAIN_PICK_SLOT);
@@ -65,7 +89,11 @@ export const pickedVillain: TargetRef = chosen(VILLAIN_PICK_SLOT);
  * Prowess). Landed `EffectSpec.moveThreat` (`spec.ts`, its doc comment names this exact card), no `dsl/effects.ts`
  * wrapper yet. `bind`: `<bind>.made`, `<bind>.amount` (placed), `<bind>.forcedResponses`.
  */
-export const moveThreat = (from: TargetRef, to: TargetRef, opts: { readonly amount?: Amount; readonly bind?: string } = {}): EffectSpec => ({
+export const moveThreat = (
+  from: TargetRef,
+  to: TargetRef,
+  opts: { readonly amount?: Amount; readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "moveThreat",
   from,
   to,
@@ -91,7 +119,11 @@ export const distinctCardTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: 
  * `giveStatus`/`stun`/`confuse`/`giveTough`. Landed `EffectSpec.removeStatus` (`spec.ts`), no `dsl/effects.ts`
  * wrapper yet.
  */
-export const removeStatus = (target: TargetRef, status: "stunned" | "confused" | "tough"): EffectSpec => ({ kind: "removeStatus", target, status });
+export const removeStatus = (target: TargetRef, status: "stunned" | "confused" | "tough"): EffectSpec => ({
+  kind: "removeStatus",
+  target,
+  status,
+});
 
 /**
  * "That villain attacks you after this attack. That attack does not get a boost card" (Escaped Convict).

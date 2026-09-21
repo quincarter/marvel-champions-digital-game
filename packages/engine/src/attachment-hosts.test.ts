@@ -21,8 +21,26 @@ import { createGame } from "./setup.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { runCommands } from "./testing/drive.js";
-import { stubAlly, stubAttachment, stubMainScheme, stubMinion, stubSideScheme, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, defaultPick, giveCard, HERO, seatIdentities, settle, settleUntil, withEncounterPiles } from "./testing/scenario.js";
+import {
+  stubAlly,
+  stubAttachment,
+  stubMainScheme,
+  stubMinion,
+  stubSideScheme,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
+import {
+  DEFAULT_CARDS,
+  DEFAULT_DECK,
+  defaultPick,
+  giveCard,
+  HERO,
+  seatIdentities,
+  settle,
+  settleUntil,
+  withEncounterPiles,
+} from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const p2 = playerId("p2");
@@ -33,7 +51,10 @@ const AVENGER = trait("Avenger");
 
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 const QUIET_VILLAIN = stubVillain({ id: "quiet", stages: [{ hp: flat(50), atk: 0, sch: 0 }] });
-const LONG_SCHEME = stubMainScheme({ id: "long", stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }] });
+const LONG_SCHEME = stubMainScheme({
+  id: "long",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }],
+});
 const SIDE = stubSideScheme({ id: "side", startingThreat: 2, boostIcons: 0 });
 const ELITE_MINION = stubMinion({ id: "elite-minion", traits: [ELITE], atk: 0, sch: 0, hp: 4, boostIcons: 0 });
 const PLAIN_MINION = stubMinion({ id: "plain-minion", atk: 0, sch: 0, hp: 4, boostIcons: 0 });
@@ -50,17 +71,35 @@ const GLIDER_HOST: AttachmentHost = {
 };
 const GLIDER_SURGE = stubAbility("glider.when-revealed", {
   trigger: { kind: "whenRevealed" },
-  effects: [{ kind: "if", condition: { kind: "not", of: { kind: "isAttached", of: self } }, then: [{ kind: "gainSurge" }] }],
+  effects: [
+    { kind: "if", condition: { kind: "not", of: { kind: "isAttached", of: self } }, then: [{ kind: "gainSurge" }] },
+  ],
 });
 const GLIDER = stubAttachment({ id: "glider", attachesTo: GLIDER_HOST, abilities: [GLIDER_SURGE.ref] });
 /** Counterspell: "Attach to your hero." */
 const COUNTERSPELL = stubAttachment({ id: "counterspell", attachesTo: { kind: "yourIdentity", form: "hero" } });
 /** A tie among minions of equal printed hit points. */
-const TIEBREAKER = stubAttachment({ id: "tiebreaker", attachesTo: { kind: "superlative", among: "minion", order: "highest", measure: "printedHp" } });
+const TIEBREAKER = stubAttachment({
+  id: "tiebreaker",
+  attachesTo: { kind: "superlative", among: "minion", order: "highest", measure: "printedHp" },
+});
 
 const deps: EngineDeps = depsOf(GLIDER_SURGE);
 
-const CARDS = [...DEFAULT_CARDS, QUIET_VILLAIN, LONG_SCHEME, BLANK, SIDE, ELITE_MINION, PLAIN_MINION, SMALL_MINION, AVENGER_ALLY, GLIDER, COUNTERSPELL, TIEBREAKER];
+const CARDS = [
+  ...DEFAULT_CARDS,
+  QUIET_VILLAIN,
+  LONG_SCHEME,
+  BLANK,
+  SIDE,
+  ELITE_MINION,
+  PLAIN_MINION,
+  SMALL_MINION,
+  AVENGER_ALLY,
+  GLIDER,
+  COUNTERSPELL,
+  TIEBREAKER,
+];
 
 function game(options: { readonly players?: number; readonly encounter?: readonly CardId[] } = {}): GameState {
   const identities = seatIdentities(HERO, options.players ?? 1);
@@ -72,7 +111,10 @@ function game(options: { readonly players?: number; readonly encounter?: readonl
       mainSchemeCardId: LONG_SCHEME.id,
       encounterDeck: options.encounter ?? copies(BLANK.id, 16),
       includeIdentitySets: false,
-      players: identities.map((identity) => ({ identityCardId: identity.id, deck: [...DEFAULT_DECK, AVENGER_ALLY.id] })),
+      players: identities.map((identity) => ({
+        identityCardId: identity.id,
+        deck: [...DEFAULT_DECK, AVENGER_ALLY.id],
+      })),
     },
     deps,
   );
@@ -86,11 +128,22 @@ const ok = (state: GameState, command: Command): GameState => {
   return result.state;
 };
 
-const context = (state: GameState, player = p1): EffectContext => ({ selfInstanceId: null, controllerId: player, event: null, bindings: {}, deps });
-const hosts = (state: GameState, host: AttachmentHost, player = p1): readonly InstanceId[] => attachmentHostCandidates(state, host, context(state, player));
+const context = (state: GameState, player = p1): EffectContext => ({
+  selfInstanceId: null,
+  controllerId: player,
+  event: null,
+  bindings: {},
+  deps,
+});
+const hosts = (state: GameState, host: AttachmentHost, player = p1): readonly InstanceId[] =>
+  attachmentHostCandidates(state, host, context(state, player));
 
 /** Test surgery: the first copy of `cardId` in the encounter deck enters play (engaged with `player`, or the villain area). */
-function intoPlay(state: GameState, cardId: CardId, player = p1): { readonly state: GameState; readonly id: InstanceId } {
+function intoPlay(
+  state: GameState,
+  cardId: CardId,
+  player = p1,
+): { readonly state: GameState; readonly id: InstanceId } {
   const deck = activeEncounterDeck(state).deck;
   const id = deck.find((candidate) => state.instances[candidate]?.cardId === cardId);
   if (!id) throw new Error(`no ${cardId} in the encounter deck`);
@@ -100,14 +153,23 @@ function intoPlay(state: GameState, cardId: CardId, player = p1): { readonly sta
     state: {
       ...withEncounterPiles(state, { deck: deck.filter((x) => x !== id) }),
       villainArea: minion ? state.villainArea : [...state.villainArea, id],
-      players: state.players.map((p) => (minion && p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
-      instances: { ...state.instances, [id]: { ...mustInstance(state, id), faceup: true, engagedWith: minion ? player : null } },
+      players: state.players.map((p) =>
+        minion && p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p,
+      ),
+      instances: {
+        ...state.instances,
+        [id]: { ...mustInstance(state, id), faceup: true, engagedWith: minion ? player : null },
+      },
     },
   };
 }
 
 /** Test surgery: `card` is attached to `host` without going through a reveal. */
-function attachTo(state: GameState, cardId: CardId, host: InstanceId): { readonly state: GameState; readonly id: InstanceId } {
+function attachTo(
+  state: GameState,
+  cardId: CardId,
+  host: InstanceId,
+): { readonly state: GameState; readonly id: InstanceId } {
   const deck = activeEncounterDeck(state).deck;
   const id = deck.find((candidate) => state.instances[candidate]?.cardId === cardId);
   if (!id) throw new Error(`no ${cardId} in the encounter deck`);
@@ -132,7 +194,8 @@ function dealtNext(state: GameState, id: InstanceId, players = 1): GameState {
 }
 
 const endTurn = (player = p1): Command => ({ type: "endTurn", playerId: player });
-const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) => events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
+const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
+  events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 
 // --- the §1.6 host kinds ----------------------------------------------------------------------------------------
 
@@ -144,10 +207,20 @@ describe("§3.14 every host kind resolves at the moment of attaching", () => {
     const thunderballScheme = state.villains[1]?.signatureSideSchemeId as InstanceId;
 
     expect(attachmentHostCandidates(state, { kind: "villain" }, context(state))).toEqual([wrecker]);
-    expect(attachmentHostCandidates(state, { kind: "namedVillain", name: "thunderball" }, context(state))).toEqual([thunderball]);
+    expect(attachmentHostCandidates(state, { kind: "namedVillain", name: "thunderball" }, context(state))).toEqual([
+      thunderball,
+    ]);
     expect(attachmentHostCandidates(state, { kind: "namedVillain", name: "nobody" }, context(state))).toEqual([]);
-    expect(attachmentHostCandidates(state, { kind: "villainSideScheme", of: "activeVillain" }, context(state))).toEqual([wreckerScheme]);
-    expect(attachmentHostCandidates(state, { kind: "villainSideScheme", of: { villainName: "thunderball" } }, context(state))).toEqual([thunderballScheme]);
+    expect(attachmentHostCandidates(state, { kind: "villainSideScheme", of: "activeVillain" }, context(state))).toEqual(
+      [wreckerScheme],
+    );
+    expect(
+      attachmentHostCandidates(
+        state,
+        { kind: "villainSideScheme", of: { villainName: "thunderball" } },
+        context(state),
+      ),
+    ).toEqual([thunderballScheme]);
   });
 
   it("yourIdentity is the resolving player's, and a form it is not in is no host at all (FAQ Counterspell #30)", () => {
@@ -166,7 +239,13 @@ describe("§3.14 every host kind resolves at the moment of attaching", () => {
     const start = game({ encounter: [PLAIN_MINION.id, SIDE.id, ...copies(BLANK.id, 14)] });
     const hero = ok(start, { type: "changeForm", playerId: p1 });
     const allyCard = giveCard(hero, p1, AVENGER_ALLY.id);
-    const withAlly = runCommands(allyCard.state, deps, { type: "playCard", playerId: p1, cardInstanceId: allyCard.id, payment: [], attachToInstanceId: null }).state;
+    const withAlly = runCommands(allyCard.state, deps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: allyCard.id,
+      payment: [],
+      attachToInstanceId: null,
+    }).state;
     const minion = intoPlay(withAlly, PLAIN_MINION.id);
     const side = intoPlay(minion.state, SIDE.id);
     const identity = mustPlayer(side.state, p1).identity.instanceId;
@@ -190,11 +269,15 @@ describe("§3.14 every host kind resolves at the moment of attaching", () => {
     expect(hosts(state, { kind: "qualified", category: "minion", withoutTrait: ELITE })).toEqual([plain.id]);
 
     const marked = attachTo(state, GLIDER.id, elite.id);
-    expect(hosts(marked.state, { kind: "qualified", category: "minion", withoutAttachmentNamed: "glider" })).toEqual([plain.id]);
+    expect(hosts(marked.state, { kind: "qualified", category: "minion", withoutAttachmentNamed: "glider" })).toEqual([
+      plain.id,
+    ]);
   });
 
   it("superlative ranks its pool and returns every tied card, with qualifiers applied first", () => {
-    const start = game({ encounter: [ELITE_MINION.id, PLAIN_MINION.id, SMALL_MINION.id, GLIDER.id, ...copies(BLANK.id, 12)] });
+    const start = game({
+      encounter: [ELITE_MINION.id, PLAIN_MINION.id, SMALL_MINION.id, GLIDER.id, ...copies(BLANK.id, 12)],
+    });
     const elite = intoPlay(start, ELITE_MINION.id);
     const plain = intoPlay(elite.state, PLAIN_MINION.id);
     const small = intoPlay(plain.state, SMALL_MINION.id);
@@ -204,8 +287,13 @@ describe("§3.14 every host kind resolves at the moment of attaching", () => {
     // The villain's printed hit points scale per player and beat every minion's.
     expect(hosts(state, GLIDER_HOST)).toEqual([villain]);
     // Equal printed hit points tie; the smaller minion loses.
-    expect(hosts(state, { kind: "superlative", among: "minion", order: "highest", measure: "printedHp" })).toEqual([elite.id, plain.id]);
-    expect(hosts(state, { kind: "superlative", among: "minion", order: "lowest", measure: "printedHp" })).toEqual([small.id]);
+    expect(hosts(state, { kind: "superlative", among: "minion", order: "highest", measure: "printedHp" })).toEqual([
+      elite.id,
+      plain.id,
+    ]);
+    expect(hosts(state, { kind: "superlative", among: "minion", order: "lowest", measure: "printedHp" })).toEqual([
+      small.id,
+    ]);
 
     // With a glider already on the villain it is out of the pool, so the minions are ranked instead.
     const marked = attachTo(state, GLIDER.id, villain);
@@ -225,8 +313,15 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     const ally = giveCard(withScheme.state, p1, AVENGER_ALLY.id);
     const inPlay: GameState = {
       ...ally.state,
-      players: ally.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== ally.id), playArea: [...pl.playArea, ally.id] } : pl)),
-      instances: { ...ally.state.instances, [ally.id]: { ...mustInstance(ally.state, ally.id), faceup: true, controllerId: p1 } },
+      players: ally.state.players.map((pl) =>
+        pl.playerId === p1
+          ? { ...pl, hand: pl.hand.filter((x) => x !== ally.id), playArea: [...pl.playArea, ally.id] }
+          : pl,
+      ),
+      instances: {
+        ...ally.state.instances,
+        [ally.id]: { ...mustInstance(ally.state, ally.id), faceup: true, controllerId: p1 },
+      },
     };
     const candidates = hosts(inPlay, { kind: "encounterCard" });
     expect(candidates).toContain(withMinion.id);
@@ -258,15 +353,24 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
       ids.push(given.id);
       state = {
         ...given.state,
-        players: given.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] } : pl)),
-        instances: { ...given.state.instances, [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 } },
+        players: given.state.players.map((pl) =>
+          pl.playerId === p1
+            ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] }
+            : pl,
+        ),
+        instances: {
+          ...given.state.instances,
+          [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 },
+        },
       };
     }
     const host: AttachmentHost = { kind: "superlative", among: "ally", order: "highest", measure: "printedCost" };
     expect(hosts(state, host)).toEqual([ids[1]]);
     expect(hosts(state, { ...host, order: "lowest" })).toEqual([ids[0]]);
     // The identity is a friendly character with no printed cost, so it is no candidate at all.
-    expect(hosts(state, { kind: "superlative", among: "friendlyCharacter", order: "highest", measure: "printedCost" })).toEqual([ids[1]]);
+    expect(
+      hosts(state, { kind: "superlative", among: "friendlyCharacter", order: "highest", measure: "printedCost" }),
+    ).toEqual([ids[1]]);
   });
 
   it("'the ally with the lowest THW' ranks allies by current THW (Possessed, storm 36038; docs/phase7-wave2.md §11.1)", () => {
@@ -280,7 +384,9 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
         villainCardId: QUIET_VILLAIN.id,
         mainSchemeCardId: LONG_SCHEME.id,
         encounterDeck: copies(BLANK.id, 16),
-        players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copies(thinker.id, 2), ...copies(brawler.id, 2)] }],
+        players: [
+          { identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...copies(thinker.id, 2), ...copies(brawler.id, 2)] },
+        ],
       },
       deps,
     );
@@ -292,11 +398,24 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
       ids.push(given.id);
       state = {
         ...given.state,
-        players: given.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] } : pl)),
-        instances: { ...given.state.instances, [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 } },
+        players: given.state.players.map((pl) =>
+          pl.playerId === p1
+            ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] }
+            : pl,
+        ),
+        instances: {
+          ...given.state.instances,
+          [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 },
+        },
       };
     }
-    const possessed: AttachmentHost = { kind: "superlative", among: "ally", order: "lowest", measure: "thw", withoutAttachmentNamed: "Possessed" };
+    const possessed: AttachmentHost = {
+      kind: "superlative",
+      among: "ally",
+      order: "lowest",
+      measure: "thw",
+      withoutAttachmentNamed: "Possessed",
+    };
     expect(hosts(state, possessed)).toEqual([ids[1]]);
     expect(hosts(state, { ...possessed, order: "highest" })).toEqual([ids[0]]);
   });
@@ -320,8 +439,15 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     const given = giveCard(started, p1, spidey.id);
     const state: GameState = {
       ...given.state,
-      players: given.state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] } : pl)),
-      instances: { ...given.state.instances, [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 } },
+      players: given.state.players.map((pl) =>
+        pl.playerId === p1
+          ? { ...pl, hand: pl.hand.filter((x) => x !== given.id), playArea: [...pl.playArea, given.id] }
+          : pl,
+      ),
+      instances: {
+        ...given.state.instances,
+        [given.id]: { ...mustInstance(given.state, given.id), faceup: true, controllerId: p1 },
+      },
     };
     expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Spider" })).toEqual([given.id]);
     expect(hosts(state, { kind: "qualified", category: "character", titleContains: "Hulk" })).toEqual([]);
@@ -344,11 +470,17 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     // Nothing attacked yet.
     expect(hosts(state, byHero)).toEqual([]);
     const hero = ok(state, { type: "changeForm", playerId: p1 });
-    const struck = settleUntil(ok(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: attacked.id }), "declareDefender", deps);
+    const struck = settleUntil(
+      ok(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: attacked.id }),
+      "declareDefender",
+      deps,
+    );
     // Recorded under the hero side's title — not the identity card's, and not the alter-ego's (RRG 1.8 "Identity", p. 23).
     expect(struck.attackedThisTurn[attacked.id]).toEqual([{ attackerInstanceId: identity, attackerTitle: HERO_TITLE }]);
     expect(hosts(struck, byHero)).toEqual([attacked.id]);
-    expect(hosts(struck, { kind: "qualified", category: "enemy", attackedThisTurnBy: [HERO.alterEgo.faceName] })).toEqual([]);
+    expect(
+      hosts(struck, { kind: "qualified", category: "enemy", attackedThisTurnBy: [HERO.alterEgo.faceName] }),
+    ).toEqual([]);
     // The minion nobody attacked is no host, and neither is the attacked one under a different attacker's name.
     expect(hosts(struck, byHero)).not.toContain(untouched.id);
     expect(hosts(struck, { kind: "qualified", category: "enemy", attackedThisTurnBy: ["Honey Badger"] })).toEqual([]);
@@ -363,11 +495,17 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     const attacked = intoPlay(start, ELITE_MINION.id);
     const identity = mustPlayer(attacked.state, p1).identity.instanceId;
     const hero = ok(attacked.state, { type: "changeForm", playerId: p1 });
-    const struck = settleUntil(ok(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: attacked.id }), "declareDefender", deps);
+    const struck = settleUntil(
+      ok(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: attacked.id }),
+      "declareDefender",
+      deps,
+    );
     // Test surgery: the identity is now showing its alter-ego side (a card effect, or last turn's hero form flipped).
     const flipped: GameState = {
       ...struck,
-      players: struck.players.map((pl) => (pl.playerId === p1 ? { ...pl, identity: { ...pl.identity, form: "alterEgo" } } : pl)),
+      players: struck.players.map((pl) =>
+        pl.playerId === p1 ? { ...pl, identity: { ...pl.identity, form: "alterEgo" } } : pl,
+      ),
     };
     // The hero attacked it, so it is still a legal host, although no one is showing the hero's title any more.
     expect(hosts(flipped, byHero)).toEqual([attacked.id]);
@@ -384,7 +522,12 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
     expect(villainAttack.step.phase).toBe("villain");
     const choice = villainAttack.pendingChoice;
     if (!choice) throw new Error("expected the villain's attack to ask for a defender");
-    const minionAttack = ok(villainAttack, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: ["decline"] });
+    const minionAttack = ok(villainAttack, {
+      type: "resolveChoice",
+      playerId: choice.playerId,
+      choiceId: choice.choiceId,
+      selectedOptionIds: ["decline"],
+    });
     expect(minionAttack.pendingChoice?.prompt.kind).toBe("declareDefender");
     expect(minionAttack.attackedThisTurn).toEqual({});
   });
@@ -393,7 +536,9 @@ describe("§7 hosts added for the data pipeline's confirmed gaps", () => {
 describe("§3.14 attaching as a card is revealed", () => {
   it("an attachment with no legal host is discarded, and no replacement card is revealed (FAQ Counterspell #30)", () => {
     const start = game({ encounter: [COUNTERSPELL.id, ...copies(BLANK.id, 15)] });
-    const counterspell = activeEncounterDeck(start).deck.find((id) => mustInstance(start, id).cardId === COUNTERSPELL.id) as InstanceId;
+    const counterspell = activeEncounterDeck(start).deck.find(
+      (id) => mustInstance(start, id).cardId === COUNTERSPELL.id,
+    ) as InstanceId;
     // p1 is in alter-ego form, so "attach to your hero" cannot be met.
     const { state, events } = runCommands(dealtNext(start, counterspell), deps, endTurn());
 
@@ -410,7 +555,9 @@ describe("§3.14 attaching as a card is revealed", () => {
     const villain = start.villains[0]?.instanceId as InstanceId;
     // The only enemy already carries a glider, so the revealed one has nowhere to go.
     const marked = attachTo(start, GLIDER.id, villain);
-    const glider = activeEncounterDeck(marked.state).deck.find((id) => mustInstance(marked.state, id).cardId === GLIDER.id) as InstanceId;
+    const glider = activeEncounterDeck(marked.state).deck.find(
+      (id) => mustInstance(marked.state, id).cardId === GLIDER.id,
+    ) as InstanceId;
     const { state, events } = runCommands(dealtNext(marked.state, glider), deps, endTurn());
 
     expect(activeEncounterDeck(state).discard).toContain(glider);
@@ -418,16 +565,28 @@ describe("§3.14 attaching as a card is revealed", () => {
     expect(ofType(events, "surgeTriggered").map((e) => e.instanceId)).toEqual([glider]);
 
     // With a free enemy it attaches instead, and nothing surges.
-    const attached = runCommands(dealtNext(start, activeEncounterDeck(start).deck.find((id) => mustInstance(start, id).cardId === GLIDER.id) as InstanceId), deps, endTurn());
+    const attached = runCommands(
+      dealtNext(
+        start,
+        activeEncounterDeck(start).deck.find((id) => mustInstance(start, id).cardId === GLIDER.id) as InstanceId,
+      ),
+      deps,
+      endTurn(),
+    );
     expect(ofType(attached.events, "surgeTriggered")).toEqual([]);
     expect(mustInstance(attached.state, villain).attachments).toHaveLength(1);
   });
 
   it("a tie among legal hosts is the first player's choice on the encounter card's behalf", () => {
-    const start = game({ players: 2, encounter: [ELITE_MINION.id, PLAIN_MINION.id, TIEBREAKER.id, ...copies(BLANK.id, 13)] });
+    const start = game({
+      players: 2,
+      encounter: [ELITE_MINION.id, PLAIN_MINION.id, TIEBREAKER.id, ...copies(BLANK.id, 13)],
+    });
     const elite = intoPlay(start, ELITE_MINION.id, p2);
     const plain = intoPlay(elite.state, PLAIN_MINION.id, p2);
-    const tiebreaker = activeEncounterDeck(plain.state).deck.find((id) => mustInstance(plain.state, id).cardId === TIEBREAKER.id) as InstanceId;
+    const tiebreaker = activeEncounterDeck(plain.state).deck.find(
+      (id) => mustInstance(plain.state, id).cardId === TIEBREAKER.id,
+    ) as InstanceId;
     // Two players: two boost cards, then one dealt card each; p2 reveals the attachment.
     const stacked = dealtNext(plain.state, tiebreaker, 2);
 
@@ -438,7 +597,12 @@ describe("§3.14 attaching as a card is revealed", () => {
     expect(choice?.playerId).toBe(atChoice.firstPlayerId);
     expect(choice?.options.map((option) => option.optionId)).toEqual([elite.id, plain.id]);
 
-    const chosen = ok(atChoice, { type: "resolveChoice", playerId: choice!.playerId, choiceId: choice!.choiceId, selectedOptionIds: [plain.id] });
+    const chosen = ok(atChoice, {
+      type: "resolveChoice",
+      playerId: choice!.playerId,
+      choiceId: choice!.choiceId,
+      selectedOptionIds: [plain.id],
+    });
     expect(mustInstance(chosen, plain.id).attachments).toContain(tiebreaker);
   });
 });
@@ -470,7 +634,11 @@ function crewGame(): GameState {
       villainCardId: wrecker.id,
       villains: [
         { villainCardId: wrecker.id, encounterDeck: copies(BLANK.id, 6), signatureSideSchemeCardId: wreckerScheme.id },
-        { villainCardId: thunderball.id, encounterDeck: copies(BLANK.id, 6), signatureSideSchemeCardId: thunderballScheme.id },
+        {
+          villainCardId: thunderball.id,
+          encounterDeck: copies(BLANK.id, 6),
+          signatureSideSchemeCardId: thunderballScheme.id,
+        },
       ],
       mainSchemeCardId: scheme.id,
       encounterDeck: [],

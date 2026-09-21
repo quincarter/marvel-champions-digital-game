@@ -24,7 +24,8 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
     {
       id: "reduced-motion",
       title: "Reduced motion",
-      detail: "Skip travel animation and auto-advancing reveals; beats and state changes still appear, just without the motion.",
+      detail:
+        "Skip travel animation and auto-advancing reveals; beats and state changes still appear, just without the motion.",
       on: settings.reducedMotion,
     },
     {
@@ -36,7 +37,8 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
     {
       id: "large-card-text",
       title: "Large card text",
-      detail: "Reads a card's full rules text larger in the Inspect sheet — the screen whose whole job is reading a card closely.",
+      detail:
+        "Reads a card's full rules text larger in the Inspect sheet — the screen whose whole job is reading a card closely.",
       on: settings.largeCardText,
     },
     {
@@ -63,7 +65,10 @@ export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, d
     case "reduced-motion":
       return { ...settings, reducedMotion: !settings.reducedMotion };
     case "sharper-text":
-      return { ...settings, textResolution: settings.textResolution > 1 ? 1 : sharperTextTargetResolution(devicePixelRatio) };
+      return {
+        ...settings,
+        textResolution: settings.textResolution > 1 ? 1 : sharperTextTargetResolution(devicePixelRatio),
+      };
     case "large-card-text":
       return { ...settings, largeCardText: !settings.largeCardText };
     case "sound":

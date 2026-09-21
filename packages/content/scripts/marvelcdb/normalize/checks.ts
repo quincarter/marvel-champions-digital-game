@@ -8,14 +8,17 @@ export function checkStaleCuration(ctx: NormalizeContext): void {
   curation.corrections.forEach((c, i) => {
     if (!ctx.usedCorrections.has(i)) errors.push(`curation correction for ${c.code} matched no record`);
   });
-  for (const e of curation.errata) if (!ctx.usedErrata.has(e.code)) errors.push(`curation errata for ${e.code} matched no record`);
+  for (const e of curation.errata)
+    if (!ctx.usedErrata.has(e.code)) errors.push(`curation errata for ${e.code} matched no record`);
   for (const id of Object.keys(curation.scriptingNotes)) {
     if (!ctx.usedNotes.has(id)) errors.push(`scripting note for ${id} matches no emitted ability id`);
   }
   const cardIds = new Set(ctx.cards.map((c) => c.id as string));
-  for (const id of Object.keys(curation.cardNotes)) if (!cardIds.has(id)) errors.push(`cardNotes entry ${id} matches no card`);
+  for (const id of Object.keys(curation.cardNotes))
+    if (!cardIds.has(id)) errors.push(`cardNotes entry ${id} matches no card`);
   for (const code of Object.keys(curation.imageOverrides ?? {})) {
-    if (!ctx.usedImageOverrides.has(code)) errors.push(`curation imageOverride for ${code} matched no face that needed it`);
+    if (!ctx.usedImageOverrides.has(code))
+      errors.push(`curation imageOverride for ${code} matched no face that needed it`);
   }
 }
 

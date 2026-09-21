@@ -18,9 +18,11 @@ import {
   toHero,
 } from "../../testing/harness.js";
 
-const vsUltron = () => startCoreGame(coreScenario("ultron", { players: [{ starterDeckId: "core-iron-man-aggression" }], seed: 8 }));
+const vsUltron = () =>
+  startCoreGame(coreScenario("ultron", { players: [{ starterDeckId: "core-iron-man-aggression" }], seed: 8 }));
 const dronesOf = (state: GameState) => playerOf(state, P1).playArea.filter((id) => inst(state, id).facedownAs !== null);
-const attack = (state: GameState, target: InstanceId) => ({ type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(state), targetInstanceId: target }) as const;
+const attack = (state: GameState, target: InstanceId) =>
+  ({ type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(state), targetInstanceId: target }) as const;
 
 describe("coreScenario('ultron')", () => {
   it("setup: Ultron Drones enters play and 1B gives each player a facedown Drone with a base ATK/SCH/hit points of 1", () => {
@@ -37,7 +39,10 @@ describe("Ultron", () => {
   it("Ultron (III): Drones get +1 ATK/+1 hit point, and Ultron can't take damage while a Drone is in play", () => {
     const start = vsUltron();
     // Test surgery: jump to stage III (its When Revealed isn't under test here).
-    const stageThree: GameState = { ...start, villains: start.villains.map((v) => ({ ...v, stageIndex: 2, lastStageIndex: 2 })) };
+    const stageThree: GameState = {
+      ...start,
+      villains: start.villains.map((v) => ({ ...v, stageIndex: 2, lastStageIndex: 2 })),
+    };
     const profile = characterProfile(stageThree, dronesOf(stageThree)[0] as InstanceId, CORE_DEPS);
     expect([profile?.atk, profile?.maxHp]).toEqual([2, 2]);
     const after = settle(run(stageThree, toHero(), attack(stageThree, activeVillain(stageThree).instanceId)));

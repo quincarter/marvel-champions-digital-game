@@ -1,4 +1,4 @@
-import { DRS_CARDS, type AbilityReference } from "@mc/content";
+import { DRS_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { DRS_ABILITIES } from "./index.js";
 import { abilityRefIds } from "../../ability-refs.js";

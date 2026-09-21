@@ -1,7 +1,7 @@
 import { activeEncounterDeck } from "./query.js";
 import { withEncounterPiles } from "./testing/scenario.js";
 import { flat, type AnyCard, type CardId } from "@mc/content";
-import type { AbilityDefinition, EngineDeps } from "./abilities.js";
+import type { AbilityDefinition } from "./abilities.js";
 import type { Command } from "./commands.js";
 import { replay, sessionApply, startSession, type GameSession } from "./engine.js";
 import { playerId, type InstanceId } from "./ids.js";
@@ -22,11 +22,23 @@ const copies = (id: CardId, n = 20): readonly CardId[] => Array.from({ length: n
 const you = { kind: "controller" } as const;
 
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
-const SCHEME = stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "scheme",
+  stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }],
+});
 const VILLAIN = (atk = 2, sch = 1) => stubVillain({ id: "villain", stages: [{ hp: flat(30), atk, sch }] });
 
 /** A treachery whose When Revealed runs `effects`; the encounter deck is all copies of it (boost icons 0). */
-function treacheryGame(effects: readonly EffectSpec[], options: { villain?: ReturnType<typeof stubVillain>; players?: number; extra?: readonly AnyCard[]; extraAbilities?: readonly StubAbility[]; encounter?: readonly CardId[] } = {}) {
+function treacheryGame(
+  effects: readonly EffectSpec[],
+  options: {
+    villain?: ReturnType<typeof stubVillain>;
+    players?: number;
+    extra?: readonly AnyCard[];
+    extraAbilities?: readonly StubAbility[];
+    encounter?: readonly CardId[];
+  } = {},
+) {
   const ability = stubAbility("revealed", def({ trigger: { kind: "whenRevealed" }, effects }));
   const card = stubTreachery({ id: "t", boostIcons: 0, abilities: [ability.ref] });
   const deps = depsOf(ability, ...(options.extraAbilities ?? []));
@@ -45,9 +57,12 @@ function treacheryGame(effects: readonly EffectSpec[], options: { villain?: Retu
 const identityOf = (state: GameState, player = p1) => mustPlayer(state, player).identity.instanceId;
 const damageOn = (state: GameState, id: InstanceId) => mustInstance(state, id).damage;
 const threat = (state: GameState) => mustInstance(state, state.mainScheme.instanceId).threat;
-const revealedCount = (state: GameState, cardId: CardId) => activeEncounterDeck(state).discard.filter((id) => state.instances[id]?.cardId === cardId).length;
+const revealedCount = (state: GameState, cardId: CardId) =>
+  activeEncounterDeck(state).discard.filter((id) => state.instances[id]?.cardId === cardId).length;
 const decline = (state: GameState): readonly string[] =>
-  state.pendingChoice?.prompt.kind === "declareDefender" ? ["decline"] : (state.pendingChoice?.options.slice(0, state.pendingChoice.minSelections).map((o) => o.optionId) ?? []);
+  state.pendingChoice?.prompt.kind === "declareDefender"
+    ? ["decline"]
+    : (state.pendingChoice?.options.slice(0, state.pendingChoice.minSelections).map((o) => o.optionId) ?? []);
 /**
  * Test surgery: reorder the encounter deck so its first cards are copies of `order`, in order.
  * In round 1 the villain's activation draws a boost card first (one per player), then each player is dealt one.
@@ -104,7 +119,9 @@ describe("'X attacks you' / 'The villain schemes'", () => {
   });
 
   it("'The villain schemes' (Advance) places the villain's SCH", () => {
-    const { deps, state } = treacheryGame([{ kind: "enemyScheme", enemies: { kind: "villain" } }], { villain: VILLAIN(0, 3) });
+    const { deps, state } = treacheryGame([{ kind: "enemyScheme", enemies: { kind: "villain" } }], {
+      villain: VILLAIN(0, 3),
+    });
     const after = settle(runWith(deps, state, endTurn()), decline, deps);
     // Villain activation (alter-ego → scheme 3) + Advance (scheme 3).
     expect(threat(after)).toBe(5 + 3 + 3);
@@ -114,7 +131,11 @@ describe("'X attacks you' / 'The villain schemes'", () => {
     const { deps, state } = treacheryGame(
       [
         { kind: "enemyScheme", enemies: { kind: "villain" }, bind: "s" },
-        { kind: "moveCards", cards: { kind: "zone", zone: "deck", player: you, top: { kind: "var", name: "s.threatPlaced" } }, to: "discard" },
+        {
+          kind: "moveCards",
+          cards: { kind: "zone", zone: "deck", player: you, top: { kind: "var", name: "s.threatPlaced" } },
+          to: "discard",
+        },
       ],
       { villain: VILLAIN(0, 2) },
     );
@@ -128,7 +149,11 @@ describe("'X attacks you' / 'The villain schemes'", () => {
 describe("attack results: 'if this attack deals damage' / 'that character is stunned' / 'if no attack was made'", () => {
   const vengeance: readonly EffectSpec[] = [
     { kind: "enemyAttack", enemies: { kind: "villain" }, against: you, bind: "v" },
-    { kind: "if", condition: { kind: "varAtLeast", name: "v.damage", amount: 1 }, then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 1 } }] },
+    {
+      kind: "if",
+      condition: { kind: "varAtLeast", name: "v.damage", amount: 1 },
+      then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 1 } }],
+    },
   ];
 
   it("'If this attack deals damage, place 1 threat on the main scheme' (Klaw's Vengeance) — only when damage lands", () => {
@@ -159,7 +184,10 @@ describe("attack results: 'if this attack deals damage' / 'that character is stu
       {
         kind: "if",
         condition: { kind: "not", of: { kind: "varAtLeast", name: "t.made", amount: 1 } },
-        then: [{ kind: "heal", target: { kind: "named", name: "titania" }, amount: { kind: "const", value: 99 } }, { kind: "gainSurge" }],
+        then: [
+          { kind: "heal", target: { kind: "named", name: "titania" }, amount: { kind: "const", value: 99 } },
+          { kind: "gainSurge" },
+        ],
       },
     ];
     const { deps, state, card } = treacheryGame(fury, { villain: VILLAIN(0, 0), extra: [TITANIA] });
@@ -174,7 +202,9 @@ describe("attack results: 'if this attack deals damage' / 'that character is stu
         controllerId: null,
         faceup: true,
       }),
-      encounterDecks: withEncounterPiles(state, { deck: activeEncounterDeck(state).deck.filter((id) => id !== titaniaId) }).encounterDecks,
+      encounterDecks: withEncounterPiles(state, {
+        deck: activeEncounterDeck(state).deck.filter((id) => id !== titaniaId),
+      }).encounterDecks,
       players: state.players.map((p) => (p.playerId === p1 ? { ...p, playArea: [...p.playArea, titaniaId] } : p)),
     };
     // Alter-ego form: Titania's own activation is a scheme, so her stun is still there at the reveal.
@@ -191,16 +221,32 @@ describe("attack results: 'if this attack deals damage' / 'that character is stu
     const THUG = stubMinion({ id: "thug", atk: 1, sch: 0, hp: 5, boostIcons: 0 });
     const gangUp: readonly EffectSpec[] = [
       { kind: "enemyAttack", enemies: { kind: "villain" }, against: you, bind: "g" },
-      { kind: "enemyAttack", enemies: { kind: "each", query: { categories: ["minion"], engagedWith: "you" } }, against: you, bind: "g" },
-      { kind: "if", condition: { kind: "varAtLeast", name: "g.made", amount: 2 }, then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 10 } }] },
+      {
+        kind: "enemyAttack",
+        enemies: { kind: "each", query: { categories: ["minion"], engagedWith: "you" } },
+        against: you,
+        bind: "g",
+      },
+      {
+        kind: "if",
+        condition: { kind: "varAtLeast", name: "g.made", amount: 2 },
+        then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 10 } }],
+      },
     ];
-    const { deps, state, card } = treacheryGame(gangUp, { villain: VILLAIN(1, 0), extra: [THUG], encounter: [THUG.id, ...copies(BLANK.id, 4)] });
+    const { deps, state, card } = treacheryGame(gangUp, {
+      villain: VILLAIN(1, 0),
+      extra: [THUG],
+      encounter: [THUG.id, ...copies(BLANK.id, 4)],
+    });
     // Round 1 (alter-ego): boost card = blank, dealt card = the thug, which engages p1.
     const roundTwo = settle(runWith(deps, stackEncounter(state, BLANK.id, THUG.id), endTurn()), decline, deps);
     expect(mustPlayer(roundTwo, p1).playArea.some((id) => roundTwo.instances[id]?.cardId === THUG.id)).toBe(true);
     // Round 2: index 0 is the villain attack's boost card; the dealt card (index 1) becomes Gang-Up.
     const nextId = activeEncounterDeck(roundTwo).deck[1] as InstanceId;
-    const rigged: GameState = { ...roundTwo, instances: { ...roundTwo.instances, [nextId]: { ...mustInstance(roundTwo, nextId), cardId: card.id } } };
+    const rigged: GameState = {
+      ...roundTwo,
+      instances: { ...roundTwo.instances, [nextId]: { ...mustInstance(roundTwo, nextId), cardId: card.id } },
+    };
     const after = settle(runWith(deps, rigged, toHero(), endTurn()), decline, deps);
     expect(threat(after)).toBe(15);
   });
@@ -208,15 +254,37 @@ describe("attack results: 'if this attack deals damage' / 'that character is stu
 
 describe("encounter-card 'you' and Whirlwind", () => {
   it("'After Radioactive Man attacks you, discard 1 card at random from your hand' — 'you' is the attacked player", () => {
-    const radiation = stubAbility("radioactive", def({
-      trigger: { kind: "response", forced: true, on: { on: "enemyAttack", selfIs: "source", playerIs: "controller", usesAttackedPlayer: true } },
-      effects: [{ kind: "discardFromHand", player: you, amount: { kind: "const", value: 1 }, random: true }],
-    }));
-    const RADIOACTIVE = stubMinion({ id: "radioactive", atk: 1, sch: 0, hp: 7, boostIcons: 0, abilities: [radiation.ref] });
+    const radiation = stubAbility(
+      "radioactive",
+      def({
+        trigger: {
+          kind: "response",
+          forced: true,
+          on: { on: "enemyAttack", selfIs: "source", playerIs: "controller", usesAttackedPlayer: true },
+        },
+        effects: [{ kind: "discardFromHand", player: you, amount: { kind: "const", value: 1 }, random: true }],
+      }),
+    );
+    const RADIOACTIVE = stubMinion({
+      id: "radioactive",
+      atk: 1,
+      sch: 0,
+      hp: 7,
+      boostIcons: 0,
+      abilities: [radiation.ref],
+    });
     const deps = depsOf(radiation);
-    const state = newGame({ villain: VILLAIN(0, 0), mainScheme: SCHEME, extraCards: [RADIOACTIVE, BLANK], encounterDeck: [RADIOACTIVE.id, ...copies(BLANK.id, 10)], deps });
+    const state = newGame({
+      villain: VILLAIN(0, 0),
+      mainScheme: SCHEME,
+      extraCards: [RADIOACTIVE, BLANK],
+      encounterDeck: [RADIOACTIVE.id, ...copies(BLANK.id, 10)],
+      deps,
+    });
     const roundTwo = settle(runWith(deps, stackEncounter(state, BLANK.id, RADIOACTIVE.id), endTurn()), decline, deps);
-    expect(mustPlayer(roundTwo, p1).playArea.some((id) => roundTwo.instances[id]?.cardId === RADIOACTIVE.id)).toBe(true);
+    expect(mustPlayer(roundTwo, p1).playArea.some((id) => roundTwo.instances[id]?.cardId === RADIOACTIVE.id)).toBe(
+      true,
+    );
     const atDefense = settleUntil(runWith(deps, roundTwo, toHero(), endTurn()), "declareDefender", deps);
     // Villain (ATK 0) first, then Radioactive Man.
     const second = settleUntil(resolvePending(atDefense, ["decline"], deps), "declareDefender", deps);
@@ -226,15 +294,47 @@ describe("encounter-card 'you' and Whirlwind", () => {
   });
 
   it("'When Whirlwind attacks you, also resolve his attack against each other hero' (not re-triggered by those)", () => {
-    const whirl = stubAbility("whirlwind", def({
-      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", selfIs: "source", playerIs: "controller", usesAttackedPlayer: true } },
-      effects: [{ kind: "atEndOfAttack", effects: [{ kind: "enemyAttack", enemies: { kind: "self" }, against: { kind: "others", of: you }, additionalResolution: true }] }],
-    }));
+    const whirl = stubAbility(
+      "whirlwind",
+      def({
+        trigger: {
+          kind: "interrupt",
+          forced: true,
+          on: { on: "enemyAttack", selfIs: "source", playerIs: "controller", usesAttackedPlayer: true },
+        },
+        effects: [
+          {
+            kind: "atEndOfAttack",
+            effects: [
+              {
+                kind: "enemyAttack",
+                enemies: { kind: "self" },
+                against: { kind: "others", of: you },
+                additionalResolution: true,
+              },
+            ],
+          },
+        ],
+      }),
+    );
     const WHIRLWIND = stubMinion({ id: "whirlwind", atk: 2, sch: 0, hp: 6, boostIcons: 0, abilities: [whirl.ref] });
     const deps = depsOf(whirl);
-    const state = newGame({ players: 2, villain: VILLAIN(0, 0), mainScheme: SCHEME, extraCards: [WHIRLWIND, BLANK], encounterDeck: [WHIRLWIND.id, ...copies(BLANK.id, 10)], deps });
-    const roundTwo = settle(runWith(deps, stackEncounter(state, BLANK.id, BLANK.id, WHIRLWIND.id), endTurn(p1), endTurn(p2)), decline, deps);
-    const engagedWith = [p1, p2].find((p) => mustPlayer(roundTwo, p).playArea.some((id) => roundTwo.instances[id]?.cardId === WHIRLWIND.id));
+    const state = newGame({
+      players: 2,
+      villain: VILLAIN(0, 0),
+      mainScheme: SCHEME,
+      extraCards: [WHIRLWIND, BLANK],
+      encounterDeck: [WHIRLWIND.id, ...copies(BLANK.id, 10)],
+      deps,
+    });
+    const roundTwo = settle(
+      runWith(deps, stackEncounter(state, BLANK.id, BLANK.id, WHIRLWIND.id), endTurn(p1), endTurn(p2)),
+      decline,
+      deps,
+    );
+    const engagedWith = [p1, p2].find((p) =>
+      mustPlayer(roundTwo, p).playArea.some((id) => roundTwo.instances[id]?.cardId === WHIRLWIND.id),
+    );
     expect(engagedWith).toBeDefined();
     const heroes = runWith(deps, roundTwo, toHero(roundTwo.firstPlayerId), endTurn(roundTwo.firstPlayerId));
     const second = roundTwo.players.find((p) => p.playerId !== roundTwo.firstPlayerId)?.playerId ?? p2;
@@ -261,7 +361,12 @@ test("enemy-action effects replay to an identical state", () => {
   apply(endTurn());
   while (session.state.pendingChoice) {
     const choice = session.state.pendingChoice;
-    apply({ type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: decline(session.state) });
+    apply({
+      type: "resolveChoice",
+      playerId: choice.playerId,
+      choiceId: choice.choiceId,
+      selectedOptionIds: decline(session.state),
+    });
   }
   const replayed = replay(session.log, deps);
   expect(replayed.ok && replayed.state).toEqual(session.state);

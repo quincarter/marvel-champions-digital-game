@@ -191,7 +191,13 @@ function paymentTileCount(payment: PaymentView): number {
 }
 
 /** A table card in the payment strip: its current face, whole, in a card frame. */
-function drawTableTile(ctx: BoardDrawContext, tile: Rect, game: GameState, id: InstanceId, state: "rest" | "selected"): void {
+function drawTableTile(
+  ctx: BoardDrawContext,
+  tile: Rect,
+  game: GameState,
+  id: InstanceId,
+  state: "rest" | "selected",
+): void {
   const { scene } = ctx;
   const g = scene.add.graphics();
   paintPanel(g, tile, "card", state);
@@ -212,7 +218,12 @@ function drawTableTile(ctx: BoardDrawContext, tile: Rect, game: GameState, id: I
 /** A one-word tag inside a strip tile, the same chip the hand's cards carry. */
 function tableTag(scene: Phaser.Scene, tile: Rect, text: string, ground: number, edge: "top" | "bottom"): void {
   const tag = scene.add
-    .text(tile.x + tile.width - 3, edge === "top" ? tile.y + 4 : tile.y + tile.height - 4, caseOf(typeRole.label, text), textStyle(typeRole.label, surface.paper.hex))
+    .text(
+      tile.x + tile.width - 3,
+      edge === "top" ? tile.y + 4 : tile.y + tile.height - 4,
+      caseOf(typeRole.label, text),
+      textStyle(typeRole.label, surface.paper.hex),
+    )
     .setOrigin(1, edge === "top" ? 0 : 1)
     .setPadding(4, 2, 4, 2)
     .setBackgroundColor(cssOf(ground));
@@ -244,7 +255,13 @@ interface HandCardState {
  * same way said "these two cards are going away", when one of them is the
  * thing you are buying.
  */
-function paintHandSlot(ctx: BoardDrawContext, slot: Rect, card: HandCardView, payment: PaymentView | null, discard: DiscardChoiceView | null = null): HandCardState {
+function paintHandSlot(
+  ctx: BoardDrawContext,
+  slot: Rect,
+  card: HandCardView,
+  payment: PaymentView | null,
+  discard: DiscardChoiceView | null = null,
+): HandCardState {
   if (discard) {
     const isSubject = discard.source === card.instanceId;
     const picked = discard.picked.has(card.instanceId);
@@ -284,7 +301,13 @@ function paintHandSlot(ctx: BoardDrawContext, slot: Rect, card: HandCardView, pa
  * pips the card generates when spent. An illegal card keeps its place at 38%
  * ink and carries the engine's own reason as a badge ("dim, don't hide").
  */
-function drawHandCard(ctx: BoardDrawContext, slot: Rect, card: HandCardView, payment: PaymentView | null, discard: DiscardChoiceView | null = null): void {
+function drawHandCard(
+  ctx: BoardDrawContext,
+  slot: Rect,
+  card: HandCardView,
+  payment: PaymentView | null,
+  discard: DiscardChoiceView | null = null,
+): void {
   const { scene } = ctx;
   const { spent, subject, alpha } = paintHandSlot(ctx, slot, card, payment, discard);
 
@@ -320,7 +343,12 @@ function drawHandCard(ctx: BoardDrawContext, slot: Rect, card: HandCardView, pay
     // Inside the card during payment or a discard choice: that mode's own bar
     // sits directly above the hand, and a tag hung over the top edge disappears behind it.
     scene.add
-      .text(slot.x + slot.width - 3, payment || discard ? slot.y + 4 : slot.y - 9, caseOf(typeRole.label, tag.text), textStyle(typeRole.label, surface.paper.hex))
+      .text(
+        slot.x + slot.width - 3,
+        payment || discard ? slot.y + 4 : slot.y - 9,
+        caseOf(typeRole.label, tag.text),
+        textStyle(typeRole.label, surface.paper.hex),
+      )
       .setOrigin(1, 0)
       .setPadding(4, 2, 4, 2)
       .setBackgroundColor(cssOf(tag.ground));
@@ -334,7 +362,12 @@ function drawHandCard(ctx: BoardDrawContext, slot: Rect, card: HandCardView, pay
     wash.fillStyle(surface.ink.hex, 0.3).fillRect(slot.x + 3, slot.y + 3, slot.width - 6, slot.height - 6);
   }
 
-  ctx.makeTapTarget(slot, card.instanceId, () => ctx.controller.tapHandCard(card.instanceId), (deltaX) => ctx.hand.scrollBy(-deltaX));
+  ctx.makeTapTarget(
+    slot,
+    card.instanceId,
+    () => ctx.controller.tapHandCard(card.instanceId),
+    (deltaX) => ctx.hand.scrollBy(-deltaX),
+  );
 }
 
 /**
@@ -359,7 +392,12 @@ function drawPriceChip(scene: Phaser.Scene, inner: Rect, card: HandCardView, alp
   const g = scene.add.graphics();
   g.fillStyle(ground, alpha).fillRect(chip.x, chip.y, chip.width, chip.height);
   const text = scene.add
-    .text(chip.x + chip.width / 2, chip.y + chip.height / 2, `${cost}→${currentCost}`, textStyle(typeRole.statSmall, surface.paper.hex, alpha))
+    .text(
+      chip.x + chip.width / 2,
+      chip.y + chip.height / 2,
+      `${cost}→${currentCost}`,
+      textStyle(typeRole.statSmall, surface.paper.hex, alpha),
+    )
     .setOrigin(0.5);
   fitText(text, chip.width - 4, typeRole.statSmall.size);
 }
@@ -379,7 +417,12 @@ function drawHandCardFallback(scene: Phaser.Scene, slot: Rect, card: HandCardVie
     const chipG = scene.add.graphics();
     chipG.fillStyle(signal.cost.hex, alpha).fillRect(chip.x, chip.y, chip.width, chip.height);
     scene.add
-      .text(chip.x + chip.width / 2, chip.y + chip.height / 2, String(card.cost), textStyle(typeRole.statSmall, surface.paper.hex, alpha))
+      .text(
+        chip.x + chip.width / 2,
+        chip.y + chip.height / 2,
+        String(card.cost),
+        textStyle(typeRole.statSmall, surface.paper.hex, alpha),
+      )
       .setOrigin(0.5);
     nameLeft = chip.x + chip.width + 4;
   }
@@ -407,7 +450,12 @@ function drawHandCardFallback(scene: Phaser.Scene, slot: Rect, card: HandCardVie
     const pip = scene.add.graphics();
     pip.fillStyle(signal.cost.hex, alpha).fillRect(box.x, box.y, box.width, box.height);
     scene.add
-      .text(box.x + box.width / 2, box.y + box.height / 2, RESOURCE_GLYPH[icon], textStyle(typeRole.label, surface.paper.hex, alpha))
+      .text(
+        box.x + box.width / 2,
+        box.y + box.height / 2,
+        RESOURCE_GLYPH[icon],
+        textStyle(typeRole.label, surface.paper.hex, alpha),
+      )
       .setOrigin(0.5);
   });
 }

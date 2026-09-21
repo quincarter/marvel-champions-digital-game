@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-// `tauri build`, made repeatable on macOS.
+// `tauri build` for whichever OS this is running on, made repeatable on macOS.
+//
+// Tauri bundles with the host's own toolchain, so each OS produces its own installers (the same split as
+// .github/workflows/desktop-build.yml): macOS gets the .app and .dmg, Windows the .msi and NSIS -setup.exe,
+// Linux the .deb/.rpm/.AppImage. Nothing below is macOS-only except the DMG clean-up, which is skipped elsewhere.
 //
 // Tauri's DMG step (bundle_dmg.sh) mounts a scratch image, then drives Finder over AppleScript to arrange the
 // installer window. When that step fails — Finder busy, an automation prompt nobody answered, a run from a task
@@ -11,6 +15,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { pnpm } from "./lib/run.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const clientDir = path.join(repoRoot, "packages", "client");
@@ -42,7 +47,7 @@ function clearStaleDmgState() {
 }
 
 function tauriBuild(args, env = process.env) {
-  return spawnSync("pnpm", ["exec", "tauri", "build", ...args], { cwd: clientDir, env, stdio: "inherit" }).status ?? 1;
+  return pnpm(["exec", "tauri", "build", ...args], { cwd: clientDir, env }).status ?? 1;
 }
 
 clearStaleDmgState();

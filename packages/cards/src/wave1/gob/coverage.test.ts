@@ -1,4 +1,4 @@
-import { GOB_CARDS, type AbilityReference } from "@mc/content";
+import { GOB_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { GOB_ABILITIES } from "./index.js";
 import { abilityRefIds } from "../../ability-refs.js";

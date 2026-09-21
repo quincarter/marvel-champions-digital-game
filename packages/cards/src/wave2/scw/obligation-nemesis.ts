@@ -79,7 +79,8 @@ export const SCW_OBLIGATION_NEMESIS = defineAbilities({
   // • Discard the top 5 cards of the encounter deck. For each star icon in the boost area discarded this way,
   //   place 1 threat on the main scheme. Discard this obligation.
   "15023.obligation": obligation("Wanda Maximoff", {
-    label: "Discard the top 5 cards of the encounter deck. For each star icon in the boost area discarded this way, place 1 threat on the main scheme",
+    label:
+      "Discard the top 5 cards of the encounter deck. For each star icon in the boost area discarded this way, place 1 threat on the main scheme",
     effects: [discardEncounterCards(5, { bind: "sanity" }), placeThreat(varOf("sanity.starIcons"), theMainScheme)],
   }),
 
@@ -103,7 +104,10 @@ export const SCW_OBLIGATION_NEMESIS = defineAbilities({
   // play engaged with you. Discard the top card of the encounter deck. If 2 or more boost icons were discarded
   // this way, Luminous activates against you (module docblock).
   "15027.when-revealed": whenRevealed(
-    chooseCards("luminous", encounterCards(["deck", "discard"], query("minion", { name: cardName("15025") })), { min: 1, max: 1 }),
+    chooseCards("luminous", encounterCards(["deck", "discard"], query("minion", { name: cardName("15025") })), {
+      min: 1,
+      max: 1,
+    }),
     putIntoPlay(chosen("luminous"), you),
     discardEncounterCards(1, { bind: "d" }),
     ifThen(valueAtLeast(varOf("d.boostIcons"), 2), enemyAttack(chosen("luminous"), { against: you })),

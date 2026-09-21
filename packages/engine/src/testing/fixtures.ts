@@ -204,19 +204,17 @@ export interface StubVillainStage {
 }
 
 const villainStages = (stages: readonly StubVillainStage[]): [VillainStage, ...VillainStage[]] => {
-  const built = stages.map(
-    (stage, index): VillainStage => ({
-      stageNumber: index + 1,
-      hp: stage.hp,
-      atk: stage.atk,
-      sch: stage.sch,
-      ...(stage.dashedStats ? { dashedStats: stage.dashedStats } : {}),
-      text,
-      traits: stage.traits ?? [],
-      keywords: stage.keywords ?? [],
-      abilities: stage.abilities ?? [],
-    }),
-  );
+  const built = stages.map((stage, index): VillainStage => ({
+    stageNumber: index + 1,
+    hp: stage.hp,
+    atk: stage.atk,
+    sch: stage.sch,
+    ...(stage.dashedStats ? { dashedStats: stage.dashedStats } : {}),
+    text,
+    traits: stage.traits ?? [],
+    keywords: stage.keywords ?? [],
+    abilities: stage.abilities ?? [],
+  }));
   const [first, ...rest] = built;
   if (!first) throw new Error("stubVillain needs at least one stage");
   return [first, ...rest];
@@ -299,20 +297,18 @@ export function stubMainScheme(spec: {
     readonly aSideAbilities?: readonly AbilityReference[];
   }[];
 }): MainSchemeCard {
-  const stages = spec.stages.map(
-    (stage, index): MainSchemeStage => ({
-      stageNumber: index + 1,
-      startingThreat: stage.startingThreat,
-      targetThreat: stage.targetThreat,
-      acceleration: stage.acceleration,
-      icons: stage.icons ?? [],
-      text,
-      traits: [],
-      keywords: stage.keywords ?? [],
-      abilities: stage.abilities ?? [],
-      aSide: { text, abilities: stage.aSideAbilities ?? [] },
-    }),
-  );
+  const stages = spec.stages.map((stage, index): MainSchemeStage => ({
+    stageNumber: index + 1,
+    startingThreat: stage.startingThreat,
+    targetThreat: stage.targetThreat,
+    acceleration: stage.acceleration,
+    icons: stage.icons ?? [],
+    text,
+    traits: [],
+    keywords: stage.keywords ?? [],
+    abilities: stage.abilities ?? [],
+    aSide: { text, abilities: stage.aSideAbilities ?? [] },
+  }));
   const [first, ...rest] = stages;
   if (!first) throw new Error("stubMainScheme needs at least one stage");
   return {

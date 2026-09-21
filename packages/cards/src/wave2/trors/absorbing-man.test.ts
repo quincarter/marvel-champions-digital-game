@@ -1,14 +1,30 @@
 import { cardsInPlay, createGame, traitsOf, type GameState } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, playerOf, settle, stackEncounterDeck, toHero, P1 } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  P1,
+} from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
-const absorbingManVsHeroes = () => startWave2Game(wave2Scenario("absorbing-man", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+const absorbingManVsHeroes = () =>
+  startWave2Game(wave2Scenario("absorbing-man", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
 /** A neutral boost card in the shared "standard" set (0 boost icons, no `[star] Boost:` line). */
 const ADVANCE = "01186";
 const ENVIRONMENTS = ["04080", "04081", "04082", "04083"] as const;
 /** Each environment's own printed trait (Dense Forest/Snowy Hillside/Rocky Outcrop/Abandoned Facility). */
-const ENVIRONMENT_TRAIT: Record<string, string> = { "04080": "WOOD", "04081": "ICE", "04082": "STONE", "04083": "METAL" };
+const ENVIRONMENT_TRAIT: Record<string, string> = {
+  "04080": "WOOD",
+  "04081": "ICE",
+  "04082": "STONE",
+  "04083": "METAL",
+};
 
 const environmentInPlay = (state: GameState): string | undefined =>
   cardsInPlay(state)
@@ -17,10 +33,15 @@ const environmentInPlay = (state: GameState): string | undefined =>
 
 describe("Absorbing Man scenario", () => {
   it("standalone setup: exactly one environment enters play, the villain and main scheme are legal", () => {
-    const config = wave2Scenario("absorbing-man", { players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }], seed: 2026 });
+    const config = wave2Scenario("absorbing-man", {
+      players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }],
+      seed: 2026,
+    });
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
-    const environments = cardsInPlay(created.state).filter((id) => (ENVIRONMENTS as readonly string[]).includes(created.state.instances[id]?.cardId ?? ""));
+    const environments = cardsInPlay(created.state).filter((id) =>
+      (ENVIRONMENTS as readonly string[]).includes(created.state.instances[id]?.cardId ?? ""),
+    );
     expect(environments).toHaveLength(1);
     expect(created.state.villains).toHaveLength(1);
     expect(created.state.outcome).toBeNull();
@@ -45,7 +66,9 @@ describe("Absorbing Man scenario", () => {
     const nextEnvironment = ENVIRONMENTS.find((code) => code !== before)!;
     const stacked = stackEncounterDeck(start, ADVANCE, nextEnvironment);
     const revealed = settle(runWave2(stacked, toHero(), endTurn()), firstLegal, undefined, WAVE2_DEPS);
-    const after = cardsInPlay(revealed).filter((id) => (ENVIRONMENTS as readonly string[]).includes(revealed.instances[id]?.cardId ?? ""));
+    const after = cardsInPlay(revealed).filter((id) =>
+      (ENVIRONMENTS as readonly string[]).includes(revealed.instances[id]?.cardId ?? ""),
+    );
     expect(after.map((id) => revealed.instances[id]?.cardId)).toEqual([nextEnvironment]);
   });
 
@@ -66,36 +89,55 @@ describe("Absorbing Man scenario", () => {
     expect(traitsOf(withMetal, withMetal.villains[0]!.instanceId, WAVE2_DEPS).map(String)).toContain("METAL");
     const metalScheme = withMetal.mainScheme.instanceId;
     const metalBefore = inst(withMetal, metalScheme).threat;
-    const metalAfter = inst(settle(runWave2(stackEncounterDeck(withMetal, ADVANCE, "04087"), endTurn()), firstLegal, undefined, WAVE2_DEPS), metalScheme).threat;
+    const metalAfter = inst(
+      settle(runWave2(stackEncounterDeck(withMetal, ADVANCE, "04087"), endTurn()), firstLegal, undefined, WAVE2_DEPS),
+      metalScheme,
+    ).threat;
 
     // Whichever environment setup happened to place has only 1 copy, so a non-Metal comparison must use a
     // different one to leave a copy in the deck for `stackEncounterDeck` to find.
-    const nonMetalEnvironment = ENVIRONMENTS.find((code) => code !== "04083" && code !== environmentInPlay(absorbingManVsHeroes()))!;
+    const nonMetalEnvironment = ENVIRONMENTS.find(
+      (code) => code !== "04083" && code !== environmentInPlay(absorbingManVsHeroes()),
+    )!;
     const withWoodStart = stackEncounterDeck(absorbingManVsHeroes(), ADVANCE, nonMetalEnvironment);
     const withWood = settle(runWave2(withWoodStart, endTurn()), firstLegal, undefined, WAVE2_DEPS);
     expect(traitsOf(withWood, withWood.villains[0]!.instanceId, WAVE2_DEPS).map(String)).not.toContain("METAL");
     const woodScheme = withWood.mainScheme.instanceId;
     const woodBefore = inst(withWood, woodScheme).threat;
-    const woodAfter = inst(settle(runWave2(stackEncounterDeck(withWood, ADVANCE, "04087"), endTurn()), firstLegal, undefined, WAVE2_DEPS), woodScheme).threat;
+    const woodAfter = inst(
+      settle(runWave2(stackEncounterDeck(withWood, ADVANCE, "04087"), endTurn()), firstLegal, undefined, WAVE2_DEPS),
+      woodScheme,
+    ).threat;
 
     expect(metalAfter - metalBefore).toBe(woodAfter - woodBefore + 1);
   });
 
   it("Steel Kick: deals more indirect damage in hero form with the Metal trait in play than without", () => {
     const withMetalStart = stackEncounterDeck(absorbingManVsHeroes(), ADVANCE, "04083");
-    const withMetal = runWave2(settle(runWave2(withMetalStart, endTurn()), firstLegal, undefined, WAVE2_DEPS), toHero());
+    const withMetal = runWave2(
+      settle(runWave2(withMetalStart, endTurn()), firstLegal, undefined, WAVE2_DEPS),
+      toHero(),
+    );
     expect(traitsOf(withMetal, withMetal.villains[0]!.instanceId, WAVE2_DEPS).map(String)).toContain("METAL");
     const metalIdentity = identityOf(withMetal);
     const metalBefore = inst(withMetal, metalIdentity).damage;
-    const metalAfter = inst(settle(runWave2(stackEncounterDeck(withMetal, ADVANCE, "04087"), endTurn()), firstLegal, undefined, WAVE2_DEPS), metalIdentity).damage;
+    const metalAfter = inst(
+      settle(runWave2(stackEncounterDeck(withMetal, ADVANCE, "04087"), endTurn()), firstLegal, undefined, WAVE2_DEPS),
+      metalIdentity,
+    ).damage;
 
-    const nonMetalEnvironment = ENVIRONMENTS.find((code) => code !== "04083" && code !== environmentInPlay(absorbingManVsHeroes()))!;
+    const nonMetalEnvironment = ENVIRONMENTS.find(
+      (code) => code !== "04083" && code !== environmentInPlay(absorbingManVsHeroes()),
+    )!;
     const withWoodStart = stackEncounterDeck(absorbingManVsHeroes(), ADVANCE, nonMetalEnvironment);
     const withWood = runWave2(settle(runWave2(withWoodStart, endTurn()), firstLegal, undefined, WAVE2_DEPS), toHero());
     expect(traitsOf(withWood, withWood.villains[0]!.instanceId, WAVE2_DEPS).map(String)).not.toContain("METAL");
     const woodIdentity = identityOf(withWood);
     const woodBefore = inst(withWood, woodIdentity).damage;
-    const woodAfter = inst(settle(runWave2(stackEncounterDeck(withWood, ADVANCE, "04087"), endTurn()), firstLegal, undefined, WAVE2_DEPS), woodIdentity).damage;
+    const woodAfter = inst(
+      settle(runWave2(stackEncounterDeck(withWood, ADVANCE, "04087"), endTurn()), firstLegal, undefined, WAVE2_DEPS),
+      woodIdentity,
+    ).damage;
 
     expect(metalAfter - metalBefore).toBe(woodAfter - woodBefore + 1);
   });
@@ -111,7 +153,12 @@ describe("Absorbing Man scenario", () => {
     const start = stackEncounterDeck(absorbingManVsHeroes(), ADVANCE, "04081"); // Snowy Hillside, Ice
     const withIce = settle(runWave2(start, endTurn()), firstLegal, undefined, WAVE2_DEPS);
     expect(traitsOf(withIce, withIce.villains[0]!.instanceId, WAVE2_DEPS).map(String)).toContain("ICE");
-    const settled = settle(runWave2(stackEncounterDeck(withIce, ADVANCE, "04090"), endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const settled = settle(
+      runWave2(stackEncounterDeck(withIce, ADVANCE, "04090"), endTurn()),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(settled, identityOf(settled)).statuses.stunned).toBeGreaterThan(0);
   });
 
@@ -126,7 +173,13 @@ describe("Absorbing Man scenario", () => {
   });
 
   it("Omni-Morph Duplication and its data-artifact refs (module docblock) all resolve", () => {
-    for (const id of ["04089.when-revealed", "04089.omni-morph-duplication-constant", "04089.omni-morph-duplication-constant-2", "04089.omni-morph-duplication-constant-3", "04089.omni-morph-duplication-constant-4"] as const) {
+    for (const id of [
+      "04089.when-revealed",
+      "04089.omni-morph-duplication-constant",
+      "04089.omni-morph-duplication-constant-2",
+      "04089.omni-morph-duplication-constant-3",
+      "04089.omni-morph-duplication-constant-4",
+    ] as const) {
       expect(WAVE2_DEPS.abilities[id], id).toBeDefined();
     }
   });

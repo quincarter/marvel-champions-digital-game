@@ -1,4 +1,11 @@
-import { CORE_STARTER_DECKS, WAVE2_CARDS, WAVE2_SCENARIOS, WAVE2_STARTER_DECKS, type AnyCard, type CardId } from "@mc/content";
+import {
+  CORE_STARTER_DECKS,
+  WAVE2_CARDS,
+  WAVE2_SCENARIOS,
+  WAVE2_STARTER_DECKS,
+  type AnyCard,
+  type CardId,
+} from "@mc/content";
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
 import { coreScenario, type CoreDifficulty, type CorePlayer, type CoreScenarioOptions } from "../core/setup.js";
 
@@ -32,7 +39,8 @@ const cardsById = new Map<string, AnyCard>(WAVE2_CARDS.map((card) => [card.id, c
 
 /** A wave 2 or Core starter deck as a player seat (quantities expanded; the identity isn't part of the deck). */
 export function wave2StarterDeckSetup(starterDeckId: string): PlayerSetup {
-  const starter = WAVE2_STARTER_DECKS.find((d) => d.id === starterDeckId) ?? CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);
+  const starter =
+    WAVE2_STARTER_DECKS.find((d) => d.id === starterDeckId) ?? CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);
   if (!starter) throw new Error(`no wave 2 or Core starter deck ${starterDeckId}`);
   return {
     identityCardId: starter.identityCardId,
@@ -44,7 +52,11 @@ export function wave2StarterDeckSetup(starterDeckId: string): PlayerSetup {
 const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
   players.map((seat) => {
     if ("starterDeckId" in seat) return wave2StarterDeckSetup(seat.starterDeckId);
-    return { identityCardId: seat.identityCardId as CardId, deck: seat.deck as readonly CardId[], ...(seat.aspects ? { aspects: seat.aspects } : {}) };
+    return {
+      identityCardId: seat.identityCardId as CardId,
+      deck: seat.deck as readonly CardId[],
+      ...(seat.aspects ? { aspects: seat.aspects } : {}),
+    };
   });
 
 /**
@@ -58,7 +70,11 @@ function wave2EncounterCardsOf(setIds: readonly string[]): CardId[] {
   const deck: CardId[] = [];
   for (const setId of setIds) {
     const members = WAVE2_CARDS.filter(
-      (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId) && card.type !== "villain" && card.type !== "main_scheme",
+      (card) =>
+        "encounterSetIds" in card &&
+        (card.encounterSetIds as readonly string[]).includes(setId) &&
+        card.type !== "villain" &&
+        card.type !== "main_scheme",
     );
     if (members.length === 0) throw new Error(`encounter set ${setId} has no wave 2 card`);
     for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) deck.push(card.id);
@@ -84,7 +100,10 @@ const SETASIDE_BY_SCENARIO: Readonly<Record<string, readonly CardId[]>> = {
  * duplicated rather than shared because the two wave's `*_CARDS`/`*EncounterCardsOf` pools differ and a shared
  * generic would need to thread both through every call site for one function this small.
  */
-function buildSingleVillain(scenario: (typeof WAVE2_SCENARIOS)[number], options: Wave2ScenarioOptions): GameSetupConfig {
+function buildSingleVillain(
+  scenario: (typeof WAVE2_SCENARIOS)[number],
+  options: Wave2ScenarioOptions,
+): GameSetupConfig {
   const difficulty = options.difficulty ?? "standard";
   const villain = cardsById.get(scenario.villainCardId);
   if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);
@@ -173,7 +192,11 @@ export function wave2Scenario(scenarioId: string, options: Wave2ScenarioOptions)
   const players: readonly CorePlayer[] = options.players.map((seat) => {
     if (!("starterDeckId" in seat)) return seat;
     const setup = wave2StarterDeckSetup(seat.starterDeckId);
-    return { identityCardId: setup.identityCardId, deck: setup.deck, ...(setup.aspects ? { aspects: setup.aspects } : {}) };
+    return {
+      identityCardId: setup.identityCardId,
+      deck: setup.deck,
+      ...(setup.aspects ? { aspects: setup.aspects } : {}),
+    };
   });
   return coreScenario(scenarioId, { ...options, players, cardPool: WAVE2_CARDS });
 }

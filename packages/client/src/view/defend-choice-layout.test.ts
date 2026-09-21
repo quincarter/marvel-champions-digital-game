@@ -1,6 +1,12 @@
 import { describe, expect, test } from "vitest";
 import { rectsOverlap } from "./layout.js";
-import { defendChoiceLayout, defendMatchupLayout, defendOptionPicture, defendOptionSlots, type DefendChoiceLayout } from "./defend-choice-layout.js";
+import {
+  defendChoiceLayout,
+  defendMatchupLayout,
+  defendOptionPicture,
+  defendOptionSlots,
+  type DefendChoiceLayout,
+} from "./defend-choice-layout.js";
 import { REFERENCE_VIEWPORTS, type Rect } from "./layout.js";
 
 /** docs/phase4-screen-gaps.md §0: checked at portrait phone, tablet portrait, tablet landscape and desktop. */
@@ -104,14 +110,24 @@ describe("defendOptionSlots", () => {
 });
 
 describe("defendMatchupLayout", () => {
-  const SIZES: readonly (readonly [number, number])[] = [[1440, 900], [1180, 820], [800, 600], [390, 844], [820, 1180]];
+  const SIZES: readonly (readonly [number, number])[] = [
+    [1440, 900],
+    [1180, 820],
+    [800, 600],
+    [390, 844],
+    [820, 1180],
+  ];
   for (const [width, height] of SIZES) {
     test(`${width}×${height}: attacker, middle and target read left to right inside the summary, notes clear of all three`, () => {
       const layout = defendChoiceLayout({ x: 0, y: 0, width, height });
       const m = defendMatchupLayout(layout.summary, layout.formFactor);
       const inside = (r: { x: number; y: number; width: number; height: number }): boolean =>
-        r.x >= layout.summary.x && r.y >= layout.summary.y && r.x + r.width <= layout.summary.x + layout.summary.width + 0.5 && r.y + r.height <= layout.summary.y + layout.summary.height + 0.5;
-      for (const rect of [m.attacker, m.middle, m.target, m.notes]) expect(inside(rect), JSON.stringify(rect)).toBe(true);
+        r.x >= layout.summary.x &&
+        r.y >= layout.summary.y &&
+        r.x + r.width <= layout.summary.x + layout.summary.width + 0.5 &&
+        r.y + r.height <= layout.summary.y + layout.summary.height + 0.5;
+      for (const rect of [m.attacker, m.middle, m.target, m.notes])
+        expect(inside(rect), JSON.stringify(rect)).toBe(true);
       expect(m.attacker.x + m.attacker.width).toBeLessThanOrEqual(m.middle.x);
       expect(m.middle.x + m.middle.width).toBeLessThanOrEqual(m.target.x);
       const notesBeside = m.notes.x >= m.target.x + m.target.width;
@@ -128,5 +144,6 @@ describe("defendOptionPicture", () => {
     expect(pic.width / pic.height).toBeCloseTo(63 / 88, 1);
     expect(pic.y + pic.height).toBeLessThanOrEqual(20 + 190);
   });
-  test("a sliver keeps its text instead", () => expect(defendOptionPicture({ x: 0, y: 0, width: 180, height: 190 })).toBeNull());
+  test("a sliver keeps its text instead", () =>
+    expect(defendOptionPicture({ x: 0, y: 0, width: 180, height: 190 })).toBeNull());
 });

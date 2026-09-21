@@ -1,13 +1,25 @@
 import type { InstanceId } from "@mc/engine";
 import { cardsInPlay } from "@mc/engine";
-import { firstLegal, inst, moveToHand, P1, payWith, play, playerOf, settle, use, type Picker } from "../../testing/harness.js";
+import {
+  firstLegal,
+  inst,
+  moveToHand,
+  P1,
+  payWith,
+  play,
+  playerOf,
+  settle,
+  use,
+  type Picker,
+} from "../../testing/harness.js";
 import { withForm } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { ANT_PACK_CARDS } from "./pack-cards.js";
 
 // Real wave 2 content: the Ant-Man (Leadership) precon against Rhino, standard, solo. Scott Lang starts in alter-ego.
-const antManVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 }));
+const antManVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 }));
 
 const TINY = { heroForm: 0 } as const;
 
@@ -27,7 +39,12 @@ describe("Ant-Man pack cards", () => {
     const given = moveToHand(antManVsRhino(), P1, "12011", "12021", "12022", "12023");
     const [antMan, energy, genius, strength] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
     // 2 [energy] + 2 [mental] + 2 [physical] = 6 overpaid for a cost-0 ally; the printed cap is 4.
-    const after = settle(runWave2(given.state, play(P1, antMan, [energy, genius, strength])), firstLegal, undefined, WAVE2_DEPS);
+    const after = settle(
+      runWave2(given.state, play(P1, antMan, [energy, genius, strength])),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(after, antMan).counters.pym).toBe(4);
   });
 
@@ -60,12 +77,18 @@ describe("Ant-Man pack cards", () => {
       }
       if (choice.prompt.kind === "spendResources") {
         const req = choice.prompt.requirement;
-        const needed = (req.generic ?? 0) + (req.physical ?? 0) + (req.mental ?? 0) + (req.energy ?? 0) + (req.wild ?? 0);
+        const needed =
+          (req.generic ?? 0) + (req.physical ?? 0) + (req.mental ?? 0) + (req.energy ?? 0) + (req.wild ?? 0);
         return choice.options.slice(0, needed).map((o) => o.optionId);
       }
       return firstLegal(state);
     };
-    const after = settle(runWave2(playedExercise, use(P1, exercise, "12024.team-building-exercise-action", [])), pick, undefined, WAVE2_DEPS);
+    const after = settle(
+      runWave2(playedExercise, use(P1, exercise, "12024.team-building-exercise-action", [])),
+      pick,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(cardsInPlay(after)).toContain(wasp);
     // Wasp leaves hand (-1); her own reduced cost (3 - 1 = 2) is paid from 2 more hand cards (-2). Net -3.
     expect(playerOf(after, P1).hand.length).toBe(handBefore - 3);

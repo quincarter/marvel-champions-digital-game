@@ -15,7 +15,17 @@ import type { TargetQuery } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { stubAlly, stubEvent, stubMainScheme, stubMinion, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { giveCard, newGame, payFor, resolvePending, RESOURCE, run, runWith, settle, settleUntil } from "./testing/scenario.js";
+import {
+  giveCard,
+  newGame,
+  payFor,
+  resolvePending,
+  RESOURCE,
+  run,
+  runWith,
+  settle,
+  settleUntil,
+} from "./testing/scenario.js";
 import { choiceExclusions } from "./why-not.js";
 
 const p1 = playerId("p1");
@@ -121,7 +131,9 @@ test("the options and the exclusions together are the whole visible universe, wi
   });
 
   expect(state.pendingChoice?.prompt.kind).toBe("chooseTarget");
-  const offered = (state.pendingChoice?.options ?? []).flatMap((option) => (option.ref.kind === "card" ? [option.ref.instanceId] : []));
+  const offered = (state.pendingChoice?.options ?? []).flatMap((option) =>
+    option.ref.kind === "card" ? [option.ref.instanceId] : [],
+  );
   const exclusions = choiceExclusions(state, deps);
 
   const universe = cardsInPlay(state);
@@ -210,7 +222,13 @@ test("an ally that already defended this phase is excluded as exhausted, not sil
   const played = run(
     given.state,
     toHero(p1),
-    { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: payFor(given.state, p1, 2), attachToInstanceId: null },
+    {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.id,
+      payment: payFor(given.state, p1, 2),
+      attachToInstanceId: null,
+    },
     endTurn(p1),
     toHero(p2),
     endTurn(p2),

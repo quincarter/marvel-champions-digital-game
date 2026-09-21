@@ -111,7 +111,9 @@ describe("boardLayout", () => {
     const enemies = layout.zones.enemies!;
     expect(enemies.y).toBeGreaterThanOrEqual(piles.y + piles.height);
     // The piles ride with the Enemies tab, so they vanish with it.
-    expect(boardLayout(rectOf(REFERENCE_VIEWPORTS.phone), { playerCount: 1, activeTab: "log" }).zones.encounter).toBeNull();
+    expect(
+      boardLayout(rectOf(REFERENCE_VIEWPORTS.phone), { playerCount: 1, activeTab: "log" }).zones.encounter,
+    ).toBeNull();
   });
 
   test("a solo game has no Team tab to show", () => {
@@ -150,23 +152,29 @@ describe("boardLayout", () => {
     ["tall tablet landscape", { width: 1100, height: 900 }],
   ] as const;
 
-  test.each(TALL_WINDOWS)("%s: the identity column is wide enough to show its card whole beside a text column", (_name, size) => {
-    const layout = boardLayout(rectOf(size), { playerCount: 1 });
-    const me = layout.zones.me!;
-    expect(me.width).toBeGreaterThanOrEqual(widePanelWidthFor(me.height));
-    expect(panelShape(me)).toBe("wide");
-  });
+  test.each(TALL_WINDOWS)(
+    "%s: the identity column is wide enough to show its card whole beside a text column",
+    (_name, size) => {
+      const layout = boardLayout(rectOf(size), { playerCount: 1 });
+      const me = layout.zones.me!;
+      expect(me.width).toBeGreaterThanOrEqual(widePanelWidthFor(me.height));
+      expect(panelShape(me)).toBe("wide");
+    },
+  );
 
-  test.each(TALL_WINDOWS)("%s: the identity column never takes more than 30% of the table from the play area", (_name, size) => {
-    for (const playerCount of [1, 4]) {
-      const layout = boardLayout(rectOf(size), { playerCount });
-      const { me, playArea, team } = layout.zones;
-      // The band runs from the identity's left edge to the right edge of its last column.
-      const usable = (team ? team.x + team.width : playArea!.x + playArea!.width) - me!.x;
-      expect(me!.width).toBeLessThanOrEqual(usable * 0.3 + 0.5);
-      expect(playArea!.width).toBeGreaterThan(me!.width);
-    }
-  });
+  test.each(TALL_WINDOWS)(
+    "%s: the identity column never takes more than 30% of the table from the play area",
+    (_name, size) => {
+      for (const playerCount of [1, 4]) {
+        const layout = boardLayout(rectOf(size), { playerCount });
+        const { me, playArea, team } = layout.zones;
+        // The band runs from the identity's left edge to the right edge of its last column.
+        const usable = (team ? team.x + team.width : playArea!.x + playArea!.width) - me!.x;
+        expect(me!.width).toBeLessThanOrEqual(usable * 0.3 + 0.5);
+        expect(playArea!.width).toBeGreaterThan(me!.width);
+      }
+    },
+  );
 
   test("the identity column keeps the 1440×900 canvas's width where the card already fits", () => {
     const me = boardLayout(rectOf(REFERENCE_VIEWPORTS.desktop), { playerCount: 1 }).zones.me!;
@@ -266,7 +274,10 @@ describe("cardRow", () => {
     // Every card is the same size, so the row is strictly wider than the
     // collapsed fan's — more scrolling in exchange for nothing hidden.
     const expandedWidth = slots.at(-1)!.x + slots.at(-1)!.width;
-    const collapsedWidth = cardRow(bounds, 9, { fan: true, gap: 6 }).reduce((max, s) => Math.max(max, s.x + s.width), 0);
+    const collapsedWidth = cardRow(bounds, 9, { fan: true, gap: 6 }).reduce(
+      (max, s) => Math.max(max, s.x + s.width),
+      0,
+    );
     expect(expandedWidth).toBeGreaterThan(collapsedWidth);
   });
 
@@ -456,27 +467,31 @@ describe("a phone on its side", () => {
     expect(formFactorFor(1180, 820)).toBe("tabletLandscape");
   });
 
-  test.each(sideways)("$width×$height: the tabbed board, every zone inside the viewport and none overlapping", ({ width, height }) => {
-    for (const activeTab of ["threat", "enemies", "me", "team", "log"] as const) {
-      const layout = boardLayout({ x: 0, y: 0, width, height }, { playerCount: 2, activeTab });
-      expect(layout.tabbed).toBe(true);
-      const rects = Object.values(layout.zones).filter((rect): rect is NonNullable<typeof rect> => rect !== null);
-      for (const rect of rects) {
-        expect(rect.x).toBeGreaterThanOrEqual(0);
-        expect(rect.y).toBeGreaterThanOrEqual(0);
-        expect(rect.x + rect.width).toBeLessThanOrEqual(width);
-        expect(rect.y + rect.height).toBeLessThanOrEqual(height);
-        expect(rect.width).toBeGreaterThan(0);
-        expect(rect.height).toBeGreaterThan(0);
+  test.each(sideways)(
+    "$width×$height: the tabbed board, every zone inside the viewport and none overlapping",
+    ({ width, height }) => {
+      for (const activeTab of ["threat", "enemies", "me", "team", "log"] as const) {
+        const layout = boardLayout({ x: 0, y: 0, width, height }, { playerCount: 2, activeTab });
+        expect(layout.tabbed).toBe(true);
+        const rects = Object.values(layout.zones).filter((rect): rect is NonNullable<typeof rect> => rect !== null);
+        for (const rect of rects) {
+          expect(rect.x).toBeGreaterThanOrEqual(0);
+          expect(rect.y).toBeGreaterThanOrEqual(0);
+          expect(rect.x + rect.width).toBeLessThanOrEqual(width);
+          expect(rect.y + rect.height).toBeLessThanOrEqual(height);
+          expect(rect.width).toBeGreaterThan(0);
+          expect(rect.height).toBeGreaterThan(0);
+        }
+        rects.forEach((a, i) =>
+          rects.slice(i + 1).forEach((b) => {
+            const apart =
+              a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+            expect(apart).toBe(true);
+          }),
+        );
       }
-      rects.forEach((a, i) =>
-        rects.slice(i + 1).forEach((b) => {
-          const apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
-          expect(apart).toBe(true);
-        }),
-      );
-    }
-  });
+    },
+  );
 
   test("the tab rail is a column, and the content keeps a playable height", () => {
     const layout = boardLayout({ x: 0, y: 0, width: 915, height: 412 }, { playerCount: 1, activeTab: "me" });

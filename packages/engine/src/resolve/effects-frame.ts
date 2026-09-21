@@ -22,7 +22,16 @@ import { cannotChangeForm } from "../rules.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { type InstanceId, instanceId as asInstanceId, playerId as asPlayerId, type PlayerId } from "../ids.js";
-import { activeEncounterDeckId, cardOf, characterProfile, getInstance, getPlayer, heroFacesOf, mustCardOf, playerOrder } from "../query.js";
+import {
+  activeEncounterDeckId,
+  cardOf,
+  characterProfile,
+  getInstance,
+  getPlayer,
+  heroFacesOf,
+  mustCardOf,
+  playerOrder,
+} from "../query.js";
 import { cannotTakeDamage } from "../rules.js";
 import { combineRequirements, satisfies } from "../resources.js";
 import {
@@ -94,9 +103,11 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
     });
     return;
   }
-  if (effect.kind === "discardFromHand" && effect.random !== true) return executeDiscardFromHand(ctx, frame, effect, context);
+  if (effect.kind === "discardFromHand" && effect.random !== true)
+    return executeDiscardFromHand(ctx, frame, effect, context);
 
-  if ((effect.kind === "enemyAttack" || effect.kind === "enemyScheme") && orderEnemies(ctx, frame, effect, context)) return;
+  if ((effect.kind === "enemyAttack" || effect.kind === "enemyScheme") && orderEnemies(ctx, frame, effect, context))
+    return;
 
   setFrame(ctx, { ...frame, cursor: frame.cursor + 1 });
   applyEffect(ctx, effect, context, frame);
@@ -111,9 +122,17 @@ export function executeEffectsFrame(ctx: Ctx, frame: Frame<"effects">): void {
  * one → pick a payment**. Nothing is spent until the last step, and a payment that does not cover the reduced cost
  * plays nothing at all (RRG 1.8 "Initiating Abilities", p. 24, step 5: "abort this process without paying any costs").
  */
-function executePlayFromHand(ctx: Ctx, frame: Frame<"effects">, effect: Extract<EffectSpec, { kind: "playFromHand" }>, context: EffectContext): void {
+function executePlayFromHand(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "playFromHand" }>,
+  context: EffectContext,
+): void {
   const [playerId] = resolvePlayers(ctx.state, effect.player, context);
-  const reduction = effect.costReduction === undefined ? 0 : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
+  const reduction =
+    effect.costReduction === undefined
+      ? 0
+      : Math.max(0, resolveValue(ctx.state, effect.costReduction, context, ctx.deps));
   const paying = effect.ignoreCost !== true;
   const fault = (id: InstanceId, player: PlayerId): string | null =>
     paying ? playWithPaymentFault(ctx, player, id, reduction) : playIgnoringCostFault(ctx, player, id);
@@ -177,7 +196,12 @@ function executePlayFromHand(ctx: Ctx, frame: Frame<"effects">, effect: Extract<
     }
     const [host] = (frame.answer ?? []).map((id) => asInstanceId(id)).filter((id) => choices.includes(id));
     if (!host) return done();
-    setFrame(ctx, { ...frame, answer: null, vars: { ...frame.vars, "_play.step": 2 }, bindings: { ...frame.bindings, "_play.host": [host] } });
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      vars: { ...frame.vars, "_play.step": 2 },
+      bindings: { ...frame.bindings, "_play.host": [host] },
+    });
     return;
   }
 
@@ -187,7 +211,8 @@ function executePlayFromHand(ctx: Ctx, frame: Frame<"effects">, effect: Extract<
   if (requirement === null) return done();
 
   if (frame.answer === null) {
-    const needed = requirement.generic + requirement.physical + requirement.mental + requirement.energy + (requirement.wild ?? 0);
+    const needed =
+      requirement.generic + requirement.physical + requirement.mental + requirement.energy + (requirement.wild ?? 0);
     const options = needed > 0 ? paymentOptions(ctx, playerId, card) : [];
     if (options.length > 0) {
       requestChoice(ctx, {
@@ -207,7 +232,12 @@ function executePlayFromHand(ctx: Ctx, frame: Frame<"effects">, effect: Extract<
 }
 
 /** `EffectSpec divide` (docs/phase7-wave2.md §3.7): see there. */
-function executeDivide(ctx: Ctx, frame: Frame<"effects">, effect: Extract<EffectSpec, { kind: "divide" }>, context: EffectContext): void {
+function executeDivide(
+  ctx: Ctx,
+  frame: Frame<"effects">,
+  effect: Extract<EffectSpec, { kind: "divide" }>,
+  context: EffectContext,
+): void {
   const amount = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
   const candidates = selectTargets(ctx.state, effect.among, context);
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
@@ -217,7 +247,11 @@ function executeDivide(ctx: Ctx, frame: Frame<"effects">, effect: Extract<Effect
       authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
       prompt: { kind: "divide", what: effect.what, amount },
       options: candidates.flatMap((id) =>
-        Array.from({ length: amount }, (_, n) => ({ optionId: `${id}#${n + 1}`, label: `${mustCardOf(ctx.state, id).name} (${n + 1})`, ref: { kind: "card", instanceId: id } as const })),
+        Array.from({ length: amount }, (_, n) => ({
+          optionId: `${id}#${n + 1}`,
+          label: `${mustCardOf(ctx.state, id).name} (${n + 1})`,
+          ref: { kind: "card", instanceId: id } as const,
+        })),
       ),
       minSelections: amount,
       maxSelections: amount,
@@ -240,13 +274,27 @@ function executeDivide(ctx: Ctx, frame: Frame<"effects">, effect: Extract<Effect
     pushFrames(ctx, [
       damageGroupFrame(
         ctx,
-        [...shares].map(([targetInstanceId, points]) => ({ kind: "dealDamage", targetInstanceId, amount: points, sourceInstanceId: frame.selfInstanceId, fromAttack: false })),
+        [...shares].map(([targetInstanceId, points]) => ({
+          kind: "dealDamage",
+          targetInstanceId,
+          amount: points,
+          sourceInstanceId: frame.selfInstanceId,
+          fromAttack: false,
+        })),
         effect.bind ? { frameId: frame.frameId, prefix: effect.bind } : null,
       ),
     ]);
     return;
   }
-  pushEvents(ctx, [...shares].map(([schemeInstanceId, points]) => ({ kind: "removeThreat" as const, schemeInstanceId, amount: points, sourceInstanceId: frame.selfInstanceId })));
+  pushEvents(
+    ctx,
+    [...shares].map(([schemeInstanceId, points]) => ({
+      kind: "removeThreat" as const,
+      schemeInstanceId,
+      amount: points,
+      sourceInstanceId: frame.selfInstanceId,
+    })),
+  );
 }
 
 const HERO_FORM = "_heroForm.";
@@ -297,8 +345,13 @@ function executeChangeForm(
 ): void {
   const players = resolvePlayers(ctx.state, effect.player, context);
   const vars: Record<string, number> = { ...frame.vars };
-  const targets = players.map((playerId) => ({ playerId, target: changeFormTarget(ctx.state, ctx.deps, playerId, effect) }));
-  const pending = targets.filter(({ playerId, target }) => target === "choose" && vars[`${HERO_FORM}${playerId}`] === undefined);
+  const targets = players.map((playerId) => ({
+    playerId,
+    target: changeFormTarget(ctx.state, ctx.deps, playerId, effect),
+  }));
+  const pending = targets.filter(
+    ({ playerId, target }) => target === "choose" && vars[`${HERO_FORM}${playerId}`] === undefined,
+  );
   if (frame.answer !== null && pending[0]) {
     vars[`${HERO_FORM}${pending[0].playerId}`] = Number(frame.answer[0]);
     pending.shift();
@@ -312,7 +365,11 @@ function executeChangeForm(
     requestChoice(ctx, {
       playerId: next.playerId,
       prompt: { kind: "chooseOption" },
-      options: faces.map((face, index) => ({ optionId: String(index), label: `${face.faceName} (${face.traits.join(", ")})`, ref: { kind: "none" } as const })),
+      options: faces.map((face, index) => ({
+        optionId: String(index),
+        label: `${face.faceName} (${face.traits.join(", ")})`,
+        ref: { kind: "none" } as const,
+      })),
       minSelections: 1,
       maxSelections: 1,
       frameId: frame.frameId,
@@ -324,7 +381,8 @@ function executeChangeForm(
   const changed: TriggerEvent[] = [];
   for (const { playerId, target } of targets) {
     if (target === null) continue;
-    const resolved = target === "choose" ? { to: "hero" as const, heroForm: vars[`${HERO_FORM}${playerId}`] ?? 0 } : target;
+    const resolved =
+      target === "choose" ? { to: "hero" as const, heroForm: vars[`${HERO_FORM}${playerId}`] ?? 0 } : target;
     const event = setForm(ctx, playerId, resolved.to, false, resolved.heroForm);
     if (event) changed.push(event);
   }
@@ -345,7 +403,11 @@ function executeJoinGameArea(ctx: Ctx, frame: Frame<"effects">, context: EffectC
     requestChoice(ctx, {
       playerId: chooser,
       prompt: { kind: "chooseOption" },
-      options: others.map((area) => ({ optionId: area.areaId, label: `Game area with ${area.playerIds.join(", ")}`, ref: { kind: "none" } as const })),
+      options: others.map((area) => ({
+        optionId: area.areaId,
+        label: `Game area with ${area.playerIds.join(", ")}`,
+        ref: { kind: "none" } as const,
+      })),
       minSelections: 1,
       maxSelections: 1,
       frameId: frame.frameId,
@@ -355,7 +417,8 @@ function executeJoinGameArea(ctx: Ctx, frame: Frame<"effects">, context: EffectC
   setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1 });
   if (!from) return;
   const chosen = frame.answer?.[0];
-  const into = others.length === 0 ? null : (others.find((area) => area.areaId === chosen) ?? others[0])?.areaId ?? null;
+  const into =
+    others.length === 0 ? null : ((others.find((area) => area.areaId === chosen) ?? others[0])?.areaId ?? null);
   pushFrames(ctx, joinGameArea(ctx, from.areaId, into));
 }
 
@@ -380,7 +443,9 @@ function executeDiscardFromHand(
   context: EffectContext,
 ): void {
   const { filter } = effect;
-  const players = resolvePlayers(ctx.state, effect.player, context).filter((id) => getPlayer(ctx.state, id)?.eliminated === false);
+  const players = resolvePlayers(ctx.state, effect.player, context).filter(
+    (id) => getPlayer(ctx.state, id)?.eliminated === false,
+  );
   const vars: Record<string, number> = { ...frame.vars };
   let index = vars[`${DISCARD_HAND}index`] ?? 0;
   if (frame.answer !== null) {
@@ -462,7 +527,9 @@ function executeDealEncounterCards(
   effect: Extract<EffectSpec, { kind: "dealEncounterCard" }>,
   context: EffectContext,
 ): void {
-  const players = resolvePlayers(ctx.state, effect.player, context).filter((id) => getPlayer(ctx.state, id)?.eliminated === false);
+  const players = resolvePlayers(ctx.state, effect.player, context).filter(
+    (id) => getPlayer(ctx.state, id)?.eliminated === false,
+  );
   const count = effect.count === undefined ? 1 : Math.max(0, resolveValue(ctx.state, effect.count, context, ctx.deps));
   if (frame.answer === null && players.length > 1 && count > 0) {
     requestChoice(ctx, {
@@ -520,7 +587,11 @@ function executeReorderCards(
 }
 
 const cardOptions = (ctx: Ctx, ids: readonly InstanceId[]): readonly ChoiceOption[] =>
-  ids.map((id) => ({ optionId: id, label: mustCardOf(ctx.state, id).name, ref: { kind: "card", instanceId: id } as const }));
+  ids.map((id) => ({
+    optionId: id,
+    label: mustCardOf(ctx.state, id).name,
+    ref: { kind: "card", instanceId: id } as const,
+  }));
 
 function executeChooseCards(
   ctx: Ctx,
@@ -531,7 +602,12 @@ function executeChooseCards(
   if (frame.answer !== null) {
     const chosen = frame.answer.map((id) => asInstanceId(id));
     emit(ctx, { type: "targetChosen", slot: effect.slot, instanceIds: chosen });
-    setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: chosen } });
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      cursor: frame.cursor + 1,
+      bindings: { ...frame.bindings, [effect.slot]: chosen },
+    });
     return;
   }
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
@@ -584,7 +660,11 @@ function executeChooseOne(
     requestChoice(ctx, {
       playerId: chooser,
       prompt: { kind: "chooseOption" },
-      options: available.map(({ option, index }) => ({ optionId: String(index), label: option.label, ref: { kind: "none" } as const })),
+      options: available.map(({ option, index }) => ({
+        optionId: String(index),
+        label: option.label,
+        ref: { kind: "none" } as const,
+      })),
       minSelections: 1,
       maxSelections: 1,
       frameId: frame.frameId,
@@ -633,7 +713,11 @@ function executeChooseSeveral(
       prompt: { kind: "chooseOption" },
       options: available.flatMap(({ option, index }) =>
         effect.allowRepeat
-          ? Array.from({ length: count }, (_, n) => ({ optionId: `${index}#${n + 1}`, label: option.label, ref: { kind: "none" } as const }))
+          ? Array.from({ length: count }, (_, n) => ({
+              optionId: `${index}#${n + 1}`,
+              label: option.label,
+              ref: { kind: "none" } as const,
+            }))
           : [{ optionId: String(index), label: option.label, ref: { kind: "none" } as const }],
       ),
       minSelections: picks,
@@ -676,7 +760,12 @@ function executeChoosePlayer(
     const identities = frame.answer
       .map((playerId) => ctx.state.players.find((p) => p.playerId === playerId)?.identity.instanceId)
       .filter((id): id is InstanceId => id !== undefined);
-    setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: identities } });
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      cursor: frame.cursor + 1,
+      bindings: { ...frame.bindings, [effect.slot]: identities },
+    });
     return;
   }
   const [chooser] = resolvePlayers(ctx.state, effect.chooser, context);
@@ -689,7 +778,11 @@ function executeChoosePlayer(
     playerId: chooser,
     authority: effectChoiceAuthority(ctx.state, frame.selfInstanceId, effect.chooser),
     prompt: { kind: "choosePlayer", slot: effect.slot },
-    options: players.map((p) => ({ optionId: p.playerId, label: p.playerId, ref: { kind: "player", playerId: p.playerId } as const })),
+    options: players.map((p) => ({
+      optionId: p.playerId,
+      label: p.playerId,
+      ref: { kind: "player", playerId: p.playerId } as const,
+    })),
     minSelections: 1,
     maxSelections: 1,
     frameId: frame.frameId,
@@ -711,7 +804,12 @@ function executeSpendResources(
   const [playerId] = resolvePlayers(ctx.state, effect.player, context);
   const requirement = combineRequirements(effect.resources, 0);
   const finish = (paid: boolean): void =>
-    setFrame(ctx, { ...frame, answer: null, cursor: frame.cursor + 1, vars: { ...frame.vars, [`${effect.bind}.made`]: paid ? 1 : 0 } });
+    setFrame(ctx, {
+      ...frame,
+      answer: null,
+      cursor: frame.cursor + 1,
+      vars: { ...frame.vars, [`${effect.bind}.made`]: paid ? 1 : 0 },
+    });
   if (frame.answer === null) {
     const options = playerId ? paymentOptions(ctx, playerId, null) : [];
     if (!playerId || options.length === 0) return finish(false);
@@ -746,7 +844,8 @@ function executeAssignDamage(
   context: EffectContext,
 ): void {
   const vars: Record<string, number> = { ...frame.vars };
-  if (vars["_assign.left"] === undefined) vars["_assign.left"] = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
+  if (vars["_assign.left"] === undefined)
+    vars["_assign.left"] = Math.max(0, resolveValue(ctx.state, effect.amount, context, ctx.deps));
   if (frame.answer !== null) {
     const [picked] = frame.answer;
     if (picked) vars[`_assign.to.${picked}`] = (vars[`_assign.to.${picked}`] ?? 0) + 1;
@@ -793,11 +892,19 @@ function indirectAssigners(
   const controlledBy = (playerId: PlayerId): readonly InstanceId[] => {
     const player = getPlayer(ctx.state, playerId);
     if (!player || player.eliminated) return [];
-    const allies = player.playArea.filter((id) => controllerOf(ctx.state, id) === playerId && categoriesOf(ctx.state, id).includes("character"));
+    const allies = player.playArea.filter(
+      (id) => controllerOf(ctx.state, id) === playerId && categoriesOf(ctx.state, id).includes("character"),
+    );
     return [player.identity.instanceId, ...allies];
   };
   // "Dealt to a group of players … as the group chooses": the first player submits it (docs/phase7-wave1.md §4.7).
-  if (to === "group") return [{ playerId: ctx.state.firstPlayerId, characters: playerOrder(ctx.state).flatMap((p) => controlledBy(p.playerId)) }];
+  if (to === "group")
+    return [
+      {
+        playerId: ctx.state.firstPlayerId,
+        characters: playerOrder(ctx.state).flatMap((p) => controlledBy(p.playerId)),
+      },
+    ];
   return resolvePlayers(ctx.state, to, context)
     .map((playerId) => ({ playerId, characters: controlledBy(playerId) }))
     .filter((assigner) => assigner.characters.length > 0);
@@ -905,7 +1012,13 @@ function executeResolveSpecials(
   for (const id of sources) {
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       if (ctx.deps.abilities[ref.id]?.trigger.kind !== "special") continue;
-      steps.push({ instanceId: id, abilityId: ref.id, controllerId: controllerOf(ctx.state, id), forced: true, fromHand: false });
+      steps.push({
+        instanceId: id,
+        abilityId: ref.id,
+        controllerId: controllerOf(ctx.state, id),
+        forced: true,
+        fromHand: false,
+      });
     }
   }
   const key = (c: TriggerCandidate) => `${c.instanceId}:${c.abilityId}`;
@@ -929,7 +1042,14 @@ function executeResolveSpecials(
   pushFrames(
     ctx,
     ordered.map((step, index) =>
-      abilityFrame(ctx, step, frame.event, null, {}, { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 }),
+      abilityFrame(
+        ctx,
+        step,
+        frame.event,
+        null,
+        {},
+        { "sequence.step": index + 1, "sequence.final": index === ordered.length - 1 ? 1 : 0 },
+      ),
     ),
   );
 }
@@ -944,7 +1064,11 @@ function requestTargetChoice(
   const legal = selectTargets(ctx.state, effect.query, context);
   // "X enemies": the count can be a value bound earlier in the ability (Shield Toss).
   const wanted =
-    effect.count === undefined ? 1 : typeof effect.count === "number" ? effect.count : Math.max(0, resolveValue(ctx.state, effect.count, context, ctx.deps));
+    effect.count === undefined
+      ? 1
+      : typeof effect.count === "number"
+        ? effect.count
+        : Math.max(0, resolveValue(ctx.state, effect.count, context, ctx.deps));
   if (!chooser || legal.length === 0 || wanted <= 0) {
     // RRG "Choose (Game Element)": with no legal target there is nothing to choose.
     setFrame(ctx, { ...frame, cursor: frame.cursor + 1, bindings: { ...frame.bindings, [effect.slot]: [] } });

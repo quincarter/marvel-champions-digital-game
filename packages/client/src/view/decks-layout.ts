@@ -134,6 +134,11 @@ export function decksLayout(input: DecksLayoutInput): DecksLayout {
 
   const listPane: Rect = { x: left, y: bodyTop, width: listWidth, height: bodyHeight };
   const poolPane: Rect = { x: left + listWidth + GAP, y: bodyTop, width: poolWidth, height: bodyHeight };
-  const statsPane: Rect = { x: left + listWidth + GAP + poolWidth + GAP, y: bodyTop, width: statsWidth, height: bodyHeight };
+  const statsPane: Rect = {
+    x: left + listWidth + GAP + poolWidth + GAP,
+    y: bodyTop,
+    width: statsWidth,
+    height: bodyHeight,
+  };
   return { formFactor, wide, pad, header, listPane, poolPane, statsPane, tabs: null, content: null };
 }

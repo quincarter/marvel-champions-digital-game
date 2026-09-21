@@ -84,7 +84,10 @@ describe("queuedActivationsOf", () => {
   test("a stunned villain cancels only its very next queued activation, in hero form", () => {
     const villainId = activeVillain(state).instanceId;
     const villain = state.instances[villainId]!;
-    const stunned: GameState = { ...state, instances: { ...state.instances, [villainId]: { ...villain, statuses: { ...villain.statuses, stunned: 1 } } } };
+    const stunned: GameState = {
+      ...state,
+      instances: { ...state.instances, [villainId]: { ...villain, statuses: { ...villain.statuses, stunned: 1 } } },
+    };
 
     const queue = queuedActivationsOf(stunned, POOL_DEPS);
     const heroSeats = queue.filter((seat) => getPlayer(stunned, seat.playerId)?.identity.form === "hero");
@@ -98,7 +101,10 @@ describe("queuedActivationsOf", () => {
   test("a stunned villain does not cancel a scheme against an alter-ego seat — that's confuse's job", () => {
     const villainId = activeVillain(state).instanceId;
     const villain = state.instances[villainId]!;
-    const stunned: GameState = { ...state, instances: { ...state.instances, [villainId]: { ...villain, statuses: { ...villain.statuses, stunned: 1 } } } };
+    const stunned: GameState = {
+      ...state,
+      instances: { ...state.instances, [villainId]: { ...villain, statuses: { ...villain.statuses, stunned: 1 } } },
+    };
 
     const queue = queuedActivationsOf(stunned, POOL_DEPS);
     const alterEgoSeats = queue.filter((seat) => getPlayer(stunned, seat.playerId)?.identity.form === "alterEgo");

@@ -21,7 +21,12 @@ describe("corePlayerFromDeck", () => {
   test("an empty deck flattens to an empty card list, not an error", () => {
     const starter = CORE_STARTER_DECKS[0]!;
     const deck = { ...deckFromStarterDeck(starter, CORE_POOL_VERSION), cards: [] };
-    expect(corePlayerFromDeck(deck)).toEqual({ identityCardId: starter.identityCardId, aspects: starter.aspects, deck: [], deckId: deck.id });
+    expect(corePlayerFromDeck(deck)).toEqual({
+      identityCardId: starter.identityCardId,
+      aspects: starter.aspects,
+      deck: [],
+      deckId: deck.id,
+    });
   });
 
   // S4 (docs/phase4-screen-gaps.md §2): `deckId` is the seat's own attribution key — this
@@ -39,12 +44,18 @@ describe("corePlayerForSeat", () => {
   test("a precon option stays { starterDeckId }, never re-derived from Deck.cards", () => {
     const option = deckOptionOf(preconDecks(POOL_VERSION)[0]!, POOL_CARDS, POOL_VERSION, POOL_DEPS);
     const player = corePlayerForSeat(option);
-    expect(player).toEqual({ starterDeckId: option.deck.source.kind === "precon" ? option.deck.source.starterDeckId : undefined });
+    expect(player).toEqual({
+      starterDeckId: option.deck.source.kind === "precon" ? option.deck.source.starterDeckId : undefined,
+    });
   });
 
   test("a custom deck option goes through corePlayerFromDeck", () => {
     const starter = CORE_STARTER_DECKS[0]!;
-    const deck = { ...deckFromStarterDeck(starter, CORE_POOL_VERSION), id: deckId("user-built-456"), source: { kind: "userBuilt" as const, createdAt: "2026-01-01" } };
+    const deck = {
+      ...deckFromStarterDeck(starter, CORE_POOL_VERSION),
+      id: deckId("user-built-456"),
+      source: { kind: "userBuilt" as const, createdAt: "2026-01-01" },
+    };
     const option = deckOptionOf(deck, POOL_CARDS, POOL_VERSION, POOL_DEPS);
     expect(corePlayerForSeat(option)).toEqual(corePlayerFromDeck(deck));
   });

@@ -40,7 +40,12 @@ export interface InterruptCardSlot {
 }
 
 /** `count` is `inlineInterruptFor(...).length`; `buttonHeight` is the Play button's hit height. */
-export function interruptCardsLayout(rect: Rect, count: number, formFactor: FormFactor, buttonHeight: number): readonly InterruptCardSlot[] {
+export function interruptCardsLayout(
+  rect: Rect,
+  count: number,
+  formFactor: FormFactor,
+  buttonHeight: number,
+): readonly InterruptCardSlot[] {
   if (count <= 0 || rect.width <= 0 || rect.height <= 0) return [];
 
   const maxCardHeight = formFactor === "phone" ? MAX_CARD_HEIGHT_PHONE : MAX_CARD_HEIGHT_WIDE;
@@ -63,7 +68,12 @@ export function interruptCardsLayout(rect: Rect, count: number, formFactor: Form
   return Array.from({ length: count }, (_, i) => {
     const card: Rect = { x: rect.x, y: rect.y + i * (rowHeight + GAP), width: rect.width, height: rowHeight };
     const art: Rect = { x: card.x + PAD, y: card.y + PAD, width: 0, height: 0 };
-    const text: Rect = { x: card.x + PAD, y: card.y + PAD, width: Math.max(0, card.width - PAD * 2), height: Math.max(0, card.height - PAD * 2) };
+    const text: Rect = {
+      x: card.x + PAD,
+      y: card.y + PAD,
+      width: Math.max(0, card.width - PAD * 2),
+      height: Math.max(0, card.height - PAD * 2),
+    };
     return withButton(card, art, text, buttonHeight);
   });
 }
@@ -74,7 +84,12 @@ function rowsOf(slots: readonly { readonly card: Rect }[]): number {
 
 function withButton(card: Rect, art: Rect, column: Rect, buttonHeight: number): InterruptCardSlot {
   const height = Math.min(buttonHeight, column.height);
-  const button: Rect = { x: column.x, y: column.y + column.height - height, width: Math.min(column.width, MAX_BUTTON_WIDTH), height };
+  const button: Rect = {
+    x: column.x,
+    y: column.y + column.height - height,
+    width: Math.min(column.width, MAX_BUTTON_WIDTH),
+    height,
+  };
   const text: Rect = { ...column, height: Math.max(0, column.height - height - 8) };
   return { card, art, text, button };
 }

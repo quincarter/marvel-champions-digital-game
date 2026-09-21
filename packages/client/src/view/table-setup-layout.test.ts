@@ -36,7 +36,9 @@ function noOverlap(input: TableSetupLayoutInput): void {
   const rects = tableSetupLayoutRects(layout);
   for (let i = 0; i < rects.length; i++) {
     for (let j = i + 1; j < rects.length; j++) {
-      expect(rectsOverlap(rects[i]!, rects[j]!), `rect ${i} overlaps rect ${j} at ${input.width}x${input.height}`).toBe(false);
+      expect(rectsOverlap(rects[i]!, rects[j]!), `rect ${i} overlaps rect ${j} at ${input.width}x${input.height}`).toBe(
+        false,
+      );
     }
   }
 }
@@ -49,13 +51,49 @@ describe("tableSetupLayout: no overlap", () => {
   }
 
   test("a solo game (one seat, one modular candidate) still doesn't overlap", () => {
-    noOverlap({ width: 390, height: 844, difficultyCount: 2, modularCardCount: 1, seatCount: 1, compositionRows: 3, whatsInThereRows: 5, nemesisLines: 0 });
-    noOverlap({ width: 1440, height: 900, difficultyCount: 2, modularCardCount: 1, seatCount: 1, compositionRows: 3, whatsInThereRows: 5, nemesisLines: 0 });
+    noOverlap({
+      width: 390,
+      height: 844,
+      difficultyCount: 2,
+      modularCardCount: 1,
+      seatCount: 1,
+      compositionRows: 3,
+      whatsInThereRows: 5,
+      nemesisLines: 0,
+    });
+    noOverlap({
+      width: 1440,
+      height: 900,
+      difficultyCount: 2,
+      modularCardCount: 1,
+      seatCount: 1,
+      compositionRows: 3,
+      whatsInThereRows: 5,
+      nemesisLines: 0,
+    });
   });
 
   test("Breakout's three difficulties and zero-modular scenario still doesn't overlap", () => {
-    noOverlap({ width: 390, height: 844, difficultyCount: 3, modularCardCount: 5, seatCount: 4, compositionRows: 4, whatsInThereRows: 5, nemesisLines: 0 });
-    noOverlap({ width: 1440, height: 900, difficultyCount: 3, modularCardCount: 5, seatCount: 4, compositionRows: 4, whatsInThereRows: 5, nemesisLines: 0 });
+    noOverlap({
+      width: 390,
+      height: 844,
+      difficultyCount: 3,
+      modularCardCount: 5,
+      seatCount: 4,
+      compositionRows: 4,
+      whatsInThereRows: 5,
+      nemesisLines: 0,
+    });
+    noOverlap({
+      width: 1440,
+      height: 900,
+      difficultyCount: 3,
+      modularCardCount: 5,
+      seatCount: 4,
+      compositionRows: 4,
+      whatsInThereRows: 5,
+      nemesisLines: 0,
+    });
   });
 
   test("a very short viewport never overlaps, even if content is heavily trimmed", () => {
@@ -76,18 +114,26 @@ describe("tableSetupLayout: composition", () => {
   });
 
   test("wide (desktop/tabletLandscape): a fixed ink sidebar sits to the right of the body, full body height", () => {
-    for (const size of [{ width: 1440, height: 900 }, { width: 1024, height: 768 }]) {
+    for (const size of [
+      { width: 1440, height: 900 },
+      { width: 1024, height: 768 },
+    ]) {
       const layout = tableSetupLayout({ ...REALISTIC, ...size });
       expect(layout.wide).toBe(true);
       expect(layout.sidebar).not.toBeNull();
       expect(layout.sidebar!.x).toBeGreaterThan(layout.difficultyRow.x);
       expect(layout.dealItOut.x).toBeGreaterThanOrEqual(layout.sidebar!.x);
-      expect(layout.dealItOut.y + layout.dealItOut.height).toBeLessThanOrEqual(layout.sidebar!.y + layout.sidebar!.height + 0.01);
+      expect(layout.dealItOut.y + layout.dealItOut.height).toBeLessThanOrEqual(
+        layout.sidebar!.y + layout.sidebar!.height + 0.01,
+      );
     }
   });
 
   test("narrow (phone/tabletPortrait): no sidebar, one column, Deal it out pinned to the screen's own foot", () => {
-    for (const size of [{ width: 390, height: 844 }, { width: 768, height: 1024 }]) {
+    for (const size of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+    ]) {
       const layout = tableSetupLayout({ ...REALISTIC, ...size });
       expect(layout.wide).toBe(false);
       expect(layout.sidebar).toBeNull();
@@ -106,7 +152,10 @@ describe("tableSetupLayout: composition", () => {
   });
 
   test("modular grid never exceeds 4 columns, and covers every card at some row count", () => {
-    for (const size of [{ width: 1870, height: 1050 }, { width: 390, height: 844 }]) {
+    for (const size of [
+      { width: 1870, height: 1050 },
+      { width: 390, height: 844 },
+    ]) {
       const layout = tableSetupLayout({ ...REALISTIC, ...size });
       expect(layout.modularColumns).toBeLessThanOrEqual(4);
       expect(layout.modularColumns * layout.modularRows).toBeGreaterThanOrEqual(REALISTIC.modularCardCount);
@@ -218,7 +267,10 @@ describe("tableSetupCompactLayout", () => {
   });
 
   test("the modular header's right label moves to its own line when it wouldn't fit inline, growing that row's own height", () => {
-    const narrow = tableSetupCompactLayout({ ...compactInputFor(360, 740, 1), modularHeaderRightLabel: "1 REQUIRED · 1 CHOSEN" });
+    const narrow = tableSetupCompactLayout({
+      ...compactInputFor(360, 740, 1),
+      modularHeaderRightLabel: "1 REQUIRED · 1 CHOSEN",
+    });
     const wide = tableSetupCompactLayout({ ...compactInputFor(390, 844, 1), modularHeaderRightLabel: "" });
     expect(wide.modularHeaderStacked).toBe(false);
     const header = narrow.rows.find((r) => r.id === "header:modular")!;

@@ -48,7 +48,11 @@ function clampItem(shelves: readonly ShelfShape[], shelf: number, item: number):
  * rather than throwing, since a stale focus position is exactly what a filter
  * change produces every time.
  */
-export function moveShelfFocus(shelves: readonly ShelfShape[], current: ShelfPosition, intent: ShelfNavIntent): ShelfPosition {
+export function moveShelfFocus(
+  shelves: readonly ShelfShape[],
+  current: ShelfPosition,
+  intent: ShelfNavIntent,
+): ShelfPosition {
   if (shelves.length === 0) return { shelf: 0, item: 0 };
   const shelf = Math.max(0, Math.min(current.shelf, shelves.length - 1));
   const item = Math.max(0, Math.min(current.item, Math.max(0, shelves[shelf]!.count - 1)));
@@ -69,6 +73,8 @@ export function moveShelfFocus(shelves: readonly ShelfShape[], current: ShelfPos
     case "pageUp":
       return shelf === 0 ? { shelf, item: 0 } : clampItem(shelves, shelf - 1, item);
     case "pageDown":
-      return shelf === shelves.length - 1 ? clampItem(shelves, shelf, shelves[shelf]!.count - 1) : clampItem(shelves, shelf + 1, item);
+      return shelf === shelves.length - 1
+        ? clampItem(shelves, shelf, shelves[shelf]!.count - 1)
+        : clampItem(shelves, shelf + 1, item);
   }
 }

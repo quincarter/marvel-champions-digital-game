@@ -7,7 +7,17 @@
  * `packages/content/src/data/wave1.test.ts` iterates — never a separately hand-maintained id list — so a ninth
  * pack lands here automatically the moment `@mc/content` exports it, instead of silently going unchecked.
  */
-import { BKW_CARDS, CAP_CARDS, DRS_CARDS, GOB_CARDS, HLK_CARDS, MSM_CARDS, THOR_CARDS, TWC_CARDS, type AnyCard } from "@mc/content";
+import {
+  BKW_CARDS,
+  CAP_CARDS,
+  DRS_CARDS,
+  GOB_CARDS,
+  HLK_CARDS,
+  MSM_CARDS,
+  THOR_CARDS,
+  TWC_CARDS,
+  type AnyCard,
+} from "@mc/content";
 import { CORE_ABILITIES } from "../core/index.js";
 import { WAVE1_ABILITIES, wave1ReprintPairs } from "./index.js";
 import { abilityRefIds } from "../ability-refs.js";
@@ -78,13 +88,21 @@ describe("wave 1 pack ability coverage", () => {
     if (PACK_STATUS[code] === "scripted") {
       it(`every ability reference resolves (scripted directly, or aliased as a Core reprint), except its documented skips`, () => {
         const skipped = KNOWN_SKIPPED[code] ?? [];
-        expect(missing, `unscripted ${code} ability refs:\n${missing.join("\n")}`).toEqual(expect.arrayContaining([...skipped]));
-        expect(missing.filter((id) => !skipped.includes(id)), `unscripted ${code} ability refs not in KNOWN_SKIPPED`).toEqual([]);
+        expect(missing, `unscripted ${code} ability refs:\n${missing.join("\n")}`).toEqual(
+          expect.arrayContaining([...skipped]),
+        );
+        expect(
+          missing.filter((id) => !skipped.includes(id)),
+          `unscripted ${code} ability refs not in KNOWN_SKIPPED`,
+        ).toEqual([]);
         expect(missing).toHaveLength(skipped.length);
       });
     } else {
       it(`is not started: nothing resolves beyond \`reprints.ts\`'s automatic Core-reprint aliasing`, () => {
-        expect(resolvedBeyondReprints, `${code} ability refs resolved outside reprints.ts — update PACK_STATUS if this pack is now scripted:\n${resolvedBeyondReprints.join("\n")}`).toEqual([]);
+        expect(
+          resolvedBeyondReprints,
+          `${code} ability refs resolved outside reprints.ts — update PACK_STATUS if this pack is now scripted:\n${resolvedBeyondReprints.join("\n")}`,
+        ).toEqual([]);
       });
     }
   });
@@ -100,7 +118,14 @@ describe("Captain America (cap) pack ability coverage", () => {
   });
 
   it("8 of the 37 references are Core reprints (Hawkeye x2, Make the Call, The Power of Leadership, Mockingbird, Hydra Soldier — Energy/Genius/Strength print no ability)", () => {
-    const reprintIds = ["03012.hawkeye-constant", "03012.hawkeye-response", "03016.make-the-call-action", "03018.the-power-of-leadership-constant", "03020.mockingbird-response", "03029.when-defeated"];
+    const reprintIds = [
+      "03012.hawkeye-constant",
+      "03012.hawkeye-response",
+      "03016.make-the-call-action",
+      "03018.the-power-of-leadership-constant",
+      "03020.mockingbird-response",
+      "03029.when-defeated",
+    ];
     for (const id of reprintIds) expect(allRefs, id).toContain(id);
     expect(reprintIds).toHaveLength(6);
   });

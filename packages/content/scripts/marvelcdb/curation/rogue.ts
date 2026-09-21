@@ -21,7 +21,8 @@ export const ROGUE_CURATION: PackCuration = {
   pack: {
     name: "Rogue",
     releaseDate: "2023-02-24",
-    releaseDateSource: 'Hall of Heroes Rogue/Anna Marie page (https://hallofheroeslcg.com/rogue-anna-marie/): "Release date: February 24, 2023"',
+    releaseDateSource:
+      'Hall of Heroes Rogue/Anna Marie page (https://hallofheroeslcg.com/rogue-anna-marie/): "Release date: February 24, 2023"',
   },
   outDir: "src/data/rogue",
   exportPrefix: "ROGUE",
@@ -30,7 +31,7 @@ export const ROGUE_CURATION: PackCuration = {
     {
       code: "38002",
       reason:
-        "Touched is a signature upgrade attached by Rogue's own hero-kit text, not played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
+        'Touched is a signature upgrade attached by Rogue\'s own hero-kit text, not played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
       evidence: 'MarvelCDB card listing (marvelcdb.com/card/38002), "Cost: —"',
       specialCost: "dash",
     },

@@ -81,7 +81,10 @@ const AERIAL = trait("AERIAL");
 export const WASP_KIT = defineAbilities({
   // Small but Mighty — Response: after Wasp (or an event you play) defeats a minion or side scheme, deal 1 damage
   // to the villain (module docblock, §17.2).
-  "13001a.small-but-mighty": response(on.defeats(query(["identity", "event"], { owner: "you" })), dealDamage(1, theVillain)),
+  "13001a.small-but-mighty": response(
+    on.defeats(query(["identity", "event"], { owner: "you" })),
+    dealDamage(1, theVillain),
+  ),
 
   // G.I.R.L. — Action: Shuffle up to 2 cards with a printed [mental] resource from your discard pile into your
   // deck. (Limit once per round.)
@@ -99,18 +102,23 @@ export const WASP_KIT = defineAbilities({
 
   // Ant-Man (13002, ally) — while you are in Giant/Tiny hero form, Ant-Man gains the Giant/Tiny trait and gets +1
   // ATK/THW (module docblock, §17.5).
-  "13002.ant-man-constant": constant(gainsTrait(GIANT, { self: true }, { while: youHaveTrait(GIANT) }), gets("atk", 1, { self: true }, { while: youHaveTrait(GIANT) })),
-  "13002.ant-man-constant-2": constant(gainsTrait(TINY, { self: true }, { while: youHaveTrait(TINY) }), gets("thw", 1, { self: true }, { while: youHaveTrait(TINY) })),
+  "13002.ant-man-constant": constant(
+    gainsTrait(GIANT, { self: true }, { while: youHaveTrait(GIANT) }),
+    gets("atk", 1, { self: true }, { while: youHaveTrait(GIANT) }),
+  ),
+  "13002.ant-man-constant-2": constant(
+    gainsTrait(TINY, { self: true }, { while: youHaveTrait(TINY) }),
+    gets("thw", 1, { self: true }, { while: youHaveTrait(TINY) }),
+  ),
 
   // Giant Help — Hero Action (thwart): Remove 3 threat from a scheme (remove a total of 4 threat divided among
   // schemes as you choose instead if you are in Giant hero form).
   "13003.giant-help-action": heroAction(
     { label: "thwart" },
-    ifThen(
-      youHaveTrait(GIANT),
-      divide("threat", 4, query("scheme"), { chooser: you }),
-      [chooseTarget("scheme", query("scheme")), removeThreat(3, chosen("scheme"))],
-    ),
+    ifThen(youHaveTrait(GIANT), divide("threat", 4, query("scheme"), { chooser: you }), [
+      chooseTarget("scheme", query("scheme")),
+      removeThreat(3, chosen("scheme")),
+    ]),
   ),
 
   // Pinpoint Strike — Hero Action (attack): Deal 7 damage to an enemy. If you are in Tiny hero form, this attack
@@ -124,30 +132,52 @@ export const WASP_KIT = defineAbilities({
   // Rapid Growth — Hero Interrupt: when you use one of your hero's basic powers (THW, ATK, or DEF), change to your
   // Giant hero form and get +2 to that power for this use (module docblock, §17.4). `YOUR_IDENTITY`, not `self`:
   // the printed text is "your hero's basic powers", which excludes an ally's own basic power use.
-  "13005.rapid-growth-interrupt": heroInterrupt(on.basicPowerUsing(YOUR_IDENTITY), changeToHeroFormWithTrait(GIANT), modifyBasicPower(2)),
+  "13005.rapid-growth-interrupt": heroInterrupt(
+    on.basicPowerUsing(YOUR_IDENTITY),
+    changeToHeroFormWithTrait(GIANT),
+    modifyBasicPower(2),
+  ),
 
   // Wasp Sting — two Hero Actions (attack), each gated to one hero form (the form check precedes the effect, as
   // Ant-Man's own form-gated actions do): if Giant, deal a total of 4 damage divided among enemies you choose; if
   // Tiny, deal 5 damage to an enemy.
-  "13006.wasp-sting-action": heroAction({ label: "attack", while: youHaveTrait(GIANT) }, divide("damage", 4, query("enemy"), { chooser: you })),
-  "13006.wasp-sting-hero-action": heroAction({ label: "attack", while: youHaveTrait(TINY) }, chooseTarget("enemy", query("enemy")), attack(5, chosen("enemy"))),
+  "13006.wasp-sting-action": heroAction(
+    { label: "attack", while: youHaveTrait(GIANT) },
+    divide("damage", 4, query("enemy"), { chooser: you }),
+  ),
+  "13006.wasp-sting-hero-action": heroAction(
+    { label: "attack", while: youHaveTrait(TINY) },
+    chooseTarget("enemy", query("enemy")),
+    attack(5, chosen("enemy")),
+  ),
 
   // Pym Particles (resource) — Hero Response: after you spend this card, heal 2 damage from your hero if you are
   // in Giant hero form, or draw 1 card if you are in Tiny hero form. Same shape as Ant-Man's own Pym Particles
   // (12006, `ant/kit.ts`) — "Hero Response" already gates to hero form, so the else branch is exactly Tiny.
-  "13007.pym-particles-response": heroResponse(on.youSpendThis(), ifThen(youHaveTrait(GIANT), heal(2, yourIdentity), draw(1))),
+  "13007.pym-particles-response": heroResponse(
+    on.youSpendThis(),
+    ifThen(youHaveTrait(GIANT), heal(2, yourIdentity), draw(1)),
+  ),
 
   // Red Room Training — While you are in Giant hero form, you gain retaliate 1. While you are in Tiny hero form,
   // your basic attacks gain piercing (module docblock, §17.3).
-  "13008.red-room-training-constant": constant(gainsKeyword({ name: "retaliate", value: 1 }, YOUR_IDENTITY, { while: youHaveTrait(GIANT) })),
-  "13008.red-room-training-constant-2": constant(attacksGainKeywords(["piercing"], { attacker: YOUR_IDENTITY, basicOnly: true, while: youHaveTrait(TINY) })),
+  "13008.red-room-training-constant": constant(
+    gainsKeyword({ name: "retaliate", value: 1 }, YOUR_IDENTITY, { while: youHaveTrait(GIANT) }),
+  ),
+  "13008.red-room-training-constant-2": constant(
+    attacksGainKeywords(["piercing"], { attacker: YOUR_IDENTITY, basicOnly: true, while: youHaveTrait(TINY) }),
+  ),
 
   // Bio-Synthetic Wings — Wasp gains the Aerial trait (unconditional — safe: `traitsOf`'s poisoned scan only
   // recurses on a *conditional* `while: hasTrait(...)` trait grant, and this one has no `while` at all).
   // Interrupt: When you would take any amount of damage, if you are in Tiny hero form, exhaust Bio-Synthetic Wings
   // → prevent 1 of that damage.
   "13009.bio-synthetic-wings-constant": constant(gainsTrait(AERIAL, YOUR_IDENTITY)),
-  "13009.bio-synthetic-wings-interrupt": interrupt(when.damage("host"), { cost: exhaustThis, while: youHaveTrait(TINY) }, preventDamage(1)),
+  "13009.bio-synthetic-wings-interrupt": interrupt(
+    when.damage("host"),
+    { cost: exhaustThis, while: youHaveTrait(TINY) },
+    preventDamage(1),
+  ),
 
   // Wasp's Helmet — While you are in Giant hero form, you get +1 THW. While you are in Tiny hero form, you get +1
   // ATK. Pure stat modifiers (no trait grant) — safe under the same reasoning as Bio-Synthetic Wings above.

@@ -13,7 +13,8 @@ export const NEBU_CURATION: PackCuration = {
   pack: {
     name: "Nebula",
     releaseDate: "2021-09-17",
-    releaseDateSource: "Hall of Heroes Nebula page (https://hallofheroeslcg.com/nebula/): \"Release date: September 17, 2021\"",
+    releaseDateSource:
+      'Hall of Heroes Nebula page (https://hallofheroeslcg.com/nebula/): "Release date: September 17, 2021"',
   },
   outDir: "src/data/nebu",
   exportPrefix: "NEBU",

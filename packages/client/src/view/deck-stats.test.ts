@@ -8,7 +8,13 @@ import {
   deckFromStarterDeck,
   type Deck,
 } from "@mc/content";
-import { compositionTilesOf, costCurveBars, deckListGroupsOf, deckStatsOf, filterDeckListGroups } from "./deck-stats.js";
+import {
+  compositionTilesOf,
+  costCurveBars,
+  deckListGroupsOf,
+  deckStatsOf,
+  filterDeckListGroups,
+} from "./deck-stats.js";
 
 const sumQuantities = (deck: Deck): number => deck.cards.reduce((total, entry) => total + entry.quantity, 0);
 
@@ -136,12 +142,16 @@ describe("costCurveBars", () => {
   });
 
   test("a cost at or above capAt collapses into the overflow bucket", () => {
-    const stats = deckStatsOf(
-      { cards: [{ cardId: cardId("01002"), quantity: 1 }] },
-      CORE_CARDS,
-    );
+    const stats = deckStatsOf({ cards: [{ cardId: cardId("01002"), quantity: 1 }] }, CORE_CARDS);
     // Whatever 01002 costs, force the question by building the curve by hand instead.
-    const fake = { ...stats, costCurve: [{ cost: 2, count: 3 }, { cost: 4, count: 1 }, { cost: 7, count: 2 }] };
+    const fake = {
+      ...stats,
+      costCurve: [
+        { cost: 2, count: 3 },
+        { cost: 4, count: 1 },
+        { cost: 7, count: 2 },
+      ],
+    };
     expect(costCurveBars(fake)).toEqual([
       { label: "0", count: 0 },
       { label: "1", count: 0 },
@@ -207,7 +217,7 @@ describe("filterDeckListGroups: Deck check's own left-rail type filter chips", (
   const deck = deckFromStarterDeck(starter, "poolv1");
   const groups = deckListGroupsOf(deck, CORE_CARDS);
 
-  test("null (\"All\") returns the groups unchanged", () => {
+  test('null ("All") returns the groups unchanged', () => {
     expect(filterDeckListGroups(groups, null)).toBe(groups);
   });
 

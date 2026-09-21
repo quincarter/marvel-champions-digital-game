@@ -153,7 +153,9 @@ export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
  */
 function executePlayerSetupAbilities(ctx: Ctx, step: Extract<GameStep, { kind: "playerSetupAbilities" }>): void {
   if (!step.resolved) {
-    const frames = playerOrder(ctx.state).flatMap((player) => gameAbilityFrames(ctx, player.identity.instanceId, ["setup"], null));
+    const frames = playerOrder(ctx.state).flatMap((player) =>
+      gameAbilityFrames(ctx, player.identity.instanceId, ["setup"], null),
+    );
     setStep(ctx, { phase: "setup", kind: "playerSetupAbilities", resolved: true });
     pushFrames(ctx, frames);
     return;
@@ -277,9 +279,13 @@ function executeEndPhaseReady(ctx: Ctx): void {
 }
 
 /** The delayed effects waiting on this timing point, marked fired (they resolve through the stack next). */
-function takeDelayed(ctx: Ctx, kind: "endOfPhase" | "endOfRound"): readonly Extract<LastingEffect, { kind: "delayedEffects" }>[] {
+function takeDelayed(
+  ctx: Ctx,
+  kind: "endOfPhase" | "endOfRound",
+): readonly Extract<LastingEffect, { kind: "delayedEffects" }>[] {
   const delayed = ctx.state.lastingEffects.filter(
-    (effect): effect is Extract<LastingEffect, { kind: "delayedEffects" }> => effect.kind === "delayedEffects" && effect.duration.kind === kind,
+    (effect): effect is Extract<LastingEffect, { kind: "delayedEffects" }> =>
+      effect.kind === "delayedEffects" && effect.duration.kind === kind,
   );
   for (const effect of delayed) endLastingEffect(ctx, effect.id, "fired");
   return delayed;
@@ -313,7 +319,13 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
   }
   clearAbilityUses(ctx, "round");
   // "Max X per round" and "first … each round" count again from zero.
-  ctx.state = { ...ctx.state, round: ctx.state.round + 1, playedThisRound: {}, playedThisPhase: {}, playedByPlayerThisRound: {} };
+  ctx.state = {
+    ...ctx.state,
+    round: ctx.state.round + 1,
+    playedThisRound: {},
+    playedThisPhase: {},
+    playedByPlayerThisRound: {},
+  };
   emit(ctx, { type: "roundStarted", round: ctx.state.round });
   beginPlayerPhase(ctx);
   announce(ctx, { kind: "villainPhaseEnded" });

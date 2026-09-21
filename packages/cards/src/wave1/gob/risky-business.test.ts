@@ -1,14 +1,35 @@
 import { activeVillain, currentName, type Command, type GameState } from "@mc/engine";
-import { answer, endTurn, firstLegal, identityOf, inst, P1, patchInstance, playerOf, settle, settleUntil, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  answer,
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  P1,
+  patchInstance,
+  playerOf,
+  settle,
+  settleUntil,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
 import { driveEvents } from "../testing.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
 
 const spiderManVsRiskyBusiness = (difficulty: "standard" | "expert" = "standard") =>
-  startGobGame(wave1Scenario("risky-business", { difficulty, players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11, modularSetIds: [] }));
+  startGobGame(
+    wave1Scenario("risky-business", {
+      difficulty,
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 11,
+      modularSetIds: [],
+    }),
+  );
 
 /** Runs commands and settles every resulting choice with the default (least-committal) pick. */
-const play = (state: GameState, ...commands: readonly Command[]): GameState => settle(runGob(state, ...commands), undefined, undefined, GOB_DEPS);
+const play = (state: GameState, ...commands: readonly Command[]): GameState =>
+  settle(runGob(state, ...commands), undefined, undefined, GOB_DEPS);
 
 const criminalEnterpriseId = (state: ReturnType<typeof spiderManVsRiskyBusiness>) =>
   [...state.villainArea, ...state.removedFromGame].find((id) => state.instances[id]?.cardId === "02006a")!;
@@ -44,7 +65,12 @@ describe("Norman Osborn's Forced Interrupts", () => {
     const enterprise = criminalEnterpriseId(start);
     const primed = patchInstance(start, enterprise, { counters: { infamy: 5 } });
     const identity = identityOf(primed);
-    const attacked = runGob(primed, toHero(), { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain });
+    const attacked = runGob(primed, toHero(), {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain,
+    });
     expect(inst(attacked, villain).damage).toBe(0);
     expect(inst(attacked, enterprise).counters.infamy).toBeLessThan(5);
   });
@@ -67,8 +93,17 @@ describe("Hostile Takeover 1B — When Completed", () => {
     const { events } = driveEvents(primed, endTurn());
     const completedAt = events.findIndex((e) => e.type === "mainSchemeCompleted");
     const advancedAt = events.findIndex((e) => e.type === "mainSchemeAdvanced");
-    const infamyAddedAt = events.findIndex((e) => e.type === "counterAdded" && e.instanceId === enterprise && e.counterType === "infamy");
-    const discards = events.filter((e) => e.type === "cardMoved" && e.instanceId !== undefined && "from" in e && e.from.kind === "deck" && e.to.kind === "discard");
+    const infamyAddedAt = events.findIndex(
+      (e) => e.type === "counterAdded" && e.instanceId === enterprise && e.counterType === "infamy",
+    );
+    const discards = events.filter(
+      (e) =>
+        e.type === "cardMoved" &&
+        e.instanceId !== undefined &&
+        "from" in e &&
+        e.from.kind === "deck" &&
+        e.to.kind === "discard",
+    );
     expect(completedAt).toBeGreaterThanOrEqual(0);
     expect(infamyAddedAt).toBeGreaterThan(completedAt); // the infamy counter is added by When Completed, after completion
     expect(infamyAddedAt).toBeLessThan(advancedAt); // and before the scheme advances (RRG 1.8 "When Completed Abilities", p. 48)
@@ -100,7 +135,12 @@ describe("Criminal Enterprise / State of Madness — the scenario's win conditio
     // (Norman's Forced Interrupt), which empties the card and trips the state check.
     const primed = patchInstance(start, enterprise, { counters: { infamy: 1 } });
     const identity = identityOf(primed);
-    const after = play(primed, toHero(), { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain });
+    const after = play(primed, toHero(), {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain,
+    });
 
     expect(activeVillain(after).side).toBe("B");
     expect(currentName(after, villain)).toBe("Green Goblin");
@@ -115,11 +155,12 @@ describe("Criminal Enterprise / State of Madness — the scenario's win conditio
     const start = spiderManVsRiskyBusiness();
     const villain = activeVillain(start).instanceId;
     const enterprise = criminalEnterpriseId(start);
-    const goblin = play(
-      patchInstance(start, enterprise, { counters: { infamy: 1 } }),
-      toHero(),
-      { type: "basicAttack", playerId: P1, attackerInstanceId: identityOf(start), targetInstanceId: villain },
-    );
+    const goblin = play(patchInstance(start, enterprise, { counters: { infamy: 1 } }), toHero(), {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identityOf(start),
+      targetInstanceId: villain,
+    });
     expect(currentName(goblin, enterprise)).toBe("State of Madness");
 
     // Green Goblin's own Forced Interrupt spends a madness counter instead of schemeing, so ending the turn with
@@ -162,7 +203,9 @@ describe("Oscorp Manufacturing", () => {
     // a replaced activation deals no boost card), leaving the stacked 02010 on top of the deck for the later "deal
     // encounter cards" step to reveal as a treachery/side scheme, rather than being drawn as his scheme's boost card.
     const after = play(stackEncounterDeck(spiderManVsRiskyBusiness(), "02010"), toHero(), endTurn());
-    const oscorp = Object.keys(after.instances).find((id) => after.instances[id as never]?.cardId === "02010" && after.villainArea.includes(id as never)) as never;
+    const oscorp = Object.keys(after.instances).find(
+      (id) => after.instances[id as never]?.cardId === "02010" && after.villainArea.includes(id as never),
+    ) as never;
     // Printed startingThreat 2[per_hero] (2, 1 hero) + the ability's additional 1[per_hero] (1) = 3.
     expect(inst(after, oscorp).threat).toBe(3);
   });

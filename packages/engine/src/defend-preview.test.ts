@@ -73,7 +73,13 @@ function atDefense(
     deps,
     given.state,
     toHero,
-    { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: payFor(given.state, p1, 2), attachToInstanceId: null },
+    {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.id,
+      payment: payFor(given.state, p1, 2),
+      attachToInstanceId: null,
+    },
     endTurn,
   );
   const state = settleUntil(played, "declareDefender", deps);
@@ -105,8 +111,12 @@ test("no defend choice open, no preview", () => {
 
 test("one option per answer the prompt offers, and nothing else", () => {
   const at = atDefense();
-  expect(at.options.map((option) => option.optionId)).toEqual(at.state.pendingChoice?.options.map((option) => option.optionId));
-  expect(at.options.map((option) => option.defenderInstanceId)).toEqual(expect.arrayContaining([null, at.hero, at.ally]));
+  expect(at.options.map((option) => option.optionId)).toEqual(
+    at.state.pendingChoice?.options.map((option) => option.optionId),
+  );
+  expect(at.options.map((option) => option.defenderInstanceId)).toEqual(
+    expect.arrayContaining([null, at.hero, at.ally]),
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -146,7 +156,9 @@ test("the bound is over the unseen pool, and the real damage lands inside a band
   );
   expect(attack).toBeDefined();
 
-  const band = decline.bands.find((entry) => attack!.boostIcons >= entry.boostFrom && attack!.boostIcons <= entry.boostTo);
+  const band = decline.bands.find(
+    (entry) => attack!.boostIcons >= entry.boostFrom && attack!.boostIcons <= entry.boostTo,
+  );
   expect(band, `no band covers ${attack!.boostIcons} boost icons`).toBeDefined();
   expect(band!.damageDealt).toBe(attack!.damageDealt);
   expect(attack!.damageDealt).toBeGreaterThanOrEqual(decline.bands[0]!.damageDealt);
@@ -173,7 +185,9 @@ test("a Boost ability in the pool is reported, and never raises the damage bound
   const withStar = atDefense({
     extraCards: [STAR],
     abilities: [boostAbility],
-    encounterDeck: Array.from({ length: 24 }, (_, index) => (index % 3 === 2 ? STAR.id : index % 2 === 0 ? B0.id : B3.id)),
+    encounterDeck: Array.from({ length: 24 }, (_, index) =>
+      index % 3 === 2 ? STAR.id : index % 2 === 0 ? B0.id : B3.id,
+    ),
   });
   const plain = atDefense();
 
@@ -272,7 +286,15 @@ test("a tough hero keeps the status in the band where the damage reduces to 0, a
 });
 
 test("retaliate is the same in every band the defender survives, and 0 where it doesn't", () => {
-  const retaliator = stubAlly({ id: "spiky", cost: 2, atk: 1, thw: 1, hp: 6, resources: 1, keywords: [{ name: "retaliate", value: 2 }] });
+  const retaliator = stubAlly({
+    id: "spiky",
+    cost: 2,
+    atk: 1,
+    thw: 1,
+    hp: 6,
+    resources: 1,
+    keywords: [{ name: "retaliate", value: 2 }],
+  });
   // ATK 3 plus 0–3 boost against 6 hit points: it survives at the bottom of the range and falls at the top.
   const at = atDefense({ villain: villainWith(3), ally: retaliator });
   const ally = optionFor(at, at.ally);
@@ -286,7 +308,15 @@ test("retaliate is the same in every band the defender survives, and 0 where it 
 });
 
 test("a ranged attacker takes no retaliate at all", () => {
-  const retaliator = stubAlly({ id: "spiky", cost: 2, atk: 1, thw: 1, hp: 6, resources: 1, keywords: [{ name: "retaliate", value: 2 }] });
+  const retaliator = stubAlly({
+    id: "spiky",
+    cost: 2,
+    atk: 1,
+    thw: 1,
+    hp: 6,
+    resources: 1,
+    keywords: [{ name: "retaliate", value: 2 }],
+  });
   const at = atDefense({ villain: villainWith(3, [{ name: "ranged" }]), ally: retaliator });
   for (const band of optionFor(at, at.ally).bands) expect(band.retaliateToAttacker).toBe(0);
 });
@@ -303,14 +333,21 @@ test("the damage the attack actually deals is the damage the chosen option's ban
     const after = resolvePending(at.state, [option.optionId], at.deps);
     const events = applyCommand(
       at.state,
-      { type: "resolveChoice", playerId: p1, choiceId: at.state.pendingChoice!.choiceId, selectedOptionIds: [option.optionId] },
+      {
+        type: "resolveChoice",
+        playerId: p1,
+        choiceId: at.state.pendingChoice!.choiceId,
+        selectedOptionIds: [option.optionId],
+      },
       at.deps,
     );
     expect(after).toBeDefined();
     const attack = (events.ok ? events.events : []).find(
       (event): event is Extract<GameEvent, { type: "attackResolved" }> => event.type === "attackResolved",
     )!;
-    const band = option.bands.find((entry) => attack.boostIcons >= entry.boostFrom && attack.boostIcons <= entry.boostTo)!;
+    const band = option.bands.find(
+      (entry) => attack.boostIcons >= entry.boostFrom && attack.boostIcons <= entry.boostTo,
+    )!;
 
     expect(attack.baseAtk, defender).toBe(option.baseAtk);
     expect(attack.defenseReduction, defender).toBe(option.defenseReduction);

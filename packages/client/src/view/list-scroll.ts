@@ -122,7 +122,12 @@ export class ListScroll {
 }
 
 /** The scroll thumb, as fractions of the track. Null when every row already fits — nothing to scroll. */
-export function thumbOf(offsetPx: number, count: number, rowHeight: number, viewportHeight: number): ScrollThumb | null {
+export function thumbOf(
+  offsetPx: number,
+  count: number,
+  rowHeight: number,
+  viewportHeight: number,
+): ScrollThumb | null {
   const contentHeight = count * rowHeight;
   if (contentHeight <= viewportHeight || contentHeight <= 0) return null;
   const size = Math.min(1, viewportHeight / contentHeight);

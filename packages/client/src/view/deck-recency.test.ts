@@ -45,7 +45,12 @@ describe("sortByRecency", () => {
 
 describe("recentlyChangedOf", () => {
   test("only timestamped decks, most recent first, capped at the limit", () => {
-    const decks = [stub("a", "2026-09-01T00:00:00.000Z"), stub("untimestamped"), stub("b", "2026-09-15T00:00:00.000Z"), stub("c", "2026-09-10T00:00:00.000Z")];
+    const decks = [
+      stub("a", "2026-09-01T00:00:00.000Z"),
+      stub("untimestamped"),
+      stub("b", "2026-09-15T00:00:00.000Z"),
+      stub("c", "2026-09-10T00:00:00.000Z"),
+    ];
     expect(recentlyChangedOf(decks, 2).map((d) => d.id)).toEqual(["b", "c"]);
   });
 

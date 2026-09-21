@@ -4,7 +4,6 @@ import {
   atEndOfAttack,
   attacksGainKeywords,
   cancelWhenRevealed,
-  cards,
   chooseCards,
   chooseTarget,
   chosen,
@@ -111,12 +110,19 @@ export const QSV_PACK_CARDS = defineAbilities({
 
   // Nerves of Steel (14017, Protection upgrade) — Play under any player's control. Max 1 per player (data).
   // Resource: Exhaust Nerves of Steel → generate a [energy] resource for a Defense event.
-  "14017.nerves-of-steel-resource": resource({ energy: 1 }, { cost: exhaustThis, generatesFor: query("event", { trait: DEFENSE }) }),
+  "14017.nerves-of-steel-resource": resource(
+    { energy: 1 },
+    { cost: exhaustThis, generatesFor: query("event", { trait: DEFENSE }) },
+  ),
 
   // Order and Chaos (14018, Basic event) — Team-Up (Quicksilver and Scarlet Witch), Max 1 per deck (data). Hero
   // Interrupt: when a treachery card is revealed from the encounter deck, cancel its "When Revealed" effects, then
   // deal 2 damage to the villain.
-  "14018.order-and-chaos-interrupt": heroInterrupt(on.encounterCardRevealed(query("treachery")), cancelWhenRevealed(), dealDamage(2, theVillain)),
+  "14018.order-and-chaos-interrupt": heroInterrupt(
+    on.encounterCardRevealed(query("treachery")),
+    cancelWhenRevealed(),
+    dealDamage(2, theVillain),
+  ),
 
   // Adrenaline Rush (14022, Basic upgrade) — Hero Action: Discard Adrenaline Rush → your hero gets +1 ATK until
   // the end of the phase.
@@ -128,12 +134,18 @@ export const QSV_PACK_CARDS = defineAbilities({
 
   // Brute Force (14029, Aggression upgrade) — Your hero gets +1 ATK. Your basic attacks gain piercing. Forced
   // Response: after you make a basic attack, discard Brute Force.
-  "14029.brute-force-constant": constant(gets("atk", 1, YOUR_IDENTITY), attacksGainKeywords(["piercing"], { attacker: YOUR_IDENTITY, basicOnly: true })),
+  "14029.brute-force-constant": constant(
+    gets("atk", 1, YOUR_IDENTITY),
+    attacksGainKeywords(["piercing"], { attacker: YOUR_IDENTITY, basicOnly: true }),
+  ),
   "14029.brute-force-forced-response": forcedResponse(on.attacks(YOUR_IDENTITY, { basic: true }), discard(self)),
 
   // Sense of Justice (14030, Justice upgrade) — Play under any player's control. Max 1 per player (data).
   // Resource: Exhaust Sense of Justice → generate a [mental] resource for a Thwart event.
-  "14030.sense-of-justice-resource": resource({ mental: 1 }, { cost: exhaustThis, generatesFor: query("event", { trait: THWART }) }),
+  "14030.sense-of-justice-resource": resource(
+    { mental: 1 },
+    { cost: exhaustThis, generatesFor: query("event", { trait: THWART }) },
+  ),
 
   // United We Stand (14031, Leadership event) — Play only if your identity has the Avenger trait (data). Hero
   // Action: Heal 1 damage from up to X friendly characters (to a maximum of 3), where X is the villain's stage
@@ -145,5 +157,8 @@ export const QSV_PACK_CARDS = defineAbilities({
   ),
 
   // Beat 'Em Up (14032, Basic event) — Hero Action: Deal 1 damage to the villain and each minion engaged with you.
-  "14032.beat-em-up-action": heroAction(dealDamage(1, theVillain), dealDamage(1, { kind: "each", query: query("minion", { engagedWith: "you" }) })),
+  "14032.beat-em-up-action": heroAction(
+    dealDamage(1, theVillain),
+    dealDamage(1, { kind: "each", query: query("minion", { engagedWith: "you" }) }),
+  ),
 });

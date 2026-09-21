@@ -47,8 +47,14 @@ const exhaustAlterEgoToRemove = (alterEgo: string): ChoiceOption =>
 /** "Discard this obligation." (to the encounter discard pile) */
 export const discardThisObligation = moveCards(cards(self), "discard");
 
-export const obligation = (alterEgo: string, alternative: { readonly label: string; readonly effects: readonly EffectArg[] }): AbilityDefinition =>
+export const obligation = (
+  alterEgo: string,
+  alternative: { readonly label: string; readonly effects: readonly EffectArg[] },
+): AbilityDefinition =>
   whenRevealed(
     mayFlipToAlterEgo,
-    chooseOne(exhaustAlterEgoToRemove(alterEgo), option(alternative.label, ...alternative.effects, discardThisObligation)),
+    chooseOne(
+      exhaustAlterEgoToRemove(alterEgo),
+      option(alternative.label, ...alternative.effects, discardThisObligation),
+    ),
   );

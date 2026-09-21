@@ -149,7 +149,10 @@ function windowEventCost(ctx: Ctx, candidate: TriggerCandidate): number {
   const card = cardOf(ctx.state, candidate.instanceId);
   if (!card || !candidate.controllerId) return 0;
   const printed = "cost" in card ? card.cost : 0;
-  const reduced = Math.max(0, printed - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId));
+  const reduced = Math.max(
+    0,
+    printed - costReductionFor(ctx.state, ctx.deps, candidate.controllerId, candidate.instanceId),
+  );
   const abilityCost = ctx.deps.abilities[candidate.abilityId]?.cost?.resources;
   return requirementTotal(combineRequirements(reduced, abilityCost));
 }
@@ -297,12 +300,12 @@ function playWindowEvent(ctx: Ctx, frame: Frame<"window">, answer: readonly stri
 
 function absorbWindowAnswer(ctx: Ctx, frame: Frame<"window">, answer: readonly string[]): void {
   if (frame.awaiting === "pay") {
-    return frame.paying?.fromHand === false ? payWindowAbility(ctx, frame, answer) : playWindowEvent(ctx, frame, answer);
+    return frame.paying?.fromHand === false
+      ? payWindowAbility(ctx, frame, answer)
+      : playWindowEvent(ctx, frame, answer);
   }
   const byOption = new Map(frame.pending.map((c) => [`${c.instanceId}:${c.abilityId}`, c]));
-  const picked = answer
-    .map((optionId) => byOption.get(optionId))
-    .filter((c): c is TriggerCandidate => c !== undefined);
+  const picked = answer.map((optionId) => byOption.get(optionId)).filter((c): c is TriggerCandidate => c !== undefined);
   if (frame.awaiting === "order") {
     setFrame(ctx, { ...frame, answer: null, awaiting: null, queue: picked, pending: [] });
     return;

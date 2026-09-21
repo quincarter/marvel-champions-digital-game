@@ -34,7 +34,8 @@ import {
   YOUR_HERO,
 } from "../../dsl/index.js";
 
-const hulkMilled = (type: "physical" | "energy" | "mental") => anyOf(varAtLeast(`hulk.${type}`), varAtLeast("hulk.wild"));
+const hulkMilled = (type: "physical" | "energy" | "mental") =>
+  anyOf(varAtLeast(`hulk.${type}`), varAtLeast("hulk.wild"));
 
 /** The Aggression aspect (01050–01057). */
 export const AGGRESSION = defineAbilities({
@@ -56,7 +57,11 @@ export const AGGRESSION = defineAbilities({
   // Tigra — Response: After Tigra attacks and defeats a minion, heal 1 damage from her.
   "01051.tigra-response": response(after.attacks("self", { target: query("minion"), defeats: true }), heal(1, self)),
   // Chase Them Down — Response (thwart): After your hero attacks and defeats an enemy, remove 2 threat from a scheme.
-  "01052.chase-them-down-response": response(after.attacks(YOUR_HERO, { defeats: true }), { label: "thwart" }, thwartAScheme(2)),
+  "01052.chase-them-down-response": response(
+    after.attacks(YOUR_HERO, { defeats: true }),
+    { label: "thwart" },
+    thwartAScheme(2),
+  ),
   // Relentless Assault — Hero Action (attack): Deal 5 damage to a minion. If you paid for this card using a [physical] resource,
   // this attack gains overkill.
   "01053.relentless-assault-action": heroAction(

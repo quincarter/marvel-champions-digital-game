@@ -81,8 +81,7 @@ export function traceAbilities(base: EngineDeps): TracedDeps {
   };
 }
 
-const list = (ids: ReadonlySet<string>): string =>
-  ids.size === 0 ? "(none)" : [...ids].sort().join(", ");
+const list = (ids: ReadonlySet<string>): string => (ids.size === 0 ? "(none)" : [...ids].sort().join(", "));
 
 /**
  * Asserts the ability actually resolved. Use this in any test whose assertion could be satisfied by something

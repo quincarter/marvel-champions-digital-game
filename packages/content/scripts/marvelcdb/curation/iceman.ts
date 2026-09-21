@@ -23,7 +23,8 @@ export const ICEMAN_CURATION: PackCuration = {
   pack: {
     name: "Iceman",
     releaseDate: "2024-05-17",
-    releaseDateSource: 'Hall of Heroes Iceman/Bobby Drake page (https://hallofheroeslcg.com/iceman-bobby-drake/): "Release date: May 17, 2024"',
+    releaseDateSource:
+      'Hall of Heroes Iceman/Bobby Drake page (https://hallofheroeslcg.com/iceman-bobby-drake/): "Release date: May 17, 2024"',
   },
   outDir: "src/data/iceman",
   exportPrefix: "ICEMAN",
@@ -31,8 +32,9 @@ export const ICEMAN_CURATION: PackCuration = {
   corrections: [
     {
       code: "46002",
-      reason: "Frostbite is a Permanent signature attachment, set aside by its own Forced Response rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/46002), \"Cost: —\"",
+      reason:
+        'Frostbite is a Permanent signature attachment, set aside by its own Forced Response rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/46002), "Cost: —"',
       specialCost: "dash",
     },
   ],
@@ -40,7 +42,8 @@ export const ICEMAN_CURATION: PackCuration = {
 
   scriptingNotes: {},
   cardNotes: {
-    "46003": "Snow Clone prints THW as a dash (cannot thwart) — confirmed from the card's own MarvelCDB listing (\"Attack: 2. Thwart: —.\"), not a transcription gap.",
+    "46003":
+      'Snow Clone prints THW as a dash (cannot thwart) — confirmed from the card\'s own MarvelCDB listing ("Attack: 2. Thwart: —."), not a transcription gap.',
   },
 
   scenarios: [],

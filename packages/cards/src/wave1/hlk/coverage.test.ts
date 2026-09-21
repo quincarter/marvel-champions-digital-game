@@ -1,4 +1,4 @@
-import { HLK_CARDS, type AbilityReference } from "@mc/content";
+import { HLK_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { HLK_ABILITIES } from "./index.js";
 import { abilityRefIds } from "../../ability-refs.js";

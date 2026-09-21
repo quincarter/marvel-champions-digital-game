@@ -17,7 +17,8 @@ export const JUBILEE_CURATION: PackCuration = {
   pack: {
     name: "Jubilee",
     releaseDate: "2024-07-19",
-    releaseDateSource: 'Hall of Heroes Jubilee/Jubilation Lee page (https://hallofheroeslcg.com/jubilee-jubilation-lee/): "Release date: July 19, 2024"; cycle grouping confirmed against Hall of Heroes\' own card database navigation (https://hallofheroeslcg.com/browse/), which lists Jubilee alongside Iceman, Nightcrawler and Magneto under Cycle 8.',
+    releaseDateSource:
+      'Hall of Heroes Jubilee/Jubilation Lee page (https://hallofheroeslcg.com/jubilee-jubilation-lee/): "Release date: July 19, 2024"; cycle grouping confirmed against Hall of Heroes\' own card database navigation (https://hallofheroeslcg.com/browse/), which lists Jubilee alongside Iceman, Nightcrawler and Magneto under Cycle 8.',
   },
   outDir: "src/data/jubilee",
   exportPrefix: "JUBILEE",

@@ -26,20 +26,54 @@ import { DEFAULT_DECK, defaultPick, giveCard, newGame, settle } from "./testing/
 const p1 = playerId("p1");
 const TINY = trait("Tiny");
 const GIANT = trait("Giant");
-const counter = (counterType: string): EffectSpec => ({ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType, amount: { kind: "const", value: 1 } });
+const counter = (counterType: string): EffectSpec => ({
+  kind: "addCounters",
+  target: { kind: "identityOf", player: { kind: "controller" } },
+  counterType,
+  amount: { kind: "const", value: 1 },
+});
 
 /** "Response: After you change to this form, …" on each hero face; only the face that is up can trigger. */
-const TINY_RESPONSE = stubAbility("tri.tiny", { trigger: { kind: "response", forced: true, on: { on: "formChanged", playerIs: "controller" } }, effects: [counter("tiny")] });
-const GIANT_RESPONSE = stubAbility("tri.giant", { trigger: { kind: "response", forced: true, on: { on: "formChanged", playerIs: "controller" } }, effects: [counter("giant")] });
+const TINY_RESPONSE = stubAbility("tri.tiny", {
+  trigger: { kind: "response", forced: true, on: { on: "formChanged", playerIs: "controller" } },
+  effects: [counter("tiny")],
+});
+const GIANT_RESPONSE = stubAbility("tri.giant", {
+  trigger: { kind: "response", forced: true, on: { on: "formChanged", playerIs: "controller" } },
+  effects: [counter("giant")],
+});
 const ANT: HeroIdentityCard = {
-  ...stubIdentity({ id: "ant", name: "Ant", hp: 12, atk: 1, thw: 2, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6, heroTraits: [TINY], heroAbilities: [TINY_RESPONSE.ref] }),
+  ...stubIdentity({
+    id: "ant",
+    name: "Ant",
+    hp: 12,
+    atk: 1,
+    thw: 2,
+    def: 2,
+    rec: 3,
+    heroHandSize: 5,
+    alterEgoHandSize: 6,
+    heroTraits: [TINY],
+    heroAbilities: [TINY_RESPONSE.ref],
+  }),
   additionalHeroForms: [
-    { faceName: "Giant Ant", atk: 3, thw: 1, def: 3, handSize: 4, keywords: [{ name: "toughness" }], traits: [GIANT], text: { printed: "", current: "" }, abilities: [GIANT_RESPONSE.ref] },
+    {
+      faceName: "Giant Ant",
+      atk: 3,
+      thw: 1,
+      def: 3,
+      handSize: 4,
+      keywords: [{ name: "toughness" }],
+      traits: [GIANT],
+      text: { printed: "", current: "" },
+      abilities: [GIANT_RESPONSE.ref],
+    },
   ],
 };
 
 /** Card-caused changes: "change to your [Giant] hero form" (Rapid Growth), "change to your other hero form" (Resize). */
-const action = (id: string, effects: readonly EffectSpec[]) => stubAbility(`${id}.action`, { trigger: { kind: "action" }, effects });
+const action = (id: string, effects: readonly EffectSpec[]) =>
+  stubAbility(`${id}.action`, { trigger: { kind: "action" }, effects });
 const GROW = action("grow", [{ kind: "changeForm", player: { kind: "controller" }, heroForm: { withTrait: GIANT } }]);
 const RESIZE = action("resize", [{ kind: "changeForm", player: { kind: "controller" }, heroForm: "other" }]);
 const SUIT_UP = action("suit-up", [{ kind: "changeForm", player: { kind: "controller" }, to: "hero" }]);
@@ -67,12 +101,19 @@ const toHero = (heroForm: number): Command => ({ type: "changeForm", playerId: p
 const endRound = (state: GameState): GameState => {
   let current = apply(state, { type: "endTurn", playerId: p1 });
   let guard = 0;
-  while (!(current.step.phase === "player" && current.step.kind === "turn") && guard++ < 50) current = settle(current, defaultPick, deps);
+  while (!(current.step.phase === "player" && current.step.kind === "turn") && guard++ < 50)
+    current = settle(current, defaultPick, deps);
   return current;
 };
 const playEvent = (state: GameState, card: string): GameState => {
   const given = giveCard(state, p1, card);
-  return apply(given.state, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+  return apply(given.state, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  });
 };
 
 describe("three-sided identities (docs/phase7-wave2.md §3.2)", () => {
@@ -97,7 +138,8 @@ describe("three-sided identities (docs/phase7-wave2.md §3.2)", () => {
     const result = applyCommand(start, { type: "changeForm", playerId: p1 }, deps);
     expect(result.ok ? null : result.error.code).toBe("no_valid_target");
     const actions = legalActions(start, p1, deps);
-    const forms = actions.kind === "turn" ? actions.legal.filter((a) => a.action.kind === "changeForm").map((a) => a.action) : [];
+    const forms =
+      actions.kind === "turn" ? actions.legal.filter((a) => a.action.kind === "changeForm").map((a) => a.action) : [];
     expect(forms).toEqual([
       { kind: "changeForm", to: { heroForm: 0 } },
       { kind: "changeForm", to: { heroForm: 1 } },
@@ -123,7 +165,13 @@ describe("three-sided identities (docs/phase7-wave2.md §3.2)", () => {
   it("damage and statuses stay across a change between hero forms (RRG 1.8 'Form, Change Form', p. 21)", () => {
     const tiny = apply(game(), toHero(0));
     const id = identityId(tiny);
-    const hurt: GameState = { ...tiny, instances: { ...tiny.instances, [id]: { ...mustInstance(tiny, id), damage: 3, statuses: { stunned: 1, confused: 0, tough: 0 } } } };
+    const hurt: GameState = {
+      ...tiny,
+      instances: {
+        ...tiny.instances,
+        [id]: { ...mustInstance(tiny, id), damage: 3, statuses: { stunned: 1, confused: 0, tough: 0 } },
+      },
+    };
     const giant = playEvent(hurt, "grow");
     expect(mustPlayer(giant, p1).identity.heroFormIndex).toBe(1);
     expect(mustInstance(giant, id)).toMatchObject({ damage: 3, statuses: { stunned: 1, confused: 0, tough: 0 } });
@@ -138,13 +186,26 @@ describe("three-sided identities (docs/phase7-wave2.md §3.2)", () => {
 
     // From alter-ego, an effect to hero form asks which hero form.
     const given = giveCard(game(), p1, "suit-up");
-    const asked = applyCommand(given.state, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null }, deps);
+    const asked = applyCommand(
+      given.state,
+      { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+      deps,
+    );
     if (!asked.ok) throw new Error(asked.error.message);
     const choice = asked.state.pendingChoice;
     expect(choice?.prompt.kind).toBe("chooseOption");
     expect(choice?.options.map((o) => o.optionId)).toEqual(["0", "1"]);
-    const answered = apply(asked.state, { type: "resolveChoice", playerId: p1, choiceId: choice!.choiceId, selectedOptionIds: ["1"] });
-    expect(mustPlayer(answered, p1).identity).toMatchObject({ form: "hero", heroFormIndex: 1, changedFormThisRound: false });
+    const answered = apply(asked.state, {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: choice!.choiceId,
+      selectedOptionIds: ["1"],
+    });
+    expect(mustPlayer(answered, p1).identity).toMatchObject({
+      form: "hero",
+      heroFormIndex: 1,
+      changedFormThisRound: false,
+    });
     expect(counters(answered)).toEqual({ giant: 1 });
   });
 
@@ -159,7 +220,13 @@ describe("three-sided identities (docs/phase7-wave2.md §3.2)", () => {
     for (const command of [toHero(1)]) {
       const result = sessionApply(session, command, deps);
       if (!result.ok) throw new Error(result.error.message);
-      expect(result.events).toContainEqual({ type: "formChanged", playerId: p1, to: "hero", fromHeroFormIndex: null, heroFormIndex: 1 });
+      expect(result.events).toContainEqual({
+        type: "formChanged",
+        playerId: p1,
+        to: "hero",
+        fromHeroFormIndex: null,
+        heroFormIndex: 1,
+      });
       session = result.session;
     }
     const replayed = replay(session.log, deps);

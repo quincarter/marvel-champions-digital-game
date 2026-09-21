@@ -36,7 +36,13 @@ test("the attacked player may defend with another player's hero or ally", () => 
     toHero(p1),
     endTurn(p1),
     toHero(p2),
-    { type: "playCard", playerId: p2, cardInstanceId: allyForP2, payment: payFor(start, p2, 2), attachToInstanceId: null },
+    {
+      type: "playCard",
+      playerId: p2,
+      cardInstanceId: allyForP2,
+      payment: payFor(start, p2, 2),
+      attachToInstanceId: null,
+    },
     endTurn(p2),
   );
   const atDefense = settleUntil(withAlly, "declareDefender");
@@ -54,8 +60,7 @@ test("the attacked player may defend with another player's hero or ally", () => 
   const defended = resolvePending(atDefense, [allyForP2]);
   // The ally took the attack: it is either still in play with damage or was defeated by it
   // (a defeated card is discarded and its damage cleared, RRG "Defeat").
-  const allyHit =
-    mustInstance(defended, allyForP2).damage > 0 || mustPlayer(defended, p2).discard.includes(allyForP2);
+  const allyHit = mustInstance(defended, allyForP2).damage > 0 || mustPlayer(defended, p2).discard.includes(allyForP2);
   expect(allyHit).toBe(true);
   expect(mustInstance(defended, mustPlayer(defended, p1).identity.instanceId).damage).toBe(0);
 });

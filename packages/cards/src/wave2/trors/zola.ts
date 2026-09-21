@@ -80,7 +80,11 @@ export const ZOLA_SET = defineAbilities({
   // a minion and reveals it.
   "04111.when-revealed": whenRevealed(
     forEachPlayer(eachPlayer, [
-      chooseCards("found", encounterCards(["deck", "discard"], query("minion")), { min: 1, max: 1, chooser: thatPlayer }),
+      chooseCards("found", encounterCards(["deck", "discard"], query("minion")), {
+        min: 1,
+        max: 1,
+        chooser: thatPlayer,
+      }),
       revealCard(chosen("found"), thatPlayer),
       shuffleEncounterDeck(),
     ]),
@@ -91,7 +95,11 @@ export const ZOLA_SET = defineAbilities({
   "04112a.setup": setup(
     searchAndReveal(cardName("04122"), ["deck", "discard"], firstPlayer),
     forEachPlayer(eachPlayer, [
-      chooseCards("bioServant", encounterCards(["deck", "discard"], query("minion", { name: cardName("04114") })), { min: 1, max: 1, chooser: thatPlayer }),
+      chooseCards("bioServant", encounterCards(["deck", "discard"], query("minion", { name: cardName("04114") })), {
+        min: 1,
+        max: 1,
+        chooser: thatPlayer,
+      }),
       putIntoPlay(chosen("bioServant"), thatPlayer),
       shuffleEncounterDeck(),
     ]),
@@ -109,25 +117,38 @@ export const ZOLA_SET = defineAbilities({
   // reveals it. Shuffle the encounter deck.
   "04113a.when-revealed": whenRevealed(
     forEachPlayer(eachPlayer, [
-      chooseCards("found", encounterCards(["deck", "discard"], query("minion")), { min: 1, max: 1, chooser: thatPlayer }),
+      chooseCards("found", encounterCards(["deck", "discard"], query("minion")), {
+        min: 1,
+        max: 1,
+        chooser: thatPlayer,
+      }),
       revealCard(chosen("found"), thatPlayer),
     ]),
     shuffleEncounterDeck(),
   ),
   // The Mad Doctor 2B — same Forced Response as 1B. "If this scheme is completed, the players lose" is data.
-  "04113b.the-mad-doctor-forced-response": forcedResponse(on.threatPlaced(query("mainScheme")), addCounters(TEST, 1, theMainScheme), ifThenHighTest("spawned2")),
+  "04113b.the-mad-doctor-forced-response": forcedResponse(
+    on.threatPlaced(query("mainScheme")),
+    addCounters(TEST, 1, theMainScheme),
+    ifThenHighTest("spawned2"),
+  ),
   // The data carries a second ("-constant") ability ref alongside the response with no separate printed text of
   // its own — an empty constant, the same parser-artifact shape as this pack's other duplicated refs.
   "04113b.the-mad-doctor-constant": coveredByEngineRule(),
 
   // Ultimate Bio-Servant — Toughness (data). [star] Gets +1 ATK for each attachment on it. [star] Boost: give the
   // villain a tough status card.
-  "04114.ultimate-bio-servant-constant": constant(gets("atk", countOf(query("attachment", { host: self })), query("minion", { self: true }))),
+  "04114.ultimate-bio-servant-constant": constant(
+    gets("atk", countOf(query("attachment", { host: self })), query("minion", { self: true })),
+  ),
   "04114.boost": boost(giveTough(theVillain)),
 
   // Zola's Mutate — When Revealed: discard cards from the top of the encounter deck until a Tech attachment is
   // discarded; attach it to Zola's Mutate. [star] Boost: shuffle Zola's Mutate into the encounter deck.
-  "04115.when-revealed": whenRevealed(discardEncounterUntil(query("attachment", { trait: TECH }), "found"), attachCard(chosen("found"), self)),
+  "04115.when-revealed": whenRevealed(
+    discardEncounterUntil(query("attachment", { trait: TECH }), "found"),
+    attachCard(chosen("found"), self),
+  ),
   "04115.boost": boost(moveCards(cards(self), "encounterDeckShuffle")),
 
   // Berserk Mutate — Quickstrike (data). [star] Boost: place 1 test counter on the main scheme. For each test
@@ -141,10 +162,14 @@ export const ZOLA_SET = defineAbilities({
   // Defensive Programming — Attach to the minion with the most remaining HP without a copy already there (data,
   // host). Attached minion gets +2 hit points and gains guard.
   "04117.defensive-programming-constant": constant(gets("hp", 2, query("minion", { hostOfSelf: true }))),
-  "04117.defensive-programming-constant-2": constant(gainsKeyword({ name: "guard" }, query("minion", { hostOfSelf: true }))),
+  "04117.defensive-programming-constant-2": constant(
+    gainsKeyword({ name: "guard" }, query("minion", { hostOfSelf: true })),
+  ),
   // Pain Inhibitors — same host rule. Attached minion gets +2 hit points and gains retaliate 1.
   "04118.pain-inhibitors-constant": constant(gets("hp", 2, query("minion", { hostOfSelf: true }))),
-  "04118.pain-inhibitors-constant-2": constant(gainsKeyword({ name: "retaliate", value: 1 }, query("minion", { hostOfSelf: true }))),
+  "04118.pain-inhibitors-constant-2": constant(
+    gainsKeyword({ name: "retaliate", value: 1 }, query("minion", { hostOfSelf: true })),
+  ),
   // Neurological Implants — same host rule (data: +2 ATK/+2 SCH). Attached minion also gets +2 hit points. The
   // second ability ref the data carries has no further printed text (the same parser-artifact shape as
   // `04113b.the-mad-doctor-constant`) — stood up empty.
@@ -167,7 +192,11 @@ export const ZOLA_SET = defineAbilities({
   // it to its owner's hand.
   "04122.when-revealed": whenRevealed(
     forEachPlayer(eachPlayer, [
-      chooseCards("ally", zone(["hand", "deck", "discard"], thatPlayer, { filter: query("ally", { identitySetOf: thatPlayer }) }), { min: 1, max: 1, chooser: thatPlayer }),
+      chooseCards(
+        "ally",
+        zone(["hand", "deck", "discard"], thatPlayer, { filter: query("ally", { identitySetOf: thatPlayer }) }),
+        { min: 1, max: 1, chooser: thatPlayer },
+      ),
       tuckCards(cards(chosen("ally")), self, true),
       shuffleDeck(thatPlayer),
     ]),
@@ -178,7 +207,10 @@ export const ZOLA_SET = defineAbilities({
 
   // Test Subjects — When Defeated: the first player discards cards from the top of the encounter deck until they
   // discard a minion. Reveal that minion.
-  "04123.when-defeated": whenDefeated(discardEncounterUntil(query("minion"), "found"), revealCard(chosen("found"), firstPlayer)),
+  "04123.when-defeated": whenDefeated(
+    discardEncounterUntil(query("minion"), "found"),
+    revealCard(chosen("found"), firstPlayer),
+  ),
 
   // Zola's Experiments — Forced Response: after a minion enters play, attach the topmost Tech attachment in the
   // encounter discard pile to that minion.
@@ -198,6 +230,10 @@ function ifThenHighTest(slot: string) {
   return {
     kind: "if" as const,
     condition: HIGH_TEST,
-    then: [discardEncounterUntil(query("minion"), slot), putIntoPlay(chosen(slot), firstPlayer), removeCountersFrom(theMainScheme, TEST, 3)],
+    then: [
+      discardEncounterUntil(query("minion"), slot),
+      putIntoPlay(chosen(slot), firstPlayer),
+      removeCountersFrom(theMainScheme, TEST, 3),
+    ],
   };
 }

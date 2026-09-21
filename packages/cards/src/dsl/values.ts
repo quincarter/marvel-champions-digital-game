@@ -75,7 +75,11 @@ export const centralMainScheme: TargetRef = { kind: "mainScheme", of: "central" 
  * still out of play (RRG 1.8 "Tuck", p. 45) — the `TargetRef` sibling of the `tuckedUnder` `CardSelector` (`dsl/
  * effects.ts`), needed anywhere a ref is required (`revealCard`'s `cards`, above all) rather than a selector.
  */
-export const tuckedUnderRef = (of: TargetRef, filter?: TargetQuery): TargetRef => ({ kind: "tuckedUnder", of, ...(filter ? { filter } : {}) });
+export const tuckedUnderRef = (of: TargetRef, filter?: TargetQuery): TargetRef => ({
+  kind: "tuckedUnder",
+  of,
+  ...(filter ? { filter } : {}),
+});
 /** A player's identity, in whichever form it is ("you take 2 damage", "your hero", "Peter Parker"). */
 export const identityOf = (player: PlayerRef = you): TargetRef => ({ kind: "identityOf", player });
 export const yourIdentity: TargetRef = identityOf(you);
@@ -181,14 +185,21 @@ export const sum = (...values: readonly Amount[]): ValueSpec => ({ kind: "sum", 
  * How many of a bound-slot's cards match a query, wherever they are (unlike `countOf`, not restricted to in play):
  * "for each treachery looked at this way" (Falcon: `countAmong(chosen("looked"), query("treachery"))`).
  */
-export const countAmong = (cardsRef: TargetRef, q: TargetQuery): ValueSpec => ({ kind: "countInRef", cards: cardsRef, query: q });
+export const countAmong = (cardsRef: TargetRef, q: TargetQuery): ValueSpec => ({
+  kind: "countInRef",
+  cards: cardsRef,
+  query: q,
+});
 /**
  * "Where X is equal to the villain's stage number" (Death from Above, Wicked Ambitions, Regenerative Healing,
  * Muster Courage, Running Interference, United We Stand, Browbeat): `of` defaults to the active villain. Several
  * packs (`wave1/gob/local.ts` first) carried an identical per-pack copy of this builder predating its
  * centralization here, the same situation `superlative`/`printedCostOf` were in.
  */
-export const villainStageNumberOf = (of?: TargetRef): ValueSpec => ({ kind: "villainStageNumber", ...(of ? { of } : {}) });
+export const villainStageNumberOf = (of?: TargetRef): ValueSpec => ({
+  kind: "villainStageNumber",
+  ...(of ? { of } : {}),
+});
 export const damageOn = (of: TargetRef): ValueSpec => ({ kind: "damage", of });
 export const threatOn = (of: TargetRef): ValueSpec => ({ kind: "threat", of });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
@@ -267,11 +278,26 @@ export const damagedAtLeast = (of: TargetRef, n: number): Predicate => ({ kind: 
  * be any `ValueSpec`, so the threshold can itself be read from the board. Use it for anything the older
  * `damagedAtLeast`/`counterAtLeast`/`varAtLeast` spellings don't already cover.
  */
-export const valueAtLeast = (value: Amount, threshold: Amount): Predicate => ({ kind: "compare", left: amount(value), op: "atLeast", right: amount(threshold) });
+export const valueAtLeast = (value: Amount, threshold: Amount): Predicate => ({
+  kind: "compare",
+  left: amount(value),
+  op: "atLeast",
+  right: amount(threshold),
+});
 /** "If there is no threat here" / "if you have 2 or fewer cards in hand": the upper-bound half of `valueAtLeast`. */
-export const valueAtMost = (value: Amount, threshold: Amount): Predicate => ({ kind: "compare", left: amount(value), op: "atMost", right: amount(threshold) });
+export const valueAtMost = (value: Amount, threshold: Amount): Predicate => ({
+  kind: "compare",
+  left: amount(value),
+  op: "atMost",
+  right: amount(threshold),
+});
 /** "If X is exactly N". */
-export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({ kind: "compare", left: amount(value), op: "equalTo", right: amount(threshold) });
+export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({
+  kind: "compare",
+  left: amount(value),
+  op: "equalTo",
+  right: amount(threshold),
+});
 /** "If there is N or more threat on <scheme>" — the spelling the Wrecking Crew signature side schemes print. */
 export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLeast(threatOn(of), n);
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
@@ -297,7 +323,12 @@ export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "
  * played each round by 1"). FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): applies to the very first ally that player
  * plays each round, whatever form they're in when it's played — so this reads the round count, not the phase's.
  */
-export const firstThisRound = (cardType: string, player: PlayerRef = you): Predicate => ({ kind: "playedThisRound", player, cardType, atMost: 0 });
+export const firstThisRound = (cardType: string, player: PlayerRef = you): Predicate => ({
+  kind: "playedThisRound",
+  player,
+  cardType,
+  atMost: 0,
+});
 
 // ---------------------------------------------------------------------------
 // Wave 2 (cycle 1, docs/phase7-wave2.md) additions

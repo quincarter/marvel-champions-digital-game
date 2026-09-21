@@ -34,7 +34,10 @@ import {
 } from "./targeting-panel.js";
 
 const id = (value: string): InstanceId => value as InstanceId;
-const nameOf = (map: Record<string, string>) => (instanceId: InstanceId): string => map[instanceId] ?? instanceId;
+const nameOf =
+  (map: Record<string, string>) =>
+  (instanceId: InstanceId): string =>
+    map[instanceId] ?? instanceId;
 
 const snapshot = (overrides: Partial<CounterSnapshot> = {}): CounterSnapshot => ({
   inPlay: true,
@@ -60,7 +63,13 @@ describe("outcomeLines", () => {
     const target = id("klaw");
     const result = complete(
       [{ type: "damageDealt", targetInstanceId: target, amount: 5, sourceInstanceId: null }],
-      [{ instanceId: target, before: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }), after: snapshot({ remainingHitPoints: 9, maxHitPoints: 22 }) }],
+      [
+        {
+          instanceId: target,
+          before: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }),
+          after: snapshot({ remainingHitPoints: 9, maxHitPoints: 22 }),
+        },
+      ],
     );
     expect(outcomeLines(result, nameOf({}), target)).toEqual(["14 HP → 9 HP"]);
   });
@@ -75,8 +84,16 @@ describe("outcomeLines", () => {
         { type: "overkillSpilled", fromInstanceId: target, toInstanceId: other, amount: 2 },
       ],
       [
-        { instanceId: target, before: snapshot({ remainingHitPoints: 3, maxHitPoints: 3 }), after: snapshot({ inPlay: false, remainingHitPoints: null, maxHitPoints: 3 }) },
-        { instanceId: other, before: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }), after: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }) },
+        {
+          instanceId: target,
+          before: snapshot({ remainingHitPoints: 3, maxHitPoints: 3 }),
+          after: snapshot({ inPlay: false, remainingHitPoints: null, maxHitPoints: 3 }),
+        },
+        {
+          instanceId: other,
+          before: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }),
+          after: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }),
+        },
       ],
     );
     // Klaw's own HP is unaffected by this preview (before === after), so it earns no line of its own — only the
@@ -91,7 +108,13 @@ describe("outcomeLines", () => {
         { type: "damageDealt", targetInstanceId: target, amount: 5, sourceInstanceId: null },
         { type: "characterDefeated", instanceId: target, cardId: "runner-card" as CardId },
       ],
-      [{ instanceId: target, before: snapshot({ remainingHitPoints: 2, maxHitPoints: 2 }), after: snapshot({ inPlay: false, remainingHitPoints: null, maxHitPoints: 2 }) }],
+      [
+        {
+          instanceId: target,
+          before: snapshot({ remainingHitPoints: 2, maxHitPoints: 2 }),
+          after: snapshot({ inPlay: false, remainingHitPoints: null, maxHitPoints: 2 }),
+        },
+      ],
     );
     expect(outcomeLines(result, nameOf({}), target)).toEqual(["2 HP → Defeated", "No overkill, so 3 was lost."]);
   });
@@ -100,7 +123,13 @@ describe("outcomeLines", () => {
     const target = id("she-hulk");
     const result = complete(
       [{ type: "damagePrevented", targetInstanceId: target, amount: 3, reason: "tough" }],
-      [{ instanceId: target, before: snapshot({ remainingHitPoints: 7, maxHitPoints: 12 }), after: snapshot({ remainingHitPoints: 7, maxHitPoints: 12 }) }],
+      [
+        {
+          instanceId: target,
+          before: snapshot({ remainingHitPoints: 7, maxHitPoints: 12 }),
+          after: snapshot({ remainingHitPoints: 7, maxHitPoints: 12 }),
+        },
+      ],
     );
     expect(outcomeLines(result, nameOf({}), target)).toEqual(["Toughness absorbed it."]);
   });
@@ -116,7 +145,10 @@ describe("outcomeLines", () => {
 
   test("a scheme merely thwarted: before threat → after threat", () => {
     const target = id("side-scheme");
-    const result = complete([], [{ instanceId: target, before: snapshot({ threat: 5 }), after: snapshot({ threat: 2 }) }]);
+    const result = complete(
+      [],
+      [{ instanceId: target, before: snapshot({ threat: 5 }), after: snapshot({ threat: 2 }) }],
+    );
     expect(outcomeLines(result, nameOf({}), target)).toEqual(["5 threat → 2 threat"]);
   });
 
@@ -129,16 +161,36 @@ describe("outcomeLines", () => {
         { type: "damageDealt", targetInstanceId: secondary, amount: 2, sourceInstanceId: null },
       ],
       [
-        { instanceId: primary, before: snapshot({ remainingHitPoints: 6, maxHitPoints: 6 }), after: snapshot({ inPlay: false, remainingHitPoints: null, maxHitPoints: 6 }) },
-        { instanceId: secondary, before: snapshot({ remainingHitPoints: 3, maxHitPoints: 3 }), after: snapshot({ remainingHitPoints: 1, maxHitPoints: 3 }) },
+        {
+          instanceId: primary,
+          before: snapshot({ remainingHitPoints: 6, maxHitPoints: 6 }),
+          after: snapshot({ inPlay: false, remainingHitPoints: null, maxHitPoints: 6 }),
+        },
+        {
+          instanceId: secondary,
+          before: snapshot({ remainingHitPoints: 3, maxHitPoints: 3 }),
+          after: snapshot({ remainingHitPoints: 1, maxHitPoints: 3 }),
+        },
       ],
     );
-    expect(outcomeLines(result, nameOf({ t2: "Weapons Runner" }), primary)).toEqual(["6 HP → Defeated", "Weapons Runner: 3 HP → 1 HP"]);
+    expect(outcomeLines(result, nameOf({ t2: "Weapons Runner" }), primary)).toEqual([
+      "6 HP → Defeated",
+      "Weapons Runner: 3 HP → 1 HP",
+    ]);
   });
 
   test("a rejected preview reports only the engine's own message — no counters, no caveat", () => {
     const target = id("klaw");
-    const result: OutcomePreview = { stop: { kind: "rejected", reason: "no_valid_target", message: "a guard minion blocks attacks against the villain" }, events: [], counters: [], outcome: null };
+    const result: OutcomePreview = {
+      stop: {
+        kind: "rejected",
+        reason: "no_valid_target",
+        message: "a guard minion blocks attacks against the villain",
+      },
+      events: [],
+      counters: [],
+      outcome: null,
+    };
     expect(outcomeLines(result, nameOf({}), target)).toEqual(["a guard minion blocks attacks against the villain"]);
   });
 
@@ -147,7 +199,13 @@ describe("outcomeLines", () => {
     const result: OutcomePreview = {
       stop: { kind: "hiddenInformation", at: "cardMoved" },
       events: [{ type: "damageDealt", targetInstanceId: target, amount: 2, sourceInstanceId: null }],
-      counters: [{ instanceId: target, before: snapshot({ remainingHitPoints: 5, maxHitPoints: 5 }), after: snapshot({ remainingHitPoints: 3, maxHitPoints: 5 }) }],
+      counters: [
+        {
+          instanceId: target,
+          before: snapshot({ remainingHitPoints: 5, maxHitPoints: 5 }),
+          after: snapshot({ remainingHitPoints: 3, maxHitPoints: 5 }),
+        },
+      ],
       outcome: null,
     };
     expect(outcomeLines(result, nameOf({}), target)).toEqual(["5 HP → 3 HP", "Depends on hidden cards."]);
@@ -156,9 +214,20 @@ describe("outcomeLines", () => {
   test("an optional response window stop reads as 'if nobody responds'", () => {
     const target = id("klaw");
     const result: OutcomePreview = {
-      stop: { kind: "choice", playerId: id("p1") as unknown as never, prompt: { kind: "chooseTriggers", event: {} as never, timing: "interrupt" as never }, soleDecider: false },
+      stop: {
+        kind: "choice",
+        playerId: id("p1") as unknown as never,
+        prompt: { kind: "chooseTriggers", event: {} as never, timing: "interrupt" as never },
+        soleDecider: false,
+      },
       events: [{ type: "damageDealt", targetInstanceId: target, amount: 5, sourceInstanceId: null }],
-      counters: [{ instanceId: target, before: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }), after: snapshot({ remainingHitPoints: 9, maxHitPoints: 22 }) }],
+      counters: [
+        {
+          instanceId: target,
+          before: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }),
+          after: snapshot({ remainingHitPoints: 9, maxHitPoints: 22 }),
+        },
+      ],
       outcome: null,
     };
     expect(outcomeLines(result, nameOf({}), target)).toEqual(["14 HP → 9 HP", "If nobody responds."]);
@@ -167,7 +236,12 @@ describe("outcomeLines", () => {
   test("a nested target choice reads as '…then you'll choose a target'", () => {
     const target = id("klaw");
     const result: OutcomePreview = {
-      stop: { kind: "choice", playerId: id("p1") as unknown as never, prompt: { kind: "chooseTarget", slot: "second", abilityId: null }, soleDecider: false },
+      stop: {
+        kind: "choice",
+        playerId: id("p1") as unknown as never,
+        prompt: { kind: "chooseTarget", slot: "second", abilityId: null },
+        soleDecider: false,
+      },
       events: [],
       counters: [],
       outcome: null,
@@ -177,7 +251,16 @@ describe("outcomeLines", () => {
 
   test("no change at all reads as no lines, so the caller can fall back to a neutral confirm line", () => {
     const target = id("villain");
-    const result = complete([], [{ instanceId: target, before: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }), after: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }) }]);
+    const result = complete(
+      [],
+      [
+        {
+          instanceId: target,
+          before: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }),
+          after: snapshot({ remainingHitPoints: 14, maxHitPoints: 22 }),
+        },
+      ],
+    );
     expect(outcomeLines(result, nameOf({}), target)).toEqual([]);
   });
 });
@@ -187,9 +270,16 @@ describe("groupBlockedByMessage", () => {
     const blocked: readonly BlockedTarget[] = [
       { instanceId: id("runner"), reason: "no_valid_target", message: "not engaged with you" },
       { instanceId: id("enforcer"), reason: "no_valid_target", message: "not engaged with you" },
-      { instanceId: id("klaw"), reason: "no_valid_target", message: "a guard minion blocks attacks against the villain" },
+      {
+        instanceId: id("klaw"),
+        reason: "no_valid_target",
+        message: "a guard minion blocks attacks against the villain",
+      },
     ];
-    const groups = groupBlockedByMessage(blocked, nameOf({ runner: "Weapons Runner", enforcer: "Sonic Enforcer", klaw: "Klaw" }));
+    const groups = groupBlockedByMessage(
+      blocked,
+      nameOf({ runner: "Weapons Runner", enforcer: "Sonic Enforcer", klaw: "Klaw" }),
+    );
     expect(groups).toEqual([
       { code: "no_valid_target", label: "not engaged with you", names: ["Weapons Runner", "Sonic Enforcer"] },
       { code: "no_valid_target", label: "a guard minion blocks attacks against the villain", names: ["Klaw"] },
@@ -208,7 +298,10 @@ describe("groupExclusionsByCode / excludedGroupsOf", () => {
       { instanceId: id("minion2"), reason: "notEngagedWithYou" },
       { instanceId: id("ally"), reason: "wrongCategory" },
     ];
-    const groups = groupExclusionsByCode(exclusions, nameOf({ minion1: "Minion 1", minion2: "Minion 2", ally: "Ally" }));
+    const groups = groupExclusionsByCode(
+      exclusions,
+      nameOf({ minion1: "Minion 1", minion2: "Minion 2", ally: "Ally" }),
+    );
     expect(groups).toEqual([
       { code: "notEngagedWithYou", label: "not engaged with you", names: ["Minion 1", "Minion 2"] },
       { code: "wrongCategory", label: "not the right kind of card", names: ["Ally"] },
@@ -235,7 +328,9 @@ describe("targetingPanelOf, against a real engine game", () => {
     const store = new SessionStore(new LocalEngineHost());
     await store.start(RHINO_SOLO);
     for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
-      const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+      const { choice } = store.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
       await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
     }
     const legal = store.state.legal?.actions;
@@ -263,7 +358,11 @@ describe("targetingPanelOf, against a real engine game", () => {
     const panel = targetingPanelOf(
       state,
       attack,
-      { label: "Test Hero — Attack", name: cardName(state, attack.action.instanceId), instanceId: attack.action.instanceId },
+      {
+        label: "Test Hero — Attack",
+        name: cardName(state, attack.action.instanceId),
+        instanceId: attack.action.instanceId,
+      },
       retargetAttack,
       CORE_DEPS,
     );
@@ -285,6 +384,8 @@ describe("targetingPanelOf, against a real engine game", () => {
     const state = await intoTurn();
     const villainId = state.villains[0]!.instanceId;
     const exclusions: readonly ChoiceExclusion[] = [{ instanceId: villainId, reason: "wrongCategory" }];
-    expect(excludedGroupsOf(state, exclusions)).toEqual([{ code: "wrongCategory", label: "not the right kind of card", names: [cardName(state, villainId)] }]);
+    expect(excludedGroupsOf(state, exclusions)).toEqual([
+      { code: "wrongCategory", label: "not the right kind of card", names: [cardName(state, villainId)] },
+    ]);
   });
 });

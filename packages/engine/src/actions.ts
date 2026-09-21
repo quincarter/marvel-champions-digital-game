@@ -10,7 +10,7 @@ import {
 } from "./abilities.js";
 import type { ChoiceOption } from "./choices.js";
 import type { BasicPowerShare, Command, CostChoices, Payment } from "./commands.js";
-import { emit, moveCard, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
+import { emit, moveCard, updateInstance, type Ctx } from "./ctx.js";
 import {
   consumeCostReductions,
   costReductionFor,
@@ -25,7 +25,15 @@ import {
 import { engineError, type EngineError, type EngineErrorCode } from "./errors.js";
 import { finishTurn } from "./flow.js";
 import { statBonus } from "./modifiers.js";
-import { canDivideBasicPower, cannotChangeForm, cannotLeavePlay, cannotPlayCard, cannotThwart, cannotTriggerAction, mayThwartWithAtk } from "./rules.js";
+import {
+  canDivideBasicPower,
+  cannotChangeForm,
+  cannotLeavePlay,
+  cannotPlayCard,
+  cannotThwart,
+  cannotTriggerAction,
+  mayThwartWithAtk,
+} from "./rules.js";
 import type { InPlayCostPick } from "./abilities.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { instanceId as asInstanceId, type InstanceId, type PlayerId } from "./ids.js";
@@ -52,7 +60,15 @@ import {
   mustPlayer,
   villainOf,
 } from "./query.js";
-import { attachmentHostCandidates, heard, pushActionAbility, pushEvent, pushEvents, pushPlayCardFrame, recordAbilityUse } from "./resolve/index.js";
+import {
+  attachmentHostCandidates,
+  heard,
+  pushActionAbility,
+  pushEvent,
+  pushEvents,
+  pushPlayCardFrame,
+  recordAbilityUse,
+} from "./resolve/index.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import {
   addPools,
@@ -79,7 +95,6 @@ import {
   evaluate,
   matchesQuery,
   printedAbilityRefs,
-  resolveRef,
   resolveValue,
   restrictedCardsOf,
   traitsOf,
@@ -117,14 +132,17 @@ export function changeForm(ctx: Ctx, command: Command & { type: "changeForm" }):
   if (command.to === undefined) {
     // A three-sided identity has no single "other form" from alter-ego: "Scott Lang/Ant-Man can change from alter-ego
     // form to either hero form" (Ant-Man insert, "Rules Clarifications"), so the command must say which.
-    if (player.identity.form === "alterEgo" && faces > 1) return engineError("no_valid_target", "choose which hero form to change to", command);
+    if (player.identity.form === "alterEgo" && faces > 1)
+      return engineError("no_valid_target", "choose which hero form to change to", command);
     to = player.identity.form === "hero" ? "alterEgo" : "hero";
   } else if (command.to === "alterEgo") {
-    if (player.identity.form === "alterEgo") return engineError("no_valid_target", "you are already in alter-ego form", command);
+    if (player.identity.form === "alterEgo")
+      return engineError("no_valid_target", "you are already in alter-ego form", command);
     to = "alterEgo";
   } else {
     heroForm = command.to.heroForm;
-    if (!Number.isInteger(heroForm) || heroForm < 0 || heroForm >= faces) return engineError("no_valid_target", `no hero form ${heroForm}`, command);
+    if (!Number.isInteger(heroForm) || heroForm < 0 || heroForm >= faces)
+      return engineError("no_valid_target", `no hero form ${heroForm}`, command);
     if (player.identity.form === "hero" && player.identity.heroFormIndex === heroForm) {
       return engineError("no_valid_target", "you are already in that hero form", command);
     }
@@ -149,7 +167,11 @@ export { printedResources };
  * own wording: a hand card's "Spend this card only in hero form", the card being paid for's "You can only spend
  * [physical] resources", a discard pile card's "You may play Lockjaw from your discard pile".
  */
-function printedConstants(state: GameState, deps: EngineDeps, id: InstanceId): readonly Extract<AbilityTriggerSpec, { kind: "constant" }>[] {
+function printedConstants(
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+): readonly Extract<AbilityTriggerSpec, { kind: "constant" }>[] {
   const card = cardOf(state, id);
   if (!card) return [];
   return printedAbilityRefs(card).flatMap((ref) => {
@@ -160,19 +182,29 @@ function printedConstants(state: GameState, deps: EngineDeps, id: InstanceId): r
 
 /** A card in a player's discard pile that its own permission lets them play from there. */
 export const playableFromDiscard = (state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean =>
-  mustPlayer(state, playerId).discard.includes(id) && printedConstants(state, deps, id).some((trigger) => trigger.playableFrom?.includes("discard"));
+  mustPlayer(state, playerId).discard.includes(id) &&
+  printedConstants(state, deps, id).some((trigger) => trigger.playableFrom?.includes("discard"));
 
 /**
  * A card attached to a card this player controls whose `playableAttachments` permits playing it "as if [it] were in your
  * hand" (Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
  */
-export function playableFromAttachment(state: GameState, deps: EngineDeps, playerId: PlayerId, id: InstanceId): boolean {
+export function playableFromAttachment(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  id: InstanceId,
+): boolean {
   const host = getInstance(state, id)?.attachedTo;
   if (!host || controllerOf(state, host) !== playerId) return false;
   const context: EffectContext = { selfInstanceId: host, controllerId: playerId, event: null, bindings: {}, deps };
   return activeAbilityRefs(state, host, deps).some((ref) => {
     const trigger = deps.abilities[ref.id]?.trigger;
-    return trigger?.kind === "constant" && trigger.playableAttachments !== undefined && matchesQuery(state, id, trigger.playableAttachments, context);
+    return (
+      trigger?.kind === "constant" &&
+      trigger.playableAttachments !== undefined &&
+      matchesQuery(state, id, trigger.playableAttachments, context)
+    );
   });
 }
 
@@ -185,7 +217,12 @@ export const playableOutsideHand = (state: GameState, deps: EngineDeps, playerId
  * (docs/phase7-wave1.md §1.8, §3.10): "Max N per round", "Play only if your identity has the [trait] trait", "Play only if
  * you control a [trait] character". Traits count whether printed or gained (RRG 1.8 "Gains").
  */
-export function playRestrictionFault(state: GameState, deps: EngineDeps, playerId: PlayerId, card: AnyCard): PriceFault | null {
+export function playRestrictionFault(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  card: AnyCard,
+): PriceFault | null {
   const teamUp = teamUpFault(state, card);
   if (teamUp) return teamUp;
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
@@ -207,7 +244,9 @@ export function playRestrictionFault(state: GameState, deps: EngineDeps, playerI
   if (characterTrait) {
     const characters = [
       player.identity.instanceId,
-      ...player.playArea.filter((id) => controllerOf(state, id) === playerId && categoriesOf(state, id).includes("character")),
+      ...player.playArea.filter(
+        (id) => controllerOf(state, id) === playerId && categoriesOf(state, id).includes("character"),
+      ),
     ];
     if (!characters.some((id) => traitsOf(state, id, deps).includes(characterTrait))) {
       return { code: "no_valid_target", message: `play only if you control a ${characterTrait} character` };
@@ -226,7 +265,8 @@ export function playRestrictionFault(state: GameState, deps: EngineDeps, playerI
 function teamUpFault(state: GameState, card: AnyCard): PriceFault | null {
   const keyword = "keywords" in card ? card.keywords.find((k) => k.name === "teamUp") : undefined;
   if (keyword?.name !== "teamUp") return null;
-  if (!keyword.names) return { code: "no_valid_target", message: "this Team-Up card's names are missing from its card data" };
+  if (!keyword.names)
+    return { code: "no_valid_target", message: "this Team-Up card's names are missing from its card data" };
   const titles = new Set<string>();
   for (const player of playerOrder(state)) {
     titles.add(identityFace(state, player).face.faceName);
@@ -238,7 +278,9 @@ function teamUpFault(state: GameState, card: AnyCard): PriceFault | null {
     }
   }
   const missing = keyword.names.filter((name) => !titles.has(name));
-  return missing.length === 0 ? null : { code: "no_valid_target", message: `Team-Up needs ${missing.join(" and ")} in play` };
+  return missing.length === 0
+    ? null
+    : { code: "no_valid_target", message: `Team-Up needs ${missing.join(" and ")} in play` };
 }
 
 /**
@@ -266,24 +308,33 @@ export function playCostContributions(
     if (!matchesQuery(state, cardInstanceId, modifier.appliesTo, context)) return;
     if (modifier.host && !(attachTo !== null && matchesQuery(state, attachTo, modifier.host, context))) return;
     if (modifier.while && !evaluate(state, modifier.while, context)) return;
-    const delta = typeof modifier.delta === "number" ? modifier.delta : resolveValue(state, modifier.delta, context, deps);
+    const delta =
+      typeof modifier.delta === "number" ? modifier.delta : resolveValue(state, modifier.delta, context, deps);
     if (delta !== 0) contributions.push({ sourceInstanceId, delta });
   };
   for (const sourceId of cardsInPlay(state)) {
     // A card nobody controls in a player's area (an obligation) speaks for that player.
-    const controllerId = controllerOf(state, sourceId) ?? state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
+    const controllerId =
+      controllerOf(state, sourceId) ?? state.players.find((p) => p.playArea.includes(sourceId))?.playerId ?? null;
     for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const trigger = deps.abilities[ref.id]?.trigger;
       if (trigger?.kind !== "constant") continue;
       for (const modifier of trigger.costModifiers ?? []) {
-        if (modifier.activeIn !== "hand") apply(modifier, sourceId, { selfInstanceId: sourceId, controllerId, event: null, bindings: {}, deps });
+        if (modifier.activeIn !== "hand")
+          apply(modifier, sourceId, { selfInstanceId: sourceId, controllerId, event: null, bindings: {}, deps });
       }
     }
   }
   for (const trigger of printedConstants(state, deps, cardInstanceId)) {
     for (const modifier of trigger.costModifiers ?? []) {
       if (modifier.activeIn === "hand") {
-        apply(modifier, cardInstanceId, { selfInstanceId: cardInstanceId, controllerId: playerId, event: null, bindings: {}, deps });
+        apply(modifier, cardInstanceId, {
+          selfInstanceId: cardInstanceId,
+          controllerId: playerId,
+          event: null,
+          bindings: {},
+          deps,
+        });
       }
     }
   }
@@ -366,12 +417,26 @@ export function requirementUnmeetable(
 }
 
 /** The signed change to a card's cost from every `CostModifierSpec` that applies to playing it now (see there). */
-export function playCostModifier(state: GameState, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId, attachTo: InstanceId | null): number {
-  return playCostContributions(state, deps, playerId, cardInstanceId, attachTo).reduce((total, entry) => total + entry.delta, 0);
+export function playCostModifier(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  attachTo: InstanceId | null,
+): number {
+  return playCostContributions(state, deps, playerId, cardInstanceId, attachTo).reduce(
+    (total, entry) => total + entry.delta,
+    0,
+  );
 }
 
 /** The additional cost on this character's own basic power, if it has one (`basicPowerCosts`). */
-export function basicPowerCost(state: GameState, deps: EngineDeps, characterId: InstanceId, power: "attack" | "thwart"): AbilityCost | undefined {
+export function basicPowerCost(
+  state: GameState,
+  deps: EngineDeps,
+  characterId: InstanceId,
+  power: "attack" | "thwart",
+): AbilityCost | undefined {
   for (const ref of activeAbilityRefs(state, characterId, deps)) {
     const trigger = deps.abilities[ref.id]?.trigger;
     if (trigger?.kind !== "constant") continue;
@@ -393,7 +458,13 @@ export function handCardResources(
   if (!card) return EMPTY_POOL;
   const pool = printedResources(card);
   if (!payingFor) return pool;
-  const context: EffectContext = { selfInstanceId: cardInstanceId, controllerId: playerId, event: null, bindings: {}, deps };
+  const context: EffectContext = {
+    selfInstanceId: cardInstanceId,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps,
+  };
   for (const ref of printedAbilityRefs(card)) {
     const definition = deps.abilities[ref.id];
     if (definition?.trigger.kind !== "constant" || !definition.trigger.resourceMultiplier) continue;
@@ -409,7 +480,11 @@ export function handCardResources(
  * payment change it; callers asking before a payment is built (the payment
  * query) can only be told what the current top card is worth.
  */
-export function generatedResources(state: GameState, generation: ResourceGeneration | undefined, discardTop: InstanceId | null): ResourcePool {
+export function generatedResources(
+  state: GameState,
+  generation: ResourceGeneration | undefined,
+  discardTop: InstanceId | null,
+): ResourcePool {
   if (generation === undefined) return poolOf({ wild: 1 });
   if (typeof generation === "number") return poolOf({ wild: generation });
   if ("kind" in generation) {
@@ -454,7 +529,13 @@ function resourceAbilityFault(
   }
   // "Generate a [wild] resource for an event": only while paying for a matching card.
   if (definition.generatesFor) {
-    const context: EffectContext = { selfInstanceId: instanceId, controllerId: playerId, event: null, bindings: {}, deps };
+    const context: EffectContext = {
+      selfInstanceId: instanceId,
+      controllerId: playerId,
+      event: null,
+      bindings: {},
+      deps,
+    };
     if (payingFor === null || !matchesQuery(state, payingFor, definition.generatesFor, context)) {
       return { code: "no_valid_target", message: `${abilityId} only generates resources for a certain kind of card` };
     }
@@ -491,11 +572,17 @@ function priceOf(
       if (!player.hand.includes(entry.fromHand)) {
         return { code: "card_not_in_zone", message: `payment card ${entry.fromHand} is not in hand` };
       }
-      if (!cardOf(ctx.state, entry.fromHand)) return { code: "unknown_card", message: `no card data for ${entry.fromHand}` };
+      if (!cardOf(ctx.state, entry.fromHand))
+        return { code: "unknown_card", message: `no card data for ${entry.fromHand}` };
       // "Spend this card only in hero form."
-      const spendableIn = printedConstants(ctx.state, ctx.deps, entry.fromHand).find((trigger) => trigger.spendableIn)?.spendableIn;
+      const spendableIn = printedConstants(ctx.state, ctx.deps, entry.fromHand).find(
+        (trigger) => trigger.spendableIn,
+      )?.spendableIn;
       if (spendableIn && player.identity.form !== spendableIn) {
-        return { code: "wrong_form", message: `${mustCardOf(ctx.state, entry.fromHand).name} can only be spent in ${spendableIn} form` };
+        return {
+          code: "wrong_form",
+          message: `${mustCardOf(ctx.state, entry.fromHand).name} can only be spent in ${spendableIn} form`,
+        };
       }
       pool = addPools(pool, handCardResources(ctx.state, ctx.deps, entry.fromHand, playerId, payingFor));
       discardTop = entry.fromHand;
@@ -511,7 +598,9 @@ function priceOf(
   }
   // "You can only spend [physical] resources to pay for this card." A wild can be declared as that type; a cost of 0
   // needs no resources at all (FAQ "Crushing Blow (#2)", p. 60).
-  const only = payingFor ? printedConstants(ctx.state, ctx.deps, payingFor).flatMap((trigger) => trigger.paymentOnly ?? []) : [];
+  const only = payingFor
+    ? printedConstants(ctx.state, ctx.deps, payingFor).flatMap((trigger) => trigger.paymentOnly ?? [])
+    : [];
   if (only.length > 0 && TYPED_RESOURCES.some((type) => !only.includes(type) && pool[type] > 0)) {
     return { code: "insufficient_resources", message: `only ${only.join(" / ")} resources can pay for this card` };
   }
@@ -626,7 +715,14 @@ export function announceResourcesSpent(
   purpose: "playCard" | "ability" | "effect",
 ): void {
   if (spent.length === 0) return;
-  const event: TriggerEvent = { kind: "resourcesSpent", cardInstanceIds: spent, playerId, forPlayerId: playerId, payingForInstanceId, purpose };
+  const event: TriggerEvent = {
+    kind: "resourcesSpent",
+    cardInstanceIds: spent,
+    playerId,
+    forPlayerId: playerId,
+    payingForInstanceId,
+    purpose,
+  };
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
 }
 
@@ -664,7 +760,8 @@ function zoneMatches(
   if (from.player === "you" && "playerId" in zone && zone.playerId !== playerId) return false;
   if (zone.kind === "separateDeck" && zone.name !== from.separateDeck) return false;
   // "The top card of …": only the first `top` cards of that player's zone.
-  if (from.top !== undefined && "playerId" in zone && !cardZoneCandidates(state, from, zone.playerId).includes(id)) return false;
+  if (from.top !== undefined && "playerId" in zone && !cardZoneCandidates(state, from, zone.playerId).includes(id))
+    return false;
   if (!from.query) return true;
   const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {} };
   return matchesQuery(state, id, from.query, context);
@@ -693,7 +790,8 @@ export function planCost(
   let requirement = combineRequirements(cost.resources, 0);
   let payingFor: InstanceId | null = null;
 
-  if (cost.exhaustSelf && source.exhausted) return { code: "already_exhausted", message: "the card is already exhausted" };
+  if (cost.exhaustSelf && source.exhausted)
+    return { code: "already_exhausted", message: "the card is already exhausted" };
   if (cost.spendCounters && (source.counters[cost.spendCounters.counterType] ?? 0) < cost.spendCounters.amount) {
     return { code: "insufficient_resources", message: `not enough ${cost.spendCounters.counterType} counters` };
   }
@@ -721,7 +819,13 @@ export function planCost(
     }
     // "Discard a [physical] resource from your hand →" (docs/phase7-wave2.md §19): every pick must match, read
     // from the paying player's point of view, so `identitySetOf: you` means their own hero's set.
-    const filterContext: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
+    const filterContext: EffectContext = {
+      selfInstanceId: sourceId,
+      controllerId: playerId,
+      event: null,
+      bindings: {},
+      deps,
+    };
     for (const id of picks) {
       if (!player.hand.includes(id) || id === sourceId || reserved.has(id)) {
         return { code: "card_not_in_zone", message: `${id} cannot be discarded from hand for this cost` };
@@ -739,7 +843,10 @@ export function planCost(
     const chosen = new Set(bindings.discard ?? []);
     const left = player.hand.filter((id) => id !== sourceId && !reserved.has(id) && !chosen.has(id)).length;
     if (left < cost.discardRandomFromHand) {
-      return { code: "card_not_in_zone", message: `discard ${cost.discardRandomFromHand} card(s) at random from your hand to pay this cost` };
+      return {
+        code: "card_not_in_zone",
+        message: `discard ${cost.discardRandomFromHand} card(s) at random from your hand to pay this cost`,
+      };
     }
   }
   if (cost.payPrintedCostOf) {
@@ -776,14 +883,26 @@ export function planCost(
   }
   // Costs paid with cards in play: "exhaust Captain America's Shield →", "exhaust any number of allies you control →",
   // "return Captain America's Shield from play to your hand →" (`InPlayCostPick`).
-  const exhausting = cost.exhaustCards ? planInPlayPick(state, deps, sourceId, playerId, "exhaust", cost.exhaustCards, choices) : [];
+  const exhausting = cost.exhaustCards
+    ? planInPlayPick(state, deps, sourceId, playerId, "exhaust", cost.exhaustCards, choices)
+    : [];
   if (isFault(exhausting)) return exhausting;
-  const returning = cost.returnToHand ? planInPlayPick(state, deps, sourceId, playerId, "return", cost.returnToHand, choices) : [];
+  const returning = cost.returnToHand
+    ? planInPlayPick(state, deps, sourceId, playerId, "return", cost.returnToHand, choices)
+    : [];
   if (isFault(returning)) return returning;
   // RRG 1.8 "Cost" (p. 13): a cost's components are paid simultaneously, so one card can't pay two of them. It can't
   // be exhausted twice, exhausted and also returned, or picked here and also exhausted for a resource in the payment.
-  const spentInPlay = [...(cost.exhaustSelf ? [sourceId] : []), ...(cost.exhaustIdentity ? [identity.instanceId] : []), ...exhausting, ...returning];
-  if (new Set(spentInPlay).size !== spentInPlay.length || [...exhausting, ...returning].some((id) => reserved.has(id))) {
+  const spentInPlay = [
+    ...(cost.exhaustSelf ? [sourceId] : []),
+    ...(cost.exhaustIdentity ? [identity.instanceId] : []),
+    ...exhausting,
+    ...returning,
+  ];
+  if (
+    new Set(spentInPlay).size !== spentInPlay.length ||
+    [...exhausting, ...returning].some((id) => reserved.has(id))
+  ) {
     return { code: "invalid_choice", message: "one card cannot pay two parts of a cost" };
   }
   if (cost.exhaustCards) bindInPlayPick(cost.exhaustCards, exhausting, bindings, vars);
@@ -791,7 +910,12 @@ export function planCost(
   return { requirement, bindings, vars, payingFor };
 }
 
-function bindInPlayPick(pick: InPlayCostPick, picks: readonly InstanceId[], bindings: Record<string, readonly InstanceId[]>, vars: Record<string, number>): void {
+function bindInPlayPick(
+  pick: InPlayCostPick,
+  picks: readonly InstanceId[],
+  bindings: Record<string, readonly InstanceId[]>,
+  vars: Record<string, number>,
+): void {
   bindings[pick.slot] = picks;
   if (pick.bind) vars[pick.bind] = picks.length;
 }
@@ -808,12 +932,22 @@ export function inPlayCostCandidates(
   mode: "exhaust" | "return",
   pick: InPlayCostPick,
 ): readonly InstanceId[] {
-  return eligibleForInPlayPick(state, deps, sourceId, playerId, pick).filter((id) => canPayInPlayPick(state, deps, id, mode));
+  return eligibleForInPlayPick(state, deps, sourceId, playerId, pick).filter((id) =>
+    canPayInPlayPick(state, deps, id, mode),
+  );
 }
 
-function eligibleForInPlayPick(state: GameState, deps: EngineDeps, sourceId: InstanceId, playerId: PlayerId, pick: InPlayCostPick): readonly InstanceId[] {
+function eligibleForInPlayPick(
+  state: GameState,
+  deps: EngineDeps,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+  pick: InPlayCostPick,
+): readonly InstanceId[] {
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
-  return cardsInPlay(state).filter((id) => controllerOf(state, id) === playerId && matchesQuery(state, id, pick.query, context));
+  return cardsInPlay(state).filter(
+    (id) => controllerOf(state, id) === playerId && matchesQuery(state, id, pick.query, context),
+  );
 }
 
 function canPayInPlayPick(state: GameState, deps: EngineDeps, id: InstanceId, mode: "exhaust" | "return"): boolean {
@@ -853,9 +987,13 @@ function planInPlayPick(
   const picks = choices[pick.slot] ?? (candidates.length === pick.min ? candidates : undefined);
   if (!picks) return { code: "invalid_choice", message: `choose which cards to ${verb} for ${pick.slot}` };
   if (picks.length < pick.min || (pick.max !== undefined && picks.length > pick.max)) {
-    return { code: "invalid_choice", message: `${verb} ${pick.min}–${pick.max ?? "any number of"} cards to pay this cost` };
+    return {
+      code: "invalid_choice",
+      message: `${verb} ${pick.min}–${pick.max ?? "any number of"} cards to pay this cost`,
+    };
   }
-  if (new Set(picks).size !== picks.length) return { code: "invalid_choice", message: `duplicate choice for ${pick.slot}` };
+  if (new Set(picks).size !== picks.length)
+    return { code: "invalid_choice", message: `duplicate choice for ${pick.slot}` };
   const bad = picks.find((id) => !candidates.includes(id));
   return bad ? whyNot(bad) : picks;
 }
@@ -872,7 +1010,8 @@ function overpaidVars(pool: ResourcePool, requirement: ResolvedRequirement): Rec
   const vars: Record<string, number> = { "overpaid.total": over };
   // A wild slot consumes wilds that can then be no other type, so they are out of every `overpaid.<type>` count.
   const freeWilds = Math.max(0, pool.wild - (requirement.wild ?? 0));
-  for (const type of TYPED_RESOURCES) vars[`overpaid.${type}`] = Math.max(0, Math.min(over, pool[type] + freeWilds - requirement[type]));
+  for (const type of TYPED_RESOURCES)
+    vars[`overpaid.${type}`] = Math.max(0, Math.min(over, pool[type] + freeWilds - requirement[type]));
   return vars;
 }
 
@@ -900,7 +1039,10 @@ function resourceVars(
     const typed = TYPED_RESOURCES.filter((type) => pool[type] > 0).length;
     const distinct = typed + Math.min(pool.wild, RESOURCE_TYPES.length - typed);
     if (distinct < cost.distinctResourceTypes) {
-      return { code: "insufficient_resources", message: `spend ${cost.distinctResourceTypes} resources of different types` };
+      return {
+        code: "insufficient_resources",
+        message: `spend ${cost.distinctResourceTypes} resources of different types`,
+      };
     }
   }
   return vars;
@@ -928,10 +1070,22 @@ export function payCost(
   // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
   if (cost.discardRandomFromHand) discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId]);
   if (cost.damageSelf) {
-    pushEvent(ctx, { kind: "dealDamage", targetInstanceId: identityId, amount: cost.damageSelf, sourceInstanceId: sourceId, fromAttack: false });
+    pushEvent(ctx, {
+      kind: "dealDamage",
+      targetInstanceId: identityId,
+      amount: cost.damageSelf,
+      sourceInstanceId: sourceId,
+      fromAttack: false,
+    });
   }
   if (cost.damageThisCard) {
-    pushEvent(ctx, { kind: "dealDamage", targetInstanceId: sourceId, amount: cost.damageThisCard, sourceInstanceId: sourceId, fromAttack: false });
+    pushEvent(ctx, {
+      kind: "dealDamage",
+      targetInstanceId: sourceId,
+      amount: cost.damageThisCard,
+      sourceInstanceId: sourceId,
+      fromAttack: false,
+    });
   }
   if (cost.discardSelf && getInstance(ctx.state, sourceId)) discardFromPlay(ctx, sourceId);
   if (cost.exhaustCards) {
@@ -957,7 +1111,13 @@ export function payCost(
  * ignoring the cost). "You" is the player initiating it; "this card" is the card the action is on (for an event, the
  * card in hand).
  */
-export function actionConditionUnmet(state: GameState, deps: EngineDeps, definition: AbilityDefinition | undefined, sourceId: InstanceId, playerId: PlayerId): boolean {
+export function actionConditionUnmet(
+  state: GameState,
+  deps: EngineDeps,
+  definition: AbilityDefinition | undefined,
+  sourceId: InstanceId,
+  playerId: PlayerId,
+): boolean {
   if (definition?.trigger.kind !== "action" || !definition.trigger.while) return false;
   const context: EffectContext = { selfInstanceId: sourceId, controllerId: playerId, event: null, bindings: {}, deps };
   return !evaluate(state, definition.trigger.while, context);
@@ -1058,16 +1218,35 @@ export function pricePlay(
   if (isFault(plan)) return plan;
   const card = mustCardOf(ctx.state, cardInstanceId);
   const printedX = "specialCost" in card && card.specialCost === "X";
-  if (x !== undefined && (!printedX || !Number.isInteger(x) || x < 0)) return { code: "invalid_choice", message: "X is chosen only for a cost printed X, as a whole number of at least 0" };
+  if (x !== undefined && (!printedX || !Number.isInteger(x) || x < 0))
+    return {
+      code: "invalid_choice",
+      message: "X is chosen only for a cost printed X, as a whole number of at least 0",
+    };
   const xValue = printedX ? (x ?? 0) : 0;
   if (requirementUnmeetable(ctx.state, playerId, cardInstanceId, ctx.deps, attachTo, xValue, extraReduction)) {
-    return { code: "insufficient_resources", message: "its Requirement resources cannot all be spent on a cost this low" };
+    return {
+      code: "insufficient_resources",
+      message: "its Requirement resources cannot all be spent on a cost this low",
+    };
   }
-  const requirement = playRequirement(ctx.state, playerId, cardInstanceId, plan.requirement, ctx.deps, attachTo, xValue, extraReduction);
+  const requirement = playRequirement(
+    ctx.state,
+    playerId,
+    cardInstanceId,
+    plan.requirement,
+    ctx.deps,
+    attachTo,
+    xValue,
+    extraReduction,
+  );
   const pool = priceOf(ctx, playerId, payment, cardInstanceId, plan.payingFor ?? cardInstanceId);
   if (isFault(pool)) return pool;
   if (!satisfies(pool, requirement)) {
-    return { code: "insufficient_resources", message: `need ${requirementTotal(requirement)} (${JSON.stringify(requirement)}), paid ${poolTotal(pool)}` };
+    return {
+      code: "insufficient_resources",
+      message: `need ${requirementTotal(requirement)} (${JSON.stringify(requirement)}), paid ${poolTotal(pool)}`,
+    };
   }
   const vars = resourceVars(pool, cost, requirement);
   if (isFault(vars)) return vars;
@@ -1078,7 +1257,13 @@ export function pricePlay(
  * Pays for a priced play and records it; the caller pushes the play frame, then passes the returned spent cards to
  * `announceResourcesSpent`.
  */
-export function commitPlay(ctx: Ctx, playerId: PlayerId, cardInstanceId: InstanceId, payment: readonly Payment[], priced: PricedPlay): readonly InstanceId[] {
+export function commitPlay(
+  ctx: Ctx,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+  payment: readonly Payment[],
+  priced: PricedPlay,
+): readonly InstanceId[] {
   consumeCostReductions(ctx, ctx.deps, playerId, cardInstanceId);
   const spent = payPayment(ctx, playerId, payment);
   // Counted as played now, so a card cancelled later still counts toward "Max N per round" (RRG 1.8 "Max, Maximum").
@@ -1088,7 +1273,10 @@ export function commitPlay(ctx: Ctx, playerId: PlayerId, cardInstanceId: Instanc
     ...ctx.state,
     playedThisRound: { ...ctx.state.playedThisRound, [played.name]: (ctx.state.playedThisRound[played.name] ?? 0) + 1 },
     playedThisPhase: { ...ctx.state.playedThisPhase, [played.name]: (ctx.state.playedThisPhase[played.name] ?? 0) + 1 },
-    playedByPlayerThisRound: { ...ctx.state.playedByPlayerThisRound, [byPlayer]: (ctx.state.playedByPlayerThisRound[byPlayer] ?? 0) + 1 },
+    playedByPlayerThisRound: {
+      ...ctx.state.playedByPlayerThisRound,
+      [byPlayer]: (ctx.state.playedByPlayerThisRound[byPlayer] ?? 0) + 1,
+    },
   };
   emit(ctx, {
     type: "cardPlayed",
@@ -1099,7 +1287,8 @@ export function commitPlay(ctx: Ctx, playerId: PlayerId, cardInstanceId: Instanc
     paid: priced.pool,
   });
   // RRG "Event": a played event is out of play while it resolves, then it is discarded.
-  if (cardOf(ctx.state, cardInstanceId)?.type === "event") moveCard(ctx, cardInstanceId, { kind: "resolving", playerId });
+  if (cardOf(ctx.state, cardInstanceId)?.type === "event")
+    moveCard(ctx, cardInstanceId, { kind: "resolving", playerId });
   return spent;
 }
 
@@ -1107,7 +1296,10 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const player = mustPlayer(ctx.state, command.playerId);
-  if (!player.hand.includes(command.cardInstanceId) && !playableOutsideHand(ctx.state, ctx.deps, command.playerId, command.cardInstanceId)) {
+  if (
+    !player.hand.includes(command.cardInstanceId) &&
+    !playableOutsideHand(ctx.state, ctx.deps, command.playerId, command.cardInstanceId)
+  ) {
     return engineError("card_not_in_zone", "card is not in hand", command);
   }
   const instance = mustInstance(ctx.state, command.cardInstanceId);
@@ -1135,25 +1327,41 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
       return kind === "interrupt" || kind === "response";
     });
   if (windowOnly) {
-    return engineError("card_type_not_playable", "this event can only be played when its interrupt or response triggers", command);
+    return engineError(
+      "card_type_not_playable",
+      "this event can only be played when its interrupt or response triggers",
+      command,
+    );
   }
-  if (card.type === "event" && ability?.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form) {
+  if (
+    card.type === "event" &&
+    ability?.trigger.kind === "action" &&
+    ability.trigger.form &&
+    player.identity.form !== ability.trigger.form
+  ) {
     return engineError("wrong_form", `this event requires ${ability.trigger.form} form`, command);
   }
-  if (card.type === "event" && actionConditionUnmet(ctx.state, ctx.deps, ability, command.cardInstanceId, command.playerId)) {
+  if (
+    card.type === "event" &&
+    actionConditionUnmet(ctx.state, ctx.deps, ability, command.cardInstanceId, command.playerId)
+  ) {
     return engineError("no_valid_target", "this event's condition is not met", command);
   }
 
   // RRG "Restricted": a player cannot control more than two at a time, so playing
   // a third is not a legal action in the first place.
-  if (hasKeyword(ctx.state, command.cardInstanceId, "restricted", ctx.deps) && restrictedCardsOf(ctx.state, command.playerId, ctx.deps).length >= 2) {
+  if (
+    hasKeyword(ctx.state, command.cardInstanceId, "restricted", ctx.deps) &&
+    restrictedCardsOf(ctx.state, command.playerId, ctx.deps).length >= 2
+  ) {
     return engineError("no_valid_target", "you already control two restricted cards", command);
   }
 
   // "Play under any player's control": the command may name another player as controller.
   const controllerId = command.controllerId ?? command.playerId;
   const controller = getPlayer(ctx.state, controllerId);
-  if (!controller || controller.eliminated) return engineError("no_valid_target", "no such player to control the card", command);
+  if (!controller || controller.eliminated)
+    return engineError("no_valid_target", "no such player to control the card", command);
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
   if (controllerId !== command.playerId && !restrictions?.anyPlayerControl) {
     return engineError("no_valid_target", "this card can only be played under your own control", command);
@@ -1167,7 +1375,8 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     const held = cardsInPlay(ctx.state).filter(
       (id) => controllerOf(ctx.state, id) === controllerId && cardOf(ctx.state, id)?.name === card.name,
     ).length;
-    if (held >= restrictions.maxPerPlayer) return engineError("no_valid_target", `max ${restrictions.maxPerPlayer} per player`, command);
+    if (held >= restrictions.maxPerPlayer)
+      return engineError("no_valid_target", `max ${restrictions.maxPerPlayer} per player`, command);
   }
   const restricted = playRestrictionFault(ctx.state, ctx.deps, command.playerId, card);
   if (restricted) return engineError(restricted.code, restricted.message, command);
@@ -1201,7 +1410,13 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
       return engineError("no_valid_target", "upgrade has no valid host", command);
     }
     if (card.attachesTo) {
-      const context: EffectContext = { selfInstanceId: command.cardInstanceId, controllerId, event: null, bindings: {}, deps: ctx.deps };
+      const context: EffectContext = {
+        selfInstanceId: command.cardInstanceId,
+        controllerId,
+        event: null,
+        bindings: {},
+        deps: ctx.deps,
+      };
       if (!attachmentHostCandidates(ctx.state, card.attachesTo, context).includes(attachTo)) {
         return engineError("no_valid_target", `upgrade must attach to ${card.attachesTo.kind}`, command);
       }
@@ -1210,12 +1425,24 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     }
     // "Max N per enemy/ally": copies already attached to that host.
     if (restrictions?.maxPerHost !== undefined) {
-      const onHost = mustInstance(ctx.state, attachTo).attachments.filter((id) => cardOf(ctx.state, id)?.name === card.name).length;
-      if (onHost >= restrictions.maxPerHost) return engineError("no_valid_target", `max ${restrictions.maxPerHost} per host`, command);
+      const onHost = mustInstance(ctx.state, attachTo).attachments.filter(
+        (id) => cardOf(ctx.state, id)?.name === card.name,
+      ).length;
+      if (onHost >= restrictions.maxPerHost)
+        return engineError("no_valid_target", `max ${restrictions.maxPerHost} per host`, command);
     }
   }
 
-  const priced = pricePlay(ctx, command.playerId, command.cardInstanceId, ability?.cost, command.payment, command.costChoices ?? {}, attachTo, command.x);
+  const priced = pricePlay(
+    ctx,
+    command.playerId,
+    command.cardInstanceId,
+    ability?.cost,
+    command.payment,
+    command.costChoices ?? {},
+    attachTo,
+    command.x,
+  );
   if (isFault(priced)) return engineError(priced.code, priced.message, command);
 
   const spent = commitPlay(ctx, command.playerId, command.cardInstanceId, command.payment, priced);
@@ -1246,9 +1473,12 @@ function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: Instan
   if ("specialCost" in card && card.specialCost === "dash") return "a '—' cost cannot be played";
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
   if (restrictions?.form && player.identity.form !== restrictions.form) return "wrong form";
-  if (playRestrictionFault(ctx.state, ctx.deps, playerId, card) || cannotPlayCard(ctx.state, ctx.deps, playerId, id)) return "a play restriction";
-  if (hasKeyword(ctx.state, id, "restricted", ctx.deps) && restrictedCardsOf(ctx.state, playerId, ctx.deps).length >= 2) return "two restricted cards";
-  if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId)) return "a matching unique card is in play";
+  if (playRestrictionFault(ctx.state, ctx.deps, playerId, card) || cannotPlayCard(ctx.state, ctx.deps, playerId, id))
+    return "a play restriction";
+  if (hasKeyword(ctx.state, id, "restricted", ctx.deps) && restrictedCardsOf(ctx.state, playerId, ctx.deps).length >= 2)
+    return "two restricted cards";
+  if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId))
+    return "a matching unique card is in play";
   return null;
 }
 
@@ -1271,7 +1501,8 @@ export function playIgnoringCostFault(ctx: Ctx, playerId: PlayerId, id: Instance
   if (card.type === "event") {
     const ability = eventActionAbility(ctx, card);
     if (!ability || ability.cost) return "an event with no cost-free action";
-    if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form) return "wrong form";
+    if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
+      return "wrong form";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
   }
   return null;
@@ -1288,7 +1519,12 @@ export function playIgnoringCostFault(ctx: Ctx, playerId: PlayerId, id: Instance
  * cannot pay for is not something this effect may choose. The test is whether the *largest* payment the player could
  * make covers the cost; a player who then selects less simply does not play the card.
  */
-export function playWithPaymentFault(ctx: Ctx, playerId: PlayerId, id: InstanceId, extraReduction: number): string | null {
+export function playWithPaymentFault(
+  ctx: Ctx,
+  playerId: PlayerId,
+  id: InstanceId,
+  extraReduction: number,
+): string | null {
   const restriction = playFromEffectRestrictionFault(ctx, playerId, id);
   if (restriction) return restriction;
   const card = mustCardOf(ctx.state, id);
@@ -1297,7 +1533,8 @@ export function playWithPaymentFault(ctx: Ctx, playerId: PlayerId, id: InstanceI
   if (card.type === "event") {
     const ability = eventActionAbility(ctx, card);
     if (!ability) return "an event with no action ability";
-    if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form) return "wrong form";
+    if (ability.trigger.kind === "action" && ability.trigger.form && player.identity.form !== ability.trigger.form)
+      return "wrong form";
     if (actionConditionUnmet(ctx.state, ctx.deps, ability, id, playerId)) return "its condition is not met";
   }
   // The ability's own cost has to be settleable without asking: `planCost` fills in a pick with exactly one legal
@@ -1334,7 +1571,13 @@ export function hostForEffectPlay(ctx: Ctx, playerId: PlayerId, id: InstanceId):
   const card = mustCardOf(ctx.state, id);
   if (card.type !== "upgrade") return null;
   if (!card.attachesTo) return mustPlayer(ctx.state, playerId).identity.instanceId;
-  const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps: ctx.deps };
+  const context: EffectContext = {
+    selfInstanceId: id,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps: ctx.deps,
+  };
   const [first] = attachmentHostCandidates(ctx.state, card.attachesTo, context);
   return first ?? undefined;
 }
@@ -1343,7 +1586,13 @@ export function hostForEffectPlay(ctx: Ctx, playerId: PlayerId, id: InstanceId):
 export function hostChoicesForEffectPlay(ctx: Ctx, playerId: PlayerId, id: InstanceId): readonly InstanceId[] {
   const card = mustCardOf(ctx.state, id);
   if (card.type !== "upgrade" || !card.attachesTo) return [];
-  const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps: ctx.deps };
+  const context: EffectContext = {
+    selfInstanceId: id,
+    controllerId: playerId,
+    event: null,
+    bindings: {},
+    deps: ctx.deps,
+  };
   return attachmentHostCandidates(ctx.state, card.attachesTo, context);
 }
 
@@ -1397,7 +1646,14 @@ export function playIgnoringCost(ctx: Ctx, playerId: PlayerId, id: InstanceId): 
   if (playIgnoringCostFault(ctx, playerId, id)) return;
   const plan = planCost(ctx.state, ctx.deps, id, playerId, undefined, {}, new Set());
   if (isFault(plan)) return;
-  const vars = { ...plan.vars, "paid.physical": 0, "paid.mental": 0, "paid.energy": 0, "paid.wild": 0, "paid.total": 0 };
+  const vars = {
+    ...plan.vars,
+    "paid.physical": 0,
+    "paid.mental": 0,
+    "paid.energy": 0,
+    "paid.wild": 0,
+    "paid.total": 0,
+  };
   const priced: PricedPlay = { pool: EMPTY_POOL, plan, vars };
   commitPlay(ctx, playerId, id, [], priced);
   const card = mustCardOf(ctx.state, id);
@@ -1453,7 +1709,11 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   const pool = priceOf(ctx, command.playerId, command.payment, null, plan.payingFor);
   if (isFault(pool)) return engineError(pool.code, pool.message, command);
   if (!satisfies(pool, plan.requirement)) {
-    return engineError("insufficient_resources", `need ${requirementTotal(plan.requirement)}, paid ${poolTotal(pool)}`, command);
+    return engineError(
+      "insufficient_resources",
+      `need ${requirementTotal(plan.requirement)}, paid ${poolTotal(pool)}`,
+      command,
+    );
   }
   const vars = resourceVars(pool, definition.cost, plan.requirement);
   if (isFault(vars)) return engineError(vars.code, vars.message, command);
@@ -1468,12 +1728,7 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   return null;
 }
 
-function usableCharacter(
-  ctx: Ctx,
-  playerId: PlayerId,
-  characterId: InstanceId,
-  command: Command,
-): EngineError | null {
+function usableCharacter(ctx: Ctx, playerId: PlayerId, characterId: InstanceId, command: Command): EngineError | null {
   const player = mustPlayer(ctx.state, playerId);
   const instance = getInstance(ctx.state, characterId);
   if (!instance) return engineError("unknown_instance", `no instance ${characterId}`, command);
@@ -1501,12 +1756,24 @@ function payBasicPowerCost(
   const cost = basicPowerCost(ctx.state, ctx.deps, characterId, power);
   if (!cost) return null;
   const payment = command.payment ?? [];
-  const plan = planCost(ctx.state, ctx.deps, characterId, command.playerId, cost, command.costChoices ?? {}, handCardsIn(payment));
+  const plan = planCost(
+    ctx.state,
+    ctx.deps,
+    characterId,
+    command.playerId,
+    cost,
+    command.costChoices ?? {},
+    handCardsIn(payment),
+  );
   if (isFault(plan)) return engineError(plan.code, plan.message, command);
   const pool = priceOf(ctx, command.playerId, payment, null, null);
   if (isFault(pool)) return engineError(pool.code, pool.message, command);
   if (!satisfies(pool, plan.requirement)) {
-    return engineError("insufficient_resources", `need ${requirementTotal(plan.requirement)}, paid ${poolTotal(pool)}`, command);
+    return engineError(
+      "insufficient_resources",
+      `need ${requirementTotal(plan.requirement)}, paid ${poolTotal(pool)}`,
+      command,
+    );
   }
   spentOut.push(...payPayment(ctx, command.playerId, payment));
   payCost(ctx, characterId, command.playerId, cost, plan);
@@ -1519,7 +1786,11 @@ function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attac
   if (card?.type !== "ally") return;
   const printed = kind === "attack" ? card.consequentialDamage.attack : card.consequentialDamage.thwart;
   // "Takes +1 consequential damage after it attacks" (Enraged): a modifier on the printed value.
-  const amount = Math.max(0, printed + statBonus(ctx.state, ctx.deps, characterId, kind === "attack" ? "consequentialAttack" : "consequentialThwart"));
+  const amount = Math.max(
+    0,
+    printed +
+      statBonus(ctx.state, ctx.deps, characterId, kind === "attack" ? "consequentialAttack" : "consequentialThwart"),
+  );
   if (amount <= 0) return;
   pushEvent(ctx, {
     kind: "dealDamage",
@@ -1550,19 +1821,31 @@ function withSpentAnnounced<C extends Command & { type: "basicAttack" | "basicTh
 export const basicAttack = withSpentAnnounced(basicAttackPaying, (command) => command.attackerInstanceId);
 export const basicThwart = withSpentAnnounced(basicThwartPaying, (command) => command.thwarterInstanceId);
 
-function basicAttackPaying(ctx: Ctx, command: Command & { type: "basicAttack" }, spent: InstanceId[]): EngineError | null {
+function basicAttackPaying(
+  ctx: Ctx,
+  command: Command & { type: "basicAttack" },
+  spent: InstanceId[],
+): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const unusable = usableCharacter(ctx, command.playerId, command.attackerInstanceId, command);
   if (unusable) return unusable;
 
-  const shares = dividedShares(ctx, command, command.attackerInstanceId, command.targetInstanceId, "attack", command.divide);
+  const shares = dividedShares(
+    ctx,
+    command,
+    command.attackerInstanceId,
+    command.targetInstanceId,
+    "attack",
+    command.divide,
+  );
   if ("code" in shares) return shares;
   // Every target is checked now, when the power is used (FAQ "Wasp (#1C)", RRG 1.8 p. 61).
   for (const { targetInstanceId } of shares) {
     const targetCard = cardOf(ctx.state, targetInstanceId);
     const targetIsEnemy =
-      (targetCard?.type === "villain" && villainOf(ctx.state, targetInstanceId)?.defeated === false) || isMinion(ctx.state, targetInstanceId);
+      (targetCard?.type === "villain" && villainOf(ctx.state, targetInstanceId)?.defeated === false) ||
+      isMinion(ctx.state, targetInstanceId);
     if (!targetIsEnemy) return engineError("no_valid_target", "basic attacks target enemies", command);
     // The Once and Future Kang insert: "Players cannot attack or defend enemies in other game areas" (§3.1).
     if (!sameGameArea(areaOfPlayer(ctx.state, command.playerId), areaOfCard(ctx.state, targetInstanceId))) {
@@ -1613,14 +1896,25 @@ function basicAttackPaying(ctx: Ctx, command: Command & { type: "basicAttack" },
     // target, in the order given, so each retaliate resolves in the order of her choice.
     pushEvents(
       ctx,
-      shares.map(({ targetInstanceId, amount }) => ({ kind: "attack" as const, attackerInstanceId: command.attackerInstanceId, targetInstanceId, playerId: command.playerId, basic: true, amount })),
+      shares.map(({ targetInstanceId, amount }) => ({
+        kind: "attack" as const,
+        attackerInstanceId: command.attackerInstanceId,
+        targetInstanceId,
+        playerId: command.playerId,
+        basic: true,
+        amount,
+      })),
     );
   }
   announceBasicPowerUsing(ctx, command.attackerInstanceId, "attack", command.playerId);
   return null;
 }
 
-function basicThwartPaying(ctx: Ctx, command: Command & { type: "basicThwart" }, spent: InstanceId[]): EngineError | null {
+function basicThwartPaying(
+  ctx: Ctx,
+  command: Command & { type: "basicThwart" },
+  spent: InstanceId[],
+): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
   const unusable = usableCharacter(ctx, command.playerId, command.thwarterInstanceId, command);
@@ -1629,12 +1923,21 @@ function basicThwartPaying(ctx: Ctx, command: Command & { type: "basicThwart" },
     return engineError("no_valid_target", "you cannot thwart", command);
   }
 
-  const shares = dividedShares(ctx, command, command.thwarterInstanceId, command.schemeInstanceId, "thwart", command.divide);
+  const shares = dividedShares(
+    ctx,
+    command,
+    command.thwarterInstanceId,
+    command.schemeInstanceId,
+    "thwart",
+    command.divide,
+  );
   if ("code" in shares) return shares;
   for (const { targetInstanceId: schemeId } of shares) {
     const schemeCard = cardOf(ctx.state, schemeId);
     const isMainScheme = mainSchemeStateOf(ctx.state, schemeId) !== undefined;
-    const isSideScheme = (schemeCard?.type === "side_scheme" || schemeCard?.type === "player_side_scheme") && ctx.state.villainArea.includes(schemeId);
+    const isSideScheme =
+      (schemeCard?.type === "side_scheme" || schemeCard?.type === "player_side_scheme") &&
+      ctx.state.villainArea.includes(schemeId);
     if (!isMainScheme && !isSideScheme) {
       return engineError("no_valid_target", "target is not a scheme in play", command);
     }
@@ -1654,13 +1957,21 @@ function basicThwartPaying(ctx: Ctx, command: Command & { type: "basicThwart" },
   // RRG 1.8 "Assault" (p. 8): "Basic thwarts against this scheme use ATK instead of THW"; The Red House's optional
   // "they may use their ATK instead of their THW" is `thwartWithAtk` (docs/phase7-wave2.md §3.11). A divided thwart is THW.
   const assault = !command.divide && hasKeyword(ctx.state, command.schemeInstanceId, "assault", ctx.deps);
-  if (command.useAtk && !assault && (command.divide || !mayThwartWithAtk(ctx.state, ctx.deps, command.schemeInstanceId))) {
+  if (
+    command.useAtk &&
+    !assault &&
+    (command.divide || !mayThwartWithAtk(ctx.state, ctx.deps, command.schemeInstanceId))
+  ) {
     return engineError("no_valid_target", "this thwart cannot use ATK", command);
   }
   const useAtk = assault || command.useAtk === true;
   const thwartStat = useAtk ? "atk" : "thw";
   if (characterProfile(ctx.state, command.thwarterInstanceId, ctx.deps)?.missing.includes(thwartStat)) {
-    return engineError("no_valid_target", `a character with a printed '—' ${thwartStat.toUpperCase()} cannot thwart this way`, command);
+    return engineError(
+      "no_valid_target",
+      `a character with a printed '—' ${thwartStat.toUpperCase()} cannot thwart this way`,
+      command,
+    );
   }
   const confused = statusActive(ctx.state, command.thwarterInstanceId, "confused", ctx.deps);
   const scheme = mustInstance(ctx.state, command.schemeInstanceId);
@@ -1688,7 +1999,11 @@ function basicThwartPaying(ctx: Ctx, command: Command & { type: "basicThwart" },
   const thwarterProfile = characterProfile(ctx.state, command.thwarterInstanceId, ctx.deps);
   if (!thwarterProfile) return engineError("unknown_instance", "thwarter has no stats", command);
   if (thwarterProfile.missing.includes(thwartStat)) {
-    return engineError("no_valid_target", `a character with a printed '—' ${thwartStat.toUpperCase()} cannot thwart this way`, command);
+    return engineError(
+      "no_valid_target",
+      `a character with a printed '—' ${thwartStat.toUpperCase()} cannot thwart this way`,
+      command,
+    );
   }
   announceBasicPower(ctx, command.thwarterInstanceId, "thwart", command.playerId);
   pushConsequentialDamage(ctx, command.thwarterInstanceId, "thwart");
@@ -1705,7 +2020,14 @@ function basicThwartPaying(ctx: Ctx, command: Command & { type: "basicThwart" },
     // "simultaneously remove threat from each scheme that Wasp chooses" (FAQ "Wasp (#1C)"): one thwart per scheme.
     pushEvents(
       ctx,
-      shares.map(({ targetInstanceId, amount }) => ({ kind: "thwart" as const, thwarterInstanceId: command.thwarterInstanceId, schemeInstanceId: targetInstanceId, playerId: command.playerId, basic: true, amount })),
+      shares.map(({ targetInstanceId, amount }) => ({
+        kind: "thwart" as const,
+        thwarterInstanceId: command.thwarterInstanceId,
+        schemeInstanceId: targetInstanceId,
+        playerId: command.playerId,
+        basic: true,
+        amount,
+      })),
     );
   }
   announceBasicPowerUsing(ctx, command.thwarterInstanceId, "thwart", command.playerId);
@@ -1726,12 +2048,18 @@ function dividedShares(
   divide: readonly BasicPowerShare[] | undefined,
 ): readonly BasicPowerShare[] | EngineError {
   if (!divide) return [{ targetInstanceId: firstTarget, amount: 0 }];
-  if (!canDivideBasicPower(ctx.state, ctx.deps, characterId, power)) return engineError("no_valid_target", `this ${power} cannot be divided`, command);
+  if (!canDivideBasicPower(ctx.state, ctx.deps, characterId, power))
+    return engineError("no_valid_target", `this ${power} cannot be divided`, command);
   const targets = divide.map((share) => share.targetInstanceId);
   if (divide.length === 0 || divide[0]?.targetInstanceId !== firstTarget || new Set(targets).size !== targets.length) {
-    return engineError("no_valid_target", "a divided power names distinct targets, the first being the command's target", command);
+    return engineError(
+      "no_valid_target",
+      "a divided power names distinct targets, the first being the command's target",
+      command,
+    );
   }
-  if (divide.some((share) => !Number.isInteger(share.amount) || share.amount < 1)) return engineError("no_valid_target", "each share is at least 1", command);
+  if (divide.some((share) => !Number.isInteger(share.amount) || share.amount < 1))
+    return engineError("no_valid_target", "each share is at least 1", command);
   const value = characterProfile(ctx.state, characterId, ctx.deps)?.[power === "attack" ? "atk" : "thw"] ?? 0;
   const total = divide.reduce((sum, share) => sum + share.amount, 0);
   if (total !== value) return engineError("no_valid_target", `the shares must total ${value}`, command);
@@ -1763,7 +2091,12 @@ export function basicRecover(ctx: Ctx, command: Command & { type: "basicRecover"
  * come after the power has resolved, and only when an ability could react. A stunned attack or a confused thwart never
  * reaches here (FAQ "Quicksilver (#1A)", RRG 1.8 p. 61).
  */
-export function announceBasicPower(ctx: Ctx, characterId: InstanceId, power: "attack" | "thwart" | "defense" | "recover", playerId: PlayerId): void {
+export function announceBasicPower(
+  ctx: Ctx,
+  characterId: InstanceId,
+  power: "attack" | "thwart" | "defense" | "recover",
+  playerId: PlayerId,
+): void {
   const event: TriggerEvent = { kind: "basicPowerUsed", characterInstanceId: characterId, power, playerId };
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
 }
@@ -1774,7 +2107,12 @@ export function announceBasicPower(ctx: Ctx, characterId: InstanceId, power: "at
  * only when an ability could react, and a stunned attack or confused thwart never reaches either of them (the cancel
  * returns before both), so a power that is cancelled is not "used" for any timing.
  */
-export function announceBasicPowerUsing(ctx: Ctx, characterId: InstanceId, power: "attack" | "thwart" | "defense" | "recover", playerId: PlayerId): void {
+export function announceBasicPowerUsing(
+  ctx: Ctx,
+  characterId: InstanceId,
+  power: "attack" | "thwart" | "defense" | "recover",
+  playerId: PlayerId,
+): void {
   const event: TriggerEvent = { kind: "basicPowerUsing", characterInstanceId: characterId, power, playerId };
   if (heard(ctx.state, ctx.deps, event)) pushEvent(ctx, event);
 }

@@ -16,13 +16,7 @@ import Phaser from "phaser";
 import type { Settings } from "../settings.js";
 import { appSession } from "../session.js";
 import { SCENES } from "../scenes/keys.js";
-import {
-  MUSIC_CATALOG,
-  battleTrackFor,
-  outcomeTrackFor,
-  titleTrackFor,
-  type Track,
-} from "./music-catalog.js";
+import { MUSIC_CATALOG, battleTrackFor, outcomeTrackFor, titleTrackFor, type Track } from "./music-catalog.js";
 
 /** Default BGM volume when unmuted (0.0 to 1.0). Sits cleanly under UI sound. */
 export const DEFAULT_MUSIC_VOLUME = 0.45;

@@ -17,7 +17,6 @@ import {
   hasTrait,
   identityOf,
   on,
-  query,
   removeCountersFrom,
   revealCard,
   self,
@@ -74,7 +73,11 @@ export const ANT_MAN_OBLIGATION_NEMESIS = defineAbilities({
   // trait and retaliate 1 / +1 ATK (module docblock, §17.5).
   "12027.yellowjacket-constant": constant(
     gainsTrait(GIANT, { self: true }, { while: hasTrait(identityOf(engagedPlayerOf(self)), GIANT) }),
-    gainsKeyword({ name: "retaliate", value: 1 }, { self: true }, { while: hasTrait(identityOf(engagedPlayerOf(self)), GIANT) }),
+    gainsKeyword(
+      { name: "retaliate", value: 1 },
+      { self: true },
+      { while: hasTrait(identityOf(engagedPlayerOf(self)), GIANT) },
+    ),
   ),
   "12027.yellowjacket-constant-2": constant(
     gainsTrait(TINY, { self: true }, { while: hasTrait(identityOf(engagedPlayerOf(self)), TINY) }),
@@ -87,9 +90,15 @@ export const ANT_MAN_OBLIGATION_NEMESIS = defineAbilities({
   // elsewhere in wave 2.
   "12028.size-increase-constant": coveredByEngineRule(),
   // [star] Forced Response: after attached enemy activates (attacks or schemes), remove 1 size counter from here.
-  "12028.size-increase-forced-response": forcedResponse(on.enemySchemesOrAttacks("host"), removeCountersFrom(self, "size", 1)),
+  "12028.size-increase-forced-response": forcedResponse(
+    on.enemySchemesOrAttacks("host"),
+    removeCountersFrom(self, "size", 1),
+  ),
 
   // Yellowjacket's Plan — When Revealed: discard cards from the encounter deck until a card from the Ant-Man
   // Nemesis set is discarded this way. Reveal that card (module docblock, §20.2).
-  "12029.when-revealed": whenRevealed(discardEncounterUntil(encounterSetOf(self), "found"), revealCard(chosen("found"))),
+  "12029.when-revealed": whenRevealed(
+    discardEncounterUntil(encounterSetOf(self), "found"),
+    revealCard(chosen("found")),
+  ),
 });

@@ -94,7 +94,11 @@ function serialize(value: unknown, indent: string, ctx: Ctx): string {
         : serialize(v, inner, { parentKey: ctx.key }),
     );
     const oneLine = `[${items.join(", ")}]`;
-    if (!oneLine.includes("\n") && oneLine.length <= INLINE_MAX && value.every((v) => isPrimitive(v) || isSmallObject(v))) {
+    if (
+      !oneLine.includes("\n") &&
+      oneLine.length <= INLINE_MAX &&
+      value.every((v) => isPrimitive(v) || isSmallObject(v))
+    ) {
       return oneLine;
     }
     return `[\n${items.map((i) => `${inner}${i},`).join("\n")}\n${indent}]`;
@@ -122,7 +126,11 @@ function serialize(value: unknown, indent: string, ctx: Ctx): string {
 function isSmallObject(v: unknown): boolean {
   if (typeof v !== "object" || v === null || Array.isArray(v)) return false;
   return Object.values(v).every(
-    (x) => x === undefined || (typeof x !== "string" && isPrimitive(x)) || (typeof x === "string" && x.length <= 40) || (Array.isArray(x) && x.every(isPrimitive) && x.length <= 3),
+    (x) =>
+      x === undefined ||
+      (typeof x !== "string" && isPrimitive(x)) ||
+      (typeof x === "string" && x.length <= 40) ||
+      (Array.isArray(x) && x.every(isPrimitive) && x.length <= 3),
   );
 }
 
@@ -152,9 +160,19 @@ export function emitModule(spec: ModuleSpec): string {
     return `${e.doc ? `/** ${e.doc} */\n` : ""}export const ${e.name}: ${e.type} = ${value};\n`;
   });
   const body = bodies.join("\n");
-  const helpers = (["abilityId", "cardId", "cycleId", "encounterSetId", "imageRef", "scenarioId", "setCode", "starterDeckId", "trait"] as const).filter(
-    (h) => new RegExp(`\\b${h}\\(`).test(body),
-  );
+  const helpers = (
+    [
+      "abilityId",
+      "cardId",
+      "cycleId",
+      "encounterSetId",
+      "imageRef",
+      "scenarioId",
+      "setCode",
+      "starterDeckId",
+      "trait",
+    ] as const
+  ).filter((h) => new RegExp(`\\b${h}\\(`).test(body));
   const lines = [...spec.header.map((h) => `// ${h}`), ""];
   if (helpers.length > 0) lines.push(`import { ${helpers.join(", ")} } from "${spec.schemaSpecifier}";`);
   for (const [from, names] of Object.entries(spec.typeImports)) {

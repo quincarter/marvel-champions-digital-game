@@ -1,6 +1,10 @@
 import { createGame, type GameSetupConfig, type GameState, type InstanceId } from "@mc/engine";
 import { firstLegal, runWith, settle, type Picker } from "../testing/harness.js";
-import { defeatWithAttack as defeatWithAttackWith, playFromHand as playFromHandWith, revealFromEncounterDeck as revealFromEncounterDeckWith } from "../testing/staging.js";
+import {
+  defeatWithAttack as defeatWithAttackWith,
+  playFromHand as playFromHandWith,
+  revealFromEncounterDeck as revealFromEncounterDeckWith,
+} from "../testing/staging.js";
 import { WAVE2_DEPS } from "./index.js";
 
 /**
@@ -14,7 +18,8 @@ import { WAVE2_DEPS } from "./index.js";
  */
 
 /** `run`, wired to `WAVE2_DEPS` — the wave 2 analog of `../wave1/testing.ts`'s `runWave1`. */
-export const runWave2 = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState => runWith(WAVE2_DEPS, state, ...commands);
+export const runWave2 = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState =>
+  runWith(WAVE2_DEPS, state, ...commands);
 
 /** A wave 2 game past setup, with every opening hand kept — the wave 2 analog of `startWave1Game`. */
 export function startWave2Game(config: GameSetupConfig): GameState {
@@ -24,8 +29,12 @@ export function startWave2Game(config: GameSetupConfig): GameState {
 }
 
 /** `../testing/staging.ts`'s `playFromHand`, wired to `WAVE2_DEPS`. */
-export const playFromHand = (state: GameState, code: string, cost: number, pick: Picker = firstLegal): { readonly state: GameState; readonly id: InstanceId } =>
-  playFromHandWith(WAVE2_DEPS, state, code, cost, pick);
+export const playFromHand = (
+  state: GameState,
+  code: string,
+  cost: number,
+  pick: Picker = firstLegal,
+): { readonly state: GameState; readonly id: InstanceId } => playFromHandWith(WAVE2_DEPS, state, code, cost, pick);
 
 /** `../testing/staging.ts`'s `revealFromEncounterDeck`, wired to `WAVE2_DEPS`. */
 export const revealFromEncounterDeck = (
@@ -33,10 +42,12 @@ export const revealFromEncounterDeck = (
   code: string,
   pick: Picker = firstLegal,
   fillers = 1,
-): { readonly state: GameState; readonly id: InstanceId } => revealFromEncounterDeckWith(WAVE2_DEPS, state, code, pick, fillers);
+): { readonly state: GameState; readonly id: InstanceId } =>
+  revealFromEncounterDeckWith(WAVE2_DEPS, state, code, pick, fillers);
 
 /** `../testing/staging.ts`'s `defeatWithAttack`, wired to `WAVE2_DEPS`. */
-export const defeatWithAttack = (state: GameState, target: InstanceId): GameState => defeatWithAttackWith(WAVE2_DEPS, state, target);
+export const defeatWithAttack = (state: GameState, target: InstanceId): GameState =>
+  defeatWithAttackWith(WAVE2_DEPS, state, target);
 
 export { WAVE2_DEPS } from "./index.js";
 export { answer, runWith, settle, settleUntil } from "../testing/harness.js";

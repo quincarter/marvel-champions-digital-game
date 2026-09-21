@@ -23,11 +23,14 @@ import {
 } from "../../testing/harness.js";
 
 const spiderManVsRhino = (difficulty: "standard" | "expert" = "standard") =>
-  startCoreGame(coreScenario("rhino", { difficulty, players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }));
+  startCoreGame(
+    coreScenario("rhino", { difficulty, players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }),
+  );
 const ADVANCE = "01186";
 const HARD_TO_KEEP_DOWN = "01104";
 const HYDRA_MERCENARY = "01101";
-const engaged = (state: ReturnType<typeof spiderManVsRhino>, code: string) => playerOf(state, P1).playArea.filter((id) => inst(state, id).cardId === code);
+const engaged = (state: ReturnType<typeof spiderManVsRhino>, code: string) =>
+  playerOf(state, P1).playArea.filter((id) => inst(state, id).cardId === code);
 
 describe("coreScenario('rhino')", () => {
   it("standard: Rhino I–II; Rhino + Bomb Scare + Standard sets and Eviction Notice shuffled in; the nemesis set aside", () => {
@@ -36,7 +39,11 @@ describe("coreScenario('rhino')", () => {
     // Rhino set 17 + Bomb Scare 6 + Standard 7 + the obligation.
     expect(activeEncounterDeck(state).deck).toHaveLength(31);
     expect(activeEncounterDeck(state).deck.some((id) => inst(state, id).cardId === "01165")).toBe(true);
-    expect(playerOf(state, P1).setAside.map((id) => inst(state, id).cardId).sort()).toEqual(["01166", "01167", "01168", "01168", "01169"]);
+    expect(
+      playerOf(state, P1)
+        .setAside.map((id) => inst(state, id).cardId)
+        .sort(),
+    ).toEqual(["01166", "01167", "01168", "01168", "01169"]);
   });
 
   it("expert: Rhino (II) starts and reveals Breakin' & Takin' during setup; the Expert set is in the deck", () => {
@@ -52,13 +59,18 @@ describe("coreScenario('rhino')", () => {
 describe("Rhino encounter set", () => {
   it("Charge: Rhino gets +3 ATK; his attack gains overkill (a defending ally's excess goes to its controller); then Charge is discarded", () => {
     const round2 = settle(run(stackEncounterDeck(spiderManVsRhino(), ADVANCE, "01099"), endTurn()));
-    const charge = instancesOf(round2, "01099").find((id) => inst(round2, id).attachedTo === activeVillain(round2).instanceId);
+    const charge = instancesOf(round2, "01099").find(
+      (id) => inst(round2, id).attachedTo === activeVillain(round2).instanceId,
+    );
     expect(charge).toBeDefined();
     expect(characterProfile(round2, activeVillain(round2).instanceId, CORE_DEPS)?.atk).toBe(5);
     const given = moveToHand(round2, P1, "01002"); // Black Cat, 2 hit points
     const [cat] = given.ids as [never];
     const withCat = settle(run(given.state, toHero(), play(P1, cat, payWith(given.state, P1, 2, [cat]))));
-    const atDefense = settleUntil(run(stackEncounterDeck(withCat, HARD_TO_KEEP_DOWN, HYDRA_MERCENARY), endTurn()), "declareDefender");
+    const atDefense = settleUntil(
+      run(stackEncounterDeck(withCat, HARD_TO_KEEP_DOWN, HYDRA_MERCENARY), endTurn()),
+      "declareDefender",
+    );
     const after = answer(atDefense, [cat]);
     expect(playerOf(after, P1).discard).toContain(cat);
     expect(inst(after, identityOf(after)).damage).toBe(3); // 5 into 2 hit points
@@ -70,7 +82,9 @@ describe("Rhino encounter set", () => {
     const breakin = instancesOf(round2, "01107")[0] as never;
     expect(round2.villainArea).toContain(breakin);
     expect(inst(round2, breakin).threat).toBe(3);
-    const round3 = settle(run(stackEncounterDeck(round2, HARD_TO_KEEP_DOWN, HYDRA_MERCENARY, HYDRA_MERCENARY), endTurn()));
+    const round3 = settle(
+      run(stackEncounterDeck(round2, HARD_TO_KEEP_DOWN, HYDRA_MERCENARY, HYDRA_MERCENARY), endTurn()),
+    );
     expect(engaged(round3, HYDRA_MERCENARY)).toHaveLength(2);
   });
 
@@ -86,7 +100,9 @@ describe("Rhino encounter set", () => {
   });
 
   it("Hard to Keep Down: Rhino heals 4; with no damage to heal, it surges", () => {
-    const after = settle(run(stackEncounterDeck(spiderManVsRhino(), ADVANCE, HARD_TO_KEEP_DOWN, HYDRA_MERCENARY), endTurn()));
+    const after = settle(
+      run(stackEncounterDeck(spiderManVsRhino(), ADVANCE, HARD_TO_KEEP_DOWN, HYDRA_MERCENARY), endTurn()),
+    );
     expect(engaged(after, HYDRA_MERCENARY)).toHaveLength(1);
   });
 });
@@ -104,7 +120,10 @@ describe("Bomb Scare modular set", () => {
   it("Explosion: assign X damage among heroes and allies, one point at a time, X = the threat on Bomb Scare", () => {
     const round2 = settle(run(stackEncounterDeck(spiderManVsRhino(), ADVANCE, "01109"), endTurn()));
     const bombScare = instancesOf(round2, "01109")[0] as never;
-    let state = settleUntil(run(stackEncounterDeck(round2, HARD_TO_KEEP_DOWN, "01111"), toHero(), endTurn()), "chooseTarget");
+    let state = settleUntil(
+      run(stackEncounterDeck(round2, HARD_TO_KEEP_DOWN, "01111"), toHero(), endTurn()),
+      "chooseTarget",
+    );
     const x = inst(state, bombScare).threat;
     const before = inst(state, identityOf(state)).damage;
     let points = 0;

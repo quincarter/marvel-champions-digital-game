@@ -21,7 +21,8 @@ export const SCW_CURATION: PackCuration = {
   pack: {
     name: "Scarlet Witch",
     releaseDate: "2021-03-05",
-    releaseDateSource: "Hall of Heroes Scarlet Witch page (https://hallofheroeslcg.com/scarlet-witch/): \"Release date: March 5, 2021\"",
+    releaseDateSource:
+      'Hall of Heroes Scarlet Witch page (https://hallofheroeslcg.com/scarlet-witch/): "Release date: March 5, 2021"',
   },
   outDir: "src/data/scw",
   exportPrefix: "SCW",
@@ -41,11 +42,29 @@ export const SCW_CURATION: PackCuration = {
       aspect: "justice",
       cards: {
         // Hero cards (15002-15009), each at its printed kit quantity.
-        "15002": 1, "15003": 1, "15004": 4, "15005": 3, "15006": 1, "15007": 1, "15008": 3, "15009": 1,
+        "15002": 1,
+        "15003": 1,
+        "15004": 4,
+        "15005": 3,
+        "15006": 1,
+        "15007": 1,
+        "15008": 3,
+        "15009": 1,
         // Justice aspect cards.
-        "15010": 1, "15011": 1, "15012": 3, "15013": 3, "15014": 3, "15015": 3, "15016": 2, "15017": 2,
+        "15010": 1,
+        "15011": 1,
+        "15012": 3,
+        "15013": 3,
+        "15014": 3,
+        "15015": 3,
+        "15016": 2,
+        "15017": 2,
         // Basic cards.
-        "15018": 1, "15019": 3, "15020": 1, "15021": 1, "15022": 1,
+        "15018": 1,
+        "15019": 3,
+        "15020": 1,
+        "15021": 1,
+        "15022": 1,
       },
       obligationCode: "15023",
       nemesisCodes: ["15024", "15025", "15026", "15027"],

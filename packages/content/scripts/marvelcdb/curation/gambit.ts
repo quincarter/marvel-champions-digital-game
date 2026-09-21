@@ -13,7 +13,8 @@ export const GAMBIT_CURATION: PackCuration = {
   pack: {
     name: "Gambit",
     releaseDate: "2023-02-24",
-    releaseDateSource: "Hall of Heroes Gambit page (https://hallofheroeslcg.com/gambit-remy-lebeau/): \"Release date: February 24, 2023\"",
+    releaseDateSource:
+      'Hall of Heroes Gambit page (https://hallofheroeslcg.com/gambit-remy-lebeau/): "Release date: February 24, 2023"',
   },
   outDir: "src/data/gambit",
   exportPrefix: "GAMBIT",

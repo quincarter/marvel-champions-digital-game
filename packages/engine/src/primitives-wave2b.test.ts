@@ -16,24 +16,47 @@ import { playerId, type InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
 import type { CardInstance, GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEnvironment, stubEvent, stubIdentity, stubMainScheme, stubMinion, stubResource, stubSideScheme, stubSupport, stubTreachery, stubUpgrade, stubVillain } from "./testing/fixtures.js";
+import {
+  stubAlly,
+  stubEnvironment,
+  stubEvent,
+  stubIdentity,
+  stubMainScheme,
+  stubMinion,
+  stubResource,
+  stubSideScheme,
+  stubSupport,
+  stubTreachery,
+  stubUpgrade,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { ALLY, expectOk, giveCards, newGame, RESOURCE, runWith, settle } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const def = (definition: AbilityDefinition) => definition;
 const toHero: Command = { type: "changeForm", playerId: p1 };
 const endTurn: Command = { type: "endTurn", playerId: p1 };
-const play = (id: InstanceId): Command => ({ type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null });
+const play = (id: InstanceId): Command => ({
+  type: "playCard",
+  playerId: p1,
+  cardInstanceId: id,
+  payment: [],
+  attachToInstanceId: null,
+});
 const copies = (id: CardId, n = 4): readonly CardId[] => Array.from({ length: n }, () => id);
 
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
-const SCHEME = stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "scheme",
+  stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }],
+});
 
 const patchInstance = (state: GameState, id: InstanceId, patch: Partial<CardInstance>): GameState => ({
   ...state,
   instances: { ...state.instances, [id]: { ...(state.instances[id] as CardInstance), ...patch } },
 });
-const withTough = (state: GameState, id: InstanceId): GameState => patchInstance(state, id, { statuses: { stunned: 0, confused: 0, tough: 1 } });
+const withTough = (state: GameState, id: InstanceId): GameState =>
+  patchInstance(state, id, { statuses: { stunned: 0, confused: 0, tough: 1 } });
 const identityOf = (state: GameState) => mustPlayer(state, p1).identity.instanceId;
 const damageOn = (state: GameState, id: InstanceId) => mustInstance(state, id).damage;
 
@@ -46,7 +69,9 @@ interface Setup {
 
 function setup({ cards = [], abilities = [], villain, encounter }: Setup): { deps: EngineDeps; state: GameState } {
   const deps = depsOf(...abilities);
-  const inDeck = cards.filter((c) => c.type === "event" || c.type === "upgrade" || c.type === "ally" || c.type === "support");
+  const inDeck = cards.filter(
+    (c) => c.type === "event" || c.type === "upgrade" || c.type === "ally" || c.type === "support",
+  );
   const state = newGame({
     villain: villain ?? stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 2, sch: 0 }] }),
     mainScheme: SCHEME,
@@ -66,11 +91,21 @@ describe("§3.13 an attack keyword granted to one attack, not to a character", (
 
   /** "Hero Action (attack): deal 3 damage to an enemy. This attack gains <keywords>." */
   const shot = (id: string, keywords: readonly ("piercing" | "ranged" | "overkill")[]) =>
-    stubAbility(`${id}.action`, def({
-      trigger: { kind: "action", form: "hero" },
-      label: ["attack"],
-      effects: [{ kind: "attack", target: { kind: "villain" }, amount: { kind: "const", value: 3 }, ...(keywords.length > 0 ? { keywords } : {}) }],
-    }));
+    stubAbility(
+      `${id}.action`,
+      def({
+        trigger: { kind: "action", form: "hero" },
+        label: ["attack"],
+        effects: [
+          {
+            kind: "attack",
+            target: { kind: "villain" },
+            amount: { kind: "const", value: 3 },
+            ...(keywords.length > 0 ? { keywords } : {}),
+          },
+        ],
+      }),
+    );
 
   const pierceAbility = shot("pierce", ["piercing"]);
   const PIERCE = stubEvent({ id: "pierce", cost: 0, abilities: [pierceAbility.ref] });
@@ -98,7 +133,10 @@ describe("§3.13 an attack keyword granted to one attack, not to a character", (
       const { deps, state } = setup({
         cards: [card],
         abilities: [ability],
-        villain: stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 2, sch: 0, keywords: [{ name: "retaliate", value: 2 }] }] }),
+        villain: stubVillain({
+          id: "villain",
+          stages: [{ hp: flat(30), atk: 2, sch: 0, keywords: [{ name: "retaliate", value: 2 }] }],
+        }),
       });
       const given = giveCards(state, p1, card.id);
       const hero = runWith(deps, given.state, toHero);
@@ -111,7 +149,11 @@ describe("§3.13 an attack keyword granted to one attack, not to a character", (
 
   it("ranged does not let an attack past a guard minion (RRG 1.8 'Guard', p. 22)", () => {
     const GUARD = stubMinion({ id: "guard", atk: 0, sch: 0, hp: 5, boostIcons: 0, keywords: [{ name: "guard" }] });
-    const { deps, state } = setup({ cards: [SNIPE, GUARD], abilities: [rangedAbility], encounter: copies(GUARD.id, 20) });
+    const { deps, state } = setup({
+      cards: [SNIPE, GUARD],
+      abilities: [rangedAbility],
+      encounter: copies(GUARD.id, 20),
+    });
     const round2 = settle(runWith(deps, state, toHero, endTurn), undefined, deps);
     const given = giveCards(round2, p1, SNIPE.id);
     const after = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
@@ -121,13 +163,27 @@ describe("§3.13 an attack keyword granted to one attack, not to a character", (
 
   it("'keywords: [overkill]' spills excess damage exactly as `overkill: true` does (RRG 1.8 'Overkill', p. 31)", () => {
     const MINION = stubMinion({ id: "chaff", atk: 0, sch: 0, hp: 1, boostIcons: 0 });
-    const overkillAbility = stubAbility("spill.action", def({
-      trigger: { kind: "action", form: "hero" },
-      label: ["attack"],
-      effects: [{ kind: "attack", target: { kind: "each", query: { categories: ["minion"] } }, amount: { kind: "const", value: 4 }, keywords: ["overkill"] }],
-    }));
+    const overkillAbility = stubAbility(
+      "spill.action",
+      def({
+        trigger: { kind: "action", form: "hero" },
+        label: ["attack"],
+        effects: [
+          {
+            kind: "attack",
+            target: { kind: "each", query: { categories: ["minion"] } },
+            amount: { kind: "const", value: 4 },
+            keywords: ["overkill"],
+          },
+        ],
+      }),
+    );
     const SPILL = stubEvent({ id: "spill", cost: 0, abilities: [overkillAbility.ref] });
-    const { deps, state } = setup({ cards: [SPILL, MINION], abilities: [overkillAbility], encounter: copies(MINION.id, 20) });
+    const { deps, state } = setup({
+      cards: [SPILL, MINION],
+      abilities: [overkillAbility],
+      encounter: copies(MINION.id, 20),
+    });
     const round2 = settle(runWith(deps, state, toHero, endTurn), undefined, deps);
     const given = giveCards(round2, p1, SPILL.id);
     const after = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
@@ -135,15 +191,31 @@ describe("§3.13 an attack keyword granted to one attack, not to a character", (
   });
 
   it("a constant `attackKeywords` rule grants by the card making the attack ('each of your [Arrow] attacks gain ranged')", () => {
-    const bowAbility = stubAbility("bow.constant", def({
-      trigger: { kind: "constant", rules: [{ kind: "attackKeywords", keywords: ["ranged"], via: { trait: ARROW, owner: "you" } }] },
-      effects: [],
-    }));
+    const bowAbility = stubAbility(
+      "bow.constant",
+      def({
+        trigger: {
+          kind: "constant",
+          rules: [{ kind: "attackKeywords", keywords: ["ranged"], via: { trait: ARROW, owner: "you" } }],
+        },
+        effects: [],
+      }),
+    );
     const BOW = stubUpgrade({ id: "bow", cost: 0, abilities: [bowAbility.ref] });
-    const ARROW_SHOT: PlayerCard = { ...stubEvent({ id: "arrow-shot", cost: 0, abilities: [plainAbility.ref] }), traits: [ARROW] };
-    const retaliating = stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 2, sch: 0, keywords: [{ name: "retaliate", value: 2 }] }] });
+    const ARROW_SHOT: PlayerCard = {
+      ...stubEvent({ id: "arrow-shot", cost: 0, abilities: [plainAbility.ref] }),
+      traits: [ARROW],
+    };
+    const retaliating = stubVillain({
+      id: "villain",
+      stages: [{ hp: flat(30), atk: 2, sch: 0, keywords: [{ name: "retaliate", value: 2 }] }],
+    });
     const fire = (card: PlayerCard, withBow: boolean) => {
-      const { deps, state } = setup({ cards: [BOW, ARROW_SHOT, PLAIN], abilities: [bowAbility, plainAbility], villain: retaliating });
+      const { deps, state } = setup({
+        cards: [BOW, ARROW_SHOT, PLAIN],
+        abilities: [bowAbility, plainAbility],
+        villain: retaliating,
+      });
       const given = giveCards(state, p1, ...(withBow ? [BOW.id, card.id] : [card.id]));
       let current = runWith(deps, given.state, toHero);
       if (withBow) current = settle(runWith(deps, current, play(given.ids[0] as InstanceId)), undefined, deps);
@@ -159,17 +231,26 @@ describe("§3.13 an attack keyword granted to one attack, not to a character", (
 
   it("`modifyAttack.keywords` gives piercing to the enemy attack in progress ('the attack gains piercing')", () => {
     // Printed on the villain stage itself, the way an attachment's "when attached enemy attacks" would be.
-    const rifleAbility = stubAbility("rifle.interrupt", def({
-      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", selfIs: "source" } },
-      effects: [{ kind: "modifyAttack", keywords: ["piercing"] }],
-    }));
+    const rifleAbility = stubAbility(
+      "rifle.interrupt",
+      def({
+        trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", selfIs: "source" } },
+        effects: [{ kind: "modifyAttack", keywords: ["piercing"] }],
+      }),
+    );
     const run = (abilities: readonly StubAbility[]) => {
-      const villain = stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 2, sch: 0, abilities: abilities.map((a) => a.ref) }] });
+      const villain = stubVillain({
+        id: "villain",
+        stages: [{ hp: flat(30), atk: 2, sch: 0, abilities: abilities.map((a) => a.ref) }],
+      });
       const { deps, state } = setup({ abilities, villain });
       const hero = runWith(deps, state, toHero);
       const tough = withTough(hero, identityOf(hero));
       const after = settle(runWith(deps, tough, endTurn), undefined, deps);
-      return { damage: damageOn(after, identityOf(after)), tough: mustInstance(after, identityOf(after)).statuses.tough };
+      return {
+        damage: damageOn(after, identityOf(after)),
+        tough: mustInstance(after, identityOf(after)).statuses.tough,
+      };
     };
     // The villain attacks for 2. With piercing granted to that attack the tough card is discarded first, so the
     // damage lands; without it the tough card absorbs the whole attack.
@@ -182,21 +263,28 @@ describe("§3.13 an attack keyword granted to one attack, not to a character", (
 
 describe("§3.13 `TargetQuery.anyAspect`: 'an aspect card'", () => {
   const CORE_ASPECTS = ["aggression", "justice", "leadership", "protection"] as const;
-  const finesseAbility = stubAbility("finesse.resource", def({
-    trigger: { kind: "resource" },
-    effects: [],
-    generates: 1,
-    generatesFor: { anyAspect: CORE_ASPECTS },
-  }));
+  const finesseAbility = stubAbility(
+    "finesse.resource",
+    def({
+      trigger: { kind: "resource" },
+      effects: [],
+      generates: 1,
+      generatesFor: { anyAspect: CORE_ASPECTS },
+    }),
+  );
   const FINESSE = stubSupport({ id: "finesse", cost: 0, abilities: [finesseAbility.ref] });
-  const inert = (id: string) => stubAbility(`${id}.action`, def({ trigger: { kind: "action", form: "hero" }, effects: [] }));
+  const inert = (id: string) =>
+    stubAbility(`${id}.action`, def({ trigger: { kind: "action", form: "hero" }, effects: [] }));
   const aggroAbility = inert("aggro");
   const AGGRO: PlayerCard = stubEvent({ id: "aggro", cost: 1, aspect: "aggression", abilities: [aggroAbility.ref] });
   const basicAbility = inert("plainbasic");
   const BASIC: PlayerCard = stubEvent({ id: "plainbasic", cost: 1, aspect: "basic", abilities: [basicAbility.ref] });
   const signatureAbility = inert("signature");
   // §1.2: an identity-specific card that also prints an aspect (Spider-Woman's Venom Blast) is an aspect card here.
-  const SIGNATURE: PlayerCard = { ...stubEvent({ id: "signature", cost: 1, aspect: "hero:hero", abilities: [signatureAbility.ref] }), printedAspect: "justice" };
+  const SIGNATURE: PlayerCard = {
+    ...stubEvent({ id: "signature", cost: 1, aspect: "hero:hero", abilities: [signatureAbility.ref] }),
+    printedAspect: "justice",
+  };
 
   const abilities = [finesseAbility, aggroAbility, basicAbility, signatureAbility];
 
@@ -205,7 +293,13 @@ describe("§3.13 `TargetQuery.anyAspect`: 'an aspect card'", () => {
     const base = newGame({
       deps,
       extraCards: [FINESSE, AGGRO, BASIC, SIGNATURE],
-      deck: [...copies(RESOURCE.id, 10), ...copies(FINESSE.id), ...copies(AGGRO.id), ...copies(BASIC.id), ...copies(SIGNATURE.id)],
+      deck: [
+        ...copies(RESOURCE.id, 10),
+        ...copies(FINESSE.id),
+        ...copies(AGGRO.id),
+        ...copies(BASIC.id),
+        ...copies(SIGNATURE.id),
+      ],
     });
     const hero = runWith(deps, base, toHero);
     const given = giveCards(hero, p1, FINESSE.id, AGGRO.id, BASIC.id, SIGNATURE.id);
@@ -213,7 +307,11 @@ describe("§3.13 `TargetQuery.anyAspect`: 'an aspect card'", () => {
     const inPlay = expectOk(applyCommand(given.state, play(finesseId), deps));
     const pay = { ability: { instanceId: finesseId, abilityId: finesseAbility.ref.id } };
     const tryPlay = (id: InstanceId) =>
-      applyCommand(inPlay, { type: "playCard", playerId: p1, cardInstanceId: id, payment: [pay], attachToInstanceId: null }, deps);
+      applyCommand(
+        inPlay,
+        { type: "playCard", playerId: p1, cardInstanceId: id, payment: [pay], attachToInstanceId: null },
+        deps,
+      );
     expect(tryPlay(aggroId).ok).toBe(true);
     expect(tryPlay(signatureId).ok).toBe(true);
     expect(tryPlay(basicId)).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
@@ -223,11 +321,16 @@ describe("§3.13 `TargetQuery.anyAspect`: 'an aspect card'", () => {
 // ---- §3.13.3 a cost requiring a wild resource ------------------------------------------------------------------------
 
 describe("§3.13 `ResourceRequirement.wild`: 'spend a [wild] resource'", () => {
-  const rifleAbility = stubAbility("rifle.action", def({
-    trigger: { kind: "action", form: "hero" },
-    cost: { resources: { wild: 1 } },
-    effects: [{ kind: "addCounters", target: { kind: "self" }, counterType: "used", amount: { kind: "const", value: 1 } }],
-  }));
+  const rifleAbility = stubAbility(
+    "rifle.action",
+    def({
+      trigger: { kind: "action", form: "hero" },
+      cost: { resources: { wild: 1 } },
+      effects: [
+        { kind: "addCounters", target: { kind: "self" }, counterType: "used", amount: { kind: "const", value: 1 } },
+      ],
+    }),
+  );
   const RIFLE = stubSupport({ id: "rifle", cost: 0, abilities: [rifleAbility.ref] });
   const WILD = stubResource({ id: "wild-res", icons: 1 });
   const PHYSICAL = stubResource({ id: "phys-res", icons: 0, produces: { physical: 1 } });
@@ -244,7 +347,17 @@ describe("§3.13 `ResourceRequirement.wild`: 'spend a [wild] resource'", () => {
     const [rifleId, wildId, physId] = given.ids as [InstanceId, InstanceId, InstanceId];
     const inPlay = expectOk(applyCommand(given.state, play(rifleId), deps));
     const use = (payFrom: InstanceId) =>
-      applyCommand(inPlay, { type: "useAbility", playerId: p1, cardInstanceId: rifleId, abilityId: rifleAbility.ref.id, payment: [{ fromHand: payFrom }] }, deps);
+      applyCommand(
+        inPlay,
+        {
+          type: "useAbility",
+          playerId: p1,
+          cardInstanceId: rifleId,
+          abilityId: rifleAbility.ref.id,
+          payment: [{ fromHand: payFrom }],
+        },
+        deps,
+      );
     expect(use(wildId).ok).toBe(true);
     // A physical resource pays any *typed* slot's shortfall, but can never be declared a wild resource.
     expect(use(physId)).toMatchObject({ ok: false, error: { code: "insufficient_resources" } });
@@ -254,11 +367,14 @@ describe("§3.13 `ResourceRequirement.wild`: 'spend a [wild] resource'", () => {
 // ---- §3.13.4 prevent all damage from this attack ---------------------------------------------------------------------
 
 describe("§3.13 `modifyAttack.preventAllDamage`: 'prevent all damage from that attack'", () => {
-  const guardianAbility = stubAbility("guardian.interrupt", def({
-    // "Interrupt: When the villain initiates an attack against you → prevent all damage from that attack."
-    trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack" } },
-    effects: [{ kind: "modifyAttack", preventAllDamage: true }],
-  }));
+  const guardianAbility = stubAbility(
+    "guardian.interrupt",
+    def({
+      // "Interrupt: When the villain initiates an attack against you → prevent all damage from that attack."
+      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack" } },
+      effects: [{ kind: "modifyAttack", preventAllDamage: true }],
+    }),
+  );
   const GUARDIAN = stubAlly({ id: "guardian", cost: 0, atk: 1, thw: 1, hp: 5, abilities: [guardianAbility.ref] });
 
   /** One full villain phase, with or without the interrupting ally in play. */
@@ -292,12 +408,25 @@ describe("§3.13 `modifyAttack.preventAllDamage`: 'prevent all damage from that 
 
   it("covers only the attack's own damage, not indirect damage dealt by a card effect during it", () => {
     // A treachery's Boost ability deals 1 damage to the attacked hero. That is not damage "from the attack".
-    const boostAbility = stubAbility("sting.boost", def({
-      trigger: { kind: "boost" },
-      effects: [{ kind: "dealDamage", target: { kind: "identityOf", player: { kind: "firstPlayer" } }, amount: { kind: "const", value: 1 } }],
-    }));
+    const boostAbility = stubAbility(
+      "sting.boost",
+      def({
+        trigger: { kind: "boost" },
+        effects: [
+          {
+            kind: "dealDamage",
+            target: { kind: "identityOf", player: { kind: "firstPlayer" } },
+            amount: { kind: "const", value: 1 },
+          },
+        ],
+      }),
+    );
     const STING = stubTreachery({ id: "sting", boostIcons: 0, abilities: [boostAbility.ref] });
-    const { deps, state } = setup({ cards: [GUARDIAN, STING], abilities: [guardianAbility, boostAbility], encounter: copies(STING.id, 20) });
+    const { deps, state } = setup({
+      cards: [GUARDIAN, STING],
+      abilities: [guardianAbility, boostAbility],
+      encounter: copies(STING.id, 20),
+    });
     const hero = runWith(deps, state, toHero);
     const given = giveCards(hero, p1, GUARDIAN.id);
     const withAlly = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
@@ -311,11 +440,21 @@ describe("§3.13 `modifyAttack.preventAllDamage`: 'prevent all damage from that 
 describe("§3.13 `thwart.ignoreCrisis`: 'ignoring any crisis icons in play'", () => {
   const CRISIS = stubSideScheme({ id: "crisis-scheme", startingThreat: 3, icons: ["crisis"], boostIcons: 0 });
   const arrow = (id: string, ignoreCrisis: boolean) =>
-    stubAbility(`${id}.action`, def({
-      trigger: { kind: "action", form: "hero" },
-      label: ["thwart"],
-      effects: [{ kind: "thwart", target: { kind: "mainScheme" }, amount: { kind: "const", value: 3 }, ...(ignoreCrisis ? { ignoreCrisis: true } : {}) }],
-    }));
+    stubAbility(
+      `${id}.action`,
+      def({
+        trigger: { kind: "action", form: "hero" },
+        label: ["thwart"],
+        effects: [
+          {
+            kind: "thwart",
+            target: { kind: "mainScheme" },
+            amount: { kind: "const", value: 3 },
+            ...(ignoreCrisis ? { ignoreCrisis: true } : {}),
+          },
+        ],
+      }),
+    );
   const cableAbility = arrow("cable", true);
   const CABLE = stubEvent({ id: "cable", cost: 0, abilities: [cableAbility.ref] });
   const plainAbility = arrow("plain-thwart", false);
@@ -340,13 +479,22 @@ describe("§3.13 `thwart.ignoreCrisis`: 'ignoring any crisis icons in play'", ()
 // ---- §3.13.6 a referenced card's printed resource icons ---------------------------------------------------------------
 
 describe("§3.13 `ValueSpec totalPrintedResources`: 'the number of printed resources on that card'", () => {
-  const archerAbility = stubAbility("archer.action", def({
-    // "Action: Exhaust this ally and discard 1 card from your hand → deal X damage to an enemy, where X is the
-    // number of printed resources on that card." The cost's own `discard` slot is the ref.
-    trigger: { kind: "action" },
-    cost: { exhaustSelf: true, discardFromHand: { min: 1, max: 1 } },
-    effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "totalPrintedResources", cards: { kind: "slot", slot: "discard" } } }],
-  }));
+  const archerAbility = stubAbility(
+    "archer.action",
+    def({
+      // "Action: Exhaust this ally and discard 1 card from your hand → deal X damage to an enemy, where X is the
+      // number of printed resources on that card." The cost's own `discard` slot is the ref.
+      trigger: { kind: "action" },
+      cost: { exhaustSelf: true, discardFromHand: { min: 1, max: 1 } },
+      effects: [
+        {
+          kind: "dealDamage",
+          target: { kind: "villain" },
+          amount: { kind: "totalPrintedResources", cards: { kind: "slot", slot: "discard" } },
+        },
+      ],
+    }),
+  );
   const ARCHER = stubAlly({ id: "archer", cost: 0, atk: 1, thw: 1, hp: 3, abilities: [archerAbility.ref] });
   const TWO_ICONS = stubEvent({ id: "two-icons", cost: 0, resourceIcons: { physical: 1, mental: 1 } });
   const NO_ICONS = stubEvent({ id: "no-icons", cost: 0, resourceIcons: {} });
@@ -387,11 +535,20 @@ describe("§3.13 `ValueSpec totalPrintedResources`: 'the number of printed resou
 
 describe("§3.13 `PlayerRef defeatingPlayer`: 'the player who defeated this scheme'", () => {
   const p2 = playerId("p2");
-  const revengeAbility = stubAbility("revenge.when-defeated", def({
-    // "When Defeated: <the villain acts> against the player who defeated this scheme."
-    trigger: { kind: "whenDefeated" },
-    effects: [{ kind: "dealDamage", target: { kind: "identityOf", player: { kind: "defeatingPlayer" } }, amount: { kind: "const", value: 1 } }],
-  }));
+  const revengeAbility = stubAbility(
+    "revenge.when-defeated",
+    def({
+      // "When Defeated: <the villain acts> against the player who defeated this scheme."
+      trigger: { kind: "whenDefeated" },
+      effects: [
+        {
+          kind: "dealDamage",
+          target: { kind: "identityOf", player: { kind: "defeatingPlayer" } },
+          amount: { kind: "const", value: 1 },
+        },
+      ],
+    }),
+  );
   const REVENGE = stubSideScheme({ id: "revenge", startingThreat: 1, boostIcons: 0, abilities: [revengeAbility.ref] });
 
   it("is the player who removed the last threat, not the first player", () => {
@@ -426,12 +583,19 @@ describe("§3.13 `PlayerRef defeatingPlayer`: 'the player who defeated this sche
     const damageBefore = damageOn(afterP2, p1Identity);
     // p1 defeats the scheme while p2 holds the first player token: the damage must follow p1.
     const after = settle(
-      runWith(deps, afterP2, { type: "basicThwart", playerId: p1, thwarterInstanceId: p1Identity, schemeInstanceId: scheme }),
+      runWith(deps, afterP2, {
+        type: "basicThwart",
+        playerId: p1,
+        thwarterInstanceId: p1Identity,
+        schemeInstanceId: scheme,
+      }),
       undefined,
       deps,
     );
     expect(damageOn(after, p1Identity) - damageBefore).toBe(1);
-    expect(damageOn(after, mustPlayer(after, p2).identity.instanceId)).toBe(damageOn(afterP2, mustPlayer(afterP2, p2).identity.instanceId));
+    expect(damageOn(after, mustPlayer(after, p2).identity.instanceId)).toBe(
+      damageOn(afterP2, mustPlayer(afterP2, p2).identity.instanceId),
+    );
   });
 });
 
@@ -439,12 +603,26 @@ describe("§3.13 `PlayerRef defeatingPlayer`: 'the player who defeated this sche
 
 describe("§3.13 `AbilityLimit.per`: 'limit once per round for each aspect'", () => {
   const CORE_ASPECTS = ["aggression", "justice", "leadership", "protection"] as const;
-  const agilityAbility = stubAbility("agility.interrupt", def({
-    // "Interrupt: When you play an aspect card, … (limit once per round for each aspect.)" (Superhuman Agility 04031a)
-    trigger: { kind: "interrupt", forced: true, on: { on: "cardBeingPlayed", sourceIs: { anyAspect: CORE_ASPECTS } } },
-    limit: { count: 1, period: "round", per: "aspectOfEventCard" },
-    effects: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "agility", amount: { kind: "const", value: 1 } }],
-  }));
+  const agilityAbility = stubAbility(
+    "agility.interrupt",
+    def({
+      // "Interrupt: When you play an aspect card, … (limit once per round for each aspect.)" (Superhuman Agility 04031a)
+      trigger: {
+        kind: "interrupt",
+        forced: true,
+        on: { on: "cardBeingPlayed", sourceIs: { anyAspect: CORE_ASPECTS } },
+      },
+      limit: { count: 1, period: "round", per: "aspectOfEventCard" },
+      effects: [
+        {
+          kind: "addCounters",
+          target: { kind: "identityOf", player: { kind: "controller" } },
+          counterType: "agility",
+          amount: { kind: "const", value: 1 },
+        },
+      ],
+    }),
+  );
   const JESSICA = stubIdentity({
     id: "jessica",
     hp: 12,
@@ -456,7 +634,8 @@ describe("§3.13 `AbilityLimit.per`: 'limit once per round for each aspect'", ()
     alterEgoHandSize: 6,
     heroAbilities: [agilityAbility.ref],
   });
-  const inert = (id: string) => stubAbility(`${id}.action`, def({ trigger: { kind: "action", form: "hero" }, effects: [] }));
+  const inert = (id: string) =>
+    stubAbility(`${id}.action`, def({ trigger: { kind: "action", form: "hero" }, effects: [] }));
   const aggro1 = inert("aggro1");
   const AGGRO1 = stubEvent({ id: "aggro1", cost: 0, aspect: "aggression", abilities: [aggro1.ref] });
   const aggro2 = inert("aggro2");
@@ -491,12 +670,22 @@ describe("§3.13 `AbilityLimit.per`: 'limit once per round for each aspect'", ()
 
 describe("§9 `playFromHand.costReduction`: 'play a card from your hand, reducing its resource cost by 1'", () => {
   const AVENGER = trait("AVENGER");
-  const exerciseAbility = stubAbility("exercise.action", def({
-    // "Hero Action: Exhaust Team-Building Exercise → play a card from your hand that shares a trait with your hero,
-    // reducing its resource cost by 1."
-    trigger: { kind: "action", form: "hero" },
-    effects: [{ kind: "playFromHand", player: { kind: "controller" }, costReduction: { kind: "const", value: 1 }, filter: { trait: AVENGER } }],
-  }));
+  const exerciseAbility = stubAbility(
+    "exercise.action",
+    def({
+      // "Hero Action: Exhaust Team-Building Exercise → play a card from your hand that shares a trait with your hero,
+      // reducing its resource cost by 1."
+      trigger: { kind: "action", form: "hero" },
+      effects: [
+        {
+          kind: "playFromHand",
+          player: { kind: "controller" },
+          costReduction: { kind: "const", value: 1 },
+          filter: { trait: AVENGER },
+        },
+      ],
+    }),
+  );
   const EXERCISE = stubSupport({ id: "exercise", cost: 0, abilities: [exerciseAbility.ref] });
   const FRIEND = stubAlly({ id: "friend", traits: [AVENGER], cost: 3, atk: 1, thw: 1, hp: 3 });
   const STRANGER = stubAlly({ id: "stranger", cost: 1, atk: 1, thw: 1, hp: 3 });
@@ -519,7 +708,10 @@ describe("§9 `playFromHand.costReduction`: 'play a card from your hand, reducin
     const hand = mustPlayer(state, p1).hand;
     const allies = hand.filter((id) => [FRIEND.id, STRANGER.id].some((c) => state.instances[id]?.cardId === c));
     const res = hand.filter((id) => state.instances[id]?.cardId === RESOURCE.id).slice(0, resources);
-    const trimmed: GameState = { ...state, players: state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: [...allies, ...res] } : pl)) };
+    const trimmed: GameState = {
+      ...state,
+      players: state.players.map((pl) => (pl.playerId === p1 ? { ...pl, hand: [...allies, ...res] } : pl)),
+    };
     return { state: trimmed, exerciseId, resources: res };
   };
 
@@ -550,12 +742,25 @@ describe("§9 `playFromHand.costReduction`: 'play a card from your hand, reducin
     const choose = (s: GameState, picks: readonly string[]): GameState => {
       const choice = s.pendingChoice;
       if (!choice) throw new Error("no pending choice");
-      return expectOk(applyCommand(s, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: picks }, deps));
+      return expectOk(
+        applyCommand(
+          s,
+          { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: picks },
+          deps,
+        ),
+      );
     };
     // Pick the ally, then pay two resources: cost 3 − 1 = 2.
     let current = expectOk(applyCommand(state, use(exerciseId), deps));
     current = choose(current, [friend]);
-    const paid = settle(choose(current, resources.map((id) => `hand:${id}`)), undefined, deps);
+    const paid = settle(
+      choose(
+        current,
+        resources.map((id) => `hand:${id}`),
+      ),
+      undefined,
+      deps,
+    );
     expect(mustPlayer(paid, p1).playArea.some((id) => paid.instances[id]?.cardId === FRIEND.id)).toBe(true);
     expect(mustPlayer(paid, p1).hand.filter((id) => paid.instances[id]?.cardId === RESOURCE.id)).toHaveLength(0);
 
@@ -581,24 +786,32 @@ describe("§9 `playFromHand.costReduction`: 'play a card from your hand, reducin
 
 describe("§10.1 `CardSelector anyOf`: 'the encounter deck, discard pile, and set-aside area'", () => {
   const NEMESIS = stubMinion({ id: "nemesis-minion", atk: 1, sch: 1, hp: 3, boostIcons: 0 });
-  const searchAbility = stubAbility("search.action", def({
-    // "Each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion."
-    trigger: { kind: "action" },
-    effects: [
-      {
-        kind: "selectCards",
-        slot: "found",
-        cards: {
-          kind: "anyOf",
-          of: [
-            { kind: "encounter", zones: ["deck", "discard"], filter: { name: NEMESIS.id } },
-            { kind: "setAside", player: { kind: "controller" }, filter: { name: NEMESIS.id } },
-          ],
+  const searchAbility = stubAbility(
+    "search.action",
+    def({
+      // "Each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion."
+      trigger: { kind: "action" },
+      effects: [
+        {
+          kind: "selectCards",
+          slot: "found",
+          cards: {
+            kind: "anyOf",
+            of: [
+              { kind: "encounter", zones: ["deck", "discard"], filter: { name: NEMESIS.id } },
+              { kind: "setAside", player: { kind: "controller" }, filter: { name: NEMESIS.id } },
+            ],
+          },
         },
-      },
-      { kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "found", amount: { kind: "var", name: "found.count" } },
-    ],
-  }));
+        {
+          kind: "addCounters",
+          target: { kind: "identityOf", player: { kind: "controller" } },
+          counterType: "found",
+          amount: { kind: "var", name: "found.count" },
+        },
+      ],
+    }),
+  );
   const SEARCHER = stubSupport({ id: "searcher", cost: 0, abilities: [searchAbility.ref] });
 
   it("finds cards in every listed zone at once, each once", () => {
@@ -613,17 +826,32 @@ describe("§10.1 `CardSelector anyOf`: 'the encounter deck, discard pile, and se
     const given = giveCards(hero, p1, SEARCHER.id);
     const inPlay = settle(runWith(deps, given.state, play(given.ids[0] as InstanceId)), undefined, deps);
     // One copy waits in the encounter deck; test surgery puts a second in this player's set-aside area.
-    const spare = Object.values(inPlay.instances).find((i) => i.cardId === NEMESIS.id && !inPlay.villainArea.includes(i.instanceId));
+    const spare = Object.values(inPlay.instances).find(
+      (i) => i.cardId === NEMESIS.id && !inPlay.villainArea.includes(i.instanceId),
+    );
     expect(spare).toBeDefined();
     const withSetAside: GameState = {
       ...inPlay,
-      players: inPlay.players.map((pl) => (pl.playerId === p1 ? { ...pl, setAside: [...pl.setAside, spare?.instanceId as InstanceId] } : pl)),
+      players: inPlay.players.map((pl) =>
+        pl.playerId === p1 ? { ...pl, setAside: [...pl.setAside, spare?.instanceId as InstanceId] } : pl,
+      ),
       encounterDecks: Object.fromEntries(
-        Object.entries(inPlay.encounterDecks).map(([id, piles]) => [id, { ...piles, deck: piles.deck.filter((c) => c !== spare?.instanceId) }]),
+        Object.entries(inPlay.encounterDecks).map(([id, piles]) => [
+          id,
+          { ...piles, deck: piles.deck.filter((c) => c !== spare?.instanceId) },
+        ]),
       ),
     };
-    const encounterCopies = Object.values(withSetAside.encounterDecks).flatMap((piles) => [...piles.deck, ...piles.discard]).filter((id) => withSetAside.instances[id]?.cardId === NEMESIS.id);
-    const use: Command = { type: "useAbility", playerId: p1, cardInstanceId: given.ids[0] as InstanceId, abilityId: searchAbility.ref.id, payment: [] };
+    const encounterCopies = Object.values(withSetAside.encounterDecks)
+      .flatMap((piles) => [...piles.deck, ...piles.discard])
+      .filter((id) => withSetAside.instances[id]?.cardId === NEMESIS.id);
+    const use: Command = {
+      type: "useAbility",
+      playerId: p1,
+      cardInstanceId: given.ids[0] as InstanceId,
+      abilityId: searchAbility.ref.id,
+      payment: [],
+    };
     const after = settle(runWith(deps, withSetAside, use), undefined, deps);
     // The set-aside copy plus whatever the encounter deck/discard still holds — one pool, no duplicates.
     expect(mustInstance(after, identityOf(after)).counters.found).toBe(1 + encounterCopies.length);
@@ -633,15 +861,27 @@ describe("§10.1 `CardSelector anyOf`: 'the encounter deck, discard pile, and se
 // ---- §3.13.9 a string field on the triggering event -------------------------------------------------------------------
 
 describe("§3.13 `EventPattern.eventIs`: 'after a player changes to hero form'", () => {
-  const watcherAbility = stubAbility("watcher.response", def({
-    // A *villain* ability reacting to any player, with no `playerIs` scoping; "they" is `eventPlayer`.
-    trigger: { kind: "response", forced: true, on: { on: "formChanged", eventIs: { to: "hero" } } },
-    effects: [{ kind: "dealDamage", target: { kind: "identityOf", player: { kind: "eventPlayer" } }, amount: { kind: "const", value: 1 } }],
-  }));
+  const watcherAbility = stubAbility(
+    "watcher.response",
+    def({
+      // A *villain* ability reacting to any player, with no `playerIs` scoping; "they" is `eventPlayer`.
+      trigger: { kind: "response", forced: true, on: { on: "formChanged", eventIs: { to: "hero" } } },
+      effects: [
+        {
+          kind: "dealDamage",
+          target: { kind: "identityOf", player: { kind: "eventPlayer" } },
+          amount: { kind: "const", value: 1 },
+        },
+      ],
+    }),
+  );
 
   it("matches only the form change the pattern names, for any player", () => {
     // ATK 0 so the villain phase between the two form changes adds no damage of its own.
-    const villain = stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 0, sch: 0, abilities: [watcherAbility.ref] }] });
+    const villain = stubVillain({
+      id: "villain",
+      stages: [{ hp: flat(30), atk: 0, sch: 0, abilities: [watcherAbility.ref] }],
+    });
     const { deps, state } = setup({ abilities: [watcherAbility], villain });
     const hero = settle(runWith(deps, state, toHero), undefined, deps);
     expect(damageOn(hero, identityOf(hero))).toBe(1);
@@ -659,20 +899,30 @@ describe("§3.13 an Interrupt on a card entering play, and `TargetQuery.excludin
     // The ability counts how many tough status cards the entering ally already has. As an interrupt that is 0
     // (toughness has not resolved yet); as a response it is 1.
     const countAbility = (kind: "interrupt" | "response") =>
-      stubAbility(`watch.${kind}`, def({
-        trigger: { kind, forced: true, on: { on: "cardEntersPlay", targetIs: { categories: ["ally"] } } },
-        effects: [
-          {
-            kind: "addCounters",
-            target: { kind: "identityOf", player: { kind: "controller" } },
-            counterType: "seen",
-            amount: { kind: "count", query: { categories: ["ally"], hasStatus: "tough" } },
-          },
-        ],
-      }));
+      stubAbility(
+        `watch.${kind}`,
+        def({
+          trigger: { kind, forced: true, on: { on: "cardEntersPlay", targetIs: { categories: ["ally"] } } },
+          effects: [
+            {
+              kind: "addCounters",
+              target: { kind: "identityOf", player: { kind: "controller" } },
+              counterType: "seen",
+              amount: { kind: "count", query: { categories: ["ally"], hasStatus: "tough" } },
+            },
+          ],
+        }),
+      );
     const seen = (kind: "interrupt" | "response") => {
       const ability = countAbility(kind);
-      const TOUGH_ALLY = stubAlly({ id: "tough-ally", cost: 0, atk: 1, thw: 1, hp: 3, keywords: [{ name: "toughness" }] });
+      const TOUGH_ALLY = stubAlly({
+        id: "tough-ally",
+        cost: 0,
+        atk: 1,
+        thw: 1,
+        hp: 3,
+        keywords: [{ name: "toughness" }],
+      });
       const WATCHER = stubSupport({ id: "watcher", cost: 0, abilities: [ability.ref] });
       const deps = depsOf(ability);
       const base = newGame({
@@ -693,14 +943,28 @@ describe("§3.13 an Interrupt on a card entering play, and `TargetQuery.excludin
 
   it("`excluding` leaves the triggering card out of 'each other card in play'", () => {
     // "Forced Interrupt: When an environment enters play, discard each other environment card in play."
-    const purgeAbility = stubAbility("purge.interrupt", def({
-      trigger: { kind: "interrupt", forced: true, on: { on: "cardEntersPlay", targetIs: { categories: ["environment"] } } },
-      effects: [{ kind: "discardFromPlay", target: { kind: "each", query: { categories: ["environment"], excluding: { kind: "eventTarget" } } } }],
-    }));
+    const purgeAbility = stubAbility(
+      "purge.interrupt",
+      def({
+        trigger: {
+          kind: "interrupt",
+          forced: true,
+          on: { on: "cardEntersPlay", targetIs: { categories: ["environment"] } },
+        },
+        effects: [
+          {
+            kind: "discardFromPlay",
+            target: { kind: "each", query: { categories: ["environment"], excluding: { kind: "eventTarget" } } },
+          },
+        ],
+      }),
+    );
     const FIELD = stubEnvironment({ id: "field", abilities: [] });
     const SCHEME_STAGE = stubMainScheme({
       id: "purge-scheme",
-      stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0), abilities: [purgeAbility.ref] }],
+      stages: [
+        { startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0), abilities: [purgeAbility.ref] },
+      ],
     });
     const deps = depsOf(purgeAbility);
     const state = newGame({

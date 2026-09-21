@@ -22,8 +22,18 @@ describe("wave 1 reprints", () => {
     const pairs = wave1ReprintPairs();
     let checked = 0;
     for (const { wave1: card, core } of pairs) {
-      const wRefs = card.type === "hero_identity" ? [...card.hero.abilities, ...card.alterEgo.abilities] : "abilities" in card ? card.abilities : [];
-      const cRefs = core.type === "hero_identity" ? [...core.hero.abilities, ...core.alterEgo.abilities] : "abilities" in core ? core.abilities : [];
+      const wRefs =
+        card.type === "hero_identity"
+          ? [...card.hero.abilities, ...card.alterEgo.abilities]
+          : "abilities" in card
+            ? card.abilities
+            : [];
+      const cRefs =
+        core.type === "hero_identity"
+          ? [...core.hero.abilities, ...core.alterEgo.abilities]
+          : "abilities" in core
+            ? core.abilities
+            : [];
       expect(wRefs.length).toBe(cRefs.length);
       wRefs.forEach((wRef, i) => {
         const cRef = cRefs[i]!;

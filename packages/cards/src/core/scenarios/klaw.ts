@@ -64,7 +64,10 @@ const KLAW_EXTRA_BOOST = forcedInterrupt(when.enemyAttacks("self"), modifyAttack
 /** "Hero Action: Spend [energy][mental][physical] resources → discard this card." */
 const SPEND_EMP_TO_DISCARD = heroAction({ cost: spend({ energy: 1, mental: 1, physical: 1 }) }, discard(self));
 /** "Discard cards from the encounter deck until a minion is discarded. Put that minion into play engaged with the first player." */
-const MINION_FOR_FIRST_PLAYER = [discardEncounterUntil(query("minion"), "minion"), putIntoPlay(chosen("minion"), firstPlayer)];
+const MINION_FOR_FIRST_PLAYER = [
+  discardEncounterUntil(query("minion"), "minion"),
+  putIntoPlay(chosen("minion"), firstPlayer),
+];
 
 /** The Klaw scenario: Klaw (01113–01115), Underground Distribution / Secret Rendezvous (01116–01117), and the Klaw set (01118–01127). */
 export const KLAW = defineAbilities({
@@ -95,16 +98,24 @@ export const KLAW = defineAbilities({
   // Klaw's Vengeance — When Revealed (Alter-Ego): Discard 1 card at random from your hand.
   "01122.when-revealed-alter-ego": whenRevealedAlterEgo(discardAtRandom(1)),
   // When Revealed (Hero): Klaw attacks you. If this attack deals damage, place 1 threat on the main scheme.
-  "01122.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you, bind: "vengeance" }), ifThen(varAtLeast("vengeance.damage"), placeThreat(1, theMainScheme))),
+  "01122.when-revealed-hero": whenRevealedHero(
+    enemyAttack(theVillain, { against: you, bind: "vengeance" }),
+    ifThen(varAtLeast("vengeance.damage"), placeThreat(1, theMainScheme)),
+  ),
   // Sonic Boom — When Revealed: Either spend [energy][mental][physical] resources or exhaust each character you control.
   "01123.when-revealed": whenRevealed(
     spendResources({ energy: 1, mental: 1, physical: 1 }, "boom"),
     ifThen(not(made("boom")), exhaust(each(query("character", { controller: "you" })))),
   ),
   // [star] Boost: If this activation deals damage to you, exhaust your hero.
-  "01123.boost": boost(atEndOfAttack(ifThen(allOf(eventDealt("damage"), refMatches(eventTarget, YOUR_IDENTITY)), exhaust(yourIdentity)))),
+  "01123.boost": boost(
+    atEndOfAttack(ifThen(allOf(eventDealt("damage"), refMatches(eventTarget, YOUR_IDENTITY)), exhaust(yourIdentity))),
+  ),
   // Sound Manipulation — When Revealed (Alter-Ego): Klaw heals 4 damage. If no damage was healed this way, this card gains surge.
-  "01124.when-revealed-alter-ego": whenRevealedAlterEgo(heal(4, theVillain, { bind: "healed" }), ifThen(not(varAtLeast("healed.amount")), surge())),
+  "01124.when-revealed-alter-ego": whenRevealedAlterEgo(
+    heal(4, theVillain, { bind: "healed" }),
+    ifThen(not(varAtLeast("healed.amount")), surge()),
+  ),
   // When Revealed (Hero): Take 2 damage. Klaw heals 2 damage.
   "01124.when-revealed-hero": whenRevealedHero(takeDamage(2), heal(2, theVillain)),
   // Defense Network / Illegal Arms Factory — When Revealed: Place an additional 1 [per_hero] threat here.
@@ -120,9 +131,15 @@ const MASTERS_OF_EVIL_MINION = query("minion", { trait: TRAIT.MASTERS_OF_EVIL })
 export const MASTERS_OF_EVIL_SET = defineAbilities({
   // The Masters of Evil — When Revealed: Discard cards from the encounter deck until a Masters of Evil minion is discarded.
   // Put that minion into play engaged with the first player.
-  "01128.when-revealed": whenRevealed(discardEncounterUntil(MASTERS_OF_EVIL_MINION, "minion"), putIntoPlay(chosen("minion"), firstPlayer)),
+  "01128.when-revealed": whenRevealed(
+    discardEncounterUntil(MASTERS_OF_EVIL_MINION, "minion"),
+    putIntoPlay(chosen("minion"), firstPlayer),
+  ),
   // Radioactive Man — [star] Forced Response: After Radioactive Man attacks you, discard 1 card at random from your hand.
-  "01129.radioactive-man-forced-response": forcedResponse(after.enemyAttacks("self", { againstYou: true }), discardAtRandom(1)),
+  "01129.radioactive-man-forced-response": forcedResponse(
+    after.enemyAttacks("self", { againstYou: true }),
+    discardAtRandom(1),
+  ),
   // [star] Boost: Discard 1 card at random from your hand.
   "01129.boost": boost(discardAtRandom(1)),
   // Whirlwind — [star] Forced Interrupt: When Whirlwind attacks you, also resolve his attack against each other hero.
@@ -146,7 +163,11 @@ export const MASTERS_OF_EVIL_SET = defineAbilities({
   "01133.when-revealed": whenRevealed(
     enemyAttack(each(MASTERS_OF_EVIL_MINION), { bind: "mayhem" }),
     ifThen(not(made("mayhem")), [
-      chooseCards("minion", encounterCards(["deck", "discard"], MASTERS_OF_EVIL_MINION), { min: 1, max: 1, chooser: firstPlayer }),
+      chooseCards("minion", encounterCards(["deck", "discard"], MASTERS_OF_EVIL_MINION), {
+        min: 1,
+        max: 1,
+        chooser: firstPlayer,
+      }),
       putIntoPlay(chosen("minion"), you),
       shuffleEncounterDeck(),
     ]),

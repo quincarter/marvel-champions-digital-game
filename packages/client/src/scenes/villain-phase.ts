@@ -77,8 +77,9 @@
  * SKIP / DISMISS
  * ---------------------------------------------------------------------------
  * A villain phase the player has already read should not be a wall (PLAN.md).
- * "Skip" (button, top right) and Esc (or B on a pad) both call `this.scene.stop()` and do
- * nothing else — Board's own state is untouched, the actual game keeps
+ * "Skip" (button, top right) and Esc (or B on a pad) both fade this panel out and then call
+ * `this.scene.stop()` (`#close`, `ui/transitions.ts`'s `OverlayMotion`) and do nothing else —
+ * Board's own state is untouched, the actual game keeps
  * running underneath exactly as it would with this screen open. Because the
  * launch condition only fires on step one, skipping mid-phase does not get
  * this screen re-opened by a later step change in the same phase.
@@ -108,7 +109,7 @@
  */
 
 import Phaser from "phaser";
-import { cardOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import { cardOf, type GameState, type PlayerId } from "@mc/engine";
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { POOL_DEPS } from "../content/pool.js";
@@ -143,6 +144,7 @@ import type { SessionState } from "../store/session-store.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { OverlayMotion } from "../ui/transitions.js";
 
 /** How often a new beat is revealed while auto-advancing at normal motion. */
 const REVEAL_INTERVAL_MS = 550;
@@ -157,7 +159,8 @@ const REVEAL_INTERVAL_MS = 550;
  */
 const AUTO_CLOSE_DELAY_MS = 2600;
 
-const totalBeatsOf = (walkthrough: Walkthrough): number => walkthrough.steps.reduce((sum, step) => sum + step.beats.length, 0);
+const totalBeatsOf = (walkthrough: Walkthrough): number =>
+  walkthrough.steps.reduce((sum, step) => sum + step.beats.length, 0);
 
 /** "Klaw attacks Captain Marvel" / "Klaw schemes against Black Panther" — read straight off the activation the events named. */
 function activationHeadline(activation: ActivationBeat, state: GameState, viewer: PlayerId | null): string {
@@ -189,7 +192,9 @@ interface BreakdownCell {
 }
 
 /** `base + boost − defense = damage`, or `SCH + boost (± threat mod) = threat` — every number `resolved`'s own. */
-function breakdownOf(activation: ActivationBeat): { readonly cells: readonly BreakdownCell[]; readonly ops: readonly string[] } | null {
+function breakdownOf(
+  activation: ActivationBeat,
+): { readonly cells: readonly BreakdownCell[]; readonly ops: readonly string[] } | null {
   const boostLabel = `BOOST${activation.boosts.length > 1 ? ` ×${activation.boosts.length}` : ""}`;
   if (activation.kind === "attack") {
     const r = activation.resolved;
@@ -233,12 +238,14 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #closeTimer: Phaser.Time.TimerEvent | null = null;
   #buttons: McButton[] = [];
   #route: FocusRoute | null = null;
+  #motion = new OverlayMotion();
 
   constructor() {
     super({ key: SCENES.villainPhase });
   }
 
   create(): void {
+    this.#motion = new OverlayMotion();
     this.#walkthrough = emptyWalkthrough(1);
     this.#revealed = 0;
     this.#version = -2;
@@ -284,7 +291,11 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   #skip(): void {
-    this.scene.stop();
+    this.#close();
+  }
+
+  #close(): void {
+    this.#motion.exit(this, () => this.scene.stop());
   }
 
   /** Submits an inline interrupt answer exactly as the choice overlay would (`resolveChoice`) — an empty selection is "let it resolve". */
@@ -295,14 +306,20 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   #onState(state: SessionState): void {
     if (!state.game || state.game.outcome) {
       // No game, or the game just ended: Game Over owns the screen from here.
-      this.scene.stop();
+      this.#close();
       return;
     }
 
     if (state.version !== this.#version) {
       this.#version = state.version;
       const before = totalBeatsOf(this.#walkthrough);
-      this.#walkthrough = appendWalkthrough(this.#walkthrough, state.lastEvents, state.game, state.perspectiveId, POOL_DEPS);
+      this.#walkthrough = appendWalkthrough(
+        this.#walkthrough,
+        state.lastEvents,
+        state.game,
+        state.perspectiveId,
+        POOL_DEPS,
+      );
       const after = totalBeatsOf(this.#walkthrough);
       // A fresh villain phase clears the previous one's beats (the walkthrough
       // shows one phase at a time) — the reveal cursor follows suit.
@@ -392,7 +409,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
      * here are the ones the player drives: Continue, Skip, or Esc.
      */
     if (this.#walkthrough.complete && caughtUp && !reducedMotion) {
-      this.#closeTimer ??= this.time.delayedCall(AUTO_CLOSE_DELAY_MS, () => this.scene.stop());
+      this.#closeTimer ??= this.time.delayedCall(AUTO_CLOSE_DELAY_MS, () => this.#close());
     } else {
       this.#closeTimer?.remove();
       this.#closeTimer = null;
@@ -400,6 +417,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
   }
 
   #draw(): void {
+    // Already fading out (Skip, Continue, Esc, or the auto-close timer) — a
+    // beat arriving mid-fade must not redraw the panel out from under the tween.
+    if (this.#motion.leaving) return;
     const state = this.#latest;
     if (!state?.game) return;
     const game = state.game;
@@ -422,6 +442,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+    const panelsFrom = this.children.list.length;
 
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(layout.panel.x, layout.panel.y, layout.panel.width, layout.panel.height);
@@ -430,14 +451,35 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     // Header: title, skip control.
     const title = this.add
-      .text(layout.title.x, layout.title.y, `VILLAIN PHASE — ROUND ${this.#walkthrough.round}`, textStyle({ ...typeRole.screenTitle }, accent.heroRed.hex))
+      .text(
+        layout.title.x,
+        layout.title.y,
+        `VILLAIN PHASE — ROUND ${this.#walkthrough.round}`,
+        textStyle({ ...typeRole.screenTitle }, accent.heroRed.hex),
+      )
       .setOrigin(0, 0)
       .setLetterSpacing(1);
     fitText(title, layout.title.width, phone ? 22 : 34);
 
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: "Skip", type: typeRole.label, rect: layout.skip, onClick: () => this.#skip() }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "Skip",
+        type: typeRole.label,
+        rect: layout.skip,
+        onClick: () => this.#skip(),
+      }),
+    );
 
-    label(this, layout.subtitle.x, layout.subtitle.y, this.#subtitle(reveal), typeRole.label, surface.paper.hex, ink.secondary);
+    label(
+      this,
+      layout.subtitle.x,
+      layout.subtitle.y,
+      this.#subtitle(reveal),
+      typeRole.label,
+      surface.paper.hex,
+      ink.secondary,
+    );
 
     if (!phone) this.#drawStepStrip(layout.stepStrip, reveal.steps);
     else this.#drawStepLine(layout.stepLine, reveal.steps);
@@ -453,11 +495,20 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       // phone, the rail too — P09's "full-bleed interrupt") rather than
       // fighting the breakdown/queued layout for room it doesn't have.
       const mergedBottom = phone ? layout.phaseLog.y + layout.phaseLog.height : layout.queued.y + layout.queued.height;
-      const merged: Rect = { x: layout.happeningNow.x, y: layout.happeningNow.y, width: layout.happeningNow.width, height: mergedBottom - layout.happeningNow.y };
+      const merged: Rect = {
+        x: layout.happeningNow.x,
+        y: layout.happeningNow.y,
+        width: layout.happeningNow.width,
+        height: mergedBottom - layout.happeningNow.y,
+      };
       this.#drawInterrupt(merged, inline, game, viewerId, pause!, formFactor, stops);
       if (!phone) {
         // L02's own point: the team rail stays legible behind the interrupt.
-        this.#drawTeamStatus(layout.teamStatus, teamStatusOf(game, POOL_DEPS, activationTargetOf(reveal.current?.activation ?? null)), viewer);
+        this.#drawTeamStatus(
+          layout.teamStatus,
+          teamStatusOf(game, POOL_DEPS, activationTargetOf(reveal.current?.activation ?? null)),
+          viewer,
+        );
         this.#drawMainScheme(layout.mainScheme, mainSchemeCalloutOf(game, POOL_DEPS));
         this.#drawPhaseLog(layout.phaseLog, reveal);
       }
@@ -469,15 +520,21 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#drawHappeningNow(layout.happeningNow, reveal, game, viewer);
       this.#drawBoosts(layout.boosts, reveal.current?.activation ?? null, game, viewerId, formFactor);
       this.#drawQueued(layout.queued, queuedActivationsOf(game, POOL_DEPS), game, viewer);
-      this.#drawTeamStatus(layout.teamStatus, teamStatusOf(game, POOL_DEPS, activationTargetOf(reveal.current?.activation ?? null)), viewer);
+      this.#drawTeamStatus(
+        layout.teamStatus,
+        teamStatusOf(game, POOL_DEPS, activationTargetOf(reveal.current?.activation ?? null)),
+        viewer,
+      );
       this.#drawMainScheme(layout.mainScheme, mainSchemeCalloutOf(game, POOL_DEPS));
       this.#drawPhaseLog(layout.phaseLog, reveal);
       finished = this.#drawFooter(layout.footer, reveal);
     }
 
     // Last, so the focus ring sits over the button it frames.
-    if (finished) stops.set("continue", { rect: layout.footer, activate: () => this.scene.stop() });
+    if (finished) stops.set("continue", { rect: layout.footer, activate: () => this.#close() });
     this.#route?.set(villainPhaseFocusOrder(finished, inline?.map((o) => o.optionId) ?? []), stops);
+
+    this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
   #subtitle(reveal: Reveal): string {
@@ -499,7 +556,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       cg.strokeRect(chip.x, chip.y, chip.width, chip.height);
 
       const heading = this.add
-        .text(chip.x + 8, chip.y + 6, `${step.number} · ${step.title}`, textStyle({ ...typeRole.rowTitle, size: 11 }, textColor, textAlpha))
+        .text(
+          chip.x + 8,
+          chip.y + 6,
+          `${step.number} · ${step.title}`,
+          textStyle({ ...typeRole.rowTitle, size: 11 }, textColor, textAlpha),
+        )
         .setOrigin(0, 0)
         .setWordWrapWidth(chip.width - 16);
       fitText(heading, chip.width - 16, 11);
@@ -518,7 +580,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const doneCount = steps.filter((step) => step.revealStatus === "done").length;
     const stepNumber = activeIndex >= 0 ? activeIndex + 1 : Math.min(steps.length, Math.max(1, doneCount));
     const current = steps[stepNumber - 1];
-    label(this, rect.x, rect.y, `Step ${stepNumber} of ${steps.length} — ${current?.title ?? ""}`, typeRole.label, surface.paper.hex, ink.body);
+    label(
+      this,
+      rect.x,
+      rect.y,
+      `Step ${stepNumber} of ${steps.length} — ${current?.title ?? ""}`,
+      typeRole.label,
+      surface.paper.hex,
+      ink.body,
+    );
   }
 
   /**
@@ -538,17 +608,35 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     g.lineStyle(border.object, pause ? signal.caution.hex : surface.ink.hex, 1);
     g.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
-    label(this, rect.x + 14, rect.y + 12, pause ? "Auto-advance paused" : "Happening now", typeRole.label, pause ? signal.caution.hex : accent.heroRed.hex, 1);
+    label(
+      this,
+      rect.x + 14,
+      rect.y + 12,
+      pause ? "Auto-advance paused" : "Happening now",
+      typeRole.label,
+      pause ? signal.caution.hex : accent.heroRed.hex,
+      1,
+    );
 
     if (pause) {
       const bodyText = this.add
-        .text(rect.x + 14, rect.y + 30, reveal.current?.text ?? "", textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex))
+        .text(
+          rect.x + 14,
+          rect.y + 30,
+          reveal.current?.text ?? "",
+          textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex),
+        )
         .setOrigin(0, 0)
         .setWordWrapWidth(rect.width - 28)
         .setMaxLines(2);
       if (pause.offer) {
         this.add
-          .text(rect.x + 14, rect.y + 30 + bodyText.height + 4, pause.offer, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+          .text(
+            rect.x + 14,
+            rect.y + 30 + bodyText.height + 4,
+            pause.offer,
+            textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+          )
           .setOrigin(0, 0)
           .setWordWrapWidth(rect.width - 28)
           .setMaxLines(2);
@@ -557,7 +645,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         this,
         rect.x + 14,
         rect.y + rect.height - 18,
-        pause.soleDecider ? "Peril — nobody else may act until this is answered." : "The pending-choice sheet has the answer controls.",
+        pause.soleDecider
+          ? "Peril — nobody else may act until this is answered."
+          : "The pending-choice sheet has the answer controls.",
         typeRole.label,
         surface.ink.hex,
         ink.secondary,
@@ -576,7 +666,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     }
 
     const headline = this.add
-      .text(rect.x + 14, rect.y + 30, activationHeadline(activation, state, viewer).toUpperCase(), textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex))
+      .text(
+        rect.x + 14,
+        rect.y + 30,
+        activationHeadline(activation, state, viewer).toUpperCase(),
+        textStyle({ ...typeRole.barTitle, size: 22 }, surface.ink.hex),
+      )
       .setOrigin(0, 0)
       .setWordWrapWidth(rect.width - 28)
       .setMaxLines(1);
@@ -588,7 +683,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       cursorY += this.#drawBreakdownRow(rect.x + 14, cursorY, rect.width - 28, breakdown);
     } else {
       const narration = this.add
-        .text(rect.x + 14, cursorY, reveal.current?.text ?? "", textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .text(
+          rect.x + 14,
+          cursorY,
+          reveal.current?.text ?? "",
+          textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+        )
         .setOrigin(0, 0)
         .setWordWrapWidth(rect.width - 28)
         .setMaxLines(2);
@@ -597,16 +697,34 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     // RRG "Defend": an ally's DEF never reduces the attack — "readable from
     // `defenderDeclared`" without waiting for the resolved beat.
-    if (activation.kind === "attack" && activation.defender && !activation.defender.declined && activation.defender.instanceId) {
+    if (
+      activation.kind === "attack" &&
+      activation.defender &&
+      !activation.defender.declined &&
+      activation.defender.instanceId
+    ) {
       const defenderId = activation.defender.instanceId;
       if (cardOf(state, defenderId)?.type === "ally") {
-        label(this, rect.x + 14, Math.min(cursorY, rect.y + rect.height - 16), `${cardName(state, defenderId)} defended — no DEF reduction.`, typeRole.label, surface.ink.hex, ink.secondary);
+        label(
+          this,
+          rect.x + 14,
+          Math.min(cursorY, rect.y + rect.height - 16),
+          `${cardName(state, defenderId)} defended — no DEF reduction.`,
+          typeRole.label,
+          surface.ink.hex,
+          ink.secondary,
+        );
       }
     }
   }
 
   /** Returns the vertical room the row used, so the caller can stack something under it. */
-  #drawBreakdownRow(x: number, y: number, width: number, breakdown: { readonly cells: readonly BreakdownCell[]; readonly ops: readonly string[] }): number {
+  #drawBreakdownRow(
+    x: number,
+    y: number,
+    width: number,
+    breakdown: { readonly cells: readonly BreakdownCell[]; readonly ops: readonly string[] },
+  ): number {
     const { cells, ops } = breakdown;
     const opWidth = 22;
     const cellWidth = Math.max(1, (width - opWidth * ops.length) / cells.length);
@@ -614,13 +732,23 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     cells.forEach((cell, i) => {
       label(this, cx, y, cell.label, typeRole.label, surface.ink.hex, ink.secondary);
       const valueText = this.add
-        .text(cx, y + 15, cell.value, textStyle({ ...typeRole.barTitle, size: 24 }, cell.emphasis ? accent.heroRed.hex : surface.ink.hex))
+        .text(
+          cx,
+          y + 15,
+          cell.value,
+          textStyle({ ...typeRole.barTitle, size: 24 }, cell.emphasis ? accent.heroRed.hex : surface.ink.hex),
+        )
         .setOrigin(0, 0);
       fitText(valueText, cellWidth - 4, 24);
       cx += cellWidth;
       if (i < ops.length) {
         this.add
-          .text(cx + opWidth / 2, y + 19, ops[i]!, textStyle({ ...typeRole.barTitle, size: 18 }, surface.ink.hex, ink.secondary))
+          .text(
+            cx + opWidth / 2,
+            y + 19,
+            ops[i]!,
+            textStyle({ ...typeRole.barTitle, size: 18 }, surface.ink.hex, ink.secondary),
+          )
           .setOrigin(0.5, 0);
         cx += opWidth;
       }
@@ -638,7 +766,13 @@ export class VillainPhaseOverlay extends Phaser.Scene {
    * Tapping or holding/right-clicking the art opens Inspect for that card,
    * the table's usual card gesture (`ui/hold-target.ts`).
    */
-  #drawBoosts(rect: Rect, activation: ActivationBeat | null, state: GameState, viewerId: PlayerId, formFactor: FormFactor): void {
+  #drawBoosts(
+    rect: Rect,
+    activation: ActivationBeat | null,
+    state: GameState,
+    viewerId: PlayerId,
+    formFactor: FormFactor,
+  ): void {
     const boosts = activation?.boosts ?? [];
     if (boosts.length === 0 || rect.height <= 0) return;
 
@@ -656,11 +790,19 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         const art = drawArt(this, key, slot.art);
         if (!art) {
           this.add
-            .text(slot.art.x + slot.art.width / 2, slot.art.y + slot.art.height / 2, "no scan", textStyle(typeRole.label, surface.ink.hex, ink.meta))
+            .text(
+              slot.art.x + slot.art.width / 2,
+              slot.art.y + slot.art.height / 2,
+              "no scan",
+              textStyle(typeRole.label, surface.ink.hex, ink.meta),
+            )
             .setOrigin(0.5);
         }
 
-        const zone = this.add.zone(slot.art.x, slot.art.y, slot.art.width, slot.art.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        const zone = this.add
+          .zone(slot.art.x, slot.art.y, slot.art.width, slot.art.height)
+          .setOrigin(0, 0)
+          .setInteractive({ useHandCursor: true });
         const openInspect = (): void => {
           this.scene.launch(SCENES.inspect, { instanceId: boost.instanceId });
         };
@@ -672,7 +814,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       label(this, textX, textY, `BOOST CARD ${i + 1}`, typeRole.label, surface.ink.hex, ink.label);
       const model = inspectModel(state, boost.instanceId, null, viewerId, POOL_DEPS);
       const nameText = this.add
-        .text(textX, textY + 14, model.name.toUpperCase(), textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex))
+        .text(
+          textX,
+          textY + 14,
+          model.name.toUpperCase(),
+          textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex),
+        )
         .setOrigin(0, 0)
         .setWordWrapWidth(textWidth)
         .setMaxLines(1);
@@ -685,7 +832,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
             ? `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"} · Boost ability cancelled.`
             : `${boost.boostIcons} icon${boost.boostIcons === 1 ? "" : "s"}.`;
       const statusText = this.add
-        .text(textX, nameText.y + nameText.height + 2, status, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+        .text(
+          textX,
+          nameText.y + nameText.height + 2,
+          status,
+          textStyle(typeRole.label, surface.ink.hex, ink.secondary),
+        )
         .setOrigin(0, 0)
         .setWordWrapWidth(textWidth)
         .setMaxLines(1);
@@ -694,11 +846,21 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         .text(textX, statusText.y + statusText.height + 2, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
         .setOrigin(0, 0)
         .setWordWrapWidth(textWidth)
-        .setMaxLines(Math.max(0, Math.floor((slot.card.y + slot.card.height - (statusText.y + statusText.height + 2)) / 14)));
+        .setMaxLines(
+          Math.max(0, Math.floor((slot.card.y + slot.card.height - (statusText.y + statusText.height + 2)) / 14)),
+        );
     });
 
     if (overflow > 0) {
-      label(this, rect.x + rect.width - 70, rect.y + rect.height - 14, `+${overflow} more`, typeRole.label, surface.ink.hex, ink.secondary);
+      label(
+        this,
+        rect.x + rect.width - 70,
+        rect.y + rect.height - 14,
+        `+${overflow} more`,
+        typeRole.label,
+        surface.ink.hex,
+        ink.secondary,
+      );
     }
   }
 
@@ -710,7 +872,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     if (seats.length === 0) {
       this.add
-        .text(rect.x, top, "Nothing else queued this phase.", textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+        .text(
+          rect.x,
+          top,
+          "Nothing else queued this phase.",
+          textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+        )
         .setOrigin(0, 0);
       return;
     }
@@ -720,13 +887,26 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     seats.slice(0, rows).forEach((seat, i) => {
       const y = top + i * rowHeight;
       this.add
-        .text(rect.x, y, queuedSeatLine(seat, state, viewer), textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+        .text(
+          rect.x,
+          y,
+          queuedSeatLine(seat, state, viewer),
+          textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+        )
         .setOrigin(0, 0)
         .setWordWrapWidth(rect.width)
         .setMaxLines(1);
     });
     if (seats.length > rows) {
-      label(this, rect.x, top + rows * rowHeight, `+${seats.length - rows} more seat${seats.length - rows === 1 ? "" : "s"}`, typeRole.label, surface.paper.hex, ink.meta);
+      label(
+        this,
+        rect.x,
+        top + rows * rowHeight,
+        `+${seats.length - rows} more seat${seats.length - rows === 1 ? "" : "s"}`,
+        typeRole.label,
+        surface.paper.hex,
+        ink.meta,
+      );
     }
   }
 
@@ -752,7 +932,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       const seat = row.seat;
       const isYou = seat.playerId === viewer;
       const heading = row.targeted ? "TARGETED" : isYou ? "YOU" : null;
-      label(this, rect.x + 8, y + 4, heading ? `${seat.name.toUpperCase()} · ${heading}` : seat.name.toUpperCase(), typeRole.label, surface.ink.hex, row.targeted ? accent.heroRed.hex : ink.secondary);
+      label(
+        this,
+        rect.x + 8,
+        y + 4,
+        heading ? `${seat.name.toUpperCase()} · ${heading}` : seat.name.toUpperCase(),
+        typeRole.label,
+        surface.ink.hex,
+        row.targeted ? accent.heroRed.hex : ink.secondary,
+      );
 
       if (seat.eliminated) {
         label(this, rect.x + 8, y + 18, "Defeated", typeRole.label, surface.ink.hex, ink.secondary);
@@ -766,7 +954,15 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       const bg = this.add.graphics();
       bg.fillStyle(surface.ink.hex, 0.15).fillRect(rect.x + 8, barY, barWidth, 8);
       bg.fillStyle(signal.heal.hex, 1).fillRect(rect.x + 8, barY, barWidth * ratio, 8);
-      label(this, rect.x + 8 + barWidth + 6, barY - 3, `${seat.hp.current}/${seat.hp.max}`, typeRole.label, surface.ink.hex, ink.secondary);
+      label(
+        this,
+        rect.x + 8 + barWidth + 6,
+        barY - 3,
+        `${seat.hp.current}/${seat.hp.max}`,
+        typeRole.label,
+        surface.ink.hex,
+        ink.secondary,
+      );
     });
   }
 
@@ -780,7 +976,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
     label(this, rect.x + 12, rect.y + 8, "MAIN SCHEME", typeRole.label, surface.ink.hex, ink.label);
     const lineText = this.add
-      .text(rect.x + 12, rect.y + 22, callout.line.toUpperCase(), textStyle({ ...typeRole.barTitle, size: 20 }, surface.ink.hex))
+      .text(
+        rect.x + 12,
+        rect.y + 22,
+        callout.line.toUpperCase(),
+        textStyle({ ...typeRole.barTitle, size: 20 }, surface.ink.hex),
+      )
       .setOrigin(0, 0);
     fitText(lineText, rect.width - 24, 20);
 
@@ -812,7 +1013,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const all = reveal.steps.flatMap((step) => step.beats.map((beat) => ({ step, beat })));
     // The most recent entry is already the "happening now" beat; the log is
     // everything before it, most recent first.
-    const history = all.slice(0, Math.max(0, all.length - 1)).reverse().slice(0, rows);
+    const history = all
+      .slice(0, Math.max(0, all.length - 1))
+      .reverse()
+      .slice(0, rows);
 
     history.forEach((entry, index) => {
       const y = top + index * rowHeight;
@@ -851,7 +1055,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // one line and the resolve button stands beside the cards instead of under them.
     const short = rect.height < INTERRUPT_SHORT_PANEL;
     const bodyText = this.add
-      .text(rect.x + 14, rect.y + 28, pause.label, textStyle({ ...typeRole.barTitle, size: short ? 14 : 18 }, surface.ink.hex))
+      .text(
+        rect.x + 14,
+        rect.y + 28,
+        pause.label,
+        textStyle({ ...typeRole.barTitle, size: short ? 14 : 18 }, surface.ink.hex),
+      )
       .setOrigin(0, 0)
       .setWordWrapWidth(rect.width - 28)
       .setMaxLines(short ? 1 : 2);
@@ -860,8 +1069,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     const cardsTop = rect.y + 28 + bodyText.height + (short ? 8 : 12);
     const besideWidth = short ? Math.round((rect.width - 28) * 0.3) : 0;
     const cardsArea: Rect = short
-      ? { x: rect.x + 14, y: cardsTop, width: rect.width - 28 - besideWidth - 12, height: Math.max(0, rect.y + rect.height - 12 - cardsTop) }
-      : { x: rect.x + 14, y: cardsTop, width: rect.width - 28, height: Math.max(0, rect.y + rect.height - 12 - resolveHeight - 12 - cardsTop) };
+      ? {
+          x: rect.x + 14,
+          y: cardsTop,
+          width: rect.width - 28 - besideWidth - 12,
+          height: Math.max(0, rect.y + rect.height - 12 - cardsTop),
+        }
+      : {
+          x: rect.x + 14,
+          y: cardsTop,
+          width: rect.width - 28,
+          height: Math.max(0, rect.y + rect.height - 12 - resolveHeight - 12 - cardsTop),
+        };
     const slots = interruptCardsLayout(cardsArea, options.length, formFactor, hit.target);
 
     options.forEach((option, i) => {
@@ -877,10 +1096,18 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         const key = cardArt(this).request(this, artFor(cardOf(state, option.instanceId), { kind: "front" }));
         if (!drawArt(this, key, slot.art)) {
           this.add
-            .text(slot.art.x + slot.art.width / 2, slot.art.y + slot.art.height / 2, "no scan", textStyle(typeRole.label, surface.ink.hex, ink.meta))
+            .text(
+              slot.art.x + slot.art.width / 2,
+              slot.art.y + slot.art.height / 2,
+              "no scan",
+              textStyle(typeRole.label, surface.ink.hex, ink.meta),
+            )
             .setOrigin(0.5);
         }
-        const zone = this.add.zone(slot.art.x, slot.art.y, slot.art.width, slot.art.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+        const zone = this.add
+          .zone(slot.art.x, slot.art.y, slot.art.width, slot.art.height)
+          .setOrigin(0, 0)
+          .setInteractive({ useHandCursor: true });
         const openInspect = (): void => {
           this.scene.launch(SCENES.inspect, { instanceId: option.instanceId });
         };
@@ -895,7 +1122,12 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         .setMaxLines(1);
       fitText(nameText, textWidth, 16);
       const typeText = this.add
-        .text(textX, textY + nameText.height + 2, model.typeLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+        .text(
+          textX,
+          textY + nameText.height + 2,
+          model.typeLine,
+          textStyle(typeRole.label, surface.ink.hex, ink.secondary),
+        )
         .setOrigin(0, 0)
         .setWordWrapWidth(textWidth)
         .setMaxLines(1);
@@ -920,13 +1152,29 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           onClick: () => this.#resolve([option.optionId]),
         }),
       );
-      stops.set(`interrupt:${option.optionId}`, { rect: slot.button, activate: () => this.#resolve([option.optionId]) });
+      stops.set(`interrupt:${option.optionId}`, {
+        rect: slot.button,
+        activate: () => this.#resolve([option.optionId]),
+      });
     });
 
     const resolveRect: Rect = short
-      ? { x: rect.x + rect.width - 14 - besideWidth, y: cardsArea.y + cardsArea.height - resolveHeight, width: besideWidth, height: resolveHeight }
+      ? {
+          x: rect.x + rect.width - 14 - besideWidth,
+          y: cardsArea.y + cardsArea.height - resolveHeight,
+          width: besideWidth,
+          height: resolveHeight,
+        }
       : { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Let it resolve", type: typeRole.barTitle, rect: resolveRect, onClick: () => this.#resolve([]) }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Let it resolve",
+        type: typeRole.barTitle,
+        rect: resolveRect,
+        onClick: () => this.#resolve([]),
+      }),
+    );
     stops.set("resolve", { rect: resolveRect, activate: () => this.#resolve([]) });
   }
 
@@ -942,7 +1190,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           label: "Continue",
           type: typeRole.barTitle,
           rect,
-          onClick: () => this.scene.stop(),
+          onClick: () => this.#close(),
         }),
       );
       return true;

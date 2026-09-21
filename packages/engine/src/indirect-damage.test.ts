@@ -25,7 +25,14 @@ const you = { kind: "controller" } as const;
 const indirect = (id: string, amount: number, to: "you" | "each") => {
   const ability = stubAbility(`${id}.action`, {
     trigger: { kind: "action" },
-    effects: [{ kind: "dealIndirectDamage", to: to === "you" ? you : { kind: "each" }, amount: { kind: "const", value: amount }, bind: "hit" }],
+    effects: [
+      {
+        kind: "dealIndirectDamage",
+        to: to === "you" ? you : { kind: "each" },
+        amount: { kind: "const", value: amount },
+        bind: "hit",
+      },
+    ],
   });
   return { card: stubEvent({ id, cost: 0, abilities: [ability.ref] }), ability };
 };
@@ -48,7 +55,14 @@ const FORTRESS = stubSupport({ id: "fortress", cost: 0, abilities: [FORTRESS_ABI
 /** "Forced Response: after a character takes damage, place a counter here for each damaged character." */
 const WATCH_RESPONSE = stubAbility("watch.response", {
   trigger: { kind: "response", forced: true, on: { on: "dealDamage", targetIs: { categories: ["character"] } } },
-  effects: [{ kind: "addCounters", target: { kind: "self" }, counterType: "damagedSeen", amount: { kind: "count", query: { categories: ["character"], damaged: true } } }],
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "self" },
+      counterType: "damagedSeen",
+      amount: { kind: "count", query: { categories: ["character"], damaged: true } },
+    },
+  ],
 });
 const WATCH = stubSupport({ id: "watch", cost: 0, abilities: [WATCH_RESPONSE.ref] });
 /** "Interrupt: when an ally would take damage, prevent 1 of it" (Echo's shape). */
@@ -58,23 +72,44 @@ const SHIELD_INTERRUPT = stubAbility("shield.interrupt", {
 });
 const SHIELD = stubSupport({ id: "shield", cost: 0, abilities: [SHIELD_INTERRUPT.ref] });
 
-const deps: EngineDeps = depsOf(TWO.ability, FOUR.ability, EACH_TWO.ability, WARD_ABILITY, FORTRESS_ABILITY, WATCH_RESPONSE, SHIELD_INTERRUPT);
+const deps: EngineDeps = depsOf(
+  TWO.ability,
+  FOUR.ability,
+  EACH_TWO.ability,
+  WARD_ABILITY,
+  FORTRESS_ABILITY,
+  WATCH_RESPONSE,
+  SHIELD_INTERRUPT,
+);
 const EXTRA = [TWO.card, FOUR.card, EACH_TWO.card, WARD, FORTRESS, WATCH, SHIELD];
 const copies = (id: CardId, n: number): readonly CardId[] => Array.from({ length: n }, () => id);
 
 function game(players = 1): GameState {
-  return newGame({ players, deps, extraCards: EXTRA, deck: [...DEFAULT_DECK, ...EXTRA.flatMap((card) => copies(card.id, 2))] });
+  return newGame({
+    players,
+    deps,
+    extraCards: EXTRA,
+    deck: [...DEFAULT_DECK, ...EXTRA.flatMap((card) => copies(card.id, 2))],
+  });
 }
 
 /** Test surgery: a card from `player`'s deck put straight into play under their control. */
-function inPlay(state: GameState, player: PlayerId, card: CardId): { readonly state: GameState; readonly id: InstanceId } {
+function inPlay(
+  state: GameState,
+  player: PlayerId,
+  card: CardId,
+): { readonly state: GameState; readonly id: InstanceId } {
   const given = giveCard(state, player, card);
   const s = given.state;
   return {
     id: given.id,
     state: {
       ...s,
-      players: s.players.map((p) => (p.playerId === player ? { ...p, hand: p.hand.filter((x) => x !== given.id), playArea: [...p.playArea, given.id] } : p)),
+      players: s.players.map((p) =>
+        p.playerId === player
+          ? { ...p, hand: p.hand.filter((x) => x !== given.id), playArea: [...p.playArea, given.id] }
+          : p,
+      ),
       instances: { ...s.instances, [given.id]: { ...mustInstance(s, given.id), faceup: true, controllerId: player } },
     },
   };
@@ -82,13 +117,20 @@ function inPlay(state: GameState, player: PlayerId, card: CardId): { readonly st
 
 const withDamage = (state: GameState, id: InstanceId, damage: number, tough = false): GameState => ({
   ...state,
-  instances: { ...state.instances, [id]: { ...mustInstance(state, id), damage, statuses: { stunned: 0, confused: 0, tough: tough ? 1 : 0 } } },
+  instances: {
+    ...state.instances,
+    [id]: { ...mustInstance(state, id), damage, statuses: { stunned: 0, confused: 0, tough: tough ? 1 : 0 } },
+  },
 });
 
 /** p1 plays `card` for 0; stops at the first choice (if any). */
 function play(state: GameState, card: CardId) {
   const given = giveCard(state, p1, card);
-  const result = applyCommand(given.state, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null }, deps);
+  const result = applyCommand(
+    given.state,
+    { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null },
+    deps,
+  );
   if (!result.ok) throw new Error(result.error.message);
   return { state: result.state, events: result.events };
 }
@@ -112,9 +154,19 @@ describe("§3.7 indirect damage", () => {
       minSelections: 4,
       maxSelections: 4,
     });
-    expect(choice?.options.map((o) => o.optionId)).toEqual([`${hero}#1`, `${hero}#2`, `${hero}#3`, `${ally.id}#1`, `${ally.id}#2`]);
+    expect(choice?.options.map((o) => o.optionId)).toEqual([
+      `${hero}#1`,
+      `${hero}#2`,
+      `${hero}#3`,
+      `${ally.id}#1`,
+      `${ally.id}#2`,
+    ]);
 
-    const after = settle(resolvePending(state, [`${hero}#1`, `${hero}#2`, `${ally.id}#1`, `${ally.id}#2`], deps), undefined, deps);
+    const after = settle(
+      resolvePending(state, [`${hero}#1`, `${hero}#2`, `${ally.id}#1`, `${ally.id}#2`], deps),
+      undefined,
+      deps,
+    );
     expect(mustInstance(after, hero).damage).toBe(9);
     // Assigned exactly its remaining hit points: defeated.
     expect(mustPlayer(after, p1).discard).toContain(ally.id);
@@ -134,7 +186,11 @@ describe("§3.7 indirect damage", () => {
     const { state } = play(primed, FOUR.card.id);
     expect(state.pendingChoice?.prompt).toMatchObject({ caps: { [ally.id]: 3 } });
     const hero = identityOf(state);
-    const after = settle(resolvePending(state, [`${ally.id}#1`, `${ally.id}#2`, `${ally.id}#3`, `${hero}#1`], deps), undefined, deps);
+    const after = settle(
+      resolvePending(state, [`${ally.id}#1`, `${ally.id}#2`, `${ally.id}#3`, `${hero}#1`], deps),
+      undefined,
+      deps,
+    );
     expect(mustInstance(after, ally.id)).toMatchObject({ damage: 0, statuses: { tough: 0 } });
     expect(mustInstance(after, hero).damage).toBe(1);
   });
@@ -182,9 +238,22 @@ describe("§3.7 indirect damage", () => {
     const p2Ally = inPlay(start, p2, ALLY.id);
     const { state } = play(p2Ally.state, EACH_TWO.card.id);
     // p1 has only their identity: no question. p2 has an ally: p2 decides.
-    expect(state.pendingChoice).toMatchObject({ playerId: p2, authority: "player", prompt: { kind: "assignIndirectDamage", amount: 2 } });
+    expect(state.pendingChoice).toMatchObject({
+      playerId: p2,
+      authority: "player",
+      prompt: { kind: "assignIndirectDamage", amount: 2 },
+    });
     const after = expectOk(
-      applyCommand(state, { type: "resolveChoice", playerId: p2, choiceId: state.pendingChoice?.choiceId as never, selectedOptionIds: [`${p2Ally.id}#1`, `${p2Ally.id}#2`] }, deps),
+      applyCommand(
+        state,
+        {
+          type: "resolveChoice",
+          playerId: p2,
+          choiceId: state.pendingChoice?.choiceId as never,
+          selectedOptionIds: [`${p2Ally.id}#1`, `${p2Ally.id}#2`],
+        },
+        deps,
+      ),
     );
     expect(mustInstance(after, identityOf(after, p1)).damage).toBe(2);
     expect(mustInstance(after, identityOf(after, p2)).damage).toBe(0);

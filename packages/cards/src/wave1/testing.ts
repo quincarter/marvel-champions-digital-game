@@ -15,7 +15,8 @@ import { WAVE1_DEPS } from "./index.js";
  */
 
 /** `run`, wired to `WAVE1_DEPS` — the wave 1 analog of `../testing/harness.ts`'s `run` (which is pinned to Core). */
-export const runWave1 = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState => runWith(WAVE1_DEPS, state, ...commands);
+export const runWave1 = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState =>
+  runWith(WAVE1_DEPS, state, ...commands);
 
 /** A wave 1 game past setup, with every opening hand kept — the wave 1 analog of `startCoreGame`. */
 export function startWave1Game(config: GameSetupConfig): GameState {
@@ -25,7 +26,10 @@ export function startWave1Game(config: GameSetupConfig): GameState {
 }
 
 /** `../testing/staging.ts`'s `driveEvents`, wired to `WAVE1_DEPS`. */
-export const driveEvents = (state: GameState, ...commands: readonly Command[]): { readonly state: GameState; readonly events: readonly GameEvent[] } =>
+export const driveEvents = (
+  state: GameState,
+  ...commands: readonly Command[]
+): { readonly state: GameState; readonly events: readonly GameEvent[] } =>
   driveEventsWith(WAVE1_DEPS, state, ...commands);
 
 export { WAVE1_DEPS } from "./index.js";

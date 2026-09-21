@@ -17,7 +17,9 @@ test("Rhino (standard), solo: Hawkeye (Leadership)", () => {
   const created = createGame(config, WAVE2_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const result = playToOutcome(created.state, WAVE2_DEPS);
-  console.info(`[wave2 e2e] Rhino (standard) — Hawkeye: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+  console.info(
+    `[wave2 e2e] Rhino (standard) — Hawkeye: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
   expect(result.outcome).not.toBeNull();
   expect(result.rounds).toBeGreaterThanOrEqual(1);
   const replayed = replay(result.session.log, WAVE2_DEPS);
@@ -26,11 +28,16 @@ test("Rhino (standard), solo: Hawkeye (Leadership)", () => {
 }, 120_000);
 
 test("Rhino (standard), solo: Spider-Woman (Aggression & Justice)", () => {
-  const config = wave2Scenario("rhino", { players: [{ starterDeckId: "spider-woman-aggression-justice" }], seed: 2026 });
+  const config = wave2Scenario("rhino", {
+    players: [{ starterDeckId: "spider-woman-aggression-justice" }],
+    seed: 2026,
+  });
   const created = createGame(config, WAVE2_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const result = playToOutcome(created.state, WAVE2_DEPS);
-  console.info(`[wave2 e2e] Rhino (standard) — Spider-Woman: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+  console.info(
+    `[wave2 e2e] Rhino (standard) — Spider-Woman: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
   expect(result.outcome).not.toBeNull();
   expect(result.rounds).toBeGreaterThanOrEqual(1);
   const replayed = replay(result.session.log, WAVE2_DEPS);
@@ -74,11 +81,16 @@ describe("every trors scenario reaches an outcome (standard, solo)", () => {
   // scenario reaches an outcome, full stop" and the one exception lives in exactly one place.
 
   test("Absorbing Man (standard), solo: Spider-Woman (Aggression & Justice)", () => {
-    const config = wave2Scenario("absorbing-man", { players: [{ starterDeckId: "spider-woman-aggression-justice" }], seed: 3002 });
+    const config = wave2Scenario("absorbing-man", {
+      players: [{ starterDeckId: "spider-woman-aggression-justice" }],
+      seed: 3002,
+    });
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const result = playToOutcome(created.state, WAVE2_DEPS);
-    console.info(`[wave2 e2e] Absorbing Man (standard, solo) — Spider-Woman: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+    console.info(
+      `[wave2 e2e] Absorbing Man (standard, solo) — Spider-Woman: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+    );
     expect(result.outcome).not.toBeNull();
     expect(result.rounds).toBeGreaterThanOrEqual(1);
     const replayed = replay(result.session.log, WAVE2_DEPS);
@@ -91,7 +103,9 @@ describe("every trors scenario reaches an outcome (standard, solo)", () => {
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const result = playToOutcome(created.state, WAVE2_DEPS);
-    console.info(`[wave2 e2e] Taskmaster (standard, solo) — Hawkeye: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+    console.info(
+      `[wave2 e2e] Taskmaster (standard, solo) — Hawkeye: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+    );
     expect(result.outcome).not.toBeNull();
     expect(result.rounds).toBeGreaterThanOrEqual(1);
     const replayed = replay(result.session.log, WAVE2_DEPS);
@@ -100,11 +114,16 @@ describe("every trors scenario reaches an outcome (standard, solo)", () => {
   }, 120_000);
 
   test("Zola (standard), solo: Spider-Woman (Aggression & Justice)", () => {
-    const config = wave2Scenario("zola", { players: [{ starterDeckId: "spider-woman-aggression-justice" }], seed: 3004 });
+    const config = wave2Scenario("zola", {
+      players: [{ starterDeckId: "spider-woman-aggression-justice" }],
+      seed: 3004,
+    });
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const result = playToOutcome(created.state, WAVE2_DEPS);
-    console.info(`[wave2 e2e] Zola (standard, solo) — Spider-Woman: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+    console.info(
+      `[wave2 e2e] Zola (standard, solo) — Spider-Woman: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+    );
     expect(result.outcome).not.toBeNull();
     expect(result.rounds).toBeGreaterThanOrEqual(1);
     const replayed = replay(result.session.log, WAVE2_DEPS);
@@ -117,7 +136,9 @@ describe("every trors scenario reaches an outcome (standard, solo)", () => {
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const result = playToOutcome(created.state, WAVE2_DEPS);
-    console.info(`[wave2 e2e] Red Skull (standard, solo) — Hawkeye: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+    console.info(
+      `[wave2 e2e] Red Skull (standard, solo) — Hawkeye: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+    );
     expect(result.outcome).not.toBeNull();
     expect(result.rounds).toBeGreaterThanOrEqual(1);
     const replayed = replay(result.session.log, WAVE2_DEPS);
@@ -139,7 +160,9 @@ test("Crossbones (standard), 2-player: Hawkeye and Spider-Woman — outcome", ()
   const created = createGame(config, WAVE2_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const result = playToOutcome(created.state, WAVE2_DEPS);
-  console.info(`[wave2 e2e] Crossbones (standard, 2-player) — Hawkeye/Spider-Woman: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+  console.info(
+    `[wave2 e2e] Crossbones (standard, 2-player) — Hawkeye/Spider-Woman: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
   expect(result.outcome).not.toBeNull();
   expect(result.rounds).toBeGreaterThanOrEqual(1);
   const replayed = replay(result.session.log, WAVE2_DEPS);
@@ -153,11 +176,17 @@ test("Crossbones (standard), 2-player: Hawkeye and Spider-Woman — outcome", ()
  * the villain's stage 2, docs/phase7-wave2.md §2.2) actually resolves through both remaining stages to an outcome.
  */
 test("Absorbing Man (expert), solo: Hawkeye (Leadership)", () => {
-  const config = wave2Scenario("absorbing-man", { players: [{ starterDeckId: "hawkeye-leadership" }], difficulty: "expert", seed: 3007 });
+  const config = wave2Scenario("absorbing-man", {
+    players: [{ starterDeckId: "hawkeye-leadership" }],
+    difficulty: "expert",
+    seed: 3007,
+  });
   const created = createGame(config, WAVE2_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const result = playToOutcome(created.state, WAVE2_DEPS);
-  console.info(`[wave2 e2e] Absorbing Man (expert, solo) — Hawkeye: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+  console.info(
+    `[wave2 e2e] Absorbing Man (expert, solo) — Hawkeye: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
   expect(result.outcome).not.toBeNull();
   expect(result.rounds).toBeGreaterThanOrEqual(1);
   const replayed = replay(result.session.log, WAVE2_DEPS);

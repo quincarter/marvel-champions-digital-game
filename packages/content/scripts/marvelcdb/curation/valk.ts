@@ -17,7 +17,8 @@ export const VALK_CURATION: PackCuration = {
   pack: {
     name: "Valkyrie",
     releaseDate: "2022-01-21",
-    releaseDateSource: 'Hall of Heroes Brunnhilde/Valkyrie page (https://hallofheroeslcg.com/brunnhilde-valkyrie/): "Release date: January 21, 2022"',
+    releaseDateSource:
+      'Hall of Heroes Brunnhilde/Valkyrie page (https://hallofheroeslcg.com/brunnhilde-valkyrie/): "Release date: January 21, 2022"',
   },
   outDir: "src/data/valk",
   exportPrefix: "VALK",

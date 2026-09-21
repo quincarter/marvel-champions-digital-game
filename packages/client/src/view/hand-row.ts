@@ -62,12 +62,20 @@ export function handRow(inner: Rect, options: HandRowOptions): HandRowLayout {
   const count = options.tableTiles;
   const tileWidth =
     count > 0
-      ? Math.max(STRIP_TILE_MIN, Math.min(area.height * CARD_ASPECT, (area.width * STRIP_MAX_SHARE - STRIP_GAP * count) / count))
+      ? Math.max(
+          STRIP_TILE_MIN,
+          Math.min(area.height * CARD_ASPECT, (area.width * STRIP_MAX_SHARE - STRIP_GAP * count) / count),
+        )
       : 0;
   const stripWidth = count > 0 ? count * (tileWidth + STRIP_GAP) + RULE_WIDTH + STRIP_GAP : 0;
 
   const cardArea: Rect = { ...area, x: area.x + stripWidth, width: Math.max(0, area.width - stripWidth) };
-  const raw = cardRow(cardArea, options.handCount, { gap: CARD_GAP, maxHeight: cardArea.height, fan: options.fan, align: "start" });
+  const raw = cardRow(cardArea, options.handCount, {
+    gap: CARD_GAP,
+    maxHeight: cardArea.height,
+    fan: options.fan,
+    align: "start",
+  });
   const rowRight = raw.reduce((right, slot) => Math.max(right, slot.x + slot.width), cardArea.x);
 
   // Strip and hand centred together when they fit. A row that overflows — the
@@ -82,7 +90,9 @@ export function handRow(inner: Rect, options: HandRowOptions): HandRowLayout {
     height: area.height,
   }));
   const rule: Rect | null =
-    count > 0 ? { x: area.x + shift + count * (tileWidth + STRIP_GAP), y: area.y, width: RULE_WIDTH, height: area.height } : null;
+    count > 0
+      ? { x: area.x + shift + count * (tileWidth + STRIP_GAP), y: area.y, width: RULE_WIDTH, height: area.height }
+      : null;
 
   return {
     deck,
@@ -101,7 +111,12 @@ function flankingPiles(inner: Rect): { deck: Rect; discard: Rect; area: Rect } {
   return {
     deck: { x: inner.x, y, width, height },
     discard: { x: inner.x + inner.width - width, y, width, height },
-    area: { x: inner.x + width + PILE_GAP, y: inner.y, width: Math.max(0, inner.width - 2 * (width + PILE_GAP)), height: inner.height },
+    area: {
+      x: inner.x + width + PILE_GAP,
+      y: inner.y,
+      width: Math.max(0, inner.width - 2 * (width + PILE_GAP)),
+      height: inner.height,
+    },
   };
 }
 
@@ -111,6 +126,11 @@ function stackedPiles(inner: Rect): { deck: Rect; discard: Rect; area: Rect } {
   return {
     deck: { x: inner.x, y: inner.y, width, height: half },
     discard: { x: inner.x, y: inner.y + half + CARD_GAP, width, height: half },
-    area: { x: inner.x + width + PILE_GAP, y: inner.y, width: Math.max(0, inner.width - width - PILE_GAP), height: inner.height },
+    area: {
+      x: inner.x + width + PILE_GAP,
+      y: inner.y,
+      width: Math.max(0, inner.width - width - PILE_GAP),
+      height: inner.height,
+    },
   };
 }

@@ -8,6 +8,7 @@ import { textStyle } from "../../ui/theme.js";
 import { label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, SchemePanel } from "../../view/board-model.js";
 import type { Rect } from "../../view/layout.js";
+import { threatFromValue } from "../../view/threat-motion.js";
 import type { BoardDrawContext } from "./context.js";
 import { dimAlpha, targetState } from "./selection.js";
 
@@ -45,7 +46,15 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
     frame.fillStyle(surface.parchment.hex, dim).fillRect(column.x, column.y, column.width, column.height);
     const key = ctx.art.request(scene, scheme.art);
     if (!drawArt(scene, key, column, { alpha: dim, focusY: 0.3 })) {
-      label(scene, column.x + column.width / 2, column.y + column.height / 2, "art", typeRole.label, surface.ink.hex, ink.meta * dim).setOrigin(0.5);
+      label(
+        scene,
+        column.x + column.width / 2,
+        column.y + column.height / 2,
+        "art",
+        typeRole.label,
+        surface.ink.hex,
+        ink.meta * dim,
+      ).setOrigin(0.5);
     }
     const rule = scene.add.graphics();
     rule.fillStyle(surface.ink.hex, dim).fillRect(column.x + column.width, column.y, 3, column.height);
@@ -61,23 +70,49 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
 
   const meter: Rect = { x: textLeft, y: rect.y + rect.height - 26, width: textWidth, height: 18 };
   const mg = scene.add.graphics();
-  mg.fillStyle(surface.parchment.hex, dim).fillRect(meter.x, meter.y, meter.width, meter.height);
-  // Drawn against `meterMax`, not `target`: a side scheme has no threshold but
-  // still has somewhere it started from, and a bar that empties as it is
-  // thwarted says more than a bare number beside a main scheme that has one.
-  if (scheme.meterMax && scheme.meterMax > 0) {
-    const ratio = Math.min(1, scheme.threat / scheme.meterMax);
-    mg.fillStyle(threatMeter.fill.hex, dim).fillRect(meter.x, meter.y, meter.width * ratio, meter.height);
-  }
-  mg.lineStyle(2, surface.ink.hex, dim).strokeRect(meter.x, meter.y, meter.width, meter.height);
-  scene.add
+  const meterText = scene.add
     .text(
       meter.x + meter.width / 2,
       meter.y + meter.height / 2,
-      scheme.target === null ? `${scheme.threat} THREAT` : `${scheme.threat} / ${scheme.target} THREAT`,
+      "",
       textStyle(typeRole.statSmall, surface.ink.hex, dim),
     )
     .setOrigin(0.5);
+
+  // Drawn against `meterMax`, not `target`: a side scheme has no threshold but
+  // still has somewhere it started from, and a bar that empties as it is
+  // thwarted says more than a bare number beside a main scheme that has one.
+  //
+  // Redrawn as a whole — clear and repaint all three layers — from `threat`
+  // each time this is called, so a `threatPlaced`/`threatRemoved` tween's
+  // `onUpdate` (below) can slide the fill and count the number together the
+  // same way `McHpPlate.update()` re-runs its own `redraw()`.
+  const paintMeter = (threat: number): void => {
+    mg.clear();
+    mg.fillStyle(surface.parchment.hex, dim).fillRect(meter.x, meter.y, meter.width, meter.height);
+    if (scheme.meterMax && scheme.meterMax > 0) {
+      const ratio = Math.min(1, Math.max(0, threat) / scheme.meterMax);
+      mg.fillStyle(threatMeter.fill.hex, dim).fillRect(meter.x, meter.y, meter.width * ratio, meter.height);
+    }
+    mg.lineStyle(2, surface.ink.hex, dim).strokeRect(meter.x, meter.y, meter.width, meter.height);
+    const shown = Math.round(threat);
+    meterText.setText(scheme.target === null ? `${shown} THREAT` : `${shown} / ${scheme.target} THREAT`);
+  };
+
+  const tick = ctx.motion.threatTick(scheme.instanceId);
+  if (tick) {
+    const driver = { value: threatFromValue(scheme.threat, tick.tick) };
+    paintMeter(driver.value);
+    scene.tweens.add({
+      targets: driver,
+      value: scheme.threat,
+      duration: tick.remainingMs,
+      ease: "Quad.easeOut",
+      onUpdate: () => paintMeter(driver.value),
+    });
+  } else {
+    paintMeter(scheme.threat);
+  }
 
   ctx.makeTapTarget(rect, scheme.instanceId);
   return rect.y + rect.height;

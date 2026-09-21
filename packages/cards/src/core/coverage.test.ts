@@ -14,7 +14,9 @@ describe("Core Set ability coverage", () => {
 
   it("every ability reference has a registry entry (except the explicit PENDING list)", () => {
     const missing = ALL_REFS.filter((id) => !registered.has(id) && !PENDING.includes(id));
-    expect(missing, `unscripted ability refs (script them or list them in PENDING):\n${missing.join("\n")}`).toEqual([]);
+    expect(missing, `unscripted ability refs (script them or list them in PENDING):\n${missing.join("\n")}`).toEqual(
+      [],
+    );
   });
 
   it("PENDING only lists real refs that are still unscripted", () => {

@@ -66,22 +66,47 @@
  */
 
 import Phaser from "phaser";
-import { parseMarvelCdbReference, type AnyCard, type CoreAspect, type Deck, type DeckId, type HeroIdentityCard } from "@mc/content";
+import {
+  parseMarvelCdbReference,
+  type AnyCard,
+  type CoreAspect,
+  type Deck,
+  type DeckId,
+  type HeroIdentityCard,
+} from "@mc/content";
 import { DECK_MIN_CARDS } from "@mc/engine";
 import { POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/pool.js";
 import { cardArt } from "../art/card-art.js";
 import { artFor } from "../art/art-source.js";
 import { drawArt } from "../art/card-art.js";
 import { browsablePool, duplicateDeck, type PoolFilter } from "../view/deck-builder-model.js";
-import { exportDecklistText, importFromMarvelCdbResponseText, importFromPasteText, type ImportEnv, type ImportOutcome } from "../view/deck-import-model.js";
+import {
+  exportDecklistText,
+  importFromMarvelCdbResponseText,
+  importFromPasteText,
+  type ImportEnv,
+  type ImportOutcome,
+} from "../view/deck-import-model.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { sortByRecency } from "../view/deck-recency.js";
-import { compositionTilesOf, costCurveBars, deckStatsOf, type CompositionTile, type CostCurveBar } from "../view/deck-stats.js";
+import {
+  compositionTilesOf,
+  costCurveBars,
+  deckStatsOf,
+  type CompositionTile,
+  type CostCurveBar,
+} from "../view/deck-stats.js";
 import { deckStatusOf } from "../view/deck-status.js";
 import { cardTitleOf, deckMetaLine, SOURCE_LABEL } from "../view/deck-title.js";
 import { decksLayout, type DecksTab } from "../view/decks-layout.js";
 import { poolCellRect, poolColumnAt, poolGridGeometry, type PoolGridGeometry } from "../view/deck-pool-grid.js";
-import { deckSourcesOf, heroAspectsOf, heroRosterMatches, withSelectionPinned, type DeckSourceKind, type RosterFilter } from "../view/roster-filter.js";
+import {
+  deckSourcesOf,
+  heroAspectsOf,
+  heroRosterMatches,
+  withSelectionPinned,
+  type RosterFilter,
+} from "../view/roster-filter.js";
 import { decksFocusOrder } from "../view/screen-focus.js";
 import { deckKeyToString, resultsHistoryOf, type DeckKey, type ResultsHistory } from "../view/results-history.js";
 import { CHIP_GAP, minChipCellWidth } from "../view/chip-layout.js";
@@ -90,7 +115,17 @@ import { ListScroll } from "../view/list-scroll.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
-import { McButton, McMultilineInput, McTabs, McTextInput, fitText, label, paintDotGrid, paintPanel, sectionHeader } from "../ui/widgets.js";
+import {
+  McButton,
+  McMultilineInput,
+  McTabs,
+  McTextInput,
+  fitText,
+  label,
+  paintDotGrid,
+  paintPanel,
+  sectionHeader,
+} from "../ui/widgets.js";
 import { appSession, deckStorage } from "../session.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
@@ -99,6 +134,7 @@ import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { fetchMarvelCdbDeck } from "../platform/deck-fetch.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 /** What a caller (Title, on an `illegal_deck` refusal) hands over on launch. */
 export interface DecksSceneData {
@@ -113,7 +149,8 @@ const ROW_HEIGHT = 84;
 const GROUP_LABEL_HEIGHT = 16;
 const CARDS_BY_ID = new Map<string, AnyCard>(POOL_CARDS.map((card) => [card.id as string, card]));
 
-const IMPORT_EXPORT_DESCRIPTION = "Paste a decklist or drop a .txt from MarvelCDB. Exports carry the aspect and hero set.";
+const IMPORT_EXPORT_DESCRIPTION =
+  "Paste a decklist or drop a .txt from MarvelCDB. Exports carry the aspect and hero set.";
 
 /** A compact chip/button row's own height — smaller than `hit.target`'s 44px touch target, matching D14's small filter/action controls (point 2/3/5 of the 2026-09-18 fidelity pass). Still comfortably tappable. */
 const COMPACT_ROW = 28;
@@ -122,11 +159,16 @@ const COMPACT_ROW = 28;
 const CARD_TITLE_TYPE = { ...typeRole.barTitle, size: 18, letterSpacing: 0.6 };
 
 /** One row of the deck list: a deck row (optionally the first of a group, carrying that group's small label) or the trailing "+ New deck" tile (never filtered out, always the list's own last row) — see the module doc comment for why a group no longer gets its own full-height row. */
-type DeckRow = { readonly kind: "deck"; readonly option: DeckOption; readonly groupLabel?: string } | { readonly kind: "newDeck" } | { readonly kind: "message"; readonly text: string };
+type DeckRow =
+  | { readonly kind: "deck"; readonly option: DeckOption; readonly groupLabel?: string }
+  | { readonly kind: "newDeck" }
+  | { readonly kind: "message"; readonly text: string };
 
 /** `deck`'s namespaced record key — the same one `view/results-history.ts` keys `DeckRecord` by. */
 function keyOf(deck: Deck): DeckKey {
-  return deck.source.kind === "precon" ? { kind: "starter", starterDeckId: deck.source.starterDeckId as string } : { kind: "custom", deckId: deck.id as string };
+  return deck.source.kind === "precon"
+    ? { kind: "starter", starterDeckId: deck.source.starterDeckId as string }
+    : { kind: "custom", deckId: deck.id as string };
 }
 
 /** One chip/button's own natural width — never less than it needs (`minChipCellWidth`'s own estimate is deliberately conservative), so a row of these can never truncate the way equal-width division could. */
@@ -150,7 +192,14 @@ interface PlacedChip {
  * the truncation risk structurally, without touching that estimate or the other screens still using equal-width
  * rows). `align: "right"` packs each row from the row's own right edge backward (D14's own pool-filter placement).
  */
-function packChipsNatural(chips: readonly ChipDef[], x: number, y: number, maxWidth: number, rowHeight: number, align: "left" | "right" = "left"): { readonly placed: readonly PlacedChip[]; readonly bottom: number } {
+function packChipsNatural(
+  chips: readonly ChipDef[],
+  x: number,
+  y: number,
+  maxWidth: number,
+  rowHeight: number,
+  align: "left" | "right" = "left",
+): { readonly placed: readonly PlacedChip[]; readonly bottom: number } {
   const rows: { chip: ChipDef; width: number }[][] = [];
   let current: { chip: ChipDef; width: number }[] = [];
   let currentWidth = 0;
@@ -269,8 +318,13 @@ export class DecksScene extends Phaser.Scene {
       this.#poolList = null;
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#pasteInput?.focused ?? false) || (this.#marvelcdbInput?.focused ?? false) || (this.#searchInput?.focused ?? false),
-      onPage: (direction) => (this.#activeTab === "cards" ? this.#poolList?.scrollByPage(direction) : this.#list?.scrollByPage(direction)),
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        (this.#pasteInput?.focused ?? false) ||
+        (this.#marvelcdbInput?.focused ?? false) ||
+        (this.#searchInput?.focused ?? false),
+      onPage: (direction) =>
+        this.#activeTab === "cards" ? this.#poolList?.scrollByPage(direction) : this.#list?.scrollByPage(direction),
       onHomeEnd: (edge) => {
         const list = this.#activeTab === "cards" ? this.#poolList : this.#list;
         if (edge === "home") list?.scrollToStart();
@@ -279,6 +333,7 @@ export class DecksScene extends Phaser.Scene {
     });
 
     this.#rebuild();
+    fadeScreenIn(this);
     void deckStorage()
       .list()
       .then((decks) => {
@@ -340,7 +395,11 @@ export class DecksScene extends Phaser.Scene {
     // The surviving DOM text fields survive the sweep: every object they draw with is detached first and handed
     // back after, in the same order. The paste field is a rexUI sizer with children of its own in the display
     // list, so its root alone is not enough (`McMultilineInput.gameObjects`).
-    const kept = [...(this.#pasteInput?.gameObjects ?? []), ...(this.#marvelcdbInput ? [this.#marvelcdbInput.gameObject] : []), ...(this.#searchInput ? [this.#searchInput.gameObject] : [])];
+    const kept = [
+      ...(this.#pasteInput?.gameObjects ?? []),
+      ...(this.#marvelcdbInput ? [this.#marvelcdbInput.gameObject] : []),
+      ...(this.#searchInput ? [this.#searchInput.gameObject] : []),
+    ];
     for (const node of kept) this.children.remove(node);
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
@@ -352,8 +411,12 @@ export class DecksScene extends Phaser.Scene {
     paintPanel(chrome, { x: 0, y: 0, width, height: layout.header.y + layout.header.height + 16 }, "onInk", "rest");
 
     const backRect: Rect = { x: layout.header.x, y: layout.header.y, width: 100, height: layout.header.height };
-    const goBack = (): void => { this.scene.start(SCENES.title); };
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: "◂ Title", type: typeRole.rowTitle, rect: backRect, onClick: goBack }));
+    const goBack = (): void => {
+      goToScreen(this, SCENES.title);
+    };
+    this.#buttons.push(
+      new McButton(this, { kind: "onInk", label: "◂ Title", type: typeRole.rowTitle, rect: backRect, onClick: goBack }),
+    );
     this.#stops.set("back", { rect: backRect, activate: goBack });
 
     // The header's right-aligned meta label: the real pool size, never an owned-card claim (docs/phase4-screen-gaps.md
@@ -363,18 +426,34 @@ export class DecksScene extends Phaser.Scene {
     const poolMeta =
       layout.formFactor === "phone"
         ? null
-        : label(this, layout.header.x + layout.header.width, layout.header.y + layout.header.height / 2, `Card pool · ${POOL_CARDS.length} cards`, typeRole.label, surface.paper.hex, ink.label).setOrigin(1, 0.5);
+        : label(
+            this,
+            layout.header.x + layout.header.width,
+            layout.header.y + layout.header.height / 2,
+            `Card pool · ${POOL_CARDS.length} cards`,
+            typeRole.label,
+            surface.paper.hex,
+            ink.label,
+          ).setOrigin(1, 0.5);
 
     // A large Bangers screen title beside the Back button (point 1 of the 2026-09-18 fidelity pass: D14's own
     // title reads far bigger than a bar-title chip's usual 22px).
-    const title = this.add.text(backRect.x + backRect.width + 12, layout.header.y + layout.header.height / 2, "DECKS & COLLECTION", { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "28px" });
+    const title = this.add.text(
+      backRect.x + backRect.width + 12,
+      layout.header.y + layout.header.height / 2,
+      "DECKS & COLLECTION",
+      { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "28px" },
+    );
     title.setOrigin(0, 0.5);
     fitText(title, layout.header.width - backRect.width - 24 - (poolMeta ? poolMeta.width + 16 : 0), 28);
 
     const allOptions = this.#deckOptions();
     if (this.#selectedDeckId === null || !allOptions.some((o) => (o.deck.id as string) === this.#selectedDeckId)) {
       const wanted = !this.#focusedOnce ? this.#data.focusDeckId : null;
-      this.#selectedDeckId = (wanted && allOptions.some((o) => (o.deck.id as string) === wanted) ? wanted : (allOptions[0]?.deck.id as string | undefined)) ?? null;
+      this.#selectedDeckId =
+        (wanted && allOptions.some((o) => (o.deck.id as string) === wanted)
+          ? wanted
+          : (allOptions[0]?.deck.id as string | undefined)) ?? null;
     }
     const selected = allOptions.find((o) => (o.deck.id as string) === this.#selectedDeckId) ?? null;
 
@@ -409,7 +488,11 @@ export class DecksScene extends Phaser.Scene {
         activeId: this.#activeTab,
         onSelect: (id) => this.#setTab(id as DecksTab),
       });
-      const tabCell = (index: number): Rect => ({ ...layout.tabs!, x: layout.tabs!.x + (index * layout.tabs!.width) / 3, width: layout.tabs!.width / 3 });
+      const tabCell = (index: number): Rect => ({
+        ...layout.tabs!,
+        x: layout.tabs!.x + (index * layout.tabs!.width) / 3,
+        width: layout.tabs!.width / 3,
+      });
       this.#stops.set("tab:decks", { rect: tabCell(0), activate: () => this.#setTab("decks") });
       this.#stops.set("tab:cards", { rect: tabCell(1), activate: () => this.#setTab("cards") });
       this.#stops.set("tab:stats", { rect: tabCell(2), activate: () => this.#setTab("stats") });
@@ -426,7 +509,8 @@ export class DecksScene extends Phaser.Scene {
           deckIds,
           chipIds: this.#activeTab === "decks" ? this.#chipDefs(allOptions).map((c) => c.id) : [],
           poolCardIds,
-          poolChipIds: this.#activeTab === "cards" && selected ? this.#poolChipDefs(selected.deck).map((c) => c.id) : [],
+          poolChipIds:
+            this.#activeTab === "cards" && selected ? this.#poolChipDefs(selected.deck).map((c) => c.id) : [],
           wide: false,
           activeTab: this.#activeTab,
           hasSelection: selected !== null,
@@ -459,7 +543,14 @@ export class DecksScene extends Phaser.Scene {
     let y = sectionHeader(this, rect.x, rect.y, column, "Your decks");
 
     if (this.#status) {
-      const banner = this.add.text(left, y, this.#status.text, textStyle(typeRole.body, this.#status.tone === "error" ? accent.redDeep.hex : signal.heal.hex)).setWordWrapWidth(column);
+      const banner = this.add
+        .text(
+          left,
+          y,
+          this.#status.text,
+          textStyle(typeRole.body, this.#status.tone === "error" ? accent.redDeep.hex : signal.heal.hex),
+        )
+        .setWordWrapWidth(column);
       y += banner.height + 10;
     }
 
@@ -479,12 +570,26 @@ export class DecksScene extends Phaser.Scene {
       });
     }
     this.#stops.set("deck-search", { rect: searchRect, activate: () => this.#searchInput?.focus() });
-    const filtersToggleRect: Rect = { x: left + column - filtersToggleWidth, y, width: filtersToggleWidth, height: COMPACT_ROW };
+    const filtersToggleRect: Rect = {
+      x: left + column - filtersToggleWidth,
+      y,
+      width: filtersToggleWidth,
+      height: COMPACT_ROW,
+    };
     const toggleFilters = (): void => {
       this.#filtersExpanded = !this.#filtersExpanded;
       this.#rebuild();
     };
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#filtersExpanded ? "Filters ▴" : "Filters ▾", type: typeRole.label, rect: filtersToggleRect, selected: this.#filtersExpanded, onClick: toggleFilters }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: this.#filtersExpanded ? "Filters ▴" : "Filters ▾",
+        type: typeRole.label,
+        rect: filtersToggleRect,
+        selected: this.#filtersExpanded,
+        onClick: toggleFilters,
+      }),
+    );
     this.#stops.set("filters-toggle", { rect: filtersToggleRect, activate: toggleFilters });
     y += COMPACT_ROW + 8;
 
@@ -492,7 +597,16 @@ export class DecksScene extends Phaser.Scene {
     if (chipDefs.length > 0) {
       const packed = packChipsNatural(chipDefs, left, y, column, COMPACT_ROW);
       for (const { chip, rect: cell } of packed.placed) {
-        this.#buttons.push(new McButton(this, { kind: "secondary", label: chip.text, type: typeRole.label, rect: cell, selected: chip.selected, onClick: chip.onClick }));
+        this.#buttons.push(
+          new McButton(this, {
+            kind: "secondary",
+            label: chip.text,
+            type: typeRole.label,
+            rect: cell,
+            selected: chip.selected,
+            onClick: chip.onClick,
+          }),
+        );
         this.#stops.set(`deck-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
       }
       y = packed.bottom + 10;
@@ -505,7 +619,9 @@ export class DecksScene extends Phaser.Scene {
     const listRect: Rect = { x: left, y: listTop, width: column, height: listHeight };
 
     const rows = this.#buildRows(allOptions);
-    const deckIds = rows.filter((r): r is Extract<DeckRow, { kind: "deck" }> => r.kind === "deck").map((r) => r.option.deck.id as string);
+    const deckIds = rows
+      .filter((r): r is Extract<DeckRow, { kind: "deck" }> => r.kind === "deck")
+      .map((r) => r.option.deck.id as string);
 
     const renderRow = (index: number, rowRect: Rect): VirtualListRow => this.#renderDeckRow(rowRect, rows[index]!);
     // Rows carry no button of their own (every action lives in the stats pane, acting on the selection, and the
@@ -526,16 +642,29 @@ export class DecksScene extends Phaser.Scene {
       this.#selectedDeckId = row.option.deck.id as string;
       this.#rebuild();
     };
-    this.#list = new McVirtualList(this, { rect: listRect, rowHeight: ROW_HEIGHT, count: rows.length, renderRow, scroll: this.#listScroll, onRowActivate });
+    this.#list = new McVirtualList(this, {
+      rect: listRect,
+      rowHeight: ROW_HEIGHT,
+      count: rows.length,
+      renderRow,
+      scroll: this.#listScroll,
+      onRowActivate,
+    });
     const list = this.#list;
     if (!this.#focusedOnce && this.#data.focusDeckId) {
-      const index = rows.findIndex((row) => row.kind === "deck" && (row.option.deck.id as string) === this.#data.focusDeckId);
+      const index = rows.findIndex(
+        (row) => row.kind === "deck" && (row.option.deck.id as string) === this.#data.focusDeckId,
+      );
       if (index >= 0) list.scrollIntoView(index);
       this.#focusedOnce = true;
     }
     rows.forEach((row, index) => {
       if (row.kind === "newDeck") {
-        this.#stops.set("new-deck", { rect: () => list.rectFor(index), activate: () => this.#openBuilder(), ensureVisible: () => list.scrollIntoView(index) });
+        this.#stops.set("new-deck", {
+          rect: () => list.rectFor(index),
+          activate: () => this.#openBuilder(),
+          ensureVisible: () => list.scrollIntoView(index),
+        });
         return;
       }
       if (row.kind === "message") return;
@@ -546,7 +675,12 @@ export class DecksScene extends Phaser.Scene {
         this.#rebuild();
       };
       const doInspect = (): void => this.#inspectDeck(row.option);
-      this.#stops.set(`deck:${deckId}`, { rect: () => list.rectFor(index), activate: select, inspect: doInspect, ensureVisible });
+      this.#stops.set(`deck:${deckId}`, {
+        rect: () => list.rectFor(index),
+        activate: select,
+        inspect: doInspect,
+        ensureVisible,
+      });
     });
     y = listRect.y + listRect.height + 12;
 
@@ -556,7 +690,7 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #openBuilder(): void {
-    this.scene.start(SCENES.deckBuilder, {} satisfies DeckBuilderSceneData);
+    goToScreen(this, SCENES.deckBuilder, {} satisfies DeckBuilderSceneData);
   }
 
   /** S8's quick-filter chips for this list: aspect, source, and "Legal only" (this screen's own version of "playable now" — a deck's own legality, not a seating question). Only asked for while the "Filters" toggle is expanded. */
@@ -604,8 +738,10 @@ export class DecksScene extends Phaser.Scene {
    * than a separate full-height row — see the module doc comment for why.
    */
   #buildRows(allOptions: readonly DeckOption[]): readonly DeckRow[] {
-    const identityOf = (option: DeckOption): AnyCard | undefined => CARDS_BY_ID.get(option.deck.identityCardId as string);
-    const matches = (option: DeckOption): boolean => heroRosterMatches(option.deck, identityOf(option), this.#filter, option.blockedReason);
+    const identityOf = (option: DeckOption): AnyCard | undefined =>
+      CARDS_BY_ID.get(option.deck.identityCardId as string);
+    const matches = (option: DeckOption): boolean =>
+      heroRosterMatches(option.deck, identityOf(option), this.#filter, option.blockedReason);
     const isSelected = (option: DeckOption): boolean => (option.deck.id as string) === this.#selectedDeckId;
 
     const precons = allOptions.filter((o) => o.deck.source.kind === "precon");
@@ -614,8 +750,16 @@ export class DecksScene extends Phaser.Scene {
     const filteredSaved = withSelectionPinned(saved, matches, isSelected);
 
     const rows: DeckRow[] = [];
-    filteredPrecons.forEach((option, index) => rows.push({ kind: "deck", option, ...(index === 0 ? { groupLabel: "Preconstructed" } : {}) }));
-    filteredSaved.forEach((option, index) => rows.push({ kind: "deck", option, ...(index === 0 ? { groupLabel: "Your decks · recently changed first" } : {}) }));
+    filteredPrecons.forEach((option, index) =>
+      rows.push({ kind: "deck", option, ...(index === 0 ? { groupLabel: "Preconstructed" } : {}) }),
+    );
+    filteredSaved.forEach((option, index) =>
+      rows.push({
+        kind: "deck",
+        option,
+        ...(index === 0 ? { groupLabel: "Your decks · recently changed first" } : {}),
+      }),
+    );
     if (rows.length === 0) rows.push({ kind: "message", text: "No decks match this search." });
     rows.push({ kind: "newDeck" });
     return rows;
@@ -623,7 +767,9 @@ export class DecksScene extends Phaser.Scene {
 
   #renderDeckRow(rect: Rect, row: DeckRow): VirtualListRow {
     if (row.kind === "message") {
-      const text = this.add.text(rect.x + 4, rect.y + 8, row.text, textStyle(typeRole.body, surface.ink.hex, ink.meta)).setWordWrapWidth(rect.width - 8);
+      const text = this.add
+        .text(rect.x + 4, rect.y + 8, row.text, textStyle(typeRole.body, surface.ink.hex, ink.meta))
+        .setWordWrapWidth(rect.width - 8);
       return { objects: [text] };
     }
 
@@ -631,7 +777,15 @@ export class DecksScene extends Phaser.Scene {
       const tileRect: Rect = { x: rect.x + 4, y: rect.y + 2, width: rect.width - 8, height: rect.height - 4 };
       const g = this.add.graphics();
       paintPanel(g, tileRect, "quiet", "unavailable");
-      const text = label(this, tileRect.x + tileRect.width / 2, tileRect.y + tileRect.height / 2, "+ New deck", typeRole.rowTitle, surface.ink.hex, ink.body).setOrigin(0.5);
+      const text = label(
+        this,
+        tileRect.x + tileRect.width / 2,
+        tileRect.y + tileRect.height / 2,
+        "+ New deck",
+        typeRole.rowTitle,
+        surface.ink.hex,
+        ink.body,
+      ).setOrigin(0.5);
       return { objects: [g, text] };
     }
 
@@ -661,7 +815,12 @@ export class DecksScene extends Phaser.Scene {
     const fill = selected ? surface.ink.hex : surface.card.hex;
     const stroke = illegal ? accent.heroRed.hex : surface.ink.hex;
     g.fillStyle(fill, 1).fillRect(card.x, card.y, card.width, card.height);
-    g.lineStyle(selected || illegal ? border.object : border.control, stroke, 1).strokeRect(card.x, card.y, card.width, card.height);
+    g.lineStyle(selected || illegal ? border.object : border.control, stroke, 1).strokeRect(
+      card.x,
+      card.y,
+      card.width,
+      card.height,
+    );
     objects.push(g);
 
     const titleColor = selected ? surface.paper.hex : illegal ? accent.heroRed.hex : surface.ink.hex;
@@ -670,10 +829,20 @@ export class DecksScene extends Phaser.Scene {
 
     // The short "HERO / ASPECT" title for a precon, or the deck's own name otherwise (`cardTitleOf`) — Bangers,
     // fit to width rather than truncated mid-word where that's avoidable (point 2).
-    const name = this.add.text(card.x + 10, card.y + 8, caseOf(CARD_TITLE_TYPE, cardTitleOf(option)), textStyle(CARD_TITLE_TYPE, titleColor));
+    const name = this.add.text(
+      card.x + 10,
+      card.y + 8,
+      caseOf(CARD_TITLE_TYPE, cardTitleOf(option)),
+      textStyle(CARD_TITLE_TYPE, titleColor),
+    );
     fitText(name, card.width - 20, CARD_TITLE_TYPE.size);
     objects.push(name);
-    const meta = this.add.text(card.x + 10, card.y + 8 + name.height + 3, deckMetaLine(option, POOL_CARDS), textStyle(typeRole.label, metaColor, metaAlpha));
+    const meta = this.add.text(
+      card.x + 10,
+      card.y + 8 + name.height + 3,
+      deckMetaLine(option, POOL_CARDS),
+      textStyle(typeRole.label, metaColor, metaAlpha),
+    );
     // One line, shrunk or clipped to fit: a wrapped meta line ran into the selected card's record line.
     fitText(meta, card.width - 20, typeRole.label.size);
     objects.push(meta);
@@ -681,9 +850,20 @@ export class DecksScene extends Phaser.Scene {
     // Only the *selected* row shows its record (D14's own placement, `#s14`: the "Last played · record" line sits
     // inside the deck row, not the stats rail).
     if (selected) {
-      const record = this.#history?.decks.find((r) => deckKeyToString(r.key) === deckKeyToString(keyOf(option.deck))) ?? null;
-      const recordText = record && record.gamesPlayed > 0 ? `Last played ${record.lastPlayedAt ? new Date(record.lastPlayedAt).toLocaleDateString() : "—"} · ${record.wins}–${record.losses} record` : "Never played.";
-      objects.push(this.add.text(card.x + 10, card.y + card.height - 16, recordText, textStyle(typeRole.label, surface.paper.hex, ink.meta)));
+      const record =
+        this.#history?.decks.find((r) => deckKeyToString(r.key) === deckKeyToString(keyOf(option.deck))) ?? null;
+      const recordText =
+        record && record.gamesPlayed > 0
+          ? `Last played ${record.lastPlayedAt ? new Date(record.lastPlayedAt).toLocaleDateString() : "—"} · ${record.wins}–${record.losses} record`
+          : "Never played.";
+      objects.push(
+        this.add.text(
+          card.x + 10,
+          card.y + card.height - 16,
+          recordText,
+          textStyle(typeRole.label, surface.paper.hex, ink.meta),
+        ),
+      );
     }
 
     return { objects };
@@ -706,7 +886,12 @@ export class DecksScene extends Phaser.Scene {
 
     label(this, left, y, "import / export", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
-    const desc = this.add.text(left, y, IMPORT_EXPORT_DESCRIPTION, { ...textStyle(typeRole.body, surface.ink.hex, ink.secondary), fontSize: "10px" }).setWordWrapWidth(column);
+    const desc = this.add
+      .text(left, y, IMPORT_EXPORT_DESCRIPTION, {
+        ...textStyle(typeRole.body, surface.ink.hex, ink.secondary),
+        fontSize: "10px",
+      })
+      .setWordWrapWidth(column);
     y += desc.height + 8;
 
     const toggle = (which: "paste" | "marvelcdb"): void => {
@@ -718,14 +903,42 @@ export class DecksScene extends Phaser.Scene {
     const pasteToggleRect: Rect = { x: left, y, width: buttonWidth, height: COMPACT_ROW };
     const mcdbToggleRect: Rect = { x: left + buttonWidth + buttonGap, y, width: buttonWidth, height: COMPACT_ROW };
     const exportRect: Rect = { x: left + (buttonWidth + buttonGap) * 2, y, width: buttonWidth, height: COMPACT_ROW };
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Paste", type: typeRole.label, rect: pasteToggleRect, selected: this.#importExportOpen === "paste", onClick: () => toggle("paste") }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Paste",
+        type: typeRole.label,
+        rect: pasteToggleRect,
+        selected: this.#importExportOpen === "paste",
+        onClick: () => toggle("paste"),
+      }),
+    );
     this.#stops.set("ie-paste-toggle", { rect: pasteToggleRect, activate: () => toggle("paste") });
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "CDB link", type: typeRole.label, rect: mcdbToggleRect, selected: this.#importExportOpen === "marvelcdb", onClick: () => toggle("marvelcdb") }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "CDB link",
+        type: typeRole.label,
+        rect: mcdbToggleRect,
+        selected: this.#importExportOpen === "marvelcdb",
+        onClick: () => toggle("marvelcdb"),
+      }),
+    );
     this.#stops.set("ie-marvelcdb-toggle", { rect: mcdbToggleRect, activate: () => toggle("marvelcdb") });
     const doExport = (): void => {
       if (selected) this.#exportToClipboard(selected.deck);
     };
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Export", type: typeRole.label, rect: exportRect, enabled: selected !== null, ...(selected ? {} : { reason: "Select a deck first." }), onClick: doExport }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Export",
+        type: typeRole.label,
+        rect: exportRect,
+        enabled: selected !== null,
+        ...(selected ? {} : { reason: "Select a deck first." }),
+        onClick: doExport,
+      }),
+    );
     this.#stops.set("ie-export", { rect: exportRect, activate: doExport });
     y += COMPACT_ROW + 8;
 
@@ -746,7 +959,16 @@ export class DecksScene extends Phaser.Scene {
       y += 64 + 8;
       const pasteImportRect: Rect = { x: left, y, width: column, height: COMPACT_ROW };
       const doPasteImport = (): void => void this.#importPaste();
-      this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import this decklist", type: typeRole.label, rect: pasteImportRect, enabled: !this.#busy, onClick: doPasteImport }));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: this.#busy ? "Importing…" : "Import this decklist",
+          type: typeRole.label,
+          rect: pasteImportRect,
+          enabled: !this.#busy,
+          onClick: doPasteImport,
+        }),
+      );
       this.#stops.set("paste-import", { rect: pasteImportRect, activate: doPasteImport });
     } else {
       this.#pasteInput?.destroy();
@@ -773,7 +995,16 @@ export class DecksScene extends Phaser.Scene {
       y += COMPACT_ROW + 8;
       const mcdbImportRect: Rect = { x: left, y, width: column, height: COMPACT_ROW };
       const doMcdbImport = (): void => void this.#importMarvelCdb();
-      this.#buttons.push(new McButton(this, { kind: "secondary", label: this.#busy ? "Importing…" : "Import from MarvelCDB", type: typeRole.label, rect: mcdbImportRect, enabled: !this.#busy, onClick: doMcdbImport }));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: this.#busy ? "Importing…" : "Import from MarvelCDB",
+          type: typeRole.label,
+          rect: mcdbImportRect,
+          enabled: !this.#busy,
+          onClick: doMcdbImport,
+        }),
+      );
       this.#stops.set("marvelcdb-import", { rect: mcdbImportRect, activate: doMcdbImport });
     } else {
       this.#marvelcdbInput?.destroy();
@@ -792,13 +1023,22 @@ export class DecksScene extends Phaser.Scene {
 
     if (!selected) {
       const y = sectionHeader(this, left, rect.y, column, "Card pool");
-      this.add.text(left, y, "Select a deck to browse its card pool.", textStyle(typeRole.body, surface.ink.hex, ink.meta)).setWordWrapWidth(column);
+      this.add
+        .text(left, y, "Select a deck to browse its card pool.", textStyle(typeRole.body, surface.ink.hex, ink.meta))
+        .setWordWrapWidth(column);
       return [];
     }
     const identity = this.#identityOf(selected.deck);
     if (!identity) {
       const y = sectionHeader(this, left, rect.y, column, "Card pool");
-      this.add.text(left, y, "This deck's identity card isn't in the pool.", textStyle(typeRole.body, surface.ink.hex, ink.meta)).setWordWrapWidth(column);
+      this.add
+        .text(
+          left,
+          y,
+          "This deck's identity card isn't in the pool.",
+          textStyle(typeRole.body, surface.ink.hex, ink.meta),
+        )
+        .setWordWrapWidth(column);
       return [];
     }
 
@@ -814,8 +1054,14 @@ export class DecksScene extends Phaser.Scene {
     }
 
     const geometry = poolGridGeometry(column, cards.length);
-    const gridRect: Rect = { x: left, y, width: column, height: Math.max(geometry.cellHeight, rect.y + rect.height - y) };
-    const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow => this.#renderPoolRow(rowRect, geometry, cards, rowIndex, selected.deck);
+    const gridRect: Rect = {
+      x: left,
+      y,
+      width: column,
+      height: Math.max(geometry.cellHeight, rect.y + rect.height - y),
+    };
+    const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow =>
+      this.#renderPoolRow(rowRect, geometry, cards, rowIndex, selected.deck);
     const onRowActivate = (rowIndex: number, pointer: Phaser.Input.Pointer): void => {
       const list = this.#poolList;
       if (!list) return;
@@ -826,7 +1072,15 @@ export class DecksScene extends Phaser.Scene {
       const card = cards[startIndex + column2];
       if (card) this.#inspectCard(card);
     };
-    this.#poolList = new McVirtualList(this, { rect: gridRect, rowHeight: geometry.cellHeight, count: geometry.rows, renderRow, scroll: this.#poolListScroll, onRowActivate, background: false });
+    this.#poolList = new McVirtualList(this, {
+      rect: gridRect,
+      rowHeight: geometry.cellHeight,
+      count: geometry.rows,
+      renderRow,
+      scroll: this.#poolListScroll,
+      onRowActivate,
+      background: false,
+    });
     const list = this.#poolList;
     cards.forEach((card, index) => {
       const rowIndex = Math.floor(index / geometry.columns);
@@ -846,12 +1100,24 @@ export class DecksScene extends Phaser.Scene {
    * own row of chips below). Returns the next free `y`.
    */
   #drawPoolHeader(left: number, y: number, column: number, chipDefs: readonly ChipDef[]): number {
-    const heading = this.add.text(left, y, "CARD POOL", { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "19px" });
+    const heading = this.add.text(left, y, "CARD POOL", {
+      ...textStyle(typeRole.barTitle, surface.ink.hex),
+      fontSize: "19px",
+    });
     const chipHeight = COMPACT_ROW;
     const chipY = y + (heading.height - chipHeight) / 2;
     const packed = packChipsNatural(chipDefs, left, chipY, column, chipHeight, "right");
     for (const { chip, rect: cell } of packed.placed) {
-      this.#buttons.push(new McButton(this, { kind: "secondary", label: chip.text, type: typeRole.label, rect: cell, selected: chip.selected, onClick: chip.onClick }));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "secondary",
+          label: chip.text,
+          type: typeRole.label,
+          rect: cell,
+          selected: chip.selected,
+          onClick: chip.onClick,
+        }),
+      );
       this.#stops.set(`pool-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
     }
     const chipsLeftEdge = packed.placed.length > 0 ? Math.min(...packed.placed.map((p) => p.rect.x)) : left + column;
@@ -873,10 +1139,25 @@ export class DecksScene extends Phaser.Scene {
       this.#rebuild();
     };
     for (const aspect of deck.aspects) {
-      defs.push({ id: `aspect:${aspect}`, text: aspect, selected: this.#poolAspectFilter === aspect, onClick: () => toggleAspect(aspect) });
+      defs.push({
+        id: `aspect:${aspect}`,
+        text: aspect,
+        selected: this.#poolAspectFilter === aspect,
+        onClick: () => toggleAspect(aspect),
+      });
     }
-    defs.push({ id: "basic", text: "Basic", selected: this.#poolAspectFilter === "basic", onClick: () => toggleAspect("basic") });
-    defs.push({ id: "hero", text: "Hero", selected: this.#poolAspectFilter === "identity", onClick: () => toggleAspect("identity") });
+    defs.push({
+      id: "basic",
+      text: "Basic",
+      selected: this.#poolAspectFilter === "basic",
+      onClick: () => toggleAspect("basic"),
+    });
+    defs.push({
+      id: "hero",
+      text: "Hero",
+      selected: this.#poolAspectFilter === "identity",
+      onClick: () => toggleAspect("identity"),
+    });
     defs.push({
       id: "cost",
       text: "Cost ▾",
@@ -894,11 +1175,18 @@ export class DecksScene extends Phaser.Scene {
     const filter: PoolFilter = this.#poolAspectFilter ? { aspect: this.#poolAspectFilter } : {};
     const pool = browsablePool(POOL_CARDS, identity, deck.aspects, filter);
     if (!this.#poolSortByCost) return pool;
-    const costOf = (card: AnyCard): number => ("cost" in card ? (card as unknown as { cost: number }).cost : Number.POSITIVE_INFINITY);
+    const costOf = (card: AnyCard): number =>
+      "cost" in card ? (card as unknown as { cost: number }).cost : Number.POSITIVE_INFINITY;
     return [...pool].sort((a, b) => costOf(a) - costOf(b) || a.name.localeCompare(b.name));
   }
 
-  #renderPoolRow(rowRect: Rect, geometry: PoolGridGeometry, cards: readonly AnyCard[], rowIndex: number, deck: Deck): VirtualListRow {
+  #renderPoolRow(
+    rowRect: Rect,
+    geometry: PoolGridGeometry,
+    cards: readonly AnyCard[],
+    rowIndex: number,
+    deck: Deck,
+  ): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
     const startIndex = rowIndex * geometry.columns;
     const countInRow = Math.min(geometry.columns, cards.length - startIndex);
@@ -910,14 +1198,30 @@ export class DecksScene extends Phaser.Scene {
       paintPanel(g, cardRect, "card", "rest");
       objects.push(g);
 
-      const artRect: Rect = { x: cardRect.x + 2, y: cardRect.y + 2, width: cardRect.width - 4, height: cardRect.height - geometry.captionHeight - 4 };
+      const artRect: Rect = {
+        x: cardRect.x + 2,
+        y: cardRect.y + 2,
+        width: cardRect.width - 4,
+        height: cardRect.height - geometry.captionHeight - 4,
+      };
       const artFill = this.add.graphics();
       artFill.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
       objects.push(artFill);
       const key = cardArt(this).request(this, artFor(card, { kind: "front" }));
       const art = drawArt(this, key, artRect);
       if (art) objects.push(art);
-      else objects.push(label(this, artRect.x + artRect.width / 2, artRect.y + artRect.height / 2, "no scan", typeRole.label, surface.ink.hex, ink.meta).setOrigin(0.5));
+      else
+        objects.push(
+          label(
+            this,
+            artRect.x + artRect.width / 2,
+            artRect.y + artRect.height / 2,
+            "no scan",
+            typeRole.label,
+            surface.ink.hex,
+            ink.meta,
+          ).setOrigin(0.5),
+        );
       const ruleY = artRect.y + artRect.height + 2;
       const rule = this.add.graphics();
       rule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, ruleY, cardRect.width, 2.5);
@@ -943,7 +1247,17 @@ export class DecksScene extends Phaser.Scene {
       // `label()` (not a bare `this.add.text`) so `typeRole.label`'s own uppercase rule actually applies —
       // "EVENT · 2 OF 3 IN DECK", not the lowercase caption this cell used to draw (2026-09-18 fidelity pass, point 4).
       // Wrapped inside the cell, as D14 draws it; unwrapped it ran under the next card.
-      objects.push(label(this, cardRect.x + 8, ruleY + 6 + name.height + 3, caption, typeRole.label, surface.ink.hex, ink.meta).setWordWrapWidth(cardRect.width - 16));
+      objects.push(
+        label(
+          this,
+          cardRect.x + 8,
+          ruleY + 6 + name.height + 3,
+          caption,
+          typeRole.label,
+          surface.ink.hex,
+          ink.meta,
+        ).setWordWrapWidth(cardRect.width - 16),
+      );
     }
     return { objects };
   }
@@ -968,7 +1282,9 @@ export class DecksScene extends Phaser.Scene {
     let y = rect.y + 16;
 
     if (!option) {
-      this.add.text(left, y, "Select a deck to see its stats.", textStyle(typeRole.body, surface.paper.hex, ink.body)).setWordWrapWidth(column);
+      this.add
+        .text(left, y, "Select a deck to see its stats.", textStyle(typeRole.body, surface.paper.hex, ink.body))
+        .setWordWrapWidth(column);
       return;
     }
 
@@ -976,9 +1292,22 @@ export class DecksScene extends Phaser.Scene {
     const stats = deckStatsOf(deck, POOL_CARDS);
     const status = deckStatusOf(option);
 
-    const name = this.add.text(left, y, caseOf(typeRole.barTitle, cardTitleOf(option)), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "26px" }).setWordWrapWidth(column);
+    const name = this.add
+      .text(left, y, caseOf(typeRole.barTitle, cardTitleOf(option)), {
+        ...textStyle(typeRole.barTitle, surface.paper.hex),
+        fontSize: "26px",
+      })
+      .setWordWrapWidth(column);
     y += name.height + 6;
-    label(this, left, y, `${stats.totalCards} CARDS · MINIMUM ${DECK_MIN_CARDS} · ${status.text.toUpperCase()} · ${SOURCE_LABEL[deck.source.kind].toUpperCase()}`, typeRole.label, surface.paper.hex, ink.label);
+    label(
+      this,
+      left,
+      y,
+      `${stats.totalCards} CARDS · MINIMUM ${DECK_MIN_CARDS} · ${status.text.toUpperCase()} · ${SOURCE_LABEL[deck.source.kind].toUpperCase()}`,
+      typeRole.label,
+      surface.paper.hex,
+      ink.label,
+    );
     y += 20;
 
     const ruleG = this.add.graphics();
@@ -1002,13 +1331,29 @@ export class DecksScene extends Phaser.Scene {
     const editable = deck.source.kind !== "precon";
     const actionDefs: readonly { readonly id: string; readonly text: string; readonly onClick: () => void }[] = [
       { id: "check", text: "Check", onClick: () => this.#openDeckCheck(deck) },
-      ...(editable ? [{ id: "edit", text: "Edit", onClick: () => this.scene.start(SCENES.deckBuilder, { deck } satisfies DeckBuilderSceneData) }] : []),
+      ...(editable
+        ? [
+            {
+              id: "edit",
+              text: "Edit",
+              onClick: () => goToScreen(this, SCENES.deckBuilder, { deck } satisfies DeckBuilderSceneData),
+            },
+          ]
+        : []),
       ...(editable ? [{ id: "delete", text: "Delete", onClick: () => void this.#delete(deck.id) }] : []),
     ];
     const actionWidth = (column - CHIP_GAP * (actionDefs.length - 1)) / actionDefs.length;
     actionDefs.forEach((action, index) => {
       const cell: Rect = { x: left + index * (actionWidth + CHIP_GAP), y, width: actionWidth, height: COMPACT_ROW };
-      this.#buttons.push(new McButton(this, { kind: "quiet", label: action.text, type: typeRole.label, rect: cell, onClick: action.onClick }));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: action.text,
+          type: typeRole.label,
+          rect: cell,
+          onClick: action.onClick,
+        }),
+      );
       this.#stops.set(`stats-${action.id}`, { rect: cell, activate: action.onClick });
     });
     y += COMPACT_ROW + 14;
@@ -1020,7 +1365,12 @@ export class DecksScene extends Phaser.Scene {
     if (deck.updatedAt) {
       const bar = this.add.graphics();
       bar.fillStyle(surface.paper.hex, 1).fillRect(left, y, 3, 15);
-      this.add.text(left + 9, y, `Last changed ${new Date(deck.updatedAt).toLocaleDateString()}`, textStyle(typeRole.body, surface.paper.hex, ink.secondary));
+      this.add.text(
+        left + 9,
+        y,
+        `Last changed ${new Date(deck.updatedAt).toLocaleDateString()}`,
+        textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+      );
     } else {
       label(this, left, y, "No change history recorded for this deck.", typeRole.label, surface.paper.hex, ink.meta);
     }
@@ -1035,10 +1385,23 @@ export class DecksScene extends Phaser.Scene {
     const duplicateWidth = column * 0.38;
     const duplicateRect: Rect = { x: left, y: footerY, width: duplicateWidth, height: footerHeight };
     const doDuplicate = (): void => this.#duplicate(deck);
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: "Duplicate", type: typeRole.label, rect: duplicateRect, onClick: doDuplicate }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "Duplicate",
+        type: typeRole.label,
+        rect: duplicateRect,
+        onClick: doDuplicate,
+      }),
+    );
     this.#stops.set("stats-duplicate", { rect: duplicateRect, activate: doDuplicate });
 
-    const playRect: Rect = { x: left + duplicateWidth + CHIP_GAP, y: footerY, width: column - duplicateWidth - CHIP_GAP, height: footerHeight };
+    const playRect: Rect = {
+      x: left + duplicateWidth + CHIP_GAP,
+      y: footerY,
+      width: column - duplicateWidth - CHIP_GAP,
+      height: footerHeight,
+    };
     const canPlay = option.seatable;
     this.#buttons.push(
       new McButton(this, {
@@ -1061,18 +1424,42 @@ export class DecksScene extends Phaser.Scene {
    * highlighted, not just the single tallest), and a bar with no cards at that cost is never highlighted even if
    * zero happens to be tied for a "top" value in an otherwise-empty curve.
    */
-  #drawStatCurveBars(left: number, y: number, column: number, chartHeight: number, bars: readonly CostCurveBar[]): void {
+  #drawStatCurveBars(
+    left: number,
+    y: number,
+    column: number,
+    chartHeight: number,
+    bars: readonly CostCurveBar[],
+  ): void {
     const gap = 6;
     const barWidth = (column - gap * (bars.length - 1)) / bars.length;
     const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
-    const topCounts = new Set([...new Set(bars.map((bar) => bar.count))].filter((count) => count > 0).sort((a, b) => b - a).slice(0, 2));
+    const topCounts = new Set(
+      [...new Set(bars.map((bar) => bar.count))]
+        .filter((count) => count > 0)
+        .sort((a, b) => b - a)
+        .slice(0, 2),
+    );
     bars.forEach((bar, index) => {
       const barHeight = Math.max(2, Math.round((bar.count / maxCount) * (chartHeight - 18)));
       const x = left + index * (barWidth + gap);
       const highlighted = topCounts.has(bar.count);
       const g = this.add.graphics();
-      g.fillStyle(highlighted ? accent.heroRed.hex : surface.paper.hex, 1).fillRect(x, y + (chartHeight - 18 - barHeight), barWidth, barHeight);
-      label(this, x + barWidth / 2, y + chartHeight - 10, bar.label, typeRole.label, surface.paper.hex, ink.label).setOrigin(0.5, 0);
+      g.fillStyle(highlighted ? accent.heroRed.hex : surface.paper.hex, 1).fillRect(
+        x,
+        y + (chartHeight - 18 - barHeight),
+        barWidth,
+        barHeight,
+      );
+      label(
+        this,
+        x + barWidth / 2,
+        y + chartHeight - 10,
+        bar.label,
+        typeRole.label,
+        surface.paper.hex,
+        ink.label,
+      ).setOrigin(0.5, 0);
     });
   }
 
@@ -1090,7 +1477,10 @@ export class DecksScene extends Phaser.Scene {
       const g = this.add.graphics();
       g.lineStyle(border.control, surface.paper.hex, 1).strokeRect(tileX, tileY, cellWidth, cellHeight);
       label(this, tileX + 8, tileY + 7, tile.label, typeRole.label, surface.paper.hex, ink.label);
-      this.add.text(tileX + 8, tileY + 18, String(tile.count), { ...textStyle(typeRole.barTitle, surface.paper.hex), fontSize: "20px" });
+      this.add.text(tileX + 8, tileY + 18, String(tile.count), {
+        ...textStyle(typeRole.barTitle, surface.paper.hex),
+        fontSize: "20px",
+      });
     });
     const rows = Math.ceil(tiles.length / perRow);
     return rows === 0 ? y : y + rows * (cellHeight + gap) - gap;
@@ -1098,12 +1488,15 @@ export class DecksScene extends Phaser.Scene {
 
   /** "Play this deck ▸" (W9): hands the deck to the existing setup flow with it preselected for seat 1 (`view/setup-draft.ts`'s `withSeatOne`, applied inside `TitleScene#create` — see `scenes/title.ts`'s `TitleSceneData`). */
   #playDeck(deck: Deck): void {
-    this.scene.start(SCENES.title, { initialSeatDeckId: deck.id as string, initialSeatDeck: deck } satisfies TitleSceneData);
+    goToScreen(this, SCENES.title, {
+      initialSeatDeckId: deck.id as string,
+      initialSeatDeck: deck,
+    } satisfies TitleSceneData);
   }
 
   /** Opens Deck check (W1) over this deck, returning here on Back. */
   #openDeckCheck(deck: Deck): void {
-    this.scene.start(SCENES.deckCheck, { deck, returnTo: { scene: SCENES.decks } } satisfies DeckCheckSceneData);
+    goToScreen(this, SCENES.deckCheck, { deck, returnTo: { scene: SCENES.decks } } satisfies DeckCheckSceneData);
   }
 
   #duplicate(deck: Deck): void {
@@ -1125,7 +1518,10 @@ export class DecksScene extends Phaser.Scene {
     const text = exportDecklistText(deck, POOL_CARDS);
     const clipboard = typeof navigator !== "undefined" ? navigator.clipboard : undefined;
     if (!clipboard?.writeText) {
-      this.#status = { text: "Clipboard access isn't available here — open this deck in the builder to read its cards instead.", tone: "error" };
+      this.#status = {
+        text: "Clipboard access isn't available here — open this deck in the builder to read its cards instead.",
+        tone: "error",
+      };
       this.#rebuild();
       return;
     }
@@ -1143,9 +1539,15 @@ export class DecksScene extends Phaser.Scene {
 
   #inspectDeck(option: DeckOption): void {
     const card = CARDS_BY_ID.get(option.deck.identityCardId as string);
-    const face = card?.type === "villain" ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const) : ({ kind: "hero" } as const);
+    const face =
+      card?.type === "villain"
+        ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const)
+        : ({ kind: "hero" } as const);
     const note = option.blockedReason ?? option.warning ?? null;
-    this.scene.launch(SCENES.inspect, { card: { cardId: option.deck.identityCardId, face }, ...(note ? { note } : {}) });
+    this.scene.launch(SCENES.inspect, {
+      card: { cardId: option.deck.identityCardId, face },
+      ...(note ? { note } : {}),
+    });
   }
 
   async #delete(id: DeckId): Promise<void> {
@@ -1198,7 +1600,12 @@ export class DecksScene extends Phaser.Scene {
         this.#rebuild();
         return;
       }
-      const outcome = importFromMarvelCdbResponseText(text, ref, `https://marvelcdb.com/${ref.kind}/view/${ref.id}`, this.#importEnv());
+      const outcome = importFromMarvelCdbResponseText(
+        text,
+        ref,
+        `https://marvelcdb.com/${ref.kind}/view/${ref.id}`,
+        this.#importEnv(),
+      );
       await this.#applyImport(outcome);
     } catch (cause) {
       this.#status = { text: cause instanceof Error ? cause.message : String(cause), tone: "error" };
@@ -1208,7 +1615,12 @@ export class DecksScene extends Phaser.Scene {
   }
 
   #importEnv(): ImportEnv {
-    return { pool: POOL_CARDS, poolVersion: POOL_VERSION, now: () => new Date().toISOString(), newId: () => crypto.randomUUID() };
+    return {
+      pool: POOL_CARDS,
+      poolVersion: POOL_VERSION,
+      now: () => new Date().toISOString(),
+      newId: () => crypto.randomUUID(),
+    };
   }
 
   async #applyImport(outcome: ImportOutcome): Promise<void> {

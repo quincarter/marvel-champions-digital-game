@@ -48,4 +48,10 @@ export type HostResponse =
    * data, not the `SetupError` instance itself, since a class's own fields
    * don't reliably survive structured clone.
    */
-  | { readonly kind: "failed"; readonly id: number; readonly message: string; readonly code?: EngineErrorCode; readonly illegalDecks?: readonly IllegalDeck[] };
+  | {
+      readonly kind: "failed";
+      readonly id: number;
+      readonly message: string;
+      readonly code?: EngineErrorCode;
+      readonly illegalDecks?: readonly IllegalDeck[];
+    };

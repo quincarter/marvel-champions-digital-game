@@ -162,7 +162,10 @@ export class McScrollRegion {
     this.#thumb.setVisible(thumb !== null);
     this.#track.setVisible(thumb !== null);
     if (thumb) {
-      this.#thumb.setPosition(this.#rect.x + this.#rect.width - SCROLLBAR_WIDTH, this.#rect.y + thumb.top * this.#rect.height);
+      this.#thumb.setPosition(
+        this.#rect.x + this.#rect.width - SCROLLBAR_WIDTH,
+        this.#rect.y + thumb.top * this.#rect.height,
+      );
       this.#thumb.setSize(SCROLLBAR_WIDTH, Math.max(16, thumb.size * this.#rect.height));
     }
     this.#onScroll?.(offset);

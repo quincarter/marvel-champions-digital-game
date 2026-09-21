@@ -1,8 +1,21 @@
 /** Step 5: main schemes — one card per scenario set, one stage per A/B record pair. */
-import type { MainSchemeCard, MainSchemeStage, MainSchemeThreatField, ScalingValue } from "../../../src/schema/index.ts";
+import type {
+  MainSchemeCard,
+  MainSchemeStage,
+  MainSchemeThreatField,
+  ScalingValue,
+} from "../../../src/schema/index.ts";
 import { imageOf } from "./art.ts";
 import { brand } from "./brand.ts";
-import { abilityRefs, baseFields, expectNoAttach, expectNoPlayerData, parse, record, type NormalizeContext } from "./context.ts";
+import {
+  abilityRefs,
+  baseFields,
+  expectNoAttach,
+  expectNoPlayerData,
+  parse,
+  record,
+  type NormalizeContext,
+} from "./context.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import { scalingOf, schemeIcons } from "./values.ts";
 
@@ -10,7 +23,9 @@ import { scalingOf, schemeIcons } from "./values.ts";
 export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string> {
   const { errors, topLevel } = ctx;
   const mainSchemeIdBySet = new Map<string, string>();
-  const schemeSets = [...new Set(topLevel.filter((r) => r.type_code === "main_scheme").map((r) => r.card_set_code ?? ""))];
+  const schemeSets = [
+    ...new Set(topLevel.filter((r) => r.type_code === "main_scheme").map((r) => r.card_set_code ?? "")),
+  ];
   for (const set of schemeSets) {
     const aSides = topLevel
       .filter((r) => r.type_code === "main_scheme" && r.card_set_code === set)
@@ -28,7 +43,10 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       parts.push(a, b);
       const pa = parse(ctx, a);
       const pb = parse(ctx, b);
-      for (const [p, parsed] of [[a, pa], [b, pb]] as const) {
+      for (const [p, parsed] of [
+        [a, pa],
+        [b, pb],
+      ] as const) {
         expectNoPlayerData(ctx, p, parsed);
         expectNoAttach(ctx, p, parsed);
       }
@@ -42,7 +60,12 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       // way to advance by threat, distinct from a data gap (which would carry `_fixed: false`). Curation must
       // confirm the dashes from the card image before a card using this is emitted; flagged there, not here.
       const dashedValues: MainSchemeThreatField[] = [];
-      const missingOrDashed = (value: number | null | undefined, fixed: boolean | undefined, field: MainSchemeThreatField, label: string) => {
+      const missingOrDashed = (
+        value: number | null | undefined,
+        fixed: boolean | undefined,
+        field: MainSchemeThreatField,
+        label: string,
+      ) => {
         if (value !== null && value !== undefined) return;
         if (fixed) dashedValues.push(field);
         else errors.push(`${rb.code}: missing ${label}`);
@@ -77,7 +100,11 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
       // Threat values printed as X (docs/phase7-wave1.md §1.5, Mutagen Cloud 2B): MarvelCDB encodes a printed X
       // as -1. Held as a flat 0 and the stage's own ability defines it (RRG 1.8 "Non-Numerical Variable").
       const printedX: MainSchemeThreatField[] = [];
-      const schemeField = (value: number | null | undefined, fixed: boolean | undefined, field: MainSchemeThreatField): ScalingValue => {
+      const schemeField = (
+        value: number | null | undefined,
+        fixed: boolean | undefined,
+        field: MainSchemeThreatField,
+      ): ScalingValue => {
         if (value === -1) {
           printedX.push(field);
           return { base: 0, perPlayer: 0 };
@@ -113,7 +140,13 @@ export function normalizeMainSchemes(ctx: NormalizeContext): Map<string, string>
     if (!first || !firstStage) continue;
     const card: MainSchemeCard = {
       // No card-level images: the A and B sides carry their own.
-      ...baseFields(ctx, first, first.raw.code, parts.map((p) => p.raw.code), null),
+      ...baseFields(
+        ctx,
+        first,
+        first.raw.code,
+        parts.map((p) => p.raw.code),
+        null,
+      ),
       type: "main_scheme",
       encounterSetIds: [brand("encounterSet", set)],
       stages: [firstStage, ...stages.slice(1)],

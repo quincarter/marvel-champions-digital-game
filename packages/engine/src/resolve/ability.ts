@@ -61,7 +61,12 @@ export function executeAbilityFrame(ctx: Ctx, frame: Frame<"ability">): void {
   if (definition.label?.includes("defense") && frame.controllerId) declareLabeledDefense(ctx, frame.controllerId);
   // RRG 1.8 "Resolve" (p. 37): resolved once its effects resolve, so the announcement waits under them. Pushed only when
   // something could respond ("After you resolve the ability of a Preparation card you control").
-  const resolved: TriggerEvent = { kind: "abilityResolved", instanceId: frame.instanceId, abilityId: frame.abilityId, controllerId: frame.controllerId };
+  const resolved: TriggerEvent = {
+    kind: "abilityResolved",
+    instanceId: frame.instanceId,
+    abilityId: frame.abilityId,
+    controllerId: frame.controllerId,
+  };
   if (definition.effects.length > 0 && heard(ctx.state, ctx.deps, resolved)) announce(ctx, resolved);
   pushEffects(ctx, {
     effects: definition.effects,

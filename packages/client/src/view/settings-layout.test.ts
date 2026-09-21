@@ -60,7 +60,9 @@ describe("settingsLayout", () => {
 
   test("grows to fit however many rows are asked for", () => {
     expect(settingsLayout({ x: 0, y: 0, width: 800, height: 600 }, []).rows).toHaveLength(0);
-    expect(settingsLayout({ x: 0, y: 0, width: 800, height: 600 }, ["A.", "B.", "C.", "D.", "E."]).rows).toHaveLength(5);
+    expect(settingsLayout({ x: 0, y: 0, width: 800, height: 600 }, ["A.", "B.", "C.", "D.", "E."]).rows).toHaveLength(
+      5,
+    );
   });
 
   test("a short detail row is shorter than a long detail row at the same width", () => {

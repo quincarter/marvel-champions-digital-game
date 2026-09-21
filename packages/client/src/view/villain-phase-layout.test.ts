@@ -107,7 +107,14 @@ describe("villainPhaseLayout", () => {
       } else {
         test("phone stacks every section in one column, in reading order", () => {
           const layout = villainPhaseLayout(bounds, formFactor);
-          const order = [layout.stepLine, layout.happeningNow, layout.boosts, layout.mainScheme, layout.queued, layout.phaseLog];
+          const order = [
+            layout.stepLine,
+            layout.happeningNow,
+            layout.boosts,
+            layout.mainScheme,
+            layout.queued,
+            layout.phaseLog,
+          ];
           for (let i = 1; i < order.length; i++) {
             expect(order[i]!.y).toBeGreaterThanOrEqual(order[i - 1]!.y + order[i - 1]!.height);
           }
@@ -120,7 +127,9 @@ describe("villainPhaseLayout", () => {
 
       test("the footer sits at the very bottom, above nothing else", () => {
         const layout = villainPhaseLayout(bounds, formFactor);
-        expect(layout.footer.y + layout.footer.height).toBeLessThanOrEqual(layout.panel.y + layout.panel.height + 0.001);
+        expect(layout.footer.y + layout.footer.height).toBeLessThanOrEqual(
+          layout.panel.y + layout.panel.height + 0.001,
+        );
         expect(layout.queued.y + layout.queued.height).toBeLessThanOrEqual(layout.footer.y + 0.001);
         expect(layout.phaseLog.y + layout.phaseLog.height).toBeLessThanOrEqual(layout.footer.y + 0.001);
       });

@@ -1,24 +1,47 @@
 import { activeEncounterDeck, type GameState, type InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, mainThreat, moveToHand, P1, playerOf, settle, stackEncounterDeck, toHero, type Picker } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  mainThreat,
+  moveToHand,
+  P1,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  type Picker,
+} from "../../testing/harness.js";
 import { withDamage } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { SCW_PACK_CARDS } from "./pack-cards.js";
 
 // Real wave 2 content: the Scarlet Witch (Justice) precon against Rhino, standard, solo. Wanda starts in alter-ego.
-const scwVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "scw-justice" }], seed: 2026 }));
+const scwVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "scw-justice" }], seed: 2026 }));
 
 const accepting =
   (...wanted: readonly string[]): Picker =>
   (state) => {
     const choice = state.pendingChoice;
     if (!choice) return [];
-    const hits = choice.options.map((o) => o.optionId).filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
+    const hits = choice.options
+      .map((o) => o.optionId)
+      .filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
 
 function withThreat(state: GameState, threat: number): GameState {
-  return { ...state, instances: { ...state.instances, [state.mainScheme.instanceId]: { ...state.instances[state.mainScheme.instanceId]!, threat } } };
+  return {
+    ...state,
+    instances: {
+      ...state.instances,
+      [state.mainScheme.instanceId]: { ...state.instances[state.mainScheme.instanceId]!, threat },
+    },
+  };
 }
 
 describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Protection off-aspect)", () => {
@@ -27,7 +50,12 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
     const speed = instancesOf(state, "15010")[0]!;
     const withThreatOnScheme = withThreat(state, 5);
     const thwarted = settle(
-      runWave2(withThreatOnScheme, { type: "basicThwart", playerId: P1, thwarterInstanceId: speed, schemeInstanceId: withThreatOnScheme.mainScheme.instanceId }),
+      runWave2(withThreatOnScheme, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: speed,
+        schemeInstanceId: withThreatOnScheme.mainScheme.instanceId,
+      }),
       accepting("15010.speed-response"), // an optional Response — `firstLegal` alone would decline it
       undefined,
       WAVE2_DEPS,
@@ -44,7 +72,12 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
     // Hydra Mercenary (01101, "Rhino's own set") prints exactly 1 boost icon.
     const stacked = stackEncounterDeck(withNoDamage, "01101");
     const thwarted = settle(
-      runWave2(stacked, { type: "basicThwart", playerId: P1, thwarterInstanceId: wiccan, schemeInstanceId: stacked.mainScheme.instanceId }),
+      runWave2(stacked, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: wiccan,
+        schemeInstanceId: stacked.mainScheme.instanceId,
+      }),
       accepting("15011.wiccan-response", "enemy"),
       undefined,
       WAVE2_DEPS,
@@ -116,7 +149,12 @@ describe("Scarlet Witch's pack cards (Justice, Basic; Aggression/Leadership/Prot
     // basic thwart clears the side scheme's own 1 remaining threat, defeating it, and Turn the Tide is then
     // offered (and accepted) as the reactive play itself, costing 0.
     const thwarted = settle(
-      runWave2(given.state, { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, schemeInstanceId: sideScheme }),
+      runWave2(given.state, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identity,
+        schemeInstanceId: sideScheme,
+      }),
       accepting("15015.turn-the-tide-response"),
       undefined,
       WAVE2_DEPS,

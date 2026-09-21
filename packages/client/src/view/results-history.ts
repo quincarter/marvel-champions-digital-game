@@ -97,7 +97,9 @@ export interface ScenarioRecord {
 }
 
 /** A deck's namespaced identity — see this module's doc comment on why the two kinds can never collide. */
-export type DeckKey = { readonly kind: "starter"; readonly starterDeckId: string } | { readonly kind: "custom"; readonly deckId: string };
+export type DeckKey =
+  | { readonly kind: "starter"; readonly starterDeckId: string }
+  | { readonly kind: "custom"; readonly deckId: string };
 
 /** A stable string form of `DeckKey`, safe to use as a `Map`/object key or a list `key` prop. */
 export function deckKeyToString(key: DeckKey): string {
@@ -135,7 +137,11 @@ function foldInto(tally: ScenarioTally, meta: SaveMeta): ScenarioTally {
   const losses = tally.losses + (meta.status === "lost" ? 1 : 0);
   const gamesPlayed = tally.gamesPlayed + 1;
   const bestClearRounds =
-    meta.status === "won" ? (tally.bestClearRounds === null ? meta.round : Math.min(tally.bestClearRounds, meta.round)) : tally.bestClearRounds;
+    meta.status === "won"
+      ? tally.bestClearRounds === null
+        ? meta.round
+        : Math.min(tally.bestClearRounds, meta.round)
+      : tally.bestClearRounds;
   return { wins, losses, gamesPlayed, bestClearRounds };
 }
 
@@ -213,7 +219,10 @@ export function resultsHistoryOf(saves: readonly SaveMeta[]): ResultsHistory {
     .map(([scenarioId, entry]) => ({
       scenarioId,
       byDifficulty: Object.fromEntries(
-        DIFFICULTIES.filter((difficulty) => entry.byDifficulty.has(difficulty)).map((difficulty) => [difficulty, entry.byDifficulty.get(difficulty)!]),
+        DIFFICULTIES.filter((difficulty) => entry.byDifficulty.has(difficulty)).map((difficulty) => [
+          difficulty,
+          entry.byDifficulty.get(difficulty)!,
+        ]),
       ) as Readonly<Partial<Record<Difficulty, ScenarioTally>>>,
       combined: entry.combined,
     }));

@@ -19,8 +19,26 @@ import { createGame } from "./setup.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { runCommands, runCommandsPicking } from "./testing/drive.js";
-import { stubIdentity, stubMainScheme, stubSideScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
-import { ALLY, DEFAULT_CARDS, DEFAULT_DECK, defaultPick, giveCard, giveCards, HERO, payFor, RESOURCE, withEncounterPiles } from "./testing/scenario.js";
+import {
+  stubIdentity,
+  stubMainScheme,
+  stubSideScheme,
+  stubSupport,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
+import {
+  ALLY,
+  DEFAULT_CARDS,
+  DEFAULT_DECK,
+  defaultPick,
+  giveCard,
+  giveCards,
+  HERO,
+  payFor,
+  RESOURCE,
+  withEncounterPiles,
+} from "./testing/scenario.js";
 import { auditVillainPhases } from "./villain/audit.js";
 
 const p1 = playerId("p1");
@@ -39,7 +57,9 @@ const PUT_SCHEMES = stubAbility("scenario.setup", {
 });
 const SCENARIO = stubMainScheme({
   id: "scenario",
-  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), aSideAbilities: [PUT_SCHEMES.ref] }],
+  stages: [
+    { startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), aSideAbilities: [PUT_SCHEMES.ref] },
+  ],
 });
 /** "Forced Response: After threat is placed here, …", observable as a counter. */
 const PLACED_HERE = stubAbility("signature.placed-here", {
@@ -50,18 +70,36 @@ const SIGNATURE = stubSideScheme({ id: "signature", startingThreat: 1, boostIcon
 
 /** "When Wrecker schemes, place the threat on his side scheme instead of the main scheme." (constant) */
 const OWN_SCHEME = stubAbility("boss.own-scheme", {
-  trigger: { kind: "constant", rules: [{ kind: "schemeThreatDestination", enemy: { self: true }, scheme: "ownSignatureSideScheme" }] },
+  trigger: {
+    kind: "constant",
+    rules: [{ kind: "schemeThreatDestination", enemy: { self: true }, scheme: "ownSignatureSideScheme" }],
+  },
   effects: [],
 });
 /** "Forced Interrupt: When [this villain] would attack, … instead." */
 const REPLACE_ATTACK = stubAbility("boss.replace-attack", {
   trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", selfIs: "source" } },
-  effects: [{ kind: "replaceTriggeringEvent", with: [{ kind: "addCounters", target: self, counterType: "replaced", amount: one }] }],
+  effects: [
+    {
+      kind: "replaceTriggeringEvent",
+      with: [{ kind: "addCounters", target: self, counterType: "replaced", amount: one }],
+    },
+  ],
 });
 /** "Excess damage dealt by [this villain] is placed as threat on his corresponding side scheme." (Radioactive Buildup's shape) */
 const EXCESS_AS_THREAT = stubAbility("boss.excess-as-threat", {
-  trigger: { kind: "response", forced: true, on: { on: "enemyAttack", selfIs: "source", requireResults: { excessDealt: 1 } } },
-  effects: [{ kind: "placeThreat", target: { kind: "signatureSideSchemeOf", villain: self }, amount: { kind: "eventResult", key: "excessDealt" } }],
+  trigger: {
+    kind: "response",
+    forced: true,
+    on: { on: "enemyAttack", selfIs: "source", requireResults: { excessDealt: 1 } },
+  },
+  effects: [
+    {
+      kind: "placeThreat",
+      target: { kind: "signatureSideSchemeOf", villain: self },
+      amount: { kind: "eventResult", key: "excessDealt" },
+    },
+  ],
 });
 
 /** "After the villain attacks, …": a response that a replaced attack must not see. */
@@ -87,7 +125,9 @@ const QUEUE = stubTreachery({ id: "queue", boostIcons: 0, abilities: [QUEUE_ATTA
 /** Clash of the Titans' shape: "The villain attacks the ally with …" (an ally, chosen by the ref). */
 const AT_ALLY_ATTACK = stubAbility("at-ally.when-revealed", {
   trigger: { kind: "whenRevealed" },
-  effects: [{ kind: "enemyAttack", enemies: theVillain, targetCharacter: { kind: "each", query: { categories: ["ally"] } } }],
+  effects: [
+    { kind: "enemyAttack", enemies: theVillain, targetCharacter: { kind: "each", query: { categories: ["ally"] } } },
+  ],
 });
 const AT_ALLY = stubTreachery({ id: "at-ally", boostIcons: 0, abilities: [AT_ALLY_ATTACK.ref] });
 
@@ -103,7 +143,17 @@ const SPIKY: HeroIdentityCard = stubIdentity({
   heroKeywords: [{ name: "retaliate", value: 1 }],
 });
 
-const deps: EngineDeps = depsOf(PUT_SCHEMES, PLACED_HERE, OWN_SCHEME, REPLACE_ATTACK, EXCESS_AS_THREAT, WATCHER_RESPONSE, NO_BOOST_ATTACK, QUEUE_ATTACK, AT_ALLY_ATTACK);
+const deps: EngineDeps = depsOf(
+  PUT_SCHEMES,
+  PLACED_HERE,
+  OWN_SCHEME,
+  REPLACE_ATTACK,
+  EXCESS_AS_THREAT,
+  WATCHER_RESPONSE,
+  NO_BOOST_ATTACK,
+  QUEUE_ATTACK,
+  AT_ALLY_ATTACK,
+);
 const copies = (id: CardId, n: number): readonly CardId[] => Array.from({ length: n }, () => id);
 
 interface Options {
@@ -116,7 +166,10 @@ interface Options {
 
 /** p1's first turn in a one-villain game with a signature side scheme in play. */
 function game(options: Options = {}): GameState {
-  const boss = stubVillain({ id: "boss", stages: [{ hp: flat(30), atk: options.atk ?? 2, sch: options.sch ?? 2, abilities: [...(options.abilities ?? [])] }] });
+  const boss = stubVillain({
+    id: "boss",
+    stages: [{ hp: flat(30), atk: options.atk ?? 2, sch: options.sch ?? 2, abilities: [...(options.abilities ?? [])] }],
+  });
   const identity = options.identity ?? HERO;
   const encounter = options.encounter ?? copies(BLANK.id, 12);
   const result = createGame(
@@ -140,25 +193,45 @@ const endTurn: Command = { type: "endTurn", playerId: p1 };
 const villainId = (state: GameState) => activeVillain(state).instanceId;
 const signatureId = (state: GameState) => activeVillain(state).signatureSideSchemeId as InstanceId;
 const identity = (state: GameState) => mustInstance(state, mustPlayer(state, p1).identity.instanceId);
-const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) => events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
-const indexOf = (events: readonly GameEvent[], predicate: (e: GameEvent) => boolean, from = 0) => events.findIndex((e, i) => i >= from && predicate(e));
+const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
+  events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
+const indexOf = (events: readonly GameEvent[], predicate: (e: GameEvent) => boolean, from = 0) =>
+  events.findIndex((e, i) => i >= from && predicate(e));
 
 function playFree(state: GameState, cardId: CardId) {
   const given = giveCard(state, p1, cardId);
-  return runCommands(given.state, deps, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+  return runCommands(given.state, deps, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  });
 }
 
 function withAllyInPlay(state: GameState): { readonly state: GameState; readonly ally: InstanceId } {
   const given = giveCards(state, p1, ALLY.id, RESOURCE.id, RESOURCE.id);
   const [ally] = given.ids as [InstanceId];
-  const played = runCommands(given.state, deps, { type: "playCard", playerId: p1, cardInstanceId: ally, payment: payFor(given.state, p1, 2), attachToInstanceId: null });
+  const played = runCommands(given.state, deps, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: ally,
+    payment: payFor(given.state, p1, 2),
+    attachToInstanceId: null,
+  });
   return { state: played.state, ally };
 }
 
 describe("§3.6 enemy activations", () => {
   it("a 'would attack … instead' replacement: the attack is not performed, so no boost card and nothing responds to it", () => {
-    const watching = runCommands(playFree(game({ abilities: [REPLACE_ATTACK.ref] }), WATCHER.id).state, deps, toHero).state;
-    const watcher = mustPlayer(watching, p1).playArea.find((id) => watching.instances[id]?.cardId === WATCHER.id) as InstanceId;
+    const watching = runCommands(
+      playFree(game({ abilities: [REPLACE_ATTACK.ref] }), WATCHER.id).state,
+      deps,
+      toHero,
+    ).state;
+    const watcher = mustPlayer(watching, p1).playArea.find(
+      (id) => watching.instances[id]?.cardId === WATCHER.id,
+    ) as InstanceId;
     const { state, events } = runCommands(watching, deps, endTurn);
     expect(mustInstance(state, villainId(state)).counters.replaced).toBe(1);
     expect(mustInstance(state, watcher).counters.sawAttack).toBeUndefined();
@@ -167,8 +240,14 @@ describe("§3.6 enemy activations", () => {
     // The stun-first half is FAQ "Norman Osborn (#1A)" in flip.test.ts.
 
     // Control: without the replacement the same response sees the attack.
-    const control = runCommands(runCommands(playFree(game(), WATCHER.id).state, deps, toHero).state, deps, endTurn).state;
-    const controlWatcher = mustPlayer(control, p1).playArea.find((id) => control.instances[id]?.cardId === WATCHER.id) as InstanceId;
+    const control = runCommands(
+      runCommands(playFree(game(), WATCHER.id).state, deps, toHero).state,
+      deps,
+      endTurn,
+    ).state;
+    const controlWatcher = mustPlayer(control, p1).playArea.find(
+      (id) => control.instances[id]?.cardId === WATCHER.id,
+    ) as InstanceId;
     expect(mustInstance(control, controlWatcher).counters.sawAttack).toBe(1);
   });
 
@@ -182,7 +261,9 @@ describe("§3.6 enemy activations", () => {
     expect(mustInstance(state, state.mainScheme.instanceId).threat).toBe(0);
 
     const context = { selfInstanceId: null, controllerId: p1, event: null, bindings: {}, deps };
-    expect(resolveRef(state, { kind: "villainOfSideScheme", scheme: { kind: "named", name: SIGNATURE.name } }, context)).toEqual([villainId(state)]);
+    expect(
+      resolveRef(state, { kind: "villainOfSideScheme", scheme: { kind: "named", name: SIGNATURE.name } }, context),
+    ).toEqual([villainId(state)]);
     expect(resolveRef(state, { kind: "signatureSideSchemeOf", villain: theVillain }, context)).toEqual([scheme]);
   });
 
@@ -191,13 +272,19 @@ describe("§3.6 enemy activations", () => {
     const villain = villainId(state);
     // Step 2 is a scheme (alter-ego) with its boost card; step 4's treachery attack gets none.
     expect(ofType(events, "boostCardDealt").filter((e) => e.enemyInstanceId === villain)).toHaveLength(1);
-    expect(ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain)).toEqual([expect.objectContaining({ boostIcons: 0, damageDealt: 2 })]);
+    expect(ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain)).toEqual([
+      expect.objectContaining({ boostIcons: 0, damageDealt: 2 }),
+    ]);
     expect(identity(state).damage).toBe(2);
     expect(auditVillainPhases(session.log, deps).violations).toEqual([]);
   });
 
   it("an attack queued 'after this attack' starts only after the first attack's Retaliate and responses", () => {
-    const start = runCommands(playFree(game({ identity: SPIKY, atk: 1, encounter: [QUEUE.id, ...copies(BLANK.id, 11)] }), WATCHER.id).state, deps, toHero).state;
+    const start = runCommands(
+      playFree(game({ identity: SPIKY, atk: 1, encounter: [QUEUE.id, ...copies(BLANK.id, 11)] }), WATCHER.id).state,
+      deps,
+      toHero,
+    ).state;
     const deck = activeEncounterDeck(start).deck;
     const queue = deck.find((id) => start.instances[id]?.cardId === QUEUE.id);
     if (!queue) throw new Error("no queue card");
@@ -207,7 +294,12 @@ describe("§3.6 enemy activations", () => {
     const { state, events, session } = runCommands(primed, deps, endTurn);
     const villain = villainId(state);
     const initiated = events.flatMap((e, i) =>
-      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "enemyAttack" && e.event.enemyInstanceId === villain ? [i] : [],
+      e.type === "triggerEvent" &&
+      e.phase === "initiated" &&
+      e.event.kind === "enemyAttack" &&
+      e.event.enemyInstanceId === villain
+        ? [i]
+        : [],
     );
     expect(initiated).toHaveLength(2);
     const [first, second] = initiated as [number, number];
@@ -228,11 +320,14 @@ describe("§3.6 enemy activations", () => {
     const { state: withAlly, ally } = withAllyInPlay(hero);
     const scheme = signatureId(withAlly);
     const threatBefore = mustInstance(withAlly, scheme).threat;
-    const pickAlly = (s: GameState): readonly string[] => (s.pendingChoice?.prompt.kind === "declareDefender" ? [ally] : defaultPick(s));
+    const pickAlly = (s: GameState): readonly string[] =>
+      s.pendingChoice?.prompt.kind === "declareDefender" ? [ally] : defaultPick(s);
 
     const { state, events } = runCommandsPicking(withAlly, deps, pickAlly, endTurn);
     const villain = villainId(state);
-    expect(ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain)).toEqual([expect.objectContaining({ targetInstanceId: ally, damageDealt: 5 })]);
+    expect(ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain)).toEqual([
+      expect.objectContaining({ targetInstanceId: ally, damageDealt: 5 }),
+    ]);
     expect(mustPlayer(state, p1).playArea).not.toContain(ally);
     // 5 damage against 3 remaining hit points: 2 excess.
     expect(mustInstance(state, scheme).threat).toBe(threatBefore + 2);
@@ -244,7 +339,9 @@ describe("§3.6 enemy activations", () => {
     const { state: withAlly, ally } = withAllyInPlay(game({ encounter: copies(AT_ALLY.id, 12) }));
     const { state, events } = runCommands(withAlly, deps, endTurn);
     const villain = villainId(state);
-    expect(ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain)).toEqual([expect.objectContaining({ targetInstanceId: ally, damageDealt: 2 })]);
+    expect(ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain)).toEqual([
+      expect.objectContaining({ targetInstanceId: ally, damageDealt: 2 }),
+    ]);
     expect(mustInstance(state, ally).damage).toBe(2);
     expect(identity(state).damage).toBe(0);
   });

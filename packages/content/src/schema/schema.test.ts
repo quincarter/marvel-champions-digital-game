@@ -404,10 +404,7 @@ const shieldedBunker: EnvironmentCard = {
   traits: [trait("Location")],
   keywords: [],
   text: unerrataedText("Villain minions get +1 HP. Boost: Deal 1 damage to the defending hero."),
-  abilities: [
-    { id: abilityId("shielded-bunker-passive") },
-    { id: abilityId("shielded-bunker-boost") },
-  ],
+  abilities: [{ id: abilityId("shielded-bunker-passive") }, { id: abilityId("shielded-bunker-boost") }],
 };
 
 describe("schema fixtures: valid cards are accepted", () => {
@@ -458,7 +455,10 @@ describe("schema fixtures: malformed cards are rejected", () => {
   });
 
   it("rejects a villain whose stages are not in ascending order", () => {
-    const [first, second] = rhino.sides[0].stages as [typeof rhino.sides[0]["stages"][0], typeof rhino.sides[0]["stages"][0]];
+    const [first, second] = rhino.sides[0].stages as [
+      (typeof rhino.sides)[0]["stages"][0],
+      (typeof rhino.sides)[0]["stages"][0],
+    ];
     const result = validateVillainCard({
       ...rhino,
       sides: [{ side: "A", name: "Rhino", stages: [second, first] }],
@@ -623,8 +623,14 @@ describe("printed dashes, X stats, blank text, stage names", () => {
     const blank = { printed: "", current: "" };
     expect(validateCard({ ...strength, text: blank }).valid).toBe(true);
     expect(validateCard({ ...breakinAndTakin, text: blank }).valid).toBe(true);
-    const [stage1, stage2] = rhino.sides[0].stages as unknown as [VillainCard["sides"][0]["stages"][0], VillainCard["sides"][0]["stages"][0]];
-    expect(validateCard({ ...rhino, sides: [{ side: "A", name: "Rhino", stages: [{ ...stage1, text: blank }, stage2] }] }).valid).toBe(true);
+    const [stage1, stage2] = rhino.sides[0].stages as unknown as [
+      VillainCard["sides"][0]["stages"][0],
+      VillainCard["sides"][0]["stages"][0],
+    ];
+    expect(
+      validateCard({ ...rhino, sides: [{ side: "A", name: "Rhino", stages: [{ ...stage1, text: blank }, stage2] }] })
+        .valid,
+    ).toBe(true);
     expect(validateCard({ ...blackCat, text: blank }).valid).toBe(false);
     expect(validateCard({ ...underSiege, text: blank }).valid).toBe(false);
   });

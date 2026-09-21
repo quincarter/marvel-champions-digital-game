@@ -127,7 +127,12 @@ export function deckCheckLayout(input: DeckCheckLayoutInput): DeckCheckLayout {
   const backWidth = 90;
   const metaWidth = Math.min(260, Math.max(120, width * 0.3));
   const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
-  const meta: Rect = { x: width - headerPad - metaWidth, y: (HEADER_HEIGHT - hit.target) / 2, width: metaWidth, height: hit.target };
+  const meta: Rect = {
+    x: width - headerPad - metaWidth,
+    y: (HEADER_HEIGHT - hit.target) / 2,
+    width: metaWidth,
+    height: hit.target,
+  };
 
   const bodyTop = HEADER_HEIGHT + pad;
   const bodyBottom = height - pad;
@@ -141,10 +146,35 @@ export function deckCheckLayout(input: DeckCheckLayoutInput): DeckCheckLayout {
     const panel: Rect = { x: cards.x + cardsWidth + RAIL_GAP, y: bodyTop, width: PANEL_WIDTH, height: bodyHeight };
 
     const ctaBlockHeight = PANEL_CTA_HEIGHT * 2 + PANEL_CTA_GAP;
-    const startGame: Rect = { x: panel.x + PANEL_INSET, y: panel.y + panel.height - PANEL_INSET - PANEL_CTA_HEIGHT, width: panel.width - PANEL_INSET * 2, height: PANEL_CTA_HEIGHT };
-    const editDeck: Rect = { x: panel.x + PANEL_INSET, y: panel.y + panel.height - PANEL_INSET - ctaBlockHeight, width: panel.width - PANEL_INSET * 2, height: PANEL_CTA_HEIGHT };
+    const startGame: Rect = {
+      x: panel.x + PANEL_INSET,
+      y: panel.y + panel.height - PANEL_INSET - PANEL_CTA_HEIGHT,
+      width: panel.width - PANEL_INSET * 2,
+      height: PANEL_CTA_HEIGHT,
+    };
+    const editDeck: Rect = {
+      x: panel.x + PANEL_INSET,
+      y: panel.y + panel.height - PANEL_INSET - ctaBlockHeight,
+      width: panel.width - PANEL_INSET * 2,
+      height: PANEL_CTA_HEIGHT,
+    };
 
-    return { formFactor, wide, pad, headerBar, back, meta, rail, cards, panel, tabs: null, content: null, footer: null, editDeck, startGame };
+    return {
+      formFactor,
+      wide,
+      pad,
+      headerBar,
+      back,
+      meta,
+      rail,
+      cards,
+      panel,
+      tabs: null,
+      content: null,
+      footer: null,
+      editDeck,
+      startGame,
+    };
   }
 
   const column = Math.min(width - pad * 2, 640);
@@ -154,12 +184,32 @@ export function deckCheckLayout(input: DeckCheckLayoutInput): DeckCheckLayout {
   const footerHeight = hit.primary + FOOTER_PADDING * 2;
   const footer: Rect = { x: 0, y: height - footerHeight, width, height: footerHeight };
   const editDeck: Rect = { x: tabLeft, y: footer.y + FOOTER_PADDING, width: EDIT_DECK_WIDTH, height: hit.primary };
-  const startGame: Rect = { x: tabLeft + EDIT_DECK_WIDTH + BUTTON_GAP, y: footer.y + FOOTER_PADDING, width: column - EDIT_DECK_WIDTH - BUTTON_GAP, height: hit.primary };
+  const startGame: Rect = {
+    x: tabLeft + EDIT_DECK_WIDTH + BUTTON_GAP,
+    y: footer.y + FOOTER_PADDING,
+    width: column - EDIT_DECK_WIDTH - BUTTON_GAP,
+    height: hit.primary,
+  };
 
   const contentTop = tabs.y + tabs.height + 10;
   // Never negative: a viewport too short for even the fixed chrome still gets a zero-height content rect rather than
   // one that overlaps the footer above it — the same floor `statBlockLayout` (`view/layout.ts`) holds for a badge row.
   const content: Rect = { x: tabLeft, y: contentTop, width: column, height: Math.max(0, footer.y - contentTop) };
 
-  return { formFactor, wide, pad, headerBar, back, meta, rail: null, cards: null, panel: null, tabs, content, footer, editDeck, startGame };
+  return {
+    formFactor,
+    wide,
+    pad,
+    headerBar,
+    back,
+    meta,
+    rail: null,
+    cards: null,
+    panel: null,
+    tabs,
+    content,
+    footer,
+    editDeck,
+    startGame,
+  };
 }

@@ -34,7 +34,11 @@ export const CAP_NEMESIS = defineAbilities({
   // 1 damage for each boost icon discarded this way. `.boostIcons` on `moveCards`' bind sums the printed (plus any
   // modifier) boost icons of the moved cards (new — see `apply-effect.ts`'s `moveCards` case).
   "03027.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, moveCards(encounterCards(["deck"], undefined, 1), "discard", "milled"), takeDamage(varOf("milled.boostIcons"), thatPlayer)),
+    forEachPlayer(
+      eachPlayer,
+      moveCards(encounterCards(["deck"], undefined, 1), "discard", "milled"),
+      takeDamage(varOf("milled.boostIcons"), thatPlayer),
+    ),
   ),
 
   // Baron Zemo — Quickstrike (data). While Baron Zemo is engaged with you, you cannot thwart.
@@ -52,7 +56,11 @@ export const CAP_NEMESIS = defineAbilities({
     forEachPlayer(
       eachPlayer,
       ifThen(not(exists(query("minion", { trait: TRAIT.HYDRA, engagedWithPlayer: thatPlayer }))), [
-        chooseCards("found", encounterCards(["deck", "discard"], query("minion", { trait: TRAIT.HYDRA })), { min: 1, max: 1, chooser: thatPlayer }),
+        chooseCards("found", encounterCards(["deck", "discard"], query("minion", { trait: TRAIT.HYDRA })), {
+          min: 1,
+          max: 1,
+          chooser: thatPlayer,
+        }),
         putIntoPlay(chosen("found"), thatPlayer),
         shuffleEncounterDeck(),
       ]),

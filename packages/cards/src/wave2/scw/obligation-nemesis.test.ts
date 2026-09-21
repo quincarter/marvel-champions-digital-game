@@ -1,12 +1,38 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeEncounterDeckId, boostIconsFor, cardsInPlay, type GameState, type InstanceId } from "@mc/engine";
-import { answer, endTurn, firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, type Picker, runWith, settle, settleUntil, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  activeEncounterDeck,
+  activeEncounterDeckId,
+  boostIconsFor,
+  cardsInPlay,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
+import {
+  answer,
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  moveToHand,
+  P1,
+  payWith,
+  play,
+  playerOf,
+  type Picker,
+  runWith,
+  settle,
+  settleUntil,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { expectResolved, traceAbilities } from "../../testing/trace.js";
 
 // Real wave 2 content: the Scarlet Witch (Justice) precon against Rhino, standard, solo. Wanda starts in alter-ego.
-const scwVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "scw-justice" }], seed: 2026 }));
+const scwVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "scw-justice" }], seed: 2026 }));
 
 /**
  * Every nemesis-set card is set aside per player at setup (`PlayerState.setAside`, RRG 1.8 Appendix II step 5,
@@ -34,7 +60,9 @@ function stageFromSetAside(state: GameState, code: string, player = P1): GameSta
   const pile = state.encounterDecks[deckId]!;
   return {
     ...state,
-    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
+    players: state.players.map((p) =>
+      p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p,
+    ),
     encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [id, ...pile.deck] } },
   };
 }
@@ -48,7 +76,9 @@ function stageToDiscard(state: GameState, code: string, player = P1): GameState 
   const pile = state.encounterDecks[deckId]!;
   return {
     ...state,
-    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
+    players: state.players.map((p) =>
+      p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p,
+    ),
     encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, discard: [id, ...pile.discard] } },
   };
 }
@@ -204,7 +234,12 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     // Stage it directly from set-aside (docs/phase7-wave2-scripting.md §5's `stageNemesisCardForReveal` shape) —
     // a real reveal, without needing Shadow of the Past's own two-round detour.
     const staged = stageFromSetAside(hero, "15026");
-    const withSuspension = settle(runWave2(stackEncounterDeck(staged, "01186"), endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const withSuspension = settle(
+      runWave2(stackEncounterDeck(staged, "01186"), endTurn()),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const suspension = cardsInPlay(withSuspension).find((id) => withSuspension.instances[id]?.cardId === "15026")!;
     expect(inst(withSuspension, suspension).attachedTo).toBe(identity);
 
@@ -212,14 +247,26 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
     // Suspension in play: paying only 3 leaves the play unresolved (still awaiting a real payment), 4 succeeds.
     const given = moveToHand(withSuspension, P1, "15012");
     const [crisisAverted] = given.ids as [InstanceId];
-    const tooLittle = runWave2(given.state, play(P1, crisisAverted, payWith(given.state, P1, 3, [crisisAverted, suspension])));
+    const tooLittle = runWave2(
+      given.state,
+      play(P1, crisisAverted, payWith(given.state, P1, 3, [crisisAverted, suspension])),
+    );
     expect(tooLittle.pendingChoice).not.toBeUndefined(); // still awaiting more payment, not silently played
-    const paid = runWave2(given.state, play(P1, crisisAverted, payWith(given.state, P1, 4, [crisisAverted, suspension])));
+    const paid = runWave2(
+      given.state,
+      play(P1, crisisAverted, payWith(given.state, P1, 4, [crisisAverted, suspension])),
+    );
     expect(playerOf(paid, P1).discard).toContain(crisisAverted); // the event resolved and was discarded
 
     // Hero Action: Exhaust your hero → discard this card.
     const discarded = settle(
-      runWave2(withSuspension, { type: "useAbility", playerId: P1, cardInstanceId: suspension, abilityId: "15026.magical-suspension-action" as never, payment: [] }),
+      runWave2(withSuspension, {
+        type: "useAbility",
+        playerId: P1,
+        cardInstanceId: suspension,
+        abilityId: "15026.magical-suspension-action" as never,
+        payment: [],
+      }),
       firstLegal,
       undefined,
       WAVE2_DEPS,
@@ -233,7 +280,12 @@ describe("Scarlet Witch's obligation and nemesis (Slipping Sanity, The Next Evol
   it("Chaos Manipulation: searches the encounter deck and discard pile for Luminous and puts her into play engaged with the revealing player", () => {
     const hero = runWave2(scwVsRhino(), toHero());
     const staged = stageChaosManipulation(hero);
-    const revealed = settle(runWave2(stackEncounterDeck(staged, "01186", "15027"), endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const revealed = settle(
+      runWave2(stackEncounterDeck(staged, "01186", "15027"), endTurn()),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const luminousInPlay = cardsInPlay(revealed).find((id) => revealed.instances[id]?.cardId === "15025");
     expect(luminousInPlay).toBeDefined();
     expect(inst(revealed, luminousInPlay!).engagedWith).toBe(P1);

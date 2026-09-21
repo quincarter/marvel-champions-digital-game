@@ -59,19 +59,15 @@ export const MAIN_SCHEME = stubMainScheme({
 });
 export const TREACHERY = stubTreachery({ id: "treachery", boostIcons: 1 });
 
-export const DEFAULT_CARDS: readonly AnyCard[] = [
-  HERO,
-  ALLY,
-  UPGRADE,
-  RESOURCE,
-  VILLAIN,
-  MAIN_SCHEME,
-  TREACHERY,
-];
+export const DEFAULT_CARDS: readonly AnyCard[] = [HERO, ALLY, UPGRADE, RESOURCE, VILLAIN, MAIN_SCHEME, TREACHERY];
 
 const repeat = (id: CardId, count: number): readonly CardId[] => Array.from({ length: count }, () => id);
 
-export const DEFAULT_DECK: readonly CardId[] = [...repeat(RESOURCE.id, 12), ...repeat(ALLY.id, 6), ...repeat(UPGRADE.id, 6)];
+export const DEFAULT_DECK: readonly CardId[] = [
+  ...repeat(RESOURCE.id, 12),
+  ...repeat(ALLY.id, 6),
+  ...repeat(UPGRADE.id, 6),
+];
 
 export interface NewGameOptions {
   readonly players?: number;
@@ -145,11 +141,7 @@ export function run(state: GameState, ...commands: readonly Command[]): GameStat
   return current;
 }
 
-export function runWith(
-  deps: EngineDeps,
-  state: GameState,
-  ...commands: readonly Command[]
-): GameState {
+export function runWith(deps: EngineDeps, state: GameState, ...commands: readonly Command[]): GameState {
   let current = state;
   for (const command of commands) current = expectOk(applyCommand(current, command, deps));
   return current;
@@ -261,7 +253,12 @@ export function giveCard(
       ...state,
       players: state.players.map((p) =>
         p.playerId === player
-          ? { ...p, deck: p.deck.filter((i) => i !== id), discard: p.discard.filter((i) => i !== id), hand: [...p.hand, id] }
+          ? {
+              ...p,
+              deck: p.deck.filter((i) => i !== id),
+              discard: p.discard.filter((i) => i !== id),
+              hand: [...p.hand, id],
+            }
           : p,
       ),
     },

@@ -5,8 +5,16 @@ import { boostCardsLayout } from "./villain-phase-boosts.js";
 /** The `boosts` rect a wide (desktop/tablet) or phone `villainPhaseLayout` would hand this module, at each viewport class checked elsewhere in this suite. */
 const CASES: readonly { readonly name: string; readonly formFactor: FormFactor; readonly rect: Rect }[] = [
   { name: "phone 390×844", formFactor: formFactorFor(390, 844), rect: { x: 20, y: 260, width: 350, height: 142 } },
-  { name: "tablet portrait 768×1024", formFactor: formFactorFor(768, 1024), rect: { x: 52, y: 374, width: 348, height: 240 } },
-  { name: "tablet landscape 1024×768", formFactor: formFactorFor(1024, 768), rect: { x: 52, y: 374, width: 604, height: 240 } },
+  {
+    name: "tablet portrait 768×1024",
+    formFactor: formFactorFor(768, 1024),
+    rect: { x: 52, y: 374, width: 348, height: 240 },
+  },
+  {
+    name: "tablet landscape 1024×768",
+    formFactor: formFactorFor(1024, 768),
+    rect: { x: 52, y: 374, width: 604, height: 240 },
+  },
   { name: "desktop 1440×900", formFactor: formFactorFor(1440, 900), rect: { x: 76, y: 374, width: 1020, height: 240 } },
 ];
 

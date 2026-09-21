@@ -1,4 +1,4 @@
-import { TWC_CARDS, type AbilityReference } from "@mc/content";
+import { TWC_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { TWC_ABILITIES } from "./index.js";
 import { abilityRefIds } from "../../ability-refs.js";

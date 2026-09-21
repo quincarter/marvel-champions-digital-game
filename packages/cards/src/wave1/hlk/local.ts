@@ -31,7 +31,12 @@ export const paidOnly = (resourceType: TypedResource): Predicate => ({ kind: "pa
  * `Predicate.refMatches.anywhere` (`spec.ts`, documented against exactly this "card in a discard pile" shape), no
  * `dsl/values.ts` wrapper yet (the exported `refMatches` omits `anywhere`).
  */
-export const refMatchesAnywhere = (ref: TargetRef, q: TargetQuery): Predicate => ({ kind: "refMatches", ref, query: q, anywhere: true });
+export const refMatchesAnywhere = (ref: TargetRef, q: TargetQuery): Predicate => ({
+  kind: "refMatches",
+  ref,
+  query: q,
+  anywhere: true,
+});
 
 /**
  * "The enemy with the highest ATK" / "the hero or ally with the highest ATK" (Clash of the Titans). Landed
@@ -75,7 +80,11 @@ export const moveThreat = (from: TargetRef, to: TargetRef, n?: Amount): EffectSp
  * play-restrictions.test.ts`'s Gauntlet stub), not yet exposed as an option by the `resource()` builder in
  * `dsl/abilities.ts`.
  */
-export const resourceForCard = (generates: ResourceGeneration, cardFilter: TargetQuery, options: AbilityOptions = {}): AbilityDefinition => ({
+export const resourceForCard = (
+  generates: ResourceGeneration,
+  cardFilter: TargetQuery,
+  options: AbilityOptions = {},
+): AbilityDefinition => ({
   ...resource(generates, options),
   generatesFor: cardFilter,
 });

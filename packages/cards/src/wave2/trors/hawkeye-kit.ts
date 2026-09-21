@@ -162,7 +162,10 @@ export const HAWKEYE_KIT = defineAbilities({
   ),
 
   // Expert Marksman — Resource: Exhaust Expert Marksman → generate a [wild] resource for an Arrow event.
-  "04010.expert-marksman-resource": resource({ wild: 1 }, { cost: exhaustThis, generatesFor: query("event", { trait: ARROW }) }),
+  "04010.expert-marksman-resource": resource(
+    { wild: 1 },
+    { cost: exhaustThis, generatesFor: query("event", { trait: ARROW }) },
+  ),
 
   // Black Knight (04012) — [star] Black Knight's basic attack gains piercing. A persistent character: piercing is
   // checked against the attacking character's own keywords, so a constant grant on Black Knight himself is exact
@@ -171,7 +174,11 @@ export const HAWKEYE_KIT = defineAbilities({
 
   // Goliath (04013) — Action: Goliath gets +4 ATK until the end of the phase. At the end of the phase, discard
   // Goliath. (Max once per phase.)
-  "04013.goliath-action": action({ limit: { count: 1, period: "phase" } }, modifyStat("atk", 4, self, "endOfPhase"), atEndOfPhase(discard(self))),
+  "04013.goliath-action": action(
+    { limit: { count: 1, period: "phase" } },
+    modifyStat("atk", 4, self, "endOfPhase"),
+    atEndOfPhase(discard(self)),
+  ),
 
   // Sky Cycle — Attach to an Avenger ally. Attached ally gains Aerial. Action: Exhaust Sky Cycle → ready attached ally.
   "04015.sky-cycle-constant": constant(gainsTrait(trait("AERIAL"), { hostOfSelf: true })),
@@ -194,7 +201,12 @@ export const HAWKEYE_KIT = defineAbilities({
   // Earth's Mightiest Heroes — Hero Action: Exhaust an Avenger character you control → ready another Avenger
   // character you control.
   "04022.earths-mightiest-heroes-action": heroAction(
-    { kind: "chooseTarget", slot: "exhaust", query: query("character", { controller: "you", trait: trait("AVENGER"), exhausted: false }), chooser: you },
+    {
+      kind: "chooseTarget",
+      slot: "exhaust",
+      query: query("character", { controller: "you", trait: trait("AVENGER"), exhausted: false }),
+      chooser: you,
+    },
     exhaust(chosen("exhaust")),
     {
       kind: "chooseTarget",

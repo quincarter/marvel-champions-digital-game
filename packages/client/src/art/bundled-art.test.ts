@@ -10,7 +10,9 @@ import { bundledArtPaths } from "./bundled-art.js";
  * which this package deliberately doesn't carry.
  */
 const ART_PREFIX = "../../../../assets/card-art/";
-const ON_DISK: ReadonlySet<string> = new Set(Object.keys(import.meta.glob("../../../../assets/card-art/**/*")).map((key) => key.slice(ART_PREFIX.length)));
+const ON_DISK: ReadonlySet<string> = new Set(
+  Object.keys(import.meta.glob("../../../../assets/card-art/**/*")).map((key) => key.slice(ART_PREFIX.length)),
+);
 
 /**
  * Scans the pool references that are not in `assets/card-art/` yet. MarvelCDB
@@ -49,7 +51,10 @@ describe("bundledArtPaths", () => {
     const faces: CardFace[] = [{ kind: "front" }, { kind: "hero" }, { kind: "alterEgo" }, { kind: "flipSide" }];
     for (let stageIndex = 0; stageIndex < 6; stageIndex++) {
       for (let sideIndex = 0; sideIndex < 3; sideIndex++) faces.push({ kind: "villainStage", sideIndex, stageIndex });
-      faces.push({ kind: "mainSchemeStage", stageIndex, side: "A" }, { kind: "mainSchemeStage", stageIndex, side: "B" });
+      faces.push(
+        { kind: "mainSchemeStage", stageIndex, side: "A" },
+        { kind: "mainSchemeStage", stageIndex, side: "B" },
+      );
     }
     const bundled = new Set(bundledArtPaths(POOL_CARDS));
     const unbundled = new Set<string>();

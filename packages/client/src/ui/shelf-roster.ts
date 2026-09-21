@@ -32,7 +32,7 @@
  * chevron doesn't also fire it.
  */
 import Phaser from "phaser";
-import { surface } from "../tokens.js";
+
 import type { Shelf } from "../view/roster-shelves.js";
 import { AxisDragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import { ListScroll } from "../view/list-scroll.js";
@@ -191,7 +191,8 @@ export class McShelfRoster<T> {
 
   /** Page Up/Down over the shelves themselves (a "page" is a shelf, matching `moveShelfFocus`'s own `pageUp`/`pageDown` — one shelf is already this widget's uniform scroll unit). Parity with `McVirtualList.scrollByPage`, for `FocusRoute.onPage`. */
   scrollByPage(direction: 1 | -1): void {
-    if (this.#verticalScroll.scrollByPage(direction, this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#redraw();
+    if (this.#verticalScroll.scrollByPage(direction, this.#shelves.length, this.#shelfStep(), this.#rect.height))
+      this.#redraw();
   }
 
   /** Parity with `McVirtualList.scrollToStart`, for `FocusRoute.onHomeEnd`. */
@@ -233,7 +234,10 @@ export class McShelfRoster<T> {
   }
 
   #layoutMask(): void {
-    this.#maskShape.clear().fillStyle(0xffffff).fillRect(this.#rect.x, this.#rect.y, this.#rect.width, this.#rect.height);
+    this.#maskShape
+      .clear()
+      .fillStyle(0xffffff)
+      .fillRect(this.#rect.x, this.#rect.y, this.#rect.width, this.#rect.height);
     this.#background.clear();
     if (this.#paintBackground) paintPanel(this.#background, this.#rect, "rail", "rest");
   }
@@ -282,7 +286,14 @@ export class McShelfRoster<T> {
       const clip = (): Rect => this.#rect;
       const suppressClick = (): boolean => this.isDragSuppressingClick;
       const chevronY = rowY + (m.cardHeight - CHEVRON_HEIGHT) / 2;
-      const chevronType = { family: "Public Sans", size: 16, weight: 800, lineHeight: 1, letterSpacing: 0, uppercase: false } as const;
+      const chevronType = {
+        family: "Public Sans",
+        size: 16,
+        weight: 800,
+        lineHeight: 1,
+        letterSpacing: 0,
+        uppercase: false,
+      } as const;
       // A chevron that cannot scroll in its own direction is not drawn at all (second-pass fidelity pass, item 4)
       // — not drawn-but-disabled, which for a while left a visible dashed "unavailable" box at the shelf edge even
       // when there was nothing to scroll to that way. Reparented into `#layer` (the masked container every
@@ -307,7 +318,12 @@ export class McShelfRoster<T> {
             kind: "onInk",
             label: "›",
             type: chevronType,
-            rect: { x: this.#rect.x + this.#rect.width - CHEVRON_WIDTH, y: chevronY, width: CHEVRON_WIDTH, height: CHEVRON_HEIGHT },
+            rect: {
+              x: this.#rect.x + this.#rect.width - CHEVRON_WIDTH,
+              y: chevronY,
+              width: CHEVRON_WIDTH,
+              height: CHEVRON_HEIGHT,
+            },
             onClick: () => this.#scrollShelfBy(shelf.id, 1),
             clip,
             suppressClick,
@@ -315,7 +331,14 @@ export class McShelfRoster<T> {
         : null;
       if (chevronRight) this.#layer.add(chevronRight.container);
 
-      this.#live.set(shelfIndex, { index: shelfIndex, shelf: shelf as Shelf<unknown>, headerRow, cardRows, chevronLeft, chevronRight });
+      this.#live.set(shelfIndex, {
+        index: shelfIndex,
+        shelf: shelf as Shelf<unknown>,
+        headerRow,
+        cardRows,
+        chevronLeft,
+        chevronRight,
+      });
     }
   }
 
@@ -351,7 +374,10 @@ export class McShelfRoster<T> {
       if (!shelf) return;
       const hs = this.#horizontalScrollFor(shelf.id);
       const amount = event?.shiftKey && Math.abs(dx) < 1 ? dy : dx;
-      if (hs.scrollByPx(amount, shelf.items.length, this.#metrics.cardWidth + this.#metrics.cardGap, this.#innerWidth())) this.#redraw();
+      if (
+        hs.scrollByPx(amount, shelf.items.length, this.#metrics.cardWidth + this.#metrics.cardGap, this.#innerWidth())
+      )
+        this.#redraw();
       return;
     }
     if (this.#verticalScroll.scrollByPx(dy, this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#redraw();
@@ -371,12 +397,21 @@ export class McShelfRoster<T> {
     const move = this.#drag.move(pointer.id, pointer.x, pointer.y, this.#scene.time.now);
     if (!move) return;
     if (move.axis === "vertical") {
-      if (this.#verticalScroll.scrollByPx(move.delta, this.#shelves.length, this.#shelfStep(), this.#rect.height)) this.#redraw();
+      if (this.#verticalScroll.scrollByPx(move.delta, this.#shelves.length, this.#shelfStep(), this.#rect.height))
+        this.#redraw();
     } else if (this.#dragShelfId) {
       const shelf = this.#shelves.find((s) => s.id === this.#dragShelfId);
       if (shelf) {
         const hs = this.#horizontalScrollFor(shelf.id);
-        if (hs.scrollByPx(move.delta, shelf.items.length, this.#metrics.cardWidth + this.#metrics.cardGap, this.#innerWidth())) this.#redraw();
+        if (
+          hs.scrollByPx(
+            move.delta,
+            shelf.items.length,
+            this.#metrics.cardWidth + this.#metrics.cardGap,
+            this.#innerWidth(),
+          )
+        )
+          this.#redraw();
       }
     }
   }

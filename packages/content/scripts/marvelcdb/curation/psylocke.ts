@@ -20,7 +20,8 @@ export const PSYLOCKE_CURATION: PackCuration = {
   pack: {
     name: "Psylocke",
     releaseDate: "2023-09-22",
-    releaseDateSource: 'Hall of Heroes Psylocke/Betsy Braddock page (https://hallofheroeslcg.com/psylocke-betsy-braddock/): "Release date: September 22, 2023"',
+    releaseDateSource:
+      'Hall of Heroes Psylocke/Betsy Braddock page (https://hallofheroeslcg.com/psylocke-betsy-braddock/): "Release date: September 22, 2023"',
   },
   outDir: "src/data/psylocke",
   exportPrefix: "PSYLOCKE",
@@ -28,8 +29,9 @@ export const PSYLOCKE_CURATION: PackCuration = {
   corrections: [
     {
       code: "41002a",
-      reason: "Psi-Knife is a Permanent signature weapon, flipped by its own Hero Resource rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/41002a), \"Cost: —\"",
+      reason:
+        'Psi-Knife is a Permanent signature weapon, flipped by its own Hero Resource rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/41002a), "Cost: —"',
       specialCost: "dash",
     },
   ],

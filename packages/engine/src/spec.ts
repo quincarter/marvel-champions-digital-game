@@ -407,7 +407,11 @@ export type ValueSpec =
    * a pool summed over a `moveCards`/`discardEncounterCards` bind, this reads whatever a `TargetRef` names, so a card
    * bound by a cost's own `discardFromHand` slot (which reports only a count) can be measured.
    */
-  | { readonly kind: "totalPrintedResources"; readonly cards: TargetRef; readonly types?: readonly ("physical" | "mental" | "energy" | "wild")[] }
+  | {
+      readonly kind: "totalPrintedResources";
+      readonly cards: TargetRef;
+      readonly types?: readonly ("physical" | "mental" | "energy" | "wild")[];
+    }
   /**
    * A villain's printed stage number (Death from Above, Wicked Ambitions): the numeral printed on the stage card
    * (`VillainStage.stageNumber`), not its index in the deck — expert play starts on stage II, whose number is 2.
@@ -482,7 +486,12 @@ export type Predicate =
    * and `varAtLeast` are the older, narrower spellings of the `atLeast` case and stay as they are; prefer `compare`
    * for anything new. Both sides are evaluated in this ability's context at the moment the predicate is read.
    */
-  | { readonly kind: "compare"; readonly left: ValueSpec; readonly op: "atLeast" | "atMost" | "equalTo"; readonly right: ValueSpec }
+  | {
+      readonly kind: "compare";
+      readonly left: ValueSpec;
+      readonly op: "atLeast" | "atMost" | "equalTo";
+      readonly right: ValueSpec;
+    }
   /**
    * The players are split into separate game areas (docs/phase7-wave2.md §3.1). The Master of Time 2B's "When all the
    * players have joined this game area, advance to stage 4A" is a `stateCheck` on `not(gameAreasSplit)`.
@@ -527,7 +536,13 @@ export type EffectSpec =
    * *players* removing threat from the main scheme while one is in play; this one effect steps over that check only.
    * It does not touch a `threatCannotBeRemoved` rule, which is a "cannot" (RRG 1.8 "'Cannot'", p. 11) and absolute.
    */
-  | { readonly kind: "removeThreat"; readonly target: TargetRef; readonly amount: ValueSpec; readonly ignoreCrisis?: boolean; readonly bind?: string }
+  | {
+      readonly kind: "removeThreat";
+      readonly target: TargetRef;
+      readonly amount: ValueSpec;
+      readonly ignoreCrisis?: boolean;
+      readonly bind?: string;
+    }
   /**
    * "(attack)": "Deal N damage to an enemy" resolved as an attack by your
    * identity (or `attacker`): guard, retaliate, "after X attacks" and overkill
@@ -695,7 +710,13 @@ export type EffectSpec =
       readonly player?: PlayerRef;
     }
   /** "Gain the Aerial trait until the end of the phase" (Rocket Boots). */
-  | { readonly kind: "grantTraitUntil"; readonly trait: Trait; readonly target?: TargetRef; readonly affects?: TargetQuery; readonly until: LastingUntil }
+  | {
+      readonly kind: "grantTraitUntil";
+      readonly trait: Trait;
+      readonly target?: TargetRef;
+      readonly affects?: TargetQuery;
+      readonly until: LastingUntil;
+    }
   /** A delayed effect: "At the end of the round, if Nick Fury is still in play, discard him." Fires after round-end lasting effects expire. */
   | { readonly kind: "atEndOfRound"; readonly effects: readonly EffectSpec[] }
   /**
@@ -747,7 +768,11 @@ export type EffectSpec =
   | {
       readonly kind: "chooseOne";
       readonly chooser: PlayerRef;
-      readonly options: readonly { readonly label: string; readonly condition?: Predicate; readonly effects: readonly EffectSpec[] }[];
+      readonly options: readonly {
+        readonly label: string;
+        readonly condition?: Predicate;
+        readonly effects: readonly EffectSpec[];
+      }[];
       /**
        * "Choose two of the following (you may choose the same option twice)" (Double Time; docs/phase7-wave2.md §3.7):
        * `count` options are chosen and resolve in the order chosen. RRG 1.8 "Choose (Option)" (p. 12) forbids choosing an
@@ -858,7 +883,12 @@ export type EffectSpec =
    * and sets `<bind>.made` to 1; paying nothing (or too little) declines and
    * sets it to 0, so the alternative can follow as `if not <bind>.made`.
    */
-  | { readonly kind: "spendResources"; readonly player: PlayerRef; readonly resources: ResourceRequirement; readonly bind: string }
+  | {
+      readonly kind: "spendResources";
+      readonly player: PlayerRef;
+      readonly resources: ResourceRequirement;
+      readonly bind: string;
+    }
   /**
    * "Put the top card of your deck into play facedown, engaged with you as a
    * [Drone] minion." For each player, `count` times (default 1). An empty deck
@@ -866,7 +896,12 @@ export type EffectSpec =
    * your deck and dealing yourself a facedown encounter card"). When it leaves
    * play it goes to its owner's zones and is itself again.
    */
-  | { readonly kind: "putIntoPlayFacedown"; readonly player: PlayerRef; readonly count?: ValueSpec; readonly as: FacedownRole }
+  | {
+      readonly kind: "putIntoPlayFacedown";
+      readonly player: PlayerRef;
+      readonly count?: ValueSpec;
+      readonly as: FacedownRole;
+    }
   /** Binds the cards a selector names now into `slot` (and `<slot>.count`): "your set-aside nemesis minion", "the Breakin' & Takin' side scheme in the encounter deck or discard". */
   | { readonly kind: "selectCards"; readonly slot: string; readonly cards: CardSelector }
   /** "Reveal it": each card goes through the full reveal procedure (RRG "Reveal") for `player`, from wherever it is. */
@@ -931,7 +966,12 @@ export type EffectSpec =
    * encounter card happen at the next draw from that deck rather than the instant it empties. That is a pre-existing
    * engine-wide modeling choice, not one this effect makes.
    */
-  | { readonly kind: "discardDeckUntil"; readonly player: PlayerRef; readonly filter: TargetQuery; readonly bind: string }
+  | {
+      readonly kind: "discardDeckUntil";
+      readonly player: PlayerRef;
+      readonly filter: TargetQuery;
+      readonly bind: string;
+    }
   /**
    * "Discard the top N cards of the encounter deck" (Electro, Lightning Bolt, Shock Therapy). The active villain's
    * deck (§3.2); each card goes to its own deck's discard pile (`home`).
@@ -965,7 +1005,12 @@ export type EffectSpec =
   /** "Place a random card from their hand facedown here" — tucked cards are out of play (RRG "Tuck"). */
   | { readonly kind: "tuckCards"; readonly cards: CardSelector; readonly under: TargetRef; readonly facedown?: boolean }
   /** "Assign X damage among heroes and allies": the chooser places it one point at a time; each character then takes its share as one damage event. */
-  | { readonly kind: "assignDamage"; readonly amount: ValueSpec; readonly among: TargetQuery; readonly chooser: PlayerRef }
+  | {
+      readonly kind: "assignDamage";
+      readonly amount: ValueSpec;
+      readonly among: TargetQuery;
+      readonly chooser: PlayerRef;
+    }
   /**
    * "Deal N indirect damage to each player" / "… to you" (RRG 1.8 "Indirect Damage", p. 24). Each player divides it
    * among the characters they control (one `assignIndirectDamage` choice, `authority: "player"`; user decision,
@@ -974,7 +1019,12 @@ export type EffectSpec =
    * friendly character. Everything assigned then resolves simultaneously as one `damageGroup`. `bind`: `<bind>.amount`
    * (damage taken, summed) and `<bind>.made`.
    */
-  | { readonly kind: "dealIndirectDamage"; readonly to: PlayerRef | "group"; readonly amount: ValueSpec; readonly bind?: string }
+  | {
+      readonly kind: "dealIndirectDamage";
+      readonly to: PlayerRef | "group";
+      readonly amount: ValueSpec;
+      readonly bind?: string;
+    }
   | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
    * "Discard N cards from your hand" / "Each player must choose and discard 1 resource of any type from their hand
@@ -990,7 +1040,13 @@ export type EffectSpec =
    *
    * `random` discards at random instead of asking, and honours `filter` the same way.
    */
-  | { readonly kind: "discardFromHand"; readonly player: PlayerRef; readonly amount: ValueSpec; readonly random?: boolean; readonly filter?: TargetQuery }
+  | {
+      readonly kind: "discardFromHand";
+      readonly player: PlayerRef;
+      readonly amount: ValueSpec;
+      readonly random?: boolean;
+      readonly filter?: TargetQuery;
+    }
   /** Turns the top N encounter cards faceup without revealing them (RRG "Search"). */
   | {
       readonly kind: "revealTopOfEncounterDeck";
@@ -1001,8 +1057,18 @@ export type EffectSpec =
   | { readonly kind: "ready"; readonly target: TargetRef }
   | { readonly kind: "giveStatus"; readonly target: TargetRef; readonly status: StatusName }
   | { readonly kind: "removeStatus"; readonly target: TargetRef; readonly status: StatusName }
-  | { readonly kind: "addCounters"; readonly target: TargetRef; readonly counterType: string; readonly amount: ValueSpec }
-  | { readonly kind: "removeCounters"; readonly target: TargetRef; readonly counterType: string; readonly amount: ValueSpec }
+  | {
+      readonly kind: "addCounters";
+      readonly target: TargetRef;
+      readonly counterType: string;
+      readonly amount: ValueSpec;
+    }
+  | {
+      readonly kind: "removeCounters";
+      readonly target: TargetRef;
+      readonly counterType: string;
+      readonly amount: ValueSpec;
+    }
   /**
    * "Attach 1 card from your hand facedown here" (Bruno Carrelli): `facedown` attaches it face down, and a facedown
    * card in play has no title, traits, keywords or abilities until it is turned faceup or leaves play.
@@ -1021,7 +1087,12 @@ export type EffectSpec =
    * instructs it. `chooser` orders the cards and they go back on top of the encounter deck in that order, the first
    * card chosen ending up on top.
    */
-  | { readonly kind: "reorderCards"; readonly cards: CardSelector; readonly chooser: PlayerRef; readonly to: "encounterDeckTop" }
+  | {
+      readonly kind: "reorderCards";
+      readonly cards: CardSelector;
+      readonly chooser: PlayerRef;
+      readonly to: "encounterDeckTop";
+    }
   /**
    * "Set his hit point dial to 1 instead" (Captain America's Helmet), as a replacement for a defeat. RRG 1.8 "Hit
    * Points" (p. 22): the dial is the character's remaining hit points, so this sets sustained damage to maximum hit
@@ -1037,7 +1108,12 @@ export type EffectSpec =
    * produce while it resolves, and it ends when that card finishes resolving — a card returned to hand and replayed
    * in the same phase does not keep it. Prevention is not removal, so Shrink does nothing for a prevent effect.
    */
-  | { readonly kind: "modifyCardEffect"; readonly card: TargetRef; readonly damage?: ValueSpec; readonly threatRemoved?: ValueSpec }
+  | {
+      readonly kind: "modifyCardEffect";
+      readonly card: TargetRef;
+      readonly damage?: ValueSpec;
+      readonly threatRemoved?: ValueSpec;
+    }
   | { readonly kind: "putIntoPlay"; readonly card: TargetRef; readonly controller: PlayerRef }
   /**
    * "Deal an encounter card to each player" / "Deal 2 encounter cards to each player" (Green Goblin II). Cards come
@@ -1088,7 +1164,11 @@ export type EffectSpec =
    * Completed). Logged with an existing outcome reason: a win as `villainDefeated`, a loss as `reason` (default
    * `mainSchemeCompleted`). Needed where `Scenario.victory` is `"cardAbility"` (docs/phase7-wave2.md §3.4).
    */
-  | { readonly kind: "endGame"; readonly result: "win" | "loss"; readonly reason?: "mainSchemeCompleted" | "allPlayersDefeated" }
+  | {
+      readonly kind: "endGame";
+      readonly result: "win" | "loss";
+      readonly reason?: "mainSchemeCompleted" | "allPlayersDefeated";
+    }
   /**
    * "Add Kang (Immortus) to the game area" / "Reveal Kang (III) and add him to the game area" (docs/phase7-wave2.md
    * §3.4): each set-aside villain `villain` names (bind it with `selectCards` over `encounterSetAside` first) enters play
@@ -1114,7 +1194,12 @@ export type EffectSpec =
    * it"), then its B side's starting threat is placed. `removeUnused` then removes the rest of the group from the game
    * ("Remove any unused stage 3 schemes from the game"). Only in a scenario with `separateGameAreas`.
    */
-  | { readonly kind: "revealMainSchemeStage"; readonly player: PlayerRef; readonly stageNumber: number; readonly removeUnused?: boolean }
+  | {
+      readonly kind: "revealMainSchemeStage";
+      readonly player: PlayerRef;
+      readonly stageNumber: number;
+      readonly removeUnused?: boolean;
+    }
   /**
    * "Create your own game area and place this scheme in it" (Kang's stage 3A cards): a new separate game area for the
    * resolving player, whose main scheme is this card (the stage instance `revealMainSchemeStage` created). The player's
@@ -1145,7 +1230,13 @@ export type EffectSpec =
    * no destination. `bind`: `<bind>.made`, `<bind>.amount` (placed) and `<bind>.forcedResponses`, the number of forced
    * responses the placement triggered ("If that scheme's 'Forced Response' ability is not triggered this way …").
    */
-  | { readonly kind: "moveThreat"; readonly from: TargetRef; readonly to: TargetRef; readonly amount?: ValueSpec; readonly bind?: string }
+  | {
+      readonly kind: "moveThreat";
+      readonly from: TargetRef;
+      readonly to: TargetRef;
+      readonly amount?: ValueSpec;
+      readonly bind?: string;
+    }
   /**
    * "Place the active counter on Wrecker" / "Move the active counter to the villain whose scheme has the most
    * threat" (The Wrecking Crew insert, "The Active Villain"). Moves it to the first undefeated villain `villain`
@@ -1186,7 +1277,12 @@ export type EffectSpec =
       readonly count?: number | ValueSpec;
       readonly optional?: boolean;
     }
-  | { readonly kind: "if"; readonly condition: Predicate; readonly then: readonly EffectSpec[]; readonly otherwise?: readonly EffectSpec[] }
+  | {
+      readonly kind: "if";
+      readonly condition: Predicate;
+      readonly then: readonly EffectSpec[];
+      readonly otherwise?: readonly EffectSpec[];
+    }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
   /**

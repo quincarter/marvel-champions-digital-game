@@ -9,7 +9,8 @@ import { WAVE1_ABILITIES } from "../index.js";
 export const MSM_DEPS: EngineDeps = { abilities: WAVE1_ABILITIES };
 
 /** `run`, wired to `MSM_DEPS` — the `msm`-local analog of `../testing.ts`'s `runWave1`. */
-export const runMsm = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState => runWith(MSM_DEPS, state, ...commands);
+export const runMsm = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState =>
+  runWith(MSM_DEPS, state, ...commands);
 
 /** A wave 1 game past setup, with every opening hand kept, using `MSM_DEPS`. */
 export function startMsmGame(config: GameSetupConfig): GameState {

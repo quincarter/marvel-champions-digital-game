@@ -105,12 +105,21 @@ const TEMPORAL = trait("TEMPORAL");
 /** "Toughness (data). [star] Forced Interrupt: When Kang attacks you, either place 1 threat on the main scheme, or he gets +2 ATK for this attack." (Kang (I)/Kang (III), standard and expert). */
 const KANG_ATTACKS_YOU_FORCED_INTERRUPT = forcedInterrupt(
   on.villainAttacks({ againstYou: true }),
-  chooseOne(option("Place 1 threat on the main scheme", placeThreat(1, theMainScheme)), option("He gets +2 ATK for this attack", modifyAttack({ atkBonus: 2 }))),
+  chooseOne(
+    option("Place 1 threat on the main scheme", placeThreat(1, theMainScheme)),
+    option("He gets +2 ATK for this attack", modifyAttack({ atkBonus: 2 })),
+  ),
 );
 /** "When Defeated: Advance the main scheme to stage 2 at the end of the phase." (Kang (I), standard and expert). */
-const KANG_I_WHEN_DEFEATED = { trigger: { kind: "whenDefeated" } as const, effects: [atEndOfPhase({ kind: "advanceMainScheme" as const, to: { stageNumber: 2 } })] };
+const KANG_I_WHEN_DEFEATED = {
+  trigger: { kind: "whenDefeated" } as const,
+  effects: [atEndOfPhase({ kind: "advanceMainScheme" as const, to: { stageNumber: 2 } })],
+};
 /** "When Defeated: The players win the game." (Kang (III), standard and expert). */
-const KANG_III_WHEN_DEFEATED = { trigger: { kind: "whenDefeated" } as const, effects: [{ kind: "endGame" as const, result: "win" as const }] };
+const KANG_III_WHEN_DEFEATED = {
+  trigger: { kind: "whenDefeated" } as const,
+  effects: [{ kind: "endGame" as const, result: "win" as const }],
+};
 
 /**
  * "When Defeated: Remove <stage> from the game. At the end of the phase, join another game area." (each Kang
@@ -134,9 +143,25 @@ export const KANG_SET = defineAbilities({
 
   // Kang (Immortus) (11002/11035) — This villain cannot take damage while a minion is in play. When Defeated:
   // remove the Chronopolis from the game and (at the end of the phase) join another game area.
-  "11002.kang-immortus-constant": constant({ rules: [{ kind: "cannotTakeDamage", target: query("villain", { self: true }), while: { kind: "exists", query: query("minion") } }] }),
+  "11002.kang-immortus-constant": constant({
+    rules: [
+      {
+        kind: "cannotTakeDamage",
+        target: query("villain", { self: true }),
+        while: { kind: "exists", query: query("minion") },
+      },
+    ],
+  }),
   "11002.when-defeated": kangIIWhenDefeated("The Chronopolis"),
-  "11035.kang-immortus-constant": constant({ rules: [{ kind: "cannotTakeDamage", target: query("villain", { self: true }), while: { kind: "exists", query: query("minion") } }] }),
+  "11035.kang-immortus-constant": constant({
+    rules: [
+      {
+        kind: "cannotTakeDamage",
+        target: query("villain", { self: true }),
+        while: { kind: "exists", query: query("minion") },
+      },
+    ],
+  }),
   "11035.when-defeated": kangIIWhenDefeated("The Chronopolis"),
 
   // Kang (Iron Lad) (11003/11036) — Retaliate 1, Toughness (data). When Defeated: remove Inexorable Fate.
@@ -145,16 +170,24 @@ export const KANG_SET = defineAbilities({
 
   // Kang (Rama-Tut) (11004/11037) — [star] +1 ATK for each obligation in play. When Defeated: remove The Realm of
   // Rama-Tut.
-  "11004.kang-rama-tut-constant": constant(gets("atk", { kind: "count", query: query("obligation") }, query("villain", { self: true }))),
+  "11004.kang-rama-tut-constant": constant(
+    gets("atk", { kind: "count", query: query("obligation") }, query("villain", { self: true })),
+  ),
   "11004.when-defeated": kangIIWhenDefeated("The Realm of Rama-Tut"),
-  "11037.kang-rama-tut-constant": constant(gets("atk", { kind: "count", query: query("obligation") }, query("villain", { self: true }))),
+  "11037.kang-rama-tut-constant": constant(
+    gets("atk", { kind: "count", query: query("obligation") }, query("villain", { self: true })),
+  ),
   "11037.when-defeated": kangIIWhenDefeated("The Realm of Rama-Tut"),
 
   // Kang (Scarlet Centurion) (11005/11038) — [star] This villain's attack(s) gain(s) piercing. When Defeated:
   // remove The Present Future War.
-  "11005.kang-scarlet-centurion-constant": constant(gainsKeyword({ name: "piercing" }, query("villain", { self: true }))),
+  "11005.kang-scarlet-centurion-constant": constant(
+    gainsKeyword({ name: "piercing" }, query("villain", { self: true })),
+  ),
   "11005.when-defeated": kangIIWhenDefeated("The Present Future War"),
-  "11038.kang-scarlet-centurion-constant": constant(gainsKeyword({ name: "piercing" }, query("villain", { self: true }))),
+  "11038.kang-scarlet-centurion-constant": constant(
+    gainsKeyword({ name: "piercing" }, query("villain", { self: true })),
+  ),
   "11038.when-defeated": kangIIWhenDefeated("The Present Future War"),
 
   // Kang (III) (11006/11039).
@@ -180,7 +213,11 @@ export const KANG_SET = defineAbilities({
   // data/toafk/cards.ts`), so `withoutTrait: TEMPORAL` names exactly "each player's obligation cards" without
   // naming any identity.
   "11007a.setup": setup(
-    selectCards("obligations", { kind: "encounter", zones: ["deck"], filter: query("obligation", { withoutTrait: TEMPORAL }) }),
+    selectCards("obligations", {
+      kind: "encounter",
+      zones: ["deck"],
+      filter: query("obligation", { withoutTrait: TEMPORAL }),
+    }),
     moveCards(cards(chosen("obligations")), "removedFromGame"),
     shuffleEncounterDeck(),
   ),
@@ -192,7 +229,12 @@ export const KANG_SET = defineAbilities({
   // discard each side scheme. Each player reveals a random stage 3A in turn order. Remove any unused stage 3
   // schemes from the game.
   "11008a.when-revealed": whenRevealed(
-    { kind: "addCounters", counterType: "acceleration", amount: { kind: "count", query: query("sideScheme") }, target: theMainScheme },
+    {
+      kind: "addCounters",
+      counterType: "acceleration",
+      amount: { kind: "count", query: query("sideScheme") },
+      target: theMainScheme,
+    },
     { kind: "discardFromPlay", target: { kind: "each", query: query("sideScheme") } },
     { kind: "revealMainSchemeStage", player: eachPlayer, stageNumber: 3, removeUnused: true },
   ),
@@ -202,8 +244,14 @@ export const KANG_SET = defineAbilities({
   // game area unless there are no other game areas remaining — no rule needed, the join procedure already only
   // offers separate areas as destinations (§10.4). When all the players have joined this game area, advance to
   // stage 4A.
-  "11008b.the-master-of-time-forced-interrupt": constant({ rules: [{ kind: "accelerationTokenDestination", to: self }] }),
-  "11008b.the-master-of-time-constant": stateCheck(not(gameAreasSplit), { kind: "advanceMainScheme", to: { stageNumber: 4 }, scheme: self }),
+  "11008b.the-master-of-time-forced-interrupt": constant({
+    rules: [{ kind: "accelerationTokenDestination", to: self }],
+  }),
+  "11008b.the-master-of-time-constant": stateCheck(not(gameAreasSplit), {
+    kind: "advanceMainScheme",
+    to: { stageNumber: 4 },
+    scheme: self,
+  }),
 
   // The Chronopolis 3A (Kang (Immortus)'s stage) — When Revealed: create your own game area and place this scheme
   // in it. Add Kang (Immortus) to the game area and deal yourself an encounter card.
@@ -222,7 +270,12 @@ export const KANG_SET = defineAbilities({
   "11009b.the-chronopolis-forced-response": forcedResponse(
     on.mainSchemeCompleted("self"),
     selectCards("dominion", encounterSetAside({ name: cardName("11023") })),
-    { kind: "tuckCards", cards: cards(chosen("dominion")), under: { kind: "mainScheme", of: "central" }, facedown: true },
+    {
+      kind: "tuckCards",
+      cards: cards(chosen("dominion")),
+      under: { kind: "mainScheme", of: "central" },
+      facedown: true,
+    },
     removeMainSchemeStage(self),
     atEndOfPhase(joinGameArea()),
   ),
@@ -238,7 +291,12 @@ export const KANG_SET = defineAbilities({
   "11010b.inexorable-fate-forced-response": forcedResponse(
     on.mainSchemeCompleted("self"),
     selectCards("dominion", encounterSetAside({ name: cardName("11023") })),
-    { kind: "tuckCards", cards: cards(chosen("dominion")), under: { kind: "mainScheme", of: "central" }, facedown: true },
+    {
+      kind: "tuckCards",
+      cards: cards(chosen("dominion")),
+      under: { kind: "mainScheme", of: "central" },
+      facedown: true,
+    },
     removeMainSchemeStage(self),
     atEndOfPhase(joinGameArea()),
   ),
@@ -254,7 +312,12 @@ export const KANG_SET = defineAbilities({
   "11011b.the-realm-of-rama-tut-forced-response": forcedResponse(
     on.mainSchemeCompleted("self"),
     selectCards("dominion", encounterSetAside({ name: cardName("11023") })),
-    { kind: "tuckCards", cards: cards(chosen("dominion")), under: { kind: "mainScheme", of: "central" }, facedown: true },
+    {
+      kind: "tuckCards",
+      cards: cards(chosen("dominion")),
+      under: { kind: "mainScheme", of: "central" },
+      facedown: true,
+    },
     removeMainSchemeStage(self),
     atEndOfPhase(joinGameArea()),
   ),
@@ -270,7 +333,12 @@ export const KANG_SET = defineAbilities({
   "11012b.the-present-future-war-forced-response": forcedResponse(
     on.mainSchemeCompleted("self"),
     selectCards("dominion", encounterSetAside({ name: cardName("11023") })),
-    { kind: "tuckCards", cards: cards(chosen("dominion")), under: { kind: "mainScheme", of: "central" }, facedown: true },
+    {
+      kind: "tuckCards",
+      cards: cards(chosen("dominion")),
+      under: { kind: "mainScheme", of: "central" },
+      facedown: true,
+    },
     removeMainSchemeStage(self),
     atEndOfPhase(joinGameArea()),
   ),

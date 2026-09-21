@@ -23,8 +23,14 @@ import {
   toHero,
 } from "../../testing/harness.js";
 
-const vsRhino = (...decks: readonly string[]) => startCoreGame(coreScenario("rhino", { players: decks.map((starterDeckId) => ({ starterDeckId })), seed: 21 }));
-const basicAttack = (state: GameState, attacker: InstanceId, target: InstanceId): Command => ({ type: "basicAttack", playerId: P1, attackerInstanceId: attacker, targetInstanceId: target });
+const vsRhino = (...decks: readonly string[]) =>
+  startCoreGame(coreScenario("rhino", { players: decks.map((starterDeckId) => ({ starterDeckId })), seed: 21 }));
+const basicAttack = (state: GameState, attacker: InstanceId, target: InstanceId): Command => ({
+  type: "basicAttack",
+  playerId: P1,
+  attackerInstanceId: attacker,
+  targetInstanceId: target,
+});
 const stats = (state: GameState, id: InstanceId) => {
   const profile = characterProfile(state, id, CORE_DEPS);
   return [profile?.thw, profile?.atk];
@@ -32,7 +38,9 @@ const stats = (state: GameState, id: InstanceId) => {
 
 describe("Captain Marvel", () => {
   it("Crisis Interdiction with the Aerial trait: the second 2 threat comes off a *different* scheme", () => {
-    const round2 = settle(run(stackEncounterDeck(vsRhino("core-captain-marvel-leadership"), "01186", "01107"), endTurn()));
+    const round2 = settle(
+      run(stackEncounterDeck(vsRhino("core-captain-marvel-leadership"), "01186", "01107"), endTurn()),
+    );
     const breakin = instancesOf(round2, "01107")[0] as InstanceId;
     const given = moveToHand(round2, P1, "01017", "01012"); // Cosmic Flight (gains Aerial), Crisis Interdiction
     const [flight, interdiction] = given.ids as [InstanceId, InstanceId];
@@ -66,7 +74,9 @@ describe("Captain Marvel", () => {
 
 describe("Black Panther", () => {
   it("Wakanda Forever!: Energy Daggers hits the villain and each enemy engaged with the chosen player; Panther Claws as the final step deals 4", () => {
-    const round2 = settle(run(stackEncounterDeck(vsRhino("core-black-panther-protection"), "01186", "01101"), endTurn()));
+    const round2 = settle(
+      run(stackEncounterDeck(vsRhino("core-black-panther-protection"), "01186", "01101"), endTurn()),
+    );
     const mercenary = playerOf(round2, P1).playArea.find((id) => inst(round2, id).cardId === "01101") as InstanceId;
     const given = moveToHand(round2, P1, "01046", "01047", "01043a");
     const [daggers, claws, wakanda] = given.ids as [InstanceId, InstanceId, InstanceId];
@@ -74,7 +84,10 @@ describe("Black Panther", () => {
     const withClaws = run(withDaggers, play(P1, claws, payWith(withDaggers, P1, 2, given.ids)));
     const ordering = run(withClaws, play(P1, wakanda, payWith(withClaws, P1, 1, given.ids)));
     expect(ordering.pendingChoice?.prompt.kind).toBe("orderSpecials");
-    const choosingPlayer = answer(ordering, [`${daggers}:01046.energy-daggers-special`, `${claws}:01047.panther-claws-special`]);
+    const choosingPlayer = answer(ordering, [
+      `${daggers}:01046.energy-daggers-special`,
+      `${claws}:01047.panther-claws-special`,
+    ]);
     const afterDaggers = answer(choosingPlayer, [P1]);
     expect(inst(afterDaggers, activeVillain(afterDaggers).instanceId).damage).toBe(1);
     expect(inst(afterDaggers, mercenary).damage).toBe(1);
@@ -102,10 +115,14 @@ describe("She-Hulk and Aggression", () => {
     const [hulk] = given.ids as [InstanceId];
     const hero = settle(run(given.state, toHero()));
     const withHulk = run(hero, play(P1, hulk, payWith(hero, P1, 2, given.ids)));
-    const physical = settle(run(putOnTopOfDeck(withHulk, P1, "01090").state, basicAttack(withHulk, hulk, activeVillain(withHulk).instanceId)));
+    const physical = settle(
+      run(putOnTopOfDeck(withHulk, P1, "01090").state, basicAttack(withHulk, hulk, activeVillain(withHulk).instanceId)),
+    );
     expect(inst(physical, activeVillain(physical).instanceId).damage).toBe(5); // 3 ATK + 2
     expect(playerOf(physical, P1).playArea).toContain(hulk);
-    const mental = settle(run(putOnTopOfDeck(withHulk, P1, "01089").state, basicAttack(withHulk, hulk, activeVillain(withHulk).instanceId)));
+    const mental = settle(
+      run(putOnTopOfDeck(withHulk, P1, "01089").state, basicAttack(withHulk, hulk, activeVillain(withHulk).instanceId)),
+    );
     expect(playerOf(mental, P1).discard).toContain(hulk);
   });
 });

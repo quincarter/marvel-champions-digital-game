@@ -55,8 +55,18 @@ export function rulesLayout(bounds: Rect, activeTab: RulesTab): RulesLayout {
 
   const tabs: Rect = { x: contentX, y: chrome.y + chrome.height + GAP, width: contentWidth, height: TABS_HEIGHT };
   const showSearch = activeTab === "glossary";
-  const search: Rect = { x: contentX, y: tabs.y + tabs.height + GAP, width: contentWidth, height: showSearch ? SEARCH_HEIGHT : 0 };
+  const search: Rect = {
+    x: contentX,
+    y: tabs.y + tabs.height + GAP,
+    width: contentWidth,
+    height: showSearch ? SEARCH_HEIGHT : 0,
+  };
   const bodyTop = showSearch ? search.y + search.height + GAP : tabs.y + tabs.height + GAP;
-  const body: Rect = { x: contentX, y: bodyTop, width: contentWidth, height: Math.max(0, bounds.y + bounds.height - bodyTop - MARGIN) };
+  const body: Rect = {
+    x: contentX,
+    y: bodyTop,
+    width: contentWidth,
+    height: Math.max(0, bounds.y + bounds.height - bodyTop - MARGIN),
+  };
   return { chrome, header, scope, tabs, search, body };
 }

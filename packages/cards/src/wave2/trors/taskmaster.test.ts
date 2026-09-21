@@ -1,10 +1,23 @@
 import { activeEncounterDeck, cardsInPlay, createGame, hasKeyword, type GameState, type InstanceId } from "@mc/engine";
 import { cardId, WAVE2_CARDS } from "@mc/content";
-import { endTurn, firstLegal, identityOf, inst, P1, payWith, play, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  P1,
+  payWith,
+  play,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
-const taskmasterVsHeroes = () => startWave2Game(wave2Scenario("taskmaster", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+const taskmasterVsHeroes = () =>
+  startWave2Game(wave2Scenario("taskmaster", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
 const ADVANCE = "01186";
 
 /** Photographic Reflexes (04104), attached directly to Taskmaster — test-only surgery, matching wave1's precedent
@@ -12,7 +25,9 @@ const ADVANCE = "01186";
  * attachment without a real reveal. */
 function withPhotographicReflexes(state: GameState): { readonly state: GameState; readonly card: InstanceId } {
   const villain = state.villains[0]!.instanceId;
-  const id = Object.values(state.instances).find((i) => i.cardId === cardId("04104") && i.attachedTo === null)!.instanceId;
+  const id = Object.values(state.instances).find(
+    (i) => i.cardId === cardId("04104") && i.attachedTo === null,
+  )!.instanceId;
   return {
     state: {
       ...state,
@@ -28,10 +43,15 @@ function withPhotographicReflexes(state: GameState): { readonly state: GameState
 
 describe("Taskmaster scenario", () => {
   it("standalone setup: the four Captive allies are set aside, Hydra Patrol is in play, and the game is legal", () => {
-    const config = wave2Scenario("taskmaster", { players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }], seed: 2026 });
+    const config = wave2Scenario("taskmaster", {
+      players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }],
+      seed: 2026,
+    });
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
-    const captives = created.state.encounterSetAside.filter((id) => ["04097", "04098", "04099", "04100"].includes(created.state.instances[id]?.cardId ?? ""));
+    const captives = created.state.encounterSetAside.filter((id) =>
+      ["04097", "04098", "04099", "04100"].includes(created.state.instances[id]?.cardId ?? ""),
+    );
     expect(captives).toHaveLength(4);
     expect(cardsInPlay(created.state).some((id) => created.state.instances[id]?.cardId === "04154")).toBe(true);
     expect(created.state.villains).toHaveLength(1);
@@ -81,7 +101,12 @@ describe("Taskmaster scenario", () => {
     const villainDamageBefore = inst(hero, villain).damage;
     const identityDamageBefore = inst(hero, identity).damage;
     // Basic attack against the villain.
-    const attacked = settle(runWave2(hero, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }), firstLegal, undefined, WAVE2_DEPS);
+    const attacked = settle(
+      runWave2(hero, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(attacked, villain).damage).toBe(villainDamageBefore);
     expect(inst(attacked, identity).damage).toBeGreaterThan(identityDamageBefore);
     // An encounter card (home: the encounter deck) discards to the *encounter* discard pile, not the player's own
@@ -118,7 +143,10 @@ describe("Taskmaster scenario", () => {
       ...start,
       encounterSetAside: start.encounterSetAside.filter((id) => id !== moonKnight),
       players: start.players.map((p, i) => (i === 0 ? { ...p, hand: [...p.hand, moonKnight] } : p)),
-      instances: { ...start.instances, [moonKnight]: { ...start.instances[moonKnight]!, ownerId: P1, home: { kind: "player" as const } } },
+      instances: {
+        ...start.instances,
+        [moonKnight]: { ...start.instances[moonKnight]!, ownerId: P1, home: { kind: "player" as const } },
+      },
     };
     const before = playerOf(withHand, P1).hand.length;
     // Moon Knight's own printed cost is 0 — no payment for the play itself; his Response then has its own "spend

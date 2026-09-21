@@ -29,7 +29,9 @@ beforeAll(async () => {
   const store = new SessionStore(new LocalEngineHost());
   await store.start(RHINO_SOLO);
   for (let step = 0; step < 10 && store.state.legal?.actions.kind === "choice"; step++) {
-    const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+    const { choice } = store.state.legal.actions as {
+      choice: { options: readonly { optionId: string }[]; minSelections: number };
+    };
     await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
   }
   state = store.state.game!;
@@ -55,7 +57,9 @@ describe("tabsTouchedBy", () => {
 
   test("damage to your own identity is Me news", () => {
     const identity = state.players.find((player) => player.playerId === me)!.identity.instanceId;
-    const events: GameEvent[] = [{ type: "damageDealt", targetInstanceId: identity, amount: 2, sourceInstanceId: null }];
+    const events: GameEvent[] = [
+      { type: "damageDealt", targetInstanceId: identity, amount: 2, sourceInstanceId: null },
+    ];
     expect(tabsTouchedBy(events, state, me).get("me")).toBe(1);
   });
 

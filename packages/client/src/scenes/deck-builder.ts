@@ -75,6 +75,7 @@ import { deckStorage } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 export interface DeckBuilderSceneData {
   readonly deck?: Deck;
@@ -96,7 +97,12 @@ const RAIL_GAP = 24;
  * holds player-deck cards of. `null` means "All" — no filter. `text` duplicates `label` to satisfy
  * `view/chip-layout.ts`'s `ChipLabel` (its wrap math reads a chip's display text under that name).
  */
-const TYPE_FILTERS: readonly { readonly id: string; readonly label: string; readonly text: string; readonly type: CardType | null }[] = (
+const TYPE_FILTERS: readonly {
+  readonly id: string;
+  readonly label: string;
+  readonly text: string;
+  readonly type: CardType | null;
+}[] = (
   [
     { id: "all", label: "All", type: null },
     { id: "ally", label: "Ally", type: "ally" },
@@ -152,11 +158,15 @@ export class DeckBuilderScene extends Phaser.Scene {
       this.#list = null;
     });
     this.#route = new FocusRoute(this, {
-      blocked: () => this.scene.isActive(SCENES.inspect) || (this.#nameInput?.focused ?? false) || (this.#filterInput?.focused ?? false),
+      blocked: () =>
+        this.scene.isActive(SCENES.inspect) ||
+        (this.#nameInput?.focused ?? false) ||
+        (this.#filterInput?.focused ?? false),
       onPage: (direction) => this.#list?.scrollByPage(direction),
       onHomeEnd: (edge) => (edge === "home" ? this.#list?.scrollToStart() : this.#list?.scrollToEnd()),
     });
     this.#rebuild();
+    fadeScreenIn(this);
   }
 
   #rebuild(): void {
@@ -170,7 +180,10 @@ export class DeckBuilderScene extends Phaser.Scene {
     this.#list?.destroy();
     this.#list = null;
 
-    const kept = [...(this.#nameInput ? [this.#nameInput.gameObject] : []), ...(this.#filterInput ? [this.#filterInput.gameObject] : [])];
+    const kept = [
+      ...(this.#nameInput ? [this.#nameInput.gameObject] : []),
+      ...(this.#filterInput ? [this.#filterInput.gameObject] : []),
+    ];
     for (const node of kept) this.children.remove(node);
     destroyChildren(this);
     for (const node of kept) this.children.add(node);
@@ -184,12 +197,25 @@ export class DeckBuilderScene extends Phaser.Scene {
     paintDotGrid(this, { x: 0, y: 0, width, height }, "paper", dotGrid.onPaper);
 
     let y = pad;
-    this.add.text(left, y, "DECK BUILDER", { ...textStyle(typeRole.screenTitle, surface.ink.hex), fontSize: phone ? "28px" : "38px" }).setLetterSpacing(2);
+    this.add
+      .text(left, y, "DECK BUILDER", {
+        ...textStyle(typeRole.screenTitle, surface.ink.hex),
+        fontSize: phone ? "28px" : "38px",
+      })
+      .setLetterSpacing(2);
     const backRect: Rect = { x: left + column - 100, y: y + 2, width: 100, height: hit.target };
     const goBack = (): void => {
-      this.scene.start(SCENES.decks);
+      goToScreen(this, SCENES.decks);
     };
-    this.#buttons.push(new McButton(this, { kind: "secondary", label: "Back", type: typeRole.rowTitle, rect: backRect, onClick: goBack }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "secondary",
+        label: "Back",
+        type: typeRole.rowTitle,
+        rect: backRect,
+        onClick: goBack,
+      }),
+    );
     this.#stops.set("back", { rect: backRect, activate: goBack });
     y += (phone ? 28 : 38) + 16;
 
@@ -247,9 +273,17 @@ export class DeckBuilderScene extends Phaser.Scene {
     const pad = 16;
     label(this, left, y, "search the pool", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
-    y = this.#drawFilterInput(left, y, column, deck);
+    y = this.#drawFilterInput(left, y, column);
     const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter);
-    label(this, left, y, `pool — ${pool.length} card${pool.length === 1 ? "" : "s"}`, typeRole.label, surface.ink.hex, ink.label);
+    label(
+      this,
+      left,
+      y,
+      `pool — ${pool.length} card${pool.length === 1 ? "" : "s"}`,
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    );
     y += 16;
     const listRect: Rect = { x: left, y, width: column, height: Math.max(CARD_ROW_HEIGHT, height - y - pad) };
     this.#drawPoolList(listRect, deck, pool);
@@ -281,7 +315,12 @@ export class DeckBuilderScene extends Phaser.Scene {
 
     // Right rail: name, legality, Your deck, Preconstructed/Clear, Save — one ink ground panel behind all of it.
     const rightPanel = this.add.graphics();
-    paintPanel(rightPanel, { x: rightX, y: top - 8, width: RIGHT_RAIL_WIDTH, height: bottom - top + 8 }, "onInk", "rest");
+    paintPanel(
+      rightPanel,
+      { x: rightX, y: top - 8, width: RIGHT_RAIL_WIDTH, height: bottom - top + 8 },
+      "onInk",
+      "rest",
+    );
     let rightY = top + 8;
     rightY = this.#drawNameField(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
     rightY = this.#drawLegalityLine(rightX + 12, rightY, RIGHT_RAIL_WIDTH - 24, deck, true);
@@ -293,9 +332,17 @@ export class DeckBuilderScene extends Phaser.Scene {
     let midY = top;
     label(this, midX, midY, "card pool", typeRole.label, surface.ink.hex, ink.label);
     midY += 16;
-    midY = this.#drawFilterInput(midX, midY, midWidth, deck);
+    midY = this.#drawFilterInput(midX, midY, midWidth);
     const pool = browsablePool(POOL, this.#identity!, deck.aspects, this.#filter);
-    label(this, midX, midY, `${pool.length} card${pool.length === 1 ? "" : "s"}`, typeRole.label, surface.ink.hex, ink.meta);
+    label(
+      this,
+      midX,
+      midY,
+      `${pool.length} card${pool.length === 1 ? "" : "s"}`,
+      typeRole.label,
+      surface.ink.hex,
+      ink.meta,
+    );
     midY += 16;
     const listRect: Rect = { x: midX, y: midY, width: midWidth, height: Math.max(CARD_ROW_HEIGHT, bottom - midY) };
     this.#drawPoolList(listRect, deck, pool);
@@ -313,14 +360,27 @@ export class DeckBuilderScene extends Phaser.Scene {
     SELECTABLE_ASPECTS.forEach((aspect, index) => {
       const row = Math.floor(index / aspectCols);
       const col = index % aspectCols;
-      const rect: Rect = { x: left + col * (aspectCellWidth + 6), y: y + row * (hit.target + 6), width: aspectCellWidth, height: hit.target };
+      const rect: Rect = {
+        x: left + col * (aspectCellWidth + 6),
+        y: y + row * (hit.target + 6),
+        width: aspectCellWidth,
+        height: hit.target,
+      };
       const selected = deck.aspects.includes(aspect);
       const toggle = (): void => {
-        if (selected) this.#setDeck(setAspects(deck, deck.aspects.filter((a) => a !== aspect)));
+        if (selected)
+          this.#setDeck(
+            setAspects(
+              deck,
+              deck.aspects.filter((a) => a !== aspect),
+            ),
+          );
         else if (deck.aspects.length < maxAspects) this.#setDeck(setAspects(deck, [...deck.aspects, aspect]));
         else this.#setDeck(setAspects(deck, [...deck.aspects.slice(1), aspect]));
       };
-      this.#buttons.push(new McButton(this, { kind: "secondary", label: aspect, type: typeRole.label, rect, selected, onClick: toggle }));
+      this.#buttons.push(
+        new McButton(this, { kind: "secondary", label: aspect, type: typeRole.label, rect, selected, onClick: toggle }),
+      );
       this.#stops.set(`aspect:${aspect}`, { rect, activate: toggle });
     });
     return y + aspectRows * (hit.target + 6) + 10;
@@ -335,14 +395,28 @@ export class DeckBuilderScene extends Phaser.Scene {
     typeChipRows.forEach((row, rowIndex) => {
       const cellWidth = (column - (row.length - 1) * CHIP_GAP) / row.length;
       row.forEach((chip, index) => {
-        const rect: Rect = { x: left + index * (cellWidth + CHIP_GAP), y: y + rowIndex * (hit.target + CHIP_GAP), width: cellWidth, height: hit.target };
+        const rect: Rect = {
+          x: left + index * (cellWidth + CHIP_GAP),
+          y: y + rowIndex * (hit.target + CHIP_GAP),
+          width: cellWidth,
+          height: hit.target,
+        };
         const selected = chip.id === activeTypeFilterId;
         const applyFilter = (): void => {
           this.#filter = { ...this.#filter, type: chip.type };
           this.#listScroll.reset();
           this.#rebuild();
         };
-        this.#buttons.push(new McButton(this, { kind: "secondary", label: chip.label, type: typeRole.label, rect, selected, onClick: applyFilter }));
+        this.#buttons.push(
+          new McButton(this, {
+            kind: "secondary",
+            label: chip.label,
+            type: typeRole.label,
+            rect,
+            selected,
+            onClick: applyFilter,
+          }),
+        );
         this.#stops.set(`type:${chip.id}`, { rect, activate: applyFilter });
       });
     });
@@ -351,7 +425,15 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   #drawNameField(left: number, top: number, column: number, deck: Deck, onDark = false): number {
     let y = top;
-    label(this, left, y, "deck name", typeRole.label, onDark ? surface.paper.hex : surface.ink.hex, onDark ? ink.secondary : ink.label);
+    label(
+      this,
+      left,
+      y,
+      "deck name",
+      typeRole.label,
+      onDark ? surface.paper.hex : surface.ink.hex,
+      onDark ? ink.secondary : ink.label,
+    );
     y += 16;
     const nameRect: Rect = { x: left, y, width: column, height: hit.target };
     if (this.#nameInput) this.#nameInput.layout(nameRect);
@@ -375,12 +457,21 @@ export class DeckBuilderScene extends Phaser.Scene {
       ? `Legal — ${cardCount} cards.`
       : `${verdict.problems.length} problem${verdict.problems.length === 1 ? "" : "s"}: ${verdict.problems.map((p) => p.message).join(" ")}`;
     const color = verdict.ok ? signal.heal.hex : accent.redDeep.hex;
-    const legalityLine = this.add.text(left, y, legalityText, textStyle(typeRole.body, onDark ? surface.paper.hex : color)).setWordWrapWidth(column);
+    const legalityLine = this.add
+      .text(left, y, legalityText, textStyle(typeRole.body, onDark ? surface.paper.hex : color))
+      .setWordWrapWidth(column);
     if (onDark && verdict.ok) legalityLine.setColor(cssOf(signal.heal.hex));
     y += legalityLine.height + 12;
 
     if (this.#status) {
-      const statusLine = this.add.text(left, y, this.#status, textStyle(typeRole.body, onDark ? surface.paper.hex : surface.ink.hex, ink.secondary)).setWordWrapWidth(column);
+      const statusLine = this.add
+        .text(
+          left,
+          y,
+          this.#status,
+          textStyle(typeRole.body, onDark ? surface.paper.hex : surface.ink.hex, ink.secondary),
+        )
+        .setWordWrapWidth(column);
       y += statusLine.height + 8;
     }
     return y;
@@ -402,7 +493,15 @@ export class DeckBuilderScene extends Phaser.Scene {
 
   /** "Your deck", grouped Hero / aspect / Basic with a "+ N more" overflow (D04's right rail; the narrow layout's own stats panel). */
   #drawYourDeckList(left: number, top: number, column: number, deck: Deck, onDark: boolean): number {
-    label(this, left, top, "your deck", typeRole.label, onDark ? surface.paper.hex : surface.ink.hex, onDark ? ink.secondary : ink.label);
+    label(
+      this,
+      left,
+      top,
+      "your deck",
+      typeRole.label,
+      onDark ? surface.paper.hex : surface.ink.hex,
+      onDark ? ink.secondary : ink.label,
+    );
     const groups = deckListGroupsOf(deck, POOL);
     return drawGroupedCardList(this, left, top + 16, column, groups, STATS_LIST_ENTRY_CAP, onDark);
   }
@@ -430,18 +529,35 @@ export class DeckBuilderScene extends Phaser.Scene {
     );
     this.#stops.set("preconstructed", { rect: preconRect, activate: doPrecon });
     const doClear = (): void => this.#setDeck(resetToIdentitySet(deck, this.#identity!, POOL));
-    this.#buttons.push(new McButton(this, { kind: onDark ? "onInk" : "secondary", label: "Clear", type: typeRole.label, rect: clearRect, onClick: doClear }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: onDark ? "onInk" : "secondary",
+        label: "Clear",
+        type: typeRole.label,
+        rect: clearRect,
+        onClick: doClear,
+      }),
+    );
     this.#stops.set("clear", { rect: clearRect, activate: doClear });
     y += hit.target + 16;
 
     const saveRect: Rect = { x: left, y, width: column, height: hit.primary };
     const doSave = (): void => void this.#save();
-    this.#buttons.push(new McButton(this, { kind: "primary", label: this.#busy ? "Saving…" : "Save deck", type: typeRole.barTitle, rect: saveRect, enabled: !this.#busy, onClick: doSave }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: this.#busy ? "Saving…" : "Save deck",
+        type: typeRole.barTitle,
+        rect: saveRect,
+        enabled: !this.#busy,
+        onClick: doSave,
+      }),
+    );
     this.#stops.set("save", { rect: saveRect, activate: doSave });
     return y + hit.primary + 16;
   }
 
-  #drawFilterInput(left: number, top: number, column: number, deck: Deck): number {
+  #drawFilterInput(left: number, top: number, column: number): number {
     const filterRect: Rect = { x: left, y: top, width: column, height: hit.target };
     if (this.#filterInput) this.#filterInput.layout(filterRect);
     else {
@@ -464,10 +580,21 @@ export class DeckBuilderScene extends Phaser.Scene {
   /** The pool, virtualized: `McVirtualList` owns which rows are live game objects; every card still gets a focus stop regardless of whether it's currently drawn. */
   #drawPoolList(listRect: Rect, deck: Deck, pool: readonly AnyCard[]): void {
     if (pool.length === 0) {
-      this.add.text(listRect.x + 10, listRect.y + 10, "No cards match this filter.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
+      this.add.text(
+        listRect.x + 10,
+        listRect.y + 10,
+        "No cards match this filter.",
+        textStyle(typeRole.body, surface.ink.hex, ink.meta),
+      );
     }
     const renderRow = (index: number, rect: Rect): VirtualListRow => this.#renderCardRow(rect, deck, pool[index]!);
-    this.#list = new McVirtualList(this, { rect: listRect, rowHeight: CARD_ROW_HEIGHT, count: pool.length, renderRow, scroll: this.#listScroll });
+    this.#list = new McVirtualList(this, {
+      rect: listRect,
+      rowHeight: CARD_ROW_HEIGHT,
+      count: pool.length,
+      renderRow,
+      scroll: this.#listScroll,
+    });
     const list = this.#list;
     pool.forEach((card, index) => {
       const cardId = card.id as string;
@@ -484,15 +611,33 @@ export class DeckBuilderScene extends Phaser.Scene {
     label(this, left, y, "pick an identity", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
     const rail = this.add.graphics();
-    paintPanel(rail, { x: left, y, width: column, height: IDENTITIES.length * (IDENTITY_ROW_HEIGHT + 6) + 6 }, "rail", "rest");
+    paintPanel(
+      rail,
+      { x: left, y, width: column, height: IDENTITIES.length * (IDENTITY_ROW_HEIGHT + 6) + 6 },
+      "rail",
+      "rest",
+    );
     IDENTITIES.forEach((identity, index) => {
-      const rect: Rect = { x: left + 6, y: y + 6 + index * (IDENTITY_ROW_HEIGHT + 6), width: column - 12, height: IDENTITY_ROW_HEIGHT };
+      const rect: Rect = {
+        x: left + 6,
+        y: y + 6 + index * (IDENTITY_ROW_HEIGHT + 6),
+        width: column - 12,
+        height: IDENTITY_ROW_HEIGHT,
+      };
       const choose = (): void => {
         this.#identity = identity;
-        this.#deck = newDeck(identity, POOL_CARDS, `deck-${crypto.randomUUID()}`, POOL_VERSION, new Date().toISOString());
+        this.#deck = newDeck(
+          identity,
+          POOL_CARDS,
+          `deck-${crypto.randomUUID()}`,
+          POOL_VERSION,
+          new Date().toISOString(),
+        );
         this.#rebuild();
       };
-      this.#buttons.push(new McButton(this, { kind: "secondary", label: identity.name, type: typeRole.rowTitle, rect, onClick: choose }));
+      this.#buttons.push(
+        new McButton(this, { kind: "secondary", label: identity.name, type: typeRole.rowTitle, rect, onClick: choose }),
+      );
       this.#stops.set(`identity:${identity.id as string}`, { rect, activate: choose });
     });
   }
@@ -509,9 +654,23 @@ export class DeckBuilderScene extends Phaser.Scene {
     fitText(name, row.width - 190);
     objects.push(name);
     const cost = "cost" in card ? String((card as unknown as { cost: number }).cost) : "—";
-    objects.push(this.add.text(row.x + 10, row.y + 6 + name.height + 2, `${card.type.replace(/_/g, " ")} · cost ${cost}`, textStyle(typeRole.label, surface.ink.hex, ink.meta)));
+    objects.push(
+      this.add.text(
+        row.x + 10,
+        row.y + 6 + name.height + 2,
+        `${card.type.replace(/_/g, " ")} · cost ${cost}`,
+        textStyle(typeRole.label, surface.ink.hex, ink.meta),
+      ),
+    );
 
-    const qtyText = label(this, row.x + row.width - 128, row.y + row.height / 2, String(quantity), typeRole.rowTitle, surface.ink.hex).setOrigin(0.5);
+    const qtyText = label(
+      this,
+      row.x + row.width - 128,
+      row.y + row.height / 2,
+      String(quantity),
+      typeRole.rowTitle,
+      surface.ink.hex,
+    ).setOrigin(0.5);
     objects.push(qtyText);
 
     // `clip`/`suppressClick` read `this.#list` lazily (see decks.ts's
@@ -522,14 +681,36 @@ export class DeckBuilderScene extends Phaser.Scene {
     const clip = (): Rect | null => this.#list?.rect ?? null;
     const suppressClick = (): boolean => this.#list?.isDragSuppressingClick ?? false;
 
-    const minusRect: Rect = { x: row.x + row.width - 106, y: row.y + (row.height - hit.target) / 2, width: 40, height: hit.target };
+    const minusRect: Rect = {
+      x: row.x + row.width - 106,
+      y: row.y + (row.height - hit.target) / 2,
+      width: 40,
+      height: hit.target,
+    };
     const doRemove = (): void => this.#setDeck(removeCard(deck, card.id));
-    const minusButton = new McButton(this, { kind: "secondary", label: "−", type: typeRole.rowTitle, rect: minusRect, enabled: quantity > 0, onClick: doRemove, clip, suppressClick });
+    const minusButton = new McButton(this, {
+      kind: "secondary",
+      label: "−",
+      type: typeRole.rowTitle,
+      rect: minusRect,
+      enabled: quantity > 0,
+      onClick: doRemove,
+      clip,
+      suppressClick,
+    });
     objects.push(minusButton.container);
 
     const plusRect: Rect = { x: row.x + row.width - 46, y: minusRect.y, width: 40, height: hit.target };
     const doAdd = (): void => this.#setDeck(addCard(deck, card.id));
-    const plusButton = new McButton(this, { kind: "secondary", label: "+", type: typeRole.rowTitle, rect: plusRect, onClick: doAdd, clip, suppressClick });
+    const plusButton = new McButton(this, {
+      kind: "secondary",
+      label: "+",
+      type: typeRole.rowTitle,
+      rect: plusRect,
+      onClick: doAdd,
+      clip,
+      suppressClick,
+    });
     objects.push(plusButton.container);
 
     return { objects };

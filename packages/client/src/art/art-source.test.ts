@@ -4,7 +4,15 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { CORE_CARDS, artRef, imageRef, type AnyCard, type HeroIdentityCard, type MainSchemeCard, type VillainCard } from "@mc/content";
+import {
+  CORE_CARDS,
+  artRef,
+  imageRef,
+  type AnyCard,
+  type HeroIdentityCard,
+  type MainSchemeCard,
+  type VillainCard,
+} from "@mc/content";
 import { artFor, CARD_BACKS } from "./art-source.js";
 
 const byId = (id: string): AnyCard => {

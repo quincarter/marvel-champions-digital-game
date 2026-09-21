@@ -143,11 +143,18 @@ const isResourceCard = (state: GameState, id: InstanceId): number => Number(card
  * resource abilities (no card lost), then hand cards with the most resources
  * first, resource cards before other cards on a tie.
  */
-function spendOrder(state: GameState, deps: EngineDeps, playerId: PlayerId, reserved: ReadonlySet<InstanceId>): readonly Payment[] {
+function spendOrder(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  reserved: ReadonlySet<InstanceId>,
+): readonly Payment[] {
   const payments = paymentsFromOptionIds(paymentOptions(createCtx(state, deps), playerId, null).map((o) => o.optionId));
   const abilities = payments.filter((p) => "ability" in p);
   const hand = payments.flatMap((p) => ("fromHand" in p && !reserved.has(p.fromHand) ? [p.fromHand] : []));
-  hand.sort((a, b) => resourceCount(state, b) - resourceCount(state, a) || isResourceCard(state, b) - isResourceCard(state, a));
+  hand.sort(
+    (a, b) => resourceCount(state, b) - resourceCount(state, a) || isResourceCard(state, b) - isResourceCard(state, a),
+  );
   return [...abilities, ...hand.map((fromHand) => ({ fromHand }))];
 }
 
@@ -165,7 +172,10 @@ function wallets(spend: readonly Payment[]): readonly (readonly Payment[])[] {
  * "Discard N cards at random from your hand →" needs N cards the payment leaves in hand, so each wallet is also tried
  * with its last N hand cards kept back. The unchanged wallet is tried first; costs without the component are untouched.
  */
-function leavingCardsToDiscard(tryWallets: readonly (readonly Payment[])[], cost: AbilityCost | undefined): readonly (readonly Payment[])[] {
+function leavingCardsToDiscard(
+  tryWallets: readonly (readonly Payment[])[],
+  cost: AbilityCost | undefined,
+): readonly (readonly Payment[])[] {
   const keep = cost?.discardRandomFromHand ?? 0;
   if (keep <= 0) return tryWallets;
   return tryWallets.flatMap((wallet) => {
@@ -196,7 +206,9 @@ function discardPicks(
   const hand = (getPlayer(state, playerId)?.hand ?? [])
     .filter((id) => id !== source)
     .filter((id) => !filter || matchesQuery(state, id, filter, context));
-  const cheapest = [...hand].sort((a, b) => resourceCount(state, a) - resourceCount(state, b) || isResourceCard(state, a) - isResourceCard(state, b));
+  const cheapest = [...hand].sort(
+    (a, b) => resourceCount(state, a) - resourceCount(state, b) || isResourceCard(state, a) - isResourceCard(state, b),
+  );
   return cheapest.slice(0, min);
 }
 
@@ -204,9 +216,18 @@ function discardPicks(
  * Default picks for costs paid with cards in play (`InPlayCostPick`), so an ability whose choice isn't forced is still
  * listed. The first `min` candidates in play-area order are the smallest payment. The player's own picks replace them.
  */
-function inPlayCostPicks(state: GameState, deps: EngineDeps, playerId: PlayerId, source: InstanceId, cost: AbilityCost | undefined): CostChoices {
+function inPlayCostPicks(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  source: InstanceId,
+  cost: AbilityCost | undefined,
+): CostChoices {
   const picks: Record<string, readonly InstanceId[]> = {};
-  for (const [mode, pick] of [["exhaust", cost?.exhaustCards], ["return", cost?.returnToHand]] as const) {
+  for (const [mode, pick] of [
+    ["exhaust", cost?.exhaustCards],
+    ["return", cost?.returnToHand],
+  ] as const) {
     if (!pick) continue;
     const candidates = inPlayCostCandidates(state, deps, source, playerId, mode, pick);
     // With too few candidates, leave the slot empty so the engine reports why the cost can't be paid.
@@ -224,7 +245,10 @@ function costChoiceSets(
   cost: AbilityCost | undefined,
   picks: readonly InstanceId[],
 ): readonly { readonly costChoices: CostChoices | undefined; readonly target: InstanceId | null }[] {
-  const base: CostChoices = { ...inPlayCostPicks(state, deps, playerId, source, cost), ...(cost?.discardFromHand ? { discard: picks } : {}) };
+  const base: CostChoices = {
+    ...inPlayCostPicks(state, deps, playerId, source, cost),
+    ...(cost?.discardFromHand ? { discard: picks } : {}),
+  };
   const baseChoices = Object.keys(base).length > 0 ? base : undefined;
   const pay = cost?.payPrintedCostOf;
   if (!pay) return [{ costChoices: baseChoices, target: null }];
@@ -236,7 +260,12 @@ function costChoiceSets(
 }
 
 /** The shortest prefix of `wallet` the engine accepts: the payment `example` and `suggested` both carry. */
-function smallestPayment(state: GameState, deps: EngineDeps, build: Variant["build"], wallet: readonly Payment[]): readonly Payment[] {
+function smallestPayment(
+  state: GameState,
+  deps: EngineDeps,
+  build: Variant["build"],
+  wallet: readonly Payment[],
+): readonly Payment[] {
   for (let size = 0; size < wallet.length; size++) {
     const payment = wallet.slice(0, size);
     if (probe(state, deps, build(payment)).ok) return payment;
@@ -304,11 +333,14 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
   const picks = discardPicks(state, deps, playerId, id, cost);
   const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]));
   const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
-  const candidateHosts = card.type === "upgrade" && card.attachesTo ? attachmentHostCandidates(state, card.attachesTo, context) : [];
+  const candidateHosts =
+    card.type === "upgrade" && card.attachesTo ? attachmentHostCandidates(state, card.attachesTo, context) : [];
   // With no candidate host, one host-less variant lets the engine say why.
   const hosts: readonly (InstanceId | null)[] = candidateHosts.length > 0 ? candidateHosts : [null];
   const restrictions = "playRestrictions" in card ? card.playRestrictions : undefined;
-  const controllers: readonly (PlayerId | undefined)[] = restrictions?.anyPlayerControl ? playerOrder(state).map((p) => p.playerId) : [undefined];
+  const controllers: readonly (PlayerId | undefined)[] = restrictions?.anyPlayerControl
+    ? playerOrder(state).map((p) => p.playerId)
+    : [undefined];
   const variants: Variant[] = [];
   for (const host of hosts) {
     for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
@@ -329,22 +361,53 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
       }
     }
   }
-  return evaluate(state, deps, { kind: "playCard", instanceId: id }, variants, leavingCardsToDiscard(wallets(spend), cost));
+  return evaluate(
+    state,
+    deps,
+    { kind: "playCard", instanceId: id },
+    variants,
+    leavingCardsToDiscard(wallets(spend), cost),
+  );
 }
 
-function evaluateAbility(state: GameState, deps: EngineDeps, playerId: PlayerId, instanceId: InstanceId, abilityId: AbilityId): Evaluated {
+function evaluateAbility(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  instanceId: InstanceId,
+  abilityId: AbilityId,
+): Evaluated {
   const cost = deps.abilities[abilityId]?.cost;
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
   const spend = spendOrder(state, deps, playerId, new Set(picks));
-  const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).map(({ costChoices, target }) => ({
-    target,
-    build: (payment) => ({ type: "useAbility", playerId, cardInstanceId: instanceId, abilityId, payment, ...(costChoices ? { costChoices } : {}) }),
-  }));
-  return evaluate(state, deps, { kind: "useAbility", instanceId, abilityId }, variants, leavingCardsToDiscard(wallets(spend), cost));
+  const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).map(
+    ({ costChoices, target }) => ({
+      target,
+      build: (payment) => ({
+        type: "useAbility",
+        playerId,
+        cardInstanceId: instanceId,
+        abilityId,
+        payment,
+        ...(costChoices ? { costChoices } : {}),
+      }),
+    }),
+  );
+  return evaluate(
+    state,
+    deps,
+    { kind: "useAbility", instanceId, abilityId },
+    variants,
+    leavingCardsToDiscard(wallets(spend), cost),
+  );
 }
 
 /** Action abilities the player could trigger: on cards they control, and "Hero Action" text on encounter cards. */
-function actionAbilities(state: GameState, deps: EngineDeps, playerId: PlayerId): readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] {
+function actionAbilities(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+): readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] {
   const found: { instanceId: InstanceId; abilityId: AbilityId }[] = [];
   for (const id of cardsInPlay(state)) {
     const controller = controllerOf(state, id);
@@ -366,13 +429,19 @@ const NO_PAYMENT: readonly (readonly Payment[])[] = [[]];
 function basicCommand(playerId: PlayerId, action: ActionRef, target: InstanceId | null): Command | null {
   switch (action.kind) {
     case "basicAttack":
-      return target === null ? null : { type: "basicAttack", playerId, attackerInstanceId: action.instanceId, targetInstanceId: target };
+      return target === null
+        ? null
+        : { type: "basicAttack", playerId, attackerInstanceId: action.instanceId, targetInstanceId: target };
     case "basicThwart":
-      return target === null ? null : { type: "basicThwart", playerId, thwarterInstanceId: action.instanceId, schemeInstanceId: target };
+      return target === null
+        ? null
+        : { type: "basicThwart", playerId, thwarterInstanceId: action.instanceId, schemeInstanceId: target };
     case "basicRecover":
       return { type: "basicRecover", playerId };
     case "changeForm":
-      return action.to === undefined ? { type: "changeForm", playerId } : { type: "changeForm", playerId, to: action.to };
+      return action.to === undefined
+        ? { type: "changeForm", playerId }
+        : { type: "changeForm", playerId, to: action.to };
     case "endTurn":
       return { type: "endTurn", playerId };
     default:
@@ -409,7 +478,11 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   // and Permissions", p. 33).
   // Cards attached to a card that lets its controller play them from there (Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
   const attached = cardsInPlay(state).filter((id) => playableFromAttachment(state, deps, playerId, id));
-  for (const id of [...player.hand, ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)), ...attached]) {
+  for (const id of [
+    ...player.hand,
+    ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)),
+    ...attached,
+  ]) {
     const evaluated = evaluatePlay(state, deps, playerId, id);
     if (evaluated) results.push(evaluated);
   }
@@ -417,7 +490,10 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
     results.push(evaluateAbility(state, deps, playerId, instanceId, abilityId));
   }
 
-  const characters = [player.identity.instanceId, ...player.playArea.filter((id) => cardOf(state, id)?.type === "ally")];
+  const characters = [
+    player.identity.instanceId,
+    ...player.playArea.filter((id) => cardOf(state, id)?.type === "ally"),
+  ];
   const enemies = [
     // Any undefeated villain, not only the active one (The Wrecking Crew insert: "Players may attack any villain").
     ...undefeatedVillains(state).map((villain) => villain.instanceId),
@@ -433,16 +509,24 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   // A basic power with an additional "discard N cards" cost gets the cheapest picks filled in (`basicPowerCosts`).
   const withPicks = (character: InstanceId, power: "attack" | "thwart", command: Command): Command => {
     const picks = discardPicks(state, deps, playerId, character, basicPowerCost(state, deps, character, power));
-    return picks.length > 0 && (command.type === "basicAttack" || command.type === "basicThwart") ? { ...command, costChoices: { discard: picks } } : command;
+    return picks.length > 0 && (command.type === "basicAttack" || command.type === "basicThwart")
+      ? { ...command, costChoices: { discard: picks } }
+      : command;
   };
   for (const attacker of characters) {
     const action: ActionRef = { kind: "basicAttack", instanceId: attacker };
-    const variants: Variant[] = enemies.map((target) => ({ target, build: () => withPicks(attacker, "attack", mustBasicCommand(playerId, action, target)) }));
+    const variants: Variant[] = enemies.map((target) => ({
+      target,
+      build: () => withPicks(attacker, "attack", mustBasicCommand(playerId, action, target)),
+    }));
     results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
   }
   for (const thwarter of characters) {
     const action: ActionRef = { kind: "basicThwart", instanceId: thwarter };
-    const variants: Variant[] = schemes.map((target) => ({ target, build: () => withPicks(thwarter, "thwart", mustBasicCommand(playerId, action, target)) }));
+    const variants: Variant[] = schemes.map((target) => ({
+      target,
+      build: () => withPicks(thwarter, "thwart", mustBasicCommand(playerId, action, target)),
+    }));
     results.push(evaluate(state, deps, action, variants, NO_PAYMENT));
   }
   results.push(simple(state, deps, playerId, { kind: "basicRecover" }));
@@ -450,7 +534,8 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   const faces = identityCard?.type === "hero_identity" ? heroFacesOf(identityCard).length : 1;
   if (faces > 1) {
     // A three-sided identity: each form it is not in right now is its own action.
-    if (player.identity.form === "hero") results.push(simple(state, deps, playerId, { kind: "changeForm", to: "alterEgo" }));
+    if (player.identity.form === "hero")
+      results.push(simple(state, deps, playerId, { kind: "changeForm", to: "alterEgo" }));
     for (let heroForm = 0; heroForm < faces; heroForm++) {
       if (player.identity.form === "hero" && player.identity.heroFormIndex === heroForm) continue;
       results.push(simple(state, deps, playerId, { kind: "changeForm", to: { heroForm } }));
@@ -541,13 +626,15 @@ interface Payable {
 const NO_RESERVED: ReadonlySet<InstanceId> = new Set();
 
 const mergeChoices = (auto: CostChoices | undefined, given: CostChoices | undefined): CostChoices | undefined => {
-  const merged = { ...(auto ?? {}), ...(given ?? {}) };
+  const merged = { ...auto, ...given };
   return Object.keys(merged).length > 0 ? merged : undefined;
 };
 
 /** The inverse of `paymentsFromOptionIds`. */
 const optionIdsOf = (payment: readonly Payment[]): readonly string[] =>
-  payment.map((entry) => ("fromHand" in entry ? `hand:${entry.fromHand}` : `ability:${entry.ability.instanceId}:${entry.ability.abilityId}`));
+  payment.map((entry) =>
+    "fromHand" in entry ? `hand:${entry.fromHand}` : `ability:${entry.ability.instanceId}:${entry.ability.abilityId}`,
+  );
 
 /** True when the player may still choose to spend even though the fixed cost is 0 ("Spend X resources…"). */
 const isSpendable = (requirement: ResolvedRequirement | null, cost: AbilityCost | undefined): boolean =>
@@ -574,8 +661,15 @@ function payableFor(
     const chosen = sets.find((set) => set.target !== null && set.target === options.target) ?? sets[0];
     const costChoices = mergeChoices(chosen?.costChoices, options.costChoices);
     const controllerId = options.controllerId;
-    const context: EffectContext = { selfInstanceId: id, controllerId: controllerId ?? playerId, event: null, bindings: {}, deps };
-    const hosts = card?.type === "upgrade" && card.attachesTo ? attachmentHostCandidates(state, card.attachesTo, context) : [];
+    const context: EffectContext = {
+      selfInstanceId: id,
+      controllerId: controllerId ?? playerId,
+      event: null,
+      bindings: {},
+      deps,
+    };
+    const hosts =
+      card?.type === "upgrade" && card.attachesTo ? attachmentHostCandidates(state, card.attachesTo, context) : [];
     const host = options.target && hosts.includes(options.target) ? options.target : (hosts[0] ?? null);
     const plan = planCost(state, deps, id, playerId, cost, costChoices ?? {}, NO_RESERVED);
     const planned = "requirement" in plan ? plan : null;
@@ -698,7 +792,9 @@ export function tryPayment(
 ): PaymentAttempt {
   const payable = payableFor(state, deps, playerId, action, options);
   // A basic action carries no payment, so a selection is simply not part of its command.
-  const command = payable ? payable.build(paymentsFromOptionIds(selectedOptionIds)) : basicCommand(playerId, action, options.target ?? null);
+  const command = payable
+    ? payable.build(paymentsFromOptionIds(selectedOptionIds))
+    : basicCommand(playerId, action, options.target ?? null);
   if (!command) return { ok: false, reason: "no_valid_target", message: "this action needs a target" };
   const result = applyCommand(state, command, deps);
   return result.ok ? { ok: true, command } : { ok: false, reason: result.error.code, message: result.error.message };

@@ -69,19 +69,28 @@ export const SHE_HULK_KIT = defineAbilities({
   // Hellcat — Action: Return Hellcat to your hand.
   "01020.hellcat-action": action(moveCards(cards(self), "hand")),
   // Gamma Slam — Hero Action (attack): Deal X damage to an enemy (to a maximum of 15). X is the amount of damage you have sustained.
-  "01021.gamma-slam-action": heroAction({ label: "attack" }, attackAnEnemy(scaled(damageOn(yourIdentity), { max: 15 }))),
+  "01021.gamma-slam-action": heroAction(
+    { label: "attack" },
+    attackAnEnemy(scaled(damageOn(yourIdentity), { max: 15 })),
+  ),
   // Ground Stomp — Hero Action: Deal 1 damage to each enemy.
   "01022.ground-stomp-action": heroAction(dealDamage(1, each(query("enemy")))),
   // Legal Practice — Alter-Ego Action (thwart): Choose and discard up to 5 cards from your hand → remove 1 threat from a scheme
   // for each card discarded this way. ("Up to" still needs at least one card: RRG "Cost".)
-  "01023.legal-practice-action": alterEgoAction({ label: "thwart", cost: discardFromHandCost(1, 5, "discarded") }, thwartAScheme(varOf("discarded"))),
+  "01023.legal-practice-action": alterEgoAction(
+    { label: "thwart", cost: discardFromHandCost(1, 5, "discarded") },
+    thwartAScheme(varOf("discarded")),
+  ),
   // One-Two Punch — Response: After you make a basic attack (using your ATK), ready She-Hulk.
   "01024.one-two-punch-response": response(after.attacks(YOUR_HERO, { basic: true }), ready(yourIdentity)),
   // Split Personality — Action: Change your form (flip your identity card). Then, draw up to your printed hand size.
   "01025.split-personality-action": action(changeForm(you), drawUpTo(handSizeOf(you, true))),
   // Superhuman Law Division — Alter-Ego Action: Exhaust SLD and spend a [mental] resource → remove 2 threat from a scheme.
   // Current text (RRG 1.5 errata): no longer labeled (thwart).
-  "01026.superhuman-law-division-action": alterEgoAction({ cost: [exhaustThis, spend({ mental: 1 })] }, removeThreatFromAScheme(2)),
+  "01026.superhuman-law-division-action": alterEgoAction(
+    { cost: [exhaustThis, spend({ mental: 1 })] },
+    removeThreatFromAScheme(2),
+  ),
   // Focused Rage — Hero Action: Exhaust Focused Rage and take 1 damage → draw 1 card.
   "01027.focused-rage-action": heroAction({ cost: [exhaustThis, takeDamageCost(1)] }, draw(1)),
   // Superhuman Strength — She-Hulk gets +2 ATK.
@@ -97,7 +106,10 @@ export const SHE_HULK_KIT = defineAbilities({
 /** Legal Work (01160), She-Hulk's obligation. */
 export const SHE_HULK_OBLIGATION = defineAbilities({
   // • Give the main scheme 1 acceleration token. Discard this obligation.
-  "01160.obligation": obligation("Jennifer Walters", { label: "Give the main scheme 1 acceleration token", effects: [addAccelerationToken()] }),
+  "01160.obligation": obligation("Jennifer Walters", {
+    label: "Give the main scheme 1 acceleration token",
+    effects: [addAccelerationToken()],
+  }),
 });
 
 const TITANIA = cardName("01162");

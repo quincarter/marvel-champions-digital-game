@@ -52,11 +52,21 @@ export const THOR_NEMESIS = defineAbilities({
   // 01168), where `eventSource`/`eventTarget`/`eventDealt` read the underlying attack's own results.
   "06029.boost": boost(
     atEndOfAttack(
-      ifThen(allOf(refMatches(eventSource, query("villain")), eventDealt("damage"), refMatches(eventTarget, query("character"))), stun(eventTarget)),
+      ifThen(
+        allOf(
+          refMatches(eventSource, query("villain")),
+          eventDealt("damage"),
+          refMatches(eventTarget, query("character")),
+        ),
+        stun(eventTarget),
+      ),
     ),
   ),
 
   // Trickster — When Revealed: Discard the top 3 cards of your deck. Place 1 threat on the main scheme for each
   // different card type discarded this way.
-  "06030.when-revealed": whenRevealed(moveCards(topOfDeck(3, you), "discard", "milled"), placeThreat(distinctCardTypesOf(chosen("milled")), theMainScheme)),
+  "06030.when-revealed": whenRevealed(
+    moveCards(topOfDeck(3, you), "discard", "milled"),
+    placeThreat(distinctCardTypesOf(chosen("milled")), theMainScheme),
+  ),
 });

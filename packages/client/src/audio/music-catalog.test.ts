@@ -31,7 +31,6 @@ const mockCatalog = parseMusicCatalog({
 });
 
 const first = (): number => 0;
-const last = (): number => 0.999;
 
 describe("parseMusicCatalog", () => {
   test("categorizes title and gameplay tracks", () => {

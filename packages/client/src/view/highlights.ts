@@ -9,7 +9,15 @@
  * board must not reflow while the player's hand is already moving.
  */
 
-import type { ActionRef, EngineErrorCode, ExclusionCode, InstanceId, LegalAction, LegalActions, PlayerId } from "@mc/engine";
+import type {
+  ActionRef,
+  EngineErrorCode,
+  ExclusionCode,
+  InstanceId,
+  LegalAction,
+  LegalActions,
+  PlayerId,
+} from "@mc/engine";
 
 /** The five buttons in the design's action bar. */
 export type BasicAction = "attack" | "thwart" | "recover" | "changeForm" | "endTurn";
@@ -57,7 +65,11 @@ export interface OpenChoice {
   readonly minSelections: number;
   readonly maxSelections: number;
   readonly ordered: boolean;
-  readonly options: readonly { readonly optionId: string; readonly label: string; readonly instanceId: InstanceId | null }[];
+  readonly options: readonly {
+    readonly optionId: string;
+    readonly label: string;
+    readonly instanceId: InstanceId | null;
+  }[];
 }
 
 /** A `LegalAction` narrowed to the `useAbility` case, so callers can read `abilityId` directly. */
@@ -73,7 +85,8 @@ export type UsableAbilityAction = LegalAction & { readonly action: Extract<Actio
 export function abilityActionsFor(actions: LegalActions, instanceId: InstanceId): readonly UsableAbilityAction[] {
   if (actions.kind !== "turn") return [];
   return actions.legal.filter(
-    (entry): entry is UsableAbilityAction => entry.action.kind === "useAbility" && entry.action.instanceId === instanceId,
+    (entry): entry is UsableAbilityAction =>
+      entry.action.kind === "useAbility" && entry.action.instanceId === instanceId,
   );
 }
 

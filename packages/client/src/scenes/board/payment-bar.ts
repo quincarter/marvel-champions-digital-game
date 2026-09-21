@@ -26,7 +26,12 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
   g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, 3);
 
   scene.add
-    .text(rect.x + 12, rect.y + rect.height / 2, `PAYING ${payment.paid} / ${payment.required}`, textStyle(typeRole.barTitle, surface.paper.hex))
+    .text(
+      rect.x + 12,
+      rect.y + rect.height / 2,
+      `PAYING ${payment.paid} / ${payment.required}`,
+      textStyle(typeRole.barTitle, surface.paper.hex),
+    )
     .setOrigin(0, 0.5)
     .setLetterSpacing(1);
 
@@ -45,7 +50,12 @@ export function drawPaymentBar(ctx: BoardDrawContext, rect: Rect, payment: Payme
     // the first thing a player will question, and "tap cards to spend" can wait behind the answer.
     const note = payment.priceNote ? ` ${payment.priceNote}.` : "";
     scene.add
-      .text(headlineLeft, rect.y + rect.height / 2, `${payment.headline}.${note} Tap cards to spend.${outstanding}`, textStyle(typeRole.emphasis, surface.paper.hex))
+      .text(
+        headlineLeft,
+        rect.y + rect.height / 2,
+        `${payment.headline}.${note} Tap cards to spend.${outstanding}`,
+        textStyle(typeRole.emphasis, surface.paper.hex),
+      )
       .setOrigin(0, 0.5)
       .setWordWrapWidth(headlineRoom)
       .setMaxLines(1);

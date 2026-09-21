@@ -12,7 +12,7 @@ import { applyCommand, sessionApply, startSession } from "./engine.js";
 import type { GameEvent } from "./events.js";
 import { playerId, type InstanceId } from "./ids.js";
 import { preview } from "./preview.js";
-import { activeVillain, mustInstance, mustPlayer } from "./query.js";
+import { activeVillain, mustPlayer } from "./query.js";
 
 import { shuffle } from "./rng.js";
 import type { CardInstance, GameState } from "./state.js";
@@ -58,7 +58,9 @@ function withMinion(
     ...(extra.deck ? { deck: extra.deck } : {}),
     ...(deps ? { deps } : {}),
   });
-  const roundTwo = deps ? runWith(deps, settle(runWith(deps, start, endTurn), defaultPick, deps), toHero) : run(settle(run(start, endTurn)), toHero);
+  const roundTwo = deps
+    ? runWith(deps, settle(runWith(deps, start, endTurn), defaultPick, deps), toHero)
+    : run(settle(run(start, endTurn)), toHero);
   const [minion] = mustPlayer(roundTwo, p1).playArea;
   if (!minion) throw new Error("no minion engaged");
   return { state: roundTwo, minion };
@@ -68,7 +70,9 @@ function withMinion(
 const trimHand = (state: GameState, size: number): GameState => ({
   ...state,
   players: state.players.map((player) =>
-    player.playerId === p1 ? { ...player, hand: player.hand.slice(0, size), deck: [...player.hand.slice(size), ...player.deck] } : player,
+    player.playerId === p1
+      ? { ...player, hand: player.hand.slice(0, size), deck: [...player.hand.slice(size), ...player.deck] }
+      : player,
   ),
 });
 
@@ -116,7 +120,16 @@ test("a session that previews before every command logs exactly what one that do
 
 test("a preview's events are a prefix of the events the command actually produces", () => {
   const state = run(newGame({ villain: VILLAIN, mainScheme: SCHEME }), toHero);
-  for (const command of [attack(state, activeVillain(state).instanceId), endTurn, { type: "basicThwart", playerId: p1, thwarterInstanceId: heroOf(state), schemeInstanceId: state.mainScheme.instanceId } as Command]) {
+  for (const command of [
+    attack(state, activeVillain(state).instanceId),
+    endTurn,
+    {
+      type: "basicThwart",
+      playerId: p1,
+      thwarterInstanceId: heroOf(state),
+      schemeInstanceId: state.mainScheme.instanceId,
+    } as Command,
+  ]) {
     const previewed = preview(state, command);
     const real = applyCommand(state, command);
     if (!real.ok) {
@@ -145,7 +158,11 @@ test("a guard minion makes an attack on the villain a rejected preview, carrying
   expect(blocked.counters).toEqual([]);
 
   // The same attack is fine once the guard minion is gone (p. 21: it is the engaged minion that restricts).
-  const cleared = patch({ ...state, players: state.players.map((p) => ({ ...p, playArea: p.playArea.filter((id) => id !== minion) })) }, minion, { engagedWith: null });
+  const cleared = patch(
+    { ...state, players: state.players.map((p) => ({ ...p, playArea: p.playArea.filter((id) => id !== minion) })) },
+    minion,
+    { engagedWith: null },
+  );
   expect(preview(cleared, attack(cleared, villain)).stop.kind).not.toBe("rejected");
 });
 
@@ -177,11 +194,22 @@ test("an attack with overkill previews the spill, and the identity's counters mo
   const smash = stubAbility("smash", {
     trigger: { kind: "action", form: "hero" },
     label: ["attack"],
-    effects: [{ kind: "attack", target: { kind: "each", query: { categories: ["minion"] } }, amount: { kind: "const", value: 4 }, overkill: true }],
+    effects: [
+      {
+        kind: "attack",
+        target: { kind: "each", query: { categories: ["minion"] } },
+        amount: { kind: "const", value: 4 },
+        overkill: true,
+      },
+    ],
   });
   const SMASH = stubEvent({ id: "smash", cost: 0, abilities: [smash.ref] });
   const deps = depsOf(smash);
-  const { state, minion } = withMinion(weak, { deps, cards: [SMASH], deck: [...deckOf(RESOURCE.id, 14), ...deckOf(SMASH.id, 6)] });
+  const { state, minion } = withMinion(weak, {
+    deps,
+    cards: [SMASH],
+    deck: [...deckOf(RESOURCE.id, 14), ...deckOf(SMASH.id, 6)],
+  });
   const given = giveCard(state, p1, SMASH.id);
 
   const result = preview(
@@ -222,7 +250,11 @@ test("a tough status previews as damage prevented, with the hit points unchanged
 // Stops. RRG 1.8 "Ability" (p. 5), "Attack (Enemy Activation)" step 6 (p. 9).
 // ---------------------------------------------------------------------------
 
-const RESPONSE_EFFECT = { kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: 1 } } as const;
+const RESPONSE_EFFECT = {
+  kind: "dealDamage",
+  target: { kind: "villain" },
+  amount: { kind: "const", value: 1 },
+} as const;
 
 function responseGame(forced: boolean): { state: GameState; deps: EngineDeps; support: InstanceId } {
   const ability = stubAbility(`respond-${String(forced)}`, {
@@ -296,11 +328,15 @@ test("previewing the end of the turn stops before anything comes out of a closed
 
 test("shuffling every hidden zone changes nothing about any preview", () => {
   const state = run(newGame({ villain: VILLAIN, mainScheme: SCHEME }), toHero);
-  const commands: readonly Command[] = [endTurn, attack(state, activeVillain(state).instanceId), { type: "basicRecover", playerId: p1 }];
+  const commands: readonly Command[] = [
+    endTurn,
+    attack(state, activeVillain(state).instanceId),
+    { type: "basicRecover", playerId: p1 },
+  ];
 
   // A different order for every closed deck, and nothing else: the same cards, in another sequence.
   let rng = { value: 99, draws: 0 };
-  const reorder = <T,>(items: readonly T[]): readonly T[] => {
+  const reorder = <T>(items: readonly T[]): readonly T[] => {
     const [out, next] = shuffle(items, rng);
     rng = next;
     return out;

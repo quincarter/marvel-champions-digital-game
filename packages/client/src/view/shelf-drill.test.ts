@@ -32,7 +32,10 @@ describe("gridRowsOf", () => {
   });
 
   test("an exact multiple leaves no short last row", () => {
-    expect(gridRowsOf([1, 2, 3, 4], 2)).toEqual([[1, 2], [3, 4]]);
+    expect(gridRowsOf([1, 2, 3, 4], 2)).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
   });
 
   test("empty items produce no rows", () => {

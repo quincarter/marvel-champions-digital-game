@@ -19,16 +19,26 @@ function turn(result: LegalActions) {
 }
 const legalKinds = (result: LegalActions) => turn(result).legal.map((a) => a.action.kind);
 const illegalFor = (result: LegalActions, kind: string, instanceId?: InstanceId) =>
-  turn(result).illegal.find((a) => a.action.kind === kind && (instanceId === undefined || ("instanceId" in a.action && a.action.instanceId === instanceId)));
+  turn(result).illegal.find(
+    (a) =>
+      a.action.kind === kind &&
+      (instanceId === undefined || ("instanceId" in a.action && a.action.instanceId === instanceId)),
+  );
 const legalFor = (result: LegalActions, kind: string, instanceId?: InstanceId) =>
-  turn(result).legal.find((a) => a.action.kind === kind && (instanceId === undefined || ("instanceId" in a.action && a.action.instanceId === instanceId)));
+  turn(result).legal.find(
+    (a) =>
+      a.action.kind === kind &&
+      (instanceId === undefined || ("instanceId" in a.action && a.action.instanceId === instanceId)),
+  );
 
 /** Test surgery: the player's hand becomes exactly `ids`; everything else in it goes back on the deck. */
 function withHand(state: GameState, player: PlayerId, ids: readonly InstanceId[]): GameState {
   return {
     ...state,
     players: state.players.map((p) =>
-      p.playerId === player ? { ...p, hand: [...ids], deck: [...p.hand.filter((id) => !ids.includes(id)), ...p.deck] } : p,
+      p.playerId === player
+        ? { ...p, hand: [...ids], deck: [...p.hand.filter((id) => !ids.includes(id)), ...p.deck] }
+        : p,
     ),
   };
 }
@@ -80,7 +90,9 @@ describe("legalActions", () => {
     const [minion] = mustPlayer(roundTwo, p1).playArea;
     const attack = legalFor(legalActions(roundTwo, p1), "basicAttack", mustPlayer(roundTwo, p1).identity.instanceId);
     expect(attack?.targets).toEqual([minion]);
-    expect(attack?.blockedTargets.map((b) => [b.instanceId, b.reason])).toEqual([[activeVillain(roundTwo).instanceId, "no_valid_target"]]);
+    expect(attack?.blockedTargets.map((b) => [b.instanceId, b.reason])).toEqual([
+      [activeVillain(roundTwo).instanceId, "no_valid_target"],
+    ]);
     expect(attack?.blockedTargets[0]?.message).toMatch(/guard/);
     expect(legalFor(legalActions(roundTwo, p1), "basicThwart")?.targets).toEqual([roundTwo.mainScheme.instanceId]);
   });
@@ -88,18 +100,34 @@ describe("legalActions", () => {
   it("an exhausted hero can't attack again this turn", () => {
     const hero = run(newGame(), toHero());
     const identity = mustPlayer(hero, p1).identity.instanceId;
-    const attacked = run(hero, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: activeVillain(hero).instanceId });
+    const attacked = run(hero, {
+      type: "basicAttack",
+      playerId: p1,
+      attackerInstanceId: identity,
+      targetInstanceId: activeVillain(hero).instanceId,
+    });
     expect(illegalFor(legalActions(attacked, p1), "basicAttack", identity)?.reason).toBe("already_exhausted");
     expect(illegalFor(legalActions(attacked, p1), "changeForm")?.reason).toBe("already_changed_form");
   });
 
   it("interrupt and response events aren't played as actions", () => {
-    const dodge = stubAbility("dodge", { trigger: { kind: "response", forced: false, on: { on: "cardPlayed" } }, effects: [] });
+    const dodge = stubAbility("dodge", {
+      trigger: { kind: "response", forced: false, on: { on: "cardPlayed" } },
+      effects: [],
+    });
     const event = stubEvent({ id: "dodge", cost: 0, abilities: [dodge.ref] });
     const deps = depsOf(dodge);
-    const { state, id } = giveCard(newGame({ extraCards: [event], deck: [...DEFAULT_DECK, event.id], deps }), p1, event.id);
+    const { state, id } = giveCard(
+      newGame({ extraCards: [event], deck: [...DEFAULT_DECK, event.id], deps }),
+      p1,
+      event.id,
+    );
     expect(illegalFor(legalActions(state, p1, deps), "playCard", id)?.reason).toBe("card_type_not_playable");
-    const played = applyCommand(state, { type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null }, deps);
+    const played = applyCommand(
+      state,
+      { type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null },
+      deps,
+    );
     expect(played.ok ? null : played.error.code).toBe("card_type_not_playable");
   });
 });
@@ -115,7 +143,9 @@ describe("paymentFor / tryPayment", () => {
     expect(query.requirement).toEqual({ generic: 2, physical: 0, mental: 0, energy: 0 });
     expect(query.sources.map((source) => source.instanceId)).not.toContain(ally);
     expect(query.sources.map((source) => source.instanceId).sort()).toEqual(
-      mustPlayer(state, p1).hand.filter((id) => id !== ally).sort(),
+      mustPlayer(state, p1)
+        .hand.filter((id) => id !== ally)
+        .sort(),
     );
     for (const source of query.sources) {
       expect(source.kind).toBe("handCard");
@@ -156,10 +186,13 @@ describe("paymentFor / tryPayment", () => {
     const start = newGame({ extraCards: [battery], deck: [...DEFAULT_DECK, battery.id], deps });
     const withBattery = giveCard(start, p1, battery.id);
     const { state: withAlly, id: ally } = giveCard(withBattery.state, p1, ALLY.id);
-    const inPlay = run(
-      withAlly,
-      { type: "playCard", playerId: p1, cardInstanceId: withBattery.id, payment: [], attachToInstanceId: null },
-    );
+    const inPlay = run(withAlly, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: withBattery.id,
+      payment: [],
+      attachToInstanceId: null,
+    });
     const optionId = `ability:${withBattery.id}:battery.resource`;
 
     const query = paymentFor(inPlay, p1, playAction(ally), {}, deps);

@@ -44,6 +44,7 @@ import { sameTarget, stepFocus, type FocusTarget } from "../view/focus.js";
 import { boardLayout, type BoardLayout, type PhoneTab, type Rect } from "../view/layout.js";
 import type { SessionState } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 import { drawActionBar } from "./board/action-bar.js";
 import { drawCharacter } from "./board/character-panel.js";
 import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
@@ -209,11 +210,19 @@ export class BoardScene extends Phaser.Scene {
        * `#choiceOpen` resets too, or the next Board would think the sheet was
        * already up and never relaunch it.
        */
-      for (const overlay of [SCENES.choice, SCENES.inspect, SCENES.villainPhase, SCENES.pause, SCENES.rules, SCENES.settings]) {
+      for (const overlay of [
+        SCENES.choice,
+        SCENES.inspect,
+        SCENES.villainPhase,
+        SCENES.pause,
+        SCENES.rules,
+        SCENES.settings,
+      ]) {
         if (this.scene.isActive(overlay) || this.scene.isSleeping(overlay)) this.scene.stop(overlay);
       }
       this.#choiceOpen = false;
     });
+    fadeScreenIn(this);
   }
 
   #onState(state: SessionState): void {
@@ -236,7 +245,10 @@ export class BoardScene extends Phaser.Scene {
       if (!state.game.outcome) {
         for (const event of state.lastEvents) {
           if (event.type !== "playerEliminated") continue;
-          this.#motion.announce(`${playerName(state.game, event.playerId)} is down`, "Defeated — out of the game. The rest of the team fights on");
+          this.#motion.announce(
+            `${playerName(state.game, event.playerId)} is down`,
+            "Defeated — out of the game. The rest of the team fights on",
+          );
         }
       }
       // Saving failing is silent otherwise — the game plays on — and a refresh
@@ -255,7 +267,7 @@ export class BoardScene extends Phaser.Scene {
     this.#marks = state.legal ? highlights(state.legal.actions) : null;
 
     if (state.game.outcome) {
-      this.scene.start(SCENES.gameOver);
+      goToScreen(this, SCENES.gameOver);
       return;
     }
     // Only a *new* command can start a villain phase; a plain redraw re-reads
@@ -338,10 +350,13 @@ export class BoardScene extends Phaser.Scene {
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
-    const layout = boardLayout({ x: 0, y: 0, width, height }, {
-      playerCount: model.team.length + 1,
-      activeTab: this.#activeTab,
-    });
+    const layout = boardLayout(
+      { x: 0, y: 0, width, height },
+      {
+        playerCount: model.team.length + 1,
+        activeTab: this.#activeTab,
+      },
+    );
     this.#layout = layout;
 
     const ctx: BoardDrawContext = {
@@ -352,6 +367,7 @@ export class BoardScene extends Phaser.Scene {
       controller: this.#controller,
       hand: this.#hand,
       frame: this.#frame,
+      motion: this.#motion,
       makeTapTarget: (rect, id, onTap, onDrag) => this.#makeTapTarget(rect, id, onTap, onDrag),
       inspect: (id, siblings) => this.#inspect(id, siblings),
     };
@@ -364,6 +380,7 @@ export class BoardScene extends Phaser.Scene {
       notSaving: appSession().store.state.saveError !== null,
       onMenu: () => this.#openPause(),
       buttons: this.#frame.buttons,
+      motion: this.#motion,
     });
     if (zones.tabs) this.#drawTabs(zones.tabs, model);
     if (zones.threat) drawSchemes(ctx, zones.threat, model);
@@ -388,6 +405,11 @@ export class BoardScene extends Phaser.Scene {
     // under a later panel.
     this.#motion.drawBeats(this.#frame.hitRects);
     this.#motion.renderTravels();
+    // Non-blocking, so it isn't gated on an overlay like `drawBanners` below —
+    // it most visibly plays crossing back into the player phase, since the
+    // villain-phase walkthrough covers the table at the villain phase's own
+    // start (`motion.ts#drawPhaseWipe`'s own comment).
+    this.#motion.drawPhaseWipe({ x: 0, y: 0, width, height });
     // Held back while an overlay covers the table, so it isn't spent unseen.
     this.#motion.drawBanners(
       { x: 0, y: 0, width, height },

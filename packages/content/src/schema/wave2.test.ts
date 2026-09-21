@@ -220,7 +220,9 @@ describe("scenario- and campaign-specific player cards (RRG 1.8 'Classifications
       name: "Improved Thwart Upgrade",
       traits: [trait("Condition")],
       keywords: [{ name: "permanent" }, { name: "setup" }],
-      text: text("Permanent. Setup. You get +2 hit points. Your hero gets +1 THW. Response: After you defeat a side scheme, exhaust this card → draw 1 card."),
+      text: text(
+        "Permanent. Setup. You get +2 hit points. Your hero gets +1 THW. Response: After you defeat a side scheme, exhaust this card → draw 1 card.",
+      ),
       abilities: [{ id: abilityId("04159b.constant") }, { id: abilityId("04159b.response") }],
     },
   };
@@ -232,9 +234,18 @@ describe("scenario- and campaign-specific player cards (RRG 1.8 'Classifications
   it("a flip side may not reuse a front ability id; specificTo needs a kind and a set", () => {
     const flip = basicThwart.flipSide;
     if (!flip) throw new Error("fixture");
-    expect(validateCard({ ...basicThwart, flipSide: { ...flip, abilities: [{ id: abilityId("04159a.constant") }] } }).valid).toBe(false);
-    expect(validateCard({ ...basicThwart, specificTo: { kind: "campaign", encounterSetId: encounterSetId("") } }).valid).toBe(false);
-    expect(validateCard({ ...basicThwart, specificTo: { kind: "modular" as "campaign", encounterSetId: encounterSetId("x") } }).valid).toBe(false);
+    expect(
+      validateCard({ ...basicThwart, flipSide: { ...flip, abilities: [{ id: abilityId("04159a.constant") }] } }).valid,
+    ).toBe(false);
+    expect(
+      validateCard({ ...basicThwart, specificTo: { kind: "campaign", encounterSetId: encounterSetId("") } }).valid,
+    ).toBe(false);
+    expect(
+      validateCard({
+        ...basicThwart,
+        specificTo: { kind: "modular" as "campaign", encounterSetId: encounterSetId("x") },
+      }).valid,
+    ).toBe(false);
   });
 
   it("'Max 1 per phase.' is a play restriction (Maximum Velocity)", () => {
@@ -257,12 +268,20 @@ describe("scenario- and campaign-specific player cards (RRG 1.8 'Classifications
 });
 
 describe("'Attach to X, if able. If you cannot, attach to the villain.' (Size Increase, Crossfire's Rifle)", () => {
-  const host: AttachmentHost = { kind: "ifAble", preferred: { kind: "namedCard", name: "Yellowjacket" }, otherwise: { kind: "villain" } };
+  const host: AttachmentHost = {
+    kind: "ifAble",
+    preferred: { kind: "namedCard", name: "Yellowjacket" },
+    otherwise: { kind: "villain" },
+  };
 
   it("validates, and checks both halves", () => {
     expect(validateAttachmentHost(host, "attachment")).toEqual([]);
-    expect(validateAttachmentHost({ ...host, preferred: { kind: "namedCard", name: "" } }, "attachment")).not.toEqual([]);
-    expect(validateAttachmentHost({ ...host, otherwise: host }, "attachment")).toContain("attachment ifAble otherwise host cannot itself be ifAble");
+    expect(validateAttachmentHost({ ...host, preferred: { kind: "namedCard", name: "" } }, "attachment")).not.toEqual(
+      [],
+    );
+    expect(validateAttachmentHost({ ...host, otherwise: host }, "attachment")).toContain(
+      "attachment ifAble otherwise host cannot itself be ifAble",
+    );
   });
 
   it("on a card", () => {
@@ -363,7 +382,9 @@ describe("The Once and Future Kang", () => {
     expect(validateCard({ ...kangsArrival, stages: [one, two, three, three] }).valid).toBe(false);
     expect(validateCard({ ...kangsArrival, stages: [one, { ...two, targetThreat: flat(3) }] }).valid).toBe(false);
     expect(validateCard({ ...kangsArrival, stages: [one, { ...two, printedX: ["acceleration"] }] }).valid).toBe(false);
-    expect(validateCard({ ...kangsArrival, stages: [one, { ...two, dashedValues: ["boost" as "acceleration"] }] }).valid).toBe(false);
+    expect(
+      validateCard({ ...kangsArrival, stages: [one, { ...two, dashedValues: ["boost" as "acceleration"] }] }).valid,
+    ).toBe(false);
   });
 
   const kang: Scenario = {
@@ -378,7 +399,10 @@ describe("The Once and Future Kang", () => {
     expertEncounterSetIds: [encounterSetId("expert")],
     villainStages: { standard: [1, 1], expert: [1, 1] },
     setAsideVillainCardIds: ["11002", "11003", "11004", "11005", "11006"].map(cardId),
-    expertVillains: { villainCardId: cardId("11034"), setAsideVillainCardIds: ["11035", "11036", "11037", "11038", "11039"].map(cardId) },
+    expertVillains: {
+      villainCardId: cardId("11034"),
+      setAsideVillainCardIds: ["11035", "11036", "11037", "11038", "11039"].map(cardId),
+    },
     victory: "cardAbility",
     separateGameAreas: {
       isolation: "areasCannotAffectEachOther",
@@ -399,7 +423,9 @@ describe("The Once and Future Kang", () => {
     const areas = kang.separateGameAreas;
     if (!areas) throw new Error("fixture");
     expect(validateScenario({ ...kang, victory: "allKangs" as "cardAbility" }).valid).toBe(false);
-    expect(validateScenario({ ...kang, separateGameAreas: { ...areas, eachPlayer: "everyone" as "sameArea" } }).valid).toBe(false);
+    expect(
+      validateScenario({ ...kang, separateGameAreas: { ...areas, eachPlayer: "everyone" as "sameArea" } }).valid,
+    ).toBe(false);
     expect(validateScenario({ ...kang, setAsideVillainCardIds: [cardId("11001")] }).valid).toBe(false);
   });
 });
@@ -417,7 +443,14 @@ describe("scenario separate decks (Red Skull rulebook pp. 5 and 15)", () => {
     expertEncounterSetIds: [encounterSetId("expert")],
     villainStages: { standard: [1, 2], expert: [2, 3] },
     modularSetCount: 2,
-    separateDecks: [{ name: "side-scheme", contents: { cardType: "side_scheme" }, discardPile: "own", whenEmpty: "reshuffleDiscardWithoutPenalty" }],
+    separateDecks: [
+      {
+        name: "side-scheme",
+        contents: { cardType: "side_scheme" },
+        discardPile: "own",
+        whenEmpty: "reshuffleDiscardWithoutPenalty",
+      },
+    ],
   };
 
   it("the side-scheme deck (its own discard, reshuffled without penalty)", () => {
@@ -429,7 +462,12 @@ describe("scenario separate decks (Red Skull rulebook pp. 5 and 15)", () => {
       ...redSkull,
       id: scenarioId("crossbones"),
       separateDecks: [
-        { name: "Experimental Weapons", contents: { encounterSetIds: [encounterSetId("exper_weapon")] }, discardPile: "encounter", whenEmpty: "remainsEmpty" },
+        {
+          name: "Experimental Weapons",
+          contents: { encounterSetIds: [encounterSetId("exper_weapon")] },
+          discardPile: "encounter",
+          whenEmpty: "remainsEmpty",
+        },
       ],
     };
     expect(validateScenario(crossbones).errors).toEqual([]);

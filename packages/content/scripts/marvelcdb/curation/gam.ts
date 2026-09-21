@@ -13,7 +13,7 @@ export const GAM_CURATION: PackCuration = {
   pack: {
     name: "Gamora",
     releaseDate: "2021-05-14",
-    releaseDateSource: "Hall of Heroes Gamora page (https://hallofheroeslcg.com/gamora/): \"Release date: May 14, 2021\"",
+    releaseDateSource: 'Hall of Heroes Gamora page (https://hallofheroeslcg.com/gamora/): "Release date: May 14, 2021"',
   },
   outDir: "src/data/gam",
   exportPrefix: "GAM",

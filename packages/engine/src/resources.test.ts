@@ -8,8 +8,25 @@ import { mustInstance, mustPlayer } from "./query.js";
 import { countUsableAs, paidWith, poolOf, satisfies } from "./resources.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEvent, stubMainScheme, stubResource, stubSupport, stubUpgrade, stubVillain } from "./testing/fixtures.js";
-import { ALLY, expectOk, giveCards, newGame, resolvePending, RESOURCE, runWith, settleUntil } from "./testing/scenario.js";
+import {
+  stubAlly,
+  stubEvent,
+  stubMainScheme,
+  stubResource,
+  stubSupport,
+  stubUpgrade,
+  stubVillain,
+} from "./testing/fixtures.js";
+import {
+  ALLY,
+  expectOk,
+  giveCards,
+  newGame,
+  resolvePending,
+  RESOURCE,
+  runWith,
+  settleUntil,
+} from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const VILLAIN = stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 1, sch: 1 }] });
@@ -37,7 +54,11 @@ function setup(cards: readonly AnyCard[], ...abilities: StubAbility[]) {
   return { deps, state };
 }
 
-const play = (id: InstanceId, payment: readonly Payment[], extra: Partial<Extract<Command, { type: "playCard" }>> = {}): Command => ({
+const play = (
+  id: InstanceId,
+  payment: readonly Payment[],
+  extra: Partial<Extract<Command, { type: "playCard" }>> = {},
+): Command => ({
   type: "playCard",
   playerId: p1,
   cardInstanceId: id,
@@ -46,8 +67,15 @@ const play = (id: InstanceId, payment: readonly Payment[], extra: Partial<Extrac
   ...extra,
 });
 const hand = (...ids: InstanceId[]) => ids.map((fromHand) => ({ fromHand }));
-const ability = (instanceId: InstanceId, abilityId: string) => ({ ability: { instanceId, abilityId: abilityId as never } });
-const use = (instanceId: InstanceId, abilityId: string, payment: readonly unknown[] = [], costChoices?: Record<string, readonly InstanceId[]>): Command => ({
+const ability = (instanceId: InstanceId, abilityId: string) => ({
+  ability: { instanceId, abilityId: abilityId as never },
+});
+const use = (
+  instanceId: InstanceId,
+  abilityId: string,
+  payment: readonly unknown[] = [],
+  costChoices?: Record<string, readonly InstanceId[]>,
+): Command => ({
   type: "useAbility",
   playerId: p1,
   cardInstanceId: instanceId,
@@ -81,7 +109,14 @@ describe("resource pools (RRG 'Cost', wild resources)", () => {
 
 describe("typed costs and payment", () => {
   it("a 'spend a [energy] resource' cost rejects other types but accepts a wild", () => {
-    const rechannel = stubAbility("rechannel", def({ trigger: { kind: "action" }, cost: { resources: { energy: 1 } }, effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }] }));
+    const rechannel = stubAbility(
+      "rechannel",
+      def({
+        trigger: { kind: "action" },
+        cost: { resources: { energy: 1 } },
+        effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
+      }),
+    );
     const station = stubSupport({ id: "station", cost: 0, abilities: [rechannel.ref] });
     const { deps, state } = setup([station], rechannel);
     const given = giveCards(state, p1, "station", "mental", "energy", RESOURCE.id);
@@ -96,14 +131,30 @@ describe("typed costs and payment", () => {
   });
 
   it("'if you paid for this card using a [energy] resource' reads the payment (a wild counts)", () => {
-    const blast = stubAbility("photonic", def({
-      trigger: { kind: "action" },
-      effects: [{ kind: "if", condition: { kind: "paidWith", resource: "energy" }, then: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }] }],
-    }));
+    const blast = stubAbility(
+      "photonic",
+      def({
+        trigger: { kind: "action" },
+        effects: [
+          {
+            kind: "if",
+            condition: { kind: "paidWith", resource: "energy" },
+            then: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
+          },
+        ],
+      }),
+    );
     const event = stubEvent({ id: "photon", cost: 1, abilities: [blast.ref] });
     const { deps, state } = setup([event], blast);
     const given = giveCards(state, p1, "photon", "photon", "photon", "mental", "energy", RESOURCE.id);
-    const [e1, e2, e3, mentalId, energyId, wildId] = given.ids as InstanceId[] as [InstanceId, InstanceId, InstanceId, InstanceId, InstanceId, InstanceId];
+    const [e1, e2, e3, mentalId, energyId, wildId] = given.ids as InstanceId[] as [
+      InstanceId,
+      InstanceId,
+      InstanceId,
+      InstanceId,
+      InstanceId,
+      InstanceId,
+    ];
     const size = (s: GameState) => mustPlayer(s, p1).hand.length;
 
     const withMental = runWith(deps, given.state, play(e1, hand(mentalId)));
@@ -115,10 +166,17 @@ describe("typed costs and payment", () => {
   });
 
   it("The Power of X doubles its resources only while paying for a card of that aspect", () => {
-    const doubling = stubAbility("power-doubling", def({
-      trigger: { kind: "constant", modifiers: [], resourceMultiplier: { factor: 2, whilePayingFor: { aspect: "aggression" } } },
-      effects: [],
-    }));
+    const doubling = stubAbility(
+      "power-doubling",
+      def({
+        trigger: {
+          kind: "constant",
+          modifiers: [],
+          resourceMultiplier: { factor: 2, whilePayingFor: { aspect: "aggression" } },
+        },
+        effects: [],
+      }),
+    );
     const power = stubResource({ id: "power", icons: 1, abilities: [doubling.ref] });
     const aggro = stubEvent({ id: "aggro", cost: 2, aspect: "aggression" });
     const basic = stubEvent({ id: "plain", cost: 2 });
@@ -132,7 +190,15 @@ describe("typed costs and payment", () => {
   });
 
   it("a typed resource ability respects its limit and logs the typed pool", () => {
-    const scientist = stubAbility("scientist", def({ trigger: { kind: "resource" }, limit: { count: 1, period: "round" }, generates: { mental: 1 }, effects: [] }));
+    const scientist = stubAbility(
+      "scientist",
+      def({
+        trigger: { kind: "resource" },
+        limit: { count: 1, period: "round" },
+        generates: { mental: 1 },
+        effects: [],
+      }),
+    );
     const desk = stubSupport({ id: "desk", cost: 0, abilities: [scientist.ref] });
     const { deps, state } = setup([desk], scientist);
     const given = giveCards(state, p1, "desk", "cheap", "cheap");
@@ -141,12 +207,22 @@ describe("typed costs and payment", () => {
 
     const result = applyCommand(inPlay, play(c1, [ability(deskId, "scientist")] as never), deps);
     const after = expectOk(result);
-    expect(result.ok && result.events.find((e) => e.type === "resourcesGenerated")).toMatchObject({ pool: { mental: 1, physical: 0, energy: 0, wild: 0 } });
+    expect(result.ok && result.events.find((e) => e.type === "resourcesGenerated")).toMatchObject({
+      pool: { mental: 1, physical: 0, energy: 0, wild: 0 },
+    });
     expect(rejected(deps, after, play(c2, [ability(deskId, "scientist")] as never))).toBe("limit_reached");
   });
 
   it("Pepper Potts copies the top card of the discard pile as it stands during the payment", () => {
-    const pepper = stubAbility("pepper", def({ trigger: { kind: "resource" }, cost: { exhaustSelf: true }, generates: { kind: "topCardOfDiscard" }, effects: [] }));
+    const pepper = stubAbility(
+      "pepper",
+      def({
+        trigger: { kind: "resource" },
+        cost: { exhaustSelf: true },
+        generates: { kind: "topCardOfDiscard" },
+        effects: [],
+      }),
+    );
     const potts = stubSupport({ id: "potts", cost: 0, abilities: [pepper.ref] });
     const pricey = stubEvent({ id: "pricey", cost: 4 });
     const { deps, state } = setup([potts, pricey], pepper);
@@ -155,21 +231,31 @@ describe("typed costs and payment", () => {
     const inPlay = runWith(deps, given.state, play(pottsId, []));
 
     // Pepper first: the discard pile is empty, so only the Energy card's 2 count.
-    expect(rejected(deps, inPlay, play(priceyId, [ability(pottsId, "pepper"), ...hand(energyId)] as never))).toBe("insufficient_resources");
+    expect(rejected(deps, inPlay, play(priceyId, [ability(pottsId, "pepper"), ...hand(energyId)] as never))).toBe(
+      "insufficient_resources",
+    );
     // Energy first: it is now the top of the discard pile, so Pepper generates 2 more.
     const paid = runWith(deps, inPlay, play(priceyId, [...hand(energyId), ability(pottsId, "pepper")] as never));
     expect(mustInstance(paid, pottsId).exhausted).toBe(true);
   });
 
   it("a hero-form resource ability can't be used in alter-ego form", () => {
-    const shooter = stubAbility("web-shooter", def({ trigger: { kind: "resource", form: "hero" }, generates: { wild: 1 }, effects: [] }));
+    const shooter = stubAbility(
+      "web-shooter",
+      def({ trigger: { kind: "resource", form: "hero" }, generates: { wild: 1 }, effects: [] }),
+    );
     const gadget = stubSupport({ id: "gadget", cost: 0, abilities: [shooter.ref] });
     const { deps, state } = setup([gadget], shooter);
     const given = giveCards(state, p1, "gadget", "cheap");
     const [gadgetId, cheapId] = given.ids as [InstanceId, InstanceId];
     const inPlay = runWith(deps, given.state, play(gadgetId, []));
     expect(rejected(deps, inPlay, play(cheapId, [ability(gadgetId, "web-shooter")] as never))).toBe("wrong_form");
-    const asHero = runWith(deps, inPlay, { type: "changeForm", playerId: p1 }, play(cheapId, [ability(gadgetId, "web-shooter")] as never));
+    const asHero = runWith(
+      deps,
+      inPlay,
+      { type: "changeForm", playerId: p1 },
+      play(cheapId, [ability(gadgetId, "web-shooter")] as never),
+    );
     expect(mustPlayer(asHero, p1).discard).toContain(cheapId);
   });
 
@@ -183,11 +269,21 @@ describe("typed costs and payment", () => {
 });
 
 describe("cost reduction as a lasting effect (Helicarrier)", () => {
-  const carrierAbility = stubAbility("carrier", def({
-    trigger: { kind: "action" },
-    cost: { exhaustSelf: true },
-    effects: [{ kind: "reduceNextCardCost", player: { kind: "controller" }, amount: { kind: "const", value: 1 }, duration: "phase" }],
-  }));
+  const carrierAbility = stubAbility(
+    "carrier",
+    def({
+      trigger: { kind: "action" },
+      cost: { exhaustSelf: true },
+      effects: [
+        {
+          kind: "reduceNextCardCost",
+          player: { kind: "controller" },
+          amount: { kind: "const", value: 1 },
+          duration: "phase",
+        },
+      ],
+    }),
+  );
   const carrier = stubSupport({ id: "carrier", cost: 0, abilities: [carrierAbility.ref] });
 
   it("reduces only the next card played, then is used up", () => {
@@ -206,7 +302,12 @@ describe("cost reduction as a lasting effect (Helicarrier)", () => {
   it("expires at the end of the phase if unused", () => {
     const { deps, state } = setup([carrier], carrierAbility);
     const given = giveCards(state, p1, "carrier");
-    const reduced = runWith(deps, given.state, play(given.ids[0] as InstanceId, []), use(given.ids[0] as InstanceId, "carrier"));
+    const reduced = runWith(
+      deps,
+      given.state,
+      play(given.ids[0] as InstanceId, []),
+      use(given.ids[0] as InstanceId, "carrier"),
+    );
     expect(reduced.lastingEffects).toHaveLength(1);
     // Alter-ego form: the villain schemes, so this settles straight into round 2's player turn.
     const next = settleUntil(runWith(deps, reduced, { type: "endTurn", playerId: p1 }), "declareDefender", deps);
@@ -217,18 +318,23 @@ describe("cost reduction as a lasting effect (Helicarrier)", () => {
 
 describe("non-resource cost components", () => {
   it("'choose and discard up to N cards' binds the count; 'up to' needs at least one (RRG 'Cost')", () => {
-    const practice = stubAbility("practice", def({
-      trigger: { kind: "action" },
-      cost: { discardFromHand: { min: 1, max: 5, bind: "discarded" } },
-      effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "var", name: "discarded" } }],
-    }));
+    const practice = stubAbility(
+      "practice",
+      def({
+        trigger: { kind: "action" },
+        cost: { discardFromHand: { min: 1, max: 5, bind: "discarded" } },
+        effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "var", name: "discarded" } }],
+      }),
+    );
     const event = stubEvent({ id: "practice", cost: 0, abilities: [practice.ref] });
     const { deps, state } = setup([event], practice);
     const given = giveCards(state, p1, "practice", "cheap", "cheap");
     const [eventId, a, b] = given.ids as [InstanceId, InstanceId, InstanceId];
 
     expect(rejected(deps, given.state, play(eventId, [], { costChoices: { discard: [] } }))).toBe("invalid_choice");
-    expect(rejected(deps, given.state, play(eventId, [], { costChoices: { discard: [eventId] } }))).toBe("card_not_in_zone");
+    expect(rejected(deps, given.state, play(eventId, [], { costChoices: { discard: [eventId] } }))).toBe(
+      "card_not_in_zone",
+    );
     const before = mustPlayer(given.state, p1).hand.length;
     const after = runWith(deps, given.state, play(eventId, [], { costChoices: { discard: [a, b] } }));
     expect(mustPlayer(after, p1).discard).toEqual(expect.arrayContaining([a, b, eventId]));
@@ -236,16 +342,26 @@ describe("non-resource cost components", () => {
   });
 
   it("'Spend X [energy]' binds X, and a discard-self cost snapshots the card's counters", () => {
-    const charge = stubAbility("channel-charge", def({
-      trigger: { kind: "action" },
-      cost: { resourcesX: { resource: "energy", bind: "x", min: 1 } },
-      effects: [{ kind: "addCounters", target: { kind: "self" }, counterType: "energy", amount: { kind: "var", name: "x" } }],
-    }));
-    const release = stubAbility("channel-release", def({
-      trigger: { kind: "action" },
-      cost: { discardSelf: true },
-      effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "var", name: "self.counters.energy" } }],
-    }));
+    const charge = stubAbility(
+      "channel-charge",
+      def({
+        trigger: { kind: "action" },
+        cost: { resourcesX: { resource: "energy", bind: "x", min: 1 } },
+        effects: [
+          { kind: "addCounters", target: { kind: "self" }, counterType: "energy", amount: { kind: "var", name: "x" } },
+        ],
+      }),
+    );
+    const release = stubAbility(
+      "channel-release",
+      def({
+        trigger: { kind: "action" },
+        cost: { discardSelf: true },
+        effects: [
+          { kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "var", name: "self.counters.energy" } },
+        ],
+      }),
+    );
     const channel = stubUpgrade({ id: "channel", cost: 0, abilities: [charge.ref, release.ref] });
     const { deps, state } = setup([channel], charge, release);
     const given = giveCards(state, p1, "channel", "energy", "mental");
@@ -261,11 +377,16 @@ describe("non-resource cost components", () => {
   });
 
   it("'Pay the printed cost of an ally in any player's discard pile' (Make the Call)", () => {
-    const call = stubAbility("make-the-call", def({
-      trigger: { kind: "action" },
-      cost: { payPrintedCostOf: { slot: "ally", from: { zone: "discard", player: "any", query: { categories: ["ally"] } } } },
-      effects: [{ kind: "putIntoPlay", card: { kind: "slot", slot: "ally" }, controller: { kind: "controller" } }],
-    }));
+    const call = stubAbility(
+      "make-the-call",
+      def({
+        trigger: { kind: "action" },
+        cost: {
+          payPrintedCostOf: { slot: "ally", from: { zone: "discard", player: "any", query: { categories: ["ally"] } } },
+        },
+        effects: [{ kind: "putIntoPlay", card: { kind: "slot", slot: "ally" }, controller: { kind: "controller" } }],
+      }),
+    );
     const event = stubEvent({ id: "call", cost: 0, abilities: [call.ref] });
     const { deps, state } = setup([event], call);
     const given = giveCards(state, p1, "call", ALLY.id, "cheap", RESOURCE.id, RESOURCE.id);
@@ -273,19 +394,26 @@ describe("non-resource cost components", () => {
     // Put the ally in the discard pile by spending it as a resource.
     const allyDiscarded = runWith(deps, given.state, play(cheapId, hand(allyId)));
 
-    expect(rejected(deps, allyDiscarded, play(callId, hand(r1), { costChoices: { ally: [allyId] } }))).toBe("insufficient_resources");
-    expect(rejected(deps, allyDiscarded, play(callId, hand(r1, r2), { costChoices: { ally: [cheapId] } }))).toBe("no_valid_target");
+    expect(rejected(deps, allyDiscarded, play(callId, hand(r1), { costChoices: { ally: [allyId] } }))).toBe(
+      "insufficient_resources",
+    );
+    expect(rejected(deps, allyDiscarded, play(callId, hand(r1, r2), { costChoices: { ally: [cheapId] } }))).toBe(
+      "no_valid_target",
+    );
     const called = runWith(deps, allyDiscarded, play(callId, hand(r1, r2), { costChoices: { ally: [allyId] } }));
     expect(mustPlayer(called, p1).playArea).toContain(allyId);
   });
 });
 
 describe("paying for optional triggered abilities in a window", () => {
-  const widowAbility = stubAbility("widow", def({
-    trigger: { kind: "response", forced: false, on: { on: "playerPhaseEnded" } },
-    cost: { exhaustSelf: true, resources: { mental: 1 } },
-    effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
-  }));
+  const widowAbility = stubAbility(
+    "widow",
+    def({
+      trigger: { kind: "response", forced: false, on: { on: "playerPhaseEnded" } },
+      cost: { exhaustSelf: true, resources: { mental: 1 } },
+      effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
+    }),
+  );
   const widow = stubAlly({ id: "widow", cost: 0, atk: 1, thw: 1, hp: 3, abilities: [widowAbility.ref] });
 
   function atPayment() {
@@ -296,7 +424,12 @@ describe("paying for optional triggered abilities in a window", () => {
     const offered = settleUntil(ended, "chooseTriggers", deps);
     expect(offered.pendingChoice?.options.map((o) => o.optionId)).toEqual([`${widowId}:widow`]);
     const paying = resolvePending(offered, [`${widowId}:widow`], deps);
-    expect(paying.pendingChoice?.prompt).toEqual({ kind: "payForAbility", instanceId: widowId, abilityId: "widow", cost: 1 });
+    expect(paying.pendingChoice?.prompt).toEqual({
+      kind: "payForAbility",
+      instanceId: widowId,
+      abilityId: "widow",
+      cost: 1,
+    });
     return { deps, paying, widowId, mentalId };
   }
 
@@ -316,17 +449,33 @@ describe("paying for optional triggered abilities in a window", () => {
 });
 
 test("typed payments, cost choices and lasting effects replay to an identical state", () => {
-  const carrierAbility = stubAbility("carrier", def({
-    trigger: { kind: "action" },
-    cost: { exhaustSelf: true },
-    effects: [{ kind: "reduceNextCardCost", player: { kind: "controller" }, amount: { kind: "const", value: 1 }, duration: "phase" }],
-  }));
+  const carrierAbility = stubAbility(
+    "carrier",
+    def({
+      trigger: { kind: "action" },
+      cost: { exhaustSelf: true },
+      effects: [
+        {
+          kind: "reduceNextCardCost",
+          player: { kind: "controller" },
+          amount: { kind: "const", value: 1 },
+          duration: "phase",
+        },
+      ],
+    }),
+  );
   const carrier = stubSupport({ id: "carrier", cost: 0, abilities: [carrierAbility.ref] });
   const { deps, state } = setup([carrier], carrierAbility);
   const given = giveCards(state, p1, "carrier", "cheap", "cheap", "energy");
   const [carrierId, c1, c2, energyId] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
   let session: GameSession = startSession(given.state);
-  for (const command of [play(carrierId, []), use(carrierId, "carrier"), play(c1, []), play(c2, hand(energyId)), { type: "endTurn", playerId: p1 } as const]) {
+  for (const command of [
+    play(carrierId, []),
+    use(carrierId, "carrier"),
+    play(c1, []),
+    play(c2, hand(energyId)),
+    { type: "endTurn", playerId: p1 } as const,
+  ]) {
     const result = sessionApply(session, command, deps);
     if (!result.ok) throw new Error(result.error.message);
     session = result.session;

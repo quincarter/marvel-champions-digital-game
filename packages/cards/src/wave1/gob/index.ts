@@ -15,4 +15,11 @@ import { RUNNING_INTERFERENCE } from "./running-interference.js";
  * (Power Drain) needs a per-player hand discard with both a live count and a resource-type filter, which no
  * existing primitive combines.
  */
-export const GOB_ABILITIES: AbilityRegistry = mergeRegistries(RISKY_BUSINESS, MUTAGEN_FORMULA, GOBLIN_GIMMICKS, A_MESS_OF_THINGS, POWER_DRAIN, RUNNING_INTERFERENCE);
+export const GOB_ABILITIES: AbilityRegistry = mergeRegistries(
+  RISKY_BUSINESS,
+  MUTAGEN_FORMULA,
+  GOBLIN_GIMMICKS,
+  A_MESS_OF_THINGS,
+  POWER_DRAIN,
+  RUNNING_INTERFERENCE,
+);

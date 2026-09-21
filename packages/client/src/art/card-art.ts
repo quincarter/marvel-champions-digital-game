@@ -354,7 +354,11 @@ export function drawArt(
       ? Math.max(rect.width / sourceWidth, rect.height / sourceHeight)
       : Math.min(rect.width / sourceWidth, rect.height / sourceHeight);
 
-  const image = scene.add.image(0, 0, key).setOrigin(0, 0).setScale(scale).setAlpha(options.alpha ?? 1);
+  const image = scene.add
+    .image(0, 0, key)
+    .setOrigin(0, 0)
+    .setScale(scale)
+    .setAlpha(options.alpha ?? 1);
 
   if (fit === "contain") {
     // Centred in the slot, whole card visible.

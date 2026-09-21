@@ -14,7 +14,8 @@ export const MAGNETO_CURATION: PackCuration = {
   pack: {
     name: "Magneto",
     releaseDate: "2024-11-15",
-    releaseDateSource: "Hall of Heroes Magneto page (https://hallofheroeslcg.com/magneto-erik-lehnsherr/): \"Release date: November 15, 2024\"",
+    releaseDateSource:
+      'Hall of Heroes Magneto page (https://hallofheroeslcg.com/magneto-erik-lehnsherr/): "Release date: November 15, 2024"',
   },
   outDir: "src/data/magneto",
   exportPrefix: "MAGNETO",

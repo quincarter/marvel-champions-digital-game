@@ -12,7 +12,10 @@ import type { AbilityDefinition, EffectSpec, EventPattern, TargetQuery, TargetRe
 export const PREPARATION = trait("Preparation");
 /** Every category a "Preparation card" could print as (the trait isn't restricted to upgrades, even though every
  * bkw card that currently carries it happens to be one). */
-export const PREPARATION_CARD: TargetQuery = { categories: ["ally", "event", "support", "upgrade"], trait: PREPARATION };
+export const PREPARATION_CARD: TargetQuery = {
+  categories: ["ally", "event", "support", "upgrade"],
+  trait: PREPARATION,
+};
 
 /**
  * "After you resolve the ability of a Preparation card you control" (Black Widow's Widowmaker, Synth-Suit —
@@ -20,20 +23,32 @@ export const PREPARATION_CARD: TargetQuery = { categories: ["ally", "event", "su
  * `abilityResolved` (`packages/engine/src/trigger-events.ts`, named for this exact errata); no `dsl/abilities.ts`
  * `on.*` wrapper yet (`packages/engine/src/triggers-wave1.test.ts`'s `RESOLVE_WATCH` stub is the same shape).
  */
-export const onAbilityResolvedOf = (source: TargetQuery): EventPattern => ({ on: "abilityResolved", playerIs: "controller", sourceIs: source });
+export const onAbilityResolvedOf = (source: TargetQuery): EventPattern => ({
+  on: "abilityResolved",
+  playerIs: "controller",
+  sourceIs: source,
+});
 
 /**
  * "After you play a Preparation card" (Mission Prep, Natasha Romanoff). `dsl/abilities.ts`'s `on.youPlayThis` only
  * covers a card's own play, not "a card matching a query" — this is the same `cardPlayed` event, generalized.
  */
-export const onCardPlayed = (target: TargetQuery): EventPattern => ({ on: "cardPlayed", playerIs: "controller", targetIs: target });
+export const onCardPlayed = (target: TargetQuery): EventPattern => ({
+  on: "cardPlayed",
+  playerIs: "controller",
+  targetIs: target,
+});
 
 /**
  * "When you reveal a treachery" (Grappling Hook) / "When you reveal an encounter card" (Spycraft). `dsl/abilities.ts`'s
  * `on.encounterCardRevealed` has no `playerIs` — Core's own "Black Widow" (01075) and "Get Behind Me!" (01078) print
  * no "you" and so don't need it, but these two bkw cards do.
  */
-export const youReveal = (what?: TargetQuery): EventPattern => ({ on: "encounterCardRevealing", playerIs: "controller", ...(what ? { targetIs: what } : {}) });
+export const youReveal = (what?: TargetQuery): EventPattern => ({
+  on: "encounterCardRevealing",
+  playerIs: "controller",
+  ...(what ? { targetIs: what } : {}),
+});
 
 /**
  * "When a boost card is turned faceup" (Attacrobatics) / "After a boost card is turned faceup" (Target Acquired).
@@ -51,7 +66,10 @@ export const onBoostCardTurnedFaceup = (opts: { readonly requireIcons?: boolean 
  * "Deal 1 damage … for each boost icon canceled this way"). Engine primitive `EffectSpec.cancelBoostIcons`
  * (`packages/engine/src/spec.ts`, docs/phase7-wave1.md §3.9); no `dsl/effects.ts` wrapper yet.
  */
-export const cancelBoostIcons = (bind?: string): EffectSpec => ({ kind: "cancelBoostIcons", ...(bind ? { bind } : {}) });
+export const cancelBoostIcons = (bind?: string): EffectSpec => ({
+  kind: "cancelBoostIcons",
+  ...(bind ? { bind } : {}),
+});
 /** "Cancel that card's boost ability" (Target Acquired). Engine primitive `EffectSpec.cancelBoostAbility`. */
 export const cancelBoostAbility = (): EffectSpec => ({ kind: "cancelBoostAbility" });
 
@@ -60,7 +78,10 @@ export const cancelBoostAbility = (): EffectSpec => ({ kind: "cancelBoostAbility
  * this exact card). `AbilityDefinition.generatesFor` is landed (`packages/engine/src/abilities.ts`); `dsl/abilities.ts`'s
  * `resource()` builder doesn't expose it yet, so this composes it onto an already-built resource ability.
  */
-export const generatesFor = (def: AbilityDefinition, filter: TargetQuery): AbilityDefinition => ({ ...def, generatesFor: filter });
+export const generatesFor = (def: AbilityDefinition, filter: TargetQuery): AbilityDefinition => ({
+  ...def,
+  generatesFor: filter,
+});
 
 /**
  * "The Preparation card you control with the highest cost" (Burn Notice). `TargetRef.superlative` and

@@ -86,7 +86,10 @@ describe("parseMarvelCdbDeckJson", () => {
   });
 
   test("an unknown card code in slots is named specifically, and other problems are still collected", () => {
-    const result = parseMarvelCdbDeckJson({ ...REAL_DECKLIST_RESPONSE, slots: { ...REAL_DECKLIST_RESPONSE.slots, "99999z": 2 } }, CORE_CARDS);
+    const result = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, slots: { ...REAL_DECKLIST_RESPONSE.slots, "99999z": 2 } },
+      CORE_CARDS,
+    );
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.problems).toContainEqual(expect.objectContaining({ code: "unknown_card", cardIds: ["99999z"] }));
@@ -94,7 +97,10 @@ describe("parseMarvelCdbDeckJson", () => {
 
   test("nonsense and negative quantities fail loudly rather than being dropped or clamped", () => {
     for (const bad of [0, -1, 1.5, "3", 9999]) {
-      const result = parseMarvelCdbDeckJson({ ...REAL_DECKLIST_RESPONSE, slots: { "01044": bad as never } }, CORE_CARDS);
+      const result = parseMarvelCdbDeckJson(
+        { ...REAL_DECKLIST_RESPONSE, slots: { "01044": bad as never } },
+        CORE_CARDS,
+      );
       expect(result.ok).toBe(false);
       if (result.ok) continue;
       expect(result.problems.some((p) => p.code === "invalid_quantity")).toBe(true);
@@ -110,15 +116,27 @@ describe("parseMarvelCdbDeckJson", () => {
   });
 
   test("a MarvelCDB deck-JSON with meta.aspect_1 is read as a second aspect, in order", () => {
-    const result = parseMarvelCdbDeckJson({ ...REAL_DECKLIST_RESPONSE, meta: '{"aspect":"protection","aspect_1":"justice"}' }, CORE_CARDS);
+    const result = parseMarvelCdbDeckJson(
+      { ...REAL_DECKLIST_RESPONSE, meta: '{"aspect":"protection","aspect_1":"justice"}' },
+      CORE_CARDS,
+    );
     if (!result.ok) throw new Error(JSON.stringify(result.problems));
     expect(result.contents.aspects).toEqual(["protection", "justice"]);
   });
 
   test("garbage that isn't an object at all fails loudly with one clear message", () => {
-    expect(parseMarvelCdbDeckJson(null, CORE_CARDS)).toEqual({ ok: false, problems: [expect.objectContaining({ code: "invalid_input" })] });
-    expect(parseMarvelCdbDeckJson("just some text", CORE_CARDS)).toEqual({ ok: false, problems: [expect.objectContaining({ code: "invalid_input" })] });
-    expect(parseMarvelCdbDeckJson([1, 2, 3], CORE_CARDS)).toEqual({ ok: false, problems: [expect.objectContaining({ code: "invalid_input" })] });
+    expect(parseMarvelCdbDeckJson(null, CORE_CARDS)).toEqual({
+      ok: false,
+      problems: [expect.objectContaining({ code: "invalid_input" })],
+    });
+    expect(parseMarvelCdbDeckJson("just some text", CORE_CARDS)).toEqual({
+      ok: false,
+      problems: [expect.objectContaining({ code: "invalid_input" })],
+    });
+    expect(parseMarvelCdbDeckJson([1, 2, 3], CORE_CARDS)).toEqual({
+      ok: false,
+      problems: [expect.objectContaining({ code: "invalid_input" })],
+    });
   });
 
   test("more distinct cards than the importer accepts is refused before it is walked", () => {
@@ -154,7 +172,10 @@ describe("parseMarvelCdbDeckJsonText", () => {
   });
 
   test("a `problem` field from MarvelCDB itself is surfaced rather than parsed further", () => {
-    const result = parseMarvelCdbDeckJsonText(JSON.stringify({ ...REAL_DECKLIST_RESPONSE, problem: "too_many_cards" }), CORE_CARDS);
+    const result = parseMarvelCdbDeckJsonText(
+      JSON.stringify({ ...REAL_DECKLIST_RESPONSE, problem: "too_many_cards" }),
+      CORE_CARDS,
+    );
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.problems[0]!.message).toContain("too_many_cards");

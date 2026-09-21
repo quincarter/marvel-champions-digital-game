@@ -27,7 +27,12 @@ export function drawDiscardBar(ctx: BoardDrawContext, rect: Rect, discard: Disca
   // "0–6" for Shield Toss's uncapped X, "1" for a fixed count where only *which* card is a decision.
   const range = discard.min === discard.max ? `${discard.min}` : `${discard.min}–${discard.max}`;
   scene.add
-    .text(rect.x + 12, rect.y + rect.height / 2, `DISCARDING ${discard.picked.size} (${range})`, textStyle(typeRole.barTitle, surface.paper.hex))
+    .text(
+      rect.x + 12,
+      rect.y + rect.height / 2,
+      `DISCARDING ${discard.picked.size} (${range})`,
+      textStyle(typeRole.barTitle, surface.paper.hex),
+    )
     .setOrigin(0, 0.5)
     .setLetterSpacing(1);
 
@@ -38,7 +43,12 @@ export function drawDiscardBar(ctx: BoardDrawContext, rect: Rect, discard: Disca
   const headlineRoom = buttonsLeft - headlineLeft - 12;
   if (headlineRoom > 90) {
     scene.add
-      .text(headlineLeft, rect.y + rect.height / 2, "Tap cards to choose how many to discard, then Confirm.", textStyle(typeRole.emphasis, surface.paper.hex))
+      .text(
+        headlineLeft,
+        rect.y + rect.height / 2,
+        "Tap cards to choose how many to discard, then Confirm.",
+        textStyle(typeRole.emphasis, surface.paper.hex),
+      )
       .setOrigin(0, 0.5)
       .setWordWrapWidth(headlineRoom)
       .setMaxLines(1);

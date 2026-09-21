@@ -10,7 +10,15 @@ import type { ChoiceOption, ChoicePrompt, GameState, PendingChoice, PlayerId } f
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { appendWalkthrough, decisionLabel, emptyWalkthrough, inlineInterruptFor, pauseFor, VILLAIN_STEPS, type Walkthrough } from "./villain-walkthrough.js";
+import {
+  appendWalkthrough,
+  decisionLabel,
+  emptyWalkthrough,
+  inlineInterruptFor,
+  pauseFor,
+  VILLAIN_STEPS,
+  type Walkthrough,
+} from "./villain-walkthrough.js";
 
 interface Played {
   readonly walkthrough: Walkthrough;
@@ -244,8 +252,11 @@ describe("a defended attack", () => {
       if (!legal) break;
       if (legal.actions.kind === "choice") {
         const { choice } = legal.actions;
-        const declare = choice.prompt.kind === "declareDefender" ? choice.options.find((o) => o.optionId !== "decline") : null;
-        await store.resolveChoice(declare ? [declare.optionId] : choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
+        const declare =
+          choice.prompt.kind === "declareDefender" ? choice.options.find((o) => o.optionId !== "decline") : null;
+        await store.resolveChoice(
+          declare ? [declare.optionId] : choice.options.slice(0, choice.minSelections).map((o) => o.optionId),
+        );
       } else if (legal.actions.kind === "turn") {
         if (!changedForm) {
           const toHero = legal.actions.legal.find((entry) => entry.action.kind === "changeForm");
@@ -272,14 +283,14 @@ describe("a defended attack", () => {
     const { walkthrough } = await playThroughDefendedAttack();
     const beats = walkthrough.steps.flatMap((step) => step.beats.map((beat) => beat.text));
 
-    const resolved = beats.find((text) => /^Rhino hit /.test(text));
+    const resolved = beats.find((text) => text.startsWith("Rhino hit "));
     expect(resolved, `no attackResolved beat in: ${JSON.stringify(beats)}`).toBeDefined();
     const match = resolved!.match(/^Rhino hit .+ for (\d+) \(ATK \d+ \+ \d+ boost − \d+ defense\)\.$/);
     expect(match, resolved).not.toBeNull();
 
     // The defended beat comes first, then the attack's own numbers — the
     // whole point of "know what the result of my defense is."
-    expect(beats.indexOf(resolved!)).toBeGreaterThan(beats.findIndex((text) => /defends\.$/.test(text)));
+    expect(beats.indexOf(resolved!)).toBeGreaterThan(beats.findIndex((text) => text.endsWith("defends.")));
 
     // A full defense can reduce the hit to 0, and the engine emits no
     // separate `damageDealt` for a 0-amount hit — so the beat's own "for 0"
@@ -303,7 +314,7 @@ describe("a defended attack", () => {
   test("the resolved beat's own activation snapshot carries the same numbers as its text", async () => {
     const { walkthrough } = await playThroughDefendedAttack();
     const allBeats = walkthrough.steps.flatMap((step) => step.beats);
-    const resolvedBeat = allBeats.find((beat) => /^Rhino hit /.test(beat.text));
+    const resolvedBeat = allBeats.find((beat) => beat.text.startsWith("Rhino hit "));
     expect(resolvedBeat).toBeDefined();
 
     const activation = resolvedBeat!.activation;
@@ -359,9 +370,13 @@ describe("pauseFor", () => {
   });
 
   test("names the rule that made this player the decider", () => {
-    expect(pauseFor(choice("firstPlayerTargets"), played.state, played.viewer).label).toContain("as first player, you pick the target");
+    expect(pauseFor(choice("firstPlayerTargets"), played.state, played.viewer).label).toContain(
+      "as first player, you pick the target",
+    );
     expect(pauseFor(choice("firstPlayerOrders"), played.state, played.viewer).label).toContain("order these effects");
-    expect(pauseFor(choice("player"), played.state, played.viewer).label).toBe("Auto-advance paused for your interrupt");
+    expect(pauseFor(choice("player"), played.state, played.viewer).label).toBe(
+      "Auto-advance paused for your interrupt",
+    );
   });
 
   test("addresses another seat by name rather than in the second person", () => {
@@ -373,11 +388,17 @@ describe("pauseFor", () => {
   });
 
   test("a defend prompt says so instead of calling it an interrupt", () => {
-    expect(pauseFor(choice("player", "declareDefender"), played.state, played.viewer).label).toContain("declare your defender");
+    expect(pauseFor(choice("player", "declareDefender"), played.state, played.viewer).label).toContain(
+      "declare your defender",
+    );
   });
 
   test("offer names the attack a defend prompt is about, not just that one exists", () => {
-    const pause = pauseFor(choice("player", "declareDefender", false, [{ optionId: "decline", label: "No defense", ref: { kind: "none" } }]), played.state, played.viewer);
+    const pause = pauseFor(
+      choice("player", "declareDefender", false, [{ optionId: "decline", label: "No defense", ref: { kind: "none" } }]),
+      played.state,
+      played.viewer,
+    );
 
     expect(pause.offer).toContain("Rhino");
     expect(pause.offer).toContain("Options: No defense");
@@ -397,7 +418,11 @@ describe("pauseFor", () => {
   });
 
   test("offer caps a long option list rather than running the panel off the screen", () => {
-    const options = Array.from({ length: 7 }, (_u, i) => ({ optionId: `o${i}`, label: `Card ${i}`, ref: { kind: "none" } as const }));
+    const options = Array.from({ length: 7 }, (_u, i) => ({
+      optionId: `o${i}`,
+      label: `Card ${i}`,
+      ref: { kind: "none" } as const,
+    }));
     const pause = pauseFor(choice("player", "chooseTarget", false, options), played.state, played.viewer);
 
     expect(pause.offer).toBe("Options: Card 0, Card 1, Card 2, Card 3 (+3 more).");
@@ -440,9 +465,15 @@ describe("decisionLabel", () => {
   });
 
   test("still names the rule that made this player the decider", () => {
-    expect(decisionLabel(choice("firstPlayerTargets"), played.state, played.viewer)).toBe("As first player, you pick the target");
-    expect(decisionLabel(choice("firstPlayerOrders"), played.state, played.viewer)).toBe("As first player, you order these effects");
-    expect(decisionLabel(choice("player", "declareDefender"), played.state, played.viewer)).toBe("Declare your defender");
+    expect(decisionLabel(choice("firstPlayerTargets"), played.state, played.viewer)).toBe(
+      "As first player, you pick the target",
+    );
+    expect(decisionLabel(choice("firstPlayerOrders"), played.state, played.viewer)).toBe(
+      "As first player, you order these effects",
+    );
+    expect(decisionLabel(choice("player", "declareDefender"), played.state, played.viewer)).toBe(
+      "Declare your defender",
+    );
   });
 
   test("addresses another seat in the third person", () => {
@@ -475,7 +506,13 @@ describe("inlineInterruptFor", () => {
 
   test("offers the viewer's own card, by instance, when one is legal to play", () => {
     const options = inlineInterruptFor(
-      triggersChoice(played.viewer, [{ optionId: "x:ability-1", label: "Energy Barrier", ref: { kind: "ability", instanceId: villainId(), abilityId: "ability-1" as never } }]),
+      triggersChoice(played.viewer, [
+        {
+          optionId: "x:ability-1",
+          label: "Energy Barrier",
+          ref: { kind: "ability", instanceId: villainId(), abilityId: "ability-1" as never },
+        },
+      ]),
       played.viewer,
     );
 
@@ -485,7 +522,13 @@ describe("inlineInterruptFor", () => {
   test("null when the choice is not the viewer's own — never offers to play another seat's card", () => {
     const other = "player-not-viewer" as PlayerId;
     const options = inlineInterruptFor(
-      triggersChoice(other, [{ optionId: "x:ability-1", label: "Energy Barrier", ref: { kind: "ability", instanceId: villainId(), abilityId: "ability-1" as never } }]),
+      triggersChoice(other, [
+        {
+          optionId: "x:ability-1",
+          label: "Energy Barrier",
+          ref: { kind: "ability", instanceId: villainId(), abilityId: "ability-1" as never },
+        },
+      ]),
       played.viewer,
     );
 
@@ -499,7 +542,10 @@ describe("inlineInterruptFor", () => {
   test("null for every prompt kind but chooseTriggers — a defend or an ordering has no 'let it resolve'", () => {
     const declare: PendingChoice = {
       ...triggersChoice(played.viewer, [{ optionId: "decline", label: "No defense", ref: { kind: "none" } }]),
-      prompt: { kind: "declareDefender", attack: { enemyInstanceId: villainId(), targetPlayerId: played.viewer, targetCharacterInstanceId: villainId() } },
+      prompt: {
+        kind: "declareDefender",
+        attack: { enemyInstanceId: villainId(), targetPlayerId: played.viewer, targetCharacterInstanceId: villainId() },
+      },
     };
     expect(inlineInterruptFor(declare, played.viewer)).toBeNull();
   });

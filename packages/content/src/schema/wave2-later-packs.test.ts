@@ -97,16 +97,27 @@ describe("§6.2 Discount X (trait) (the Fear No Evil rulebook, p. 3)", () => {
 
   it("refuses a discount with no trait or a non-positive value", () => {
     expect(validateCard(event("x", "fne", "X", [{ name: "discount", value: 1, traits: [] }])).valid).toBe(false);
-    expect(validateCard(event("x", "fne", "X", [{ name: "discount", value: 0, traits: [trait("Spy")] }])).valid).toBe(false);
+    expect(validateCard(event("x", "fne", "X", [{ name: "discount", value: 0, traits: [trait("Spy")] }])).valid).toBe(
+      false,
+    );
   });
 });
 
-const stage = (stageNumber: number, hp: number, atk: number, sch: number, traits: readonly string[], abilities: readonly string[] = []): VillainStage => ({
+const stage = (
+  stageNumber: number,
+  hp: number,
+  atk: number,
+  sch: number,
+  traits: readonly string[],
+  abilities: readonly string[] = [],
+): VillainStage => ({
   stageNumber,
   hp: perPlayerOnly(hp),
   atk,
   sch,
-  text: text(abilities.length > 0 ? "Forced Response: After this villain changes to this form, heal 1 damage from him." : ""),
+  text: text(
+    abilities.length > 0 ? "Forced Response: After this villain changes to this form, heal 1 damage from him." : "",
+  ),
   traits: traits.map(trait),
   keywords: [],
   abilities: abilities.map((id) => ({ id: abilityId(id) })),
@@ -123,7 +134,12 @@ describe("§6.3 leader cards and competitive-only cards (RRG 1.8 'Leader', p. 26
       {
         side: "A",
         name: "Iron Man",
-        stages: [stage(1, 12, 1, 1, ["Avenger"]), stage(2, 16, 2, 1, ["Avenger"]), stage(3, 16, 2, 1, ["Avenger"]), stage(4, 20, 3, 1, ["Avenger"])],
+        stages: [
+          stage(1, 12, 1, 1, ["Avenger"]),
+          stage(2, 16, 2, 1, ["Avenger"]),
+          stage(3, 16, 2, 1, ["Avenger"]),
+          stage(4, 20, 3, 1, ["Avenger"]),
+        ],
       },
     ],
   };
@@ -135,10 +151,19 @@ describe("§6.3 leader cards and competitive-only cards (RRG 1.8 'Leader', p. 26
 
   it("'your leader' and 'the enemy leader' are attach hosts; an ifAble can fall back from 'your leader'", () => {
     // Tangled Up (56181): "Attach to your leader. Otherwise, attach to your hero."
-    const tangled: AttachmentHost = { kind: "ifAble", preferred: { kind: "leader", of: "yours" }, otherwise: { kind: "yourIdentity", form: "hero" } };
+    const tangled: AttachmentHost = {
+      kind: "ifAble",
+      preferred: { kind: "leader", of: "yours" },
+      otherwise: { kind: "yourIdentity", form: "hero" },
+    };
     expect(validateAttachmentHost(tangled, "attachment")).toEqual([]);
     // Neptune's Trident (56161): "Attach to Namor. Otherwise, attach to the enemy leader."
-    expect(validateAttachmentHost({ kind: "ifAble", preferred: { kind: "namedCard", name: "Namor" }, otherwise: { kind: "leader", of: "enemy" } }, "attachment")).toEqual([]);
+    expect(
+      validateAttachmentHost(
+        { kind: "ifAble", preferred: { kind: "namedCard", name: "Namor" }, otherwise: { kind: "leader", of: "enemy" } },
+        "attachment",
+      ),
+    ).toEqual([]);
     expect(validateAttachmentHost({ kind: "leader", of: "ally" }, "attachment")).not.toEqual([]);
   });
 
@@ -152,7 +177,12 @@ describe("§6.3 leader cards and competitive-only cards (RRG 1.8 'Leader', p. 26
     const sets: readonly EncounterSet[] = [
       { id: encounterSetId("iron_man_leader"), name: "Iron Man", packCodes: [setCode("cw")] },
       { id: encounterSetId("standard_pvp"), name: "Standard PvP", packCodes: [setCode("cw")], competitiveOnly: true },
-      { id: encounterSetId("hydra_camp"), name: "Hydra Campaign", packCodes: [setCode("trors")], campaignSpecific: true },
+      {
+        id: encounterSetId("hydra_camp"),
+        name: "Hydra Campaign",
+        packCodes: [setCode("trors")],
+        campaignSpecific: true,
+      },
     ];
     const scenario: Scenario = {
       id: scenarioId("registration"),
@@ -168,10 +198,14 @@ describe("§6.3 leader cards and competitive-only cards (RRG 1.8 'Leader', p. 26
     };
     expect(validateScenarioEncounterSets(scenario, sets).errors).toEqual([]);
     const pvp = { ...scenario, standardEncounterSetIds: [encounterSetId("standard_pvp")] };
-    expect(validateScenarioEncounterSets(pvp, sets).errors).toEqual(["scenario registration names competitive-only set standard_pvp; competitive mode is not built"]);
+    expect(validateScenarioEncounterSets(pvp, sets).errors).toEqual([
+      "scenario registration names competitive-only set standard_pvp; competitive mode is not built",
+    ]);
     const campaign = { ...scenario, encounterSetIds: [...scenario.encounterSetIds, encounterSetId("hydra_camp")] };
     expect(validateScenarioEncounterSets(campaign, sets).valid).toBe(false);
-    expect(validateScenarioEncounterSets({ ...scenario, expertEncounterSetIds: [encounterSetId("nope")] }, sets).valid).toBe(false);
+    expect(
+      validateScenarioEncounterSets({ ...scenario, expertEncounterSetIds: [encounterSetId("nope")] }, sets).valid,
+    ).toBe(false);
   });
 });
 
@@ -182,7 +216,9 @@ describe("§6.4 Agents of S.H.I.E.L.D. evidence cards (the Agents of S.H.I.E.L.D
     evidence: "means",
     encounterSetIds: [encounterSetId("executive_board_evidence")],
     traits: [],
-    text: text("Setup: Each player may add 1 secret counter to a Board Member environment to search their collection for a different Justice ally and shuffle it into their deck."),
+    text: text(
+      "Setup: Each player may add 1 secret counter to a Board Member environment to search their collection for a different Justice ally and shuffle it into their deck.",
+    ),
     abilities: [{ id: abilityId("50186.setup") }],
   };
 
@@ -197,14 +233,27 @@ describe("§6.5–§6.8 attach hosts", () => {
   it("'a non-permanent side scheme' is a keyword qualifier (Containment Strategy 42019, The Direct Approach 43020)", () => {
     const host: AttachmentHost = { kind: "qualified", category: "sideScheme", withoutKeyword: "permanent" };
     expect(validateAttachmentHost(host, "upgrade")).toEqual([]);
-    expect(validateAttachmentHost({ kind: "qualified", category: "sideScheme", withoutKeyword: "sturdy" as never }, "upgrade")).not.toEqual([]);
+    expect(
+      validateAttachmentHost(
+        { kind: "qualified", category: "sideScheme", withoutKeyword: "sturdy" as never },
+        "upgrade",
+      ),
+    ).not.toEqual([]);
   });
 
   it("an OR of hosts: 'an enemy or scheme' (Acute Tactility 60002), 'Greycrow or Harpoon' inside an ifAble (Favored Weapon 40107)", () => {
-    expect(validateAttachmentHost({ kind: "anyOf", hosts: [{ kind: "enemy" }, { kind: "scheme" }] }, "upgrade")).toEqual([]);
+    expect(
+      validateAttachmentHost({ kind: "anyOf", hosts: [{ kind: "enemy" }, { kind: "scheme" }] }, "upgrade"),
+    ).toEqual([]);
     const favored: AttachmentHost = {
       kind: "ifAble",
-      preferred: { kind: "anyOf", hosts: [{ kind: "namedCard", name: "Greycrow" }, { kind: "namedCard", name: "Harpoon" }] },
+      preferred: {
+        kind: "anyOf",
+        hosts: [
+          { kind: "namedCard", name: "Greycrow" },
+          { kind: "namedCard", name: "Harpoon" },
+        ],
+      },
       otherwise: { kind: "superlative", among: "enemy", order: "lowest", measure: "atk", trait: trait("Marauder") },
     };
     expect(validateAttachmentHost(favored, "attachment")).toEqual([]);
@@ -221,16 +270,32 @@ describe("§6.5–§6.8 attach hosts", () => {
 
   it("an anyOf needs two hosts and may not nest ifAble or anyOf", () => {
     expect(validateAttachmentHost({ kind: "anyOf", hosts: [{ kind: "enemy" }] as never }, "upgrade")).not.toEqual([]);
-    const nested = { kind: "anyOf", hosts: [{ kind: "enemy" }, { kind: "anyOf", hosts: [{ kind: "ally" }, { kind: "minion" }] }] };
+    const nested = {
+      kind: "anyOf",
+      hosts: [{ kind: "enemy" }, { kind: "anyOf", hosts: [{ kind: "ally" }, { kind: "minion" }] }],
+    };
     expect(validateAttachmentHost(nested, "upgrade")).toContain("upgrade anyOf host 2 cannot itself be anyOf");
   });
 
   it("measures: the highest activation order value (Heightened Morale 27103), the most traits (Cyborg Tech 29031)", () => {
-    expect(validateAttachmentHost({ kind: "superlative", among: "villain", order: "highest", measure: "activationOrder" }, "attachment")).toEqual([]);
-    expect(validateAttachmentHost({ kind: "superlative", among: "minion", order: "highest", measure: "traitCount" }, "attachment")).toEqual([]);
-    expect(validateAttachmentHost({ kind: "superlative", among: "minion", order: "highest", measure: "activationOrder" }, "attachment")).toContain(
-      "attachment superlative host measure 'activationOrder' ranks villains only",
-    );
+    expect(
+      validateAttachmentHost(
+        { kind: "superlative", among: "villain", order: "highest", measure: "activationOrder" },
+        "attachment",
+      ),
+    ).toEqual([]);
+    expect(
+      validateAttachmentHost(
+        { kind: "superlative", among: "minion", order: "highest", measure: "traitCount" },
+        "attachment",
+      ),
+    ).toEqual([]);
+    expect(
+      validateAttachmentHost(
+        { kind: "superlative", among: "minion", order: "highest", measure: "activationOrder" },
+        "attachment",
+      ),
+    ).toContain("attachment superlative host measure 'activationOrder' ranks villains only");
   });
 
   it("'the villain who is not the active villain' (Direct Assault 21105)", () => {
@@ -255,7 +320,10 @@ describe("§6.9 a three-sided villain (Apocalypse 45184–45186; RRG 1.8 'Flip',
   const faces = (letter: "A" | "B" | "C", form: string) => ({
     side: letter,
     name: "Apocalypse",
-    stages: [stage(1, 16, 2, 1, ["Mutant", form], [`45184${letter.toLowerCase()}.form`]), stage(2, 20, 3, 1, ["Mutant", form])] as [VillainStage, VillainStage],
+    stages: [
+      stage(1, 16, 2, 1, ["Mutant", form], [`45184${letter.toLowerCase()}.form`]),
+      stage(2, 20, 3, 1, ["Mutant", form]),
+    ] as [VillainStage, VillainStage],
   });
   const apocalypse: VillainCard = {
     ...base("45184a", "aoa", "Apocalypse", "184"),
@@ -274,8 +342,12 @@ describe("§6.9 a three-sided villain (Apocalypse 45184–45186; RRG 1.8 'Flip',
     const [a, , c] = apocalypse.sides;
     if (!a || !c) throw new Error("fixture");
     expect(validateCard({ ...apocalypse, sides: [a, c] }).valid).toBe(false);
-    expect(validateCard({ ...apocalypse, sides: [...apocalypse.sides, { ...c, side: "D" as never }] }).valid).toBe(false);
-    expect(validateCard({ ...apocalypse, sides: [a, apocalypse.sides[1] as never, { ...c, stages: [c.stages[0]] }] }).valid).toBe(false);
+    expect(validateCard({ ...apocalypse, sides: [...apocalypse.sides, { ...c, side: "D" as never }] }).valid).toBe(
+      false,
+    );
+    expect(
+      validateCard({ ...apocalypse, sides: [a, apocalypse.sides[1] as never, { ...c, stages: [c.stages[0]] }] }).valid,
+    ).toBe(false);
   });
 });
 
@@ -293,7 +365,9 @@ describe("§6.10 a separated identity (the SP//dr insert, 'New Rule: Separated I
       handSize: 3,
       keywords: [],
       traits: [trait("Active"), trait("Web-Warrior")],
-      text: text("Sync Ratio — Resource: Exhaust an Interface upgrade you control → generate that upgrade's resources."),
+      text: text(
+        "Sync Ratio — Resource: Exhaust an Interface upgrade you control → generate that upgrade's resources.",
+      ),
       abilities: [{ id: abilityId("31001a.sync-ratio"), label: "Sync Ratio" }],
     },
     alterEgo: {
@@ -335,10 +409,20 @@ describe("§6.10 a separated identity (the SP//dr insert, 'New Rule: Separated I
   it("refuses the wrong card types, a missing collector number, and an ability id shared with a form", () => {
     const separated = spdr.separatedIdentity;
     if (!separated) throw new Error("fixture");
-    expect(validateCard({ ...spdr, separatedIdentity: { ...separated, heroCardOtherSide: { ...separated.heroCardOtherSide, cardType: "upgrade" as never } } }).valid).toBe(false);
+    expect(
+      validateCard({
+        ...spdr,
+        separatedIdentity: {
+          ...separated,
+          heroCardOtherSide: { ...separated.heroCardOtherSide, cardType: "upgrade" as never },
+        },
+      }).valid,
+    ).toBe(false);
     expect(validateCard({ ...spdr, separatedIdentity: { ...separated, alterEgoCardNumber: "" } }).valid).toBe(false);
     const clash = { ...separated.alterEgoCardOtherSide, abilities: [{ id: abilityId("31001a.sync-ratio") }] };
-    expect(validateCard({ ...spdr, separatedIdentity: { ...separated, alterEgoCardOtherSide: clash } }).errors).toContain(
+    expect(
+      validateCard({ ...spdr, separatedIdentity: { ...separated, alterEgoCardOtherSide: clash } }).errors,
+    ).toContain(
       "identity separatedIdentity alter-ego card's other side ability 31001a.sync-ratio is also on another face; ability ids are unique per card",
     );
   });

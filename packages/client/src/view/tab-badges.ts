@@ -76,12 +76,14 @@ function tabFor(state: GameState, instanceId: InstanceId, perspectiveId: PlayerI
   if (!instance) return null;
 
   const card = state.cardPool[instance.cardId];
-  if (card?.type === "side_scheme" || card?.type === "main_scheme" || card?.type === "player_side_scheme") return "threat";
+  if (card?.type === "side_scheme" || card?.type === "main_scheme" || card?.type === "player_side_scheme")
+    return "threat";
 
   const me = getPlayer(state, perspectiveId);
   if (me) {
     if (instanceId === me.identity.instanceId) return "me";
-    if (me.playArea.includes(instanceId) || me.hand.includes(instanceId) || me.discard.includes(instanceId)) return "me";
+    if (me.playArea.includes(instanceId) || me.hand.includes(instanceId) || me.discard.includes(instanceId))
+      return "me";
   }
   // A card another seat controls is that seat's news.
   const owner = instance.controllerId ?? instance.ownerId;

@@ -81,7 +81,12 @@ export type LastingEffectBody =
    * `amount` is **signed**: positive reduces, negative increases ("the next event you play costs 3 additional
    * resources" — Physical Toll, `drs` pack — is `amount: -3`). The pricing path floors the result at 0 either way.
    */
-  | { readonly kind: "costReduction"; readonly playerId: PlayerId; readonly amount: number; readonly cardFilter?: TargetQuery }
+  | {
+      readonly kind: "costReduction";
+      readonly playerId: PlayerId;
+      readonly amount: number;
+      readonly cardFilter?: TargetQuery;
+    }
   /** "Until the end of the phase, X gets +N STAT". `amount` is re-evaluated on every read. */
   | (LastingReach & {
       readonly kind: "statModifier";
@@ -100,7 +105,12 @@ export type LastingEffectBody =
    * bonus on one card, added to every instance of damage dealt (or threat removed) by that card's own effects while
    * it resolves (RRG 1.8 "Event", p. 19; FAQ #10/#11, p. 59).
    */
-  | { readonly kind: "cardEffectBonus"; readonly sourceInstanceId: InstanceId; readonly damage: number; readonly threatRemoved: number }
+  | {
+      readonly kind: "cardEffectBonus";
+      readonly sourceInstanceId: InstanceId;
+      readonly damage: number;
+      readonly threatRemoved: number;
+    }
   /**
    * A `RuleSpec` with a clock on it: "**You cannot change form** until your next turn ends" (Care for Cassie),
    * "**You cannot ready your identity** until your next turn ends" (Need for Speed). docs/phase7-wave2.md §22.

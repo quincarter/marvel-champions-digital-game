@@ -12,7 +12,15 @@ import type { DefendBand, GameState, InstanceId, PendingChoice, PlayerId } from 
 import { POOL_DEPS } from "../content/pool.js";
 import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
-import { bandFactsOf, consequenceLinesFrom, damageHeadline, defendCauseFrom, defendChoiceViewOf, forcedNotesOf, hpAfterFrom } from "./defend-choice.js";
+import {
+  bandFactsOf,
+  consequenceLinesFrom,
+  damageHeadline,
+  defendCauseFrom,
+  defendChoiceViewOf,
+  forcedNotesOf,
+  hpAfterFrom,
+} from "./defend-choice.js";
 
 async function playToDeclareDefender(): Promise<{ state: GameState; choice: PendingChoice; viewer: PlayerId }> {
   const store = new SessionStore(new LocalEngineHost());
@@ -55,10 +63,17 @@ async function playToDeclareDefender(): Promise<{ state: GameState; choice: Pend
 describe("defendChoiceViewOf: a real declareDefender choice", () => {
   test("returns null for a choice that isn't declareDefender", async () => {
     const store = new SessionStore(new LocalEngineHost());
-    await store.start({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 2026 });
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
     const legal = store.state.legal!.actions;
     if (legal.kind !== "choice") throw new Error("expected the mulligan choice");
-    expect(defendChoiceViewOf(store.state.game!, legal.choice, POOL_DEPS, store.state.game!.players[0]!.playerId, [])).toBeNull();
+    expect(
+      defendChoiceViewOf(store.state.game!, legal.choice, POOL_DEPS, store.state.game!.players[0]!.playerId, []),
+    ).toBeNull();
   });
 
   test("names the attacker, the options, the stack and who decides — using only what the engine reports", async () => {
@@ -189,7 +204,9 @@ describe("bandFactsOf / consequenceLinesFrom", () => {
       band({ boostFrom: 2, boostTo: 2, damageDealt: 4, damageTaken: 0, toughSpent: true }),
     ]);
     expect(facts.toughAbsorbsUpTo).toBe(4);
-    expect(consequenceLinesFrom(facts, "Captain Marvel", null, "Klaw")).toEqual(["Tough absorbs it — up to 4 damage prevented."]);
+    expect(consequenceLinesFrom(facts, "Captain Marvel", null, "Klaw")).toEqual([
+      "Tough absorbs it — up to 4 damage prevented.",
+    ]);
   });
 
   test("a hero's basic defense reducing damage to exactly 0 keeps Tough — not spent, and no callout", () => {
@@ -199,8 +216,22 @@ describe("bandFactsOf / consequenceLinesFrom", () => {
 
   test("Overkill (RRG 1.8 p. 31): only reported with a named recipient, worst case across the range", () => {
     const facts = bandFactsOf([
-      band({ boostFrom: 1, boostTo: 1, damageTaken: 6, defeated: true, overkillToInstanceId: "villain" as InstanceId, overkillAmount: 1 }),
-      band({ boostFrom: 2, boostTo: 2, damageTaken: 7, defeated: true, overkillToInstanceId: "villain" as InstanceId, overkillAmount: 2 }),
+      band({
+        boostFrom: 1,
+        boostTo: 1,
+        damageTaken: 6,
+        defeated: true,
+        overkillToInstanceId: "villain" as InstanceId,
+        overkillAmount: 1,
+      }),
+      band({
+        boostFrom: 2,
+        boostTo: 2,
+        damageTaken: 7,
+        defeated: true,
+        overkillToInstanceId: "villain" as InstanceId,
+        overkillAmount: 2,
+      }),
     ]);
     expect(facts.overkill).toEqual({ amount: 2, recipientInstanceId: "villain" });
     expect(consequenceLinesFrom(facts, "the minion", "Rhino", "Rhino")).toEqual([
@@ -210,7 +241,9 @@ describe("bandFactsOf / consequenceLinesFrom", () => {
   });
 
   test("no overkill keyword: defeated bands with no recipient report nothing", () => {
-    const facts = bandFactsOf([band({ damageTaken: 6, defeated: true, overkillToInstanceId: null, overkillAmount: 0 })]);
+    const facts = bandFactsOf([
+      band({ damageTaken: 6, defeated: true, overkillToInstanceId: null, overkillAmount: 0 }),
+    ]);
     expect(facts.overkill).toBeNull();
   });
 
@@ -225,7 +258,13 @@ describe("bandFactsOf / consequenceLinesFrom", () => {
 
   test("every consequence at once, in one fixed order: defeat, Tough, Overkill, Retaliate", () => {
     const facts = bandFactsOf([
-      band({ damageTaken: 6, defeated: true, retaliateToAttacker: 0, overkillToInstanceId: "villain" as InstanceId, overkillAmount: 3 }),
+      band({
+        damageTaken: 6,
+        defeated: true,
+        retaliateToAttacker: 0,
+        overkillToInstanceId: "villain" as InstanceId,
+        overkillAmount: 3,
+      }),
     ]);
     expect(consequenceLinesFrom(facts, "the ally", "Klaw", "Klaw")).toEqual([
       "At 6+ damage, the ally is defeated.",
@@ -240,8 +279,12 @@ describe("forcedNotesOf", () => {
   });
 
   test("an extra boost card, worded singular and plural", () => {
-    expect(forcedNotesOf({ extraBoost: 1 })).toEqual(["Forced interrupt: +1 additional boost card for this activation."]);
-    expect(forcedNotesOf({ extraBoost: 2 })).toEqual(["Forced interrupt: +2 additional boost cards for this activation."]);
+    expect(forcedNotesOf({ extraBoost: 1 })).toEqual([
+      "Forced interrupt: +1 additional boost card for this activation.",
+    ]);
+    expect(forcedNotesOf({ extraBoost: 2 })).toEqual([
+      "Forced interrupt: +2 additional boost cards for this activation.",
+    ]);
   });
 
   test("a +ATK bonus and a granted Overkill, both worded, in order", () => {
@@ -258,30 +301,78 @@ describe("defendCauseFrom — why the attack is happening", () => {
   const gangUp = "i9" as InstanceId;
 
   test("nothing under the attack during step two: the villain's ordinary activation", () => {
-    const cause = defendCauseFrom([{ kind: "window", subjectInstanceId: null }, { kind: "event", subjectInstanceId: null }, { kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "villain", true, name);
-    expect(cause).toEqual({ kind: "villainActivation", eyebrow: "Villain phase · step 2 — the villain activates", sourceInstanceId: null });
+    const cause = defendCauseFrom(
+      [
+        { kind: "window", subjectInstanceId: null },
+        { kind: "event", subjectInstanceId: null },
+        { kind: "enemyAttack", subjectInstanceId: klaw },
+      ],
+      klaw,
+      "villain",
+      true,
+      name,
+    );
+    expect(cause).toEqual({
+      kind: "villainActivation",
+      eyebrow: "Villain phase · step 2 — the villain activates",
+      sourceInstanceId: null,
+    });
   });
 
   test("a minion's activation says so", () => {
-    expect(defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "minion", true, name).kind).toBe("minionActivation");
+    expect(defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "minion", true, name).kind).toBe(
+      "minionActivation",
+    );
   });
 
   test("a card's frame under the attack: that card's effect, even in step two", () => {
-    const cause = defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }, { kind: "effects", subjectInstanceId: gangUp }, { kind: "reveal", subjectInstanceId: gangUp }], klaw, "villain", true, name);
+    const cause = defendCauseFrom(
+      [
+        { kind: "enemyAttack", subjectInstanceId: klaw },
+        { kind: "effects", subjectInstanceId: gangUp },
+        { kind: "reveal", subjectInstanceId: gangUp },
+      ],
+      klaw,
+      "villain",
+      true,
+      name,
+    );
     expect(cause).toEqual({ kind: "cardEffect", eyebrow: "Card effect — <i9>", sourceInstanceId: gangUp });
   });
 
   test("frames above the attack (its own windows) are not its cause", () => {
-    expect(defendCauseFrom([{ kind: "ability", subjectInstanceId: gangUp }, { kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "villain", true, name).kind).toBe("villainActivation");
+    expect(
+      defendCauseFrom(
+        [
+          { kind: "ability", subjectInstanceId: gangUp },
+          { kind: "enemyAttack", subjectInstanceId: klaw },
+        ],
+        klaw,
+        "villain",
+        true,
+        name,
+      ).kind,
+    ).toBe("villainActivation");
   });
 
   test("the attacker's own ability (Quickstrike-style) names the attacker and draws no second scan", () => {
-    const cause = defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }, { kind: "ability", subjectInstanceId: klaw }], klaw, "minion", false, name);
+    const cause = defendCauseFrom(
+      [
+        { kind: "enemyAttack", subjectInstanceId: klaw },
+        { kind: "ability", subjectInstanceId: klaw },
+      ],
+      klaw,
+      "minion",
+      false,
+      name,
+    );
     expect(cause).toEqual({ kind: "cardEffect", eyebrow: "Card effect — <i1>'s own ability", sourceInstanceId: null });
   });
 
   test("outside step two with nothing beneath: a plain enemy attack", () => {
-    expect(defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "villain", false, name).kind).toBe("attack");
+    expect(defendCauseFrom([{ kind: "enemyAttack", subjectInstanceId: klaw }], klaw, "villain", false, name).kind).toBe(
+      "attack",
+    );
   });
 });
 
@@ -296,6 +387,7 @@ describe("defendChoiceViewOf — the matchup", () => {
     expect(view.summary.cause.kind).toBe("villainActivation");
     const decline = view.options.find((option) => option.kind === "decline")!;
     expect(decline.pictureInstanceId).toBe(view.summary.targetInstanceId);
-    for (const option of view.options.filter((entry) => entry.kind === "defender")) expect(option.pictureInstanceId).toBe(option.defenderInstanceId);
+    for (const option of view.options.filter((entry) => entry.kind === "defender"))
+      expect(option.pictureInstanceId).toBe(option.defenderInstanceId);
   });
 });

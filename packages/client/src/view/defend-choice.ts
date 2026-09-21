@@ -106,7 +106,9 @@ export function damageHeadline(bands: readonly DefendBand[]): string {
   const first = bands[0];
   const last = bands[bands.length - 1];
   if (!first || !last) return "No damage";
-  return first.damageTaken === last.damageTaken ? `${first.damageTaken} damage` : `${first.damageTaken}–${last.damageTaken} damage`;
+  return first.damageTaken === last.damageTaken
+    ? `${first.damageTaken} damage`
+    : `${first.damageTaken}–${last.damageTaken} damage`;
 }
 
 /** "8–12 of 16 HP" — pure over the bands and the two numbers the engine's own HP query already reports. */
@@ -144,12 +146,16 @@ export interface BandFacts {
 export function bandFactsOf(bands: readonly DefendBand[]): BandFacts {
   const defeated = bands.find((band) => band.defeated);
   const toughSpent = bands.some((band) => band.toughSpent);
-  const overkillBand = [...bands].reverse().find((band) => band.overkillAmount > 0 && band.overkillToInstanceId !== null);
+  const overkillBand = [...bands]
+    .reverse()
+    .find((band) => band.overkillAmount > 0 && band.overkillToInstanceId !== null);
   const retaliating = bands.find((band) => !band.defeated);
   return {
     defeatAt: defeated ? defeated.damageTaken : null,
     toughAbsorbsUpTo: toughSpent ? (bands[bands.length - 1]?.damageDealt ?? 0) : null,
-    overkill: overkillBand?.overkillToInstanceId ? { amount: overkillBand.overkillAmount, recipientInstanceId: overkillBand.overkillToInstanceId } : null,
+    overkill: overkillBand?.overkillToInstanceId
+      ? { amount: overkillBand.overkillAmount, recipientInstanceId: overkillBand.overkillToInstanceId }
+      : null,
     retaliate: retaliating && retaliating.retaliateToAttacker > 0 ? retaliating.retaliateToAttacker : null,
   };
 }
@@ -158,16 +164,27 @@ export function bandFactsOf(bands: readonly DefendBand[]): BandFacts {
  * `BandFacts`, worded — the design's own phrasing ("5–7 damage, and at 6 or more the ally is defeated" —
  * `defend-preview.ts`'s doc comment). Pure over strings, so a case doesn't need a `GameState` to name it.
  */
-export function consequenceLinesFrom(facts: BandFacts, targetName: string, overkillRecipientName: string | null, attackerName: string): readonly string[] {
+export function consequenceLinesFrom(
+  facts: BandFacts,
+  targetName: string,
+  overkillRecipientName: string | null,
+  attackerName: string,
+): readonly string[] {
   const lines: string[] = [];
   if (facts.defeatAt !== null) lines.push(`At ${facts.defeatAt}+ damage, ${targetName} is defeated.`);
-  if (facts.toughAbsorbsUpTo !== null) lines.push(`Tough absorbs it — up to ${facts.toughAbsorbsUpTo} damage prevented.`);
-  if (facts.overkill && overkillRecipientName) lines.push(`Overkill could spill up to ${facts.overkill.amount} to ${overkillRecipientName}.`);
+  if (facts.toughAbsorbsUpTo !== null)
+    lines.push(`Tough absorbs it — up to ${facts.toughAbsorbsUpTo} damage prevented.`);
+  if (facts.overkill && overkillRecipientName)
+    lines.push(`Overkill could spill up to ${facts.overkill.amount} to ${overkillRecipientName}.`);
   if (facts.retaliate !== null) lines.push(`Retaliate ${facts.retaliate} back to ${attackerName}.`);
   return lines;
 }
 
-function consequenceLines(state: GameState, attackerInstanceId: InstanceId, preview: DefendOptionPreview): readonly string[] {
+function consequenceLines(
+  state: GameState,
+  attackerInstanceId: InstanceId,
+  preview: DefendOptionPreview,
+): readonly string[] {
   const facts = bandFactsOf(preview.bands);
   return consequenceLinesFrom(
     facts,
@@ -178,10 +195,18 @@ function consequenceLines(state: GameState, attackerInstanceId: InstanceId, prev
 }
 
 /** "You defend" only for the viewer's own identity; every other defender is named — RRG "Defend" lets any player's ready character answer. */
-function optionTitle(state: GameState, preview: DefendOptionPreview, viewerId: PlayerId | null): { readonly kind: "decline" | "defender"; readonly title: string } {
+function optionTitle(
+  state: GameState,
+  preview: DefendOptionPreview,
+  viewerId: PlayerId | null,
+): { readonly kind: "decline" | "defender"; readonly title: string } {
   if (preview.defenderInstanceId === null) return { kind: "decline", title: "No defense" };
-  const isOwnIdentity = cardOf(state, preview.defenderInstanceId)?.type === "hero_identity" && preview.targetPlayerId === viewerId;
-  return { kind: "defender", title: isOwnIdentity ? "You defend" : `${faceUpName(state, preview.defenderInstanceId)} defends` };
+  const isOwnIdentity =
+    cardOf(state, preview.defenderInstanceId)?.type === "hero_identity" && preview.targetPlayerId === viewerId;
+  return {
+    kind: "defender",
+    title: isOwnIdentity ? "You defend" : `${faceUpName(state, preview.defenderInstanceId)} defends`,
+  };
 }
 
 function optionViewOf(
@@ -215,7 +240,10 @@ export function forcedNotesOf(vars: Vars): readonly string[] {
   const atkBonus = vars.atkBonus ?? 0;
   if (atkBonus !== 0) notes.push(`Forced interrupt: ${atkBonus > 0 ? "+" : ""}${atkBonus} ATK for this activation.`);
   const extraBoost = vars.extraBoost ?? 0;
-  if (extraBoost > 0) notes.push(`Forced interrupt: +${extraBoost} additional boost card${extraBoost === 1 ? "" : "s"} for this activation.`);
+  if (extraBoost > 0)
+    notes.push(
+      `Forced interrupt: +${extraBoost} additional boost card${extraBoost === 1 ? "" : "s"} for this activation.`,
+    );
   if ((vars.overkill ?? 0) > 0) notes.push("Forced interrupt: this attack has gained Overkill.");
   return notes;
 }
@@ -247,7 +275,14 @@ function stackRowLabel(state: GameState, entry: StackEntry): string {
     }
     case "window": {
       const half = entry.timing === "interrupt" ? "Interrupt window" : "Response window";
-      const doing = entry.awaiting === "order" ? "ordering" : entry.awaiting === "pay" ? "paying for" : entry.awaiting === "select" ? "choosing" : null;
+      const doing =
+        entry.awaiting === "order"
+          ? "ordering"
+          : entry.awaiting === "pay"
+            ? "paying for"
+            : entry.awaiting === "select"
+              ? "choosing"
+              : null;
       return doing ? `${half} — ${doing}` : half;
     }
     default: {
@@ -279,7 +314,9 @@ function stackRowsOf(state: GameState): readonly DefendStackRowView[] {
 function defenseEventsNoteOf(state: GameState, choice: PendingChoice, deps: EngineDeps): string {
   const actions = legalActions(state, choice.playerId, deps);
   if (actions.kind !== "turn") return "Nothing playable in hand right now.";
-  const events = actions.legal.filter((entry) => entry.action.kind === "playCard" && cardOf(state, entry.action.instanceId)?.type === "event");
+  const events = actions.legal.filter(
+    (entry) => entry.action.kind === "playCard" && cardOf(state, entry.action.instanceId)?.type === "event",
+  );
   if (events.length === 0) return "Nothing playable in hand right now.";
   return events
     .map((entry) => (entry.action.kind === "playCard" ? cardName(state, entry.action.instanceId) : null))
@@ -308,14 +345,20 @@ export function defendCauseFrom(
     const own = source.subjectInstanceId === attackerInstanceId;
     return {
       kind: "cardEffect",
-      eyebrow: own ? `Card effect — ${nameOf(attackerInstanceId)}'s own ability` : `Card effect — ${nameOf(source.subjectInstanceId)}`,
+      eyebrow: own
+        ? `Card effect — ${nameOf(attackerInstanceId)}'s own ability`
+        : `Card effect — ${nameOf(source.subjectInstanceId)}`,
       sourceInstanceId: own ? null : source.subjectInstanceId,
     };
   }
   if (inActivationStep) {
     return attackerType === "minion"
       ? { kind: "minionActivation", eyebrow: "Villain phase · step 2 — a minion activates", sourceInstanceId: null }
-      : { kind: "villainActivation", eyebrow: "Villain phase · step 2 — the villain activates", sourceInstanceId: null };
+      : {
+          kind: "villainActivation",
+          eyebrow: "Villain phase · step 2 — the villain activates",
+          sourceInstanceId: null,
+        };
   }
   return { kind: "attack", eyebrow: "Enemy attack", sourceInstanceId: null };
 }
@@ -357,7 +400,8 @@ export function defendChoiceViewOf(
     attackerInstanceId,
     targetInstanceId: targetCharacterInstanceId,
     targetCardName,
-    targetCaption: targetSeat === "You" ? `Attacking you — ${targetCardName}` : `Attacking ${targetSeat} — ${targetCardName}`,
+    targetCaption:
+      targetSeat === "You" ? `Attacking you — ${targetCardName}` : `Attacking ${targetSeat} — ${targetCardName}`,
     cause: defendCauseFrom(
       stackEntries(state),
       attackerInstanceId,

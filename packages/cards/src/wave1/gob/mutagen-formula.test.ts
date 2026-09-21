@@ -1,17 +1,42 @@
-import { activeVillain, characterProfile, mainSchemeValue, type Command, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, P1, P2, patchInstance, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  activeVillain,
+  characterProfile,
+  mainSchemeValue,
+  type Command,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
+import {
+  endTurn,
+  identityOf,
+  inst,
+  P1,
+  P2,
+  patchInstance,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
 import { driveEvents } from "../testing.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
 
-const spiderManVsMutagenFormula = (players = [{ starterDeckId: "core-spider-man-justice" }], modularSetIds: readonly string[] = []) =>
-  startGobGame(wave1Scenario("mutagen-formula", { players, seed: 13, modularSetIds }));
+const spiderManVsMutagenFormula = (
+  players = [{ starterDeckId: "core-spider-man-justice" }],
+  modularSetIds: readonly string[] = [],
+) => startGobGame(wave1Scenario("mutagen-formula", { players, seed: 13, modularSetIds }));
 
-const play = (state: GameState, ...commands: readonly Command[]): GameState => settle(runGob(state, ...commands), undefined, undefined, GOB_DEPS);
+const play = (state: GameState, ...commands: readonly Command[]): GameState =>
+  settle(runGob(state, ...commands), undefined, undefined, GOB_DEPS);
 
-const goblinThrallsOf = (state: GameState, player: string) => Object.entries(state.instances).filter(([, i]) => i?.cardId === "02024" && i.engagedWith === player);
+const goblinThrallsOf = (state: GameState, player: string) =>
+  Object.entries(state.instances).filter(([, i]) => i?.cardId === "02024" && i.engagedWith === player);
 const inPlayIdOf = (state: GameState, code: string): InstanceId | undefined =>
-  ([...state.villainArea, ...state.players.flatMap((p) => p.playArea)] as InstanceId[]).find((id) => state.instances[id]?.cardId === code);
+  ([...state.villainArea, ...state.players.flatMap((p) => p.playArea)] as InstanceId[]).find(
+    (id) => state.instances[id]?.cardId === code,
+  );
 
 describe("wave1Scenario('mutagen-formula')", () => {
   it("Green Goblin (I-II) starts, single-sided", () => {
@@ -20,7 +45,10 @@ describe("wave1Scenario('mutagen-formula')", () => {
   });
 
   it("1A setup: puts a distinct Goblin Thrall minion into play engaged with each player", () => {
-    const state = spiderManVsMutagenFormula([{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }]);
+    const state = spiderManVsMutagenFormula([
+      { starterDeckId: "core-spider-man-justice" },
+      { starterDeckId: "core-captain-marvel-leadership" },
+    ]);
     const p1Thralls = goblinThrallsOf(state, P1);
     const p2Thralls = goblinThrallsOf(state, P2);
     expect(p1Thralls).toHaveLength(1);
@@ -59,7 +87,11 @@ describe("Death from Above", () => {
   });
 
   it("When Revealed (Hero): Green Goblin attacks with +X ATK (X = the villain's stage number = 1, so ATK 2+1=3)", () => {
-    const { events } = driveEvents(stackEncounterDeck(spiderManVsMutagenFormula(), "02023", "02029"), toHero(), endTurn());
+    const { events } = driveEvents(
+      stackEncounterDeck(spiderManVsMutagenFormula(), "02023", "02029"),
+      toHero(),
+      endTurn(),
+    );
     expect(events).toContainEqual(expect.objectContaining({ type: "attackResolved", baseAtk: 3, damageDealt: 3 }));
   });
 
@@ -71,17 +103,31 @@ describe("Death from Above", () => {
    * encounter cards") reveal a copy each, alter-ego, in the same villain phase.
    */
   it("two copies revealed in the same villain phase each get their own independent +X SCH, and the villain's printed SCH is unmodified afterward", () => {
-    const start = spiderManVsMutagenFormula([{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-captain-marvel-leadership" }]);
+    const start = spiderManVsMutagenFormula([
+      { starterDeckId: "core-spider-man-justice" },
+      { starterDeckId: "core-captain-marvel-leadership" },
+    ]);
     const villain = activeVillain(start).instanceId;
     const printedSch = characterProfile(start, villain, GOB_DEPS)!.sch;
     // Two players means two separate "the villain schemes against you" steps, each drawing its own boost card
     // ahead of "deal encounter cards" — two fillers ("02023") are needed so neither consumes a stacked Death from
     // Above copy before it can be dealt. Both players must end their own turn before the (shared) villain phase
     // begins.
-    const { events, state: after } = driveEvents(stackEncounterDeck(start, "02023", "02023", "02029", "02029"), endTurn(P1), endTurn(P2));
+    const { events, state: after } = driveEvents(
+      stackEncounterDeck(start, "02023", "02023", "02029", "02029"),
+      endTurn(P1),
+      endTurn(P2),
+    );
     const schBonusEvents = events.filter(
-      (e): e is GameEvent & { readonly event: { readonly kind: "enemyScheme"; readonly results: { readonly schBonus?: number } } } =>
-        e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "enemyScheme" && e.event.results?.schBonus !== undefined,
+      (
+        e,
+      ): e is GameEvent & {
+        readonly event: { readonly kind: "enemyScheme"; readonly results: { readonly schBonus?: number } };
+      } =>
+        e.type === "triggerEvent" &&
+        e.phase === "resolved" &&
+        e.event.kind === "enemyScheme" &&
+        e.event.results?.schBonus !== undefined,
     );
     expect(schBonusEvents).toHaveLength(2); // one per copy, not one at +1 and a second stacked to +2
     for (const e of schBonusEvents) expect(e.event.results.schBonus).toBe(1);
@@ -98,12 +144,24 @@ describe("I See You", () => {
     // must carry no boost-card-dealt event immediately preceding it. Simpler and just as conclusive: across the
     // whole alter-ego villain phase, no attack at all should draw a boost card outside of a scheme (Green Goblin
     // only schemes in alter-ego form otherwise), so no `boostCardDealt` tied to an "attack" activation appears.
-    expect(events.some((e) => e.type === "triggerEvent" && e.event.kind === "boostCardTurnedFaceup" && e.event.activation === "attack")).toBe(false);
+    expect(
+      events.some(
+        (e) => e.type === "triggerEvent" && e.event.kind === "boostCardTurnedFaceup" && e.event.activation === "attack",
+      ),
+    ).toBe(false);
   });
 
   it("When Revealed: in hero form, the villain does get a boost card for its attacks", () => {
-    const { events } = driveEvents(stackEncounterDeck(spiderManVsMutagenFormula(), "02023", "02030"), toHero(), endTurn());
-    expect(events.some((e) => e.type === "triggerEvent" && e.event.kind === "boostCardTurnedFaceup" && e.event.activation === "attack")).toBe(true);
+    const { events } = driveEvents(
+      stackEncounterDeck(spiderManVsMutagenFormula(), "02023", "02030"),
+      toHero(),
+      endTurn(),
+    );
+    expect(
+      events.some(
+        (e) => e.type === "triggerEvent" && e.event.kind === "boostCardTurnedFaceup" && e.event.activation === "attack",
+      ),
+    ).toBe(true);
   });
 });
 
@@ -131,7 +189,12 @@ describe("Overrun — When Defeated", () => {
     const identity = identityOf(revealed);
     const primed = stackEncounterDeck(patchInstance(revealed, overrun as InstanceId, { threat: 1 }), "02023", "02023");
     const before = playerOf(primed, P1).playArea.filter((id) => inst(primed, id).cardId === "02023").length;
-    const after = play(primed, toHero(), { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, schemeInstanceId: overrun as InstanceId });
+    const after = play(primed, toHero(), {
+      type: "basicThwart",
+      playerId: P1,
+      thwarterInstanceId: identity,
+      schemeInstanceId: overrun as InstanceId,
+    });
     expect(after.villainArea).not.toContain(overrun);
     const goblinSoldiersAfter = playerOf(after, P1).playArea.filter((id) => inst(after, id).cardId === "02023").length;
     expect(goblinSoldiersAfter).toBe(before + 2);

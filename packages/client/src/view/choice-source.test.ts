@@ -24,9 +24,16 @@ import { choiceHeaderInstanceId, choiceHeaderText, choiceSourceOf } from "./choi
 describe("choiceSourceOf: a real Doctor Strange game", () => {
   test("names Crimson Bands of Cyttorak's own Special, not just 'choose a target' — the reported bug", async () => {
     const store = new SessionStore(new LocalEngineHost());
-    await store.start({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "drs-protection" }], seed: 439 });
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "drs-protection" }],
+      seed: 439,
+    });
     for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
-      const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+      const { choice } = store.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
       await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
     }
     let legal = store.state.legal!.actions;
@@ -36,7 +43,9 @@ describe("choiceSourceOf: a real Doctor Strange game", () => {
     }
     legal = store.state.legal!.actions;
     if (legal.kind !== "turn") throw new Error("expected a turn");
-    const spellMastery = legal.legal.find((e) => e.action.kind === "useAbility" && e.action.abilityId === "09001a.spell-mastery");
+    const spellMastery = legal.legal.find(
+      (e) => e.action.kind === "useAbility" && e.action.abilityId === "09001a.spell-mastery",
+    );
     if (!spellMastery) throw new Error("expected Spell Mastery to be usable");
     await store.dispatch(spellMastery.example);
 
@@ -57,7 +66,9 @@ describe("choiceSourceOf: a real Doctor Strange game", () => {
     expect(source!.abilityId).toBe(abilityId("09032.crimson-bands-of-cyttorak-special"));
 
     expect(choiceHeaderInstanceId(state, choice)).toBe(source!.instanceId);
-    expect(choiceHeaderText(state, choice, POOL_DEPS, "Choose a target")).toBe("Crimson Bands of Cyttorak — Special: choose a target");
+    expect(choiceHeaderText(state, choice, POOL_DEPS, "Choose a target")).toBe(
+      "Crimson Bands of Cyttorak — Special: choose a target",
+    );
   });
 });
 
@@ -76,13 +87,19 @@ describe("choiceSourceOf: direct-from-prompt kinds (no stack lookup needed)", ()
 
   test("payForCard names its own instance and ability directly", () => {
     const state = { stack: [] } as unknown as GameState;
-    const choice: PendingChoice = { ...BASE, prompt: { kind: "payForCard", instanceId: "i1" as never, abilityId: "a1" as never, cost: 1 } };
+    const choice: PendingChoice = {
+      ...BASE,
+      prompt: { kind: "payForCard", instanceId: "i1" as never, abilityId: "a1" as never, cost: 1 },
+    };
     expect(choiceSourceOf(state, choice)).toEqual({ instanceId: "i1", abilityId: "a1" });
   });
 
   test("payForAbility names its own instance and ability directly", () => {
     const state = { stack: [] } as unknown as GameState;
-    const choice: PendingChoice = { ...BASE, prompt: { kind: "payForAbility", instanceId: "i2" as never, abilityId: "a2" as never, cost: 1 } };
+    const choice: PendingChoice = {
+      ...BASE,
+      prompt: { kind: "payForAbility", instanceId: "i2" as never, abilityId: "a2" as never, cost: 1 },
+    };
     expect(choiceSourceOf(state, choice)).toEqual({ instanceId: "i2", abilityId: "a2" });
   });
 
@@ -90,7 +107,14 @@ describe("choiceSourceOf: direct-from-prompt kinds (no stack lookup needed)", ()
     const state = { stack: [] } as unknown as GameState;
     const choice: PendingChoice = {
       ...BASE,
-      prompt: { kind: "declareDefender", attack: { enemyInstanceId: "i3" as never, targetPlayerId: "p1" as never, targetCharacterInstanceId: "i4" as never } },
+      prompt: {
+        kind: "declareDefender",
+        attack: {
+          enemyInstanceId: "i3" as never,
+          targetPlayerId: "p1" as never,
+          targetCharacterInstanceId: "i4" as never,
+        },
+      },
     };
     expect(choiceSourceOf(state, choice)).toEqual({ instanceId: "i3", abilityId: null });
   });
@@ -103,7 +127,11 @@ describe("choiceSourceOf: direct-from-prompt kinds (no stack lookup needed)", ()
 
   test("a frameId naming nothing on the (empty) stack has no source", () => {
     const state = { stack: [] } as unknown as GameState;
-    const choice: PendingChoice = { ...BASE, frameId: frameId("gone"), prompt: { kind: "chooseTarget", slot: "x", abilityId: null } };
+    const choice: PendingChoice = {
+      ...BASE,
+      frameId: frameId("gone"),
+      prompt: { kind: "chooseTarget", slot: "x", abilityId: null },
+    };
     expect(choiceSourceOf(state, choice)).toBeNull();
   });
 });
@@ -111,7 +139,12 @@ describe("choiceSourceOf: direct-from-prompt kinds (no stack lookup needed)", ()
 describe("choiceSourceOf: derived from state.stack", () => {
   async function realState(): Promise<GameState> {
     const store = new SessionStore(new LocalEngineHost());
-    await store.start({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 2026 });
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2026,
+    });
     return store.state.game!;
   }
 
@@ -131,16 +164,43 @@ describe("choiceSourceOf: derived from state.stack", () => {
   test("an 'ability' frame names its own instance and ability exactly", async () => {
     const state = await realState();
     const villain = activeVillain(state).instanceId;
-    const frame = { frameId: frameId("f1"), answer: null, kind: "ability", instanceId: villain, abilityId: abilityId("01001a.spider-sense"), controllerId: "p1" as never, event: null, eventFrameId: null, bindings: {}, vars: {} } as StackFrame;
+    const frame = {
+      frameId: frameId("f1"),
+      answer: null,
+      kind: "ability",
+      instanceId: villain,
+      abilityId: abilityId("01001a.spider-sense"),
+      controllerId: "p1" as never,
+      event: null,
+      eventFrameId: null,
+      bindings: {},
+      vars: {},
+    } as StackFrame;
     const withFrame = { ...state, stack: [frame] };
-    expect(choiceSourceOf(withFrame, choiceOn(frame))).toEqual({ instanceId: villain, abilityId: abilityId("01001a.spider-sense") });
+    expect(choiceSourceOf(withFrame, choiceOn(frame))).toEqual({
+      instanceId: villain,
+      abilityId: abilityId("01001a.spider-sense"),
+    });
   });
 
   test("an 'effects' frame with exactly one currently active ability deduces it — not a guess, there is nothing else it could be", async () => {
     const state = await realState();
     // Spider-Man's identity names exactly one ability per face (`ability-label.test.ts` relies on the same fact).
     const identity = state.players[0]!.identity.instanceId;
-    const frame = { frameId: frameId("f2"), answer: null, kind: "effects", effects: [], cursor: 0, bindings: {}, vars: {}, scopedPlayerId: null, selfInstanceId: identity, controllerId: null, event: null, eventFrameId: null } as StackFrame;
+    const frame = {
+      frameId: frameId("f2"),
+      answer: null,
+      kind: "effects",
+      effects: [],
+      cursor: 0,
+      bindings: {},
+      vars: {},
+      scopedPlayerId: null,
+      selfInstanceId: identity,
+      controllerId: null,
+      event: null,
+      eventFrameId: null,
+    } as StackFrame;
     const withFrame = { ...state, stack: [frame] };
     const source = choiceSourceOf(withFrame, choiceOn(frame));
     expect(source?.instanceId).toBe(identity);
@@ -151,7 +211,20 @@ describe("choiceSourceOf: derived from state.stack", () => {
 
   test("an 'effects' frame with no selfInstanceId (a player-scoped effect) has no source", async () => {
     const state = await realState();
-    const frame = { frameId: frameId("f3"), answer: null, kind: "effects", effects: [], cursor: 0, bindings: {}, vars: {}, scopedPlayerId: null, selfInstanceId: null, controllerId: null, event: null, eventFrameId: null } as StackFrame;
+    const frame = {
+      frameId: frameId("f3"),
+      answer: null,
+      kind: "effects",
+      effects: [],
+      cursor: 0,
+      bindings: {},
+      vars: {},
+      scopedPlayerId: null,
+      selfInstanceId: null,
+      controllerId: null,
+      event: null,
+      eventFrameId: null,
+    } as StackFrame;
     const withFrame = { ...state, stack: [frame] };
     expect(choiceSourceOf(withFrame, choiceOn(frame))).toBeNull();
   });
@@ -159,18 +232,50 @@ describe("choiceSourceOf: derived from state.stack", () => {
   test("a 'window' frame names whichever candidate is currently being asked (paying, then pending, then queue)", async () => {
     const state = await realState();
     const villain = activeVillain(state).instanceId;
-    const candidate = { instanceId: villain, abilityId: abilityId("test.window"), controllerId: "p1" as never, forced: false, fromHand: false };
-    const frame = { frameId: frameId("f4"), answer: null, kind: "window", event: { kind: "roundStarted" } as never, timing: "response", eventFrameId: null, tierIndex: 0, queue: [], askingPlayerIds: [], pending: [], awaiting: "pay", paying: candidate } as StackFrame;
+    const candidate = {
+      instanceId: villain,
+      abilityId: abilityId("test.window"),
+      controllerId: "p1" as never,
+      forced: false,
+      fromHand: false,
+    };
+    const frame = {
+      frameId: frameId("f4"),
+      answer: null,
+      kind: "window",
+      event: { kind: "roundStarted" } as never,
+      timing: "response",
+      eventFrameId: null,
+      tierIndex: 0,
+      queue: [],
+      askingPlayerIds: [],
+      pending: [],
+      awaiting: "pay",
+      paying: candidate,
+    } as StackFrame;
     const withFrame = { ...state, stack: [frame] };
-    expect(choiceSourceOf(withFrame, choiceOn(frame))).toEqual({ instanceId: villain, abilityId: abilityId("test.window") });
+    expect(choiceSourceOf(withFrame, choiceOn(frame))).toEqual({
+      instanceId: villain,
+      abilityId: abilityId("test.window"),
+    });
   });
 
   test("an 'enemyAttack' frame names the activating enemy", async () => {
     const state = await realState();
     const villain = activeVillain(state).instanceId;
     const frame = {
-      frameId: frameId("f5"), answer: null, kind: "enemyAttack", enemyInstanceId: villain, attackedPlayerId: "p1" as never, targetPlayerId: "p1" as never,
-      targetInstanceId: villain, defenderInstanceId: null, basicDefense: false, boostIcons: 0, stage: "dealDamage", eventFrameId: null,
+      frameId: frameId("f5"),
+      answer: null,
+      kind: "enemyAttack",
+      enemyInstanceId: villain,
+      attackedPlayerId: "p1" as never,
+      targetPlayerId: "p1" as never,
+      targetInstanceId: villain,
+      defenderInstanceId: null,
+      basicDefense: false,
+      boostIcons: 0,
+      stage: "dealDamage",
+      eventFrameId: null,
     } as StackFrame;
     const withFrame = { ...state, stack: [frame] };
     expect(choiceSourceOf(withFrame, choiceOn(frame))).toEqual({ instanceId: villain, abilityId: null });
@@ -181,16 +286,39 @@ describe("choiceSourceOf: derived from state.stack", () => {
     const me = state.players[0]!;
     const cardInHand = me.hand[0]!;
     const frame = {
-      frameId: frameId("f6"), answer: null, kind: "playCard", instanceId: cardInHand, playerId: "p1" as never, controllerId: "p1" as never,
-      attachToInstanceId: null, stage: "effects", effectsCancelled: false, triggeredAbilityId: abilityId("test.triggered"), event: null, eventFrameId: null, bindings: {}, vars: {},
+      frameId: frameId("f6"),
+      answer: null,
+      kind: "playCard",
+      instanceId: cardInHand,
+      playerId: "p1" as never,
+      controllerId: "p1" as never,
+      attachToInstanceId: null,
+      stage: "effects",
+      effectsCancelled: false,
+      triggeredAbilityId: abilityId("test.triggered"),
+      event: null,
+      eventFrameId: null,
+      bindings: {},
+      vars: {},
     } as StackFrame;
     const withFrame = { ...state, stack: [frame] };
-    expect(choiceSourceOf(withFrame, choiceOn(frame))).toEqual({ instanceId: cardInHand, abilityId: abilityId("test.triggered") });
+    expect(choiceSourceOf(withFrame, choiceOn(frame))).toEqual({
+      instanceId: cardInHand,
+      abilityId: abilityId("test.triggered"),
+    });
   });
 
   test("a 'damageGroup' frame has no single source", async () => {
     const state = await realState();
-    const frame = { frameId: frameId("f7"), answer: null, kind: "damageGroup", members: [], stage: "apply", cursor: 0, reportTo: null } as StackFrame;
+    const frame = {
+      frameId: frameId("f7"),
+      answer: null,
+      kind: "damageGroup",
+      members: [],
+      stage: "apply",
+      cursor: 0,
+      reportTo: null,
+    } as StackFrame;
     const withFrame = { ...state, stack: [frame] };
     expect(choiceSourceOf(withFrame, choiceOn(frame))).toBeNull();
   });

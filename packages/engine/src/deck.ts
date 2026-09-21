@@ -25,7 +25,17 @@
  * rules (MarvelCDB's builder, Hall of Heroes) were not used as a source.
  */
 
-import type { AbilityReference, AnyCard, CardId, CoreAspect, DeckCardEntry, DeckContents, HeroIdentityCard, IdentitySeparateDeck, PlayerCard } from "@mc/content";
+import type {
+  AbilityReference,
+  AnyCard,
+  CardId,
+  CoreAspect,
+  DeckCardEntry,
+  DeckContents,
+  HeroIdentityCard,
+  IdentitySeparateDeck,
+  PlayerCard,
+} from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
 import { cardsMatch, isUnique, uniqueLabel } from "./unique.js";
 
@@ -35,7 +45,9 @@ import { cardsMatch, isUnique, uniqueLabel } from "./unique.js";
  * (encounter-backed cards) and Gift deck (no discard pile) are data only.
  */
 export function unbuildableSeparateDeck(identity: HeroIdentityCard): IdentitySeparateDeck | undefined {
-  return (identity.separateDecks ?? []).find((deck) => (deck.cardFamily ?? "player") !== "player" || deck.discardPile !== "own");
+  return (identity.separateDecks ?? []).find(
+    (deck) => (deck.cardFamily ?? "player") !== "player" || deck.discardPile !== "own",
+  );
 }
 
 export type DeckProblemCode =
@@ -198,7 +210,9 @@ const identitySetMembers = (identity: HeroIdentityCard, cards: ReadonlyMap<strin
  */
 export function requiredIdentitySet(identity: HeroIdentityCard, pool: CardPool): readonly DeckCardEntry[] {
   return identitySetMembers(identity, indexPool(pool))
-    .filter((card) => card.separateDeck === undefined && Number.isInteger(card.quantityInSet) && card.quantityInSet >= 1)
+    .filter(
+      (card) => card.separateDeck === undefined && Number.isInteger(card.quantityInSet) && card.quantityInSet >= 1,
+    )
     .map((card) => ({ cardId: card.id, quantity: card.quantityInSet }))
     .sort((a, b) => (a.cardId as string).localeCompare(b.cardId as string));
 }
@@ -282,17 +296,31 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
   const identityCard = cards.get(deck.identityCardId);
   let identity: HeroIdentityCard | null = null;
   if (!identityCard) {
-    add("unknown_card", `The chosen identity (card code ${deck.identityCardId}) is not in the card pool.`, [deck.identityCardId]);
+    add("unknown_card", `The chosen identity (card code ${deck.identityCardId}) is not in the card pool.`, [
+      deck.identityCardId,
+    ]);
   } else if (identityCard.type !== "hero_identity") {
-    add("not_an_identity", `${uniqueLabel(identityCard)} is a ${typeName(identityCard)} card, not an identity: a deck is built around exactly one hero identity.`, [deck.identityCardId]);
+    add(
+      "not_an_identity",
+      `${uniqueLabel(identityCard)} is a ${typeName(identityCard)} card, not an identity: a deck is built around exactly one hero identity.`,
+      [deck.identityCardId],
+    );
   } else {
     identity = identityCard;
     if (identityCard.separatedIdentity !== undefined) {
-      add("unsupported_identity", `${uniqueLabel(identityCard)} is split across two identity cards (a separated identity), which this build cannot play yet.`, [identityCard.id]);
+      add(
+        "unsupported_identity",
+        `${uniqueLabel(identityCard)} is split across two identity cards (a separated identity), which this build cannot play yet.`,
+        [identityCard.id],
+      );
     }
     const unbuilt = unbuildableSeparateDeck(identityCard);
     if (unbuilt) {
-      add("unsupported_identity", `${uniqueLabel(identityCard)} brings a ${unbuilt.name} deck of a kind this build cannot play yet.`, [identityCard.id]);
+      add(
+        "unsupported_identity",
+        `${uniqueLabel(identityCard)} brings a ${unbuilt.name} deck of a kind this build cannot play yet.`,
+        [identityCard.id],
+      );
     }
   }
   const identityName = identity ? uniqueLabel(identity) : null;
@@ -306,11 +334,17 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     const card = cards.get(entry.cardId);
     const name = card ? uniqueLabel(card) : `Card code ${entry.cardId}`;
     if (!Number.isInteger(entry.quantity) || entry.quantity < 1) {
-      add("invalid_quantity", `${name} is listed with quantity ${String(entry.quantity)}; a quantity must be a whole number of at least 1.`, [entry.cardId]);
+      add(
+        "invalid_quantity",
+        `${name} is listed with quantity ${String(entry.quantity)}; a quantity must be a whole number of at least 1.`,
+        [entry.cardId],
+      );
       continue;
     }
     if (listed.has(entry.cardId)) {
-      add("duplicate_entry", `${name} is listed more than once; list each card once with its total quantity.`, [entry.cardId]);
+      add("duplicate_entry", `${name} is listed more than once; list each card once with its total quantity.`, [
+        entry.cardId,
+      ]);
       continue;
     }
     listed.add(entry.cardId);
@@ -321,13 +355,21 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       continue;
     }
     if (card.type === "hero_identity") {
-      add("identity_in_deck", `${name} is an identity card; the identity is chosen separately and is not part of the card list.`, [card.id]);
+      add(
+        "identity_in_deck",
+        `${name} is an identity card; the identity is chosen separately and is not part of the card list.`,
+        [card.id],
+      );
       continue;
     }
     if (card.type === "evidence") {
       // The Agents of S.H.I.E.L.D. rulebook, "Gathering Evidence" (p. 6): "Evidence cards are not added to any deck".
       counted += entry.quantity;
-      add("not_a_player_card", `${name} is an evidence card: evidence cards are kept in the A.I.M. and S.H.I.E.L.D. envelopes and are never added to a deck.`, [card.id]);
+      add(
+        "not_a_player_card",
+        `${name} is an evidence card: evidence cards are kept in the A.I.M. and S.H.I.E.L.D. envelopes and are never added to a deck.`,
+        [card.id],
+      );
       continue;
     }
     if (!isPlayerDeckCard(card)) {
@@ -335,14 +377,22 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       // obligation and nemesis set are identity-specific but are encounter cards. Setup adds
       // them (Appendix II steps 4–5); they are never in the player deck.
       counted += entry.quantity;
-      add("not_a_player_card", `${name} is a ${typeName(card)} card, not a player card: encounter cards (including obligations and nemesis cards, which setup adds for you) cannot be in a player deck.`, [card.id]);
+      add(
+        "not_a_player_card",
+        `${name} is a ${typeName(card)} card, not a player card: encounter cards (including obligations and nemesis cards, which setup adds for you) cannot be in a player deck.`,
+        [card.id],
+      );
       continue;
     }
     if (isLinked(card)) {
       // RRG 1.8 "Linked (Card Title)" (p. 27): "cannot be included in any deck ... Linked cards
       // do not count toward the minimum or maximum deck size." Reaffirmed by FFG ruling Aug 3, 2026
       // (ruling 4): "Linked cards cannot be included in decks", even through campaign rewards.
-      add("linked_card", `${name} has the Linked keyword: linked cards cannot be included in a deck; they are set aside at setup by the card that brings them into play.`, [card.id]);
+      add(
+        "linked_card",
+        `${name} has the Linked keyword: linked cards cannot be included in a deck; they are set aside at setup by the card that brings them into play.`,
+        [card.id],
+      );
       continue;
     }
     if (card.separateDeck !== undefined) {
@@ -364,11 +414,23 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       // Captive allies) to decks by its own instructions, "Cards added to the deck as part of a campaign do not count
       // toward a player's minimum or maximum deck size" (the Red Skull rulebook, p. 3). Not counted here either.
       if (card.specificTo.kind === "campaign") {
-        add("campaign_card", `${name} is a campaign card: it can only be used during a campaign from the same product, and campaign play is not available yet.`, [card.id]);
+        add(
+          "campaign_card",
+          `${name} is a campaign card: it can only be used during a campaign from the same product, and campaign play is not available yet.`,
+          [card.id],
+        );
       } else if (card.specificTo.kind === "competitive") {
-        add("competitive_card", `${name} is used only in competitive (team-vs-team) mode, which is not available yet.`, [card.id]);
+        add(
+          "competitive_card",
+          `${name} is used only in competitive (team-vs-team) mode, which is not available yet.`,
+          [card.id],
+        );
       } else {
-        add("scenario_card", `${name} belongs to a scenario's own set of cards and enters the game only through that scenario, so it cannot be put in a deck.`, [card.id]);
+        add(
+          "scenario_card",
+          `${name} belongs to a scenario's own set of cards and enters the game only through that scenario, so it cannot be put in a deck.`,
+          [card.id],
+        );
       }
       continue;
     }
@@ -376,7 +438,11 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     if (!hasPlainKeyword(card, "permanent")) counted += entry.quantity;
     const classification = classify(card);
     if (classification.kind === "unrecognized") {
-      add("unrecognized_classification", `${name} has the deckbuilding classification ${aspectName(classification.raw)}, which this build cannot check, so it cannot be put in a deck yet.`, [card.id]);
+      add(
+        "unrecognized_classification",
+        `${name} has the deckbuilding classification ${aspectName(classification.raw)}, which this build cannot check, so it cannot be put in a deck yet.`,
+        [card.id],
+      );
       continue;
     }
     lines.push({ card, quantity: entry.quantity, classification });
@@ -386,13 +452,22 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
   const rules = identity?.deckbuilding;
   if (identity && rules?.unmodeled) {
     for (const text of rules.unmodeled) {
-      add("unsupported_deckbuilding_requirement", `${identityName} has a deckbuilding requirement this build cannot check yet: "${text}"`, [identity.id]);
+      add(
+        "unsupported_deckbuilding_requirement",
+        `${identityName} has a deckbuilding requirement this build cannot check yet: "${text}"`,
+        [identity.id],
+      );
     }
   }
   let aspectCount = 1;
   if (identity && rules?.aspectCount !== undefined) {
     if (Number.isInteger(rules.aspectCount) && rules.aspectCount >= 1) aspectCount = rules.aspectCount;
-    else add("missing_card_data", `${identityName}'s card data gives an invalid number of aspects to choose (${String(rules.aspectCount)}).`, [identity.id]);
+    else
+      add(
+        "missing_card_data",
+        `${identityName}'s card data gives an invalid number of aspects to choose (${String(rules.aspectCount)}).`,
+        [identity.id],
+      );
   }
 
   // ---- Aspect choice --------------------------------------------------------------------
@@ -402,10 +477,16 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
   for (const aspect of deck.aspects) {
     if (aspect === "basic") {
       aspectChoiceOk = false;
-      add("aspect_choice", "Basic is not an aspect: basic cards may go in any deck, and a deck still chooses an aspect (Aggression, Justice, Leadership, Protection or 'Pool).");
+      add(
+        "aspect_choice",
+        "Basic is not an aspect: basic cards may go in any deck, and a deck still chooses an aspect (Aggression, Justice, Leadership, Protection or 'Pool).",
+      );
     } else if (!CHOOSABLE_ASPECTS.includes(aspect)) {
       aspectChoiceOk = false;
-      add("aspect_choice", `${aspectName(aspect)} is not an aspect a deck can choose; choose from Aggression, Justice, Leadership, Protection or 'Pool.`);
+      add(
+        "aspect_choice",
+        `${aspectName(aspect)} is not an aspect a deck can choose; choose from Aggression, Justice, Leadership, Protection or 'Pool.`,
+      );
     } else if (chosen.includes(aspect)) {
       aspectChoiceOk = false;
       add("aspect_choice", `${aspectName(aspect)} is chosen more than once; each chosen aspect must be different.`);
@@ -418,12 +499,18 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     const who = identityName ?? "This deck";
     const need = aspectCount === 1 ? "exactly one aspect" : `exactly ${aspectCount} different aspects`;
     const have = chosen.length === 0 ? "none" : chosen.map(aspectName).join(" and ");
-    add("aspect_choice", `${who === "This deck" ? who : `A deck for ${who}`} must choose ${need}; this deck chooses ${have}.`);
+    add(
+      "aspect_choice",
+      `${who === "This deck" ? who : `A deck for ${who}`} must choose ${need}; this deck chooses ${have}.`,
+    );
   }
 
   // ---- Deck size ------------------------------------------------------------------------
   if (counted < DECK_MIN_CARDS || counted > DECK_MAX_CARDS) {
-    add("deck_size", `The deck has ${counted} cards; a deck must have between ${DECK_MIN_CARDS} and ${DECK_MAX_CARDS} (the identity and permanent cards do not count).`);
+    add(
+      "deck_size",
+      `The deck has ${counted} cards; a deck must have between ${DECK_MIN_CARDS} and ${DECK_MAX_CARDS} (the identity and permanent cards do not count).`,
+    );
   }
 
   // ---- Identity-specific cards ----------------------------------------------------------
@@ -435,7 +522,11 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     if (line.classification.identityId === identity.id) continue;
     const owner = cards.get(line.classification.identityId);
     const ownerName = owner ? uniqueLabel(owner) : `identity ${line.classification.identityId}`;
-    add("other_identity_card", `${uniqueLabel(line.card)} belongs to ${ownerName}'s identity set; identity-specific cards can only be used in that identity's deck.`, [line.card.id]);
+    add(
+      "other_identity_card",
+      `${uniqueLabel(line.card)} belongs to ${ownerName}'s identity set; identity-specific cards can only be used in that identity's deck.`,
+      [line.card.id],
+    );
   }
   if (identity) {
     // The identity's separate decks (RRG 1.8 "Deck", p. 15; the Doctor Strange Hero Pack insert). Their contents are
@@ -445,9 +536,17 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       for (const entry of separate.cards) {
         const card = cards.get(entry.cardId);
         if (!card) {
-          add("missing_card_data", `${identityName}'s ${separate.name} deck lists card code ${entry.cardId}, which is not in the card pool, so that deck cannot be built.`, [entry.cardId]);
+          add(
+            "missing_card_data",
+            `${identityName}'s ${separate.name} deck lists card code ${entry.cardId}, which is not in the card pool, so that deck cannot be built.`,
+            [entry.cardId],
+          );
         } else if (!isPlayerDeckCard(card) || card.separateDeck !== separate.name) {
-          add("missing_card_data", `${identityName}'s ${separate.name} deck lists ${uniqueLabel(card)}, but that card's data does not mark it as part of the ${separate.name} deck, so that deck cannot be built.`, [card.id]);
+          add(
+            "missing_card_data",
+            `${identityName}'s ${separate.name} deck lists ${uniqueLabel(card)}, but that card's data does not mark it as part of the ${separate.name} deck, so that deck cannot be built.`,
+            [card.id],
+          );
         }
       }
     }
@@ -457,15 +556,25 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     for (const card of identitySetMembers(identity, cards)) {
       if (card.separateDeck !== undefined) {
         // Part of the identity's set, but it goes into its separate deck at setup, not into the player deck.
-        const listed = (identity.separateDecks ?? []).some((d) => d.name === card.separateDeck && d.cards.some((e) => e.cardId === card.id));
+        const listed = (identity.separateDecks ?? []).some(
+          (d) => d.name === card.separateDeck && d.cards.some((e) => e.cardId === card.id),
+        );
         if (!listed) {
-          add("missing_card_data", `${uniqueLabel(card)} is marked as part of ${identityName}'s ${card.separateDeck} deck, but the identity's data does not list it there, so that deck cannot be built.`, [card.id]);
+          add(
+            "missing_card_data",
+            `${uniqueLabel(card)} is marked as part of ${identityName}'s ${card.separateDeck} deck, but the identity's data does not list it there, so that deck cannot be built.`,
+            [card.id],
+          );
         }
         continue;
       }
       const need = card.quantityInSet;
       if (!Number.isInteger(need) || need < 1) {
-        add("missing_card_data", `${uniqueLabel(card)}'s card data has no valid quantity in ${identityName}'s identity set, so the required count cannot be checked.`, [card.id]);
+        add(
+          "missing_card_data",
+          `${uniqueLabel(card)}'s card data has no valid quantity in ${identityName}'s identity set, so the required count cannot be checked.`,
+          [card.id],
+        );
         continue;
       }
       const have = inDeck.get(card.id) ?? 0;
@@ -521,11 +630,19 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     }
     if (identity && rules?.equalCardsPerAspect && chosen.length > 1) {
       const counts = chosen.map((aspect) =>
-        lines.reduce((n, line) => (line.classification.kind === "aspect" && line.classification.aspect === aspect ? n + line.quantity : n), 0),
+        lines.reduce(
+          (n, line) =>
+            line.classification.kind === "aspect" && line.classification.aspect === aspect ? n + line.quantity : n,
+          0,
+        ),
       );
       if (new Set(counts).size > 1) {
         const summary = chosen.map((aspect, i) => `${counts[i]} ${aspectName(aspect)}`).join(" and ");
-        add("deckbuilding_requirement", `${identityName}'s deckbuilding requirement: the deck must include an equal number of cards from each chosen aspect; it has ${summary}.`, [identity.id]);
+        add(
+          "deckbuilding_requirement",
+          `${identityName}'s deckbuilding requirement: the deck must include an equal number of cards from each chosen aspect; it has ${summary}.`,
+          [identity.id],
+        );
       }
     }
   }
@@ -543,7 +660,11 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     const limit = maxCopies(group);
     const ids = group.map((line) => line.card.id);
     if (limit === null) {
-      add("missing_card_data", `${title}'s card data has no valid deck limit, so its copy limit cannot be checked.`, ids);
+      add(
+        "missing_card_data",
+        `${title}'s card data has no valid deck limit, so its copy limit cannot be checked.`,
+        ids,
+      );
     } else if (total > limit) {
       add(
         "copy_limit",
@@ -561,11 +682,17 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
   // one unique card always match each other (`cardsMatch` is reflexive on unique cards).
   const uniques: { readonly card: AnyCard; readonly quantity: number }[] = [
     ...(identity ? [{ card: identity as AnyCard, quantity: 1 }] : []),
-    ...lines.filter((line) => isUnique(line.card)).map((line) => ({ card: line.card as AnyCard, quantity: line.quantity })),
+    ...lines
+      .filter((line) => isUnique(line.card))
+      .map((line) => ({ card: line.card as AnyCard, quantity: line.quantity })),
   ];
   for (const [i, a] of uniques.entries()) {
     if (a.quantity > 1) {
-      add("unique_match", `${uniqueLabel(a.card)} is unique, and a deck cannot include matching unique cards, so it may be included only once (this deck has ${a.quantity}).`, [a.card.id]);
+      add(
+        "unique_match",
+        `${uniqueLabel(a.card)} is unique, and a deck cannot include matching unique cards, so it may be included only once (this deck has ${a.quantity}).`,
+        [a.card.id],
+      );
     }
     for (const b of uniques.slice(i + 1)) {
       if (!cardsMatch(a.card, b.card)) continue;
@@ -586,13 +713,26 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
     const teamUp = teamUpOf(line.card);
     if (!teamUp) continue;
     if (!teamUp.names) {
-      add("missing_card_data", `${uniqueLabel(line.card)} has the Team-Up keyword, but its card data does not name the two characters, so it cannot be checked.`, [line.card.id]);
+      add(
+        "missing_card_data",
+        `${uniqueLabel(line.card)} has the Team-Up keyword, but its card data does not name the two characters, so it cannot be checked.`,
+        [line.card.id],
+      );
       continue;
     }
     if (!identity) continue;
-    const titles = [identity.name, identity.hero.faceName, identity.alterEgo.faceName, ...(identity.additionalHeroForms ?? []).map((form) => form.faceName)];
+    const titles = [
+      identity.name,
+      identity.hero.faceName,
+      identity.alterEgo.faceName,
+      ...(identity.additionalHeroForms ?? []).map((form) => form.faceName),
+    ];
     if (teamUp.names.some((name) => titles.includes(name))) continue;
-    add("team_up_identity", `${uniqueLabel(line.card)} is a Team-Up card for ${teamUp.names[0]} and ${teamUp.names[1]}; only a deck whose identity is one of them may include it.`, [line.card.id]);
+    add(
+      "team_up_identity",
+      `${uniqueLabel(line.card)} is a Team-Up card for ${teamUp.names[0]} and ${teamUp.names[1]}; only a deck whose identity is one of them may include it.`,
+      [line.card.id],
+    );
   }
 
   return problems.length === 0 ? { ok: true } : { ok: false, problems };
@@ -609,7 +749,12 @@ export function abilityRefsOf(card: AnyCard): readonly AbilityReference[] {
         ...card.hero.abilities,
         ...card.alterEgo.abilities,
         ...(card.additionalHeroForms ?? []).flatMap((form) => form.abilities),
-        ...(card.separatedIdentity ? [...card.separatedIdentity.heroCardOtherSide.abilities, ...card.separatedIdentity.alterEgoCardOtherSide.abilities] : []),
+        ...(card.separatedIdentity
+          ? [
+              ...card.separatedIdentity.heroCardOtherSide.abilities,
+              ...card.separatedIdentity.alterEgoCardOtherSide.abilities,
+            ]
+          : []),
       ];
     case "villain":
       return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities));

@@ -47,7 +47,9 @@ const SET_TYPE_LABELS: Readonly<Partial<Record<AnyCard["type"], string>>> = {
 
 /** Every card belonging to encounter set `setId`, in `cardsById`'s pool. */
 function cardsInSet(setId: string, cardsById: ReadonlyMap<string, AnyCard>): readonly AnyCard[] {
-  return [...cardsById.values()].filter((card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId));
+  return [...cardsById.values()].filter(
+    (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId),
+  );
 }
 
 /** The set's real printed card count (`quantityInSet` summed, not "one row per unique card"). */
@@ -58,7 +60,8 @@ export function cardCountForSet(setId: string, cardsById: ReadonlyMap<string, An
 /** The set's dominant printed card type, worded for the card's own label line — null when the set has no cards in this pool, or its most common type isn't one `SET_TYPE_LABELS` names. */
 export function descriptorForSet(setId: string, cardsById: ReadonlyMap<string, AnyCard>): string | null {
   const counts = new Map<string, number>();
-  for (const card of cardsInSet(setId, cardsById)) counts.set(card.type, (counts.get(card.type) ?? 0) + card.quantityInSet);
+  for (const card of cardsInSet(setId, cardsById))
+    counts.set(card.type, (counts.get(card.type) ?? 0) + card.quantityInSet);
   let best: string | null = null;
   let bestCount = 0;
   for (const [type, count] of counts) {
@@ -87,7 +90,10 @@ export interface RequiredEncounterSet {
 }
 
 /** `scenario.encounterSetIds` — the villain's own set(s), always shuffled in, never a modular pick — with the same real counts/descriptor the candidate cards carry, so the section can draw them side by side without a second data shape. */
-export function requiredEncounterSetsFor(scenario: Scenario, cardsById: ReadonlyMap<string, AnyCard>): readonly RequiredEncounterSet[] {
+export function requiredEncounterSetsFor(
+  scenario: Scenario,
+  cardsById: ReadonlyMap<string, AnyCard>,
+): readonly RequiredEncounterSet[] {
   const setsById = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
   return scenario.encounterSetIds.map((id) => ({
     id: id as string,
@@ -112,7 +118,11 @@ export function effectiveModularSetIds(draft: SetupDraft, scenario: Scenario): r
 }
 
 /** Every candidate, with its display name, real card count/descriptor, and whether it's currently chosen. */
-export function modularSetOptionsFor(draft: SetupDraft, scenario: Scenario, cardsById: ReadonlyMap<string, AnyCard>): readonly ModularSetOption[] {
+export function modularSetOptionsFor(
+  draft: SetupDraft,
+  scenario: Scenario,
+  cardsById: ReadonlyMap<string, AnyCard>,
+): readonly ModularSetOption[] {
   const chosen = new Set(effectiveModularSetIds(draft, scenario));
   const recommended = new Set(scenario.recommendedModularSetIds as readonly string[]);
   const setsById = new Map(POOL_ENCOUNTER_SETS.map((set) => [set.id as string, set.name]));
@@ -132,7 +142,9 @@ export function requiredCardLabel(villainName: string, cardCount: number): strin
 }
 
 export function modularCardLabel(option: Pick<ModularSetOption, "selected" | "cardCount" | "descriptor">): string {
-  const base = option.selected ? `Chosen · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}` : `${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
+  const base = option.selected
+    ? `Chosen · ${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`
+    : `${option.cardCount} card${option.cardCount === 1 ? "" : "s"}`;
   return option.descriptor ? `${base} · ${option.descriptor}` : base;
 }
 
@@ -145,7 +157,10 @@ export function toggleModularSet(draft: SetupDraft, scenario: Scenario, setId: s
   const cap = scenario.modularSetCount ?? 1;
   const current = [...effectiveModularSetIds(draft, scenario)];
   if (current.includes(setId)) {
-    return setModularSetIds(draft, current.filter((id) => id !== setId));
+    return setModularSetIds(
+      draft,
+      current.filter((id) => id !== setId),
+    );
   }
   if (cap <= 0) return draft;
   const next = current.length >= cap ? [...current.slice(current.length - cap + 1), setId] : [...current, setId];

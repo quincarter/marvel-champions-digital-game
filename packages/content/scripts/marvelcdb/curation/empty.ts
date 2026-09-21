@@ -21,7 +21,8 @@ export function bareCuration(packCode: string, sample: RawCard | undefined): Pac
     pack: {
       name: sample?.pack_name ?? packCode,
       releaseDate: "unresearched",
-      releaseDateSource: "PLACEHOLDER — not researched by the dry-run survey; fill in from Hall of Heroes/FFG before emitting for real.",
+      releaseDateSource:
+        "PLACEHOLDER — not researched by the dry-run survey; fill in from Hall of Heroes/FFG before emitting for real.",
     },
     outDir: `src/data/${packCode}`,
     exportPrefix: packCode.toUpperCase().replace(/[^A-Z0-9]/g, "_"),

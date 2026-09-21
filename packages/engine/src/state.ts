@@ -304,7 +304,11 @@ export type GameStep =
       readonly activatedMinionIds: readonly InstanceId[];
     }
   | { readonly phase: "villain"; readonly kind: "dealEncounterCards" }
-  | { readonly phase: "villain"; readonly kind: "revealEncounterCards"; readonly remainingPlayerIds: readonly PlayerId[] }
+  | {
+      readonly phase: "villain";
+      readonly kind: "revealEncounterCards";
+      readonly remainingPlayerIds: readonly PlayerId[];
+    }
   | { readonly phase: "villain"; readonly kind: "passFirstPlayer" }
   /** `delayedResolved`: "at the end of the round" delayed effects have been fired (RRG "Lasting Effects"). */
   | { readonly phase: "villain"; readonly kind: "endOfRound"; readonly delayedResolved?: boolean }

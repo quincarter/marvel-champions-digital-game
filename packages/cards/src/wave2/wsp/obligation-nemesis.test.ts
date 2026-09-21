@@ -5,7 +5,8 @@ import { revealFromEncounterDeck, runWave2, startWave2Game, WAVE2_DEPS } from ".
 import { WASP_OBLIGATION_NEMESIS } from "./obligation-nemesis.js";
 
 // Real wave 2 content: the Wasp (Aggression) precon against Rhino, standard, solo.
-const waspVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "wsp-aggression" }], seed: 2026 }));
+const waspVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "wsp-aggression" }], seed: 2026 }));
 
 describe("Wasp's obligation and nemesis (Red Dreams, Mother's Orders, Beetle)", () => {
   it("Red Dreams: shuffled into the encounter deck at setup, dealt and resolved like any encounter card", () => {
@@ -33,7 +34,12 @@ describe("Wasp's obligation and nemesis (Red Dreams, Mother's Orders, Beetle)", 
       if (choice?.prompt.kind === "chooseOption" && choice.options.length > 1) return [choice.options[1]!.optionId];
       return firstLegal(state);
     };
-    const settled = settle(runWave2(staged, { type: "endTurn", playerId: P1 }), pickSecondOption, undefined, WAVE2_DEPS);
+    const settled = settle(
+      runWave2(staged, { type: "endTurn", playerId: P1 }),
+      pickSecondOption,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(settled, identityOf(settled)).damage).toBeGreaterThanOrEqual(1);
   });
 
@@ -44,7 +50,9 @@ describe("Wasp's obligation and nemesis (Red Dreams, Mother's Orders, Beetle)", 
     const identity = identityOf(state);
     const villain = state.villains[0]!.instanceId;
     // No resource offered to pay the additional cost: the basic attack is refused outright.
-    expect(() => runWave2(state, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain })).toThrow();
+    expect(() =>
+      runWave2(state, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }),
+    ).toThrow();
   });
 
   it("Beetle Armor MK IV: attached character gets +4 hit points", () => {

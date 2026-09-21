@@ -33,7 +33,12 @@ describe("parseArtCatalog", () => {
   });
 
   test("a file that fits no slot is reported, never silently dropped or misfiled", () => {
-    expect(catalog.unrecognized).toEqual(["outcomes/shrug.png", "packs/twc/covr.jpg", "scenarios/rhino/extra/villain.jpg", "scenarios/rhino/villian.jpg"]);
+    expect(catalog.unrecognized).toEqual([
+      "outcomes/shrug.png",
+      "packs/twc/covr.jpg",
+      "scenarios/rhino/extra/villain.jpg",
+      "scenarios/rhino/villian.jpg",
+    ]);
     expect(catalog.scenarios.has("rhino")).toBe(false);
   });
 

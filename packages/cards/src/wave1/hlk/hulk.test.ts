@@ -1,5 +1,16 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeVillain, applyCommand, characterProfile, createGame, remainingHitPoints, type Command, type GameSetupConfig, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  activeVillain,
+  applyCommand,
+  characterProfile,
+  createGame,
+  remainingHitPoints,
+  type Command,
+  type GameSetupConfig,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -24,14 +35,20 @@ import { wave1Scenario } from "../setup.js";
 import { HLK_DEPS, runHlk, startHlkGame } from "./testing.js";
 
 // Real wave 1 content: the Hulk (Aggression) precon against Rhino, standard, solo.
-const hulkGame = () => startHlkGame(wave1Scenario("rhino", { players: [{ starterDeckId: "hlk-aggression" }], seed: 17 }));
+const hulkGame = () =>
+  startHlkGame(wave1Scenario("rhino", { players: [{ starterDeckId: "hlk-aggression" }], seed: 17 }));
 // A neutral boost card (0 icons, no boost ability) — put on top of a stacked encounter card so the villain phase's
 // boost draw consumes it first, leaving the real target on top for the next deal step (matches
 // `packages/cards/src/core/heroes/spider-man.test.ts`'s `ADVANCE`, same Rhino encounter pool).
 const ADVANCE = "01186";
 // Hydra Mercenary (Core "rhino" encounter set), printed 3 hit points — matches `core/scenarios/rhino.test.ts`'s own use.
 const HYDRA_MERCENARY = "01101";
-const basicAttack = (attacker: InstanceId, target: InstanceId): Command => ({ type: "basicAttack", playerId: P1, attackerInstanceId: attacker, targetInstanceId: target });
+const basicAttack = (attacker: InstanceId, target: InstanceId): Command => ({
+  type: "basicAttack",
+  playerId: P1,
+  attackerInstanceId: attacker,
+  targetInstanceId: target,
+});
 
 /**
  * A Hulk (Aggression) game whose deck also contains a few off-aspect filler cards not in the Aggression precon
@@ -44,7 +61,9 @@ function hulkGameWithExtras(...extraCodes: readonly string[]) {
   const patched: GameSetupConfig = {
     ...config,
     requireLegalDecks: false,
-    players: config.players.map((p, i) => (i === 0 ? { ...p, deck: [...p.deck, ...extraCodes.map((c) => cardId(c))] } : p)),
+    players: config.players.map((p, i) =>
+      i === 0 ? { ...p, deck: [...p.deck, ...extraCodes.map((c) => cardId(c))] } : p,
+    ),
   };
   const created = createGame(patched, HLK_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
@@ -52,7 +71,7 @@ function hulkGameWithExtras(...extraCodes: readonly string[]) {
 }
 
 describe("Hulk / Bruce Banner kit", () => {
-  it("\"Enraged\": Forced Interrupt — discards your hand when your turn ends, in hero form", () => {
+  it('"Enraged": Forced Interrupt — discards your hand when your turn ends, in hero form', () => {
     const start = hulkGame();
     const hero = runHlk(start, toHero());
     const handBefore = playerOf(hero, P1).hand;
@@ -71,7 +90,7 @@ describe("Hulk / Bruce Banner kit", () => {
     expect(playerOf(after, P1).hand.some((id) => handBefore.includes(id))).toBe(false);
   });
 
-  it("\"Enraged\" does not fire in alter-ego form (the ability belongs to the hero face only)", () => {
+  it('"Enraged" does not fire in alter-ego form (the ability belongs to the hero face only)', () => {
     const start = hulkGame(); // starts in alter-ego form
     const handBefore = playerOf(start, P1).hand.length;
     // No command mutates the hand until a pending choice is answered, so this is a robust check regardless of what
@@ -86,7 +105,12 @@ describe("Hulk / Bruce Banner kit", () => {
     const [spare] = given.ids as [never];
     const identity = identityOf(given.state);
     const handBefore = playerOf(given.state, P1).hand.length;
-    const after = settle(runHlk(given.state, use(P1, identity, "10001b.experimental-research")), picking(spare), undefined, HLK_DEPS);
+    const after = settle(
+      runHlk(given.state, use(P1, identity, "10001b.experimental-research")),
+      picking(spare),
+      undefined,
+      HLK_DEPS,
+    );
     // +1 draw, -1 chosen discard: net hand size unchanged.
     expect(playerOf(after, P1).hand.length).toBe(handBefore);
     expect(playerOf(after, P1).discard).toContain(spare);
@@ -135,7 +159,8 @@ describe("Hulk / Bruce Banner kit", () => {
       (s) => {
         const prompt = s.pendingChoice?.prompt;
         if (prompt?.kind === "chooseTriggers") return picking(option)(s);
-        if (prompt?.kind === "payForCard" && prompt.instanceId === hulkSmash) return [`hand:${genius}`, `hand:${dropKick}`];
+        if (prompt?.kind === "payForCard" && prompt.instanceId === hulkSmash)
+          return [`hand:${genius}`, `hand:${dropKick}`];
         return firstLegal(s);
       },
       undefined,
@@ -161,7 +186,8 @@ describe("Hulk / Bruce Banner kit", () => {
       (s) => {
         const prompt = s.pendingChoice?.prompt;
         if (prompt?.kind === "chooseTriggers") return picking(option)(s);
-        if (prompt?.kind === "payForCard" && prompt.instanceId === hulkSmash) return [`hand:${strength}`, `hand:${dropKick}`];
+        if (prompt?.kind === "payForCard" && prompt.instanceId === hulkSmash)
+          return [`hand:${strength}`, `hand:${dropKick}`];
         return firstLegal(s);
       },
       undefined,
@@ -256,7 +282,10 @@ describe("Hulk / Bruce Banner kit", () => {
     // The [mental] resource from exhausting the lab, plus 1 more hand card, pays Martial Prowess's cost 2.
     const other = payWith(withLab, P1, 1, [lab, prowess]);
     const after = settle(
-      runHlk(withLab, play(P1, prowess, other, { abilities: [resourceAbility(lab, "10008.banners-laboratory-resource")] })),
+      runHlk(
+        withLab,
+        play(P1, prowess, other, { abilities: [resourceAbility(lab, "10008.banners-laboratory-resource")] }),
+      ),
       firstLegal,
       undefined,
       HLK_DEPS,
@@ -300,7 +329,8 @@ describe("Hulk / Bruce Banner kit", () => {
     // Retaliate 1: defending the villain's attack with Hulk deals 1 damage back (RRG "Retaliate X").
     const villain = activeVillain(after).instanceId;
     const villainHpBefore = remainingHitPoints(after, villain, HLK_DEPS)!;
-    const defendWithHulk = (s: GameState) => (s.pendingChoice?.prompt.kind === "declareDefender" ? [identity] : firstLegal(s));
+    const defendWithHulk = (s: GameState) =>
+      s.pendingChoice?.prompt.kind === "declareDefender" ? [identity] : firstLegal(s);
     const defended = settle(runHlk(after, endTurn()), defendWithHulk, undefined, HLK_DEPS);
     expect(remainingHitPoints(defended, villain, HLK_DEPS)).toBe(villainHpBefore - 1);
   });
@@ -359,7 +389,12 @@ describe("hlk pack-cards (aggression filler, in the precon)", () => {
     const given = moveToHand(start, P1, "10012");
     const [sentry] = given.ids as [never];
     const deckSizeBefore = activeEncounterDeck(given.state).deck.length;
-    const after = settle(runHlk(given.state, play(P1, sentry, payWith(given.state, P1, 4, [sentry]))), firstLegal, undefined, HLK_DEPS);
+    const after = settle(
+      runHlk(given.state, play(P1, sentry, payWith(given.state, P1, 4, [sentry]))),
+      firstLegal,
+      undefined,
+      HLK_DEPS,
+    );
     expect(playerOf(after, P1).playArea).toContain(sentry);
     expect(activeEncounterDeck(after).deck.length).toBe(deckSizeBefore - 1);
   });
@@ -400,8 +435,14 @@ describe("hlk pack-cards (aggression filler, in the precon)", () => {
     const hpBefore = remainingHitPoints(given.state, villain, HLK_DEPS)!;
     const damageBefore = inst(given.state, identity).damage;
     // Toe to Toe costs 1: pay with itself excluded; the villain's own attack against Hulk needs a defend decision.
-    const defendNone = (s: GameState) => (s.pendingChoice?.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s));
-    const after = settle(runHlk(given.state, play(P1, toeToToe, payWith(given.state, P1, 1, [toeToToe]))), defendNone, undefined, HLK_DEPS);
+    const defendNone = (s: GameState) =>
+      s.pendingChoice?.prompt.kind === "declareDefender" ? ["decline"] : firstLegal(s);
+    const after = settle(
+      runHlk(given.state, play(P1, toeToToe, payWith(given.state, P1, 1, [toeToToe]))),
+      defendNone,
+      undefined,
+      HLK_DEPS,
+    );
     expect(remainingHitPoints(after, villain, HLK_DEPS)).toBe(hpBefore - 5);
     expect(inst(after, identity).damage).toBeGreaterThan(damageBefore); // undefended villain attack landed
   });
@@ -443,7 +484,10 @@ describe("hlk pack-cards (aggression filler, in the precon)", () => {
     // Drop Kick (traits: Attack) is a legal card for Martial Prowess's resource to pay toward.
     const other = payWith(withProwess, P1, 2, [prowess, dropKick]);
     const after = settle(
-      runHlk(withProwess, play(P1, dropKick, other, { abilities: [resourceAbility(prowess, "10018.martial-prowess-resource")] })),
+      runHlk(
+        withProwess,
+        play(P1, dropKick, other, { abilities: [resourceAbility(prowess, "10018.martial-prowess-resource")] }),
+      ),
       firstLegal,
       undefined,
       HLK_DEPS,
@@ -458,11 +502,21 @@ describe("hlk pack-cards (aggression filler, in the precon)", () => {
     const mercenary = instancesOf(revealed, HYDRA_MERCENARY)[0]!;
     const given = moveToHand(revealed, P1, "10029");
     const [beatCop] = given.ids as [never];
-    const played = settle(runHlk(given.state, play(P1, beatCop, payWith(given.state, P1, 3, [beatCop]))), firstLegal, undefined, HLK_DEPS);
+    const played = settle(
+      runHlk(given.state, play(P1, beatCop, payWith(given.state, P1, 3, [beatCop]))),
+      firstLegal,
+      undefined,
+      HLK_DEPS,
+    );
     // Test-only surgery for "threat here": a real game builds this up over several activations of Beat Cop's own
     // first action ("move 1 threat from a scheme to here"), matching `patchInstance`'s use elsewhere in this file.
     const staged = patchInstance(played, beatCop, { threat: 3 });
-    const after = settle(runHlk(staged, use(P1, beatCop, "10029.beat-cop-action-2")), picking(mercenary), undefined, HLK_DEPS);
+    const after = settle(
+      runHlk(staged, use(P1, beatCop, "10029.beat-cop-action-2")),
+      picking(mercenary),
+      undefined,
+      HLK_DEPS,
+    );
     // `discardSelf` snapshots `self.threat` before `leavePlay` clears it, so the exhaust-and-discard cost doesn't
     // erase the very count "for each threat here" is about to read (docs/phase7-wave1-scripting.md §6).
     expect(playerOf(after, P1).discard).toContain(beatCop);

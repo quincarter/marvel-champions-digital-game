@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  CORE_CARDS,
-  DATA_ONLY_CARDS,
-  WAVE1_CARDS,
-  WAVE2_CARDS,
-} from "../data/index.js";
+import { CORE_CARDS, DATA_ONLY_CARDS, WAVE1_CARDS, WAVE2_CARDS } from "../data/index.js";
 import { abilityId, starIconAbilityMismatch, validateMinionCard, validateSideSchemeCard } from "./index.js";
 import type {
   AnyCard,
@@ -17,7 +12,13 @@ import type {
 } from "./index.js";
 
 /** The card types a boost area can appear on (docs/phase7-wave2-data.md Part 8) — the ones `starIcon` was added to. */
-type EncounterSideCard = TreacheryCard | MinionCard | AttachmentCard | ObligationCard | EnvironmentCard | SideSchemeCard;
+type EncounterSideCard =
+  | TreacheryCard
+  | MinionCard
+  | AttachmentCard
+  | ObligationCard
+  | EnvironmentCard
+  | SideSchemeCard;
 
 /**
  * docs/phase7-wave2-data.md Part 8: `starIcon?: boolean` (`encounter-cards.ts`, `schemes.ts`) records a printed
@@ -118,17 +119,19 @@ describe("starIcon", () => {
   });
 
   it("starIconAbilityMismatch flags a starIcon/.boost-ref disagreement in either direction", () => {
+    expect(starIconAbilityMismatch({ starIcon: true, abilities: [] }, "fixture")).toBe(
+      'fixture has starIcon: true but no ".boost" ability ref',
+    );
+    expect(starIconAbilityMismatch({ starIcon: false, abilities: [{ id: abilityId("01234.boost") }] }, "fixture")).toBe(
+      'fixture has a ".boost" ability ref but starIcon is not true',
+    );
     expect(
-      starIconAbilityMismatch({ starIcon: true, abilities: [] }, "fixture"),
-    ).toBe("fixture has starIcon: true but no \".boost\" ability ref");
-    expect(
-      starIconAbilityMismatch({ starIcon: false, abilities: [{ id: abilityId("01234.boost") }] }, "fixture"),
-    ).toBe("fixture has a \".boost\" ability ref but starIcon is not true");
-    expect(starIconAbilityMismatch({ starIcon: true, abilities: [{ id: abilityId("01234.boost") }] }, "fixture")).toBeNull();
+      starIconAbilityMismatch({ starIcon: true, abilities: [{ id: abilityId("01234.boost") }] }, "fixture"),
+    ).toBeNull();
     expect(starIconAbilityMismatch({ abilities: [] }, "fixture")).toBeNull();
   });
 
-  it("every encounter-side card's starIcon agrees with whether it carries a \".boost\" ability ref (docs/phase7-wave2-data.md Part 8)", () => {
+  it('every encounter-side card\'s starIcon agrees with whether it carries a ".boost" ability ref (docs/phase7-wave2-data.md Part 8)', () => {
     const mismatches = allEncounterSideCards()
       .map((c) => starIconAbilityMismatch(c, c.id as string))
       .filter((m): m is string => m !== null);

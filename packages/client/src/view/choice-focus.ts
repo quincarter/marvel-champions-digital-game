@@ -24,7 +24,10 @@ export type ChoiceFocusTarget =
  * order, then the unpicked stack in the engine's order — `ChoiceOverlay`'s two
  * rows, read left to right and top to bottom.
  */
-export function cardChoiceDisplayOrder(options: PendingChoice["options"], selected: readonly string[]): readonly string[] {
+export function cardChoiceDisplayOrder(
+  options: PendingChoice["options"],
+  selected: readonly string[],
+): readonly string[] {
   const offered = new Set(options.map((option) => option.optionId));
   return [
     ...selected.filter((optionId) => offered.has(optionId)),

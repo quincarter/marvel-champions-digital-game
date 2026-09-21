@@ -17,7 +17,12 @@ import type { Rect } from "./layout.js";
 /** The tabbed board's own hand-row geometry (`scenes/board/hand.ts#drawHand`), reused so this test measures the real layout math. */
 function measureHand(hand: HandScroll, handCount: number, handRect: Rect, tableTiles = 0): ReturnType<typeof handRow> {
   const top = handRect.y + 20; // `HAND_CAPTION_HEIGHT`
-  const inner: Rect = { x: handRect.x + 10, y: top, width: handRect.width - 20, height: handRect.y + handRect.height - top - 8 };
+  const inner: Rect = {
+    x: handRect.x + 10,
+    y: top,
+    width: handRect.width - 20,
+    height: handRect.y + handRect.height - top - 8,
+  };
   const row = handRow(inner, { handCount, tableTiles, fan: "expanded", piles: "stacked" });
   const rowRight = row.slots.reduce((max, slot) => Math.max(max, slot.x + slot.width), row.cardArea.x);
   hand.measure(row.cardArea, rowRight);

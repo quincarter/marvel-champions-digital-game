@@ -6,14 +6,17 @@ import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.j
 import { WSP_PACK_CARDS } from "./pack-cards.js";
 
 // Real wave 2 content: the Wasp (Aggression) precon against Rhino, standard, solo. Nadia Van Dyne starts in alter-ego.
-const waspVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "wsp-aggression" }], seed: 2026 }));
+const waspVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "wsp-aggression" }], seed: 2026 }));
 
 const accepting =
   (...wanted: readonly string[]): Picker =>
   (state) => {
     const choice = state.pendingChoice;
     if (!choice) return [];
-    const hits = choice.options.map((o) => o.optionId).filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
+    const hits = choice.options
+      .map((o) => o.optionId)
+      .filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
 

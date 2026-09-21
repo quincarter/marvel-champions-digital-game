@@ -1,7 +1,17 @@
 /** Enemy attack and scheme procedures: boost cards, defenders, damage and threat. */
 
 import type { EngineDeps } from "../abilities.js";
-import { type Ctx, emit, moveCard, popFrame, pushFrames, requestChoice, setFrame, updateFrame, updateInstance } from "../ctx.js";
+import {
+  type Ctx,
+  emit,
+  moveCard,
+  popFrame,
+  pushFrames,
+  requestChoice,
+  setFrame,
+  updateFrame,
+  updateInstance,
+} from "../ctx.js";
 import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
@@ -25,7 +35,16 @@ import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "../select.js";
 import type { Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { addFrameSlots, addFrameVars, announce, base, type Frame, gameAbilityFrames, pushEvent, pushEvents } from "./frames.js";
+import {
+  addFrameSlots,
+  addFrameVars,
+  announce,
+  base,
+  type Frame,
+  gameAbilityFrames,
+  pushEvent,
+  pushEvents,
+} from "./frames.js";
 import { heard } from "./triggers.js";
 
 const getsBoostCard = (state: GameState, enemyId: InstanceId): boolean => {
@@ -35,7 +54,6 @@ const getsBoostCard = (state: GameState, enemyId: InstanceId): boolean => {
   if (card.type === "minion") return card.keywords.some((k) => k.name === "villainous");
   return false;
 };
-
 
 /**
  * Whether an initiated activation by an enemy whose ATK (attack) or SCH (scheme) is printed "—" does nothing.
@@ -48,7 +66,12 @@ const getsBoostCard = (state: GameState, enemyId: InstanceId): boolean => {
  * when it applies, before any boost card is dealt. An attack already in progress when the villain flips to a dashed
  * face is not affected: it carries on for 0 plus boost icons (FAQ "Green Goblin (#1B)", p. 59).
  */
-export const dashedStatSkipsActivation = (state: GameState, deps: EngineDeps, enemyId: InstanceId, activation: "attack" | "scheme"): boolean =>
+export const dashedStatSkipsActivation = (
+  state: GameState,
+  deps: EngineDeps,
+  enemyId: InstanceId,
+  activation: "attack" | "scheme",
+): boolean =>
   characterProfile(state, enemyId, deps)?.missing.includes(activation === "attack" ? "atk" : "sch") ?? false;
 
 /**
@@ -69,7 +92,12 @@ export function dealBoostCard(ctx: Ctx, enemyId: InstanceId, outsideActivation =
   if (!id) return;
   updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
   moveCard(ctx, id, { kind: "boost", hostInstanceId: enemyId });
-  emit(ctx, { type: "boostCardDealt", enemyInstanceId: enemyId, instanceId: id, ...(outsideActivation ? { outsideActivation: true } : {}) });
+  emit(ctx, {
+    type: "boostCardDealt",
+    enemyInstanceId: enemyId,
+    instanceId: id,
+    ...(outsideActivation ? { outsideActivation: true } : {}),
+  });
 }
 
 /** The activation procedure's own boost card: only a villain or a villainous minion is dealt one (p. 11). */
@@ -99,9 +127,24 @@ function stepBoostCard(
     if (!boostId) return null;
     updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
     const icons = boostIconsFor(ctx.state, ctx.deps, boostId);
-    emit(ctx, { type: "boostCardFlipped", enemyInstanceId: frame.enemyInstanceId, instanceId: boostId, boostIcons: icons });
-    setFrame(ctx, { ...frame, boost: { instanceId: boostId, step: "window", iconsCancelled: false, abilityCancelled: false } });
-    pushEvent(ctx, { kind: "boostCardTurnedFaceup", enemyInstanceId: frame.enemyInstanceId, boostInstanceId: boostId, activation, boostIcons: icons, playerId });
+    emit(ctx, {
+      type: "boostCardFlipped",
+      enemyInstanceId: frame.enemyInstanceId,
+      instanceId: boostId,
+      boostIcons: icons,
+    });
+    setFrame(ctx, {
+      ...frame,
+      boost: { instanceId: boostId, step: "window", iconsCancelled: false, abilityCancelled: false },
+    });
+    pushEvent(ctx, {
+      kind: "boostCardTurnedFaceup",
+      enemyInstanceId: frame.enemyInstanceId,
+      boostInstanceId: boostId,
+      activation,
+      boostIcons: icons,
+      playerId,
+    });
     return "busy";
   }
   if (boost.step === "window") {
@@ -113,7 +156,12 @@ function stepBoostCard(
   if (boost.step === "ability") {
     // The icons are about to be counted: a window only when something could react (docs/phase7-wave2.md §3.6).
     setFrame(ctx, { ...frame, boost: { ...boost, step: "count" } });
-    const counting: TriggerEvent = { kind: "boostIconsCounting", enemyInstanceId: frame.enemyInstanceId, cardInstanceId: boost.instanceId, playerId };
+    const counting: TriggerEvent = {
+      kind: "boostIconsCounting",
+      enemyInstanceId: frame.enemyInstanceId,
+      cardInstanceId: boost.instanceId,
+      playerId,
+    };
     if (!boost.iconsCancelled && heard(ctx.state, ctx.deps, counting)) {
       pushEvent(ctx, counting);
       return "busy";
@@ -123,7 +171,8 @@ function stepBoostCard(
   const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
   // Discarded to its home deck's discard (docs/phase7-wave1.md §4.3, proposed), unless its own Boost ability already
   // moved it ("Put Goblin Thrall into play engaged with you").
-  if (locateCard(ctx.state, boost.instanceId)?.kind === "boost") moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
+  if (locateCard(ctx.state, boost.instanceId)?.kind === "boost")
+    moveCard(ctx, boost.instanceId, discardZoneFor(ctx.state, boost.instanceId), "top");
   setFrame(ctx, { ...frame, boost: null });
   return icons;
 }
@@ -132,7 +181,13 @@ function stepBoostCard(
 const activationVars = (ctx: Ctx, eventFrameId: FrameId | null): Vars => activationVarsOf(ctx.state, eventFrameId);
 
 /** Records a defender on the attack procedure and its event, and announces the defense. */
-export function setDefender(ctx: Ctx, frame: Frame<"enemyAttack">, defenderId: InstanceId, defenderPlayer: PlayerId, basic: boolean): void {
+export function setDefender(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack">,
+  defenderId: InstanceId,
+  defenderPlayer: PlayerId,
+  basic: boolean,
+): void {
   setFrame(ctx, {
     ...frame,
     defenderInstanceId: defenderId,
@@ -148,10 +203,20 @@ export function setDefender(ctx: Ctx, frame: Frame<"enemyAttack">, defenderId: I
     );
     addFrameSlots(ctx, frame.eventFrameId, { [DEFENDER_SLOT]: [defenderId] });
   }
-  announce(ctx, { kind: "defended", defenderInstanceId: defenderId, enemyInstanceId: frame.enemyInstanceId, playerId: defenderPlayer, basic });
+  announce(ctx, {
+    kind: "defended",
+    defenderInstanceId: defenderId,
+    enemyInstanceId: frame.enemyInstanceId,
+    playerId: defenderPlayer,
+    basic,
+  });
 }
 
-export function pushEnemyAttackFrame(ctx: Ctx, event: Extract<TriggerEvent, { kind: "enemyAttack" }>, eventFrameId: FrameId): void {
+export function pushEnemyAttackFrame(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "enemyAttack" }>,
+  eventFrameId: FrameId,
+): void {
   pushFrames(ctx, [
     {
       ...base(ctx),
@@ -196,7 +261,11 @@ export function legalDefenders(state: GameState, attackedPlayerId: PlayerId): re
 }
 
 /** RRG 1.8 "Activation" (p. 6): an enemy that left play mid-activation ends it; nothing further resolves. */
-function endedByLeavingPlay(ctx: Ctx, frame: Frame<"enemyAttack"> | Frame<"enemyScheme">, activation: "attack" | "scheme"): boolean {
+function endedByLeavingPlay(
+  ctx: Ctx,
+  frame: Frame<"enemyAttack"> | Frame<"enemyScheme">,
+  activation: "attack" | "scheme",
+): boolean {
   if (frame.stage === "done" || cardsInPlay(ctx.state).includes(frame.enemyInstanceId)) return false;
   emit(ctx, { type: "activationSkipped", enemyInstanceId: frame.enemyInstanceId, activation, reason: "leftPlay" });
   setFrame(ctx, { ...frame, stage: "done", boost: null });
@@ -217,12 +286,24 @@ function defenderLeftPlay(ctx: Ctx, frame: Frame<"enemyAttack">): Frame<"enemyAt
   const defender = frame.defenderInstanceId;
   if (defender === null || cardsInPlay(ctx.state).includes(defender)) return frame;
   const identity = mustPlayer(ctx.state, frame.targetPlayerId).identity.instanceId;
-  emit(ctx, { type: "defenderLeftPlay", enemyInstanceId: frame.enemyInstanceId, defenderInstanceId: defender, targetInstanceId: identity });
-  const next: Frame<"enemyAttack"> = { ...frame, defenderInstanceId: null, basicDefense: false, targetInstanceId: identity };
+  emit(ctx, {
+    type: "defenderLeftPlay",
+    enemyInstanceId: frame.enemyInstanceId,
+    defenderInstanceId: defender,
+    targetInstanceId: identity,
+  });
+  const next: Frame<"enemyAttack"> = {
+    ...frame,
+    defenderInstanceId: null,
+    basicDefense: false,
+    targetInstanceId: identity,
+  };
   setFrame(ctx, next);
   if (frame.eventFrameId) {
     updateFrame(ctx, frame.eventFrameId, (f) =>
-      f.kind === "event" && f.event.kind === "enemyAttack" ? { ...f, event: { ...f.event, targetInstanceId: identity } } : f,
+      f.kind === "event" && f.event.kind === "enemyAttack"
+        ? { ...f, event: { ...f.event, targetInstanceId: identity } }
+        : f,
     );
     addFrameVars(ctx, frame.eventFrameId, { undefended: 1 });
   }
@@ -264,11 +345,21 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         exhaustCard(ctx, defenderId);
         setDefender(ctx, { ...frame, answer: null, stage: "flipBoosts" }, defenderId, defenderPlayer, true);
         // "After you use a basic power" (docs/phase7-wave2.md §3.11): defending is the basic defense power.
-        const used: TriggerEvent = { kind: "basicPowerUsed", characterInstanceId: defenderId, power: "defense", playerId: defenderPlayer };
+        const used: TriggerEvent = {
+          kind: "basicPowerUsed",
+          characterInstanceId: defenderId,
+          power: "defense",
+          playerId: defenderPlayer,
+        };
         if (heard(ctx.state, ctx.deps, used)) announce(ctx, used);
         // "When you use one of your hero's basic powers … DEF" (§17.4), pushed second so it resolves first — before
         // the attack's own damage step reads the defender's DEF (RRG 1.8 "Attack (Enemy Activation)" step 4, p. 9).
-        const using: TriggerEvent = { kind: "basicPowerUsing", characterInstanceId: defenderId, power: "defense", playerId: defenderPlayer };
+        const using: TriggerEvent = {
+          kind: "basicPowerUsing",
+          characterInstanceId: defenderId,
+          power: "defense",
+          playerId: defenderPlayer,
+        };
         if (heard(ctx.state, ctx.deps, using)) announce(ctx, using);
         return;
       }
@@ -278,7 +369,9 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       const all = legalDefenders(ctx.state, frame.attackedPlayerId);
       // "Must defend with an ally they control, if able" (Melter): only the engaged player's ready allies, no declining.
       const forcedAllies = mustDefendWithAlly(ctx.state, ctx.deps, frame.enemyInstanceId)
-        ? all.filter((id) => cardOf(ctx.state, id)?.type === "ally" && controllerOf(ctx.state, id) === frame.attackedPlayerId)
+        ? all.filter(
+            (id) => cardOf(ctx.state, id)?.type === "ally" && controllerOf(ctx.state, id) === frame.attackedPlayerId,
+          )
         : [];
       const defenders = existing ? all.filter((id) => id === existing) : forcedAllies.length > 0 ? forcedAllies : all;
       if (defenders.length === 0) {
@@ -297,7 +390,9 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
           },
         },
         options: [
-          ...(forcedAllies.length > 0 && !existing ? [] : [{ optionId: "decline", label: "No defense", ref: { kind: "none" } } as const]),
+          ...(forcedAllies.length > 0 && !existing
+            ? []
+            : [{ optionId: "decline", label: "No defense", ref: { kind: "none" } } as const]),
           ...defenders.map((id) => ({
             optionId: id,
             label: mustCardOf(ctx.state, id).name,
@@ -318,7 +413,9 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
         setFrame(ctx, { ...frame, stage: "dealDamage" });
         return;
       }
-      updateFrame(ctx, frame.frameId, (f) => (f.kind === "enemyAttack" ? { ...f, boostIcons: f.boostIcons + icons } : f));
+      updateFrame(ctx, frame.frameId, (f) =>
+        f.kind === "enemyAttack" ? { ...f, boostIcons: f.boostIcons + icons } : f,
+      );
       return;
     }
     case "dealDamage": {
@@ -373,7 +470,11 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
   }
 }
 
-export function pushEnemySchemeFrame(ctx: Ctx, event: Extract<TriggerEvent, { kind: "enemyScheme" }>, eventFrameId: FrameId): void {
+export function pushEnemySchemeFrame(
+  ctx: Ctx,
+  event: Extract<TriggerEvent, { kind: "enemyScheme" }>,
+  eventFrameId: FrameId,
+): void {
   pushFrames(ctx, [
     {
       ...base(ctx),
@@ -405,7 +506,9 @@ export function executeEnemySchemeFrame(ctx: Ctx, frame: Frame<"enemyScheme">): 
         setFrame(ctx, { ...frame, stage: "placeThreat" });
         return;
       }
-      updateFrame(ctx, frame.frameId, (f) => (f.kind === "enemyScheme" ? { ...f, boostIcons: f.boostIcons + icons } : f));
+      updateFrame(ctx, frame.frameId, (f) =>
+        f.kind === "enemyScheme" ? { ...f, boostIcons: f.boostIcons + icons } : f,
+      );
       return;
     }
     case "placeThreat": {

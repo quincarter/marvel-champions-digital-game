@@ -14,7 +14,13 @@ describe("targetingLayout", () => {
     for (const targetCount of [1, 3, 6]) {
       test(`no two regions overlap at ${name} (${width}x${height}), ${targetCount} targets`, () => {
         const layout = targetingLayout({ x: 0, y: 0, width, height }, targetCount);
-        const rects = [layout.titleBar, layout.heading, layout.targets, layout.excluded, ...(layout.inspectorRail ? [layout.inspectorRail] : [])];
+        const rects = [
+          layout.titleBar,
+          layout.heading,
+          layout.targets,
+          layout.excluded,
+          ...(layout.inspectorRail ? [layout.inspectorRail] : []),
+        ];
         for (let i = 0; i < rects.length; i++) {
           for (let j = i + 1; j < rects.length; j++) {
             expect(rectsOverlap(rects[i]!, rects[j]!), `region ${i} overlaps region ${j}`).toBe(false);
@@ -22,15 +28,25 @@ describe("targetingLayout", () => {
         }
         // Cancel lives inside the title bar, not floating outside it.
         expect(layout.cancelButton.x).toBeGreaterThanOrEqual(layout.titleBar.x);
-        expect(layout.cancelButton.x + layout.cancelButton.width).toBeLessThanOrEqual(layout.titleBar.x + layout.titleBar.width + 0.001);
+        expect(layout.cancelButton.x + layout.cancelButton.width).toBeLessThanOrEqual(
+          layout.titleBar.x + layout.titleBar.width + 0.001,
+        );
         expect(layout.cancelButton.y).toBeGreaterThanOrEqual(layout.titleBar.y);
-        expect(layout.cancelButton.y + layout.cancelButton.height).toBeLessThanOrEqual(layout.titleBar.y + layout.titleBar.height + 0.001);
+        expect(layout.cancelButton.y + layout.cancelButton.height).toBeLessThanOrEqual(
+          layout.titleBar.y + layout.titleBar.height + 0.001,
+        );
       });
     }
 
     test(`every region stays within the viewport at ${name}`, () => {
       const layout = targetingLayout({ x: 0, y: 0, width, height }, 3);
-      for (const rect of [layout.titleBar, layout.heading, layout.targets, layout.excluded, ...(layout.inspectorRail ? [layout.inspectorRail] : [])]) {
+      for (const rect of [
+        layout.titleBar,
+        layout.heading,
+        layout.targets,
+        layout.excluded,
+        ...(layout.inspectorRail ? [layout.inspectorRail] : []),
+      ]) {
         expect(rect.x).toBeGreaterThanOrEqual(0);
         expect(rect.y).toBeGreaterThanOrEqual(0);
         expect(rect.x + rect.width).toBeLessThanOrEqual(width + 0.001);

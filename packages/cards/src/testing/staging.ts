@@ -53,11 +53,22 @@ export function withDamage(state: GameState, id: InstanceId, damage: number): Ga
  * this round to trigger the response under test — a second real command in the same round would otherwise hit the
  * once-per-round voluntary-change limit (RRG 1.8 "Form, Change Form").
  */
-export function withForm(state: GameState, to: { readonly heroForm: number } | "alterEgo", player: PlayerId = P1): GameState {
+export function withForm(
+  state: GameState,
+  to: { readonly heroForm: number } | "alterEgo",
+  player: PlayerId = P1,
+): GameState {
   const owner = state.players.find((p) => p.playerId === player)!;
   const identity =
-    to === "alterEgo" ? { ...owner.identity, form: "alterEgo" as const, heroFormIndex: null } : { ...owner.identity, form: "hero" as const, heroFormIndex: to.heroForm };
-  return { ...state, players: state.players.map((p) => (p.playerId === player ? { ...p, identity: { ...identity, changedFormThisRound: false } } : p)) };
+    to === "alterEgo"
+      ? { ...owner.identity, form: "alterEgo" as const, heroFormIndex: null }
+      : { ...owner.identity, form: "hero" as const, heroFormIndex: to.heroForm };
+  return {
+    ...state,
+    players: state.players.map((p) =>
+      p.playerId === player ? { ...p, identity: { ...identity, changedFormThisRound: false } } : p,
+    ),
+  };
 }
 
 /** Sets the active villain directly (`GameState.activeVillainId`) — for exercising a specific villain's own per-activation forced abilities in a multi-villain scenario without playing out every other villain's turn first. */
@@ -66,7 +77,11 @@ export function withActive(state: GameState, id: InstanceId): GameState {
 }
 
 /** Test-only surgery: moves a copy of `code` straight from hand or deck to `player`'s discard pile, so a test doesn't have to actually play a card (and juggle hero/alter-ego form restrictions) just to get something into the discard pile to read back out. */
-export function moveToDiscard(state: GameState, player: PlayerId, code: string): { readonly state: GameState; readonly id: InstanceId } {
+export function moveToDiscard(
+  state: GameState,
+  player: PlayerId,
+  code: string,
+): { readonly state: GameState; readonly id: InstanceId } {
   const owner = playerOf(state, player);
   const wanted = (id: InstanceId) => state.instances[id]?.cardId === cardId(code);
   const id = owner.hand.find(wanted) ?? owner.deck.find(wanted);
@@ -76,7 +91,14 @@ export function moveToDiscard(state: GameState, player: PlayerId, code: string):
     state: {
       ...state,
       players: state.players.map((p) =>
-        p.playerId === player ? { ...p, hand: p.hand.filter((x) => x !== id), deck: p.deck.filter((x) => x !== id), discard: [...p.discard, id] } : p,
+        p.playerId === player
+          ? {
+              ...p,
+              hand: p.hand.filter((x) => x !== id),
+              deck: p.deck.filter((x) => x !== id),
+              discard: [...p.discard, id],
+            }
+          : p,
       ),
     },
   };
@@ -95,7 +117,9 @@ export function stackSetAside(state: GameState, code: string, player: PlayerId =
   const pile = state.encounterDecks[deckId]!;
   return {
     ...state,
-    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
+    players: state.players.map((p) =>
+      p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p,
+    ),
     encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [id, ...pile.deck] } },
   };
 }
@@ -120,7 +144,10 @@ export function stackSetAsideBehindBoost(state: GameState, code: string, player:
   const pile = staged.encounterDecks[deckId]!;
   const [card, filler, ...rest] = pile.deck;
   if (!card || !filler) throw new Error(`no filler card behind the staged ${code} on the encounter deck`);
-  return { ...staged, encounterDecks: { ...staged.encounterDecks, [deckId]: { ...pile, deck: [filler, card, ...rest] } } };
+  return {
+    ...staged,
+    encounterDecks: { ...staged.encounterDecks, [deckId]: { ...pile, deck: [filler, card, ...rest] } },
+  };
 }
 
 /**
@@ -132,7 +159,12 @@ export function stackSetAsideBehindBoost(state: GameState, code: string, player:
  * consumes a filler and the nemesis card is dealt to the player as their own encounter card. `fillers` defaults to
  * 1 (one villain alone); pass more once other enemies are also in play and will activate that same phase.
  */
-export function stageNemesisCardForReveal(state: GameState, code: string, player: PlayerId = P1, fillers = 1): GameState {
+export function stageNemesisCardForReveal(
+  state: GameState,
+  code: string,
+  player: PlayerId = P1,
+  fillers = 1,
+): GameState {
   const staged = stackSetAside(state, code, player);
   return stackEncounterDeck(staged, ...Array.from({ length: fillers }, () => "01186"));
 }
@@ -148,7 +180,12 @@ export function playFromHand(
 ): { readonly state: GameState; readonly id: InstanceId } {
   const given = moveToHand(state, player, code);
   const [id] = given.ids as [InstanceId];
-  const played = settle(runWith(deps, given.state, play(player, id, payWith(given.state, player, cost, [id]))), pick, undefined, deps);
+  const played = settle(
+    runWith(deps, given.state, play(player, id, payWith(given.state, player, cost, [id]))),
+    pick,
+    undefined,
+    deps,
+  );
   return { state: played, id };
 }
 
@@ -168,13 +205,26 @@ export function revealFromEncounterDeck(
 }
 
 /** Like `runWith`, but also collects every event along the way (each command, and every choice auto-settled with `firstLegal` in between). */
-export function driveEvents(deps: EngineDeps, state: GameState, ...commands: readonly Command[]): { readonly state: GameState; readonly events: readonly GameEvent[] } {
+export function driveEvents(
+  deps: EngineDeps,
+  state: GameState,
+  ...commands: readonly Command[]
+): { readonly state: GameState; readonly events: readonly GameEvent[] } {
   let current = state;
   const events: GameEvent[] = [];
   const settleOne = () => {
     while (current.pendingChoice && !current.outcome) {
       const choice = current.pendingChoice;
-      const result = applyOk(current, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: firstLegal(current) }, deps);
+      const result = applyOk(
+        current,
+        {
+          type: "resolveChoice",
+          playerId: choice.playerId,
+          choiceId: choice.choiceId,
+          selectedOptionIds: firstLegal(current),
+        },
+        deps,
+      );
       current = result.state;
       events.push(...result.events);
     }
@@ -190,8 +240,23 @@ export function driveEvents(deps: EngineDeps, state: GameState, ...commands: rea
 }
 
 /** Damages `target` to the brink, then lands the killing blow with a real `basicAttack`, so the engine's own defeat pipeline (When Defeated triggers included) runs normally, instead of removing the instance by surgery. */
-export function defeatWithAttack(deps: EngineDeps, state: GameState, target: InstanceId, attacker: PlayerId = P1): GameState {
+export function defeatWithAttack(
+  deps: EngineDeps,
+  state: GameState,
+  target: InstanceId,
+  attacker: PlayerId = P1,
+): GameState {
   const near = patchInstance(state, target, { damage: 999 });
   const identity = identityOf(near, attacker);
-  return settle(runWith(deps, near, { type: "basicAttack", playerId: attacker, attackerInstanceId: identity, targetInstanceId: target }), firstLegal, undefined, deps);
+  return settle(
+    runWith(deps, near, {
+      type: "basicAttack",
+      playerId: attacker,
+      attackerInstanceId: identity,
+      targetInstanceId: target,
+    }),
+    firstLegal,
+    undefined,
+    deps,
+  );
 }

@@ -26,7 +26,8 @@ export const BP_CURATION: PackCuration = {
   pack: {
     name: "Black Panther/Shuri",
     releaseDate: "2025-05-02",
-    releaseDateSource: "Hall of Heroes Black Panther/Shuri page (https://hallofheroeslcg.com/black-panther-shuri/): \"Release date: May 2, 2025\"",
+    releaseDateSource:
+      'Hall of Heroes Black Panther/Shuri page (https://hallofheroeslcg.com/black-panther-shuri/): "Release date: May 2, 2025"',
   },
   outDir: "src/data/bp",
   exportPrefix: "BP",
@@ -36,7 +37,8 @@ export const BP_CURATION: PackCuration = {
       code: "51036",
       reason:
         'Redemption prints a dash cost (RRG 1.8 "Dash (Value)", p. 15) — it is a Linked card, brought into play by Show of Empathy rather than played from hand.',
-      evidence: "raw (51036, no cost field at all); card image (marvelcdb.com/bundles/cards/51036.jpg, a dash where a cost circle would be)",
+      evidence:
+        "raw (51036, no cost field at all); card image (marvelcdb.com/bundles/cards/51036.jpg, a dash where a cost circle would be)",
       specialCost: "dash",
     },
   ],

@@ -31,9 +31,23 @@ describe("travelsFrom", () => {
       [moved(id("card-1"), hand, playArea)],
       () => RECT_A,
       () => RECT_B,
+      () => null,
     );
     expect(travels).toHaveLength(1);
-    expect(travels[0]).toEqual({ id: "travel-0", instanceId: id("card-1"), from: RECT_A, to: RECT_B });
+    expect(travels[0]).toEqual({ id: "travel-0", instanceId: id("card-1"), from: RECT_A, to: RECT_B, art: null });
+  });
+
+  test("carries the art the artOf callback resolves for the moved card's instance id", () => {
+    const hand: ZoneId = { kind: "hand", playerId: player("p1") };
+    const playArea: ZoneId = { kind: "playArea", playerId: player("p1") };
+    const art = { key: "art:test", url: "/card-art/test.png" };
+    const travels = travelsFrom(
+      [moved(id("card-1"), hand, playArea)],
+      () => RECT_A,
+      () => RECT_B,
+      (instanceId) => (instanceId === id("card-1") ? art : null),
+    );
+    expect(travels[0]?.art).toEqual(art);
   });
 
   test("no travel when either anchor is unresolved — the deck has no on-screen rect", () => {
@@ -43,6 +57,7 @@ describe("travelsFrom", () => {
       [moved(id("card-1"), deck, hand)],
       () => null,
       () => RECT_B,
+      () => null,
     );
     expect(travels).toEqual([]);
   });
@@ -56,6 +71,7 @@ describe("travelsFrom", () => {
       [moved(id("card-1"), setAside, tucked)],
       () => RECT_A,
       () => RECT_B,
+      () => null,
     );
     expect(travels).toEqual([]);
   });
@@ -67,6 +83,7 @@ describe("travelsFrom", () => {
       [moved(id("minion-1"), encounterDeck, villainArea)],
       () => RECT_A,
       () => RECT_B,
+      () => null,
     );
     expect(travels).toHaveLength(1);
   });
@@ -77,6 +94,7 @@ describe("travelsFrom", () => {
       [moved(id("card-1"), hand, { kind: "hand", playerId: player("p1") })],
       () => RECT_A,
       () => RECT_B,
+      () => null,
     );
     expect(travels).toEqual([]);
   });
@@ -88,6 +106,7 @@ describe("travelsFrom", () => {
       [moved(id("card-1"), hand, playArea)],
       () => RECT_A,
       () => RECT_A,
+      () => null,
     );
     expect(travels).toEqual([]);
   });
@@ -97,6 +116,7 @@ describe("travelsFrom", () => {
       [{ type: "roundStarted", round: 2 }],
       () => RECT_A,
       () => RECT_B,
+      () => null,
     );
     expect(travels).toEqual([]);
   });
@@ -105,12 +125,10 @@ describe("travelsFrom", () => {
     const hand: ZoneId = { kind: "hand", playerId: player("p1") };
     const playArea: ZoneId = { kind: "playArea", playerId: player("p1") };
     const travels = travelsFrom(
-      [
-        { type: "roundStarted", round: 2 },
-        moved(id("card-1"), hand, playArea),
-      ],
+      [{ type: "roundStarted", round: 2 }, moved(id("card-1"), hand, playArea)],
       () => RECT_A,
       () => RECT_B,
+      () => null,
     );
     expect(travels[0]!.id).toBe("travel-1");
   });

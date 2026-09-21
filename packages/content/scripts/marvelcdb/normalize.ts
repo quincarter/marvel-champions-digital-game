@@ -22,7 +22,15 @@
  * The steps live in `normalize/`, one module each, and run in the order below. The order is part of the output:
  * ability ids are assigned, and errors reported, in call order.
  */
-import type { AnyCard, Cycle, EncounterSet, KeywordInstance, Pack, Scenario, StarterDeck } from "../../src/schema/index.ts";
+import type {
+  AnyCard,
+  Cycle,
+  EncounterSet,
+  KeywordInstance,
+  Pack,
+  Scenario,
+  StarterDeck,
+} from "../../src/schema/index.ts";
 import type { CardProvenance, DroppedSourceRecord } from "../../src/data/types.ts";
 import type { PackCuration } from "./curation/types.ts";
 import type { RawCard } from "./raw-types.ts";

@@ -28,7 +28,7 @@ type Card = Record<string, any>;
 function everyCard(): Card[] {
   const seen = new Map<string, Card>();
   for (const [name, value] of Object.entries(content as Record<string, unknown>)) {
-    if (!/_CARDS$/.test(name) || !Array.isArray(value)) continue;
+    if (!name.endsWith("_CARDS") || !Array.isArray(value)) continue;
     for (const card of value as Card[]) if (card?.id && !seen.has(card.id)) seen.set(card.id, card);
   }
   return [...seen.values()];
@@ -37,7 +37,10 @@ function everyCard(): Card[] {
 /** Where a ref is scripted, if it is — a repo-relative path, found the same way a human would grep for it. */
 function definedIn(refId: string): string | null {
   try {
-    const out = execSync(`grep -rl '"${refId}"' src --include=*.ts`, { cwd: new URL("..", import.meta.url).pathname, encoding: "utf8" });
+    const out = execSync(`grep -rl '"${refId}"' src --include=*.ts`, {
+      cwd: new URL("..", import.meta.url).pathname,
+      encoding: "utf8",
+    });
     const files = out.split("\n").filter((f) => f && !f.endsWith(".test.ts"));
     return files[0] ? `packages/cards/${files[0]}` : null;
   } catch {
@@ -79,7 +82,9 @@ function brief(card: Card): string {
   lines.push("", refs.length === 0 ? "  abilities: (none)" : "  abilities:");
   for (const ref of refs) {
     const where = ref in REGISTRY ? definedIn(ref) : null;
-    lines.push(`    ${ref in REGISTRY ? "✓" : "✗"} ${ref}${where ? `\n        ${where}` : ref in REGISTRY ? "" : "   ← not scripted"}`);
+    lines.push(
+      `    ${ref in REGISTRY ? "✓" : "✗"} ${ref}${where ? `\n        ${where}` : ref in REGISTRY ? "" : "   ← not scripted"}`,
+    );
   }
 
   const md = `docs/cards/by_pack/${card.setCode}.md`;

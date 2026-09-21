@@ -2,8 +2,8 @@
   "name": "@mc/content",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Card data schema and structured card content (text, stats, metadata) versioned by cycle/set. No art assets.",
+  "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

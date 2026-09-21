@@ -7,7 +7,9 @@ import { accent, ink, signal, surface, typeRole, type TypeSpec } from "../../tok
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { McButton, McTabs } from "../../ui/widgets.js";
 import type { BoardModel } from "../../view/board-model.js";
+import { lerp } from "../../view/motion-math.js";
 import { PHONE_TABS, type PhoneTab, type Rect } from "../../view/layout.js";
+import type { BoardMotion, StatusStampState } from "./motion.js";
 
 /** The phone board's "≡" menu icon (see `drawChrome`'s own comment for why this isn't `typeRole.label`). */
 const MENU_ICON_TYPE: TypeSpec = { ...typeRole.label, size: 20, letterSpacing: 0, uppercase: false };
@@ -18,6 +20,8 @@ export interface ChromeOptions {
   readonly onMenu: () => void;
   /** The menu button is a real `McButton` (it needs a click/hover/focus state), so it's handed back for the caller's own frame bookkeeping — same reason `drawActionBar` pushes onto `ctx.frame.buttons` instead of owning its own list. */
   readonly buttons: McButton[];
+  /** Drives the round chip's pop and the phase toggle's fade-in when either just changed. */
+  readonly motion: BoardMotion;
 }
 
 /**
@@ -43,7 +47,12 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
 
   const wide = rect.width >= 640;
   const menuWidth = wide ? 76 : 40;
-  const menuRect: Rect = { x: rect.x + rect.width - 8 - menuWidth, y: rect.y + 5, width: menuWidth, height: rect.height - 10 };
+  const menuRect: Rect = {
+    x: rect.x + rect.width - 8 - menuWidth,
+    y: rect.y + 5,
+    width: menuWidth,
+    height: rect.height - 10,
+  };
   options.buttons.push(
     new McButton(scene, {
       kind: "onInk",
@@ -61,11 +70,25 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
 
   // The live round chip is the one red besides the forward action.
   const chip: Rect = { x: rect.x + 8, y: rect.y + 5, width: 54, height: rect.height - 10 };
+  const chipFirstDrawn = scene.children.list.length;
   const chipG = scene.add.graphics();
   chipG.fillStyle(accent.heroRed.hex, 1).fillRect(chip.x, chip.y, chip.width, chip.height);
   scene.add
-    .text(chip.x + chip.width / 2, chip.y + chip.height / 2, `RD ${model.round}`, textStyle(typeRole.statSmall, surface.paper.hex))
+    .text(
+      chip.x + chip.width / 2,
+      chip.y + chip.height / 2,
+      `RD ${model.round}`,
+      textStyle(typeRole.statSmall, surface.paper.hex),
+    )
     .setOrigin(0.5);
+  // A pop (1.25 -> 1) right when the round just turned — the chip is the design's one red besides the forward
+  // action, so it's the thing that should visibly react when the number on it changes.
+  const pop = options.motion.roundChipPop(model.round);
+  if (pop) {
+    const cx = chip.x + chip.width / 2;
+    const cy = chip.y + chip.height / 2;
+    animateStampScale(scene, cx, cy, scene.children.list.slice(chipFirstDrawn), pop);
+  }
 
   let left = chip.x + chip.width + 10;
   const showToggle = wide;
@@ -74,12 +97,23 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
     (["player", "villain"] as const).forEach((phase, index) => {
       const box: Rect = { x: left + index * 86, y: chip.y, width: 82, height: chip.height };
       const active = model.phase === phase;
+      const sideFirstDrawn = scene.children.list.length;
       const bg = scene.add.graphics();
       bg.fillStyle(active ? surface.paper.hex : surface.ink.hex, 1).fillRect(box.x, box.y, box.width, box.height);
       bg.lineStyle(2, surface.paper.hex, active ? 1 : ink.meta).strokeRect(box.x, box.y, box.width, box.height);
       scene.add
-        .text(box.x + box.width / 2, box.y + box.height / 2, phase.toUpperCase(), textStyle(typeRole.label, active ? surface.ink.hex : surface.paper.hex, active ? 1 : ink.meta))
+        .text(
+          box.x + box.width / 2,
+          box.y + box.height / 2,
+          phase.toUpperCase(),
+          textStyle(typeRole.label, active ? surface.ink.hex : surface.paper.hex, active ? 1 : ink.meta),
+        )
         .setOrigin(0.5);
+      // The active side fades in right when the phase just turned to it.
+      if (active) {
+        const fade = options.motion.toggleFade(phase);
+        if (fade) animateStampAlpha(scene, scene.children.list.slice(sideFirstDrawn), fade);
+      }
     });
     left += 86 * 2 + 18;
   }
@@ -97,7 +131,12 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
     rightEdge = warning.x - warning.width - 8;
   }
   scene.add
-    .text(left, rect.y + rect.height / 2, model.stepLabel, textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary))
+    .text(
+      left,
+      rect.y + rect.height / 2,
+      model.stepLabel,
+      textStyle(typeRole.emphasis, surface.paper.hex, ink.secondary),
+    )
     .setOrigin(0, 0.5)
     .setWordWrapWidth(Math.max(40, rightEdge - left))
     .setMaxLines(1);
@@ -107,6 +146,43 @@ export function drawChrome(scene: Phaser.Scene, rect: Rect, model: BoardModel, o
       .text(menuRect.x - 10, rect.y + rect.height / 2, "1ST PLAYER", textStyle(typeRole.label, signal.caution.hex))
       .setOrigin(1, 0.5);
   }
+}
+
+/**
+ * Re-parents freshly drawn objects into a container pinned at `(cx, cy)` and
+ * tweens it from a 1.25 scale down to its resting 1, picking up wherever
+ * `state.progress` says the pop already is — the same "redraw mid-flight
+ * resumes, never restarts" trick `character-panel.ts#turnSideways` uses for
+ * the exhaust turn.
+ */
+function animateStampScale(
+  scene: Phaser.Scene,
+  cx: number,
+  cy: number,
+  drawn: readonly Phaser.GameObjects.GameObject[],
+  state: StatusStampState,
+): void {
+  if (drawn.length === 0) return;
+  for (const object of drawn) {
+    const placed = object as Phaser.GameObjects.GameObject & { x?: number; y?: number };
+    if (typeof placed.x === "number") placed.x -= cx;
+    if (typeof placed.y === "number") placed.y -= cy;
+  }
+  const container = scene.add.container(cx, cy, [...drawn]);
+  container.setScale(lerp(1.25, 1, state.progress));
+  scene.tweens.add({ targets: container, scale: 1, duration: state.remainingMs, ease: "Back.easeOut" });
+}
+
+/** The same re-parenting trick, for a plain alpha fade-in with no scale or pivot involved. */
+function animateStampAlpha(
+  scene: Phaser.Scene,
+  drawn: readonly Phaser.GameObjects.GameObject[],
+  state: StatusStampState,
+): void {
+  if (drawn.length === 0) return;
+  const container = scene.add.container(0, 0, [...drawn]);
+  container.setAlpha(lerp(0, 1, state.progress));
+  scene.tweens.add({ targets: container, alpha: 1, duration: state.remainingMs, ease: "Quad.easeOut" });
 }
 
 export interface PhoneTabsState {

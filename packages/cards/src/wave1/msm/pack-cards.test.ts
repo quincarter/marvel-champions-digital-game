@@ -1,10 +1,24 @@
 import { activeVillain, characterProfile, remainingHitPoints } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, moveToHand, P1, payWith, picking, play, playerOf, settle, toHero } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  moveToHand,
+  P1,
+  payWith,
+  picking,
+  play,
+  playerOf,
+  settle,
+  toHero,
+} from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
 import { MSM_DEPS, runMsm, startMsmGame } from "./testing.js";
 
 // Real wave 1 content: the Ms. Marvel (Protection) precon against Rhino, standard, solo.
-const msmVsRhino = () => startMsmGame(wave1Scenario("rhino", { players: [{ starterDeckId: "msm-protection" }], seed: 3 }));
+const msmVsRhino = () =>
+  startMsmGame(wave1Scenario("rhino", { players: [{ starterDeckId: "msm-protection" }], seed: 3 }));
 
 /**
  * Melee (05030, aggression), Concussive Blow (05031, justice), Morale Boost (05032, leadership) and Down Time
@@ -27,7 +41,12 @@ describe("Ms. Marvel pack cards", () => {
     const given = moveToHand(start, P1, "05012", "05005"); // Nova (cost 4), Wiggle Room (a spare [energy] card)
     const [nova, energyCard] = given.ids as [never, never];
     const hero = runMsm(given.state, toHero());
-    const withNova = settle(runMsm(hero, play(P1, nova, payWith(hero, P1, 4, [nova, energyCard]))), firstLegal, undefined, MSM_DEPS);
+    const withNova = settle(
+      runMsm(hero, play(P1, nova, payWith(hero, P1, 4, [nova, energyCard]))),
+      firstLegal,
+      undefined,
+      MSM_DEPS,
+    );
     const villain = activeVillain(withNova).instanceId;
     const hpBefore = remainingHitPoints(withNova, villain);
     const option = `${nova}:05012.nova-interrupt`;
@@ -82,7 +101,9 @@ describe("Ms. Marvel pack cards", () => {
     // "playableFrom discard" from everything else that could put a card there.
     const inDiscard = {
       ...given.state,
-      players: given.state.players.map((p) => (p.playerId === P1 ? { ...p, hand: p.hand.filter((id) => id !== lockjaw), discard: [...p.discard, lockjaw] } : p)),
+      players: given.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: p.hand.filter((id) => id !== lockjaw), discard: [...p.discard, lockjaw] } : p,
+      ),
     };
     const hero = runMsm(inDiscard, toHero());
     const after = settle(runMsm(hero, play(P1, lockjaw, filler)), firstLegal, undefined, MSM_DEPS);
@@ -95,7 +116,12 @@ describe("Ms. Marvel pack cards", () => {
     const given = moveToHand(start, P1, "05023");
     const [endurance] = given.ids as [never];
     const before = characterProfile(given.state, identityOf(given.state), MSM_DEPS)!.maxHp;
-    const after = settle(runMsm(given.state, play(P1, endurance, payWith(given.state, P1, 1, [endurance]))), firstLegal, undefined, MSM_DEPS);
+    const after = settle(
+      runMsm(given.state, play(P1, endurance, payWith(given.state, P1, 1, [endurance]))),
+      firstLegal,
+      undefined,
+      MSM_DEPS,
+    );
     expect(characterProfile(after, identityOf(after), MSM_DEPS)!.maxHp).toBe(before + 3);
   });
 

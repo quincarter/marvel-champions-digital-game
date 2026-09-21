@@ -15,14 +15,7 @@
 
 import type { CorePlayer } from "@mc/cards";
 import type { AnyCard } from "@mc/content";
-import type {
-  Command,
-  EngineError,
-  GameEvent,
-  GameState,
-  LegalActions,
-  PlayerId,
-} from "@mc/engine";
+import type { Command, EngineError, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta } from "./game-storage.js";
 

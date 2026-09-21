@@ -43,11 +43,19 @@ export function parseHeroArt(files: Readonly<Record<string, string>>): HeroArtCa
 }
 
 /** A hero's own artwork by identity card id, or null when there is none — every screen draws fine without it. */
-export function heroArtFor(catalog: HeroArtCatalog, identityId: string, random: () => number = Math.random): Picture | null {
+export function heroArtFor(
+  catalog: HeroArtCatalog,
+  identityId: string,
+  random: () => number = Math.random,
+): Picture | null {
   return pickPicture(catalog.heroes.get(identityId) ?? [], null, random);
 }
 
-const files = import.meta.glob("../../../../art/heroes/*/*.{png,jpg,jpeg,webp,avif}", { eager: true, query: "?url", import: "default" }) as Record<string, string>;
+const files = import.meta.glob("../../../../art/heroes/*/*.{png,jpg,jpeg,webp,avif}", {
+  eager: true,
+  query: "?url",
+  import: "default",
+}) as Record<string, string>;
 
 /** Everything in `art/heroes/`. */
 export const HERO_ART: HeroArtCatalog = parseHeroArt(files);

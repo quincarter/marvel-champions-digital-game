@@ -19,7 +19,18 @@ import { activeEncounterDeck, mustInstance, mustPlayer } from "./query.js";
 import { matchesQuery } from "./select.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubResource, stubSideScheme, stubSupport, stubTreachery, stubUpgrade, stubVillain } from "./testing/fixtures.js";
+import {
+  stubAlly,
+  stubEvent,
+  stubIdentity,
+  stubMainScheme,
+  stubResource,
+  stubSideScheme,
+  stubSupport,
+  stubTreachery,
+  stubUpgrade,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { giveCards, newGame, RESOURCE, runWith, settle, settleUntil, withEncounterPiles } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -36,7 +47,10 @@ const play = (id: InstanceId, payment: readonly Payment[] = []): Command => ({
 });
 
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
-const SCHEME = stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(0), targetThreat: flat(40), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "scheme",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(40), acceleration: flat(0) }],
+});
 
 interface Setup {
   readonly cards?: readonly AnyCard[];
@@ -46,9 +60,15 @@ interface Setup {
   readonly deck?: readonly CardId[];
 }
 
-function setup({ cards = [], abilities = [], villain, encounter, deck }: Setup): { deps: EngineDeps; state: GameState } {
+function setup({ cards = [], abilities = [], villain, encounter, deck }: Setup): {
+  deps: EngineDeps;
+  state: GameState;
+} {
   const deps = depsOf(...abilities);
-  const playable = cards.filter((c) => c.type === "event" || c.type === "upgrade" || c.type === "ally" || c.type === "support" || c.type === "resource");
+  const playable = cards.filter(
+    (c) =>
+      c.type === "event" || c.type === "upgrade" || c.type === "ally" || c.type === "support" || c.type === "resource",
+  );
   const state = newGame({
     villain: villain ?? stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 2, sch: 0 }] }),
     mainScheme: SCHEME,
@@ -76,10 +96,20 @@ describe("§18.1 `overpaid.*` read from a `cardEntersPlay` interrupt on the card
   const ENERGY = stubResource({ id: "nrg", icons: 0, produces: { energy: 1 } });
 
   const counters = (id: string, name: string, max: number) =>
-    stubAbility(id, def({
-      trigger: { kind: "interrupt", forced: true, on: { on: "cardEntersPlay", selfIs: "target" } },
-      effects: [{ kind: "addCounters", target: { kind: "self" }, counterType: "pym", amount: { kind: "scaled", value: { kind: "var", name }, max } }],
-    }));
+    stubAbility(
+      id,
+      def({
+        trigger: { kind: "interrupt", forced: true, on: { on: "cardEntersPlay", selfIs: "target" } },
+        effects: [
+          {
+            kind: "addCounters",
+            target: { kind: "self" },
+            counterType: "pym",
+            amount: { kind: "scaled", value: { kind: "var", name }, max },
+          },
+        ],
+      }),
+    );
 
   const totalAbility = counters("pym.total", "overpaid.total", 4);
   const PYM = stubAlly({ id: "pym", cost: 1, atk: 1, thw: 1, hp: 3, abilities: [totalAbility.ref] });
@@ -96,7 +126,18 @@ describe("§18.1 `overpaid.*` read from a `cardEntersPlay` interrupt on the card
     const given = giveCards(state, p1, card.id, ...wallet);
     const [ally, ...paid] = given.ids;
     if (!ally) throw new Error("no ally");
-    const after = settle(runWith(deps, given.state, play(ally, paid.map((id) => ({ fromHand: id })))), undefined, deps);
+    const after = settle(
+      runWith(
+        deps,
+        given.state,
+        play(
+          ally,
+          paid.map((id) => ({ fromHand: id })),
+        ),
+      ),
+      undefined,
+      deps,
+    );
     return mustInstance(after, ally).counters.pym ?? 0;
   }
 
@@ -128,24 +169,33 @@ describe("§18.1 `overpaid.*` read from a `cardEntersPlay` interrupt on the card
  * exactly "up to" (RRG 1.8 "Choose (Game Element)", p. 12).
  */
 describe("§18.2 `chooseTarget.count` as a live value, with `optional` for 'up to'", () => {
-  const muster = stubAbility("muster.action", def({
-    trigger: { kind: "action", form: "hero" },
-    effects: [
-      {
-        kind: "chooseTarget",
-        slot: "brave",
-        query: { categories: ["hero", "ally"], controller: "any" },
-        chooser: { kind: "controller" },
-        count: { kind: "scaled", value: { kind: "villainStageNumber" }, max: 3 },
-        optional: true,
-      },
-      { kind: "giveStatus", target: { kind: "slot", slot: "brave" }, status: "tough" },
-    ],
-  }));
+  const muster = stubAbility(
+    "muster.action",
+    def({
+      trigger: { kind: "action", form: "hero" },
+      effects: [
+        {
+          kind: "chooseTarget",
+          slot: "brave",
+          query: { categories: ["hero", "ally"], controller: "any" },
+          chooser: { kind: "controller" },
+          count: { kind: "scaled", value: { kind: "villainStageNumber" }, max: 3 },
+          optional: true,
+        },
+        { kind: "giveStatus", target: { kind: "slot", slot: "brave" }, status: "tough" },
+      ],
+    }),
+  );
   const MUSTER = stubEvent({ id: "muster", cost: 0, abilities: [muster.ref] });
   const BUDDY = stubAlly({ id: "buddy", cost: 0, atk: 1, thw: 1, hp: 3 });
   /** Stage I has 1 hit point, so one basic attack advances the villain and changes what "X" reads. */
-  const TWO_STAGE = stubVillain({ id: "two-stage", stages: [{ hp: flat(1), atk: 0, sch: 0 }, { hp: flat(40), atk: 0, sch: 0 }] });
+  const TWO_STAGE = stubVillain({
+    id: "two-stage",
+    stages: [
+      { hp: flat(1), atk: 0, sch: 0 },
+      { hp: flat(40), atk: 0, sch: 0 },
+    ],
+  });
 
   /** Hero form, two allies out, Muster Courage in hand. */
   function board(): { deps: EngineDeps; state: GameState; muster: InstanceId } {
@@ -187,7 +237,12 @@ describe("§18.2 `chooseTarget.count` as a live value, with `optional` for 'up t
     const choice = prompted.pendingChoice;
     if (!choice) throw new Error("no choice");
     const after = settle(
-      runWith(deps, prompted, { type: "resolveChoice", playerId: p1, choiceId: choice.choiceId, selectedOptionIds: [] }),
+      runWith(deps, prompted, {
+        type: "resolveChoice",
+        playerId: p1,
+        choiceId: choice.choiceId,
+        selectedOptionIds: [],
+      }),
       undefined,
       deps,
     );
@@ -209,26 +264,43 @@ describe("§18.2 `chooseTarget.count` as a live value, with `optional` for 'up t
 describe("§18.3 `anyOf(zone, ref(each(query)))`: one pool across hand/deck/discard and the play area", () => {
   const MOCKINGBIRD = stubAlly({ id: "mockingbird", cost: 0, atk: 2, thw: 2, hp: 3 });
 
-  const search = stubAbility("marked.when-revealed", def({
-    trigger: { kind: "whenRevealed" },
-    effects: [
-      {
-        kind: "chooseCards",
-        slot: "found",
-        chooser: { kind: "eventPlayer" },
-        min: 1,
-        max: 1,
-        from: {
-          kind: "anyOf",
-          of: [
-            { kind: "zone", zone: ["hand", "deck", "discard"], player: { kind: "eventPlayer" }, filter: { name: MOCKINGBIRD.name } },
-            { kind: "ref", ref: { kind: "each", query: { categories: ["ally"], controller: "any" } }, filter: { name: MOCKINGBIRD.name } },
-          ],
+  const search = stubAbility(
+    "marked.when-revealed",
+    def({
+      trigger: { kind: "whenRevealed" },
+      effects: [
+        {
+          kind: "chooseCards",
+          slot: "found",
+          chooser: { kind: "eventPlayer" },
+          min: 1,
+          max: 1,
+          from: {
+            kind: "anyOf",
+            of: [
+              {
+                kind: "zone",
+                zone: ["hand", "deck", "discard"],
+                player: { kind: "eventPlayer" },
+                filter: { name: MOCKINGBIRD.name },
+              },
+              {
+                kind: "ref",
+                ref: { kind: "each", query: { categories: ["ally"], controller: "any" } },
+                filter: { name: MOCKINGBIRD.name },
+              },
+            ],
+          },
         },
-      },
-      { kind: "tuckCards", cards: { kind: "ref", ref: { kind: "slot", slot: "found" } }, under: { kind: "self" }, facedown: false },
-    ],
-  }));
+        {
+          kind: "tuckCards",
+          cards: { kind: "ref", ref: { kind: "slot", slot: "found" } },
+          under: { kind: "self" },
+          facedown: false,
+        },
+      ],
+    }),
+  );
   const MARKED = stubSideScheme({ id: "marked", startingThreat: 5, boostIcons: 0, abilities: [search.ref] });
 
   const table = () =>
@@ -240,11 +312,14 @@ describe("§18.3 `anyOf(zone, ref(each(query)))`: one pool across hand/deck/disc
     });
 
   const markedInPlay = (state: GameState): InstanceId => {
-    const found = Object.values(state.instances).find((i) => i.cardId === MARKED.id && state.villainArea.includes(i.instanceId));
+    const found = Object.values(state.instances).find(
+      (i) => i.cardId === MARKED.id && state.villainArea.includes(i.instanceId),
+    );
     if (!found) throw new Error("Marked for Death is not in play");
     return found.instanceId;
   };
-  const tuckedUnderMarked = (state: GameState): readonly InstanceId[] => mustInstance(state, markedInPlay(state)).tucked;
+  const tuckedUnderMarked = (state: GameState): readonly InstanceId[] =>
+    mustInstance(state, markedInPlay(state)).tucked;
 
   it("finds the card in the player's deck and tucks it faceup", () => {
     const { deps, state } = table();
@@ -287,11 +362,14 @@ describe("§19 `AbilityCost.discardFromHand.filter`", () => {
   /** A printed wild icon is only ever "wild" (RRG 1.8 "Wild Resource", p. 48), so it never pays a [physical] cost. */
   const WILD = stubResource({ id: "wild19", icons: 1 });
 
-  const purge = stubAbility("purge.action", def({
-    trigger: { kind: "action", form: "hero" },
-    cost: { discardFromHand: { min: 1, max: 1, bind: "paid", filter: { printedResource: "physical" } } },
-    effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "var", name: "paid" } }],
-  }));
+  const purge = stubAbility(
+    "purge.action",
+    def({
+      trigger: { kind: "action", form: "hero" },
+      cost: { discardFromHand: { min: 1, max: 1, bind: "paid", filter: { printedResource: "physical" } } },
+      effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "var", name: "paid" } }],
+    }),
+  );
   const PURGE = stubSupport({ id: "purge", cost: 0, abilities: [purge.ref] });
 
   /** Hero form, Purge in play, and exactly the named resource cards in hand. */
@@ -306,7 +384,10 @@ describe("§19 `AbilityCost.discardFromHand.filter`", () => {
     let out = settle(runWith(deps, given.state, toHero, play(support)), undefined, deps);
     // Drop everything else, so the hand holds exactly the cards this test named.
     const keep = new Set(given.ids.slice(1));
-    out = { ...out, players: out.players.map((p) => (p.playerId === p1 ? { ...p, hand: p.hand.filter((id) => keep.has(id)) } : p)) };
+    out = {
+      ...out,
+      players: out.players.map((p) => (p.playerId === p1 ? { ...p, hand: p.hand.filter((id) => keep.has(id)) } : p)),
+    };
     return { deps, state: out, purge: support };
   }
 
@@ -385,23 +466,36 @@ describe("§20.1 `TargetQuery.sharesTraitWith`", () => {
   const XMEN = trait("X-MEN");
   const SPY = trait("SPY");
 
-  const AVENGER_HERO = stubIdentity({ id: "avenger-hero", hp: 10, atk: 2, thw: 2, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6, heroTraits: [AVENGER, SPY] });
+  const AVENGER_HERO = stubIdentity({
+    id: "avenger-hero",
+    hp: 10,
+    atk: 2,
+    thw: 2,
+    def: 2,
+    rec: 3,
+    heroHandSize: 5,
+    alterEgoHandSize: 6,
+    heroTraits: [AVENGER, SPY],
+  });
   const SHARED = stubAlly({ id: "shared", cost: 2, atk: 1, thw: 1, hp: 2, traits: [AVENGER] });
   const ALSO_SHARED = stubAlly({ id: "also-shared", cost: 2, atk: 1, thw: 1, hp: 2, traits: [XMEN, SPY] });
   const UNSHARED = stubAlly({ id: "unshared", cost: 2, atk: 1, thw: 1, hp: 2, traits: [XMEN] });
   const TRAITLESS = stubAlly({ id: "traitless", cost: 2, atk: 1, thw: 1, hp: 2 });
 
-  const exercise = stubAbility("exercise.action", def({
-    trigger: { kind: "action" },
-    effects: [
-      {
-        kind: "playFromHand",
-        player: { kind: "controller" },
-        costReduction: { kind: "const", value: 1 },
-        filter: { sharesTraitWith: { kind: "identityOf", player: { kind: "controller" } } },
-      },
-    ],
-  }));
+  const exercise = stubAbility(
+    "exercise.action",
+    def({
+      trigger: { kind: "action" },
+      effects: [
+        {
+          kind: "playFromHand",
+          player: { kind: "controller" },
+          costReduction: { kind: "const", value: 1 },
+          filter: { sharesTraitWith: { kind: "identityOf", player: { kind: "controller" } } },
+        },
+      ],
+    }),
+  );
   const EXERCISE = stubEvent({ id: "exercise", cost: 0, abilities: [exercise.ref] });
 
   /** Every hand card the "play a card that shares a trait with your hero" step would offer. */
@@ -413,9 +507,26 @@ describe("§20.1 `TargetQuery.sharesTraitWith`", () => {
       mainScheme: SCHEME,
       extraCards: [BLANK, EXERCISE, SHARED, ALSO_SHARED, UNSHARED, TRAITLESS],
       encounterDeck: copies(BLANK.id, 20),
-      deck: [...copies(EXERCISE.id, 2), ...copies(SHARED.id, 2), ...copies(ALSO_SHARED.id, 2), ...copies(UNSHARED.id, 2), ...copies(TRAITLESS.id, 2), ...copies(RESOURCE.id, 12)],
+      deck: [
+        ...copies(EXERCISE.id, 2),
+        ...copies(SHARED.id, 2),
+        ...copies(ALSO_SHARED.id, 2),
+        ...copies(UNSHARED.id, 2),
+        ...copies(TRAITLESS.id, 2),
+        ...copies(RESOURCE.id, 12),
+      ],
     });
-    const given = giveCards(state, p1, EXERCISE.id, SHARED.id, ALSO_SHARED.id, UNSHARED.id, TRAITLESS.id, RESOURCE.id, RESOURCE.id);
+    const given = giveCards(
+      state,
+      p1,
+      EXERCISE.id,
+      SHARED.id,
+      ALSO_SHARED.id,
+      UNSHARED.id,
+      TRAITLESS.id,
+      RESOURCE.id,
+      RESOURCE.id,
+    );
     const event = given.ids[0] as InstanceId;
     const prompted = settleUntil(runWith(deps, given.state, toHero, play(event)), "chooseCards", deps);
     const choice = prompted.pendingChoice;
@@ -455,12 +566,21 @@ describe("§20.2 `TargetQuery.encounterSetOf`", () => {
   /** In no set at all (an obligation, a basic-encounter card). */
   const UNSET = stubTreachery({ id: "unset", boostIcons: 0 });
 
-  const search = stubAbility("plan.action", def({
-    trigger: { kind: "action", form: "hero" },
-    effects: [{ kind: "discardEncounterUntil", filter: { encounterSetOf: { kind: "self" } }, bind: "found" }],
-  }));
+  const search = stubAbility(
+    "plan.action",
+    def({
+      trigger: { kind: "action", form: "hero" },
+      effects: [{ kind: "discardEncounterUntil", filter: { encounterSetOf: { kind: "self" } }, bind: "found" }],
+    }),
+  );
   /** The searching card: a side scheme, so it stays in play and its Hero Action can be triggered on demand. */
-  const PLAN = stubSideScheme({ id: "plan", startingThreat: 9, boostIcons: 0, encounterSetIds: [NEMESIS], abilities: [search.ref] });
+  const PLAN = stubSideScheme({
+    id: "plan",
+    startingThreat: 9,
+    boostIcons: 0,
+    encounterSetIds: [NEMESIS],
+    abilities: [search.ref],
+  });
 
   const deps = depsOf(search);
   const ENCOUNTER: readonly CardId[] = [...copies(PLAN.id, 17), THEIRS.id, UNSET.id, MINE.id];
@@ -480,7 +600,12 @@ describe("§20.2 `TargetQuery.encounterSetOf`", () => {
 
   /** A game whose villain phase has revealed the searching side scheme into play. */
   function inPlay(): { state: GameState; plan: InstanceId } {
-    const fresh = newGame({ deps, mainScheme: SCHEME, extraCards: [BLANK, PLAN, MINE, THEIRS, UNSET], encounterDeck: ENCOUNTER });
+    const fresh = newGame({
+      deps,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, PLAN, MINE, THEIRS, UNSET],
+      encounterDeck: ENCOUNTER,
+    });
     // Every card the villain phase touches (boost cards, then the dealt card) is a copy of the side scheme, so the
     // reveal is deterministic without depending on the setup shuffle.
     const stacked = arrange(fresh, copies(PLAN.id, 17));
@@ -513,7 +638,13 @@ describe("§20.2 `TargetQuery.encounterSetOf`", () => {
     const ordered = arrange(state, [THEIRS.id, UNSET.id, MINE.id]);
     const before = activeEncounterDeck(ordered).discard.length;
     const after = settle(
-      runWith(deps, ordered, { type: "useAbility", playerId: p1, cardInstanceId: plan, abilityId: search.ref.id, payment: [] }),
+      runWith(deps, ordered, {
+        type: "useAbility",
+        playerId: p1,
+        cardInstanceId: plan,
+        abilityId: search.ref.id,
+        payment: [],
+      }),
       undefined,
       deps,
     );
@@ -536,33 +667,53 @@ describe("§20.2 `TargetQuery.encounterSetOf`", () => {
  * `readyAndAnnounce` once the card has actually gone from exhausted to ready.
  */
 describe("§21 the `cardReadied` announcement", () => {
-  const resistance = stubAbility("resistance.response", def({
-    trigger: { kind: "response", forced: true, form: "hero", on: { on: "cardReadied", targetIs: { categories: ["identity"], controller: "you" } } },
-    effects: [
-      { kind: "ready", target: { kind: "self" } },
-      // Not printed on the card: a tally, so "the response fired" stays observable even when something else would
-      // have readied the upgrade anyway (the end-of-phase step).
-      { kind: "addCounters", target: { kind: "self" }, counterType: "fired", amount: { kind: "const", value: 1 } },
-    ],
-  }));
+  const resistance = stubAbility(
+    "resistance.response",
+    def({
+      trigger: {
+        kind: "response",
+        forced: true,
+        form: "hero",
+        on: { on: "cardReadied", targetIs: { categories: ["identity"], controller: "you" } },
+      },
+      effects: [
+        { kind: "ready", target: { kind: "self" } },
+        // Not printed on the card: a tally, so "the response fired" stays observable even when something else would
+        // have readied the upgrade anyway (the end-of-phase step).
+        { kind: "addCounters", target: { kind: "self" }, counterType: "fired", amount: { kind: "const", value: 1 } },
+      ],
+    }),
+  );
   const RESISTANCE = stubUpgrade({ id: "resistance", cost: 0, abilities: [resistance.ref] });
 
-  const surge = stubAbility("surge.action", def({
-    trigger: { kind: "action", form: "hero" },
-    effects: [{ kind: "ready", target: { kind: "identityOf", player: { kind: "controller" } } }],
-  }));
+  const surge = stubAbility(
+    "surge.action",
+    def({
+      trigger: { kind: "action", form: "hero" },
+      effects: [{ kind: "ready", target: { kind: "identityOf", player: { kind: "controller" } } }],
+    }),
+  );
   const SURGE = stubEvent({ id: "surge", cost: 0, abilities: [surge.ref] });
 
   /** "… cannot ready" on the hero (All Tied Up), as a constant rule on a support in play. */
-  const tied = stubAbility("tied.constant", def({
-    trigger: { kind: "constant", rules: [{ kind: "cannotReady", target: { categories: ["identity"], controller: "any" } }] },
-    effects: [],
-  }));
+  const tied = stubAbility(
+    "tied.constant",
+    def({
+      trigger: {
+        kind: "constant",
+        rules: [{ kind: "cannotReady", target: { categories: ["identity"], controller: "any" } }],
+      },
+      effects: [],
+    }),
+  );
   const TIED = stubSupport({ id: "tied", cost: 0, abilities: [tied.ref] });
 
   /** Hero form, Friction Resistance out and exhausted, the hero exhausted, plus whatever else is asked for. */
   function board(extra: readonly AnyCard[] = [], extraAbilities: readonly StubAbility[] = []) {
-    const { deps, state } = setup({ cards: [RESISTANCE, SURGE, ...extra], abilities: [resistance, surge, ...extraAbilities] });
+    const { deps, state } = setup({
+      cards: [RESISTANCE, SURGE, ...extra],
+      abilities: [resistance, surge, ...extraAbilities],
+    });
     const given = giveCards(state, p1, RESISTANCE.id, SURGE.id, ...extra.map((c) => c.id));
     const [upgrade, event, ...rest] = given.ids as readonly InstanceId[];
     if (!upgrade || !event) throw new Error("fixture");
@@ -600,7 +751,10 @@ describe("§21 the `cardReadied` announcement", () => {
 
   it("does not fire for a card that was already ready", () => {
     const { deps, state, upgrade, event, hero } = board();
-    const ready = { ...state, instances: { ...state.instances, [hero]: { ...mustInstance(state, hero), exhausted: false } } };
+    const ready = {
+      ...state,
+      instances: { ...state.instances, [hero]: { ...mustInstance(state, hero), exhausted: false } },
+    };
     const after = settle(runWith(deps, ready, play(event)), undefined, deps);
     expect(firings(after, upgrade)).toBe(0);
   });
@@ -628,19 +782,35 @@ describe("§21 the `cardReadied` announcement", () => {
  * created the lasting effect is in play".
  */
 describe("§22 `applyRuleUntil`: a `RuleSpec` that outlives its card", () => {
-  const noForm = stubAbility("cassie.action", def({
-    trigger: { kind: "action" },
-    effects: [{ kind: "applyRuleUntil", rule: { kind: "cannotChangeForm", player: { kind: "controller" } }, until: "endOfNextTurn" }],
-  }));
+  const noForm = stubAbility(
+    "cassie.action",
+    def({
+      trigger: { kind: "action" },
+      effects: [
+        {
+          kind: "applyRuleUntil",
+          rule: { kind: "cannotChangeForm", player: { kind: "controller" } },
+          until: "endOfNextTurn",
+        },
+      ],
+    }),
+  );
   const CASSIE = stubEvent({ id: "cassie", cost: 0, abilities: [noForm.ref] });
 
-  const noReady = stubAbility("speed.action", def({
-    trigger: { kind: "action" },
-    effects: [
-      { kind: "exhaust", target: { kind: "identityOf", player: { kind: "controller" } } },
-      { kind: "applyRuleUntil", rule: { kind: "cannotReady", target: { categories: ["identity"], controller: "you" } }, until: "endOfNextTurn" },
-    ],
-  }));
+  const noReady = stubAbility(
+    "speed.action",
+    def({
+      trigger: { kind: "action" },
+      effects: [
+        { kind: "exhaust", target: { kind: "identityOf", player: { kind: "controller" } } },
+        {
+          kind: "applyRuleUntil",
+          rule: { kind: "cannotReady", target: { categories: ["identity"], controller: "you" } },
+          until: "endOfNextTurn",
+        },
+      ],
+    }),
+  );
   const SPEED = stubEvent({ id: "speed", cost: 0, abilities: [noReady.ref] });
 
   /**
@@ -648,15 +818,24 @@ describe("§22 `applyRuleUntil`: a `RuleSpec` that outlives its card", () => {
    * villain-phase encounter-card reveal). Delayed to the end of the round so the moment is deterministic and the
    * encounter deck stays out of it.
    */
-  const delayed = stubAbility("delayed.action", def({
-    trigger: { kind: "action" },
-    effects: [
-      {
-        kind: "atEndOfRound",
-        effects: [{ kind: "applyRuleUntil", rule: { kind: "cannotChangeForm", player: { kind: "controller" } }, until: "endOfNextTurn" }],
-      },
-    ],
-  }));
+  const delayed = stubAbility(
+    "delayed.action",
+    def({
+      trigger: { kind: "action" },
+      effects: [
+        {
+          kind: "atEndOfRound",
+          effects: [
+            {
+              kind: "applyRuleUntil",
+              rule: { kind: "cannotChangeForm", player: { kind: "controller" } },
+              until: "endOfNextTurn",
+            },
+          ],
+        },
+      ],
+    }),
+  );
   const DELAYED = stubEvent({ id: "delayed", cost: 0, abilities: [delayed.ref] });
 
   const canChangeForm = (state: GameState, deps: EngineDeps): boolean => applyCommand(state, toHero, deps).ok;
@@ -715,10 +894,19 @@ describe("§22 `applyRuleUntil`: a `RuleSpec` that outlives its card", () => {
   });
 
   it("freezes the rule's player ref, one effect per player, each on that player's own clock", () => {
-    const everyone = stubAbility("everyone.action", def({
-      trigger: { kind: "action" },
-      effects: [{ kind: "applyRuleUntil", rule: { kind: "cannotChangeForm", player: { kind: "each" } }, until: "endOfNextTurn" }],
-    }));
+    const everyone = stubAbility(
+      "everyone.action",
+      def({
+        trigger: { kind: "action" },
+        effects: [
+          {
+            kind: "applyRuleUntil",
+            rule: { kind: "cannotChangeForm", player: { kind: "each" } },
+            until: "endOfNextTurn",
+          },
+        ],
+      }),
+    );
     const EVERYONE = stubEvent({ id: "everyone", cost: 0, abilities: [everyone.ref] });
     const deps = depsOf(everyone);
     const twoPlayer = newGame({
@@ -736,7 +924,10 @@ describe("§22 `applyRuleUntil`: a `RuleSpec` that outlives its card", () => {
     // One lasting effect per player, each naming its player outright rather than re-asking a ref later.
     const grants = played.lastingEffects.filter((e) => e.kind === "ruleGrant");
     expect(grants).toHaveLength(2);
-    expect(grants.map((e) => (e.duration.kind === "endOfPlayerTurn" ? e.duration.playerId : null)).sort()).toEqual([p1, p2]);
+    expect(grants.map((e) => (e.duration.kind === "endOfPlayerTurn" ? e.duration.playerId : null)).sort()).toEqual([
+      p1,
+      p2,
+    ]);
     expect(applyCommand(played, toHero, deps).ok).toBe(false);
 
     // p1's was made during p1's own turn, so it waits for p1's *next* turn; p2's turn is still to come this round,

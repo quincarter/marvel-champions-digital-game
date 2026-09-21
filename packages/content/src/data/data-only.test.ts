@@ -3,11 +3,7 @@
  * for the deck builder to show, but are not playable yet (no ability scripts exist for them in `@mc/cards`).
  * See docs/phase7-wave2-data.md for the full 56-pack survey and what's left for the other ~41 packs.
  */
-import {
-  validateCard,
-  type AnyCard,
-  type HeroIdentityCard,
-} from "../schema/index.js";
+import { validateCard, type AnyCard, type HeroIdentityCard } from "../schema/index.js";
 import {
   DATA_ONLY_CARDS,
   DATA_ONLY_ENCOUNTER_SETS,
@@ -82,7 +78,11 @@ import { CORE_CARDS } from "./core/index.js";
 import { WAVE1_CARDS } from "./index.js";
 import { WAVE2_CARDS } from "./index.js";
 
-const PACKS: readonly { readonly code: string; readonly cards: readonly AnyCard[]; readonly pack: { readonly cycleId: string; readonly releaseDate?: string } }[] = [
+const PACKS: readonly {
+  readonly code: string;
+  readonly cards: readonly AnyCard[];
+  readonly pack: { readonly cycleId: string; readonly releaseDate?: string };
+}[] = [
   { code: "bp", cards: BP_CARDS, pack: BP_PACK },
   { code: "cyclops", cards: CYCLOPS_CARDS, pack: CYCLOPS_PACK },
   { code: "gambit", cards: GAMBIT_CARDS, pack: GAMBIT_PACK },
@@ -120,8 +120,9 @@ const PACKS: readonly { readonly code: string; readonly cards: readonly AnyCard[
 
 describe("data-only pool — integrity", () => {
   it("every emitted card passes validateCard()", () => {
-    const failures = DATA_ONLY_CARDS.map((c) => ({ id: c.id, errors: validateCard(c).errors }))
-      .filter((f) => f.errors.length > 0);
+    const failures = DATA_ONLY_CARDS.map((c) => ({ id: c.id, errors: validateCard(c).errors })).filter(
+      (f) => f.errors.length > 0,
+    );
     expect(failures).toEqual([]);
   });
 
@@ -137,10 +138,13 @@ describe("data-only pool — integrity", () => {
     for (const c of DATA_ONLY_CARDS) expect(known.has(c.id as string), c.id as string).toBe(false);
   });
 
-  it.each(PACKS.map((p) => [p.code, p] as const))("%s: every card belongs to its own pack, and the pack has a real release date", (code, pack) => {
-    for (const c of pack.cards) expect(c.setCode, c.id as string).toBe(code);
-    expect(pack.pack.releaseDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
-  });
+  it.each(PACKS.map((p) => [p.code, p] as const))(
+    "%s: every card belongs to its own pack, and the pack has a real release date",
+    (code, pack) => {
+      for (const c of pack.cards) expect(c.setCode, c.id as string).toBe(code);
+      expect(pack.pack.releaseDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    },
+  );
 
   it("cycle grouping matches the Hall of Heroes card database navigation (https://hallofheroeslcg.com/browse/)", () => {
     const cycleOf = (code: string) => PACKS.find((p) => p.code === code)?.pack.cycleId;
@@ -150,7 +154,8 @@ describe("data-only pool — integrity", () => {
     for (const code of ["nebu", "warm", "vision", "hood", "valk"]) expect(cycleOf(code), code).toBe("cycle4");
     // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue, Mojo Mania, Storm (Phoenix is not in this pool yet —
     // blocked, see curation/phoenix.ts).
-    for (const code of ["cyclops", "gambit", "wolv", "rogue", "mojo", "storm"]) expect(cycleOf(code), code).toBe("cycle6");
+    for (const code of ["cyclops", "gambit", "wolv", "rogue", "mojo", "storm"])
+      expect(cycleOf(code), code).toBe("cycle6");
     // Cycle 7: X-23, Deadpool, Angel, Psylocke.
     for (const code of ["x23", "deadpool", "angel", "psylocke"]) expect(cycleOf(code), code).toBe("cycle7");
     // Cycle 8: Nightcrawler, Magneto, Iceman, Jubilee.

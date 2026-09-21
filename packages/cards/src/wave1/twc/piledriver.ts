@@ -77,12 +77,20 @@ const PILEDRIVER = query("villain", { name: "Piledriver" });
 export const PILEDRIVER_SET = defineAbilities({
   // Piledriver (I/II) — [star] When Piledriver schemes, place the threat on his side scheme instead of the main
   // scheme.
-  "07032.piledriver-constant": constant(rule({ kind: "schemeThreatDestination", enemy: PILEDRIVER, scheme: "ownSignatureSideScheme" })),
-  "07033.piledriver-constant": constant(rule({ kind: "schemeThreatDestination", enemy: PILEDRIVER, scheme: "ownSignatureSideScheme" })),
+  "07032.piledriver-constant": constant(
+    rule({ kind: "schemeThreatDestination", enemy: PILEDRIVER, scheme: "ownSignatureSideScheme" }),
+  ),
+  "07033.piledriver-constant": constant(
+    rule({ kind: "schemeThreatDestination", enemy: PILEDRIVER, scheme: "ownSignatureSideScheme" }),
+  ),
 
   // Pile It On! — Piledriver's Side Scheme. This card cannot leave play while Piledriver is in play.
-  "07034.pile-it-on-constant": constant(rule({ kind: "cannotLeavePlay", target: query("sideScheme", { name: "Pile It On!" }), while: exists(PILEDRIVER) })),
-  "07034.pile-it-on-constant-2": constant(rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Pile It On!" }) })),
+  "07034.pile-it-on-constant": constant(
+    rule({ kind: "cannotLeavePlay", target: query("sideScheme", { name: "Pile It On!" }), while: exists(PILEDRIVER) }),
+  ),
+  "07034.pile-it-on-constant-2": constant(
+    rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Pile It On!" }) }),
+  ),
   // Pile Drive — Forced Response: After threat is placed here, if there is 10 or more threat here, each player
   // discards the upgrade or support they control with the highest cost. Remove all but 3 threat from this scheme.
   // `threatAtLeast` (wave B primitives batch, docs/phase7-wave1-scripting.md §6) is the same live-threat-vs-
@@ -95,7 +103,14 @@ export const PILEDRIVER_SET = defineAbilities({
       forEachPlayer(
         eachPlayer,
         ifThen(exists(query(["upgrade", "support"], { controlledBy: thatPlayer })), [
-          bindTargets("pd", superlative("highest", each(query(["upgrade", "support"], { controlledBy: thatPlayer })), printedCostOf(chosen("candidate")))),
+          bindTargets(
+            "pd",
+            superlative(
+              "highest",
+              each(query(["upgrade", "support"], { controlledBy: thatPlayer })),
+              printedCostOf(chosen("candidate")),
+            ),
+          ),
           chooseTarget("burned", { inSlot: "pd" }, { chooser: thatPlayer }),
           discard(chosen("burned")),
         ]),
@@ -117,16 +132,29 @@ export const PILEDRIVER_SET = defineAbilities({
   ),
 
   // Held Hostage — same text as Wrecker's copy (07005).
-  "07036.held-hostage-constant": constant(rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" })),
+  "07036.held-hostage-constant": constant(
+    rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" }),
+  ),
   "07036.held-hostage-action": heroAction(enemyAttack(villainOfSideScheme(host), { against: you }), discard(self)),
 
   // Escaped Convict — same text as Wrecker's copy (07009).
-  "07038.boost": boost(setActiveVillain(leastThreatVillain), ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you))),
+  "07038.boost": boost(
+    setActiveVillain(leastThreatVillain),
+    ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you)),
+  ),
 
   // Buddy System — same text as Wrecker's copy (07010).
   "07039.when-revealed": whenRevealed(
     pickVillainBy("lowest"),
-    selectCards("looked", encounterCards(["deck"], undefined, ifElse(not(exists(query("villain", { excludeSlots: [VILLAIN_PICK_SLOT] }))), 2, 1), pickedVillain)),
+    selectCards(
+      "looked",
+      encounterCards(
+        ["deck"],
+        undefined,
+        ifElse(not(exists(query("villain", { excludeSlots: [VILLAIN_PICK_SLOT] }))), 2, 1),
+        pickedVillain,
+      ),
+    ),
     revealCard(chosen("looked")),
   ),
   "07039.boost": boost(setActiveVillain(leastThreatVillain)),
@@ -144,20 +172,31 @@ export const PILEDRIVER_SET = defineAbilities({
   "07042.when-revealed": whenRevealed(
     ifThen(
       exists(query("support", { controller: "you" })),
-      discard(superlative("highest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate")), { ties: "first" })),
+      discard(
+        superlative("highest", each(query("support", { controller: "you" })), printedCostOf(chosen("candidate")), {
+          ties: "first",
+        }),
+      ),
       placeThreat(2, signatureSideSchemeOf(theVillain)),
     ),
   ),
   // [star] Boost: Discard a support you control.
   "07042.boost": boost(
-    ifThen(exists(query("support", { controller: "you" })), [chooseTarget("oversized-hands-support", query("support", { controller: "you" })), discard(chosen("oversized-hands-support"))]),
+    ifThen(exists(query("support", { controller: "you" })), [
+      chooseTarget("oversized-hands-support", query("support", { controller: "you" })),
+      discard(chosen("oversized-hands-support")),
+    ]),
   ),
 
   // Escape Plan — When Revealed: You are confused. If you are already confused, Piledriver schemes.
-  "07043.when-revealed": whenRevealed(ifThen(hasStatus(yourIdentity, "confused"), enemyScheme(named("Piledriver")), confuse(yourIdentity))),
+  "07043.when-revealed": whenRevealed(
+    ifThen(hasStatus(yourIdentity, "confused"), enemyScheme(named("Piledriver")), confuse(yourIdentity)),
+  ),
   // [star] Boost: Give the active villain a tough status card. If they already have a tough status card, place 2
   // threat on their scheme.
-  "07043.boost": boost(ifThen(hasStatus(theVillain, "tough"), placeThreat(2, signatureSideSchemeOf(theVillain)), giveTough(theVillain))),
+  "07043.boost": boost(
+    ifThen(hasStatus(theVillain, "tough"), placeThreat(2, signatureSideSchemeOf(theVillain)), giveTough(theVillain)),
+  ),
 
   // Pummel — When Revealed (Alter-Ego): Piledriver schemes. If Piledriver is tough, he gets +2 SCH for this
   // activation.
@@ -175,7 +214,10 @@ export const PILEDRIVER_SET = defineAbilities({
   // status cards were removed, this card gains surge.
   "07045.when-revealed": whenRevealed(
     ifThen(
-      allOf(not(exists(query("villain", { hasStatus: "stunned" }))), not(exists(query("villain", { hasStatus: "confused" })))),
+      allOf(
+        not(exists(query("villain", { hasStatus: "stunned" }))),
+        not(exists(query("villain", { hasStatus: "confused" }))),
+      ),
       surge(),
       [removeStatus(each(query("villain")), "stunned"), removeStatus(each(query("villain")), "confused")],
     ),

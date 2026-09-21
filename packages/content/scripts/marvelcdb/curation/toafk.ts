@@ -69,15 +69,18 @@ export const TOAFK_CURATION: PackCuration = {
   corrections: [
     {
       code: "11008a",
-      reason: 'MarvelCDB\'s own transcription typo: "Each player reveals a random stage 3A in turn oder" should read "in turn order".',
-      evidence: "raw (11008a); card image (marvelcdb.com/bundles/cards/11008a.png, confirms \"in turn order\"); docs/phase7-wave2.md §5.2",
+      reason:
+        'MarvelCDB\'s own transcription typo: "Each player reveals a random stage 3A in turn oder" should read "in turn order".',
+      evidence:
+        'raw (11008a); card image (marvelcdb.com/bundles/cards/11008a.png, confirms "in turn order"); docs/phase7-wave2.md §5.2',
       textReplace: { find: "in turn oder", replace: "in turn order" },
     },
     {
       code: "11008b",
       reason:
         'MarvelCDB\'s own transcription typo: "When all the players have joined this game area, advanced to stage 4A" should read "advance to stage 4A" — every parallel stage-3 ability reads "advance" (present tense; the ability itself triggers the advance). No image exists for this face; corrected on the strength of the identical, image-confirmed typo pattern on 11008a rather than its own scan.',
-      evidence: "raw (11008b); docs/phase7-wave2.md §5.2 (image not independently available for this face — see file header)",
+      evidence:
+        "raw (11008b); docs/phase7-wave2.md §5.2 (image not independently available for this face — see file header)",
       textReplace: { find: "advanced to stage 4A", replace: "advance to stage 4A" },
     },
   ],
@@ -85,9 +88,12 @@ export const TOAFK_CURATION: PackCuration = {
 
   scriptingNotes: {},
   cardNotes: {
-    "11005": "Kang (Scarlet Centurion)'s SCH: docs/phase7-wave2.md §5.2 flagged this as printed with no SCH. Card image (marvelcdb.com/bundles/cards/11005.png) shows SCH 0 (starred); raw's scheme:0 already matches — confirmed correct, no correction applied.",
-    "11038": "Kang (Scarlet Centurion), expert, SCH: card image (marvelcdb.com/bundles/cards/11038.png) shows SCH 1 (starred); raw's scheme:1 already matches — confirmed correct, no correction applied.",
-    "11007a": "The Master of Time 2B's dashed starting/target/acceleration threat (docs/phase7-wave2.md §1.6) is not independently confirmed from a card scan — no image exists for 11008b on MarvelCDB (imagesrc null; direct fetch of 11008b.png/.jpg both 404). Read from the `_fixed: true` + null-value pattern, which is how the schema/normalizer distinguish a dash from a data gap; treat as high-confidence but unverified against a scan until one is found.",
+    "11005":
+      "Kang (Scarlet Centurion)'s SCH: docs/phase7-wave2.md §5.2 flagged this as printed with no SCH. Card image (marvelcdb.com/bundles/cards/11005.png) shows SCH 0 (starred); raw's scheme:0 already matches — confirmed correct, no correction applied.",
+    "11038":
+      "Kang (Scarlet Centurion), expert, SCH: card image (marvelcdb.com/bundles/cards/11038.png) shows SCH 1 (starred); raw's scheme:1 already matches — confirmed correct, no correction applied.",
+    "11007a":
+      "The Master of Time 2B's dashed starting/target/acceleration threat (docs/phase7-wave2.md §1.6) is not independently confirmed from a card scan — no image exists for 11008b on MarvelCDB (imagesrc null; direct fetch of 11008b.png/.jpg both 404). Read from the `_fixed: true` + null-value pattern, which is how the schema/normalizer distinguish a dash from a data gap; treat as high-confidence but unverified against a scan until one is found.",
   },
 
   scenarios: [
@@ -138,7 +144,7 @@ export const TOAFK_CURATION: PackCuration = {
         joining: "sideSchemesAndEngagedMinionsMove",
       },
       evidence:
-        "The Once and Future Kang insert, \"Setup\"/\"Adjustable Difficulty\"/\"Modular Encounter Sets\"/\"Create Separate Game Areas\"/\"Playing With Separate Game Areas\"/\"Rules Clarifications\"; RRG 1.8 FAQ \"The Once and Future Kang Scenario Pack\" (p. 60); docs/phase7-wave2.md §1.8, §2.3",
+        'The Once and Future Kang insert, "Setup"/"Adjustable Difficulty"/"Modular Encounter Sets"/"Create Separate Game Areas"/"Playing With Separate Game Areas"/"Rules Clarifications"; RRG 1.8 FAQ "The Once and Future Kang Scenario Pack" (p. 60); docs/phase7-wave2.md §1.8, §2.3',
     },
   ],
   starterDecks: [],

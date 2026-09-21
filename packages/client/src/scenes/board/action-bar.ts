@@ -35,7 +35,13 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     recover: "Recover",
     // "Flip to alter-ego" does not fit a quarter of a phone; the short form
     // still says which way the flip goes.
-    changeForm: stacked ? (model.myForm === "hero" ? "To A-E" : "To hero") : model.myForm === "hero" ? "Flip to alter-ego" : "Flip to hero",
+    changeForm: stacked
+      ? model.myForm === "hero"
+        ? "To A-E"
+        : "To hero"
+      : model.myForm === "hero"
+        ? "Flip to alter-ego"
+        : "Flip to hero",
     endTurn: "End turn",
   };
 
@@ -46,7 +52,12 @@ export function drawActionBar(ctx: BoardDrawContext, rect: Rect, model: BoardMod
   BASICS.forEach((action, index) => {
     const button = marks?.basics.find((basic) => basic.action === action);
     const targeting = selection.kind === "targeting" && basicKindOf(selection.action) === action;
-    const cell: Rect = { x: rect.x + 10 + index * (cellWidth + 6), y: rect.y + 4, width: cellWidth, height: hit.target - 8 };
+    const cell: Rect = {
+      x: rect.x + 10 + index * (cellWidth + 6),
+      y: rect.y + 4,
+      width: cellWidth,
+      height: hit.target - 8,
+    };
     ctx.frame.focusRects.set(focusKey({ kind: "basic", action }), cell);
     // A status owns the button it cancels (Components.dc.html section 05):
     // stunned hatches Attack, confused hatches Thwart, in that status's hue.

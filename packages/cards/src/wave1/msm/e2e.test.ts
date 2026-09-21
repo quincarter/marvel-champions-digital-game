@@ -19,7 +19,9 @@ test("Rhino (standard, Bomb Scare), solo: Ms. Marvel (Protection)", () => {
   const created = createGame(config, MSM_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const result = playToOutcome(created.state, MSM_DEPS);
-  console.info(`[wave1 e2e] Rhino (standard) — Ms. Marvel: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+  console.info(
+    `[wave1 e2e] Rhino (standard) — Ms. Marvel: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
   expect(result.outcome).not.toBeNull();
   expect(result.rounds).toBeGreaterThanOrEqual(1);
   const replayed = replay(result.session.log, MSM_DEPS);

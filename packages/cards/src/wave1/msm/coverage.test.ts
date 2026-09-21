@@ -24,7 +24,10 @@ describe("msm pack ability coverage", () => {
   it("every ability reference resolves — scripted directly, or aliased as a Core reprint", () => {
     const registry: Record<string, unknown> = { ...WAVE1_REPRINT_ABILITIES, ...MSM_ABILITIES };
     const unresolved = allRefs.filter((id) => !(id in registry));
-    expect(unresolved, `unresolved msm ability refs (not scripted, not a Core reprint):\n${unresolved.join("\n")}`).toEqual([]);
+    expect(
+      unresolved,
+      `unresolved msm ability refs (not scripted, not a Core reprint):\n${unresolved.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("3 of the 33 references are Core reprints (Get Behind Me!, The Power of Protection, Avengers Mansion)", () => {

@@ -1,10 +1,27 @@
 import { playCostOf } from "@mc/engine";
 import { activeEncounterDeck, activeVillain, remainingHitPoints } from "@mc/engine";
-import { answer, endTurn, firstLegal, identityOf, inst, moveToHand, P1, patchInstance, payWith, play, playerOf, settle, settleUntil, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  answer,
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  moveToHand,
+  P1,
+  patchInstance,
+  payWith,
+  play,
+  playerOf,
+  settle,
+  settleUntil,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
 import { DRS_DEPS, runDrs, startDrsGame } from "./testing.js";
 
-const drsVsRhino = (seed = 3301) => startDrsGame(wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed }));
+const drsVsRhino = (seed = 3301) =>
+  startDrsGame(wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed }));
 
 const ADVANCE = "01186"; // a neutral 0-icon card, drawn as the villain's boost ahead of the stacked obligation
 
@@ -18,7 +35,12 @@ describe("Physical Toll (Doctor Strange's obligation)", () => {
     const stayLabel = atFlip.pendingChoice!.options.findIndex((o) => o.label === "Stay in hero form");
     // Staying a hero, "Exhaust Stephen Strange → remove this obligation from the game" can't be paid (he is the
     // alter ego), so the alternative is the only legal choice and resolves without a further prompt.
-    const after = settle(answer(atFlip, [String(stayLabel)], DRS_DEPS), firstLegal, (s) => s.step.kind === "turn", DRS_DEPS);
+    const after = settle(
+      answer(atFlip, [String(stayLabel)], DRS_DEPS),
+      firstLegal,
+      (s) => s.step.kind === "turn",
+      DRS_DEPS,
+    );
 
     const physicalToll = playerOf(after, P1).playArea.find((id) => after.instances[id]?.cardId === ("09027" as never));
     expect(physicalToll).toBeDefined();
@@ -57,10 +79,17 @@ describe("Physical Toll (Doctor Strange's obligation)", () => {
     const exhaustLabel = atFlip.pendingChoice!.options.findIndex((o) => o.label.startsWith("Exhaust Stephen Strange"));
     expect(exhaustLabel).toBeGreaterThanOrEqual(0);
     const identity = identityOf(atFlip);
-    const after = settle(answer(atFlip, [String(exhaustLabel)], DRS_DEPS), firstLegal, (s) => s.step.kind === "turn", DRS_DEPS);
+    const after = settle(
+      answer(atFlip, [String(exhaustLabel)], DRS_DEPS),
+      firstLegal,
+      (s) => s.step.kind === "turn",
+      DRS_DEPS,
+    );
     expect(inst(after, identity).exhausted).toBe(true);
     // Removed from the game, not merely discarded: absent from both the encounter discard and the player's play area.
-    const stillInDiscard = activeEncounterDeck(after).discard.some((id) => after.instances[id]?.cardId === ("09027" as never));
+    const stillInDiscard = activeEncounterDeck(after).discard.some(
+      (id) => after.instances[id]?.cardId === ("09027" as never),
+    );
     expect(stillInDiscard).toBe(false);
     expect(playerOf(after, P1).playArea.some((id) => after.instances[id]?.cardId === ("09027" as never))).toBe(false);
   });

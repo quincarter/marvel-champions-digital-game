@@ -110,7 +110,9 @@ export function decksFocusOrder(input: DecksFocusInput): readonly string[] {
     ...(input.importOpen === "paste" ? ["paste-field", "paste-import"] : []),
     ...(input.importOpen === "marvelcdb" && input.showMarvelCdbImport ? ["marvelcdb-field", "marvelcdb-import"] : []),
   ];
-  const poolGroup = input.hasSelection ? [...input.poolChipIds.map((id) => `pool-chip:${id}`), ...input.poolCardIds.map((id) => `pool-card:${id}`)] : [];
+  const poolGroup = input.hasSelection
+    ? [...input.poolChipIds.map((id) => `pool-chip:${id}`), ...input.poolCardIds.map((id) => `pool-card:${id}`)]
+    : [];
   const statsGroup = input.hasSelection
     ? ["stats-check", ...(input.editable ? ["stats-edit", "stats-delete"] : []), "stats-duplicate", "stats-play"]
     : [];
@@ -182,7 +184,8 @@ export interface DeckCheckFocusInput {
  */
 export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string[] {
   const cardStops = input.cardIds.map((id) => `card:${id}`);
-  if (input.wide) return ["back", ...(input.filterChipIds ?? []).map((id) => `filter:${id}`), ...cardStops, "edit-deck", "start"];
+  if (input.wide)
+    return ["back", ...(input.filterChipIds ?? []).map((id) => `filter:${id}`), ...cardStops, "edit-deck", "start"];
   return [
     "back",
     "tab:curve",
@@ -202,7 +205,10 @@ export function deckCheckFocusOrder(input: DeckCheckFocusInput): readonly string
  * make — ahead of Skip, which never coexists with "finished" (a paused phase
  * hasn't finished).
  */
-export function villainPhaseFocusOrder(finished: boolean, interruptOptionIds: readonly string[] = []): readonly string[] {
+export function villainPhaseFocusOrder(
+  finished: boolean,
+  interruptOptionIds: readonly string[] = [],
+): readonly string[] {
   return [
     ...(finished ? ["continue"] : []),
     ...interruptOptionIds.map((id) => `interrupt:${id}`),
@@ -262,7 +268,9 @@ export function pauseFocusOrder(input: PauseFocusInput): readonly string[] {
     "search",
     ...input.quickReferenceIds.map((id) => `quick:${id}`),
     ...input.tableRowIds.map((id) => `table:${id}`),
-    ...(input.confirmingConcede ? ["concede-confirm-yes", "concede-confirm-cancel"] : ["resume", "save-quit", "concede"]),
+    ...(input.confirmingConcede
+      ? ["concede-confirm-yes", "concede-confirm-cancel"]
+      : ["resume", "save-quit", "concede"]),
   ];
 }
 

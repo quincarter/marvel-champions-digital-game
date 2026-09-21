@@ -12,6 +12,12 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@mc/client", "exec", "vite", "--port", "5183", "--strictPort"],
       "port": 5183
+    },
+    {
+      "name": "client-mise",
+      "runtimeExecutable": "C:/Users/quinc/scoop/shims/mise.exe",
+      "runtimeArgs": ["exec", "--", "pnpm", "--filter", "@mc/client", "dev"],
+      "port": 5173
     }
   ]
 }

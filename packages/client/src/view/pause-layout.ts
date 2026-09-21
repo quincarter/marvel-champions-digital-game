@@ -121,40 +121,118 @@ export interface PauseWideLayout {
 function wideLayout(bounds: Rect, keywordCount: number): PauseWideLayout {
   const width = Math.min(SHEET_WIDTH, Math.max(1, bounds.width - SHEET_MARGIN * 2));
   const height = Math.min(SHEET_HEIGHT, Math.max(1, bounds.height - SHEET_MARGIN * 2));
-  const sheet: Rect = { x: bounds.x + (bounds.width - width) / 2, y: bounds.y + (bounds.height - height) / 2, width, height };
+  const sheet: Rect = {
+    x: bounds.x + (bounds.width - width) / 2,
+    y: bounds.y + (bounds.height - height) / 2,
+    width,
+    height,
+  };
 
   const leftWidth = Math.max(LEFT_MIN_WIDTH, Math.min(LEFT_WIDTH, (width * LEFT_WIDTH) / SHEET_WIDTH));
   const left: Rect = { x: sheet.x, y: sheet.y, width: leftWidth, height: sheet.height };
-  const right: Rect = { x: left.x + left.width + PANEL_GAP, y: sheet.y, width: Math.max(0, sheet.width - leftWidth - PANEL_GAP), height: sheet.height };
+  const right: Rect = {
+    x: left.x + left.width + PANEL_GAP,
+    y: sheet.y,
+    width: Math.max(0, sheet.width - leftWidth - PANEL_GAP),
+    height: sheet.height,
+  };
 
-  const title: Rect = { x: left.x + LEFT_PAD, y: left.y + LEFT_PAD, width: Math.max(0, left.width - LEFT_PAD * 2), height: TITLE_HEIGHT };
+  const title: Rect = {
+    x: left.x + LEFT_PAD,
+    y: left.y + LEFT_PAD,
+    width: Math.max(0, left.width - LEFT_PAD * 2),
+    height: TITLE_HEIGHT,
+  };
   const status: Rect = { x: title.x, y: title.y + title.height, width: title.width, height: STATUS_HEIGHT };
 
   const menuTop = status.y + status.height + MENU_TOP_GAP;
   const menuButtonHeight = hit.primary;
   const menuWidth = title.width;
-  const menuRect = (index: number): Rect => ({ x: title.x, y: menuTop + index * (menuButtonHeight + MENU_GAP), width: menuWidth, height: menuButtonHeight });
-  const menu: PauseMenuLayout = { resume: menuRect(0), fullGameLog: menuRect(1), rulesReference: menuRect(2), settings: menuRect(3), saveQuit: menuRect(4) };
+  const menuRect = (index: number): Rect => ({
+    x: title.x,
+    y: menuTop + index * (menuButtonHeight + MENU_GAP),
+    width: menuWidth,
+    height: menuButtonHeight,
+  });
+  const menu: PauseMenuLayout = {
+    resume: menuRect(0),
+    fullGameLog: menuRect(1),
+    rulesReference: menuRect(2),
+    settings: menuRect(3),
+    saveQuit: menuRect(4),
+  };
 
-  const concede: Rect = { x: title.x, y: left.y + left.height - LEFT_PAD - menuButtonHeight, width: menuWidth, height: menuButtonHeight };
+  const concede: Rect = {
+    x: title.x,
+    y: left.y + left.height - LEFT_PAD - menuButtonHeight,
+    width: menuWidth,
+    height: menuButtonHeight,
+  };
   const concedeConfirmYes: Rect = concede;
-  const concedeConfirmCancel: Rect = { x: title.x, y: concede.y - MENU_GAP - menuButtonHeight, width: menuWidth, height: menuButtonHeight };
+  const concedeConfirmCancel: Rect = {
+    x: title.x,
+    y: concede.y - MENU_GAP - menuButtonHeight,
+    width: menuWidth,
+    height: menuButtonHeight,
+  };
 
-  const rightInner: Rect = { x: right.x + RIGHT_PAD, y: right.y + RIGHT_PAD, width: Math.max(0, right.width - RIGHT_PAD * 2), height: Math.max(0, right.height - RIGHT_PAD * 2) };
+  const rightInner: Rect = {
+    x: right.x + RIGHT_PAD,
+    y: right.y + RIGHT_PAD,
+    width: Math.max(0, right.width - RIGHT_PAD * 2),
+    height: Math.max(0, right.height - RIGHT_PAD * 2),
+  };
   const rulesHeader: Rect = { x: rightInner.x, y: rightInner.y, width: rightInner.width, height: RIGHT_HEADER_HEIGHT };
   const gridTop = rulesHeader.y + rulesHeader.height + GRID_TOP_GAP;
-  const gridRect: Rect = { x: rightInner.x, y: gridTop, width: rightInner.width, height: Math.max(0, rightInner.y + rightInner.height - gridTop) };
+  const gridRect: Rect = {
+    x: rightInner.x,
+    y: gridTop,
+    width: rightInner.width,
+    height: Math.max(0, rightInner.y + rightInner.height - gridTop),
+  };
   const keywordGrid = pauseKeywordGrid(gridRect, keywordCount);
   const keywordEmpty: Rect = { x: gridRect.x, y: gridRect.y, width: gridRect.width, height: KEYWORD_EMPTY_HEIGHT };
   const gridContentHeight = keywordGrid.shown > 0 ? keywordGrid.height : keywordEmpty.height;
 
-  const jumpHeader: Rect = { x: rightInner.x, y: gridTop + gridContentHeight + GRID_BOTTOM_GAP, width: rightInner.width, height: JUMP_HEADER_HEIGHT };
+  const jumpHeader: Rect = {
+    x: rightInner.x,
+    y: gridTop + gridContentHeight + GRID_BOTTOM_GAP,
+    width: rightInner.width,
+    height: JUMP_HEADER_HEIGHT,
+  };
   const logBoxTop = jumpHeader.y + jumpHeader.height + LOG_BOX_TOP_GAP;
-  const logBox: Rect = { x: rightInner.x, y: logBoxTop, width: rightInner.width, height: Math.max(LOG_BOX_MIN_HEIGHT, rightInner.y + rightInner.height - logBoxTop) };
+  const logBox: Rect = {
+    x: rightInner.x,
+    y: logBoxTop,
+    width: rightInner.width,
+    height: Math.max(LOG_BOX_MIN_HEIGHT, rightInner.y + rightInner.height - logBoxTop),
+  };
 
-  const rightContent: Rect = { x: rulesHeader.x, y: rulesHeader.y, width: rulesHeader.width, height: logBox.y + logBox.height - rulesHeader.y };
+  const rightContent: Rect = {
+    x: rulesHeader.x,
+    y: rulesHeader.y,
+    width: rulesHeader.width,
+    height: logBox.y + logBox.height - rulesHeader.y,
+  };
 
-  return { kind: "wide", sheet, left, right, title, status, menu, concede, concedeConfirmYes, concedeConfirmCancel, rulesHeader, keywordGrid, keywordEmpty, jumpHeader, logBox, rightContent };
+  return {
+    kind: "wide",
+    sheet,
+    left,
+    right,
+    title,
+    status,
+    menu,
+    concede,
+    concedeConfirmYes,
+    concedeConfirmCancel,
+    rulesHeader,
+    keywordGrid,
+    keywordEmpty,
+    jumpHeader,
+    logBox,
+    rightContent,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -194,7 +272,10 @@ const QUICK_REFERENCE_BOTTOM_PADDING = 8;
 function quickReferenceRowHeight(detail: string, columnWidth: number): number {
   const wrapWidth = Math.max(1, columnWidth - 24);
   const lines = estimateWrappedLines(detail, wrapWidth, QUICK_REFERENCE_DETAIL_CHAR_WIDTH);
-  return Math.max(QUICK_REFERENCE_ROW_MIN_HEIGHT, QUICK_REFERENCE_DETAIL_TOP + lines * QUICK_REFERENCE_DETAIL_LINE_HEIGHT + QUICK_REFERENCE_BOTTOM_PADDING);
+  return Math.max(
+    QUICK_REFERENCE_ROW_MIN_HEIGHT,
+    QUICK_REFERENCE_DETAIL_TOP + lines * QUICK_REFERENCE_DETAIL_LINE_HEIGHT + QUICK_REFERENCE_BOTTOM_PADDING,
+  );
 }
 
 /** Stacks rects of each given height, top to bottom, `gap` apart. */
@@ -224,30 +305,86 @@ export interface PausePhoneLayout {
   readonly concede: Rect;
 }
 
-function phoneLayout(bounds: Rect, quickReferenceDetails: readonly string[], tableDetails: readonly string[]): PausePhoneLayout {
-  const { panel, header, body, footer } = overlayPanelLayout(bounds, PHONE_HEADER_HEIGHT, PHONE_FOOTER_HEIGHT, PHONE_PANEL_MAX_WIDTH);
-  const closeButton: Rect = { x: header.x + header.width - PHONE_CLOSE_SIZE - 16, y: header.y + (header.height - PHONE_CLOSE_SIZE) / 2, width: PHONE_CLOSE_SIZE, height: PHONE_CLOSE_SIZE };
+function phoneLayout(
+  bounds: Rect,
+  quickReferenceDetails: readonly string[],
+  tableDetails: readonly string[],
+): PausePhoneLayout {
+  const { panel, header, body, footer } = overlayPanelLayout(
+    bounds,
+    PHONE_HEADER_HEIGHT,
+    PHONE_FOOTER_HEIGHT,
+    PHONE_PANEL_MAX_WIDTH,
+  );
+  const closeButton: Rect = {
+    x: header.x + header.width - PHONE_CLOSE_SIZE - 16,
+    y: header.y + (header.height - PHONE_CLOSE_SIZE) / 2,
+    width: PHONE_CLOSE_SIZE,
+    height: PHONE_CLOSE_SIZE,
+  };
 
-  const inset: Rect = { x: body.x + 16, y: body.y + 6, width: Math.max(0, body.width - 32), height: Math.max(0, body.height - 12) };
+  const inset: Rect = {
+    x: body.x + 16,
+    y: body.y + 6,
+    width: Math.max(0, body.width - 32),
+    height: Math.max(0, body.height - 12),
+  };
   const search: Rect = { x: inset.x, y: inset.y, width: inset.width, height: hit.target };
-  const quickReferenceHeading: Rect = { x: inset.x, y: search.y + search.height + 10, width: inset.width, height: PHONE_SUBHEADING_HEIGHT };
+  const quickReferenceHeading: Rect = {
+    x: inset.x,
+    y: search.y + search.height + 10,
+    width: inset.width,
+    height: PHONE_SUBHEADING_HEIGHT,
+  };
   const qrTop = quickReferenceHeading.y + quickReferenceHeading.height + 4;
   const qrHeights = quickReferenceDetails.map((detail) => quickReferenceRowHeight(detail, inset.width));
   const quickReferenceRows = stackedRowsOf(qrTop, inset.x, inset.width, qrHeights, PHONE_ROW_GAP);
-  const qrBottom = quickReferenceRows.length > 0 ? quickReferenceRows[quickReferenceRows.length - 1]!.y + quickReferenceRows[quickReferenceRows.length - 1]!.height : qrTop;
+  const qrBottom =
+    quickReferenceRows.length > 0
+      ? quickReferenceRows[quickReferenceRows.length - 1]!.y + quickReferenceRows[quickReferenceRows.length - 1]!.height
+      : qrTop;
 
-  const tableHeading: Rect = { x: inset.x, y: qrBottom + PHONE_GROUP_GAP, width: inset.width, height: PHONE_HEADING_HEIGHT };
+  const tableHeading: Rect = {
+    x: inset.x,
+    y: qrBottom + PHONE_GROUP_GAP,
+    width: inset.width,
+    height: PHONE_HEADING_HEIGHT,
+  };
   const tableTop = tableHeading.y + tableHeading.height + 8;
   const tableHeights = tableDetails.map((detail) => toggleRowHeight(detail, inset.width));
   const tableRows = stackedRowsOf(tableTop, inset.x, inset.width, tableHeights, PHONE_ROW_GAP);
 
-  const resume: Rect = { x: footer.x + 16, y: footer.y + PHONE_FOOTER_PAD, width: footer.width - 32, height: PHONE_RESUME_HEIGHT };
+  const resume: Rect = {
+    x: footer.x + 16,
+    y: footer.y + PHONE_FOOTER_PAD,
+    width: footer.width - 32,
+    height: PHONE_RESUME_HEIGHT,
+  };
   const secondRowY = resume.y + resume.height + PHONE_FOOTER_ROW_GAP;
   const secondRowWidth = (footer.width - 32 - PHONE_COLUMN_GAP) / 2;
   const saveQuit: Rect = { x: footer.x + 16, y: secondRowY, width: secondRowWidth, height: PHONE_SECOND_ROW_HEIGHT };
-  const concede: Rect = { x: saveQuit.x + secondRowWidth + PHONE_COLUMN_GAP, y: secondRowY, width: secondRowWidth, height: PHONE_SECOND_ROW_HEIGHT };
+  const concede: Rect = {
+    x: saveQuit.x + secondRowWidth + PHONE_COLUMN_GAP,
+    y: secondRowY,
+    width: secondRowWidth,
+    height: PHONE_SECOND_ROW_HEIGHT,
+  };
 
-  return { kind: "phone", panel, header, closeButton, footer, search, quickReferenceHeading, quickReferenceRows, tableHeading, tableRows, resume, saveQuit, concede };
+  return {
+    kind: "phone",
+    panel,
+    header,
+    closeButton,
+    footer,
+    search,
+    quickReferenceHeading,
+    quickReferenceRows,
+    tableHeading,
+    tableRows,
+    resume,
+    saveQuit,
+    concede,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -273,7 +410,23 @@ export function pauseLayout(bounds: Rect, input: PauseLayoutInput): PauseLayout 
 /** Every rect this layout places, for a no-overlap test — excluding heading/label text bands, which aren't controls (the same convention `settings-layout.test.ts` and `rules-layout.test.ts` use). */
 export function pauseLayoutRects(layout: PauseLayout): readonly Rect[] {
   if (layout.kind === "wide") {
-    return [layout.menu.resume, layout.menu.fullGameLog, layout.menu.rulesReference, layout.menu.settings, layout.menu.saveQuit, layout.concede, ...layout.keywordGrid.cells];
+    return [
+      layout.menu.resume,
+      layout.menu.fullGameLog,
+      layout.menu.rulesReference,
+      layout.menu.settings,
+      layout.menu.saveQuit,
+      layout.concede,
+      ...layout.keywordGrid.cells,
+    ];
   }
-  return [layout.closeButton, layout.search, ...layout.quickReferenceRows, ...layout.tableRows, layout.resume, layout.saveQuit, layout.concede];
+  return [
+    layout.closeButton,
+    layout.search,
+    ...layout.quickReferenceRows,
+    ...layout.tableRows,
+    layout.resume,
+    layout.saveQuit,
+    layout.concede,
+  ];
 }

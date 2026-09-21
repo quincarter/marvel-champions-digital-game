@@ -1,5 +1,13 @@
 /** Player cards: ally, event, support, upgrade, resource and player side scheme. */
-import type { AllyCard, CardFlipSide, CoreAspect, PlayerSideSchemeCard, PlayRestrictions, SpecialCost, SpecificSet } from "../../../src/schema/index.ts";
+import type {
+  AllyCard,
+  CardFlipSide,
+  CoreAspect,
+  PlayerSideSchemeCard,
+  PlayRestrictions,
+  SpecialCost,
+  SpecificSet,
+} from "../../../src/schema/index.ts";
 import { brand, traitOf } from "./brand.ts";
 import { record, type NormalizeContext, type SingleRecord } from "./context.ts";
 import type { Prepared } from "./prepare.ts";
@@ -30,7 +38,11 @@ export function normalizePlayerCard(
     const hero = ctx.heroBySet.get(r.card_set_code ?? "");
     if (!hero) errors.push(`${r.code}: hero card in set ${String(r.card_set_code)} with no identity`);
     aspect = `hero:${hero?.code ?? "?"}`;
-  } else if (r.card_set_code && ctx.heroBySet.has(r.card_set_code) && PRINTABLE_ASPECTS.includes(r.faction_code as CoreAspect)) {
+  } else if (
+    r.card_set_code &&
+    ctx.heroBySet.has(r.card_set_code) &&
+    PRINTABLE_ASPECTS.includes(r.faction_code as CoreAspect)
+  ) {
     // Wave 2 (docs/phase7-wave2.md §1.2): an identity-specific card that also prints an aspect icon — Spider-Woman's
     // Venom Blast (Aggression), Pheromones (Leadership), Contaminant Immunity (Protection) and Inconspicuous
     // (Justice), MarvelCDB giving each the aspect's `faction_code` with `card_set_code` set to her identity's own.
@@ -133,7 +145,10 @@ export function normalizePlayerCard(
   };
   switch (r.type_code) {
     case "ally": {
-      for (const [field, value] of [["attack", r.attack], ["thwart", r.thwart]] as const) {
+      for (const [field, value] of [
+        ["attack", r.attack],
+        ["thwart", r.thwart],
+      ] as const) {
         if ((value === null || value === undefined) && !curation.cardNotes[r.code]) {
           errors.push(`${r.code}: ally has no ${field} (printed "—"?) — needs a cardNotes entry explaining the data`);
         }
@@ -154,10 +169,18 @@ export function normalizePlayerCard(
       break;
     }
     case "event":
-      record(ctx, { ...common, type: "event", ...needCost(), resourceIcons: resourceIcons(r), ...playerCommon }, set, [p, ...flipParts]);
+      record(ctx, { ...common, type: "event", ...needCost(), resourceIcons: resourceIcons(r), ...playerCommon }, set, [
+        p,
+        ...flipParts,
+      ]);
       break;
     case "support":
-      record(ctx, { ...common, type: "support", ...needCost(), resourceIcons: resourceIcons(r), ...playerCommon }, set, [p, ...flipParts]);
+      record(
+        ctx,
+        { ...common, type: "support", ...needCost(), resourceIcons: resourceIcons(r), ...playerCommon },
+        set,
+        [p, ...flipParts],
+      );
       break;
     case "upgrade":
       record(
@@ -176,7 +199,10 @@ export function normalizePlayerCard(
       break;
     case "resource":
       if (cost !== null) errors.push(`${r.code}: resource with a cost`);
-      record(ctx, { ...common, type: "resource", producesIcons: resourceIcons(r), ...playerCommon }, set, [p, ...flipParts]);
+      record(ctx, { ...common, type: "resource", producesIcons: resourceIcons(r), ...playerCommon }, set, [
+        p,
+        ...flipParts,
+      ]);
       break;
     case "player_side_scheme": {
       if (r.base_threat === null || r.base_threat === undefined) {

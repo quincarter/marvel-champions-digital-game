@@ -65,7 +65,10 @@ test("a player who is not at the table cannot concede", () => {
 test("an eliminated player has nothing left to concede", () => {
   // RRG 1.8 "Player Elimination" (p. 33): an eliminated player is out of the game.
   const start = game(2);
-  const eliminated = { ...start, players: start.players.map((player) => (player.playerId === p2 ? { ...player, eliminated: true } : player)) };
+  const eliminated = {
+    ...start,
+    players: start.players.map((player) => (player.playerId === p2 ? { ...player, eliminated: true } : player)),
+  };
 
   const result = applyCommand(eliminated, concede(p2));
   expect(result.ok).toBe(false);

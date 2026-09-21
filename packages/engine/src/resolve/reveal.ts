@@ -131,11 +131,17 @@ function hasMeasure(state: GameState, id: InstanceId, measure: SuperlativeHost["
 }
 
 /** "an X-MEN ally", "a non-ELITE minion", "without another Goblin Glider attached" (`HostQualifiers`). */
-function passesQualifiers(state: GameState, id: InstanceId, host: QualifiedHost | SuperlativeHost, deps: EngineDeps): boolean {
+function passesQualifiers(
+  state: GameState,
+  id: InstanceId,
+  host: QualifiedHost | SuperlativeHost,
+  deps: EngineDeps,
+): boolean {
   if (host.trait && !traitsOf(state, id, deps).includes(host.trait)) return false;
   if (host.withoutTrait && traitsOf(state, id, deps).includes(host.withoutTrait)) return false;
   const barred = host.withoutAttachmentNamed;
-  if (barred !== undefined && mustInstance(state, id).attachments.some((a) => currentName(state, a) === barred)) return false;
+  if (barred !== undefined && mustInstance(state, id).attachments.some((a) => currentName(state, a) === barred))
+    return false;
   // "a non-permanent side scheme" (docs/phase7-wave2.md §6.5): printed or gained keywords.
   if (host.keyword !== undefined && !hasKeyword(state, id, host.keyword, deps)) return false;
   if (host.withoutKeyword !== undefined && hasKeyword(state, id, host.withoutKeyword, deps)) return false;
@@ -194,7 +200,9 @@ export function attachmentHostCandidates(
           : undefeatedVillains(state).filter((villain) => currentName(state, villain.instanceId) === of.villainName);
       const inPlay = cardsInPlay(state);
       return villains.flatMap((villain) =>
-        villain.signatureSideSchemeId && inPlay.includes(villain.signatureSideSchemeId) ? [villain.signatureSideSchemeId] : [],
+        villain.signatureSideSchemeId && inPlay.includes(villain.signatureSideSchemeId)
+          ? [villain.signatureSideSchemeId]
+          : [],
       );
     }
     case "yourIdentity": {
@@ -293,7 +301,9 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
     case "enterPlay": {
       if (card.type === "obligation" && !frame.effectsCancelled) {
         // RRG "Obligation": give it to the player whose identity it belongs to; that player reveals it.
-        const linked = Object.values(ctx.state.cardPool).some((c) => c.type === "hero_identity" && c.obligationCardId === card.id);
+        const linked = Object.values(ctx.state.cardPool).some(
+          (c) => c.type === "hero_identity" && c.obligationCardId === card.id,
+        );
         const owner = ctx.state.players.find((p) => {
           const identity = cardOf(ctx.state, p.identity.instanceId);
           return identity?.type === "hero_identity" && identity.obligationCardId === card.id;
@@ -313,7 +323,8 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
       }
       if (frame.effectsCancelled) {
         // RRG "Cancel": a canceled card is still revealed; it is discarded and nothing else happens.
-        if (getInstance(ctx.state, frame.instanceId)) moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
+        if (getInstance(ctx.state, frame.instanceId))
+          moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
         setFrame(ctx, { ...frame, stage: "finish" });
         return;
       }
@@ -365,9 +376,7 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         moveCard(ctx, frame.instanceId, discardZoneFor(ctx.state, frame.instanceId), "top");
       }
       // RRG "Reveal": responses to any step wait until every step has completed.
-      const events: TriggerEvent[] = [
-        { kind: "cardRevealed", instanceId: frame.instanceId, playerId: frame.playerId },
-      ];
+      const events: TriggerEvent[] = [{ kind: "cardRevealed", instanceId: frame.instanceId, playerId: frame.playerId }];
       // RRG "Quickstrike": resolves after this minion's "When Revealed" abilities.
       const quickstrike = frame.effectsCancelled ? null : quickstrikeAttack(ctx.state, frame.instanceId);
       if (quickstrike) events.push(quickstrike);
@@ -435,7 +444,13 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
     case "attachment": {
       // Setup-keyword attachments enter play without a reveal frame, so there is
       // no choice point: the first legal host in stable order is used.
-      const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps: ctx.deps };
+      const context: EffectContext = {
+        selfInstanceId: id,
+        controllerId: playerId,
+        event: null,
+        bindings: {},
+        deps: ctx.deps,
+      };
       const [host] = attachmentHostCandidates(ctx.state, card.attachesTo, context);
       if (!host) {
         moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
@@ -462,7 +477,9 @@ export function assignToArea(ctx: Ctx, id: InstanceId, playerId: PlayerId): void
   ctx.state = {
     ...ctx.state,
     gameAreas: ctx.state.gameAreas.map((a) =>
-      a.areaId === area.areaId ? { ...a, sideSchemeIds: [...a.sideSchemeIds, id] } : { ...a, sideSchemeIds: a.sideSchemeIds.filter((s) => s !== id) },
+      a.areaId === area.areaId
+        ? { ...a, sideSchemeIds: [...a.sideSchemeIds, id] }
+        : { ...a, sideSchemeIds: a.sideSchemeIds.filter((s) => s !== id) },
     ),
   };
 }

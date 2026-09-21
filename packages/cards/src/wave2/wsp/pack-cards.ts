@@ -68,7 +68,10 @@ export const WSP_PACK_CARDS = defineAbilities({
   // modifier, no `while`). Interrupt: when Wasp enters play, place 1 pym counter on her (to a maximum of 3) for
   // each [energy] resource overpaid for her cost (module docblock).
   "13012.wasp-constant": constant(gets("hp", countersOn(self, "pym"), query("ally", { self: true }))),
-  "13012.wasp-interrupt": forcedInterrupt(on.entersPlay("self"), addCounters("pym", scaled(varOf("overpaid.energy"), { max: 3 }), self)),
+  "13012.wasp-interrupt": forcedInterrupt(
+    on.entersPlay("self"),
+    addCounters("pym", scaled(varOf("overpaid.energy"), { max: 3 }), self),
+  ),
 
   // Into the Fray — Hero Action (attack): Deal 6 damage to a minion. For each point of excess damage dealt by this
   // attack, remove 1 threat from the main scheme.
@@ -95,7 +98,11 @@ export const WSP_PACK_CARDS = defineAbilities({
   // Wait → deal 3 damage to that minion. `{ on: "minionEngaged", playerIs: "controller" }` is the landed primitive
   // for "after you engage a minion" (`wave1/thor/kit.ts`'s own "Have at Thee" comment); `eventTarget` is the
   // engaging minion (`minionEngaged`'s own event carries the same instance as both source and target).
-  "13017.lie-in-wait-response": heroResponse({ on: "minionEngaged", playerIs: "controller" }, { label: "attack", cost: discardThis }, dealDamage(3, eventTarget)),
+  "13017.lie-in-wait-response": heroResponse(
+    { on: "minionEngaged", playerIs: "controller" },
+    { label: "attack", cost: discardThis },
+    dealDamage(3, eventTarget),
+  ),
 
   // Ironheart — Response: After you play Ironheart from your hand, draw 1 card.
   "13018.ironheart-response": response(on.entersPlay("self"), draw(1)),
@@ -131,7 +138,10 @@ export const WSP_PACK_CARDS = defineAbilities({
   "13032.all-for-one-action": heroAction(
     { label: "attack" },
     chooseTarget("enemy", query("enemy")),
-    chooseCards("exhausted", cards(each(query("character", { trait: AVENGER, controller: "you" }))), { min: 0, max: 20 }),
+    chooseCards("exhausted", cards(each(query("character", { trait: AVENGER, controller: "you" }))), {
+      min: 0,
+      max: 20,
+    }),
     exhaust(chosen("exhausted")),
     dealDamage(sum(3, countAmong(chosen("exhausted"), {})), chosen("enemy")),
   ),
@@ -142,8 +152,16 @@ export const WSP_PACK_CARDS = defineAbilities({
   // Athletic Conditioning — Hero Action: Discard 1 stun or confuse status card from your hero.
   "13034.athletic-conditioning-action": heroAction(
     chooseOne(
-      option("Discard the stunned status", { when: hasStatus(yourIdentity, "stunned") }, removeStatus(yourIdentity, "stunned")),
-      option("Discard the confused status", { when: hasStatus(yourIdentity, "confused") }, removeStatus(yourIdentity, "confused")),
+      option(
+        "Discard the stunned status",
+        { when: hasStatus(yourIdentity, "stunned") },
+        removeStatus(yourIdentity, "stunned"),
+      ),
+      option(
+        "Discard the confused status",
+        { when: hasStatus(yourIdentity, "confused") },
+        removeStatus(yourIdentity, "confused"),
+      ),
     ),
   ),
 });

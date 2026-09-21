@@ -28,7 +28,10 @@ describe("bkw pack ability coverage", () => {
   it("every ability reference resolves — scripted directly, aliased as a Core reprint, or a recorded skip", () => {
     const registry: Record<string, unknown> = { ...WAVE1_REPRINT_ABILITIES, ...BKW_ABILITIES };
     const unresolved = allRefs.filter((id) => !(id in registry) && !SKIPPED.has(id));
-    expect(unresolved, `unresolved bkw ability refs (not scripted, not a Core reprint, not a recorded skip):\n${unresolved.join("\n")}`).toEqual([]);
+    expect(
+      unresolved,
+      `unresolved bkw ability refs (not scripted, not a Core reprint, not a recorded skip):\n${unresolved.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("every recorded skip is real (still absent from the registry) and still printed on a real card", () => {

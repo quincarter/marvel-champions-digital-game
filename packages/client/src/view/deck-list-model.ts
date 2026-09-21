@@ -85,5 +85,7 @@ export function deckOptionsOf(
   currentPoolVersion: string,
   deps: EngineDeps,
 ): readonly DeckOption[] {
-  return [...preconDecks(currentPoolVersion), ...savedDecks].map((deck) => deckOptionOf(deck, pool, currentPoolVersion, deps));
+  return [...preconDecks(currentPoolVersion), ...savedDecks].map((deck) =>
+    deckOptionOf(deck, pool, currentPoolVersion, deps),
+  );
 }

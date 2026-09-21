@@ -1,14 +1,29 @@
 import { cardId } from "@mc/content";
 import type { GameState, InstanceId } from "@mc/engine";
 import { activeEncounterDeckId, applyCommand, cardsInPlay, characterProfile, hasKeyword, traitsOf } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, use, type Picker } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  moveToHand,
+  P1,
+  payWith,
+  play,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  use,
+  type Picker,
+} from "../../testing/harness.js";
 import { stageNemesisCardForReveal, withDamage, withForm } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, revealFromEncounterDeck, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
-import { ANT_MAN_KIT } from "./kit.js";
 
 // Real wave 2 content: the Ant-Man (Leadership) precon against Rhino, standard, solo. Scott Lang starts in alter-ego.
-const antManVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 }));
+const antManVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 }));
 
 const TINY = { heroForm: 0 } as const;
 const GIANT = { heroForm: 1 } as const;
@@ -22,7 +37,9 @@ const accepting =
   (state) => {
     const choice = state.pendingChoice;
     if (!choice) return [];
-    const hits = choice.options.map((o) => o.optionId).filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
+    const hits = choice.options
+      .map((o) => o.optionId)
+      .filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
 
@@ -78,7 +95,12 @@ describe("Ant-Man kit", () => {
     const [particles, antsSupport] = given.ids as [InstanceId, InstanceId];
     const identity = identityOf(given.state);
     const damaged = withDamage(given.state, identity, 3);
-    const played = settle(runWave2(damaged, play(P1, antsSupport, [particles])), accepting("12006.pym-particles-response"), undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(damaged, play(P1, antsSupport, [particles])),
+      accepting("12006.pym-particles-response"),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(played, identity).damage).toBe(1);
   });
 
@@ -87,7 +109,12 @@ describe("Ant-Man kit", () => {
     const given = moveToHand(tiny, P1, "12006", "12007");
     const [particles, antsSupport] = given.ids as [InstanceId, InstanceId];
     const before = playerOf(given.state, P1).hand.length;
-    const played = settle(runWave2(given.state, play(P1, antsSupport, [particles])), accepting("12006.pym-particles-response"), undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, antsSupport, [particles])),
+      accepting("12006.pym-particles-response"),
+      undefined,
+      WAVE2_DEPS,
+    );
     // -1 for the support played, -1 for Pym Particles spent as its payment, +1 drawn by the response.
     expect(playerOf(played, P1).hand.length).toBe(before - 2 + 1);
   });
@@ -95,7 +122,9 @@ describe("Ant-Man kit", () => {
   it("Giant Stomp: cannot be played from Tiny hero form", () => {
     const given = moveToHand(withForm(antManVsRhino(), TINY), P1, "12003");
     const [giantStomp] = given.ids as [InstanceId];
-    expect(() => runWave2(given.state, play(P1, giantStomp, payWith(given.state, P1, 3, [giantStomp])))).toThrow(/rejected/);
+    expect(() => runWave2(given.state, play(P1, giantStomp, payWith(given.state, P1, 3, [giantStomp])))).toThrow(
+      /rejected/,
+    );
   });
 
   it("Giant Stomp: from Giant hero form, deals 8 damage to an enemy as an attack", () => {
@@ -112,7 +141,12 @@ describe("Ant-Man kit", () => {
     expect(() => runWave2(inPlay, use(P1, ants, "12007.army-of-ants-action"))).toThrow(/cannot be triggered/);
     const tiny = withForm(inPlay, TINY);
     const villain = tiny.villains[0]!.instanceId;
-    const used = settle(runWave2(tiny, use(P1, ants, "12007.army-of-ants-action")), accepting(villain), undefined, WAVE2_DEPS);
+    const used = settle(
+      runWave2(tiny, use(P1, ants, "12007.army-of-ants-action")),
+      accepting(villain),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(used, villain).damage).toBe(inst(tiny, villain).damage + 1);
     expect(inst(used, ants).exhausted).toBe(true);
   });
@@ -141,7 +175,9 @@ describe("Ant-Man kit", () => {
   it("Wrist Gauntlets: each action is usable only in its own hero form", () => {
     const giant = withForm(antManVsRhino(), GIANT);
     const { state: inPlay, id: gauntlets } = playFromHand(giant, "12010", 1);
-    expect(() => runWave2(inPlay, use(P1, gauntlets, "12010.wrist-gauntlets-hero-action"))).toThrow(/cannot be triggered/);
+    expect(() => runWave2(inPlay, use(P1, gauntlets, "12010.wrist-gauntlets-hero-action"))).toThrow(
+      /cannot be triggered/,
+    );
     const tiny = withForm(inPlay, TINY);
     expect(() => runWave2(tiny, use(P1, gauntlets, "12010.wrist-gauntlets-action"))).toThrow(/cannot be triggered/);
   });
@@ -163,7 +199,13 @@ describe("Ant-Man kit", () => {
   it("Swarm Tactics: Team-Up with the Wasp ally in play, changes to your other hero form and readies your hero", () => {
     const tiny = withForm(antManVsRhino(), TINY);
     const { state: withWasp } = playFromHand(tiny, "12002", 3);
-    const exhausted = { ...withWasp, instances: { ...withWasp.instances, [identityOf(withWasp)]: { ...withWasp.instances[identityOf(withWasp)]!, exhausted: true } } };
+    const exhausted = {
+      ...withWasp,
+      instances: {
+        ...withWasp.instances,
+        [identityOf(withWasp)]: { ...withWasp.instances[identityOf(withWasp)]!, exhausted: true },
+      },
+    };
     const { state: played } = playFromHand(exhausted, "12020", 1);
     expect(traits(played)).toContain("GIANT");
     expect(inst(played, identityOf(played)).exhausted).toBe(false);
@@ -172,7 +214,9 @@ describe("Ant-Man kit", () => {
   it("Swarm Tactics: cannot be played without Wasp in play", () => {
     const given = moveToHand(withForm(antManVsRhino(), TINY), P1, "12020");
     const [swarmTactics] = given.ids as [InstanceId];
-    expect(() => runWave2(given.state, play(P1, swarmTactics, payWith(given.state, P1, 1, [swarmTactics])))).toThrow(/Team-Up needs Wasp/);
+    expect(() => runWave2(given.state, play(P1, swarmTactics, payWith(given.state, P1, 1, [swarmTactics])))).toThrow(
+      /Team-Up needs Wasp/,
+    );
   });
 });
 
@@ -190,8 +234,13 @@ function stageNemesisCardIntoDeck(state: GameState, code: string, depth: number,
   const pile = state.encounterDecks[deckId]!;
   return {
     ...state,
-    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
-    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [...pile.deck.slice(0, depth), id, ...pile.deck.slice(depth)] } },
+    players: state.players.map((p) =>
+      p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p,
+    ),
+    encounterDecks: {
+      ...state.encounterDecks,
+      [deckId]: { ...pile, deck: [...pile.deck.slice(0, depth), id, ...pile.deck.slice(depth)] },
+    },
   };
 }
 

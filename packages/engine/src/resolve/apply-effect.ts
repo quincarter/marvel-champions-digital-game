@@ -1,6 +1,16 @@
 /** Applying one non-interactive effect from an effects frame. */
 
-import { type Ctx, emit, findFrame, moveCard, pushFrames, setFrame, updateFrame, updateInstance, updatePlayer } from "../ctx.js";
+import {
+  type Ctx,
+  emit,
+  findFrame,
+  moveCard,
+  pushFrames,
+  setFrame,
+  updateFrame,
+  updateInstance,
+  updatePlayer,
+} from "../ctx.js";
 import {
   addAccelerationToken,
   addCounters,
@@ -14,13 +24,11 @@ import {
   exhaustCard,
   giveStatus,
   healDamage,
-  readyCard,
   removeAccelerationToken,
   removeCounters,
   flipVillain,
   removeStatus,
   setActiveVillain,
-  setForm,
   shuffleZone,
   takeTopOfDeck,
 } from "../effects.js";
@@ -32,7 +40,6 @@ import type { LastingDuration, LastingScope } from "../lasting.js";
 import {
   activeEncounterDeckId,
   cardOf,
-  characterProfile,
   discardZoneFor,
   encounterDeckOf,
   getInstance,
@@ -65,13 +72,19 @@ import { currentActivationFrameId, type DeferredEffects, type ReportTarget, type
 import type { TriggerEvent } from "../trigger-events.js";
 import { matchingCardInPlay } from "../unique.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
-import { cannotChangeForm, cannotThwart } from "../rules.js";
+import { cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
-import { addVillains, createGameArea, removeMainSchemeStage, removeVillains, revealMainSchemeStages } from "./game-areas.js";
+import {
+  addVillains,
+  createGameArea,
+  removeMainSchemeStage,
+  removeVillains,
+  revealMainSchemeStages,
+} from "./game-areas.js";
 import { readyOrAnnounce, threatRemovalBlocked } from "./event.js";
 import { heard } from "./triggers.js";
 import { dealBoostCard, giveBoostCard } from "./enemy-activation.js";
-import { applyEnterPlayKeywords, quickstrikeAttack } from "./enter-play.js";
+import { quickstrikeAttack } from "./enter-play.js";
 import { addFrameVars, eventFrame, type Frame, gameAbilityFrames, pushEffects, pushEvents } from "./frames.js";
 import { enterPlayOnReveal, revealFrame } from "./reveal.js";
 
@@ -94,7 +107,11 @@ import { enterPlayOnReveal, revealFrame } from "./reveal.js";
  *
  * Returns the ids that may proceed, and records every refusal in the game log.
  */
-function admitUniqueEntry(ctx: Ctx, ids: readonly InstanceId[], forPlayer: PlayerId | null = null): readonly InstanceId[] {
+function admitUniqueEntry(
+  ctx: Ctx,
+  ids: readonly InstanceId[],
+  forPlayer: PlayerId | null = null,
+): readonly InstanceId[] {
   const admitted: InstanceId[] = [];
   for (const id of ids) {
     const card = cardOf(ctx.state, id);
@@ -132,16 +149,12 @@ export function engagedEvent(ctx: Ctx, id: InstanceId): readonly TriggerEvent[] 
   return heard(ctx.state, ctx.deps, event) ? [event] : [];
 }
 
-export function applyEffect(
-  ctx: Ctx,
-  effect: EffectSpec,
-  context: EffectContext,
-  frame: Frame<"effects">,
-): void {
+export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext, frame: Frame<"effects">): void {
   const targets = (ref: Parameters<typeof resolveRef>[1]): readonly InstanceId[] =>
     resolveRef(ctx.state, ref, context).filter((id) => getInstance(ctx.state, id) !== undefined);
   const value = (spec: Parameters<typeof resolveValue>[1]): number => resolveValue(ctx.state, spec, context, ctx.deps);
-  const reportTo = (bind: string | undefined): ReportTarget | null => (bind ? { frameId: frame.frameId, prefix: bind } : null);
+  const reportTo = (bind: string | undefined): ReportTarget | null =>
+    bind ? { frameId: frame.frameId, prefix: bind } : null;
 
   switch (effect.kind) {
     case "dealDamage": {
@@ -281,7 +294,12 @@ export function applyEffect(
       if (effect.preventAllDamage) delta.preventAllDamage = 1;
       if (effect.atkBonus) delta.atkBonus = value(effect.atkBonus);
       if (effect.threatBonus) delta.threatBonus = value(effect.threatBonus);
-      const extra = effect.extraBoostCards === undefined ? 0 : typeof effect.extraBoostCards === "number" ? effect.extraBoostCards : Math.max(0, value(effect.extraBoostCards));
+      const extra =
+        effect.extraBoostCards === undefined
+          ? 0
+          : typeof effect.extraBoostCards === "number"
+            ? effect.extraBoostCards
+            : Math.max(0, value(effect.extraBoostCards));
       const procedure = ctx.state.stack.find(
         (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
           (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.eventFrameId === activation,
@@ -303,7 +321,13 @@ export function applyEffect(
       );
       if (!using || using.event.kind !== "basicPowerUsing") return;
       const stat: StatName =
-        using.event.power === "attack" ? "atk" : using.event.power === "thwart" ? "thw" : using.event.power === "defense" ? "def" : "rec";
+        using.event.power === "attack"
+          ? "atk"
+          : using.event.power === "thwart"
+            ? "thw"
+            : using.event.power === "defense"
+              ? "def"
+              : "rec";
       // "For this use": the activation the power belongs to (its own `attack`/`thwart` event, or the enemy attack a
       // basic defense answers), which is on the stack beneath this window and ends when that use does.
       const activation = currentActivationFrameId(ctx.state.stack);
@@ -316,7 +340,12 @@ export function applyEffect(
           amount: effect.amount,
           targets: [using.event.characterInstanceId],
           affects: null,
-          scope: { selfInstanceId: frame.selfInstanceId, controllerId: frame.controllerId, vars: frame.vars, bindings: frame.bindings },
+          scope: {
+            selfInstanceId: frame.selfInstanceId,
+            controllerId: frame.controllerId,
+            vars: frame.vars,
+            bindings: frame.bindings,
+          },
         },
         { kind: "endOfEvent", frameId: activation },
       );
@@ -325,11 +354,16 @@ export function applyEffect(
     case "cancelBoostIcons":
     case "cancelBoostAbility": {
       const procedure = ctx.state.stack.find(
-        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> => (f.kind === "enemyAttack" || f.kind === "enemyScheme") && Boolean(f.boost),
+        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
+          (f.kind === "enemyAttack" || f.kind === "enemyScheme") && Boolean(f.boost),
       );
       const boost = procedure?.boost;
       const report = (made: number, amount?: number): void => {
-        if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.made`]: made, ...(amount !== undefined ? { [`${effect.bind}.amount`]: amount } : {}) });
+        if (effect.bind)
+          addFrameVars(ctx, frame.frameId, {
+            [`${effect.bind}.made`]: made,
+            ...(amount !== undefined ? { [`${effect.bind}.amount`]: amount } : {}),
+          });
       };
       if (!procedure || !boost) return report(0);
       if (effect.kind === "cancelBoostAbility") {
@@ -342,8 +376,14 @@ export function applyEffect(
       if (icons <= 0) return report(0);
       setFrame(ctx, { ...procedure, boost: { ...boost, iconsCancelled: true } });
       // Later windows on the same card see no icons left to cancel.
-      const turned = ctx.state.stack.find((f) => f.kind === "event" && f.event.kind === "boostCardTurnedFaceup" && f.event.boostInstanceId === boost.instanceId);
-      if (turned?.kind === "event" && turned.event.kind === "boostCardTurnedFaceup") setFrame(ctx, { ...turned, event: { ...turned.event, boostIcons: 0 } });
+      const turned = ctx.state.stack.find(
+        (f) =>
+          f.kind === "event" &&
+          f.event.kind === "boostCardTurnedFaceup" &&
+          f.event.boostInstanceId === boost.instanceId,
+      );
+      if (turned?.kind === "event" && turned.event.kind === "boostCardTurnedFaceup")
+        setFrame(ctx, { ...turned, event: { ...turned.event, boostIcons: 0 } });
       emit(ctx, { type: "boostCancelled", instanceId: boost.instanceId, scope: "icons" });
       return report(1, icons);
     }
@@ -351,12 +391,16 @@ export function applyEffect(
     case "replaceBoostCount": {
       // The boost card the current activation is counting (docs/phase7-wave2.md §3.6).
       const procedure = ctx.state.stack.find(
-        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> => (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.step === "count",
+        (f): f is Frame<"enemyAttack"> | Frame<"enemyScheme"> =>
+          (f.kind === "enemyAttack" || f.kind === "enemyScheme") && f.boost?.step === "count",
       );
       const boost = procedure?.boost;
       if (!procedure || !boost) return;
       if (effect.kind === "adjustBoostCount") {
-        setFrame(ctx, { ...procedure, boost: { ...boost, countAdjust: (boost.countAdjust ?? 0) + value(effect.delta) } });
+        setFrame(ctx, {
+          ...procedure,
+          boost: { ...boost, countAdjust: (boost.countAdjust ?? 0) + value(effect.delta) },
+        });
       } else {
         const [card] = resolveRef(ctx.state, effect.card, context);
         if (card) setFrame(ctx, { ...procedure, boost: { ...boost, countFrom: card } });
@@ -435,7 +479,8 @@ export function applyEffect(
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         // "Attach 1 card from your hand facedown here" (Bruno Carrelli): no title, traits, keywords or abilities
         // while it is facedown; it is itself again when it leaves play (`leavePlay`).
-        if (effect.facedown) updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
+        if (effect.facedown)
+          updateInstance(ctx, id, (i) => ({ ...i, faceup: false, facedownAs: { kind: "blank", traits: [] } }));
         // Otherwise it is faceup in play, whatever zone it came from ("search the top 5 cards of your deck for an
         // [Arrow] event and attach it faceup to this card", Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
         else if (!mustInstance(ctx.state, id).faceup) updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
@@ -476,7 +521,11 @@ export function applyEffect(
       const threatRemoved = effect.threatRemoved ? value(effect.threatRemoved) : 0;
       if (damage === 0 && threatRemoved === 0) return;
       for (const id of targets(effect.card)) {
-        addLastingEffect(ctx, { kind: "cardEffectBonus", sourceInstanceId: id, damage, threatRemoved }, { kind: "endOfCardResolution", instanceId: id });
+        addLastingEffect(
+          ctx,
+          { kind: "cardEffectBonus", sourceInstanceId: id, damage, threatRemoved },
+          { kind: "endOfCardResolution", instanceId: id },
+        );
       }
       return;
     }
@@ -491,7 +540,12 @@ export function applyEffect(
       for (const id of admitted) {
         const card = cardOf(ctx.state, id);
         // Encounter cards other than minions enter where their type goes (villain area, host, play area).
-        if (card && card.type !== "minion" && getInstance(ctx.state, id)?.ownerId === null && !cardsInPlay(ctx.state).includes(id)) {
+        if (
+          card &&
+          card.type !== "minion" &&
+          getInstance(ctx.state, id)?.ownerId === null &&
+          !cardsInPlay(ctx.state).includes(id)
+        ) {
           updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
           enterPlayOnReveal(ctx, id, controller);
           placed.push(id);
@@ -541,7 +595,9 @@ export function applyEffect(
       // facedown on that enemy until that enemy activates"). Any enemy qualifies, villainous or not: the card text names
       // the recipient, and the villainous gate is only about the activation's automatic card (`giveBoostCard`).
       const inPlay = cardsInPlay(ctx.state);
-      const enemies = targets(effect.enemy).filter((id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"));
+      const enemies = targets(effect.enemy).filter(
+        (id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("enemy"),
+      );
       for (const enemyId of enemies) {
         for (let i = 0; i < count; i++) dealBoostCard(ctx, enemyId, true);
       }
@@ -593,7 +649,9 @@ export function applyEffect(
         const card = cardOf(ctx.state, id);
         const villain = villainOf(ctx.state, id);
         if (!inPlay.includes(id) || !villain || card?.type !== "villain") continue;
-        const face = card.sides.find((side) => side.stages[villain.stageIndex]?.traits.includes(effect.toFaceWithTrait));
+        const face = card.sides.find((side) =>
+          side.stages[villain.stageIndex]?.traits.includes(effect.toFaceWithTrait),
+        );
         if (!face || face.side === villain.side) continue;
         flipVillain(ctx, id, face.side);
         frames.push(...gameAbilityFrames(ctx, id, ["whenRevealed"], null, undefined, ctx.state.firstPlayerId));
@@ -623,11 +681,19 @@ export function applyEffect(
       for (const scheme of targets(effect.scheme)) completeMainScheme(ctx, scheme);
       return;
     case "endGame":
-      endGame(ctx, effect.result === "win" ? { result: "win", reason: "villainDefeated" } : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" });
+      endGame(
+        ctx,
+        effect.result === "win"
+          ? { result: "win", reason: "villainDefeated" }
+          : { result: "loss", reason: effect.reason ?? "mainSchemeCompleted" },
+      );
       return;
     case "addVillain": {
       const actor = context.scopedPlayerId ?? context.controllerId ?? ctx.state.firstPlayerId;
-      pushFrames(ctx, addVillains(ctx, targets(effect.villain), contextArea(ctx.state, context), effect.reveal ?? false, actor));
+      pushFrames(
+        ctx,
+        addVillains(ctx, targets(effect.villain), contextArea(ctx.state, context), effect.reveal ?? false, actor),
+      );
       return;
     }
     case "removeVillain":
@@ -656,7 +722,12 @@ export function applyEffect(
         {
           kind: "delayedEffects",
           effects: effect.effects,
-          scope: { selfInstanceId: frame.selfInstanceId, controllerId: frame.controllerId, vars: frame.vars, bindings: frame.bindings },
+          scope: {
+            selfInstanceId: frame.selfInstanceId,
+            controllerId: frame.controllerId,
+            vars: frame.vars,
+            bindings: frame.bindings,
+          },
         },
         { kind: "endOfPhase" },
       );
@@ -674,15 +745,22 @@ export function applyEffect(
       }
       // Removed from the source, then placed on the destination; only the placement reports to `bind`.
       pushFrames(ctx, [
-        eventFrame(ctx, { kind: "removeThreat", schemeInstanceId: from, amount, sourceInstanceId: frame.selfInstanceId }),
-        eventFrame(ctx, { kind: "placeThreat", schemeInstanceId: to, amount, sourceInstanceId: frame.selfInstanceId }, reportTo(effect.bind)),
+        eventFrame(ctx, {
+          kind: "removeThreat",
+          schemeInstanceId: from,
+          amount,
+          sourceInstanceId: frame.selfInstanceId,
+        }),
+        eventFrame(
+          ctx,
+          { kind: "placeThreat", schemeInstanceId: to, amount, sourceInstanceId: frame.selfInstanceId },
+          reportTo(effect.bind),
+        ),
       ]);
       return;
     }
     case "if": {
-      const branch = evaluate(ctx.state, effect.condition, context)
-        ? effect.then
-        : (effect.otherwise ?? []);
+      const branch = evaluate(ctx.state, effect.condition, context) ? effect.then : (effect.otherwise ?? []);
       pushEffects(ctx, {
         effects: branch,
         selfInstanceId: frame.selfInstanceId,
@@ -721,7 +799,12 @@ export function applyEffect(
       if (prevented <= 0) return;
       setFrame(ctx, { ...target, event: { ...target.event, amount: pending - prevented } });
       if (target.event.kind === "dealDamage") {
-        emit(ctx, { type: "damagePrevented", targetInstanceId: target.event.targetInstanceId, amount: prevented, reason: "effect" });
+        emit(ctx, {
+          type: "damagePrevented",
+          targetInstanceId: target.event.targetInstanceId,
+          amount: prevented,
+          reason: "effect",
+        });
       } else if (target.event.kind === "placeThreat") {
         emit(ctx, { type: "threatPrevented", schemeInstanceId: target.event.schemeInstanceId, amount: prevented });
       }
@@ -729,7 +812,9 @@ export function applyEffect(
     }
     case "replaceTriggeringEvent": {
       if (!frame.eventFrameId) return;
-      updateFrame(ctx, frame.eventFrameId, (target) => (target.kind === "event" ? { ...target, cancelled: true } : target));
+      updateFrame(ctx, frame.eventFrameId, (target) =>
+        target.kind === "event" ? { ...target, cancelled: true } : target,
+      );
       pushEffects(ctx, {
         effects: effect.with,
         selfInstanceId: frame.selfInstanceId,
@@ -744,7 +829,9 @@ export function applyEffect(
     case "cancelWhenRevealed":
     case "cancelRevealedCard": {
       const revealing = frame.event?.kind === "encounterCardRevealing" ? frame.event.instanceId : null;
-      const reveal = ctx.state.stack.find((f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === revealing);
+      const reveal = ctx.state.stack.find(
+        (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === revealing,
+      );
       if (!reveal) return;
       const all = effect.kind === "cancelRevealedCard";
       setFrame(ctx, all ? { ...reveal, effectsCancelled: true } : { ...reveal, whenRevealedCancelled: true });
@@ -763,7 +850,9 @@ export function applyEffect(
     }
     case "bindTargets": {
       const ids = targets(effect.target);
-      updateFrame(ctx, frame.frameId, (f) => (f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [effect.slot]: ids } } : f));
+      updateFrame(ctx, frame.frameId, (f) =>
+        f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [effect.slot]: ids } } : f,
+      );
       return;
     }
     case "modifyStatUntil":
@@ -818,7 +907,9 @@ export function applyEffect(
         if (effect.until === "endOfNextTurn") {
           // "Until your next turn ends": whose turn, and whether a turn of theirs is already under way — one that
           // is under way is not their *next* one (§22).
-          const [playerId] = effect.player ? resolvePlayers(ctx.state, effect.player, context) : [rulePlayerId ?? frame.controllerId];
+          const [playerId] = effect.player
+            ? resolvePlayers(ctx.state, effect.player, context)
+            : [rulePlayerId ?? frame.controllerId];
           if (!playerId) continue;
           const step = ctx.state.step;
           const ownTurnNow = step.phase === "player" && step.kind === "turn" && step.activePlayerId === playerId;
@@ -828,7 +919,10 @@ export function applyEffect(
           if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
           duration = { kind: effect.until };
         }
-        const rule = rulePlayerId && "player" in effect.rule ? { ...effect.rule, player: { kind: "id" as const, playerId: rulePlayerId } } : effect.rule;
+        const rule =
+          rulePlayerId && "player" in effect.rule
+            ? { ...effect.rule, player: { kind: "id" as const, playerId: rulePlayerId } }
+            : effect.rule;
         addLastingEffect(ctx, { kind: "ruleGrant", rule, scope }, duration);
       }
       return;
@@ -850,7 +944,12 @@ export function applyEffect(
         {
           kind: "delayedEffects",
           effects: effect.effects,
-          scope: { selfInstanceId: frame.selfInstanceId, controllerId: frame.controllerId, vars: frame.vars, bindings: frame.bindings },
+          scope: {
+            selfInstanceId: frame.selfInstanceId,
+            controllerId: frame.controllerId,
+            vars: frame.vars,
+            bindings: frame.bindings,
+          },
         },
         { kind: "endOfRound" },
       );
@@ -939,7 +1038,9 @@ export function applyEffect(
             bindings: frame.bindings,
             vars: frame.vars,
           };
-          updateFrame(ctx, activation, (f) => (f.kind === "event" ? { ...f, endEffects: [...f.endEffects, deferred] } : f));
+          updateFrame(ctx, activation, (f) =>
+            f.kind === "event" ? { ...f, endEffects: [...f.endEffects, deferred] } : f,
+          );
           return;
         }
       }
@@ -948,7 +1049,9 @@ export function applyEffect(
       const inPlayNow = cardsInPlay(ctx.state);
       const [character] =
         effect.kind === "enemyAttack" && effect.targetCharacter
-          ? targets(effect.targetCharacter).filter((id) => inPlayNow.includes(id) && categoriesOf(ctx.state, id).includes("character"))
+          ? targets(effect.targetCharacter).filter(
+              (id) => inPlayNow.includes(id) && categoriesOf(ctx.state, id).includes("character"),
+            )
           : [];
       const characterController = character ? controllerOf(ctx.state, character) : null;
       const noBoost = effect.boost === false ? { noBoost: true } : {};
@@ -960,7 +1063,10 @@ export function applyEffect(
         const players =
           effect.kind === "enemyAttack" && effect.targetCharacter
             ? [characterController].filter((p): p is PlayerId => p !== null)
-            : (against ?? [getInstance(ctx.state, enemy)?.engagedWith ?? frame.controllerId].filter((p): p is PlayerId => p !== null));
+            : (against ??
+              [getInstance(ctx.state, enemy)?.engagedWith ?? frame.controllerId].filter(
+                (p): p is PlayerId => p !== null,
+              ));
         for (const playerId of players) {
           const player = getPlayer(ctx.state, playerId);
           if (!player || player.eliminated) continue;
@@ -969,7 +1075,12 @@ export function applyEffect(
           if (statusActive(ctx.state, enemy, status, ctx.deps)) {
             // RRG "Stun"/"Confuse": the status is discarded instead; the enemy did not attack/scheme.
             updateInstance(ctx, enemy, (i) => ({ ...i, statuses: { ...i.statuses, [status]: 0 } }));
-            emit(ctx, { type: "statusRemoved", instanceId: enemy, status, reason: attacking ? "cancelledAttack" : "cancelledSchemeOrThwart" });
+            emit(ctx, {
+              type: "statusRemoved",
+              instanceId: enemy,
+              status,
+              reason: attacking ? "cancelledAttack" : "cancelledSchemeOrThwart",
+            });
             continue;
           }
           events.push(
@@ -980,7 +1091,9 @@ export function applyEffect(
                   attackedPlayerId: playerId,
                   targetPlayerId: playerId,
                   targetInstanceId: character ?? player.identity.instanceId,
-                  ...(effect.kind === "enemyAttack" && effect.additionalResolution ? { additionalResolution: true } : {}),
+                  ...(effect.kind === "enemyAttack" && effect.additionalResolution
+                    ? { additionalResolution: true }
+                    : {}),
                   ...noBoost,
                 }
               : { kind: "enemyScheme", enemyInstanceId: enemy, playerId, ...noBoost },
@@ -1004,7 +1117,9 @@ export function applyEffect(
       const ids = selectCards(ctx, effect.cards, context);
       const slot = effect.slot;
       updateFrame(ctx, frame.frameId, (f) =>
-        f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [slot]: ids }, vars: { ...f.vars, [`${slot}.count`]: ids.length } } : f,
+        f.kind === "effects"
+          ? { ...f, bindings: { ...f.bindings, [slot]: ids }, vars: { ...f.vars, [`${slot}.count`]: ids.length } }
+          : f,
       );
       return;
     }
@@ -1059,7 +1174,13 @@ export function applyEffect(
       }
       const bind = effect.bind;
       updateFrame(ctx, frame.frameId, (f) =>
-        f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [bind]: found ? [found] : [] }, vars: { ...f.vars, [`${bind}.count`]: found ? 1 : 0 } } : f,
+        f.kind === "effects"
+          ? {
+              ...f,
+              bindings: { ...f.bindings, [bind]: found ? [found] : [] },
+              vars: { ...f.vars, [`${bind}.count`]: found ? 1 : 0 },
+            }
+          : f,
       );
       return;
     }
@@ -1092,7 +1213,9 @@ export function applyEffect(
         }
       }
       updateFrame(ctx, frame.frameId, (f) =>
-        f.kind === "effects" ? { ...f, bindings: { ...f.bindings, [bind]: found }, vars: { ...f.vars, [`${bind}.count`]: found.length } } : f,
+        f.kind === "effects"
+          ? { ...f, bindings: { ...f.bindings, [bind]: found }, vars: { ...f.vars, [`${bind}.count`]: found.length } }
+          : f,
       );
       return;
     }
@@ -1177,7 +1300,12 @@ export function applyEffect(
         // "Leaves Play", p. 27): Marked for Death "tucks her faceup beneath this card" (docs/phase7-wave2.md §3.10).
         if (inPlay.includes(id)) leavePlay(ctx, id, { kind: "tucked", hostInstanceId: host });
         else moveCard(ctx, id, { kind: "tucked", hostInstanceId: host });
-        updateInstance(ctx, id, (i) => ({ ...i, faceup: effect.facedown !== true, controllerId: i.ownerId, attachedTo: null }));
+        updateInstance(ctx, id, (i) => ({
+          ...i,
+          faceup: effect.facedown !== true,
+          controllerId: i.ownerId,
+          attachedTo: null,
+        }));
       }
       return;
     }
@@ -1190,7 +1318,13 @@ export function applyEffect(
           if (!id) break;
           moveCard(ctx, id, { kind: "playArea", playerId });
           // Engaged with that player like any minion; it belongs to the encounter side while facedown.
-          updateInstance(ctx, id, (inst) => ({ ...inst, faceup: false, controllerId: null, engagedWith: playerId, facedownAs: effect.as }));
+          updateInstance(ctx, id, (inst) => ({
+            ...inst,
+            faceup: false,
+            controllerId: null,
+            engagedWith: playerId,
+            facedownAs: effect.as,
+          }));
           emit(ctx, { type: "cardPutIntoPlayFacedown", instanceId: id, playerId, as: effect.as.kind });
           entered.push({ kind: "cardEntersPlay", instanceId: id, playerId }, ...engagedEvent(ctx, id));
         }
@@ -1200,7 +1334,9 @@ export function applyEffect(
       return;
     }
     case "gainSurge": {
-      const reveal = ctx.state.stack.find((f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === frame.selfInstanceId);
+      const reveal = ctx.state.stack.find(
+        (f): f is Frame<"reveal"> => f.kind === "reveal" && f.instanceId === frame.selfInstanceId,
+      );
       if (reveal) setFrame(ctx, { ...reveal, surgeGained: true });
       return;
     }
@@ -1224,7 +1360,10 @@ export function applyEffect(
           { kind: "costReduction", playerId, amount, ...filter },
           effect.duration === "untilPlayed"
             ? { kind: "untilCardPlayed", playerId, ...filter }
-            : { kind: effect.duration === "phase" ? "endOfPhase" : effect.duration === "turn" ? "endOfTurn" : "endOfRound" },
+            : {
+                kind:
+                  effect.duration === "phase" ? "endOfPhase" : effect.duration === "turn" ? "endOfTurn" : "endOfRound",
+              },
         );
       }
       return;
@@ -1237,7 +1376,12 @@ export function applyEffect(
           {
             kind: "delayedEffects",
             effects: effect.effects,
-            scope: { selfInstanceId: frame.selfInstanceId, controllerId: frame.controllerId, vars: frame.vars, bindings: frame.bindings },
+            scope: {
+              selfInstanceId: frame.selfInstanceId,
+              controllerId: frame.controllerId,
+              vars: frame.vars,
+              bindings: frame.bindings,
+            },
           },
           { kind: "untilCardPlayed", playerId, ...filter },
         );

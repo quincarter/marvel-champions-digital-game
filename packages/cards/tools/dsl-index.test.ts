@@ -31,7 +31,12 @@ const flatten = (block: string): string =>
     .replace(/^\s*\/\*\*/, "")
     .replace(/\*\/\s*$/, "")
     .split("\n")
-    .map((l) => l.replace(/^\s*\*ic?\s?/, "").replace(/^\s*\*\s?/, "").trim())
+    .map((l) =>
+      l
+        .replace(/^\s*\*ic?\s?/, "")
+        .replace(/^\s*\*\s?/, "")
+        .trim(),
+    )
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
@@ -44,7 +49,10 @@ function buildersIn(file: string): Builder[] {
   for (const m of source.matchAll(re)) {
     const [, docBlock, name, rest] = m;
     if (!name) continue;
-    const signature = (rest ?? "").replace(/\s*=>?\s*$/, "").trim().slice(0, 110);
+    const signature = (rest ?? "")
+      .replace(/\s*=>?\s*$/, "")
+      .trim()
+      .slice(0, 110);
     out.push({ module: file.replace(/\.ts$/, ""), name, signature, doc: docBlock ? flatten(docBlock) : "" });
   }
   return out;
@@ -55,13 +63,21 @@ describe("DSL index", () => {
     const files = readdirSync(DSL_DIR).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts") && f !== "index.ts");
     const all = files.flatMap((f) => buildersIn(f));
 
-    const terms = (process.env.MC_DSL ?? "").split(/[,\s]+/).filter(Boolean).map((t) => t.toLowerCase());
+    const terms = (process.env.MC_DSL ?? "")
+      .split(/[,\s]+/)
+      .filter(Boolean)
+      .map((t) => t.toLowerCase());
     const matches = (b: Builder) =>
-      terms.length === 0 || terms.some((t) => b.name.toLowerCase().includes(t) || b.doc.toLowerCase().includes(t) || b.signature.toLowerCase().includes(t));
+      terms.length === 0 ||
+      terms.some(
+        (t) =>
+          b.name.toLowerCase().includes(t) || b.doc.toLowerCase().includes(t) || b.signature.toLowerCase().includes(t),
+      );
     const hits = all.filter(matches);
 
     const lines: string[] = [""];
-    if (terms.length > 0) lines.push(`  ${hits.length} of ${all.length} builders match ${terms.map((t) => `"${t}"`).join(" / ")}`, "");
+    if (terms.length > 0)
+      lines.push(`  ${hits.length} of ${all.length} builders match ${terms.map((t) => `"${t}"`).join(" / ")}`, "");
     else lines.push(`  ${all.length} builders across ${files.length} modules. Filter with MC_DSL=<terms>.`, "");
 
     let currentModule = "";

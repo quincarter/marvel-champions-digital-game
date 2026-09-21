@@ -264,6 +264,10 @@ export class AxisDragGesture {
 }
 
 /** Whether a point sits inside a rect — the "clip to the viewport" test both the drag/tap logic and `McButton`'s clip option share. */
-export function pointInRect(x: number, y: number, rect: { readonly x: number; readonly y: number; readonly width: number; readonly height: number }): boolean {
+export function pointInRect(
+  x: number,
+  y: number,
+  rect: { readonly x: number; readonly y: number; readonly width: number; readonly height: number },
+): boolean {
   return x >= rect.x && x <= rect.x + rect.width && y >= rect.y && y <= rect.y + rect.height;
 }

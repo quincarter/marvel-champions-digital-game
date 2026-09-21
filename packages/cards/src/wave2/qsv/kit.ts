@@ -128,7 +128,11 @@ export const QSV_KIT = defineAbilities({
       2,
       [
         option("Deal 2 damage to an enemy", chooseTarget("enemy", query("enemy")), dealDamage(2, chosen("enemy"))),
-        option("Remove 2 threat from a scheme", chooseTarget("scheme", query("scheme")), removeThreat(2, chosen("scheme"))),
+        option(
+          "Remove 2 threat from a scheme",
+          chooseTarget("scheme", query("scheme")),
+          removeThreat(2, chosen("scheme")),
+        ),
       ],
       { allowRepeat: true },
     ),
@@ -146,7 +150,10 @@ export const QSV_KIT = defineAbilities({
   ),
 
   // Speed Cyclone — Hero Action: Stun X Enemies (module docblock).
-  "14006.speed-cyclone-action": heroAction(chooseTarget("enemies", query("enemy"), { count: varOf("x") }), stun(chosen("enemies"))),
+  "14006.speed-cyclone-action": heroAction(
+    chooseTarget("enemies", query("enemy"), { count: varOf("x") }),
+    stun(chosen("enemies")),
+  ),
 
   // Serval Industries — Alter-Ego Action: Exhaust Serval Industries → shuffle 2 Quicksilver cards from your
   // discard pile into your deck (module docblock).

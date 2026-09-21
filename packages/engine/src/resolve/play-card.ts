@@ -86,7 +86,11 @@ export function executePlayCardFrame(ctx: Ctx, frame: Frame<"playCard">): void {
       // them first would queue them past anything the interrupt could do (RRG 1.8 "Cancel", p. 13: "Only the
       // effects are prevented from initiating, and do not resolve").
       setFrame(ctx, { ...frame, stage: card.type === "event" ? "abilities" : "discardEvent" });
-      const beingPlayed: TriggerEvent = { kind: "cardBeingPlayed", instanceId: frame.instanceId, playerId: frame.playerId };
+      const beingPlayed: TriggerEvent = {
+        kind: "cardBeingPlayed",
+        instanceId: frame.instanceId,
+        playerId: frame.playerId,
+      };
       if (heard(ctx.state, ctx.deps, beingPlayed)) pushEvent(ctx, beingPlayed);
       return;
     }

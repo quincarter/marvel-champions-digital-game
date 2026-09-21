@@ -1,13 +1,28 @@
 import type { GameState, InstanceId } from "@mc/engine";
 import { characterProfile, hasKeyword, traitsOf } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, stackEncounterDeck, type Picker } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  moveToHand,
+  P1,
+  payWith,
+  play,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  type Picker,
+} from "../../testing/harness.js";
 import { withDamage, withForm } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { WASP_KIT } from "./kit.js";
 
 // Real wave 2 content: the Wasp (Aggression) precon against Rhino, standard, solo. Nadia Van Dyne starts in alter-ego.
-const waspVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "wsp-aggression" }], seed: 2026 }));
+const waspVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "wsp-aggression" }], seed: 2026 }));
 
 const TINY = { heroForm: 0 } as const;
 const GIANT = { heroForm: 1 } as const;
@@ -17,7 +32,9 @@ const accepting =
   (state) => {
     const choice = state.pendingChoice;
     if (!choice) return [];
-    const hits = choice.options.map((o) => o.optionId).filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
+    const hits = choice.options
+      .map((o) => o.optionId)
+      .filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
 
@@ -63,8 +80,19 @@ describe("Wasp kit", () => {
     const { state } = playFromHand(start, "13008", 2);
     const identity = identityOf(state);
     const villain = state.villains[0]!.instanceId;
-    const tough: GameState = { ...state, instances: { ...state.instances, [villain]: { ...state.instances[villain]!, damage: 0, statuses: { stunned: 0, confused: 0, tough: 1 } } } };
-    const attacked = settle(runWave2(tough, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }), firstLegal, undefined, WAVE2_DEPS);
+    const tough: GameState = {
+      ...state,
+      instances: {
+        ...state.instances,
+        [villain]: { ...state.instances[villain]!, damage: 0, statuses: { stunned: 0, confused: 0, tough: 1 } },
+      },
+    };
+    const attacked = settle(
+      runWave2(tough, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     // Piercing discards the tough status card before dealing damage (RRG 1.8 "Piercing", p. 32); without it the
     // whole basic attack would have been absorbed instead.
     expect(inst(attacked, villain).statuses.tough).toBe(0);
@@ -74,7 +102,13 @@ describe("Wasp kit", () => {
     // basic one, so this rule misses it even while Tiny — the tough card still absorbs (and discards for) that
     // attack (RRG 1.8 "Tough": a tough status "prevents all damage and is discarded instead"), but unlike the
     // piercing case above, no damage gets through it.
-    const toughAgain: GameState = { ...state, instances: { ...state.instances, [villain]: { ...state.instances[villain]!, damage: 0, statuses: { stunned: 0, confused: 0, tough: 1 } } } };
+    const toughAgain: GameState = {
+      ...state,
+      instances: {
+        ...state.instances,
+        [villain]: { ...state.instances[villain]!, damage: 0, statuses: { stunned: 0, confused: 0, tough: 1 } },
+      },
+    };
     const struck = playFromHand(toughAgain, "13004", 3, accepting("enemy"));
     expect(inst(struck.state, villain).statuses.tough).toBe(0);
     expect(inst(struck.state, villain).damage).toBe(0);
@@ -89,7 +123,12 @@ describe("Wasp kit", () => {
     const villain = withWings.villains[0]!.instanceId;
     const before = inst(withWings, identity).damage;
     const attacked = settle(
-      runWave2(withDamage(withWings, villain, 0), { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }),
+      runWave2(withDamage(withWings, villain, 0), {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: villain,
+      }),
       firstLegal,
       undefined,
       WAVE2_DEPS,
@@ -108,7 +147,12 @@ describe("Wasp kit", () => {
     const [event] = other.ids as [InstanceId];
     const damaged = withDamage(other.state, identityOf(other.state), 3);
     const payment = [pym, ...payWith(damaged, P1, 2, [pym, event])];
-    const played = settle(runWave2(damaged, play(P1, event, payment)), accepting("13007.pym-particles-response"), undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(damaged, play(P1, event, payment)),
+      accepting("13007.pym-particles-response"),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(played, identityOf(played)).damage).toBe(1); // healed 2 of 3
 
     const tinyStart = withForm(waspVsRhino(), TINY);
@@ -118,7 +162,12 @@ describe("Wasp kit", () => {
     const [eventTiny] = otherTiny.ids as [InstanceId];
     const beforeHand = playerOf(otherTiny.state, P1).hand.length;
     const paymentTiny = [pymTiny, ...payWith(otherTiny.state, P1, 2, [pymTiny, eventTiny])];
-    const playedTiny = settle(runWave2(otherTiny.state, play(P1, eventTiny, paymentTiny)), accepting("13007.pym-particles-response"), undefined, WAVE2_DEPS);
+    const playedTiny = settle(
+      runWave2(otherTiny.state, play(P1, eventTiny, paymentTiny)),
+      accepting("13007.pym-particles-response"),
+      undefined,
+      WAVE2_DEPS,
+    );
     // The event, Pym Particles and the 2 extra resources all left the hand (-4), the response drew 1 (+1): net -3.
     expect(playerOf(playedTiny, P1).hand.length).toBe(beforeHand - 3);
   });
@@ -134,14 +183,23 @@ describe("Wasp kit", () => {
     // check — the only scheme in a solo Rhino game is the main scheme, so a real 2-target division can't be set up
     // here, but this still distinguishes "rule absent" from "rule present" by the refusal's own reason.
     expect(() =>
-      runWave2(start, { type: "basicThwart", playerId: P1, thwarterInstanceId: identity, targetInstanceId: scheme, divide: [{ targetInstanceId: scheme, amount: 1 }] } as never),
+      runWave2(start, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identity,
+        targetInstanceId: scheme,
+        divide: [{ targetInstanceId: scheme, amount: 1 }],
+      } as never),
     ).toThrow(/distinct targets/);
   });
 
   it("Giant Help: removes 3 threat from one scheme normally, or divides a total of 4 among schemes in Giant hero form", () => {
     const fresh = waspVsRhino();
     const scheme = fresh.mainScheme.instanceId;
-    const threatened = { ...fresh, instances: { ...fresh.instances, [scheme]: { ...fresh.instances[scheme]!, threat: 10 } } };
+    const threatened = {
+      ...fresh,
+      instances: { ...fresh.instances, [scheme]: { ...fresh.instances[scheme]!, threat: 10 } },
+    };
     const start = withForm(threatened, TINY);
     const { state } = playFromHand(start, "13003", 2);
     expect(inst(state, scheme).threat).toBe(7);
@@ -162,7 +220,10 @@ describe("Wasp kit", () => {
     const tiny = withForm(waspVsRhino(), TINY);
     const { state: withAntMan } = playFromHand(tiny, "13002", 4);
     const identity = identityOf(withAntMan);
-    const exhausted = { ...withAntMan, instances: { ...withAntMan.instances, [identity]: { ...withAntMan.instances[identity]!, exhausted: true } } };
+    const exhausted = {
+      ...withAntMan,
+      instances: { ...withAntMan.instances, [identity]: { ...withAntMan.instances[identity]!, exhausted: true } },
+    };
     const { state } = playFromHand(exhausted, "13020", 1);
     const owner = state.players.find((p) => p.playerId === P1)!;
     expect(owner.identity.heroFormIndex).toBe(GIANT.heroForm);
@@ -180,7 +241,12 @@ describe("Wasp kit", () => {
     const damageBefore = inst(byWasp.state, villainBefore).damage;
     const identity = identityOf(byWasp.state);
     const afterWasp = settle(
-      runWave2(byWasp.state, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: byWasp.id }),
+      runWave2(byWasp.state, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: byWasp.id,
+      }),
       accepting("13001a.small-but-mighty"), // an optional Response — `firstLegal` alone would decline it
       undefined,
       WAVE2_DEPS,
@@ -196,7 +262,12 @@ describe("Wasp kit", () => {
     const villainForAlly = byAlly.state.villains[0]!.instanceId;
     const allyDamageBefore = inst(byAlly.state, villainForAlly).damage;
     const afterAlly = settle(
-      runWave2(byAlly.state, { type: "basicAttack", playerId: P1, attackerInstanceId: ally, targetInstanceId: byAlly.id }),
+      runWave2(byAlly.state, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: ally,
+        targetInstanceId: byAlly.id,
+      }),
       firstLegal,
       undefined,
       WAVE2_DEPS,
@@ -236,7 +307,12 @@ describe("Wasp kit", () => {
       return accepting("13005.rapid-growth-interrupt")(state);
     };
     const attacked = settle(
-      runWave2(given.state, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }),
+      runWave2(given.state, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: villain,
+      }),
       pick,
       undefined,
       WAVE2_DEPS,

@@ -13,7 +13,8 @@ export const WARM_CURATION: PackCuration = {
   pack: {
     name: "War Machine",
     releaseDate: "2021-11-12",
-    releaseDateSource: "Hall of Heroes War Machine page (https://hallofheroeslcg.com/war-machine/): \"Release date: November 12, 2021\"",
+    releaseDateSource:
+      'Hall of Heroes War Machine page (https://hallofheroeslcg.com/war-machine/): "Release date: November 12, 2021"',
   },
   outDir: "src/data/warm",
   exportPrefix: "WARM",

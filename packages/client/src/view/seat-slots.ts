@@ -32,7 +32,10 @@ export function aspectLabelOf(aspects: readonly CoreAspect[]): string {
   return aspects.map((a) => a.charAt(0).toUpperCase() + a.slice(1)).join(" + ");
 }
 
-function identityStatsOf(deck: Deck, cardsById: ReadonlyMap<string, AnyCard>): Pick<SeatSlot, "identityName" | "hp" | "handSize" | "thw" | "atk" | "def"> {
+function identityStatsOf(
+  deck: Deck,
+  cardsById: ReadonlyMap<string, AnyCard>,
+): Pick<SeatSlot, "identityName" | "hp" | "handSize" | "thw" | "atk" | "def"> {
   const identity = cardsById.get(deck.identityCardId as string);
   if (!identity || identity.type !== "hero_identity") {
     return { identityName: identity?.name ?? null, hp: null, handSize: null, thw: null, atk: null, def: null };
@@ -61,7 +64,19 @@ export function seatSlotsOf(
     const deckId = seatedDeckIds[index] ?? null;
     const option = deckId ? byId.get(deckId) : undefined;
     if (!deckId || !option) {
-      return { index, deckId: null, deckName: null, identityName: null, aspectLabel: null, hp: null, handSize: null, thw: null, atk: null, def: null, active: index === active };
+      return {
+        index,
+        deckId: null,
+        deckName: null,
+        identityName: null,
+        aspectLabel: null,
+        hp: null,
+        handSize: null,
+        thw: null,
+        atk: null,
+        def: null,
+        active: index === active,
+      };
     }
     return {
       index,
@@ -94,7 +109,8 @@ export function heroCandidateDetailOf(
 ): HeroCandidateDetail {
   const stats = identityStatsOf(option.deck, cardsById);
   const identity = cardsById.get(option.deck.identityCardId as string);
-  const obligation = identity?.type === "hero_identity" ? cardsById.get(identity.obligationCardId as string) : undefined;
+  const obligation =
+    identity?.type === "hero_identity" ? cardsById.get(identity.obligationCardId as string) : undefined;
   const nemesisSetId = identity?.type === "hero_identity" ? (identity.nemesisEncounterSetId as string) : undefined;
   const nemesisSet = nemesisSetId ? encounterSets.find((set) => (set.id as string) === nemesisSetId) : undefined;
   return {
@@ -135,13 +151,29 @@ export interface ActiveSeatRosterEntry {
  *  - not seated anywhere → `seatOptions`'s own verdict (illegal deck, or a duplicate identity already at another
  *    seat), unchanged.
  */
-export function activeSeatRosterOf(options: readonly SeatOption[], seats: readonly string[], activeSeatIndex: number): readonly ActiveSeatRosterEntry[] {
+export function activeSeatRosterOf(
+  options: readonly SeatOption[],
+  seats: readonly string[],
+  activeSeatIndex: number,
+): readonly ActiveSeatRosterEntry[] {
   return options.map((option): ActiveSeatRosterEntry => {
     const seatIndex = seats.indexOf(option.deckId);
     const isActiveSeat = seatIndex !== -1 && seatIndex === activeSeatIndex;
     if (seatIndex !== -1 && !isActiveSeat) {
-      return { deckId: option.deckId, seatIndex, isActiveSeat, blockedBy: `Already seated · Seat ${seatIndex + 1}`, warning: option.warning };
+      return {
+        deckId: option.deckId,
+        seatIndex,
+        isActiveSeat,
+        blockedBy: `Already seated · Seat ${seatIndex + 1}`,
+        warning: option.warning,
+      };
     }
-    return { deckId: option.deckId, seatIndex: seatIndex === -1 ? null : seatIndex, isActiveSeat, blockedBy: isActiveSeat ? null : option.blockedBy, warning: option.warning };
+    return {
+      deckId: option.deckId,
+      seatIndex: seatIndex === -1 ? null : seatIndex,
+      isActiveSeat,
+      blockedBy: isActiveSeat ? null : option.blockedBy,
+      warning: option.warning,
+    };
   });
 }

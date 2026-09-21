@@ -21,7 +21,9 @@ describe.each([
     const created = createGame(config, GOB_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const result = playToOutcome(created.state, GOB_DEPS);
-    console.info(`[gob e2e] ${label} (standard, solo) — Spider-Man: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+    console.info(
+      `[gob e2e] ${label} (standard, solo) — Spider-Man: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+    );
     expect(result.outcome).not.toBeNull();
     expect(result.rounds).toBeGreaterThanOrEqual(1);
     const replayed = replay(result.session.log, GOB_DEPS);
@@ -37,7 +39,9 @@ describe.each([
     const created = createGame(config, GOB_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const result = playToOutcome(created.state, GOB_DEPS);
-    console.info(`[gob e2e] ${label} (standard, 2-player) — Spider-Man/Captain Marvel: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+    console.info(
+      `[gob e2e] ${label} (standard, 2-player) — Spider-Man/Captain Marvel: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+    );
     expect(result.outcome).not.toBeNull();
     expect(result.rounds).toBeGreaterThanOrEqual(1);
     const replayed = replay(result.session.log, GOB_DEPS);

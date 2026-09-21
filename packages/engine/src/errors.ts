@@ -64,8 +64,8 @@ export interface IllegalDeck {
 
 export class EngineInvariantError extends Error {}
 
-export const engineError = (
-  code: EngineErrorCode,
-  message: string,
-  command: Command | null = null,
-): EngineError => ({ code, message, command });
+export const engineError = (code: EngineErrorCode, message: string, command: Command | null = null): EngineError => ({
+  code,
+  message,
+  command,
+});

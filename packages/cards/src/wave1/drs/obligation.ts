@@ -1,6 +1,22 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { discardThisObligation } from "../../core/obligations.js";
-import { afterNextCardPlayed, cards, changeForm, chooseOne, exhaust, exists, increaseNextCardCost, isHero, moveCards, option, query, self, whenRevealed, you, yourIdentity } from "../../dsl/index.js";
+import {
+  afterNextCardPlayed,
+  cards,
+  changeForm,
+  chooseOne,
+  exhaust,
+  exists,
+  increaseNextCardCost,
+  isHero,
+  moveCards,
+  option,
+  query,
+  self,
+  whenRevealed,
+  you,
+  yourIdentity,
+} from "../../dsl/index.js";
 
 /**
  * Physical Toll (09027), Doctor Strange's obligation. Printed text: "Give to the Stephen Strange player. You may
@@ -21,7 +37,10 @@ import { afterNextCardPlayed, cards, changeForm, chooseOne, exhaust, exists, inc
  */
 export const DRS_OBLIGATION: AbilityRegistry = {
   "09027.obligation": whenRevealed(
-    chooseOne(option("Flip to alter-ego form", { when: isHero() }, changeForm(you, "alterEgo")), option("Stay in hero form", { when: isHero() })),
+    chooseOne(
+      option("Flip to alter-ego form", { when: isHero() }, changeForm(you, "alterEgo")),
+      option("Stay in hero form", { when: isHero() }),
+    ),
     chooseOne(
       option(
         "Exhaust Stephen Strange → remove this obligation from the game",

@@ -33,7 +33,8 @@ export const MOJO_CURATION: PackCuration = {
   pack: {
     name: "MojoMania",
     releaseDate: "2022-11-11",
-    releaseDateSource: 'Hall of Heroes Mojo Mania page (https://hallofheroeslcg.com/mojo-mania/): "Release date: November 11, 2022"',
+    releaseDateSource:
+      'Hall of Heroes Mojo Mania page (https://hallofheroeslcg.com/mojo-mania/): "Release date: November 11, 2022"',
   },
   outDir: "src/data/mojo",
   exportPrefix: "MOJO",
@@ -41,8 +42,9 @@ export const MOJO_CURATION: PackCuration = {
   corrections: [
     {
       code: "39071",
-      reason: "Longshot is a When-Revealed encounter-side ally (\"Put Longshot into play under...\"), never played from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/39071), \"Cost: —\"",
+      reason:
+        'Longshot is a When-Revealed encounter-side ally ("Put Longshot into play under..."), never played from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/39071), "Cost: —"',
       specialCost: "dash",
     },
   ],

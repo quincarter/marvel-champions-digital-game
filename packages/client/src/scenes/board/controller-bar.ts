@@ -23,7 +23,12 @@ export function drawControllerBar(ctx: BoardDrawContext, rect: Rect, choice: Con
 
   const titleWidth = Math.min(280, rect.width * 0.3);
   const title = scene.add
-    .text(rect.x + 12, rect.y + rect.height / 2, `Play ${choice.subject} under`, textStyle(typeRole.barTitle, surface.paper.hex))
+    .text(
+      rect.x + 12,
+      rect.y + rect.height / 2,
+      `Play ${choice.subject} under`,
+      textStyle(typeRole.barTitle, surface.paper.hex),
+    )
     .setOrigin(0, 0.5)
     .setLetterSpacing(1);
   fitText(title, titleWidth - 16, typeRole.barTitle.size);

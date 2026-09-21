@@ -14,7 +14,6 @@ import {
   playerOf,
   putOnTopOfDeck,
   settle,
-  settleUntil,
   toHero,
   use,
   type Picker,
@@ -24,23 +23,26 @@ import { wave1Scenario } from "../setup.js";
 import { MSM_DEPS, runMsm, startMsmGame } from "./testing.js";
 
 // Real wave 1 content: the Ms. Marvel (Protection) precon against Rhino, standard, solo.
-const msmVsRhino = () => startMsmGame(wave1Scenario("rhino", { players: [{ starterDeckId: "msm-protection" }], seed: 7 }));
+const msmVsRhino = () =>
+  startMsmGame(wave1Scenario("rhino", { players: [{ starterDeckId: "msm-protection" }], seed: 7 }));
 
 /**
  * A picker that never discards `protect` at a "discard down to hand size" check (end-of-turn hand size, hero 5 /
  * alter-ego 6, can otherwise arbitrarily claim the very card a test is about to use), and otherwise selects
  * `triggerOption` whenever a `chooseTriggers` prompt offers it, else defers to `firstLegal`.
  */
-const protecting = (protect: readonly InstanceId[], triggerOption?: string): Picker => (state) => {
-  const choice = state.pendingChoice;
-  if (!choice) return [];
-  if (choice.prompt.kind === "discardDownToHandSize") {
-    const safe = choice.options.map((o) => o.optionId).filter((id) => !protect.includes(id as InstanceId));
-    return safe.slice(0, choice.minSelections);
-  }
-  if (triggerOption && choice.prompt.kind === "chooseTriggers") return picking(triggerOption)(state);
-  return firstLegal(state);
-};
+const protecting =
+  (protect: readonly InstanceId[], triggerOption?: string): Picker =>
+  (state) => {
+    const choice = state.pendingChoice;
+    if (!choice) return [];
+    if (choice.prompt.kind === "discardDownToHandSize") {
+      const safe = choice.options.map((o) => o.optionId).filter((id) => !protect.includes(id as InstanceId));
+      return safe.slice(0, choice.minSelections);
+    }
+    if (triggerOption && choice.prompt.kind === "chooseTriggers") return picking(triggerOption)(state);
+    return firstLegal(state);
+  };
 
 describe("Ms. Marvel kit", () => {
   it('"Morphogenetics": exhausts Ms. Marvel to return a just-played Attack event to hand', () => {
@@ -107,10 +109,20 @@ describe("Ms. Marvel kit", () => {
     const cleared = moveToHand(
       start,
       P1,
-      "05003", "05003", "05003",
-      "05004", "05004", "05004",
-      "05005", "05005",
-      "05006", "05007", "05008", "05009", "05010", "05011",
+      "05003",
+      "05003",
+      "05003",
+      "05004",
+      "05004",
+      "05004",
+      "05005",
+      "05005",
+      "05006",
+      "05007",
+      "05008",
+      "05009",
+      "05010",
+      "05011",
     ).state;
     // ...and the one remaining match (Red Dagger) sits in the discard pile the whole time, never reachable this way
     // once the (now matchless) deck runs out (RRG 1.8 "Player Deck", p. 33).
@@ -127,7 +139,14 @@ describe("Ms. Marvel kit", () => {
     // Red Dagger, 3 single-icon cards to pay his own cost (energy/mental/mental filler), and Big Hands (physical)
     // + Sneak By (mental) held back as the two-different-types payment for his own interrupt.
     const given = moveToHand(start, P1, "05002", "05005", "05009", "05006", "05003", "05004");
-    const [redDagger, wiggleRoom, biokinetic, aamir, bigHands, sneakBy] = given.ids as [never, never, never, never, never, never];
+    const [redDagger, wiggleRoom, biokinetic, aamir, bigHands, sneakBy] = given.ids as [
+      never,
+      never,
+      never,
+      never,
+      never,
+      never,
+    ];
     const hero = runMsm(given.state, toHero());
     const withDagger = runMsm(hero, play(P1, redDagger, payWith(hero, P1, 3, [redDagger, bigHands, sneakBy])));
     expect(playerOf(withDagger, P1).playArea).toContain(redDagger);
@@ -135,18 +154,29 @@ describe("Ms. Marvel kit", () => {
     const near = patchInstance(withDagger, redDagger, { damage: 2 });
 
     const option = `${redDagger}:05002.red-dagger-interrupt`;
-    const atDeclare = settle(runMsm(near, endTurn()), protecting([redDagger, bigHands, sneakBy]), (s) => s.pendingChoice?.prompt.kind === "declareDefender", MSM_DEPS);
+    const atDeclare = settle(
+      runMsm(near, endTurn()),
+      protecting([redDagger, bigHands, sneakBy]),
+      (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+      MSM_DEPS,
+    );
     const declared = answer(atDeclare, [redDagger], MSM_DEPS);
     const villain = activeVillain(declared).instanceId;
     const hpBefore = remainingHitPoints(declared, villain);
 
-    const after = settle(declared, (s) => {
-      const prompt = s.pendingChoice?.prompt;
-      if (!prompt) return [];
-      if (prompt.kind === "chooseTriggers") return picking(option)(s);
-      if (prompt.kind === "payForAbility" && prompt.instanceId === redDagger) return [`hand:${bigHands}`, `hand:${sneakBy}`];
-      return protecting([redDagger, bigHands, sneakBy])(s);
-    }, undefined, MSM_DEPS);
+    const after = settle(
+      declared,
+      (s) => {
+        const prompt = s.pendingChoice?.prompt;
+        if (!prompt) return [];
+        if (prompt.kind === "chooseTriggers") return picking(option)(s);
+        if (prompt.kind === "payForAbility" && prompt.instanceId === redDagger)
+          return [`hand:${bigHands}`, `hand:${sneakBy}`];
+        return protecting([redDagger, bigHands, sneakBy])(s);
+      },
+      undefined,
+      MSM_DEPS,
+    );
 
     // Red Dagger is never defeated: his defeat was replaced, so he leaves play into his controller's hand instead
     // of the discard pile (the same "interrupt + instead" shape as Clea/Captain America's Helmet).
@@ -205,7 +235,12 @@ describe("Ms. Marvel kit", () => {
     const start = msmVsRhino();
     const given = moveToHand(start, P1, "05006"); // Aamir Khan, cost 1 mental — no hero-form play restriction
     const [aamir] = given.ids as [never];
-    const withAamir = settle(runMsm(given.state, play(P1, aamir, payWith(given.state, P1, 1, [aamir]))), firstLegal, undefined, MSM_DEPS);
+    const withAamir = settle(
+      runMsm(given.state, play(P1, aamir, payWith(given.state, P1, 1, [aamir]))),
+      firstLegal,
+      undefined,
+      MSM_DEPS,
+    );
     expect(playerOf(withAamir, P1).playArea).toContain(aamir);
     const { state: withDiscard, id: bigHands } = moveToDiscard(withAamir, P1, "05003");
     const deckSizeBefore = playerOf(withDiscard, P1).deck.length;
@@ -213,7 +248,12 @@ describe("Ms. Marvel kit", () => {
     // "Place 1 card from your discard pile on the bottom of your deck" is a mid-ability `chooseCards`, not a cost —
     // it settles as its own pending choice after the command. Big Hands isn't the only discard-pile candidate (the
     // 1-resource cost of playing Aamir Khan itself discarded a payment card too), so pick it explicitly.
-    const after = settle(runMsm(withDiscard, use(P1, aamir, "05006.aamir-khan-action")), picking(bigHands), undefined, MSM_DEPS);
+    const after = settle(
+      runMsm(withDiscard, use(P1, aamir, "05006.aamir-khan-action")),
+      picking(bigHands),
+      undefined,
+      MSM_DEPS,
+    );
     expect(playerOf(after, P1).deck[playerOf(after, P1).deck.length - 1]).toBe(bigHands);
     expect(playerOf(after, P1).deck.length).toBe(deckSizeBefore); // placed to bottom (+1), then 1 drawn (-1)
     expect(playerOf(after, P1).hand.length).toBe(handBefore + 1); // Aamir Khan is exhausted, not discarded; +1 drawn
@@ -224,11 +264,21 @@ describe("Ms. Marvel kit", () => {
     const start = msmVsRhino();
     const given = moveToHand(start, P1, "05007", "05003"); // Bruno Carrelli (cost 1 physical), Big Hands to attach
     const [bruno, bigHands] = given.ids as [never, never];
-    const withBruno = settle(runMsm(given.state, play(P1, bruno, payWith(given.state, P1, 1, [bruno, bigHands]))), firstLegal, undefined, MSM_DEPS);
+    const withBruno = settle(
+      runMsm(given.state, play(P1, bruno, payWith(given.state, P1, 1, [bruno, bigHands]))),
+      firstLegal,
+      undefined,
+      MSM_DEPS,
+    );
     const handBefore = playerOf(withBruno, P1).hand.length;
     // "Attach 1 card from your hand facedown here" is a mid-ability `chooseCards` over the whole hand (several
     // candidates), so it settles as a pending choice — explicitly pick Big Hands, not whatever `firstLegal` would.
-    const attached = settle(runMsm(withBruno, use(P1, bruno, "05007.bruno-carrelli-action")), picking(bigHands), undefined, MSM_DEPS);
+    const attached = settle(
+      runMsm(withBruno, use(P1, bruno, "05007.bruno-carrelli-action")),
+      picking(bigHands),
+      undefined,
+      MSM_DEPS,
+    );
     expect(inst(attached, bigHands).attachedTo).toBe(bruno);
     expect(inst(attached, bigHands).faceup).toBe(false);
     expect(playerOf(attached, P1).hand.length).toBe(handBefore - 1);
@@ -237,7 +287,12 @@ describe("Ms. Marvel kit", () => {
     const before2 = playerOf(ready, P1).hand.length;
     // "Add up to 3 cards attached here to your hand" allows 0 (min 0); explicitly pick the 1 available so the test
     // proves the return, not `firstLegal`'s minimal (decline-everything) answer.
-    const returned = settle(runMsm(ready, use(P1, bruno, "05007.bruno-carrelli-action-2")), picking(bigHands), undefined, MSM_DEPS);
+    const returned = settle(
+      runMsm(ready, use(P1, bruno, "05007.bruno-carrelli-action-2")),
+      picking(bigHands),
+      undefined,
+      MSM_DEPS,
+    );
     expect(playerOf(returned, P1).hand).toContain(bigHands);
     expect(playerOf(returned, P1).hand.length).toBe(before2 + 1);
     expect(inst(returned, bigHands).faceup).toBe(true);
@@ -247,7 +302,12 @@ describe("Ms. Marvel kit", () => {
     const start = msmVsRhino();
     const given = moveToHand(start, P1, "05008", "05003"); // Nakia Bahadir (cost 1 energy), Big Hands (printed cost 2)
     const [nakia, bigHands] = given.ids as [never, never];
-    const withNakia = settle(runMsm(given.state, play(P1, nakia, payWith(given.state, P1, 1, [nakia, bigHands]))), firstLegal, undefined, MSM_DEPS);
+    const withNakia = settle(
+      runMsm(given.state, play(P1, nakia, payWith(given.state, P1, 1, [nakia, bigHands]))),
+      firstLegal,
+      undefined,
+      MSM_DEPS,
+    );
     const withDiscount = runMsm(withNakia, use(P1, nakia, "05008.nakia-bahadir-action"));
     expect(inst(withDiscount, nakia).exhausted).toBe(true);
     const hero = runMsm(withDiscount, toHero());
@@ -255,7 +315,12 @@ describe("Ms. Marvel kit", () => {
     const hpBefore = remainingHitPoints(hero, villain);
     // Big Hands is printed cost 2; paying only 1 succeeds because of the discount (an underpaid `playCard` command
     // is rejected outright, so a successful play here is itself proof the reduction applied).
-    const after = settle(runMsm(hero, play(P1, bigHands, payWith(hero, P1, 1, [bigHands]))), firstLegal, undefined, MSM_DEPS);
+    const after = settle(
+      runMsm(hero, play(P1, bigHands, payWith(hero, P1, 1, [bigHands]))),
+      firstLegal,
+      undefined,
+      MSM_DEPS,
+    );
     expect(playerOf(after, P1).discard).toContain(bigHands);
     expect(remainingHitPoints(after, villain)).toBe(hpBefore! - 4);
   });
@@ -289,7 +354,12 @@ describe("Ms. Marvel kit", () => {
     const given = moveToHand(start, P1, "05010", "05003"); // Embiggen!, Big Hands
     const [embiggen, bigHands] = given.ids as [never, never];
     const hero = runMsm(given.state, toHero());
-    const withEmbiggen = settle(runMsm(hero, play(P1, embiggen, payWith(hero, P1, 2, [embiggen, bigHands]))), firstLegal, undefined, MSM_DEPS);
+    const withEmbiggen = settle(
+      runMsm(hero, play(P1, embiggen, payWith(hero, P1, 2, [embiggen, bigHands]))),
+      firstLegal,
+      undefined,
+      MSM_DEPS,
+    );
     const villain = activeVillain(withEmbiggen).instanceId;
     const hpBefore = remainingHitPoints(withEmbiggen, villain);
     const option = `${embiggen}:05010.embiggen-interrupt`;

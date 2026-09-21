@@ -29,7 +29,12 @@ export const invocationTop = (n: Amount = 1, player: PlayerRef = you): CardSelec
  * "The top card of the Invocation deck" as a `CardZoneQuery`, for `payPrintedCostOf`'s `from` (Spell Mastery,
  * Master of the Mystic Arts). `player` is a literal `"you" | "any"` on `CardZoneQuery`, not a `PlayerRef`.
  */
-export const invocationTopCost = (top = 1): CardZoneQuery => ({ zone: "separateDeck", separateDeck: INVOCATION, player: "you", top });
+export const invocationTopCost = (top = 1): CardZoneQuery => ({
+  zone: "separateDeck",
+  separateDeck: INVOCATION,
+  player: "you",
+  top,
+});
 
 /**
  * "Resolve the 'Special' ability on [a card wherever it is]" (Spell Mastery, Master of the Mystic Arts): the
@@ -59,18 +64,30 @@ export const superlativeAmong = (
  * `Predicate.refMatches` with `anywhere: true` (docs/phase7-wave1.md §3.12): asks about a card that has already
  * left play (discarded), unlike the bare `refMatches` in `dsl/values.ts`, which only reads cards currently in play.
  */
-export const refMatchesAnywhere = (ref: TargetRef, q: TargetQuery): Predicate => ({ kind: "refMatches", ref, query: q, anywhere: true });
+export const refMatchesAnywhere = (ref: TargetRef, q: TargetQuery): Predicate => ({
+  kind: "refMatches",
+  ref,
+  query: q,
+  anywhere: true,
+});
 
 /**
  * "Discard 1 status card from [a character]" (The Night Nurse, 09019): the raw `EffectSpec.removeStatus` (landed,
  * `packages/engine/src/spec.ts`), which `dsl/effects.ts` doesn't wrap yet — the same gap `kit.ts`'s Vapors of
  * Valtorr doc comment calls out, minus the "replace with a *different* status" half that card alone needs.
  */
-export const removeStatusOf = (target: TargetRef, status: "stunned" | "confused" | "tough"): EffectSpec => ({ kind: "removeStatus", target, status });
+export const removeStatusOf = (target: TargetRef, status: "stunned" | "confused" | "tough"): EffectSpec => ({
+  kind: "removeStatus",
+  target,
+  status,
+});
 
 /**
  * "Cancel its boost icons" (Foiled!, 09038): `EffectSpec.cancelBoostIcons` (landed, `spec.ts`) has no `dsl/effects.ts`
  * wrapper yet. Copied from `wave1/msm/pack-cards.ts`'s identical local helper rather than imported (pack modules
  * don't import each other — docs/phase7-wave1-scripting.md).
  */
-export const cancelBoostIcons = (bind?: string): EffectSpec => ({ kind: "cancelBoostIcons", ...(bind ? { bind } : {}) });
+export const cancelBoostIcons = (bind?: string): EffectSpec => ({
+  kind: "cancelBoostIcons",
+  ...(bind ? { bind } : {}),
+});

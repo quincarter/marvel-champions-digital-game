@@ -73,9 +73,11 @@ const FACEDOWN_DRONES = query("minion", { trait: TRAIT.DRONE, facedown: true });
 const YOUR_DRONES = query("minion", { trait: TRAIT.DRONE, engagedWith: "you" });
 /** "Each player puts the top card of their deck into play facedown, engaged with them as a Drone minion." */
 const EACH_PLAYER_DRONE = whenRevealed(droneFromDeck(eachPlayer));
-const SPEND_TO_DISCARD = (resources: Parameters<typeof spend>[0]) => heroAction({ cost: spend(resources) }, discard(self));
+const SPEND_TO_DISCARD = (resources: Parameters<typeof spend>[0]) =>
+  heroAction({ cost: spend(resources) }, discard(self));
 /** Android Efficiency boost: "Choose to either spend a [type] resource or put the top card of the deck into play facedown, engaged with you as a Drone minion." */
-const EFFICIENCY_BOOST = (type: "energy" | "mental" | "physical") => boost(spendResources({ [type]: 1 }, "efficiency"), ifThen(not(made("efficiency")), droneFromDeck(you)));
+const EFFICIENCY_BOOST = (type: "energy" | "mental" | "physical") =>
+  boost(spendResources({ [type]: 1 }, "efficiency"), ifThen(not(made("efficiency")), droneFromDeck(you)));
 
 /** The Ultron scenario: Ultron (01134–01136), The Crimson Cowl / Assault on NORAD / Countdown to Oblivion (01137–01139), the Ultron set (01140–01150). */
 export const ULTRON = defineAbilities({
@@ -83,7 +85,10 @@ export const ULTRON = defineAbilities({
   // top card of your deck into play facedown, engaged with you as a Drone minion.
   "01134.ultron-forced-response": forcedResponse(
     after.enemyAttacks("self", { againstYou: true }),
-    chooseOne(option("Place 1 threat on the main scheme", placeThreat(1, theMainScheme)), option("Put the top card of your deck into play as a Drone minion", droneFromDeck(you))),
+    chooseOne(
+      option("Place 1 threat on the main scheme", placeThreat(1, theMainScheme)),
+      option("Put the top card of your deck into play as a Drone minion", droneFromDeck(you)),
+    ),
   ),
   // Ultron (II) — [star] Forced Interrupt: When Ultron attacks you, put the top card of your deck into play facedown, engaged with
   // you as a Drone minion. Until the end of this attack, Ultron gets +1 ATK for each Drone minion engaged with you.
@@ -93,12 +98,20 @@ export const ULTRON = defineAbilities({
     modifyStat("atk", countOf(YOUR_DRONES), theVillain, "endOfAttack"),
   ),
   // Ultron (III) — Each Drone minion gets +1 ATK and +1 hit point. Ultron cannot take damage while a Drone minion is in play.
-  "01136.ultron-constant": constant(gets("atk", 1, DRONES), gets("hp", 1, DRONES), rule({ kind: "cannotTakeDamage", target: query("villain"), while: exists(DRONES) })),
+  "01136.ultron-constant": constant(
+    gets("atk", 1, DRONES),
+    gets("hp", 1, DRONES),
+    rule({ kind: "cannotTakeDamage", target: query("villain"), while: exists(DRONES) }),
+  ),
   // When Revealed: Search the encounter deck and discard pile for the Ultron's Imperative side scheme and reveal it. Shuffle the encounter deck.
   "01136.when-revealed": whenRevealed(searchAndReveal(cardName("01150"))),
 
   // The Crimson Cowl 1A — Setup: Put the Ultron Drones environment into play. Shuffle the encounter deck. Advance to stage 1B (implicit).
-  "01137a.setup": setup(selectCards("drones", encounterCards(["deck"], { name: cardName("01140") })), putIntoPlay(chosen("drones"), firstPlayer), shuffleEncounterDeck()),
+  "01137a.setup": setup(
+    selectCards("drones", encounterCards(["deck"], { name: cardName("01140") })),
+    putIntoPlay(chosen("drones"), firstPlayer),
+    shuffleEncounterDeck(),
+  ),
   // 1B / 2A / 3A — When Revealed: Each player puts the top card of their deck into play facedown, engaged with them as a Drone minion.
   "01137b.when-revealed": EACH_PLAYER_DRONE,
   "01138a.when-revealed": EACH_PLAYER_DRONE,
@@ -112,12 +125,18 @@ export const ULTRON = defineAbilities({
       allOf(duringVillainPhaseStepOne, not(refMatches(eventSource, {}))),
       forEachPlayer(
         eachPlayer,
-        chooseOneBy(thatPlayer, option("Place 2 threat here", placeThreat(2, self)), option("Put the top card of your deck into play as a Drone minion", droneFromDeck(thatPlayer))),
+        chooseOneBy(
+          thatPlayer,
+          option("Place 2 threat here", placeThreat(2, self)),
+          option("Put the top card of your deck into play as a Drone minion", droneFromDeck(thatPlayer)),
+        ),
       ),
     ),
   ),
   // Countdown to Oblivion 3B — Threat cannot be removed from this scheme.
-  "01139b.countdown-to-oblivion-constant": constant(rule({ kind: "threatCannotBeRemoved", target: query("mainScheme") })),
+  "01139b.countdown-to-oblivion-constant": constant(
+    rule({ kind: "threatCannotBeRemoved", target: query("mainScheme") }),
+  ),
 
   // Ultron Drones — Each facedown Drone minion engaged with a player has a base SCH of 1, a base ATK of 1, and a base hit points of 1.
   "01140.ultron-drones-constant": constant(
@@ -129,7 +148,10 @@ export const ULTRON = defineAbilities({
   // general rule for facedown cards leaving play already does this.
   "01140.ultron-drones-forced-response": coveredByEngineRule(),
   // Program Transmitter — [star] Forced Response: After Ultron schemes, place 1 threat on each side scheme.
-  "01141.program-transmitter-forced-response": forcedResponse(after.enemySchemes(query("villain")), placeThreat(1, each(query("sideScheme")))),
+  "01141.program-transmitter-forced-response": forcedResponse(
+    after.enemySchemes(query("villain")),
+    placeThreat(1, each(query("sideScheme"))),
+  ),
   // Hero Action: Exhaust your hero and spend [mental][mental] resources → discard this card.
   "01141.program-transmitter-action": heroAction({ cost: [exhaustYourHero, spend({ mental: 2 })] }, discard(self)),
   // Upgraded Drones — Each facedown Drone minion gets +1 ATK and +1 hit point.
@@ -137,7 +159,10 @@ export const ULTRON = defineAbilities({
   "01142.upgraded-drones-action": SPEND_TO_DISCARD({ energy: 1, mental: 1, physical: 1 }),
   // Advanced Ultron Drone — Forced Interrupt: When Advanced Ultron Drone is defeated, the engaged player puts the top card of their
   // deck into play facedown, engaged with them as a Drone minion.
-  "01143.advanced-ultron-drone-forced-interrupt": forcedInterrupt(when.defeated("self"), droneFromDeck(engagedPlayerOf(self))),
+  "01143.advanced-ultron-drone-forced-interrupt": forcedInterrupt(
+    when.defeated("self"),
+    droneFromDeck(engagedPlayerOf(self)),
+  ),
   // Android Efficiency (three printings with different boost costs).
   "01144a.when-revealed": EACH_PLAYER_DRONE,
   "01144a.boost": EFFICIENCY_BOOST("energy"),
@@ -146,16 +171,28 @@ export const ULTRON = defineAbilities({
   "01144c.when-revealed": EACH_PLAYER_DRONE,
   "01144c.boost": EFFICIENCY_BOOST("physical"),
   // Rage of Ultron — When Revealed (Alter-Ego): Ultron schemes. Discard the top card of your deck for each threat placed this way.
-  "01145.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(theVillain, { bind: "rage" }), moveCards(topOfDeck(varOf("rage.threatPlaced")), "discard")),
+  "01145.when-revealed-alter-ego": whenRevealedAlterEgo(
+    enemyScheme(theVillain, { bind: "rage" }),
+    moveCards(topOfDeck(varOf("rage.threatPlaced")), "discard"),
+  ),
   // When Revealed (Hero): Ultron attacks you. Discard the top card of your deck for each damage dealt by this attack.
-  "01145.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you, bind: "rage" }), moveCards(topOfDeck(varOf("rage.damage")), "discard")),
+  "01145.when-revealed-hero": whenRevealedHero(
+    enemyAttack(theVillain, { against: you, bind: "rage" }),
+    moveCards(topOfDeck(varOf("rage.damage")), "discard"),
+  ),
   // Repair Sequence — When Revealed: Ultron heals 2 damage for each Drone minion engaged with you. If no damage was healed this way, this card gains surge.
-  "01146.when-revealed": whenRevealed(heal(scaled(countOf(YOUR_DRONES), { times: 2 }), theVillain, { bind: "repair" }), ifThen(not(varAtLeast("repair.amount")), surge())),
+  "01146.when-revealed": whenRevealed(
+    heal(scaled(countOf(YOUR_DRONES), { times: 2 }), theVillain, { bind: "repair" }),
+    ifThen(not(varAtLeast("repair.amount")), surge()),
+  ),
   // [star] Boost: Ultron heals 1 damage for each Drone minion engaged with you.
   "01146.boost": boost(heal(countOf(YOUR_DRONES), theVillain)),
   // Swarm Attack — When Revealed: Each Drone minion engaged with your hero attacks. If no attacks were made this way, put the top
   // card of your deck into play facedown, engaged with you as a Drone minion.
-  "01147.when-revealed": whenRevealed(enemyAttack(each(YOUR_DRONES), { bind: "swarm" }), ifThen(not(made("swarm")), droneFromDeck(you))),
+  "01147.when-revealed": whenRevealed(
+    enemyAttack(each(YOUR_DRONES), { bind: "swarm" }),
+    ifThen(not(made("swarm")), droneFromDeck(you)),
+  ),
   // Drone Factory — When Revealed: Each player puts the top card of their deck into play facedown as a Drone minion. Place 1 threat here for each Drone minion in play.
   "01148.when-revealed": whenRevealed(droneFromDeck(eachPlayer), placeThreat(countOf(DRONES), self)),
   // Invasive AI — When Revealed: Each player discards the top 3 cards of their deck.
@@ -168,10 +205,20 @@ export const ULTRON = defineAbilities({
 export const UNDER_ATTACK_SET = defineAbilities({
   // Under Attack — When Revealed: Each player chooses to either place 2 threat here or deal 3 damage to their hero.
   "01151.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, chooseOneBy(thatPlayer, option("Place 2 threat here", placeThreat(2, self)), option("Deal 3 damage to your hero", takeDamage(3, thatPlayer)))),
+    forEachPlayer(
+      eachPlayer,
+      chooseOneBy(
+        thatPlayer,
+        option("Place 2 threat here", placeThreat(2, self)),
+        option("Deal 3 damage to your hero", takeDamage(3, thatPlayer)),
+      ),
+    ),
   ),
   // Vibranium Armor — Forced Response: After the villain takes damage, give it a tough status card.
-  "01152.vibranium-armor-forced-response": forcedResponse(after.damage(query("villain"), { taken: true }), giveTough(theVillain)),
+  "01152.vibranium-armor-forced-response": forcedResponse(
+    after.damage(query("villain"), { taken: true }),
+    giveTough(theVillain),
+  ),
   // Hero Action: Exhaust your hero and spend [physical][physical] resources → discard this card.
   "01152.vibranium-armor-action": heroAction({ cost: [exhaustYourHero, spend({ physical: 2 })] }, discard(self)),
   // Concussion Blasters — The villain gains retaliate 1.

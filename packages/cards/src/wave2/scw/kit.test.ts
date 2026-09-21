@@ -1,10 +1,26 @@
 import { activeEncounterDeck, cardsInPlay, type InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, mainThreat, moveToHand, P1, play, playerOf, settle, stackEncounterDeck, toHero, type Picker } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  mainThreat,
+  moveToHand,
+  P1,
+  play,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  type Picker,
+} from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
 // Real wave 2 content: the Scarlet Witch (Justice) precon against Rhino, standard, solo. Wanda starts in alter-ego.
-const scwVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "scw-justice" }], seed: 2026 }));
+const scwVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "scw-justice" }], seed: 2026 }));
 
 /**
  * Accepts the named optional responses/interrupts (a trigger's option id is `<instance>:<ability>`) and picks the
@@ -15,7 +31,9 @@ const accepting =
   (state) => {
     const choice = state.pendingChoice;
     if (!choice) return [];
-    const hits = choice.options.map((o) => o.optionId).filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
+    const hits = choice.options
+      .map((o) => o.optionId)
+      .filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
 
@@ -86,9 +104,18 @@ describe("Scarlet Witch kit", () => {
   it("Quicksilver (ally): Action, ready him (limit once per phase)", () => {
     const { state } = playFromHand(scwVsRhino(), "15002", 4);
     const quicksilver = instancesOf(state, "15002")[0]!;
-    const exhausted = { ...state, instances: { ...state.instances, [quicksilver]: { ...state.instances[quicksilver]!, exhausted: true } } };
+    const exhausted = {
+      ...state,
+      instances: { ...state.instances, [quicksilver]: { ...state.instances[quicksilver]!, exhausted: true } },
+    };
     const readied = settle(
-      runWave2(exhausted, { type: "useAbility", playerId: P1, cardInstanceId: quicksilver, abilityId: "15002.quicksilver-action" as never, payment: [] }),
+      runWave2(exhausted, {
+        type: "useAbility",
+        playerId: P1,
+        cardInstanceId: quicksilver,
+        abilityId: "15002.quicksilver-action" as never,
+        payment: [],
+      }),
       firstLegal,
       undefined,
       WAVE2_DEPS,
@@ -160,7 +187,10 @@ describe("Scarlet Witch kit", () => {
   it("Molecular Decay: deals 5 damage to an enemy, plus 1 more for each boost icon among 2 discarded cards", () => {
     const hero = runWave2(scwVsRhino(), toHero());
     const villain = hero.villains[0]!.instanceId;
-    const withNoDamage = { ...hero, instances: { ...hero.instances, [villain]: { ...hero.instances[villain]!, damage: 0 } } };
+    const withNoDamage = {
+      ...hero,
+      instances: { ...hero.instances, [villain]: { ...hero.instances[villain]!, damage: 0 } },
+    };
     // Advance (01186, 0) + Caught Off Guard (01188, 1): 5 + 0 + 1 = 6.
     const { state } = playFromHand(stackEncounterDeck(withNoDamage, "01186", "01188"), "15005", 3, accepting("enemy"));
     expect(inst(state, villain).damage).toBe(6);
@@ -189,7 +219,13 @@ describe("Scarlet Witch kit", () => {
     const top3 = deckBefore.slice(0, 3);
     const handBefore = playerOf(state, P1).hand.length;
     const used = settle(
-      runWave2(state, { type: "useAbility", playerId: P1, cardInstanceId: agatha, abilityId: "15007.agatha-harkness-action" as never, payment: [] }),
+      runWave2(state, {
+        type: "useAbility",
+        playerId: P1,
+        cardInstanceId: agatha,
+        abilityId: "15007.agatha-harkness-action" as never,
+        payment: [],
+      }),
       firstLegal,
       undefined,
       WAVE2_DEPS,
@@ -209,7 +245,12 @@ describe("Scarlet Witch kit", () => {
     const stacked = stackEncounterDeck(withShield, "01186");
     const damageBefore = inst(stacked, identity).damage;
     const villainDamageBefore = inst(stacked, villain).damage;
-    const undefended = settle(runWave2(stacked, endTurn()), accepting("15008.magic-shield-interrupt"), undefined, WAVE2_DEPS);
+    const undefended = settle(
+      runWave2(stacked, endTurn()),
+      accepting("15008.magic-shield-interrupt"),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(undefended, identity).damage).toBe(damageBefore); // fully prevented (Rhino's 2 ATK < the 3 prevented)
     expect(playerOf(undefended, P1).discard).toContain(shield);
     expect(inst(undefended, villain).damage).toBe(villainDamageBefore);
@@ -218,7 +259,10 @@ describe("Scarlet Witch kit", () => {
   it("Scarlet Witch's Crest: exhaust it to increase or decrease a boost count by 1", () => {
     const { state: withCrest } = playFromHand(runWave2(scwVsRhino(), toHero()), "15009", 2);
     const identity = identityOf(withCrest);
-    const withNoDamage = { ...withCrest, instances: { ...withCrest.instances, [identity]: { ...withCrest.instances[identity]!, damage: 0 } } };
+    const withNoDamage = {
+      ...withCrest,
+      instances: { ...withCrest.instances, [identity]: { ...withCrest.instances[identity]!, damage: 0 } },
+    };
     // Hydra Mercenary (01101, 1 icon) as the boost card; Crest increases the count by 1, so the attack deals
     // Rhino's ATK 2 + (1 + 1) = 4 undefended, instead of 2 + 1 = 3.
     const stacked = stackEncounterDeck(withNoDamage, "01101");

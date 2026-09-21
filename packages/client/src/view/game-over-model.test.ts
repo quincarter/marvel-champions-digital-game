@@ -90,8 +90,24 @@ describe("game over model", () => {
     const record = {
       ...emptyRecord(),
       rounds: [
-        { round: 2, threatPlaced: 3, threatRemoved: 1, damageToVillain: 0, crisisBlocks: 2, heroesDefeated: [], villainStageAdvanced: false },
-        { round: 4, threatPlaced: 9, threatRemoved: 0, damageToVillain: 0, crisisBlocks: 0, heroesDefeated: [], villainStageAdvanced: true },
+        {
+          round: 2,
+          threatPlaced: 3,
+          threatRemoved: 1,
+          damageToVillain: 0,
+          crisisBlocks: 2,
+          heroesDefeated: [],
+          villainStageAdvanced: false,
+        },
+        {
+          round: 4,
+          threatPlaced: 9,
+          threatRemoved: 0,
+          damageToVillain: 0,
+          crisisBlocks: 0,
+          heroesDefeated: [],
+          villainStageAdvanced: true,
+        },
       ],
     };
 

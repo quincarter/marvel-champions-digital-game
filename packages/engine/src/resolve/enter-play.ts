@@ -48,7 +48,10 @@ export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
 function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
   if (!playerId || ctx.state.pendingChoice) return false;
   const allies = mustPlayer(ctx.state, playerId).playArea.filter(
-    (id) => cardOf(ctx.state, id)?.type === "ally" && controllerOf(ctx.state, id) === playerId && !excludedFromAllyLimit(ctx.state, ctx.deps, id),
+    (id) =>
+      cardOf(ctx.state, id)?.type === "ally" &&
+      controllerOf(ctx.state, id) === playerId &&
+      !excludedFromAllyLimit(ctx.state, ctx.deps, id),
   );
   // Every ally limit rule is an increase on the base of three, so three allies or fewer is never over the limit.
   // Skipping the rule scan keeps this cheap when it runs between frames.
@@ -58,7 +61,11 @@ function checkAllyLimit(ctx: Ctx, playerId: PlayerId | null): boolean {
   requestChoice(ctx, {
     playerId,
     prompt: { kind: "discardOverAllyLimit", limit },
-    options: allies.map((id) => ({ optionId: id, label: mustCardOf(ctx.state, id).name, ref: { kind: "card", instanceId: id } as const })),
+    options: allies.map((id) => ({
+      optionId: id,
+      label: mustCardOf(ctx.state, id).name,
+      ref: { kind: "card", instanceId: id } as const,
+    })),
     minSelections: allies.length - limit,
     maxSelections: allies.length - limit,
   });

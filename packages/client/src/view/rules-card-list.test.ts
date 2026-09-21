@@ -61,7 +61,9 @@ describe("rulesCardListOf", () => {
     // `game.cardPool` is the whole wave 1 pool regardless of scenario (`packages/cards/src/wave1/setup.ts`'s
     // own doc comment), so a naive `Object.values(game.cardPool)` read would wrongly mark a wave-1-only
     // scenario's set (e.g. Green Goblin's own Risky Business) as "in this" Rhino game.
-    const risky = Object.values(state.cardPool).find((card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes("risky_business"));
+    const risky = Object.values(state.cardPool).find(
+      (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes("risky_business"),
+    );
     expect(risky).toBeDefined();
     const groups = rulesCardListOf(state, POOL_CARDS, POOL_ENCOUNTER_SETS);
     const riskyGroup = groups.find((g) => g.setId === "risky_business");

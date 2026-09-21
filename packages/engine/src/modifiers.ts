@@ -19,7 +19,14 @@ import type { GameState } from "./state.js";
  * `consequentialAttack` / `consequentialThwart`: "takes +1 consequential damage after it attacks" (Enraged), the
  * small number printed under an ally's ATK/THW (RRG 1.8 "Consequential Damage").
  */
-export type ModifiedStat = StatName | "hp" | "handSize" | SchemeValueName | "boostIcons" | "consequentialAttack" | "consequentialThwart";
+export type ModifiedStat =
+  | StatName
+  | "hp"
+  | "handSize"
+  | SchemeValueName
+  | "boostIcons"
+  | "consequentialAttack"
+  | "consequentialThwart";
 
 export interface ActiveModifier {
   /** The card whose printed stat box, constant ability, or lasting effect produced this. */
@@ -73,8 +80,15 @@ export function modifiersFor(
         if (!wanted(modifier.stat)) continue;
         if (modifier.while && !evaluate(state, modifier.while, context)) continue;
         if (!matchesQuery(state, targetId, modifier.target, context)) continue;
-        const amount = typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, context, deps);
-        found.push({ sourceInstanceId: sourceId, stat: modifier.stat, amount, origin: "constant", ...(modifier.setBase ? { setBase: true } : {}) });
+        const amount =
+          typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, context, deps);
+        found.push({
+          sourceInstanceId: sourceId,
+          stat: modifier.stat,
+          amount,
+          origin: "constant",
+          ...(modifier.setBase ? { setBase: true } : {}),
+        });
       }
     }
   }
@@ -88,12 +102,7 @@ export function modifiersFor(
   return found;
 }
 
-export function statBonus(
-  state: GameState,
-  deps: EngineDeps,
-  targetId: InstanceId,
-  stat: ModifiedStat,
-): number {
+export function statBonus(state: GameState, deps: EngineDeps, targetId: InstanceId, stat: ModifiedStat): number {
   return modifiersFor(state, deps, targetId, stat)
     .filter((modifier) => !modifier.setBase)
     .reduce((sum, modifier) => sum + modifier.amount, 0);
@@ -116,7 +125,8 @@ export function boostIconsFor(state: GameState, deps: EngineDeps, id: InstanceId
       for (const modifier of definition.trigger.modifiers ?? []) {
         if (modifier.stat !== "boostIcons" || !matchesQuery(state, id, modifier.target, context)) continue;
         if (modifier.while && !evaluate(state, modifier.while, context)) continue;
-        own += typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, context, deps);
+        own +=
+          typeof modifier.amount === "number" ? modifier.amount : resolveValue(state, modifier.amount, context, deps);
       }
     }
   }
@@ -127,16 +137,26 @@ export function boostIconsFor(state: GameState, deps: EngineDeps, id: InstanceId
  * "Increase the amount of damage that event deals by 2" (Embiggen!) / "…threat that event removes…" (Shrink): the
  * bonus one resolving card carries, added to every instance that card's own effects produce (RRG 1.8 "Event", p. 19).
  */
-export function cardEffectBonus(state: GameState, sourceId: InstanceId | null, field: "damage" | "threatRemoved"): number {
+export function cardEffectBonus(
+  state: GameState,
+  sourceId: InstanceId | null,
+  field: "damage" | "threatRemoved",
+): number {
   if (!sourceId) return 0;
   return state.lastingEffects.reduce(
-    (sum, effect) => (effect.kind === "cardEffectBonus" && effect.sourceInstanceId === sourceId ? sum + effect[field] : sum),
+    (sum, effect) =>
+      effect.kind === "cardEffectBonus" && effect.sourceInstanceId === sourceId ? sum + effect[field] : sum,
     0,
   );
 }
 
 /** The base value set by a "has a base X of N" ability, if any (the last one in play order wins). */
-export function baseOverride(state: GameState, deps: EngineDeps, targetId: InstanceId, stat: ModifiedStat): number | undefined {
+export function baseOverride(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  stat: ModifiedStat,
+): number | undefined {
   const bases = modifiersFor(state, deps, targetId, stat).filter((modifier) => modifier.setBase);
   return bases.length > 0 ? bases[bases.length - 1]?.amount : undefined;
 }

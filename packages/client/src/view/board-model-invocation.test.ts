@@ -38,7 +38,9 @@ describe("Doctor Strange's Invocation deck reaches the board", () => {
     const store = new SessionStore(new LocalEngineHost());
     await store.start(DRS_VS_RHINO);
     for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
-      const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+      const { choice } = store.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
       await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
     }
     let legal = store.state.legal!.actions;
@@ -62,7 +64,9 @@ describe("Doctor Strange's Invocation deck reaches the board", () => {
 
     legal = store.state.legal!.actions;
     if (legal.kind !== "turn") throw new Error("expected a turn");
-    const playMota = legal.legal.find((entry) => entry.action.kind === "playCard" && state.instances[entry.action.instanceId]?.cardId === "09005");
+    const playMota = legal.legal.find(
+      (entry) => entry.action.kind === "playCard" && state.instances[entry.action.instanceId]?.cardId === "09005",
+    );
     if (!playMota) throw new Error("expected Master of the Mystic Arts to be playable");
     await store.dispatch(playMota.example);
 
@@ -73,7 +77,9 @@ describe("Doctor Strange's Invocation deck reaches the board", () => {
     // not a hand-picked one.
     let afterLegal = store.state.legal?.actions;
     while (afterLegal?.kind === "choice") {
-      await store.resolveChoice(afterLegal.choice.options.slice(0, afterLegal.choice.minSelections).map((option) => option.optionId));
+      await store.resolveChoice(
+        afterLegal.choice.options.slice(0, afterLegal.choice.minSelections).map((option) => option.optionId),
+      );
       afterLegal = store.state.legal?.actions;
     }
 

@@ -5,14 +5,24 @@
 import type { EncounterCardFlipSide } from "../../../src/schema/index.ts";
 import type { RawCard } from "../raw-types.ts";
 import { imageOf } from "./art.ts";
-import { abilityRefs, baseFields, expectNoAttach, expectNoPlayerData, parse, type NormalizeContext } from "./context.ts";
+import {
+  abilityRefs,
+  baseFields,
+  expectNoAttach,
+  expectNoPlayerData,
+  parse,
+  type NormalizeContext,
+} from "./context.ts";
 import { normalizeEncounterCard } from "./encounter-cards.ts";
 import { normalizePlayerCard } from "./player-cards.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import type { SeparateDeckMembership } from "./separate-decks.ts";
 import { PLAYER_TYPES } from "./values.ts";
 
-export function normalizeSingleCards(ctx: NormalizeContext, separateDeckOfCode: ReadonlyMap<string, SeparateDeckMembership>): void {
+export function normalizeSingleCards(
+  ctx: NormalizeContext,
+  separateDeckOfCode: ReadonlyMap<string, SeparateDeckMembership>,
+): void {
   for (const r of ctx.topLevel) {
     if (ctx.handled.has(r.code)) continue;
     const { flipSide, flipParts } = readFlipSide(ctx, r);
@@ -26,7 +36,8 @@ export function normalizeSingleCards(ctx: NormalizeContext, separateDeckOfCode: 
       common: baseFields(ctx, p, r.code, [r.code]),
       abilities: abilityRefs(ctx, r.code, p.name, parsed.abilities),
     };
-    if (PLAYER_TYPES.has(r.type_code)) normalizePlayerCard(ctx, rec, separateDeckOfCode.get(r.code), flipSide, flipParts);
+    if (PLAYER_TYPES.has(r.type_code))
+      normalizePlayerCard(ctx, rec, separateDeckOfCode.get(r.code), flipSide, flipParts);
     else normalizeEncounterCard(ctx, rec, flipSide, flipParts);
   }
 }
@@ -36,7 +47,10 @@ export function normalizeSingleCards(ctx: NormalizeContext, separateDeckOfCode: 
  * Criminal Enterprise ↔ State of Madness). MarvelCDB nests the back face as a hidden linked record of the same
  * type_code; every other linked-card shape on a non-hero/non-main-scheme/non-villain record is an error.
  */
-function readFlipSide(ctx: NormalizeContext, r: RawCard): { flipSide: EncounterCardFlipSide | undefined; flipParts: Prepared[] } {
+function readFlipSide(
+  ctx: NormalizeContext,
+  r: RawCard,
+): { flipSide: EncounterCardFlipSide | undefined; flipParts: Prepared[] } {
   if (r.linked_card && r.linked_card.type_code === r.type_code && r.linked_card.hidden) {
     const back = r.linked_card;
     const pBack = prepare(ctx, back);

@@ -37,7 +37,12 @@ export type {
   PrintedStatModifiers,
   SuperlativeHostPool,
 } from "./attachment-host.js";
-export { ATTACHMENT_HOST_CATEGORIES, ATTACHMENT_HOST_KINDS, HOST_MEASURES, SUPERLATIVE_HOST_POOLS } from "./attachment-host.js";
+export {
+  ATTACHMENT_HOST_CATEGORIES,
+  ATTACHMENT_HOST_KINDS,
+  HOST_MEASURES,
+  SUPERLATIVE_HOST_POOLS,
+} from "./attachment-host.js";
 export type {
   MainSchemeCard,
   MainSchemeStage,
@@ -57,4 +62,11 @@ import type { MainSchemeCard, SideSchemeCard } from "./schemes.js";
 import type { VillainCard } from "./villain.js";
 import type { EvidenceCard } from "./evidence.js";
 
-export type AnyCard = PlayerCard | HeroIdentityCard | EncounterCard | MainSchemeCard | SideSchemeCard | VillainCard | EvidenceCard;
+export type AnyCard =
+  | PlayerCard
+  | HeroIdentityCard
+  | EncounterCard
+  | MainSchemeCard
+  | SideSchemeCard
+  | VillainCard
+  | EvidenceCard;

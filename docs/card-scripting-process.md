@@ -1,7 +1,7 @@
 # What scripting a card actually entails
 
-Written 2026-09-20, after wave 2 (cycle 1) finished scripting, to answer a fair question: *the card text is
-now available as clean Markdown — why didn't that make scripting go faster?*
+Written 2026-09-20, after wave 2 (cycle 1) finished scripting, to answer a fair question: _the card text is
+now available as clean Markdown — why didn't that make scripting go faster?_
 
 Short answer: **reading the printed text was never the slow part.** It is maybe 5% of the work. This document
 says where the other 95% goes, so the next round of tooling gets aimed at something that matters.
@@ -21,20 +21,20 @@ printed text  →  ability ref (content)  →  AbilityDefinition (cards)  →  e
 So "scripting Scarlet Witch" means resolving ~34 refs, not writing one file. Current pool-wide state
 (`pnpm refs`):
 
-| | |
-|---|---|
-| Packs with card data | 48 |
-| Ability refs total | 2,873 |
-| Refs resolving today | ~39% |
-| Packs fully scripted | 12 |
-| Packs not started | 33 |
+|                      |       |
+| -------------------- | ----- |
+| Packs with card data | 48    |
+| Ability refs total   | 2,873 |
+| Refs resolving today | ~39%  |
+| Packs fully scripted | 12    |
+| Packs not started    | 33    |
 
 Wave 2 alone was **436 refs**.
 
 ## 2. The six steps for one ref
 
 1. **Read the printed text.** Source of truth is `@mc/content`; `docs/cards/by_pack/*.md` is a fast
-   transcription for reading, never an authority. *Fast — minutes at most.*
+   transcription for reading, never an authority. _Fast — minutes at most._
 2. **Decide what the text means in rules terms.** Often the hard part. "Cannot ready until your next turn ends"
    — does "next turn" mean the current one if it's your turn? The RRG doesn't say. This step ends in an RRG
    citation, an FFG ruling, or a documented design choice.
@@ -52,7 +52,7 @@ Wave 2 alone was **436 refs**.
 ### Step 5 dominates, and not for the reason you'd guess
 
 Line counts put ability modules and their tests at roughly 1:1. That undersells it badly — the test lines are
-far more expensive per line, because a test has to *navigate a real game* to the point where the card can act.
+far more expensive per line, because a test has to _navigate a real game_ to the point where the card can act.
 
 To test one obligation you may need: a two-player game, a specific scenario, the right hero, the encounter deck
 stacked so your card is revealed rather than something else, the villain phase advanced without the game
@@ -68,7 +68,7 @@ Concrete failures from this cycle:
 - **The two-player Avalanche test that was attempted and dropped.** With two enemies active, the scenario
   raced to a loss before a deterministic assertion point could be reached.
 - **The last session's final hours** went into whether a `cannotAttack` rule on one player's obligation also
-  blocks the *other* player's attacks. That is a rules-scoping question answered by building a two-player game
+  blocks the _other_ player's attacks. That is a rules-scoping question answered by building a two-player game
   and looking — no amount of card text helps.
 
 ### Step 2 and step 4 are research, not typing
@@ -85,7 +85,7 @@ Two measured examples:
   blocked** — the gap had since landed, or the original note named the wrong primitive. Work was being deferred
   against stale notes.
 - **`abilityRefIds` had ten copies with six different implementations.** Some handled only `hero_identity`;
-  others missed `additionalHeroForms` or `flipSide`. Those copies *under-count* refs, so an unscripted
+  others missed `additionalHeroForms` or `flipSide`. Those copies _under-count_ refs, so an unscripted
   flip-side ability would pass its own coverage assertion. Consolidated 2026-09-20 into
   `packages/cards/src/ability-refs.ts`; no test changed result, so nothing was being hidden that day — but the
   hazard was real and is now structurally impossible.
@@ -111,7 +111,7 @@ MC_REFS_PACKS="scw qsv" pnpm refs  # several
 ```
 
 Lives in `packages/cards/tools/`, outside the `src/**/*.test.ts` glob, under its own vitest config — so a
-report can never fail the suite, and `coverage.test.ts` stays the only thing asserting what *should* be
+report can never fail the suite, and `coverage.test.ts` stays the only thing asserting what _should_ be
 unresolved.
 
 ### `packages/cards/src/ability-refs.ts`
@@ -174,7 +174,7 @@ MC_DSL="ready exhaust" pnpm dsl
 
 Step 3 of §2 is "find the primitive that expresses this sentence", and by hand that is grep-the-engine-and-hope:
 expensive in tokens and non-deterministic, because what you find depends on which word you happened to guess.
-Searching names *and* doc comments turns it into a lookup. Generated from source on every run, so unlike a
+Searching names _and_ doc comments turns it into a lookup. Generated from source on every run, so unlike a
 checked-in index it cannot go stale.
 
 ## 6. Tooling that would plausibly pay for itself
@@ -189,16 +189,16 @@ Ranked by measured pain, not by how nice they'd be:
    the gap; a check that re-reads those sections and flags ones now marked landed would have caught all four
    stale skips automatically.
 
-6. **A scenario-reach cookbook** — the helpers in `testing/staging.ts` solve the mechanics, but *which* setup
+6. **A scenario-reach cookbook** — the helpers in `testing/staging.ts` solve the mechanics, but _which_ setup
    reaches a given situation is still per-card reasoning. A short table ("to test a nemesis reveal, use X; to
    reach the villain phase with one enemy, use Y") would cut the remaining guesswork.
 
-Explicitly *not* worth building: more card-text extraction. That problem is solved.
+Explicitly _not_ worth building: more card-text extraction. That problem is solved.
 
 ### A note on token cost and determinism
 
 Every tool above replaces something an agent otherwise does by reading files and guessing. That matters twice
-over: fewer tokens per card, and — more importantly — the *same* answer every time. `pnpm refs`, `pnpm card` and
+over: fewer tokens per card, and — more importantly — the _same_ answer every time. `pnpm refs`, `pnpm card` and
 `pnpm dsl` are all generated from the current source, so two sessions asking the same question get the same
 answer, which is the property that stops `KNOWN_SKIPPED`-style drift from recurring.
 

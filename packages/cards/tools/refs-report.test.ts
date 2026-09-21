@@ -48,7 +48,8 @@ const rowFor = (code: string, cards: readonly content.AnyCard[]): Row => {
   return { code, cards: cards.length, refs: refs.length, unresolved: refs.filter((id) => !(id in REGISTRY)) };
 };
 
-const pct = (done: number, total: number) => (total === 0 ? "  —  " : `${Math.round((done / total) * 100)}%`.padStart(5));
+const pct = (done: number, total: number) =>
+  total === 0 ? "  —  " : `${Math.round((done / total) * 100)}%`.padStart(5);
 
 describe("ability ref coverage report", () => {
   it("reports which refs resolve, per pack", () => {
@@ -64,16 +65,31 @@ describe("ability ref coverage report", () => {
 
     const lines: string[] = ["", "pack        cards   refs  resolved        status"];
     lines.push("".padEnd(52, "-"));
-    for (const r of [...rows].sort((a, b) => a.unresolved.length - b.unresolved.length || a.code.localeCompare(b.code))) {
+    for (const r of [...rows].sort(
+      (a, b) => a.unresolved.length - b.unresolved.length || a.code.localeCompare(b.code),
+    )) {
       const done = r.refs - r.unresolved.length;
-      const status = r.refs === 0 ? "no abilities" : r.unresolved.length === 0 ? "scripted" : done === 0 ? "not started" : `${r.unresolved.length} unresolved`;
-      lines.push(`${r.code.padEnd(11)}${String(r.cards).padStart(5)}${String(r.refs).padStart(7)}${pct(done, r.refs)}  ${status}`);
+      const status =
+        r.refs === 0
+          ? "no abilities"
+          : r.unresolved.length === 0
+            ? "scripted"
+            : done === 0
+              ? "not started"
+              : `${r.unresolved.length} unresolved`;
+      lines.push(
+        `${r.code.padEnd(11)}${String(r.cards).padStart(5)}${String(r.refs).padStart(7)}${pct(done, r.refs)}  ${status}`,
+      );
     }
     const totalRefs = rows.reduce((n, r) => n + r.refs, 0);
     const totalOpen = rows.reduce((n, r) => n + r.unresolved.length, 0);
     lines.push("".padEnd(52, "-"));
-    lines.push(`${String(rows.length).padStart(3)} packs${String(rows.reduce((n, r) => n + r.cards, 0)).padStart(9)}${String(totalRefs).padStart(7)}${pct(totalRefs - totalOpen, totalRefs)}  ${totalOpen} unresolved`);
-    lines.push(`      ${scripted.length} fully scripted, ${partial.length} in progress, ${untouched.length} not started`);
+    lines.push(
+      `${String(rows.length).padStart(3)} packs${String(rows.reduce((n, r) => n + r.cards, 0)).padStart(9)}${String(totalRefs).padStart(7)}${pct(totalRefs - totalOpen, totalRefs)}  ${totalOpen} unresolved`,
+    );
+    lines.push(
+      `      ${scripted.length} fully scripted, ${partial.length} in progress, ${untouched.length} not started`,
+    );
 
     // A paste-ready KNOWN_SKIPPED array, but only when the report is narrow enough to be useful.
     for (const r of rows) {

@@ -26,7 +26,8 @@ import {
 } from "../../testing/harness.js";
 
 // Real Core data: the Spider-Man (Justice) precon against Rhino, standard, solo.
-const spiderManVsRhino = () => startCoreGame(coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }));
+const spiderManVsRhino = () =>
+  startCoreGame(coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }));
 const ADVANCE = "01186"; // 0 boost icons, no boost ability: a neutral boost card
 const HYDRA_MERCENARY = "01101";
 
@@ -35,8 +36,16 @@ describe("Spider-Man kit", () => {
     const start = stackEncounterDeck(spiderManVsRhino(), ADVANCE, HYDRA_MERCENARY);
     const hero = run(start, toHero(), endTurn());
     const sense = `${identityOf(hero)}:01001a.spider-sense`;
-    const offered = settle(hero, firstLegal, (s) => s.pendingChoice?.options.some((o) => o.optionId === sense) ?? false);
-    expect(offered.pendingChoice?.prompt).toMatchObject({ kind: "chooseTriggers", timing: "interrupt", event: { kind: "enemyAttack" } });
+    const offered = settle(
+      hero,
+      firstLegal,
+      (s) => s.pendingChoice?.options.some((o) => o.optionId === sense) ?? false,
+    );
+    expect(offered.pendingChoice?.prompt).toMatchObject({
+      kind: "chooseTriggers",
+      timing: "interrupt",
+      event: { kind: "enemyAttack" },
+    });
     const handBefore = playerOf(offered, P1).hand.length;
     const atDefense = settleUntil(answer(offered, [sense]), "declareDefender");
     expect(playerOf(atDefense, P1).hand.length).toBe(handBefore + 1);
@@ -68,16 +77,24 @@ describe("Spider-Man kit", () => {
     const web = resourceAbility(shooter, "01008.web-shooter-resource");
 
     // 1st counter: part of Tenacity's printed cost of 2.
-    const withTenacity = run(withShooter, play(P1, tenacity, payWith(withShooter, P1, 1, given.ids), { abilities: [web] }));
+    const withTenacity = run(
+      withShooter,
+      play(P1, tenacity, payWith(withShooter, P1, 1, given.ids), { abilities: [web] }),
+    );
     expect(inst(withTenacity, shooter)).toMatchObject({ exhausted: true, counters: { web: 2 } });
 
     // 2nd counter (readied by test surgery): Tenacity's "spend a [physical] resource" accepts the wild.
-    const usedTenacity = run(patchInstance(withTenacity, shooter, { exhausted: false }), use(P1, tenacity, "01093.tenacity-action", [web]));
+    const usedTenacity = run(
+      patchInstance(withTenacity, shooter, { exhausted: false }),
+      use(P1, tenacity, "01093.tenacity-action", [web]),
+    );
     expect(playerOf(usedTenacity, P1).discard).toContain(tenacity);
     expect(inst(usedTenacity, shooter).counters.web).toBe(1);
 
     // 3rd counter: Uses (3 web counters) discards it when the last one is removed.
-    const paidAid = settle(run(patchInstance(usedTenacity, shooter, { exhausted: false }), play(P1, firstAid, [], { abilities: [web] })));
+    const paidAid = settle(
+      run(patchInstance(usedTenacity, shooter, { exhausted: false }), play(P1, firstAid, [], { abilities: [web] })),
+    );
     expect(playerOf(paidAid, P1).discard).toEqual(expect.arrayContaining([shooter, firstAid]));
   });
 

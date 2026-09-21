@@ -47,13 +47,7 @@
  * looking at is always far below the log length.
  */
 
-import {
-  applyCommand,
-  type Command,
-  type EngineDeps,
-  type GameEvent,
-  type GameState,
-} from "@mc/engine";
+import { applyCommand, type Command, type EngineDeps, type GameEvent, type GameState } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
 import { rebuildBaseline } from "../engine/session-core.js";
 import type { SessionConfig, StateWithoutPool } from "../engine/host.js";
@@ -113,7 +107,12 @@ export class ReplayCursor {
    */
   applyCount = 0;
 
-  private constructor(commands: readonly Command[], checkpoints: Map<number, Checkpoint>, moments: readonly ReplayMoment[], deps: EngineDeps) {
+  private constructor(
+    commands: readonly Command[],
+    checkpoints: Map<number, Checkpoint>,
+    moments: readonly ReplayMoment[],
+    deps: EngineDeps,
+  ) {
     this.#commands = commands;
     this.#checkpoints = checkpoints;
     this.#moments = moments;
@@ -146,7 +145,12 @@ export class ReplayCursor {
     return ReplayCursor.#build(initialState, [], commands, deps);
   }
 
-  static #build(initialState: GameState, setupEvents: readonly GameEvent[], commands: readonly Command[], deps: EngineDeps): ReplayCursor {
+  static #build(
+    initialState: GameState,
+    setupEvents: readonly GameEvent[],
+    commands: readonly Command[],
+    deps: EngineDeps,
+  ): ReplayCursor {
     // Defensive copies: a cursor never holds a reference into whatever object
     // the caller passed in, so nothing it later does can reach back into the
     // live session those objects might belong to.
@@ -190,8 +194,10 @@ export class ReplayCursor {
       }
       if (state.step.phase !== phase) {
         phase = state.step.phase;
-        if (phase === "villain") moments.push({ commandIndex: index, round, label: "Villain Phase", kind: "villainPhase" });
-        else if (phase === "player") moments.push({ commandIndex: index, round, label: "Player Phase", kind: "playerPhase" });
+        if (phase === "villain")
+          moments.push({ commandIndex: index, round, label: "Villain Phase", kind: "villainPhase" });
+        else if (phase === "player")
+          moments.push({ commandIndex: index, round, label: "Player Phase", kind: "playerPhase" });
       }
 
       if (index % CHECKPOINT_INTERVAL === 0 || index === clonedCommands.length) {

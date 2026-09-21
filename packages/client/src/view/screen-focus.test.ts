@@ -18,7 +18,12 @@ import {
 
 describe("screen focus routes", () => {
   test("the Title screen reads top to bottom, with Continue first only when there is a game to continue", () => {
-    const input = { continuable: false, scenarioIds: ["rhino", "klaw"], difficulties: ["standard", "expert"], deckIds: ["a", "b"] };
+    const input = {
+      continuable: false,
+      scenarioIds: ["rhino", "klaw"],
+      difficulties: ["standard", "expert"],
+      deckIds: ["a", "b"],
+    };
     expect(titleFocusOrder(input)).toEqual([
       "scenario-search",
       "scenario:rhino",
@@ -37,7 +42,16 @@ describe("screen focus routes", () => {
 
   test("an empty search result gets a Clear stop instead of any row stops", () => {
     const input = { continuable: false, scenarioIds: [], difficulties: ["standard"], deckIds: [] };
-    expect(titleFocusOrder(input)).toEqual(["scenario-search", "scenario-clear", "difficulty:standard", "hero-search", "hero-clear", "seed", "new-seed", "start"]);
+    expect(titleFocusOrder(input)).toEqual([
+      "scenario-search",
+      "scenario-clear",
+      "difficulty:standard",
+      "hero-search",
+      "hero-clear",
+      "seed",
+      "new-seed",
+      "start",
+    ]);
   });
 
   test("Title gains a Manage decks stop, after the hero seats, only when it's shown", () => {
@@ -61,7 +75,11 @@ describe("screen focus routes", () => {
     const input = { continuable: false, scenarioIds: ["rhino"], difficulties: ["standard"], deckIds: ["a"] };
     expect(titleFocusOrder(input)).not.toContain("scenario-chip:product:core");
     expect(titleFocusOrder(input)).not.toContain("hero-chip:aspect:justice");
-    const withChips = titleFocusOrder({ ...input, scenarioChipIds: ["product:core"], heroChipIds: ["aspect:justice", "playable-now"] });
+    const withChips = titleFocusOrder({
+      ...input,
+      scenarioChipIds: ["product:core"],
+      heroChipIds: ["aspect:justice", "playable-now"],
+    });
     expect(withChips).toEqual([
       "scenario-search",
       "scenario-chip:product:core",
@@ -78,9 +96,25 @@ describe("screen focus routes", () => {
   });
 
   test("Breakout's own difficulty stops (including extreme) sit in the normal difficulty row — no separate per-villain row", () => {
-    const input = { continuable: false, scenarioIds: ["breakout"], difficulties: ["standard", "expert", "extreme"], deckIds: ["a"] };
+    const input = {
+      continuable: false,
+      scenarioIds: ["breakout"],
+      difficulties: ["standard", "expert", "extreme"],
+      deckIds: ["a"],
+    };
     const order = titleFocusOrder(input);
-    expect(order).toEqual(["scenario-search", "scenario:breakout", "difficulty:standard", "difficulty:expert", "difficulty:extreme", "hero-search", "hero:a", "seed", "new-seed", "start"]);
+    expect(order).toEqual([
+      "scenario-search",
+      "scenario:breakout",
+      "difficulty:standard",
+      "difficulty:expert",
+      "difficulty:extreme",
+      "hero-search",
+      "hero:a",
+      "seed",
+      "new-seed",
+      "start",
+    ]);
   });
 
   test("the Decks screen (W9b, D14): wide reaches the list, the card pool and the selected deck's stats-pane actions in one route", () => {
@@ -131,9 +165,15 @@ describe("screen focus routes", () => {
     expect(nothingOpen).not.toContain("paste-field");
     expect(nothingOpen).not.toContain("marvelcdb-field");
     expect(nothingOpen).toContain("ie-paste-toggle");
-    expect(decksFocusOrder({ ...base, importOpen: "marvelcdb", showMarvelCdbImport: true })).toContain("marvelcdb-field");
-    expect(decksFocusOrder({ ...base, importOpen: "marvelcdb", showMarvelCdbImport: true })).toContain("marvelcdb-import");
-    expect(decksFocusOrder({ ...base, importOpen: "marvelcdb", showMarvelCdbImport: false })).not.toContain("marvelcdb-field");
+    expect(decksFocusOrder({ ...base, importOpen: "marvelcdb", showMarvelCdbImport: true })).toContain(
+      "marvelcdb-field",
+    );
+    expect(decksFocusOrder({ ...base, importOpen: "marvelcdb", showMarvelCdbImport: true })).toContain(
+      "marvelcdb-import",
+    );
+    expect(decksFocusOrder({ ...base, importOpen: "marvelcdb", showMarvelCdbImport: false })).not.toContain(
+      "marvelcdb-field",
+    );
     // A precon (or any non-editable deck) selected: no Edit/Delete stop.
     expect(decksFocusOrder({ ...base, editable: false })).not.toContain("stats-edit");
     expect(decksFocusOrder({ ...base, editable: false })).not.toContain("stats-delete");
@@ -159,9 +199,30 @@ describe("screen focus routes", () => {
       importOpen: null,
     };
     const tabs = ["tab:decks", "tab:cards", "tab:stats"];
-    expect(decksFocusOrder({ ...base, activeTab: "decks" })).toEqual(["back", ...tabs, "deck-search", "filters-toggle", "deck:p1", "new-deck", "ie-paste-toggle", "ie-marvelcdb-toggle", "ie-export"]);
-    expect(decksFocusOrder({ ...base, activeTab: "cards" })).toEqual(["back", ...tabs, "pool-chip:cost", "pool-card:c1"]);
-    expect(decksFocusOrder({ ...base, activeTab: "stats" })).toEqual(["back", ...tabs, "stats-check", "stats-duplicate", "stats-play"]);
+    expect(decksFocusOrder({ ...base, activeTab: "decks" })).toEqual([
+      "back",
+      ...tabs,
+      "deck-search",
+      "filters-toggle",
+      "deck:p1",
+      "new-deck",
+      "ie-paste-toggle",
+      "ie-marvelcdb-toggle",
+      "ie-export",
+    ]);
+    expect(decksFocusOrder({ ...base, activeTab: "cards" })).toEqual([
+      "back",
+      ...tabs,
+      "pool-chip:cost",
+      "pool-card:c1",
+    ]);
+    expect(decksFocusOrder({ ...base, activeTab: "stats" })).toEqual([
+      "back",
+      ...tabs,
+      "stats-check",
+      "stats-duplicate",
+      "stats-play",
+    ]);
   });
 
   test("the deck builder shows only the identity picker until one is chosen, then the rest", () => {
@@ -203,7 +264,14 @@ describe("screen focus routes", () => {
   });
 
   test("Deck check narrow: Back, the three tabs, then only the active tab's own rows, Edit deck, and Start", () => {
-    expect(deckCheckFocusOrder({ wide: false, activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "curve", cardIds: ["c1", "c2"] })).toEqual([
+      "back",
+      "tab:curve",
+      "tab:cards",
+      "tab:aspect",
+      "edit-deck",
+      "start",
+    ]);
     expect(deckCheckFocusOrder({ wide: false, activeTab: "cards", cardIds: ["c1", "c2"] })).toEqual([
       "back",
       "tab:curve",
@@ -214,11 +282,24 @@ describe("screen focus routes", () => {
       "edit-deck",
       "start",
     ]);
-    expect(deckCheckFocusOrder({ wide: false, activeTab: "aspect", cardIds: ["c1"] })).toEqual(["back", "tab:curve", "tab:cards", "tab:aspect", "edit-deck", "start"]);
+    expect(deckCheckFocusOrder({ wide: false, activeTab: "aspect", cardIds: ["c1"] })).toEqual([
+      "back",
+      "tab:curve",
+      "tab:cards",
+      "tab:aspect",
+      "edit-deck",
+      "start",
+    ]);
   });
 
   test("Deck check wide: Back, every card in the grid directly (no tabs), Edit deck, and Start", () => {
-    expect(deckCheckFocusOrder({ wide: true, cardIds: ["c1", "c2"] })).toEqual(["back", "card:c1", "card:c2", "edit-deck", "start"]);
+    expect(deckCheckFocusOrder({ wide: true, cardIds: ["c1", "c2"] })).toEqual([
+      "back",
+      "card:c1",
+      "card:c2",
+      "edit-deck",
+      "start",
+    ]);
   });
 
   test("Deck check wide: the rail's own type filter chips come between Back and the grid", () => {
@@ -244,10 +325,27 @@ describe("screen focus routes", () => {
   });
 
   test("Pause (phone) reads close, search, quick reference rows, table rows, then the footer's three buttons", () => {
-    expect(pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false })).toEqual(["close", "search", "resume", "save-quit", "concede"]);
     expect(
-      pauseFocusOrder({ kind: "phone", quickReferenceIds: ["villainPhase", "glossary"], tableRowIds: ["reduced-motion", "sound"], confirmingConcede: false }),
-    ).toEqual(["close", "search", "quick:villainPhase", "quick:glossary", "table:reduced-motion", "table:sound", "resume", "save-quit", "concede"]);
+      pauseFocusOrder({ kind: "phone", quickReferenceIds: [], tableRowIds: [], confirmingConcede: false }),
+    ).toEqual(["close", "search", "resume", "save-quit", "concede"]);
+    expect(
+      pauseFocusOrder({
+        kind: "phone",
+        quickReferenceIds: ["villainPhase", "glossary"],
+        tableRowIds: ["reduced-motion", "sound"],
+        confirmingConcede: false,
+      }),
+    ).toEqual([
+      "close",
+      "search",
+      "quick:villainPhase",
+      "quick:glossary",
+      "table:reduced-motion",
+      "table:sound",
+      "resume",
+      "save-quit",
+      "concede",
+    ]);
   });
 
   test("Pause (phone)'s concede confirm replaces the footer's three buttons with its own two controls", () => {
@@ -258,7 +356,14 @@ describe("screen focus routes", () => {
   });
 
   test("Pause (wide, D13) reads the left menu top to bottom, then the keyword grid", () => {
-    expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).toEqual(["resume", "full-game-log", "rules-reference", "settings", "save-quit", "concede"]);
+    expect(pauseFocusOrder({ kind: "wide", keywordIds: [], confirmingConcede: false })).toEqual([
+      "resume",
+      "full-game-log",
+      "rules-reference",
+      "settings",
+      "save-quit",
+      "concede",
+    ]);
     expect(pauseFocusOrder({ kind: "wide", keywordIds: ["guard", "stunned"], confirmingConcede: false })).toEqual([
       "resume",
       "full-game-log",
@@ -280,7 +385,14 @@ describe("screen focus routes", () => {
   });
 
   test("Rules Reference reads Back, the scope toggle (only with a game), tabs, search (glossary only), then rows", () => {
-    expect(rulesFocusOrder({ tabIds: ["glossary", "villainPhase", "cardList"], showScopeToggle: true, showSearch: true, rowIds: ["guard", "peril"] })).toEqual([
+    expect(
+      rulesFocusOrder({
+        tabIds: ["glossary", "villainPhase", "cardList"],
+        showScopeToggle: true,
+        showSearch: true,
+        rowIds: ["guard", "peril"],
+      }),
+    ).toEqual([
       "back",
       "scope:table",
       "scope:all",
@@ -291,22 +403,47 @@ describe("screen focus routes", () => {
       "row:guard",
       "row:peril",
     ]);
-    expect(rulesFocusOrder({ tabIds: ["glossary"], showScopeToggle: false, showSearch: false, rowIds: [] })).toEqual(["back", "tab:glossary"]);
+    expect(rulesFocusOrder({ tabIds: ["glossary"], showScopeToggle: false, showSearch: false, rowIds: [] })).toEqual([
+      "back",
+      "tab:glossary",
+    ]);
   });
 
   test("Settings reads Back then one stop per row", () => {
-    expect(settingsFocusOrder(["reduced-motion", "large-card-text", "sound"])).toEqual(["back", "row:reduced-motion", "row:large-card-text", "row:sound"]);
+    expect(settingsFocusOrder(["reduced-motion", "large-card-text", "sound"])).toEqual([
+      "back",
+      "row:reduced-motion",
+      "row:large-card-text",
+      "row:sound",
+    ]);
     expect(settingsFocusOrder([])).toEqual(["back"]);
   });
 
   test("the Title menu (W2's D01) is Continue (when there's one), New game, Decks, Campaign, Settings", () => {
     expect(titleMenuFocusOrder({ continuable: false })).toEqual(["new-game", "decks", "campaign", "settings"]);
-    expect(titleMenuFocusOrder({ continuable: true })).toEqual(["continue", "new-game", "decks", "campaign", "settings"]);
+    expect(titleMenuFocusOrder({ continuable: true })).toEqual([
+      "continue",
+      "new-game",
+      "decks",
+      "campaign",
+      "settings",
+    ]);
   });
 
   test("Scenario select: Back, search, chips, rows (or Clear), then next", () => {
-    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino", "klaw"] })).toEqual(["back", "scenario-search", "scenario:rhino", "scenario:klaw", "next"]);
-    expect(scenarioSelectFocusOrder({ scenarioIds: [] })).toEqual(["back", "scenario-search", "scenario-clear", "next"]);
+    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino", "klaw"] })).toEqual([
+      "back",
+      "scenario-search",
+      "scenario:rhino",
+      "scenario:klaw",
+      "next",
+    ]);
+    expect(scenarioSelectFocusOrder({ scenarioIds: [] })).toEqual([
+      "back",
+      "scenario-search",
+      "scenario-clear",
+      "next",
+    ]);
     expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino"], scenarioChipIds: ["product:core"] })).toEqual([
       "back",
       "scenario-search",
@@ -382,12 +519,30 @@ describe("screen focus routes", () => {
   });
 
   test("Table setup with no modular sets (Breakout) simply omits that stretch", () => {
-    const order = tableSetupFocusOrder({ difficulties: ["standard"], modularSetIds: [], firstPlayerOptionIds: ["0", "random"] });
-    expect(order).toEqual(["back", "difficulty:standard", "first-player:0", "first-player:random", "seed", "reroll", "deal-it-out"]);
+    const order = tableSetupFocusOrder({
+      difficulties: ["standard"],
+      modularSetIds: [],
+      firstPlayerOptionIds: ["0", "random"],
+    });
+    expect(order).toEqual([
+      "back",
+      "difficulty:standard",
+      "first-player:0",
+      "first-player:random",
+      "seed",
+      "reroll",
+      "deal-it-out",
+    ]);
   });
 
   test("Setup deal & mulligan: the deciding seat's own hand, then Mulligan, then Keep all — Keep all is always a stop", () => {
-    expect(setupWalkthroughFocusOrder({ optionIds: ["i38", "i40", "i16"] })).toEqual(["option:i38", "option:i40", "option:i16", "confirm", "decline"]);
+    expect(setupWalkthroughFocusOrder({ optionIds: ["i38", "i40", "i16"] })).toEqual([
+      "option:i38",
+      "option:i40",
+      "option:i16",
+      "confirm",
+      "decline",
+    ]);
   });
 
   test("Setup deal & mulligan: with no options at all, Mulligan and Keep all are still stops", () => {

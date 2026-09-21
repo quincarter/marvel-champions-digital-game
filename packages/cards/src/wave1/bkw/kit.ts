@@ -39,7 +39,15 @@ import {
   YOUR_IDENTITY,
   zone,
 } from "../../dsl/index.js";
-import { cancelBoostIcons, generatesFor, onAbilityResolvedOf, onCardPlayed, PREPARATION, PREPARATION_CARD, youReveal } from "./local.js";
+import {
+  cancelBoostIcons,
+  generatesFor,
+  onAbilityResolvedOf,
+  onCardPlayed,
+  PREPARATION,
+  PREPARATION_CARD,
+  youReveal,
+} from "./local.js";
 
 /**
  * Black Widow / Natasha Romanoff (08001a/b) and her signature hero kit (08002–08010, printed `aspect:
@@ -75,8 +83,15 @@ export const BKW_KIT = defineAbilities({
   // first sentence "defines each damage-dealing effect … as an individual attack" anyway, so a stun only cancels
   // the first (`packages/engine/src/resolve/apply-effect.ts`'s "attack" case, docs/phase7-wave1.md's write-up).
   "08004.dance-of-death-action": allowUnlabeledAttack(
-    heroAction(attackAnEnemy(1, { slot: "enemy1" }), attackAnEnemy(2, { slot: "enemy2" }), attackAnEnemy(3, { slot: "enemy3" })),
-    { citation: 'FAQ "Dance of Death (#4)" (RRG 1.8 p. 59): each damage-dealing effect is an individual attack; a stun cancels only the first.' },
+    heroAction(
+      attackAnEnemy(1, { slot: "enemy1" }),
+      attackAnEnemy(2, { slot: "enemy2" }),
+      attackAnEnemy(3, { slot: "enemy3" }),
+    ),
+    {
+      citation:
+        'FAQ "Dance of Death (#4)" (RRG 1.8 p. 59): each damage-dealing effect is an individual attack; a stun cancels only the first.',
+    },
   ),
   // The card prints 4 ability refs for one printed ability (an ingestion artifact splitting the 3 bulleted
   // attacks — the same shape as Hulk's (01050) Forced Response bullets, `dsl/abilities.ts`'s `partOf` doc comment).
@@ -110,15 +125,28 @@ export const BKW_KIT = defineAbilities({
 
   // Grappling Hook — Hero Interrupt: When you reveal a treachery, discard Grappling Hook → cancel the effects of
   // that treachery and discard it.
-  "08008.grappling-hook-interrupt": heroInterrupt(youReveal(query("treachery")), { cost: discardThis }, cancelRevealedCard()),
+  "08008.grappling-hook-interrupt": heroInterrupt(
+    youReveal(query("treachery")),
+    { cost: discardThis },
+    cancelRevealedCard(),
+  ),
 
   // Synth-Suit — Black Widow gets +1 DEF.
   "08009.synth-suit-constant": constant(gets("def", 1, YOUR_IDENTITY)),
   // Synth-Suit — Hero Response: After you resolve the ability of a Preparation card you control, exhaust
   // Synth-Suit → ready Black Widow. Errata'd text (module doc comment); printed text read "trigger".
-  "08009.synth-suit-response": heroResponse(onAbilityResolvedOf(PREPARATION_CARD), { cost: exhaustThis }, ready(yourIdentity)),
+  "08009.synth-suit-response": heroResponse(
+    onAbilityResolvedOf(PREPARATION_CARD),
+    { cost: exhaustThis },
+    ready(yourIdentity),
+  ),
 
   // Widow's Bite — Hero Response (attack): After a minion enters play, discard Widow's Bite → deal 2 damage to
   // that minion and stun it.
-  "08010.widows-bite-response": heroResponse(after.entersPlay(query("minion")), { label: "attack", cost: discardThis }, dealDamage(2, eventTarget), stun(eventTarget)),
+  "08010.widows-bite-response": heroResponse(
+    after.entersPlay(query("minion")),
+    { label: "attack", cost: discardThis },
+    dealDamage(2, eventTarget),
+    stun(eventTarget),
+  ),
 });

@@ -24,7 +24,12 @@ import { activeAbilityRefs, type AbilityCost, type EngineDeps, type GameState, t
 import { cardName } from "./names.js";
 
 /** "Aunt May — exhaust" or, once a card names the ability, "Rocket Boots — Afterburners". */
-export function abilityLabelOf(state: GameState, instanceId: InstanceId, abilityId: AbilityId, deps: EngineDeps): string {
+export function abilityLabelOf(
+  state: GameState,
+  instanceId: InstanceId,
+  abilityId: AbilityId,
+  deps: EngineDeps,
+): string {
   const name = cardName(state, instanceId);
   const short = abilityShortLabelOf(state, instanceId, abilityId, deps);
   return short ? `${name} — ${short}` : name;

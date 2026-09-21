@@ -74,7 +74,13 @@ describe.each<[string, () => DeckStorage]>([
     const storage = make();
     const deck = userDeck({
       id: deckId("imported:1"),
-      source: { kind: "imported", site: "marvelcdb", marvelcdbDeckId: "1", url: "https://marvelcdb.com/decklist/view/1/x", importedAt: "2026-09-13T00:00:00.000Z" },
+      source: {
+        kind: "imported",
+        site: "marvelcdb",
+        marvelcdbDeckId: "1",
+        url: "https://marvelcdb.com/decklist/view/1/x",
+        importedAt: "2026-09-13T00:00:00.000Z",
+      },
     });
     await storage.put(deck);
     expect(await storage.get(deck.id)).toEqual(deck);

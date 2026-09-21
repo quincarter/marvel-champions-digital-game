@@ -66,9 +66,7 @@ function stableStringify(value: unknown): string {
  * single card changes it.
  */
 export function poolVersionOf(cards: readonly AnyCard[]): string {
-  const entries = cards
-    .map((card) => `${card.id}:${stableStringify(card)}`)
-    .sort();
+  const entries = cards.map((card) => `${card.id}:${stableStringify(card)}`).sort();
   return `v1-${fnv1a(entries.join("\n"))}`;
 }
 

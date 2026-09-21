@@ -13,7 +13,7 @@ export const VNM_CURATION: PackCuration = {
   pack: {
     name: "Venom",
     releaseDate: "2021-07-16",
-    releaseDateSource: "Hall of Heroes Venom page (https://hallofheroeslcg.com/venom/): \"Release date: July 16, 2021\"",
+    releaseDateSource: 'Hall of Heroes Venom page (https://hallofheroeslcg.com/venom/): "Release date: July 16, 2021"',
   },
   outDir: "src/data/vnm",
   exportPrefix: "VNM",

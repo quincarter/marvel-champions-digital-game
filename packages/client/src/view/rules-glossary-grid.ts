@@ -31,14 +31,22 @@ export interface GlossaryGridColumns {
 /** How many entry cards fit across a panel `width` px wide, and each one's own width. Always at least one column, even narrower than `MIN_CELL_WIDTH` (a single slightly-too-narrow card beats none). */
 export function glossaryGridColumns(width: number): GlossaryGridColumns {
   const usable = Math.max(1, width);
-  const columns = Math.max(1, Math.min(MAX_COLUMNS, Math.round((usable + GLOSSARY_GRID_GAP) / (TARGET_CELL_WIDTH + GLOSSARY_GRID_GAP))));
+  const columns = Math.max(
+    1,
+    Math.min(MAX_COLUMNS, Math.round((usable + GLOSSARY_GRID_GAP) / (TARGET_CELL_WIDTH + GLOSSARY_GRID_GAP))),
+  );
   const cellWidth = Math.max(MIN_CELL_WIDTH, (usable - (columns - 1) * GLOSSARY_GRID_GAP) / columns);
   return { columns, cellWidth };
 }
 
 /** Cell `column`'s rect within one grid row (`rowRect` is that row's own rect, already offset for scroll by the caller's virtualized list). */
 export function glossaryCellRect(geometry: GlossaryGridColumns, rowRect: Rect, column: number): Rect {
-  return { x: rowRect.x + column * (geometry.cellWidth + GLOSSARY_GRID_GAP), y: rowRect.y, width: geometry.cellWidth, height: rowRect.height };
+  return {
+    x: rowRect.x + column * (geometry.cellWidth + GLOSSARY_GRID_GAP),
+    y: rowRect.y,
+    width: geometry.cellWidth,
+    height: rowRect.height,
+  };
 }
 
 const CARD_PADDING = 12;
@@ -82,7 +90,12 @@ export function glossaryRowHeight(entries: readonly GlossaryCardContent[], cellW
  * height, so the caller (`scenes/rules.ts`) can take *this* — the taller of just the pair (or
  * fewer, on a short trailing row) actually sharing that row — instead.
  */
-export function glossaryRowHeights(entries: readonly GlossaryCardContent[], columns: number, cellWidth: number, minHeight = 120): number[] {
+export function glossaryRowHeights(
+  entries: readonly GlossaryCardContent[],
+  columns: number,
+  cellWidth: number,
+  minHeight = 120,
+): number[] {
   const heights: number[] = [];
   for (let start = 0; start < entries.length; start += columns) {
     heights.push(glossaryRowHeight(entries.slice(start, start + columns), cellWidth, minHeight));

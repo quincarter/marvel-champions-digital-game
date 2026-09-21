@@ -113,7 +113,9 @@ export function gameOverModel(
   const firstDown = [...heroesDown].sort((a, b) => (a.defeatedInRound ?? 0) - (b.defeatedInRound ?? 0))[0];
 
   const difficulty = config ? sentenceCase(config.difficulty) : null;
-  const meta = [`Round ${round}`, difficulty, plural(state.players.length, "hero", "heroes")].filter(Boolean).join(" · ");
+  const meta = [`Round ${round}`, difficulty, plural(state.players.length, "hero", "heroes")]
+    .filter(Boolean)
+    .join(" · ");
 
   let kicker: string;
   let headline: string;
@@ -133,7 +135,9 @@ export function gameOverModel(
         finalBlow = source
           ? {
               title: `${source} landed the last ${blow.amount}`,
-              body: seat ? `${playerName(state, seat)} finished ${villain} in round ${blow.round}.` : `It finished ${villain} in round ${blow.round}.`,
+              body: seat
+                ? `${playerName(state, seat)} finished ${villain} in round ${blow.round}.`
+                : `It finished ${villain} in round ${blow.round}.`,
             }
           : { title: `${villain} defeated`, body: `The last ${blow.amount} damage landed in round ${blow.round}.` };
       }
@@ -215,7 +219,11 @@ export function gameOverModel(
     const player = state.players.find((candidate) => candidate.playerId === seat.playerId);
     const played = plural(seat.cardsPlayed, "card") + " played";
     if (seat.defeatedInRound !== null || !player) {
-      return { name: playerName(state, seat.playerId), detail: `Defeated R${seat.defeatedInRound ?? round} · ${played}`, defeated: true };
+      return {
+        name: playerName(state, seat.playerId),
+        detail: `Defeated R${seat.defeatedInRound ?? round} · ${played}`,
+        defeated: true,
+      };
     }
     const id = player.identity.instanceId;
     const hp = remainingHitPoints(state, id, deps);
@@ -252,7 +260,12 @@ export function gameOverModel(
  * blocking removals, a hero falling, the villain advancing a stage, and the
  * single heaviest round for threat. Nothing is inferred beyond those counts.
  */
-export function turningPoints(state: GameState, record: GameRecord, tone: GameOverTone, villain: string): readonly GameOverBeat[] {
+export function turningPoints(
+  state: GameState,
+  record: GameRecord,
+  tone: GameOverTone,
+  villain: string,
+): readonly GameOverBeat[] {
   const beats: GameOverBeat[] = [];
   for (const entry of record.rounds) {
     if (entry.crisisBlocks > 0) {

@@ -7,18 +7,18 @@ folder is all it should take**. Formats: `mp3`, `ogg`, `m4a`.
 > The client does not play music yet. This is the layout the audio code is to
 > glob when it lands; until then these folders only hold the files.
 
-| Put it in | Named | Plays |
-|---|---|---|
-| `title/` | anything | Title screen and menus |
-| `gameplay/` | anything | During a game, whenever nothing more specific below has a track. `default-in-battle.mp3` is the current fallback |
-| `scenarios/<scenarioId>/` | `battle.<ext>` | During a game against that scenario, instead of `gameplay/` |
-| `scenarios/<scenarioId>/` | `villain-wins.<ext>` | Game Over, when the players lose to it or concede |
-| `scenarios/<scenarioId>/` | `villain-loses.<ext>` | Game Over, when the players beat it |
-| `campaigns/<campaignId>/` | `battle.<ext>` | During any game of that campaign whose scenario has no `battle` track of its own |
-| `campaigns/<campaignId>/` | `interlude.<ext>` | Between a campaign's scenarios (campaign log, upgrades) |
-| `packs/<packCode>/` | `battle.<ext>` | During any scenario from that pack with no scenario or campaign track |
-| `outcomes/` | `defeat.<ext>` | Game Over for any loss or concession with no track of its own |
-| `outcomes/` | `victory.<ext>` | Game Over for any win with no track of its own |
+| Put it in                 | Named                 | Plays                                                                                                            |
+| ------------------------- | --------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `title/`                  | anything              | Title screen and menus                                                                                           |
+| `gameplay/`               | anything              | During a game, whenever nothing more specific below has a track. `default-in-battle.mp3` is the current fallback |
+| `scenarios/<scenarioId>/` | `battle.<ext>`        | During a game against that scenario, instead of `gameplay/`                                                      |
+| `scenarios/<scenarioId>/` | `villain-wins.<ext>`  | Game Over, when the players lose to it or concede                                                                |
+| `scenarios/<scenarioId>/` | `villain-loses.<ext>` | Game Over, when the players beat it                                                                              |
+| `campaigns/<campaignId>/` | `battle.<ext>`        | During any game of that campaign whose scenario has no `battle` track of its own                                 |
+| `campaigns/<campaignId>/` | `interlude.<ext>`     | Between a campaign's scenarios (campaign log, upgrades)                                                          |
+| `packs/<packCode>/`       | `battle.<ext>`        | During any scenario from that pack with no scenario or campaign track                                            |
+| `outcomes/`               | `defeat.<ext>`        | Game Over for any loss or concession with no track of its own                                                    |
+| `outcomes/`               | `victory.<ext>`       | Game Over for any win with no track of its own                                                                   |
 
 **Which track wins during a game**, most specific first:
 `scenarios/<scenarioId>/battle` → `campaigns/<campaignId>/battle` →

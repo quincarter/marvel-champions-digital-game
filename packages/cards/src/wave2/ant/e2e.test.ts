@@ -13,7 +13,9 @@ test("Rhino (standard), solo: Ant-Man (Leadership)", () => {
   const created = createGame(config, WAVE2_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
   const result = playToOutcome(created.state, WAVE2_DEPS);
-  console.info(`[wave2 e2e] Rhino (standard) — Ant-Man: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+  console.info(
+    `[wave2 e2e] Rhino (standard) — Ant-Man: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+  );
   expect(result.outcome).not.toBeNull();
   expect(result.rounds).toBeGreaterThanOrEqual(1);
   const replayed = replay(result.session.log, WAVE2_DEPS);

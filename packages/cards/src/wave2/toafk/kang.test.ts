@@ -1,18 +1,34 @@
 import { cardsInPlay, createGame } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, P1, playerOf, settle, toHero } from "../../testing/harness.js";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  P1,
+  playerOf,
+  settle,
+  toHero,
+} from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { defeatWithAttack, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { KANG_SET } from "./kang.js";
 
-const kangVsHeroes = () => startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+const kangVsHeroes = () =>
+  startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
 
 describe("Kang scenario", () => {
   it("standalone setup: Kang (I) alone in the villain deck, Kang (II)/(III) set aside, the game is legal", () => {
-    const config = wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }], seed: 2026 });
+    const config = wave2Scenario("kang", {
+      players: [{ starterDeckId: "hawkeye-leadership" }, { starterDeckId: "spider-woman-aggression-justice" }],
+      seed: 2026,
+    });
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     expect(created.state.villains.map((v) => v.cardId)).toEqual(["11001"]);
-    const setAsideKangs = created.state.encounterSetAside.filter((id) => ["11002", "11003", "11004", "11005", "11006"].includes(created.state.instances[id]?.cardId ?? ""));
+    const setAsideKangs = created.state.encounterSetAside.filter((id) =>
+      ["11002", "11003", "11004", "11005", "11006"].includes(created.state.instances[id]?.cardId ?? ""),
+    );
     expect(setAsideKangs).toHaveLength(5);
     expect(created.state.outcome).toBeNull();
     const settled = settle(created.state, firstLegal, undefined, WAVE2_DEPS);
@@ -20,11 +36,17 @@ describe("Kang scenario", () => {
   });
 
   it("expert mode: the Expert Kang villain and Expert Kang (II)/(III) set-aside cards replace the standard ones", () => {
-    const config = wave2Scenario("kang", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026, difficulty: "expert" });
+    const config = wave2Scenario("kang", {
+      players: [{ starterDeckId: "hawkeye-leadership" }],
+      seed: 2026,
+      difficulty: "expert",
+    });
     const created = createGame(config, WAVE2_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     expect(created.state.villains.map((v) => v.cardId)).toEqual(["11034"]);
-    const setAsideKangs = created.state.encounterSetAside.filter((id) => ["11035", "11036", "11037", "11038", "11039"].includes(created.state.instances[id]?.cardId ?? ""));
+    const setAsideKangs = created.state.encounterSetAside.filter((id) =>
+      ["11035", "11036", "11037", "11038", "11039"].includes(created.state.instances[id]?.cardId ?? ""),
+    );
     expect(setAsideKangs).toHaveLength(5);
   });
 
@@ -36,9 +58,17 @@ describe("Kang scenario", () => {
     const start = kangVsHeroes();
     const hero = runWave2(start, toHero());
     const villain = hero.villains[0]!.instanceId;
-    const damaged = { ...hero, instances: { ...hero.instances, [villain]: { ...hero.instances[villain]!, damage: 999 } } };
+    const damaged = {
+      ...hero,
+      instances: { ...hero.instances, [villain]: { ...hero.instances[villain]!, damage: 999 } },
+    };
     const identity = identityOf(damaged);
-    const settled = settle(runWave2(damaged, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }), firstLegal, undefined, WAVE2_DEPS);
+    const settled = settle(
+      runWave2(damaged, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(settled, villain).damage).toBeGreaterThanOrEqual(999);
     // Still stage 1 immediately after defeat...
     expect(settled.mainScheme.stageIndex).toBe(0);
@@ -67,7 +97,9 @@ describe("Kang scenario", () => {
     const settled = settle(created.state, firstLegal, undefined, WAVE2_DEPS);
     const deckId = Object.keys(settled.encounterDecks)[0]!;
     const pile = settled.encounterDecks[deckId]!;
-    const obligations = [...pile.deck, ...pile.discard].filter((id) => settled.instances[id]?.cardId?.toString().match(/^1101[89]|^1102[01]/));
+    const obligations = [...pile.deck, ...pile.discard].filter((id) =>
+      settled.instances[id]?.cardId?.toString().match(/^1101[89]|^1102[01]/),
+    );
     expect(obligations).toHaveLength(0);
   });
 
@@ -127,7 +159,16 @@ describe("Kang scenario", () => {
     // Giant); which one is irrelevant here, since the test only cares about Yellowjacket's own defeat/engage state.
     // `settle`: Ant-Man's own kit responds to "after you change to hero form" (Puny Pest/Giant Nuisance) with an
     // optional prompt, which must be resolved (declined) before another command can be issued.
-    let state = settle(runWave2(startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 })), { type: "changeForm", playerId: P1, to: { heroForm: 0 } }), firstLegal, undefined, WAVE2_DEPS);
+    let state = settle(
+      runWave2(startWave2Game(wave2Scenario("kang", { players: [{ starterDeckId: "ant-leadership" }], seed: 2026 })), {
+        type: "changeForm",
+        playerId: P1,
+        to: { heroForm: 0 },
+      }),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const kang1 = state.villains[0]!.instanceId;
     const yellowjacket = instancesOf(state, "12027")[0]!;
     expect(playerOf(state, P1).setAside).toContain(yellowjacket);

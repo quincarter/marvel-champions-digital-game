@@ -122,7 +122,11 @@ export const SCW_PACK_CARDS = defineAbilities({
   // Order and Chaos (15018, Basic event) — Team-Up (Quicksilver and Scarlet Witch), Max 1 per deck (data). Hero
   // Interrupt: when a treachery card is revealed from the encounter deck, cancel its "When Revealed" effects, then
   // deal 2 damage to the villain (module docblock: identical text to `qsv`'s own 14018).
-  "15018.order-and-chaos-interrupt": heroInterrupt(on.encounterCardRevealed(query("treachery")), cancelWhenRevealed(), dealDamage(2, theVillain)),
+  "15018.order-and-chaos-interrupt": heroInterrupt(
+    on.encounterCardRevealed(query("treachery")),
+    cancelWhenRevealed(),
+    dealDamage(2, theVillain),
+  ),
 
   // Spiritual Meditation (15019, Basic event) — Play only if your identity has the Mystic trait (data). Action:
   // Draw 2 cards. Choose and discard 1 card from your hand.
@@ -146,7 +150,11 @@ export const SCW_PACK_CARDS = defineAbilities({
 
   // Bait and Switch (15030, Protection event) — Hero Action (thwart): The villain attacks you. Remove 4 threat
   // from the main scheme.
-  "15030.bait-and-switch-action": heroAction({ label: "thwart" }, enemyAttack(theVillain, { against: you }), thwart(4, theMainScheme)),
+  "15030.bait-and-switch-action": heroAction(
+    { label: "thwart" },
+    enemyAttack(theVillain, { against: you }),
+    thwart(4, theMainScheme),
+  ),
 
   // Recuperation (15031, Basic event) — Alter-Ego Action: Heal damage from your alter-ego equal to your REC.
   "15031.recuperation-action": alterEgoAction(heal(statOf(yourIdentity, "rec"), yourIdentity)),

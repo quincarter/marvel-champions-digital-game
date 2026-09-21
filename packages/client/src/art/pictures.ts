@@ -30,7 +30,11 @@ export interface Picture {
  * One picture at random — never `avoidKey` (the one shown last time) unless it's the only one.
  * `random` is `Math.random` by default and injectable for tests.
  */
-export function pickPicture(pool: readonly Picture[], avoidKey: string | null = null, random: () => number = Math.random): Picture | null {
+export function pickPicture(
+  pool: readonly Picture[],
+  avoidKey: string | null = null,
+  random: () => number = Math.random,
+): Picture | null {
   if (pool.length === 0) return null;
   const candidates = pool.length > 1 ? pool.filter((art) => art.key !== avoidKey) : pool;
   const index = Math.min(candidates.length - 1, Math.floor(random() * candidates.length));
@@ -77,7 +81,13 @@ export function ensurePictureLoaded(scene: Phaser.Scene, picture: Picture, onRea
 export function coverFit(
   image: { readonly width: number; readonly height: number },
   panel: { readonly width: number; readonly height: number },
-): { readonly scale: number; readonly cropX: number; readonly cropY: number; readonly cropWidth: number; readonly cropHeight: number } {
+): {
+  readonly scale: number;
+  readonly cropX: number;
+  readonly cropY: number;
+  readonly cropWidth: number;
+  readonly cropHeight: number;
+} {
   const scale = Math.max(panel.width / image.width, panel.height / image.height);
   const cropWidth = Math.min(image.width, panel.width / scale);
   const cropHeight = Math.min(image.height, panel.height / scale);

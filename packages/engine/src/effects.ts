@@ -3,7 +3,16 @@ import type { EngineDeps } from "./abilities.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "./ids.js";
 import { emit, moveCard, setStep, updateInstance, updatePlayer, type Ctx } from "./ctx.js";
 import { hasKeyword, statusCapacity, usesKeyword } from "./keywords.js";
-import { activeEncounterDeckId, discardZoneFor, encounterDeckOf, heroFacesOf, mustCard, mustInstance, mustPlayer, mustVillain } from "./query.js";
+import {
+  activeEncounterDeckId,
+  discardZoneFor,
+  encounterDeckOf,
+  heroFacesOf,
+  mustCard,
+  mustInstance,
+  mustPlayer,
+  mustVillain,
+} from "./query.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
 import { accelerationTokenRedirect, cannotLeavePlay, cannotReady } from "./rules.js";
@@ -23,21 +32,37 @@ import type { LastingDuration, LastingEffect, LastingEffectBody } from "./lastin
  * a card effect doesn't use it up (RRG "Form, Change Form"). Damage, statuses,
  * attachments and ready state all stay.
  */
-export function setForm(ctx: Ctx, playerId: PlayerId, to: "hero" | "alterEgo", voluntary: boolean, heroFormIndex = 0): TriggerEvent | null {
+export function setForm(
+  ctx: Ctx,
+  playerId: PlayerId,
+  to: "hero" | "alterEgo",
+  voluntary: boolean,
+  heroFormIndex = 0,
+): TriggerEvent | null {
   const player = mustPlayer(ctx.state, playerId);
   const nextIndex = to === "hero" ? heroFormIndex : null;
   const fromIndex = player.identity.heroFormIndex;
   if (player.identity.form === to && fromIndex === nextIndex) return null;
   updatePlayer(ctx, playerId, (p) => ({
     ...p,
-    identity: { ...p.identity, form: to, heroFormIndex: nextIndex, changedFormThisRound: p.identity.changedFormThisRound || voluntary },
+    identity: {
+      ...p.identity,
+      form: to,
+      heroFormIndex: nextIndex,
+      changedFormThisRound: p.identity.changedFormThisRound || voluntary,
+    },
   }));
   // A three-sided identity (docs/phase7-wave2.md §3.2) logs which hero face; every other identity logs as before.
   const card = mustCard(ctx.state, player.identity.cardId);
   const faces = card.type === "hero_identity" ? heroFacesOf(card).length : 1;
   const face = faces > 1 ? { fromHeroFormIndex: fromIndex, heroFormIndex: nextIndex } : {};
   emit(ctx, { type: "formChanged", playerId, to, ...(voluntary ? {} : { byEffect: true }), ...face });
-  return { kind: "formChanged", playerId, to, ...(faces > 1 ? { fromHeroForm: fromIndex, toHeroForm: nextIndex } : {}) };
+  return {
+    kind: "formChanged",
+    playerId,
+    to,
+    ...(faces > 1 ? { fromHeroForm: fromIndex, toHeroForm: nextIndex } : {}),
+  };
 }
 
 export function endGame(ctx: Ctx, outcome: GameOutcome): void {
@@ -135,12 +160,18 @@ export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, am
  * deck is empty, shuffle its discard pile back into its encounter deck and place an acceleration token" — only
  * that deck resets.
  */
-export function drawEncounterCard(ctx: Ctx, deckId: EncounterDeckId = activeEncounterDeckId(ctx.state)): InstanceId | null {
+export function drawEncounterCard(
+  ctx: Ctx,
+  deckId: EncounterDeckId = activeEncounterDeckId(ctx.state),
+): InstanceId | null {
   const piles = encounterDeckOf(ctx.state, deckId);
   if (piles.deck.length === 0) {
     if (piles.discard.length === 0) return null;
     const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, piles.discard);
-    ctx.state = { ...ctx.state, encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: order, discard: [] } } };
+    ctx.state = {
+      ...ctx.state,
+      encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: order, discard: [] } },
+    };
     addAccelerationToken(ctx);
   }
   return encounterDeckOf(ctx.state, deckId).deck[0] ?? null;
@@ -171,14 +202,20 @@ export function setActiveVillain(ctx: Ctx, to: InstanceId, reason: "effect" | "a
 }
 
 /** Rewrites a main scheme's state wherever it lives: the central one, or a separate game area's (§3.1). */
-export function updateMainSchemeState(ctx: Ctx, id: InstanceId, update: (scheme: MainSchemeState) => MainSchemeState): void {
+export function updateMainSchemeState(
+  ctx: Ctx,
+  id: InstanceId,
+  update: (scheme: MainSchemeState) => MainSchemeState,
+): void {
   if (ctx.state.mainScheme.instanceId === id) {
     ctx.state = { ...ctx.state, mainScheme: update(ctx.state.mainScheme) };
     return;
   }
   ctx.state = {
     ...ctx.state,
-    gameAreas: ctx.state.gameAreas.map((area) => (area.mainScheme?.instanceId === id ? { ...area, mainScheme: update(area.mainScheme) } : area)),
+    gameAreas: ctx.state.gameAreas.map((area) =>
+      area.mainScheme?.instanceId === id ? { ...area, mainScheme: update(area.mainScheme) } : area,
+    ),
   };
 }
 
@@ -269,7 +306,12 @@ export function discardFromHand(ctx: Ctx, playerId: PlayerId, id: InstanceId): v
  * same cards. Stops early when no eligible card is left; a hand of one still discards it (ruling, Feb 28, 2026 (4)).
  * `exclude` keeps cards out of the pick (the card whose cost this is). Returns the discarded cards in order.
  */
-export function discardRandomFromHand(ctx: Ctx, playerId: PlayerId, amount: number, exclude: readonly InstanceId[] = []): readonly InstanceId[] {
+export function discardRandomFromHand(
+  ctx: Ctx,
+  playerId: PlayerId,
+  amount: number,
+  exclude: readonly InstanceId[] = [],
+): readonly InstanceId[] {
   const discarded: InstanceId[] = [];
   for (let i = 0; i < amount; i++) {
     const hand = mustPlayer(ctx.state, playerId).hand.filter((id) => !exclude.includes(id));
@@ -295,7 +337,13 @@ export function discardFromPlay(ctx: Ctx, id: InstanceId): void {
  * statuses, exhaust, engagement) is cleared. RRG "Permanent": a permanent card
  * cannot leave play.
  */
-export function leavePlay(ctx: Ctx, id: InstanceId, requested: ZoneId, position: "top" | "bottom" = "top", discarded = false): void {
+export function leavePlay(
+  ctx: Ctx,
+  id: InstanceId,
+  requested: ZoneId,
+  position: "top" | "bottom" = "top",
+  discarded = false,
+): void {
   if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) return;
   if (cannotLeavePlay(ctx.state, ctx.deps, id)) {
     emit(ctx, { type: "leavePlayBlocked", instanceId: id, reason: "cannotLeavePlay" });
@@ -306,9 +354,11 @@ export function leavePlay(ctx: Ctx, id: InstanceId, requested: ZoneId, position:
   // victory display or set-aside area, it is removed from the game."
   const card = ctx.state.cardPool[instance.cardId];
   const doubleSided = card !== undefined && "flipSide" in card && card.flipSide !== undefined;
-  const keepsCard = requested.kind === "victoryDisplay" || requested.kind === "setAside" || requested.kind === "encounterSetAside";
+  const keepsCard =
+    requested.kind === "victoryDisplay" || requested.kind === "setAside" || requested.kind === "encounterSetAside";
   const to: ZoneId = doubleSided && !keepsCard ? { kind: "removedFromGame" } : requested;
-  if (discarded && to === requested) emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
+  if (discarded && to === requested)
+    emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
   for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {
@@ -348,7 +398,11 @@ export function addLastingEffect(ctx: Ctx, body: LastingEffectBody, duration: La
   return effect;
 }
 
-export function endLastingEffect(ctx: Ctx, id: string, reason: "expired" | "consumed" | "sourceLeftPlay" | "fired"): void {
+export function endLastingEffect(
+  ctx: Ctx,
+  id: string,
+  reason: "expired" | "consumed" | "sourceLeftPlay" | "fired",
+): void {
   if (!ctx.state.lastingEffects.some((effect) => effect.id === id)) return;
   ctx.state = { ...ctx.state, lastingEffects: ctx.state.lastingEffects.filter((effect) => effect.id !== id) };
   emit(ctx, { type: "lastingEffectEnded", id, reason });
@@ -357,7 +411,8 @@ export function endLastingEffect(ctx: Ctx, id: string, reason: "expired" | "cons
 /** Removes every lasting effect whose duration ends at this boundary (delayed effects are fired by the caller). */
 export function expireLastingEffects(ctx: Ctx, boundary: "endOfPhase" | "endOfRound" | "endOfTurn"): void {
   for (const effect of [...ctx.state.lastingEffects]) {
-    if (effect.duration.kind === boundary && effect.kind !== "delayedEffects") endLastingEffect(ctx, effect.id, "expired");
+    if (effect.duration.kind === boundary && effect.kind !== "delayedEffects")
+      endLastingEffect(ctx, effect.id, "expired");
   }
 }
 
@@ -391,7 +446,8 @@ export function expireCardResolutionEffects(ctx: Ctx, instanceId: InstanceId): v
 /** "Until the end of this attack": the attack's event frame is finishing. */
 export function expireEventLastingEffects(ctx: Ctx, frameId: string): void {
   for (const effect of [...ctx.state.lastingEffects]) {
-    if (effect.duration.kind === "endOfEvent" && effect.duration.frameId === frameId) endLastingEffect(ctx, effect.id, "expired");
+    if (effect.duration.kind === "endOfEvent" && effect.duration.frameId === frameId)
+      endLastingEffect(ctx, effect.id, "expired");
   }
 }
 
@@ -400,7 +456,12 @@ export function expireEventLastingEffects(ctx: Ctx, frameId: string): void {
  * A `cardFilter`-bearing reduction ("the next Avenger ally played this phase", Avengers Tower) only applies while
  * pricing a card it matches, and keeps waiting through any other card `cardInstanceId` names.
  */
-export function costReductionFor(state: GameState, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId): number {
+export function costReductionFor(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+): number {
   const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
   return state.lastingEffects.reduce((sum, effect) => {
     if (effect.kind !== "costReduction" || effect.playerId !== playerId) return sum;
@@ -437,7 +498,12 @@ export function endUntilCardPlayedEffects(
 }
 
 /** The player just played a card: every pending "next card" reduction that card matches is used up. */
-export function consumeCostReductions(ctx: Ctx, deps: EngineDeps, playerId: PlayerId, cardInstanceId: InstanceId): void {
+export function consumeCostReductions(
+  ctx: Ctx,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+): void {
   const context: EffectContext = { selfInstanceId: null, controllerId: playerId, event: null, bindings: {}, deps };
   for (const effect of [...ctx.state.lastingEffects]) {
     if (effect.kind !== "costReduction" || effect.playerId !== playerId) continue;

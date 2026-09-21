@@ -15,4 +15,9 @@ import { THOR_PACK_CARDS } from "./pack-cards.js";
  * the wave B primitives batch landed `TargetQuery.host` ("a Weapon upgrade on your hero"); both are scripted now
  * (`pack-cards.ts`).
  */
-export const THOR_ABILITIES: AbilityRegistry = mergeRegistries(THOR_KIT, THOR_OBLIGATION, THOR_NEMESIS, THOR_PACK_CARDS);
+export const THOR_ABILITIES: AbilityRegistry = mergeRegistries(
+  THOR_KIT,
+  THOR_OBLIGATION,
+  THOR_NEMESIS,
+  THOR_PACK_CARDS,
+);

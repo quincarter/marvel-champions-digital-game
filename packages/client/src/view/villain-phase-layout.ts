@@ -95,14 +95,24 @@ export function villainPhaseLayout(bounds: Rect, formFactor: FormFactor, boostCo
   const boostsHeightPhone = boostCount > 0 ? BOOSTS_HEIGHT_PHONE : 0;
   const margin = phone ? MARGIN_PHONE : MARGIN_WIDE;
   const pad = phone ? PAD_PHONE : PAD_WIDE;
-  const panel: Rect = { x: bounds.x + margin, y: bounds.y + margin, width: bounds.width - margin * 2, height: bounds.height - margin * 2 };
+  const panel: Rect = {
+    x: bounds.x + margin,
+    y: bounds.y + margin,
+    width: bounds.width - margin * 2,
+    height: bounds.height - margin * 2,
+  };
   const contentX = panel.x + pad;
   const contentWidth = panel.width - pad * 2;
 
   let y = panel.y + pad;
   const titleHeight = phone ? 22 : 34;
   const skipWidth = 96;
-  const title: Rect = { x: contentX, y, width: contentWidth - skipWidth - 12, height: Math.max(titleHeight, hit.target) };
+  const title: Rect = {
+    x: contentX,
+    y,
+    width: contentWidth - skipWidth - 12,
+    height: Math.max(titleHeight, hit.target),
+  };
   const skip: Rect = { x: contentX + contentWidth - skipWidth, y, width: skipWidth, height: hit.target };
   y += Math.max(title.height, skip.height) + 6;
 
@@ -115,7 +125,12 @@ export function villainPhaseLayout(bounds: Rect, formFactor: FormFactor, boostCo
   const stepLine: Rect = { x: contentX, y, width: contentWidth, height: stepLineHeight };
   y += Math.max(stepStripHeight, stepLineHeight) + 14;
 
-  const footer: Rect = { x: contentX, y: panel.y + panel.height - pad - hit.primary, width: contentWidth, height: hit.primary };
+  const footer: Rect = {
+    x: contentX,
+    y: panel.y + panel.height - pad - hit.primary,
+    width: contentWidth,
+    height: hit.primary,
+  };
   const bodyBottom = footer.y - 12;
 
   if (phone) {
@@ -135,7 +150,21 @@ export function villainPhaseLayout(bounds: Rect, formFactor: FormFactor, boostCo
     y += queued.height + 8;
     const phaseLog: Rect = { x: contentX, y, width: contentWidth, height: Math.max(0, bodyBottom - y) };
     const teamStatus: Rect = { x: contentX, y, width: 0, height: 0 };
-    return { panel, title, skip, subtitle, stepStrip, stepLine, happeningNow, boosts, teamStatus, mainScheme, queued, phaseLog, footer };
+    return {
+      panel,
+      title,
+      skip,
+      subtitle,
+      stepStrip,
+      stepLine,
+      happeningNow,
+      boosts,
+      teamStatus,
+      mainScheme,
+      queued,
+      phaseLog,
+      footer,
+    };
   }
 
   const railX = contentX + contentWidth - RAIL_WIDTH;
@@ -154,14 +183,38 @@ export function villainPhaseLayout(bounds: Rect, formFactor: FormFactor, boostCo
     : { x: railX, y, width: 0, height: 0 };
   const phaseLog: Rect = tablet
     ? { x: railX, y: bodyBottom, width: RAIL_WIDTH, height: 0 }
-    : { x: railX, y: y + MAIN_SCHEME_HEIGHT + 12, width: RAIL_WIDTH, height: Math.max(0, bodyBottom - (y + MAIN_SCHEME_HEIGHT + 12)) };
+    : {
+        x: railX,
+        y: y + MAIN_SCHEME_HEIGHT + 12,
+        width: RAIL_WIDTH,
+        height: Math.max(0, bodyBottom - (y + MAIN_SCHEME_HEIGHT + 12)),
+      };
 
   // Main column: "happening now", the boost cards it revealed, then "queued this phase" filling what's left.
   const happeningNow: Rect = { x: contentX, y, width: mainWidth, height: 168 };
-  const boosts: Rect = { x: contentX, y: happeningNow.y + happeningNow.height + 12, width: mainWidth, height: boostsHeightWide };
+  const boosts: Rect = {
+    x: contentX,
+    y: happeningNow.y + happeningNow.height + 12,
+    width: mainWidth,
+    height: boostsHeightWide,
+  };
   // No second gap when there is nothing to show — see the phone branch's own comment.
   const queuedTop = boosts.y + boosts.height + (boostsHeightWide > 0 ? 12 : 0);
   const queued: Rect = { x: contentX, y: queuedTop, width: mainWidth, height: Math.max(0, bodyBottom - queuedTop) };
 
-  return { panel, title, skip, subtitle, stepStrip, stepLine, happeningNow, boosts, teamStatus, mainScheme, queued, phaseLog, footer };
+  return {
+    panel,
+    title,
+    skip,
+    subtitle,
+    stepStrip,
+    stepLine,
+    happeningNow,
+    boosts,
+    teamStatus,
+    mainScheme,
+    queued,
+    phaseLog,
+    footer,
+  };
 }

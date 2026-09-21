@@ -21,13 +21,29 @@ import {
   stubUpgrade,
   stubVillain,
 } from "./testing/fixtures.js";
-import { ALLY, expectOk, giveCards, newGame, resolvePending, RESOURCE, runWith, settle, settleUntil } from "./testing/scenario.js";
+import {
+  ALLY,
+  expectOk,
+  giveCards,
+  newGame,
+  resolvePending,
+  RESOURCE,
+  runWith,
+  settle,
+  settleUntil,
+} from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const def = (definition: AbilityDefinition) => definition;
 const toHero: Command = { type: "changeForm", playerId: p1 };
 const endTurn: Command = { type: "endTurn", playerId: p1 };
-const play = (id: InstanceId): Command => ({ type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null });
+const play = (id: InstanceId): Command => ({
+  type: "playCard",
+  playerId: p1,
+  cardInstanceId: id,
+  payment: [],
+  attachToInstanceId: null,
+});
 const copies = (id: CardId, n = 4): readonly CardId[] => Array.from({ length: n }, () => id);
 const draw1 = { kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } } as const;
 
@@ -46,13 +62,24 @@ interface Setup {
   readonly encounter?: readonly CardId[];
 }
 
-function setup({ cards = [], abilities = [], villain = villainWith(), encounter }: Setup): { deps: EngineDeps; state: GameState } {
+function setup({ cards = [], abilities = [], villain = villainWith(), encounter }: Setup): {
+  deps: EngineDeps;
+  state: GameState;
+} {
   const deps = depsOf(...abilities);
   const state = newGame({
     villain,
     mainScheme: SCHEME,
     extraCards: [BLANK, ...cards],
-    deck: [...cards.filter((c) => c.type !== "minion" && c.type !== "attachment" && c.type !== "treachery" && c.type !== "side_scheme").flatMap((c) => copies(c.id)), ...copies(RESOURCE.id, 8), ...copies(ALLY.id)],
+    deck: [
+      ...cards
+        .filter(
+          (c) => c.type !== "minion" && c.type !== "attachment" && c.type !== "treachery" && c.type !== "side_scheme",
+        )
+        .flatMap((c) => copies(c.id)),
+      ...copies(RESOURCE.id, 8),
+      ...copies(ALLY.id),
+    ],
     encounterDeck: encounter ?? copies(BLANK.id, 20),
     deps,
   });
@@ -71,16 +98,23 @@ const run = (deps: EngineDeps, state: GameState, command: Command) => {
   return { state: expectOk(result), events: result.ok ? result.events : [] };
 };
 
-const kickAbility = stubAbility("kick", def({
-  trigger: { kind: "action", form: "hero" },
-  label: ["attack"],
-  effects: [{ kind: "attack", target: { kind: "villain" }, amount: { kind: "const", value: 3 } }],
-}));
+const kickAbility = stubAbility(
+  "kick",
+  def({
+    trigger: { kind: "action", form: "hero" },
+    label: ["attack"],
+    effects: [{ kind: "attack", target: { kind: "villain" }, amount: { kind: "const", value: 3 } }],
+  }),
+);
 const KICK = stubEvent({ id: "kick", cost: 0, abilities: [kickAbility.ref] });
 
 describe("'(attack)' abilities resolve as attacks (RRG 'Attack (Player Ability Type)', 'Labeled Ability')", () => {
   it("deal their damage as an attack by the identity, so retaliate answers it", () => {
-    const { deps, state } = setup({ cards: [KICK], abilities: [kickAbility], villain: villainWith({ keywords: [{ name: "retaliate", value: 1 }] }) });
+    const { deps, state } = setup({
+      cards: [KICK],
+      abilities: [kickAbility],
+      villain: villainWith({ keywords: [{ name: "retaliate", value: 1 }] }),
+    });
     const given = giveCards(state, p1, "kick");
     const after = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId));
     expect(damageOn(after, activeVillain(after).instanceId)).toBe(3);
@@ -110,40 +144,75 @@ describe("'(attack)' abilities resolve as attacks (RRG 'Attack (Player Ability T
   });
 
   it("reads the identity's modified ATK for 'damage equal to your hero's ATK'", () => {
-    const strength = stubAbility("strength", def({
-      trigger: { kind: "constant", modifiers: [{ stat: "atk", amount: 2, target: { categories: ["hero"], controller: "you" } }] },
-      effects: [],
-    }));
-    const punch = stubAbility("punch", def({
-      trigger: { kind: "action", form: "hero" },
-      label: ["attack"],
-      effects: [{ kind: "attack", target: { kind: "villain" }, amount: { kind: "stat", of: { kind: "identityOf", player: { kind: "controller" } }, stat: "atk" } }],
-    }));
+    const strength = stubAbility(
+      "strength",
+      def({
+        trigger: {
+          kind: "constant",
+          modifiers: [{ stat: "atk", amount: 2, target: { categories: ["hero"], controller: "you" } }],
+        },
+        effects: [],
+      }),
+    );
+    const punch = stubAbility(
+      "punch",
+      def({
+        trigger: { kind: "action", form: "hero" },
+        label: ["attack"],
+        effects: [
+          {
+            kind: "attack",
+            target: { kind: "villain" },
+            amount: { kind: "stat", of: { kind: "identityOf", player: { kind: "controller" } }, stat: "atk" },
+          },
+        ],
+      }),
+    );
     const upgrade = stubUpgrade({ id: "strength", cost: 0, abilities: [strength.ref] });
     const event = stubEvent({ id: "punch", cost: 0, abilities: [punch.ref] });
     const { deps, state } = setup({ cards: [upgrade, event], abilities: [strength, punch] });
     const given = giveCards(state, p1, "strength", "punch");
-    const after = runWith(deps, given.state, toHero, play(given.ids[0] as InstanceId), play(given.ids[1] as InstanceId));
+    const after = runWith(
+      deps,
+      given.state,
+      toHero,
+      play(given.ids[0] as InstanceId),
+      play(given.ids[1] as InstanceId),
+    );
     expect(damageOn(after, activeVillain(after).instanceId)).toBe(4);
   });
 
   it("reports defeats: overkill spills to the villain and 'after your hero attacks and defeats' fires", () => {
     const thug = stubMinion({ id: "thug", atk: 0, sch: 0, hp: 2, boostIcons: 0 });
-    const assault = stubAbility("assault", def({
-      trigger: { kind: "action", form: "hero" },
-      label: ["attack"],
-      effects: [
-        { kind: "chooseTarget", slot: "m", chooser: { kind: "controller" }, query: { categories: ["minion"] } },
-        { kind: "attack", target: { kind: "slot", slot: "m" }, amount: { kind: "const", value: 5 }, overkill: true },
-      ],
-    }));
-    const chase = stubAbility("chase", def({
-      trigger: { kind: "response", forced: true, on: { on: "attack", playerIs: "controller", requireResults: { defeated: 1 } } },
-      effects: [draw1],
-    }));
+    const assault = stubAbility(
+      "assault",
+      def({
+        trigger: { kind: "action", form: "hero" },
+        label: ["attack"],
+        effects: [
+          { kind: "chooseTarget", slot: "m", chooser: { kind: "controller" }, query: { categories: ["minion"] } },
+          { kind: "attack", target: { kind: "slot", slot: "m" }, amount: { kind: "const", value: 5 }, overkill: true },
+        ],
+      }),
+    );
+    const chase = stubAbility(
+      "chase",
+      def({
+        trigger: {
+          kind: "response",
+          forced: true,
+          on: { on: "attack", playerIs: "controller", requireResults: { defeated: 1 } },
+        },
+        effects: [draw1],
+      }),
+    );
     const event = stubEvent({ id: "assault", cost: 0, abilities: [assault.ref] });
     const room = stubSupport({ id: "room", cost: 0, abilities: [chase.ref] });
-    const { deps, state } = setup({ cards: [event, room, thug], abilities: [assault, chase], encounter: copies(thug.id, 20) });
+    const { deps, state } = setup({
+      cards: [event, room, thug],
+      abilities: [assault, chase],
+      encounter: copies(thug.id, 20),
+    });
     const roundTwo = settle(runWith(deps, state, endTurn), undefined, deps);
     const given = giveCards(roundTwo, p1, "room", "assault");
     const [roomId, eventId] = given.ids as [InstanceId, InstanceId];
@@ -161,14 +230,17 @@ describe("'(attack)' abilities resolve as attacks (RRG 'Attack (Player Ability T
 });
 
 describe("'(thwart)' abilities resolve as thwarts", () => {
-  const forJustice = stubAbility("for-justice", def({
-    trigger: { kind: "action", form: "hero" },
-    label: ["thwart"],
-    effects: [
-      { kind: "thwart", target: { kind: "mainScheme" }, amount: { kind: "const", value: 2 }, bind: "t" },
-      { kind: "if", condition: { kind: "varAtLeast", name: "t.threatRemoved", amount: 1 }, then: [draw1] },
-    ],
-  }));
+  const forJustice = stubAbility(
+    "for-justice",
+    def({
+      trigger: { kind: "action", form: "hero" },
+      label: ["thwart"],
+      effects: [
+        { kind: "thwart", target: { kind: "mainScheme" }, amount: { kind: "const", value: 2 }, bind: "t" },
+        { kind: "if", condition: { kind: "varAtLeast", name: "t.threatRemoved", amount: 1 }, then: [draw1] },
+      ],
+    }),
+  );
   const JUSTICE = stubEvent({ id: "justice", cost: 0, abilities: [forJustice.ref] });
 
   it("remove threat as a thwart and bind how much was removed", () => {
@@ -192,11 +264,19 @@ describe("'(thwart)' abilities resolve as thwarts", () => {
 
   it("a crisis icon stops any player card from removing main-scheme threat (RRG 'Crisis Icon')", () => {
     const crisis = stubSideScheme({ id: "crowd", startingThreat: 2, icons: ["crisis"], boostIcons: 0 });
-    const { deps, state } = setup({ cards: [JUSTICE, crisis], abilities: [forJustice], encounter: [crisis.id, ...copies(BLANK.id, 10)] });
-    const crisisId = activeEncounterDeck(state).deck.find((id) => state.instances[id]?.cardId === crisis.id) as InstanceId;
+    const { deps, state } = setup({
+      cards: [JUSTICE, crisis],
+      abilities: [forJustice],
+      encounter: [crisis.id, ...copies(BLANK.id, 10)],
+    });
+    const crisisId = activeEncounterDeck(state).deck.find(
+      (id) => state.instances[id]?.cardId === crisis.id,
+    ) as InstanceId;
     const withCrisis: GameState = {
       ...state,
-      encounterDecks: withEncounterPiles(state, { deck: activeEncounterDeck(state).deck.filter((id) => id !== crisisId) }).encounterDecks,
+      encounterDecks: withEncounterPiles(state, {
+        deck: activeEncounterDeck(state).deck.filter((id) => id !== crisisId),
+      }).encounterDecks,
       villainArea: [...state.villainArea, crisisId],
     };
     const given = giveCards(withCrisis, p1, "justice");
@@ -207,12 +287,29 @@ describe("'(thwart)' abilities resolve as thwarts", () => {
 
 describe("enemy attacks: modifications, defenses, results", () => {
   it("'When Rhino attacks, the attack gains overkill … At the end of this attack, discard Charge'", () => {
-    const charge = stubAbility("charge", def({
-      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
-      effects: [{ kind: "modifyAttack", overkill: true }, { kind: "atEndOfAttack", effects: [{ kind: "discardFromPlay", target: { kind: "self" } }] }],
-    }));
-    const CHARGE = stubAttachment({ id: "charge", attachesTo: { kind: "villain" }, keywords: [{ name: "setup" }], statModifiers: { atk: 1 }, abilities: [charge.ref] });
-    const { deps, state } = setup({ cards: [CHARGE], abilities: [charge], villain: villainWith({ atk: 4 }), encounter: [CHARGE.id, ...copies(BLANK.id, 20)] });
+    const charge = stubAbility(
+      "charge",
+      def({
+        trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
+        effects: [
+          { kind: "modifyAttack", overkill: true },
+          { kind: "atEndOfAttack", effects: [{ kind: "discardFromPlay", target: { kind: "self" } }] },
+        ],
+      }),
+    );
+    const CHARGE = stubAttachment({
+      id: "charge",
+      attachesTo: { kind: "villain" },
+      keywords: [{ name: "setup" }],
+      statModifiers: { atk: 1 },
+      abilities: [charge.ref],
+    });
+    const { deps, state } = setup({
+      cards: [CHARGE],
+      abilities: [charge],
+      villain: villainWith({ atk: 4 }),
+      encounter: [CHARGE.id, ...copies(BLANK.id, 20)],
+    });
     const chargeId = mustInstance(state, activeVillain(state).instanceId).attachments[0] as InstanceId;
     expect(chargeId).toBeDefined();
     const given = giveCards(state, p1, ALLY.id, RESOURCE.id, RESOURCE.id);
@@ -235,12 +332,20 @@ describe("enemy attacks: modifications, defenses, results", () => {
   });
 
   it("'give him 1 additional boost card for this activation'", () => {
-    const klaw = stubAbility("klaw-boost", def({
-      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", selfIs: "source" } },
-      effects: [{ kind: "modifyAttack", extraBoostCards: 1 }],
-    }));
+    const klaw = stubAbility(
+      "klaw-boost",
+      def({
+        trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", selfIs: "source" } },
+        effects: [{ kind: "modifyAttack", extraBoostCards: 1 }],
+      }),
+    );
     const oneIcon = stubTreachery({ id: "icon", boostIcons: 1 });
-    const { deps, state } = setup({ cards: [oneIcon], abilities: [klaw], villain: villainWith({ atk: 1, abilities: [klaw.ref] }), encounter: copies(oneIcon.id, 20) });
+    const { deps, state } = setup({
+      cards: [oneIcon],
+      abilities: [klaw],
+      villain: villainWith({ atk: 1, abilities: [klaw.ref] }),
+      encounter: copies(oneIcon.id, 20),
+    });
     const hero = runWith(deps, state, toHero);
     const atDefense = settleUntil(runWith(deps, hero, endTurn), "declareDefender", deps);
     const { state: after, events } = run(deps, atDefense, {
@@ -255,11 +360,20 @@ describe("enemy attacks: modifications, defenses, results", () => {
   });
 
   it("'After your hero defends against an enemy attack' (Counter-Punch) fires on a basic defense", () => {
-    const counter = stubAbility("counter-punch", def({
-      trigger: { kind: "response", forced: false, on: { on: "defended", playerIs: "controller" }, form: "hero" },
-      label: ["attack"],
-      effects: [{ kind: "attack", target: { kind: "eventSource" }, amount: { kind: "stat", of: { kind: "identityOf", player: { kind: "controller" } }, stat: "atk" } }],
-    }));
+    const counter = stubAbility(
+      "counter-punch",
+      def({
+        trigger: { kind: "response", forced: false, on: { on: "defended", playerIs: "controller" }, form: "hero" },
+        label: ["attack"],
+        effects: [
+          {
+            kind: "attack",
+            target: { kind: "eventSource" },
+            amount: { kind: "stat", of: { kind: "identityOf", player: { kind: "controller" } }, stat: "atk" },
+          },
+        ],
+      }),
+    );
     const COUNTER = stubEvent({ id: "counter", cost: 0, abilities: [counter.ref] });
     const { deps, state } = setup({ cards: [COUNTER], abilities: [counter] });
     const given = giveCards(state, p1, "counter");
@@ -274,11 +388,19 @@ describe("enemy attacks: modifications, defenses, results", () => {
   });
 
   it("a (defense) ability makes the identity the defender without its DEF reducing the damage", () => {
-    const brace = stubAbility("brace", def({
-      trigger: { kind: "interrupt", forced: false, on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true }, form: "hero" },
-      label: ["defense"],
-      effects: [],
-    }));
+    const brace = stubAbility(
+      "brace",
+      def({
+        trigger: {
+          kind: "interrupt",
+          forced: false,
+          on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true },
+          form: "hero",
+        },
+        label: ["defense"],
+        effects: [],
+      }),
+    );
     const BRACE = stubEvent({ id: "brace", cost: 0, abilities: [brace.ref] });
     const { deps, state } = setup({ cards: [BRACE], abilities: [brace], villain: villainWith({ atk: 3 }) });
     const given = giveCards(state, p1, "brace");
@@ -292,23 +414,39 @@ describe("enemy attacks: modifications, defenses, results", () => {
       selectedOptionIds: [`${given.ids[0]}:brace`],
     });
     const defended = events.find((e: GameEvent) => e.type === "triggerEvent" && e.event.kind === "defended");
-    expect(defended && defended.type === "triggerEvent" && defended.event).toMatchObject({ kind: "defended", basic: false });
+    expect(defended && defended.type === "triggerEvent" && defended.event).toMatchObject({
+      kind: "defended",
+      basic: false,
+    });
     // The hero may still make a basic defense; declining keeps the labeled defense (not undefended).
     const after = settle(afterPay, undefined, deps);
     expect(damageOn(after, identityOf(after))).toBe(3);
   });
 
   it("boost abilities read the attack in progress: 'undefended attack' and 'if this activation deals damage'", () => {
-    const kree = stubAbility("kree-boost", def({
-      trigger: { kind: "boost" },
-      effects: [
-        { kind: "if", condition: { kind: "currentAttack", key: "undefended", atLeast: 1 }, then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 1 } }] },
-        {
-          kind: "atEndOfAttack",
-          effects: [{ kind: "if", condition: { kind: "eventResultAtLeast", key: "damage", amount: 1 }, then: [{ kind: "exhaust", target: { kind: "identityOf", player: { kind: "eventPlayer" } } }] }],
-        },
-      ],
-    }));
+    const kree = stubAbility(
+      "kree-boost",
+      def({
+        trigger: { kind: "boost" },
+        effects: [
+          {
+            kind: "if",
+            condition: { kind: "currentAttack", key: "undefended", atLeast: 1 },
+            then: [{ kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "const", value: 1 } }],
+          },
+          {
+            kind: "atEndOfAttack",
+            effects: [
+              {
+                kind: "if",
+                condition: { kind: "eventResultAtLeast", key: "damage", amount: 1 },
+                then: [{ kind: "exhaust", target: { kind: "identityOf", player: { kind: "eventPlayer" } } }],
+              },
+            ],
+          },
+        ],
+      }),
+    );
     const KREE = stubTreachery({ id: "kree", boostIcons: 0, abilities: [kree.ref] });
     const { deps, state } = setup({ cards: [KREE], abilities: [kree], encounter: copies(KREE.id, 20) });
     const atDefense = settleUntil(runWith(deps, state, toHero, endTurn), "declareDefender", deps);
@@ -330,7 +468,11 @@ describe("enemy attacks: modifications, defenses, results", () => {
  * These use *forced* triggers so no prompt intervenes and the event log alone shows where each one resolved.
  */
 describe("'after a character defends' resolves after the attack ends", () => {
-  const damageVillain = { kind: "dealDamage", target: { kind: "villain" }, amount: { kind: "const", value: 1 } } as const;
+  const damageVillain = {
+    kind: "dealDamage",
+    target: { kind: "villain" },
+    amount: { kind: "const", value: 1 },
+  } as const;
   const onDefended = (forced: boolean, timing: "interrupt" | "response") =>
     ({ kind: timing, forced, on: { on: "defended", playerIs: "controller" } }) as const;
 
@@ -356,7 +498,11 @@ describe("'after a character defends' resolves after the attack ends", () => {
   });
 
   it("a response sees the damage the attack already dealt, and the interrupt on the same event still comes first", () => {
-    const { deps, state } = setup({ cards: [COUNTER, BRACE], abilities: [counter, brace], villain: villainWith({ atk: 4 }) });
+    const { deps, state } = setup({
+      cards: [COUNTER, BRACE],
+      abilities: [counter, brace],
+      villain: villainWith({ atk: 4 }),
+    });
     const given = giveCards(state, p1, "counter", "brace");
     const [counterId, braceId] = given.ids as [InstanceId, InstanceId];
     const inPlay = runWith(deps, given.state, toHero, play(counterId), play(braceId), endTurn);
@@ -377,25 +523,48 @@ describe("'after a character defends' resolves after the attack ends", () => {
     const { deps, state } = setup({ cards: [COUNTER], abilities: [counter], villain: villainWith({ atk: 4 }) });
     const given = giveCards(state, p1, "counter", ALLY.id, RESOURCE.id, RESOURCE.id);
     const [counterId, allyId, r1, r2] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId];
-    const playAlly: Command = { type: "playCard", playerId: p1, cardInstanceId: allyId, payment: [{ fromHand: r1 }, { fromHand: r2 }], attachToInstanceId: null };
+    const playAlly: Command = {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: allyId,
+      payment: [{ fromHand: r1 }, { fromHand: r2 }],
+      attachToInstanceId: null,
+    };
     const inPlay = runWith(deps, given.state, toHero, play(counterId), playAlly, endTurn);
     const atDefense = settleUntil(inPlay, "declareDefender", deps);
 
     const { state: after, events } = run(deps, atDefense, declareDefence(atDefense, allyId));
     // 4 damage into a 3-hit-point ally defeats it, and the response resolves after that.
     expect(mustPlayer(after, p1).discard).toContain(allyId);
-    expect(resolved(events, "counter")).toBeGreaterThan(at(events, (e) => e.type === "characterDefeated" && e.instanceId === allyId));
+    expect(resolved(events, "counter")).toBeGreaterThan(
+      at(events, (e) => e.type === "characterDefeated" && e.instanceId === allyId),
+    );
     expect(damageOn(after, activeVillain(after).instanceId)).toBe(1);
   });
 
   it("resolves after retaliate and before 'at the end of this attack' effects", () => {
     // Rhino's Charge: "When Rhino attacks … At the end of this attack, discard Charge."
-    const charge = stubAbility("charge", def({
-      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
-      effects: [{ kind: "atEndOfAttack", effects: [{ kind: "discardFromPlay", target: { kind: "self" } }] }],
-    }));
-    const CHARGE = stubAttachment({ id: "charge", attachesTo: { kind: "villain" }, keywords: [{ name: "setup" }], abilities: [charge.ref] });
-    const retaliator = stubAlly({ id: "retaliator", cost: 0, atk: 1, thw: 1, hp: 5, keywords: [{ name: "retaliate", value: 1 }] });
+    const charge = stubAbility(
+      "charge",
+      def({
+        trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
+        effects: [{ kind: "atEndOfAttack", effects: [{ kind: "discardFromPlay", target: { kind: "self" } }] }],
+      }),
+    );
+    const CHARGE = stubAttachment({
+      id: "charge",
+      attachesTo: { kind: "villain" },
+      keywords: [{ name: "setup" }],
+      abilities: [charge.ref],
+    });
+    const retaliator = stubAlly({
+      id: "retaliator",
+      cost: 0,
+      atk: 1,
+      thw: 1,
+      hp: 5,
+      keywords: [{ name: "retaliate", value: 1 }],
+    });
     const { deps, state } = setup({
       cards: [COUNTER, CHARGE, retaliator],
       abilities: [counter, charge],
@@ -411,28 +580,51 @@ describe("'after a character defends' resolves after the attack ends", () => {
     const { state: after, events } = run(deps, atDefense, declareDefence(atDefense, allyId));
     const villain = activeVillain(after).instanceId;
     // Retaliate (a forced response to "after this character is attacked", step 6a) answers the attack first…
-    const retaliate = at(events, (e) => e.type === "damageDealt" && e.targetInstanceId === villain && e.sourceInstanceId === allyId);
+    const retaliate = at(
+      events,
+      (e) => e.type === "damageDealt" && e.targetInstanceId === villain && e.sourceInstanceId === allyId,
+    );
     expect(resolved(events, "counter")).toBeGreaterThan(retaliate);
     // …and the delayed "at the end of this attack" effect is the last thing the attack does.
-    expect(resolved(events, "counter")).toBeLessThan(at(events, (e) => e.type === "cardDiscardedFromPlay" && e.instanceId === chargeId));
+    expect(resolved(events, "counter")).toBeLessThan(
+      at(events, (e) => e.type === "cardDiscardedFromPlay" && e.instanceId === chargeId),
+    );
     expect(damageOn(after, villain)).toBe(2); // retaliate 1 + the response's 1
   });
 
   it("resolves even when the attack is cancelled after the defense (RRG 1.8 p. 16; p. 9)", () => {
     // A "(defense)" ability makes the identity the defender while the attack is still being initiated; a second
     // interrupt then cancels the attack. The attack never deals damage, but it was still defended.
-    const guardUp = stubAbility("guard-up", def({
-      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true } },
-      label: ["defense"],
-      effects: [],
-    }));
-    const nope = stubAbility("nope", def({
-      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true } },
-      effects: [{ kind: "cancelTriggeringEvent" }],
-    }));
+    const guardUp = stubAbility(
+      "guard-up",
+      def({
+        trigger: {
+          kind: "interrupt",
+          forced: true,
+          on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true },
+        },
+        label: ["defense"],
+        effects: [],
+      }),
+    );
+    const nope = stubAbility(
+      "nope",
+      def({
+        trigger: {
+          kind: "interrupt",
+          forced: true,
+          on: { on: "enemyAttack", playerIs: "controller", usesAttackedPlayer: true },
+        },
+        effects: [{ kind: "cancelTriggeringEvent" }],
+      }),
+    );
     const GUARD_UP = stubSupport({ id: "guard-up", cost: 0, abilities: [guardUp.ref] });
     const NOPE = stubSupport({ id: "nope", cost: 0, abilities: [nope.ref] });
-    const { deps, state } = setup({ cards: [COUNTER, GUARD_UP, NOPE], abilities: [counter, guardUp, nope], villain: villainWith({ atk: 4 }) });
+    const { deps, state } = setup({
+      cards: [COUNTER, GUARD_UP, NOPE],
+      abilities: [counter, guardUp, nope],
+      villain: villainWith({ atk: 4 }),
+    });
     const given = giveCards(state, p1, "counter", "guard-up", "nope");
     const [counterId, guardId, nopeId] = given.ids as [InstanceId, InstanceId, InstanceId];
     const inPlay = runWith(deps, given.state, toHero, play(counterId), play(guardId), play(nopeId), endTurn);
@@ -449,12 +641,27 @@ describe("'after a character defends' resolves after the attack ends", () => {
 });
 
 test("ability attacks, defenses and enemy-attack modifications replay to an identical state", () => {
-  const charge = stubAbility("charge", def({
-    trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
-    effects: [{ kind: "modifyAttack", overkill: true, extraBoostCards: 1 }, { kind: "atEndOfAttack", effects: [{ kind: "discardFromPlay", target: { kind: "self" } }] }],
-  }));
-  const CHARGE = stubAttachment({ id: "charge", attachesTo: { kind: "villain" }, keywords: [{ name: "setup" }], abilities: [charge.ref] });
-  const { deps, state } = setup({ cards: [KICK, CHARGE], abilities: [kickAbility, charge], encounter: [CHARGE.id, ...copies(BLANK.id, 20)] });
+  const charge = stubAbility(
+    "charge",
+    def({
+      trigger: { kind: "interrupt", forced: true, on: { on: "enemyAttack", sourceIs: { categories: ["villain"] } } },
+      effects: [
+        { kind: "modifyAttack", overkill: true, extraBoostCards: 1 },
+        { kind: "atEndOfAttack", effects: [{ kind: "discardFromPlay", target: { kind: "self" } }] },
+      ],
+    }),
+  );
+  const CHARGE = stubAttachment({
+    id: "charge",
+    attachesTo: { kind: "villain" },
+    keywords: [{ name: "setup" }],
+    abilities: [charge.ref],
+  });
+  const { deps, state } = setup({
+    cards: [KICK, CHARGE],
+    abilities: [kickAbility, charge],
+    encounter: [CHARGE.id, ...copies(BLANK.id, 20)],
+  });
   const given = giveCards(state, p1, "kick");
   let session: GameSession = startSession(given.state);
   const apply = (command: Command) => {
@@ -467,7 +674,15 @@ test("ability attacks, defenses and enemy-attack modifications replay to an iden
   apply(endTurn);
   while (session.state.pendingChoice) {
     const choice = session.state.pendingChoice;
-    apply({ type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: choice.prompt.kind === "declareDefender" ? ["decline"] : choice.options.slice(0, choice.minSelections).map((o) => o.optionId) });
+    apply({
+      type: "resolveChoice",
+      playerId: choice.playerId,
+      choiceId: choice.choiceId,
+      selectedOptionIds:
+        choice.prompt.kind === "declareDefender"
+          ? ["decline"]
+          : choice.options.slice(0, choice.minSelections).map((o) => o.optionId),
+    });
   }
   const replayed = replay(session.log, deps);
   expect(replayed.ok && replayed.state).toEqual(session.state);

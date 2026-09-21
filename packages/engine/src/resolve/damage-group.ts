@@ -19,7 +19,11 @@ import { base, type Frame } from "./frames.js";
 
 type DamageEvent = Extract<TriggerEvent, { kind: "dealDamage" }>;
 
-export const damageGroupFrame = (ctx: Ctx, events: readonly DamageEvent[], reportTo: ReportTarget | null): StackFrame => ({
+export const damageGroupFrame = (
+  ctx: Ctx,
+  events: readonly DamageEvent[],
+  reportTo: ReportTarget | null,
+): StackFrame => ({
   ...base(ctx),
   kind: "damageGroup",
   members: events.map((event) => ({ event, cancelled: false, vars: {} })),
@@ -81,19 +85,17 @@ export function executeDamageGroupFrame(ctx: Ctx, frame: Frame<"damageGroup">): 
         ctx,
         frame.members
           .filter((member) => !member.cancelled)
-          .map(
-            (member): StackFrame => ({
-              ...base(ctx),
-              kind: "event",
-              event: member.event,
-              stage: "responses",
-              cancelled: false,
-              vars: member.vars,
-              slots: {},
-              reportTo: frame.reportTo,
-              endEffects: [],
-            }),
-          ),
+          .map((member): StackFrame => ({
+            ...base(ctx),
+            kind: "event",
+            event: member.event,
+            stage: "responses",
+            cancelled: false,
+            vars: member.vars,
+            slots: {},
+            reportTo: frame.reportTo,
+            endEffects: [],
+          })),
       );
       return;
     }

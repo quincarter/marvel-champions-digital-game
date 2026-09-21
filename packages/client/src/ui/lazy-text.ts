@@ -84,7 +84,13 @@ export function installLazyText(): void {
   flushBeforeRender("renderWebGL");
   flushBeforeRender("renderCanvas");
   const factory = Phaser.GameObjects.GameObjectFactory.prototype as unknown as {
-    text: (this: Phaser.GameObjects.GameObjectFactory, x: number, y: number, text: string | string[], style?: Phaser.Types.GameObjects.Text.TextStyle) => Phaser.GameObjects.Text;
+    text: (
+      this: Phaser.GameObjects.GameObjectFactory,
+      x: number,
+      y: number,
+      text: string | string[],
+      style?: Phaser.Types.GameObjects.Text.TextStyle,
+    ) => Phaser.GameObjects.Text;
   };
   factory.text = function (x, y, text, style) {
     return this.displayList.add(new McLazyText(this.scene, x, y, text, style ?? {})) as Phaser.GameObjects.Text;

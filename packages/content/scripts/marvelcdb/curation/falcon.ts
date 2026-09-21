@@ -14,7 +14,8 @@ export const FALCON_CURATION: PackCuration = {
   pack: {
     name: "Falcon",
     releaseDate: "2025-06-20",
-    releaseDateSource: "Hall of Heroes Falcon page (https://hallofheroeslcg.com/falcon-sam-wilson/): \"Release date: June 20, 2025\"",
+    releaseDateSource:
+      'Hall of Heroes Falcon page (https://hallofheroeslcg.com/falcon-sam-wilson/): "Release date: June 20, 2025"',
   },
   outDir: "src/data/falcon",
   exportPrefix: "FALCON",

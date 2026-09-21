@@ -2,8 +2,8 @@
   "name": "@mc/client",
   "version": "0.0.0",
   "private": true,
-  "type": "module",
   "description": "Cross-platform tabletop-style game client (Sentinels of the Multiverse-style 2D board), drawn entirely in Phaser 4. Presents engine state and captures input; owns no rules.",
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json --noEmit && vite build",

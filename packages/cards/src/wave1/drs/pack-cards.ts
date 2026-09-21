@@ -104,7 +104,12 @@ export const DRS_PACK_CARDS = defineAbilities({
   "09014.iron-fist-constant": forcedResponse(after.entersPlay("self"), addCounters("mystic", 2)),
   // Interrupt: When Iron Fist attacks an enemy, remove 1 mystic counter from him → stun that enemy and deal 1
   // damage to it.
-  "09014.iron-fist-interrupt": interrupt(when.attacks("self"), { cost: removeCounter("mystic") }, stun(eventTarget), dealDamage(1, eventTarget)),
+  "09014.iron-fist-interrupt": interrupt(
+    when.attacks("self"),
+    { cost: removeCounter("mystic") },
+    stun(eventTarget),
+    dealDamage(1, eventTarget),
+  ),
 
   // Desperate Defense — Hero Interrupt (defense): When your hero defends against an attack, it gets +2 DEF for
   // that attack. If you take no damage from that attack, ready your hero. Was a skip until the 2026-09-15 fix to
@@ -137,16 +142,32 @@ export const DRS_PACK_CARDS = defineAbilities({
     chooseTarget("hero", query("hero")),
     heal(1, chosen("hero")),
     chooseOne(
-      option("Discard the stunned status", { when: hasStatus(chosen("hero"), "stunned") }, removeStatusOf(chosen("hero"), "stunned")),
-      option("Discard the confused status", { when: hasStatus(chosen("hero"), "confused") }, removeStatusOf(chosen("hero"), "confused")),
-      option("Discard the tough status", { when: hasStatus(chosen("hero"), "tough") }, removeStatusOf(chosen("hero"), "tough")),
+      option(
+        "Discard the stunned status",
+        { when: hasStatus(chosen("hero"), "stunned") },
+        removeStatusOf(chosen("hero"), "stunned"),
+      ),
+      option(
+        "Discard the confused status",
+        { when: hasStatus(chosen("hero"), "confused") },
+        removeStatusOf(chosen("hero"), "confused"),
+      ),
+      option(
+        "Discard the tough status",
+        { when: hasStatus(chosen("hero"), "tough") },
+        removeStatusOf(chosen("hero"), "tough"),
+      ),
     ),
   ),
 
   // Unflappable — Response: After you defend against an attack and take no damage, exhaust Unflappable → draw 1
   // card. "You" is Unflappable's controller ("play under any player's control"), not necessarily the deck's own
   // owner — `YOUR_IDENTITY`'s "you" reads correctly since a Response's controller is whoever controls the card.
-  "09020.unflappable-response": response(after.defends(YOUR_IDENTITY, { takingNoDamage: true }), { cost: exhaustThis }, draw(1)),
+  "09020.unflappable-response": response(
+    after.defends(YOUR_IDENTITY, { takingNoDamage: true }),
+    { cost: exhaustThis },
+    draw(1),
+  ),
 
   // Warning — Interrupt: When a hero would take any amount of damage, reduce that amount by 1. Any hero, not just
   // yours — `query("hero")`, not `YOUR_HERO`.
@@ -160,7 +181,10 @@ export const DRS_PACK_CARDS = defineAbilities({
   // Skilled Strike — Interrupt: When your hero makes a basic attack, it gets +2 ATK for that attack. `YOUR_IDENTITY`
   // (not `YOUR_HERO`) matches `wave1/hlk/kit.ts`'s identically-shaped Hulk Smash precedent for "you make a basic
   // attack" — only hero form can ever attack, so the two are equivalent here.
-  "09037.skilled-strike-interrupt": interrupt(when.attacks(YOUR_IDENTITY, { basic: true }), modifyStat("atk", 2, yourIdentity, "endOfAttack")),
+  "09037.skilled-strike-interrupt": interrupt(
+    when.attacks(YOUR_IDENTITY, { basic: true }),
+    modifyStat("atk", 2, yourIdentity, "endOfAttack"),
+  ),
 
   // Foiled! — Interrupt: When a boost card is turned faceup during a scheme activation, cancel its boost icons.
   "09038.foiled-interrupt": interrupt(duringASchemeActivation, cancelBoostIcons()),

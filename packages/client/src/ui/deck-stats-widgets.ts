@@ -16,7 +16,13 @@
  * what moved here.
  */
 import type Phaser from "phaser";
-import type { CompositionTile, CostCurveBar, DeckListEntry, DeckListGroup, PlayerCardType } from "../view/deck-stats.js";
+import type {
+  CompositionTile,
+  CostCurveBar,
+  DeckListEntry,
+  DeckListGroup,
+  PlayerCardType,
+} from "../view/deck-stats.js";
 import { CHIP_GAP, wrapChipsToRows } from "../view/chip-layout.js";
 import type { Rect } from "../view/layout.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
@@ -50,7 +56,12 @@ export function cardTypeBadgeColor(type: PlayerCardType): number {
  * no heading, no border; the caller draws those). `onDark` swaps the axis
  * label's ink for the stats pane's dark ground (D14's sidebar).
  */
-export function drawCostCurveBars(scene: Phaser.Scene, rect: Rect, bars: readonly CostCurveBar[], onDark = false): void {
+export function drawCostCurveBars(
+  scene: Phaser.Scene,
+  rect: Rect,
+  bars: readonly CostCurveBar[],
+  onDark = false,
+): void {
   const gap = 6;
   const barWidth = (rect.width - gap * (bars.length - 1)) / bars.length;
   const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
@@ -61,13 +72,27 @@ export function drawCostCurveBars(scene: Phaser.Scene, rect: Rect, bars: readonl
     const g = scene.add.graphics();
     g.fillStyle(index === bars.length - 1 ? signal.spent.hex : signal.cost.hex, 1);
     g.fillRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
-    if (!onDark) g.lineStyle(2, surface.ink.hex, 1).strokeRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
-    label(scene, x + barWidth / 2, rect.y + rect.height - 10, bar.label, typeRole.label, axisColor, ink.label).setOrigin(0.5, 0);
+    if (!onDark)
+      g.lineStyle(2, surface.ink.hex, 1).strokeRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
+    label(
+      scene,
+      x + barWidth / 2,
+      rect.y + rect.height - 10,
+      bar.label,
+      typeRole.label,
+      axisColor,
+      ink.label,
+    ).setOrigin(0.5, 0);
   });
 }
 
 /** A wrapped row of label+count tiles (composition by type or by aspect) — `wrapChipsToRows` (S8) reused for the wrap math. `onDark` matches `drawCostCurveBars`. */
-export function drawCompositionTiles(scene: Phaser.Scene, rect: Rect, tiles: readonly { readonly id: string; readonly text: string }[], onDark = false): number {
+export function drawCompositionTiles(
+  scene: Phaser.Scene,
+  rect: Rect,
+  tiles: readonly { readonly id: string; readonly text: string }[],
+  onDark = false,
+): number {
   const rows = wrapChipsToRows(tiles, rect.width);
   let y = rect.y;
   for (const row of rows) {
@@ -76,7 +101,15 @@ export function drawCompositionTiles(scene: Phaser.Scene, rect: Rect, tiles: rea
       const tileRect: Rect = { x: rect.x + index * (cellWidth + CHIP_GAP), y, width: cellWidth, height: hit.target };
       const g = scene.add.graphics();
       paintPanel(g, tileRect, onDark ? "onInk" : "card", "rest");
-      label(scene, tileRect.x + tileRect.width / 2, tileRect.y + tileRect.height / 2, tile.text, typeRole.rowTitle, onDark ? surface.paper.hex : surface.ink.hex, ink.body).setOrigin(0.5);
+      label(
+        scene,
+        tileRect.x + tileRect.width / 2,
+        tileRect.y + tileRect.height / 2,
+        tile.text,
+        typeRole.rowTitle,
+        onDark ? surface.paper.hex : surface.ink.hex,
+        ink.body,
+      ).setOrigin(0.5);
     });
     y += hit.target + CHIP_GAP;
   }
@@ -84,7 +117,9 @@ export function drawCompositionTiles(scene: Phaser.Scene, rect: Rect, tiles: rea
 }
 
 /** `compositionTilesOf`'s tiles, worded as `"<label> <count>"` — the exact text every caller drew inline before this moved here. */
-export function compositionTileDefs(tiles: readonly CompositionTile[]): readonly { readonly id: string; readonly text: string }[] {
+export function compositionTileDefs(
+  tiles: readonly CompositionTile[],
+): readonly { readonly id: string; readonly text: string }[] {
   return tiles.map((tile) => ({ id: tile.id, text: `${tile.label} ${tile.count}` }));
 }
 
@@ -101,7 +136,12 @@ export function compositionTileDefs(tiles: readonly CompositionTile[]): readonly
  * ordinary bar colour from ink to paper for an ink ground (Deck check's own
  * side panel; Decks' stats rail already draws on one).
  */
-export function drawStatCurveBars(scene: Phaser.Scene, rect: Rect, bars: readonly CostCurveBar[], onDark: boolean): void {
+export function drawStatCurveBars(
+  scene: Phaser.Scene,
+  rect: Rect,
+  bars: readonly CostCurveBar[],
+  onDark: boolean,
+): void {
   const gap = 6;
   const barWidth = (rect.width - gap * (bars.length - 1)) / bars.length;
   const maxCount = Math.max(1, ...bars.map((bar) => bar.count));
@@ -119,8 +159,17 @@ export function drawStatCurveBars(scene: Phaser.Scene, rect: Rect, bars: readonl
     const g = scene.add.graphics();
     g.fillStyle(highlighted ? accent.heroRed.hex : ordinaryColor, 1);
     g.fillRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
-    if (!onDark && !highlighted) g.lineStyle(2, surface.ink.hex, 1).strokeRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
-    label(scene, x + barWidth / 2, rect.y + rect.height - 10, bar.label, typeRole.label, ordinaryColor, ink.label).setOrigin(0.5, 0);
+    if (!onDark && !highlighted)
+      g.lineStyle(2, surface.ink.hex, 1).strokeRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
+    label(
+      scene,
+      x + barWidth / 2,
+      rect.y + rect.height - 10,
+      bar.label,
+      typeRole.label,
+      ordinaryColor,
+      ink.label,
+    ).setOrigin(0.5, 0);
   });
 }
 
@@ -155,7 +204,15 @@ export function drawRainbowCurveBars(scene: Phaser.Scene, rect: Rect, bars: read
     const g = scene.add.graphics();
     g.fillStyle(costPipColor(index), 1).fillRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
     g.lineStyle(2, surface.ink.hex, 1).strokeRect(x, rect.y + (rect.height - 18 - barHeight), barWidth, barHeight);
-    label(scene, x + barWidth / 2, rect.y + rect.height - 10, bar.label, typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
+    label(
+      scene,
+      x + barWidth / 2,
+      rect.y + rect.height - 10,
+      bar.label,
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    ).setOrigin(0.5, 0);
   });
 }
 
@@ -168,7 +225,15 @@ export function drawRainbowCurveBars(scene: Phaser.Scene, rect: Rect, bars: read
  * `drawCompositionTiles` above draws for the screens that never adopted it.
  * Returns the next free `y`.
  */
-export function drawStatTiles(scene: Phaser.Scene, left: number, y: number, column: number, tiles: readonly { readonly id: string; readonly label: string; readonly count: number }[], onDark: boolean, perRow = 3): number {
+export function drawStatTiles(
+  scene: Phaser.Scene,
+  left: number,
+  y: number,
+  column: number,
+  tiles: readonly { readonly id: string; readonly label: string; readonly count: number }[],
+  onDark: boolean,
+  perRow = 3,
+): number {
   const gap = 7;
   const cellWidth = (column - (perRow - 1) * gap) / perRow;
   const cellHeight = 46;
@@ -181,7 +246,10 @@ export function drawStatTiles(scene: Phaser.Scene, left: number, y: number, colu
     const g = scene.add.graphics();
     g.lineStyle(border.control, textColor, 1).strokeRect(tileX, tileY, cellWidth, cellHeight);
     label(scene, tileX + 8, tileY + 7, tile.label, typeRole.label, textColor, ink.label);
-    scene.add.text(tileX + 8, tileY + 18, String(tile.count), { ...textStyle(typeRole.barTitle, textColor), fontSize: "20px" });
+    scene.add.text(tileX + 8, tileY + 18, String(tile.count), {
+      ...textStyle(typeRole.barTitle, textColor),
+      fontSize: "20px",
+    });
   });
   const rows = Math.ceil(tiles.length / perRow);
   return rows === 0 ? y : y + rows * (cellHeight + gap) - gap;
@@ -192,7 +260,15 @@ export function drawStatTiles(scene: Phaser.Scene, left: number, y: number, colu
  * once `entryCap` entry lines have been drawn — the builder's D04 stats
  * panel. Returns the next free `y`.
  */
-export function drawGroupedCardList(scene: Phaser.Scene, left: number, top: number, column: number, groups: readonly DeckListGroup[], entryCap: number, onDark = false): number {
+export function drawGroupedCardList(
+  scene: Phaser.Scene,
+  left: number,
+  top: number,
+  column: number,
+  groups: readonly DeckListGroup[],
+  entryCap: number,
+  onDark = false,
+): number {
   const bodyColor = onDark ? surface.paper.hex : surface.ink.hex;
   let y = top;
   let shown = 0;
@@ -212,7 +288,10 @@ export function drawGroupedCardList(scene: Phaser.Scene, left: number, top: numb
     for (const entry of visible) {
       const line = scene.add.text(left, y, entry.name, textStyle(typeRole.body, bodyColor));
       fitText(line, column - 40);
-      label(scene, left + column - 4, y, String(entry.quantity), typeRole.label, bodyColor, ink.secondary).setOrigin(1, 0);
+      label(scene, left + column - 4, y, String(entry.quantity), typeRole.label, bodyColor, ink.secondary).setOrigin(
+        1,
+        0,
+      );
       y += 16;
     }
     y += 4;

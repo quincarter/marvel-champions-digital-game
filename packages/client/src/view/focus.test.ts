@@ -36,7 +36,9 @@ describe("focusOrder", () => {
     const marks = marksWith(["attack"]);
     const disabled: Highlights = {
       ...marks,
-      basics: [{ action: "attack", enabled: false, reason: "already exhausted", code: "already_exhausted", targets: [] }],
+      basics: [
+        { action: "attack", enabled: false, reason: "already exhausted", code: "already_exhausted", targets: [] },
+      ],
     };
     expect(focusOrder({ kind: "idle", hand: [] }, disabled)).toEqual([{ kind: "basic", action: "attack" }]);
   });

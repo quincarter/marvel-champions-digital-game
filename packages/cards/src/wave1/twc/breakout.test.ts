@@ -1,5 +1,12 @@
 import { cardId } from "@mc/content";
-import { activeVillain, characterProfile, encounterDeckOf, villainOf, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeVillain,
+  characterProfile,
+  encounterDeckOf,
+  villainOf,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import { P1, endTurn, identityOf, inst, patchInstance, settle } from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
 import { runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
@@ -15,7 +22,8 @@ const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): Ga
  * mechanism with — a real villain defeat moving "active" to another villain and routing an encounter card to its
  * own villain's discard (ruling, Jan 17, 2026 (5)).
  */
-const spiderManVsBreakout = () => startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
+const spiderManVsBreakout = () =>
+  startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
 
 const nameOf = (state: GameState, id: InstanceId): string => state.cardPool[inst(state, id).cardId]?.name ?? id;
 const villainNamed = (state: GameState, name: string): InstanceId => {
@@ -27,10 +35,16 @@ const villainNamed = (state: GameState, name: string): InstanceId => {
 describe("wave1Scenario('breakout')", () => {
   it("1A's setup puts all four villains and their signature side schemes into play, Wrecker active", () => {
     const state = spiderManVsBreakout();
-    expect(state.villains.map((v) => nameOf(state, v.instanceId))).toEqual(["Wrecker", "Thunderball", "Piledriver", "Bulldozer"]);
+    expect(state.villains.map((v) => nameOf(state, v.instanceId))).toEqual([
+      "Wrecker",
+      "Thunderball",
+      "Piledriver",
+      "Bulldozer",
+    ]);
     expect(state.activeVillainId).toBe(villainNamed(state, "Wrecker"));
     expect(activeVillain(state).instanceId).toBe(villainNamed(state, "Wrecker"));
-    const schemeThreat = (villainName: string) => inst(state, villainOf(state, villainNamed(state, villainName))!.signatureSideSchemeId!).threat;
+    const schemeThreat = (villainName: string) =>
+      inst(state, villainOf(state, villainNamed(state, villainName))!.signatureSideSchemeId!).threat;
     expect(schemeThreat("Wrecker")).toBe(6); // Day of Reckoning
     expect(schemeThreat("Thunderball")).toBe(5); // Thunderstruck
     expect(schemeThreat("Piledriver")).toBe(3); // Pile It On!
@@ -42,7 +56,8 @@ describe("wave1Scenario('breakout')", () => {
   it("1B's Forced Response places 1 threat on every side scheme after villain phase step one", () => {
     const before = spiderManVsBreakout();
     const after = play(before, endTurn(P1));
-    const schemeThreat = (state: GameState, villainName: string) => inst(state, villainOf(state, villainNamed(state, villainName))!.signatureSideSchemeId!).threat;
+    const schemeThreat = (state: GameState, villainName: string) =>
+      inst(state, villainOf(state, villainNamed(state, villainName))!.signatureSideSchemeId!).threat;
     // Thunderball, Piledriver and Bulldozer don't activate this round (only the active villain, Wrecker, does in
     // villain phase step 2), so 1B's own +1 is the only thing that touches their side schemes.
     for (const name of ["Thunderball", "Piledriver", "Bulldozer"]) {
@@ -83,11 +98,19 @@ describe("wave1Scenario('breakout')", () => {
     // own discard pile — never the active villain's (ruling, Jan 17, 2026 (5); §3.2).
     const piledriver = villainNamed(state, "Piledriver");
     const piledriverDeckId = villainOf(state, piledriver)!.encounterDeckId;
-    const guardId = encounterDeckOf(state, piledriverDeckId).deck.find((id) => inst(state, id).cardId === cardId("07037"));
+    const guardId = encounterDeckOf(state, piledriverDeckId).deck.find(
+      (id) => inst(state, id).cardId === cardId("07037"),
+    );
     if (!guardId) throw new Error("no Corrupt Prison Guard in Piledriver's deck");
     state = {
       ...state,
-      encounterDecks: { ...state.encounterDecks, [piledriverDeckId]: { ...encounterDeckOf(state, piledriverDeckId), deck: encounterDeckOf(state, piledriverDeckId).deck.filter((id) => id !== guardId) } },
+      encounterDecks: {
+        ...state.encounterDecks,
+        [piledriverDeckId]: {
+          ...encounterDeckOf(state, piledriverDeckId),
+          deck: encounterDeckOf(state, piledriverDeckId).deck.filter((id) => id !== guardId),
+        },
+      },
       players: state.players.map((p) => (p.playerId === P1 ? { ...p, playArea: [...p.playArea, guardId] } : p)),
       instances: { ...state.instances, [guardId]: { ...inst(state, guardId), faceup: true, engagedWith: P1 } },
     };

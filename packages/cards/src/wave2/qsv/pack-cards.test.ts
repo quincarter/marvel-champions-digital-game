@@ -1,19 +1,37 @@
 import { activeEncounterDeck, cardsInPlay, characterProfile, type InstanceId } from "@mc/engine";
-import { answer, endTurn, firstLegal, identityOf, inst, instancesOf, moveToHand, P1, playerOf, settle, stackEncounterDeck, toHero, use, type Picker } from "../../testing/harness.js";
+import {
+  answer,
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  moveToHand,
+  P1,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  use,
+  type Picker,
+} from "../../testing/harness.js";
 import { withDamage } from "../../testing/staging.js";
 import { wave2Scenario } from "../setup.js";
 import { playFromHand, runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { QSV_PACK_CARDS } from "./pack-cards.js";
 
 // Real wave 2 content: the Quicksilver (Protection) precon against Rhino, standard, solo. Pietro starts in alter-ego.
-const qsvVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "qsv-protection" }], seed: 2026 }));
+const qsvVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "qsv-protection" }], seed: 2026 }));
 
 const accepting =
   (...wanted: readonly string[]): Picker =>
   (state) => {
     const choice = state.pendingChoice;
     if (!choice) return [];
-    const hits = choice.options.map((o) => o.optionId).filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
+    const hits = choice.options
+      .map((o) => o.optionId)
+      .filter((id) => wanted.some((w) => id === w || id.endsWith(`:${w}`)));
     return hits.length > 0 ? hits.slice(0, choice.maxSelections) : firstLegal(state);
   };
 
@@ -25,7 +43,9 @@ const accepting =
 const pickAllCards: Picker = (state) => {
   const choice = state.pendingChoice;
   if (!choice) return [];
-  return choice.prompt.kind === "chooseCards" ? choice.options.slice(0, choice.maxSelections).map((o) => o.optionId) : firstLegal(state);
+  return choice.prompt.kind === "chooseCards"
+    ? choice.options.slice(0, choice.maxSelections).map((o) => o.optionId)
+    : firstLegal(state);
 };
 
 describe("Quicksilver pack cards", () => {
@@ -51,7 +71,12 @@ describe("Quicksilver pack cards", () => {
     const given = moveToHand(withWarlock, P1, "14007");
     const [mentalCard] = given.ids as [InstanceId];
     const damaged = withDamage(given.state, warlock, 1);
-    const healed = settle(runWave2(damaged, use(P1, warlock, "14013.warlock-action", [{ fromHand: mentalCard }])), firstLegal, undefined, WAVE2_DEPS);
+    const healed = settle(
+      runWave2(damaged, use(P1, warlock, "14013.warlock-action", [{ fromHand: mentalCard }])),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(healed, warlock).damage).toBe(0); // healed only the 1 present, not 2
   });
 
@@ -72,7 +97,12 @@ describe("Quicksilver pack cards", () => {
     const given = moveToHand(runWave2(qsvVsRhino(), toHero()), P1, "14014");
     const villain = given.state.villains[0]!.instanceId;
     const stacked = stackEncounterDeck(given.state, "01186");
-    const reached = settle(runWave2(stacked, endTurn()), firstLegal, (s) => s.pendingChoice?.prompt.kind === "declareDefender", WAVE2_DEPS);
+    const reached = settle(
+      runWave2(stacked, endTurn()),
+      firstLegal,
+      (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+      WAVE2_DEPS,
+    );
     expect(reached.pendingChoice?.prompt.kind).toBe("declareDefender");
     const hero = identityOf(reached);
     const damageBefore = inst(reached, hero).damage;
@@ -88,7 +118,12 @@ describe("Quicksilver pack cards", () => {
     const [, energyCard] = given.ids as [InstanceId, InstanceId];
     const villain = given.state.villains[0]!.instanceId;
     const stacked = stackEncounterDeck(given.state, "01186");
-    const reached = settle(runWave2(stacked, endTurn()), firstLegal, (s) => s.pendingChoice?.prompt.kind === "declareDefender", WAVE2_DEPS);
+    const reached = settle(
+      runWave2(stacked, endTurn()),
+      firstLegal,
+      (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+      WAVE2_DEPS,
+    );
     const hero = identityOf(reached);
     const damageBefore = inst(reached, hero).damage;
     const villainDamageBefore = inst(reached, villain).damage;
@@ -117,7 +152,12 @@ describe("Quicksilver pack cards", () => {
     // own resource ability instead of a hand card.
     const given = moveToHand(state, P1, "14015");
     const stacked = stackEncounterDeck(given.state, "01186");
-    const reached = settle(runWave2(stacked, endTurn()), firstLegal, (s) => s.pendingChoice?.prompt.kind === "declareDefender", WAVE2_DEPS);
+    const reached = settle(
+      runWave2(stacked, endTurn()),
+      firstLegal,
+      (s) => s.pendingChoice?.prompt.kind === "declareDefender",
+      WAVE2_DEPS,
+    );
     const payWithNerves: Picker = (s) => {
       const choice = s.pendingChoice;
       if (!choice) return [];
@@ -157,7 +197,12 @@ describe("Quicksilver pack cards", () => {
     const identity = identityOf(hero);
     const before = characterProfile(hero, identity, WAVE2_DEPS)!;
     const { state: withCard, id } = playFromHand(hero, "14022", 1);
-    const used = settle(runWave2(withCard, use(P1, id, "14022.adrenaline-rush-action")), firstLegal, undefined, WAVE2_DEPS);
+    const used = settle(
+      runWave2(withCard, use(P1, id, "14022.adrenaline-rush-action")),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(characterProfile(used, identity, WAVE2_DEPS)?.atk).toBe(before.atk + 1);
     expect(playerOf(used, P1).discard).toContain(id);
   });

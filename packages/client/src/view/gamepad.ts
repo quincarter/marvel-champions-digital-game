@@ -21,7 +21,16 @@
  * no-op there — the same "just don't wire it" shape `inspect` already has on
  * a screen with nothing to read.
  */
-export type GamepadIntent = "next" | "previous" | "activate" | "inspect" | "cancel" | "pageNext" | "pagePrevious" | "home" | "end";
+export type GamepadIntent =
+  | "next"
+  | "previous"
+  | "activate"
+  | "inspect"
+  | "cancel"
+  | "pageNext"
+  | "pagePrevious"
+  | "home"
+  | "end";
 
 /**
  * Indices from the Web Gamepad API's "standard" layout, which browsers map

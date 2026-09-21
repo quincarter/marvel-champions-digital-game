@@ -151,7 +151,10 @@ async function copyArt(outDir: string, log: (message: string) => void, warn: (me
   let bytes = 0;
   for (const relative of paths) {
     const from = path.join(ART_ROOT, relative);
-    const size = await stat(from).then((s) => s.size, () => null);
+    const size = await stat(from).then(
+      (s) => s.size,
+      () => null,
+    );
     if (size === null) {
       missing.push(relative);
       continue;
@@ -161,7 +164,9 @@ async function copyArt(outDir: string, log: (message: string) => void, warn: (me
     await copyFile(from, to);
     bytes += size;
   }
-  log(`card art: ${paths.length - missing.length} scans for ${cardCount} pool cards → ${path.relative(process.cwd(), target)} (${(bytes / 1e6).toFixed(1)} MB)`);
+  log(
+    `card art: ${paths.length - missing.length} scans for ${cardCount} pool cards → ${path.relative(process.cwd(), target)} (${(bytes / 1e6).toFixed(1)} MB)`,
+  );
   if (missing.length > 0) {
     warn(
       `card art: ${missing.length} scan(s) the pool references are not in assets/card-art/ — those faces will draw their generated frame:\n` +
@@ -188,7 +193,11 @@ export function cardArtPlugin(): Plugin {
       // `closeBundle` also fires for the worker's own sub-build and in watch mode;
       // only a real client build has an output directory to fill.
       if (this.meta.watchMode) return;
-      await copyArt(outDir, (message) => this.info(message), (message) => this.warn(message));
+      await copyArt(
+        outDir,
+        (message) => this.info(message),
+        (message) => this.warn(message),
+      );
     },
   };
 }

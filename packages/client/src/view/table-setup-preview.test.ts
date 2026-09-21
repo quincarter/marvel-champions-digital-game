@@ -44,18 +44,28 @@ describe("tableSetupPreviewOf", () => {
   });
 
   test("villain total HP sums every stage in the difficulty's range", () => {
-    const config = buildScenario("rhino", { difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 1 });
+    const config = buildScenario("rhino", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
     const villain = CARDS_BY_ID.get(rhino.villainCardId as string)!;
     if (villain.type !== "villain") throw new Error("not a villain");
     const side = villain.sides[0]!;
     const [lo, hi] = stageRangeFor(rhino, "standard");
-    const expected = side.stages.filter((s) => s.stageNumber >= lo && s.stageNumber <= hi).reduce((sum, s) => sum + scale(s.hp, 1), 0);
+    const expected = side.stages
+      .filter((s) => s.stageNumber >= lo && s.stageNumber <= hi)
+      .reduce((sum, s) => sum + scale(s.hp, 1), 0);
     const preview = tableSetupPreviewOf(config, rhino, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     expect(preview.villainTotalHp).toBe(expected);
   });
 
   test("Breakout sums HP across all four villains", () => {
-    const config = buildScenario("breakout", { difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 1 });
+    const config = buildScenario("breakout", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
     const preview = tableSetupPreviewOf(config, breakout, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     expect(preview.obligationsCount).toBe(0); // Wrecking Crew: no obligations
     expect(preview.villainTotalHp).toBeGreaterThan(0);
@@ -63,7 +73,11 @@ describe("tableSetupPreviewOf", () => {
 });
 
 describe("compositionRowsOf / whatsInThereRowsOf / nemesisStandbyOf", () => {
-  const config = buildScenario("rhino", { difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 1 });
+  const config = buildScenario("rhino", {
+    difficulty: "standard",
+    players: [{ starterDeckId: "core-spider-man-justice" }],
+    seed: 1,
+  });
   const preview = tableSetupPreviewOf(config, rhino, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
 
   test("composition rows sum to the deck total, plus a red obligations row at the end", () => {
@@ -91,7 +105,11 @@ describe("compositionRowsOf / whatsInThereRowsOf / nemesisStandbyOf", () => {
   });
 
   test("Breakout uses no identity sets, so there's nothing held back", () => {
-    const breakoutConfig = buildScenario("breakout", { difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 1 });
+    const breakoutConfig = buildScenario("breakout", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
     const breakoutPreview = tableSetupPreviewOf(breakoutConfig, breakout, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     expect(nemesisStandbyOf(breakoutPreview.encounterDeck)).toBeNull();
   });
@@ -99,7 +117,11 @@ describe("compositionRowsOf / whatsInThereRowsOf / nemesisStandbyOf", () => {
 
 describe("gameSummaryRowsOf", () => {
   test("names every headline number, single-villain scenario", () => {
-    const config = buildScenario("rhino", { difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 1 });
+    const config = buildScenario("rhino", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
     const preview = tableSetupPreviewOf(config, rhino, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     const rows = gameSummaryRowsOf(preview);
     expect(rows).toHaveLength(6);
@@ -114,7 +136,11 @@ describe("gameSummaryRowsOf", () => {
   });
 
   test("multi-villain scenario names the count, not a single villain's name", () => {
-    const config = buildScenario("breakout", { difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 1 });
+    const config = buildScenario("breakout", {
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 1,
+    });
     const preview = tableSetupPreviewOf(config, breakout, "standard", CARDS_BY_ID, POOL_ENCOUNTER_SETS);
     const villainRow = gameSummaryRowsOf(preview).find((r) => r.label === "Villain")!;
     expect(villainRow.value).toContain("4 villains");

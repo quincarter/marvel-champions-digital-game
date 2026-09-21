@@ -15,7 +15,8 @@ const SCHEME = stubMainScheme({
   stages: [{ startingThreat: flat(0), targetThreat: flat(40), acceleration: flat(1) }],
 });
 
-const atDefense = () => settleUntil(run(newGame({ villain: VILLAIN, mainScheme: SCHEME }), toHero, endTurn), "declareDefender");
+const atDefense = () =>
+  settleUntil(run(newGame({ villain: VILLAIN, mainScheme: SCHEME }), toHero, endTurn), "declareDefender");
 
 /**
  * RRG 1.8 "Attack (Enemy Activation)" step 2 (p. 9): "Declare defender" is a step *of the attack*, so the decision

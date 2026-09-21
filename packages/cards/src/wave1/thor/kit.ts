@@ -52,11 +52,19 @@ export const THOR_KIT = defineAbilities({
   // "Have at thee!" — Response: After you engage a minion, draw 2 cards. (Limit once per phase.)
   // `{ on: "minionEngaged", playerIs: "controller" }` is the landed primitive for "after you engage a minion"
   // (packages/engine/src/trigger-events.ts, named for this exact card; packages/engine/src/triggers-wave1.test.ts).
-  "06001a.have-at-thee": response({ on: "minionEngaged", playerIs: "controller" }, { limit: { count: 1, period: "phase" } }, draw(2)),
+  "06001a.have-at-thee": response(
+    { on: "minionEngaged", playerIs: "controller" },
+    { limit: { count: 1, period: "phase" } },
+    draw(2),
+  ),
 
   // Worthy — Action: Search your deck and discard pile for the Mjolnir upgrade and add it to your hand. Shuffle
   // your deck. (Limit once per round). Mjolnir is unique (deckLimit 1), so at most one card can ever match.
-  "06001b.worthy": alterEgoAction({ limit: oncePerRound }, moveCards(zone(["deck", "discard"], you, { filter: MJOLNIR }), "hand"), shuffleDeck()),
+  "06001b.worthy": alterEgoAction(
+    { limit: oncePerRound },
+    moveCards(zone(["deck", "discard"], you, { filter: MJOLNIR }), "hand"),
+    shuffleDeck(),
+  ),
 
   // Lady Sif — Response: After Lady Sif enters play, ready Thor or Odinson (your identity, whichever form it's in).
   "06002.lady-sif-response": response(after.entersPlay("self"), ready(yourIdentity)),
@@ -77,7 +85,11 @@ export const THOR_KIT = defineAbilities({
   // to your hand. Shuffle your deck. Several different cards could match, so this is a choice (unlike Worthy's
   // unique Mjolnir search) — `ally`/`event`/`support`/`upgrade` are every category an Asgard card could print as.
   "06004.for-asgard-action": alterEgoAction(
-    chooseCards("found", zone(["deck", "discard"], you, { filter: query(["ally", "event", "support", "upgrade"], { trait: ASGARD }) }), { min: 1, max: 1 }),
+    chooseCards(
+      "found",
+      zone(["deck", "discard"], you, { filter: query(["ally", "event", "support", "upgrade"], { trait: ASGARD }) }),
+      { min: 1, max: 1 },
+    ),
     moveCards(cards(chosen("found")), "hand"),
     shuffleDeck(),
   ),
@@ -99,7 +111,10 @@ export const THOR_KIT = defineAbilities({
     { cost: spendX("energy", "x") },
     ifThen(
       hasTrait(yourIdentity, TRAIT.AERIAL),
-      [dealDamageIgnoringTough(varOf("x"), theVillain), dealDamageIgnoringTough(varOf("x"), each(query("minion", { engagedWith: "you" })))],
+      [
+        dealDamageIgnoringTough(varOf("x"), theVillain),
+        dealDamageIgnoringTough(varOf("x"), each(query("minion", { engagedWith: "you" }))),
+      ],
       [dealDamage(varOf("x"), theVillain), dealDamage(varOf("x"), each(query("minion", { engagedWith: "you" })))],
     ),
   ),

@@ -21,7 +21,15 @@
  */
 import Phaser from "phaser";
 import type { Deck, Scenario } from "@mc/content";
-import { buildScenario, CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_ENCOUNTER_SETS, POOL_SCENARIOS, POOL_VERSION } from "../content/pool.js";
+import {
+  buildScenario,
+  CARDS_BY_ID,
+  POOL_CARDS,
+  POOL_DEPS,
+  POOL_ENCOUNTER_SETS,
+  POOL_SCENARIOS,
+  POOL_VERSION,
+} from "../content/pool.js";
 import { accent, dotGrid, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, dashedRect, fitText, label, paintDotGrid, sectionHeader } from "../ui/widgets.js";
@@ -31,8 +39,6 @@ import { VariableListScroll } from "../view/variable-list-scroll.js";
 import { deckOptionsOf, type DeckOption } from "../view/deck-list-model.js";
 import { corePlayerForSeat } from "../view/deck-seat.js";
 import {
-  cardCountForSet,
-  descriptorForSet,
   modularCardLabel,
   modularSetOptionsFor,
   requiredCardLabel,
@@ -56,7 +62,14 @@ import {
   type NemesisStandby,
   type TableSetupPreview,
 } from "../view/table-setup-preview.js";
-import { setDifficulty, setFirstPlayerIndex, setSeed, rerollSeed, toSessionConfig, type SetupDraft } from "../view/setup-draft.js";
+import {
+  setDifficulty,
+  setFirstPlayerIndex,
+  setSeed,
+  rerollSeed,
+  toSessionConfig,
+  type SetupDraft,
+} from "../view/setup-draft.js";
 import { tableSetupFocusOrder } from "../view/screen-focus.js";
 import {
   COMPACT_DIFFICULTY_ROW_HEIGHT,
@@ -82,6 +95,7 @@ import { appSession, deckStorage } from "../session.js";
 import type { DecksSceneData } from "./decks.js";
 import type { SeatsData } from "./seats.js";
 import { destroyChildren } from "../ui/destroy-children.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 export interface TableSetupData {
   readonly draft: SetupDraft;
@@ -157,6 +171,7 @@ export class TableSetupScene extends Phaser.Scene {
     this.#starting = false;
     this.#savedDecks = [];
     this.#rebuild();
+    fadeScreenIn(this);
     void deckStorage()
       .list()
       .then((decks) => {
@@ -169,7 +184,7 @@ export class TableSetupScene extends Phaser.Scene {
   #back(): void {
     if (this.#starting) return;
     this.scale.off("resize", this.#rebuild, this);
-    this.scene.start(SCENES.seats, { draft: this.#draft } satisfies SeatsData);
+    goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
   }
 
   #deckOptions(): readonly DeckOption[] {
@@ -198,7 +213,9 @@ export class TableSetupScene extends Phaser.Scene {
     const difficultyCards = difficultyCardsFor(scenario);
 
     const deckOptions = this.#deckOptions();
-    const seatedOptions = this.#draft.seats.map((deckId) => deckOptions.find((o) => (o.deck.id as string) === deckId)).filter((o): o is DeckOption => o !== undefined);
+    const seatedOptions = this.#draft.seats
+      .map((deckId) => deckOptions.find((o) => (o.deck.id as string) === deckId))
+      .filter((o): o is DeckOption => o !== undefined);
     const players = seatedOptions.map(corePlayerForSeat);
 
     const requiredSets = requiredEncounterSetsFor(scenario, CARDS_BY_ID);
@@ -226,7 +243,22 @@ export class TableSetupScene extends Phaser.Scene {
     // portrait's, not a squeeze of the same layout, so it's a separate draw path entirely rather than a branch
     // inside the one below.
     if (formFactorFor(width, height) === "phone") {
-      this.#drawCompact(width, height, scenario, difficultyCards, deckOptions, players, requiredSets, modularOptions, modularCap, compositionRows, whatsInThereRows, nemesisStandby, encounterDeckSize, preview);
+      this.#drawCompact(
+        width,
+        height,
+        scenario,
+        difficultyCards,
+        deckOptions,
+        players,
+        requiredSets,
+        modularOptions,
+        modularCap,
+        compositionRows,
+        whatsInThereRows,
+        nemesisStandby,
+        encounterDeckSize,
+        preview,
+      );
       return;
     }
     this.#compactRegion?.destroy();
@@ -237,7 +269,9 @@ export class TableSetupScene extends Phaser.Scene {
     // live text object exists" rule; three side-by-side panels at wide, one full-width panel at narrow, so a third
     // of the column is the tighter, safer bound either way).
     const nemesisPanelWidthEstimate = Math.max(160, width / 3.4 - 24);
-    const nemesisLines = nemesisStandby ? estimateWrappedLines(nemesisStandby.sentence, nemesisPanelWidthEstimate, 5.4) + 1 : 0;
+    const nemesisLines = nemesisStandby
+      ? estimateWrappedLines(nemesisStandby.sentence, nemesisPanelWidthEstimate, 5.4) + 1
+      : 0;
 
     const layout = tableSetupLayout({
       width,
@@ -255,42 +289,113 @@ export class TableSetupScene extends Phaser.Scene {
     // comment), matching every other setup-flow screen's narrow treatment (Setup deal & mulligan, Villain phase).
     if (layout.wide) {
       this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
-      paintDotGrid(this, { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height }, "paper", dotGrid.onPaper);
-      this.add.rectangle(layout.sidebar!.x, layout.sidebar!.y, layout.sidebar!.width, layout.sidebar!.height, surface.ink.hex).setOrigin(0, 0);
+      paintDotGrid(
+        this,
+        { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height },
+        "paper",
+        dotGrid.onPaper,
+      );
+      this.add
+        .rectangle(layout.sidebar!.x, layout.sidebar!.y, layout.sidebar!.width, layout.sidebar!.height, surface.ink.hex)
+        .setOrigin(0, 0);
     } else {
       this.add.rectangle(0, 0, width, height, surface.ink.hex).setOrigin(0, 0);
-      paintDotGrid(this, { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height }, "ink", dotGrid.onInk);
+      paintDotGrid(
+        this,
+        { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height },
+        "ink",
+        dotGrid.onInk,
+      );
     }
-    this.add.rectangle(layout.headerBar.x, layout.headerBar.y, layout.headerBar.width, layout.headerBar.height, surface.ink.hex).setOrigin(0, 0);
+    this.add
+      .rectangle(
+        layout.headerBar.x,
+        layout.headerBar.y,
+        layout.headerBar.width,
+        layout.headerBar.height,
+        surface.ink.hex,
+      )
+      .setOrigin(0, 0);
 
     const back = (): void => this.#back();
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: "◂ Seats", type: typeRole.backLabel, rect: layout.back, onClick: back, enabled: !this.#starting }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "◂ Seats",
+        type: typeRole.backLabel,
+        rect: layout.back,
+        onClick: back,
+        enabled: !this.#starting,
+      }),
+    );
     this.#stops.set("back", { rect: layout.back, activate: back });
     const titleX = layout.back.x + layout.back.width + 16;
-    const title = this.add.text(titleX, layout.headerBar.height / 2, "Set the table", textStyle(typeRole.pageTitle, surface.paper.hex)).setOrigin(0, 0.5);
+    const title = this.add
+      .text(titleX, layout.headerBar.height / 2, "Set the table", textStyle(typeRole.pageTitle, surface.paper.hex))
+      .setOrigin(0, 0.5);
     fitText(title, layout.step.x - titleX - 12, typeRole.pageTitle.size);
-    this.add.text(layout.step.x + layout.step.width, layout.headerBar.height / 2, "STEP 4 OF 4", textStyle(typeRole.label, surface.paper.hex, ink.label)).setOrigin(1, 0.5);
+    this.add
+      .text(
+        layout.step.x + layout.step.width,
+        layout.headerBar.height / 2,
+        "STEP 4 OF 4",
+        textStyle(typeRole.label, surface.paper.hex, ink.label),
+      )
+      .setOrigin(1, 0.5);
 
     // The body's own text colour: ink on the wide layout's paper body, paper on the narrow layout's ink page. The
     // sidebar/"game you'll get" block is always on ink (the sidebar on wide, the same ink page on narrow), so its
     // own text is always paper — set separately below rather than following `bodyColor`.
     const bodyColor = layout.wide ? surface.ink.hex : surface.paper.hex;
 
-    sectionHeader(this, layout.difficultyHeader.x, layout.difficultyHeader.y, layout.difficultyHeader.width, "Difficulty", bodyColor);
+    sectionHeader(
+      this,
+      layout.difficultyHeader.x,
+      layout.difficultyHeader.y,
+      layout.difficultyHeader.width,
+      "Difficulty",
+      bodyColor,
+    );
     this.#drawDifficultyRow(layout.difficultyRow, difficultyCards, layout.wide);
 
     const modularRight = `${requiredSets.length} required · ${modularCap} chosen`.toUpperCase();
-    sectionHeader(this, layout.modularHeader.x, layout.modularHeader.y, layout.modularHeader.width, "Modular sets", bodyColor, modularRight);
+    sectionHeader(
+      this,
+      layout.modularHeader.x,
+      layout.modularHeader.y,
+      layout.modularHeader.width,
+      "Modular sets",
+      bodyColor,
+      modularRight,
+    );
     this.#drawModularGrid(layout, requiredSets, modularOptions, scenario);
 
-    sectionHeader(this, layout.seatingHeader.x, layout.seatingHeader.y, layout.seatingHeader.width, "Seating & first player", bodyColor);
+    sectionHeader(
+      this,
+      layout.seatingHeader.x,
+      layout.seatingHeader.y,
+      layout.seatingHeader.width,
+      "Seating & first player",
+      bodyColor,
+    );
     const seatCells = this.#seatCells(deckOptions);
     if (layout.wide && layout.randomControl.width > 0) {
       const roll = (): void => {
-        this.#draft = setFirstPlayerIndex(this.#draft, rollFirstPlayerIndex(this.#draft.seed, this.#draft.seats.length));
+        this.#draft = setFirstPlayerIndex(
+          this.#draft,
+          rollFirstPlayerIndex(this.#draft.seed, this.#draft.seats.length),
+        );
         this.#rebuild();
       };
-      this.#buttons.push(new McButton(this, { kind: "quiet", label: "Random", type: typeRole.label, rect: layout.randomControl, onClick: roll }));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "Random",
+          type: typeRole.label,
+          rect: layout.randomControl,
+          onClick: roll,
+        }),
+      );
       this.#stops.set("first-player:random", { rect: layout.randomControl, activate: roll });
       this.#drawSeatingRow(layout.seatingRow, seatCells, bodyColor, false);
     } else {
@@ -298,15 +403,32 @@ export class TableSetupScene extends Phaser.Scene {
     }
 
     const encounterRight = `${encounterDeckSize} cards · shuffled at deal`.toUpperCase();
-    sectionHeader(this, layout.encounterHeader.x, layout.encounterHeader.y, layout.encounterHeader.width, "The encounter deck you're building", bodyColor, encounterRight);
+    sectionHeader(
+      this,
+      layout.encounterHeader.x,
+      layout.encounterHeader.y,
+      layout.encounterHeader.width,
+      "The encounter deck you're building",
+      bodyColor,
+      encounterRight,
+    );
     this.#drawEncounterPanels(layout, compositionRows, whatsInThereRows, nemesisStandby);
 
     // The sidebar/summary block: always paper-on-ink, regardless of form factor.
-    sectionHeader(this, layout.gameSummaryHeader.x, layout.gameSummaryHeader.y, layout.gameSummaryHeader.width, "The game you'll get", surface.paper.hex);
+    sectionHeader(
+      this,
+      layout.gameSummaryHeader.x,
+      layout.gameSummaryHeader.y,
+      layout.gameSummaryHeader.width,
+      "The game you'll get",
+      surface.paper.hex,
+    );
     this.#drawGameSummaryRows(layout.gameSummaryRows, gameSummaryRows);
     if (layout.rule.height > 0) {
       const rule = this.add.graphics();
-      rule.fillStyle(surface.paper.hex, ink.disabled).fillRect(layout.rule.x, layout.rule.y, layout.rule.width, layout.rule.height);
+      rule
+        .fillStyle(surface.paper.hex, ink.disabled)
+        .fillRect(layout.rule.x, layout.rule.y, layout.rule.width, layout.rule.height);
     }
 
     if (this.#seedInput) this.#seedInput.layout(layout.seed);
@@ -328,11 +450,24 @@ export class TableSetupScene extends Phaser.Scene {
       this.#seedInput?.setValue(this.#seedText);
       this.#status?.setText("");
     };
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: "Reroll", type: typeRole.label, rect: layout.reroll, onClick: reroll }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "Reroll",
+        type: typeRole.label,
+        rect: layout.reroll,
+        onClick: reroll,
+      }),
+    );
     this.#stops.set("reroll", { rect: layout.reroll, activate: reroll });
     if (layout.seedHelper.height > 8) {
       this.add
-        .text(layout.seedHelper.x, layout.seedHelper.y, "Recorded in the game log — the same seed plus the same commands replays this game exactly.", textStyle(typeRole.body, surface.paper.hex, ink.label))
+        .text(
+          layout.seedHelper.x,
+          layout.seedHelper.y,
+          "Recorded in the game log — the same seed plus the same commands replays this game exactly.",
+          textStyle(typeRole.body, surface.paper.hex, ink.label),
+        )
         .setWordWrapWidth(layout.seedHelper.width)
         .setMaxLines(Math.max(1, Math.floor(layout.seedHelper.height / 15)));
     }
@@ -349,7 +484,12 @@ export class TableSetupScene extends Phaser.Scene {
     );
     this.#stops.set("deal-it-out", { rect: layout.dealItOut, activate: () => void this.#start(players) });
 
-    this.#status = this.add.text(layout.dealItOut.x, layout.dealItOut.y - 20, "", textStyle(typeRole.body, surface.paper.hex));
+    this.#status = this.add.text(
+      layout.dealItOut.x,
+      layout.dealItOut.y - 20,
+      "",
+      textStyle(typeRole.body, surface.paper.hex),
+    );
 
     this.#route?.set(
       tableSetupFocusOrder({
@@ -409,7 +549,15 @@ export class TableSetupScene extends Phaser.Scene {
     // Ground: paper, matching P12 exactly — the wide/tablet-portrait ink page (`table-setup-layout.ts`'s own doc
     // comment on why that one's ink) doesn't apply here.
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
-    this.add.rectangle(layout.headerBar.x, layout.headerBar.y, layout.headerBar.width, layout.headerBar.height, surface.ink.hex).setOrigin(0, 0);
+    this.add
+      .rectangle(
+        layout.headerBar.x,
+        layout.headerBar.y,
+        layout.headerBar.width,
+        layout.headerBar.height,
+        surface.ink.hex,
+      )
+      .setOrigin(0, 0);
     this.#drawCompactHeader(layout);
 
     const seatCells = this.#seatCells(deckOptions);
@@ -439,7 +587,12 @@ export class TableSetupScene extends Phaser.Scene {
 
     layout.rows.forEach((row, index) => {
       const contentRect = rects[index]!;
-      const screenRect: Rect = { x: contentRect.x, y: layout.viewport.y + contentRect.y, width: contentRect.width, height: contentRect.height };
+      const screenRect: Rect = {
+        x: contentRect.x,
+        y: layout.viewport.y + contentRect.y,
+        width: contentRect.width,
+        height: contentRect.height,
+      };
       this.#captureInto(container, () => this.#drawCompactRow(row.id, screenRect, layout, rowData));
     });
 
@@ -500,12 +653,30 @@ export class TableSetupScene extends Phaser.Scene {
 
   #drawCompactHeader(layout: TableSetupCompactLayout): void {
     const back = (): void => this.#back();
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: "◂", type: { ...typeRole.backLabel, size: 20 }, rect: layout.back, onClick: back, enabled: !this.#starting }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "◂",
+        type: { ...typeRole.backLabel, size: 20 },
+        rect: layout.back,
+        onClick: back,
+        enabled: !this.#starting,
+      }),
+    );
     this.#stops.set("back", { rect: layout.back, activate: back });
     const titleX = layout.back.x + layout.back.width + 12;
-    const title = this.add.text(titleX, layout.headerBar.height / 2, "Set the table", textStyle(typeRole.pageTitle, surface.paper.hex)).setOrigin(0, 0.5);
+    const title = this.add
+      .text(titleX, layout.headerBar.height / 2, "Set the table", textStyle(typeRole.pageTitle, surface.paper.hex))
+      .setOrigin(0, 0.5);
     fitText(title, layout.step.x - titleX - 8, typeRole.pageTitle.size);
-    this.add.text(layout.step.x + layout.step.width, layout.headerBar.height / 2, "4/4", textStyle(typeRole.label, surface.paper.hex, ink.label)).setOrigin(1, 0.5);
+    this.add
+      .text(
+        layout.step.x + layout.step.width,
+        layout.headerBar.height / 2,
+        "4/4",
+        textStyle(typeRole.label, surface.paper.hex, ink.label),
+      )
+      .setOrigin(1, 0.5);
   }
 
   #drawCompactRow(id: string, rect: Rect, layout: TableSetupCompactLayout, data: CompactRowData): void {
@@ -576,12 +747,39 @@ export class TableSetupScene extends Phaser.Scene {
         this.#draft = setDifficulty(this.#draft, card.id);
         this.#rebuild();
       };
-      this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: cellRect, onClick, clip: this.#compactClip, suppressClick: this.#compactSuppressClick }));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "",
+          type: typeRole.label,
+          rect: cellRect,
+          onClick,
+          clip: this.#compactClip,
+          suppressClick: this.#compactSuppressClick,
+        }),
+      );
       this.#stops.set(`difficulty:${card.id}`, this.#compactStop(cellRect, onClick, "difficulty"));
       const g = this.add.graphics();
-      g.fillStyle(selected ? surface.ink.hex : surface.card.hex, 1).fillRect(cellRect.x, cellRect.y, cellRect.width, cellRect.height);
-      g.lineStyle(2, surface.ink.hex, 1).strokeRect(cellRect.x + 1, cellRect.y + 1, cellRect.width - 2, cellRect.height - 2);
-      const text = this.add.text(cellRect.x + cellRect.width / 2, cellRect.y + cellRect.height / 2, card.name, textStyle({ ...typeRole.sectionHeader, size: 17 }, selected ? surface.paper.hex : surface.ink.hex)).setOrigin(0.5);
+      g.fillStyle(selected ? surface.ink.hex : surface.card.hex, 1).fillRect(
+        cellRect.x,
+        cellRect.y,
+        cellRect.width,
+        cellRect.height,
+      );
+      g.lineStyle(2, surface.ink.hex, 1).strokeRect(
+        cellRect.x + 1,
+        cellRect.y + 1,
+        cellRect.width - 2,
+        cellRect.height - 2,
+      );
+      const text = this.add
+        .text(
+          cellRect.x + cellRect.width / 2,
+          cellRect.y + cellRect.height / 2,
+          card.name,
+          textStyle({ ...typeRole.sectionHeader, size: 17 }, selected ? surface.paper.hex : surface.ink.hex),
+        )
+        .setOrigin(0.5);
       fitText(text, cellRect.width - 12, 17);
     });
   }
@@ -595,9 +793,22 @@ export class TableSetupScene extends Phaser.Scene {
     const boxRect = this.#drawCompactCheckbox(rect, h, true, accent.heroRed.hex);
     const textX = boxRect.x + boxRect.width + 11;
     const textWidth = rect.x + rect.width - textX - 10;
-    const name = this.add.text(textX, rect.y + 11, required.name, textStyle({ ...typeRole.rowTitle, size: 13 }, surface.paper.hex));
+    const name = this.add.text(
+      textX,
+      rect.y + 11,
+      required.name,
+      textStyle({ ...typeRole.rowTitle, size: 13 }, surface.paper.hex),
+    );
     fitText(name, textWidth, 13);
-    const meta = label(this, textX, rect.y + 11 + 18, `Required by ${villainName} · locked`, typeRole.label, surface.paper.hex, ink.label);
+    const meta = label(
+      this,
+      textX,
+      rect.y + 11 + 18,
+      `Required by ${villainName} · locked`,
+      typeRole.label,
+      surface.paper.hex,
+      ink.label,
+    );
     fitText(meta, textWidth, typeRole.label.size);
   }
 
@@ -610,7 +821,17 @@ export class TableSetupScene extends Phaser.Scene {
       this.#draft = toggleModularSet(this.#draft, scenario, option.id);
       this.#rebuild();
     };
-    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: cellRect, onClick, clip: this.#compactClip, suppressClick: this.#compactSuppressClick }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "",
+        type: typeRole.label,
+        rect: cellRect,
+        onClick,
+        clip: this.#compactClip,
+        suppressClick: this.#compactSuppressClick,
+      }),
+    );
     this.#stops.set(`modular:${option.id}`, this.#compactStop(cellRect, onClick, `modular:${option.id}`));
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, h);
@@ -618,9 +839,22 @@ export class TableSetupScene extends Phaser.Scene {
     const boxRect = this.#drawCompactCheckbox(rect, h, option.selected, surface.ink.hex);
     const textX = boxRect.x + boxRect.width + 11;
     const textWidth = rect.x + rect.width - textX - 10;
-    const name = this.add.text(textX, rect.y + 11, option.name, textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex));
+    const name = this.add.text(
+      textX,
+      rect.y + 11,
+      option.name,
+      textStyle({ ...typeRole.rowTitle, size: 13 }, surface.ink.hex),
+    );
     fitText(name, textWidth, 13);
-    const meta = label(this, textX, rect.y + 11 + 18, modularCardLabel(option), typeRole.label, surface.ink.hex, ink.label);
+    const meta = label(
+      this,
+      textX,
+      rect.y + 11 + 18,
+      modularCardLabel(option),
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    );
     fitText(meta, textWidth, typeRole.label.size);
   }
 
@@ -633,7 +867,14 @@ export class TableSetupScene extends Phaser.Scene {
     box.lineStyle(2, outline, 1).strokeRect(boxRect.x, boxRect.y, boxRect.width, boxRect.height);
     if (checked) {
       box.fillStyle(checkedColor, 1).fillRect(boxRect.x + 2, boxRect.y + 2, boxRect.width - 4, boxRect.height - 4);
-      this.add.text(boxRect.x + boxRect.width / 2, boxRect.y + boxRect.height / 2, "✓", textStyle({ ...typeRole.label, size: 13 }, surface.paper.hex)).setOrigin(0.5);
+      this.add
+        .text(
+          boxRect.x + boxRect.width / 2,
+          boxRect.y + boxRect.height / 2,
+          "✓",
+          textStyle({ ...typeRole.label, size: 13 }, surface.paper.hex),
+        )
+        .setOrigin(0.5);
     }
     return boxRect;
   }
@@ -646,15 +887,49 @@ export class TableSetupScene extends Phaser.Scene {
     const cellWidth = (rect.width - gap * (count - 1)) / count;
     cells.forEach((cell, index) => {
       const cellRect: Rect = { x: rect.x + index * (cellWidth + gap), y: rect.y, width: cellWidth, height: h };
-      this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: cellRect, onClick: cell.onClick, clip: this.#compactClip, suppressClick: this.#compactSuppressClick }));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "",
+          type: typeRole.label,
+          rect: cellRect,
+          onClick: cell.onClick,
+          clip: this.#compactClip,
+          suppressClick: this.#compactSuppressClick,
+        }),
+      );
       this.#stops.set(`first-player:${cell.id}`, this.#compactStop(cellRect, cell.onClick, "firstPlayer"));
       const g = this.add.graphics();
-      g.fillStyle(cell.selected ? surface.ink.hex : surface.card.hex, 1).fillRect(cellRect.x, cellRect.y, cellRect.width, cellRect.height);
-      g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(cellRect.x + 1.25, cellRect.y + 1.25, cellRect.width - 2.5, cellRect.height - 2.5);
+      g.fillStyle(cell.selected ? surface.ink.hex : surface.card.hex, 1).fillRect(
+        cellRect.x,
+        cellRect.y,
+        cellRect.width,
+        cellRect.height,
+      );
+      g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(
+        cellRect.x + 1.25,
+        cellRect.y + 1.25,
+        cellRect.width - 2.5,
+        cellRect.height - 2.5,
+      );
       const tone = cell.selected ? surface.paper.hex : surface.ink.hex;
-      const top = this.add.text(cellRect.x + cellRect.width / 2, cellRect.y + cellRect.height * 0.36, cell.chipLabel, textStyle({ ...typeRole.sectionHeader, size: 15 }, tone)).setOrigin(0.5);
+      const top = this.add
+        .text(
+          cellRect.x + cellRect.width / 2,
+          cellRect.y + cellRect.height * 0.36,
+          cell.chipLabel,
+          textStyle({ ...typeRole.sectionHeader, size: 15 }, tone),
+        )
+        .setOrigin(0.5);
       fitText(top, cellRect.width - 8, 15);
-      const bottom = this.add.text(cellRect.x + cellRect.width / 2, cellRect.y + cellRect.height * 0.72, cell.name, textStyle(typeRole.label, tone, ink.label)).setOrigin(0.5);
+      const bottom = this.add
+        .text(
+          cellRect.x + cellRect.width / 2,
+          cellRect.y + cellRect.height * 0.72,
+          cell.name,
+          textStyle(typeRole.label, tone, ink.label),
+        )
+        .setOrigin(0.5);
       fitText(bottom, cellRect.width - 8, typeRole.label.size);
     });
     const randomRect: Rect = { x: rect.x + cells.length * (cellWidth + gap), y: rect.y, width: cellWidth, height: h };
@@ -662,12 +937,29 @@ export class TableSetupScene extends Phaser.Scene {
       this.#draft = setFirstPlayerIndex(this.#draft, rollFirstPlayerIndex(this.#draft.seed, this.#draft.seats.length));
       this.#rebuild();
     };
-    this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: randomRect, onClick: roll, clip: this.#compactClip, suppressClick: this.#compactSuppressClick }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "quiet",
+        label: "",
+        type: typeRole.label,
+        rect: randomRect,
+        onClick: roll,
+        clip: this.#compactClip,
+        suppressClick: this.#compactSuppressClick,
+      }),
+    );
     this.#stops.set("first-player:random", this.#compactStop(randomRect, roll, "firstPlayer"));
     const g = this.add.graphics();
     g.fillStyle(surface.paper.hex, 1).fillRect(randomRect.x, randomRect.y, randomRect.width, randomRect.height);
     dashedRect(g, randomRect, 2, surface.ink.hex);
-    const text = this.add.text(randomRect.x + randomRect.width / 2, randomRect.y + randomRect.height / 2, "Random", textStyle(typeRole.label, surface.ink.hex, ink.label)).setOrigin(0.5);
+    const text = this.add
+      .text(
+        randomRect.x + randomRect.width / 2,
+        randomRect.y + randomRect.height / 2,
+        "Random",
+        textStyle(typeRole.label, surface.ink.hex, ink.label),
+      )
+      .setOrigin(0.5);
     fitText(text, randomRect.width - 8, typeRole.label.size);
   }
 
@@ -678,13 +970,23 @@ export class TableSetupScene extends Phaser.Scene {
     g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, h);
     g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(rect.x + 1.25, rect.y + 1.25, rect.width - 2.5, h - 2.5);
     label(this, rect.x + 12, rect.y + 10, "Shuffle seed", typeRole.rowTitle, surface.ink.hex, 1);
-    this.add.text(rect.x + 12, rect.y + 26, "Reproduce this exact deal", textStyle(typeRole.label, surface.ink.hex, ink.label));
+    this.add.text(
+      rect.x + 12,
+      rect.y + 26,
+      "Reproduce this exact deal",
+      textStyle(typeRole.label, surface.ink.hex, ink.label),
+    );
 
     const controlsY = rect.y + 48;
     const rerollWidth = 90;
     const seedWidth = rect.width - 24 - rerollWidth - 10;
     const seedBoxRect: Rect = { x: rect.x + 12, y: controlsY, width: seedWidth, height: hit.target };
-    const rerollRect: Rect = { x: seedBoxRect.x + seedWidth + 10, y: controlsY, width: rerollWidth, height: hit.target };
+    const rerollRect: Rect = {
+      x: seedBoxRect.x + seedWidth + 10,
+      y: controlsY,
+      width: rerollWidth,
+      height: hit.target,
+    };
     this.#compactSeedBoxRect = seedBoxRect;
 
     const reroll = (): void => {
@@ -693,13 +995,31 @@ export class TableSetupScene extends Phaser.Scene {
       this.#seedInput?.setValue(this.#seedText);
       this.#status?.setText("");
     };
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: "Reroll", type: typeRole.label, rect: rerollRect, onClick: reroll, clip: this.#compactClip, suppressClick: this.#compactSuppressClick }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "Reroll",
+        type: typeRole.label,
+        rect: rerollRect,
+        onClick: reroll,
+        clip: this.#compactClip,
+        suppressClick: this.#compactSuppressClick,
+      }),
+    );
     this.#stops.set("reroll", this.#compactStop(rerollRect, reroll, "seed"));
-    this.#stops.set("seed", this.#compactStop(seedBoxRect, () => this.#seedInput?.focus(), "seed"));
+    this.#stops.set(
+      "seed",
+      this.#compactStop(seedBoxRect, () => this.#seedInput?.focus(), "seed"),
+    );
   }
 
   /** THE ENCOUNTER DECK: one bordered paper panel — composition rows (obligations red), a thin rule, what's-in-there rows, then a single dim "N cards on standby" line. Every row real, none trimmed — the panel is exactly as tall as its own content (`tableSetupCompactLayout`'s own height math). */
-  #drawCompactEncounterPanel(rect: Rect, composition: readonly CompositionRow[], whatsInThere: readonly CompositionRow[], nemesis: NemesisStandby | null): void {
+  #drawCompactEncounterPanel(
+    rect: Rect,
+    composition: readonly CompositionRow[],
+    whatsInThere: readonly CompositionRow[],
+    nemesis: NemesisStandby | null,
+  ): void {
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
     g.lineStyle(2.5, surface.ink.hex, 1).strokeRect(rect.x + 1.25, rect.y + 1.25, rect.width - 2.5, rect.height - 2.5);
@@ -708,7 +1028,9 @@ export class TableSetupScene extends Phaser.Scene {
       const color = row.red ? accent.heroRed.hex : surface.ink.hex;
       const rowLabel = this.add.text(rect.x + 12, y, row.label, textStyle(typeRole.body, color)).setMaxLines(1);
       fitText(rowLabel, rect.width - 80, typeRole.body.size);
-      this.add.text(rect.x + rect.width - 12, y, String(row.count), textStyle({ ...typeRole.emphasis, weight: 700 }, color)).setOrigin(1, 0);
+      this.add
+        .text(rect.x + rect.width - 12, y, String(row.count), textStyle({ ...typeRole.emphasis, weight: 700 }, color))
+        .setOrigin(1, 0);
       y += PANEL_ROW_HEIGHT;
     };
     for (const row of composition) drawRow(row);
@@ -733,13 +1055,26 @@ export class TableSetupScene extends Phaser.Scene {
     chosenModularCount: number,
   ): void {
     const g = this.add.graphics();
-    g.fillStyle(surface.ink.hex, 1).fillRect(layout.footer.x, layout.footer.y, layout.footer.width, layout.footer.height);
+    g.fillStyle(surface.ink.hex, 1).fillRect(
+      layout.footer.x,
+      layout.footer.y,
+      layout.footer.width,
+      layout.footer.height,
+    );
     const difficultyLabel = `${this.#draft.difficulty}${preview ? ` ${preview.villainStageLabel}` : ""}`;
     const heroCount = players.length;
     const summary = preview
       ? `${villainName} · ${difficultyLabel} · ${heroCount} hero${heroCount === 1 ? "" : "es"} · ${chosenModularCount} modular${chosenModularCount === 1 ? "" : "s"}`
       : `${villainName} · ${difficultyLabel}`;
-    const summaryText = label(this, layout.footerSummary.x, layout.footerSummary.y, summary, typeRole.label, surface.paper.hex, ink.label);
+    const summaryText = label(
+      this,
+      layout.footerSummary.x,
+      layout.footerSummary.y,
+      summary,
+      typeRole.label,
+      surface.paper.hex,
+      ink.label,
+    );
     fitText(summaryText, layout.footerSummary.width, typeRole.label.size);
 
     this.#buttons.push(
@@ -753,10 +1088,22 @@ export class TableSetupScene extends Phaser.Scene {
       }),
     );
     const outline = this.add.graphics();
-    outline.lineStyle(3, surface.paper.hex, 1).strokeRect(layout.dealItOut.x + 1.5, layout.dealItOut.y + 1.5, layout.dealItOut.width - 3, layout.dealItOut.height - 3);
+    outline
+      .lineStyle(3, surface.paper.hex, 1)
+      .strokeRect(
+        layout.dealItOut.x + 1.5,
+        layout.dealItOut.y + 1.5,
+        layout.dealItOut.width - 3,
+        layout.dealItOut.height - 3,
+      );
     this.#stops.set("deal-it-out", { rect: layout.dealItOut, activate: () => void this.#start(players) });
 
-    this.#status = this.add.text(layout.footerSummary.x, layout.footer.y - 20, "", textStyle(typeRole.body, surface.ink.hex));
+    this.#status = this.add.text(
+      layout.footerSummary.x,
+      layout.footer.y - 20,
+      "",
+      textStyle(typeRole.body, surface.ink.hex),
+    );
   }
 
   /** Repositions (and shows/hides) the DOM-backed seed field to track the compact scroll region's current offset — called on every scroll change and once right after the field is (re)built, since a canvas mask can't clip a DOM element the way it clips everything else in the scrolled content. */
@@ -787,19 +1134,36 @@ export class TableSetupScene extends Phaser.Scene {
     const gap = 12;
     const slotWidth = (rect.width - gap * (slots - 1)) / slots;
     cards.forEach((card, index) => {
-      const cardRect: Rect = { x: rect.x + index * (slotWidth + gap), y: rect.y, width: slotWidth, height: rect.height };
+      const cardRect: Rect = {
+        x: rect.x + index * (slotWidth + gap),
+        y: rect.y,
+        width: slotWidth,
+        height: rect.height,
+      };
       const selected = this.#draft.difficulty === card.id;
       const onClick = (): void => {
         this.#draft = setDifficulty(this.#draft, card.id);
         this.#rebuild();
       };
-      this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: cardRect, onClick }));
+      this.#buttons.push(
+        new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: cardRect, onClick }),
+      );
       this.#stops.set(`difficulty:${card.id}`, { rect: cardRect, activate: onClick });
       this.#cardFrame(cardRect, selected);
-      const name = this.add.text(cardRect.x + 10, cardRect.y + 8, card.name, textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled));
+      const name = this.add.text(
+        cardRect.x + 10,
+        cardRect.y + 8,
+        card.name,
+        textStyle({ ...typeRole.sectionHeader, size: 18 }, surface.ink.hex, selected ? 1 : ink.disabled),
+      );
       fitText(name, cardRect.width - 20, 18);
       this.add
-        .text(cardRect.x + 10, cardRect.y + 8 + 22, card.description, textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled))
+        .text(
+          cardRect.x + 10,
+          cardRect.y + 8 + 22,
+          card.description,
+          textStyle(typeRole.body, surface.ink.hex, selected ? ink.secondary : ink.disabled),
+        )
         .setWordWrapWidth(cardRect.width - 20)
         .setMaxLines(Math.max(1, Math.floor((cardRect.height - 34) / 14)));
     });
@@ -809,23 +1173,41 @@ export class TableSetupScene extends Phaser.Scene {
   #cardFrame(rect: Rect, selected: boolean): void {
     const g = this.add.graphics();
     g.fillStyle(surface.card.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    if (selected) g.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
-    else g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
+    if (selected)
+      g.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
+    else
+      g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(
+        rect.x + 0.75,
+        rect.y + 0.75,
+        rect.width - 1.5,
+        rect.height - 1.5,
+      );
   }
 
   /** MODULAR SETS: the scenario's own required set(s) first (ink-filled, not toggleable), then every candidate — a grid at `layout.modularColumns` columns, whatever row height this form factor uses. */
-  #drawModularGrid(layout: TableSetupLayout, requiredSets: readonly RequiredEncounterSet[], options: readonly ModularSetOption[], scenario: Scenario): void {
+  #drawModularGrid(
+    layout: TableSetupLayout,
+    requiredSets: readonly RequiredEncounterSet[],
+    options: readonly ModularSetOption[],
+    scenario: Scenario,
+  ): void {
     const rect = layout.modularGrid;
     const columns = layout.modularColumns;
     const gap = layout.wide ? ROW_GAP : NARROW_MODULAR_GRID_GAP;
-    const cellHeight = layout.modularRows > 0 ? (rect.height - (layout.modularRows - 1) * gap) / layout.modularRows : rect.height;
+    const cellHeight =
+      layout.modularRows > 0 ? (rect.height - (layout.modularRows - 1) * gap) / layout.modularRows : rect.height;
     const cellWidth = (rect.width - (columns - 1) * gap) / columns;
     const villainName = scenarioDetailOf(scenario, CARDS_BY_ID, POOL_ENCOUNTER_SETS).villainName;
 
     const cellAt = (index: number): Rect => {
       const row = Math.floor(index / columns);
       const col = index % columns;
-      return { x: rect.x + col * (cellWidth + gap), y: rect.y + row * (cellHeight + gap), width: cellWidth, height: cellHeight };
+      return {
+        x: rect.x + col * (cellWidth + gap),
+        y: rect.y + row * (cellHeight + gap),
+        width: cellWidth,
+        height: cellHeight,
+      };
     };
 
     let index = 0;
@@ -854,9 +1236,20 @@ export class TableSetupScene extends Phaser.Scene {
   #drawRequiredModularCard(rect: Rect, required: RequiredEncounterSet, villainName: string): void {
     const g = this.add.graphics();
     g.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    const name = this.add.text(rect.x + 10, rect.y + 8, required.name, textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.paper.hex));
+    const name = this.add.text(
+      rect.x + 10,
+      rect.y + 8,
+      required.name,
+      textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.paper.hex),
+    );
     fitText(name, rect.width - 20, 15);
-    this.#drawModularCardLabel(rect, rect.y + 8 + name.height + 4, requiredCardLabel(villainName, required.cardCount).toUpperCase(), surface.paper.hex, ink.label);
+    this.#drawModularCardLabel(
+      rect,
+      rect.y + 8 + name.height + 4,
+      requiredCardLabel(villainName, required.cardCount).toUpperCase(),
+      surface.paper.hex,
+      ink.label,
+    );
   }
 
   /** A candidate modular set: white, chosen = 4px red border, available = dim border + dim text. Toggling replaces the current pick at the scenario's own cap (`toggleModularSet` enforces it). */
@@ -870,9 +1263,20 @@ export class TableSetupScene extends Phaser.Scene {
     this.#stops.set(`modular:${option.id}`, { rect, activate: onClick });
     this.#cardFrame(rect, option.selected);
     const dim = option.selected ? 1 : ink.disabled;
-    const name = this.add.text(rect.x + 10, rect.y + 8, option.name, textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.ink.hex, dim));
+    const name = this.add.text(
+      rect.x + 10,
+      rect.y + 8,
+      option.name,
+      textStyle({ ...typeRole.sectionHeader, size: 15 }, surface.ink.hex, dim),
+    );
     fitText(name, rect.width - 20, 15);
-    this.#drawModularCardLabel(rect, rect.y + 8 + name.height + 4, modularCardLabel(option).toUpperCase(), surface.ink.hex, option.selected ? ink.label : ink.disabled);
+    this.#drawModularCardLabel(
+      rect,
+      rect.y + 8 + name.height + 4,
+      modularCardLabel(option).toUpperCase(),
+      surface.ink.hex,
+      option.selected ? ink.label : ink.disabled,
+    );
   }
 
   /** One seat cell per seated deck — a radio dot (filled amber for the first player), the hero's name, and a small "FIRST PLAYER"/"SEAT N" label (wide/tablet portrait) or a compact "YOU"/"S2" chip (`chipLabel`, phone). */
@@ -882,7 +1286,10 @@ export class TableSetupScene extends Phaser.Scene {
       return {
         id: `${index}`,
         name: option?.identityName ?? "?",
-        meta: this.#draft.firstPlayerIndex === index || (this.#draft.firstPlayerIndex === null && index === 0) ? "First player" : `Seat ${index + 1}`,
+        meta:
+          this.#draft.firstPlayerIndex === index || (this.#draft.firstPlayerIndex === null && index === 0)
+            ? "First player"
+            : `Seat ${index + 1}`,
         chipLabel: index === 0 ? "YOU" : `S${index + 1}`,
         selected: this.#draft.firstPlayerIndex === index || (this.#draft.firstPlayerIndex === null && index === 0),
         onClick: () => {
@@ -899,12 +1306,24 @@ export class TableSetupScene extends Phaser.Scene {
     const count = cells.length + (includeRandom ? 1 : 0);
     const cellWidth = (rect.width - gap * (count - 1)) / count;
     cells.forEach((cell, index) => {
-      const cellRect: Rect = { x: rect.x + index * (cellWidth + gap), y: rect.y, width: cellWidth, height: rect.height };
-      this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: cellRect, onClick: cell.onClick }));
+      const cellRect: Rect = {
+        x: rect.x + index * (cellWidth + gap),
+        y: rect.y,
+        width: cellWidth,
+        height: rect.height,
+      };
+      this.#buttons.push(
+        new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: cellRect, onClick: cell.onClick }),
+      );
       this.#stops.set(`first-player:${cell.id}`, { rect: cellRect, activate: cell.onClick });
       const g = this.add.graphics();
       g.fillStyle(surface.card.hex, 1).fillRect(cellRect.x, cellRect.y, cellRect.width, cellRect.height);
-      g.lineStyle(1.5, surface.ink.hex, cell.selected ? 1 : ink.disabled).strokeRect(cellRect.x + 0.75, cellRect.y + 0.75, cellRect.width - 1.5, cellRect.height - 1.5);
+      g.lineStyle(1.5, surface.ink.hex, cell.selected ? 1 : ink.disabled).strokeRect(
+        cellRect.x + 0.75,
+        cellRect.y + 0.75,
+        cellRect.width - 1.5,
+        cellRect.height - 1.5,
+      );
 
       const dotSize = Math.min(16, cellRect.height * 0.28);
       const dotCx = cellRect.x + 10 + dotSize / 2;
@@ -915,18 +1334,41 @@ export class TableSetupScene extends Phaser.Scene {
 
       const textX = dotCx + dotSize / 2 + 8;
       const textWidth = cellRect.x + cellRect.width - textX - 6;
-      const name = this.add.text(textX, cellRect.y + cellRect.height * 0.34, cell.name, textStyle({ ...typeRole.sectionHeader, size: 14 }, surface.ink.hex));
+      const name = this.add.text(
+        textX,
+        cellRect.y + cellRect.height * 0.34,
+        cell.name,
+        textStyle({ ...typeRole.sectionHeader, size: 14 }, surface.ink.hex),
+      );
       fitText(name, textWidth, 14);
-      const meta = label(this, textX, cellRect.y + cellRect.height * 0.68, cell.meta, typeRole.label, surface.ink.hex, ink.label);
+      const meta = label(
+        this,
+        textX,
+        cellRect.y + cellRect.height * 0.68,
+        cell.meta,
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      );
       fitText(meta, textWidth, typeRole.label.size);
     });
     if (includeRandom) {
-      const randomRect: Rect = { x: rect.x + cells.length * (cellWidth + gap), y: rect.y, width: cellWidth, height: rect.height };
+      const randomRect: Rect = {
+        x: rect.x + cells.length * (cellWidth + gap),
+        y: rect.y,
+        width: cellWidth,
+        height: rect.height,
+      };
       const roll = (): void => {
-        this.#draft = setFirstPlayerIndex(this.#draft, rollFirstPlayerIndex(this.#draft.seed, this.#draft.seats.length));
+        this.#draft = setFirstPlayerIndex(
+          this.#draft,
+          rollFirstPlayerIndex(this.#draft.seed, this.#draft.seats.length),
+        );
         this.#rebuild();
       };
-      this.#buttons.push(new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: randomRect, onClick: roll }));
+      this.#buttons.push(
+        new McButton(this, { kind: "quiet", label: "", type: typeRole.label, rect: randomRect, onClick: roll }),
+      );
       this.#stops.set("first-player:random", { rect: randomRect, activate: roll });
       // Covers the "quiet" button's own default paper fill (theme.ts's `skin("quiet","rest")`, correct on the
       // wide layout's paper body but wrong here) with the page's own ink ground, so the dashed outline reads as
@@ -935,16 +1377,34 @@ export class TableSetupScene extends Phaser.Scene {
       ground.fillStyle(surface.ink.hex, 1).fillRect(randomRect.x, randomRect.y, randomRect.width, randomRect.height);
       const dash = this.add.graphics();
       dashedRect(dash, randomRect, 1.5, bodyColor);
-      const text = this.add.text(randomRect.x + randomRect.width / 2, randomRect.y + randomRect.height / 2, "Random", textStyle(typeRole.label, bodyColor, ink.label)).setOrigin(0.5);
+      const text = this.add
+        .text(
+          randomRect.x + randomRect.width / 2,
+          randomRect.y + randomRect.height / 2,
+          "Random",
+          textStyle(typeRole.label, bodyColor, ink.label),
+        )
+        .setOrigin(0.5);
       fitText(text, randomRect.width - 10, typeRole.label.size);
     }
   }
 
   /** "THE ENCOUNTER DECK YOU'RE BUILDING": Composition (obligations row in red) / What's in there / a parchment Nemesis panel. */
-  #drawEncounterPanels(layout: TableSetupLayout, composition: readonly CompositionRow[], whatsInThere: readonly CompositionRow[], nemesis: NemesisStandby | null): void {
+  #drawEncounterPanels(
+    layout: TableSetupLayout,
+    composition: readonly CompositionRow[],
+    whatsInThere: readonly CompositionRow[],
+    nemesis: NemesisStandby | null,
+  ): void {
     const [compBudget, witBudget, nemBudget] = layout.encounterPanels.rowBudgets;
     this.#drawListPanel(layout.encounterPanels.composition, "Composition", composition, compBudget, surface.card.hex);
-    this.#drawListPanel(layout.encounterPanels.whatsInThere, "What's in there", whatsInThere, witBudget, surface.card.hex);
+    this.#drawListPanel(
+      layout.encounterPanels.whatsInThere,
+      "What's in there",
+      whatsInThere,
+      witBudget,
+      surface.card.hex,
+    );
     this.#drawNemesisPanel(layout.encounterPanels.nemesis, nemesis, nemBudget);
   }
 
@@ -955,15 +1415,25 @@ export class TableSetupScene extends Phaser.Scene {
     if (rect.height < PANEL_HEADER_HEIGHT + 4) return;
     const g = this.add.graphics();
     g.fillStyle(ground, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
+    g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(
+      rect.x + 0.75,
+      rect.y + 0.75,
+      rect.width - 1.5,
+      rect.height - 1.5,
+    );
     label(this, rect.x + 10, rect.y + 8, title, typeRole.label, surface.ink.hex, ink.label);
     let y = rect.y + PANEL_HEADER_HEIGHT + 4;
     const shown = rows.slice(0, rowBudget);
     for (const row of shown) {
       const color = row.red ? accent.heroRed.hex : surface.ink.hex;
-      const rowLabel = this.add.text(rect.x + 10, y, row.label, textStyle(typeRole.body, color)).setWordWrapWidth(rect.width - 60).setMaxLines(1);
+      const rowLabel = this.add
+        .text(rect.x + 10, y, row.label, textStyle(typeRole.body, color))
+        .setWordWrapWidth(rect.width - 60)
+        .setMaxLines(1);
       fitText(rowLabel, rect.width - 60, typeRole.body.size);
-      this.add.text(rect.x + rect.width - 10, y, String(row.count), textStyle({ ...typeRole.emphasis, weight: 700 }, color)).setOrigin(1, 0);
+      this.add
+        .text(rect.x + rect.width - 10, y, String(row.count), textStyle({ ...typeRole.emphasis, weight: 700 }, color))
+        .setOrigin(1, 0);
       y += PANEL_ROW_HEIGHT;
     }
     const hidden = rows.length - shown.length;
@@ -976,23 +1446,48 @@ export class TableSetupScene extends Phaser.Scene {
     if (rect.height < PANEL_HEADER_HEIGHT + 4) return;
     const g = this.add.graphics();
     g.fillStyle(surface.parchment.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
-    g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
+    g.lineStyle(1.5, surface.ink.hex, ink.disabled).strokeRect(
+      rect.x + 0.75,
+      rect.y + 0.75,
+      rect.width - 1.5,
+      rect.height - 1.5,
+    );
     label(this, rect.x + 10, rect.y + 8, "Nemesis sets held back", typeRole.label, surface.ink.hex, ink.label);
     if (!nemesis) {
       if (lineBudget > 0) {
-        this.add.text(rect.x + 10, rect.y + PANEL_HEADER_HEIGHT + 4, "Not used for this scenario.", textStyle(typeRole.body, surface.ink.hex, ink.meta)).setWordWrapWidth(rect.width - 20);
+        this.add
+          .text(
+            rect.x + 10,
+            rect.y + PANEL_HEADER_HEIGHT + 4,
+            "Not used for this scenario.",
+            textStyle(typeRole.body, surface.ink.hex, ink.meta),
+          )
+          .setWordWrapWidth(rect.width - 20);
       }
       return;
     }
     if (lineBudget > 1) {
       this.add
-        .text(rect.x + 10, rect.y + PANEL_HEADER_HEIGHT + 4, nemesis.sentence, textStyle(typeRole.body, surface.ink.hex))
+        .text(
+          rect.x + 10,
+          rect.y + PANEL_HEADER_HEIGHT + 4,
+          nemesis.sentence,
+          textStyle(typeRole.body, surface.ink.hex),
+        )
         .setWordWrapWidth(rect.width - 20)
         .setMaxLines(Math.max(1, lineBudget - 1));
     }
     const footY = rect.y + rect.height - PANEL_PAD - 12;
     if (footY > rect.y + PANEL_HEADER_HEIGHT + 4) {
-      label(this, rect.x + 10, footY, `${nemesis.totalCards} cards on standby`, typeRole.label, surface.ink.hex, ink.label);
+      label(
+        this,
+        rect.x + 10,
+        footY,
+        `${nemesis.totalCards} cards on standby`,
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      );
     }
   }
 
@@ -1003,7 +1498,9 @@ export class TableSetupScene extends Phaser.Scene {
       const y = rect.y + index * PANEL_ROW_HEIGHT;
       if (y + PANEL_ROW_HEIGHT > rect.y + rect.height + 0.01) return;
       label(this, rect.x, y + 2, row.label, typeRole.label, surface.paper.hex, ink.label);
-      const value = this.add.text(rect.x + rect.width, y, row.value, textStyle({ ...typeRole.emphasis, weight: 700 }, surface.paper.hex)).setOrigin(1, 0);
+      const value = this.add
+        .text(rect.x + rect.width, y, row.value, textStyle({ ...typeRole.emphasis, weight: 700 }, surface.paper.hex))
+        .setOrigin(1, 0);
       fitText(value, rect.width * 0.6, typeRole.emphasis.size);
     });
   }
@@ -1028,7 +1525,7 @@ export class TableSetupScene extends Phaser.Scene {
         const seat = setupError.illegalDecks[0];
         const deckId = seat ? this.#draft.seats[seat.seatIndex] : undefined;
         this.scale.off("resize", this.#rebuild, this);
-        this.scene.start(SCENES.decks, {
+        goToScreen(this, SCENES.decks, {
           focusDeckId: deckId ?? null,
           message: seat?.problems[0]?.message ?? store.state.error ?? "This deck is not legal.",
         } satisfies DecksSceneData);
@@ -1040,6 +1537,6 @@ export class TableSetupScene extends Phaser.Scene {
     this.scale.off("resize", this.#rebuild, this);
     // W3 (docs/phase4-screen-gaps.md §3): "Deal it out" routes through the dedicated setup deal & mulligan screen,
     // never straight to the Board — that scene hands off to the Board itself once `state.step.phase` leaves "setup".
-    this.scene.start(SCENES.setupDeal);
+    goToScreen(this, SCENES.setupDeal);
   }
 }

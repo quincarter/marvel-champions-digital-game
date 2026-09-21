@@ -13,7 +13,8 @@ export const WINTER_CURATION: PackCuration = {
   pack: {
     name: "Winter Soldier",
     releaseDate: "2025-06-20",
-    releaseDateSource: "Hall of Heroes Winter Soldier page (https://hallofheroeslcg.com/winter-soldier-bucky-barnes/): \"Release date: June 20, 2025\"",
+    releaseDateSource:
+      'Hall of Heroes Winter Soldier page (https://hallofheroeslcg.com/winter-soldier-bucky-barnes/): "Release date: June 20, 2025"',
   },
   outDir: "src/data/winter",
   exportPrefix: "WINTER",

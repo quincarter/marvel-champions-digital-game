@@ -28,28 +28,51 @@ const theVillain = { kind: "villain" } as const;
 const copies = (id: CardId, n: number): readonly CardId[] => Array.from({ length: n }, () => id);
 
 const VILLAIN = stubVillain({ id: "boss", stages: [{ hp: flat(30), atk: 1, sch: 1 }] });
-const SCHEME = stubMainScheme({ id: "calm", stages: [{ startingThreat: flat(0), targetThreat: flat(50), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "calm",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(50), acceleration: flat(0) }],
+});
 
-const boost = (id: string, effects: readonly EffectSpec[]): StubAbility => stubAbility(`${id}.boost`, { trigger: { kind: "boost" }, effects });
+const boost = (id: string, effects: readonly EffectSpec[]): StubAbility =>
+  stubAbility(`${id}.boost`, { trigger: { kind: "boost" }, effects });
 const BOOSTED = boost("two", [{ kind: "addCounters", target: theVillain, counterType: "boosted", amount: one }]);
 const TWO = stubTreachery({ id: "two", boostIcons: 2, abilities: [BOOSTED.ref] });
 const ZERO = stubTreachery({ id: "zero", boostIcons: 0 });
 /** Goblin Knight: "Boost: After this activation ends, shuffle this card into the encounter deck." */
-const KNIGHT_BOOST = boost("knight", [{ kind: "atEndOfActivation", effects: [{ kind: "moveCards", cards: { kind: "ref", ref: self }, to: "encounterDeckShuffle" }] }]);
+const KNIGHT_BOOST = boost("knight", [
+  {
+    kind: "atEndOfActivation",
+    effects: [{ kind: "moveCards", cards: { kind: "ref", ref: self }, to: "encounterDeckShuffle" }],
+  },
+]);
 const KNIGHT = stubTreachery({ id: "knight", boostIcons: 1, abilities: [KNIGHT_BOOST.ref] });
 /** Goblin Thrall: "Boost: Put Goblin Thrall into play engaged with you." */
 const THRALL_BOOST = boost("thrall", [{ kind: "putIntoPlay", card: self, controller: { kind: "controller" } }]);
 const THRALL = stubMinion({ id: "thrall", atk: 1, sch: 1, hp: 5, boostIcons: 1, abilities: [THRALL_BOOST.ref] });
 /** I See You's shape: "This card gets +1 boost icon if [the first player is in hero form]." */
 const SEES_CONSTANT = stubAbility("sees.constant", {
-  trigger: { kind: "constant", modifiers: [{ stat: "boostIcons", amount: 1, target: { self: true }, while: { kind: "form", player: { kind: "firstPlayer" }, form: "hero" } }] },
+  trigger: {
+    kind: "constant",
+    modifiers: [
+      {
+        stat: "boostIcons",
+        amount: 1,
+        target: { self: true },
+        while: { kind: "form", player: { kind: "firstPlayer" }, form: "hero" },
+      },
+    ],
+  },
   effects: [],
 });
 const SEES = stubTreachery({ id: "sees", boostIcons: 1, abilities: [SEES_CONSTANT.ref] });
 
 /** Attacrobatics' shape: "When a boost card is turned faceup [while the villain attacks], cancel the boost icons on that card. Deal 1 damage to the villain for each boost icon canceled this way." */
 const ACRO_INTERRUPT = stubAbility("acro.interrupt", {
-  trigger: { kind: "interrupt", forced: true, on: { on: "boostCardTurnedFaceup", activation: "attack", eventAtLeast: { boostIcons: 1 } } },
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "boostCardTurnedFaceup", activation: "attack", eventAtLeast: { boostIcons: 1 } },
+  },
   effects: [
     { kind: "cancelBoostIcons", bind: "cancelled" },
     { kind: "dealDamage", target: theVillain, amount: { kind: "var", name: "cancelled.amount" } },
@@ -58,7 +81,11 @@ const ACRO_INTERRUPT = stubAbility("acro.interrupt", {
 const ACRO = stubSupport({ id: "acro", cost: 0, abilities: [ACRO_INTERRUPT.ref] });
 /** Foiled!'s shape: cancel the icons "during a scheme activation". */
 const FOIL_INTERRUPT = stubAbility("foil.interrupt", {
-  trigger: { kind: "interrupt", forced: true, on: { on: "boostCardTurnedFaceup", activation: "scheme", eventAtLeast: { boostIcons: 1 } } },
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "boostCardTurnedFaceup", activation: "scheme", eventAtLeast: { boostIcons: 1 } },
+  },
   effects: [{ kind: "cancelBoostIcons" }],
 });
 const FOIL = stubSupport({ id: "foil", cost: 0, abilities: [FOIL_INTERRUPT.ref] });
@@ -69,7 +96,15 @@ const TARGET_RESPONSE = stubAbility("target.response", {
 });
 const TARGET = stubSupport({ id: "target", cost: 0, abilities: [TARGET_RESPONSE.ref] });
 
-const deps: EngineDeps = depsOf(BOOSTED, KNIGHT_BOOST, THRALL_BOOST, SEES_CONSTANT, ACRO_INTERRUPT, FOIL_INTERRUPT, TARGET_RESPONSE);
+const deps: EngineDeps = depsOf(
+  BOOSTED,
+  KNIGHT_BOOST,
+  THRALL_BOOST,
+  SEES_CONSTANT,
+  ACRO_INTERRUPT,
+  FOIL_INTERRUPT,
+  TARGET_RESPONSE,
+);
 const SUPPORTS: readonly AnyCard[] = [ACRO, FOIL, TARGET];
 
 /** p1's first turn; `top` is the first encounter card (the villain's first boost card), `supports` are in p1's play area. */
@@ -88,7 +123,13 @@ function game(top: AnyCard, supports: readonly AnyCard[] = []): GameState {
   let state = withEncounterPiles(start, { deck: [topId, ...deck.filter((id) => id !== topId)] });
   for (const card of supports) {
     const given = giveCard(state, p1, card.id);
-    state = runCommands(given.state, deps, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null }).state;
+    state = runCommands(given.state, deps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.id,
+      payment: [],
+      attachToInstanceId: null,
+    }).state;
   }
   return state;
 }
@@ -96,16 +137,21 @@ function game(top: AnyCard, supports: readonly AnyCard[] = []): GameState {
 const toHero: Command = { type: "changeForm", playerId: p1 };
 const endTurn: Command = { type: "endTurn", playerId: p1 };
 const villainId = (state: GameState) => activeVillain(state).instanceId;
-const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) => events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
-const villainAttack = (events: readonly GameEvent[], villain: InstanceId) => ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain);
-const villainThreat = (events: readonly GameEvent[], villain: InstanceId) => ofType(events, "threatPlaced").filter((e) => e.sourceInstanceId === villain);
+const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
+  events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
+const villainAttack = (events: readonly GameEvent[], villain: InstanceId) =>
+  ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain);
+const villainThreat = (events: readonly GameEvent[], villain: InstanceId) =>
+  ofType(events, "threatPlaced").filter((e) => e.sourceInstanceId === villain);
 const cardIdOf = (state: GameState, id: InstanceId) => state.instances[id]?.cardId;
 
 describe("§3.9 boost cards as events", () => {
   it("'When a boost card is turned faceup': cancelling its icons counts them for the ability, and its Boost ability still resolves", () => {
     const { state, events } = runCommands(game(TWO, [ACRO]), deps, toHero, endTurn);
     const villain = villainId(state);
-    expect(villainAttack(events, villain)).toEqual([expect.objectContaining({ baseAtk: 1, boostIcons: 0, damageDealt: 1 })]);
+    expect(villainAttack(events, villain)).toEqual([
+      expect.objectContaining({ baseAtk: 1, boostIcons: 0, damageDealt: 1 }),
+    ]);
     expect(mustInstance(state, villain).damage).toBe(2);
     expect(mustInstance(state, villain).counters.boosted).toBe(1);
     expect(ofType(events, "boostCancelled")).toEqual([expect.objectContaining({ scope: "icons" })]);
@@ -121,7 +167,9 @@ describe("§3.9 boost cards as events", () => {
     const scheming = runCommands(game(TWO, [FOIL]), deps, endTurn);
     expect(villainThreat(scheming.events, villainId(scheming.state))).toEqual([expect.objectContaining({ amount: 1 })]);
     const attacking = runCommands(game(TWO, [FOIL]), deps, toHero, endTurn);
-    expect(villainAttack(attacking.events, villainId(attacking.state))).toEqual([expect.objectContaining({ boostIcons: 2 })]);
+    expect(villainAttack(attacking.events, villainId(attacking.state))).toEqual([
+      expect.objectContaining({ boostIcons: 2 }),
+    ]);
   });
 
   it("'After a boost card is turned faceup … cancel that card's boost ability': its icons still count", () => {
@@ -137,7 +185,9 @@ describe("§3.9 boost cards as events", () => {
     const boostId = ofType(events, "boostCardFlipped")[0]?.instanceId as InstanceId;
     expect(cardIdOf(state, boostId)).toBe(TWO.id);
     const resolved = events.findIndex((e) => e.type === "counterAdded" && e.counterType === "boosted");
-    const discarded = events.findIndex((e) => e.type === "cardMoved" && e.instanceId === boostId && e.to.kind === "encounterDiscard");
+    const discarded = events.findIndex(
+      (e) => e.type === "cardMoved" && e.instanceId === boostId && e.to.kind === "encounterDiscard",
+    );
     expect(resolved).toBeGreaterThanOrEqual(0);
     expect(resolved).toBeLessThan(discarded);
   });
@@ -145,21 +195,33 @@ describe("§3.9 boost cards as events", () => {
   it("'After this activation ends, shuffle this card into the encounter deck' runs after the activation's responses", () => {
     const { state, events } = runCommands(game(KNIGHT), deps, toHero, endTurn);
     const villain = villainId(state);
-    const knight = ofType(events, "boostCardFlipped").find((e) => cardIdOf(state, e.instanceId) === KNIGHT.id)?.instanceId as InstanceId;
-    const attackResolved = events.findIndex((e) => e.type === "triggerEvent" && e.phase === "resolved" && e.event.kind === "enemyAttack" && e.event.enemyInstanceId === villain);
-    const shuffledIn = events.findIndex((e) => e.type === "cardMoved" && e.instanceId === knight && e.to.kind === "encounterDeck");
+    const knight = ofType(events, "boostCardFlipped").find((e) => cardIdOf(state, e.instanceId) === KNIGHT.id)
+      ?.instanceId as InstanceId;
+    const attackResolved = events.findIndex(
+      (e) =>
+        e.type === "triggerEvent" &&
+        e.phase === "resolved" &&
+        e.event.kind === "enemyAttack" &&
+        e.event.enemyInstanceId === villain,
+    );
+    const shuffledIn = events.findIndex(
+      (e) => e.type === "cardMoved" && e.instanceId === knight && e.to.kind === "encounterDeck",
+    );
     expect(attackResolved).toBeGreaterThanOrEqual(0);
     expect(shuffledIn).toBeGreaterThan(attackResolved);
   });
 
   it("a boost that puts its own minion into play engages it, and it activates in the same step (Green Goblin insert)", () => {
     const { state, events, session } = runCommands(game(THRALL), deps, toHero, endTurn);
-    const thrall = ofType(events, "boostCardFlipped").find((e) => cardIdOf(state, e.instanceId) === THRALL.id)?.instanceId as InstanceId;
+    const thrall = ofType(events, "boostCardFlipped").find((e) => cardIdOf(state, e.instanceId) === THRALL.id)
+      ?.instanceId as InstanceId;
     expect(mustPlayer(state, p1).playArea).toContain(thrall);
     expect(ofType(events, "enemyActivated").filter((e) => e.enemyInstanceId === thrall)).toEqual([
       { type: "enemyActivated", enemyInstanceId: thrall, activation: "attack", playerId: p1 },
     ]);
-    expect(events.some((e) => e.type === "cardMoved" && e.instanceId === thrall && e.to.kind === "encounterDiscard")).toBe(false);
+    expect(
+      events.some((e) => e.type === "cardMoved" && e.instanceId === thrall && e.to.kind === "encounterDiscard"),
+    ).toBe(false);
     // Its icon still counted for the villain's attack.
     expect(villainAttack(events, villainId(state))).toEqual([expect.objectContaining({ boostIcons: 1 })]);
     expect(auditVillainPhases(session.log, deps).violations).toEqual([]);

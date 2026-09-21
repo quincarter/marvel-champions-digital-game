@@ -26,25 +26,57 @@ export interface TargetingHover {
   setHovered(id: InstanceId | null): void;
 }
 
-export function drawTargetingPanel(ctx: BoardDrawContext, viewport: Rect, panel: TargetingPanel, hover: TargetingHover, focused: InstanceId | null): void {
+export function drawTargetingPanel(
+  ctx: BoardDrawContext,
+  viewport: Rect,
+  panel: TargetingPanel,
+  hover: TargetingHover,
+  focused: InstanceId | null,
+): void {
   const { scene } = ctx;
   const layout = targetingLayout(viewport, panel.options.length);
 
   // The scrim: dims the table without hiding it — legible, not blacked out.
-  scene.add.graphics().fillStyle(surface.ink.hex, 0.62).fillRect(viewport.x, viewport.y, viewport.width, viewport.height);
+  scene.add
+    .graphics()
+    .fillStyle(surface.ink.hex, 0.62)
+    .fillRect(viewport.x, viewport.y, viewport.width, viewport.height);
 
   drawTitleBar(ctx, layout.titleBar, layout.cancelButton, panel);
 
   scene.add
-    .text(layout.heading.x, layout.heading.y, `${panel.options.length} LEGAL TARGET${panel.options.length === 1 ? "" : "S"}`, textStyle(typeRole.label, surface.paper.hex))
+    .text(
+      layout.heading.x,
+      layout.heading.y,
+      `${panel.options.length} LEGAL TARGET${panel.options.length === 1 ? "" : "S"}`,
+      textStyle(typeRole.label, surface.paper.hex),
+    )
     .setLetterSpacing(1.2);
-  scene.add.graphics().fillStyle(surface.paper.hex, 0.4).fillRect(layout.heading.x + 200, layout.heading.y + layout.heading.height / 2, Math.max(0, layout.heading.width - 200), border.detail);
+  scene.add
+    .graphics()
+    .fillStyle(surface.paper.hex, 0.4)
+    .fillRect(
+      layout.heading.x + 200,
+      layout.heading.y + layout.heading.height / 2,
+      Math.max(0, layout.heading.width - 200),
+      border.detail,
+    );
 
   const wide = layout.formFactor === "desktop" || layout.formFactor === "tabletLandscape";
   panel.options.forEach((option, index) => {
     const tile: Rect = wide
-      ? { x: layout.targets.x + index * (layout.tileSize.width + TARGETING_GAP), y: layout.targets.y, width: layout.tileSize.width, height: layout.tileSize.height }
-      : { x: layout.targets.x, y: layout.targets.y + index * (layout.tileSize.height + TARGETING_GAP), width: layout.tileSize.width, height: layout.tileSize.height };
+      ? {
+          x: layout.targets.x + index * (layout.tileSize.width + TARGETING_GAP),
+          y: layout.targets.y,
+          width: layout.tileSize.width,
+          height: layout.tileSize.height,
+        }
+      : {
+          x: layout.targets.x,
+          y: layout.targets.y + index * (layout.tileSize.height + TARGETING_GAP),
+          width: layout.tileSize.width,
+          height: layout.tileSize.height,
+        };
     drawTargetTile(ctx, tile, option, hover.hoveredId === option.instanceId || focused === option.instanceId, hover);
   });
 
@@ -94,7 +126,13 @@ function drawTitleBar(ctx: BoardDrawContext, bar: Rect, cancelRect: Rect, panel:
  * legal choice — the pulsing ring (`BoardScene#drawTargetRings`, keyed off the same `hitRects` this sets) is what
  * marks "awaiting your tap" on top of it.
  */
-function drawTargetTile(ctx: BoardDrawContext, rect: Rect, option: TargetOption, active: boolean, hover: TargetingHover): void {
+function drawTargetTile(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  option: TargetOption,
+  active: boolean,
+  hover: TargetingHover,
+): void {
   const { scene } = ctx;
   if (rect.width <= 0 || rect.height <= 0) return;
   paintPanel(scene.add.graphics(), rect, "card", "selected");
@@ -102,13 +140,32 @@ function drawTargetTile(ctx: BoardDrawContext, rect: Rect, option: TargetOption,
   const pad = 8;
   const artHeight = Math.max(0, Math.min(rect.height * 0.48, rect.width * 1.05));
   if (artHeight > 24) {
-    const artRect: Rect = { x: rect.x + border.object, y: rect.y + border.object, width: rect.width - border.object * 2, height: artHeight - border.object };
+    const artRect: Rect = {
+      x: rect.x + border.object,
+      y: rect.y + border.object,
+      width: rect.width - border.object * 2,
+      height: artHeight - border.object,
+    };
     const key = ctx.art.request(scene, option.art);
     if (!drawArt(scene, key, artRect, { fit: "cover" })) {
-      scene.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
-      label(scene, artRect.x + artRect.width / 2, artRect.y + artRect.height / 2, "art", typeRole.label, surface.ink.hex, ink.meta).setOrigin(0.5);
+      scene.add
+        .graphics()
+        .fillStyle(surface.parchment.hex, 1)
+        .fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
+      label(
+        scene,
+        artRect.x + artRect.width / 2,
+        artRect.y + artRect.height / 2,
+        "art",
+        typeRole.label,
+        surface.ink.hex,
+        ink.meta,
+      ).setOrigin(0.5);
     }
-    scene.add.graphics().fillStyle(surface.ink.hex, 1).fillRect(artRect.x, artRect.y + artRect.height, artRect.width, border.detail);
+    scene.add
+      .graphics()
+      .fillStyle(surface.ink.hex, 1)
+      .fillRect(artRect.x, artRect.y + artRect.height, artRect.width, border.detail);
   }
 
   const captionTop = artHeight > 24 ? rect.y + artHeight + 6 : rect.y + pad;
@@ -128,9 +185,17 @@ function drawTargetTile(ctx: BoardDrawContext, rect: Rect, option: TargetOption,
   }
 
   if (active) {
-    scene.add.graphics().fillStyle(surface.ink.hex, 0.25).fillRect(rect.x + border.object, rect.y + rect.height - pad - 26, rect.width - border.object * 2, 22);
     scene.add
-      .text(rect.x + pad, rect.y + rect.height - pad - 22, option.confirmLine, textStyle(typeRole.label, accent.heroRed.hex))
+      .graphics()
+      .fillStyle(surface.ink.hex, 0.25)
+      .fillRect(rect.x + border.object, rect.y + rect.height - pad - 26, rect.width - border.object * 2, 22);
+    scene.add
+      .text(
+        rect.x + pad,
+        rect.y + rect.height - pad - 22,
+        option.confirmLine,
+        textStyle(typeRole.label, accent.heroRed.hex),
+      )
       .setWordWrapWidth(rect.width - pad * 2)
       .setMaxLines(1);
   }
@@ -138,7 +203,10 @@ function drawTargetTile(ctx: BoardDrawContext, rect: Rect, option: TargetOption,
   ctx.frame.hitRects.set(option.instanceId, rect);
   ctx.frame.focusRects.set(focusKey({ kind: "card", instanceId: option.instanceId }), rect);
 
-  const zone = scene.add.zone(rect.x, rect.y, rect.width, rect.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+  const zone = scene.add
+    .zone(rect.x, rect.y, rect.width, rect.height)
+    .setOrigin(0, 0)
+    .setInteractive({ useHandCursor: true });
   zone.on("pointerover", () => hover.setHovered(option.instanceId));
   zone.on("pointerout", () => {
     if (hover.hoveredId === option.instanceId) hover.setHovered(null);
@@ -159,13 +227,21 @@ function drawExcludedPanel(ctx: BoardDrawContext, rect: Rect, groups: readonly E
   const { scene } = ctx;
   if (rect.width <= 0 || rect.height <= 0) return;
   const pad = 12;
-  const title = scene.add.text(rect.x + pad, rect.y + pad, "WHY NOT THE OTHERS?", textStyle(typeRole.rowTitle, surface.paper.hex)).setLetterSpacing(1).setDepth(1);
+  const title = scene.add
+    .text(rect.x + pad, rect.y + pad, "WHY NOT THE OTHERS?", textStyle(typeRole.rowTitle, surface.paper.hex))
+    .setLetterSpacing(1)
+    .setDepth(1);
 
   let y = title.y + title.height + 10;
   const bottom = rect.y + rect.height - 8;
   if (groups.length === 0) {
     const line = scene.add
-      .text(rect.x + pad, y, "Nothing else in play was excluded.", textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+      .text(
+        rect.x + pad,
+        y,
+        "Nothing else in play was excluded.",
+        textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+      )
       .setWordWrapWidth(rect.width - pad * 2)
       .setDepth(1);
     y = line.y + line.height;
@@ -173,7 +249,12 @@ function drawExcludedPanel(ctx: BoardDrawContext, rect: Rect, groups: readonly E
     for (const group of groups) {
       if (y >= bottom - 14) break;
       const line = scene.add
-        .text(rect.x + pad, y, `${group.names.join(", ")} — ${group.label}`, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+        .text(
+          rect.x + pad,
+          y,
+          `${group.names.join(", ")} — ${group.label}`,
+          textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+        )
         .setWordWrapWidth(rect.width - pad * 2)
         .setDepth(1);
       y += line.height + 8;
@@ -190,13 +271,18 @@ function drawInspectorRail(ctx: BoardDrawContext, rect: Rect, source: TargetingP
   if (rect.width <= 0 || rect.height <= 0) return;
   paintPanel(scene.add.graphics(), rect, "onInk", "rest");
   const pad = 12;
-  scene.add.text(rect.x + pad, rect.y + pad, "INSPECTOR", textStyle(typeRole.rowTitle, surface.paper.hex)).setLetterSpacing(1);
+  scene.add
+    .text(rect.x + pad, rect.y + pad, "INSPECTOR", textStyle(typeRole.rowTitle, surface.paper.hex))
+    .setLetterSpacing(1);
 
   const artHeight = Math.min(rect.height * 0.4, rect.width * 1.2);
   const artRect: Rect = { x: rect.x + pad, y: rect.y + pad + 24, width: rect.width - pad * 2, height: artHeight };
   const key = ctx.art.request(scene, source.art);
   if (!drawArt(scene, key, artRect, { fit: "contain" })) {
-    scene.add.graphics().fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
+    scene.add
+      .graphics()
+      .fillStyle(surface.parchment.hex, 1)
+      .fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
   }
 
   const name = scene.add
@@ -205,10 +291,23 @@ function drawInspectorRail(ctx: BoardDrawContext, rect: Rect, source: TargetingP
     .setMaxLines(2);
 
   const openHint = scene.add
-    .text(rect.x + pad, name.y + name.height + 12, "Tap to read the full card ▸", textStyle(typeRole.label, surface.paper.hex, ink.secondary))
+    .text(
+      rect.x + pad,
+      name.y + name.height + 12,
+      "Tap to read the full card ▸",
+      textStyle(typeRole.label, surface.paper.hex, ink.secondary),
+    )
     .setWordWrapWidth(rect.width - pad * 2);
 
-  const hitRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: Math.min(rect.height, openHint.y + openHint.height + pad - rect.y) };
-  const zone = scene.add.zone(hitRect.x, hitRect.y, hitRect.width, Math.max(hit.target, hitRect.height)).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+  const hitRect: Rect = {
+    x: rect.x,
+    y: rect.y,
+    width: rect.width,
+    height: Math.min(rect.height, openHint.y + openHint.height + pad - rect.y),
+  };
+  const zone = scene.add
+    .zone(hitRect.x, hitRect.y, hitRect.width, Math.max(hit.target, hitRect.height))
+    .setOrigin(0, 0)
+    .setInteractive({ useHandCursor: true });
   zone.on("pointerup", () => ctx.inspect(source.instanceId));
 }

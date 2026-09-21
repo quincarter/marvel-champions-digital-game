@@ -23,7 +23,13 @@ const rejected = (state: GameState, command: Command) => {
 };
 
 /** Plays a card, paying with `cost` other hand cards, and answers everything it opens. */
-function playAndSettle(state: GameState, player: PlayerId, card: InstanceId, cost: number, reserve: readonly InstanceId[] = []): GameState {
+function playAndSettle(
+  state: GameState,
+  player: PlayerId,
+  card: InstanceId,
+  cost: number,
+  reserve: readonly InstanceId[] = [],
+): GameState {
   const payment = playerOf(state, player)
     .hand.filter((id) => id !== card && !reserve.includes(id))
     .slice(0, cost);
@@ -31,7 +37,8 @@ function playAndSettle(state: GameState, player: PlayerId, card: InstanceId, cos
   return settle(run(state, play(player, card, payment)));
 }
 
-const passTo = (state: GameState, player: PlayerId): GameState => settle(run(settle(state), endTurn(P1), toHero(player)));
+const passTo = (state: GameState, player: PlayerId): GameState =>
+  settle(run(settle(state), endTurn(P1), toHero(player)));
 
 describe("RRG 'Unique Icon' with real Core content", () => {
   /** Puts one copy of `code` in each player's hand and plays p1's; returns the state on p2's turn. */
@@ -47,7 +54,9 @@ describe("RRG 'Unique Icon' with real Core content", () => {
 
   it("two players cannot each put Mockingbird into play (01083, subtitle 'Bobbi Morse')", () => {
     const { onP2Turn, p2Copy } = onePlayedEachInHand("01083", 3);
-    const payment = playerOf(onP2Turn, P2).hand.filter((id) => id !== p2Copy).slice(0, 3);
+    const payment = playerOf(onP2Turn, P2)
+      .hand.filter((id) => id !== p2Copy)
+      .slice(0, 3);
     const error = rejected(onP2Turn, play(P2, p2Copy, payment));
     expect(error.code).toBe("duplicate_unique_card");
     expect(error.message).toContain("Mockingbird (Bobbi Morse)");
@@ -56,7 +65,9 @@ describe("RRG 'Unique Icon' with real Core content", () => {
 
   it("two players cannot each put Nick Fury into play (01084, no subtitle — the bare-title branch)", () => {
     const { onP2Turn, p2Copy } = onePlayedEachInHand("01084", 4);
-    const payment = playerOf(onP2Turn, P2).hand.filter((id) => id !== p2Copy).slice(0, 4);
+    const payment = playerOf(onP2Turn, P2)
+      .hand.filter((id) => id !== p2Copy)
+      .slice(0, 4);
     const error = rejected(onP2Turn, play(P2, p2Copy, payment));
     expect(error.code).toBe("duplicate_unique_card");
     expect(error.message).toContain("Nick Fury");
@@ -73,7 +84,9 @@ describe("RRG 'Unique Icon' with real Core content", () => {
   });
 
   it("allies that only share a franchise still coexist: Black Panther/T'Challa beside the Shuri ally (01041)", () => {
-    const state = startCoreGame(coreScenario("rhino", { players: [{ starterDeckId: "core-black-panther-protection" }], seed: 3 }));
+    const state = startCoreGame(
+      coreScenario("rhino", { players: [{ starterDeckId: "core-black-panther-protection" }], seed: 3 }),
+    );
     const given = moveToHand(state, P1, "01041");
     const [shuri] = given.ids as [InstanceId];
     const after = playAndSettle(run(given.state, toHero(P1)), P1, shuri, 4);
@@ -91,7 +104,9 @@ describe("Make the Call (01071) and RRG 'Unique Icon'", () => {
     const seeded: GameState = {
       ...forP2.state,
       players: forP2.state.players.map((seat) =>
-        seat.playerId === P2 ? { ...seat, hand: seat.hand.filter((id) => id !== p2Fury), discard: [p2Fury, ...seat.discard] } : seat,
+        seat.playerId === P2
+          ? { ...seat, hand: seat.hand.filter((id) => id !== p2Fury), discard: [p2Fury, ...seat.discard] }
+          : seat,
       ),
     };
     return { seeded: run(seeded, toHero(P1)), fury, call, p2Fury };
@@ -124,7 +139,9 @@ describe("Make the Call (01071) and RRG 'Unique Icon'", () => {
 
   it("still works normally when nothing matches: the ally leaves the discard pile and enters play", () => {
     const { seeded, call, p2Fury } = table();
-    const payment = playerOf(seeded, P1).hand.filter((id) => id !== call).slice(0, 4);
+    const payment = playerOf(seeded, P1)
+      .hand.filter((id) => id !== call)
+      .slice(0, 4);
     const played = settle(run(seeded, play(P1, call, payment, { costChoices: { ally: [p2Fury] } })));
     expect(playerOf(played, P1).playArea).toContain(p2Fury);
     expect(playerOf(played, P2).discard).not.toContain(p2Fury);

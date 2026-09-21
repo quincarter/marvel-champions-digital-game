@@ -8,10 +8,11 @@ import { pickPicture, type Picture } from "./pictures.js";
 export { coverFit } from "./pictures.js";
 export type TitleArt = Picture;
 
-const files = import.meta.glob("../../../../art/title/*.{png,jpg,jpeg,webp,avif}", { eager: true, query: "?url", import: "default" }) as Record<
-  string,
-  string
->;
+const files = import.meta.glob("../../../../art/title/*.{png,jpg,jpeg,webp,avif}", {
+  eager: true,
+  query: "?url",
+  import: "default",
+}) as Record<string, string>;
 
 /** Every picture in `art/title/`, in a stable (path-sorted) order. */
 export const TITLE_ART: readonly TitleArt[] = Object.keys(files)

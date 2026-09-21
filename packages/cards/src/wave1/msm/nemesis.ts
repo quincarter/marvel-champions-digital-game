@@ -45,7 +45,13 @@ export const MSM_NEMESIS = defineAbilities({
   // single query's `trait` filter would apply to every category it lists (`categories: ["ally", "support"], trait:
   // PERSONA` would wrongly require allies to have the Persona trait too).
   "05026.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, moveCards(topOfDeck(sum(countOf(query("ally")), countOf(query("support", { trait: PERSONA }))), thatPlayer), "discard")),
+    forEachPlayer(
+      eachPlayer,
+      moveCards(
+        topOfDeck(sum(countOf(query("ally")), countOf(query("support", { trait: PERSONA }))), thatPlayer),
+        "discard",
+      ),
+    ),
   ),
 
   // Thomas Edison — Thomas Edison cannot take damage while you are engaged with another minion. (Ms. Marvel's
@@ -64,10 +70,11 @@ export const MSM_NEMESIS = defineAbilities({
   // Edison's Giant Robot — Hero Action: Spend a [mental] resource → until the end of the phase, treat this card's
   // printed text box as if it were blank. `blankTextBox` (engine `spec.ts`/`lasting.ts`) was landed with this exact
   // card named in its own doc comment; `dsl/effects.ts` has no builder sugar for it yet.
-  "05028.edisons-giant-robot-action": heroAction(
-    { cost: spend({ mental: 1 }) },
-    { kind: "blankTextBox", target: self, until: "endOfPhase" } as EffectSpec,
-  ),
+  "05028.edisons-giant-robot-action": heroAction({ cost: spend({ mental: 1 }) }, {
+    kind: "blankTextBox",
+    target: self,
+    until: "endOfPhase",
+  } as EffectSpec),
 
   // Harvest — When Revealed: Exhaust each Persona support in play. For each support exhausted this way, the
   // villain heals 1 damage. If no Persona support was exhausted this way, this card gains surge.

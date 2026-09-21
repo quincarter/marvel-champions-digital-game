@@ -9,12 +9,29 @@ import { type Ctx, emit, moveCard, nextInstanceId, updateInstance } from "../ctx
 import { discardFromPlay, giveStatus, setActiveVillain } from "../effects.js";
 import { gameAreaId, type GameAreaId, type InstanceId, type PlayerId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
-import { areaOfCard, discardZoneFor, getInstance, mainSchemeStageOf, mainSchemeValue, mustCard, mustInstance, playerOrder, villainOf } from "../query.js";
+import {
+  areaOfCard,
+  discardZoneFor,
+  getInstance,
+  mainSchemeStageOf,
+  mainSchemeValue,
+  mustCard,
+  mustInstance,
+  playerOrder,
+  villainOf,
+} from "../query.js";
 import { nextInt } from "../rng.js";
 import { cardsInPlay } from "../select.js";
 import type { EffectSpec } from "../spec.js";
 import type { StackFrame } from "../stack.js";
-import { NO_STATUSES, type CardInstance, type GameAreaState, type GameState, type MainSchemeState, type VillainState } from "../state.js";
+import {
+  NO_STATUSES,
+  type CardInstance,
+  type GameAreaState,
+  type GameState,
+  type MainSchemeState,
+  type VillainState,
+} from "../state.js";
 import { cardsMatch } from "../unique.js";
 import { base, eventFrame, gameAbilityFrames } from "./frames.js";
 
@@ -23,7 +40,10 @@ const setAreas = (ctx: Ctx, gameAreas: readonly GameAreaState[]): void => {
 };
 
 const updateArea = (ctx: Ctx, areaId: GameAreaId, update: (area: GameAreaState) => GameAreaState): void =>
-  setAreas(ctx, ctx.state.gameAreas.map((area) => (area.areaId === areaId ? update(area) : area)));
+  setAreas(
+    ctx,
+    ctx.state.gameAreas.map((area) => (area.areaId === areaId ? update(area) : area)),
+  );
 
 /** The first undefeated villain of an area's list, the one that takes its active counter when the current one leaves. */
 const nextAreaVillain = (state: GameState, area: GameAreaState, leaving: InstanceId): InstanceId | null =>
@@ -37,11 +57,18 @@ const nextAreaVillain = (state: GameState, area: GameAreaState, leaving: Instanc
  * its B-side When Revealed, then its starting threat, one player's reveal entirely before the next (RRG 1.8 "In Player
  * Order", p. 23). The pick is random among the stages of that number not yet spent, from the game's seeded RNG.
  */
-export function revealMainSchemeStages(ctx: Ctx, players: readonly PlayerId[], stageNumber: number, removeUnused: boolean): readonly StackFrame[] {
+export function revealMainSchemeStages(
+  ctx: Ctx,
+  players: readonly PlayerId[],
+  stageNumber: number,
+  removeUnused: boolean,
+): readonly StackFrame[] {
   const card = mustCard(ctx.state, ctx.state.mainScheme.cardId);
   if (card.type !== "main_scheme") return [];
   const available = (): number[] =>
-    card.stages.flatMap((stage, index) => (stage.stageNumber === stageNumber && !ctx.state.spentMainSchemeStages.includes(index) ? [index] : []));
+    card.stages.flatMap((stage, index) =>
+      stage.stageNumber === stageNumber && !ctx.state.spentMainSchemeStages.includes(index) ? [index] : [],
+    );
   const frames: StackFrame[] = [];
   for (const playerId of players) {
     const pool = available();
@@ -69,7 +96,13 @@ export function revealMainSchemeStages(ctx: Ctx, players: readonly PlayerId[], s
       engagedWith: null,
       flipped: false,
     };
-    const scheme: MainSchemeState = { instanceId: id, cardId: card.id, stageIndex, completed: false, accelerationTokens: 0 };
+    const scheme: MainSchemeState = {
+      instanceId: id,
+      cardId: card.id,
+      stageIndex,
+      completed: false,
+      accelerationTokens: 0,
+    };
     ctx.state = {
       ...ctx.state,
       rng,
@@ -82,7 +115,12 @@ export function revealMainSchemeStages(ctx: Ctx, players: readonly PlayerId[], s
     frames.push(
       ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, stage.aSide.abilities, playerId),
       ...gameAbilityFrames(ctx, id, ["whenRevealed"], null, stage.abilities, playerId),
-      eventFrame(ctx, { kind: "placeThreat", schemeInstanceId: id, amount: mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme), sourceInstanceId: null }),
+      eventFrame(ctx, {
+        kind: "placeThreat",
+        schemeInstanceId: id,
+        amount: mainSchemeValue(ctx.state, "startingThreat", ctx.deps, scheme),
+        sourceInstanceId: null,
+      }),
     );
   }
   if (removeUnused) {
@@ -104,11 +142,18 @@ export function removeMainSchemeStage(ctx: Ctx, schemeId: InstanceId): void {
   const scheme = area?.mainScheme ?? pending;
   if (!scheme) return;
   for (const attachment of [...mustInstance(ctx.state, schemeId).attachments]) discardFromPlay(ctx, attachment);
-  if (area) updateArea(ctx, area.areaId, (a) => ({ ...a, mainScheme: null, formerSchemeIds: [...a.formerSchemeIds, schemeId] }));
+  if (area)
+    updateArea(ctx, area.areaId, (a) => ({
+      ...a,
+      mainScheme: null,
+      formerSchemeIds: [...a.formerSchemeIds, schemeId],
+    }));
   ctx.state = {
     ...ctx.state,
     revealedMainSchemes: ctx.state.revealedMainSchemes.filter((s) => s.instanceId !== schemeId),
-    spentMainSchemeStages: ctx.state.spentMainSchemeStages.includes(scheme.stageIndex) ? ctx.state.spentMainSchemeStages : [...ctx.state.spentMainSchemeStages, scheme.stageIndex],
+    spentMainSchemeStages: ctx.state.spentMainSchemeStages.includes(scheme.stageIndex)
+      ? ctx.state.spentMainSchemeStages
+      : [...ctx.state.spentMainSchemeStages, scheme.stageIndex],
   };
   moveCard(ctx, schemeId, { kind: "removedFromGame" });
   emit(ctx, { type: "mainSchemeStageRemoved", schemeInstanceId: schemeId, stageIndex: scheme.stageIndex });
@@ -126,12 +171,23 @@ export function createGameArea(ctx: Ctx, schemeId: InstanceId, playerId: PlayerI
   const scheme = ctx.state.revealedMainSchemes.find((candidate) => candidate.instanceId === schemeId);
   if (!scheme) return;
   const areaId = gameAreaId(`a${ctx.state.nextGameAreaSeq}`);
-  const area: GameAreaState = { areaId, playerIds: [playerId], mainScheme: scheme, villainIds: [], activeVillainId: null, sideSchemeIds: [], formerSchemeIds: [] };
+  const area: GameAreaState = {
+    areaId,
+    playerIds: [playerId],
+    mainScheme: scheme,
+    villainIds: [],
+    activeVillainId: null,
+    sideSchemeIds: [],
+    formerSchemeIds: [],
+  };
   ctx.state = {
     ...ctx.state,
     nextGameAreaSeq: ctx.state.nextGameAreaSeq + 1,
     revealedMainSchemes: ctx.state.revealedMainSchemes.filter((candidate) => candidate.instanceId !== schemeId),
-    gameAreas: [...ctx.state.gameAreas.map((a) => ({ ...a, playerIds: a.playerIds.filter((id) => id !== playerId) })), area],
+    gameAreas: [
+      ...ctx.state.gameAreas.map((a) => ({ ...a, playerIds: a.playerIds.filter((id) => id !== playerId) })),
+      area,
+    ],
   };
   emit(ctx, { type: "gameAreaCreated", areaId, playerIds: [playerId], schemeInstanceId: schemeId });
 }
@@ -153,7 +209,8 @@ export function joinGameArea(ctx: Ctx, fromId: GameAreaId, intoId: GameAreaId | 
     // last area dissolves and everyone shares the central area again.
     setAreas(ctx, []);
     const [survivor] = movingVillains;
-    if (survivor && villainOf(ctx.state, ctx.state.activeVillainId)?.defeated !== false) setActiveVillain(ctx, survivor, "effect");
+    if (survivor && villainOf(ctx.state, ctx.state.activeVillainId)?.defeated !== false)
+      setActiveVillain(ctx, survivor, "effect");
   } else {
     setAreas(
       ctx,
@@ -192,16 +249,26 @@ function duplicateUniqueFrames(ctx: Ctx, areaId: GameAreaId | null): readonly St
     if (handled.has(id)) continue;
     const card = mustCard(ctx.state, mustInstance(ctx.state, id).cardId);
     if (!card.unique || card.type === "villain") continue;
-    const group = inArea.filter((other) => !handled.has(other) && cardsMatch(card, mustCard(ctx.state, mustInstance(ctx.state, other).cardId)));
+    const group = inArea.filter(
+      (other) => !handled.has(other) && cardsMatch(card, mustCard(ctx.state, mustInstance(ctx.state, other).cardId)),
+    );
     for (const member of group) handled.add(member);
     if (group.length < 2) continue;
-    const identities = group.filter((member) => mustCard(ctx.state, mustInstance(ctx.state, member).cardId).type === "hero_identity");
+    const identities = group.filter(
+      (member) => mustCard(ctx.state, mustInstance(ctx.state, member).cardId).type === "hero_identity",
+    );
     const discardable = group.filter((member) => !identities.includes(member));
     const count = identities.length > 0 ? discardable.length : discardable.length - 1;
     if (count <= 0) continue;
     const slot = `_duplicates${frames.length}`;
     const effects: readonly EffectSpec[] = [
-      { kind: "chooseTarget", slot: `${slot}.discard`, query: { inSlot: slot }, chooser: { kind: "firstPlayer" }, count },
+      {
+        kind: "chooseTarget",
+        slot: `${slot}.discard`,
+        query: { inSlot: slot },
+        chooser: { kind: "firstPlayer" },
+        count,
+      },
       { kind: "discardFromPlay", target: { kind: "slot", slot: `${slot}.discard` } },
     ];
     frames.push({
@@ -229,7 +296,13 @@ function duplicateUniqueFrames(ctx: Ctx, areaId: GameAreaId | null): readonly St
  * has none; outside any area, one takes the game's active counter when the active villain is defeated. Returns the When
  * Revealed frames when `reveal`.
  */
-export function addVillains(ctx: Ctx, ids: readonly InstanceId[], area: GameAreaState | null, reveal: boolean, actingPlayerId: PlayerId): readonly StackFrame[] {
+export function addVillains(
+  ctx: Ctx,
+  ids: readonly InstanceId[],
+  area: GameAreaState | null,
+  reveal: boolean,
+  actingPlayerId: PlayerId,
+): readonly StackFrame[] {
   const frames: StackFrame[] = [];
   for (const id of ids) {
     if (!ctx.state.encounterSetAside.includes(id) || villainOf(ctx.state, id)) continue;
@@ -245,7 +318,10 @@ export function addVillains(ctx: Ctx, ids: readonly InstanceId[], area: GameArea
       stageIndex: 0,
       lastStageIndex: stages.length - 1,
       defeated: false,
-      encounterDeckId: home.kind === "encounterDeck" ? home.deckId : (ctx.state.encounterDeckOrder[0] as VillainState["encounterDeckId"]),
+      encounterDeckId:
+        home.kind === "encounterDeck"
+          ? home.deckId
+          : (ctx.state.encounterDeckOrder[0] as VillainState["encounterDeckId"]),
       signatureSideSchemeId: null,
     };
     ctx.state = {
@@ -259,7 +335,8 @@ export function addVillains(ctx: Ctx, ids: readonly InstanceId[], area: GameArea
       updateArea(ctx, current.areaId, (a) => ({
         ...a,
         villainIds: [...a.villainIds, id],
-        activeVillainId: a.activeVillainId && villainOf(ctx.state, a.activeVillainId)?.defeated === false ? a.activeVillainId : id,
+        activeVillainId:
+          a.activeVillainId && villainOf(ctx.state, a.activeVillainId)?.defeated === false ? a.activeVillainId : id,
       }));
     } else if (villainOf(ctx.state, ctx.state.activeVillainId)?.defeated !== false) {
       setActiveVillain(ctx, id, "effect");
@@ -284,14 +361,22 @@ export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
     const instance = mustInstance(ctx.state, id);
     for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
     for (const boost of [...instance.boostCards]) moveCard(ctx, boost, discardZoneFor(ctx.state, boost), "top");
-    ctx.state = { ...ctx.state, villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, defeated: true } : v)) };
+    ctx.state = {
+      ...ctx.state,
+      villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, defeated: true } : v)),
+    };
     for (const area of ctx.state.gameAreas.filter((a) => a.villainIds.includes(id))) {
       // It stays listed in its area (out of play, like a defeated villain), so text resolving for it still knows where.
-      updateArea(ctx, area.areaId, (a) => ({ ...a, activeVillainId: a.activeVillainId === id ? nextAreaVillain(ctx.state, a, id) : a.activeVillainId }));
+      updateArea(ctx, area.areaId, (a) => ({
+        ...a,
+        activeVillainId: a.activeVillainId === id ? nextAreaVillain(ctx.state, a, id) : a.activeVillainId,
+      }));
     }
     emit(ctx, { type: "villainRemoved", instanceId: id });
     if (ctx.state.activeVillainId === id) {
-      const next = ctx.state.villains.find((v) => !v.defeated && !ctx.state.gameAreas.some((a) => a.villainIds.includes(v.instanceId)));
+      const next = ctx.state.villains.find(
+        (v) => !v.defeated && !ctx.state.gameAreas.some((a) => a.villainIds.includes(v.instanceId)),
+      );
       if (next) setActiveVillain(ctx, next.instanceId, "effect");
     }
   }
@@ -305,10 +390,12 @@ export function removeVillains(ctx: Ctx, ids: readonly InstanceId[]): void {
 export function leaveAreaOnDefeat(ctx: Ctx, villainId: InstanceId): boolean {
   const area = ctx.state.gameAreas.find((a) => a.villainIds.includes(villainId));
   if (!area) return false;
-  updateArea(ctx, area.areaId, (a) => ({ ...a, activeVillainId: a.activeVillainId === villainId ? nextAreaVillain(ctx.state, a, villainId) : a.activeVillainId }));
+  updateArea(ctx, area.areaId, (a) => ({
+    ...a,
+    activeVillainId: a.activeVillainId === villainId ? nextAreaVillain(ctx.state, a, villainId) : a.activeVillainId,
+  }));
   return true;
 }
 
 export const controllerOfArea = (state: GameState, area: GameAreaState): PlayerId | null =>
   playerOrder(state).find((player) => area.playerIds.includes(player.playerId))?.playerId ?? null;
-

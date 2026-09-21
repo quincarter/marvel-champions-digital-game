@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck } from "@mc/content";
-import { exportDecklistText, importFromMarvelCdbResponseText, importFromPasteText, type ImportEnv } from "./deck-import-model.js";
+import {
+  exportDecklistText,
+  importFromMarvelCdbResponseText,
+  importFromPasteText,
+  type ImportEnv,
+} from "./deck-import-model.js";
 
 const env: ImportEnv = {
   pool: CORE_CARDS,
@@ -59,7 +64,13 @@ describe("importFromPasteText", () => {
     expect(result.deck.id).toBe("fixed-id");
     expect(result.deck.identityCardId).toBe(spiderMan.identityCardId);
     expect(result.deck.poolVersion).toBe(CORE_POOL_VERSION);
-    expect(result.deck.source).toEqual({ kind: "imported", site: "marvelcdb", marvelcdbDeckId: null, url: null, importedAt: env.now() });
+    expect(result.deck.source).toEqual({
+      kind: "imported",
+      site: "marvelcdb",
+      marvelcdbDeckId: null,
+      url: null,
+      importedAt: env.now(),
+    });
     expect(result.deck.name).toContain("Spider-Man");
   });
 
@@ -77,12 +88,19 @@ describe("importFromMarvelCdbResponseText", () => {
     name: "Black Panther - Protection - Starter Deck",
     hero_code: "01040a",
     hero_name: "Black Panther",
-    slots: Object.fromEntries(CORE_STARTER_DECKS.find((d) => d.name.startsWith("Black Panther"))!.cards.map((c) => [c.cardId, c.quantity])),
+    slots: Object.fromEntries(
+      CORE_STARTER_DECKS.find((d) => d.name.startsWith("Black Panther"))!.cards.map((c) => [c.cardId, c.quantity]),
+    ),
     meta: '{"aspect":"protection"}',
   });
 
   test("records the MarvelCDB id and url in the deck's source", () => {
-    const result = importFromMarvelCdbResponseText(REAL_RESPONSE, { kind: "decklist", id: "1" }, "https://marvelcdb.com/decklist/view/1/x", env);
+    const result = importFromMarvelCdbResponseText(
+      REAL_RESPONSE,
+      { kind: "decklist", id: "1" },
+      "https://marvelcdb.com/decklist/view/1/x",
+      env,
+    );
     if (!result.ok) throw new Error(JSON.stringify(result.problems, null, 2));
     expect(result.deck.source).toEqual({
       kind: "imported",
@@ -105,22 +123,28 @@ const byCardId = (cards: readonly { readonly cardId: string; readonly quantity: 
   [...cards].sort((a, b) => (a.cardId < b.cardId ? -1 : a.cardId > b.cardId ? 1 : 0));
 
 describe("exportDecklistText: the exact inverse of importFromPasteText", () => {
-  test.each(CORE_STARTER_DECKS.map((starter) => [starter.name, starter] as const))("%s round-trips through export/import", (_name, starter) => {
-    const deck = deckFromStarterDeck(starter, CORE_POOL_VERSION);
-    const text = exportDecklistText(deck, CORE_CARDS);
+  test.each(CORE_STARTER_DECKS.map((starter) => [starter.name, starter] as const))(
+    "%s round-trips through export/import",
+    (_name, starter) => {
+      const deck = deckFromStarterDeck(starter, CORE_POOL_VERSION);
+      const text = exportDecklistText(deck, CORE_CARDS);
 
-    const reimported = importFromPasteText(text, env);
-    if (!reimported.ok) throw new Error(`${starter.name}: ${JSON.stringify(reimported.problems, null, 2)}`);
+      const reimported = importFromPasteText(text, env);
+      if (!reimported.ok) throw new Error(`${starter.name}: ${JSON.stringify(reimported.problems, null, 2)}`);
 
-    expect(reimported.deck.identityCardId).toBe(deck.identityCardId);
-    expect([...reimported.deck.aspects].sort()).toEqual([...deck.aspects].sort());
-    expect(byCardId(reimported.deck.cards)).toEqual(byCardId(deck.cards));
-  });
+      expect(reimported.deck.identityCardId).toBe(deck.identityCardId);
+      expect([...reimported.deck.aspects].sort()).toEqual([...deck.aspects].sort());
+      expect(byCardId(reimported.deck.cards)).toEqual(byCardId(deck.cards));
+    },
+  );
 
   test("skips a card id the given pool doesn't resolve, rather than throwing", () => {
     const starter = CORE_STARTER_DECKS[0]!;
     const deck = deckFromStarterDeck(starter, CORE_POOL_VERSION);
-    const withGhost = { ...deck, cards: [...deck.cards, { cardId: "99999" as (typeof deck.cards)[number]["cardId"], quantity: 1 }] };
+    const withGhost = {
+      ...deck,
+      cards: [...deck.cards, { cardId: "99999" as (typeof deck.cards)[number]["cardId"], quantity: 1 }],
+    };
     const text = exportDecklistText(withGhost, CORE_CARDS);
     expect(text).not.toContain("99999");
   });

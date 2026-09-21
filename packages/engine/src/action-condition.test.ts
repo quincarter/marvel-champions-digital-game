@@ -32,10 +32,16 @@ const ifHero: Predicate = { kind: "form", player: { kind: "controller" }, form: 
 const draw = [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }] as const;
 
 /** "Action: If you are in hero form, exhaust Gizmo → draw 1 card." */
-const GIZMO_ABILITY = stubAbility("gizmo.action", def({ trigger: { kind: "action", while: ifHero }, cost: { exhaustSelf: true }, effects: [...draw] }));
+const GIZMO_ABILITY = stubAbility(
+  "gizmo.action",
+  def({ trigger: { kind: "action", while: ifHero }, cost: { exhaustSelf: true }, effects: [...draw] }),
+);
 const GIZMO = stubSupport({ id: "gizmo", cost: 0, abilities: [GIZMO_ABILITY.ref] });
 /** An event: "Action: If you are in hero form, draw 1 card." */
-const TRICK_ABILITY = stubAbility("trick.action", def({ trigger: { kind: "action", while: ifHero }, effects: [...draw] }));
+const TRICK_ABILITY = stubAbility(
+  "trick.action",
+  def({ trigger: { kind: "action", while: ifHero }, effects: [...draw] }),
+);
 const TRICK = stubEvent({ id: "trick", cost: 0, abilities: [TRICK_ABILITY.ref] });
 
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
@@ -44,7 +50,10 @@ function setup(): { deps: EngineDeps; state: GameState } {
   const deps = depsOf(GIZMO_ABILITY, TRICK_ABILITY);
   const state = newGame({
     villain: stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 0, sch: 0 }] }),
-    mainScheme: stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(0), targetThreat: flat(40), acceleration: flat(0) }] }),
+    mainScheme: stubMainScheme({
+      id: "scheme",
+      stages: [{ startingThreat: flat(0), targetThreat: flat(40), acceleration: flat(0) }],
+    }),
     extraCards: [BLANK, GIZMO, TRICK],
     deck: [...copies(GIZMO.id), ...copies(TRICK.id), ...copies(RESOURCE.id, 20)],
     encounterDeck: copies(BLANK.id, 20),
@@ -53,8 +62,20 @@ function setup(): { deps: EngineDeps; state: GameState } {
   return { deps, state };
 }
 
-const play = (id: InstanceId): Command => ({ type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null });
-const use = (id: InstanceId): Command => ({ type: "useAbility", playerId: p1, cardInstanceId: id, abilityId: GIZMO_ABILITY.ref.id, payment: [] });
+const play = (id: InstanceId): Command => ({
+  type: "playCard",
+  playerId: p1,
+  cardInstanceId: id,
+  payment: [],
+  attachToInstanceId: null,
+});
+const use = (id: InstanceId): Command => ({
+  type: "useAbility",
+  playerId: p1,
+  cardInstanceId: id,
+  abilityId: GIZMO_ABILITY.ref.id,
+  payment: [],
+});
 const turnActions = (state: GameState, deps: EngineDeps) => {
   const actions = legalActions(state, p1, deps);
   if (actions.kind !== "turn") throw new Error(`expected the player's turn, got ${actions.kind}`);
@@ -75,7 +96,8 @@ describe("§16 an action's pre-cost condition ('If you are in Tiny hero form, ex
     expect(mustInstance(inPlay, gizmo).exhausted).toBe(false);
     // `legalActions` trial-runs the real command, so it reports the action as illegal, with the engine's reason.
     const before = turnActions(inPlay, deps);
-    const isGizmo = (a: { action: { kind: string } }) => a.action.kind === "useAbility" && "instanceId" in a.action && a.action.instanceId === gizmo;
+    const isGizmo = (a: { action: { kind: string } }) =>
+      a.action.kind === "useAbility" && "instanceId" in a.action && a.action.instanceId === gizmo;
     expect(before.legal.some(isGizmo)).toBe(false);
     expect(before.illegal.find(isGizmo)?.reason).toBe("no_valid_target");
 
@@ -95,7 +117,8 @@ describe("§16 an action's pre-cost condition ('If you are in Tiny hero form, ex
 
     const refused = applyCommand(given.state, play(trick), deps);
     expect(refused.ok ? null : refused.error.code).toBe("no_valid_target");
-    const isTrick = (a: { action: { kind: string } }) => a.action.kind === "playCard" && "instanceId" in a.action && a.action.instanceId === trick;
+    const isTrick = (a: { action: { kind: string } }) =>
+      a.action.kind === "playCard" && "instanceId" in a.action && a.action.instanceId === trick;
     expect(turnActions(given.state, deps).legal.some(isTrick)).toBe(false);
     expect(playIgnoringCostFault(createCtx(given.state, deps), p1, trick)).toBe("its condition is not met");
     expect(playWithPaymentFault(createCtx(given.state, deps), p1, trick, 0)).toBe("its condition is not met");

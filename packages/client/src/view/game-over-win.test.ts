@@ -37,14 +37,24 @@ async function nearWin(): Promise<SessionStore> {
 
   const base = saved.initialState;
   const villainId = base.activeVillainId;
-  const onLastStage: StateWithoutPool = { ...base, villains: base.villains.map((v) => ({ ...v, stageIndex: v.lastStageIndex })) };
-  const remaining = remainingHitPoints({ ...onLastStage, cardPool: first.state.game!.cardPool } as GameState, villainId, CORE_DEPS)!;
+  const onLastStage: StateWithoutPool = {
+    ...base,
+    villains: base.villains.map((v) => ({ ...v, stageIndex: v.lastStageIndex })),
+  };
+  const remaining = remainingHitPoints(
+    { ...onLastStage, cardPool: first.state.game!.cardPool } as GameState,
+    villainId,
+    CORE_DEPS,
+  )!;
   const villain = onLastStage.instances[villainId]!;
   const patched: StateWithoutPool = {
     ...onLastStage,
     instances: { ...onLastStage.instances, [villainId]: { ...villain, damage: villain.damage + remaining - 1 } },
   };
-  await storage.create({ ...meta, id: "near-win", status: "active", commandCount: 0, updatedAt: meta.updatedAt + 1 }, patched);
+  await storage.create(
+    { ...meta, id: "near-win", status: "active", commandCount: 0, updatedAt: meta.updatedAt + 1 },
+    patched,
+  );
 
   const store = new SessionStore(new LocalEngineHost(storage));
   await store.resume("near-win");
@@ -62,7 +72,8 @@ async function finishIt(store: SessionStore): Promise<void> {
       continue;
     }
     if (legal.actions.kind !== "turn") break;
-    const pick = (kind: string) => legal.actions.kind === "turn" && legal.actions.legal.find((entry) => entry.action.kind === kind);
+    const pick = (kind: string) =>
+      legal.actions.kind === "turn" && legal.actions.legal.find((entry) => entry.action.kind === kind);
     const flip = game.players[0]!.identity.form === "alterEgo" ? pick("changeForm") : undefined;
     const next = flip || pick("basicAttack") || pick("endTurn");
     if (!next) break;

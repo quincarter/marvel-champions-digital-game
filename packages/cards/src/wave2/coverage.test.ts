@@ -147,13 +147,21 @@ describe("wave 2 pack ability coverage", () => {
     if (PACK_STATUS[code] === "scripted" || PACK_STATUS[code] === "in progress") {
       it(`every ability reference resolves (scripted directly, or aliased as a reprint), except its documented skips`, () => {
         const skipped = KNOWN_SKIPPED[code] ?? [];
-        expect(missing, `unscripted ${code} ability refs:\n${missing.join("\n")}`).toEqual(expect.arrayContaining([...skipped]));
-        expect(missing.filter((id) => !skipped.includes(id)), `unscripted ${code} ability refs not in KNOWN_SKIPPED`).toEqual([]);
+        expect(missing, `unscripted ${code} ability refs:\n${missing.join("\n")}`).toEqual(
+          expect.arrayContaining([...skipped]),
+        );
+        expect(
+          missing.filter((id) => !skipped.includes(id)),
+          `unscripted ${code} ability refs not in KNOWN_SKIPPED`,
+        ).toEqual([]);
         expect(missing).toHaveLength(skipped.length);
       });
     } else {
       it(`is not started: nothing resolves beyond reprints.ts's automatic reprint aliasing`, () => {
-        expect(resolvedBeyondReprints, `${code} ability refs resolved outside reprints.ts — update PACK_STATUS if this pack is now started:\n${resolvedBeyondReprints.join("\n")}`).toEqual([]);
+        expect(
+          resolvedBeyondReprints,
+          `${code} ability refs resolved outside reprints.ts — update PACK_STATUS if this pack is now started:\n${resolvedBeyondReprints.join("\n")}`,
+        ).toEqual([]);
       });
     }
   });

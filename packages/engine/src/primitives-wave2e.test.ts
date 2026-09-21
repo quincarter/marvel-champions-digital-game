@@ -20,7 +20,15 @@ import { activeEncounterDeck, mustInstance, mustPlayer } from "./query.js";
 import { canAttack, matchesQuery } from "./select.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubEvent, stubIdentity, stubMainScheme, stubObligation, stubSideScheme, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import {
+  stubEvent,
+  stubIdentity,
+  stubMainScheme,
+  stubObligation,
+  stubSideScheme,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { ALLY, giveCards, newGame, RESOURCE, runWith, settle, withEncounterPiles } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -36,7 +44,10 @@ const play = (id: InstanceId, payment: readonly Payment[] = []): Command => ({
   attachToInstanceId: null,
 });
 
-const SCHEME = stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(0), targetThreat: flat(40), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "scheme",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(40), acceleration: flat(0) }],
+});
 const VILLAIN = stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 2, sch: 0 }] });
 
 // The four combinations of "prints boost pips" × "prints a star", which is the whole point: the two are independent
@@ -47,7 +58,12 @@ const STAR_ONLY = stubTreachery({ id: "star-only", boostIcons: 0, starIcon: true
 const PIPS_ONLY = stubTreachery({ id: "pips-only", boostIcons: 2 });
 const PLAIN = stubTreachery({ id: "plain", boostIcons: 0 });
 /** The same field on the other schema carrier: `SideSchemeCard.starIcon` rather than `EncounterCardCommon.starIcon`. */
-const STARRED_SIDE_SCHEME = stubSideScheme({ id: "starred-side-scheme", startingThreat: 3, boostIcons: 1, starIcon: true });
+const STARRED_SIDE_SCHEME = stubSideScheme({
+  id: "starred-side-scheme",
+  startingThreat: 3,
+  boostIcons: 1,
+  starIcon: true,
+});
 const STAR_CARDS: readonly AnyCard[] = [PIPS_AND_STAR, STAR_ONLY, PIPS_ONLY, PLAIN, STARRED_SIDE_SCHEME];
 
 /** The encounter deck ordered exactly as listed, by instance, whatever the setup shuffle did. */
@@ -94,7 +110,9 @@ function resolve({ effects, top, abilities = [], extra = [], encounterDeck, spli
   const arranged = arrange(state, top);
   const ordered = activeEncounterDeck(arranged).deck;
   const stacked =
-    split === undefined ? arranged : withEncounterPiles(arranged, { deck: ordered.slice(0, split), discard: ordered.slice(split) });
+    split === undefined
+      ? arranged
+      : withEncounterPiles(arranged, { deck: ordered.slice(0, split), discard: ordered.slice(split) });
   const given = giveCards(stacked, p1, EVENT.id);
   const [event] = given.ids;
   if (!event) throw new Error("fixture: the event was not dealt");
@@ -118,13 +136,21 @@ const SANITY: readonly EffectSpec[] = [
   { kind: "discardEncounterCards", count: num(5), bind: "sanity" },
   { kind: "placeThreat", target: { kind: "mainScheme" }, amount: bound("sanity.starIcons") },
   // Not part of the card: the sibling total, recorded on the identity so each test can see both numbers at once.
-  { kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "pips", amount: bound("sanity.boostIcons") },
+  {
+    kind: "addCounters",
+    target: { kind: "identityOf", player: { kind: "controller" } },
+    counterType: "pips",
+    amount: bound("sanity.boostIcons"),
+  },
 ];
 
 describe("§24.1 `<bind>.starIcons` on `discardEncounterCards`", () => {
   it("places 1 threat per star among exactly the five cards discarded", () => {
     // Three starred cards in the top five; the sixth card is starred too and must not be counted.
-    const state = resolve({ effects: SANITY, top: [PIPS_AND_STAR.id, STAR_ONLY.id, PIPS_ONLY.id, PLAIN.id, PIPS_AND_STAR.id, STAR_ONLY.id] });
+    const state = resolve({
+      effects: SANITY,
+      top: [PIPS_AND_STAR.id, STAR_ONLY.id, PIPS_ONLY.id, PLAIN.id, PIPS_AND_STAR.id, STAR_ONLY.id],
+    });
     expect(threat(state)).toBe(3);
     expect(activeEncounterDeck(state).discard).toHaveLength(5);
   });
@@ -181,7 +207,10 @@ describe("§24.2 `<bind>.starIcons` and `<bind>.boostIcons` are independent over
   });
 
   it("keeps the two totals apart over a mixed pile", () => {
-    const state = resolve({ effects: SANITY, top: [PIPS_AND_STAR.id, STAR_ONLY.id, PIPS_ONLY.id, PLAIN.id, PIPS_AND_STAR.id] });
+    const state = resolve({
+      effects: SANITY,
+      top: [PIPS_AND_STAR.id, STAR_ONLY.id, PIPS_ONLY.id, PLAIN.id, PIPS_AND_STAR.id],
+    });
     // Stars: pips-and-star ×2, star-only ×1 → 3. Pips: 2 + 0 + 2 + 0 + 2 → 6. Neither number is derivable from the
     // other, which is exactly why `starIcons` is its own total.
     expect(threat(state)).toBe(3);
@@ -201,7 +230,11 @@ describe("§24.3 `ValueSpec starIcons` counts a ref's cards wherever they are", 
     const state = resolve({
       effects: [
         { kind: "discardEncounterCards", count: num(3), bind: "pile" },
-        { kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "starIcons", cards: { kind: "slot", slot: "pile" } } },
+        {
+          kind: "placeThreat",
+          target: { kind: "mainScheme" },
+          amount: { kind: "starIcons", cards: { kind: "slot", slot: "pile" } },
+        },
       ],
       top: [PIPS_AND_STAR.id, PLAIN.id, STAR_ONLY.id],
     });
@@ -212,7 +245,11 @@ describe("§24.3 `ValueSpec starIcons` counts a ref's cards wherever they are", 
     const empty = resolve({
       effects: [
         { kind: "discardEncounterCards", count: num(0), bind: "pile" },
-        { kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "starIcons", cards: { kind: "slot", slot: "pile" } } },
+        {
+          kind: "placeThreat",
+          target: { kind: "mainScheme" },
+          amount: { kind: "starIcons", cards: { kind: "slot", slot: "pile" } },
+        },
       ],
       top: [PIPS_AND_STAR.id],
     });
@@ -221,7 +258,11 @@ describe("§24.3 `ValueSpec starIcons` counts a ref's cards wherever they are", 
     const plain = resolve({
       effects: [
         { kind: "discardEncounterCards", count: num(3), bind: "pile" },
-        { kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "starIcons", cards: { kind: "slot", slot: "pile" } } },
+        {
+          kind: "placeThreat",
+          target: { kind: "mainScheme" },
+          amount: { kind: "starIcons", cards: { kind: "slot", slot: "pile" } },
+        },
       ],
       top: copies(PLAIN.id, 3),
     });
@@ -245,7 +286,14 @@ describe("§24.4 `TargetQuery.starIcon` as a yes/no on one card", () => {
     {
       kind: "if",
       condition: { kind: "refMatches", ref: { kind: "slot", slot: "flip" }, query: { starIcon: true }, anywhere: true },
-      then: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "defeated", amount: num(1) }],
+      then: [
+        {
+          kind: "addCounters",
+          target: { kind: "identityOf", player: { kind: "controller" } },
+          counterType: "defeated",
+          amount: num(1),
+        },
+      ],
     },
   ];
 
@@ -260,8 +308,20 @@ describe("§24.4 `TargetQuery.starIcon` as a yes/no on one card", () => {
     { kind: "discardEncounterCards", count: num(1), bind: "flip" },
     {
       kind: "if",
-      condition: { kind: "compare", left: { kind: "starIcons", cards: { kind: "slot", slot: "flip" } }, op: "atLeast", right: num(1) },
-      then: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "defeated", amount: num(1) }],
+      condition: {
+        kind: "compare",
+        left: { kind: "starIcons", cards: { kind: "slot", slot: "flip" } },
+        op: "atLeast",
+        right: num(1),
+      },
+      then: [
+        {
+          kind: "addCounters",
+          target: { kind: "identityOf", player: { kind: "controller" } },
+          counterType: "defeated",
+          amount: num(1),
+        },
+      ],
     },
   ];
 
@@ -305,7 +365,10 @@ describe("§24.5 the star is read from printed data, not from what has been scri
   /** Printed with a star; its Boost ability is not in the registry at all, as an unscripted card's would not be. */
   const UNSCRIPTED = stubTreachery({ id: "unscripted-star", boostIcons: 1, starIcon: true });
   /** The inverse: a scripted `boost` ability on a card whose printed boost area has no star. */
-  const boostAbility = stubAbility("miscounted.boost", def({ trigger: { kind: "boost" }, effects: [{ kind: "gainSurge" }] }));
+  const boostAbility = stubAbility(
+    "miscounted.boost",
+    def({ trigger: { kind: "boost" }, effects: [{ kind: "gainSurge" }] }),
+  );
   const MISCOUNTED = stubTreachery({ id: "miscounted", boostIcons: 1, abilities: [boostAbility.ref] });
 
   it("counts a starred card whose Boost ability is unscripted", () => {
@@ -314,7 +377,12 @@ describe("§24.5 the star is read from printed data, not from what has been scri
   });
 
   it("does not count a card that carries a scripted Boost ability but prints no star", () => {
-    const state = resolve({ effects: SANITY, top: copies(MISCOUNTED.id, 5), extra: [MISCOUNTED], abilities: [boostAbility] });
+    const state = resolve({
+      effects: SANITY,
+      top: copies(MISCOUNTED.id, 5),
+      extra: [MISCOUNTED],
+      abilities: [boostAbility],
+    });
     expect(threat(state)).toBe(0);
     expect(counter(state, "pips")).toBe(5);
   });
@@ -340,14 +408,26 @@ describe("§25 `RuleSpec cannotAttack` scopes by the attacking player", () => {
   const stats = { hp: 30, atk: 2, thw: 2, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6 } as const;
 
   /** "Players cannot attack other villains": no `player`, so the whole table — the shape that predates §25. */
-  const tableWide = stubAbility("taunts.constant", def({ trigger: { kind: "constant", rules: [{ kind: "cannotAttack", target: anyVillain }] }, effects: [] }));
+  const tableWide = stubAbility(
+    "taunts.constant",
+    def({ trigger: { kind: "constant", rules: [{ kind: "cannotAttack", target: anyVillain }] }, effects: [] }),
+  );
   /** "You cannot attack Kang": the same rule with a `player`, read as the obligation's own player. */
-  const yoursOnly = stubAbility("fear.constant", def({ trigger: { kind: "constant", rules: [{ kind: "cannotAttack", target: anyVillain, player: you }] }, effects: [] }));
+  const yoursOnly = stubAbility(
+    "fear.constant",
+    def({
+      trigger: { kind: "constant", rules: [{ kind: "cannotAttack", target: anyVillain, player: you }] },
+      effects: [],
+    }),
+  );
   /** "You cannot play your cards": `cannotPlay`'s `cards` query, which reads the same "you" its `player` does (§25.3). */
-  const noPlaying = stubAbility("depower.constant", def({
-    trigger: { kind: "constant", rules: [{ kind: "cannotPlay", player: you, cards: { controlledBy: you } }] },
-    effects: [],
-  }));
+  const noPlaying = stubAbility(
+    "depower.constant",
+    def({
+      trigger: { kind: "constant", rules: [{ kind: "cannotPlay", player: you, cards: { controlledBy: you } }] },
+      effects: [],
+    }),
+  );
 
   const TAUNTED = stubIdentity({ id: "taunted", ...stats });
   const FEARFUL = stubIdentity({ id: "fearful", ...stats });
@@ -359,7 +439,10 @@ describe("§25 `RuleSpec cannotAttack` scopes by the attacking player", () => {
   const DEPOWER = stubObligation({ id: "depowered-obligation", abilities: [noPlaying.ref] });
 
   const p2 = playerId("p2");
-  const seats: Record<string, { readonly identity: ReturnType<typeof stubIdentity>; readonly obligation: AnyCard; readonly ability: StubAbility }> = {
+  const seats: Record<
+    string,
+    { readonly identity: ReturnType<typeof stubIdentity>; readonly obligation: AnyCard; readonly ability: StubAbility }
+  > = {
     taunts: { identity: TAUNTED, obligation: TAUNTS, ability: tableWide },
     fear: { identity: FEARFUL, obligation: FEAR, ability: yoursOnly },
     depower: { identity: DEPOWERED, obligation: DEPOWER, ability: noPlaying },
@@ -407,7 +490,11 @@ describe("§25 `RuleSpec cannotAttack` scopes by the attacking player", () => {
       ally,
       state: {
         ...state,
-        players: state.players.map((p) => (p.playerId === owner ? { ...p, deck: p.deck.filter((id) => id !== ally), playArea: [...p.playArea, ally] } : p)),
+        players: state.players.map((p) =>
+          p.playerId === owner
+            ? { ...p, deck: p.deck.filter((id) => id !== ally), playArea: [...p.playArea, ally] }
+            : p,
+        ),
       },
     };
   }
@@ -439,7 +526,11 @@ describe("§25 `RuleSpec cannotAttack` scopes by the attacking player", () => {
     const villain = villainOf(state);
     const heroP1 = settle(runWith(deps, state, { type: "changeForm", playerId: p1 }), undefined, deps);
     const attack = (s: GameState, player: PlayerId) =>
-      applyCommand(s, { type: "basicAttack", playerId: player, attackerInstanceId: identityOf(s, player), targetInstanceId: villain }, deps);
+      applyCommand(
+        s,
+        { type: "basicAttack", playerId: player, attackerInstanceId: identityOf(s, player), targetInstanceId: villain },
+        deps,
+      );
     expect(attack(heroP1, p1).ok).toBe(false);
 
     // Hand the turn over: the villain phase runs, then p2 flips up and attacks the same villain unimpeded.
@@ -449,10 +540,19 @@ describe("§25 `RuleSpec cannotAttack` scopes by the attacking player", () => {
   });
 
   it("is read from a `ruleGrant` lasting effect too, not only from a card in play (§25.2)", () => {
-    const grant = stubAbility("grant.action", def({
-      trigger: { kind: "action" },
-      effects: [{ kind: "applyRuleUntil", rule: { kind: "cannotAttack", target: anyVillain, player: you }, until: "endOfTurn" }],
-    }));
+    const grant = stubAbility(
+      "grant.action",
+      def({
+        trigger: { kind: "action" },
+        effects: [
+          {
+            kind: "applyRuleUntil",
+            rule: { kind: "cannotAttack", target: anyVillain, player: you },
+            until: "endOfTurn",
+          },
+        ],
+      }),
+    );
     const EVENT = stubEvent({ id: "grant-event", cost: 0, abilities: [grant.ref] });
     const deps = depsOf(grant);
     const state = newGame({

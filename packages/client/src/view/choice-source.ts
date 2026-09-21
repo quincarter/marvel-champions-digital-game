@@ -101,7 +101,9 @@ export function choiceSourceOf(state: GameState, choice: PendingChoice): ChoiceS
     case "ability":
       return { instanceId: frame.instanceId, abilityId: frame.abilityId };
     case "effects":
-      return frame.selfInstanceId ? { instanceId: frame.selfInstanceId, abilityId: onlyActiveAbility(state, frame.selfInstanceId) } : null;
+      return frame.selfInstanceId
+        ? { instanceId: frame.selfInstanceId, abilityId: onlyActiveAbility(state, frame.selfInstanceId) }
+        : null;
     case "window": {
       const candidate = frame.paying ?? frame.pending[0] ?? frame.queue[0];
       return candidate ? { instanceId: candidate.instanceId, abilityId: candidate.abilityId } : null;
@@ -134,10 +136,17 @@ export function choiceSourceOf(state: GameState, choice: PendingChoice): ChoiceS
  * asking* in front of it rather than re-wording what it already says, so a
  * prompt kind this module doesn't specially recognize still reads sensibly.
  */
-export function choiceHeaderText(state: GameState, choice: PendingChoice, deps: EngineDeps, genericTitle: string): string {
+export function choiceHeaderText(
+  state: GameState,
+  choice: PendingChoice,
+  deps: EngineDeps,
+  genericTitle: string,
+): string {
   const source = choiceSourceOf(state, choice);
   if (!source) return genericTitle;
-  const named = source.abilityId ? abilityLabelOf(state, source.instanceId, source.abilityId, deps) : cardName(state, source.instanceId);
+  const named = source.abilityId
+    ? abilityLabelOf(state, source.instanceId, source.abilityId, deps)
+    : cardName(state, source.instanceId);
   return `${named}: ${genericTitle.charAt(0).toLowerCase()}${genericTitle.slice(1)}`;
 }
 

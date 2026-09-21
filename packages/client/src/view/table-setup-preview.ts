@@ -84,9 +84,16 @@ export function stageRangeFor(scenario: Scenario, difficulty: SetupDifficulty): 
   return [Math.min(standardLo, expertLo), Math.max(standardHi, expertHi)];
 }
 
-function villainTotalHp(scenario: Scenario, difficulty: SetupDifficulty, cardsById: ReadonlyMap<string, AnyCard>, playerCount: number): number {
+function villainTotalHp(
+  scenario: Scenario,
+  difficulty: SetupDifficulty,
+  cardsById: ReadonlyMap<string, AnyCard>,
+  playerCount: number,
+): number {
   const [lo, hi] = stageRangeFor(scenario, difficulty);
-  const villainCardIds: readonly CardId[] = scenario.multipleVillains ? scenario.multipleVillains.villains.map((v) => v.villainCardId) : [scenario.villainCardId];
+  const villainCardIds: readonly CardId[] = scenario.multipleVillains
+    ? scenario.multipleVillains.villains.map((v) => v.villainCardId)
+    : [scenario.villainCardId];
   let total = 0;
   for (const villainCardId of villainCardIds) {
     const card = cardsById.get(villainCardId as string);
@@ -153,7 +160,11 @@ export function whatsInThereRowsOf(encounterDeck: EncounterDeckPreview): readonl
     for (const bucket of deck.byType) byType.set(bucket.type, (byType.get(bucket.type) ?? 0) + bucket.count);
     surgeCount += deck.surgeCount;
   }
-  const rows: CompositionRow[] = WHATS_IN_THERE_TYPES.map(({ type, label }) => ({ label, count: byType.get(type) ?? 0, red: false }));
+  const rows: CompositionRow[] = WHATS_IN_THERE_TYPES.map(({ type, label }) => ({
+    label,
+    count: byType.get(type) ?? 0,
+    red: false,
+  }));
   rows.push({ label: "Surge cards", count: surgeCount, red: false });
   return rows;
 }
@@ -168,7 +179,10 @@ export function nemesisStandbyOf(encounterDeck: EncounterDeckPreview): NemesisSt
   if (encounterDeck.nemesisSetsHeldBack.length === 0) return null;
   const names = encounterDeck.nemesisSetsHeldBack.map((n) => n.heroName);
   const totalCards = encounterDeck.nemesisSetsHeldBack.reduce((sum, n) => sum + n.cardCount, 0);
-  return { sentence: `${joinWithAnd(names)}'s nemesis cards stay out of the deck until an obligation pulls them in.`, totalCards };
+  return {
+    sentence: `${joinWithAnd(names)}'s nemesis cards stay out of the deck until an obligation pulls them in.`,
+    totalCards,
+  };
 }
 
 export interface GameSummaryRow {
@@ -230,11 +244,15 @@ export function tableSetupPreviewOf(
 ): TableSetupPreview {
   const playerCount = config.players.length;
   const mainScheme = cardsById.get(scenario.mainSchemeCardId as string);
-  if (!mainScheme || mainScheme.type !== "main_scheme") throw new Error(`scenario ${scenario.id} main scheme ${scenario.mainSchemeCardId} not found`);
+  if (!mainScheme || mainScheme.type !== "main_scheme")
+    throw new Error(`scenario ${scenario.id} main scheme ${scenario.mainSchemeCardId} not found`);
   const encounterDeck = encounterDeckPreviewOf(config, [...cardsById.values()], encounterSets);
   const firstStage = mainScheme.stages[0]!;
   const villainCard = cardsById.get(scenario.villainCardId as string);
-  const villainSide = villainCard?.type === "villain" ? (villainCard.sides.find((s) => s.side === (villainCard.startingSide ?? "A")) ?? villainCard.sides[0]) : undefined;
+  const villainSide =
+    villainCard?.type === "villain"
+      ? (villainCard.sides.find((s) => s.side === (villainCard.startingSide ?? "A")) ?? villainCard.sides[0])
+      : undefined;
   return {
     playerCount,
     villainName: villainSide?.name ?? villainCard?.name ?? scenario.name,

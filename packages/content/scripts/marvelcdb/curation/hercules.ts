@@ -29,7 +29,8 @@ export const HERCULES_CURATION: PackCuration = {
   pack: {
     name: "Hercules",
     releaseDate: "2026-02-20",
-    releaseDateSource: 'Hall of Heroes Hercules page (https://hallofheroeslcg.com/hercules/): "Release date: February 20, 2026"',
+    releaseDateSource:
+      'Hall of Heroes Hercules page (https://hallofheroeslcg.com/hercules/): "Release date: February 20, 2026"',
   },
   outDir: "src/data/hercules",
   exportPrefix: "HERCULES",
@@ -37,20 +38,21 @@ export const HERCULES_CURATION: PackCuration = {
   corrections: [
     {
       code: "59005",
-      reason: "Nemean Lion Skin is a Permanent upgrade whose own Response (\"After this card enters play, draw 4 cards\") shows it enters play by effect, not paid for from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/59005), \"Cost: —\"",
+      reason:
+        'Nemean Lion Skin is a Permanent upgrade whose own Response ("After this card enters play, draw 4 cards") shows it enters play by effect, not paid for from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/59005), "Cost: —"',
       specialCost: "dash",
     },
     {
       code: "59006",
       reason: "Shield of Perseus — same Gift Deck reasoning as 59005.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/59006), \"Cost: —\"",
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/59006), "Cost: —"',
       specialCost: "dash",
     },
     {
       code: "59007",
       reason: "Sword of Peleus — same Gift Deck reasoning as 59005.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/59007), \"Cost: —\"",
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/59007), "Cost: —"',
       specialCost: "dash",
     },
   ],

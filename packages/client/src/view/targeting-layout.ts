@@ -20,9 +20,21 @@
 import { CARD_ASPECT, formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
 const MARGIN = { phone: 10, phoneLandscape: 10, tabletPortrait: 14, tabletLandscape: 16, desktop: 20 } as const;
-const TITLE_BAR_HEIGHT = { phone: 44, phoneLandscape: 44, tabletPortrait: 52, tabletLandscape: 56, desktop: 56 } as const;
+const TITLE_BAR_HEIGHT = {
+  phone: 44,
+  phoneLandscape: 44,
+  tabletPortrait: 52,
+  tabletLandscape: 56,
+  desktop: 56,
+} as const;
 /** Narrower on phone: a 128px CTA plus "CHOOSE A TARGET" and the source line left no room for the source at all at 390px wide. */
-const CANCEL_WIDTH = { phone: 84, phoneLandscape: 84, tabletPortrait: 112, tabletLandscape: 128, desktop: 128 } as const;
+const CANCEL_WIDTH = {
+  phone: 84,
+  phoneLandscape: 84,
+  tabletPortrait: 112,
+  tabletLandscape: 128,
+  desktop: 128,
+} as const;
 const HEADING_HEIGHT = 20;
 /** The gap between tiles in a row/stack, and between the target list and its side column. Exported so the scene draws tiles at the same spacing the layout reserved room for. */
 export const TARGETING_GAP = 12;
@@ -62,7 +74,12 @@ export function targetingLayout(bounds: Rect, targetCount: number): TargetingLay
     height: 36,
   };
 
-  const heading: Rect = { x: bounds.x + margin, y: titleBar.y + titleBar.height + margin, width: bounds.width - margin * 2, height: HEADING_HEIGHT };
+  const heading: Rect = {
+    x: bounds.x + margin,
+    y: titleBar.y + titleBar.height + margin,
+    width: bounds.width - margin * 2,
+    height: HEADING_HEIGHT,
+  };
 
   const contentTop = heading.y + heading.height + margin * 0.6;
   const contentBottom = bounds.y + bounds.height - margin;
@@ -74,8 +91,22 @@ export function targetingLayout(bounds: Rect, targetCount: number): TargetingLay
     const excludedWidth = Math.min(380, contentWidth * 0.32);
     const targetsWidth = Math.max(0, contentWidth - excludedWidth - GAP);
     const targets: Rect = { x: bounds.x + margin, y: contentTop, width: targetsWidth, height: contentHeight };
-    const excluded: Rect = { x: targets.x + targets.width + GAP, y: contentTop, width: excludedWidth, height: contentHeight };
-    return { formFactor, titleBar, cancelButton, heading, targets, tileSize: rowTileSize(targets, targetCount), excluded, inspectorRail: null };
+    const excluded: Rect = {
+      x: targets.x + targets.width + GAP,
+      y: contentTop,
+      width: excludedWidth,
+      height: contentHeight,
+    };
+    return {
+      formFactor,
+      titleBar,
+      cancelButton,
+      heading,
+      targets,
+      tileSize: rowTileSize(targets, targetCount),
+      excluded,
+      inspectorRail: null,
+    };
   }
 
   if (formFactor === "tabletLandscape") {
@@ -86,17 +117,50 @@ export function targetingLayout(bounds: Rect, targetCount: number): TargetingLay
     const excludedHeight = Math.min(96, contentHeight * 0.28);
     const targetsHeight = Math.max(0, contentHeight - excludedHeight - GAP);
     const targets: Rect = { x: bounds.x + margin, y: contentTop, width: columnWidth, height: targetsHeight };
-    const excluded: Rect = { x: bounds.x + margin, y: targets.y + targets.height + GAP, width: columnWidth, height: excludedHeight };
-    const inspectorRail: Rect = { x: targets.x + targets.width + GAP, y: contentTop, width: railWidth, height: contentHeight };
-    return { formFactor, titleBar, cancelButton, heading, targets, tileSize: rowTileSize(targets, targetCount), excluded, inspectorRail };
+    const excluded: Rect = {
+      x: bounds.x + margin,
+      y: targets.y + targets.height + GAP,
+      width: columnWidth,
+      height: excludedHeight,
+    };
+    const inspectorRail: Rect = {
+      x: targets.x + targets.width + GAP,
+      y: contentTop,
+      width: railWidth,
+      height: contentHeight,
+    };
+    return {
+      formFactor,
+      titleBar,
+      cancelButton,
+      heading,
+      targets,
+      tileSize: rowTileSize(targets, targetCount),
+      excluded,
+      inspectorRail,
+    };
   }
 
   // Phone and tablet portrait: one column, target list above "why not", no rail.
   const excludedHeight = Math.min(140, contentHeight * 0.32);
   const targetsHeight = Math.max(0, contentHeight - excludedHeight - GAP);
   const targets: Rect = { x: bounds.x + margin, y: contentTop, width: contentWidth, height: targetsHeight };
-  const excluded: Rect = { x: bounds.x + margin, y: targets.y + targets.height + GAP, width: contentWidth, height: excludedHeight };
-  return { formFactor, titleBar, cancelButton, heading, targets, tileSize: stackedTileSize(targets, targetCount), excluded, inspectorRail: null };
+  const excluded: Rect = {
+    x: bounds.x + margin,
+    y: targets.y + targets.height + GAP,
+    width: contentWidth,
+    height: excludedHeight,
+  };
+  return {
+    formFactor,
+    titleBar,
+    cancelButton,
+    heading,
+    targets,
+    tileSize: stackedTileSize(targets, targetCount),
+    excluded,
+    inspectorRail: null,
+  };
 }
 
 /**

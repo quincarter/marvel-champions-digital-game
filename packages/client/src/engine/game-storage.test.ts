@@ -57,8 +57,20 @@ describe.each<[string, () => GameStorage]>([
   test("a created game round-trips its config, baseline and commands in order", async () => {
     const storage = make();
     await storage.create(meta("g1", 1), BASELINE);
-    await storage.append("g1", 0, command(0), { round: 1, commandCount: 1, updatedAt: 2, status: "active", outcome: null });
-    await storage.append("g1", 1, command(1), { round: 2, commandCount: 2, updatedAt: 3, status: "active", outcome: null });
+    await storage.append("g1", 0, command(0), {
+      round: 1,
+      commandCount: 1,
+      updatedAt: 2,
+      status: "active",
+      outcome: null,
+    });
+    await storage.append("g1", 1, command(1), {
+      round: 2,
+      commandCount: 2,
+      updatedAt: 3,
+      status: "active",
+      outcome: null,
+    });
 
     const loaded = await storage.load("g1");
     expect(loaded).not.toBeNull();
@@ -122,7 +134,13 @@ describe.each<[string, () => GameStorage]>([
     const storage = make();
     await storage.create(meta("a", 1), BASELINE);
     await storage.create(meta("b", 2), BASELINE);
-    await storage.append("a", 0, command(0), { round: 1, commandCount: 1, updatedAt: 9, status: "abandoned", outcome: null });
+    await storage.append("a", 0, command(0), {
+      round: 1,
+      commandCount: 1,
+      updatedAt: 9,
+      status: "abandoned",
+      outcome: null,
+    });
     expect((await storage.list()).map((game) => game.id)).toEqual(["a", "b"]);
   });
 
@@ -147,6 +165,8 @@ describe.each<[string, () => GameStorage]>([
     expect((loaded!.meta.config.players[0] as { deckId?: string }).deckId).toBe("local-deck-42");
 
     const listed = await storage.list();
-    expect((listed.find((game) => game.id === "g1")!.config.players[0] as { deckId?: string }).deckId).toBe("local-deck-42");
+    expect((listed.find((game) => game.id === "g1")!.config.players[0] as { deckId?: string }).deckId).toBe(
+      "local-deck-42",
+    );
   });
 });

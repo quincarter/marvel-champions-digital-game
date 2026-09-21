@@ -34,7 +34,9 @@ beforeAll(async () => {
   await store.start(RHINO_SOLO);
   // Decline the mulligan so the game reaches a real turn.
   for (let step = 0; step < 10 && store.state.legal?.actions.kind === "choice"; step++) {
-    const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+    const { choice } = store.state.legal.actions as {
+      choice: { options: readonly { optionId: string }[]; minSelections: number };
+    };
     await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
   }
   state = store.state.game!;
@@ -124,7 +126,13 @@ describe("inspectModel", () => {
       legal: [
         {
           action: { kind: "useAbility", instanceId: identity, abilityId: auntMayAction },
-          example: { type: "useAbility", playerId: me, cardInstanceId: identity, abilityId: auntMayAction, payment: [] },
+          example: {
+            type: "useAbility",
+            playerId: me,
+            cardInstanceId: identity,
+            abilityId: auntMayAction,
+            payment: [],
+          },
           targets: [],
           blockedTargets: [],
           needsPayment: false,
@@ -133,7 +141,9 @@ describe("inspectModel", () => {
       illegal: [],
     };
     const model = inspectModel(state, identity, fakeLegal, me, CORE_DEPS);
-    expect(model.abilities).toEqual([{ abilityId: auntMayAction, label: `${model.name} — exhaust`, needsPayment: false }]);
+    expect(model.abilities).toEqual([
+      { abilityId: auntMayAction, label: `${model.name} — exhaust`, needsPayment: false },
+    ]);
   });
 
   test("shows no timing entry for an ordinary action/response header — the glossary has no term for those", () => {
@@ -165,9 +175,16 @@ describe("inspectModel", () => {
     const inHand = state.players.find((player) => player.playerId === me)!.hand[0]!;
     const legal = store.state.legal!.actions;
     if (legal.kind !== "turn") throw new Error("expected a turn");
-    const playable = legal.legal.find((entry) => entry.action.kind === "playCard" && entry.action.instanceId === inHand);
+    const playable = legal.legal.find(
+      (entry) => entry.action.kind === "playCard" && entry.action.instanceId === inHand,
+    );
     if (!playable) return; // Not every seat's first hand card is playable; the assertion below only means something when one is.
-    const payment: InspectPayment = { subjectInstanceId: inHand, paid: 1, required: 3, spendableInstanceIds: new Set([inHand]) };
+    const payment: InspectPayment = {
+      subjectInstanceId: inHand,
+      paid: 1,
+      required: 3,
+      spendableInstanceIds: new Set([inHand]),
+    };
     const withPayment = inspectModel(state, inHand, legal, me, CORE_DEPS, { payment });
     expect(withPayment.status.message).toContain("2 short");
     expect(withPayment.canPayAsResource).toBe(true);
@@ -198,7 +215,10 @@ describe("inspectModel — keyword definitions, against a revealed minion", () =
         const { choice } = legal.actions;
         await deepStore.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
       } else if (legal.actions.kind === "turn") {
-        const entry = legal.actions.legal.find((e) => e.action.kind === "playCard") ?? legal.actions.legal.find((e) => e.action.kind === "endTurn") ?? legal.actions.legal[0];
+        const entry =
+          legal.actions.legal.find((e) => e.action.kind === "playCard") ??
+          legal.actions.legal.find((e) => e.action.kind === "endTurn") ??
+          legal.actions.legal[0];
         if (!entry) break;
         await deepStore.dispatch(entry.example);
       } else break;

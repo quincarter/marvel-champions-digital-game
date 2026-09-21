@@ -30,15 +30,29 @@ function covers(entry: LegalAction, command: Command): boolean {
     case "playCard": {
       if (action.kind !== "playCard" || action.instanceId !== command.cardInstanceId) return false;
       if (command.attachToInstanceId !== null && !entry.targets.includes(command.attachToInstanceId)) return false;
-      const picks = Object.entries(command.costChoices ?? {}).filter(([slot]) => slot !== "discard").flatMap(([, ids]) => ids);
+      const picks = Object.entries(command.costChoices ?? {})
+        .filter(([slot]) => slot !== "discard")
+        .flatMap(([, ids]) => ids);
       return picks.every((id) => entry.targets.includes(id));
     }
     case "useAbility":
-      return action.kind === "useAbility" && action.instanceId === command.cardInstanceId && action.abilityId === command.abilityId;
+      return (
+        action.kind === "useAbility" &&
+        action.instanceId === command.cardInstanceId &&
+        action.abilityId === command.abilityId
+      );
     case "basicAttack":
-      return action.kind === "basicAttack" && action.instanceId === command.attackerInstanceId && entry.targets.includes(command.targetInstanceId);
+      return (
+        action.kind === "basicAttack" &&
+        action.instanceId === command.attackerInstanceId &&
+        entry.targets.includes(command.targetInstanceId)
+      );
     case "basicThwart":
-      return action.kind === "basicThwart" && action.instanceId === command.thwarterInstanceId && entry.targets.includes(command.schemeInstanceId);
+      return (
+        action.kind === "basicThwart" &&
+        action.instanceId === command.thwarterInstanceId &&
+        entry.targets.includes(command.schemeInstanceId)
+      );
     case "basicRecover":
     case "changeForm":
     case "endTurn":
@@ -52,11 +66,22 @@ function covers(entry: LegalAction, command: Command): boolean {
 
 const GAMES: readonly [string, GameSetupConfig][] = [
   ["Rhino, solo", coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 2026 })],
-  ["Klaw, 2 players", coreScenario("klaw", { players: [{ starterDeckId: "core-she-hulk-aggression" }, { starterDeckId: "core-black-panther-protection" }], seed: 77 })],
+  [
+    "Klaw, 2 players",
+    coreScenario("klaw", {
+      players: [{ starterDeckId: "core-she-hulk-aggression" }, { starterDeckId: "core-black-panther-protection" }],
+      seed: 77,
+    }),
+  ],
   [
     "Ultron, 4 players",
     coreScenario("ultron", {
-      players: ["core-captain-marvel-leadership", "core-iron-man-aggression", "core-black-panther-protection", "core-spider-man-justice"].map((starterDeckId) => ({ starterDeckId })),
+      players: [
+        "core-captain-marvel-leadership",
+        "core-iron-man-aggression",
+        "core-black-panther-protection",
+        "core-spider-man-justice",
+      ].map((starterDeckId) => ({ starterDeckId })),
       seed: 1138,
     }),
   ],
@@ -79,10 +104,12 @@ describe("legalActions on real Core games", () => {
           expect(result.kind).toBe("turn");
           if (result.kind === "turn") {
             const listed = result.legal.some((entry) => covers(entry, command));
-            if (!listed) throw new Error(`${command.type} was accepted but not listed as legal: ${JSON.stringify(command)}`);
+            if (!listed)
+              throw new Error(`${command.type} was accepted but not listed as legal: ${JSON.stringify(command)}`);
             for (const entry of result.legal) {
               const accepted = applyCommand(state, entry.example, CORE_DEPS);
-              if (!accepted.ok) throw new Error(`example for ${JSON.stringify(entry.action)} rejected: ${accepted.error.message}`);
+              if (!accepted.ok)
+                throw new Error(`example for ${JSON.stringify(entry.action)} rejected: ${accepted.error.message}`);
             }
             checked++;
           }
@@ -113,10 +140,13 @@ function contextOf(entry: LegalAction): PaymentContext {
 
 const optionIdsOf = (entry: LegalAction): readonly string[] =>
   entry.example.type === "playCard" || entry.example.type === "useAbility"
-    ? entry.example.payment.map((p) => ("fromHand" in p ? `hand:${p.fromHand}` : `ability:${p.ability.instanceId}:${p.ability.abilityId}`))
+    ? entry.example.payment.map((p) =>
+        "fromHand" in p ? `hand:${p.fromHand}` : `ability:${p.ability.instanceId}:${p.ability.abilityId}`,
+      )
     : [];
 
-const spiderManVsRhino = () => startCoreGame(coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }));
+const spiderManVsRhino = () =>
+  startCoreGame(coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }));
 const playCardAction = (instanceId: InstanceId): ActionRef => ({ kind: "playCard", instanceId });
 
 describe("paymentFor / tryPayment on real Core cards", () => {
@@ -130,12 +160,19 @@ describe("paymentFor / tryPayment on real Core cards", () => {
     expect(query.requirement).toEqual({ generic: 2, physical: 0, mental: 0, energy: 0 });
     expect(query.sources.map((source) => source.instanceId)).not.toContain(forJustice);
     expect(query.sources.map((source) => source.instanceId).sort()).toEqual(
-      playerOf(hero, P1).hand.filter((id) => id !== forJustice).sort(),
+      playerOf(hero, P1)
+        .hand.filter((id) => id !== forJustice)
+        .sort(),
     );
     // "Double the number of resources this card generates while paying for a Justice card."
     const doubled = query.sources.find((source) => source.instanceId === powerOfJustice);
     expect(doubled).toMatchObject({ kind: "handCard", label: "The Power of Justice", pool: { wild: 2 } });
-    expect(query.sources.find((source) => source.instanceId === haymaker)?.pool).toEqual({ physical: 0, mental: 0, energy: 1, wild: 0 });
+    expect(query.sources.find((source) => source.instanceId === haymaker)?.pool).toEqual({
+      physical: 0,
+      mental: 0,
+      energy: 1,
+      wild: 0,
+    });
 
     const accepted = tryPayment(hero, P1, playCardAction(forJustice), query.suggested, {}, CORE_DEPS);
     expect(accepted.ok).toBe(true);
@@ -143,7 +180,12 @@ describe("paymentFor / tryPayment on real Core cards", () => {
 
     // The same card is worth 1 toward a basic card, and the engine says so.
     const basic = paymentFor(hero, P1, playCardAction(haymaker), {}, CORE_DEPS);
-    expect(basic?.sources.find((source) => source.instanceId === powerOfJustice)?.pool).toEqual({ physical: 0, mental: 0, energy: 0, wild: 1 });
+    expect(basic?.sources.find((source) => source.instanceId === powerOfJustice)?.pool).toEqual({
+      physical: 0,
+      mental: 0,
+      energy: 0,
+      wild: 1,
+    });
     const short = tryPayment(hero, P1, playCardAction(haymaker), [`hand:${powerOfJustice}`], {}, CORE_DEPS);
     expect(short.ok).toBe(false);
     if (!short.ok) expect(short.reason).toBe("insufficient_resources");
@@ -166,12 +208,16 @@ describe("paymentFor / tryPayment on real Core cards", () => {
   });
 
   it("a card that costs nothing has no payment step", () => {
-    const leadership = startCoreGame(coreScenario("rhino", { players: [{ starterDeckId: "core-captain-marvel-leadership" }], seed: 5 }));
+    const leadership = startCoreGame(
+      coreScenario("rhino", { players: [{ starterDeckId: "core-captain-marvel-leadership" }], seed: 5 }),
+    );
     const given = moveToHand(leadership, P1, "01069"); // Get Ready — cost 0, "Action: Ready an ally."
     const [getReady] = given.ids as [InstanceId];
     const hero = run(given.state, toHero());
     expect(paymentFor(hero, P1, playCardAction(getReady), {}, CORE_DEPS)).toBeNull();
-    expect(paymentFor(hero, P1, { kind: "basicThwart", instanceId: playerOf(hero, P1).identity.instanceId }, {}, CORE_DEPS)).toBeNull();
+    expect(
+      paymentFor(hero, P1, { kind: "basicThwart", instanceId: playerOf(hero, P1).identity.instanceId }, {}, CORE_DEPS),
+    ).toBeNull();
     expect(paymentFor(hero, P1, { kind: "endTurn" }, {}, CORE_DEPS)).toBeNull();
   });
 
@@ -197,7 +243,8 @@ describe("paymentFor / tryPayment on real Core cards", () => {
             // The overlay opens on exactly the payment `example` carries.
             expect(query.suggested).toEqual(optionIdsOf(entry));
             const attempt = tryPayment(state, command.playerId, entry.action, query.suggested, context, CORE_DEPS);
-            if (!attempt.ok) throw new Error(`suggested payment for ${JSON.stringify(entry.action)} rejected: ${attempt.message}`);
+            if (!attempt.ok)
+              throw new Error(`suggested payment for ${JSON.stringify(entry.action)} rejected: ${attempt.message}`);
             expect(attempt.command).toEqual(entry.example);
             priced++;
           }

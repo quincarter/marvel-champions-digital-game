@@ -31,7 +31,9 @@ describe("wave 2 reprints", () => {
   });
 
   it("aliases Lead from the Front (04018) to Core's own 01070, the exact same AbilityDefinition object", () => {
-    expect(WAVE2_REPRINT_ABILITIES["04018.lead-from-the-front-action"]).toBe(CORE_ABILITIES["01070.lead-from-the-front-action"]);
+    expect(WAVE2_REPRINT_ABILITIES["04018.lead-from-the-front-action"]).toBe(
+      CORE_ABILITIES["01070.lead-from-the-front-action"],
+    );
   });
 
   it("aliases Hail Hydra! (04057, hawkeye_nemesis; 04147, hydra_assault) to the same wave 1 (cap) definition", () => {

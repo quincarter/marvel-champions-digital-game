@@ -146,7 +146,11 @@ export function clearHeroFilter(draft: SetupDraft): SetupDraft {
  * deck deleted on a trip to the Decks screen), falling back to `fallbackDeckId`
  * if that empties the table — the same fix-up `TitleScene#rebuild` runs today.
  */
-export function pruneSeats(draft: SetupDraft, availableDeckIds: ReadonlySet<string>, fallbackDeckId: string): SetupDraft {
+export function pruneSeats(
+  draft: SetupDraft,
+  availableDeckIds: ReadonlySet<string>,
+  fallbackDeckId: string,
+): SetupDraft {
   const seats = draft.seats.filter((id) => availableDeckIds.has(id));
   const kept = seats.length > 0 ? seats : [fallbackDeckId];
   return { ...draft, seats: kept, activeSeatIndex: Math.min(draft.activeSeatIndex, kept.length) };
@@ -285,7 +289,9 @@ export function usePreconstructedForAllSeats(draft: SetupDraft, deckOptions: rea
   const seats = draft.seats.map((deckId) => {
     const seated = byDeckId.get(deckId);
     if (!seated) return deckId;
-    const precon = precons.find((option) => (option.deck.identityCardId as string) === (seated.deck.identityCardId as string));
+    const precon = precons.find(
+      (option) => (option.deck.identityCardId as string) === (seated.deck.identityCardId as string),
+    );
     return precon ? (precon.deck.id as string) : deckId;
   });
   return { ...draft, seats };

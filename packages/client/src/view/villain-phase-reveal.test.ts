@@ -9,7 +9,13 @@ function completedWalkthrough(): Walkthrough {
   return {
     round: 3,
     steps: [
-      { kind: "placeThreat", number: 1, title: "Place threat", beats: [beat("b1", "+4 threat placed")], status: "done" },
+      {
+        kind: "placeThreat",
+        number: 1,
+        title: "Place threat",
+        beats: [beat("b1", "+4 threat placed")],
+        status: "done",
+      },
       {
         kind: "enemyActivations",
         number: 2,
@@ -17,9 +23,27 @@ function completedWalkthrough(): Walkthrough {
         beats: [beat("b2", "Rhino activates against you"), beat("b3", "2 damage dealt")],
         status: "done",
       },
-      { kind: "dealEncounterCards", number: 3, title: "Deal encounter cards", beats: [beat("b4", "1 card dealt")], status: "done" },
-      { kind: "revealEncounterCards", number: 4, title: "Reveal encounter cards", beats: [beat("b5", "Card revealed")], status: "done" },
-      { kind: "passFirstPlayer", number: 5, title: "Pass the first player token", beats: [beat("b6", "Token passed")], status: "done" },
+      {
+        kind: "dealEncounterCards",
+        number: 3,
+        title: "Deal encounter cards",
+        beats: [beat("b4", "1 card dealt")],
+        status: "done",
+      },
+      {
+        kind: "revealEncounterCards",
+        number: 4,
+        title: "Reveal encounter cards",
+        beats: [beat("b5", "Card revealed")],
+        status: "done",
+      },
+      {
+        kind: "passFirstPlayer",
+        number: 5,
+        title: "Pass the first player token",
+        beats: [beat("b6", "Token passed")],
+        status: "done",
+      },
     ],
     activeStep: null,
     pausedAt: null,
@@ -95,7 +119,13 @@ describe("revealOf", () => {
     const paused: Walkthrough = {
       round: 2,
       steps: [
-        { kind: "placeThreat", number: 1, title: "Place threat", beats: [beat("b1", "+2 threat placed")], status: "done" },
+        {
+          kind: "placeThreat",
+          number: 1,
+          title: "Place threat",
+          beats: [beat("b1", "+2 threat placed")],
+          status: "done",
+        },
         {
           kind: "enemyActivations",
           number: 2,
@@ -105,7 +135,14 @@ describe("revealOf", () => {
             {
               id: "b3",
               text: "Auto-advance paused for your interrupt",
-              pause: { playerId: "p1" as never, promptKind: "chooseTriggers", authority: "player", label: "Auto-advance paused for your interrupt", soleDecider: false, offer: "" },
+              pause: {
+                playerId: "p1" as never,
+                promptKind: "chooseTriggers",
+                authority: "player",
+                label: "Auto-advance paused for your interrupt",
+                soleDecider: false,
+                offer: "",
+              },
               activation: null,
             },
           ],
@@ -116,7 +153,14 @@ describe("revealOf", () => {
         { kind: "passFirstPlayer", number: 5, title: "Pass the first player token", beats: [], status: "pending" },
       ],
       activeStep: 2,
-      pausedAt: { playerId: "p1" as never, promptKind: "chooseTriggers", authority: "player", label: "Auto-advance paused for your interrupt", soleDecider: false, offer: "" },
+      pausedAt: {
+        playerId: "p1" as never,
+        promptKind: "chooseTriggers",
+        authority: "player",
+        label: "Auto-advance paused for your interrupt",
+        soleDecider: false,
+        offer: "",
+      },
       complete: false,
       nextBeatId: 4,
       activation: null,

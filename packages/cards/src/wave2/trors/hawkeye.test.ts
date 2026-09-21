@@ -1,5 +1,14 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeckId, applyCommand, cardsInPlay, characterProfile, hasKeyword, traitsOf, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeckId,
+  applyCommand,
+  cardsInPlay,
+  characterProfile,
+  hasKeyword,
+  traitsOf,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -28,7 +37,8 @@ import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
 // Real wave 2 content: the Hawkeye (Leadership) precon against Rhino, standard, solo.
-const hawkeyeVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 11 }));
+const hawkeyeVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 11 }));
 
 /** Hawkeye's Bow (04002, cost 0) moved to hand and played into play, keeping the current form (hero if already). */
 function heroWithBow(state = hawkeyeVsRhino()) {
@@ -72,7 +82,9 @@ describe("Hawkeye kit", () => {
 
   it("Hawkeye's Bow: +1 ATK, and each of your Arrow attacks gain ranged (ignoring a retaliate enemy's damage back)", () => {
     // Red Skull scenario for The Sleeper (04130: Guard, Retaliate 1, Toughness) — Rhino has no retaliate keyword.
-    const start = startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+    const start = startWave2Game(
+      wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
     const hero = runWave2(start, toHero());
     const staged = stageScenarioSetAsideForReveal(hero, "04130");
     const revealed = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
@@ -98,7 +110,9 @@ describe("Hawkeye kit", () => {
   });
 
   it("Hawkeye's Bow: without ranged, the same first attack against The Sleeper takes its retaliate 1 back (the control this pack's ranged grant is checked against)", () => {
-    const start = startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+    const start = startWave2Game(
+      wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
     const hero = runWave2(start, toHero());
     const staged = stageScenarioSetAsideForReveal(hero, "04130");
     const revealed = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
@@ -107,7 +121,12 @@ describe("Hawkeye kit", () => {
     const identity = identityOf(revealed);
     const before = inst(revealed, identity).damage;
     const after = settle(
-      runWave2(revealed, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: sleeper }),
+      runWave2(revealed, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: sleeper,
+      }),
       firstLegal,
       undefined,
       WAVE2_DEPS,
@@ -118,11 +137,18 @@ describe("Hawkeye kit", () => {
   it("Mockingbird: Interrupt, spending 1 resource of any type and returning her to hand, prevents all damage from the villain's initiated attack against you", () => {
     // Seed 1 (unlike this file's usual seed 11) has Rhino attack rather than scheme on the very first villain
     // phase, so Mockingbird's interrupt window (attack *initiation*, before a defender is even declared) is reached.
-    const start = startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 1 }));
+    const start = startWave2Game(
+      wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 1 }),
+    );
     const hero = runWave2(start, toHero());
     const given = moveToHand(hero, P1, "04004");
     const [mockingbird] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, mockingbird, payWith(given.state, P1, 3, [mockingbird]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, mockingbird, payWith(given.state, P1, 3, [mockingbird]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const identity = identityOf(played);
     const before = inst(played, identity).damage;
     // Answered explicitly, three steps only (discard down to hand size, choose the interrupt, pay its 1-resource
@@ -160,13 +186,22 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04011");
     const [kate] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, kate, payWith(given.state, P1, 2, [kate]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, kate, payWith(given.state, P1, 2, [kate]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     // Discard Hawkeye's Bow (04002, cost 0, one [wild] printed resource) as the ability's own cost: X = 1.
     const withDiscardable = moveToHand(played, P1, "04002");
     const [bow] = withDiscardable.ids as [InstanceId];
     const villain = withDiscardable.state.villains[0]!.instanceId;
     const before = inst(withDiscardable.state, villain).damage;
-    const result = applyCommand(withDiscardable.state, use(P1, kate, "04011.hawkeye-action", [], { discard: [bow] }), WAVE2_DEPS);
+    const result = applyCommand(
+      withDiscardable.state,
+      use(P1, kate, "04011.hawkeye-action", [], { discard: [bow] }),
+      WAVE2_DEPS,
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const after = settle(result.state, picking(villain), undefined, WAVE2_DEPS);
@@ -191,8 +226,18 @@ describe("Hawkeye kit", () => {
     const [sonicArrow] = withTop.ids as [InstanceId];
     const given = moveToHand(withTop.state, P1, "04003");
     const [quiver] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, quiver, payWith(given.state, P1, 1, [quiver]))), firstLegal, undefined, WAVE2_DEPS);
-    const after = settle(runWave2(played, use(P1, quiver, "04003.hawkeyes-quiver-action")), picking(sonicArrow), undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, quiver, payWith(given.state, P1, 1, [quiver]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const after = settle(
+      runWave2(played, use(P1, quiver, "04003.hawkeyes-quiver-action")),
+      picking(sonicArrow),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(after, quiver).exhausted).toBe(true);
     expect(inst(after, sonicArrow).attachedTo).toBe(quiver);
   });
@@ -203,13 +248,27 @@ describe("Hawkeye kit", () => {
     const [sonicArrow] = withTop.ids as [InstanceId];
     const given = moveToHand(withTop.state, P1, "04003");
     const [quiver] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, quiver, payWith(given.state, P1, 1, [quiver]))), firstLegal, undefined, WAVE2_DEPS);
-    const withArrow = settle(runWave2(played, use(P1, quiver, "04003.hawkeyes-quiver-action")), picking(sonicArrow), undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, quiver, payWith(given.state, P1, 1, [quiver]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const withArrow = settle(
+      runWave2(played, use(P1, quiver, "04003.hawkeyes-quiver-action")),
+      picking(sonicArrow),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(withArrow, sonicArrow).attachedTo).toBe(quiver);
     // Playing the attached Sonic Arrow doesn't need it in hand — the constant grants it as if it were — but it
     // does still need Hawkeye's Bow in play to pay its own cost.
     const withBow = heroWithBow(withArrow);
-    const result = applyCommand(withBow.state, play(P1, sonicArrow, payWith(withBow.state, P1, 2, [withBow.bow])), WAVE2_DEPS);
+    const result = applyCommand(
+      withBow.state,
+      play(P1, sonicArrow, payWith(withBow.state, P1, 2, [withBow.bow])),
+      WAVE2_DEPS,
+    );
     expect(result.ok).toBe(true);
   });
 
@@ -273,7 +332,9 @@ describe("Hawkeye kit", () => {
     const given = moveToHand(withBow.state, P1, "04009");
     const [vibraniumArrow] = given.ids as [InstanceId];
     const villain = given.state.villains[0]!.instanceId;
-    const toughened = patchInstance(given.state, villain, { statuses: { ...inst(given.state, villain).statuses, tough: 1 } });
+    const toughened = patchInstance(given.state, villain, {
+      statuses: { ...inst(given.state, villain).statuses, tough: 1 },
+    });
     const before = inst(toughened, villain).damage;
     const after = settle(
       runWave2(toughened, play(P1, vibraniumArrow, payWith(toughened, P1, 2, [vibraniumArrow, withBow.bow]))),
@@ -293,12 +354,19 @@ describe("Hawkeye kit", () => {
     const hero = runWave2(start, toHero());
     const given = moveToHand(hero, P1, "04010", "04002", "04005");
     const [marksman, bow, sonicArrow] = given.ids as [InstanceId, InstanceId, InstanceId];
-    const withMarksman = settle(runWave2(given.state, play(P1, marksman, payWith(given.state, P1, 1, [marksman, bow, sonicArrow]))), firstLegal, undefined, WAVE2_DEPS);
+    const withMarksman = settle(
+      runWave2(given.state, play(P1, marksman, payWith(given.state, P1, 1, [marksman, bow, sonicArrow]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const withBow = settle(runWave2(withMarksman, play(P1, bow, [])), firstLegal, undefined, WAVE2_DEPS);
     // Pays Sonic Arrow's cost (2) with Expert Marksman's own resource ability plus 1 other card.
     const played = applyCommand(
       withBow,
-      play(P1, sonicArrow, payWith(withBow, P1, 1, [sonicArrow, marksman, bow]), { abilities: [resourceAbility(marksman, "04010.expert-marksman-resource")] }),
+      play(P1, sonicArrow, payWith(withBow, P1, 1, [sonicArrow, marksman, bow]), {
+        abilities: [resourceAbility(marksman, "04010.expert-marksman-resource")],
+      }),
       WAVE2_DEPS,
     );
     expect(played.ok).toBe(true);
@@ -310,7 +378,12 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04012");
     const [blackKnight] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, blackKnight, payWith(given.state, P1, 3, [blackKnight]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, blackKnight, payWith(given.state, P1, 3, [blackKnight]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(playerOf(played, P1).playArea).toContain(blackKnight);
     expect(hasKeyword(played, blackKnight, "piercing", WAVE2_DEPS)).toBe(true);
   });
@@ -319,9 +392,19 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04013");
     const [goliath] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, goliath, payWith(given.state, P1, 4, [goliath]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, goliath, payWith(given.state, P1, 4, [goliath]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const baseAtk = characterProfile(played, goliath, WAVE2_DEPS)?.atk ?? 0;
-    const boosted = settle(runWave2(played, use(P1, goliath, "04013.goliath-action")), firstLegal, undefined, WAVE2_DEPS);
+    const boosted = settle(
+      runWave2(played, use(P1, goliath, "04013.goliath-action")),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(characterProfile(boosted, goliath, WAVE2_DEPS)?.atk).toBe(baseAtk + 4);
     const afterEnd = settle(runWave2(boosted, endTurn()), firstLegal, undefined, WAVE2_DEPS);
     expect(playerOf(afterEnd, P1).playArea).not.toContain(goliath);
@@ -332,8 +415,17 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04015", "04014");
     const [skyCycle, usAgent] = given.ids as [InstanceId, InstanceId];
-    const withAlly = settle(runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [skyCycle, usAgent]))), firstLegal, undefined, WAVE2_DEPS);
-    const attached = applyCommand(withAlly, play(P1, skyCycle, payWith(withAlly, P1, 1, [skyCycle]), { attachToInstanceId: usAgent }), WAVE2_DEPS);
+    const withAlly = settle(
+      runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [skyCycle, usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const attached = applyCommand(
+      withAlly,
+      play(P1, skyCycle, payWith(withAlly, P1, 1, [skyCycle]), { attachToInstanceId: usAgent }),
+      WAVE2_DEPS,
+    );
     expect(attached.ok).toBe(true);
     if (!attached.ok) return;
     const settledAttach = settle(attached.state, firstLegal, undefined, WAVE2_DEPS);
@@ -348,8 +440,18 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04016", "04014");
     const [teamTraining, usAgent] = given.ids as [InstanceId, InstanceId];
-    const withTraining = settle(runWave2(given.state, play(P1, teamTraining, payWith(given.state, P1, 2, [teamTraining, usAgent]))), firstLegal, undefined, WAVE2_DEPS);
-    const withAlly = settle(runWave2(withTraining, play(P1, usAgent, payWith(withTraining, P1, 3, [usAgent]))), firstLegal, undefined, WAVE2_DEPS);
+    const withTraining = settle(
+      runWave2(given.state, play(P1, teamTraining, payWith(given.state, P1, 2, [teamTraining, usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const withAlly = settle(
+      runWave2(withTraining, play(P1, usAgent, payWith(withTraining, P1, 3, [usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     // U.S. Agent prints 5 hit points; Team Training's own +1 should be visible on the resolved profile.
     expect(characterProfile(withAlly, usAgent, WAVE2_DEPS)?.maxHp).toBe(6);
   });
@@ -358,8 +460,18 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04017", "04014");
     const [readyForAction, usAgent] = given.ids as [InstanceId, InstanceId];
-    const withAlly = settle(runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [readyForAction, usAgent]))), firstLegal, undefined, WAVE2_DEPS);
-    const after = settle(runWave2(withAlly, play(P1, readyForAction, payWith(withAlly, P1, 1, [readyForAction]))), picking(usAgent), undefined, WAVE2_DEPS);
+    const withAlly = settle(
+      runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [readyForAction, usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const after = settle(
+      runWave2(withAlly, play(P1, readyForAction, payWith(withAlly, P1, 1, [readyForAction]))),
+      picking(usAgent),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(after, usAgent).statuses.tough).toBeGreaterThan(0);
   });
 
@@ -367,10 +479,20 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04022", "04014");
     const [heroes, usAgent] = given.ids as [InstanceId, InstanceId];
-    const withAlly = settle(runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [heroes, usAgent]))), firstLegal, undefined, WAVE2_DEPS);
+    const withAlly = settle(
+      runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [heroes, usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const exhaustedAlly = patchInstance(withAlly, usAgent, { exhausted: true });
     const identity = identityOf(exhaustedAlly);
-    const after = settle(runWave2(exhaustedAlly, play(P1, heroes, [])), picking(identity, usAgent), undefined, WAVE2_DEPS);
+    const after = settle(
+      runWave2(exhaustedAlly, play(P1, heroes, [])),
+      picking(identity, usAgent),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(after, identity).exhausted).toBe(true);
     expect(inst(after, usAgent).exhausted).toBe(false);
   });
@@ -478,7 +600,12 @@ describe("Hawkeye's obligation and nemesis (Criminal Past, Crossfire)", () => {
     const hero = runWave2(hawkeyeVsRhino(), toHero());
     const given = moveToHand(hero, P1, "04004");
     const [mockingbird] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, mockingbird, payWith(given.state, P1, 3, [mockingbird]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, mockingbird, payWith(given.state, P1, 3, [mockingbird]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(playerOf(played, P1).playArea).toContain(mockingbird);
     const staged = stackSetAsideBehindBoost(played, "04028");
     const settled = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);

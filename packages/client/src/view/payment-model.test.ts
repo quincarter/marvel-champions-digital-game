@@ -30,7 +30,9 @@ async function intoTurn(flip: boolean): Promise<void> {
   store = new SessionStore(new LocalEngineHost());
   await store.start(SPIDER_MAN_SOLO);
   for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
-    const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+    const { choice } = store.state.legal.actions as {
+      choice: { options: readonly { optionId: string }[]; minSelections: number };
+    };
     await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
   }
   const legal = store.state.legal?.actions;

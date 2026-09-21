@@ -115,7 +115,11 @@ export interface VariableListThumb {
 }
 
 /** The scroll thumb, as fractions of the track. Null when every row already fits. */
-export function variableThumbOf(offsetPx: number, heights: readonly number[], viewportHeight: number): VariableListThumb | null {
+export function variableThumbOf(
+  offsetPx: number,
+  heights: readonly number[],
+  viewportHeight: number,
+): VariableListThumb | null {
   const contentHeight = totalHeight(heights);
   if (contentHeight <= viewportHeight || contentHeight <= 0) return null;
   const size = Math.min(1, viewportHeight / contentHeight);

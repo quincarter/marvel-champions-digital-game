@@ -167,7 +167,12 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   const backWidth = 90;
   const stepWidth = Math.min(160, Math.max(90, width * 0.32));
   const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
-  const step: Rect = { x: width - headerPad - stepWidth, y: (HEADER_HEIGHT - hit.target) / 2, width: stepWidth, height: hit.target };
+  const step: Rect = {
+    x: width - headerPad - stepWidth,
+    y: (HEADER_HEIGHT - hit.target) / 2,
+    width: stepWidth,
+    height: hit.target,
+  };
 
   const left = gutter;
   const detailWidth = detailPanelWidthFor(width, height);
@@ -179,12 +184,22 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   if (wide) {
     // One row of four seat cards.
     const slotWidth = (shelvesWidth - (MAX_SEATS - 1) * 6) / MAX_SEATS;
-    const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => ({ x: left + i * (slotWidth + 6), y: bodyTop, width: slotWidth, height: SEAT_SLOT_HEIGHT }));
+    const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => ({
+      x: left + i * (slotWidth + 6),
+      y: bodyTop,
+      width: slotWidth,
+      height: SEAT_SLOT_HEIGHT,
+    }));
     let y = bodyTop + SEAT_SLOT_HEIGHT + smallGap;
 
     const usePreconstructedWidth = Math.min(230, shelvesWidth * 0.5);
     const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: ROSTER_HEADER_HEIGHT };
-    const usePreconstructed: Rect = { x: rosterHeader.x + rosterHeader.width - usePreconstructedWidth, y: rosterHeader.y, width: usePreconstructedWidth, height: ROSTER_HEADER_HEIGHT };
+    const usePreconstructed: Rect = {
+      x: rosterHeader.x + rosterHeader.width - usePreconstructedWidth,
+      y: rosterHeader.y,
+      width: usePreconstructedWidth,
+      height: ROSTER_HEADER_HEIGHT,
+    };
     y += ROSTER_HEADER_HEIGHT + smallGap;
 
     const search: Rect = { x: left, y, width: shelvesWidth, height: hit.target };
@@ -204,7 +219,12 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     const ctaBlockHeight = ctaHeight * 2 + 8 + FOOTER_HEIGHT + 4;
     // "Play N heroes" is the way forward, so it takes the primary's place at the very foot; Deck check is the
     // optional look above it (owner, 2026-09-18: "Deck check shouldn't be the primary action").
-    const deckCheck: Rect = { x: detail.x + 16, y: detail.y + detail.height - 16 - ctaBlockHeight, width: stacked, height: ctaHeight };
+    const deckCheck: Rect = {
+      x: detail.x + 16,
+      y: detail.y + detail.height - 16 - ctaBlockHeight,
+      width: stacked,
+      height: ctaHeight,
+    };
     const play: Rect = { x: detail.x + 16, y: deckCheck.y + ctaHeight + 8, width: stacked, height: ctaHeight };
     return {
       formFactor,
@@ -231,16 +251,31 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   // Narrow (P03): compact seat chips in one row, the summary line, header/search/rail, then the shelves take all
   // the room down to the sticky footer. Nothing here is sized to "whatever is left" except the shelves.
   const chipWidth = (shelvesWidth - (MAX_SEATS - 1) * SEAT_CHIP_GAP) / MAX_SEATS;
-  const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => ({ x: left + i * (chipWidth + SEAT_CHIP_GAP), y: bodyTop, width: chipWidth, height: SEAT_CHIP_HEIGHT }));
+  const seatSlots: Rect[] = Array.from({ length: MAX_SEATS }, (_, i) => ({
+    x: left + i * (chipWidth + SEAT_CHIP_GAP),
+    y: bodyTop,
+    width: chipWidth,
+    height: SEAT_CHIP_HEIGHT,
+  }));
   let y = bodyTop + SEAT_CHIP_HEIGHT + smallGap;
 
   const seatSummary: Rect = { x: left, y, width: shelvesWidth, height: SEAT_SUMMARY_HEIGHT };
-  const clearSeat: Rect = { x: left + shelvesWidth - CLEAR_SEAT_WIDTH, y: y + (SEAT_SUMMARY_HEIGHT - hit.target) / 2, width: CLEAR_SEAT_WIDTH, height: hit.target };
+  const clearSeat: Rect = {
+    x: left + shelvesWidth - CLEAR_SEAT_WIDTH,
+    y: y + (SEAT_SUMMARY_HEIGHT - hit.target) / 2,
+    width: CLEAR_SEAT_WIDTH,
+    height: hit.target,
+  };
   y += SEAT_SUMMARY_HEIGHT + smallGap;
 
   const usePreconstructedWidth = Math.min(230, shelvesWidth * 0.5);
   const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: ROSTER_HEADER_HEIGHT };
-  const usePreconstructed: Rect = { x: rosterHeader.x + rosterHeader.width - usePreconstructedWidth, y: rosterHeader.y, width: usePreconstructedWidth, height: ROSTER_HEADER_HEIGHT };
+  const usePreconstructed: Rect = {
+    x: rosterHeader.x + rosterHeader.width - usePreconstructedWidth,
+    y: rosterHeader.y,
+    width: usePreconstructedWidth,
+    height: ROSTER_HEADER_HEIGHT,
+  };
   y += ROSTER_HEADER_HEIGHT + smallGap;
 
   const search: Rect = { x: left, y, width: shelvesWidth, height: hit.target };
@@ -250,13 +285,28 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   y += chips.height + smallGap;
 
   const footer: Rect = { x: 0, y: height - NARROW_FOOTER_HEIGHT, width, height: NARROW_FOOTER_HEIGHT };
-  const deckCheck: Rect = { x: left, y: footer.y + NARROW_FOOTER_PAD, width: NARROW_DECK_CHECK_WIDTH, height: hit.primary };
-  const play: Rect = { x: left + NARROW_DECK_CHECK_WIDTH + CTA_GAP, y: footer.y + NARROW_FOOTER_PAD, width: shelvesWidth - NARROW_DECK_CHECK_WIDTH - CTA_GAP, height: hit.primary };
+  const deckCheck: Rect = {
+    x: left,
+    y: footer.y + NARROW_FOOTER_PAD,
+    width: NARROW_DECK_CHECK_WIDTH,
+    height: hit.primary,
+  };
+  const play: Rect = {
+    x: left + NARROW_DECK_CHECK_WIDTH + CTA_GAP,
+    y: footer.y + NARROW_FOOTER_PAD,
+    width: shelvesWidth - NARROW_DECK_CHECK_WIDTH - CTA_GAP,
+    height: hit.primary,
+  };
 
   // Floored, never trimmed: on a viewport too short for even this (a landscape phone), the shelves keep one card's
   // worth of height and are the thing that runs under the footer — the footer's own ink hides the overflow, and a
   // cropped last shelf beats a roster that can't show a single hero.
-  const shelves: Rect = { x: left, y, width: shelvesWidth, height: Math.max(NARROW_SHELVES_MIN_HEIGHT, footer.y - gutter - y) };
+  const shelves: Rect = {
+    x: left,
+    y,
+    width: shelvesWidth,
+    height: Math.max(NARROW_SHELVES_MIN_HEIGHT, footer.y - gutter - y),
+  };
   return {
     formFactor,
     wide,

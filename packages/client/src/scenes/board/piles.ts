@@ -63,7 +63,15 @@ export function drawPile(ctx: BoardDrawContext, box: Rect, name: string, count: 
   const onPaper = count > 0 && !drawn;
   const color = onPaper ? surface.ink.hex : surface.paper.hex;
 
-  const title = label(scene, box.x + box.width / 2, box.y + 5, name, typeRole.label, color, count === 0 ? ink.meta : 1).setOrigin(0.5, 0);
+  const title = label(
+    scene,
+    box.x + box.width / 2,
+    box.y + 5,
+    name,
+    typeRole.label,
+    color,
+    count === 0 ? ink.meta : 1,
+  ).setOrigin(0.5, 0);
   if (drawn) title.setPadding(3, 1, 3, 1).setBackgroundColor(cssOf(surface.ink.hex, 0.8));
   fitText(title, box.width - 6, typeRole.label.size);
 
@@ -74,7 +82,12 @@ export function drawPile(ctx: BoardDrawContext, box: Rect, name: string, count: 
     cg.fillStyle(surface.ink.hex, 0.8).fillRect(chip.x, chip.y, chip.width, chip.height);
   }
   const number = scene.add
-    .text(chip.x + chip.width / 2, chip.y + chip.height / 2, String(count), textStyle(chipHeight < 20 ? typeRole.statSmall : typeRole.stat, color, count === 0 ? ink.meta : 1))
+    .text(
+      chip.x + chip.width / 2,
+      chip.y + chip.height / 2,
+      String(count),
+      textStyle(chipHeight < 20 ? typeRole.statSmall : typeRole.stat, color, count === 0 ? ink.meta : 1),
+    )
     .setOrigin(0.5);
   fitText(number, chip.width - 4, chipHeight < 20 ? typeRole.statSmall.size : typeRole.stat.size);
 }

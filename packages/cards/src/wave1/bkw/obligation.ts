@@ -4,7 +4,11 @@ import { obligation } from "../../core/obligations.js";
 import { PREPARATION, theCardWithHighestCost } from "./local.js";
 
 /** Preparation cards in play under your control (every Preparation card in this pack is an upgrade). */
-const PREPARATION_YOU_CONTROL: TargetQuery = { categories: ["ally", "support", "upgrade"], trait: PREPARATION, controller: "you" };
+const PREPARATION_YOU_CONTROL: TargetQuery = {
+  categories: ["ally", "support", "upgrade"],
+  trait: PREPARATION,
+  controller: "you",
+};
 
 export const BKW_OBLIGATION = defineAbilities({
   // Burn Notice (08025).
@@ -18,7 +22,11 @@ export const BKW_OBLIGATION = defineAbilities({
     effects: [
       ifThen(
         exists(PREPARATION_YOU_CONTROL),
-        [bindTargets("highest", theCardWithHighestCost(PREPARATION_YOU_CONTROL)), chooseTarget("burned", { inSlot: "highest" }), discard(chosen("burned"))],
+        [
+          bindTargets("highest", theCardWithHighestCost(PREPARATION_YOU_CONTROL)),
+          chooseTarget("burned", { inSlot: "highest" }),
+          discard(chosen("burned")),
+        ],
         surge(),
       ),
     ],

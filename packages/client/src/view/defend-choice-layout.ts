@@ -100,7 +100,12 @@ export function defendChoiceLayout(viewport: Rect): DefendChoiceLayout {
     width: sheet.width,
     height: hit.primary,
   };
-  const waitingOn: Rect = { x: sheet.x, y: commit.y - WAITING_HEIGHT - SECTION_GAP, width: sheet.width, height: WAITING_HEIGHT };
+  const waitingOn: Rect = {
+    x: sheet.x,
+    y: commit.y - WAITING_HEIGHT - SECTION_GAP,
+    width: sheet.width,
+    height: WAITING_HEIGHT,
+  };
   const bodyBottomForStack = waitingOn.y - SECTION_GAP;
   const stackHeight = Math.min(150, Math.max(84, Math.round((bodyBottomForStack - bodyTop) * 0.24)));
   const stack: Rect = { x: sheet.x, y: bodyBottomForStack - stackHeight, width: sheet.width, height: stackHeight };
@@ -143,7 +148,10 @@ export function defendOptionSlots(area: Rect, count: number, formFactor: FormFac
     }));
   }
 
-  const perRow = Math.max(1, Math.min(count, Math.floor((area.width + OPTION_GAP) / (OPTION_MIN_MAIN_AXIS + OPTION_GAP))));
+  const perRow = Math.max(
+    1,
+    Math.min(count, Math.floor((area.width + OPTION_GAP) / (OPTION_MIN_MAIN_AXIS + OPTION_GAP))),
+  );
   const rows = Math.ceil(count / perRow);
   const rowHeight = (area.height - OPTION_GAP * (rows - 1)) / rows;
 
@@ -188,7 +196,9 @@ export interface DefendMatchupLayout {
 export function defendMatchupLayout(summary: Rect, formFactor: FormFactor): DefendMatchupLayout {
   const wide = isWide(formFactor);
   const innerTop = summary.y + MATCHUP_PAD + CAPTION_HEIGHT; // the eyebrow line sits above the scans
-  const rowHeight = wide ? summary.height - MATCHUP_PAD * 2 - CAPTION_HEIGHT * 2 : Math.round((summary.height - MATCHUP_PAD * 2 - CAPTION_HEIGHT * 2) * 0.62);
+  const rowHeight = wide
+    ? summary.height - MATCHUP_PAD * 2 - CAPTION_HEIGHT * 2
+    : Math.round((summary.height - MATCHUP_PAD * 2 - CAPTION_HEIGHT * 2) * 0.62);
   const cardHeight = Math.max(40, rowHeight);
   const cardWidth = Math.round(cardHeight * CARD_ASPECT);
   const middleWidth = Math.max(96, Math.min(150, Math.round(cardWidth * 1.1)));
@@ -197,13 +207,33 @@ export function defendMatchupLayout(summary: Rect, formFactor: FormFactor): Defe
   const middle: Rect = { x: attacker.x + cardWidth + 8, y: innerTop, width: middleWidth, height: cardHeight };
   const target: Rect = { x: middle.x + middleWidth + 8, y: innerTop, width: cardWidth, height: cardHeight };
   const captionY = innerTop + cardHeight + 3;
-  const attackerCaption: Rect = { x: attacker.x, y: captionY, width: cardWidth + Math.round(middleWidth * 0.3), height: CAPTION_HEIGHT };
-  const targetCaption: Rect = { x: target.x - Math.round(middleWidth * 0.65), y: captionY, width: cardWidth + Math.round(middleWidth * 0.65), height: CAPTION_HEIGHT };
+  const attackerCaption: Rect = {
+    x: attacker.x,
+    y: captionY,
+    width: cardWidth + Math.round(middleWidth * 0.3),
+    height: CAPTION_HEIGHT,
+  };
+  const targetCaption: Rect = {
+    x: target.x - Math.round(middleWidth * 0.65),
+    y: captionY,
+    width: cardWidth + Math.round(middleWidth * 0.65),
+    height: CAPTION_HEIGHT,
+  };
 
   const matchupRight = target.x + cardWidth;
   const notes: Rect = wide
-    ? { x: matchupRight + 16, y: innerTop, width: Math.max(0, summary.x + summary.width - MATCHUP_PAD - (matchupRight + 16)), height: summary.height - MATCHUP_PAD * 2 - CAPTION_HEIGHT }
-    : { x: summary.x + MATCHUP_PAD, y: captionY + CAPTION_HEIGHT + 2, width: summary.width - MATCHUP_PAD * 2, height: Math.max(0, summary.y + summary.height - MATCHUP_PAD - (captionY + CAPTION_HEIGHT + 2)) };
+    ? {
+        x: matchupRight + 16,
+        y: innerTop,
+        width: Math.max(0, summary.x + summary.width - MATCHUP_PAD - (matchupRight + 16)),
+        height: summary.height - MATCHUP_PAD * 2 - CAPTION_HEIGHT,
+      }
+    : {
+        x: summary.x + MATCHUP_PAD,
+        y: captionY + CAPTION_HEIGHT + 2,
+        width: summary.width - MATCHUP_PAD * 2,
+        height: Math.max(0, summary.y + summary.height - MATCHUP_PAD - (captionY + CAPTION_HEIGHT + 2)),
+      };
   return { attacker, middle, target, attackerCaption, targetCaption, notes };
 }
 

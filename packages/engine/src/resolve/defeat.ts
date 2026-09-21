@@ -1,7 +1,14 @@
 /** Defeat sweeps, player elimination, and villain/main scheme stage advancement. */
 
 import { type Ctx, emit, moveCard, pushFrames, updateInstance, updatePlayer } from "../ctx.js";
-import { discardFromPlay, endGame, giveStatus, leavePlay, setActiveVillain, updateMainSchemeState } from "../effects.js";
+import {
+  discardFromPlay,
+  endGame,
+  giveStatus,
+  leavePlay,
+  setActiveVillain,
+  updateMainSchemeState,
+} from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { hasKeyword } from "../keywords.js";
 import {
@@ -34,7 +41,11 @@ import { heard } from "./triggers.js";
 /** A completion's When Completed abilities are resolving and its advance is still queued. */
 const advancePending = (state: GameState, schemeId: InstanceId): boolean =>
   state.stack.some(
-    (frame) => frame.kind === "effects" && frame.cursor === 0 && frame.selfInstanceId === schemeId && frame.effects[0]?.kind === "advanceMainScheme",
+    (frame) =>
+      frame.kind === "effects" &&
+      frame.cursor === 0 &&
+      frame.selfInstanceId === schemeId &&
+      frame.effects[0]?.kind === "advanceMainScheme",
   );
 
 /**
@@ -47,7 +58,9 @@ export function nextMainSchemeStage(state: GameState, scheme: MainSchemeState): 
   const card = state.cardPool[scheme.cardId];
   if (card?.type !== "main_scheme") return null;
   const current = card.stages[scheme.stageIndex]?.stageNumber ?? 0;
-  const later = card.stages.map((stage, index) => ({ stage, index })).filter(({ stage, index }) => index > scheme.stageIndex && stage.stageNumber > current);
+  const later = card.stages
+    .map((stage, index) => ({ stage, index }))
+    .filter(({ stage, index }) => index > scheme.stageIndex && stage.stageNumber > current);
   const [first] = later;
   if (!first) return null;
   const group = later.filter(({ stage }) => stage.stageNumber === first.stage.stageNumber);
@@ -88,7 +101,11 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (!scheme || scheme.completed || ctx.state.outcome) return;
   const central = schemeId === ctx.state.mainScheme.instanceId;
-  emit(ctx, { type: "mainSchemeCompleted", stageIndex: scheme.stageIndex, ...(central ? {} : { schemeInstanceId: schemeId }) });
+  emit(ctx, {
+    type: "mainSchemeCompleted",
+    stageIndex: scheme.stageIndex,
+    ...(central ? {} : { schemeInstanceId: schemeId }),
+  });
   const next = central ? nextMainSchemeStage(ctx.state, scheme) : "alternatives";
   if (next === null) {
     updateMainSchemeState(ctx, schemeId, (s) => ({ ...s, completed: true }));
@@ -132,17 +149,27 @@ export function completeMainScheme(ctx: Ctx, schemeId: InstanceId): void {
  * the main scheme to stage 2", "advance to stage 4A"; docs/phase7-wave2.md §3.4). Nothing happens on the final stage,
  * into an unnamed group of alternatives, or to a stage already spent.
  */
-export function advanceMainSchemeStage(ctx: Ctx, schemeId: InstanceId = ctx.state.mainScheme.instanceId, to?: { readonly stageNumber: number; readonly name?: string }): void {
+export function advanceMainSchemeStage(
+  ctx: Ctx,
+  schemeId: InstanceId = ctx.state.mainScheme.instanceId,
+  to?: { readonly stageNumber: number; readonly name?: string },
+): void {
   const scheme = mainSchemeStateOf(ctx.state, schemeId);
   if (ctx.state.outcome || !scheme) return;
   let nextIndex: number | null = null;
   if (to) {
     const card = ctx.state.cardPool[scheme.cardId];
-    const matches = card?.type === "main_scheme"
-      ? card.stages
-          .map((stage, index) => ({ stage, index }))
-          .filter(({ stage, index }) => stage.stageNumber === to.stageNumber && (to.name === undefined || stage.name === to.name) && !ctx.state.spentMainSchemeStages.includes(index))
-      : [];
+    const matches =
+      card?.type === "main_scheme"
+        ? card.stages
+            .map((stage, index) => ({ stage, index }))
+            .filter(
+              ({ stage, index }) =>
+                stage.stageNumber === to.stageNumber &&
+                (to.name === undefined || stage.name === to.name) &&
+                !ctx.state.spentMainSchemeStages.includes(index),
+            )
+        : [];
     nextIndex = matches.length === 1 ? (matches[0]?.index ?? null) : null;
   } else {
     const next = nextMainSchemeStage(ctx.state, scheme);
@@ -185,7 +212,9 @@ function advanceMainScheme(ctx: Ctx, schemeId: InstanceId, nextIndex: number): v
 interface DefeatHint {
   readonly targetId: InstanceId;
   readonly parentFrameId: FrameId | null;
-  readonly overkill: { readonly amount: number; readonly toInstanceId: InstanceId; readonly sourceInstanceId: InstanceId | null } | undefined;
+  readonly overkill:
+    | { readonly amount: number; readonly toInstanceId: InstanceId; readonly sourceInstanceId: InstanceId | null }
+    | undefined;
   /** The controller of the damage's source ("after you defeat a minion"). */
   readonly defeatedByPlayerId?: PlayerId | null;
   /** The damage's source card itself ("after *Wasp* — or an event you play — defeats a minion"). */
@@ -194,7 +223,11 @@ interface DefeatHint {
 
 const defeatPending = (state: GameState, id: InstanceId): boolean =>
   state.stack.some(
-    (f) => f.kind === "event" && f.event.kind === "characterDefeated" && f.event.instanceId === id && (f.stage === "interrupts" || f.stage === "apply"),
+    (f) =>
+      f.kind === "event" &&
+      f.event.kind === "characterDefeated" &&
+      f.event.instanceId === id &&
+      (f.stage === "interrupts" || f.stage === "apply"),
   );
 
 /** Sweeps every character in play for zero remaining hit points, in a fixed order. */
@@ -262,7 +295,10 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
 }
 
 const updateVillain = (ctx: Ctx, id: InstanceId, update: (villain: VillainState) => VillainState): void => {
-  ctx.state = { ...ctx.state, villains: ctx.state.villains.map((villain) => (villain.instanceId === id ? update(villain) : villain)) };
+  ctx.state = {
+    ...ctx.state,
+    villains: ctx.state.villains.map((villain) => (villain.instanceId === id ? update(villain) : villain)),
+  };
 };
 
 /**
@@ -275,14 +311,24 @@ function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame | null 
   const nextIndex = villain.stageIndex + 1;
   // The defeated stage's own "When Defeated" (Kang (I): "Advance the main scheme to stage 2 at the end of the phase";
   // Kang (III): "The players win the game."), read before the stage changes. Resolved after this defeat's bookkeeping.
-  const whenDefeated = gameAbilityFrames(ctx, villainId, ["whenDefeated"], null, villainStageOf(ctx.state, villainId).abilities, ctx.state.firstPlayerId);
+  const whenDefeated = gameAbilityFrames(
+    ctx,
+    villainId,
+    ["whenDefeated"],
+    null,
+    villainStageOf(ctx.state, villainId).abilities,
+    ctx.state.firstPlayerId,
+  );
   if (nextIndex > villain.lastStageIndex || nextIndex >= villainStageCount(ctx.state, villainId)) {
     updateVillain(ctx, villainId, (v) => ({ ...v, defeated: true }));
     emit(ctx, { type: "characterDefeated", instanceId: villainId, cardId: villain.cardId });
     pushFrames(ctx, whenDefeated);
     // `victory: "cardAbility"` (The Once and Future Kang): only a card ability wins (docs/phase7-wave2.md §3.4).
     if (ctx.state.scenarioRules.victory === "finalVillainStage" && ctx.state.villains.every((v) => v.defeated)) {
-      endGame(ctx, { result: "win", reason: ctx.state.villains.length > 1 ? "allVillainsDefeated" : "villainDefeated" });
+      endGame(ctx, {
+        result: "win",
+        reason: ctx.state.villains.length > 1 ? "allVillainsDefeated" : "villainDefeated",
+      });
       return null;
     }
     return removeDefeatedVillain(ctx, villainId);
@@ -345,7 +391,9 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
   };
   // Villains in separate game areas never hold the game's counter. With none left (Kang (I) under `victory:
   // "cardAbility"`), the counter stays on the defeated villain and "the villain" is nobody until one is added.
-  const remaining = undefeatedVillains(ctx.state).filter((candidate) => !ctx.state.gameAreas.some((area) => area.villainIds.includes(candidate.instanceId)));
+  const remaining = undefeatedVillains(ctx.state).filter(
+    (candidate) => !ctx.state.gameAreas.some((area) => area.villainIds.includes(candidate.instanceId)),
+  );
   if (remaining.length === 0) return null;
   const most = Math.max(...remaining.map(schemeThreat));
   const tied = remaining.filter((candidate) => schemeThreat(candidate) === most);
