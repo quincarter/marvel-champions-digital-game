@@ -96,10 +96,10 @@ Welcome to the _NeXt Evolution_ campaign expansion! This set features two new he
 > SCH
 > ATK
 > BRUTE.
+> “Ain’t nothin’—ain’t nobody—can beat me!”
 > momentum counter here.•  Juggernaut gets +1 ATK for each
 > When Revealed : Place 1 momentum
 > status card.counter here. Give Juggernaut a tough
-> “Ain’t nothin’—ain’t nobody—can beat me!”
 > VILLAIN
 > JUGGERNAUT (1/18) / HIT POINTS 18 [per_hero]
 > Andrea Di Vito & Laura Villari © MARVEL © 2023 FFG 136

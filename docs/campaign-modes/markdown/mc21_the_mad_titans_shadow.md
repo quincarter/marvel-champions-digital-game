@@ -282,9 +282,10 @@ For players who want an even more challenging campaign experience, _The Mad Tita
 > But alsO Campaign
 > Only.
 > Max 1 per deck.
+> BASIC / CAMPAIGN (4/23)
 > "Have any of you ever tried shawarma?"
 > — Tony Stark
-> Watermark Rights LTD  BASIC / CAMPAIGN (4/23) © MARVEL © 2021 FFG 183
+> Watermark Rights LTD  © MARVEL © 2021 FFG 183
 > ShawarMa
 > RESOURCE
 

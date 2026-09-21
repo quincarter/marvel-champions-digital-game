@@ -121,6 +121,9 @@ import { inspectModel } from "../view/inspect-model.js";
 import type { FormFactor, Rect } from "../view/layout.js";
 import { formFactorFor } from "../view/layout.js";
 import { cardName, seatName } from "../view/names.js";
+import { sourceCardPanelFor } from "../view/choice-source-panel.js";
+import { SOURCE_STRIP_HEIGHT, sourceStripPlacement } from "../view/choice-source-panel-layout.js";
+import { drawSourceCardPanel } from "../ui/source-card-panel.js";
 import { revealOf, type Reveal, type RevealedStep } from "../view/villain-phase-reveal.js";
 import { villainPhaseLayout } from "../view/villain-phase-layout.js";
 import { boostCardsLayout } from "../view/villain-phase-boosts.js";
@@ -501,7 +504,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         width: layout.happeningNow.width,
         height: mergedBottom - layout.happeningNow.y,
       };
-      this.#drawInterrupt(merged, inline, game, viewerId, pause!, formFactor, stops);
+      this.#drawInterrupt(
+        merged,
+        inline,
+        game,
+        viewerId,
+        pause!,
+        formFactor,
+        stops,
+        reveal.current?.activation ?? null,
+      );
       if (!phone) {
         // L02's own point: the team rail stays legible behind the interrupt.
         this.#drawTeamStatus(
@@ -1043,6 +1055,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     pause: Pause,
     formFactor: FormFactor,
     stops: Map<string, FocusStop>,
+    activation: ActivationBeat | null,
   ): void {
     const g = this.add.graphics();
     g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
@@ -1054,10 +1067,42 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     // "Let it resolve" — the cards were left a sliver and their text ran under both buttons. There the title takes
     // one line and the resolve button stands beside the cards instead of under them.
     const short = rect.height < INTERRUPT_SHORT_PANEL;
+
+    // What this window is actually about — the enemy attacking or scheming, so the player isn't left staring at
+    // "your interrupt window" with no idea which activation it belongs to. Normally `#drawHappeningNow` says this,
+    // but it doesn't draw at all while this panel is up (`#draw`'s own `inline` branch) — and `activation` is a more
+    // precise answer than a `chooseTriggers` window frame's own candidate would be (that names one of the player's
+    // *own* interruptible cards, not the thing being interrupted; see `view/choice-source-panel.ts`'s own comment on
+    // why the villain phase sources this from the walkthrough's tracked activation instead). Skipped on the
+    // shortest panel (a phone on its side) — there is no height to spare there even for a compact strip.
+    let bodyTop = rect.y + 28;
+    if (activation && !short) {
+      // The same height `scenes/choice.ts` reserves for its own strip: a thumbnail any shorter reads as a
+      // featureless coloured square rather than a recognisable card (found reading a screenshot at this scale —
+      // 52px tall left a ~26×36px thumbnail, too small to show anything more than a tint).
+      const strip = sourceStripPlacement({
+        x: rect.x + 14,
+        y: bodyTop,
+        width: rect.width - 28,
+        height: SOURCE_STRIP_HEIGHT,
+      });
+      const sourcePanel = sourceCardPanelFor(
+        state,
+        activation.enemyInstanceId,
+        viewerId,
+        POOL_DEPS,
+        activationHeadline(activation, state, viewerId),
+      );
+      drawSourceCardPanel(this, strip, sourcePanel, () =>
+        this.scene.launch(SCENES.inspect, { instanceId: activation.enemyInstanceId }),
+      );
+      bodyTop = strip.strip.y + strip.strip.height + 8;
+    }
+
     const bodyText = this.add
       .text(
         rect.x + 14,
-        rect.y + 28,
+        bodyTop,
         pause.label,
         textStyle({ ...typeRole.barTitle, size: short ? 14 : 18 }, surface.ink.hex),
       )
@@ -1066,7 +1111,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       .setMaxLines(short ? 1 : 2);
 
     const resolveHeight = hit.primary;
-    const cardsTop = rect.y + 28 + bodyText.height + (short ? 8 : 12);
+    const cardsTop = bodyText.y + bodyText.height + (short ? 8 : 12);
     const besideWidth = short ? Math.round((rect.width - 28) * 0.3) : 0;
     const cardsArea: Rect = short
       ? {

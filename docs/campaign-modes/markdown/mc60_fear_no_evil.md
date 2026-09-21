@@ -100,11 +100,11 @@ Welcome to the Fear No Evil campaign expansion for Marvel Champions: The Card Ga
 > SCH
 > ATK
 > CRIMINAL. MAGGIA. UNDERLING.
+> “That’s one tough noggin!”  – Luke Cage
 > •   Forced Response : After
 > Hammerhead attacks and damages a
 > character, stun that character. If that
 > 1 damage o them.character was already stunned, deal
-> “That’s one tough noggin!”  – Luke Cage
 > VILLAIN
 > HAMMERHEAD (1/14) / HIT POINTS 14 [per_hero]
 > Bruno Frenda © MARVEL © 2026 FFG 97

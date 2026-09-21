@@ -598,8 +598,12 @@ const TRIGGER_GLOSSARY_ID: Partial<Record<AbilityTriggerSpec["kind"], string>> =
   boost: "facedownBoostCard",
 };
 
-/** "Hero Action", "Forced Interrupt", "When Revealed" — the structural name of one ability header, from its trigger spec alone. */
-function triggerLabel(trigger: AbilityTriggerSpec): string {
+/**
+ * "Hero Action", "Forced Interrupt", "When Revealed" — the structural name of one ability header, from its trigger
+ * spec alone. Exported for `view/choice-source-panel.ts`, which needs the same header on a choice's own source card
+ * ("Response — Backflip") and would otherwise be re-deriving it from `AbilityTriggerSpec` a second time.
+ */
+export function triggerLabel(trigger: AbilityTriggerSpec): string {
   const form = "form" in trigger && trigger.form ? (trigger.form === "hero" ? "Hero " : "Alter-Ego ") : "";
   switch (trigger.kind) {
     case "action":

@@ -298,12 +298,12 @@ _www.FantasyFlightGames.com/Marvel-Champions_
 > also speCifiC to the
 > age of apoCalypse
 > Campaign.
-> X-MEN.
-> “Outsmarting your opponent is child’s play when you
-> know the future.”
 > BASIC / CAMPAIGN
 > [consequential]
 > [consequential]
+> X-MEN.
+> “Outsmarting your opponent is child’s play when you
+> know the future.”
 > THW
 > ATK
 > IRENE ADLER
