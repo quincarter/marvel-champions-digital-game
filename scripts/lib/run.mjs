@@ -16,6 +16,12 @@ import path from "node:path";
 
 const win32 = process.platform === "win32";
 
+if (win32) {
+  // Prevent MSVC compiler/linker from launching vctip.exe (telemetry uploader),
+  // which stays alive in the background holding inherited stdio pipe handles.
+  process.env.VSCMD_SKIP_SENDTELEMETRY = "1";
+}
+
 /** Quote one argument for cmd.exe, which is what Node's `shell: true` uses on Windows. */
 export function quoteForCmd(arg) {
   if (arg !== "" && !/[\s"&|<>^()!]/.test(arg)) return arg;

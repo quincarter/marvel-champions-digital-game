@@ -47,12 +47,23 @@ function clearStaleDmgState() {
   }
 }
 
+function clearStaleMsvcState() {
+  if (process.platform !== "win32") return;
+  try {
+    spawnSync("taskkill", ["/F", "/IM", "vctip.exe"], { stdio: "ignore" });
+  } catch {
+    // ignore
+  }
+}
+
 function tauriBuild(args, env = process.env) {
   return pnpm(["exec", "tauri", "build", ...args], { cwd: clientDir, env }).status ?? 1;
 }
 
 clearStaleDmgState();
+clearStaleMsvcState();
 let status = tauriBuild(extraArgs);
+clearStaleMsvcState();
 
 if (status !== 0 && process.platform === "darwin") {
   console.log("\n[build-desktop] The build failed. Retrying the DMG without the Finder window-layout step…");
