@@ -474,16 +474,21 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
       .map((id) => environmentPanel(state, id)),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
-    myPlayArea: me.playArea
-      // An attachment is drawn on its host — except an upgrade on your own
-      // identity, which is a card you played and must be able to find. On the
-      // table those sit in front of you, not stacked on your identity card, so
-      // the play area is where a player looks for them.
-      .filter((id) => {
+    // An attachment is drawn on its host — except an upgrade on your own
+    // identity, which is a card you played and must be able to find. On the
+    // table those sit in front of you, not stacked on your identity card, so
+    // the play area is where a player looks for them. The engine keeps them on
+    // the identity's own `attachments`, not in `playArea`, so they are read
+    // from there; what the encounter deck hangs on you stays on the identity.
+    myPlayArea: [
+      ...(getInstance(state, me.identity.instanceId)?.attachments ?? []).filter(
+        (id) => cardOf(state, id)?.type === "upgrade" && !me.playArea.includes(id),
+      ),
+      ...me.playArea.filter((id) => {
         const attachedTo = getInstance(state, id)?.attachedTo ?? null;
         return attachedTo === null || attachedTo === me.identity.instanceId;
-      })
-      .map((id) => characterPanel(state, id, deps)),
+      }),
+    ].map((id) => characterPanel(state, id, deps)),
     hand: me.hand.map((id) => handCardView(state, id, perspectiveId, deps)),
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },

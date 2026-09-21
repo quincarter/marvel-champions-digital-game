@@ -4,7 +4,7 @@
  * the engine actually publishes.
  */
 
-import { activeEncounterDeck } from "@mc/engine";
+import { activeEncounterDeck, cardOf } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import { CORE_DEPS } from "@mc/cards";
 import type { GameState, InstanceId, PlayerId } from "@mc/engine";
@@ -299,6 +299,28 @@ describe("your own upgrades", () => {
         expect(shown.has(id)).toBe(true);
       }
     }
+  });
+});
+
+describe("an upgrade played onto your identity", () => {
+  test("shows in your play area, though the engine keeps it on the identity, not in `playArea`", async () => {
+    const store = await intoPlay(KLAW_TWO);
+    const state = store.state.game!;
+    const me = store.state.perspectiveId!;
+    const player = state.players.find((seat) => seat.playerId === me)!;
+    const upgrade = [...player.hand, ...player.deck].find((id) => cardOf(state, id)?.type === "upgrade")!;
+    const identity = player.identity.instanceId;
+    const played = {
+      ...state,
+      instances: {
+        ...state.instances,
+        [upgrade]: { ...state.instances[upgrade]!, attachedTo: identity, faceup: true },
+        [identity]: { ...state.instances[identity]!, attachments: [upgrade] },
+      },
+    };
+
+    const model = boardModel(played, me, CORE_DEPS);
+    expect(model.myPlayArea.map((panel) => panel.instanceId)).toContain(upgrade);
   });
 });
 
