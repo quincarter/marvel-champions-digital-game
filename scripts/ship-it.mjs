@@ -18,7 +18,7 @@ import {
   repoRoot,
   writeChecksumManifest,
 } from "./lib/release-collector.mjs";
-import { pnpm, run } from "./lib/run.mjs";
+import { run } from "./lib/run.mjs";
 
 function printHelp() {
   console.log(`
@@ -161,7 +161,8 @@ async function main() {
   // Build step
   if (!options.skipBuild) {
     console.log("[ship-it] Step 1: Building desktop package for this host OS...");
-    const desktopResult = pnpm(["desktop:build"], { cwd: repoRoot });
+    const desktopScript = path.join(repoRoot, "scripts", "build-desktop.mjs");
+    const desktopResult = run(process.execPath, [desktopScript], { cwd: repoRoot });
     if (desktopResult.status !== 0) {
       console.error("\n[ship-it] ERROR: Desktop build failed.");
       process.exit(desktopResult.status ?? 1);
@@ -169,7 +170,8 @@ async function main() {
 
     if (!options.skipAndroid) {
       console.log("\n[ship-it] Step 2: Building signed Android release APK...");
-      const androidResult = pnpm(["android:build"], { cwd: repoRoot });
+      const androidScript = path.join(repoRoot, "scripts", "build-android.mjs");
+      const androidResult = run(process.execPath, [androidScript], { cwd: repoRoot });
       if (androidResult.status !== 0) {
         console.error("\n[ship-it] ERROR: Android build failed.");
         process.exit(androidResult.status ?? 1);
