@@ -92,11 +92,11 @@ Welcome to _The Rise of Red Skull_ ! This campaign expansion comes with five new
 > SCH
 > ATK
 > HYDRA. MERCENARY.
+> "There's nothing you can do that I can't do better."
 > Forced Response : After a player
 > changes to hero form, they discard the
 > top card of the encounter deck and
 > boost icons on that card.take damage equal to the number of
-> "There's nothing you can do that I can't do better."
 > VILLAIN
 > TASKMASTER (1/23) / HIT POINTS 13 [per_hero]
 > Javier Pina © MARVEL © 2020 FFG 109
@@ -664,7 +664,9 @@ At the beginning of a campaign, each player is assigned a number from 1 to 4 in 
 > Andrea Di Vito & Laura Villari © MARVEL © 2020 FFG 163 © MARVEL © 2020 FFG 164  Steve Ellis © MARVEL © 2020 FFG 165  Andrea Di Vito & Laura Villari © MARVEL © 2020 FFG 166
 > OBLIGATION OBLIGATION OBLIGATION OBLIGATION
 > EXPERT CAMPAIGN SET #1 (1/4) EXPERT CAMPAIGN SET #1 (2/4) EXPERT CAMPAIGN SET #1 (3/4) EXPERT CAMPAIGN SET #1 (4/4)
-> Alter-Ego Action ego and spend a this card. "A beautiful parasite growing inside the world's most secure computer systems." —Arnim Zola [acceleration][mental]: Exhaust your alter- resource → discard  Forced Response turn, take 1 damage if you are in hero form. Alter-Ego Action cards of your deck and spend a  [energy] "This is going to need sutures." —Stephen Strange  resource → discard this card.: At the end of your : Discard the top 5  Your hand size is reduced by 1. Alter-Ego Action encounter card and spend a  [wild] "Pull him aside for questioning." —Hydra Soldier  resource → discard this card.: Deal yourself an  Your hero gets –1 THW, –1 ATK, and –1 DEF. Alter-Ego Action and spend a card. "These dissenters breed conflict. They are your true enemies." —Hydra News Media [physical] resource : Take 2 damage → discard this
+> Alter-Ego Action ego and spend a this card. [mental]: Exhaust your alter- resource → discard  Forced Response turn, take 1 damage if you are in hero form. Alter-Ego Action cards of your deck and spend a  [energy] resource → discard this card.: At the end of your : Discard the top 5  Your hand size is reduced by 1. Alter-Ego Action encounter card and spend a  [wild] resource → discard this card.: Deal yourself an  Your hero gets –1 THW, –1 ATK, and –1 DEF. Alter-Ego Action and spend a card. [physical] resource : Take 2 damage → discard this
+> [acceleration]
+> "A beautiful parasite growing inside the world's most secure computer systems." —Arnim Zola "This is going to need sutures." —Stephen Strange "Pull him aside for questioning." —Hydra Soldier "These dissenters breed conflict. They are your true enemies." —Hydra News Media
 > ZolA’s AlGorIthM MedICAl eMerGenCy MArtIAl lAw AntI-hero ProPAGAndA
 
 If a player is defeated during a scenario that their teammates go on to win, the defeated player does not participate in any of the victory steps for that scenario. However, they can rejoin their teammates for the next scenario by adding an obligation to their deck during setup to restore their identity to full hit points. 

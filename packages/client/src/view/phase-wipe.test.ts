@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { GameEvent } from "@mc/engine";
-import { PHASE_WIPE_HOLD_MS, phaseTransitionFrom, wipeFrame } from "./phase-wipe.js";
+import {
+  PHASE_WIPE_HOLD_MS,
+  PHASE_WIPE_OPENING_HOLD_MS,
+  phaseTransitionFrom,
+  wipeFrame,
+  wipeTimingFor,
+} from "./phase-wipe.js";
 
 const stepChanged = (fromPhase: string, toPhase: string): GameEvent =>
   ({ type: "stepChanged", from: { phase: fromPhase } as never, to: { phase: toPhase } as never }) as GameEvent;
@@ -76,5 +82,24 @@ describe("wipeFrame", () => {
     const first = wipeFrame(100, slideMs);
     const second = wipeFrame(100, slideMs);
     expect(second).toEqual(first);
+  });
+});
+
+describe("wipeTimingFor", () => {
+  it("the opening band waits out the screen's fade-in and holds longer than any later one", () => {
+    const opening = wipeTimingFor(true, 200);
+    const later = wipeTimingFor(false, 200);
+    expect(opening.delayMs).toBeGreaterThan(200);
+    expect(opening.holdMs).toBe(PHASE_WIPE_OPENING_HOLD_MS);
+    expect(opening.holdMs).toBeGreaterThan(later.holdMs);
+    expect(later).toEqual({ delayMs: 0, holdMs: PHASE_WIPE_HOLD_MS });
+  });
+
+  it("a longer hold moves the slide-out, not the slide-in", () => {
+    const slideMs = 420;
+    expect(wipeFrame(slideMs + PHASE_WIPE_HOLD_MS + 10, slideMs, PHASE_WIPE_OPENING_HOLD_MS)?.stage).toBe("hold");
+    expect(wipeFrame(slideMs + PHASE_WIPE_OPENING_HOLD_MS + 10, slideMs, PHASE_WIPE_OPENING_HOLD_MS)?.stage).toBe(
+      "out",
+    );
   });
 });

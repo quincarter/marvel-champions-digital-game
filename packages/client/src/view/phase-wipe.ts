@@ -19,7 +19,29 @@ import type { GameEvent } from "@mc/engine";
 import { clampedProgress } from "./motion-math.js";
 
 /** How long the band holds at full width once it has slid in. */
-export const PHASE_WIPE_HOLD_MS = 900;
+export const PHASE_WIPE_HOLD_MS = 1200;
+
+/**
+ * The game's opening band — the first one a freshly created Board shows ("ROUND 1 · PLAYER PHASE") — holds longer,
+ * and waits `PHASE_WIPE_OPENING_DELAY_MS` past the screen's own fade-in before it starts. It lands with the very
+ * first state, while the Board is still fading in from black and doing its heaviest draw (every card's art at once),
+ * so an ordinary band had spent most of its life before the player could see the table at all. Reported from play.
+ */
+export const PHASE_WIPE_OPENING_HOLD_MS = 2000;
+export const PHASE_WIPE_OPENING_DELAY_MS = 350;
+
+export interface WipeTiming {
+  /** How long after landing the band waits before it starts to slide in. */
+  readonly delayMs: number;
+  readonly holdMs: number;
+}
+
+/** `screenFadeMs` is the Board's own fade-in (`tokens.ts#motion`), which the opening band waits out. */
+export function wipeTimingFor(opening: boolean, screenFadeMs: number): WipeTiming {
+  return opening
+    ? { delayMs: screenFadeMs + PHASE_WIPE_OPENING_DELAY_MS, holdMs: PHASE_WIPE_OPENING_HOLD_MS }
+    : { delayMs: 0, holdMs: PHASE_WIPE_HOLD_MS };
+}
 
 /** Reduced motion drops the slide; this is how long the plain caption holds instead. */
 export const PHASE_WIPE_REDUCED_MS = 700;

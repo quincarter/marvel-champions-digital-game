@@ -43,6 +43,12 @@ export class HoldGesture {
   #phase: Phase = "idle";
   #downX = 0;
   #downY = 0;
+  /** Where the drag last was, and when — its own bookkeeping, never the framework's idea of "previous position". */
+  #lastX = 0;
+  #lastTimeMs = 0;
+  #velocityPxPerMs = 0;
+  /** This press became a drag. Outlives `up`, so the release speed can still be asked for after it. */
+  #dragged = false;
 
   constructor(options: HoldGestureOptions) {
     this.#options = options;
@@ -56,6 +62,8 @@ export class HoldGesture {
     this.#downX = x;
     this.#downY = y;
     this.#phase = "pressed";
+    this.#dragged = false;
+    this.#velocityPxPerMs = 0;
     if (!this.#options.canInspect) return "none";
     if (rightButton) {
       this.#phase = "inspected";
@@ -75,6 +83,47 @@ export class HoldGesture {
     if (Math.abs(x - this.#downX) < HOLD_SLOP_PX) return false;
     this.#phase = "dragging";
     return true;
+  }
+
+  /**
+   * `move`, answering *how far*: the pixels the pointer travelled since the last call, or null when this movement
+   * is not part of a drag. The drag starts from where it crossed the slop, so the row never jumps to catch up, and
+   * every later call is measured from the one before — a reversal mid-gesture is just a delta of the other sign.
+   *
+   * Measured here rather than read off the framework's pointer: Phaser's `prevPosition` is per frame, and a phone
+   * delivers several `touchmove`s in one, which double-counted some of a swipe and dropped the rest.
+   */
+  dragDelta(x: number, timeMs: number): number | null {
+    const wasDragging = this.#phase === "dragging";
+    if (!this.move(x)) return null;
+    if (!wasDragging) {
+      this.#dragged = true;
+      this.#lastX = x;
+      this.#lastTimeMs = timeMs;
+      this.#velocityPxPerMs = 0;
+      return 0;
+    }
+    const delta = x - this.#lastX;
+    const dt = timeMs - this.#lastTimeMs;
+    // Several events inside one millisecond carry no usable speed of their own; keep the last real one.
+    if (dt > 0) {
+      // Blend toward the newest sample: the last event before a lift is often a near-zero straggler, and a release
+      // speed taken from it alone would make every flick land dead.
+      const sample = delta / dt;
+      this.#velocityPxPerMs = this.#velocityPxPerMs === 0 ? sample : this.#velocityPxPerMs * 0.4 + sample * 0.6;
+      this.#lastTimeMs = timeMs;
+    }
+    this.#lastX = x;
+    return delta;
+  }
+
+  /**
+   * The drag's speed at release, in px/ms along x (signed like `dragDelta`) — 0 when the press was not a drag, or
+   * the finger had already stopped (`idleMs` since its last movement) before it lifted: that is a placement, not a flick.
+   */
+  releaseVelocity(timeMs: number, idleMs = 80): number {
+    if (!this.#dragged || timeMs - this.#lastTimeMs > idleMs) return 0;
+    return this.#velocityPxPerMs;
   }
 
   /**

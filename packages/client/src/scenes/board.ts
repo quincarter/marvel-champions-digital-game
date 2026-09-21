@@ -51,6 +51,7 @@ import { drawChrome, drawPhoneTabs } from "./board/chrome.js";
 import { emptyFrame, type BoardDrawContext, type BoardFrame } from "./board/context.js";
 import { BoardController } from "./board/controller.js";
 import { drawHand, HandScroll } from "./board/hand.js";
+import type { RowDrag } from "../view/hand-scroll.js";
 import { bindGamepad, bindKeyboard, type IntentBinding } from "./board/input.js";
 import { BoardMotion } from "./board/motion.js";
 import { drawSchemes } from "./board/schemes.js";
@@ -124,6 +125,11 @@ export class BoardScene extends Phaser.Scene {
 
   constructor() {
     super(SCENES.board);
+  }
+
+  /** The hand's flick coasts frame by frame; everything else on the table moves by tween or by redraw. */
+  override update(_time: number, deltaMs: number): void {
+    this.#hand.tick(deltaMs);
   }
 
   create(): void {
@@ -368,7 +374,7 @@ export class BoardScene extends Phaser.Scene {
       hand: this.#hand,
       frame: this.#frame,
       motion: this.#motion,
-      makeTapTarget: (rect, id, onTap, onDrag) => this.#makeTapTarget(rect, id, onTap, onDrag),
+      makeTapTarget: (rect, id, onTap, drag) => this.#makeTapTarget(rect, id, onTap, drag),
       inspect: (id, siblings) => this.#inspect(id, siblings),
     };
 
@@ -521,14 +527,15 @@ export class BoardScene extends Phaser.Scene {
    * Registers a card as focusable and tappable. An open target or payment
    * prompt gets the tap first; otherwise it falls through to `onTap`.
    */
-  #makeTapTarget(rect: Rect, id: InstanceId, onTap?: () => void, onDrag?: (deltaX: number) => void): void {
+  #makeTapTarget(rect: Rect, id: InstanceId, onTap?: () => void, drag?: RowDrag): void {
     this.#frame.focusRects.set(focusKey({ kind: "card", instanceId: id }), rect);
     addTapTarget(this, rect, {
       onTap: () => {
         if (!this.#controller.tapInMode(id)) onTap?.();
       },
       onInspect: () => this.#inspect(id),
-      onDrag,
+      onDrag: drag?.onDrag,
+      onDragEnd: drag?.onDragEnd,
       key: id as string,
     });
   }

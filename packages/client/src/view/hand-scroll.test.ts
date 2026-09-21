@@ -108,4 +108,46 @@ describe("how a scroll reaches the screen", () => {
     expect(apply).not.toHaveBeenCalled();
     expect(redraw).toHaveBeenCalledTimes(1);
   });
+
+  test("the row follows the finger: dragging left scrolls right, and straight back again", () => {
+    const hand = new HandScroll(vi.fn());
+    measureHand(hand, 8, PHONE_HAND_RECT);
+    hand.drag.onDrag(-60);
+    expect(hand.scrollX).toBe(60);
+    hand.drag.onDrag(25);
+    expect(hand.scrollX).toBe(35);
+    hand.drag.onDrag(-40);
+    expect(hand.scrollX).toBe(75);
+  });
+
+  test("a flick coasts, slows to a stop, and a new touch catches it", () => {
+    const hand = new HandScroll(vi.fn());
+    measureHand(hand, 12, PHONE_HAND_RECT);
+    hand.drag.onDrag(-20);
+    hand.drag.onDragEnd(-1);
+    const start = hand.scrollX;
+    hand.tick(16);
+    const afterOne = hand.scrollX;
+    expect(afterOne).toBeGreaterThan(start);
+    hand.tick(16);
+    expect(hand.scrollX - afterOne).toBeLessThan(afterOne - start);
+
+    hand.drag.onDrag(0);
+    const caught = hand.scrollX;
+    hand.tick(16);
+    expect(hand.scrollX).toBe(caught);
+  });
+
+  test("a coast stops dead at the end of the row", () => {
+    const hand = new HandScroll(vi.fn());
+    measureHand(hand, 8, PHONE_HAND_RECT);
+    hand.drag.onDragEnd(5);
+    for (let frame = 0; frame < 200; frame++) hand.tick(16);
+    expect(hand.scrollX).toBe(0);
+    hand.drag.onDragEnd(-50);
+    for (let frame = 0; frame < 400; frame++) hand.tick(16);
+    const end = hand.scrollX;
+    hand.tick(16);
+    expect(hand.scrollX).toBe(end);
+  });
 });

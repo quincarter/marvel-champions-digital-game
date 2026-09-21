@@ -40,12 +40,22 @@
  * panels' natural content height at that width, to get the final centered
  * rect pair.
  *
- * **Sheet mode.** P14's bottom sheet: a grab handle, a scrolling content
- * region, and a sticky ink footer of two rows (the primary Play/Pay row,
- * then the quiet Full rules text/Close row). `expanded` (the "Full rules
- * text" toggle) grows the sheet to the full viewport height, per the design's
- * own instruction that it "expands the sheet to full height with the
- * complete scrolling text".
+ * **Sheet mode.** P14's bottom sheet: a grab handle, one `McScrollRegion`
+ * (`ui/scroll-region.ts`) holding the whole scrolling body — thumbnail, name,
+ * type line, keyword chips, rules text, a bordered parchment "keywords" box,
+ * "this game" history rows — and a sticky ink footer of two rows (the
+ * primary Play/Pay row, then the quiet Full rules text/Close row). `expanded`
+ * (the "Full rules text" toggle) grows the sheet to the full viewport height,
+ * per the design's own instruction that it "expands the sheet to full height
+ * with the complete scrolling text". Only the *outer* geometry here is
+ * pre-measured: unlike the panels' card face, the sheet's `content` rect
+ * never depends on its own content's height (there is no sibling panel to
+ * share a height with), so `scenes/inspect.ts#drawSheetContent` measures with
+ * real Phaser text objects as it draws, top to bottom, in one pass — the same
+ * thing `#drawCardTextBlock` already does for the panels' card face text.
+ * `sheetTextColumn` and `sheetPlayPayWidths` below are the two bits of that
+ * scene's own arithmetic that don't need live text measurement and so belong
+ * here instead, tested without a canvas.
  *
  * `cardFaceLayout` is the second half: the paper card panel's own internal
  * split between its art and its scrolling rules text, ported from what used
@@ -55,6 +65,7 @@
  * testable without a canvas.
  */
 
+import { hit } from "../tokens.js";
 import { formFactorFor, type Rect } from "./layout.js";
 
 export interface InspectPanelsLayout {
@@ -86,13 +97,31 @@ const HINT_HEIGHT = 24;
 const PANEL_MIN_HEIGHT = 320;
 
 const SHEET_HANDLE_HEIGHT = 18;
-const SHEET_FOOTER_PRIMARY_HEIGHT = 48;
-const SHEET_FOOTER_QUIET_HEIGHT = 40;
+/**
+ * P14's own canvas prints 48px/40px here — this build rounds both up to the app's own touch-target floor
+ * (`hit.primary`/`hit.target`, tokens.ts) instead, since a 40px row is under the 44px minimum PLAN.md's Phase 4
+ * accessibility section requires. The footer still reads as P14's own two-row shape; only the two row heights move.
+ */
+const SHEET_FOOTER_PRIMARY_HEIGHT = hit.primary;
+const SHEET_FOOTER_QUIET_HEIGHT = hit.target;
 const SHEET_FOOTER_GAP = 7;
 const SHEET_FOOTER_PAD_TOP = 9;
 const SHEET_FOOTER_PAD_BOTTOM = 13;
-/** How much of the viewport the collapsed sheet covers — P14's own sheet top sits at roughly 78% down a 844px-tall phone. */
-const SHEET_COLLAPSED_FRACTION = 0.78;
+/**
+ * The collapsed sheet hugs its content (P14's own sheet is as tall as its card, keywords and history need — about
+ * 58% of an 844px phone for Photon Blast), between these two fractions of the viewport: never so short it reads as
+ * a toast, never so tall it hides the board it is dimming. Past the ceiling the body scrolls.
+ */
+const SHEET_MIN_FRACTION = 0.5;
+const SHEET_MAX_FRACTION = 0.78;
+/** Air between the last content row and the footer. */
+const SHEET_CONTENT_PAD_BOTTOM = 12;
+/** P14's own header row: a 116×164 thumbnail, an 11px gap, then the text column — plain arithmetic, no text measurement (`sheetTextColumn`'s own doc comment). */
+export const SHEET_CONTENT_PAD = 14;
+export const SHEET_THUMB = { width: 116, height: 164 } as const;
+const SHEET_HEADER_GAP = 11;
+/** P14's own 1.4:1 flex ratio between PLAY and PAY WITH when both are shown ("flex:1.4" vs "flex:1" in the source canvas). */
+const SHEET_PLAY_PAY_RATIO = 1.4;
 
 export interface InspectLayoutOptions {
   /** Phone only: "Full rules text" was tapped, so the sheet grows to cover the whole viewport. */
@@ -105,11 +134,16 @@ export interface InspectLayoutOptions {
    */
   readonly cardContentHeight?: number;
   readonly rulesContentHeight?: number;
+  /**
+   * Phone only: the sheet body's own measured height in px (`scenes/inspect.ts#drawSheetContent`), so the collapsed
+   * sheet can hug it. Omitted on the scene's first pass, which gets the tallest collapsed sheet to measure in.
+   */
+  readonly sheetContentHeight?: number;
 }
 
 export function inspectLayout(viewport: Rect, opts: InspectLayoutOptions = {}): InspectLayout {
   const formFactor = formFactorFor(viewport.width, viewport.height);
-  if (formFactor === "phone") return sheetLayout(viewport, opts.expanded ?? false);
+  if (formFactor === "phone") return sheetLayout(viewport, opts.expanded ?? false, opts.sheetContentHeight);
   return panelsLayout(
     viewport,
     opts.cardContentHeight ?? PANEL_MIN_HEIGHT,
@@ -146,8 +180,23 @@ function panelsLayout(viewport: Rect, cardContentHeight: number, rulesContentHei
   return { mode: "panels", card, rules, hint };
 }
 
-function sheetLayout(viewport: Rect, expanded: boolean): InspectSheetLayout {
-  const sheetHeight = expanded ? viewport.height : Math.round(viewport.height * SHEET_COLLAPSED_FRACTION);
+function sheetLayout(viewport: Rect, expanded: boolean, contentHeight?: number): InspectSheetLayout {
+  const footerHeight =
+    SHEET_FOOTER_PAD_TOP +
+    SHEET_FOOTER_PRIMARY_HEIGHT +
+    SHEET_FOOTER_GAP +
+    SHEET_FOOTER_QUIET_HEIGHT +
+    SHEET_FOOTER_PAD_BOTTOM;
+  const tallest = Math.round(viewport.height * SHEET_MAX_FRACTION);
+  const collapsed =
+    contentHeight === undefined
+      ? tallest
+      : clamp(
+          Math.ceil(SHEET_HANDLE_HEIGHT + contentHeight + SHEET_CONTENT_PAD_BOTTOM + footerHeight),
+          Math.round(viewport.height * SHEET_MIN_FRACTION),
+          tallest,
+        );
+  const sheetHeight = expanded ? viewport.height : collapsed;
   const sheet: Rect = {
     x: viewport.x,
     y: viewport.y + viewport.height - sheetHeight,
@@ -156,12 +205,6 @@ function sheetLayout(viewport: Rect, expanded: boolean): InspectSheetLayout {
   };
   const handle: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: SHEET_HANDLE_HEIGHT };
 
-  const footerHeight =
-    SHEET_FOOTER_PAD_TOP +
-    SHEET_FOOTER_PRIMARY_HEIGHT +
-    SHEET_FOOTER_GAP +
-    SHEET_FOOTER_QUIET_HEIGHT +
-    SHEET_FOOTER_PAD_BOTTOM;
   const footer: Rect = {
     x: sheet.x,
     y: sheet.y + sheet.height - footerHeight,
@@ -188,6 +231,35 @@ function sheetLayout(viewport: Rect, expanded: boolean): InspectSheetLayout {
     height: Math.max(0, footer.y - (sheet.y + handle.height)),
   };
   return { mode: "sheet", sheet, handle, content, footer, footerPrimaryRow, footerQuietRow };
+}
+
+export interface SheetTextColumn {
+  readonly x: number;
+  readonly width: number;
+}
+
+/**
+ * The sheet's header row text column: everything to the right of the 116px thumbnail and its 11px gap, inset by
+ * `SHEET_CONTENT_PAD` on both sides of `sheetWidth`. Pure arithmetic only — the column's actual *content* height
+ * (name/type/chips/rules text) depends on real wrapped-text measurement, which stays with the scene
+ * (`scenes/inspect.ts#drawSheetContent`'s own doc comment on why the sheet, unlike the panels' card face, has no
+ * chicken-and-egg reason to pre-measure: its outer rect never depends on its own content height).
+ */
+export function sheetTextColumn(sheetWidth: number): SheetTextColumn {
+  const x = SHEET_CONTENT_PAD + SHEET_THUMB.width + SHEET_HEADER_GAP;
+  return { x, width: Math.max(1, sheetWidth - SHEET_CONTENT_PAD - x) };
+}
+
+export interface SheetPlayPayWidths {
+  readonly play: number;
+  readonly pay: number;
+}
+
+/** PLAY's and PAY WITH's own widths inside `footerPrimaryRow`, at P14's own 1.4:1 split, for whichever `gap` separates them. */
+export function sheetPlayPayWidths(rowWidth: number, gap: number): SheetPlayPayWidths {
+  const available = Math.max(0, rowWidth - gap);
+  const unit = available / (SHEET_PLAY_PAY_RATIO + 1);
+  return { play: unit * SHEET_PLAY_PAY_RATIO, pay: unit };
 }
 
 /** Every rect a layout places, for a no-overlap test — `panelsLayout`'s hint row is deliberately excluded from the pair, since it sits centered *under* them, not beside them. */
@@ -235,7 +307,14 @@ export interface CardFaceContent {
   readonly hasIcons: boolean;
 }
 
-const HEADER_HEIGHT = 62;
+/**
+ * D08's own canvas prints 62px here, sized against the DOM mock's own tight `line-height:.95` name box. Phaser's
+ * real Bangers glyph metrics (ascent+descent) render taller than that CSS line-height ever allowed for, so at 62px
+ * the type line landed clipped against `headerRule` on a real name — found reading a desktop screenshot during this
+ * rebuild. 68px gives the type line the room the CSS mock never had to account for, with no other change to the
+ * header's own layout.
+ */
+const HEADER_HEIGHT = 68;
 const FOOTER_HEIGHT = 30;
 const RULE_WEIGHT = 4;
 const STATS_HEIGHT = 22;

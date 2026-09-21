@@ -84,6 +84,41 @@ describe("inspectModel", () => {
     expect(model.status.message).toBe(illegal!.message);
   });
 
+  test("an identity reads as the form it is in — name, type line, stats and text, not only the picture", async () => {
+    const identity = state.players[0]!.identity.instanceId;
+    // Every game starts in alter-ego.
+    const peter = inspect(identity);
+    expect(peter.name).toBe("Peter Parker");
+    expect(peter.typeLine).toMatch(/^ALTER-EGO/);
+    expect(peter.rulesText).toContain("Scientist");
+    expect(peter.rulesText).not.toContain("Spider-Sense");
+    expect(peter.stats.map((tile) => tile.label.toLowerCase())).toEqual(expect.arrayContaining(["rec"]));
+    expect(peter.stats.map((tile) => tile.label.toLowerCase())).not.toContain("atk");
+
+    // Flipped, in a game of its own so the shared fixture stays in alter-ego for every other test.
+    const flipped = new SessionStore(new LocalEngineHost());
+    await flipped.start(RHINO_SOLO);
+    for (let step = 0; step < 10 && flipped.state.legal?.actions.kind === "choice"; step++)
+      await flipped.resolveChoice([]);
+    const actions = flipped.state.legal!.actions;
+    if (actions.kind !== "turn") throw new Error("expected a turn");
+    const flip = actions.legal.find((entry) => entry.action.kind === "changeForm");
+    if (!flip) throw new Error("expected a legal form change");
+    await flipped.dispatch(flip.example);
+    const spidey = inspectModel(
+      flipped.state.game!,
+      flipped.state.game!.players[0]!.identity.instanceId,
+      flipped.state.legal?.actions ?? null,
+      flipped.state.perspectiveId!,
+      CORE_DEPS,
+    );
+    expect(spidey.name).toBe("Spider-Man");
+    expect(spidey.typeLine).toMatch(/^HERO/);
+    expect(spidey.rulesText).toContain("Spider-Sense");
+    expect(spidey.stats.map((tile) => tile.label.toLowerCase())).toEqual(expect.arrayContaining(["thw", "atk", "def"]));
+    expect(spidey.stats.map((tile) => tile.label.toLowerCase())).not.toContain("rec");
+  });
+
   test("keeps a card in the encounter deck hidden even so", () => {
     const top = activeEncounterDeck(state).deck[0]!;
     const model = inspect(top);

@@ -1,6 +1,14 @@
 import { describe, expect, test } from "vitest";
+import { hit } from "../tokens.js";
 import { rectsOverlap } from "./layout.js";
-import { cardFaceContentHeight, cardFaceLayout, inspectLayout, inspectLayoutRects } from "./inspect-layout.js";
+import {
+  cardFaceContentHeight,
+  cardFaceLayout,
+  inspectLayout,
+  inspectLayoutRects,
+  sheetPlayPayWidths,
+  sheetTextColumn,
+} from "./inspect-layout.js";
 
 /** docs/phase4-screen-gaps.md's own required sizes for this workstream, plus the reference viewports. */
 const SIZES = [
@@ -77,12 +85,42 @@ describe("inspectLayout", () => {
     );
   });
 
+  test("the sheet's own footer rows meet the app's touch-target floor (hit.primary / hit.target)", () => {
+    const layout = inspectLayout({ x: 0, y: 0, width: 390, height: 844 });
+    if (layout.mode !== "sheet") throw new Error("expected sheet mode");
+    expect(layout.footerPrimaryRow.height).toBeGreaterThanOrEqual(hit.primary);
+    expect(layout.footerQuietRow.height).toBeGreaterThanOrEqual(hit.target);
+  });
+
   test("'Full rules text' expands the sheet to the full viewport height", () => {
     const collapsed = inspectLayout({ x: 0, y: 0, width: 390, height: 844 });
     const expanded = inspectLayout({ x: 0, y: 0, width: 390, height: 844 }, { expanded: true });
     if (collapsed.mode !== "sheet" || expanded.mode !== "sheet") throw new Error("expected sheet mode");
     expect(expanded.sheet.height).toBeGreaterThan(collapsed.sheet.height);
     expect(expanded.sheet.height).toBe(844);
+  });
+
+  test("the collapsed sheet hugs its measured content, between half the viewport and the 78% ceiling", () => {
+    const viewport = { x: 0, y: 0, width: 390, height: 844 };
+    const heightFor = (sheetContentHeight: number): number => {
+      const layout = inspectLayout(viewport, { sheetContentHeight });
+      if (layout.mode !== "sheet") throw new Error("expected sheet mode");
+      // Whatever the height, the sheet stays docked to the bottom edge and the body fills what the footer leaves.
+      expect(layout.sheet.y + layout.sheet.height).toBe(844);
+      expect(layout.content.y + layout.content.height).toBe(layout.footer.y);
+      return layout.sheet.height;
+    };
+    const short = heightFor(100);
+    const medium = heightFor(340);
+    const long = heightFor(2000);
+    expect(short).toBe(Math.round(844 * 0.5));
+    expect(medium).toBeGreaterThan(short);
+    expect(medium).toBeLessThan(long);
+    expect(long).toBe(Math.round(844 * 0.78));
+    // A body that fits is shown whole: no scrolling for content the sheet had room for.
+    const fitted = inspectLayout(viewport, { sheetContentHeight: 340 });
+    if (fitted.mode !== "sheet") throw new Error("expected sheet mode");
+    expect(fitted.content.height).toBeGreaterThanOrEqual(340);
   });
 
   // "The pair is content-sized, not viewport-stretched" — owner feedback 2026-09-21: the previous build stretched
@@ -212,5 +250,34 @@ describe("cardFaceContentHeight", () => {
 
   test("large card text (17px) makes the same line count taller", () => {
     expect(cardFaceContentHeight(400, { ...short, bodySize: 17 })).toBeGreaterThan(cardFaceContentHeight(400, short));
+  });
+});
+
+describe("sheetTextColumn", () => {
+  test("the text column starts past the 116px thumbnail and its gap, and never goes negative", () => {
+    const column = sheetTextColumn(390);
+    expect(column.x).toBe(14 + 116 + 11);
+    expect(column.width).toBeGreaterThan(0);
+    expect(column.x + column.width).toBeLessThanOrEqual(390 - 14 + 0.01);
+  });
+
+  test("degrades to a 1px-minimum column rather than a negative width on an absurdly narrow sheet", () => {
+    const column = sheetTextColumn(100);
+    expect(column.width).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("sheetPlayPayWidths", () => {
+  test("splits at P14's own 1.4:1 ratio and accounts for the gap between them", () => {
+    const { play, pay } = sheetPlayPayWidths(362, 6);
+    expect(play + pay + 6).toBeCloseTo(362, 5);
+    expect(play / pay).toBeCloseTo(1.4, 5);
+    expect(play).toBeGreaterThan(pay);
+  });
+
+  test("never goes negative on a row narrower than the gap", () => {
+    const { play, pay } = sheetPlayPayWidths(4, 6);
+    expect(play).toBeGreaterThanOrEqual(0);
+    expect(pay).toBeGreaterThanOrEqual(0);
   });
 });
