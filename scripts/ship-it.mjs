@@ -33,6 +33,7 @@ Options:
   --prerelease       Mark release as prerelease (default: true)
   --no-prerelease    Do not mark release as prerelease
   --skip-build       Skip building, only tag and release existing artifacts in release/
+  --skip-android     Skip building Android APK (build desktop only)
   --skip-release     Skip git tagging and GitHub release (only build and stage to release/)
   --clean            Clean release/ directory before building
   --allow-dirty      Proceed even if git working directory has uncommitted changes
@@ -48,6 +49,7 @@ function parseArgs(args) {
     draft: true,
     prerelease: true,
     skipBuild: false,
+    skipAndroid: false,
     skipRelease: false,
     clean: false,
     allowDirty: false,
@@ -73,6 +75,8 @@ function parseArgs(args) {
       options.prerelease = true;
     } else if (arg === "--skip-build") {
       options.skipBuild = true;
+    } else if (arg === "--skip-android" || arg === "--no-android") {
+      options.skipAndroid = true;
     } else if (arg === "--skip-release") {
       options.skipRelease = true;
     } else if (arg === "--clean") {
@@ -163,11 +167,15 @@ async function main() {
       process.exit(desktopResult.status ?? 1);
     }
 
-    console.log("\n[ship-it] Step 2: Building signed Android release APK...");
-    const androidResult = pnpm(["android:build"], { cwd: repoRoot });
-    if (androidResult.status !== 0) {
-      console.error("\n[ship-it] ERROR: Android build failed.");
-      process.exit(androidResult.status ?? 1);
+    if (!options.skipAndroid) {
+      console.log("\n[ship-it] Step 2: Building signed Android release APK...");
+      const androidResult = pnpm(["android:build"], { cwd: repoRoot });
+      if (androidResult.status !== 0) {
+        console.error("\n[ship-it] ERROR: Android build failed.");
+        process.exit(androidResult.status ?? 1);
+      }
+    } else {
+      console.log("\n[ship-it] Step 2: Skipping Android build (--skip-android).");
     }
   } else {
     console.log("[ship-it] Skipping build steps (--skip-build). Using existing files in release/.");

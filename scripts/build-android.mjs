@@ -69,6 +69,32 @@ function findApkSignerDir() {
   return null;
 }
 
+function ensureJavaHome() {
+  if (process.env.JAVA_HOME && fs.existsSync(process.env.JAVA_HOME)) {
+    return;
+  }
+  const miseBase = path.join(os.homedir(), "AppData", "Local", "mise", "installs", "java");
+  if (fs.existsSync(miseBase)) {
+    const candidates = fs
+      .readdirSync(miseBase)
+      .filter(
+        (d) =>
+          (d.startsWith("temurin-17") || d.startsWith("17") || d.startsWith("temurin-21") || d.startsWith("21")) &&
+          fs.existsSync(path.join(miseBase, d, "bin")),
+      )
+      .sort()
+      .reverse();
+    if (candidates.length > 0) {
+      const chosen = path.join(miseBase, candidates[0]);
+      process.env.JAVA_HOME = chosen;
+      process.env.PATH = `${path.join(chosen, "bin")}${path.delimiter}${process.env.PATH}`;
+      console.log(`[build-android] Discovered JAVA_HOME in mise: ${chosen}`);
+    }
+  }
+}
+
+ensureJavaHome();
+
 // Ensure apksigner is in PATH
 const apksignerDir = findApkSignerDir();
 if (apksignerDir) {
