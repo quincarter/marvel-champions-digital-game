@@ -1,18 +1,18 @@
 /**
- * The one card pool this app runs: Core plus wave 1 (PLAN.md Phase 7). Every
+ * The one card pool this app runs: Core, wave 1 and cycle 1 (PLAN.md Phase 7). Every
  * scene, the deck screens and the engine worker read the app's pool from here
  * — never from `@mc/content`'s `CORE_*` exports or `@mc/cards`' `CORE_DEPS`
  * directly — so the client can only ever run one pool at a time and adding a
  * later wave is a one-file change.
  *
- * `wave1Scenario` (not `coreScenario`) is the app's scenario builder: it
- * already falls through to `coreScenario` for a Core scenario id, so every
- * existing Core game is unaffected, and it is the only builder that also
- * knows Risky Business, Mutagen Formula and Breakout.
+ * `playableScenario` is the app's scenario builder: it hands a scenario to
+ * its own wave's builder (Core's, wave 1's or cycle 1's) and widens the game's
+ * card pool to every playable card, so any deck can sit at any scenario.
  */
-import { WAVE1_DEPS, wave1Scenario, type Wave1ScenarioOptions } from "@mc/cards";
+import { PLAYABLE_DEPS, playableScenario, type PlayableScenarioOptions } from "@mc/cards";
 import {
   BKW_PACK,
+  ANT_PACK,
   CAP_PACK,
   CORE_ENCOUNTER_SETS,
   CORE_PACK,
@@ -22,11 +22,19 @@ import {
   GOB_PACK,
   HLK_PACK,
   MSM_PACK,
+  QSV_PACK,
+  SCW_PACK,
   THOR_PACK,
+  TOAFK_PACK,
+  TRORS_PACK,
   TWC_PACK,
   WAVE1_ENCOUNTER_SETS,
   WAVE1_SCENARIOS,
   WAVE1_STARTER_DECKS,
+  WAVE2_ENCOUNTER_SETS,
+  WAVE2_SCENARIOS,
+  WAVE2_STARTER_DECKS,
+  WSP_PACK,
   poolVersionOf,
   type AnyCard,
   type EncounterSet,
@@ -43,8 +51,12 @@ export { POOL_CARDS };
 /** Every card in `POOL_CARDS`, by id — the one lookup every setup screen needs (a scenario's villain/main scheme, a deck's identity, a seat's hero). Built once, from the pool alone, so no screen keeps its own copy. */
 export const CARDS_BY_ID: ReadonlyMap<string, AnyCard> = new Map(POOL_CARDS.map((card) => [card.id as string, card]));
 
-/** Every encounter set the app's pool knows (Core's plus every wave 1 pack's), for a screen that names one (a scenario's own sets, a modular set picker, an encounter deck preview). `WAVE1_ENCOUNTER_SETS` deliberately excludes Core's own sets (`@mc/content`'s own doc comment), so both are combined here. */
-export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [...CORE_ENCOUNTER_SETS, ...WAVE1_ENCOUNTER_SETS];
+/** Every encounter set the app's pool knows (Core's plus every wave 1 and cycle 1 pack's), for a screen that names one (a scenario's own sets, a modular set picker, an encounter deck preview). `WAVE1_ENCOUNTER_SETS` and `WAVE2_ENCOUNTER_SETS` deliberately exclude Core's own sets (`@mc/content`'s own doc comment), so all three are combined here. */
+export const POOL_ENCOUNTER_SETS: readonly EncounterSet[] = [
+  ...CORE_ENCOUNTER_SETS,
+  ...WAVE1_ENCOUNTER_SETS,
+  ...WAVE2_ENCOUNTER_SETS,
+];
 
 /**
  * The five Core modular encounter sets a table setup may pick between
@@ -65,21 +77,25 @@ export const CORE_MODULAR_SET_IDS: readonly string[] = [
   "the_doomsday_chair",
 ];
 
-/** Every ability script for `POOL_CARDS` (Core's own scripts included — `WAVE1_DEPS` starts from `CORE_ABILITIES`). */
-export const POOL_DEPS: EngineDeps = WAVE1_DEPS;
+/** Every ability script for `POOL_CARDS` (Core's own scripts included — every wave's registry starts from `CORE_ABILITIES`). */
+export const POOL_DEPS: EngineDeps = PLAYABLE_DEPS;
 
-/** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout). */
-export const POOL_SCENARIOS: readonly Scenario[] = [...CORE_SCENARIOS, ...WAVE1_SCENARIOS];
+/** Every scenario, Core first (Rhino, Klaw, Ultron), then wave 1 (Risky Business, Mutagen Formula, Breakout), then cycle 1 (The Rise of Red Skull's five, and Kang). */
+export const POOL_SCENARIOS: readonly Scenario[] = [...CORE_SCENARIOS, ...WAVE1_SCENARIOS, ...WAVE2_SCENARIOS];
 
-/** Every starter deck, Core's six precons first, then the six wave 1 hero packs'. */
-export const POOL_STARTER_DECKS: readonly StarterDeck[] = [...CORE_STARTER_DECKS, ...WAVE1_STARTER_DECKS];
+/** Every starter deck, Core's six precons first, then the six wave 1 hero packs', then cycle 1's six. */
+export const POOL_STARTER_DECKS: readonly StarterDeck[] = [
+  ...CORE_STARTER_DECKS,
+  ...WAVE1_STARTER_DECKS,
+  ...WAVE2_STARTER_DECKS,
+];
 
 /** This build's pool version — bumps whenever `POOL_CARDS` changes shape, which retires an older save/deck against it. */
 export const POOL_VERSION: string = poolVersionOf(POOL_CARDS);
 
 /**
- * Every physical product's own display name, by `Pack.code` (`Scenario.packCode`) — Core plus all eight wave 1
- * packs, not only the two that define a scenario today, so a Title row naming a future scenario pack's own product
+ * Every physical product's own display name, by `Pack.code` (`Scenario.packCode`) — Core, all eight wave 1
+ * packs and all six cycle 1 packs, not only the ones that define a scenario today, so a Title row naming a future scenario pack's own product
  * doesn't need this list touched again. `@mc/content` has no aggregated "every pack" export yet (PLAN.md Phase 7:
  * each pack module exports its own `*_PACK` constant), so this is that aggregate, scoped to what the app's pool
  * actually knows.
@@ -94,6 +110,12 @@ export const POOL_PACKS: readonly Pack[] = [
   BKW_PACK,
   DRS_PACK,
   HLK_PACK,
+  TRORS_PACK,
+  TOAFK_PACK,
+  ANT_PACK,
+  WSP_PACK,
+  QSV_PACK,
+  SCW_PACK,
 ];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
@@ -101,7 +123,7 @@ export function packNameOf(code: string): string {
   return POOL_PACKS.find((pack) => (pack.code as string) === code)?.name ?? code;
 }
 
-/** The app's one scenario builder: Core scenarios and wave 1 scenarios alike. */
-export const buildScenario = wave1Scenario;
+/** The app's one scenario builder: Core, wave 1 and cycle 1 scenarios alike. */
+export const buildScenario = playableScenario;
 
-export type { Wave1ScenarioOptions };
+export type { PlayableScenarioOptions };

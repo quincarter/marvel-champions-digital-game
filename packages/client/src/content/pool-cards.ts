@@ -7,7 +7,7 @@
  * (`vite-card-art.ts`), so the list lives here and `pool.ts` re-exports it:
  * still one definition, importable without the rules engine.
  */
-import { WAVE1_CARDS, type AnyCard } from "@mc/content";
+import { PLAYABLE_CARDS, type AnyCard } from "@mc/content";
 
-/** Every card the app knows about: Core plus the eight wave 1 packs. */
-export const POOL_CARDS: readonly AnyCard[] = WAVE1_CARDS;
+/** Every card the app knows about: Core, the eight wave 1 packs and the six cycle 1 packs. */
+export const POOL_CARDS: readonly AnyCard[] = PLAYABLE_CARDS;

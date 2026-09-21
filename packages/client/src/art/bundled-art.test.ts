@@ -28,6 +28,24 @@ const KNOWN_MISSING: readonly string[] = [
   "bundles/cards/02003a.png",
   "bundles/cards/02018a.jpg",
   "bundles/cards/07001b.png",
+  // Cycle 1: the villains' and Kang's second faces, and Quicksilver's alter-ego, whose record names a Hall of Heroes URL rather than a bundled scan.
+  "bundles/cards/04061b.png",
+  "bundles/cards/04062b.png",
+  "bundles/cards/04063b.png",
+  "bundles/cards/04079b.png",
+  "bundles/cards/04096b.png",
+  "bundles/cards/04112b.png",
+  "bundles/cards/04113b.png",
+  "bundles/cards/04128b.png",
+  "bundles/cards/04129b.png",
+  "bundles/cards/11007a.jpg",
+  "bundles/cards/11008a.jpg",
+  "bundles/cards/11009a.jpg",
+  "bundles/cards/11010a.jpg",
+  "bundles/cards/11011a.jpg",
+  "bundles/cards/11012a.jpg",
+  "bundles/cards/11013a.jpg",
+  "https://hallofheroeslcg.com/wp-content/uploads/2020/12/0b.jpg",
 ];
 
 describe("bundledArtPaths", () => {
