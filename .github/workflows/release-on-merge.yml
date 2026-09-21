@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    tags:
+      - "v*"
   workflow_dispatch:
     inputs:
       bump:
@@ -26,7 +28,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-on-merge
+  group: release-on-merge-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -56,13 +58,19 @@ jobs:
         id: check_changes
         shell: bash
         run: |
-          COUNT=$(find .changes/unreleased -maxdepth 1 \( -name "*.yaml" -o -name "*.yml" \) ! -name ".gitkeep" 2>/dev/null | wc -l)
-          echo "Found ${COUNT} unreleased change fragment(s)."
-          if [ "${COUNT}" -gt 0 ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "Tag push detected (${{ github.ref_name }})."
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "is_tag=true" >> "$GITHUB_OUTPUT"
           else
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            COUNT=$(find .changes/unreleased -maxdepth 1 \( -name "*.yaml" -o -name "*.yml" \) ! -name ".gitkeep" 2>/dev/null | wc -l)
+            echo "Found ${COUNT} unreleased change fragment(s)."
+            if [ "${COUNT}" -gt 0 ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_changes=false" >> "$GITHUB_OUTPUT"
+              echo "should_release=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
       - uses: pnpm/action-setup@v4
@@ -96,51 +104,57 @@ jobs:
           BUMP_INPUT: ${{ github.event.inputs.bump || 'auto' }}
           PUBLISH_INPUT: ${{ github.event.inputs.publish || 'true' }}
         run: |
-          # 1. Determine next version
-          NEXT_TAG=""
-          if [ "${BUMP_INPUT}" != "auto" ]; then
-            NEXT_TAG=$(changie next "${BUMP_INPUT}")
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            TAG="${{ github.ref_name }}"
+            VERSION="${TAG#v}"
+            echo "Processing tag release: ${TAG} (version: ${VERSION})"
           else
-            NEXT_TAG=$(changie next auto 2>/dev/null || changie next patch)
-          fi
+            # 1. Determine next version
+            NEXT_TAG=""
+            if [ "${BUMP_INPUT}" != "auto" ]; then
+              NEXT_TAG=$(changie next "${BUMP_INPUT}")
+            else
+              NEXT_TAG=$(changie next auto 2>/dev/null || changie next patch)
+            fi
 
-          VERSION="${NEXT_TAG#v}"
-          TAG="v${VERSION}"
-          echo "Target Version: ${VERSION} (tag: ${TAG})"
+            VERSION="${NEXT_TAG#v}"
+            TAG="v${VERSION}"
+            echo "Target Version: ${VERSION} (tag: ${TAG})"
 
-          # 2. Batch unreleased changes into .changes/${TAG}.md
-          changie batch "${TAG}" --allow-no-changes
+            # 2. Batch unreleased changes into .changes/${TAG}.md
+            changie batch "${TAG}" --allow-no-changes
 
-          # 3. Merge CHANGELOG.md and execute replacements
-          changie merge
+            # 3. Merge CHANGELOG.md and execute replacements
+            changie merge
 
-          # 4. Increment Android versionCode in build.gradle
-          GRADLE_FILE="packages/client/android/app/build.gradle"
-          if [ -f "$GRADLE_FILE" ]; then
-            CURRENT_CODE=$(grep -oE 'versionCode [0-9]+' "$GRADLE_FILE" | awk '{print $2}')
-            NEXT_CODE=$((CURRENT_CODE + 1))
-            sed -i -E "s/versionCode [0-9]+/versionCode ${NEXT_CODE}/" "$GRADLE_FILE"
-            echo "Incremented Android versionCode from ${CURRENT_CODE} to ${NEXT_CODE}"
-          fi
+            # 4. Increment Android versionCode in build.gradle
+            GRADLE_FILE="packages/client/android/app/build.gradle"
+            if [ -f "$GRADLE_FILE" ]; then
+              CURRENT_CODE=$(grep -oE 'versionCode [0-9]+' "$GRADLE_FILE" | awk '{print $2}')
+              NEXT_CODE=$((CURRENT_CODE + 1))
+              sed -i -E "s/versionCode [0-9]+/versionCode ${NEXT_CODE}/" "$GRADLE_FILE"
+              echo "Incremented Android versionCode from ${CURRENT_CODE} to ${NEXT_CODE}"
+            fi
 
-          # 5. Commit release metadata and create git tag
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "chore(release): ${TAG}" || echo "Nothing to commit"
+            # 5. Commit release metadata and create git tag
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git commit -m "chore(release): ${TAG}" || echo "Nothing to commit"
 
-          if ! git rev-parse "${TAG}" >/dev/null 2>&1; then
-            git tag -a "${TAG}" -m "Release ${TAG}"
-          fi
+            if ! git rev-parse "${TAG}" >/dev/null 2>&1; then
+              git tag -a "${TAG}" -m "Release ${TAG}"
+            fi
 
-          if git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
-            echo "Tag ${TAG} already exists on remote origin."
-            git push origin HEAD:main || echo "Warning: Push to main skipped (branch protection active)"
-          else
-            git push origin HEAD:main "${TAG}" || {
-              echo "Warning: Push to main branch failed (branch protection active). Pushing tag ${TAG} directly..."
-              git push origin "${TAG}"
-            }
+            if git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
+              echo "ERROR: Tag ${TAG} already exists on remote origin. Cannot cut release for existing tag."
+              exit 1
+            else
+              git push origin HEAD:main "${TAG}" || {
+                echo "Warning: Push to main branch failed (branch protection active). Pushing tag ${TAG} directly..."
+                git push origin "${TAG}"
+              }
+            fi
           fi
 
           # 6. Create GitHub release draft
