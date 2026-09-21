@@ -242,9 +242,12 @@ export const RED_SKULL_SET = defineAbilities({
   ),
 
   // Hydra Jet-Trooper (Hydra Assault) — Quickstrike (data). [star] Boost: if you are in hero form, the villain
-  // attacks you after this activation (with no boost cards dealt for that attack — a second-attack nuance this
-  // pack has no card testing yet; `enemyAttack`'s own boost dealing already applies normally).
-  "04146.boost": boost(ifThen({ kind: "form", player: you, form: "hero" }, enemyAttack(theVillain, { against: you }))),
+  // attacks you after this activation; do not deal any boost cards for that attack. Both clauses are load-bearing:
+  // nested in the activation and dealt its own boost cards, the new attack can flip another Jet-Trooper and never
+  // bottoms out (docs/phase7-wave2-qa.md, finding 1).
+  "04146.boost": boost(
+    ifThen({ kind: "form", player: you, form: "hero" }, enemyAttack(theVillain, { against: you, afterCurrentActivation: true, noBoost: true })),
+  ),
 
   // Combat Knife (Weapon Master) — Attach to the villain (data). [star] Attached villain's attacks gain piercing.
   // Hero Action: spend [M][P] → discard.

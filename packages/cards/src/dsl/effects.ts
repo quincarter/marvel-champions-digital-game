@@ -223,12 +223,23 @@ export const bindTargets = (slot: string, target: TargetRef): EffectSpec => ({ k
  */
 export const enemyAttack = (
   enemies: TargetRef,
-  opts: { readonly against?: PlayerRef; readonly bind?: string; readonly additionalResolution?: boolean; readonly atkBonus?: Amount } = {},
+  opts: {
+    readonly against?: PlayerRef;
+    readonly bind?: string;
+    readonly additionalResolution?: boolean;
+    readonly atkBonus?: Amount;
+    /** "…attacks you after this activation": queued behind the activation now resolving rather than nested in it. */
+    readonly afterCurrentActivation?: boolean;
+    /** "Do not deal any boost cards for that attack." */
+    readonly noBoost?: boolean;
+  } = {},
 ): EffectSpec => ({
   kind: "enemyAttack",
   enemies,
   ...(opts.against ? { against: opts.against } : {}),
   ...withBind(opts.bind),
+  ...(opts.noBoost ? { boost: false } : {}),
+  ...(opts.afterCurrentActivation ? { after: "currentActivation" as const } : {}),
   ...(opts.additionalResolution ? { additionalResolution: true } : {}),
   ...(opts.atkBonus !== undefined ? { atkBonus: amount(opts.atkBonus) } : {}),
 });
