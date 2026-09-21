@@ -103,11 +103,21 @@ const stripPool = (state: GameState): StateWithoutPool => {
   return rest;
 };
 
+/**
+ * The one place a `SessionConfig` becomes a `GameSetupConfig` — shared by `start`, `resume` and the read-only
+ * replay cursor, so none of them can disagree about what a save means.
+ *
+ * `modes` (RRG 1.8's mode set) is spread only when the config carries one. That's the backward-compatible read
+ * path for every save written before the field existed: those configs have `difficulty` alone, the builder
+ * derives the mode set from it (`@mc/cards`'s `resolveModes`), and the resulting setup is identical to what the
+ * save originally replayed against.
+ */
 const scenarioFor = (config: SessionConfig) =>
   buildScenario(config.scenarioId, {
     difficulty: config.difficulty,
     players: config.players,
     seed: config.seed,
+    ...(config.modes ? { modes: config.modes } : {}),
     ...(config.modularSetIds ? { modularSetIds: config.modularSetIds } : {}),
     ...(config.firstPlayerIndex !== undefined ? { firstPlayerIndex: config.firstPlayerIndex } : {}),
     ...(config.villainVersions ? { villainVersions: config.villainVersions } : {}),

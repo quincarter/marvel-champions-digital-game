@@ -2,13 +2,39 @@ import {
   CORE_CARDS,
   CORE_SCENARIOS,
   CORE_STARTER_DECKS,
+  difficultyOf,
   type AnyCard,
   type CardId,
   type CoreAspect,
+  type PlayModes,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
 
 export type CoreDifficulty = "standard" | "expert";
+
+/**
+ * The one place the old `difficulty` option and the new mode set (`@mc/content`'s `schema/modes.ts`, RRG 1.8
+ * pp. 28–29) are reconciled, shared by every scenario builder in this package.
+ *
+ * `modes` wins when both are given, so a caller that has a real mode set (a campaign, later a heroic level)
+ * doesn't have to keep a redundant `difficulty` in sync — but the two may not *disagree* about expert mode,
+ * because silently preferring one would change which villain stages a game starts at without saying so. A
+ * caller that passes neither gets standard mode, exactly as `options.difficulty ?? "standard"` did.
+ *
+ * `difficulty` is typed loosely because each builder's own option type already narrows it, and wave 1's
+ * `"extreme"` (The Wrecking Crew's per-villain version choice, `wave1/setup.ts`) is deliberately *not* an RRG
+ * mode: any value other than `"expert"` is non-expert as far as the mode set is concerned.
+ */
+export function resolveModes(difficulty: string | undefined, modes: PlayModes | undefined): PlayModes {
+  if (!modes) return difficulty === "expert" ? { expert: true } : {};
+  if (difficulty !== undefined && (difficulty === "expert") !== (modes.expert === true)) {
+    throw new Error(
+      `difficulty "${difficulty}" and modes disagree about expert mode (modes.expert is ` +
+        `${modes.expert === true ? "set" : "absent"}); pass one or the other`,
+    );
+  }
+  return modes;
+}
 
 /**
  * A seat: a Core starter deck by id, or an identity plus an explicit deck list. Decks must be
@@ -35,6 +61,12 @@ export type CorePlayer =
 
 export interface CoreScenarioOptions {
   readonly difficulty?: CoreDifficulty;
+  /**
+   * The full mode set (RRG 1.8 pp. 28–29), of which `difficulty` is the expert half. Optional and additive:
+   * omitting it behaves exactly as before. When both are given they must agree about expert mode
+   * (`resolveModes`). Campaign, heroic and skirmish are carried but read by nothing yet.
+   */
+  readonly modes?: PlayModes;
   /** Defaults to the scenario's recommended modular set(s). */
   readonly modularSetIds?: readonly string[];
   readonly players: readonly CorePlayer[];
@@ -90,7 +122,7 @@ export function encounterCardsOf(setIds: readonly string[]): CardId[] {
 export function coreScenario(scenarioId: string, options: CoreScenarioOptions): GameSetupConfig {
   const scenario = CORE_SCENARIOS.find((s) => s.id === scenarioId);
   if (!scenario) throw new Error(`no Core scenario ${scenarioId}`);
-  const difficulty = options.difficulty ?? "standard";
+  const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
   const villain = cardsById.get(scenario.villainCardId);
   if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);
   const side = villain.sides[0];

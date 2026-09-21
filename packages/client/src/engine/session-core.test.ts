@@ -20,7 +20,7 @@
  * didn't accidentally widen that net to catch ordinary Core saves too.
  */
 import { describe, expect, test } from "vitest";
-import { CORE_STARTER_DECKS } from "@mc/content";
+import { CORE_STARTER_DECKS, campaignId } from "@mc/content";
 import type { Command, LegalActions, PlayerId } from "@mc/engine";
 import { MemoryGameStorage, type SaveMeta } from "./game-storage.js";
 import { EngineSessionCore } from "./session-core.js";
@@ -144,5 +144,69 @@ describe("EngineSessionCore and CorePlayer.deckId", () => {
 
     expect(withId.snapshot.state).toEqual(withoutId.snapshot.state);
     expect(withId.snapshot.events).toEqual(withoutId.snapshot.events);
+  });
+});
+
+/**
+ * `SessionConfig.modes` (the RRG 1.8 mode set, `@mc/content`'s `schema/modes.ts`): the same additive
+ * requirement as `deckId` above, but on the field that decides villain stages, so getting it wrong wouldn't
+ * fail to load — it would load into a *different game*.
+ *
+ * Every save already on disk records a bare `difficulty` and no `modes` at all. The read path keeps working
+ * because `session-core.ts`'s `scenarioFor` only spreads `modes` when the config has one, leaving the scenario
+ * builder to derive the mode set from `difficulty` exactly as it always did.
+ */
+describe("EngineSessionCore and SessionConfig.modes", () => {
+  /** Exactly the shape of a save written before `modes` existed. */
+  const EXPERT_OLD_SHAPE: SessionConfig = {
+    scenarioId: "rhino",
+    difficulty: "expert",
+    players: [{ starterDeckId: "core-spider-man-justice" }],
+    seed: 2026,
+  };
+
+  test("an old-shape save with a bare difficulty and no modes still starts, saves and resumes", async () => {
+    const storage = new MemoryGameStorage();
+    const first = new EngineSessionCore({ storage });
+    const started = await first.start(EXPERT_OLD_SHAPE);
+    const toAct = started.snapshot.legal!.playerId;
+    const dispatched = first.dispatch(anyLegalCommand(first.legalActions(toAct), toAct));
+    expect(dispatched.ok).toBe(true);
+    const beforeReload = dispatched.ok ? dispatched.snapshot.state : null;
+
+    const saveMeta = await storage.latestActive();
+    expect(saveMeta).not.toBeNull();
+    expect((saveMeta as SaveMeta).config.modes).toBeUndefined();
+
+    const second = new EngineSessionCore({ storage });
+    const resumed = await second.resume((saveMeta as SaveMeta).id);
+    expect(resumed.snapshot.state).toEqual(beforeReload);
+  });
+
+  test("a bare `difficulty: 'expert'` and an explicit `modes: { expert: true }` produce the same game", async () => {
+    const old = await new EngineSessionCore().start(EXPERT_OLD_SHAPE);
+    const withModes = await new EngineSessionCore().start({ ...EXPERT_OLD_SHAPE, modes: { expert: true } });
+
+    expect(withModes.snapshot.state).toEqual(old.snapshot.state);
+    expect(withModes.snapshot.events).toEqual(old.snapshot.events);
+  });
+
+  /** Campaign is the orthogonal axis: carried on the config, consumed by nothing, so it can't move the game. */
+  test("a campaign mode on the config changes nothing about the game it starts", async () => {
+    const standard: SessionConfig = { ...EXPERT_OLD_SHAPE, difficulty: "standard" };
+    const plain = await new EngineSessionCore().start(standard);
+    const inCampaign = await new EngineSessionCore().start({
+      ...standard,
+      modes: { campaign: { campaignId: campaignId("trors"), expertCampaign: true } },
+    });
+
+    expect(inCampaign.snapshot.state).toEqual(plain.snapshot.state);
+    expect(inCampaign.snapshot.events).toEqual(plain.snapshot.events);
+  });
+
+  test("a config whose difficulty and modes disagree about expert mode is refused at setup", async () => {
+    await expect(new EngineSessionCore().start({ ...EXPERT_OLD_SHAPE, modes: {} })).rejects.toThrow(
+      /disagree about expert mode/,
+    );
   });
 });

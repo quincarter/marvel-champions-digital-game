@@ -3,13 +3,20 @@ import {
   WAVE1_CARDS,
   WAVE1_SCENARIOS,
   WAVE1_STARTER_DECKS,
+  difficultyOf,
   type AnyCard,
   type CardId,
 } from "@mc/content";
 
 type VillainVersion = "A" | "B" | "extreme";
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
-import { coreScenario, type CoreDifficulty, type CorePlayer, type CoreScenarioOptions } from "../core/setup.js";
+import {
+  coreScenario,
+  resolveModes,
+  type CoreDifficulty,
+  type CorePlayer,
+  type CoreScenarioOptions,
+} from "../core/setup.js";
 
 /**
  * A Core scenario (Rhino/Klaw/Ultron — `packages/cards/src/core/scenarios/`) seated with wave 1 content.
@@ -113,7 +120,7 @@ function buildSingleVillain(
 ): GameSetupConfig {
   if (options.difficulty === "extreme")
     throw new Error(`${scenario.id} has one villain; "extreme" is Breakout's own multi-villain challenge`);
-  const difficulty = options.difficulty ?? "standard";
+  const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
   const villain = cardsById.get(scenario.villainCardId);
   if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);
   const side = villain.sides[0];
@@ -166,8 +173,11 @@ function buildMultiVillain(scenario: (typeof WAVE1_SCENARIOS)[number], options: 
   ) {
     throw new Error(`unknown difficulty ${options.difficulty as string}`);
   }
+  // `"extreme"` is Breakout's own version choice, not an RRG mode, so it's read off `difficulty` directly; the
+  // standard/expert half goes through the mode set like every other scenario's does.
+  const modes = resolveModes(options.difficulty, options.modes);
   const defaultVersion: VillainVersion =
-    options.difficulty === "expert" ? "B" : options.difficulty === "extreme" ? "extreme" : "A";
+    options.difficulty === "extreme" ? "extreme" : difficultyOf(modes) === "expert" ? "B" : "A";
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const villains: VillainSetup[] = multi.villains.map((villain, index) => ({
     villainCardId: villain.villainCardId,

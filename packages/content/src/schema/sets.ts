@@ -45,7 +45,14 @@ export interface EncounterSet {
   readonly competitiveOnly?: boolean;
 }
 
-/** Chosen at game setup, not a property of the scenario: it selects villain stages (I–II vs II–III) and the Standard/Expert encounter set. */
+/**
+ * Chosen at game setup, not a property of the scenario: it selects villain stages (I–II vs II–III) and the
+ * Standard/Expert encounter set.
+ *
+ * This is the two-value **projection** of the wider mode set (`schema/modes.ts`, RRG 1.8 pp. 28–29), not the
+ * whole of what a game can be played as. It is declared here because the records below are keyed by it; build a
+ * `PlayModes` and call `difficultyOf` to get one.
+ */
 export type ScenarioDifficulty = "standard" | "expert";
 
 /**

@@ -57,5 +57,5 @@ export const CORE_ABILITIES: AbilityRegistry = mergeRegistries(
 /** Engine dependencies for games that use Core Set content. */
 export const CORE_DEPS: EngineDeps = { abilities: CORE_ABILITIES };
 
-export { coreScenario, encounterCardsOf, starterDeckSetup } from "./setup.js";
+export { coreScenario, encounterCardsOf, resolveModes, starterDeckSetup } from "./setup.js";
 export type { CoreDifficulty, CorePlayer, CoreScenarioOptions } from "./setup.js";

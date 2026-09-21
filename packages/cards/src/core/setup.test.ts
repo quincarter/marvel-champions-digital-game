@@ -1,7 +1,7 @@
-import { CORE_STARTER_DECKS, cardId, type HeroIdentityCard } from "@mc/content";
+import { CORE_STARTER_DECKS, campaignId, cardId, type HeroIdentityCard, type PlayModes } from "@mc/content";
 import { createGame } from "@mc/engine";
 import { CORE_DEPS } from "./index.js";
-import { coreScenario } from "./setup.js";
+import { coreScenario, resolveModes, type CoreScenarioOptions } from "./setup.js";
 
 /**
  * RRG "Unique": "The players as a group are permitted to have only one copy of each unique
@@ -104,5 +104,70 @@ describe("CorePlayer.deckId never reaches the engine", () => {
     if (!withoutId.ok || !withId.ok) return;
     expect(withId.state).toEqual(withoutId.state);
     expect(withId.events).toEqual(withoutId.events);
+  });
+});
+
+/**
+ * `resolveModes` is the single reconciliation between the old `difficulty` option and the RRG 1.8 mode set
+ * (`@mc/content`'s `schema/modes.ts`, pp. 28–29). It has to be additive in both directions: a caller that says
+ * nothing gets standard mode, a caller that says `difficulty` gets exactly what it always got, and a caller
+ * that says `modes` gets the same setup as the equivalent `difficulty`.
+ */
+describe("resolveModes", () => {
+  const TRORS = campaignId("trors");
+
+  test("neither option given is standard mode", () => {
+    expect(resolveModes(undefined, undefined)).toEqual({});
+  });
+
+  test("a bare difficulty projects to the mode set it means", () => {
+    expect(resolveModes("standard", undefined)).toEqual({});
+    expect(resolveModes("expert", undefined)).toEqual({ expert: true });
+  });
+
+  test('wave 1\'s "extreme" is not a mode: it resolves to standard and is read off `difficulty` by its own builder', () => {
+    expect(resolveModes("extreme", undefined)).toEqual({});
+  });
+
+  test("modes wins when both are given and they agree", () => {
+    const modes: PlayModes = { expert: true, campaign: { campaignId: TRORS, expertCampaign: true } };
+    expect(resolveModes("expert", modes)).toBe(modes);
+    expect(resolveModes("standard", { campaign: { campaignId: TRORS } })).toEqual({ campaign: { campaignId: TRORS } });
+  });
+
+  test("campaign mode alongside a standard difficulty is not a disagreement — it's the orthogonal axis", () => {
+    expect(() => resolveModes("standard", { campaign: { campaignId: TRORS, expertCampaign: true } })).not.toThrow();
+  });
+
+  test("a difficulty and modes that disagree about expert mode throw rather than one silently winning", () => {
+    expect(() => resolveModes("standard", { expert: true })).toThrow(/disagree about expert mode/);
+    expect(() => resolveModes("expert", {})).toThrow(/disagree about expert mode/);
+    expect(() => resolveModes("extreme", { expert: true })).toThrow(/disagree about expert mode/);
+  });
+});
+
+describe("coreScenario and the mode set", () => {
+  const players = [{ starterDeckId: "core-spider-man-justice" }];
+  const scenario = (extra: Omit<Partial<CoreScenarioOptions>, "players" | "seed">) =>
+    coreScenario("rhino", { players, seed: 99, ...extra });
+
+  test("modes: { expert: true } builds byte-identically to difficulty: 'expert'", () => {
+    expect(scenario({ modes: { expert: true } })).toEqual(scenario({ difficulty: "expert" }));
+  });
+
+  test("an empty mode set builds byte-identically to the default, and to difficulty: 'standard'", () => {
+    expect(scenario({ modes: {} })).toEqual(scenario({}));
+    expect(scenario({ difficulty: "standard" })).toEqual(scenario({}));
+  });
+
+  /** Expert mode is the only axis anything consumes yet; campaign must reach the engine as nothing at all. */
+  test("campaign mode is carried but changes no part of the setup config", () => {
+    const campaign = { campaignId: campaignId("trors"), expertCampaign: true } as const;
+    expect(scenario({ modes: { campaign } })).toEqual(scenario({}));
+    expect(scenario({ modes: { expert: true, campaign } })).toEqual(scenario({ difficulty: "expert" }));
+  });
+
+  test("the disagreement throw reaches the builder's callers", () => {
+    expect(() => scenario({ difficulty: "expert", modes: {} })).toThrow(/disagree about expert mode/);
   });
 });
