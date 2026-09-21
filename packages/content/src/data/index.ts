@@ -169,6 +169,13 @@ export const WAVE2_STARTER_DECKS: readonly StarterDeck[] = [
   ...SCW_STARTER_DECKS,
 ];
 
+/**
+ * Every playable card: Core, the eight wave 1 packs, then the six cycle 1 packs, each exactly once. `WAVE1_CARDS`
+ * and `WAVE2_CARDS` are sibling pools that both start from Core, so concatenating them would list Core twice; this
+ * is the one pool a client that runs every scripted wave at once sends to the engine.
+ */
+export const PLAYABLE_CARDS: readonly AnyCard[] = [...WAVE1_CARDS, ...WAVE2_CARDS.slice(CORE_CARDS.length)];
+
 // ---------------------------------------------------------------------------------------------------------------
 // Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2
 // scope decided": every pack beyond Core, wave 1 and cycle 1 is card data the deck builder can show and
