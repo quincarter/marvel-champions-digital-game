@@ -49,25 +49,6 @@
         user-select: none;
         -webkit-tap-highlight-color: transparent;
       }
-      /*
-        Suppress Netlify-injected overlay badges and feedback drawers so they
-        never cover or intercept clicks on game controls or the canvas.
-      */
-      [data-netlify-deploy-id],
-      [data-netlify-badge],
-      #netlify-feedback-drawer,
-      [class*="netlify"],
-      [id*="netlify"],
-      iframe[src*="netlify"],
-      netlify-drawer {
-        display: none !important;
-        pointer-events: none !important;
-        visibility: hidden !important;
-        opacity: 0 !important;
-        width: 0 !important;
-        height: 0 !important;
-        z-index: -9999 !important;
-      }
     </style>
   </head>
   <body>
