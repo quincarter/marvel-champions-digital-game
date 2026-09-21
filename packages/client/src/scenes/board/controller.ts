@@ -48,6 +48,11 @@ export interface ControllerChoiceView {
   readonly options: readonly { readonly playerId: PlayerId; readonly label: string }[];
 }
 
+/** What the "Play it / Decline" bar shows: the free card waiting on a yes. */
+export interface PlayConfirmationView {
+  readonly subject: string;
+}
+
 /**
  * The engine's example `playCard`, sent to `controllerId` instead of whichever
  * seat the example picked. The payer's own seat is spelled as no controller,
@@ -180,6 +185,11 @@ export class BoardController {
       // Same route shape as "paying": only the candidates are worth stepping through.
       return focusOrder({ kind: "paying", sources: this.#selection.choice.candidates }, marks);
     }
+    if (this.#selection.kind === "confirmingPlay") {
+      // The card itself (Enter on it is "Play it") and the way out, the same two stops targeting offers.
+      const { action } = this.#selection.action;
+      return focusOrder({ kind: "targeting", targets: action.kind === "playCard" ? [action.instanceId] : [] }, marks);
+    }
     return focusOrder({ kind: "idle", hand: model.hand.map((card) => card.instanceId) }, marks);
   }
 
@@ -221,7 +231,7 @@ export class BoardController {
     // ever looks for a `playCard` entry, so a card that's on the focus route
     // solely because of `usableAbilities` needs the ability path instead.
     if (this.#host.marks()?.usableAbilities.has(focus.instanceId)) this.onCharacterTap(focus.instanceId);
-    else void this.playCard(focus.instanceId);
+    else void this.playCard(focus.instanceId, { confirmFree: true });
   }
 
   /**
@@ -241,6 +251,12 @@ export class BoardController {
     }
     if (this.#selection.kind === "targeting") {
       void this.#commitTarget(id);
+      return true;
+    }
+    if (this.#selection.kind === "confirmingPlay") {
+      // A second tap on the card being asked about is the yes; a tap anywhere else changes nothing.
+      const { action } = this.#selection.action;
+      if (action.kind === "playCard" && action.instanceId === id) void this.confirmPlay();
       return true;
     }
     return false;
@@ -294,7 +310,7 @@ export class BoardController {
       this.#host.inspect(instanceId);
       return;
     }
-    void this.playCard(instanceId);
+    void this.playCard(instanceId, { confirmFree: true });
   }
 
   /**
@@ -302,8 +318,12 @@ export class BoardController {
    * rather than spending whatever the engine found first: what you spend is a
    * real decision, and the engine's `example` payment is only a proof that
    * *some* payment works.
+   *
+   * `confirmFree`: the gesture was a bare tap (or Enter) on the card, so a card with nothing to pay and nothing
+   * else to decide asks "Play it / Decline" first rather than resolving under the player's thumb. Inspect's own
+   * "Play it" button is already an explicit yes and passes nothing.
    */
-  async playCard(instanceId: InstanceId): Promise<void> {
+  async playCard(instanceId: InstanceId, options: { readonly confirmFree?: boolean } = {}): Promise<void> {
     if (this.#readOnly) return;
     const entry = this.#host.marks()?.playable.has(instanceId)
       ? this.#legalEntries().find(
@@ -324,7 +344,24 @@ export class BoardController {
       this.#host.redraw();
       return;
     }
-    await this.#playAs(entry, entry.controllers?.[0] ?? null);
+    await this.#playAs(entry, entry.controllers?.[0] ?? null, options.confirmFree ?? false);
+  }
+
+  /** "Play it": the free card the board was asking about. */
+  async confirmPlay(): Promise<void> {
+    if (this.#readOnly || this.#selection.kind !== "confirmingPlay") return;
+    const { action, controllerId } = this.#selection;
+    this.#selection = { kind: "idle" };
+    await this.#dispatch(withController(action.example, controllerId));
+  }
+
+  /** The card a free play is waiting on a yes for, or null when nothing is. */
+  playConfirmation(): PlayConfirmationView | null {
+    if (this.#selection.kind !== "confirmingPlay") return null;
+    const { game } = appSession().store.state;
+    if (!game) return null;
+    const { action } = this.#selection.action;
+    return { subject: action.kind === "playCard" ? cardName(game, action.instanceId) : "This card" };
   }
 
   /** The controller picker's answer: play the card under that seat's control. */
@@ -352,8 +389,13 @@ export class BoardController {
     };
   }
 
-  async #playAs(entry: LegalAction, controllerId: PlayerId | null): Promise<void> {
+  async #playAs(entry: LegalAction, controllerId: PlayerId | null, confirmFree = false): Promise<void> {
     if (entry.needsPayment && this.#openPayment(entry, null, controllerId)) return;
+    if (confirmFree) {
+      this.#selection = { kind: "confirmingPlay", action: entry, controllerId };
+      this.#host.redraw();
+      return;
+    }
     await this.#dispatch(withController(entry.example, controllerId));
   }
 

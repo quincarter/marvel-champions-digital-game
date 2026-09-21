@@ -16,12 +16,12 @@
  * action ability is named correctly rather than by its cost alone.
  *
  * Either way, nothing here is invented: every word traces back to
- * `AbilityReference.label`, `cardName`, or a field on `AbilityCost`.
+ * `AbilityReference.label`, `faceUpName`, or a field on `AbilityCost`.
  */
 
 import type { AbilityId } from "@mc/content";
 import { activeAbilityRefs, type AbilityCost, type EngineDeps, type GameState, type InstanceId } from "@mc/engine";
-import { cardName } from "./names.js";
+import { faceUpName } from "./names.js";
 
 /** "Aunt May — exhaust" or, once a card names the ability, "Rocket Boots — Afterburners". */
 export function abilityLabelOf(
@@ -30,7 +30,9 @@ export function abilityLabelOf(
   abilityId: AbilityId,
   deps: EngineDeps,
 ): string {
-  const name = cardName(state, instanceId);
+  // The live face, not the card: an alter-ego's action is "Wanda Maximoff — Superpowered Siblings", and offering
+  // it under the hero's name sent the player to the wrong side of the card for it.
+  const name = faceUpName(state, instanceId);
   const short = abilityShortLabelOf(state, instanceId, abilityId, deps);
   return short ? `${name} — ${short}` : name;
 }

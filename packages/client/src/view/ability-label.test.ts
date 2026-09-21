@@ -12,7 +12,7 @@ import { LocalEngineHost } from "../engine/local-host.js";
 import { SessionStore } from "../store/session-store.js";
 import type { SessionConfig } from "../engine/host.js";
 import { abilityLabelOf, abilityShortLabelOf } from "./ability-label.js";
-import { cardName } from "./names.js";
+import { faceUpName } from "./names.js";
 
 const RHINO_SOLO: SessionConfig = {
   scenarioId: "rhino",
@@ -44,18 +44,18 @@ describe("abilityLabelOf", () => {
       player.identity.form === "hero" ? abilityId("01001a.spider-sense") : abilityId("01001b.scientist");
     const printed = player.identity.form === "hero" ? "Spider-Sense" : "Scientist";
     const label = abilityLabelOf(state, identityId, heroAbilityId, CORE_DEPS);
-    expect(label).toBe(`${cardName(state, identityId)} — ${printed}`);
+    expect(label).toBe(`${faceUpName(state, identityId)} — ${printed}`);
   });
 
   test("falls back to the card's name alone when there is neither a printed label nor a cost", () => {
     const deps = { abilities: { "test.bare": { trigger: { kind: "action" }, effects: [] } as AbilityDefinition } };
-    expect(abilityLabelOf(state, identityId, abilityId("test.bare"), deps)).toBe(cardName(state, identityId));
+    expect(abilityLabelOf(state, identityId, abilityId("test.bare"), deps)).toBe(faceUpName(state, identityId));
   });
 
   test('names a Special ability "Special" — the RRG\'s own term, never printed on the AbilityReference itself', () => {
     const deps = { abilities: { "test.special": { trigger: { kind: "special" }, effects: [] } as AbilityDefinition } };
     expect(abilityLabelOf(state, identityId, abilityId("test.special"), deps)).toBe(
-      `${cardName(state, identityId)} — Special`,
+      `${faceUpName(state, identityId)} — Special`,
     );
   });
 
@@ -73,19 +73,19 @@ describe("abilityLabelOf", () => {
   test("describes an exhaust cost in the engine's own terms (Aunt May)", () => {
     // "Alter-Ego Action: Exhaust Aunt May → heal 4 damage from Peter Parker."
     const label = abilityLabelOf(state, identityId, abilityId("01006.aunt-may-action"), CORE_DEPS);
-    expect(label).toBe(`${cardName(state, identityId)} — exhaust`);
+    expect(label).toBe(`${faceUpName(state, identityId)} — exhaust`);
   });
 
   test("describes a counter-spending cost (Surveillance Team)", () => {
     // "Action: Exhaust Surveillance Team and remove 1 snoop counter from it → …"
     const label = abilityLabelOf(state, identityId, abilityId("01064.surveillance-team-action"), CORE_DEPS);
-    expect(label).toBe(`${cardName(state, identityId)} — exhaust, remove 1 snoop counter`);
+    expect(label).toBe(`${faceUpName(state, identityId)} — exhaust, remove 1 snoop counter`);
   });
 
   test("describes a resources-plus-discard cost (Tenacity)", () => {
     // "Action: Spend 1 [physical] resource and discard Tenacity → ready your hero."
     const label = abilityLabelOf(state, identityId, abilityId("01093.tenacity-action"), CORE_DEPS);
-    expect(label).toBe(`${cardName(state, identityId)} — spend 1 physical, discard this card`);
+    expect(label).toBe(`${faceUpName(state, identityId)} — spend 1 physical, discard this card`);
   });
 
   /**
@@ -95,7 +95,7 @@ describe("abilityLabelOf", () => {
    */
   test("the on-card label drops the card's own name and keeps the cost", () => {
     const id = abilityId("01064.surveillance-team-action");
-    const name = cardName(state, identityId);
+    const name = faceUpName(state, identityId);
     const full = abilityLabelOf(state, identityId, id, CORE_DEPS);
     const short = abilityShortLabelOf(state, identityId, id, CORE_DEPS);
 

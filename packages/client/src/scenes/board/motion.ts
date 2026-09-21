@@ -29,6 +29,7 @@ import {
   PHASE_WIPE_HOLD_MS,
   PHASE_WIPE_REDUCED_MS,
   phaseTransitionFrom,
+  wipeTimingFor,
   wipeFrame,
   type PhaseTransition,
 } from "../../view/phase-wipe.js";
@@ -100,7 +101,16 @@ export class BoardMotion {
   #bannerPoll: Phaser.Time.TimerEvent | null = null;
 
   /** The phase/round band, and the round-chip pop / toggle fade it also drives (`drawPhaseWipe`, `roundChipScale`, `toggleFadeAlpha`). */
-  #phaseTransition: { readonly transition: PhaseTransition; readonly startedAt: number } | null = null;
+  #phaseTransition: {
+    readonly transition: PhaseTransition;
+    /** When the band starts to slide in — later than it landed, for the opening band (`wipeTimingFor`). */
+    readonly startedAt: number;
+    readonly holdMs: number;
+  } | null = null;
+  /** False until the first state has landed: that one's band is the game's opening band. */
+  #landed = false;
+  /** The pending "start the delayed band" call, so a redraw inside the delay replaces it rather than doubling it. */
+  #wipeStart: Phaser.Time.TimerEvent | null = null;
   /** A status pip/tag freshly stamped on, by card then by status, so more than one status on the same card each animate on their own clock. */
   #statusStamps = new Map<InstanceId, Map<StatusName, number>>();
   /** Ghosts of statuses just removed, by card. A card can lose more than one status in the same batch (Toughness cancelling a status-causing attack, an effect clearing several at once). */
@@ -213,7 +223,11 @@ export class BoardMotion {
     this.#pendingMoves = events;
 
     const transition = phaseTransitionFrom(events);
-    if (transition) this.#phaseTransition = { transition, startedAt: now };
+    if (transition) {
+      const timing = wipeTimingFor(!this.#landed, motion.screenFadeMs);
+      this.#phaseTransition = { transition, startedAt: now + timing.delayMs, holdMs: timing.holdMs };
+    }
+    this.#landed = true;
 
     for (const stamp of statusStampsFrom(events)) {
       const byStatus = this.#statusStamps.get(stamp.instanceId) ?? new Map<StatusName, number>();
@@ -348,7 +362,8 @@ export class BoardMotion {
     if (appSession().settings.reducedMotion) return null;
     const entry = this.#phaseTransition;
     if (!entry || entry.transition.round === null || entry.transition.round !== round) return null;
-    const elapsed = this.#scene.time.now - entry.startedAt;
+    // The opening band starts late (`wipeTimingFor`); until it does, the pop is simply at its beginning.
+    const elapsed = Math.max(0, this.#scene.time.now - entry.startedAt);
     if (elapsed >= PHASE_POP_MS) return null;
     return { progress: clampedProgress(elapsed, PHASE_POP_MS), remainingMs: PHASE_POP_MS - elapsed };
   }
@@ -362,7 +377,8 @@ export class BoardMotion {
     if (appSession().settings.reducedMotion) return null;
     const entry = this.#phaseTransition;
     if (!entry || entry.transition.to !== phase) return null;
-    const elapsed = this.#scene.time.now - entry.startedAt;
+    // The opening band starts late (`wipeTimingFor`); until it does, the pop is simply at its beginning.
+    const elapsed = Math.max(0, this.#scene.time.now - entry.startedAt);
     if (elapsed >= PHASE_POP_MS) return null;
     return { progress: clampedProgress(elapsed, PHASE_POP_MS), remainingMs: PHASE_POP_MS - elapsed };
   }
@@ -387,17 +403,31 @@ export class BoardMotion {
     const elapsed = scene.time.now - entry.startedAt;
     const reduced = appSession().settings.reducedMotion;
 
+    this.#wipeStart?.remove();
+    this.#wipeStart = null;
+    if (elapsed < 0) {
+      // Not yet: the opening band waits for the Board to be on screen. Nothing else will redraw the table at that
+      // moment, so the band starts itself — unless a redraw gets here first, which re-arms this.
+      this.#wipeStart = scene.time.delayedCall(-elapsed, () => {
+        this.#wipeStart = null;
+        if (this.#phaseTransition === entry) this.drawPhaseWipe(area);
+      });
+      return;
+    }
+
     if (reduced) {
-      if (elapsed >= PHASE_WIPE_REDUCED_MS) {
+      // The plain caption holds as much longer as the sliding band does.
+      const reducedMs = PHASE_WIPE_REDUCED_MS + (entry.holdMs - PHASE_WIPE_HOLD_MS);
+      if (elapsed >= reducedMs) {
         this.#phaseTransition = null;
         return;
       }
       const container = this.#drawWipeBand(area, entry.transition.caption, area.x);
-      scene.time.delayedCall(PHASE_WIPE_REDUCED_MS - elapsed, () => container.destroy());
+      scene.time.delayedCall(reducedMs - elapsed, () => container.destroy());
       return;
     }
 
-    const frame = wipeFrame(elapsed, motion.phaseWipeMs);
+    const frame = wipeFrame(elapsed, motion.phaseWipeMs, entry.holdMs);
     if (!frame) {
       this.#phaseTransition = null;
       return;
@@ -427,7 +457,7 @@ export class BoardMotion {
         x: area.x,
         duration: frame.remainingMs,
         ease: "Quad.easeOut",
-        onComplete: () => scene.time.delayedCall(PHASE_WIPE_HOLD_MS, slideOut),
+        onComplete: () => scene.time.delayedCall(entry.holdMs, slideOut),
       });
     } else if (frame.stage === "hold") {
       scene.time.delayedCall(frame.remainingMs, slideOut);
