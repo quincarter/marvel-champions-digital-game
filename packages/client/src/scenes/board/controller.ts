@@ -226,6 +226,13 @@ export class BoardController {
       else this.chooseBasic(focus.action);
       return;
     }
+    // Enter on the card a free play is asking about is the keyboard's "Play it": the bar's buttons are not on the
+    // focus route, and the route's other stop is the way out. A *tap* on the card deselects it (`tapInMode`).
+    if (this.#selection.kind === "confirmingPlay") {
+      const { action } = this.#selection.action;
+      if (action.kind === "playCard" && action.instanceId === focus.instanceId) void this.confirmPlay();
+      return;
+    }
     if (this.tapInMode(focus.instanceId)) return;
     // A card in play with a usable ability, not a hand card: `playCard` only
     // ever looks for a `playCard` entry, so a card that's on the focus route
@@ -254,9 +261,10 @@ export class BoardController {
       return true;
     }
     if (this.#selection.kind === "confirmingPlay") {
-      // A second tap on the card being asked about is the yes; a tap anywhere else changes nothing.
+      // A second tap on the card being asked about puts it back — a tap selects, a tap deselects, and only the
+      // bar's own "Play it" plays. A tap anywhere else changes nothing.
       const { action } = this.#selection.action;
-      if (action.kind === "playCard" && action.instanceId === id) void this.confirmPlay();
+      if (action.kind === "playCard" && action.instanceId === id) this.cancel();
       return true;
     }
     return false;

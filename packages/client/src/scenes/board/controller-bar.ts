@@ -67,7 +67,7 @@ export function drawControllerBar(ctx: BoardDrawContext, rect: Rect, choice: Con
  *
  * The same red bar as payment and the controller picker, for the same reason: a card is half-played and waiting on
  * one more answer. A free card used to skip this entirely — it was the one play with no mode to back out of — so a
- * stray tap resolved it. "Play it" is the bar's one forward action; tapping the card again says the same thing.
+ * stray tap resolved it. "Play it" is the bar's one forward action; tapping the card again deselects it, the same as Decline.
  */
 export function drawPlayConfirmBar(ctx: BoardDrawContext, rect: Rect, confirmation: PlayConfirmationView): void {
   const { scene, controller } = ctx;
