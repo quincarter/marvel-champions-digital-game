@@ -134,7 +134,7 @@ if (apksignerDir) {
 
 // Keystore resolution
 const keystorePath = process.env.ANDROID_KEYSTORE_PATH
-  ? path.resolve(process.env.ANDROID_KEYSTORE_PATH)
+  ? path.resolve(repoRoot, process.env.ANDROID_KEYSTORE_PATH)
   : path.join(repoRoot, "marvel-champions.keystore");
 
 if (!fs.existsSync(keystorePath)) {

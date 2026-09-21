@@ -14,6 +14,7 @@ rust = "stable"
 # Android Gradle and Capacitor require Java 21
 java = "temurin-21"
 gradle = "latest"
+changie = "latest"
 
 [tasks.setup]
 description = "Install workspace dependencies"

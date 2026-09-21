@@ -16,10 +16,10 @@
 # signing needs an Apple Developer ID and a Windows certificate as secrets.
 name: Desktop build
 
+# Trigger manually from GitHub Actions tab for standalone desktop verification.
+# Automated releases and tag cutting are handled by release-on-merge.yml.
 on:
   workflow_dispatch:
-  push:
-    tags: ["v*"]
 
 permissions:
   contents: write

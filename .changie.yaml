@@ -1,0 +1,48 @@
+changesDir: .changes
+unreleasedDir: unreleased
+headerPath: header.tpl.md
+changelogPath: CHANGELOG.md
+versionExt: md
+versionFormat: '## [{{.Version}}] - {{.Time.Format "2006-01-02"}}'
+kindFormat: "### {{.Kind}}"
+changeFormat: "* {{.Body}}"
+kinds:
+  - label: Added
+    auto: minor
+  - label: Changed
+    auto: minor
+  - label: Fixed
+    auto: patch
+  - label: Engine
+    auto: patch
+  - label: Content
+    auto: patch
+  - label: Docs
+    auto: patch
+newlines:
+  afterChangelogHeader: 1
+  beforeChangelogVersion: 1
+  endOfVersion: 1
+envPrefix: CHANGIE_
+replacements:
+  - path: package.json
+    find: '  "version": ".*"'
+    replace: '  "version": "{{.VersionNoPrefix}}"'
+  - path: packages/client/src-tauri/tauri.conf.json
+    find: '  "version": ".*"'
+    replace: '  "version": "{{.VersionNoPrefix}}"'
+  - path: packages/client/src-tauri/Cargo.toml
+    find: '^version = ".*"'
+    replace: 'version = "{{.VersionNoPrefix}}"'
+  - path: packages/client/android/app/build.gradle
+    find: '        versionName ".*"'
+    replace: '        versionName "{{.VersionNoPrefix}}"'
+  - path: packages/engine/src/index.ts
+    find: 'export const ENGINE_VERSION = ".*";'
+    replace: 'export const ENGINE_VERSION = "{{.VersionNoPrefix}}";'
+  - path: packages/client/src/index.ts
+    find: 'export const CLIENT_VERSION = ".*";'
+    replace: 'export const CLIENT_VERSION = "{{.VersionNoPrefix}}";'
+  - path: packages/content/src/index.ts
+    find: 'export const SCHEMA_VERSION = ".*";'
+    replace: 'export const SCHEMA_VERSION = "{{.VersionNoPrefix}}";'
