@@ -21,7 +21,10 @@ import {
   repoRoot,
   writeChecksumManifest,
 } from "./lib/release-collector.mjs";
+import { loadDotenv } from "./lib/env.mjs";
 import { run } from "./lib/run.mjs";
+
+loadDotenv(repoRoot);
 
 function printHelp() {
   console.log(`

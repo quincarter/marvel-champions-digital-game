@@ -9,10 +9,12 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { defaultReleaseDir, writeChecksumManifest } from "./lib/release-collector.mjs";
+import { loadDotenv } from "./lib/env.mjs";
 import { pnpm, run } from "./lib/run.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
+loadDotenv(repoRoot);
 const clientDir = path.join(repoRoot, "packages", "client");
 const androidDir = path.join(clientDir, "android");
 
@@ -142,9 +144,17 @@ if (!fs.existsSync(keystorePath)) {
   process.exit(1);
 }
 
-const keystorePass = process.env.ANDROID_KEYSTORE_PASSWORD || "rocket";
-const keystoreAlias = process.env.ANDROID_KEYSTORE_ALIAS || "marvel-champions";
+const keystorePass = process.env.ANDROID_KEYSTORE_PASSWORD;
+const keystoreAlias = process.env.ANDROID_KEY_ALIAS || process.env.ANDROID_KEYSTORE_ALIAS;
 const keystoreKeyPass = process.env.ANDROID_KEY_PASSWORD || keystorePass;
+
+if (!keystorePass || !keystoreAlias) {
+  console.error("\n[build-android] ERROR: Android keystore credentials are not configured.");
+  console.error("Please set ANDROID_KEYSTORE_PASSWORD and ANDROID_KEY_ALIAS (or ANDROID_KEYSTORE_ALIAS)");
+  console.error("in your .env file or environment variables.");
+  console.error("See .env-example for reference.\n");
+  process.exit(1);
+}
 
 console.log(`[build-android] Using keystore: ${keystorePath} (alias: ${keystoreAlias})`);
 
