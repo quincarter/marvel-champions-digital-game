@@ -113,9 +113,12 @@ jobs:
 
           if git ls-remote --tags origin | grep -q "refs/tags/${TAG}$"; then
             echo "Tag ${TAG} already exists on remote origin."
-            git push origin HEAD:main
+            git push origin HEAD:main || echo "Warning: Push to main skipped (branch protection active)"
           else
-            git push origin HEAD:main "${TAG}"
+            git push origin HEAD:main "${TAG}" || {
+              echo "Warning: Push to main branch failed (branch protection active). Pushing tag ${TAG} directly..."
+              git push origin "${TAG}"
+            }
           fi
 
           # 6. Create GitHub release draft

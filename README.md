@@ -92,16 +92,20 @@ Open [http://localhost:5173](http://localhost:5173) in your browser to play.
 
 ### Running Tests & Typechecks
 
-```bash
+````bash
 # Run all unit and scenario test suites across all packages
 pnpm test
 
 # Typecheck all packages
 pnpm typecheck
 
-# Full CI check (typecheck + test + build)
-pnpm check
-```
+### Releases & Cross-Platform Packaging
+
+Automated cross-platform releases are published via GitHub Actions whenever changes are merged into `main`:
+- **Desktop (Tauri)**: macOS universal (`.dmg`, `.app.tar.gz`), Linux (`.deb`, `.rpm`, `.AppImage`), Windows 11 (`.msi`, `-setup.exe`).
+- **Mobile (Capacitor)**: Android release APK (`.apk`).
+- **Changelog & Versioning**: Managed via [Changie](https://github.com/miniscruff/changie). Use `changie new` to record changes during development.
+- **Local Release Pipeline**: `mise ship-it` (or `pnpm ship-it`) builds and stages all native packages locally.
 
 ### Card Data Ingestion
 
@@ -113,7 +117,7 @@ pnpm ingest
 
 # Re-normalize using committed offline cache
 pnpm --filter @mc/content ingest -- --pack core --offline
-```
+````
 
 ---
 
