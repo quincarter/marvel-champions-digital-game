@@ -235,12 +235,18 @@ export interface Campaign {
 
 ## 4. `CampaignDefinition` — plain data, in `@mc/engine`
 
+> **Built in `packages/engine/src/campaign.ts`.** The sketches below are the as-built shapes. Where the built type
+> differs from the original sketch the difference is called out inline; the two structural ones are that every id with
+> a `@mc/content` brand (`CampaignId`, `ScenarioId`, `CardId`, `EncounterSetId`) is typed as that brand rather than as
+> `string`, and that the types this document referenced without declaring — `LogWriteSpec`, `LogWrite`,
+> `CollectionFilter`, `CampaignLogSnapshot`, `CampaignStepTrace`, `ResolvedInstruction` — are declared below.
+
 ```ts
 // @mc/engine — packages/engine/src/campaign.ts. No campaign or card is ever named in this file.
 
 export interface CampaignDefinition {
-  /** Opaque to the engine; matches a `@mc/content` `Campaign.id`. */
-  readonly campaignId: string;
+  /** Matches a `@mc/content` `Campaign.id`. Opaque to the engine, which never compares it to a literal. */
+  readonly campaignId: CampaignId;
   /** Bumped whenever an instruction id, log field id or node id changes. Stamped into every log. */
   readonly version: string;
   readonly logFields: readonly LogFieldDef[];
@@ -281,7 +287,7 @@ export interface CampaignNode {
   readonly id: string;
   readonly label: string;
   /** Fixed scenario, or one composed between games (MC60 p. 9 step 5–6 picks the villain and its sets). */
-  readonly scenario: { readonly kind: "fixed"; readonly scenarioId: string } | { readonly kind: "composed" };
+  readonly scenario: CampaignScenarioRef;
   /** Between-games steps that decide what game to build: villain, extra encounter sets, set-aside cards. */
   readonly composition?: readonly CampaignInstruction[];
   readonly setup: readonly CampaignInstruction[];
@@ -289,6 +295,10 @@ export interface CampaignNode {
   /** MC50 p. 19 and MC60 p. 13. Empty for the seven boxes whose loss is "no penalty". */
   readonly defeat?: readonly CampaignInstruction[];
 }
+
+/** Named rather than inlined, so a client can switch on it without restating the union. */
+export type CampaignScenarioRef =
+  { readonly kind: "fixed"; readonly scenarioId: ScenarioId } | { readonly kind: "composed" };
 ```
 
 ### 4.2 Log field schema, declared by the box
@@ -306,7 +316,7 @@ export type LogFieldType =
   /** Named options that stay "available" until struck (MC45 p. 5; MC40 p. 7). */
   | { readonly kind: "strikeList"; readonly options: readonly string[] }
   /** Counters that ride a named card across scenarios, with the face it is on (MC50 p. 6). */
-  | { readonly kind: "cardState"; readonly cardIds: readonly string[] }
+  | { readonly kind: "cardState"; readonly cardIds: readonly CardId[] }
   /** Ids into `conditionalInstructions` (MC27 p. 22's reputation nodes). */
   | { readonly kind: "instructionList" }
   /** Freeform. Never read by an instruction; shown on the sheet only ("Notes"). */
@@ -371,7 +381,45 @@ A `record` instruction is the read half of the same boundary: it reads the _fini
 The default's placement is a _reading_: MC10 p. 3 says only "set up the scenario as per the normal rules of the game.
 Then, follow that scenario's setup instructions". MC50 p. 4 pins the same sentence to "before players draw their
 starting hands", and MC10 p. 7's own "_Each player searches their deck for all cards with the setup keyword and puts
-them into play_" is only coherent before the draw. Documented in the code comment; see Open question Q7.
+them into play_" is only coherent before the draw. Documented in the code comment, and exported as
+`DEFAULT_CAMPAIGN_WINDOW` so no caller has to restate the reading; see Open question Q7.
+
+**`LogWriteSpec` / `LogWrite` / `CampaignGameQuery`** — the `record` step's half, referenced above and declared here.
+`CampaignGameQuery` is the plain-data form of the `fromGame.*` DSL builders (§7.2); it reuses `TargetQuery` so a
+campaign instruction describes cards with exactly the vocabulary a card ability does.
+
+```ts
+export type CampaignGameQuery =
+  | { readonly kind: "cardsThatEnteredPlay"; readonly query: TargetQuery } // MC10 p. 5
+  | { readonly kind: "cardsRemovedFromGame"; readonly query: TargetQuery } // MC60 p. 13
+  | { readonly kind: "cardsInPlay"; readonly query: TargetQuery } // MC50 p. 11
+  | { readonly kind: "cardsInVictoryDisplay"; readonly query: TargetQuery } // MC60 p. 13
+  | { readonly kind: "countersOn"; readonly query: TargetQuery; readonly counter: string } // MC10 p. 7, MC50 p. 11
+  | { readonly kind: "threatOn"; readonly query: TargetQuery } // MC60 p. 13
+  | { readonly kind: "remainingHitPointsCappedAtBase" } // MC10 p. 17 — the cap is part of the query
+  | { readonly kind: "isEngagedWithEnemy" } // MC10 p. 12
+  | { readonly kind: "const"; readonly value: number | string | boolean } // MC60 p. 13's "check the box"
+  | { readonly kind: "count"; readonly of: CampaignGameQuery }
+  | { readonly kind: "atLeast"; readonly of: CampaignGameQuery; readonly amount: number };
+
+export type LogWriteMode = "set" | "add" | "append" | "strike";
+
+export interface LogWriteSpec {
+  readonly field: string;
+  readonly seat?: "self" | "each";
+  readonly mode: LogWriteMode;
+  readonly value: CampaignGameQuery;
+}
+
+/** The resolved form: what actually went into the log, for the log and for the history trace. */
+export interface LogWrite {
+  readonly field: string;
+  /** By `CampaignSeat.seatNumber`; null for a shared or hidden field. */
+  readonly seatNumber: number | null;
+  readonly mode: LogWriteMode;
+  readonly value: LogValue;
+}
+```
 
 ### 4.4 Values and predicates over the log
 
@@ -419,7 +467,9 @@ export type CampaignOp =
   | { readonly kind: "setField"; readonly field: string; readonly seat?: "self"; readonly value: CampaignValue }
   | { readonly kind: "addToField"; readonly field: string; readonly seat?: "self"; readonly value: CampaignValue }
   | { readonly kind: "appendToList"; readonly field: string; readonly seat?: "self"; readonly value: CampaignValue }
-  | { readonly kind: "strike"; readonly field: string; readonly option: CampaignValue } // MC45 p. 5
+  // `seat` added as built: the field schema permits a per-seat `strikeList`, and an op that could not address one
+  // would be a latent engine change.
+  | { readonly kind: "strike"; readonly field: string; readonly seat?: "self"; readonly option: CampaignValue } // MC45 p. 5
   | { readonly kind: "clearField"; readonly field: string; readonly seat?: "self" }
   // --- decks -----------------------------------------------------------------------------
   /** MC10 p. 3: added cards stay for the rest of the campaign and are exempt from deck size. */
@@ -464,9 +514,9 @@ export type CampaignOp =
     };
 
 export type CampaignChoiceSource =
-  | { readonly kind: "cards"; readonly cardIds: readonly string[] }
+  | { readonly kind: "cards"; readonly cardIds: readonly CardId[] }
   /** Cards of a campaign set not already granted / not removed from the campaign. */
-  | { readonly kind: "campaignSet"; readonly encounterSetId: string; readonly excludeGranted?: true }
+  | { readonly kind: "campaignSet"; readonly encounterSetId: EncounterSetId; readonly excludeGranted?: true }
   /** MC10 p. 17: the seat's own numbered copy of `Campaign.perSeatSetIds`. */
   | { readonly kind: "perSeatSet"; readonly excludeGranted?: true }
   /** MC27 p. 22 / MC32 p. 5 / MC45 p. 24: the player's whole collection, filtered. */
@@ -476,6 +526,20 @@ export type CampaignChoiceSource =
   | { readonly kind: "nodes"; readonly filter: "unresolved" | "available" }
   /** A card in the seat's own current deck (MC27 p. 22 "Planning Ahead"). */
   | { readonly kind: "ownDeck"; readonly filter?: CollectionFilter };
+
+/**
+ * Declared as built. It filters *card data*, not cards in play — there is no `GameState` between games — so it is
+ * its own type rather than a `TargetQuery`, while mirroring that vocabulary where the two overlap. `aspects` is
+ * `string[]` for the same reason `TargetQuery.aspect` is: imported data is untrusted.
+ */
+export interface CollectionFilter {
+  readonly categories?: readonly TargetCategory[]; // MC32 p. 5 "an event and/or an upgrade"; MC45 p. 24
+  readonly aspects?: readonly string[]; // MC32 p. 5 "their role's associated aspects"
+  readonly traits?: readonly Trait[];
+  readonly sharesTraitWithIdentity?: true; // MC45 p. 20 "must share a trait with your hero"
+  readonly maxPrintedCost?: number;
+  readonly excludeCardIds?: readonly CardId[];
+}
 ```
 
 ### 4.6 Loss policy — no engine default
@@ -509,21 +573,30 @@ There is **no default**. A box's definition must state its policy; the coverage 
 export type LogValue =
   | { readonly kind: "number"; readonly value: number }
   | { readonly kind: "flag"; readonly value: boolean }
-  | { readonly kind: "cardList"; readonly cardIds: readonly string[] }
-  | { readonly kind: "cardRef"; readonly cardId: string; readonly face?: string }
+  | { readonly kind: "cardList"; readonly cardIds: readonly CardId[] }
+  | { readonly kind: "cardRef"; readonly cardId: CardId; readonly face?: string }
   | { readonly kind: "choice"; readonly option: string }
   | { readonly kind: "strikeList"; readonly struck: readonly string[] }
+  /**
+   * As built: counters **by name** (`CardInstance.counters` is `Record<string, number>`, and MC16/MC40/MC60 ride
+   * lock/momentum/stamina counters, not just MC50's secrets), and `face` optional — a card can carry counters
+   * across scenarios without ever flipping.
+   */
   | {
       readonly kind: "cardState";
-      readonly cards: Readonly<Record<string, { readonly counters: number; readonly face: string }>>;
+      readonly cards: Readonly<
+        Record<string, { readonly counters: Readonly<Record<string, number>>; readonly face?: string }>
+      >;
     }
   | { readonly kind: "instructionList"; readonly ids: readonly string[] }
   | { readonly kind: "text"; readonly value: string };
 
+export type GrantPermanence = "campaign" | "thisGame";
+
 export interface CampaignGrant {
-  readonly cardId: string;
+  readonly cardId: CardId;
   /** `"campaign"` stays for the rest of the campaign; `"thisGame"` is removed at the end of the game (MC32 p. 5). */
-  readonly permanence: "campaign" | "thisGame";
+  readonly permanence: GrantPermanence;
   /** Which face the grant is on (MC10 p. 12's Improved side; MC27 p. 22's Enhanced side). */
   readonly face?: string;
   /** The node that granted it, for the sheet and for `retryBaseline`. */
@@ -534,18 +607,36 @@ export interface CampaignSeat {
   /** 1-based. MC10 p. 17's "player number", which selects a numbered Expert Campaign Set. */
   readonly seatNumber: number;
   /** Locked for the campaign (MC10 p. 3). */
-  readonly identityCardId: string;
+  readonly identityCardId: CardId;
   /** The campaign's own copy of this seat's deck (see Open question Q5). */
   readonly deck: DeckContents;
   readonly grants: readonly CampaignGrant[];
   readonly fields: Readonly<Record<string, LogValue>>;
 }
 
+/**
+ * Declared as built: the mutable half of a `CampaignLog`, and the unit `CampaignHistoryEntry.logBefore` stores.
+ * The identity fields (`id`, `campaignId`, `schema`, `status`, `history`) are absent because a retry never
+ * changes them. It is **not** the same type as `CampaignGameInput.log` — see §7.1.
+ */
+export interface CampaignLogSnapshot {
+  readonly definitionVersion: string;
+  readonly shared: Readonly<Record<string, LogValue>>;
+  readonly hidden: Readonly<Record<string, LogValue>>;
+  readonly seats: readonly CampaignSeat[];
+  readonly removedFromCampaign: readonly CardId[];
+  readonly position: CampaignPosition;
+  readonly rng: RngState;
+}
+
+/** Storage shape, exported so storage and the log agree on one number. */
+export const CAMPAIGN_LOG_SCHEMA = 1;
+
 export interface CampaignLog {
   /** Storage shape. Bumped like `SAVE_SCHEMA`; old logs are retired, not silently misread. */
   readonly schema: number;
   readonly id: string;
-  readonly campaignId: string;
+  readonly campaignId: CampaignId;
   /** `CampaignDefinition.version` the log was created against. A mismatch marks the log `incompatible`. */
   readonly definitionVersion: string;
   /** `@mc/content` pool version at creation, so a pool update under a saved campaign is *detected*. */
@@ -557,14 +648,19 @@ export interface CampaignLog {
   /** Fields declared `hidden` (MC50 p. 5). Never crosses into a view model. */
   readonly hidden: Readonly<Record<string, LogValue>>;
   /** RRG p. 29: "that card can no longer be used during the rest of the campaign, even if players retry". */
-  readonly removedFromCampaign: readonly string[];
+  readonly removedFromCampaign: readonly CardId[];
   readonly position: CampaignPosition;
+  /** As built: the seed the RNG was created from, kept beside the advancing state so a campaign can be re-derived. */
+  readonly seed: number;
   /** Seeded RNG for every `random` op. Advancing it is part of the log's state. */
   readonly rng: RngState;
   /** One entry per game *attempted*, won or lost, in order. The campaign's replay trace. */
   readonly history: readonly CampaignHistoryEntry[];
-  readonly status: "active" | "won" | "lost" | "abandoned" | "incompatible";
+  readonly status: CampaignStatus;
 }
+
+export type CampaignStatus = "active" | "won" | "lost" | "abandoned" | "incompatible";
+export type CampaignAttemptOutcome = "won" | "lost" | "abandoned";
 
 export interface CampaignPosition {
   /** `linear`: the index of the next node. `choice`: the set still playable, plus per-node progress. */
@@ -578,14 +674,39 @@ export interface CampaignHistoryEntry {
   readonly nodeId: string;
   /** The per-scenario modes chosen for this attempt (RRG p. 29: modes are chosen per scenario). */
   readonly modes: PlayModes;
-  readonly outcome: "won" | "lost" | "abandoned";
+  readonly outcome: CampaignAttemptOutcome;
   /** The `mc-saves` game id, so the played game can be replayed from the campaign browser. */
   readonly gameId: string | null;
   /** The log exactly as it stood before this node's instructions ran — `LossPolicy.retryBaseline`. */
   readonly logBefore: CampaignLogSnapshot;
   /** Every step that ran, in order: instruction id, printed text, and what it did. */
   readonly steps: readonly CampaignStepTrace[];
+  /** Epoch milliseconds, supplied by the caller. Never read from a clock here, so the engine stays pure. */
   readonly at: number;
+}
+
+/** Declared as built. One resolved — or deliberately skipped — instruction, the campaign's equivalent of a game event. */
+export interface CampaignStepTrace {
+  readonly instructionId: string;
+  /** Copied from the instruction so the trace reads without the definition to hand. */
+  readonly text: string;
+  readonly citation: string;
+  readonly kind: CampaignStep["kind"];
+  /** Set when the instruction did not run: its `whenModes` gate or its `when` predicate failed. */
+  readonly skipped?: "modes" | "condition";
+  readonly writes: readonly LogWrite[];
+  readonly choices: readonly CampaignChoiceRecord[];
+  readonly removedFromCampaign: readonly CardId[];
+  readonly grants: readonly CampaignGrant[];
+}
+
+export interface CampaignChoiceRecord {
+  readonly slot: string;
+  /** The seat that chose, by `CampaignSeat.seatNumber`; null for a group or first-player choice. */
+  readonly seatNumber: number | null;
+  readonly picked: readonly string[];
+  /** True when the pick came from `CampaignLog.rng` rather than from a human. */
+  readonly random?: true;
 }
 ```
 
@@ -752,24 +873,49 @@ CampaignLog' ◀──applyCampaignResult(defn, log, node, result, choices)─�
 
 ```ts
 export interface CampaignGameInput {
-  readonly campaignId: string;
+  readonly campaignId: CampaignId;
   readonly nodeId: string;
   readonly definitionVersion: string;
   readonly modes: PlayModes;
   /** Every log value this game may read, flattened and frozen. Hidden fields are excluded unless read by one. */
-  readonly log: CampaignLogSnapshot;
+  readonly log: CampaignLogView;
   /** Already filtered by mode and by `when`, already in printed order, grouped by window. */
   readonly instructions: readonly ResolvedInstruction[];
   /** Cards removed from the campaign, so nothing can re-enter through a search. */
-  readonly removedFromCampaign: readonly string[];
+  readonly removedFromCampaign: readonly CardId[];
   /** Per seat: the deck list as the campaign composed it, and which of those cards are campaign grants. */
-  readonly seats: readonly {
-    readonly deck: readonly string[];
-    readonly grantedCardIds: readonly string[];
-    readonly seatNumber: number;
-  }[];
+  readonly seats: readonly CampaignSeatInput[];
   /** Seed for anything the *in-game* instructions randomise; drawn from the log's RNG. */
   readonly seed: number;
+}
+
+/**
+ * As built, this is **not** `CampaignLogSnapshot`. The original sketch used one name for two jobs: restoring a
+ * retry (which needs the decks, the RNG and the graph position) and being read in-game (which needs none of them,
+ * and which lands in `GameState` and every save). The in-game half is its own, narrower type.
+ */
+export interface CampaignLogView {
+  readonly shared: Readonly<Record<string, LogValue>>;
+  readonly perSeat: readonly { readonly seatNumber: number; readonly fields: Readonly<Record<string, LogValue>> }[];
+}
+
+/** Declared as built, in the shape `PlayerSetup` consumes — hence the identity and the aspects, which it requires. */
+export interface CampaignSeatInput {
+  readonly seatNumber: number;
+  readonly identityCardId: CardId;
+  /** The expanded deck list, grants included. */
+  readonly deck: readonly CardId[];
+  readonly aspects: readonly CoreAspect[];
+  readonly grantedCardIds: readonly CardId[];
+}
+
+/** Declared as built: an instruction the runner has already gated and ordered, ready to resolve at its window. */
+export interface ResolvedInstruction {
+  readonly instructionId: string;
+  readonly text: string;
+  readonly citation: string;
+  readonly window: CampaignWindow;
+  readonly effects: readonly EffectSpec[];
 }
 ```
 
@@ -782,15 +928,16 @@ all.** That is the property that keeps replay deterministic while the log keeps 
 ```ts
 export interface CampaignGameResult {
   readonly nodeId: string;
-  readonly outcome: "win" | "loss";
+  /** As built: `"won" | "lost"`, the same words `CampaignHistoryEntry.outcome` uses — one vocabulary, not two. */
+  readonly outcome: "won" | "lost";
   /** Each `record` instruction's computed value, in printed order, with the instruction id that produced it. */
   readonly records: readonly { readonly instructionId: string; readonly write: LogWrite }[];
   /** `removeFromCampaign` effects that resolved in-game. Applied even on a loss (RRG p. 29). */
-  readonly removedFromCampaign: readonly string[];
+  readonly removedFromCampaign: readonly CardId[];
   /** `recordInCampaignLog` effects that resolved in-game. Applied even on a loss. */
   readonly logWrites: readonly LogWrite[];
   /** Grants with `permanence: "thisGame"`, expiring now (MC32 p. 5's role upgrades). */
-  readonly expiringGrants: readonly string[];
+  readonly expiringGrants: readonly CardId[];
 }
 ```
 

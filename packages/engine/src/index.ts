@@ -152,6 +152,51 @@ export type {
   ValueSpec,
 } from "./spec.js";
 
+/**
+ * Campaign mode (RRG 1.8 "Modes of Play", p. 29) as plain data: the vocabulary a box's rulebook is transcribed
+ * into, the log it writes, and the two values that cross the game/campaign boundary. Types only — the runner, the
+ * in-game primitives and the campaign deck rules are separate steps (docs/campaign-mode-design.md §11).
+ */
+export type {
+  CampaignAttemptOutcome,
+  CampaignChoiceRecord,
+  CampaignChoiceSource,
+  CampaignDefinition,
+  CampaignGameInput,
+  CampaignGameQuery,
+  CampaignGameResult,
+  CampaignGrant,
+  CampaignGraph,
+  CampaignHistoryEntry,
+  CampaignInstruction,
+  CampaignLog,
+  CampaignLogSnapshot,
+  CampaignLogView,
+  CampaignNode,
+  CampaignOp,
+  CampaignPosition,
+  CampaignPredicate,
+  CampaignScenarioRef,
+  CampaignSeat,
+  CampaignSeatInput,
+  CampaignStatus,
+  CampaignStep,
+  CampaignStepTrace,
+  CampaignValue,
+  CampaignWindow,
+  CollectionFilter,
+  GrantPermanence,
+  LogFieldDef,
+  LogFieldType,
+  LogValue,
+  LogWrite,
+  LogWriteMode,
+  LogWriteSpec,
+  LossPolicy,
+  ResolvedInstruction,
+} from "./campaign.js";
+export { CAMPAIGN_LOG_SCHEMA, DEFAULT_CAMPAIGN_WINDOW } from "./campaign.js";
+
 export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
 export { eventSubjects, isAnnouncement } from "./trigger-events.js";
 
