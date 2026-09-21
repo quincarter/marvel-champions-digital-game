@@ -12,6 +12,7 @@ node = "24"
 # The desktop build (Tauri) needs cargo on PATH; mise drives it through rustup.
 rust = "stable"
 java = "latest"
+gradle = "latest"
 
 [tasks.setup]
 description = "Install workspace dependencies"
