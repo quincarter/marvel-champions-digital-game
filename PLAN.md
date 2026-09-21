@@ -560,7 +560,7 @@ Still open in Phase 4:
 - **Choice sheet:** a rail beside the sheet on desktop and tablet landscape, centred with it as a pair; a compact strip at the top of the sheet on phone and tablet portrait. Hold or right-click opens Inspect.
 - **Villain-phase interrupt window:** a strip naming the _activating enemy_ ("Rhino attacks You"), from the walkthrough's own activation beat — the `chooseTriggers` frame names the player's candidate card, which is not the thing being interrupted. Skipped on the shortest panel (a phone held sideways).
 - Dev jumps for QA: `?screen=choice` and `?screen=villain-interrupt` (fixed seeds), beside `?screen=inspect[&card=N]`.
-- **Known, not fixed:** at 768px wide the villain-phase step strip's second chip overlaps its own caption (pre-existing, `#drawStepStrip`); and the interrupt button reads "Play Spider-Man" for an identity's own ability, where "Use Spider-Sense" is what is meant.
+- **Fixed on the way:** at 768px wide the villain-phase step chip's heading wrapped onto its own caption — the caption now takes only the lines the heading leaves, and says so with an ellipsis when cut. And the interrupt button read "Play Spider-Man" for an identity's own ability: the verb now comes from where the card is (`interruptActionLabel`) — a card in hand is _played_, an ability on a card in play is _used_, by its printed name ("Use Spider-Sense").
 
 **Tooling:** oxlint and oxfmt (CLAUDE.md, "Lint and format"); `scripts/shoot-app.mjs`, a Playwright shooter for real-size, real-frame-rate screenshots; Vite no longer watches `src-tauri`/`android`/`ios`, which crashed the dev server with EBUSY on Windows.
 

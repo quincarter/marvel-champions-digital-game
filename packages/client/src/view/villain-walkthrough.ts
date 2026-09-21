@@ -15,6 +15,8 @@
  * (docs/phase3-encounter-ai.md).
  */
 
+import type { AbilityId } from "@mc/content";
+import { activeAbilityRefs } from "@mc/engine";
 import type {
   ChoiceOption,
   ChoicePrompt,
@@ -467,6 +469,8 @@ const lowerFirst = (text: string): string => text.charAt(0).toLowerCase() + text
 export interface InlineInterruptOption {
   readonly optionId: string;
   readonly instanceId: InstanceId;
+  /** The ability on offer, when the option is one (an identity's or an in-play card's own interrupt); null for a bare card. */
+  readonly abilityId: AbilityId | null;
 }
 
 /**
@@ -494,8 +498,29 @@ export function inlineInterruptFor(
   if (choice.prompt.kind !== "chooseTriggers" || choice.playerId !== viewer) return null;
   const options = choice.options.flatMap((option) =>
     option.ref.kind === "card" || option.ref.kind === "ability"
-      ? [{ optionId: option.optionId, instanceId: option.ref.instanceId }]
+      ? [
+          {
+            optionId: option.optionId,
+            instanceId: option.ref.instanceId,
+            abilityId: option.ref.kind === "ability" ? option.ref.abilityId : null,
+          },
+        ]
       : [],
   );
   return options.length > 0 ? options : null;
+}
+
+/**
+ * What the option's button says. A card in a hand is *played* ("Play Backflip"); an ability on a card already in
+ * play — an identity's own, an upgrade's — is *used*, and by its printed name where it has one ("Use Spider-Sense"),
+ * since "Play Spider-Man" names something the player cannot do. The verb comes from where the card is, never from
+ * the card's type: an ally's in-play response is used, and the same ally in hand would be played.
+ */
+export function interruptActionLabel(state: GameState, option: InlineInterruptOption): string {
+  const name = cardName(state, option.instanceId);
+  if (state.players.some((player) => player.hand.includes(option.instanceId))) return `Play ${name}`;
+  const printed = option.abilityId
+    ? activeAbilityRefs(state, option.instanceId).find((ref) => ref.id === option.abilityId)?.label
+    : null;
+  return `Use ${printed || name}`;
 }

@@ -135,6 +135,7 @@ import {
   appendWalkthrough,
   emptyWalkthrough,
   inlineInterruptFor,
+  interruptActionLabel,
   type ActivationBeat,
   type InlineInterruptOption,
   type Pause,
@@ -575,14 +576,23 @@ export class VillainPhaseOverlay extends Phaser.Scene {
           textStyle({ ...typeRole.rowTitle, size: 11 }, textColor, textAlpha),
         )
         .setOrigin(0, 0)
-        .setWordWrapWidth(chip.width - 16);
-      fitText(heading, chip.width - 16, 11);
+        .setWordWrapWidth(chip.width - 16)
+        .setMaxLines(2);
 
+      // The caption gets the lines the heading leaves, never fewer than one: at 768px wide the heading wraps to two
+      // lines, and a two-line caption anchored to the chip's foot was drawn straight over it.
       const preview = step.beats[step.beats.length - 1]?.text ?? (step.revealStatus === "pending" ? "—" : "");
-      this.add
+      const caption = this.add
         .text(chip.x + 8, chip.y + chip.height - 8, preview, textStyle(typeRole.label, textColor, textAlpha))
         .setOrigin(0, 1)
         .setWordWrapWidth(chip.width - 16);
+      const lineHeight = caption.height / Math.max(1, caption.getWrappedText(preview).length);
+      const room = chip.y + chip.height - 8 - (heading.y + heading.height + 3);
+      const lines = caption.getWrappedText(preview);
+      const maxLines = Math.max(1, Math.floor(room / lineHeight));
+      // A cut caption says it was cut; the full sentence is the subtitle above the strip and the phase log.
+      if (lines.length > maxLines) caption.setText(`${lines.slice(0, maxLines).join(" ").trimEnd()}…`);
+      caption.setMaxLines(maxLines);
     });
   }
 
@@ -1191,7 +1201,7 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       this.#buttons.push(
         new McButton(this, {
           kind: "primary",
-          label: `Play ${model.name}`,
+          label: interruptActionLabel(state, option),
           type: typeRole.label,
           rect: slot.button,
           onClick: () => this.#resolve([option.optionId]),

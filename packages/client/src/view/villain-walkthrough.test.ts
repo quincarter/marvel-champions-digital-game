@@ -4,7 +4,7 @@
  * phase inside one command, so a synthetic event list would prove nothing.
  */
 
-import { activeVillain } from "@mc/engine";
+import { activeAbilityRefs, activeVillain } from "@mc/engine";
 import { beforeAll, describe, expect, test } from "vitest";
 import type { ChoiceOption, ChoicePrompt, GameState, PendingChoice, PlayerId } from "@mc/engine";
 import { POOL_DEPS } from "../content/pool.js";
@@ -15,6 +15,7 @@ import {
   decisionLabel,
   emptyWalkthrough,
   inlineInterruptFor,
+  interruptActionLabel,
   pauseFor,
   VILLAIN_STEPS,
   type Walkthrough,
@@ -516,7 +517,7 @@ describe("inlineInterruptFor", () => {
       played.viewer,
     );
 
-    expect(options).toEqual([{ optionId: "x:ability-1", instanceId: villainId() }]);
+    expect(options).toEqual([{ optionId: "x:ability-1", instanceId: villainId(), abilityId: "ability-1" }]);
   });
 
   test("null when the choice is not the viewer's own — never offers to play another seat's card", () => {
@@ -533,6 +534,26 @@ describe("inlineInterruptFor", () => {
     );
 
     expect(options).toBeNull();
+  });
+
+  test("a card in hand is played; an ability on a card in play is used, by its printed name", () => {
+    const player = played.state.players.find((seat) => seat.playerId === played.viewer)!;
+    const handCard = player.hand[0]!;
+    expect(interruptActionLabel(played.state, { optionId: "h", instanceId: handCard, abilityId: null })).toMatch(
+      /^Play /,
+    );
+
+    // Spider-Man's identity is in play, never in hand: "Play Spider-Man" names something the player cannot do.
+    const identity = player.identity.instanceId;
+    const refs = activeAbilityRefs(played.state, identity);
+    const named = refs.find((ref) => ref.label);
+    const label = interruptActionLabel(played.state, {
+      optionId: "i",
+      instanceId: identity,
+      abilityId: named?.id ?? null,
+    });
+    expect(label).toBe(named?.label ? `Use ${named.label}` : "Use Spider-Man");
+    expect(label).not.toMatch(/^Play /);
   });
 
   test("null when there is nothing legal to interrupt with — the window is real but empty", () => {
