@@ -67,7 +67,7 @@ import { canConfirmChoice, cardChoiceDisplayOrder, initialChoiceSelection } from
 import { wrapChipsToRows } from "../view/chip-layout.js";
 import { stepFocus } from "../view/focus.js";
 import type { GamepadIntent } from "../view/gamepad.js";
-import { HandScroll } from "../view/hand-scroll.js";
+import { HandScroll, type RowDrag } from "../view/hand-scroll.js";
 import type { Rect } from "../view/layout.js";
 import { openingHandLayout, openingHandThumb } from "../view/opening-hand-layout.js";
 import { setupMetrics } from "../view/setup-metrics.js";
@@ -199,6 +199,11 @@ export class SetupDealScene extends Phaser.Scene {
 
   constructor() {
     super(SCENES.setupDeal);
+  }
+
+  /** The opening hand's flick coasts frame by frame (`HandScroll#tick`). */
+  override update(_time: number, deltaMs: number): void {
+    this.#hand.tick(deltaMs);
   }
 
   create(): void {
@@ -581,7 +586,7 @@ export class SetupDealScene extends Phaser.Scene {
 
     this.#hand.measure(layout.viewport, layout.viewport.x + layout.contentWidth);
     const scrollX = this.#hand.scrollX;
-    const onDrag = (deltaX: number): void => this.#hand.scrollBy(-deltaX);
+    const onDrag = this.#hand.drag;
 
     const strip = this.add.container(0, 0);
     const mask = this.make.graphics({}, false);
@@ -614,7 +619,7 @@ export class SetupDealScene extends Phaser.Scene {
    * already draws that), and a red "MULLIGAN" tag near the bottom — D06's "DOWNTIME" card. `onDrag` is given only
    * inside the scrolling strip, where a sideways drag on a card scrolls the hand instead of toggling the card.
    */
-  #drawMulliganCard(slot: Rect, card: HandCardView, onDrag?: (deltaX: number) => void): void {
+  #drawMulliganCard(slot: Rect, card: HandCardView, drag?: RowDrag): void {
     const picked = this.#selected.includes(card.instanceId);
     this.#focusRects.set(`option:${card.instanceId}`, slot);
 
@@ -664,7 +669,8 @@ export class SetupDealScene extends Phaser.Scene {
     addTapTarget(this, slot, {
       onTap: () => this.#toggle(card.instanceId),
       onInspect: () => this.#inspect(card.instanceId, picked),
-      onDrag,
+      onDrag: drag?.onDrag,
+      onDragEnd: drag?.onDragEnd,
       // Stable across the redraw every scrolled pixel causes, so a press that began on this card is still a tap
       // on it when it ends (`ui/hold-target.ts`'s own doc comment).
       key: card.instanceId as unknown as string,

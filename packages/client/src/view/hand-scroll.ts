@@ -11,7 +11,14 @@
  * unit tested without a canvas. Nothing here imports Phaser.
  */
 
+import { Momentum } from "./drag-gesture.js";
 import type { Rect } from "./layout.js";
+
+/** What a card in the row hands its tap target, so a sideways drag on it scrolls the row and a flick coasts. */
+export interface RowDrag {
+  onDrag(deltaX: number): void;
+  onDragEnd(velocityPxPerMs: number): void;
+}
 
 /**
  * The tabbed hand's horizontal scroll.
@@ -35,6 +42,20 @@ export class HandScroll {
   #maxScroll = 0;
   /** The hand's own content rect, unscrolled — where a wheel gesture has to land to scroll it. */
   #contentRect: Rect | null = null;
+  /** The coast after a flick. Lives here, not in a draw, so it survives whatever redraws happen under it. */
+  readonly #momentum = new Momentum();
+
+  /**
+   * The row under a finger: the content follows the pointer (so the scroll moves the other way), a new drag catches
+   * a coasting row, and a flick hands its speed to the momentum.
+   */
+  readonly drag: RowDrag = {
+    onDrag: (deltaX) => {
+      this.#momentum.stop();
+      this.scrollBy(-deltaX);
+    },
+    onDragEnd: (velocityPxPerMs) => this.#momentum.start(-velocityPxPerMs),
+  };
 
   constructor(redraw: () => void) {
     this.#redraw = redraw;
@@ -66,6 +87,16 @@ export class HandScroll {
     else this.#redraw();
   }
 
+  /** Once per frame (`Scene#update`): carries a flick on, and stops it dead at either end of the row. */
+  tick(deltaMs: number): void {
+    if (!this.#momentum.active) return;
+    const delta = this.#momentum.tick(deltaMs);
+    if (delta === 0) return;
+    const before = this.#scrollX;
+    this.scrollBy(delta);
+    if (this.#scrollX === before) this.#momentum.stop();
+  }
+
   /** After `measure`: this draw's row can follow the scroll by itself, so a scroll no longer needs a redraw. */
   attach(apply: (scrollX: number) => void): void {
     this.#apply = apply;
@@ -80,6 +111,7 @@ export class HandScroll {
     const rect = this.#contentRect;
     if (!rect || this.#maxScroll <= 0) return;
     if (pointer.y < rect.y || pointer.y > rect.y + rect.height) return;
+    this.#momentum.stop();
     // A vertical mouse wheel is still "scroll the hand" here — there is
     // nothing in this rect to scroll vertically, and a trackpad's horizontal
     // deltaX takes priority when a gesture actually has one. Positive scrolls

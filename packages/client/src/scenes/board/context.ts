@@ -15,6 +15,7 @@ import type { Highlights } from "../../view/highlights.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardController } from "./controller.js";
 import type { HandScroll } from "./hand.js";
+import type { RowDrag } from "../../view/hand-scroll.js";
 import type { BoardMotion } from "./motion.js";
 
 /**
@@ -80,7 +81,7 @@ export interface BoardDrawContext {
    * payment prompt first, `onTap` otherwise), a hold or right-click inspects,
    * and — only when `onDrag` is given — a horizontal drag scrolls instead.
    */
-  makeTapTarget(rect: Rect, id: InstanceId, onTap?: () => void, onDrag?: (deltaX: number) => void): void;
+  makeTapTarget(rect: Rect, id: InstanceId, onTap?: () => void, drag?: RowDrag): void;
   /** Opens a card. `siblings` is the list ◂ ▸ steps through; without it, the hand when the card is in it. */
   inspect(id: InstanceId, siblings?: readonly InstanceId[]): void;
 }

@@ -562,6 +562,14 @@ Still open in Phase 4:
 - Dev jumps for QA: `?screen=choice` and `?screen=villain-interrupt` (fixed seeds), beside `?screen=inspect[&card=N]`.
 - **Fixed on the way:** at 768px wide the villain-phase step chip's heading wrapped onto its own caption — the caption now takes only the lines the heading leaves, and says so with an ellipsis when cut. And the interrupt button read "Play Spider-Man" for an identity's own ability: the verb now comes from where the card is (`interruptActionLabel`) — a card in hand is _played_, an ability on a card in play is _used_, by its printed name ("Use Spider-Sense").
 
+**The phone hand no longer locks up mid-swipe.** Reported from play: swiping the hand left, right and left again froze it. Three causes, all in how the drag was fed (`ui/hold-target.ts`, `view/hold-gesture.ts`, `view/hand-scroll.ts`):
+
+- The drag was delivered by each card's own zone, and a zone only hears `pointermove` while the pointer is over it — so the row stopped dead when a thumb drifted a few pixels above or below the hand or past the last card, and lurched when it came back. The press is now followed from the scene for its whole length.
+- Distances came from Phaser's `pointer.prevPosition`, which is per frame, while a phone sends several `touchmove`s in one. The gesture now measures each move from the one before, starting where it crossed the slop, so there is no jump and a reversal is just a delta of the other sign.
+- There was no momentum. A flick now coasts (`HandScroll#tick`, the same `Momentum` the lists use), a new touch or a wheel catches it, and it stops dead at either end. Both the Board's hand and the mulligan's opening hand get it.
+- Checked with a simulated touch (left–right–left in one press, 150px above the row, then release): the row followed throughout and coasted to the end. Wheel scrolling on Scenario select, Decks, the Deck builder and Rules was probed for frame stalls at the same time: none (worst frame 13ms).
+- **Still redraws per scrolled pixel:** the mulligan's opening hand (`setup-deal.ts`) has no translatable strip (`HandScroll#attach`) the way the Board's hand does.
+
 **Tooling:** oxlint and oxfmt (CLAUDE.md, "Lint and format"); `scripts/shoot-app.mjs`, a Playwright shooter for real-size, real-frame-rate screenshots; Vite no longer watches `src-tauri`/`android`/`ios`, which crashed the dev server with EBUSY on Windows.
 
 ### Screen gaps against the design canvases (2026-09-13)

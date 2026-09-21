@@ -362,12 +362,7 @@ function drawHandCard(
     wash.fillStyle(surface.ink.hex, 0.3).fillRect(slot.x + 3, slot.y + 3, slot.width - 6, slot.height - 6);
   }
 
-  ctx.makeTapTarget(
-    slot,
-    card.instanceId,
-    () => ctx.controller.tapHandCard(card.instanceId),
-    (deltaX) => ctx.hand.scrollBy(-deltaX),
-  );
+  ctx.makeTapTarget(slot, card.instanceId, () => ctx.controller.tapHandCard(card.instanceId), ctx.hand.drag);
 }
 
 /**
