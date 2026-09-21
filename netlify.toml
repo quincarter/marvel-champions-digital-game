@@ -1,0 +1,37 @@
+[build]
+command = "pnpm --filter @mc/client build"
+publish = "packages/client/dist"
+
+[build.environment]
+NODE_VERSION = "24"
+
+# Proxy MarvelCDB deck imports directly through Netlify CDN
+[[redirects]]
+from = "/api/marvelcdb-import/decklist/:id"
+to = "https://marvelcdb.com/api/public/decklist/:id.json"
+status = 200
+force = true
+
+[[redirects]]
+from = "/api/marvelcdb-import/deck/:id"
+to = "https://marvelcdb.com/api/public/deck/:id.json"
+status = 200
+force = true
+
+# SPA client-side routing fallback
+[[redirects]]
+from = "/*"
+to = "/index.html"
+status = 200
+
+# Cache static card scans on Netlify's global edge CDN
+[[headers]]
+for = "/card-art/*"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
+
+# Cache hashed Vite assets (JS, CSS, fonts, audio)
+[[headers]]
+for = "/assets/*"
+[headers.values]
+Cache-Control = "public, max-age=31536000, immutable"
