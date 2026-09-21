@@ -220,6 +220,9 @@ function breakdownOf(activation: ActivationBeat): { readonly cells: readonly Bre
   return { cells, ops };
 }
 
+/** Below this height the inline interrupt panel lays out sideways (`#drawInterrupt`). */
+const INTERRUPT_SHORT_PANEL = 300;
+
 export class VillainPhaseOverlay extends Phaser.Scene {
   #walkthrough: Walkthrough = emptyWalkthrough(1);
   #revealed = 0;
@@ -458,7 +461,10 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         this.#drawMainScheme(layout.mainScheme, mainSchemeCalloutOf(game, POOL_DEPS));
         this.#drawPhaseLog(layout.phaseLog, reveal);
       }
-      finished = this.#drawFooter(layout.footer, reveal);
+      // On a short viewport the footer's row falls inside the interrupt panel. All it would say while a decision is
+      // open is "Waiting on the decision above.", so there it gives way rather than being drawn under the buttons.
+      const footerClear = layout.footer.y >= merged.y + merged.height || layout.footer.x >= merged.x + merged.width;
+      finished = footerClear ? this.#drawFooter(layout.footer, reveal) : false;
     } else {
       this.#drawHappeningNow(layout.happeningNow, reveal, game, viewer);
       this.#drawBoosts(layout.boosts, reveal.current?.activation ?? null, game, viewerId, formFactor);
@@ -840,15 +846,22 @@ export class VillainPhaseOverlay extends Phaser.Scene {
     g.strokeRect(rect.x, rect.y, rect.width, rect.height);
 
     label(this, rect.x + 14, rect.y + 12, "YOUR INTERRUPT WINDOW", typeRole.label, surface.ink.hex, ink.label);
+    // A short panel (a phone on its side) has no height to stack a two-line title, the cards and a full-width
+    // "Let it resolve" — the cards were left a sliver and their text ran under both buttons. There the title takes
+    // one line and the resolve button stands beside the cards instead of under them.
+    const short = rect.height < INTERRUPT_SHORT_PANEL;
     const bodyText = this.add
-      .text(rect.x + 14, rect.y + 28, pause.label, textStyle({ ...typeRole.barTitle, size: 18 }, surface.ink.hex))
+      .text(rect.x + 14, rect.y + 28, pause.label, textStyle({ ...typeRole.barTitle, size: short ? 14 : 18 }, surface.ink.hex))
       .setOrigin(0, 0)
       .setWordWrapWidth(rect.width - 28)
-      .setMaxLines(2);
+      .setMaxLines(short ? 1 : 2);
 
     const resolveHeight = hit.primary;
-    const cardsTop = rect.y + 28 + bodyText.height + 12;
-    const cardsArea: Rect = { x: rect.x + 14, y: cardsTop, width: rect.width - 28, height: Math.max(0, rect.y + rect.height - 12 - resolveHeight - 12 - cardsTop) };
+    const cardsTop = rect.y + 28 + bodyText.height + (short ? 8 : 12);
+    const besideWidth = short ? Math.round((rect.width - 28) * 0.3) : 0;
+    const cardsArea: Rect = short
+      ? { x: rect.x + 14, y: cardsTop, width: rect.width - 28 - besideWidth - 12, height: Math.max(0, rect.y + rect.height - 12 - cardsTop) }
+      : { x: rect.x + 14, y: cardsTop, width: rect.width - 28, height: Math.max(0, rect.y + rect.height - 12 - resolveHeight - 12 - cardsTop) };
     const slots = interruptCardsLayout(cardsArea, options.length, formFactor, hit.target);
 
     options.forEach((option, i) => {
@@ -887,11 +900,16 @@ export class VillainPhaseOverlay extends Phaser.Scene {
         .setWordWrapWidth(textWidth)
         .setMaxLines(1);
       const rulesTop = typeText.y + typeText.height + 6;
-      this.add
-        .text(textX, rulesTop, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
-        .setOrigin(0, 0)
-        .setWordWrapWidth(textWidth)
-        .setMaxLines(Math.max(0, Math.floor((textY + textHeight - rulesTop) / 15)));
+      // `setMaxLines(0)` means "no limit" to Phaser, not "no lines": with no room, the text is not drawn at all.
+      const rulesLines = Math.floor((textY + textHeight - rulesTop) / 15);
+      if (rulesLines >= 1) {
+        this.add
+          .text(textX, rulesTop, model.rulesText, textStyle(typeRole.body, surface.ink.hex))
+          .setOrigin(0, 0)
+          .setWordWrapWidth(textWidth)
+          .setMaxLines(rulesLines);
+      }
+      if (typeText.y + typeText.height > textY + textHeight) typeText.setVisible(false);
 
       this.#buttons.push(
         new McButton(this, {
@@ -905,7 +923,9 @@ export class VillainPhaseOverlay extends Phaser.Scene {
       stops.set(`interrupt:${option.optionId}`, { rect: slot.button, activate: () => this.#resolve([option.optionId]) });
     });
 
-    const resolveRect: Rect = { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
+    const resolveRect: Rect = short
+      ? { x: rect.x + rect.width - 14 - besideWidth, y: cardsArea.y + cardsArea.height - resolveHeight, width: besideWidth, height: resolveHeight }
+      : { x: rect.x + 14, y: rect.y + rect.height - 12 - resolveHeight, width: rect.width - 28, height: resolveHeight };
     this.#buttons.push(new McButton(this, { kind: "secondary", label: "Let it resolve", type: typeRole.barTitle, rect: resolveRect, onClick: () => this.#resolve([]) }));
     stops.set("resolve", { rect: resolveRect, activate: () => this.#resolve([]) });
   }
