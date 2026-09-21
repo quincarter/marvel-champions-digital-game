@@ -80,7 +80,16 @@ export function estimateWrappedLines(text: string, widthPx: number, avgCharWidth
   return lines;
 }
 
-export type FormFactor = "phone" | "tabletPortrait" | "tabletLandscape" | "desktop";
+export type FormFactor = "phone" | "phoneLandscape" | "tabletPortrait" | "tabletLandscape" | "desktop";
+
+/**
+ * Below this height a landscape viewport is a phone on its side, whatever its width: a Pixel or an iPhone held
+ * sideways is 850–930 wide and 380–430 tall, which width alone reads as a tablet. A real tablet in landscape is
+ * never under 600 tall.
+ */
+export const PHONE_LANDSCAPE_MAX_HEIGHT = 500;
+/** The landscape phone board's tab rail, a column down the left edge. Wide enough for "ENEMIES" and a badge. */
+export const PHONE_LANDSCAPE_RAIL_WIDTH = 84;
 
 /** The phone board's zone tabs, in the order the design canvas lists them. */
 export const PHONE_TABS = ["threat", "enemies", "me", "team", "log"] as const;
@@ -197,12 +206,13 @@ export const REFERENCE_VIEWPORTS = {
  */
 export function formFactorFor(width: number, height: number): FormFactor {
   if (width < 768) return "phone";
+  if (height < PHONE_LANDSCAPE_MAX_HEIGHT && width > height) return "phoneLandscape";
   if (width >= 1280) return "desktop";
   return width >= height ? "tabletLandscape" : "tabletPortrait";
 }
 
-const GUTTER = { phone: 8, tabletPortrait: 12, tabletLandscape: 12, desktop: 16 } as const;
-const CHROME_HEIGHT = { phone: 36, tabletPortrait: 44, tabletLandscape: 44, desktop: 44 } as const;
+const GUTTER = { phone: 8, phoneLandscape: 6, tabletPortrait: 12, tabletLandscape: 12, desktop: 16 } as const;
+const CHROME_HEIGHT = { phone: 36, phoneLandscape: 32, tabletPortrait: 44, tabletLandscape: 44, desktop: 44 } as const;
 
 /**
  * The phone action bar is two fixed rows on an ink ground: an abilities row at
@@ -223,12 +233,18 @@ const actionBarHeight = (formFactor: FormFactor): number =>
  * layout gave it a 84px-wide game log and a main scheme too narrow to show its
  * own card. So the tabbed layout covers both tall form factors.
  */
-const isTabbed = (formFactor: FormFactor): boolean => formFactor === "phone" || formFactor === "tabletPortrait";
+const isTabbed = (formFactor: FormFactor): boolean =>
+  formFactor === "phone" || formFactor === "phoneLandscape" || formFactor === "tabletPortrait";
 
 export function boardLayout(viewport: Rect, options: LayoutOptions): BoardLayout {
   const formFactor = formFactorFor(viewport.width, viewport.height);
   const tabbed = isTabbed(formFactor);
-  const zones = tabbed ? phoneZones(viewport, options) : longTableZones(viewport, formFactor, options);
+  const zones =
+    formFactor === "phoneLandscape"
+      ? phoneLandscapeZones(viewport, options)
+      : tabbed
+        ? phoneZones(viewport, options)
+        : longTableZones(viewport, formFactor, options);
   return {
     formFactor,
     viewport,
@@ -302,6 +318,63 @@ function phoneZones(viewport: Rect, options: LayoutOptions): Zones {
     y: content.y + pileHeight + gutter,
     height: content.height - pileHeight - gutter,
   });
+
+  return {
+    chrome,
+    tabs,
+    threat: on("threat"),
+    enemies,
+    me,
+    playArea,
+    team: options.playerCount > 1 ? on("team") : null,
+    encounter,
+    log: on("log"),
+    hand,
+    actionBar,
+  };
+}
+
+/**
+ * A phone on its side. Still the tabbed board — the long table needs twice this height — but laid out for a
+ * viewport that is wide and about 400 tall, where the portrait stack (chrome, tabs, content, hand, a two-row action
+ * bar) leaves the content nothing:
+ *
+ * - the tab rail is a column down the left edge instead of a row, so it costs width, which there is plenty of;
+ * - the action bar is the long table's single row;
+ * - within a tab, what portrait stacks is set side by side: identity beside play area, piles beside enemies.
+ *
+ * Reported from play (2026-09-21): the long-table layout at this height drew the play area over the villain and
+ * was "virtually unusable".
+ */
+function phoneLandscapeZones(viewport: Rect, options: LayoutOptions): Zones {
+  const gutter = GUTTER.phoneLandscape;
+  const chromeHeight = CHROME_HEIGHT.phoneLandscape;
+  // The long table's single row: End turn beside the basic powers, tall enough for its 42px button.
+  const barHeight = hit.primary;
+  const railWidth = PHONE_LANDSCAPE_RAIL_WIDTH;
+  const handHeight = Math.min(150, Math.max(96, Math.round(viewport.height * 0.3)));
+  const activeTab: PhoneTab = options.activeTab ?? "me";
+
+  const chrome: Rect = { x: viewport.x, y: viewport.y, width: viewport.width, height: chromeHeight };
+  const actionBar: Rect = { x: viewport.x, y: viewport.y + viewport.height - barHeight, width: viewport.width, height: barHeight };
+  const hand: Rect = { x: viewport.x + railWidth, y: actionBar.y - handHeight, width: viewport.width - railWidth, height: handHeight };
+  const tabs: Rect = { x: viewport.x, y: chrome.y + chrome.height, width: railWidth, height: actionBar.y - (chrome.y + chrome.height) };
+  const content: Rect = {
+    x: tabs.x + tabs.width + gutter,
+    y: chrome.y + chrome.height + gutter,
+    width: viewport.width - railWidth - gutter * 2,
+    height: hand.y - (chrome.y + chrome.height) - gutter * 2,
+  };
+
+  const on = (tab: PhoneTab, rect: Rect = content): Rect | null => (activeTab === tab ? rect : null);
+
+  const identityWidth = Math.round(content.width * 0.42);
+  const me = on("me", { ...content, width: identityWidth });
+  const playArea = on("me", { ...content, x: content.x + identityWidth + gutter, width: content.width - identityWidth - gutter });
+
+  const pileWidth = Math.min(150, Math.round(content.width * 0.2));
+  const encounter = on("enemies", { ...content, width: pileWidth });
+  const enemies = on("enemies", { ...content, x: content.x + pileWidth + gutter, width: content.width - pileWidth - gutter });
 
   return {
     chrome,

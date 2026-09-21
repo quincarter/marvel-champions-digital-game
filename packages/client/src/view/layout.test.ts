@@ -439,3 +439,52 @@ describe("panelShape", () => {
     expect(panelShape(tallIdentitySlot, "wide")).toBe("wide");
   });
 });
+
+describe("a phone on its side", () => {
+  // A Pixel 11 Pro XL and an iPhone held sideways, in CSS pixels.
+  const sideways = [
+    { width: 915, height: 412 },
+    { width: 844, height: 390 },
+  ];
+
+  test.each(sideways)("$width×$height is a phone in landscape, not a tablet", ({ width, height }) => {
+    expect(formFactorFor(width, height)).toBe("phoneLandscape");
+  });
+
+  test("a real tablet in landscape is still a tablet", () => {
+    expect(formFactorFor(1024, 768)).toBe("tabletLandscape");
+    expect(formFactorFor(1180, 820)).toBe("tabletLandscape");
+  });
+
+  test.each(sideways)("$width×$height: the tabbed board, every zone inside the viewport and none overlapping", ({ width, height }) => {
+    for (const activeTab of ["threat", "enemies", "me", "team", "log"] as const) {
+      const layout = boardLayout({ x: 0, y: 0, width, height }, { playerCount: 2, activeTab });
+      expect(layout.tabbed).toBe(true);
+      const rects = Object.values(layout.zones).filter((rect): rect is NonNullable<typeof rect> => rect !== null);
+      for (const rect of rects) {
+        expect(rect.x).toBeGreaterThanOrEqual(0);
+        expect(rect.y).toBeGreaterThanOrEqual(0);
+        expect(rect.x + rect.width).toBeLessThanOrEqual(width);
+        expect(rect.y + rect.height).toBeLessThanOrEqual(height);
+        expect(rect.width).toBeGreaterThan(0);
+        expect(rect.height).toBeGreaterThan(0);
+      }
+      rects.forEach((a, i) =>
+        rects.slice(i + 1).forEach((b) => {
+          const apart = a.x + a.width <= b.x || b.x + b.width <= a.x || a.y + a.height <= b.y || b.y + b.height <= a.y;
+          expect(apart).toBe(true);
+        }),
+      );
+    }
+  });
+
+  test("the tab rail is a column, and the content keeps a playable height", () => {
+    const layout = boardLayout({ x: 0, y: 0, width: 915, height: 412 }, { playerCount: 1, activeTab: "me" });
+    const { tabs, me, playArea, hand, actionBar } = layout.zones;
+    expect(tabs!.height).toBeGreaterThan(tabs!.width);
+    expect(me!.height).toBeGreaterThanOrEqual(150);
+    expect(playArea!.y).toBe(me!.y);
+    expect(hand!.height).toBeGreaterThanOrEqual(96);
+    expect(actionBar!.height).toBe(hit.primary);
+  });
+});

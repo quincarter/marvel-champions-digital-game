@@ -408,9 +408,18 @@ export class McTabs {
     const rail = scene.add.graphics();
     paintPanel(rail, rect, "rail", "rest");
 
-    const cellWidth = rect.width / Math.max(1, tabs.length);
+    // A rail taller than it is wide is a column (the landscape phone board's, down its left edge): same cells, stacked.
+    const column = rect.height > rect.width;
+    const count = Math.max(1, tabs.length);
+    const cellWidth = column ? rect.width : rect.width / count;
+    const cellHeight = column ? rect.height / count : rect.height;
     tabs.forEach((tab, index) => {
-      const cell: Rect = { x: rect.x + index * cellWidth, y: rect.y, width: cellWidth, height: rect.height };
+      const cell: Rect = {
+        x: column ? rect.x : rect.x + index * cellWidth,
+        y: column ? rect.y + index * cellHeight : rect.y,
+        width: cellWidth,
+        height: cellHeight,
+      };
       this.#buttons.push(
         new McButton(scene, {
           kind: "rail",

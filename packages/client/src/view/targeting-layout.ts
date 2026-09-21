@@ -19,10 +19,10 @@
 
 import { CARD_ASPECT, formFactorFor, type FormFactor, type Rect } from "./layout.js";
 
-const MARGIN = { phone: 10, tabletPortrait: 14, tabletLandscape: 16, desktop: 20 } as const;
-const TITLE_BAR_HEIGHT = { phone: 44, tabletPortrait: 52, tabletLandscape: 56, desktop: 56 } as const;
+const MARGIN = { phone: 10, phoneLandscape: 10, tabletPortrait: 14, tabletLandscape: 16, desktop: 20 } as const;
+const TITLE_BAR_HEIGHT = { phone: 44, phoneLandscape: 44, tabletPortrait: 52, tabletLandscape: 56, desktop: 56 } as const;
 /** Narrower on phone: a 128px CTA plus "CHOOSE A TARGET" and the source line left no room for the source at all at 390px wide. */
-const CANCEL_WIDTH = { phone: 84, tabletPortrait: 112, tabletLandscape: 128, desktop: 128 } as const;
+const CANCEL_WIDTH = { phone: 84, phoneLandscape: 84, tabletPortrait: 112, tabletLandscape: 128, desktop: 128 } as const;
 const HEADING_HEIGHT = 20;
 /** The gap between tiles in a row/stack, and between the target list and its side column. Exported so the scene draws tiles at the same spacing the layout reserved room for. */
 export const TARGETING_GAP = 12;
