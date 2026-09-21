@@ -245,7 +245,10 @@ jobs:
           java-version: "21"
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        run: |
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses || true
 
       - run: pnpm install --frozen-lockfile
 
@@ -253,6 +256,9 @@ jobs:
         shell: bash
         env:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'rocket' }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.ANDROID_KEYSTORE_ALIAS || 'marvel-champions' }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD || 'rocket' }}
         run: |
           if [ -n "$KEYSTORE_BASE64" ]; then
             echo "$KEYSTORE_BASE64" | base64 -d > marvel-champions.keystore
@@ -260,17 +266,17 @@ jobs:
           else
             echo "Generating self-signed release keystore for CI..."
             keytool -genkeypair -v -keystore marvel-champions.keystore \
-              -alias marvel-champions -keyalg RSA -keysize 2048 -validity 10000 \
-              -storepass rocket -keypass rocket \
+              -alias "$KEY_ALIAS" -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEY_PASSWORD" \
               -dname "CN=Marvel Champions, OU=Game, O=Digital, L=Unknown, ST=Unknown, C=US"
           fi
 
       - name: Build Android Release APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ github.workspace }}/marvel-champions.keystore
-          ANDROID_KEYSTORE_PASSWORD: rocket
-          ANDROID_KEYSTORE_ALIAS: marvel-champions
-          ANDROID_KEY_PASSWORD: rocket
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD || 'rocket' }}
+          ANDROID_KEYSTORE_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS || secrets.ANDROID_KEYSTORE_ALIAS || 'marvel-champions' }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD || secrets.ANDROID_KEYSTORE_PASSWORD || 'rocket' }}
         run: pnpm android:build
 
       - name: Upload APK to GitHub Release
