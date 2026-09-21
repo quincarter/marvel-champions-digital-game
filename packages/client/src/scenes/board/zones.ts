@@ -27,7 +27,8 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
   // a row of compact panels instead: four of the wide panel wouldn't fit any layout this board runs at, and before
   // this the board only ever built `model.villain` (the active one) at all — Thunderball, Piledriver and Bulldozer
   // were in play with nothing drawn for them.
-  const villainAreaBottom = model.villains.length > 1 ? drawVillainRow(ctx, rect, model) : drawSingleVillain(ctx, rect, model);
+  const villainAreaBottom =
+    model.villains.length > 1 ? drawVillainRow(ctx, rect, model) : drawSingleVillain(ctx, rect, model);
 
   const minionTop = villainAreaBottom + 8;
   const minionArea: Rect = {
@@ -56,10 +57,18 @@ function drawSingleVillain(ctx: BoardDrawContext, rect: Rect, model: BoardModel)
   // Laid out wider than a card's own 2.5:3.5, unlike every other tile on the table. At card proportions a
   // 128px-tall tile is 91px wide, and "2 MADNESS" does not fit in that: the count truncated to "2 MADNE…",
   // which is the one thing on this card a player has to be able to read.
-  const envWidth = Math.min(170, Math.max(110, (envRoom - 8 * (model.environments.length - 1)) / Math.max(1, model.environments.length)));
+  const envWidth = Math.min(
+    170,
+    Math.max(110, (envRoom - 8 * (model.environments.length - 1)) / Math.max(1, model.environments.length)),
+  );
   if (model.environments.length > 0 && envRoom >= envWidth) {
     model.environments.forEach((environment, index) => {
-      const slot: Rect = { x: envLeft + index * (envWidth + 8), y: villainRect.y, width: envWidth, height: villainRect.height };
+      const slot: Rect = {
+        x: envLeft + index * (envWidth + 8),
+        y: villainRect.y,
+        width: envWidth,
+        height: villainRect.height,
+      };
       if (slot.x + slot.width <= rect.x + rect.width - 10) drawEnvironment(ctx, slot, environment);
     });
   }
@@ -84,9 +93,17 @@ function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): n
 
   if (model.environments.length > 0) {
     const envRect: Rect = { x: rect.x + 10, y: bottom + 8, width: rect.width - 20, height: 60 };
-    const envWidth = Math.min(170, Math.max(110, (envRect.width - 8 * (model.environments.length - 1)) / model.environments.length));
+    const envWidth = Math.min(
+      170,
+      Math.max(110, (envRect.width - 8 * (model.environments.length - 1)) / model.environments.length),
+    );
     model.environments.forEach((environment, index) => {
-      const slot: Rect = { x: envRect.x + index * (envWidth + 8), y: envRect.y, width: envWidth, height: envRect.height };
+      const slot: Rect = {
+        x: envRect.x + index * (envWidth + 8),
+        y: envRect.y,
+        width: envWidth,
+        height: envRect.height,
+      };
       if (slot.x + slot.width <= envRect.x + envRect.width) drawEnvironment(ctx, slot, environment);
     });
     bottom = envRect.y + envRect.height;
@@ -142,7 +159,11 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
   top += 14;
 
   if (rect.height >= 76) {
-    fitText(label(scene, textLeft, top, panel.subtitle, typeRole.label, surface.ink.hex, ink.label * dim), textWidth, typeRole.label.size);
+    fitText(
+      label(scene, textLeft, top, panel.subtitle, typeRole.label, surface.ink.hex, ink.label * dim),
+      textWidth,
+      typeRole.label.size,
+    );
     top += 12;
   }
 
@@ -153,7 +174,10 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     const cg = scene.add.graphics();
     cg.fillStyle(signal.heal.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
     scene.add
-      .text(chip.x + chip.width / 2, chip.y + chip.height / 2, "ACTIVE", { ...textStyle(typeRole.label, surface.paper.hex, dim), fontSize: "9px" })
+      .text(chip.x + chip.width / 2, chip.y + chip.height / 2, "ACTIVE", {
+        ...textStyle(typeRole.label, surface.paper.hex, dim),
+        fontSize: "9px",
+      })
       .setOrigin(0.5)
       .setLetterSpacing(0.6);
     top += 17;
@@ -164,13 +188,22 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     .map((tile) => `${tile.label} ${tile.value}`)
     .join("  ");
   if (statLine && rect.height - (top - rect.y) >= 24) {
-    fitText(label(scene, textLeft, top, statLine, typeRole.label, surface.ink.hex, ink.body * dim), textWidth, typeRole.label.size);
+    fitText(
+      label(scene, textLeft, top, statLine, typeRole.label, surface.ink.hex, ink.body * dim),
+      textWidth,
+      typeRole.label.size,
+    );
   }
 
   // A thin HP bar pinned to the foot, the compact panel's stand-in for the full panel's `McHpPlate`.
   if (panel.hp) {
     const barHeight = 7;
-    const barRect: Rect = { x: rect.x + 4, y: rect.y + rect.height - barHeight - 3, width: rect.width - 8, height: barHeight };
+    const barRect: Rect = {
+      x: rect.x + 4,
+      y: rect.y + rect.height - barHeight - 3,
+      width: rect.width - 8,
+      height: barHeight,
+    };
     const ratio = panel.hp.max > 0 ? Math.max(0, Math.min(1, panel.hp.current / panel.hp.max)) : 0;
     const bar = scene.add.graphics();
     bar.fillStyle(surface.parchment.hex, dim).fillRect(barRect.x, barRect.y, barRect.width, barRect.height);
@@ -179,7 +212,10 @@ function drawCompactVillain(ctx: BoardDrawContext, rect: Rect, villain: VillainP
     bar.fillStyle(signal.heal.hex, dim).fillRect(barRect.x, barRect.y, barRect.width * ratio, barRect.height);
     bar.lineStyle(1.5, surface.ink.hex, dim).strokeRect(barRect.x, barRect.y, barRect.width, barRect.height);
     scene.add
-      .text(barRect.x + barRect.width / 2, barRect.y - 7, `${panel.hp.current}/${panel.hp.max}`, { ...textStyle(typeRole.label, surface.ink.hex, dim), fontSize: "9px" })
+      .text(barRect.x + barRect.width / 2, barRect.y - 7, `${panel.hp.current}/${panel.hp.max}`, {
+        ...textStyle(typeRole.label, surface.ink.hex, dim),
+        fontSize: "9px",
+      })
       .setOrigin(0.5, 1);
   }
 
@@ -202,7 +238,12 @@ function drawDefeatedVillainSlot(scene: Phaser.Scene, rect: Rect, name: string):
     .setWordWrapWidth(rect.width - 10)
     .setMaxLines(2);
   fitText(label_, rect.width - 10, typeRole.rowTitle.size);
-  rg.lineStyle(2, surface.paper.hex, 0.8).lineBetween(label_.x - 1, label_.y + label_.height / 2, label_.x + label_.width + 1, label_.y + label_.height / 2);
+  rg.lineStyle(2, surface.paper.hex, 0.8).lineBetween(
+    label_.x - 1,
+    label_.y + label_.height / 2,
+    label_.x + label_.width + 1,
+    label_.y + label_.height / 2,
+  );
 
   const stamp = scene.add
     .text(rect.x + rect.width / 2, rect.y + rect.height - 14, "DEFEATED", {
@@ -261,10 +302,23 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
     cg.fillStyle(surface.ink.hex, 0.88 * dim).fillRect(chip.x, chip.y, chip.width, chip.height);
     cg.fillStyle(signal.caution.hex, dim).fillRect(chip.x, chip.y, 3, chip.height);
     const count = scene.add
-      .text(chip.x + 9, chip.y + chip.height / 2, String(counter.count), textStyle(typeRole.stat, signal.caution.hex, dim))
+      .text(
+        chip.x + 9,
+        chip.y + chip.height / 2,
+        String(counter.count),
+        textStyle(typeRole.stat, signal.caution.hex, dim),
+      )
       .setOrigin(0, 0.5);
     fitText(
-      label(scene, chip.x + 11 + count.width, chip.y + chip.height / 2, counter.name, typeRole.label, surface.paper.hex, ink.body * dim).setOrigin(0, 0.5),
+      label(
+        scene,
+        chip.x + 11 + count.width,
+        chip.y + chip.height / 2,
+        counter.name,
+        typeRole.label,
+        surface.paper.hex,
+        ink.body * dim,
+      ).setOrigin(0, 0.5),
       chip.width - 18 - count.width,
       typeRole.label.size,
     );
@@ -285,9 +339,30 @@ function drawEnvironment(ctx: BoardDrawContext, rect: Rect, environment: Environ
 export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const { scene } = ctx;
   const half = (rect.height - 6) / 2;
-  const piles: readonly { kind: "encounterDeck" | "encounterDiscard"; name: string; count: number; y: number; art: ArtSource | null; instanceId: InstanceId | null }[] = [
-    { kind: "encounterDeck", name: "ENC DECK", count: model.encounterPiles.deck, y: rect.y, art: CARD_BACKS.encounter, instanceId: model.encounterDeckTopInstanceId },
-    { kind: "encounterDiscard", name: "DISCARD", count: model.encounterPiles.discard, y: rect.y + half + 6, art: model.encounterDiscardTop, instanceId: model.encounterDiscardTopInstanceId },
+  const piles: readonly {
+    kind: "encounterDeck" | "encounterDiscard";
+    name: string;
+    count: number;
+    y: number;
+    art: ArtSource | null;
+    instanceId: InstanceId | null;
+  }[] = [
+    {
+      kind: "encounterDeck",
+      name: "ENC DECK",
+      count: model.encounterPiles.deck,
+      y: rect.y,
+      art: CARD_BACKS.encounter,
+      instanceId: model.encounterDeckTopInstanceId,
+    },
+    {
+      kind: "encounterDiscard",
+      name: "DISCARD",
+      count: model.encounterPiles.discard,
+      y: rect.y + half + 6,
+      art: model.encounterDiscardTop,
+      instanceId: model.encounterDiscardTopInstanceId,
+    },
   ];
   for (const { kind, name, count, y, art, instanceId } of piles) {
     const box: Rect = { x: rect.x, y, width: rect.width, height: half };
@@ -299,7 +374,15 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
     const inner: Rect = { x: box.x + 3, y: box.y + 3, width: box.width - 6, height: box.height - 6 };
     const drawn = count > 0 && drawArt(scene, ctx.art.request(scene, art), inner, { fit: "cover" }) !== null;
 
-    label(scene, box.x + 6, box.y + 6, name, typeRole.label, drawn ? surface.paper.hex : surface.ink.hex, drawn ? ink.body : ink.label);
+    label(
+      scene,
+      box.x + 6,
+      box.y + 6,
+      name,
+      typeRole.label,
+      drawn ? surface.paper.hex : surface.ink.hex,
+      drawn ? ink.body : ink.label,
+    );
     // The count rides on an ink chip over the art, so it stays readable.
     const chip: Rect = { x: box.x + 4, y: box.y + box.height - 26, width: box.width - 8, height: 22 };
     if (drawn) {
@@ -307,7 +390,12 @@ export function drawEncounter(ctx: BoardDrawContext, rect: Rect, model: BoardMod
       chipG.fillStyle(surface.ink.hex, 0.78).fillRect(chip.x, chip.y, chip.width, chip.height);
     }
     scene.add
-      .text(chip.x + chip.width / 2, chip.y + chip.height / 2, String(count), textStyle(typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex))
+      .text(
+        chip.x + chip.width / 2,
+        chip.y + chip.height / 2,
+        String(count),
+        textStyle(typeRole.stat, drawn ? surface.paper.hex : surface.ink.hex),
+      )
       .setOrigin(0.5);
 
     // Every pile with a card in it is readable, the deck's own facedown top included (D08's own subtitle: "any
@@ -334,9 +422,19 @@ export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardMode
   const hasSeparateDecks = model.separateDecks.length > 0;
   const separateWidth = hasSeparateDecks ? Math.min(150, Math.max(96, rect.width * 0.26)) : 0;
   const gap = hasSeparateDecks ? 8 : 0;
-  const inner: Rect = { x: rect.x + 8, y: rect.y + 22, width: rect.width - 16 - separateWidth - gap, height: rect.height - 30 };
+  const inner: Rect = {
+    x: rect.x + 8,
+    y: rect.y + 22,
+    width: rect.width - 16 - separateWidth - gap,
+    height: rect.height - 30,
+  };
   if (hasSeparateDecks) {
-    const separateRect: Rect = { x: inner.x + inner.width + gap, y: inner.y, width: separateWidth, height: inner.height };
+    const separateRect: Rect = {
+      x: inner.x + inner.width + gap,
+      y: inner.y,
+      width: separateWidth,
+      height: inner.height,
+    };
     drawSeparateDecks(ctx, separateRect, model.separateDecks, model.perspectiveId);
   }
 
@@ -345,7 +443,12 @@ export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardMode
     const empty = scene.add.graphics();
     paintPanel(empty, inner, "quiet", "unavailable");
     scene.add
-      .text(inner.x + inner.width / 2, inner.y + inner.height / 2, "Play a card to put it here", textStyle(typeRole.body, surface.ink.hex, ink.meta))
+      .text(
+        inner.x + inner.width / 2,
+        inner.y + inner.height / 2,
+        "Play a card to put it here",
+        textStyle(typeRole.body, surface.ink.hex, ink.meta),
+      )
       .setOrigin(0.5);
     return;
   }
@@ -362,7 +465,12 @@ export function drawPlayArea(ctx: BoardDrawContext, rect: Rect, model: BoardMode
  * discard pile, apart from the player's — open information, like every
  * discard pile, so it shows its own top card too.
  */
-function drawSeparateDecks(ctx: BoardDrawContext, rect: Rect, decks: readonly SeparateDeckPile[], perspectiveId: PlayerId): void {
+function drawSeparateDecks(
+  ctx: BoardDrawContext,
+  rect: Rect,
+  decks: readonly SeparateDeckPile[],
+  perspectiveId: PlayerId,
+): void {
   const { scene } = ctx;
   const rowHeight = Math.min(120, Math.max(70, (rect.height - (decks.length - 1) * 8) / Math.max(1, decks.length)));
   decks.forEach((deck, index) => {
@@ -409,7 +517,12 @@ export function drawTeam(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
 
   const rowHeight = Math.min(76, (rect.height - 28) / Math.max(1, model.team.length) - 4);
   model.team.forEach((seat, index) => {
-    const row: Rect = { x: rect.x + 8, y: rect.y + 24 + index * (rowHeight + 4), width: rect.width - 16, height: rowHeight };
+    const row: Rect = {
+      x: rect.x + 8,
+      y: rect.y + 24 + index * (rowHeight + 4),
+      width: rect.width - 16,
+      height: rowHeight,
+    };
     // Registered like any card on the table: a beat on this hero ("−4")
     // floats off the row, a heal aimed at them rings it, and a tap reads them.
     ctx.frame.hitRects.set(seat.identityInstanceId, row);
@@ -444,10 +557,21 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
     typeRole.label.size,
   );
   if (seat.isFirstPlayer) {
-    label(scene, row.x + row.width - 6, row.y + 5, "1st player", typeRole.label, signal.caution.hex, ink.body).setOrigin(1, 0);
+    label(
+      scene,
+      row.x + row.width - 6,
+      row.y + 5,
+      "1st player",
+      typeRole.label,
+      signal.caution.hex,
+      ink.body,
+    ).setOrigin(1, 0);
   }
   if (seat.done) {
-    label(scene, row.x + row.width - 6, row.y + 22, "turn done", typeRole.label, signal.heal.hex, ink.body).setOrigin(1, 0);
+    label(scene, row.x + row.width - 6, row.y + 22, "turn done", typeRole.label, signal.heal.hex, ink.body).setOrigin(
+      1,
+      0,
+    );
   }
 
   // Third line: statuses as the design's pips, then anything aimed at or lent
@@ -475,7 +599,15 @@ function drawLiveSeat(ctx: BoardDrawContext, row: Rect, seat: SeatRow): void {
     cg.fillStyle(surface.ink.hex, dim).fillRect(chip.x, chip.y, chip.width, chip.height);
     cg.fillStyle(signal.caution.hex, dim).fillRect(chip.x, chip.y, 3, chip.height);
     fitText(
-      label(scene, chip.x + 7, chip.y + chip.height / 2, notes.join(" · "), typeRole.label, signal.caution.hex, dim).setOrigin(0, 0.5),
+      label(
+        scene,
+        chip.x + 7,
+        chip.y + chip.height / 2,
+        notes.join(" · "),
+        typeRole.label,
+        signal.caution.hex,
+        dim,
+      ).setOrigin(0, 0.5),
       chip.width - 10,
       typeRole.label.size,
     );
@@ -496,7 +628,12 @@ function drawEliminatedSeat(scene: Phaser.Scene, row: Rect, seat: SeatRow): void
 
   const name = scene.add.text(row.x + 6, row.y + 5, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex, 0.6));
   fitText(name, row.width * 0.5, typeRole.rowTitle.size);
-  rg.lineStyle(2, surface.paper.hex, 0.8).lineBetween(name.x - 2, name.y + name.height / 2, name.x + name.width + 2, name.y + name.height / 2);
+  rg.lineStyle(2, surface.paper.hex, 0.8).lineBetween(
+    name.x - 2,
+    name.y + name.height / 2,
+    name.x + name.width + 2,
+    name.y + name.height / 2,
+  );
   label(scene, row.x + 6, row.y + 22, "defeated · out of the game", typeRole.label, surface.paper.hex, ink.meta);
 
   const stamp = scene.add

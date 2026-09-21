@@ -25,7 +25,12 @@ export interface OverlayPanelLayout {
   readonly footer: Rect;
 }
 
-export function overlayPanelLayout(bounds: Rect, headerHeight: number, footerHeight: number, maxWidth: number = OVERLAY_MAX_WIDTH): OverlayPanelLayout {
+export function overlayPanelLayout(
+  bounds: Rect,
+  headerHeight: number,
+  footerHeight: number,
+  maxWidth: number = OVERLAY_MAX_WIDTH,
+): OverlayPanelLayout {
   const width = Math.min(maxWidth, bounds.width - OVERLAY_MARGIN * 2);
   const height = bounds.height - OVERLAY_MARGIN * 2;
   const panel: Rect = {
@@ -35,7 +40,12 @@ export function overlayPanelLayout(bounds: Rect, headerHeight: number, footerHei
     height,
   };
   const header: Rect = { x: panel.x, y: panel.y, width: panel.width, height: headerHeight };
-  const footer: Rect = { x: panel.x, y: panel.y + panel.height - footerHeight, width: panel.width, height: footerHeight };
+  const footer: Rect = {
+    x: panel.x,
+    y: panel.y + panel.height - footerHeight,
+    width: panel.width,
+    height: footerHeight,
+  };
   const body: Rect = {
     x: panel.x,
     y: header.y + header.height,

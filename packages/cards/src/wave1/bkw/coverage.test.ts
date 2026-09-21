@@ -5,18 +5,10 @@
  * own `BKW_ABILITIES`, or aliased as a Core reprint by `../reprints.ts` — except the two recorded, cited gaps (see
  * the doc comments on `BKW_NEMESIS` in `./nemesis.ts` and `BKW_OBLIGATION` in `./obligation.ts`).
  */
-import { BKW_CARDS, type AnyCard } from "@mc/content";
+import { BKW_CARDS } from "@mc/content";
 import { WAVE1_REPRINT_ABILITIES } from "../reprints.js";
 import { BKW_ABILITIES, BKW_NEMESIS_SKIPPED, BKW_OBLIGATION_SKIPPED } from "./index.js";
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    default:
-      return "abilities" in card ? card.abilities.map((ref) => ref.id) : [];
-  }
-}
+import { abilityRefIds } from "../../ability-refs.js";
 
 /** Ability ids intentionally left unscripted (see the doc comments on `BKW_NEMESIS`/`BKW_OBLIGATION` for the full citation). */
 const SKIPPED = new Set<string>([...BKW_NEMESIS_SKIPPED, ...BKW_OBLIGATION_SKIPPED]);
@@ -36,7 +28,10 @@ describe("bkw pack ability coverage", () => {
   it("every ability reference resolves — scripted directly, aliased as a Core reprint, or a recorded skip", () => {
     const registry: Record<string, unknown> = { ...WAVE1_REPRINT_ABILITIES, ...BKW_ABILITIES };
     const unresolved = allRefs.filter((id) => !(id in registry) && !SKIPPED.has(id));
-    expect(unresolved, `unresolved bkw ability refs (not scripted, not a Core reprint, not a recorded skip):\n${unresolved.join("\n")}`).toEqual([]);
+    expect(
+      unresolved,
+      `unresolved bkw ability refs (not scripted, not a Core reprint, not a recorded skip):\n${unresolved.join("\n")}`,
+    ).toEqual([]);
   });
 
   it("every recorded skip is real (still absent from the registry) and still printed on a real card", () => {

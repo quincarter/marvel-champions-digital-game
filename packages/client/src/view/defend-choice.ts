@@ -37,6 +37,8 @@ export interface DefendOptionView {
   /** "decline" draws the quiet "No defense" row; "defender" draws a card-backed row. */
   readonly kind: "decline" | "defender";
   readonly defenderInstanceId: InstanceId | null;
+  /** The card this option's thumbnail shows: the defender, or for "No defense" the character left to take the hit. */
+  readonly pictureInstanceId: InstanceId;
   readonly title: string;
   readonly exhaustsNames: readonly string[];
   readonly baseAtk: number;
@@ -49,9 +51,31 @@ export interface DefendOptionView {
   readonly consequences: readonly string[];
 }
 
+/**
+ * Why this attack is happening — the question "X attacks you" alone never answered. Read off the stack and the
+ * current step, never inferred from card text: an attack with a card's own frame underneath it was made *by that
+ * card's effect* ("Klaw attacks you" off a treachery, a Quickstrike minion's reveal); one with nothing underneath
+ * during step two of the villain phase is the ordinary activation (RRG 1.8 "Villain Phase", step 2).
+ */
+export interface DefendCauseView {
+  readonly kind: "villainActivation" | "minionActivation" | "cardEffect" | "attack";
+  /** "Villain phase · step 2 — the villain activates" / "Card effect — Gang-Up". */
+  readonly eyebrow: string;
+  /** The card whose effect made the attack happen, for its scan. Null for an ordinary activation. */
+  readonly sourceInstanceId: InstanceId | null;
+}
+
 export interface DefendAttackSummaryView {
   readonly attackerName: string;
   readonly targetName: string;
+  /** The enemy making the attack and the character it is aimed at — what the matchup strip draws scans of. */
+  readonly attackerInstanceId: InstanceId;
+  readonly targetInstanceId: InstanceId;
+  /** The target's own face-up name ("She-Hulk"), even when `targetName` reads "you". */
+  readonly targetCardName: string;
+  /** "Attacking you — She-Hulk" / "Attacking Doctor Strange's hero". */
+  readonly targetCaption: string;
+  readonly cause: DefendCauseView;
   readonly baseAtk: number;
   readonly facedownCount: number;
   /** What a forced interrupt already did to this activation, from the event frame's own `vars`. */
@@ -82,7 +106,9 @@ export function damageHeadline(bands: readonly DefendBand[]): string {
   const first = bands[0];
   const last = bands[bands.length - 1];
   if (!first || !last) return "No damage";
-  return first.damageTaken === last.damageTaken ? `${first.damageTaken} damage` : `${first.damageTaken}–${last.damageTaken} damage`;
+  return first.damageTaken === last.damageTaken
+    ? `${first.damageTaken} damage`
+    : `${first.damageTaken}–${last.damageTaken} damage`;
 }
 
 /** "8–12 of 16 HP" — pure over the bands and the two numbers the engine's own HP query already reports. */
@@ -120,12 +146,16 @@ export interface BandFacts {
 export function bandFactsOf(bands: readonly DefendBand[]): BandFacts {
   const defeated = bands.find((band) => band.defeated);
   const toughSpent = bands.some((band) => band.toughSpent);
-  const overkillBand = [...bands].reverse().find((band) => band.overkillAmount > 0 && band.overkillToInstanceId !== null);
+  const overkillBand = [...bands]
+    .reverse()
+    .find((band) => band.overkillAmount > 0 && band.overkillToInstanceId !== null);
   const retaliating = bands.find((band) => !band.defeated);
   return {
     defeatAt: defeated ? defeated.damageTaken : null,
     toughAbsorbsUpTo: toughSpent ? (bands[bands.length - 1]?.damageDealt ?? 0) : null,
-    overkill: overkillBand?.overkillToInstanceId ? { amount: overkillBand.overkillAmount, recipientInstanceId: overkillBand.overkillToInstanceId } : null,
+    overkill: overkillBand?.overkillToInstanceId
+      ? { amount: overkillBand.overkillAmount, recipientInstanceId: overkillBand.overkillToInstanceId }
+      : null,
     retaliate: retaliating && retaliating.retaliateToAttacker > 0 ? retaliating.retaliateToAttacker : null,
   };
 }
@@ -134,16 +164,27 @@ export function bandFactsOf(bands: readonly DefendBand[]): BandFacts {
  * `BandFacts`, worded — the design's own phrasing ("5–7 damage, and at 6 or more the ally is defeated" —
  * `defend-preview.ts`'s doc comment). Pure over strings, so a case doesn't need a `GameState` to name it.
  */
-export function consequenceLinesFrom(facts: BandFacts, targetName: string, overkillRecipientName: string | null, attackerName: string): readonly string[] {
+export function consequenceLinesFrom(
+  facts: BandFacts,
+  targetName: string,
+  overkillRecipientName: string | null,
+  attackerName: string,
+): readonly string[] {
   const lines: string[] = [];
   if (facts.defeatAt !== null) lines.push(`At ${facts.defeatAt}+ damage, ${targetName} is defeated.`);
-  if (facts.toughAbsorbsUpTo !== null) lines.push(`Tough absorbs it — up to ${facts.toughAbsorbsUpTo} damage prevented.`);
-  if (facts.overkill && overkillRecipientName) lines.push(`Overkill could spill up to ${facts.overkill.amount} to ${overkillRecipientName}.`);
+  if (facts.toughAbsorbsUpTo !== null)
+    lines.push(`Tough absorbs it — up to ${facts.toughAbsorbsUpTo} damage prevented.`);
+  if (facts.overkill && overkillRecipientName)
+    lines.push(`Overkill could spill up to ${facts.overkill.amount} to ${overkillRecipientName}.`);
   if (facts.retaliate !== null) lines.push(`Retaliate ${facts.retaliate} back to ${attackerName}.`);
   return lines;
 }
 
-function consequenceLines(state: GameState, attackerInstanceId: InstanceId, preview: DefendOptionPreview): readonly string[] {
+function consequenceLines(
+  state: GameState,
+  attackerInstanceId: InstanceId,
+  preview: DefendOptionPreview,
+): readonly string[] {
   const facts = bandFactsOf(preview.bands);
   return consequenceLinesFrom(
     facts,
@@ -154,10 +195,18 @@ function consequenceLines(state: GameState, attackerInstanceId: InstanceId, prev
 }
 
 /** "You defend" only for the viewer's own identity; every other defender is named — RRG "Defend" lets any player's ready character answer. */
-function optionTitle(state: GameState, preview: DefendOptionPreview, viewerId: PlayerId | null): { readonly kind: "decline" | "defender"; readonly title: string } {
+function optionTitle(
+  state: GameState,
+  preview: DefendOptionPreview,
+  viewerId: PlayerId | null,
+): { readonly kind: "decline" | "defender"; readonly title: string } {
   if (preview.defenderInstanceId === null) return { kind: "decline", title: "No defense" };
-  const isOwnIdentity = cardOf(state, preview.defenderInstanceId)?.type === "hero_identity" && preview.targetPlayerId === viewerId;
-  return { kind: "defender", title: isOwnIdentity ? "You defend" : `${faceUpName(state, preview.defenderInstanceId)} defends` };
+  const isOwnIdentity =
+    cardOf(state, preview.defenderInstanceId)?.type === "hero_identity" && preview.targetPlayerId === viewerId;
+  return {
+    kind: "defender",
+    title: isOwnIdentity ? "You defend" : `${faceUpName(state, preview.defenderInstanceId)} defends`,
+  };
 }
 
 function optionViewOf(
@@ -174,6 +223,7 @@ function optionViewOf(
     selected: selected.includes(preview.optionId),
     kind,
     defenderInstanceId: preview.defenderInstanceId,
+    pictureInstanceId: preview.defenderInstanceId ?? preview.targetInstanceId,
     title,
     exhaustsNames: preview.exhausts.map((id) => cardName(state, id)),
     baseAtk: preview.baseAtk,
@@ -190,7 +240,10 @@ export function forcedNotesOf(vars: Vars): readonly string[] {
   const atkBonus = vars.atkBonus ?? 0;
   if (atkBonus !== 0) notes.push(`Forced interrupt: ${atkBonus > 0 ? "+" : ""}${atkBonus} ATK for this activation.`);
   const extraBoost = vars.extraBoost ?? 0;
-  if (extraBoost > 0) notes.push(`Forced interrupt: +${extraBoost} additional boost card${extraBoost === 1 ? "" : "s"} for this activation.`);
+  if (extraBoost > 0)
+    notes.push(
+      `Forced interrupt: +${extraBoost} additional boost card${extraBoost === 1 ? "" : "s"} for this activation.`,
+    );
   if ((vars.overkill ?? 0) > 0) notes.push("Forced interrupt: this attack has gained Overkill.");
   return notes;
 }
@@ -222,7 +275,14 @@ function stackRowLabel(state: GameState, entry: StackEntry): string {
     }
     case "window": {
       const half = entry.timing === "interrupt" ? "Interrupt window" : "Response window";
-      const doing = entry.awaiting === "order" ? "ordering" : entry.awaiting === "pay" ? "paying for" : entry.awaiting === "select" ? "choosing" : null;
+      const doing =
+        entry.awaiting === "order"
+          ? "ordering"
+          : entry.awaiting === "pay"
+            ? "paying for"
+            : entry.awaiting === "select"
+              ? "choosing"
+              : null;
       return doing ? `${half} — ${doing}` : half;
     }
     default: {
@@ -254,12 +314,53 @@ function stackRowsOf(state: GameState): readonly DefendStackRowView[] {
 function defenseEventsNoteOf(state: GameState, choice: PendingChoice, deps: EngineDeps): string {
   const actions = legalActions(state, choice.playerId, deps);
   if (actions.kind !== "turn") return "Nothing playable in hand right now.";
-  const events = actions.legal.filter((entry) => entry.action.kind === "playCard" && cardOf(state, entry.action.instanceId)?.type === "event");
+  const events = actions.legal.filter(
+    (entry) => entry.action.kind === "playCard" && cardOf(state, entry.action.instanceId)?.type === "event",
+  );
   if (events.length === 0) return "Nothing playable in hand right now.";
   return events
     .map((entry) => (entry.action.kind === "playCard" ? cardName(state, entry.action.instanceId) : null))
     .filter((name): name is string => name !== null)
     .join(", ");
+}
+
+const EFFECT_FRAMES: ReadonlySet<string> = new Set(["ability", "effects", "reveal", "playCard"]);
+
+/**
+ * Pure over the stack rows, the step and the attacker's card type, so every branch is checkable without a game.
+ * `entries` is `stackEntries` order: depth 0 resolving now, deeper frames queued behind it — so "underneath the
+ * attack" is every entry after the `enemyAttack` procedure frame.
+ */
+export function defendCauseFrom(
+  entries: readonly Pick<StackEntry, "kind" | "subjectInstanceId">[],
+  attackerInstanceId: InstanceId,
+  attackerType: string | undefined,
+  inActivationStep: boolean,
+  nameOf: (id: InstanceId) => string,
+): DefendCauseView {
+  const attackAt = entries.findIndex((entry) => entry.kind === "enemyAttack");
+  const beneath = attackAt < 0 ? [] : entries.slice(attackAt + 1);
+  const source = beneath.find((entry) => EFFECT_FRAMES.has(entry.kind) && entry.subjectInstanceId !== null);
+  if (source?.subjectInstanceId) {
+    const own = source.subjectInstanceId === attackerInstanceId;
+    return {
+      kind: "cardEffect",
+      eyebrow: own
+        ? `Card effect — ${nameOf(attackerInstanceId)}'s own ability`
+        : `Card effect — ${nameOf(source.subjectInstanceId)}`,
+      sourceInstanceId: own ? null : source.subjectInstanceId,
+    };
+  }
+  if (inActivationStep) {
+    return attackerType === "minion"
+      ? { kind: "minionActivation", eyebrow: "Villain phase · step 2 — a minion activates", sourceInstanceId: null }
+      : {
+          kind: "villainActivation",
+          eyebrow: "Villain phase · step 2 — the villain activates",
+          sourceInstanceId: null,
+        };
+  }
+  return { kind: "attack", eyebrow: "Enemy attack", sourceInstanceId: null };
 }
 
 /** "Declare your defender · other players may still respond after the attack resolves." / "· Peril — nobody else may act." */
@@ -291,9 +392,23 @@ export function defendChoiceViewOf(
   const targetCharacterInstanceId = choice.prompt.attack.targetCharacterInstanceId;
   const forcedEntry = stackEntries(state).find((entry) => entry.kind === "event" && entry.eventKind === "enemyAttack");
 
+  const targetSeat = seatName(state, choice.prompt.attack.targetPlayerId, viewerId);
+  const targetCardName = faceUpName(state, targetCharacterInstanceId);
   const summary: DefendAttackSummaryView = {
     attackerName: faceUpName(state, attackerInstanceId),
-    targetName: seatName(state, choice.prompt.attack.targetPlayerId, viewerId) === "You" ? "you" : faceUpName(state, targetCharacterInstanceId),
+    targetName: targetSeat === "You" ? "you" : targetCardName,
+    attackerInstanceId,
+    targetInstanceId: targetCharacterInstanceId,
+    targetCardName,
+    targetCaption:
+      targetSeat === "You" ? `Attacking you — ${targetCardName}` : `Attacking ${targetSeat} — ${targetCardName}`,
+    cause: defendCauseFrom(
+      stackEntries(state),
+      attackerInstanceId,
+      cardOf(state, attackerInstanceId)?.type,
+      state.step.phase === "villain" && state.step.kind === "enemyActivations",
+      (id) => faceUpName(state, id),
+    ),
     baseAtk: first.baseAtk,
     facedownCount: first.boost.facedownCount,
     forcedNotes: forcedNotesOf(forcedEntry?.vars ?? {}),

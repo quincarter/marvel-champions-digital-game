@@ -42,6 +42,14 @@ export type EncounterCardFlipSide = CardFlipSide;
 interface EncounterCardCommon extends BaseCard {
   readonly encounterSetIds: readonly EncounterSetId[];
   readonly boostIcons: number;
+  /**
+   * True when the card's boost area prints a star icon (RRG 1.8 "Boost, Boost Icon": "If the boost field has a
+   * star icon, it indicates that the card has a 'Boost' ability [...] A star icon is not itself considered a boost
+   * icon"). Absent/`false` is "no star" — a boost area carries at most one, so this is a flag, not a count.
+   * `docs/phase7-wave2-data.md` documents the backfill: true exactly for cards whose text carries both a `[star]`
+   * token and a `Boost:` ability (validated against every pack's MarvelCDB `boost_star` field, 703/703 agreement).
+   */
+  readonly starIcon?: boolean;
   readonly traits: readonly Trait[];
   readonly keywords: readonly KeywordInstance[];
   readonly text: CardText;

@@ -90,13 +90,17 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     displayName: "Amplify",
     definition:
       "Every amplify icon in play adds one extra boost icon to each boost card turned face up during an enemy's activation, for as long as the icon stays in play.",
-    sources: [{ kind: "rrg", page: 7 }, { kind: "ruling", date: "January 11, 2026 - Ruling 1" }],
+    sources: [
+      { kind: "rrg", page: 7 },
+      { kind: "ruling", date: "January 11, 2026 - Ruling 1" },
+    ],
   },
   assault: {
     id: "assault",
     kind: "keyword",
     displayName: "Assault",
-    definition: "A character making a basic thwart against a scheme with this keyword uses its ATK value instead of its THW value for that thwart.",
+    definition:
+      "A character making a basic thwart against a scheme with this keyword uses its ATK value instead of its THW value for that thwart.",
     sources: [{ kind: "rrg", page: 8 }],
   },
   find: {
@@ -105,20 +109,27 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     displayName: "Find",
     definition:
       "An instruction to search every in-game area a card could be in (play areas, decks, discard piles, set-aside area, etc.) for a specific card; it can't reach facedown cards in play or the victory display, and can't reach a collection outside the current game.",
-    sources: [{ kind: "rrg", page: 19 }, { kind: "ruling", date: "December 17, 2025 - Ruling 4" }],
+    sources: [
+      { kind: "rrg", page: 19 },
+      { kind: "ruling", date: "December 17, 2025 - Ruling 4" },
+    ],
   },
   guard: {
     id: "guard",
     kind: "keyword",
     displayName: "Guard",
     definition: "While a minion with this keyword is engaged with you, none of your cards can attack the villain.",
-    sources: [{ kind: "rrg", page: 21 }, { kind: "ruling", date: "April 30, 2026 - Ruling 2" }],
+    sources: [
+      { kind: "rrg", page: 21 },
+      { kind: "ruling", date: "April 30, 2026 - Ruling 2" },
+    ],
   },
   hinder: {
     id: "hinder",
     kind: "keyword",
     displayName: "Hinder X",
-    definition: "A card with 'Hinder X' enters play carrying X threat already on it, in addition to any starting threat it would normally have.",
+    definition:
+      "A card with 'Hinder X' enters play carrying X threat already on it, in addition to any starting threat it would normally have.",
     sources: [{ kind: "rrg", page: 22 }],
   },
   incite: {
@@ -127,7 +138,10 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     displayName: "Incite X",
     definition:
       "When a card with 'Incite X' is revealed, it immediately places X threat on the main scheme — a separate effect from the rest of the card's text, so it still happens even if the rest of the card fails to do anything.",
-    sources: [{ kind: "rrg", page: 24 }, { kind: "ruling", date: "June 25, 2026 - Ruling 4" }],
+    sources: [
+      { kind: "rrg", page: 24 },
+      { kind: "ruling", date: "June 25, 2026 - Ruling 4" },
+    ],
   },
   linked: {
     id: "linked",
@@ -135,7 +149,10 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     displayName: "Linked (Card Title)",
     definition:
       "Cards named as 'linked' to another card can never be added to a deck by a player. They're only set aside during setup, one set for each deck that includes the named card that brings them in, and never count toward deck size.",
-    sources: [{ kind: "rrg", page: 27 }, { kind: "ruling", date: "August 3, 2026 - Ruling 4" }],
+    sources: [
+      { kind: "rrg", page: 27 },
+      { kind: "ruling", date: "August 3, 2026 - Ruling 4" },
+    ],
   },
   overkill: {
     id: "overkill",
@@ -143,7 +160,10 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     displayName: "Overkill",
     definition:
       "If an attack with this keyword defeats an ally or minion, any damage beyond what was needed to defeat it spills over onto that ally's controller (their identity) or onto the villain, instead of being wasted.",
-    sources: [{ kind: "rrg", page: 31 }, { kind: "ruling", date: "January 26, 2026 - Ruling 3" }],
+    sources: [
+      { kind: "rrg", page: 31 },
+      { kind: "ruling", date: "January 26, 2026 - Ruling 3" },
+    ],
   },
   patrol: {
     id: "patrol",
@@ -158,7 +178,10 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     displayName: "Peril",
     definition:
       "While a card with this keyword is being resolved, the player resolving it can't ask teammates for advice, and everyone else is locked out of playing cards or using abilities — including abilities on the peril card itself, while it's in that player's play area.",
-    sources: [{ kind: "rrg", page: 32 }, { kind: "ruling", date: "July 9, 2026 - Ruling 3" }],
+    sources: [
+      { kind: "rrg", page: 32 },
+      { kind: "ruling", date: "July 9, 2026 - Ruling 3" },
+    ],
   },
   permanent: {
     id: "permanent",
@@ -172,15 +195,22 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     id: "piercing",
     kind: "keyword",
     displayName: "Piercing",
-    definition: "An attack with this keyword discards any tough status card from its target before dealing damage, so a tough status card doesn't stop it.",
-    sources: [{ kind: "rrg", page: 32 }, { kind: "ruling", date: "January 17, 2026 - Ruling 3" }],
+    definition:
+      "An attack with this keyword discards any tough status card from its target before dealing damage, so a tough status card doesn't stop it.",
+    sources: [
+      { kind: "rrg", page: 32 },
+      { kind: "ruling", date: "January 17, 2026 - Ruling 3" },
+    ],
   },
   quickstrike: {
     id: "quickstrike",
     kind: "keyword",
     displayName: "Quickstrike",
     definition: "A minion with this keyword attacks the hero it just engaged, right after engaging them.",
-    sources: [{ kind: "rrg", page: 36 }, { kind: "ruling", date: "February 28, 2026 - Ruling 4" }],
+    sources: [
+      { kind: "rrg", page: 36 },
+      { kind: "ruling", date: "February 28, 2026 - Ruling 4" },
+    ],
     conflict:
       "RRG 1.8 p. 36 states quickstrike 'resolves after any When Revealed abilities on that minion are resolved' when the minion is being revealed. The February 28, 2026 - Ruling 4 answer (item 2, the Hellcat example) instead says 'Quickstrike resolves first, followed by When Revealed' for that same case. This repo has not picked a side — implementers should treat the resolution order of quickstrike vs. a revealed minion's own When Revealed ability as unresolved pending a newer FFG clarification, rather than trusting either source alone.",
   },
@@ -188,7 +218,8 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     id: "ranged",
     kind: "keyword",
     displayName: "Ranged",
-    definition: "An attack with this keyword ignores the retaliate keyword — a retaliating character doesn't get to deal damage back from it.",
+    definition:
+      "An attack with this keyword ignores the retaliate keyword — a retaliating character doesn't get to deal damage back from it.",
     sources: [{ kind: "rrg", page: 36 }],
   },
   requirement: {
@@ -213,13 +244,17 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     displayName: "Retaliate X",
     definition:
       "After a character with 'Retaliate X' is attacked, it automatically deals X damage back to whoever attacked it, as long as the character is still in play once the attack finishes resolving.",
-    sources: [{ kind: "rrg", page: 38 }, { kind: "ruling", date: "February 28, 2026 - Ruling 1" }],
+    sources: [
+      { kind: "rrg", page: 38 },
+      { kind: "ruling", date: "February 28, 2026 - Ruling 1" },
+    ],
   },
   setup: {
     id: "setup",
     kind: "keyword",
     displayName: "Setup",
-    definition: "A card with this keyword begins the game already in play, put there during the setup process rather than drawn and played normally.",
+    definition:
+      "A card with this keyword begins the game already in play, put there during the setup process rather than drawn and played normally.",
     sources: [{ kind: "rrg", page: 40 }],
   },
   stalwart: {
@@ -244,7 +279,10 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     displayName: "Surge",
     definition:
       "When a card with this keyword is revealed, the same player immediately deals themselves one more facedown encounter card, as a When Revealed effect that can itself be canceled.",
-    sources: [{ kind: "rrg", page: 42 }, { kind: "ruling", date: "August 3, 2026 - Ruling 3" }],
+    sources: [
+      { kind: "rrg", page: 42 },
+      { kind: "ruling", date: "August 3, 2026 - Ruling 3" },
+    ],
   },
   teamUp: {
     id: "teamUp",
@@ -273,8 +311,12 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     id: "toughness",
     kind: "keyword",
     displayName: "Toughness",
-    definition: "A character with this keyword enters play already holding a tough status card, including when it enters play during setup.",
-    sources: [{ kind: "rrg", page: 45 }, { kind: "ruling", date: "April 30, 2026 - Ruling 3" }],
+    definition:
+      "A character with this keyword enters play already holding a tough status card, including when it enters play during setup.",
+    sources: [
+      { kind: "rrg", page: 45 },
+      { kind: "ruling", date: "April 30, 2026 - Ruling 3" },
+    ],
   },
   uses: {
     id: "uses",
@@ -298,7 +340,10 @@ const KEYWORD_GLOSSARY: Record<KeywordName, GlossaryEntry<KeywordName>> = {
     displayName: "Villainous",
     definition:
       "A character with this keyword is dealt a facedown boost card whenever it uses a basic power; the card is turned face up and its boost icons/ability apply only to that one use. Only the character actually activating gets a boost card this way.",
-    sources: [{ kind: "rrg", page: 47 }, { kind: "ruling", date: "February 28, 2026 - Ruling 6" }],
+    sources: [
+      { kind: "rrg", page: 47 },
+      { kind: "ruling", date: "February 28, 2026 - Ruling 6" },
+    ],
   },
   vulnerable: {
     id: "vulnerable",
@@ -351,7 +396,10 @@ const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
     displayName: "Confused",
     definition:
       "Cancels a character's very next scheme or thwart attempt: instead of scheming/thwarting, the confused card is discarded (any cost already paid to attempt it, such as exhausting the character, still stands).",
-    sources: [{ kind: "rrg", page: 13 }, { kind: "ruling", date: "February 28, 2026 - Ruling 5" }],
+    sources: [
+      { kind: "rrg", page: 13 },
+      { kind: "ruling", date: "February 28, 2026 - Ruling 5" },
+    ],
   },
   stunned: {
     id: "stunned",
@@ -359,7 +407,10 @@ const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
     displayName: "Stunned",
     definition:
       "Cancels a character's very next attack attempt: instead of attacking, the stunned card is discarded (any cost already paid to attempt it still stands, and the card is still considered to have been played).",
-    sources: [{ kind: "rrg", page: 41 }, { kind: "ruling", date: "August 13, 2026 - Ruling 1" }],
+    sources: [
+      { kind: "rrg", page: 41 },
+      { kind: "ruling", date: "August 13, 2026 - Ruling 1" },
+    ],
   },
   tough: {
     id: "tough",
@@ -367,7 +418,10 @@ const STATUS_GLOSSARY: Record<StatusName, GlossaryEntry<StatusName>> = {
     displayName: "Tough",
     definition:
       "Prevents all damage the next time a character with this status would take any — the damage is fully prevented and a tough card is discarded instead, rather than the damage being reduced.",
-    sources: [{ kind: "rrg", page: 44 }, { kind: "ruling", date: "March 6, 2026 - Ruling 1" }],
+    sources: [
+      { kind: "rrg", page: 44 },
+      { kind: "ruling", date: "March 6, 2026 - Ruling 1" },
+    ],
   },
 };
 
@@ -377,7 +431,9 @@ export const GLOSSARY_ENTRIES: readonly GlossaryEntry[] = [
   ...STATUS_NAMES.map((name) => STATUS_GLOSSARY[name]),
 ];
 
-const GLOSSARY_BY_ID: ReadonlyMap<GlossaryId, GlossaryEntry> = new Map(GLOSSARY_ENTRIES.map((entry) => [entry.id as GlossaryId, entry]));
+const GLOSSARY_BY_ID: ReadonlyMap<GlossaryId, GlossaryEntry> = new Map(
+  GLOSSARY_ENTRIES.map((entry) => [entry.id as GlossaryId, entry]),
+);
 
 /** Look up a single glossary entry by its keyword or status id. Returns `undefined` for an id the glossary doesn't cover. */
 export function glossaryEntry(id: GlossaryId): GlossaryEntry | undefined {

@@ -90,7 +90,9 @@ export function targetingPanelOf(
   buildCommand: (target: InstanceId) => Command,
   deps: EngineDeps,
 ): TargetingPanel {
-  const options = action.targets.map((instanceId) => optionOf(state, instanceId, preview(state, buildCommand(instanceId), deps)));
+  const options = action.targets.map((instanceId) =>
+    optionOf(state, instanceId, preview(state, buildCommand(instanceId), deps)),
+  );
   return {
     title: "Choose a target",
     source: { ...source, art: artOf(state, source.instanceId) },
@@ -101,7 +103,13 @@ export function targetingPanelOf(
 
 function optionOf(state: GameState, instanceId: InstanceId, result: OutcomePreview): TargetOption {
   const lines = outcomeLines(result, (id) => cardName(state, id), instanceId);
-  return { instanceId, name: cardName(state, instanceId), lines, confirmLine: confirmLineOf(lines), art: artOf(state, instanceId) };
+  return {
+    instanceId,
+    name: cardName(state, instanceId),
+    lines,
+    confirmLine: confirmLineOf(lines),
+    art: artOf(state, instanceId),
+  };
 }
 
 /**
@@ -109,7 +117,10 @@ function optionOf(state: GameState, instanceId: InstanceId, result: OutcomePrevi
  * `no_valid_target`) but its `message` is already specific. Exposed for tests: everything it needs is either on
  * `BlockedTarget` or handed in as `nameOf`, so it needs no `GameState` of its own.
  */
-export function groupBlockedByMessage(blocked: readonly BlockedTarget[], nameOf: (id: InstanceId) => string): readonly ExcludedGroup[] {
+export function groupBlockedByMessage(
+  blocked: readonly BlockedTarget[],
+  nameOf: (id: InstanceId) => string,
+): readonly ExcludedGroup[] {
   const byMessage = new Map<string, { readonly code: string; readonly names: string[] }>();
   for (const entry of blocked) {
     const bucket = byMessage.get(entry.message) ?? { code: entry.reason, names: [] };
@@ -130,7 +141,10 @@ export function excludedGroupsOf(state: GameState, exclusions: readonly ChoiceEx
 }
 
 /** `excludedGroupsOf`, minus the `GameState` — exposed for tests the same way `groupBlockedByMessage` is. */
-export function groupExclusionsByCode(exclusions: readonly ChoiceExclusion[], nameOf: (id: InstanceId) => string): readonly ExcludedGroup[] {
+export function groupExclusionsByCode(
+  exclusions: readonly ChoiceExclusion[],
+  nameOf: (id: InstanceId) => string,
+): readonly ExcludedGroup[] {
   const byCode = new Map<ExclusionCode, string[]>();
   for (const entry of exclusions) {
     const names = byCode.get(entry.reason) ?? [];
@@ -146,7 +160,11 @@ export function groupExclusionsByCode(exclusions: readonly ChoiceExclusion[], na
  * `OutcomePreview` fixtures without running the engine at all (the engine already proves `preview`'s own
  * correctness; this only proves the wording is right once `preview` has spoken).
  */
-export function outcomeLines(result: OutcomePreview, nameOf: (id: InstanceId) => string, primaryId: InstanceId): readonly string[] {
+export function outcomeLines(
+  result: OutcomePreview,
+  nameOf: (id: InstanceId) => string,
+  primaryId: InstanceId,
+): readonly string[] {
   if (result.stop.kind === "rejected") return [result.stop.message];
 
   const lines: string[] = [];
@@ -172,7 +190,9 @@ function counterOutcome(counter: PreviewCounter, events: readonly GameEvent[]): 
   const { instanceId: id, before, after } = counter;
   const lines: string[] = [];
 
-  const defeated = events.some((event) => (event.type === "characterDefeated" || event.type === "schemeDefeated") && event.instanceId === id);
+  const defeated = events.some(
+    (event) => (event.type === "characterDefeated" || event.type === "schemeDefeated") && event.instanceId === id,
+  );
 
   if (before.remainingHitPoints !== null) {
     if (defeated || !after.inPlay) {
@@ -181,7 +201,11 @@ function counterOutcome(counter: PreviewCounter, events: readonly GameEvent[]): 
       lines.push(`${before.remainingHitPoints} HP → ${after.remainingHitPoints} HP`);
     }
 
-    if (events.some((event) => event.type === "damagePrevented" && event.targetInstanceId === id && event.reason === "tough")) {
+    if (
+      events.some(
+        (event) => event.type === "damagePrevented" && event.targetInstanceId === id && event.reason === "tough",
+      )
+    ) {
       lines.push("Toughness absorbed it.");
     }
 
@@ -189,7 +213,10 @@ function counterOutcome(counter: PreviewCounter, events: readonly GameEvent[]): 
     if (overkill?.type === "overkillSpilled") {
       lines.push(`Overkill: ${overkill.amount} spills over.`);
     } else if (defeated) {
-      const dealt = events.reduce((sum, event) => (event.type === "damageDealt" && event.targetInstanceId === id ? sum + event.amount : sum), 0);
+      const dealt = events.reduce(
+        (sum, event) => (event.type === "damageDealt" && event.targetInstanceId === id ? sum + event.amount : sum),
+        0,
+      );
       const wasted = dealt - before.remainingHitPoints;
       if (wasted > 0) lines.push(`No overkill, so ${wasted} was lost.`);
     }
@@ -197,7 +224,8 @@ function counterOutcome(counter: PreviewCounter, events: readonly GameEvent[]): 
 
   if (before.threat !== null) {
     if (defeated) lines.push("Cleared.");
-    else if (after.threat !== null && after.threat !== before.threat) lines.push(`${before.threat} threat → ${after.threat} threat`);
+    else if (after.threat !== null && after.threat !== before.threat)
+      lines.push(`${before.threat} threat → ${after.threat} threat`);
   }
 
   return lines;
@@ -219,7 +247,8 @@ function stopCaveat(stop: PreviewStop): string | null {
     case "choice":
       // RRG 1.8 p. 5's simultaneous timing priority: a preview is what happens if nobody responds.
       if (stop.prompt.kind === "chooseTriggers") return "If nobody responds.";
-      if (stop.prompt.kind === "chooseTarget" || stop.prompt.kind === "chooseAttachmentTarget") return "…then you'll choose a target.";
+      if (stop.prompt.kind === "chooseTarget" || stop.prompt.kind === "chooseAttachmentTarget")
+        return "…then you'll choose a target.";
       return "…then a further choice.";
   }
 }

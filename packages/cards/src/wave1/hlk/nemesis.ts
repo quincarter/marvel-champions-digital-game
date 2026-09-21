@@ -1,4 +1,27 @@
-import { after, bindTargets, chooseTarget, chosen, constant, defineAbilities, each, firstPlayer, forcedResponse, ifThen, inPlay, moveCards, not, query, rule, statOf, surge, takeDamage, topOfDeck, varAtLeast, whenRevealed, you } from "../../dsl/index.js";
+import {
+  after,
+  bindTargets,
+  chooseTarget,
+  chosen,
+  constant,
+  defineAbilities,
+  each,
+  firstPlayer,
+  forcedResponse,
+  ifThen,
+  inPlay,
+  moveCards,
+  not,
+  query,
+  rule,
+  statOf,
+  surge,
+  takeDamage,
+  topOfDeck,
+  varAtLeast,
+  whenRevealed,
+  you,
+} from "../../dsl/index.js";
 import { cardName } from "../names.js";
 import { enemyAttackCharacter, refMatchesAnywhere, superlative } from "./local.js";
 
@@ -17,11 +40,16 @@ export const HLK_NEMESIS = defineAbilities({
   "10026.abomination-forced-response": forcedResponse(
     after.enemyAttacks("self", { againstYou: true }),
     moveCards(topOfDeck(1, you), "discard", "milled"),
-    ifThen(refMatchesAnywhere(chosen("milled"), query("resource", { printedResource: "physical" })), takeDamage(2, you)),
+    ifThen(
+      refMatchesAnywhere(chosen("milled"), query("resource", { printedResource: "physical" })),
+      takeDamage(2, you),
+    ),
   ),
 
   // Total Destruction — Threat cannot be removed from this scheme while Abomination is in play.
-  "10027.total-destruction-constant": constant(rule({ kind: "threatCannotBeRemoved", target: { self: true }, while: inPlay(ABOMINATION_NAME) })),
+  "10027.total-destruction-constant": constant(
+    rule({ kind: "threatCannotBeRemoved", target: { self: true }, while: inPlay(ABOMINATION_NAME) }),
+  ),
 
   // Clash of the Titans — When Revealed: The enemy with the highest ATK attacks the hero or ally with the highest ATK
   // (first player decides ties.) If no attack was made this way, this card gains surge.
@@ -30,7 +58,10 @@ export const HLK_NEMESIS = defineAbilities({
   "10028.when-revealed": whenRevealed(
     bindTargets("strongestEnemies", superlative("highest", each(query("enemy")), statOf(chosen("candidate"), "atk"))),
     chooseTarget("attacker", { inSlot: "strongestEnemies" }, { chooser: firstPlayer }),
-    bindTargets("strongestCharacters", superlative("highest", each({ categories: ["hero", "ally"] }), statOf(chosen("candidate"), "atk"))),
+    bindTargets(
+      "strongestCharacters",
+      superlative("highest", each({ categories: ["hero", "ally"] }), statOf(chosen("candidate"), "atk")),
+    ),
     chooseTarget("defender", { inSlot: "strongestCharacters" }, { chooser: firstPlayer }),
     enemyAttackCharacter(chosen("attacker"), chosen("defender"), "clash"),
     ifThen(not(varAtLeast("clash.made")), surge()),

@@ -171,7 +171,9 @@ describe("seat rows and what is aimed at a seat", () => {
     // Mid player phase, after that seat would have gone: exactly when "done" used to show.
     const eliminated: GameState = {
       ...state,
-      players: state.players.map((player) => (player.playerId === seat.playerId ? { ...player, eliminated: true } : player)),
+      players: state.players.map((player) =>
+        player.playerId === seat.playerId ? { ...player, eliminated: true } : player,
+      ),
       step: { phase: "player", kind: "turn", activePlayerId: viewer, remainingPlayerIds: [] },
     };
     const row = boardModel(eliminated, viewer, CORE_DEPS).team[0]!;
@@ -187,7 +189,13 @@ describe("seat rows and what is aimed at a seat", () => {
       ...state,
       lastingEffects: [
         ...state.lastingEffects,
-        { id: "test-helicarrier", kind: "costReduction", playerId: seat.playerId, amount: 1, duration: { kind: "endOfPhase" } },
+        {
+          id: "test-helicarrier",
+          kind: "costReduction",
+          playerId: seat.playerId,
+          amount: 1,
+          duration: { kind: "endOfPhase" },
+        },
       ],
     };
     const model = boardModel(reduced, viewer, CORE_DEPS);
@@ -202,7 +210,10 @@ describe("seat rows and what is aimed at a seat", () => {
     const lentId = seat.hand[0]!;
     const lent: GameState = {
       ...state,
-      instances: { ...state.instances, [lentId]: { ...state.instances[lentId]!, ownerId: seat.playerId, controllerId: viewer, faceup: true } },
+      instances: {
+        ...state.instances,
+        [lentId]: { ...state.instances[lentId]!, ownerId: seat.playerId, controllerId: viewer, faceup: true },
+      },
       players: state.players.map((player) => {
         if (player.playerId === viewer) return { ...player, playArea: [...player.playArea, lentId] };
         if (player.playerId === seat.playerId) return { ...player, hand: player.hand.filter((id) => id !== lentId) };
@@ -295,7 +306,6 @@ describe("facedown cards", () => {
   test("a facedown encounter card shows a deck back, never its own face", async () => {
     const store = await intoPlay(KLAW_TWO);
     const state = store.state.game!;
-    const me = store.state.perspectiveId!;
 
     const hidden = activeEncounterDeck(state).deck[0]!;
     const face = faceOf(state, hidden);
@@ -400,7 +410,9 @@ describe("facedown minions", () => {
         if (!end) break;
         await store.dispatch(end.example);
       } else break;
-      drone = Object.values(store.state.game!.instances).find((instance) => instance.facedownAs?.kind === "minion")?.instanceId;
+      drone = Object.values(store.state.game!.instances).find(
+        (instance) => instance.facedownAs?.kind === "minion",
+      )?.instanceId;
     }
 
     expect(drone).toBeDefined();
@@ -427,7 +439,12 @@ describe("a card tucked under a scheme", () => {
    */
   test("schemePanel reports how many cards are tucked under it, without naming them", async () => {
     const store = new SessionStore(new LocalEngineHost());
-    await store.start({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 2 });
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 2,
+    });
     const state = store.state.game!;
     const schemeId = state.mainScheme.instanceId;
     const hiddenId = state.players[0]!.deck[0]!;

@@ -84,7 +84,17 @@ export const POOL_VERSION: string = poolVersionOf(POOL_CARDS);
  * each pack module exports its own `*_PACK` constant), so this is that aggregate, scoped to what the app's pool
  * actually knows.
  */
-export const POOL_PACKS: readonly Pack[] = [CORE_PACK, GOB_PACK, TWC_PACK, CAP_PACK, MSM_PACK, THOR_PACK, BKW_PACK, DRS_PACK, HLK_PACK];
+export const POOL_PACKS: readonly Pack[] = [
+  CORE_PACK,
+  GOB_PACK,
+  TWC_PACK,
+  CAP_PACK,
+  MSM_PACK,
+  THOR_PACK,
+  BKW_PACK,
+  DRS_PACK,
+  HLK_PACK,
+];
 
 /** A pack's own display name ("The Wrecking Crew") by its code ("twc"), falling back to the code itself if the pool ever names one this list doesn't have. */
 export function packNameOf(code: string): string {

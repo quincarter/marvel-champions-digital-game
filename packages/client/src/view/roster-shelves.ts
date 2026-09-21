@@ -99,7 +99,9 @@ export function shelvesOf<T>(
   const survivors = (packCode: string, title: string | null): readonly T[] => {
     const bucket = byPack.get(packCode) ?? [];
     const packNameMatches = q !== "" && title !== null && normalizeSearch(title).includes(q);
-    return (packNameMatches ? bucket : bucket.filter((c) => matchesSearch(c.searchHaystacks, query))).map((c) => c.item);
+    return (packNameMatches ? bucket : bucket.filter((c) => matchesSearch(c.searchHaystacks, query))).map(
+      (c) => c.item,
+    );
   };
 
   const shelves: Shelf<T>[] = [];

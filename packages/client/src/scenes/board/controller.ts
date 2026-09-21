@@ -21,7 +21,12 @@ import {
   type DiscardChoiceView,
 } from "../../view/discard-choice-model.js";
 import { focusOrder, type FocusTarget } from "../../view/focus.js";
-import { abilityActionsFor, type BasicAction, type Highlights, type UsableAbilityAction } from "../../view/highlights.js";
+import {
+  abilityActionsFor,
+  type BasicAction,
+  type Highlights,
+  type UsableAbilityAction,
+} from "../../view/highlights.js";
 import { cardName, seatIdentityName } from "../../view/names.js";
 import { beginPayment, paymentView, togglePayment, type PaymentView } from "../../view/payment-model.js";
 import { targetingPanelOf, type TargetingPanel, type TargetingSource } from "../../view/targeting-panel.js";
@@ -69,13 +74,25 @@ function withController(command: Command, controllerId: PlayerId | null): Comman
 function sourceOf(state: GameState, action: LegalAction): TargetingSource {
   const { action: ref } = action;
   if (ref.kind === "basicAttack") {
-    return { label: `${cardName(state, ref.instanceId)} — Attack${statSuffix(state, ref.instanceId, "ATK")}`, name: cardName(state, ref.instanceId), instanceId: ref.instanceId };
+    return {
+      label: `${cardName(state, ref.instanceId)} — Attack${statSuffix(state, ref.instanceId, "ATK")}`,
+      name: cardName(state, ref.instanceId),
+      instanceId: ref.instanceId,
+    };
   }
   if (ref.kind === "basicThwart") {
-    return { label: `${cardName(state, ref.instanceId)} — Thwart${statSuffix(state, ref.instanceId, "THW")}`, name: cardName(state, ref.instanceId), instanceId: ref.instanceId };
+    return {
+      label: `${cardName(state, ref.instanceId)} — Thwart${statSuffix(state, ref.instanceId, "THW")}`,
+      name: cardName(state, ref.instanceId),
+      instanceId: ref.instanceId,
+    };
   }
   if (ref.kind === "useAbility") {
-    return { label: abilityLabelOf(state, ref.instanceId, ref.abilityId, POOL_DEPS), name: cardName(state, ref.instanceId), instanceId: ref.instanceId };
+    return {
+      label: abilityLabelOf(state, ref.instanceId, ref.abilityId, POOL_DEPS),
+      name: cardName(state, ref.instanceId),
+      instanceId: ref.instanceId,
+    };
   }
   const instanceId = "instanceId" in ref ? ref.instanceId : action.targets[0]!;
   return { label: "Choose a target", name: cardName(state, instanceId), instanceId };
@@ -177,7 +194,13 @@ export class BoardController {
     const { game } = appSession().store.state;
     if (!game) return null;
     const { action } = this.#selection;
-    return targetingPanelOf(game, action, sourceOf(game, action), (target) => retarget(action.example, target), POOL_DEPS);
+    return targetingPanelOf(
+      game,
+      action,
+      sourceOf(game, action),
+      (target) => retarget(action.example, target),
+      POOL_DEPS,
+    );
   }
 
   /** Acts on the focused target, meaning whatever a tap or a press on it would mean right now. */
@@ -283,7 +306,9 @@ export class BoardController {
   async playCard(instanceId: InstanceId): Promise<void> {
     if (this.#readOnly) return;
     const entry = this.#host.marks()?.playable.has(instanceId)
-      ? this.#legalEntries().find((candidate) => candidate.action.kind === "playCard" && candidate.action.instanceId === instanceId)
+      ? this.#legalEntries().find(
+          (candidate) => candidate.action.kind === "playCard" && candidate.action.instanceId === instanceId,
+        )
       : undefined;
     if (!entry) return;
     // "Discard X cards from your hand" (Shield Toss, `03006`) is a real
@@ -386,7 +411,9 @@ export class BoardController {
     if (this.#tryOpenDiscardChoice(entry)) return;
     if (entry.targets.length > 1) {
       const { game } = appSession().store.state;
-      const name = game ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, POOL_DEPS) : "this ability";
+      const name = game
+        ? abilityLabelOf(game, entry.action.instanceId, entry.action.abilityId, POOL_DEPS)
+        : "this ability";
       this.#selection = { kind: "targeting", action: entry, prompt: `Choose a target for ${name}` };
       this.#host.redraw();
       return;
@@ -536,7 +563,8 @@ export class BoardController {
     const { game, perspectiveId } = store.state;
     if (!game || perspectiveId === null) return null;
     const { payment } = this.#selection;
-    const subject = payment.action.kind === "playCard" || payment.action.kind === "useAbility" ? payment.action.instanceId : null;
+    const subject =
+      payment.action.kind === "playCard" || payment.action.kind === "useAbility" ? payment.action.instanceId : null;
     const headline = [
       subject ? cardName(game, subject) : "This action",
       payment.target ? `→ ${cardName(game, payment.target)}` : null,

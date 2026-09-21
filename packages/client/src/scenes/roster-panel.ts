@@ -92,7 +92,16 @@ export function drawChoiceRow(
   const cellWidth = (rect.width - (cells.length - 1) * 6) / cells.length;
   cells.forEach((cell, index) => {
     const cellRect: Rect = { x: rect.x + index * (cellWidth + 6), y: rect.y, width: cellWidth, height: rect.height };
-    buttons.push(new McButton(scene, { kind, label: cell.text, type: typeRole.rowTitle, rect: cellRect, selected: cell.selected, onClick: cell.onClick }));
+    buttons.push(
+      new McButton(scene, {
+        kind,
+        label: cell.text,
+        type: typeRole.rowTitle,
+        rect: cellRect,
+        selected: cell.selected,
+        onClick: cell.onClick,
+      }),
+    );
     stops.set(`${focusPrefix}:${cell.id}`, { rect: cellRect, activate: cell.onClick });
   });
 }
@@ -108,7 +117,15 @@ export function drawChipStrip(
   kind: "secondary" | "onInk" = "secondary",
 ): void {
   rows.forEach((row, index) => {
-    drawChoiceRow(scene, { x: rect.x, y: rect.y + index * (hit.target + CHIP_GAP), width: rect.width, height: hit.target }, row, focusPrefix, buttons, stops, kind);
+    drawChoiceRow(
+      scene,
+      { x: rect.x, y: rect.y + index * (hit.target + CHIP_GAP), width: rect.width, height: hit.target },
+      row,
+      focusPrefix,
+      buttons,
+      stops,
+      kind,
+    );
   });
 }
 
@@ -145,7 +162,15 @@ export function renderRosterRow(scene: Phaser.Scene, rect: Rect, row: RosterRow)
   objects.push(title);
   const subtitleText = row.blockedBy ?? row.warning ?? row.subtitle;
   const subtitleColor = row.blockedBy ? accent.heroRed.hex : row.warning ? signal.caution.hex : surface.ink.hex;
-  const subtitle = label(scene, textX, inner.y + 8 + title.height + 3, subtitleText, typeRole.label, subtitleColor, row.blockedBy || row.warning ? 1 : ink.label * dim);
+  const subtitle = label(
+    scene,
+    textX,
+    inner.y + 8 + title.height + 3,
+    subtitleText,
+    typeRole.label,
+    subtitleColor,
+    row.blockedBy || row.warning ? 1 : ink.label * dim,
+  );
   fitText(subtitle, textWidth);
   objects.push(subtitle);
 
@@ -175,7 +200,9 @@ export function drawRosterList(
   if (rows.length === 0) {
     scene.add.text(rect.x + 10, rect.y + 10, "No matches.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
     const clearRect: Rect = { x: rect.x + 10, y: rect.y + 34, width: 100, height: hit.target };
-    buttons.push(new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }));
+    buttons.push(
+      new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }),
+    );
     stops.set(`${focusPrefix}-clear`, { rect: clearRect, activate: onClear });
   }
   const renderRow = (index: number, rowRect: Rect): VirtualListRow => renderRosterRow(scene, rowRect, rows[index]!);
@@ -183,7 +210,14 @@ export function drawRosterList(
     const row = rows[index];
     if (row && !row.blockedBy) row.onClick();
   };
-  const list = new McVirtualList(scene, { rect, rowHeight: ROSTER_ROW_HEIGHT, count: rows.length, renderRow, scroll, onRowActivate });
+  const list = new McVirtualList(scene, {
+    rect,
+    rowHeight: ROSTER_ROW_HEIGHT,
+    count: rows.length,
+    renderRow,
+    scroll,
+    onRowActivate,
+  });
   rows.forEach((row, index) => {
     const ensureVisible = (): void => list.scrollIntoView(index);
     stops.set(`${focusPrefix}:${row.id}`, {
@@ -219,6 +253,8 @@ export interface ShelfCardOptions {
   readonly warning: string | null;
   /** A small tag in the card's own top-right corner — "SELECTED", "SEAT 2", "AT THE TABLE" (D02/D03 both tag the top-right, not the top-left). Null draws none. */
   readonly tag: string | null;
+  /** Coloured stamps on the art's bottom-left corner — a deck's aspects (`view/aspect-stamp.ts`). Omitted or empty draws none. */
+  readonly stamps?: readonly { readonly label: string; readonly fill: number; readonly ink: number }[];
   readonly selected: boolean;
 }
 
@@ -240,7 +276,9 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
   objects.push(face);
 
   const artRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: rect.height - footerHeight };
-  const art = options.artKey ? drawArt(scene, options.artKey, artRect, { fit: options.artFit ?? "cover", alpha: dim }) : null;
+  const art = options.artKey
+    ? drawArt(scene, options.artKey, artRect, { fit: options.artFit ?? "cover", alpha: dim })
+    : null;
   if (art) objects.push(art);
   else {
     const placeholder = scene.add.graphics();
@@ -256,15 +294,45 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
   objects.push(title);
   const subtitleText = options.warning ?? options.subtitle;
   const subtitleColor = options.warning ? signal.caution.hex : surface.ink.hex;
-  const subtitle = label(scene, textX, textY + title.height + 3, subtitleText, typeRole.label, subtitleColor, options.warning ? 1 : ink.label * dim);
+  const subtitle = label(
+    scene,
+    textX,
+    textY + title.height + 3,
+    subtitleText,
+    typeRole.label,
+    subtitleColor,
+    options.warning ? 1 : ink.label * dim,
+  );
   fitText(subtitle, textWidth);
   objects.push(subtitle);
+
+  // Stamps sit on the art, bottom-left, above the footer: the one place a tag (top-right) and the title never are.
+  let stampX = rect.x + 8;
+  for (const stamp of options.stamps ?? []) {
+    const text = label(scene, 0, 0, stamp.label, { ...typeRole.label, size: 11 }, stamp.ink, dim);
+    const width = Math.ceil(text.width) + 16;
+    const height = 24;
+    if (stampX + width > rect.x + rect.width - 8) {
+      text.destroy();
+      break;
+    }
+    const y = artRect.y + artRect.height - height - 8;
+    const plate = scene.add.graphics();
+    plate.fillStyle(stamp.fill, dim).fillRect(stampX, y, width, height);
+    plate.lineStyle(1.5, surface.ink.hex, dim).strokeRect(stampX + 0.75, y + 0.75, width - 1.5, height - 1.5);
+    text.setPosition(stampX + 8, y + height / 2).setOrigin(0, 0.5);
+    scene.children.bringToTop(text);
+    objects.push(plate, text);
+    stampX += width + 4;
+  }
 
   const border = scene.add.graphics();
   if (options.selected) {
     border.lineStyle(4, accent.heroRed.hex, 1).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
   } else {
-    border.lineStyle(1.5, surface.ink.hex, options.blockedBy ? ink.illegal : ink.label).strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
+    border
+      .lineStyle(1.5, surface.ink.hex, options.blockedBy ? ink.illegal : ink.label)
+      .strokeRect(rect.x + 0.75, rect.y + 0.75, rect.width - 1.5, rect.height - 1.5);
   }
   objects.push(border);
 
@@ -273,7 +341,9 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
     const tag = scene.add.graphics();
     tag.fillStyle(accent.heroRed.hex, 1).fillRect(rect.x + rect.width - tagWidth, rect.y, tagWidth, 16);
     objects.push(tag);
-    objects.push(label(scene, rect.x + rect.width - tagWidth + 4, rect.y + 2, options.tag, typeRole.label, surface.paper.hex, 1));
+    objects.push(
+      label(scene, rect.x + rect.width - tagWidth + 4, rect.y + 2, options.tag, typeRole.label, surface.paper.hex, 1),
+    );
   }
   return { objects };
 }
@@ -285,7 +355,14 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
  * `ui/shelf-roster.ts`'s `onHeaderActivate` fires for a tap anywhere in the header) opens the pack as a full grid.
  * The optional cover art thumbnail (`art/scenario-art.ts`'s `packCoverFor`) draws before the title when one exists.
  */
-export function renderShelfHeader(scene: Phaser.Scene, shelf: Shelf<unknown>, rect: Rect, cover: Picture | null, onCoverReady: () => void, countLabel: string): VirtualListRow {
+export function renderShelfHeader(
+  scene: Phaser.Scene,
+  shelf: Shelf<unknown>,
+  rect: Rect,
+  cover: Picture | null,
+  onCoverReady: () => void,
+  countLabel: string,
+): VirtualListRow {
   const objects: Phaser.GameObjects.GameObject[] = [];
   const midY = rect.y + rect.height / 2;
   let textX = rect.x;
@@ -299,12 +376,18 @@ export function renderShelfHeader(scene: Phaser.Scene, shelf: Shelf<unknown>, re
       textX = rect.x + coverSize + 10;
     }
   }
-  const title = scene.add.text(textX, midY, shelf.title, textStyle(typeRole.sectionHeader, surface.ink.hex)).setOrigin(0, 0.5);
+  const title = scene.add
+    .text(textX, midY, shelf.title, textStyle(typeRole.sectionHeader, surface.ink.hex))
+    .setOrigin(0, 0.5);
   objects.push(title);
-  const count = scene.add.text(rect.x + rect.width, midY, `${countLabel} ▸`, textStyle(typeRole.label, surface.ink.hex, ink.label)).setOrigin(1, 0.5);
+  const count = scene.add
+    .text(rect.x + rect.width, midY, `${countLabel} ▸`, textStyle(typeRole.label, surface.ink.hex, ink.label))
+    .setOrigin(1, 0.5);
   objects.push(count);
   const rule = scene.add.graphics();
-  rule.lineStyle(2, surface.ink.hex, ink.meta).lineBetween(textX + title.width + 10, midY, rect.x + rect.width - count.width - 12, midY);
+  rule
+    .lineStyle(2, surface.ink.hex, ink.meta)
+    .lineBetween(textX + title.width + 10, midY, rect.x + rect.width - count.width - 12, midY);
   objects.push(rule);
   return { objects };
 }
@@ -339,11 +422,29 @@ export interface ShelfRosterPanelOptions<T> {
  * nothing to build (the empty-result message was drawn instead).
  */
 export function drawShelfRosterPanel<T>(options: ShelfRosterPanelOptions<T>): McShelfRoster<T> | null {
-  const { scene, rect, shelves, metrics, screen, renderCard, renderHeader, onCardActivate, onHeaderActivate, focusPrefix, idOf, inspect, onClear, buttons, stops } = options;
+  const {
+    scene,
+    rect,
+    shelves,
+    metrics,
+    screen,
+    renderCard,
+    renderHeader,
+    onCardActivate,
+    onHeaderActivate,
+    focusPrefix,
+    idOf,
+    inspect,
+    onClear,
+    buttons,
+    stops,
+  } = options;
   if (shelves.length === 0) {
     scene.add.text(rect.x + 10, rect.y + 10, "No matches.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
     const clearRect: Rect = { x: rect.x + 10, y: rect.y + 34, width: 100, height: hit.target };
-    buttons.push(new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }));
+    buttons.push(
+      new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }),
+    );
     stops.set(`${focusPrefix}-clear`, { rect: clearRect, activate: onClear });
     return null;
   }
@@ -403,11 +504,30 @@ export interface PackGridOptions<T> {
 
 /** One pack's own full grid (drill-in). Returns the list so the caller can `scrollByPage`/`scrollToStart`/`scrollToEnd` it for `FocusRoute`, or null when the pack (after the search/chip filter) has nothing left to show. */
 export function drawPackGrid<T>(options: PackGridOptions<T>): McVirtualList | null {
-  const { scene, rect, items, cardWidth, cardHeight, cardGap, rowGap, scroll, renderCard, onCardActivate, focusPrefix, idOf, inspect, onClear, buttons, stops } = options;
+  const {
+    scene,
+    rect,
+    items,
+    cardWidth,
+    cardHeight,
+    cardGap,
+    rowGap,
+    scroll,
+    renderCard,
+    onCardActivate,
+    focusPrefix,
+    idOf,
+    inspect,
+    onClear,
+    buttons,
+    stops,
+  } = options;
   if (items.length === 0) {
     scene.add.text(rect.x + 10, rect.y + 10, "No matches.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
     const clearRect: Rect = { x: rect.x + 10, y: rect.y + 34, width: 100, height: hit.target };
-    buttons.push(new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }));
+    buttons.push(
+      new McButton(scene, { kind: "quiet", label: "Clear", type: typeRole.label, rect: clearRect, onClick: onClear }),
+    );
     stops.set(`${focusPrefix}-clear`, { rect: clearRect, activate: onClear });
     return null;
   }
@@ -417,7 +537,12 @@ export function drawPackGrid<T>(options: PackGridOptions<T>): McVirtualList | nu
   const renderRow = (rowIndex: number, rowRect: Rect): VirtualListRow => {
     const objects: Phaser.GameObjects.GameObject[] = [];
     rows[rowIndex]!.forEach((item, col) => {
-      const cardRect: Rect = { x: rowRect.x + col * (cardWidth + cardGap), y: rowRect.y, width: cardWidth, height: cardHeight };
+      const cardRect: Rect = {
+        x: rowRect.x + col * (cardWidth + cardGap),
+        y: rowRect.y,
+        width: cardWidth,
+        height: cardHeight,
+      };
       objects.push(...renderCard(item, rowIndex * columns + col, cardRect).objects);
     });
     return { objects };
@@ -428,7 +553,15 @@ export function drawPackGrid<T>(options: PackGridOptions<T>): McVirtualList | nu
     const item = rowItems[col];
     if (item) onCardActivate(item, rowIndex * columns + col);
   };
-  const list = new McVirtualList(scene, { rect, rowHeight, count: rows.length, renderRow, scroll, onRowActivate, background: false });
+  const list = new McVirtualList(scene, {
+    rect,
+    rowHeight,
+    count: rows.length,
+    renderRow,
+    scroll,
+    onRowActivate,
+    background: false,
+  });
   items.forEach((item, index) => {
     const rowIndex = Math.floor(index / columns);
     const col = index % columns;
@@ -466,7 +599,16 @@ export function drawCompactChipStrip(
     for (const cell of row) {
       const width = compactChipWidth(cell.text);
       const cellRect: Rect = { x, y, width, height: hit.target };
-      buttons.push(new McButton(scene, { kind: "secondary", label: cell.text, type: typeRole.rowTitle, rect: cellRect, selected: cell.selected, onClick: cell.onClick }));
+      buttons.push(
+        new McButton(scene, {
+          kind: "secondary",
+          label: cell.text,
+          type: typeRole.rowTitle,
+          rect: cellRect,
+          selected: cell.selected,
+          onClick: cell.onClick,
+        }),
+      );
       stops.set(`${focusPrefix}:${cell.id}`, { rect: cellRect, activate: cell.onClick });
       x += width + CHIP_GAP;
     }

@@ -29,7 +29,9 @@ beforeAll(async () => {
   const store = new SessionStore(new LocalEngineHost());
   await store.start(RISKY_BUSINESS_SOLO);
   for (let step = 0; step < 10 && store.state.legal?.actions.kind === "choice"; step++) {
-    const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+    const { choice } = store.state.legal.actions as {
+      choice: { options: readonly { optionId: string }[]; minSelections: number };
+    };
     await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
   }
   state = store.state.game!;
@@ -67,13 +69,21 @@ describe("environments on the board", () => {
     // Card 02001a is titled "Norman Osborn"; side B is Green Goblin. Flipping the villain must rename the panel,
     // or the table keeps announcing a villain who is no longer the one dealing the damage.
     const villainId = boardModel(state, me, WAVE1_DEPS).villain.instanceId;
-    const flippedVillain: GameState = { ...state, villains: state.villains.map((v) => (v.instanceId === villainId ? { ...v, side: "B" as const } : v)) };
+    const flippedVillain: GameState = {
+      ...state,
+      villains: state.villains.map((v) => (v.instanceId === villainId ? { ...v, side: "B" as const } : v)),
+    };
     expect(boardModel(flippedVillain, me, WAVE1_DEPS).villain.name).toBe("Green Goblin");
   });
 
   test("a scenario with no environment reports none, rather than an empty-looking panel", async () => {
     const store = new SessionStore(new LocalEngineHost());
-    await store.start({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 });
+    await store.start({
+      scenarioId: "rhino",
+      difficulty: "standard",
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 11,
+    });
     expect(boardModel(store.state.game!, store.state.perspectiveId!, WAVE1_DEPS).environments).toEqual([]);
   });
 });

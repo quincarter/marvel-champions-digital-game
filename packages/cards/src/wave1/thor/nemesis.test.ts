@@ -20,7 +20,8 @@ import {
 import { wave1Scenario } from "../setup.js";
 import { forceMinionIntoPlay, runThor, stackFromSetAside, startThorGame, THOR_DEPS } from "./testing.js";
 
-const thorVsRhino = (seed = 11) => startThorGame(wave1Scenario("rhino", { players: [{ starterDeckId: "thor-aggression" }], seed }));
+const thorVsRhino = (seed = 11) =>
+  startThorGame(wave1Scenario("rhino", { players: [{ starterDeckId: "thor-aggression" }], seed }));
 // A neutral boost card (0 icons, no boost ability) — put on top of the target so the villain phase's boost draw
 // consumes it first (matches `packages/cards/src/core/heroes/spider-man.test.ts`'s `ADVANCE`, same Rhino pool).
 const ADVANCE = "01186";

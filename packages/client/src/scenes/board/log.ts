@@ -77,7 +77,14 @@ export class LogPanel {
   /** A wheel or trackpad gesture over the panel scrolls it. Registered on the scene's input by the Board. */
   onWheel(pointer: Phaser.Input.Pointer, _objects: unknown, _deltaX: number, deltaY: number): void {
     const rect = this.#rect;
-    if (!rect || pointer.x < rect.x || pointer.x > rect.x + rect.width || pointer.y < rect.y || pointer.y > rect.y + rect.height) return;
+    if (
+      !rect ||
+      pointer.x < rect.x ||
+      pointer.x > rect.x + rect.width ||
+      pointer.y < rect.y ||
+      pointer.y > rect.y + rect.height
+    )
+      return;
     this.#wheelCarry += deltaY;
     const lines = Math.trunc(this.#wheelCarry / WHEEL_PX_PER_LINE);
     if (lines === 0) return;
@@ -105,7 +112,12 @@ export class LogPanel {
 
     if (log.lines.length === 0) {
       scene.add
-        .text(x, listTop, "What happens at the table is written here.", textStyle(typeRole.body, surface.ink.hex, ink.meta))
+        .text(
+          x,
+          listTop,
+          "What happens at the table is written here.",
+          textStyle(typeRole.body, surface.ink.hex, ink.meta),
+        )
         .setWordWrapWidth(textWidth);
     }
     let y = listTop;
@@ -129,7 +141,12 @@ export class LogPanel {
       const track: Rect = { x: rect.x + rect.width - 6, y: listTop, width: 3, height: listBottom - listTop };
       const tg = scene.add.graphics();
       tg.fillStyle(surface.ink.hex, 0.12).fillRect(track.x, track.y, track.width, track.height);
-      tg.fillStyle(surface.ink.hex, 0.6).fillRect(track.x, track.y + thumb.top * track.height, track.width, Math.max(10, thumb.size * track.height));
+      tg.fillStyle(surface.ink.hex, 0.6).fillRect(
+        track.x,
+        track.y + thumb.top * track.height,
+        track.width,
+        Math.max(10, thumb.size * track.height),
+      );
     }
 
     if (!following) this.#drawNewerChip(scene, rect, measure);
@@ -155,7 +172,12 @@ export class LogPanel {
   /** While reading back: how much is below, and a way straight back to it. */
   #drawNewerChip(scene: Phaser.Scene, rect: Rect, measure: LogMeasure): void {
     const newer = this.#scroll.newerThanView(measure);
-    const chip: Rect = { x: rect.x + 4, y: rect.y + rect.height - 4 - NEWER_CHIP_HEIGHT, width: rect.width - 8, height: NEWER_CHIP_HEIGHT };
+    const chip: Rect = {
+      x: rect.x + 4,
+      y: rect.y + rect.height - 4 - NEWER_CHIP_HEIGHT,
+      width: rect.width - 8,
+      height: NEWER_CHIP_HEIGHT,
+    };
     const cg = scene.add.graphics();
     cg.fillStyle(surface.ink.hex, 1).fillRect(chip.x, chip.y, chip.width, chip.height);
     const text = label(
@@ -210,19 +232,29 @@ export class LogPanel {
     rule.fillStyle(voice.color, voice.alpha).fillRect(x - 4, y + 1, 2, height - LINE_GAP - 1);
 
     label(scene, x, y, line.ref, typeRole.mono, surface.ink.hex, ink.meta).setFontSize(9);
-    const text = scene.add.text(x, y + REF_HEIGHT, line.text, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(width);
+    const text = scene.add
+      .text(x, y + REF_HEIGHT, line.text, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+      .setWordWrapWidth(width);
 
     // Statuses as chips in their own hue, named in words, struck through once spent.
     let cursor = x;
     const tagY = text.y + text.height + 2;
     for (const tag of line.tags) {
       const chip = scene.add.graphics();
-      const name = scene.add
-        .text(cursor + 3, tagY + 1, caseOf(typeRole.label, tag.status), textStyle(typeRole.label, tag.status === "confused" ? surface.paper.hex : surface.ink.hex, tag.spent ? 0.75 : 1))
-        .setLetterSpacing(typeRole.label.letterSpacing);
+      const name = scene.add.text(
+        cursor + 3,
+        tagY + 1,
+        caseOf(typeRole.label, tag.status),
+        textStyle(
+          typeRole.label,
+          tag.status === "confused" ? surface.paper.hex : surface.ink.hex,
+          tag.spent ? 0.75 : 1,
+        ),
+      );
       const chipWidth = Math.ceil(name.width) + 6;
       chip.fillStyle(status[tag.status].hex, tag.spent ? 0.45 : 1).fillRect(cursor, tagY, chipWidth, 13);
-      if (tag.spent) chip.lineStyle(1.5, surface.ink.hex, 1).lineBetween(cursor + 2, tagY + 6.5, cursor + chipWidth - 2, tagY + 6.5);
+      if (tag.spent)
+        chip.lineStyle(1.5, surface.ink.hex, 1).lineBetween(cursor + 2, tagY + 6.5, cursor + chipWidth - 2, tagY + 6.5);
       cursor += chipWidth + 4;
     }
   }

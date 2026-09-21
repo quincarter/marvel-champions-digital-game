@@ -3,7 +3,7 @@
 A digital, rules-accurate implementation of **Marvel Champions: The Card Game** (Fantasy Flight Games / Marvel), built to be a genuinely playable video game driven by a robust, deterministic rules engine.
 
 > [!NOTE]
-> This is a fan-made, non-commercial project. *Marvel Champions: The Card Game*, card text, artwork, and characters are the intellectual property of Fantasy Flight Games and Marvel.
+> This is a fan-made, non-commercial project. _Marvel Champions: The Card Game_, card text, artwork, and characters are the intellectual property of Fantasy Flight Games and Marvel.
 
 ---
 
@@ -12,8 +12,9 @@ A digital, rules-accurate implementation of **Marvel Champions: The Card Game** 
 Marvel Champions is a cooperative Living Card Game (LCG) featuring intricate turn structures (Hero Phase ⟷ Villain Phase), simultaneous timing windows ("When", "Interrupt", "Response"), card-driven ability stacks, status effects, and dozens of interacting keywords.
 
 This project is built **rules-engine-first**:
+
 - **Deterministic State Machine**: Game state is completely serializable, reproducible, and decoupled from any presentation or I/O layer.
-- **RRG as Authority**: Follows the official Fantasy Flight Games *Rules Reference Guide* (RRG 1.5–1.8), official FAQ rulings, and errata.
+- **RRG as Authority**: Follows the official Fantasy Flight Games _Rules Reference Guide_ (RRG 1.5–1.8), official FAQ rulings, and errata.
 - **Headless Rules Engine**: The engine runs independently with zero DOM or rendering dependencies, capable of simulating and auditing full games headlessly.
 - **Phaser as a Pure View**: The client UI is purely a presentation layer that dispatches player commands and reflects state; it never decides game rules or move legality.
 
@@ -39,12 +40,12 @@ marvel-champions-game/
 
 ### Package Details
 
-| Package | Purpose |
-|---|---|
-| **[`@mc/content`](packages/content)** | Contains typed card schemas (`AnyCard`, `ScalingValue`, `KeywordInstance`, `AbilityReference`), normalized card data, and ingestion scripts (`ingest-marvelcdb.ts`) that curate card text and stats from MarvelCDB / Cerebro. Stores artwork references rather than raw image bytes. |
-| **[`@mc/engine`](packages/engine)** | The authoritative rules engine. Implements game state (`GameState`), phase loops, interrupt/response timing stacks, keyword resolution (Guard, Overkill, Retaliate, Surge, Toughness, etc.), villain AI phase handling, legal action generation (`legalActions`), and replayable command logs (`applyCommand`). |
-| **[`@mc/cards`](packages/cards)** | Houses the Ability DSL for scripting card behaviors into engine `AbilityDefinition`s. Implements all 233 Core Set card abilities across 5 heroes (Spider-Man, Captain Marvel, She-Hulk, Iron Man, Black Panther), 4 aspects, basic cards, and 3 villain scenarios (Rhino, Klaw, Ultron). |
-| **[`@mc/client`](packages/client)** | A 2D tabletop client inspired by digital card games like *Sentinels of the Multiverse*. Built with **Phaser 4**, **rexUI**, and **Vite**. Runs the engine inside a Web Worker via `EngineHost` for fluid 60 FPS rendering while calculating complex turn states. |
+| Package                               | Purpose                                                                                                                                                                                                                                                                                                         |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[`@mc/content`](packages/content)** | Contains typed card schemas (`AnyCard`, `ScalingValue`, `KeywordInstance`, `AbilityReference`), normalized card data, and ingestion scripts (`ingest-marvelcdb.ts`) that curate card text and stats from MarvelCDB / Cerebro. Stores artwork references rather than raw image bytes.                            |
+| **[`@mc/engine`](packages/engine)**   | The authoritative rules engine. Implements game state (`GameState`), phase loops, interrupt/response timing stacks, keyword resolution (Guard, Overkill, Retaliate, Surge, Toughness, etc.), villain AI phase handling, legal action generation (`legalActions`), and replayable command logs (`applyCommand`). |
+| **[`@mc/cards`](packages/cards)**     | Houses the Ability DSL for scripting card behaviors into engine `AbilityDefinition`s. Implements all 233 Core Set card abilities across 5 heroes (Spider-Man, Captain Marvel, She-Hulk, Iron Man, Black Panther), 4 aspects, basic cards, and 3 villain scenarios (Rhino, Klaw, Ultron).                        |
+| **[`@mc/client`](packages/client)**   | A 2D tabletop client inspired by digital card games like _Sentinels of the Multiverse_. Built with **Phaser 4**, **rexUI**, and **Vite**. Runs the engine inside a Web Worker via `EngineHost` for fluid 60 FPS rendering while calculating complex turn states.                                                |
 
 ---
 

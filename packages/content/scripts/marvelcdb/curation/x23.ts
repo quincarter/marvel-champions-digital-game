@@ -19,7 +19,8 @@ export const X23_CURATION: PackCuration = {
   pack: {
     name: "X-23",
     releaseDate: "2023-11-17",
-    releaseDateSource: 'Hall of Heroes X-23/Laura Kinney page (https://hallofheroeslcg.com/x-23-laura-kinney/): "Release date: November 17, 2023"',
+    releaseDateSource:
+      'Hall of Heroes X-23/Laura Kinney page (https://hallofheroeslcg.com/x-23-laura-kinney/): "Release date: November 17, 2023"',
   },
   outDir: "src/data/x23",
   exportPrefix: "X23",
@@ -27,8 +28,9 @@ export const X23_CURATION: PackCuration = {
   corrections: [
     {
       code: "43002",
-      reason: "X-23's Claws is a Permanent signature weapon, exhausted for its own Hero Action rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/43002), \"Cost: —\"",
+      reason:
+        'X-23\'s Claws is a Permanent signature weapon, exhausted for its own Hero Action rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/43002), "Cost: —"',
       specialCost: "dash",
     },
   ],

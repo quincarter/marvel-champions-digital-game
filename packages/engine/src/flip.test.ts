@@ -23,7 +23,14 @@ import { createGame } from "./setup.js";
 import type { EffectSpec, TargetRef } from "./spec.js";
 import type { CardInstance, GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubAttachment, stubEnvironment, stubEvent, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import {
+  stubAttachment,
+  stubEnvironment,
+  stubEvent,
+  stubSupport,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { DEFAULT_CARDS, DEFAULT_DECK, defaultPick, giveCard, HERO, MAIN_SCHEME } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -32,7 +39,8 @@ const two = { kind: "const", value: 2 } as const;
 const self: TargetRef = { kind: "self" };
 const theVillain: TargetRef = { kind: "villain" };
 const theEnvironment: TargetRef = { kind: "each", query: { categories: ["environment"] } };
-const noCounters = (counterType: string) => ({ kind: "not", of: { kind: "counterAtLeast", of: self, counterType, amount: 1 } }) as const;
+const noCounters = (counterType: string) =>
+  ({ kind: "not", of: { kind: "counterAtLeast", of: self, counterType, amount: 1 } }) as const;
 
 // --- The villain: Norman (side A, "—" ATK) and Goblin (side B, "—" SCH) ------------------------------------------
 
@@ -42,7 +50,9 @@ const NORMAN_WOULD_ATTACK = stubAbility("norman.would-attack", {
   effects: [
     {
       kind: "replaceTriggeringEvent",
-      with: [{ kind: "addCounters", target: { kind: "named", name: "Enterprise" }, counterType: "infamy", amount: one }],
+      with: [
+        { kind: "addCounters", target: { kind: "named", name: "Enterprise" }, counterType: "infamy", amount: one },
+      ],
     },
   ],
 });
@@ -67,7 +77,10 @@ const GOBLIN = stubVillain({
   },
 });
 /** A villain with a "—" ATK and nothing that replaces its attack (docs/phase7-wave1.md §4.4). */
-const PLAIN_NORMAN = stubVillain({ id: "plain-norman", stages: [{ hp: flat(10), atk: 0, sch: 1, dashedStats: ["atk"] }] });
+const PLAIN_NORMAN = stubVillain({
+  id: "plain-norman",
+  stages: [{ hp: flat(10), atk: 0, sch: 1, dashedStats: ["atk"] }],
+});
 
 // --- The environment: Enterprise / Madness ---------------------------------------------------------------------
 
@@ -76,13 +89,19 @@ const flipBoth: readonly EffectSpec[] = [
   { kind: "flipCard", target: self },
 ];
 /** "If there are no infamy counters here, flip Norman and Enterprise." */
-const ENTERPRISE_FLIPS = stubAbility("enterprise.state", { trigger: { kind: "stateCheck", when: noCounters("infamy") }, effects: flipBoth });
+const ENTERPRISE_FLIPS = stubAbility("enterprise.state", {
+  trigger: { kind: "stateCheck", when: noCounters("infamy") },
+  effects: flipBoth,
+});
 /** "Enterprise enters play with 2 infamy counters", applied on a flip to this face too (§4.1's proposed reading, as a script). */
 const ENTERPRISE_COUNTERS = stubAbility("enterprise.counters", {
   trigger: { kind: "response", forced: true, on: { on: ["cardEntersPlay", "cardFlipped"], selfIs: "target" } },
   effects: [{ kind: "addCounters", target: self, counterType: "infamy", amount: two }],
 });
-const MADNESS_FLIPS = stubAbility("madness.state", { trigger: { kind: "stateCheck", when: noCounters("madness") }, effects: flipBoth });
+const MADNESS_FLIPS = stubAbility("madness.state", {
+  trigger: { kind: "stateCheck", when: noCounters("madness") },
+  effects: flipBoth,
+});
 const MADNESS_COUNTERS = stubAbility("madness.counters", {
   trigger: { kind: "response", forced: true, on: { on: "cardFlipped", selfIs: "target" } },
   effects: [{ kind: "addCounters", target: self, counterType: "madness", amount: two }],
@@ -98,7 +117,11 @@ const ENTERPRISE = stubEnvironment({
   traits: [trait("Criminal")],
   keywords: [{ name: "setup" }],
   abilities: [ENTERPRISE_FLIPS.ref, ENTERPRISE_COUNTERS.ref],
-  flipSide: { name: "Madness", traits: [trait("Madness")], abilities: [MADNESS_FLIPS.ref, MADNESS_COUNTERS.ref, MADNESS_REVEALED.ref] },
+  flipSide: {
+    name: "Madness",
+    traits: [trait("Madness")],
+    abilities: [MADNESS_FLIPS.ref, MADNESS_COUNTERS.ref, MADNESS_REVEALED.ref],
+  },
 });
 
 // --- Encounter cards -------------------------------------------------------------------------------------------
@@ -132,14 +155,21 @@ const NORMAN_ONLY = stubTreachery({ id: "norman-only", boostIcons: 0, abilities:
 
 // --- Player cards that apply one effect when played ------------------------------------------------------------
 
-const actionEvent = (id: string, effects: readonly EffectSpec[]): { readonly card: AnyCard; readonly ability: StubAbility } => {
+const actionEvent = (
+  id: string,
+  effects: readonly EffectSpec[],
+): { readonly card: AnyCard; readonly ability: StubAbility } => {
   const ability = stubAbility(`${id}.action`, { trigger: { kind: "action" }, effects });
   return { card: stubEvent({ id, cost: 0, abilities: [ability.ref] }), ability };
 };
 const FLIP_VILLAIN = actionEvent("flip-villain", [{ kind: "flipCard", target: theVillain }]);
 const FLIP_ENVIRONMENT = actionEvent("flip-environment", [{ kind: "flipCard", target: theEnvironment }]);
-const DROP_INFAMY = actionEvent("drop-infamy", [{ kind: "removeCounters", target: theEnvironment, counterType: "infamy", amount: one }]);
-const DROP_MADNESS = actionEvent("drop-madness", [{ kind: "removeCounters", target: theEnvironment, counterType: "madness", amount: one }]);
+const DROP_INFAMY = actionEvent("drop-infamy", [
+  { kind: "removeCounters", target: theEnvironment, counterType: "infamy", amount: one },
+]);
+const DROP_MADNESS = actionEvent("drop-madness", [
+  { kind: "removeCounters", target: theEnvironment, counterType: "madness", amount: one },
+]);
 const DISCARD_ENVIRONMENT = actionEvent("discard-environment", [{ kind: "discardFromPlay", target: theEnvironment }]);
 const supports = { kind: "each", query: { categories: ["support"] } } as const;
 const CHARGE = actionEvent("charge", [{ kind: "addCounters", target: supports, counterType: "charge", amount: one }]);
@@ -199,12 +229,34 @@ function game(options: GameOptions = {}): GameState {
   const result = createGame(
     {
       seed: 7,
-      cards: [...DEFAULT_CARDS, GOBLIN, PLAIN_NORMAN, ENTERPRISE, BLANK, CHAIN, MADNESS_BOOST, I_SEE_YOU, NORMAN_ONLY, WATCHER, SPY, ...EVENTS.map((e) => e.card)],
+      cards: [
+        ...DEFAULT_CARDS,
+        GOBLIN,
+        PLAIN_NORMAN,
+        ENTERPRISE,
+        BLANK,
+        CHAIN,
+        MADNESS_BOOST,
+        I_SEE_YOU,
+        NORMAN_ONLY,
+        WATCHER,
+        SPY,
+        ...EVENTS.map((e) => e.card),
+      ],
       villainCardId: villain.id,
       ...(options.side ? { villainSide: options.side } : {}),
       mainSchemeCardId: MAIN_SCHEME.id,
-      encounterDeck: [...(options.environment === false ? [] : [ENTERPRISE.id]), CHAIN.id, ...(options.encounter ?? copies(BLANK.id, 12))],
-      players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, ...EVENTS.flatMap((e) => copies(e.card.id, 3)), WATCHER.id, SPY.id] }],
+      encounterDeck: [
+        ...(options.environment === false ? [] : [ENTERPRISE.id]),
+        CHAIN.id,
+        ...(options.encounter ?? copies(BLANK.id, 12)),
+      ],
+      players: [
+        {
+          identityCardId: HERO.id,
+          deck: [...DEFAULT_DECK, ...EVENTS.flatMap((e) => copies(e.card.id, 3)), WATCHER.id, SPY.id],
+        },
+      ],
     },
     deps,
   );
@@ -213,7 +265,10 @@ function game(options: GameOptions = {}): GameState {
 }
 
 /** Applies commands through a session, answering every choice with `defaultPick`; returns the session and its events. */
-function drive(session: GameSession, commands: readonly Command[] = []): { readonly session: GameSession; readonly events: readonly GameEvent[] } {
+function drive(
+  session: GameSession,
+  commands: readonly Command[] = [],
+): { readonly session: GameSession; readonly events: readonly GameEvent[] } {
   let current = session;
   const events: GameEvent[] = [];
   const apply = (command: Command): void => {
@@ -226,7 +281,12 @@ function drive(session: GameSession, commands: readonly Command[] = []): { reado
     for (let guard = 0; current.state.pendingChoice && !current.state.outcome; guard++) {
       if (guard > 100) throw new Error("choices did not settle");
       const choice = current.state.pendingChoice;
-      apply({ type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: defaultPick(current.state) });
+      apply({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: defaultPick(current.state),
+      });
     }
   };
   answer();
@@ -245,7 +305,13 @@ const run = (state: GameState, ...commands: readonly Command[]) => {
 /** Puts a copy of `card` in p1's hand and plays it for 0. */
 function play(state: GameState, card: AnyCard) {
   const given = giveCard(state, p1, card.id);
-  return run(given.state, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+  return run(given.state, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  });
 }
 
 const toHero: Command = { type: "changeForm", playerId: p1 };
@@ -253,7 +319,9 @@ const endTurn: Command = { type: "endTurn", playerId: p1 };
 
 const villainId = (state: GameState): InstanceId => activeVillain(state).instanceId;
 const environmentId = (state: GameState): InstanceId => {
-  const id = [...state.villainArea, ...state.removedFromGame].find((candidate) => state.instances[candidate]?.cardId === ENTERPRISE.id);
+  const id = [...state.villainArea, ...state.removedFromGame].find(
+    (candidate) => state.instances[candidate]?.cardId === ENTERPRISE.id,
+  );
   if (!id) throw new Error("no environment");
   return id;
 };
@@ -263,11 +331,16 @@ const inPlayCopy = (state: GameState, card: AnyCard): InstanceId => {
   return id;
 };
 const counters = (state: GameState, id: InstanceId) => mustInstance(state, id).counters;
-const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) => events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
+const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
+  events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 const identity = (state: GameState) => mustInstance(state, mustPlayer(state, p1).identity.instanceId);
 
 /** Test surgery on one instance. */
-const patch = (state: GameState, id: InstanceId, change: (instance: CardInstance) => Partial<CardInstance>): GameState => ({
+const patch = (
+  state: GameState,
+  id: InstanceId,
+  change: (instance: CardInstance) => Partial<CardInstance>,
+): GameState => ({
   ...state,
   instances: { ...state.instances, [id]: { ...mustInstance(state, id), ...change(mustInstance(state, id)) } },
 });
@@ -278,11 +351,21 @@ function pull(state: GameState, card: AnyCard): { readonly state: GameState; rea
   const piles = deckId ? state.encounterDecks[deckId] : undefined;
   const id = piles?.deck.find((candidate) => state.instances[candidate]?.cardId === card.id);
   if (!deckId || !piles || !id) throw new Error(`no ${card.id} in the encounter deck`);
-  return { id, state: { ...state, encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((x) => x !== id) } } } };
+  return {
+    id,
+    state: {
+      ...state,
+      encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((x) => x !== id) } },
+    },
+  };
 }
 
 /** Test surgery: `card` from the encounter deck attached faceup to `host`. */
-function attach(state: GameState, host: InstanceId, card: AnyCard): { readonly state: GameState; readonly id: InstanceId } {
+function attach(
+  state: GameState,
+  host: InstanceId,
+  card: AnyCard,
+): { readonly state: GameState; readonly id: InstanceId } {
   const pulled = pull(state, card);
   const withHost = patch(pulled.state, host, (h) => ({ attachments: [...h.attachments, pulled.id] }));
   return { id: pulled.id, state: patch(withHost, pulled.id, () => ({ attachedTo: host, faceup: true })) };
@@ -306,7 +389,7 @@ describe("§3.3 villain stage cards with two faces", () => {
     const villain = villainId(start);
     const attached = attach(start, villain, CHAIN);
     const boost = pull(attached.state, BLANK);
-    const primed = patch(boost.state, villain, (v) => ({
+    const primed = patch(boost.state, villain, (_v) => ({
       damage: 4,
       statuses: { stunned: 1, confused: 0, tough: 1 },
       counters: { marker: 2 },
@@ -325,7 +408,9 @@ describe("§3.3 villain stage cards with two faces", () => {
       counters: { marker: 2, goblinRevealed: 1 },
     });
     expect(activeVillain(state).stageIndex).toBe(0);
-    expect(ofType(events, "villainFlipped")).toEqual([{ type: "villainFlipped", instanceId: villain, from: "A", to: "B" }]);
+    expect(ofType(events, "villainFlipped")).toEqual([
+      { type: "villainFlipped", instanceId: villain, from: "A", to: "B" },
+    ]);
     expect(characterProfile(state, villain, deps)).toMatchObject({ atk: 2, missing: ["sch"] });
   });
 
@@ -343,7 +428,12 @@ describe("§3.3 villain stage cards with two faces", () => {
     const start = run(game({ side, environment: false }), toHero).state;
     const villain = villainId(start);
     const primed = patch(start, villain, () => ({ damage: 8 }));
-    const { state } = run(primed, { type: "basicAttack", playerId: p1, attackerInstanceId: identity(primed).instanceId, targetInstanceId: villain });
+    const { state } = run(primed, {
+      type: "basicAttack",
+      playerId: p1,
+      attackerInstanceId: identity(primed).instanceId,
+      targetInstanceId: villain,
+    });
     expect(activeVillain(state)).toMatchObject({ side, stageIndex: 1, defeated: false });
     expect(currentName(state, villain)).toBe(first);
     expect(characterProfile(state, villain, deps)).toMatchObject({ atk, maxHp: 12, missing });
@@ -355,8 +445,16 @@ describe("§3.3 villain stage cards with two faces", () => {
     const environment = environmentId(start);
     expect(counters(start, environment).infamy).toBe(2);
 
-    const stunned = run(patch(start, villain, () => ({ statuses: { stunned: 1, confused: 0, tough: 0 } })), endTurn);
-    expect(ofType(stunned.events, "statusRemoved")).toContainEqual({ type: "statusRemoved", instanceId: villain, status: "stunned", reason: "cancelledAttack" });
+    const stunned = run(
+      patch(start, villain, () => ({ statuses: { stunned: 1, confused: 0, tough: 0 } })),
+      endTurn,
+    );
+    expect(ofType(stunned.events, "statusRemoved")).toContainEqual({
+      type: "statusRemoved",
+      instanceId: villain,
+      status: "stunned",
+      reason: "cancelledAttack",
+    });
     expect(counters(stunned.state, environment).infamy).toBe(2);
     expect(stunned.events.some((e) => e.type === "triggerEvent" && e.event.kind === "enemyAttack")).toBe(false);
 
@@ -372,7 +470,9 @@ describe("§3.3 villain stage cards with two faces", () => {
     const start = run(game({ villain: PLAIN_NORMAN, environment: false }), toHero).state;
     const villain = villainId(start);
     const { state, events } = run(start, endTurn);
-    expect(ofType(events, "activationSkipped")).toEqual([{ type: "activationSkipped", enemyInstanceId: villain, activation: "attack", reason: "dashedStat" }]);
+    expect(ofType(events, "activationSkipped")).toEqual([
+      { type: "activationSkipped", enemyInstanceId: villain, activation: "attack", reason: "dashedStat" },
+    ]);
     expect(ofType(events, "boostCardDealt").filter((e) => e.enemyInstanceId === villain)).toEqual([]);
     expect(identity(state).damage).toBe(0);
   });
@@ -405,8 +505,15 @@ describe("§3.3 villain stage cards with two faces", () => {
     const { state, events } = run(start, endTurn);
     expect(mustPlayer(state, p1).identity.form).toBe("alterEgo");
     // Goblin's "—" SCH skips his own scheme activation; the treachery's attack still hits.
-    expect(ofType(events, "activationSkipped")).toContainEqual({ type: "activationSkipped", enemyInstanceId: villain, activation: "scheme", reason: "dashedStat" });
-    expect(ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain)).toEqual([expect.objectContaining({ baseAtk: 2, damageDealt: 2 })]);
+    expect(ofType(events, "activationSkipped")).toContainEqual({
+      type: "activationSkipped",
+      enemyInstanceId: villain,
+      activation: "scheme",
+      reason: "dashedStat",
+    });
+    expect(ofType(events, "attackResolved").filter((e) => e.enemyInstanceId === villain)).toEqual([
+      expect.objectContaining({ baseAtk: 2, damageDealt: 2 }),
+    ]);
     expect(identity(state).damage).toBe(2);
   });
 
@@ -419,7 +526,11 @@ describe("§3.3 villain stage cards with two faces", () => {
 });
 
 /** FAQ #1B's setup: Goblin up, Madness showing with its last counter, and a boost card that removes it. */
-function midAttackFlip(): { readonly state: GameState; readonly events: readonly GameEvent[]; readonly session: GameSession } {
+function midAttackFlip(): {
+  readonly state: GameState;
+  readonly events: readonly GameEvent[];
+  readonly session: GameSession;
+} {
   const start = game({ side: "B", encounter: copies(MADNESS_BOOST.id, 12) });
   const primed = patch(start, environmentId(start), () => ({ flipped: true, counters: { madness: 1 } }));
   const { session, events } = drive(startSession(primed), [toHero, endTurn]);
@@ -436,7 +547,9 @@ describe("§3.4 double-sided encounter cards that flip, and state checks", () =>
 
     const flipped = play(oneLeft.state, DROP_INFAMY.card);
     expect(ofType(flipped.events, "villainFlipped")).toHaveLength(1);
-    expect(ofType(flipped.events, "cardFlipped")).toEqual([{ type: "cardFlipped", instanceId: environment, flipped: true }]);
+    expect(ofType(flipped.events, "cardFlipped")).toEqual([
+      { type: "cardFlipped", instanceId: environment, flipped: true },
+    ]);
     expect(currentName(flipped.state, environment)).toBe("Madness");
     expect(activeVillain(flipped.state).side).toBe("B");
     // "Enters play with 2 madness counters" applied on the flip (docs/phase7-wave1.md §4.1, proposed), so the Madness
@@ -485,7 +598,11 @@ describe("§3.4 double-sided encounter cards that flip, and state checks", () =>
     const context = { selfInstanceId: null, controllerId: p1, event: null, bindings: {}, deps };
 
     const { state } = play(attached.state, FLIP_ENVIRONMENT.card);
-    expect(mustInstance(state, environment)).toMatchObject({ flipped: true, attachments: [attached.id], counters: { infamy: 2, madness: 2 } });
+    expect(mustInstance(state, environment)).toMatchObject({
+      flipped: true,
+      attachments: [attached.id],
+      counters: { infamy: 2, madness: 2 },
+    });
     expect(resolveRef(state, { kind: "named", name: "Enterprise" }, context)).toEqual([]);
     expect(resolveRef(state, { kind: "named", name: "Madness" }, context)).toEqual([environment]);
     const ref: TargetRef = { kind: "slot", slot: "env" };

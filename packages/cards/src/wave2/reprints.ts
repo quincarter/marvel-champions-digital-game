@@ -65,7 +65,9 @@ function buildReprintAbilities(): { readonly registry: AbilityRegistry; readonly
     const wRefs = abilityRefsOf(card);
     const mRefs = abilityRefsOf(match);
     if (wRefs.length !== mRefs.length) {
-      problems.push(`${card.id} (${card.name}) matches ${match.id} by name/type but has ${wRefs.length} ability ref(s) against ${mRefs.length} — not auto-aliased, script by hand`);
+      problems.push(
+        `${card.id} (${card.name}) matches ${match.id} by name/type but has ${wRefs.length} ability ref(s) against ${mRefs.length} — not auto-aliased, script by hand`,
+      );
       continue;
     }
     if (wRefs.length === 0) continue; // nothing to alias either way (e.g. two "Energy" resource cards)
@@ -75,7 +77,9 @@ function buildReprintAbilities(): { readonly registry: AbilityRegistry; readonly
       const wSlug = wRef.id.slice(wRef.id.indexOf(".") + 1);
       const mSlug = mRef.id.slice(mRef.id.indexOf(".") + 1);
       if (wSlug !== mSlug) {
-        problems.push(`${card.id} (${card.name}) matches ${match.id} by name/type but ability #${i} slugs differ (${wRef.id} vs ${mRef.id}) — not auto-aliased, script by hand`);
+        problems.push(
+          `${card.id} (${card.name}) matches ${match.id} by name/type but ability #${i} slugs differ (${wRef.id} vs ${mRef.id}) — not auto-aliased, script by hand`,
+        );
         mismatch = true;
       }
     });
@@ -84,7 +88,9 @@ function buildReprintAbilities(): { readonly registry: AbilityRegistry; readonly
       const mRef = mRefs[i]!;
       const definition = WAVE1_ABILITIES[mRef.id];
       if (!definition) {
-        problems.push(`${card.id} (${card.name}) matches ${match.id}, but ${mRef.id} is not in WAVE1_ABILITIES — not auto-aliased, script by hand`);
+        problems.push(
+          `${card.id} (${card.name}) matches ${match.id}, but ${mRef.id} is not in WAVE1_ABILITIES — not auto-aliased, script by hand`,
+        );
         return;
       }
       registry[wRef.id] = definition;

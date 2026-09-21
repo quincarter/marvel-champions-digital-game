@@ -6,11 +6,7 @@
       "code": "sprite.setDisplaySize(this.scale.width, this.scale.height);",
       "module": "Helpers",
       "version": "3",
-      "tags": [
-        "resize",
-        "scene",
-        "display"
-      ]
+      "tags": ["resize", "scene", "display"]
     },
     {
       "name": "createCropRectangle",
@@ -18,11 +14,7 @@
       "code": "const rect = new Phaser.Geom.Rectangle(0, 0, texture.width * 0.5, texture.height * 0.5);\\nsprite.setCrop(rect);",
       "module": "Helpers",
       "version": "3",
-      "tags": [
-        "crop",
-        "rectangle",
-        "image"
-      ]
+      "tags": ["crop", "rectangle", "image"]
     },
     {
       "name": "createPhysicsSprite",
@@ -30,11 +22,7 @@
       "code": "const player = this.physics.add.sprite(${1:x}, ${2:y}, \"${3:key}\");\\nplayer.setCollideWorldBounds(true);",
       "module": "Physics",
       "version": "3",
-      "tags": [
-        "physics",
-        "sprite",
-        "boilerplate"
-      ]
+      "tags": ["physics", "sprite", "boilerplate"]
     },
     {
       "name": "createPlayerMovement",
@@ -42,11 +30,7 @@
       "code": "const cursors = this.input.keyboard.createCursorKeys();\\nif (cursors.left.isDown) player.setVelocityX(-160);\\nelse if (cursors.right.isDown) player.setVelocityX(160);\\nelse player.setVelocityX(0);\\nif (cursors.up.isDown && player.body.blocked.down) player.setVelocityY(-330);",
       "module": "Input",
       "version": "3",
-      "tags": [
-        "movement",
-        "player",
-        "input"
-      ]
+      "tags": ["movement", "player", "input"]
     },
     {
       "name": "cameraFollowPlayer",
@@ -54,11 +38,7 @@
       "code": "this.cameras.main.setBounds(0, 0, map.widthInPixels, map.heightInPixels);\\nthis.cameras.main.startFollow(player, true, 0.1, 0.1);",
       "module": "Camera",
       "version": "3",
-      "tags": [
-        "camera",
-        "follow",
-        "world"
-      ]
+      "tags": ["camera", "follow", "world"]
     },
     {
       "name": "createCoinOverlap",
@@ -66,11 +46,7 @@
       "code": "this.physics.add.overlap(player, coins, (_player, coin) => {\\n  coin.destroy();\\n  score += 10;\\n  scoreText.setText('Score: ' + score);\\n});",
       "module": "Physics",
       "version": "3",
-      "tags": [
-        "overlap",
-        "collectible",
-        "score"
-      ]
+      "tags": ["overlap", "collectible", "score"]
     },
     {
       "name": "pulseTween",
@@ -78,11 +54,7 @@
       "code": "this.tweens.add({\\n  targets: target,\\n  scale: 1.1,\\n  duration: 400,\\n  yoyo: true,\\n  repeat: -1\\n});",
       "module": "Tweens",
       "version": "3",
-      "tags": [
-        "tween",
-        "animation",
-        "ui"
-      ]
+      "tags": ["tween", "animation", "ui"]
     },
     {
       "name": "delayedRestart",
@@ -90,11 +62,7 @@
       "code": "this.time.delayedCall(1000, () => this.scene.restart());",
       "module": "Scene",
       "version": "3",
-      "tags": [
-        "scene",
-        "restart",
-        "timer"
-      ]
+      "tags": ["scene", "restart", "timer"]
     }
   ]
 }

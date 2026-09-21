@@ -23,30 +23,60 @@ const asDrone = { kind: "minion", traits: [DRONE] } as const;
 const facedownDrones = { categories: ["minion"], facedown: true, trait: DRONE } as const;
 
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
-const SCHEME = stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "scheme",
+  stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }],
+});
 const VILLAIN = stubVillain({ id: "villain", stages: [{ hp: flat(30), atk: 0, sch: 0 }] });
 
 // "Each facedown Drone minion engaged with a player has a base SCH of 1, a base ATK of 1, and a base hit points of 1."
-const dronesEnv = stubAbility("ultron-drones", def({
-  trigger: {
-    kind: "constant",
-    modifiers: [
-      { stat: "sch", amount: 1, setBase: true, target: facedownDrones },
-      { stat: "atk", amount: 1, setBase: true, target: facedownDrones },
-      { stat: "hp", amount: 1, setBase: true, target: facedownDrones },
-    ],
-  },
-  effects: [],
-}));
-const ENVIRONMENT = { ...stubTreachery({ id: "drones-env", boostIcons: 0 }), type: "environment" as const, name: "Ultron Drones", keywords: [{ name: "setup" as const }], abilities: [dronesEnv.ref] };
+const dronesEnv = stubAbility(
+  "ultron-drones",
+  def({
+    trigger: {
+      kind: "constant",
+      modifiers: [
+        { stat: "sch", amount: 1, setBase: true, target: facedownDrones },
+        { stat: "atk", amount: 1, setBase: true, target: facedownDrones },
+        { stat: "hp", amount: 1, setBase: true, target: facedownDrones },
+      ],
+    },
+    effects: [],
+  }),
+);
+const ENVIRONMENT = {
+  ...stubTreachery({ id: "drones-env", boostIcons: 0 }),
+  type: "environment" as const,
+  name: "Ultron Drones",
+  keywords: [{ name: "setup" as const }],
+  abilities: [dronesEnv.ref],
+};
 // "Each player puts the top card of their deck into play facedown, engaged with them as a Drone minion."
-const efficiency = stubAbility("efficiency", def({ trigger: { kind: "whenRevealed" }, effects: [{ kind: "putIntoPlayFacedown", player: { kind: "each" }, as: asDrone }] }));
+const efficiency = stubAbility(
+  "efficiency",
+  def({
+    trigger: { kind: "whenRevealed" },
+    effects: [{ kind: "putIntoPlayFacedown", player: { kind: "each" }, as: asDrone }],
+  }),
+);
 const EFFICIENCY = stubTreachery({ id: "efficiency", boostIcons: 0, abilities: [efficiency.ref] });
 // A player card with its own ability — which must not be active while it is a facedown drone.
-const loud = stubAbility("loud", def({ trigger: { kind: "constant", modifiers: [{ stat: "atk", amount: 5, target: { categories: ["villain"] } }] }, effects: [] }));
+const loud = stubAbility(
+  "loud",
+  def({
+    trigger: { kind: "constant", modifiers: [{ stat: "atk", amount: 5, target: { categories: ["villain"] } }] },
+    effects: [],
+  }),
+);
 const LOUD = stubEvent({ id: "loud", cost: 0, abilities: [loud.ref] });
 
-function start(extra: { encounter?: readonly CardId[]; deck?: readonly CardId[]; abilities?: readonly ReturnType<typeof stubAbility>[] } = {}) {
+function start(
+  extra: {
+    encounter?: readonly CardId[];
+    deck?: readonly CardId[];
+    abilities?: readonly ReturnType<typeof stubAbility>[];
+  } = {},
+) {
   const deps = depsOf(dronesEnv, efficiency, loud, ...(extra.abilities ?? []));
   const state = newGame({
     villain: VILLAIN,
@@ -58,9 +88,11 @@ function start(extra: { encounter?: readonly CardId[]; deck?: readonly CardId[];
   });
   return { deps, state };
 }
-const dronesOf = (state: GameState) => mustPlayer(state, p1).playArea.filter((id) => mustInstance(state, id).facedownAs !== null);
+const dronesOf = (state: GameState) =>
+  mustPlayer(state, p1).playArea.filter((id) => mustInstance(state, id).facedownAs !== null);
 /** Round 1 in alter-ego: the setup-keyword environment is in play, the villain schemes, Android Efficiency is revealed. */
-const afterRoundOne = (deps: ReturnType<typeof start>["deps"], state: GameState) => settle(runWith(deps, state, endTurn), undefined, deps);
+const afterRoundOne = (deps: ReturnType<typeof start>["deps"], state: GameState) =>
+  settle(runWith(deps, state, endTurn), undefined, deps);
 
 describe("facedown Drone minions (schema-free: `putIntoPlayFacedown`)", () => {
   it("is a minion engaged with that player, with only the Drone trait, no abilities of its own, and base stats from the environment", () => {
@@ -92,14 +124,37 @@ describe("facedown Drone minions (schema-free: `putIntoPlayFacedown`)", () => {
   });
 
   it("is defeated like a minion and goes to its owner's discard pile, faceup again", () => {
-    const blast = stubAbility("blast", def({ trigger: { kind: "action" }, effects: [{ kind: "dealDamage", target: { kind: "each", query: facedownDrones }, amount: { kind: "const", value: 1 } }] }));
+    const blast = stubAbility(
+      "blast",
+      def({
+        trigger: { kind: "action" },
+        effects: [
+          { kind: "dealDamage", target: { kind: "each", query: facedownDrones }, amount: { kind: "const", value: 1 } },
+        ],
+      }),
+    );
     const BLAST = stubEvent({ id: "blast", cost: 0, abilities: [blast.ref] });
     const deps = depsOf(dronesEnv, efficiency, loud, blast);
-    const state = newGame({ villain: VILLAIN, mainScheme: SCHEME, extraCards: [BLANK, ENVIRONMENT, EFFICIENCY, LOUD, BLAST], deck: [...copies(BLAST.id, 10), ...copies(LOUD.id, 10)], encounterDeck: [ENVIRONMENT.id, ...copies(EFFICIENCY.id, 20)], deps });
+    const state = newGame({
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, ENVIRONMENT, EFFICIENCY, LOUD, BLAST],
+      deck: [...copies(BLAST.id, 10), ...copies(LOUD.id, 10)],
+      encounterDeck: [ENVIRONMENT.id, ...copies(EFFICIENCY.id, 20)],
+      deps,
+    });
     const roundTwo = settle(runWith(deps, state, endTurn), undefined, deps);
     const [drone] = dronesOf(roundTwo) as [InstanceId];
-    const blastId = mustPlayer(roundTwo, p1).hand.find((id) => roundTwo.instances[id]?.cardId === BLAST.id) as InstanceId;
-    const after = runWith(deps, roundTwo, toHero, { type: "playCard", playerId: p1, cardInstanceId: blastId, payment: [], attachToInstanceId: null });
+    const blastId = mustPlayer(roundTwo, p1).hand.find(
+      (id) => roundTwo.instances[id]?.cardId === BLAST.id,
+    ) as InstanceId;
+    const after = runWith(deps, roundTwo, toHero, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: blastId,
+      payment: [],
+      attachToInstanceId: null,
+    });
     expect(mustPlayer(after, p1).discard).toContain(drone);
     expect(activeEncounterDeck(after).discard).not.toContain(drone);
     expect(mustInstance(after, drone).facedownAs).toBeNull();
@@ -107,13 +162,34 @@ describe("facedown Drone minions (schema-free: `putIntoPlayFacedown`)", () => {
   });
 
   it("'Each facedown Drone minion gets +1 ATK and +1 hit point' (Upgraded Drones, attached to the environment) adds to the base", () => {
-    const upgraded = stubAbility("upgraded", def({
-      trigger: { kind: "constant", modifiers: [{ stat: "atk", amount: 1, target: facedownDrones }, { stat: "hp", amount: 1, target: facedownDrones }] },
-      effects: [],
-    }));
-    const UPGRADED = stubAttachment({ id: "upgraded", attachesTo: { kind: "namedCard", name: "Ultron Drones" }, keywords: [{ name: "setup" }], abilities: [upgraded.ref] });
+    const upgraded = stubAbility(
+      "upgraded",
+      def({
+        trigger: {
+          kind: "constant",
+          modifiers: [
+            { stat: "atk", amount: 1, target: facedownDrones },
+            { stat: "hp", amount: 1, target: facedownDrones },
+          ],
+        },
+        effects: [],
+      }),
+    );
+    const UPGRADED = stubAttachment({
+      id: "upgraded",
+      attachesTo: { kind: "namedCard", name: "Ultron Drones" },
+      keywords: [{ name: "setup" }],
+      abilities: [upgraded.ref],
+    });
     const deps = depsOf(dronesEnv, efficiency, loud, upgraded);
-    const state = newGame({ villain: VILLAIN, mainScheme: SCHEME, extraCards: [BLANK, ENVIRONMENT, EFFICIENCY, LOUD, UPGRADED], deck: copies(LOUD.id), encounterDeck: [ENVIRONMENT.id, UPGRADED.id, ...copies(EFFICIENCY.id, 20)], deps });
+    const state = newGame({
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [BLANK, ENVIRONMENT, EFFICIENCY, LOUD, UPGRADED],
+      deck: copies(LOUD.id),
+      encounterDeck: [ENVIRONMENT.id, UPGRADED.id, ...copies(EFFICIENCY.id, 20)],
+      deps,
+    });
     const env = state.villainArea.find((id) => state.instances[id]?.cardId === ENVIRONMENT.id) as InstanceId;
     // Setup puts setup-keyword cards into play in encounter-deck order; the attachment needs its host first.
     const upgradedId = Object.values(state.instances).find((i) => i.cardId === UPGRADED.id)?.instanceId as InstanceId;
@@ -142,7 +218,9 @@ describe("facedown Drone minions (schema-free: `putIntoPlayFacedown`)", () => {
     // Test surgery: empty the deck into the discard pile before the villain phase.
     const emptied: GameState = {
       ...state,
-      players: state.players.map((p) => (p.playerId === p1 ? { ...p, deck: [], discard: [...p.deck, ...p.discard] } : p)),
+      players: state.players.map((p) =>
+        p.playerId === p1 ? { ...p, deck: [], discard: [...p.deck, ...p.discard] } : p,
+      ),
     };
     const result = runWith(deps, emptied, endTurn);
     const settled = settle(result, undefined, deps);
@@ -161,7 +239,12 @@ test("facedown drones replay to an identical state", () => {
   };
   const drain = () => {
     for (let choice = session.state.pendingChoice; choice; choice = session.state.pendingChoice) {
-      apply({ type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: choice.options.slice(0, choice.minSelections).map((o) => o.optionId) });
+      apply({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: choice.options.slice(0, choice.minSelections).map((o) => o.optionId),
+      });
     }
   };
   apply(endTurn);

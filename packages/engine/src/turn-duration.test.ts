@@ -30,33 +30,52 @@ const copies = (id: CardId, n = 4): readonly CardId[] => Array.from({ length: n 
 const you = { kind: "identityOf", player: { kind: "controller" } } as const;
 
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
-const SCHEME = stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(0), targetThreat: flat(40), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "scheme",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(40), acceleration: flat(0) }],
+});
 
 /** "Action: you get +1 ATK until the end of <until>." (Giant Strength 12009 is the `endOfTurn` one.) */
 const boostFor = (until: LastingUntil) =>
-  stubAbility(`boost-${until}`, def({
-    trigger: { kind: "action" },
-    effects: [{ kind: "modifyStatUntil", stat: "atk", amount: { kind: "const", value: 1 }, target: you, until }],
-  }));
+  stubAbility(
+    `boost-${until}`,
+    def({
+      trigger: { kind: "action" },
+      effects: [{ kind: "modifyStatUntil", stat: "atk", amount: { kind: "const", value: 1 }, target: you, until }],
+    }),
+  );
 const TURN_BOOST = boostFor("endOfTurn");
 const PHASE_BOOST = boostFor("endOfPhase");
 const TRAINER = stubSupport({ id: "trainer", cost: 0, abilities: [TURN_BOOST.ref, PHASE_BOOST.ref] });
 
 /** "Forced Response: After the player phase ends, you get +1 ATK until the end of this turn / this phase." */
 const lateBoost = (until: LastingUntil) =>
-  stubAbility(`late-${until}`, def({
-    trigger: { kind: "response", forced: true, on: { on: "playerPhaseEnded" } },
-    effects: [{ kind: "modifyStatUntil", stat: "atk", amount: { kind: "const", value: 1 }, target: you, until }],
-  }));
+  stubAbility(
+    `late-${until}`,
+    def({
+      trigger: { kind: "response", forced: true, on: { on: "playerPhaseEnded" } },
+      effects: [{ kind: "modifyStatUntil", stat: "atk", amount: { kind: "const", value: 1 }, target: you, until }],
+    }),
+  );
 const LATE_TURN = lateBoost("endOfTurn");
 const LATE_PHASE = lateBoost("endOfPhase");
 const LATECOMER = stubSupport({ id: "latecomer", cost: 0, abilities: [LATE_TURN.ref, LATE_PHASE.ref] });
 
 /** "Action: reduce the resource cost of the next card you play this turn by 1." (Deft Focus, `magneto` 49023.) */
-const FOCUS_ABILITY = stubAbility("focus", def({
-  trigger: { kind: "action" },
-  effects: [{ kind: "reduceNextCardCost", player: { kind: "controller" }, amount: { kind: "const", value: 1 }, duration: "turn" }],
-}));
+const FOCUS_ABILITY = stubAbility(
+  "focus",
+  def({
+    trigger: { kind: "action" },
+    effects: [
+      {
+        kind: "reduceNextCardCost",
+        player: { kind: "controller" },
+        amount: { kind: "const", value: 1 },
+        duration: "turn",
+      },
+    ],
+  }),
+);
 const FOCUS = stubSupport({ id: "focus", cost: 0, abilities: [FOCUS_ABILITY.ref] });
 
 function setup(): { deps: EngineDeps; state: GameState } {
@@ -73,9 +92,22 @@ function setup(): { deps: EngineDeps; state: GameState } {
   return { deps, state };
 }
 
-const playFree = (player: typeof p1, id: InstanceId): Command => ({ type: "playCard", playerId: player, cardInstanceId: id, payment: [], attachToInstanceId: null });
-const use = (player: typeof p1, id: InstanceId, abilityId: string): Command => ({ type: "useAbility", playerId: player, cardInstanceId: id, abilityId: abilityId as never, payment: [] });
-const atkOf = (deps: EngineDeps, state: GameState, player: typeof p1) => characterProfile(state, mustPlayer(state, player).identity.instanceId, deps)?.atk ?? 0;
+const playFree = (player: typeof p1, id: InstanceId): Command => ({
+  type: "playCard",
+  playerId: player,
+  cardInstanceId: id,
+  payment: [],
+  attachToInstanceId: null,
+});
+const use = (player: typeof p1, id: InstanceId, abilityId: string): Command => ({
+  type: "useAbility",
+  playerId: player,
+  cardInstanceId: id,
+  abilityId: abilityId as never,
+  payment: [],
+});
+const atkOf = (deps: EngineDeps, state: GameState, player: typeof p1) =>
+  characterProfile(state, mustPlayer(state, player).identity.instanceId, deps)?.atk ?? 0;
 const added = (events: readonly GameEvent[]) =>
   events.flatMap((e) => (e.type === "lastingEffectAdded" ? [e.effect.duration.kind] : []));
 
@@ -85,7 +117,13 @@ describe("§13 'until the end of this turn' (LastingUntil endOfTurn)", () => {
     const given = giveCards(state, p1, "trainer");
     const trainer = given.ids[0] as InstanceId;
     const base = atkOf(deps, given.state, p1);
-    const boosted = runCommands(given.state, deps, playFree(p1, trainer), use(p1, trainer, TURN_BOOST.ref.id), use(p1, trainer, PHASE_BOOST.ref.id)).state;
+    const boosted = runCommands(
+      given.state,
+      deps,
+      playFree(p1, trainer),
+      use(p1, trainer, TURN_BOOST.ref.id),
+      use(p1, trainer, PHASE_BOOST.ref.id),
+    ).state;
     expect(atkOf(deps, boosted, p1)).toBe(base + 2);
 
     const { state: nextTurn, events } = runCommands(boosted, deps, { type: "endTurn", playerId: p1 });
@@ -115,7 +153,9 @@ describe("§13 'until the end of this turn' (LastingUntil endOfTurn)", () => {
     const given = giveCards(state, p1, "focus");
     const focus = given.ids[0] as InstanceId;
     const focused = runCommands(given.state, deps, playFree(p1, focus), use(p1, focus, FOCUS_ABILITY.ref.id)).state;
-    expect(focused.lastingEffects).toMatchObject([{ kind: "costReduction", playerId: p1, amount: 1, duration: { kind: "endOfTurn" } }]);
+    expect(focused.lastingEffects).toMatchObject([
+      { kind: "costReduction", playerId: p1, amount: 1, duration: { kind: "endOfTurn" } },
+    ]);
     const nextTurn = runCommands(focused, deps, { type: "endTurn", playerId: p1 }).state;
     expect(nextTurn.lastingEffects).toEqual([]);
   });

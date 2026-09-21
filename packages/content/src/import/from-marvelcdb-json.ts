@@ -104,12 +104,18 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
   const problems: ImportProblem[] = [];
 
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
-    return { ok: false, problems: [problem("invalid_input", "This does not look like a MarvelCDB deck: expected a JSON object.")] };
+    return {
+      ok: false,
+      problems: [problem("invalid_input", "This does not look like a MarvelCDB deck: expected a JSON object.")],
+    };
   }
   const data = raw as Partial<MarvelCdbDeckJson>;
 
   if (typeof data.problem === "string" && data.problem.length > 0) {
-    return { ok: false, problems: [problem("invalid_input", `MarvelCDB reports a problem with this deck: ${data.problem}`)] };
+    return {
+      ok: false,
+      problems: [problem("invalid_input", `MarvelCDB reports a problem with this deck: ${data.problem}`)],
+    };
   }
   if (typeof data.hero_code !== "string" || data.hero_code.length === 0) {
     problems.push(problem("missing_identity", "This deck has no hero_code, so no identity can be determined."));
@@ -124,7 +130,12 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
   if (slotEntries.length > MAX_IMPORT_LINES) {
     return {
       ok: false,
-      problems: [problem("oversized_input", `This deck lists ${slotEntries.length} different cards, more than the ${MAX_IMPORT_LINES} this importer accepts.`)],
+      problems: [
+        problem(
+          "oversized_input",
+          `This deck lists ${slotEntries.length} different cards, more than the ${MAX_IMPORT_LINES} this importer accepts.`,
+        ),
+      ],
     };
   }
 
@@ -135,10 +146,18 @@ export function parseMarvelCdbDeckJson(raw: unknown, pool: readonly AnyCard[]): 
   if (typeof data.hero_code === "string" && data.hero_code.length > 0) {
     const identityCard = cardsById.get(data.hero_code);
     if (!identityCard) {
-      problems.push(problem("unknown_identity", `The identity card code "${data.hero_code}" is not in the card pool.`, [data.hero_code as CardId]));
+      problems.push(
+        problem("unknown_identity", `The identity card code "${data.hero_code}" is not in the card pool.`, [
+          data.hero_code as CardId,
+        ]),
+      );
     } else if (identityCard.type !== "hero_identity") {
       problems.push(
-        problem("not_an_identity", `"${data.hero_code}" (${identityCard.name}) is a ${identityCard.type.replace(/_/g, " ")} card, not a hero identity.`, [identityCard.id]),
+        problem(
+          "not_an_identity",
+          `"${data.hero_code}" (${identityCard.name}) is a ${identityCard.type.replace(/_/g, " ")} card, not a hero identity.`,
+          [identityCard.id],
+        ),
       );
     } else {
       identityCardId = identityCard.id;
@@ -198,7 +217,12 @@ export function parseMarvelCdbDeckJsonText(text: string, pool: readonly AnyCard[
   if (text.length > MAX_IMPORT_TEXT_LENGTH) {
     return {
       ok: false,
-      problems: [{ code: "oversized_input", message: `This response is ${text.length} characters, more than the ${MAX_IMPORT_TEXT_LENGTH} this importer accepts.` }],
+      problems: [
+        {
+          code: "oversized_input",
+          message: `This response is ${text.length} characters, more than the ${MAX_IMPORT_TEXT_LENGTH} this importer accepts.`,
+        },
+      ],
     };
   }
   let parsed: unknown;
@@ -207,7 +231,13 @@ export function parseMarvelCdbDeckJsonText(text: string, pool: readonly AnyCard[
   } catch {
     return {
       ok: false,
-      problems: [{ code: "invalid_input", message: "MarvelCDB did not return a deck (the response was not JSON — the id may be wrong, or the deck may be private)." }],
+      problems: [
+        {
+          code: "invalid_input",
+          message:
+            "MarvelCDB did not return a deck (the response was not JSON — the id may be wrong, or the deck may be private).",
+        },
+      ],
     };
   }
   return parseMarvelCdbDeckJson(parsed, pool);

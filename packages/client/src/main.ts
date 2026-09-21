@@ -18,6 +18,7 @@ import Phaser from "phaser";
 import { surface } from "./tokens.js";
 import { cssOf, setTextResolution } from "./ui/theme.js";
 import { recoverTextOnContextRestore } from "./ui/context-recovery.js";
+import { installLazyText } from "./ui/lazy-text.js";
 import { appSession } from "./session.js";
 import { BootScene } from "./scenes/boot.js";
 import { TitleScene } from "./scenes/title.js";
@@ -36,6 +37,7 @@ import { DeckCheckScene } from "./scenes/deck-check.js";
 import { PauseOverlay } from "./scenes/pause.js";
 import { RulesOverlay } from "./scenes/rules.js";
 import { SettingsOverlay } from "./scenes/settings.js";
+import { MusicScene } from "./audio/music-controller.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -45,6 +47,8 @@ const settings = appSession().settings;
 // Every text object the theme creates renders at the device pixel ratio, so
 // text stays sharp. Phaser 4 has no game-level equivalent.
 setTextResolution(settings.textResolution);
+
+installLazyText();
 
 const game = new Phaser.Game({
   type: Phaser.WEBGL,
@@ -83,6 +87,7 @@ const game = new Phaser.Game({
     PauseOverlay,
     RulesOverlay,
     SettingsOverlay,
+    MusicScene,
   ],
 });
 

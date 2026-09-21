@@ -140,7 +140,12 @@ export class WorkerEngineHost implements EngineHost {
       // `protocol.ts`'s `failed` reply and `session-core.ts`'s `SetupError`.
       pending.reject(
         response.code
-          ? new SetupError({ code: response.code, message: response.message, command: null, ...(response.illegalDecks ? { illegalDecks: response.illegalDecks } : {}) })
+          ? new SetupError({
+              code: response.code,
+              message: response.message,
+              command: null,
+              ...(response.illegalDecks ? { illegalDecks: response.illegalDecks } : {}),
+            })
           : new Error(response.message),
       );
     } else pending.resolve(response);

@@ -18,7 +18,9 @@ import {
 } from "@mc/content";
 import type { CardPool } from "@mc/engine";
 
-export type ImportOutcome = { readonly ok: true; readonly deck: Deck } | { readonly ok: false; readonly problems: readonly ImportProblem[] };
+export type ImportOutcome =
+  | { readonly ok: true; readonly deck: Deck }
+  | { readonly ok: false; readonly problems: readonly ImportProblem[] };
 
 export interface ImportEnv {
   readonly pool: readonly AnyCard[];

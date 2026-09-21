@@ -1,5 +1,12 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeVillain, handSize, remainingHitPoints, type Command, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  activeVillain,
+  handSize,
+  remainingHitPoints,
+  type Command,
+  type InstanceId,
+} from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -24,7 +31,8 @@ import { wave1Scenario } from "../setup.js";
 import { DRS_DEPS, runDrs, startDrsGame } from "./testing.js";
 
 // Real wave 1 content: the Doctor Strange (Protection) precon against Rhino, standard, solo.
-const drsVsRhino = (seed = 6601) => startDrsGame(wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed }));
+const drsVsRhino = (seed = 6601) =>
+  startDrsGame(wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed }));
 
 /** A neutral boost card (0 icons, no boost ability), so the villain phase's own boost draw doesn't distort a
  * deterministic attack — matches `wave1/hlk/hulk.test.ts`'s `ADVANCE`, same Rhino encounter pool. */
@@ -33,19 +41,12 @@ const ADVANCE = "01186";
  * for the identical "prove a DEF bonus actually reduced a defense's damage" shape. */
 const CROWD_CONTROL = "01108";
 
-const basicAttack = (attacker: InstanceId, target: InstanceId): Command => ({ type: "basicAttack", playerId: P1, attackerInstanceId: attacker, targetInstanceId: target });
-
-/** Test-only surgery: moves a copy of `code` straight from deck to the player's discard pile. */
-function moveToDiscard(state: GameState, player: PlayerId, code: string): { readonly state: GameState; readonly id: InstanceId } {
-  const owner = playerOf(state, player);
-  const wanted = (id: InstanceId) => state.instances[id]?.cardId === cardId(code);
-  const id = owner.deck.find(wanted) ?? owner.hand.find(wanted);
-  if (!id) throw new Error(`${player} has no ${code} in deck or hand`);
-  return {
-    id,
-    state: { ...state, players: state.players.map((p) => (p.playerId === player ? { ...p, deck: p.deck.filter((x) => x !== id), hand: p.hand.filter((x) => x !== id), discard: [...p.discard, id] } : p)) },
-  };
-}
+const basicAttack = (attacker: InstanceId, target: InstanceId): Command => ({
+  type: "basicAttack",
+  playerId: P1,
+  attackerInstanceId: attacker,
+  targetInstanceId: target,
+});
 
 /**
  * Brother Voodoo (09012), Clea (09013), Iron Fist (09014), Momentum Shift (09016), The Night Nurse (09019), Warning
@@ -85,7 +86,12 @@ describe("Doctor Strange pack cards", () => {
     const given = moveToHand(start, P1, "09013");
     const [clea] = given.ids as [InstanceId];
     const hero = runDrs(given.state, toHero());
-    const withClea = settle(runDrs(hero, play(P1, clea, payWith(hero, P1, 2, [clea]))), firstLegal, undefined, DRS_DEPS);
+    const withClea = settle(
+      runDrs(hero, play(P1, clea, payWith(hero, P1, 2, [clea]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     // Clea has no printed DEF (an unmodifiable dash): declaring her as defender against Rhino's 2-ATK attack (a
     // neutral 0-icon boost card so the total is deterministic) deals exactly 2 damage — her printed 2 hit points.
     const staged = stackEncounterDeck(withClea, ADVANCE);
@@ -139,7 +145,12 @@ describe("Doctor Strange pack cards", () => {
     const staged = stackEncounterDeck(hero, CROWD_CONTROL);
     const atDeclare = settleUntil(runDrs(staged, endTurn()), "declareDefender", firstLegal, DRS_DEPS);
     const declared = answer(atDeclare, [identity], DRS_DEPS);
-    const after = settle(declared, firstLegal, (s) => activeEncounterDeck(s).discard.some((id) => inst(s, id).cardId === CROWD_CONTROL), DRS_DEPS);
+    const after = settle(
+      declared,
+      firstLegal,
+      (s) => activeEncounterDeck(s).discard.some((id) => inst(s, id).cardId === CROWD_CONTROL),
+      DRS_DEPS,
+    );
     expect(inst(after, identity).damage).toBe(2);
     expect(inst(after, identity).exhausted).toBe(true); // never readied: nothing removed the damage this time
   });
@@ -152,7 +163,12 @@ describe("Doctor Strange pack cards", () => {
     const given = moveToHand(start, P1, "09020");
     const [unflappable] = given.ids as [InstanceId];
     const hero = runDrs(given.state, toHero());
-    const withCard = settle(runDrs(hero, play(P1, unflappable, payWith(hero, P1, 1, [unflappable]))), firstLegal, undefined, DRS_DEPS);
+    const withCard = settle(
+      runDrs(hero, play(P1, unflappable, payWith(hero, P1, 1, [unflappable]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     const identity = identityOf(withCard);
     // Two neutral Advances (matching `doctor-strange.test.ts`'s own precedent, line ~245): one is Rhino's own
     // boost card for this attack, the other keeps the per-player reveal that immediately follows from dealing
@@ -185,14 +201,24 @@ describe("Doctor Strange pack cards", () => {
     const given = moveToHand(start, P1, "09020");
     const [unflappable] = given.ids as [InstanceId];
     const hero = runDrs(given.state, toHero());
-    const withCard = settle(runDrs(hero, play(P1, unflappable, payWith(hero, P1, 1, [unflappable]))), firstLegal, undefined, DRS_DEPS);
+    const withCard = settle(
+      runDrs(hero, play(P1, unflappable, payWith(hero, P1, 1, [unflappable]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     const identity = identityOf(withCard);
     // CROWD_CONTROL (2 boost icons) as Rhino's own boost card: 2 + 2 - 2 = 2 damage taken. ADVANCE/"01104" again
     // keep the following per-player reveal harmless.
     const staged = stackEncounterDeck(withCard, CROWD_CONTROL, ADVANCE, "01104");
     const atDeclare = settleUntil(runDrs(staged, endTurn()), "declareDefender", firstLegal, DRS_DEPS);
     const declared = answer(atDeclare, [identity], DRS_DEPS);
-    const after = settle(declared, firstLegal, (s) => activeEncounterDeck(s).discard.some((id) => inst(s, id).cardId === cardId(CROWD_CONTROL)), DRS_DEPS);
+    const after = settle(
+      declared,
+      firstLegal,
+      (s) => activeEncounterDeck(s).discard.some((id) => inst(s, id).cardId === cardId(CROWD_CONTROL)),
+      DRS_DEPS,
+    );
     expect(inst(after, identity).damage).toBe(2);
     expect(inst(after, unflappable).exhausted).toBe(false); // never offered, so never paid for
   });
@@ -202,7 +228,12 @@ describe("Doctor Strange pack cards", () => {
     const given = moveToHand(start, P1, "09014");
     const [ironFist] = given.ids as [InstanceId];
     const hero = runDrs(given.state, toHero());
-    const withFist = settle(runDrs(hero, play(P1, ironFist, payWith(hero, P1, 4, [ironFist]))), firstLegal, undefined, DRS_DEPS);
+    const withFist = settle(
+      runDrs(hero, play(P1, ironFist, payWith(hero, P1, 4, [ironFist]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     expect(inst(withFist, ironFist).counters.mystic).toBe(2);
     const villain = activeVillain(withFist).instanceId;
     const hpBefore = remainingHitPoints(withFist, villain);
@@ -221,7 +252,12 @@ describe("Doctor Strange pack cards", () => {
     const damaged = patchInstance(hero, identityOf(hero), { damage: 2 });
     const villain = activeVillain(damaged).instanceId;
     const hpBefore = remainingHitPoints(damaged, villain);
-    const after = settle(runDrs(damaged, play(P1, shift, payWith(damaged, P1, 2, [shift]))), firstLegal, undefined, DRS_DEPS);
+    const after = settle(
+      runDrs(damaged, play(P1, shift, payWith(damaged, P1, 2, [shift]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     expect(inst(after, identityOf(after)).damage).toBe(0);
     expect(remainingHitPoints(after, villain)).toBe(hpBefore! - 2);
   });
@@ -230,16 +266,29 @@ describe("Doctor Strange pack cards", () => {
     const given = moveToHand(drsVsRhino(), P1, "09019");
     const [nurse] = given.ids as [InstanceId];
     const hero = runDrs(given.state, toHero());
-    const withNurse = settle(runDrs(hero, play(P1, nurse, payWith(hero, P1, 1, [nurse]))), firstLegal, undefined, DRS_DEPS);
+    const withNurse = settle(
+      runDrs(hero, play(P1, nurse, payWith(hero, P1, 1, [nurse]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     const identity = identityOf(withNurse);
     // Test surgery: a status is a plain instance field, unlike damage/threat there is no separate "defeat check"
     // or "hit 0" bookkeeping it needs to go through, so patching it directly is exact, not an approximation.
-    const staged = patchInstance(withNurse, identity, { damage: 1, statuses: { ...inst(withNurse, identity).statuses, confused: 1 } });
-    const after = settle(runDrs(staged, use(P1, nurse, "09019.the-night-nurse-action", [], undefined)), (s) => {
-      const prompt = s.pendingChoice?.prompt;
-      if (prompt?.kind === "chooseTarget") return [identity];
-      return firstLegal(s);
-    }, undefined, DRS_DEPS);
+    const staged = patchInstance(withNurse, identity, {
+      damage: 1,
+      statuses: { ...inst(withNurse, identity).statuses, confused: 1 },
+    });
+    const after = settle(
+      runDrs(staged, use(P1, nurse, "09019.the-night-nurse-action", [], undefined)),
+      (s) => {
+        const prompt = s.pendingChoice?.prompt;
+        if (prompt?.kind === "chooseTarget") return [identity];
+        return firstLegal(s);
+      },
+      undefined,
+      DRS_DEPS,
+    );
     expect(inst(after, identity).damage).toBe(0);
     expect(inst(after, identity).statuses.confused).toBe(0);
     expect(inst(after, nurse).counters.medical).toBe(2);
@@ -271,7 +320,12 @@ describe("Doctor Strange pack cards", () => {
     // Alter-ego form (the default at this point): no bonus yet — Doctor Strange's printed alter-ego hand size is 6.
     const alterEgoBefore = handSize(given.state, P1, DRS_DEPS);
     expect(alterEgoBefore).toBe(6);
-    const played = settle(runDrs(given.state, play(P1, supreme, payWith(given.state, P1, 2, [supreme]))), firstLegal, undefined, DRS_DEPS);
+    const played = settle(
+      runDrs(given.state, play(P1, supreme, payWith(given.state, P1, 2, [supreme]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     expect(handSize(played, P1, DRS_DEPS)).toBe(6); // still alter-ego: no bonus while not in hero form
     const hero = runDrs(played, toHero());
     // Printed hero hand size 5, +1 from The Sorcerer Supreme while in hero form — distinct from alter-ego's own

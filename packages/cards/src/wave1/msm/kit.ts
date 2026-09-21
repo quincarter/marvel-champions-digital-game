@@ -1,5 +1,13 @@
 import { trait, type Trait } from "@mc/content";
-import type { AbilityCost, AbilityDefinition, EffectSpec, EventPattern, ResourceGeneration, TargetQuery, TargetRef } from "@mc/engine";
+import type {
+  AbilityCost,
+  AbilityDefinition,
+  EffectSpec,
+  EventPattern,
+  ResourceGeneration,
+  TargetQuery,
+  TargetRef,
+} from "@mc/engine";
 import {
   action,
   alterEgoAction,
@@ -70,7 +78,11 @@ const heroResourceFor = (generates: ResourceGeneration, forQuery: TargetQuery): 
  * and `modifyCardEffect` (docs/phase7-wave1.md §3.13) are landed, but `dsl/abilities.ts`'s `on`/`when` object has no
  * sugar for this pattern yet, so it's composed here as a raw `EventPattern`.
  */
-const whenYouPlay = (t: typeof THWART | typeof ATTACK): EventPattern => ({ on: "cardBeingPlayed", playerIs: "controller", targetIs: query("event", { trait: t }) });
+const whenYouPlay = (t: typeof THWART | typeof ATTACK): EventPattern => ({
+  on: "cardBeingPlayed",
+  playerIs: "controller",
+  targetIs: query("event", { trait: t }),
+});
 
 /**
  * "After you play an Attack, Thwart, or Defense event" (Morphogenetics, 05001a): the `cardPlayed` trigger event
@@ -79,7 +91,11 @@ const whenYouPlay = (t: typeof THWART | typeof ATTACK): EventPattern => ({ on: "
  * this card (docs/phase7-wave1-scripting.md §6). Proven for this exact shape by `engine/src/movement-wave1.test.ts`'s
  * `RETURN_EVENT` stub.
  */
-const afterYouPlay = (traits: readonly Trait[]): EventPattern => ({ on: "cardPlayed", playerIs: "controller", targetIs: query("event", { anyTrait: traits }) });
+const afterYouPlay = (traits: readonly Trait[]): EventPattern => ({
+  on: "cardPlayed",
+  playerIs: "controller",
+  targetIs: query("event", { anyTrait: traits }),
+});
 
 /**
  * Ms. Marvel / Kamala Khan (05001a/b) and her hero kit (05002–05011). Reprints bundled in this pack (Get Behind
@@ -110,11 +126,19 @@ export const MSM_KIT = defineAbilities({
 
   // Morphogenetics — Response: After you play an Attack, Thwart, or Defense event, exhaust Ms. Marvel → return
   // that event to your hand.
-  "05001a.morphogenetics": response(afterYouPlay([ATTACK, THWART, DEFENSE]), { cost: exhaustThis }, moveCards(cards(eventTarget), "hand")),
+  "05001a.morphogenetics": response(
+    afterYouPlay([ATTACK, THWART, DEFENSE]),
+    { cost: exhaustThis },
+    moveCards(cards(eventTarget), "hand"),
+  ),
 
   // Embiggen! — Hero Interrupt: When you play an Attack event, exhaust Embiggen! → increase the amount of damage
   // that event deals by 2.
-  "05010.embiggen-interrupt": heroInterrupt(whenYouPlay(ATTACK), { cost: exhaustThis }, { kind: "modifyCardEffect", card: eventTarget, damage: amount(2) }),
+  "05010.embiggen-interrupt": heroInterrupt(
+    whenYouPlay(ATTACK),
+    { cost: exhaustThis },
+    { kind: "modifyCardEffect", card: eventTarget, damage: amount(2) },
+  ),
 
   // Red Dagger — Interrupt: When Red Dagger is defeated, spend 2 resources of different types → deal 2 damage to
   // an enemy and return Red Dagger to your hand. A replacement (RRG "Replacement Effect"), same shape as Clea
@@ -123,7 +147,11 @@ export const MSM_KIT = defineAbilities({
   "05002.red-dagger-interrupt": interrupt(
     when.defeated("self"),
     { cost: spendDifferentTypes(2) },
-    instead(anEnemy(), { kind: "dealDamage", target: chosen("enemy"), amount: amount(2) }, moveCards(cards(self), "hand")),
+    instead(
+      anEnemy(),
+      { kind: "dealDamage", target: chosen("enemy"), amount: amount(2) },
+      moveCards(cards(self), "hand"),
+    ),
   ),
 
   // Big Hands — Hero Action (attack): Deal 4 damage to an enemy.
@@ -134,7 +162,12 @@ export const MSM_KIT = defineAbilities({
 
   // Wiggle Room — Hero Interrupt (defense): When you would take any amount of damage, prevent 3 of that damage.
   // Draw 1 card.
-  "05005.wiggle-room-interrupt": heroInterrupt(when.damage(YOUR_IDENTITY), { label: "defense" }, preventDamage(3), draw(1)),
+  "05005.wiggle-room-interrupt": heroInterrupt(
+    when.damage(YOUR_IDENTITY),
+    { label: "defense" },
+    preventDamage(3),
+    draw(1),
+  ),
 
   // Aamir Khan — Alter-Ego Action: Exhaust Aamir Khan → place 1 card from your discard pile on the bottom of your
   // deck, then draw 1 card.
@@ -168,5 +201,9 @@ export const MSM_KIT = defineAbilities({
 
   // Shrink — Hero Interrupt: When you play a Thwart event, exhaust Shrink → increase the amount of threat that
   // event removes by 2. FAQ "Shrink (#11)" (RRG 1.8 p. 59): same reading as Embiggen!, for threat removal.
-  "05011.shrink-interrupt": heroInterrupt(whenYouPlay(THWART), { cost: exhaustThis }, { kind: "modifyCardEffect", card: eventTarget, threatRemoved: amount(2) }),
+  "05011.shrink-interrupt": heroInterrupt(
+    whenYouPlay(THWART),
+    { cost: exhaustThis },
+    { kind: "modifyCardEffect", card: eventTarget, threatRemoved: amount(2) },
+  ),
 });

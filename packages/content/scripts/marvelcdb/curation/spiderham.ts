@@ -14,7 +14,8 @@ export const SPIDERHAM_CURATION: PackCuration = {
   pack: {
     name: "Spider-Ham",
     releaseDate: "2022-07-15",
-    releaseDateSource: 'Hall of Heroes Spider-Ham/Peter Porker page (https://hallofheroeslcg.com/spider-ham-peter-porker/): "Release date: July 15, 2022"',
+    releaseDateSource:
+      'Hall of Heroes Spider-Ham/Peter Porker page (https://hallofheroeslcg.com/spider-ham-peter-porker/): "Release date: July 15, 2022"',
   },
   outDir: "src/data/spiderham",
   exportPrefix: "SPIDERHAM",

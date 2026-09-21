@@ -9,7 +9,10 @@ const starter = CORE_STARTER_DECKS[0]!;
 describe("deckStatusOf", () => {
   test("a real Core precon reads legal", () => {
     const deck = deckFromStarterDeck(starter, CORE_POOL_VERSION);
-    expect(deckStatusOf(deckOptionOf(deck, CORE_CARDS, CORE_POOL_VERSION, CORE_DEPS))).toEqual({ text: "Legal", tone: "legal" });
+    expect(deckStatusOf(deckOptionOf(deck, CORE_CARDS, CORE_POOL_VERSION, CORE_DEPS))).toEqual({
+      text: "Legal",
+      tone: "legal",
+    });
   });
 
   test("an illegal deck reads illegal, even if it would also be unscripted or stale", () => {
@@ -26,6 +29,9 @@ describe("deckStatusOf", () => {
 
   test("a legal, playable deck built against an old pool flags the pool change", () => {
     const deck = deckFromStarterDeck(starter, "v1-00000000");
-    expect(deckStatusOf(deckOptionOf(deck, CORE_CARDS, CORE_POOL_VERSION, CORE_DEPS))).toEqual({ text: "Pool changed", tone: "poolChanged" });
+    expect(deckStatusOf(deckOptionOf(deck, CORE_CARDS, CORE_POOL_VERSION, CORE_DEPS))).toEqual({
+      text: "Pool changed",
+      tone: "poolChanged",
+    });
   });
 });

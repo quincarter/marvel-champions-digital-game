@@ -65,13 +65,19 @@ export const POWER_DRAIN = defineAbilities({
   // icon discarded this way. `discardEncounterCards`'s own `<bind>.boostIcons` (wave B primitives batch,
   // docs/phase7-wave1-scripting.md §6) sums icons across all 2 discarded cards, unlike `boostIconsOn`, which only
   // ever reads the first.
-  "02044.when-revealed": whenRevealed(discardEncounterCards(2, { bind: "lb" }), dealIndirectDamage(varOf("lb.boostIcons"), you)),
+  "02044.when-revealed": whenRevealed(
+    discardEncounterCards(2, { bind: "lb" }),
+    dealIndirectDamage(varOf("lb.boostIcons"), you),
+  ),
   // [star] Boost: Discard 3 cards from the encounter deck (no icon-sum needed; scriptable on its own).
   "02044.boost": boost(discardEncounterCards(3)),
 
   // Shock Therapy — When Revealed: Discard 1[per_hero] cards from the encounter deck. The villain heals 1 damage
   // for each boost icon discarded this way.
-  "02045.when-revealed": whenRevealed(discardEncounterCards(perHero(1), { bind: "st" }), heal(varOf("st.boostIcons"), theVillain)),
+  "02045.when-revealed": whenRevealed(
+    discardEncounterCards(perHero(1), { bind: "st" }),
+    heal(varOf("st.boostIcons"), theVillain),
+  ),
   // [star] Boost: Discard 3 cards from the encounter deck (same shape, scriptable on its own).
   "02045.boost": boost(discardEncounterCards(3)),
 });

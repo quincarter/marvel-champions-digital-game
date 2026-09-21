@@ -19,41 +19,80 @@ import { hasKeyword } from "./keywords.js";
 import { activeAbilityRefs, blankedByConstantRules, cardsInPlay } from "./select.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubMainScheme, stubSideScheme, stubSupport, stubTreachery, stubVillain, stubUpgrade } from "./testing/fixtures.js";
+import {
+  stubMainScheme,
+  stubSideScheme,
+  stubSupport,
+  stubTreachery,
+  stubVillain,
+  stubUpgrade,
+} from "./testing/fixtures.js";
 import { giveCard, newGame, RESOURCE, runWith, settle } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const def = (d: AbilityDefinition) => d;
 const toHero: Command = { type: "changeForm", playerId: p1 };
 const endTurn: Command = { type: "endTurn", playerId: p1 };
-const play = (id: InstanceId): Command => ({ type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null });
+const play = (id: InstanceId): Command => ({
+  type: "playCard",
+  playerId: p1,
+  cardInstanceId: id,
+  payment: [],
+  attachToInstanceId: null,
+});
 const copies = (id: CardId, n = 4): readonly CardId[] => Array.from({ length: n }, () => id);
 
 const TECH = trait("TECH");
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
-const SCHEME = stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(5), targetThreat: flat(99), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "scheme",
+  stages: [{ startingThreat: flat(5), targetThreat: flat(99), acceleration: flat(0) }],
+});
 const QUIET = stubVillain({ id: "villain", stages: [{ hp: flat(60), atk: 0, sch: 0 }] });
 
 // "Treat the printed text box of each [Tech] player card as if it were blank." (Tech Theft 12026, a side scheme.)
-const techTheft = stubAbility("theft.constant", def({
-  // "each [Tech] player card": the player card types, since an encounter card has no controller to scope "you" to
-  // on a rule printed on an encounter card (docs/phase7-wave2.md §8).
-  trigger: { kind: "constant", rules: [{ kind: "blankTextBox", target: { trait: TECH, categories: ["ally", "upgrade", "support"] } }] },
-  effects: [],
-}));
+const techTheft = stubAbility(
+  "theft.constant",
+  def({
+    // "each [Tech] player card": the player card types, since an encounter card has no controller to scope "you" to
+    // on a rule printed on an encounter card (docs/phase7-wave2.md §8).
+    trigger: {
+      kind: "constant",
+      rules: [{ kind: "blankTextBox", target: { trait: TECH, categories: ["ally", "upgrade", "support"] } }],
+    },
+    effects: [],
+  }),
+);
 const TECH_THEFT = stubSideScheme({ id: "tech-theft", startingThreat: 9, boostIcons: 0, abilities: [techTheft.ref] });
 
 // A Tech upgrade with one of each kind of text: a constant modifier, an action ability, and a printed keyword.
-const gadgetConstant = stubAbility("gadget.constant", def({
-  trigger: { kind: "constant", modifiers: [{ stat: "atk", amount: 3, target: { categories: ["identity"], controller: "you" } }] },
-  effects: [],
-}));
-const gadgetAction = stubAbility("gadget.action", def({
-  trigger: { kind: "action", form: "hero" },
-  effects: [{ kind: "addCounters", target: { kind: "self" }, counterType: "used", amount: { kind: "const", value: 1 } }],
-}));
+const gadgetConstant = stubAbility(
+  "gadget.constant",
+  def({
+    trigger: {
+      kind: "constant",
+      modifiers: [{ stat: "atk", amount: 3, target: { categories: ["identity"], controller: "you" } }],
+    },
+    effects: [],
+  }),
+);
+const gadgetAction = stubAbility(
+  "gadget.action",
+  def({
+    trigger: { kind: "action", form: "hero" },
+    effects: [
+      { kind: "addCounters", target: { kind: "self" }, counterType: "used", amount: { kind: "const", value: 1 } },
+    ],
+  }),
+);
 const GADGET = {
-  ...stubUpgrade({ id: "gadget", cost: 0, traits: [TECH], abilities: [gadgetConstant.ref, gadgetAction.ref], keywords: [{ name: "restricted" }] }),
+  ...stubUpgrade({
+    id: "gadget",
+    cost: 0,
+    traits: [TECH],
+    abilities: [gadgetConstant.ref, gadgetAction.ref],
+    keywords: [{ name: "restricted" }],
+  }),
 };
 
 const deps: EngineDeps = depsOf(techTheft, gadgetConstant, gadgetAction);
@@ -100,7 +139,13 @@ describe("§8 a constant rule blanking a whole class of cards", () => {
     expect(abilityIds(without.state)).toContain(String(gadgetAction.ref.id));
     expect(abilityIds(withTheft.state)).not.toContain(String(gadgetAction.ref.id));
     // Using it by command is refused too, not merely hidden.
-    const use: Command = { type: "useAbility", playerId: p1, cardInstanceId: withTheft.gadget, abilityId: gadgetAction.ref.id, payment: [] };
+    const use: Command = {
+      type: "useAbility",
+      playerId: p1,
+      cardInstanceId: withTheft.gadget,
+      abilityId: gadgetAction.ref.id,
+      payment: [],
+    };
     expect(applyCommand(withTheft.state, use, deps)).toMatchObject({ ok: false, error: { code: "no_valid_target" } });
     // RRG 1.8 "Blank" (p. 10): a printed keyword is text in the text box, so it goes too.
     expect(hasKeyword(without.state, without.gadget, "restricted", deps)).toBe(true);
@@ -122,14 +167,26 @@ describe("§8 a constant rule blanking a whole class of cards", () => {
   it("matches on printed characteristics, so a granted trait does not make a card blank (no recursion)", () => {
     // A support that grants the Tech trait to your identity. If the blanking rule read *granted* traits, finding it
     // would have to read the very ability lookups it gates. The documented reading is printed-only.
-    const granter = stubAbility("granter.constant", def({
-      trigger: { kind: "constant", traitGrants: [{ trait: TECH, target: { categories: ["support"], controller: "you" } }] },
-      effects: [],
-    }));
-    const badge = stubAbility("badge.constant", def({
-      trigger: { kind: "constant", modifiers: [{ stat: "thw", amount: 2, target: { categories: ["identity"], controller: "you" } }] },
-      effects: [],
-    }));
+    const granter = stubAbility(
+      "granter.constant",
+      def({
+        trigger: {
+          kind: "constant",
+          traitGrants: [{ trait: TECH, target: { categories: ["support"], controller: "you" } }],
+        },
+        effects: [],
+      }),
+    );
+    const badge = stubAbility(
+      "badge.constant",
+      def({
+        trigger: {
+          kind: "constant",
+          modifiers: [{ stat: "thw", amount: 2, target: { categories: ["identity"], controller: "you" } }],
+        },
+        effects: [],
+      }),
+    );
     const GRANTER = stubSupport({ id: "granter", cost: 0, abilities: [granter.ref] });
     const BADGE = stubSupport({ id: "badge", cost: 0, abilities: [badge.ref] });
     const localDeps = depsOf(techTheft, granter, badge);
@@ -147,7 +204,9 @@ describe("§8 a constant rule blanking a whole class of cards", () => {
       state = settle(runWith(localDeps, given.state, play(given.id)), undefined, localDeps);
     }
     state = settle(runWith(localDeps, state, endTurn), undefined, localDeps);
-    const badgeId = mustPlayer(state, p1).playArea.find((id) => mustInstance(state, id).cardId === BADGE.id) as InstanceId;
+    const badgeId = mustPlayer(state, p1).playArea.find(
+      (id) => mustInstance(state, id).cardId === BADGE.id,
+    ) as InstanceId;
     // Badge only has TECH as a *granted* trait, so it is not blanked and its +2 THW still applies.
     expect(blankedByConstantRules(state, localDeps)).not.toContain(badgeId);
     const identity = mustPlayer(state, p1).identity.instanceId;
@@ -176,10 +235,16 @@ describe("§8 the ability-lookup layer does not become quadratic", () => {
   function fullBoard(withTheft: boolean, n: number): { state: GameState; deps: EngineDeps } {
     const abilities: StubAbility[] = [techTheft];
     const supports = Array.from({ length: n }, (_, i) => {
-      const ability = stubAbility(`filler${i}.constant`, def({
-        trigger: { kind: "constant", modifiers: [{ stat: "thw", amount: 1, target: { categories: ["identity"], controller: "you" } }] },
-        effects: [],
-      }));
+      const ability = stubAbility(
+        `filler${i}.constant`,
+        def({
+          trigger: {
+            kind: "constant",
+            modifiers: [{ stat: "thw", amount: 1, target: { categories: ["identity"], controller: "you" } }],
+          },
+          effects: [],
+        }),
+      );
       abilities.push(ability);
       return stubSupport({ id: `filler${i}`, cost: 0, abilities: [ability.ref] });
     });

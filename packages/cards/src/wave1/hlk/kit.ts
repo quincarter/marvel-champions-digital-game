@@ -90,7 +90,10 @@ export const HLK_KIT = defineAbilities({
   "10004.sub-orbital-leap-action": heroAction({ label: "thwart" }, thwartAScheme(ifElse(paidOnly("physical"), 5, 3))),
 
   // Thunderclap — Hero Action: Choose up to 3 different enemies. Deal 3 damage to each of them.
-  "10005.thunderclap-action": heroAction(chooseTarget("enemies", query("enemy"), { count: 3, optional: true }), dealDamage(3, chosen("enemies"))),
+  "10005.thunderclap-action": heroAction(
+    chooseTarget("enemies", query("enemy"), { count: 3, optional: true }),
+    dealDamage(3, chosen("enemies")),
+  ),
 
   // Unstoppable Force — Hero Action: Ready Hulk. If you paid for this card using only [physical] resources, draw
   // 1 card. FAQ "Unstoppable Force (#6)" (RRG 1.8 p. 60): at cost 0 the condition fails (the engine's

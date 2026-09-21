@@ -16,7 +16,8 @@ export const GOB_CURATION: PackCuration = {
   pack: {
     name: "Green Goblin",
     releaseDate: "2019-12-20",
-    releaseDateSource: "Hall of Heroes Green Goblin page (https://hallofheroeslcg.com/green-goblin/): \"Release date: December 20, 2019\"",
+    releaseDateSource:
+      'Hall of Heroes Green Goblin page (https://hallofheroeslcg.com/green-goblin/): "Release date: December 20, 2019"',
   },
   outDir: "src/data/gob",
   exportPrefix: "GOB",
@@ -31,12 +32,13 @@ export const GOB_CURATION: PackCuration = {
 
   scriptingNotes: {
     "02004b.when-completed":
-      "RRG 1.8 \"When Completed Abilities\" (p.48): equivalent to a Forced Interrupt on this stage (Hostile Takeover 1B) being completed, resolving before the scheme advances. Not the same as When Defeated.",
+      'RRG 1.8 "When Completed Abilities" (p.48): equivalent to a Forced Interrupt on this stage (Hostile Takeover 1B) being completed, resolving before the scheme advances. Not the same as When Defeated.',
     "02017b.when-completed": "Same shape as 02004b.when-completed, on Unleashing the Mutagen 1B.",
   },
 
   cardNotes: {
-    "02008": "Guard minion (Private Security Specialist). Printed SCH is 0 (not \"—\"): raw scheme=0, not absent [evidence: raw; phase7 §1.12].",
+    "02008":
+      'Guard minion (Private Security Specialist). Printed SCH is 0 (not "—"): raw scheme=0, not absent [evidence: raw; phase7 §1.12].',
   },
 
   scenarios: [
@@ -52,7 +54,7 @@ export const GOB_CURATION: PackCuration = {
       // Norman Osborn I–II (standard) / II–III (expert), starting on Norman (side A) — phase7 §1.2, §1.3, §2.2.
       villainStages: { standard: [1, 2], expert: [2, 3] },
       evidence:
-        "Green Goblin insert \"How to Use This Pack\"/\"Adjustable Difficulty\" (quoted docs/phase7-wave1.md §1.3, §2.2); Hostile Takeover 1A Contents text (raw 02004a); HoH Green Goblin page (\"Risky Business (Scenario 1 - Suggested Pairing: Power Drain)\")",
+        'Green Goblin insert "How to Use This Pack"/"Adjustable Difficulty" (quoted docs/phase7-wave1.md §1.3, §2.2); Hostile Takeover 1A Contents text (raw 02004a); HoH Green Goblin page ("Risky Business (Scenario 1 - Suggested Pairing: Power Drain)")',
     },
     {
       id: "mutagen-formula",
@@ -64,7 +66,7 @@ export const GOB_CURATION: PackCuration = {
       expertSetCodes: ["expert"],
       villainStages: { standard: [1, 2], expert: [2, 3] },
       evidence:
-        "Green Goblin insert \"Adjustable Difficulty\"; Unleashing the Mutagen 1A Contents text (raw 02017a); HoH Green Goblin page (\"Mutagen Formula (Scenario 2 - Suggested Pairing: Goblin Gimmicks)\")",
+        'Green Goblin insert "Adjustable Difficulty"; Unleashing the Mutagen 1A Contents text (raw 02017a); HoH Green Goblin page ("Mutagen Formula (Scenario 2 - Suggested Pairing: Goblin Gimmicks)")',
     },
   ],
 

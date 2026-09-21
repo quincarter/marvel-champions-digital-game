@@ -60,7 +60,11 @@ import {
 } from "./local.js";
 
 const infamyOrMadness = (n: number) =>
-  ifThen(inPlay(CRIMINAL_ENTERPRISE), addCounters("infamy", n, named(CRIMINAL_ENTERPRISE)), removeCounters("madness", n, named(STATE_OF_MADNESS)));
+  ifThen(
+    inPlay(CRIMINAL_ENTERPRISE),
+    addCounters("infamy", n, named(CRIMINAL_ENTERPRISE)),
+    removeCounters("madness", n, named(STATE_OF_MADNESS)),
+  );
 
 /**
  * Risky Business: Norman Osborn / Green Goblin (02001a), Hostile Takeover (02004a), Criminal Enterprise / State of
@@ -71,23 +75,52 @@ export const RISKY_BUSINESS = defineAbilities({
   // Norman Osborn (I/II/III) — [star] Forced Interrupt: When Norman Osborn would attack, place N infamy counter(s)
   // on Criminal Enterprise instead. Forced Interrupt: When Norman Osborn would take any amount of damage, remove
   // that many infamy counters from Criminal Enterprise instead.
-  "02001a.norman-osborn-forced-interrupt": forcedInterrupt(when.enemyAttacks("self"), instead(addCounters("infamy", 1, named(CRIMINAL_ENTERPRISE)))),
-  "02001a.norman-osborn-forced-interrupt-2": forcedInterrupt(when.damage("self"), instead(removeCounters("infamy", eventAmount, named(CRIMINAL_ENTERPRISE)))),
-  "02002a.norman-osborn-forced-interrupt": forcedInterrupt(when.enemyAttacks("self"), instead(addCounters("infamy", 2, named(CRIMINAL_ENTERPRISE)))),
-  "02002a.norman-osborn-forced-interrupt-2": forcedInterrupt(when.damage("self"), instead(removeCounters("infamy", eventAmount, named(CRIMINAL_ENTERPRISE)))),
-  "02003a.norman-osborn-forced-interrupt": forcedInterrupt(when.enemyAttacks("self"), instead(addCounters("infamy", 3, named(CRIMINAL_ENTERPRISE)))),
-  "02003a.norman-osborn-forced-interrupt-2": forcedInterrupt(when.damage("self"), instead(removeCounters("infamy", eventAmount, named(CRIMINAL_ENTERPRISE)))),
+  "02001a.norman-osborn-forced-interrupt": forcedInterrupt(
+    when.enemyAttacks("self"),
+    instead(addCounters("infamy", 1, named(CRIMINAL_ENTERPRISE))),
+  ),
+  "02001a.norman-osborn-forced-interrupt-2": forcedInterrupt(
+    when.damage("self"),
+    instead(removeCounters("infamy", eventAmount, named(CRIMINAL_ENTERPRISE))),
+  ),
+  "02002a.norman-osborn-forced-interrupt": forcedInterrupt(
+    when.enemyAttacks("self"),
+    instead(addCounters("infamy", 2, named(CRIMINAL_ENTERPRISE))),
+  ),
+  "02002a.norman-osborn-forced-interrupt-2": forcedInterrupt(
+    when.damage("self"),
+    instead(removeCounters("infamy", eventAmount, named(CRIMINAL_ENTERPRISE))),
+  ),
+  "02003a.norman-osborn-forced-interrupt": forcedInterrupt(
+    when.enemyAttacks("self"),
+    instead(addCounters("infamy", 3, named(CRIMINAL_ENTERPRISE))),
+  ),
+  "02003a.norman-osborn-forced-interrupt-2": forcedInterrupt(
+    when.damage("self"),
+    instead(removeCounters("infamy", eventAmount, named(CRIMINAL_ENTERPRISE))),
+  ),
 
   // Green Goblin (I) — When Revealed: Deal 3 indirect damage to each player in hero form.
   // [star] Forced Interrupt: When Green Goblin would scheme, remove 1 madness counter from State of Madness instead.
-  "02001b.when-revealed": whenRevealed(forEachPlayer(eachPlayer, ifThen(isHero(thatPlayer), dealIndirectDamage(3, thatPlayer)))),
-  "02001b.green-goblin-forced-interrupt": forcedInterrupt(when.enemySchemes("self"), instead(removeCounters("madness", 1, named(STATE_OF_MADNESS)))),
+  "02001b.when-revealed": whenRevealed(
+    forEachPlayer(eachPlayer, ifThen(isHero(thatPlayer), dealIndirectDamage(3, thatPlayer))),
+  ),
+  "02001b.green-goblin-forced-interrupt": forcedInterrupt(
+    when.enemySchemes("self"),
+    instead(removeCounters("madness", 1, named(STATE_OF_MADNESS))),
+  ),
   // Green Goblin (II) — When Revealed: Deal 3 indirect damage to each player (no hero-form restriction this stage).
   "02002b.when-revealed": whenRevealed(dealIndirectDamage(3, eachPlayer)),
-  "02002b.green-goblin-forced-interrupt": forcedInterrupt(when.enemySchemes("self"), instead(removeCounters("madness", 1, named(STATE_OF_MADNESS)))),
+  "02002b.green-goblin-forced-interrupt": forcedInterrupt(
+    when.enemySchemes("self"),
+    instead(removeCounters("madness", 1, named(STATE_OF_MADNESS))),
+  ),
   // Green Goblin (III) — When Revealed: Deal 4 damage (direct, not indirect) to each player.
   "02003b.when-revealed": whenRevealed(dealDamage(4, each(query("identity")))),
-  "02003b.green-goblin-forced-interrupt": forcedInterrupt(when.enemySchemes("self"), instead(removeCounters("madness", 2, named(STATE_OF_MADNESS)))),
+  "02003b.green-goblin-forced-interrupt": forcedInterrupt(
+    when.enemySchemes("self"),
+    instead(removeCounters("madness", 2, named(STATE_OF_MADNESS))),
+  ),
 
   // Hostile Takeover 1A — Setup: Put the Criminal Enterprise environment into play. Shuffle the encounter deck.
   // Advance to stage 1B (implicit, klaw.ts/rhino.ts convention). `firstPlayer`/`selectCards`+`encounterCards`, not
@@ -102,7 +135,10 @@ export const RISKY_BUSINESS = defineAbilities({
   // card from each player's deck for each infamy counter on Criminal Enterprise (read after the placement above).
   "02004b.when-completed": whenCompleted(
     addCounters("infamy", perHero(1), named(CRIMINAL_ENTERPRISE)),
-    forEachPlayer(eachPlayer, moveCards(topOfDeck(countersOn(named(CRIMINAL_ENTERPRISE), "infamy"), thatPlayer), "discard")),
+    forEachPlayer(
+      eachPlayer,
+      moveCards(topOfDeck(countersOn(named(CRIMINAL_ENTERPRISE), "infamy"), thatPlayer), "discard"),
+    ),
   ),
   // Corporate Acquisition 2A — When Revealed: Advance to stage 2B (implicit).
   "02005a.when-revealed": whenRevealed(),
@@ -134,7 +170,10 @@ export const RISKY_BUSINESS = defineAbilities({
   // on Criminal Enterprise. `giveBoostCard` (wave B primitives batch, docs/phase7-wave1-scripting.md §6) is the
   // "outside an ongoing activation, stockpiled for its next one" shape this needed.
   "02007.when-revealed": whenRevealed(
-    chooseOne(option("Give the villain 1 facedown boost card", giveBoostCard()), option("Place 2 infamy counters on Criminal Enterprise", addCounters("infamy", 2, named(CRIMINAL_ENTERPRISE)))),
+    chooseOne(
+      option("Give the villain 1 facedown boost card", giveBoostCard()),
+      option("Place 2 infamy counters on Criminal Enterprise", addCounters("infamy", 2, named(CRIMINAL_ENTERPRISE))),
+    ),
   ),
   // [star] Boost: Place 1 infamy counter on Criminal Enterprise. If you cannot, remove 1 madness counter from State
   // of Madness (fully scriptable; docs/phase7-wave1.md §3.4's "addCounters plus if not made" pattern, read here as
@@ -149,7 +188,9 @@ export const RISKY_BUSINESS = defineAbilities({
 
   // Oscorp Manufacturing — When Revealed (Norman Osborn): Place an additional 1[per_hero] threat here. (Card data's
   // ability id says "-constant"; the printed text is a face-conditioned When Revealed.)
-  "02010.oscorp-manufacturing-constant": whenRevealed(ifThen(faceNamed(theVillain, "Norman Osborn"), placeThreat(perHero(1), self))),
+  "02010.oscorp-manufacturing-constant": whenRevealed(
+    ifThen(faceNamed(theVillain, "Norman Osborn"), placeThreat(perHero(1), self)),
+  ),
 
   // Payoff — [star] Boost: same infamy/madness pattern.
   "02011.boost": boost(infamyOrMadness(1)),
@@ -163,20 +204,20 @@ export const RISKY_BUSINESS = defineAbilities({
   // (first player decides ties, the Clash of the Titans convention — `wave1/hlk/nemesis.ts`). If no attack was made
   // this way, this card gains surge.
   "02013.mad-genius-constant": whenRevealed(
-    ifThen(
-      faceNamed(theVillain, "Green Goblin"),
-      [
-        bindTargets("fewestHp", superlative("lowest", each(query("hero")), remainingHpOf(chosen("candidate")))),
-        chooseTarget("target", { inSlot: "fewestHp" }, { chooser: firstPlayer }),
-        enemyAttackCharacter(theVillain, chosen("target"), "genius"),
-        ifThen(not(varAtLeast("genius.made")), surge()),
-      ],
-    ),
+    ifThen(faceNamed(theVillain, "Green Goblin"), [
+      bindTargets("fewestHp", superlative("lowest", each(query("hero")), remainingHpOf(chosen("candidate")))),
+      chooseTarget("target", { inSlot: "fewestHp" }, { chooser: firstPlayer }),
+      enemyAttackCharacter(theVillain, chosen("target"), "genius"),
+      ifThen(not(varAtLeast("genius.made")), surge()),
+    ]),
   ),
   // Mad Genius — When Revealed (Norman Osborn): Discard the top card of your deck for each infamy counter on
   // Criminal Enterprise.
   "02013.mad-genius-constant-2": whenRevealed(
-    ifThen(faceNamed(theVillain, "Norman Osborn"), moveCards(topOfDeck(countersOn(named(CRIMINAL_ENTERPRISE), "infamy"), you), "discard")),
+    ifThen(
+      faceNamed(theVillain, "Norman Osborn"),
+      moveCards(topOfDeck(countersOn(named(CRIMINAL_ENTERPRISE), "infamy"), you), "discard"),
+    ),
   ),
 });
 

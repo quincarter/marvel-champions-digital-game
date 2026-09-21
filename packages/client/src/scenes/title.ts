@@ -15,12 +15,7 @@ import Phaser from "phaser";
 import { accent, dotGrid, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, paintDotGrid } from "../ui/widgets.js";
-import {
-  TITLE_ART,
-  coverFit,
-  pickTitleArt,
-  type TitleArt,
-} from "../art/title-art.js";
+import { TITLE_ART, coverFit, pickTitleArt, type TitleArt } from "../art/title-art.js";
 import {
   CARDS_BY_ID,
   POOL_CARDS,
@@ -29,10 +24,7 @@ import {
   POOL_STARTER_DECKS,
   POOL_VERSION,
 } from "../content/pool.js";
-import {
-  cardPoolCoverageOf,
-  cardPoolCoverageText,
-} from "../view/card-pool-coverage.js";
+import { cardPoolCoverageOf, cardPoolCoverageText } from "../view/card-pool-coverage.js";
 import { preconDecks } from "../view/deck-list-model.js";
 import { initialSetupDraft, withSeatOne } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
@@ -45,6 +37,8 @@ import { SCENES } from "./keys.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
 import type { Deck } from "@mc/content";
+import { destroyChildren } from "../ui/destroy-children.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 /**
  * "Play this deck ▸" (W9, docs/phase4-screen-gaps.md §3): the Decks screen starts Title with the deck to seat.
@@ -83,11 +77,8 @@ export class TitleScene extends Phaser.Scene {
     if (data.initialSeatDeckId) {
       const draft = withSeatOne(this.#freshDraft(), data.initialSeatDeckId);
       const seedDecks =
-        data.initialSeatDeck &&
-        data.initialSeatDeck.id === data.initialSeatDeckId
-          ? [data.initialSeatDeck]
-          : [];
-      this.scene.start(SCENES.seats, { draft, seedDecks } satisfies SeatsData);
+        data.initialSeatDeck && data.initialSeatDeck.id === data.initialSeatDeckId ? [data.initialSeatDeck] : [];
+      goToScreen(this, SCENES.seats, { draft, seedDecks } satisfies SeatsData);
       return;
     }
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
@@ -96,9 +87,7 @@ export class TitleScene extends Phaser.Scene {
       this.scale.off("resize", this.#rebuild, this);
     });
     this.#route = new FocusRoute(this, {
-      blocked: () =>
-        this.scene.isActive(SCENES.inspect) ||
-        this.scene.isActive(SCENES.settings),
+      blocked: () => this.scene.isActive(SCENES.inspect) || this.scene.isActive(SCENES.settings),
     });
     // Phaser reuses this scene instance across "back to title" round trips, so state from a previous visit
     // (a stuck "Starting…", a stale Continue) must not survive into this one.
@@ -106,7 +95,9 @@ export class TitleScene extends Phaser.Scene {
     this.#starting = false;
     this.#art = pickTitleArt(TITLE_ART, lastTitleArtKey);
     lastTitleArtKey = this.#art?.key ?? null;
+    appSession().music?.playTitle();
     this.#rebuild();
+    fadeScreenIn(this);
     void appSession()
       .store.latestSave()
       .then((save) => {
@@ -120,7 +111,7 @@ export class TitleScene extends Phaser.Scene {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
     this.#stops = new Map();
-    this.children.removeAll(true);
+    destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const layout = titleMenuLayout({
@@ -177,34 +168,16 @@ export class TitleScene extends Phaser.Scene {
     const menuKind = onDark ? "onInk" : "secondary";
 
     this.add
-      .text(
-        layout.eyebrow.x,
-        layout.eyebrow.y,
-        "DIGITAL EDITION",
-        textStyle(typeRole.label, accent.heroRed.hex, 1),
-      )
+      .text(layout.eyebrow.x, layout.eyebrow.y, "DIGITAL EDITION", textStyle(typeRole.label, accent.heroRed.hex, 1))
       .setLetterSpacing(1);
     this.add
-      .text(
-        layout.left,
-        layout.eyebrow.y + layout.eyebrow.height + 8,
-        "MARVEL\nCHAMPIONS",
-        {
-          ...textStyle(typeRole.screenTitle, textColor),
-          fontSize: `${layout.titleSize}px`,
-          lineSpacing: -Math.round(layout.titleSize * 0.16),
-        },
-      )
+      .text(layout.left, layout.eyebrow.y + layout.eyebrow.height + 8, "MARVEL\nCHAMPIONS", {
+        ...textStyle(typeRole.screenTitle, textColor),
+        fontSize: `${layout.titleSize}px`,
+        lineSpacing: -Math.round(layout.titleSize * 0.16),
+      })
       .setLetterSpacing(2);
-    this.add
-      .rectangle(
-        layout.rule.x,
-        layout.rule.y,
-        layout.rule.width,
-        layout.rule.height,
-        textColor,
-      )
-      .setOrigin(0, 0);
+    this.add.rectangle(layout.rule.x, layout.rule.y, layout.rule.width, layout.rule.height, textColor).setOrigin(0, 0);
 
     if (layout.continueRow) {
       const save = this.#continuable!;
@@ -242,7 +215,7 @@ export class TitleScene extends Phaser.Scene {
 
     const openDecks = (): void => {
       this.scale.off("resize", this.#rebuild, this);
-      this.scene.start(SCENES.decks);
+      goToScreen(this, SCENES.decks);
     };
     this.#buttons.push(
       new McButton(this, {
@@ -303,18 +276,10 @@ export class TitleScene extends Phaser.Scene {
     versionText.setX(layout.footer.x + layout.footer.width - versionText.width);
 
     this.#status = this.add
-      .text(
-        layout.left,
-        layout.footer.y - 24,
-        "",
-        textStyle(typeRole.body, textColor),
-      )
+      .text(layout.left, layout.footer.y - 24, "", textStyle(typeRole.body, textColor))
       .setWordWrapWidth(layout.column);
 
-    this.#route?.set(
-      titleMenuFocusOrder({ continuable: this.#continuable !== null }),
-      this.#stops,
-    );
+    this.#route?.set(titleMenuFocusOrder({ continuable: this.#continuable !== null }), this.#stops);
     this.#drawArt();
   }
 
@@ -358,7 +323,7 @@ export class TitleScene extends Phaser.Scene {
     if (this.#starting) return;
     const draft = this.#freshDraft();
     this.scale.off("resize", this.#rebuild, this);
-    this.scene.start(SCENES.scenarioSelect, {
+    goToScreen(this, SCENES.scenarioSelect, {
       draft,
     } satisfies ScenarioSelectData);
   }
@@ -373,13 +338,11 @@ export class TitleScene extends Phaser.Scene {
       this.#starting = false;
       this.#continuable = null;
       this.#rebuild();
-      this.#status?.setText(
-        store.state.error ?? "that game could not be resumed",
-      );
+      this.#status?.setText(store.state.error ?? "that game could not be resumed");
       return;
     }
     this.scale.off("resize", this.#rebuild, this);
-    this.scene.start(SCENES.board);
+    goToScreen(this, SCENES.board);
   }
 }
 
@@ -401,21 +364,16 @@ const APP_VERSION = "0.0.0";
 /** "Continue — Rhino · Spider-Man · round 4". Names from content, never from the save's own text. */
 function continueLabel(save: SaveMeta): string {
   const scenario =
-    POOL_SCENARIOS.find(
-      (candidate) => (candidate.id as string) === save.config.scenarioId,
-    )?.name ?? save.config.scenarioId;
+    POOL_SCENARIOS.find((candidate) => (candidate.id as string) === save.config.scenarioId)?.name ??
+    save.config.scenarioId;
   const heroes = save.config.players
     .map((player) => {
       if (!("starterDeckId" in player)) {
-        return (
-          CARDS_BY_ID.get(player.identityCardId as string)?.name ??
-          player.identityCardId
-        );
+        return CARDS_BY_ID.get(player.identityCardId as string)?.name ?? player.identityCardId;
       }
       return (
-        POOL_STARTER_DECKS.find(
-          (deck) => (deck.id as string) === player.starterDeckId,
-        )?.name.split(" — ")[0] ?? player.starterDeckId
+        POOL_STARTER_DECKS.find((deck) => (deck.id as string) === player.starterDeckId)?.name.split(" — ")[0] ??
+        player.starterDeckId
       );
     })
     .join(", ");

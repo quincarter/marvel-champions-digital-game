@@ -31,7 +31,8 @@ export const STORM_CURATION: PackCuration = {
   pack: {
     name: "Storm",
     releaseDate: "2022-11-11",
-    releaseDateSource: 'Hall of Heroes Ororo Munroe/Storm page (https://hallofheroeslcg.com/ororo-munroe-storm/): "Release date: November 11, 2022"',
+    releaseDateSource:
+      'Hall of Heroes Ororo Munroe/Storm page (https://hallofheroeslcg.com/ororo-munroe-storm/): "Release date: November 11, 2022"',
   },
   outDir: "src/data/storm",
   exportPrefix: "STORM",
@@ -39,26 +40,27 @@ export const STORM_CURATION: PackCuration = {
   corrections: [
     {
       code: "36002",
-      reason: "Clear Skies is one of the Weather Deck's four Permanent supports, swapped into play by their own Special ability rather than played from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/36002), \"Cost: —\"",
+      reason:
+        'Clear Skies is one of the Weather Deck\'s four Permanent supports, swapped into play by their own Special ability rather than played from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/36002), "Cost: —"',
       specialCost: "dash",
     },
     {
       code: "36003",
       reason: "Hurricane — same Weather Deck reasoning as 36002.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/36003), \"Cost: —\"",
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/36003), "Cost: —"',
       specialCost: "dash",
     },
     {
       code: "36004",
       reason: "Thunderstorm — same Weather Deck reasoning as 36002.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/36004), \"Cost: —\"",
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/36004), "Cost: —"',
       specialCost: "dash",
     },
     {
       code: "36005",
       reason: "Blizzard — same Weather Deck reasoning as 36002.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/36005), \"Cost: —\"",
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/36005), "Cost: —"',
       specialCost: "dash",
     },
   ],

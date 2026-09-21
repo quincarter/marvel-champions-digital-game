@@ -195,7 +195,13 @@ function certainPrefix(before: GameState, after: GameState, events: readonly Gam
  *
  * Skipped entirely when the command consumed no randomness at all, which is nearly every command.
  */
-function randomPrefix(before: GameState, after: GameState, events: readonly GameEvent[], command: Command, deps: EngineDeps): number {
+function randomPrefix(
+  before: GameState,
+  after: GameState,
+  events: readonly GameEvent[],
+  command: Command,
+  deps: EngineDeps,
+): number {
   if (before.rng.draws === after.rng.draws && before.rng.value === after.rng.value) return events.length;
   const reseeded: GameState = { ...before, rng: { ...before.rng, value: (before.rng.value ^ 0x9e3779b9) >>> 0 } };
   const shadow = applyCommand(reseeded, command, deps);

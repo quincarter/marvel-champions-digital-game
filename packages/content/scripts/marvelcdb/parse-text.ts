@@ -125,8 +125,7 @@ export interface ParseOptions {
   readonly multipleVillains?: boolean;
 }
 
-const TRIGGER =
-  String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
+const TRIGGER = String.raw`(?:(?:Hero |Alter-Ego )?(?:Forced )?(?:Action|Resource|Response|Interrupt)|Special|Setup|Boost|When Revealed(?: \((?:Hero|Alter-Ego)\))?|When Defeated|When Completed|Contents)`;
 /** A trigger header at a sentence boundary: start of line, or after `.`/`)`/`!` + space. */
 const HEADER_RE = new RegExp(
   String.raw`(?:^|(?<=[.)!]\s+)|(?<=\s{2,}))(?:\[star\]\s*)?(${TRIGGER})(?: \((attack|thwart|defense)\))?:`,
@@ -294,7 +293,8 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   // Instead, they are brought into the game by the card title in the parentheses following the keyword." A bare
   // `Linked.` (no title — none observed yet) still resolves, with `cardTitle` left unset.
   const linked = /^Linked(?: \((.+)\))?\.?$/.exec(sentence);
-  if (linked) return { name: "linked", ...(linked[1] !== undefined ? { cardTitle: (linked[1] as string).trim() } : {}) };
+  if (linked)
+    return { name: "linked", ...(linked[1] !== undefined ? { cardTitle: (linked[1] as string).trim() } : {}) };
   const requirement = /^Requirement \(((?:\[(?:energy|mental|physical|wild)\])+)\)\.?$/.exec(sentence);
   if (requirement) {
     const icons = [...(requirement[1] as string).matchAll(RESOURCE_ICON_RE)].map((mm) => mm[1] as ResourceIconType);
@@ -320,11 +320,15 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   if (prerequisite) {
     const inner = (prerequisite[1] as string).trim();
     const formMatch = /^(hero|alter-ego) form$/i.exec(inner);
-    if (formMatch) return { name: "prerequisite", form: (formMatch[1] as string).toLowerCase() === "hero" ? "hero" : "alterEgo" };
+    if (formMatch)
+      return { name: "prerequisite", form: (formMatch[1] as string).toLowerCase() === "hero" ? "hero" : "alterEgo" };
     const traits = inner.split(/\s+or\s+/).map((t) => t.trim().toUpperCase() as Trait);
     return { name: "prerequisite", traits };
   }
-  const s = sentence.replace(/\s*\([^)]*\)\.?$/, "").replace(/\.$/, "").trim();
+  const s = sentence
+    .replace(/\s*\([^)]*\)\.?$/, "")
+    .replace(/\.$/, "")
+    .trim();
   const simple = SIMPLE_KEYWORDS[s.toLowerCase()];
   if (simple) return { name: simple } as KeywordInstance;
   // "Setup." (keyword, card starts in play) vs "Setup:" (ability) — only the keyword reaches here.
@@ -405,7 +409,10 @@ function parseAttach(
   const namedVillainSuffix = /^the (.+) villain$/i.exec(target);
   if (namedVillainSuffix) {
     const name = namedVillainSuffix[1] as string;
-    if (villainNames.has(name)) return multiVillain ? { host: { kind: "namedVillain", name }, villainName: name } : { host: { kind: "villain" }, villainName: name };
+    if (villainNames.has(name))
+      return multiVillain
+        ? { host: { kind: "namedVillain", name }, villainName: name }
+        : { host: { kind: "villain" }, villainName: name };
   }
   // Wave 2 schema pass (docs/phase7-wave2.md §6.6): an OR of two hosts, every candidate of each once. Tried before
   // the villain-name/qualified/superlative checks below, since "X or Y" would otherwise fail every single-host
@@ -414,12 +421,24 @@ function parseAttach(
   const orParts = target.split(/\s+or\s+/i);
   if (orParts.length === 2) {
     // "an X-FORCE or X-MEN ally": two trait-qualified hosts sharing one trailing category noun.
-    const sharedCategory = /^(?:an?|the) (.+?) or (.+?) (ally|minion|enemy|character|friendly character)$/i.exec(target);
+    const sharedCategory = /^(?:an?|the) (.+?) or (.+?) (ally|minion|enemy|character|friendly character)$/i.exec(
+      target,
+    );
     if (sharedCategory) {
       const categoryWord = (sharedCategory[3] as string).toLowerCase();
-      const category = (categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord) as AttachmentHostCategory;
-      const h1: AttachmentHost = { kind: "qualified", category, trait: (sharedCategory[1] as string).trim().toUpperCase() as Trait };
-      const h2: AttachmentHost = { kind: "qualified", category, trait: (sharedCategory[2] as string).trim().toUpperCase() as Trait };
+      const category = (
+        categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord
+      ) as AttachmentHostCategory;
+      const h1: AttachmentHost = {
+        kind: "qualified",
+        category,
+        trait: (sharedCategory[1] as string).trim().toUpperCase() as Trait,
+      };
+      const h2: AttachmentHost = {
+        kind: "qualified",
+        category,
+        trait: (sharedCategory[2] as string).trim().toUpperCase() as Trait,
+      };
       return { host: { kind: "anyOf", hosts: [h1, h2] } };
     }
     // Otherwise each half resolves independently: a plain category ("an enemy or scheme") or a proper name
@@ -436,7 +455,9 @@ function parseAttach(
     if (h1 && h2) return { host: { kind: "anyOf", hosts: [h1, h2] } };
   }
   if (villainNames.has(target)) {
-    return multiVillain ? { host: { kind: "namedVillain", name: target }, villainName: target } : { host: { kind: "villain" }, villainName: target };
+    return multiVillain
+      ? { host: { kind: "namedVillain", name: target }, villainName: target }
+      : { host: { kind: "villain" }, villainName: target };
   }
   // "Attach to Kang." (`toafk`): the villain's own printed name always carries a parenthetical form/stage
   // ("Kang (The Conqueror)"), which reminder text never repeats. Only meaningful for a single-villain pack — the
@@ -447,7 +468,9 @@ function parseAttach(
     const villainShortMatch = [...villainNames].find((name) => shortNameOf(name) === target);
     if (villainShortMatch) return { host: { kind: "villain" }, villainName: villainShortMatch };
   }
-  const highest = /^the minion with the highest printed hit points(?: and without another (.+) attached)?$/.exec(target);
+  const highest = /^the minion with the highest printed hit points(?: and without another (.+) attached)?$/.exec(
+    target,
+  );
   if (highest) {
     return {
       host: highest[1]
@@ -455,7 +478,8 @@ function parseAttach(
         : { kind: "minionWithHighestPrintedHp" },
     };
   }
-  const superlativeEnemyHp = /^the enemy with the highest printed hit points(?: and without another (.+) attached)?$/.exec(target);
+  const superlativeEnemyHp =
+    /^the enemy with the highest printed hit points(?: and without another (.+) attached)?$/.exec(target);
   if (superlativeEnemyHp) {
     return {
       host: {
@@ -471,12 +495,26 @@ function parseAttach(
   // of Adamantium Upgrades attached" (Wolverine). Tried before the trait-qualified pattern below, since that
   // pattern requires a word between the article and the category noun and would otherwise never match here.
   const CATEGORY_NOUN = "ally|minion|enemy|character|friendly character|side scheme";
-  const bareWithoutRe = new RegExp(`^(?:an?|the) (${CATEGORY_NOUN})\\s+(?:and\\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$`, "i");
+  const bareWithoutRe = new RegExp(
+    `^(?:an?|the) (${CATEGORY_NOUN})\\s+(?:and\\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$`,
+    "i",
+  );
   const bareWithout = bareWithoutRe.exec(target);
   if (bareWithout) {
     const categoryWord = (bareWithout[1] as string).toLowerCase();
-    const category = categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord === "side scheme" ? "sideScheme" : categoryWord;
-    return { host: { kind: "qualified", category: category as AttachmentHostCategory, withoutAttachmentNamed: (bareWithout[2] as string).trim() } };
+    const category =
+      categoryWord === "friendly character"
+        ? "friendlyCharacter"
+        : categoryWord === "side scheme"
+          ? "sideScheme"
+          : categoryWord;
+    return {
+      host: {
+        kind: "qualified",
+        category: category as AttachmentHostCategory,
+        withoutAttachmentNamed: (bareWithout[2] as string).trim(),
+      },
+    };
   }
   // Trait-qualified / negated category: "an Avenger ally", "a non-ELITE minion", "a non-permanent side scheme",
   // "a Sentinel minion without Energy Barrier attached" (`HostQualifiers.trait` / `withoutTrait` /
@@ -491,7 +529,12 @@ function parseAttach(
     const negated = Boolean(qualified[1]);
     const word = (qualified[2] as string).trim();
     const categoryWord = (qualified[3] as string).toLowerCase();
-    const category = categoryWord === "friendly character" ? "friendlyCharacter" : categoryWord === "side scheme" ? "sideScheme" : categoryWord;
+    const category =
+      categoryWord === "friendly character"
+        ? "friendlyCharacter"
+        : categoryWord === "side scheme"
+          ? "sideScheme"
+          : categoryWord;
     const withoutAttachmentNamed = qualified[4]?.trim();
     // Wave 2 (docs/phase7-wave2.md §6.5): "a non-permanent side scheme" — the qualifying word is a keyword
     // (Permanent is a keyword, not a trait), not a trait, so it becomes `withoutKeyword`/`keyword` instead.
@@ -532,7 +575,9 @@ function parseAttach(
   let supRest = target;
   let supWithoutAttachmentNamed: string | undefined;
   let supWithoutTrait: string | undefined;
-  const namedSuffix = /^(.*?)\s+(?:and\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$/i.exec(supRest);
+  const namedSuffix = /^(.*?)\s+(?:and\s+)?without (?:a copy of |another copy of |another )?(.+?) attached$/i.exec(
+    supRest,
+  );
   if (namedSuffix) {
     supRest = namedSuffix[1] as string;
     supWithoutAttachmentNamed = (namedSuffix[2] as string).trim();
@@ -543,10 +588,14 @@ function parseAttach(
       supWithoutTrait = (traitSuffix[2] as string).trim();
     }
   }
-  const supCore = /^(?:the|a) (minion|enemy|villain|friendly character|ally) with the (highest|lowest|most|fewest) (.+)$/i.exec(supRest);
+  const supCore =
+    /^(?:the|a) (minion|enemy|villain|friendly character|ally) with the (highest|lowest|most|fewest) (.+)$/i.exec(
+      supRest,
+    );
   if (supCore) {
     const poolWord = (supCore[1] as string).toLowerCase();
-    const among = poolWord === "friendly character" ? "friendlyCharacter" : (poolWord as "minion" | "enemy" | "villain" | "ally");
+    const among =
+      poolWord === "friendly character" ? "friendlyCharacter" : (poolWord as "minion" | "enemy" | "villain" | "ally");
     const orderWord = (supCore[2] as string).toLowerCase();
     const order: "highest" | "lowest" = orderWord === "highest" || orderWord === "most" ? "highest" : "lowest";
     const descriptor = (supCore[3] as string).trim().toLowerCase();
@@ -567,17 +616,17 @@ function parseAttach(
                   descriptor === "thw"
                   ? "thw"
                   : // Wave 2 (docs/phase7-wave2.md §6.7): "the villain with the highest activation order value" (The
-                  // Sinister Six), "the minion with the most traits" (Cyborg Tech).
-                  descriptor === "activation order value"
-                  ? "activationOrder"
-                  : descriptor === "traits"
-                    ? "traitCount"
-                    : // docs/phase7-wave2.md §7.1: "the ally with the highest cost" (Beguiled 25031, 'Pool-ized 44041) —
-                      // the card's *printed* cost (RRG 1.8 "Printed", p. 35), named `printedCost` like
-                      // `printedHp`/`printedAtk` are, not `cost` (a card in play has no other cost).
-                      descriptor === "cost"
-                      ? "printedCost"
-                      : undefined;
+                    // Sinister Six), "the minion with the most traits" (Cyborg Tech).
+                    descriptor === "activation order value"
+                    ? "activationOrder"
+                    : descriptor === "traits"
+                      ? "traitCount"
+                      : // docs/phase7-wave2.md §7.1: "the ally with the highest cost" (Beguiled 25031, 'Pool-ized 44041) —
+                        // the card's *printed* cost (RRG 1.8 "Printed", p. 35), named `printedCost` like
+                        // `printedHp`/`printedAtk` are, not `cost` (a card in play has no other cost).
+                        descriptor === "cost"
+                        ? "printedCost"
+                        : undefined;
     if (measure) {
       return {
         host: {
@@ -738,7 +787,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       // cannot, this card gains surge." (Genetic Experiments, Defensive Programming) is a plain fallback
       // *effect*, not a fallback host: the primary sentence resolves on its own below, and the continuation
       // falls through to ordinary constant/ability text.
-      if (/^Attach to /.test(sentence)) {
+      if (sentence.startsWith("Attach to ")) {
         const next = sentences[sentenceIndex + 1];
         const continuation = next ? /^(?:Otherwise|If you cannot),?\s*(.+)$/i.exec(next) : null;
         const otherwiseAttach = continuation ? /^attach to (.+)$/i.exec(continuation[1] as string) : null;
@@ -746,13 +795,19 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
           flushConstant();
           const preferredSentence = sentence.replace(/,\s*if able\.?$/i, ".");
           const preferred = parseAttach(preferredSentence, options.villainNames, options.multipleVillains ?? false);
-          const otherwise = parseAttach(`Attach to ${otherwiseAttach[1] as string}`, options.villainNames, options.multipleVillains ?? false);
+          const otherwise = parseAttach(
+            `Attach to ${otherwiseAttach[1] as string}`,
+            options.villainNames,
+            options.multipleVillains ?? false,
+          );
           if (preferred && otherwise) {
             if (attachesTo) unclassified.push(`second attach rule: ${sentence}`);
             attachesTo = { kind: "ifAble", preferred: preferred.host, otherwise: otherwise.host };
             if (preferred.villainName) attachesToVillainNamed = preferred.villainName;
           } else {
-            unclassified.push(`ifAble attach host: could not parse ${preferred ? "the fallback" : "the preferred"} side: "${sentence}" / "${next}"`);
+            unclassified.push(
+              `ifAble attach host: could not parse ${preferred ? "the fallback" : "the preferred"} side: "${sentence}" / "${next}"`,
+            );
           }
           sentenceIndex++; // consume the fallback sentence too
           continue;
@@ -784,7 +839,7 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
         if (attach.villainName) attachesToVillainNamed = attach.villainName;
         continue;
       }
-      if (/^Attach to /.test(sentence)) {
+      if (sentence.startsWith("Attach to ")) {
         unclassified.push(`unrecognized attach rule: ${sentence}`);
         continue;
       }
@@ -829,7 +884,11 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
             // target and reuses `parseAttach` unchanged, so it resolves to any host shape that already works.
             const midSentence = /\bto attach this card to (.+?)\.?$/i.exec(firstSentence.replace(/\.$/, ""));
             if (midSentence) {
-              const synthetic = parseAttach(`Attach to ${midSentence[1] as string}.`, options.villainNames, options.multipleVillains ?? false);
+              const synthetic = parseAttach(
+                `Attach to ${midSentence[1] as string}.`,
+                options.villainNames,
+                options.multipleVillains ?? false,
+              );
               if (synthetic) {
                 attachesTo = synthetic.host;
                 if (synthetic.villainName) attachesToVillainNamed = synthetic.villainName;
@@ -856,7 +915,9 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
       // whose own body happens to restate "when it is defeated" would otherwise double up).
       if (kind !== "when-defeated") {
         const bodySentences = splitSentences(body);
-        const inlineDefeatedIndex = bodySentences.findIndex((s) => /^When (?:this scheme|this card|this attachment|it) is defeated,/i.test(s));
+        const inlineDefeatedIndex = bodySentences.findIndex((s) =>
+          /^When (?:this scheme|this card|this attachment|it) is defeated,/i.test(s),
+        );
         if (inlineDefeatedIndex !== -1) {
           abilities.push({ kind: "when-defeated", text: bodySentences.slice(inlineDefeatedIndex).join(" ") });
         }

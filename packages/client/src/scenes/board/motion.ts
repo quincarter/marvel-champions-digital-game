@@ -8,7 +8,9 @@
  */
 
 import type Phaser from "phaser";
-import type { GameEvent, InstanceId, PlayerId, ZoneId } from "@mc/engine";
+import { cardOf, type GameEvent, type InstanceId, type PlayerId, type ZoneId } from "@mc/engine";
+import { artFor, type ArtSource } from "../../art/art-source.js";
+import { drawArt } from "../../art/card-art.js";
 import { appSession } from "../../session.js";
 import { accent, motion, signal, surface, typeRole } from "../../tokens.js";
 import { cssOf, textStyle } from "../../ui/theme.js";
@@ -17,9 +19,61 @@ import { fitText, hatchRect } from "../../ui/widgets.js";
 /** How long a table announcement holds once it is on screen. */
 const BANNER_MS = 3600;
 import { beatsFrom, type Beat } from "../../view/beats.js";
+import { faceOf } from "../../view/board-model.js";
+import { exhaustMotionsFrom, type ExhaustDirection } from "../../view/exhaust-motion.js";
+import { defeatFlashesFrom, hpTicksFrom, type HpTick } from "../../view/hp-motion.js";
 import type { BoardLayout, Rect } from "../../view/layout.js";
+import { clampedProgress, lerp } from "../../view/motion-math.js";
+import {
+  PHASE_POP_MS,
+  PHASE_WIPE_HOLD_MS,
+  PHASE_WIPE_REDUCED_MS,
+  phaseTransitionFrom,
+  wipeFrame,
+  type PhaseTransition,
+} from "../../view/phase-wipe.js";
+import { statusGhostsFrom, statusStampsFrom, type StatusName } from "../../view/status-motion.js";
+import { threatTicksFrom, type ThreatTick } from "../../view/threat-motion.js";
 import { travelsFrom, type Travel } from "../../view/travel.js";
 import { pileKey, type BoardFrame } from "./context.js";
+
+/** A status pip/tag just stamped on or fading off — `character-panel.ts` reads this to animate in place. */
+export interface StatusStampState {
+  readonly progress: number;
+  readonly remainingMs: number;
+}
+
+/** A status still fading off after `statusRemoved`, with which status it was. */
+export interface StatusGhostState extends StatusStampState {
+  readonly status: StatusName;
+}
+
+/** A card-shaped panel's exhaust turn in progress. */
+export interface ExhaustMotionState {
+  readonly direction: ExhaustDirection;
+  readonly progress: number;
+  readonly remainingMs: number;
+}
+
+/** An HP counting tween in progress. */
+export interface HpTickState {
+  readonly tick: HpTick;
+  readonly progress: number;
+  readonly remainingMs: number;
+}
+
+/** A Hero Red border flash in progress. */
+export interface DefeatFlashState {
+  readonly progress: number;
+  readonly remainingMs: number;
+}
+
+/** A threat meter counting tween in progress. */
+export interface ThreatTickState {
+  readonly tick: ThreatTick;
+  readonly progress: number;
+  readonly remainingMs: number;
+}
 
 export class BoardMotion {
   readonly #scene: Phaser.Scene;
@@ -45,6 +99,21 @@ export class BoardMotion {
   #banners: { readonly title: string; readonly detail: string; shownAt: number | null }[] = [];
   #bannerPoll: Phaser.Time.TimerEvent | null = null;
 
+  /** The phase/round band, and the round-chip pop / toggle fade it also drives (`drawPhaseWipe`, `roundChipScale`, `toggleFadeAlpha`). */
+  #phaseTransition: { readonly transition: PhaseTransition; readonly startedAt: number } | null = null;
+  /** A status pip/tag freshly stamped on, by card then by status, so more than one status on the same card each animate on their own clock. */
+  #statusStamps = new Map<InstanceId, Map<StatusName, number>>();
+  /** Ghosts of statuses just removed, by card. A card can lose more than one status in the same batch (Toughness cancelling a status-causing attack, an effect clearing several at once). */
+  #statusGhosts = new Map<InstanceId, { readonly status: StatusName; readonly startedAt: number }[]>();
+  /** A card-shaped panel's exhaust turn in progress, by card. */
+  #exhaustMotions = new Map<InstanceId, { readonly direction: ExhaustDirection; readonly startedAt: number }>();
+  /** An HP counting tween in progress, by card. */
+  #hpTicks = new Map<InstanceId, { readonly tick: HpTick; readonly startedAt: number }>();
+  /** A defeat border flash in progress, by card. */
+  #defeatFlashes = new Map<InstanceId, number>();
+  /** A threat meter counting tween in progress, by scheme. */
+  #threatTicks = new Map<InstanceId, { readonly tick: ThreatTick; readonly startedAt: number }>();
+
   constructor(scene: Phaser.Scene) {
     this.#scene = scene;
   }
@@ -65,7 +134,8 @@ export class BoardMotion {
     const banner = this.#banners[0];
     if (!banner) return;
     if (!visible) {
-      this.#bannerPoll ??= scene.time.delayedCall(400, () => {
+      if (this.#bannerPoll !== null) return;
+      this.#bannerPoll = scene.time.delayedCall(400, () => {
         this.#bannerPoll = null;
         redraw();
       });
@@ -83,7 +153,9 @@ export class BoardMotion {
     g.fillStyle(surface.ink.hex, 0.55).fillRect(area.x, area.y, area.width, area.height);
     g.fillStyle(surface.ink.hex, 0.97).fillRect(band.x, band.y, band.width, band.height);
     hatchRect(g, band, accent.heroRed.hex, 0.22, 18, 6);
-    g.fillStyle(accent.heroRed.hex, 1).fillRect(band.x, band.y, band.width, 6).fillRect(band.x, band.y + band.height - 6, band.width, 6);
+    g.fillStyle(accent.heroRed.hex, 1)
+      .fillRect(band.x, band.y, band.width, 6)
+      .fillRect(band.x, band.y + band.height - 6, band.width, 6);
 
     const title = scene.add
       .text(band.x + band.width / 2, band.y + band.height * 0.42, banner.title.toUpperCase(), {
@@ -96,7 +168,12 @@ export class BoardMotion {
       .setDepth(1101);
     fitText(title, band.width - 48, typeRole.screenTitle.size);
     scene.add
-      .text(band.x + band.width / 2, band.y + band.height * 0.78, `${banner.detail} · tap to continue`, textStyle(typeRole.emphasis, surface.paper.hex))
+      .text(
+        band.x + band.width / 2,
+        band.y + band.height * 0.78,
+        `${banner.detail} · tap to continue`,
+        textStyle(typeRole.emphasis, surface.paper.hex),
+      )
       .setOrigin(0.5)
       .setDepth(1101);
 
@@ -113,18 +190,279 @@ export class BoardMotion {
       });
 
     if (firstShow && !appSession().settings.reducedMotion) {
-      scene.tweens.add({ targets: title, scale: { from: 1.35, to: title.scale }, alpha: { from: 0, to: 1 }, duration: 260, ease: "Back.easeOut" });
+      scene.tweens.add({
+        targets: title,
+        scale: { from: 1.35, to: title.scale },
+        alpha: { from: 0, to: 1 },
+        duration: 260,
+        ease: "Back.easeOut",
+      });
     }
   }
 
   /**
    * A fresh state landed. Starts its beats now — reduced motion still gets the
    * beat, it just doesn't travel (`drawBeats`) — and holds its moves for the
-   * next draw.
+   * next draw. Also starts every other timed motion this batch of events
+   * carries: the phase/round band, a status stamp or ghost, an exhaust turn,
+   * an HP or threat count, a defeat flash.
    */
   land(events: readonly GameEvent[]): void {
-    this.#beats = beatsFrom(events).map((beat) => ({ beat, startedAt: this.#scene.time.now }));
+    const now = this.#scene.time.now;
+    this.#beats = beatsFrom(events).map((beat) => ({ beat, startedAt: now }));
     this.#pendingMoves = events;
+
+    const transition = phaseTransitionFrom(events);
+    if (transition) this.#phaseTransition = { transition, startedAt: now };
+
+    for (const stamp of statusStampsFrom(events)) {
+      const byStatus = this.#statusStamps.get(stamp.instanceId) ?? new Map<StatusName, number>();
+      byStatus.set(stamp.status, now);
+      this.#statusStamps.set(stamp.instanceId, byStatus);
+      // A status re-given the instant it stopped fading is no longer a ghost — it's back.
+      const ghosts = this.#statusGhosts.get(stamp.instanceId);
+      if (ghosts)
+        this.#statusGhosts.set(
+          stamp.instanceId,
+          ghosts.filter((ghost) => ghost.status !== stamp.status),
+        );
+    }
+    for (const ghost of statusGhostsFrom(events)) {
+      const list = this.#statusGhosts.get(ghost.instanceId) ?? [];
+      this.#statusGhosts.set(ghost.instanceId, [
+        ...list.filter((entry) => entry.status !== ghost.status),
+        { status: ghost.status, startedAt: now },
+      ]);
+    }
+
+    for (const exhaust of exhaustMotionsFrom(events))
+      this.#exhaustMotions.set(exhaust.instanceId, { direction: exhaust.direction, startedAt: now });
+    for (const tick of hpTicksFrom(events)) this.#hpTicks.set(tick.instanceId, { tick, startedAt: now });
+    for (const id of defeatFlashesFrom(events)) this.#defeatFlashes.set(id, now);
+    for (const tick of threatTicksFrom(events)) this.#threatTicks.set(tick.schemeInstanceId, { tick, startedAt: now });
+  }
+
+  /** The status pip/tag at `instanceId` for `status`, if it was just given and is still within its stamp window. */
+  statusStamp(instanceId: InstanceId, status: StatusName): StatusStampState | null {
+    if (appSession().settings.reducedMotion) return null;
+    const byStatus = this.#statusStamps.get(instanceId);
+    const startedAt = byStatus?.get(status);
+    if (startedAt === undefined) return null;
+    const elapsed = this.#scene.time.now - startedAt;
+    if (elapsed >= motion.statusStampMs) {
+      byStatus!.delete(status);
+      return null;
+    }
+    return { progress: clampedProgress(elapsed, motion.statusStampMs), remainingMs: motion.statusStampMs - elapsed };
+  }
+
+  /** Ghosts of statuses this card just lost, still fading — the real pip is already gone from `panel.statuses`. */
+  statusGhosts(instanceId: InstanceId): readonly StatusGhostState[] {
+    if (appSession().settings.reducedMotion) return [];
+    const list = this.#statusGhosts.get(instanceId);
+    if (!list || list.length === 0) return [];
+    const now = this.#scene.time.now;
+    const live = list.filter((ghost) => now - ghost.startedAt < motion.statusStampMs);
+    if (live.length !== list.length) this.#statusGhosts.set(instanceId, live);
+    return live.map((ghost) => ({
+      status: ghost.status,
+      progress: clampedProgress(now - ghost.startedAt, motion.statusStampMs),
+      remainingMs: motion.statusStampMs - (now - ghost.startedAt),
+    }));
+  }
+
+  /** A card-shaped panel's exhaust turn in progress, if any. */
+  exhaustMotion(instanceId: InstanceId): ExhaustMotionState | null {
+    if (appSession().settings.reducedMotion) return null;
+    const entry = this.#exhaustMotions.get(instanceId);
+    if (!entry) return null;
+    const elapsed = this.#scene.time.now - entry.startedAt;
+    if (elapsed >= motion.exhaustTurnMs) {
+      this.#exhaustMotions.delete(instanceId);
+      return null;
+    }
+    return {
+      direction: entry.direction,
+      progress: clampedProgress(elapsed, motion.exhaustTurnMs),
+      remainingMs: motion.exhaustTurnMs - elapsed,
+    };
+  }
+
+  /** An HP counting tween in progress for this card, if any. */
+  hpTick(instanceId: InstanceId): HpTickState | null {
+    if (appSession().settings.reducedMotion) return null;
+    const entry = this.#hpTicks.get(instanceId);
+    if (!entry) return null;
+    const elapsed = this.#scene.time.now - entry.startedAt;
+    if (elapsed >= motion.damageMs) {
+      this.#hpTicks.delete(instanceId);
+      return null;
+    }
+    return {
+      tick: entry.tick,
+      progress: clampedProgress(elapsed, motion.damageMs),
+      remainingMs: motion.damageMs - elapsed,
+    };
+  }
+
+  /** A Hero Red border flash for a character just defeated, if this panel is still the one being drawn. */
+  defeatFlash(instanceId: InstanceId): DefeatFlashState | null {
+    if (appSession().settings.reducedMotion) return null;
+    const startedAt = this.#defeatFlashes.get(instanceId);
+    if (startedAt === undefined) return null;
+    const duration = motion.damageMs * 1.5;
+    const elapsed = this.#scene.time.now - startedAt;
+    if (elapsed >= duration) {
+      this.#defeatFlashes.delete(instanceId);
+      return null;
+    }
+    return { progress: clampedProgress(elapsed, duration), remainingMs: duration - elapsed };
+  }
+
+  /** The threat meter's counting tween in progress for this scheme, if any. */
+  threatTick(schemeInstanceId: InstanceId): ThreatTickState | null {
+    if (appSession().settings.reducedMotion) return null;
+    const entry = this.#threatTicks.get(schemeInstanceId);
+    if (!entry) return null;
+    const elapsed = this.#scene.time.now - entry.startedAt;
+    if (elapsed >= motion.threatMs) {
+      this.#threatTicks.delete(schemeInstanceId);
+      return null;
+    }
+    return {
+      tick: entry.tick,
+      progress: clampedProgress(elapsed, motion.threatMs),
+      remainingMs: motion.threatMs - elapsed,
+    };
+  }
+
+  /**
+   * The chrome's round chip pop, if the round just changed to `round`: pops
+   * 1.25 -> 1 over `PHASE_POP_MS`. Null once it's settled (draw the chip at
+   * its resting scale) or under reduced motion. Returns progress/remaining
+   * rather than a bare scale — like every other motion here, `chrome.ts`
+   * schedules its own tween for what's left, so the pop keeps animating
+   * between the (infrequent) redraws that recompute it.
+   */
+  roundChipPop(round: number): StatusStampState | null {
+    if (appSession().settings.reducedMotion) return null;
+    const entry = this.#phaseTransition;
+    if (!entry || entry.transition.round === null || entry.transition.round !== round) return null;
+    const elapsed = this.#scene.time.now - entry.startedAt;
+    if (elapsed >= PHASE_POP_MS) return null;
+    return { progress: clampedProgress(elapsed, PHASE_POP_MS), remainingMs: PHASE_POP_MS - elapsed };
+  }
+
+  /**
+   * The phase toggle's active-side fade-in, if the phase just turned to
+   * `phase`: fades 0 -> 1 over `PHASE_POP_MS`. Null once settled, for the
+   * side that isn't newly active, and under reduced motion.
+   */
+  toggleFade(phase: "player" | "villain"): StatusStampState | null {
+    if (appSession().settings.reducedMotion) return null;
+    const entry = this.#phaseTransition;
+    if (!entry || entry.transition.to !== phase) return null;
+    const elapsed = this.#scene.time.now - entry.startedAt;
+    if (elapsed >= PHASE_POP_MS) return null;
+    return { progress: clampedProgress(elapsed, PHASE_POP_MS), remainingMs: PHASE_POP_MS - elapsed };
+  }
+
+  /**
+   * The full-width band that wipes across the table when the phase or round
+   * turns: a slide in, a hold, a slide out, all recomputed from the
+   * transition's own start time so a redraw mid-flight resumes rather than
+   * restarts. Non-blocking — nothing here is ever made interactive, so a tap
+   * during the wipe reaches whatever it would have reached anyway — and drawn
+   * at a high depth so it always reads over the table.
+   *
+   * Reduced motion drops the slide entirely: the band appears in place,
+   * holds for `PHASE_WIPE_REDUCED_MS`, and disappears — the same "keep the
+   * information, drop the movement" rule every other motion in this file
+   * follows.
+   */
+  drawPhaseWipe(area: Rect): void {
+    const entry = this.#phaseTransition;
+    if (!entry) return;
+    const scene = this.#scene;
+    const elapsed = scene.time.now - entry.startedAt;
+    const reduced = appSession().settings.reducedMotion;
+
+    if (reduced) {
+      if (elapsed >= PHASE_WIPE_REDUCED_MS) {
+        this.#phaseTransition = null;
+        return;
+      }
+      const container = this.#drawWipeBand(area, entry.transition.caption, area.x);
+      scene.time.delayedCall(PHASE_WIPE_REDUCED_MS - elapsed, () => container.destroy());
+      return;
+    }
+
+    const frame = wipeFrame(elapsed, motion.phaseWipeMs);
+    if (!frame) {
+      this.#phaseTransition = null;
+      return;
+    }
+
+    const startX =
+      frame.stage === "in"
+        ? lerp(-area.width, 0, frame.progress)
+        : frame.stage === "out"
+          ? lerp(0, area.width, frame.progress)
+          : 0;
+    const container = this.#drawWipeBand(area, entry.transition.caption, area.x + startX);
+
+    const slideOut = (): void => {
+      if (!container.active) return;
+      scene.tweens.add({
+        targets: container,
+        x: area.x + area.width,
+        duration: motion.phaseWipeMs,
+        ease: "Quad.easeIn",
+      });
+    };
+
+    if (frame.stage === "in") {
+      scene.tweens.add({
+        targets: container,
+        x: area.x,
+        duration: frame.remainingMs,
+        ease: "Quad.easeOut",
+        onComplete: () => scene.time.delayedCall(PHASE_WIPE_HOLD_MS, slideOut),
+      });
+    } else if (frame.stage === "hold") {
+      scene.time.delayedCall(frame.remainingMs, slideOut);
+    } else {
+      scene.tweens.add({
+        targets: container,
+        x: area.x + area.width,
+        duration: frame.remainingMs,
+        ease: "Quad.easeIn",
+      });
+    }
+  }
+
+  /** The band's own graphics and caption, as one container positioned at `(x, centeredY)`. */
+  #drawWipeBand(area: Rect, caption: string, x: number): Phaser.GameObjects.Container {
+    const scene = this.#scene;
+    const height = Math.max(64, Math.min(96, area.height * 0.16));
+    const y = area.y + (area.height - height) / 2;
+
+    const g = scene.add.graphics();
+    g.fillStyle(surface.ink.hex, 0.96).fillRect(0, 0, area.width, height);
+    g.fillStyle(accent.heroRed.hex, 1)
+      .fillRect(0, 0, area.width, 5)
+      .fillRect(0, height - 5, area.width, 5);
+    const text = scene.add
+      .text(area.width / 2, height / 2, caption, {
+        ...textStyle(typeRole.screenTitle, surface.paper.hex),
+        stroke: cssOf(accent.heroRed.hex),
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5)
+      .setLetterSpacing(2);
+    fitText(text, area.width - 64, typeRole.screenTitle.size);
+
+    return scene.add.container(x, y, [g, text]).setDepth(1150);
   }
 
   /**
@@ -146,9 +484,20 @@ export class BoardMotion {
       previous.hitRects.get(instanceId) ?? pileAnchor(zone, layout, perspectiveId, previous);
     const anchorAfter = (instanceId: InstanceId, zone: ZoneId): Rect | null =>
       current.hitRects.get(instanceId) ?? pileAnchor(zone, layout, perspectiveId, current);
+    // Only a scan already on the GPU — never a fresh request, which would ask the network for a card just to
+    // decorate a 220ms ghost that will usually finish before the fetch does. `scene.textures.exists` is exactly
+    // the same check `card-art.ts`'s own `request()` makes before it would otherwise queue a load.
+    const artOf = (instanceId: InstanceId): ArtSource | null => {
+      const state = appSession().store.state.game;
+      if (!state) return null;
+      const source = artFor(cardOf(state, instanceId), faceOf(state, instanceId));
+      return source && this.#scene.textures.exists(source.key) ? source : null;
+    };
 
     const now = this.#scene.time.now;
-    this.#travels.push(...travelsFrom(events, anchorBefore, anchorAfter).map((travel) => ({ travel, startedAt: now })));
+    this.#travels.push(
+      ...travelsFrom(events, anchorBefore, anchorAfter, artOf).map((travel) => ({ travel, startedAt: now })),
+    );
   }
 
   /**
@@ -203,7 +552,7 @@ export class BoardMotion {
    * rule `drawBeats` follows.
    *
    * Every travel is redrawn from its own elapsed time on every draw, the same
-   * trick `drawBeats` uses: the draw's `children.removeAll(true)` destroys last
+   * trick `drawBeats` uses: the draw's `destroyChildren(scene)` destroys last
    * frame's ghost along with everything else, so this recreates it already
    * partway along its path rather than snapping it back to `from`.
    */
@@ -222,22 +571,42 @@ export class BoardMotion {
       const fromCenter = { x: travel.from.x + travel.from.width / 2, y: travel.from.y + travel.from.height / 2 };
       const toCenter = { x: travel.to.x + travel.to.width / 2, y: travel.to.y + travel.to.height / 2 };
       const scaleTo = { x: travel.to.width / travel.from.width, y: travel.to.height / travel.from.height };
+      const halfW = travel.from.width / 2;
+      const halfH = travel.from.height / 2;
 
-      const ghost = scene.add.graphics().setDepth(900);
-      ghost.fillStyle(surface.parchment.hex, 0.55).fillRect(-travel.from.width / 2, -travel.from.height / 2, travel.from.width, travel.from.height);
-      ghost.lineStyle(3, accent.heroRed.hex, 0.85).strokeRect(-travel.from.width / 2, -travel.from.height / 2, travel.from.width, travel.from.height);
-      ghost.setPosition(lerp(fromCenter.x, toCenter.x, progress), lerp(fromCenter.y, toCenter.y, progress));
-      ghost.setScale(lerp(1, scaleTo.x, progress), lerp(1, scaleTo.y, progress));
+      // The card's own face when it's already on hand, so a travel reads as
+      // "that card" rather than as a generic parchment tile; the plain
+      // rectangle is the fallback for everything else — see `view/travel.ts`.
+      const image = travel.art
+        ? drawArt(
+            scene,
+            travel.art.key,
+            { x: -halfW, y: -halfH, width: travel.from.width, height: travel.from.height },
+            { fit: "cover" },
+          )
+        : null;
+      const ghost = scene.add.graphics();
+      if (!image)
+        ghost.fillStyle(surface.parchment.hex, 0.55).fillRect(-halfW, -halfH, travel.from.width, travel.from.height);
+      ghost.lineStyle(3, accent.heroRed.hex, 0.85).strokeRect(-halfW, -halfH, travel.from.width, travel.from.height);
+
+      const container = scene.add.container(
+        lerp(fromCenter.x, toCenter.x, progress),
+        lerp(fromCenter.y, toCenter.y, progress),
+        [...(image ? [image] : []), ghost],
+      );
+      container.setScale(lerp(1, scaleTo.x, progress), lerp(1, scaleTo.y, progress));
+      container.setDepth(900);
 
       scene.tweens.add({
-        targets: ghost,
+        targets: container,
         x: toCenter.x,
         y: toCenter.y,
         scaleX: scaleTo.x,
         scaleY: scaleTo.y,
         duration: remaining,
         ease: "Quad.easeOut",
-        onComplete: () => ghost.destroy(),
+        onComplete: () => container.destroy(),
       });
     }
   }
@@ -304,6 +673,3 @@ const BEAT_COLORS: Record<Beat["tone"], number> = {
   status: signal.caution.hex,
   defeat: surface.paper.hex,
 };
-
-/** Linear interpolation, for a travel ghost recreated partway through its flight. */
-const lerp = (a: number, b: number, t: number): number => a + (b - a) * t;

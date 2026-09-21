@@ -20,7 +20,8 @@ import {
 import { wave1Scenario } from "../setup.js";
 import { forceMinionIntoPlay, runThor, stackFromSetAside, startThorGame, THOR_DEPS } from "./testing.js";
 
-const thorVsRhino = (seed = 11) => startThorGame(wave1Scenario("rhino", { players: [{ starterDeckId: "thor-aggression" }], seed }));
+const thorVsRhino = (seed = 11) =>
+  startThorGame(wave1Scenario("rhino", { players: [{ starterDeckId: "thor-aggression" }], seed }));
 
 /**
  * A Thor (Aggression) game whose deck also contains a few off-aspect filler cards (Under Surveillance / Second
@@ -33,7 +34,9 @@ function thorVsRhinoWithExtras(...extraCodes: readonly string[]) {
   const patched: GameSetupConfig = {
     ...config,
     requireLegalDecks: false,
-    players: config.players.map((p, i) => (i === 0 ? { ...p, deck: [...p.deck, ...extraCodes.map((c) => cardId(c))] } : p)),
+    players: config.players.map((p, i) =>
+      i === 0 ? { ...p, deck: [...p.deck, ...extraCodes.map((c) => cardId(c))] } : p,
+    ),
   };
   const created = createGame(patched, THOR_DEPS);
   if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
@@ -60,7 +63,11 @@ describe("Thor pack cards (generic aspect)", () => {
     // vacuous (docs/phase7-wave1-scripting.md "Test conventions") — exclude every copy from the payment pool.
     const multiValue = ["06016", "06022", "06023", "06024"].flatMap((code) => instancesOf(given.state, code));
     // Hercules is printed cost 6; 1 minion engaged with Thor reduces it to 5 — paying only 4 must fail.
-    const underpaid = applyCommand(given.state, play(P1, hercules, payWith(given.state, P1, 4, [hercules, ...multiValue])), THOR_DEPS);
+    const underpaid = applyCommand(
+      given.state,
+      play(P1, hercules, payWith(given.state, P1, 4, [hercules, ...multiValue])),
+      THOR_DEPS,
+    );
     expect(underpaid.ok).toBe(false);
     const after = runThor(given.state, play(P1, hercules, payWith(given.state, P1, 5, [hercules, ...multiValue])));
     expect(playerOf(after, P1).playArea).toContain(hercules);
@@ -89,7 +96,10 @@ describe("Thor pack cards (generic aspect)", () => {
     // = filler 1 + Energy's own 2), matching this file's Hercules/Second Wind convention.
     const multiValue = ["06022", "06023", "06024"].flatMap((code) => instancesOf(given.state, code));
     const hpBefore = inst(given.state, minion).damage;
-    const played = runThor(given.state, play(P1, valkyrie, [...payWith(given.state, P1, 1, [valkyrie, ...multiValue]), energy]));
+    const played = runThor(
+      given.state,
+      play(P1, valkyrie, [...payWith(given.state, P1, 1, [valkyrie, ...multiValue]), energy]),
+    );
     // Response is optional (RRG "Response") even with no "you may" — take it, then the mandatory chooseTarget of the
     // minion falls back to `firstLegal` (only one minion in play).
     const after = settle(played, picking(`${valkyrie}:06012.valkyrie-response`), undefined, THOR_DEPS);
@@ -138,7 +148,10 @@ describe("Thor pack cards (generic aspect)", () => {
     const given = moveToHand(started, P1, "06031");
     const [card] = given.ids as [never];
     const mainScheme = given.state.mainScheme.instanceId;
-    const after = runThor(given.state, play(P1, card, payWith(given.state, P1, 2, [card]), { attachToInstanceId: mainScheme }));
+    const after = runThor(
+      given.state,
+      play(P1, card, payWith(given.state, P1, 2, [card]), { attachToInstanceId: mainScheme }),
+    );
     expect(inst(after, card).attachedTo).toBe(mainScheme);
   });
 
@@ -180,7 +193,12 @@ describe("Mean Swing (06015)", () => {
     const villain = activeVillain(withWeapon).instanceId;
     const hpBefore = remainingHitPoints(withWeapon, villain);
     // Mean Swing is still in hand — only Jarnbjorn was played.
-    const attacked = runThor(withWeapon, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain });
+    const attacked = runThor(withWeapon, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain,
+    });
     const option = `${meanSwing}:06015.mean-swing-interrupt`;
     const after = settle(attacked, picking(option), undefined, THOR_DEPS);
     expect(inst(after, jarnbjorn).exhausted).toBe(true);
@@ -194,7 +212,12 @@ describe("Mean Swing (06015)", () => {
     const identity = identityOf(hero);
     const villain = activeVillain(hero).instanceId;
     const hpBefore = remainingHitPoints(hero, villain);
-    const after = runThor(hero, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: villain });
+    const after = runThor(hero, {
+      type: "basicAttack",
+      playerId: P1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain,
+    });
     expect(hpBefore! - remainingHitPoints(after, villain)!).toBe(2);
   });
 });

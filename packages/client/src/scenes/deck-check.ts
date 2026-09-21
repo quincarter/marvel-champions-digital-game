@@ -73,7 +73,15 @@ import { CARDS_BY_ID, POOL_CARDS, POOL_DEPS, POOL_VERSION } from "../content/poo
 import { artFor } from "../art/art-source.js";
 import { cardArt, drawArt } from "../art/card-art.js";
 import { SELECTABLE_ASPECTS } from "../view/deck-builder-model.js";
-import { costCurveBars, deckListGroupsOf, deckStatsOf, filterDeckListGroups, type DeckListEntry, type DeckListGroup, type PlayerCardType } from "../view/deck-stats.js";
+import {
+  costCurveBars,
+  deckListGroupsOf,
+  deckStatsOf,
+  filterDeckListGroups,
+  type DeckListEntry,
+  type DeckListGroup,
+  type PlayerCardType,
+} from "../view/deck-stats.js";
 import { deckOptionOf } from "../view/deck-list-model.js";
 import { deckStatusOf, type DeckStatusTone } from "../view/deck-status.js";
 import { aspectLabelOf } from "../view/seat-slots.js";
@@ -88,10 +96,18 @@ import type { VirtualListRow } from "../ui/virtual-list.js";
 import { accent, border, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTabs, fitText, label, paintDotGrid, paintPanel } from "../ui/widgets.js";
-import { costPipColor, drawGroupedCardList, drawRainbowCurveBars, drawStatCurveBars, drawStatTiles } from "../ui/deck-stats-widgets.js";
+import {
+  costPipColor,
+  drawGroupedCardList,
+  drawRainbowCurveBars,
+  drawStatCurveBars,
+  drawStatTiles,
+} from "../ui/deck-stats-widgets.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
 import { SCENES, type SceneKey } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 export interface DeckCheckSceneData {
   readonly deck: Deck;
@@ -196,6 +212,7 @@ export class DeckCheckScene extends Phaser.Scene {
       onHomeEnd: (edge) => (edge === "home" ? this.#cardList?.scrollToStart() : this.#cardList?.scrollToEnd()),
     });
     this.#rebuild();
+    fadeScreenIn(this);
   }
 
   #setTab(tab: DeckCheckTab): void {
@@ -215,7 +232,7 @@ export class DeckCheckScene extends Phaser.Scene {
     // non-DOM widget (`ui/virtual-list.ts`'s own doc comment) — only its scroll position (`#cardListScroll`) survives.
     this.#cardList?.destroy();
     this.#cardList = null;
-    this.children.removeAll(true);
+    destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const layout = deckCheckLayout({ width, height });
@@ -228,14 +245,34 @@ export class DeckCheckScene extends Phaser.Scene {
 
     // Ground: paper body under the same full-width ink header bar every setup-flow screen shares.
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
-    paintDotGrid(this, { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height }, "paper", { spacing: 6, radius: 1, alpha: 0.1 });
-    this.add.rectangle(layout.headerBar.x, layout.headerBar.y, layout.headerBar.width, layout.headerBar.height, surface.ink.hex).setOrigin(0, 0);
+    paintDotGrid(this, { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height }, "paper", {
+      spacing: 6,
+      radius: 1,
+      alpha: 0.1,
+    });
+    this.add
+      .rectangle(
+        layout.headerBar.x,
+        layout.headerBar.y,
+        layout.headerBar.width,
+        layout.headerBar.height,
+        surface.ink.hex,
+      )
+      .setOrigin(0, 0);
 
     const backLabel = this.#returnTo.scene === SCENES.seats ? "◂ Seats" : "◂ Back";
     const goBack = (): void => {
-      this.scene.start(this.#returnTo.scene, this.#returnTo.data);
+      goToScreen(this, this.#returnTo.scene, this.#returnTo.data);
     };
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: backLabel, type: typeRole.backLabel, rect: layout.back, onClick: goBack }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: backLabel,
+        type: typeRole.backLabel,
+        rect: layout.back,
+        onClick: goBack,
+      }),
+    );
     this.#stops.set("back", { rect: layout.back, activate: goBack });
 
     const titleX = layout.back.x + layout.back.width + 16;
@@ -262,9 +299,18 @@ export class DeckCheckScene extends Phaser.Scene {
         onSelect: (id) => this.#setTab(id as DeckCheckTab),
       });
       const tabWidth = layout.tabs!.width / 3;
-      this.#stops.set("tab:curve", { rect: { ...layout.tabs!, width: tabWidth }, activate: () => this.#setTab("curve") });
-      this.#stops.set("tab:cards", { rect: { ...layout.tabs!, x: layout.tabs!.x + tabWidth, width: tabWidth }, activate: () => this.#setTab("cards") });
-      this.#stops.set("tab:aspect", { rect: { ...layout.tabs!, x: layout.tabs!.x + tabWidth * 2, width: tabWidth }, activate: () => this.#setTab("aspect") });
+      this.#stops.set("tab:curve", {
+        rect: { ...layout.tabs!, width: tabWidth },
+        activate: () => this.#setTab("curve"),
+      });
+      this.#stops.set("tab:cards", {
+        rect: { ...layout.tabs!, x: layout.tabs!.x + tabWidth, width: tabWidth },
+        activate: () => this.#setTab("cards"),
+      });
+      this.#stops.set("tab:aspect", {
+        rect: { ...layout.tabs!, x: layout.tabs!.x + tabWidth * 2, width: tabWidth },
+        activate: () => this.#setTab("aspect"),
+      });
 
       if (this.#activeTab === "curve") this.#drawCurveTab(layout.content!, stats, groups);
       else if (this.#activeTab === "aspect") this.#drawAspectTab(layout.content!, groups);
@@ -273,9 +319,17 @@ export class DeckCheckScene extends Phaser.Scene {
       const footerBg = this.add.graphics();
       paintPanel(footerBg, layout.footer!, "onInk", "rest");
       const openEdit = (): void => {
-        this.scene.start(SCENES.deckBuilder, { deck: this.#deck } satisfies DeckBuilderSceneData);
+        goToScreen(this, SCENES.deckBuilder, { deck: this.#deck } satisfies DeckBuilderSceneData);
       };
-      this.#buttons.push(new McButton(this, { kind: "onInk", label: "Edit deck", type: typeRole.label, rect: layout.editDeck, onClick: openEdit }));
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "onInk",
+          label: "Edit deck",
+          type: typeRole.label,
+          rect: layout.editDeck,
+          onClick: openEdit,
+        }),
+      );
       this.#stops.set("edit-deck", { rect: layout.editDeck, activate: openEdit });
 
       const canStart = this.#onStartGame !== undefined;
@@ -293,7 +347,10 @@ export class DeckCheckScene extends Phaser.Scene {
       this.#stops.set("start", { rect: layout.startGame, activate: () => this.#onStartGame?.(this) });
     }
 
-    this.#route?.set(deckCheckFocusOrder({ wide: layout.wide, activeTab: this.#activeTab, cardIds, filterChipIds }), this.#stops);
+    this.#route?.set(
+      deckCheckFocusOrder({ wide: layout.wide, activeTab: this.#activeTab, cardIds, filterChipIds }),
+      this.#stops,
+    );
   }
 
   // ------------------------------------------------------------------------------------------------------------
@@ -318,21 +375,48 @@ export class DeckCheckScene extends Phaser.Scene {
     const measure = this.add.text(0, 0, badgeText, badgeTextStyle).setLetterSpacing(typeRole.barTitle.letterSpacing);
     const badgeWidth = Math.ceil(measure.width) + 24;
     const badgeHeight = 32;
-    const badgeRect: Rect = { x: layout.headerBar.width - 16 - badgeWidth, y: (layout.headerBar.height - badgeHeight) / 2, width: badgeWidth, height: badgeHeight };
+    const badgeRect: Rect = {
+      x: layout.headerBar.width - 16 - badgeWidth,
+      y: (layout.headerBar.height - badgeHeight) / 2,
+      width: badgeWidth,
+      height: badgeHeight,
+    };
     badgeBg.fillStyle(TONE_COLOR[status.tone], 1).fillRect(badgeRect.x, badgeRect.y, badgeRect.width, badgeRect.height);
     measure.setPosition(badgeRect.x + badgeRect.width / 2, badgeRect.y + badgeRect.height / 2).setOrigin(0.5);
 
     const title = `${option.identityName ?? "Unknown"} — ${aspectLabelOf(deck.aspects).toUpperCase()}`;
-    const titleText = this.add.text(titleX, layout.headerBar.height / 2, title, textStyle(typeRole.pageTitle, surface.paper.hex)).setOrigin(0, 0.5);
+    const titleText = this.add
+      .text(titleX, layout.headerBar.height / 2, title, textStyle(typeRole.pageTitle, surface.paper.hex))
+      .setOrigin(0, 0.5);
     fitText(titleText, badgeRect.x - titleX - 16, typeRole.pageTitle.size);
   }
 
-  #drawNarrowHeader(titleX: number, layout: ReturnType<typeof deckCheckLayout>, stats: ReturnType<typeof deckStatsOf>, status: ReturnType<typeof deckStatusOf>, inFlow: boolean): void {
-    const title = this.add.text(titleX, layout.headerBar.height / 2, `Your deck · ${stats.totalCards}`, textStyle(typeRole.pageTitle, surface.paper.hex)).setOrigin(0, 0.5);
+  #drawNarrowHeader(
+    titleX: number,
+    layout: ReturnType<typeof deckCheckLayout>,
+    stats: ReturnType<typeof deckStatsOf>,
+    status: ReturnType<typeof deckStatusOf>,
+    inFlow: boolean,
+  ): void {
+    const title = this.add
+      .text(
+        titleX,
+        layout.headerBar.height / 2,
+        `Your deck · ${stats.totalCards}`,
+        textStyle(typeRole.pageTitle, surface.paper.hex),
+      )
+      .setOrigin(0, 0.5);
     fitText(title, layout.meta.x - titleX - 12, typeRole.pageTitle.size);
 
     const metaWords = inFlow ? "3/4" : `${stats.totalCards} CARDS · ${status.text.toUpperCase()}`;
-    const metaText = this.add.text(layout.meta.x + layout.meta.width, layout.headerBar.height / 2, metaWords, textStyle(typeRole.label, surface.paper.hex, ink.label)).setOrigin(1, 0.5);
+    const metaText = this.add
+      .text(
+        layout.meta.x + layout.meta.width,
+        layout.headerBar.height / 2,
+        metaWords,
+        textStyle(typeRole.label, surface.paper.hex, ink.label),
+      )
+      .setOrigin(1, 0.5);
     fitText(metaText, layout.meta.width, typeRole.label.size);
   }
 
@@ -354,10 +438,17 @@ export class DeckCheckScene extends Phaser.Scene {
       const chosen = deck.aspects.includes(aspect);
       const g = this.add.graphics();
       if (chosen) g.fillStyle(signal.heal.hex, 1).fillRect(tileRect.x, tileRect.y, tileRect.width, tileRect.height);
-      g.lineStyle(border.object, surface.ink.hex, chosen ? 1 : 0.4).strokeRect(tileRect.x, tileRect.y, tileRect.width, tileRect.height);
+      g.lineStyle(border.object, surface.ink.hex, chosen ? 1 : 0.4).strokeRect(
+        tileRect.x,
+        tileRect.y,
+        tileRect.width,
+        tileRect.height,
+      );
       const text = this.add
-        .text(tileRect.x + 11, tileRect.y + tileRect.height / 2, aspect.toUpperCase(), { ...textStyle(typeRole.barTitle, chosen ? surface.paper.hex : surface.ink.hex), fontSize: "16px" })
-        .setLetterSpacing(typeRole.barTitle.letterSpacing)
+        .text(tileRect.x + 11, tileRect.y + tileRect.height / 2, aspect.toUpperCase(), {
+          ...textStyle(typeRole.barTitle, chosen ? surface.paper.hex : surface.ink.hex),
+          fontSize: "16px",
+        })
         .setOrigin(0, 0.5);
       if (!chosen) text.setAlpha(ink.disabled);
     });
@@ -369,20 +460,37 @@ export class DeckCheckScene extends Phaser.Scene {
 
     label(this, left, y, "Filter", typeRole.label, surface.ink.hex, ink.label);
     y += 16;
-    const chipRows = wrapChipsToRows(TYPE_FILTERS.map((f) => ({ id: f.id, text: f.label })), column);
+    const chipRows = wrapChipsToRows(
+      TYPE_FILTERS.map((f) => ({ id: f.id, text: f.label })),
+      column,
+    );
     const activeFilterId = TYPE_FILTERS.find((f) => f.type === this.#typeFilter)?.id ?? "all";
     chipRows.forEach((row, rowIndex) => {
       const cellWidth = (column - (row.length - 1) * CHIP_GAP) / row.length;
       row.forEach((chip, index) => {
         const chipDef = TYPE_FILTERS.find((f) => f.id === chip.id)!;
-        const chipRect: Rect = { x: left + index * (cellWidth + CHIP_GAP), y: y + rowIndex * (RAIL_CHIP_HEIGHT + CHIP_GAP), width: cellWidth, height: RAIL_CHIP_HEIGHT };
+        const chipRect: Rect = {
+          x: left + index * (cellWidth + CHIP_GAP),
+          y: y + rowIndex * (RAIL_CHIP_HEIGHT + CHIP_GAP),
+          width: cellWidth,
+          height: RAIL_CHIP_HEIGHT,
+        };
         const selected = chip.id === activeFilterId;
         const apply = (): void => {
           this.#typeFilter = chipDef.type;
           this.#cardListScroll.reset();
           this.#rebuild();
         };
-        this.#buttons.push(new McButton(this, { kind: "secondary", label: chipDef.label, type: typeRole.label, rect: chipRect, selected, onClick: apply }));
+        this.#buttons.push(
+          new McButton(this, {
+            kind: "secondary",
+            label: chipDef.label,
+            type: typeRole.label,
+            rect: chipRect,
+            selected,
+            onClick: apply,
+          }),
+        );
         this.#stops.set(`filter:${chip.id}`, { rect: chipRect, activate: apply });
       });
     });
@@ -392,7 +500,12 @@ export class DeckCheckScene extends Phaser.Scene {
     const chartHeight = 74;
     const curveBlockTop = rect.y + rect.height - 16 - chartHeight;
     label(this, left, curveBlockTop, "Cost curve", typeRole.label, surface.ink.hex, ink.label);
-    drawStatCurveBars(this, { x: left, y: curveBlockTop + 16, width: column, height: chartHeight }, costCurveBars(stats), false);
+    drawStatCurveBars(
+      this,
+      { x: left, y: curveBlockTop + 16, width: column, height: chartHeight },
+      costCurveBars(stats),
+      false,
+    );
   }
 
   // ------------------------------------------------------------------------------------------------------------
@@ -410,9 +523,17 @@ export class DeckCheckScene extends Phaser.Scene {
     drawGroupedCardList(this, left, rect.y + 36, column, groups, PANEL_LIST_ENTRY_CAP, true);
 
     const openEdit = (): void => {
-      this.scene.start(SCENES.deckBuilder, { deck: this.#deck } satisfies DeckBuilderSceneData);
+      goToScreen(this, SCENES.deckBuilder, { deck: this.#deck } satisfies DeckBuilderSceneData);
     };
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: "Edit deck", type: typeRole.label, rect: editDeckRect, onClick: openEdit }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "Edit deck",
+        type: typeRole.label,
+        rect: editDeckRect,
+        onClick: openEdit,
+      }),
+    );
     this.#stops.set("edit-deck", { rect: editDeckRect, activate: openEdit });
 
     const canStart = this.#onStartGame !== undefined;
@@ -439,13 +560,26 @@ export class DeckCheckScene extends Phaser.Scene {
     const chartRect: Rect = { x: rect.x, y: rect.y, width: rect.width, height: CURVE_CARD_HEIGHT };
     const panel = this.add.graphics();
     paintPanel(panel, chartRect, "card", "rest");
-    const heading = this.add
-      .text(chartRect.x + 12, chartRect.y + 10, "RESOURCE CURVE", { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "18px" })
-      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+    const heading = this.add.text(chartRect.x + 12, chartRect.y + 10, "RESOURCE CURVE", {
+      ...textStyle(typeRole.barTitle, surface.ink.hex),
+      fontSize: "18px",
+    });
     if (stats.averageCost !== null) {
-      label(this, chartRect.x + chartRect.width - 12, chartRect.y + 10 + heading.height / 2, `avg ${stats.averageCost.toFixed(1)}`, typeRole.label, surface.ink.hex, ink.meta).setOrigin(1, 0.5);
+      label(
+        this,
+        chartRect.x + chartRect.width - 12,
+        chartRect.y + 10 + heading.height / 2,
+        `avg ${stats.averageCost.toFixed(1)}`,
+        typeRole.label,
+        surface.ink.hex,
+        ink.meta,
+      ).setOrigin(1, 0.5);
     }
-    drawRainbowCurveBars(this, { x: chartRect.x + 12, y: chartRect.y + 34, width: chartRect.width - 24, height: chartRect.height - 34 - 6 }, costCurveBars(stats));
+    drawRainbowCurveBars(
+      this,
+      { x: chartRect.x + 12, y: chartRect.y + 34, width: chartRect.width - 24, height: chartRect.height - 34 - 6 },
+      costCurveBars(stats),
+    );
 
     let y = chartRect.y + chartRect.height + 12;
     const threeTiles = [
@@ -469,20 +603,56 @@ export class DeckCheckScene extends Phaser.Scene {
     const pipColor = entry.cost !== null ? costPipColor(entry.cost) : surface.ink.hex;
     const pipBg = this.add.graphics();
     pipBg.fillStyle(pipColor, 1).fillRect(rowRect.x, rowRect.y, pipWidth, rowRect.height);
-    if (entry.cost !== null) label(this, rowRect.x + pipWidth / 2, rowRect.y + rowRect.height / 2, String(entry.cost), typeRole.rowTitle, surface.paper.hex, 1).setOrigin(0.5);
-    const name = this.add.text(rowRect.x + pipWidth + 8, rowRect.y + rowRect.height / 2, entry.name, textStyle(typeRole.body, surface.ink.hex)).setOrigin(0, 0.5);
+    if (entry.cost !== null)
+      label(
+        this,
+        rowRect.x + pipWidth / 2,
+        rowRect.y + rowRect.height / 2,
+        String(entry.cost),
+        typeRole.rowTitle,
+        surface.paper.hex,
+        1,
+      ).setOrigin(0.5);
+    const name = this.add
+      .text(
+        rowRect.x + pipWidth + 8,
+        rowRect.y + rowRect.height / 2,
+        entry.name,
+        textStyle(typeRole.body, surface.ink.hex),
+      )
+      .setOrigin(0, 0.5);
     fitText(name, width - pipWidth - 8 - 50);
-    label(this, rowRect.x + width - 10, rowRect.y + rowRect.height / 2, `×${entry.quantity}`, typeRole.label, surface.ink.hex, ink.secondary).setOrigin(1, 0.5);
+    label(
+      this,
+      rowRect.x + width - 10,
+      rowRect.y + rowRect.height / 2,
+      `×${entry.quantity}`,
+      typeRole.label,
+      surface.ink.hex,
+      ink.secondary,
+    ).setOrigin(1, 0.5);
     return y + rowHeight;
   }
 
   #drawAspectTab(rect: Rect, groups: readonly DeckListGroup[]): void {
     label(this, rect.x, rect.y, "COMPOSITION BY ASPECT", typeRole.label, surface.ink.hex, ink.label);
     if (groups.length === 0) {
-      this.add.text(rect.x, rect.y + 20, "This deck has no cards yet.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
+      this.add.text(
+        rect.x,
+        rect.y + 20,
+        "This deck has no cards yet.",
+        textStyle(typeRole.body, surface.ink.hex, ink.meta),
+      );
       return;
     }
-    drawStatTiles(this, rect.x, rect.y + 16, rect.width, groups.map((g) => ({ id: g.key, label: g.label, count: g.count })), false);
+    drawStatTiles(
+      this,
+      rect.x,
+      rect.y + 16,
+      rect.width,
+      groups.map((g) => ({ id: g.key, label: g.label, count: g.count })),
+      false,
+    );
   }
 
   // ------------------------------------------------------------------------------------------------------------
@@ -494,7 +664,12 @@ export class DeckCheckScene extends Phaser.Scene {
   // ------------------------------------------------------------------------------------------------------------
   #drawCardGrid(rect: Rect, groups: readonly DeckListGroup[]): readonly string[] {
     if (groups.length === 0) {
-      this.add.text(rect.x + 10, rect.y + 10, "No cards match this filter.", textStyle(typeRole.body, surface.ink.hex, ink.meta));
+      this.add.text(
+        rect.x + 10,
+        rect.y + 10,
+        "No cards match this filter.",
+        textStyle(typeRole.body, surface.ink.hex, ink.meta),
+      );
       return [];
     }
 
@@ -506,12 +681,18 @@ export class DeckCheckScene extends Phaser.Scene {
       const rows = Math.max(1, Math.ceil(group.entries.length / geometry.columns));
       for (let r = 0; r < rows; r++) {
         const startIndex = r * geometry.columns;
-        slots.push({ kind: "gridRow", group, startIndex, count: Math.min(geometry.columns, group.entries.length - startIndex) });
+        slots.push({
+          kind: "gridRow",
+          group,
+          startIndex,
+          count: Math.min(geometry.columns, group.entries.length - startIndex),
+        });
       }
     }
 
     const heights = slots.map((slot) => (slot.kind === "header" ? GROUP_HEADER_HEIGHT : geometry.cellHeight));
-    const renderRow = (index: number, rowRect: Rect): VirtualListRow => this.#renderCardGridSlot(rowRect, slots[index]!, geometry);
+    const renderRow = (index: number, rowRect: Rect): VirtualListRow =>
+      this.#renderCardGridSlot(rowRect, slots[index]!, geometry);
     const onRowActivate = (index: number, pointer: Phaser.Input.Pointer): void => {
       const slot = slots[index];
       if (slot?.kind !== "gridRow") return;
@@ -522,7 +703,14 @@ export class DeckCheckScene extends Phaser.Scene {
       const entry = slot.group.entries[slot.startIndex + column];
       if (entry) this.#inspect(entry);
     };
-    this.#cardList = new McVariableList(this, { rect, heights, renderRow, scroll: this.#cardListScroll, onRowActivate, background: false });
+    this.#cardList = new McVariableList(this, {
+      rect,
+      heights,
+      renderRow,
+      scroll: this.#cardListScroll,
+      onRowActivate,
+      background: false,
+    });
     const list = this.#cardList;
 
     const cardIds: string[] = [];
@@ -565,14 +753,17 @@ export class DeckCheckScene extends Phaser.Scene {
    */
   #renderGroupHeaderRow(rect: Rect, group: DeckListGroup): VirtualListRow {
     const objects: Phaser.GameObjects.GameObject[] = [];
-    const heading = this.add
-      .text(rect.x + 4, rect.y + 4, `${group.label.toUpperCase()} · ${group.count}`, { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "19px" })
-      .setLetterSpacing(typeRole.barTitle.letterSpacing);
+    const heading = this.add.text(rect.x + 4, rect.y + 4, `${group.label.toUpperCase()} · ${group.count}`, {
+      ...textStyle(typeRole.barTitle, surface.ink.hex),
+      fontSize: "19px",
+    });
     objects.push(heading);
     const ruleX = rect.x + 4 + heading.width + 10;
     if (ruleX < rect.x + rect.width) {
       const rule = this.add.graphics();
-      rule.fillStyle(surface.ink.hex, 1).fillRect(ruleX, rect.y + 4 + heading.height / 2 - 1.5, rect.x + rect.width - 4 - ruleX, 3);
+      rule
+        .fillStyle(surface.ink.hex, 1)
+        .fillRect(ruleX, rect.y + 4 + heading.height / 2 - 1.5, rect.x + rect.width - 4 - ruleX, 3);
       objects.push(rule);
     }
     return { objects };
@@ -598,14 +789,33 @@ export class DeckCheckScene extends Phaser.Scene {
     pipG.fillStyle(pipColor, 1).fillRect(headerRect.x, headerRect.y, pipWidth, headerRect.height);
     objects.push(pipG);
     if (entry.cost !== null) {
-      const pipText = label(this, headerRect.x + pipWidth / 2, headerRect.y + headerRect.height / 2, String(entry.cost), typeRole.rowTitle, surface.paper.hex, 1).setOrigin(0.5);
+      const pipText = label(
+        this,
+        headerRect.x + pipWidth / 2,
+        headerRect.y + headerRect.height / 2,
+        String(entry.cost),
+        typeRole.rowTitle,
+        surface.paper.hex,
+        1,
+      ).setOrigin(0.5);
       objects.push(pipText);
     }
     const nameX = headerRect.x + pipWidth + 6;
-    const name = this.add.text(nameX, headerRect.y + 2, entry.name, { ...textStyle(typeRole.barTitle, surface.ink.hex), fontSize: "12px" });
+    const name = this.add.text(nameX, headerRect.y + 2, entry.name, {
+      ...textStyle(typeRole.barTitle, surface.ink.hex),
+      fontSize: "12px",
+    });
     fitText(name, cardRect.width - pipWidth - 6 - 32, 12);
     objects.push(name);
-    const typeText = label(this, nameX, headerRect.y + 2 + 13, entry.type.replace(/_/g, " "), typeRole.label, surface.ink.hex, ink.meta);
+    const typeText = label(
+      this,
+      nameX,
+      headerRect.y + 2 + 13,
+      entry.type.replace(/_/g, " "),
+      typeRole.label,
+      surface.ink.hex,
+      ink.meta,
+    );
     objects.push(typeText);
 
     const headerRuleY = headerRect.y + headerRect.height;
@@ -613,7 +823,12 @@ export class DeckCheckScene extends Phaser.Scene {
     headerRule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, headerRuleY, cardRect.width, 2);
     objects.push(headerRule);
 
-    const artRect: Rect = { x: cardRect.x + 2, y: headerRuleY + 2, width: cardRect.width - 4, height: Math.max(0, cardRect.height - CELL_HEADER_HEIGHT - CELL_FOOTER_HEIGHT - 6) };
+    const artRect: Rect = {
+      x: cardRect.x + 2,
+      y: headerRuleY + 2,
+      width: cardRect.width - 4,
+      height: Math.max(0, cardRect.height - CELL_HEADER_HEIGHT - CELL_FOOTER_HEIGHT - 6),
+    };
     const artFill = this.add.graphics();
     artFill.fillStyle(surface.parchment.hex, 1).fillRect(artRect.x, artRect.y, artRect.width, artRect.height);
     objects.push(artFill);
@@ -621,14 +836,32 @@ export class DeckCheckScene extends Phaser.Scene {
     const key = cardArt(this).request(this, artFor(card, { kind: "front" }));
     const art = drawArt(this, key, artRect);
     if (art) objects.push(art);
-    else objects.push(label(this, artRect.x + artRect.width / 2, artRect.y + artRect.height / 2, "no scan", typeRole.label, surface.ink.hex, ink.meta).setOrigin(0.5));
+    else
+      objects.push(
+        label(
+          this,
+          artRect.x + artRect.width / 2,
+          artRect.y + artRect.height / 2,
+          "no scan",
+          typeRole.label,
+          surface.ink.hex,
+          ink.meta,
+        ).setOrigin(0.5),
+      );
 
     const footerRuleY = artRect.y + artRect.height + 2;
     const footerRule = this.add.graphics();
     footerRule.fillStyle(surface.ink.hex, 1).fillRect(cardRect.x, footerRuleY, cardRect.width, 2);
     objects.push(footerRule);
-    const ruleText = card && "text" in card ? truncate((card as unknown as { text: { current: string } }).text.current, 64) : "";
-    if (ruleText) objects.push(this.add.text(cardRect.x + 6, footerRuleY + 4, ruleText, textStyle(typeRole.label, surface.ink.hex, ink.meta)).setWordWrapWidth(cardRect.width - 12).setMaxLines(2));
+    const ruleText =
+      card && "text" in card ? truncate((card as unknown as { text: { current: string } }).text.current, 64) : "";
+    if (ruleText)
+      objects.push(
+        this.add
+          .text(cardRect.x + 6, footerRuleY + 4, ruleText, textStyle(typeRole.label, surface.ink.hex, ink.meta))
+          .setWordWrapWidth(cardRect.width - 12)
+          .setMaxLines(2),
+      );
 
     // The "×N" copies badge, floating over the cell's own top-right corner (D04's own absolute-positioned badge).
     const qtyLabel = `×${entry.quantity}`;
@@ -636,7 +869,9 @@ export class DeckCheckScene extends Phaser.Scene {
     const qtyWidth = Math.ceil(qtyText.width) + 10;
     const qtyHeight = 16;
     const qtyBg = this.add.graphics();
-    qtyBg.fillStyle(signal.heal.hex, 1).fillRect(cardRect.x + cardRect.width - qtyWidth, cardRect.y - 2, qtyWidth, qtyHeight);
+    qtyBg
+      .fillStyle(signal.heal.hex, 1)
+      .fillRect(cardRect.x + cardRect.width - qtyWidth, cardRect.y - 2, qtyWidth, qtyHeight);
     qtyText.setPosition(cardRect.x + cardRect.width - qtyWidth / 2, cardRect.y - 2 + qtyHeight / 2).setOrigin(0.5);
     objects.push(qtyBg, qtyText);
 

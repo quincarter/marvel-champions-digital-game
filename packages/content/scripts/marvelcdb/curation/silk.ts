@@ -13,7 +13,8 @@ export const SILK_CURATION: PackCuration = {
   pack: {
     name: "Silk",
     releaseDate: "2025-05-02",
-    releaseDateSource: 'Hall of Heroes Silk/Cindy Moon page (https://hallofheroeslcg.com/silk-cindy-moon/): "Release date: May 2, 2025"',
+    releaseDateSource:
+      'Hall of Heroes Silk/Cindy Moon page (https://hallofheroeslcg.com/silk-cindy-moon/): "Release date: May 2, 2025"',
   },
   outDir: "src/data/silk",
   exportPrefix: "SILK",

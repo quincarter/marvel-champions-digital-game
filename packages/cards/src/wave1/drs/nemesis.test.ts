@@ -1,6 +1,24 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeVillain, remainingHitPoints, type GameState, type InstanceId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, instancesOf, mainThreat, moveToHand, P1, patchInstance, payWith, play, playerOf, putOnTopOfDeck, settle, stackEncounterDeck, toHero, type Picker } from "../../testing/harness.js";
+import { activeEncounterDeck, activeVillain, remainingHitPoints, type InstanceId } from "@mc/engine";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  mainThreat,
+  moveToHand,
+  P1,
+  patchInstance,
+  payWith,
+  play,
+  playerOf,
+  putOnTopOfDeck,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  type Picker,
+} from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
 import { DRS_DEPS, forceMinionIntoPlay, runDrs, stackFromSetAside, startDrsGame } from "./testing.js";
 
@@ -21,7 +39,8 @@ const protecting =
   };
 
 // Real wave 1 content: the Doctor Strange (Protection) precon against Rhino, standard, solo.
-const drsVsRhino = (seed = 4301) => startDrsGame(wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed }));
+const drsVsRhino = (seed = 4301) =>
+  startDrsGame(wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed }));
 
 // A neutral boost card (0 icons, no boost ability) — see `wave1/bkw/nemesis.test.ts`'s own `ADVANCE` doc note:
 // `stackFromSetAside` inserts at the absolute top of the encounter deck, so stacking `ADVANCE` after it pushes the
@@ -45,7 +64,12 @@ describe("Doctor Strange's nemesis set", () => {
     // the round through untouched. The total damage taken this round isn't just the interrupt's own +2 (Mordo's
     // and Rhino's own basic attacks land too), so only the lower bound is asserted for damage; the two statuses are
     // unambiguous signals of the interrupt itself, since nothing else in this round grants either.
-    const after = settle(runDrs(hero, endTurn()), firstLegal, (s) => s.step.phase === "player" && s.round > hero.round, DRS_DEPS);
+    const after = settle(
+      runDrs(hero, endTurn()),
+      firstLegal,
+      (s) => s.step.phase === "player" && s.round > hero.round,
+      DRS_DEPS,
+    );
     expect(inst(after, identity).statuses.stunned).toBeGreaterThan(0);
     expect(inst(after, identity).statuses.confused).toBeGreaterThan(0);
     expect(inst(after, identity).damage).toBeGreaterThanOrEqual(damageBefore + 2);
@@ -68,7 +92,12 @@ describe("Doctor Strange's nemesis set", () => {
     const hero = runDrs(after, toHero());
     const lowered = { ...hero, instances: { ...hero.instances, [scheme]: { ...inst(hero, scheme), threat: 2 } } };
     const defeated = settle(
-      runDrs(lowered, { type: "basicThwart", playerId: P1, thwarterInstanceId: identityOf(lowered), schemeInstanceId: scheme }),
+      runDrs(lowered, {
+        type: "basicThwart",
+        playerId: P1,
+        thwarterInstanceId: identityOf(lowered),
+        schemeInstanceId: scheme,
+      }),
       firstLegal,
       undefined,
       DRS_DEPS,
@@ -127,7 +156,12 @@ describe("Doctor Strange's nemesis set", () => {
     const hpBefore = remainingHitPoints(damaged, villain);
     // Counterspell's Forced Interrupt fires automatically (a "Forced" ability is never optional, so there is no
     // `chooseTriggers` prompt to answer, unlike every plain "Response"/"Interrupt" this file's other tests settle).
-    const after = settle(runDrs(damaged, play(P1, momentumShift, payWith(damaged, P1, 2, [momentumShift]))), firstLegal, (s) => s.step.kind === "turn", DRS_DEPS);
+    const after = settle(
+      runDrs(damaged, play(P1, momentumShift, payWith(damaged, P1, 2, [momentumShift]))),
+      firstLegal,
+      (s) => s.step.kind === "turn",
+      DRS_DEPS,
+    );
 
     // RRG 1.8 "Cancel" (p. 13): "the ability (apart from its effects) is still regarded as initiated, and any
     // costs are still paid" — Momentum Shift's own heal-2 cost still applied, but its effect (2 damage to the

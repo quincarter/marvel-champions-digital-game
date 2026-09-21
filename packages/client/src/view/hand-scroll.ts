@@ -1,39 +1,20 @@
 /**
- * The tabbed hand's scroll/fan state, and the plain rule for whether its
- * "Fan out"/"Collapse" pill earns a place on the board.
+ * The tabbed hand's scroll state.
  *
- * Pulled out of `scenes/board/hand.ts` on its own: that file also imports
- * Phaser and the widget/theme layer at module scope, so nothing defined
- * inside it can be unit tested without a canvas — exactly the "view models
- * are plain TypeScript tested with Vitest" rule PLAN.md's Phase 4 architecture
- * calls for, and exactly why a real defect here (PLAN.md Phase 4 accessibility
- * bug report, 2026-09-17: "the Fan out pill disappears... and never comes
- * back") had no test standing guard over it. Nothing here imports Phaser.
+ * The tabbed hand always shows every card at full size and scrolls. It used to
+ * collapse the overflow to spines behind a "Fan out"/"Collapse" pill; reported
+ * from play on a phone (2026-09-21), the collapsed row was never the one anyone
+ * wanted, so the pill and the mode are gone.
+ *
+ * Pulled out of `scenes/board/hand.ts` on its own: that file imports Phaser and
+ * the widget/theme layer at module scope, so nothing defined inside it can be
+ * unit tested without a canvas. Nothing here imports Phaser.
  */
 
 import type { Rect } from "./layout.js";
 
 /**
- * Whether the tabbed hand's "Fan out"/"Collapse" pill earns a place on the
- * board right now.
- *
- * A hand that already fits at full size has nothing to expand and nowhere to
- * scroll, so the pill hides — but it has to come back the instant the hand
- * crowds again (more cards drawn than fit) or the player already turned fan
- * mode on while it *did* fit (`fannedOut` survives a shrink, so "Collapse"
- * stays reachable even for a hand that would otherwise show nothing). Never
- * shown off the tabbed board, and never while another bar already owns this
- * same strip — payment, a discard-cost pick, or a "play under whose control"
- * choice all draw their own bar directly over the hand's caption row
- * (`scenes/board/hand.ts#drawHand`), and the pill used to keep drawing on top
- * of it regardless, because only the payment bar was ever excluded here.
- */
-export function showsFanToggle(tabbed: boolean, barOpen: boolean, canScroll: boolean, fannedOut: boolean): boolean {
-  return tabbed && !barOpen && (canScroll || fannedOut);
-}
-
-/**
- * The tabbed hand's horizontal scroll and fan state.
+ * The tabbed hand's horizontal scroll.
  *
  * `cardRow`'s own output never shrinks or shifts for the scroll; the draw
  * subtracts `scrollX` from every slot's `x`, the same separation the phone tabs
@@ -42,14 +23,18 @@ export function showsFanToggle(tabbed: boolean, barOpen: boolean, canScroll: boo
  */
 export class HandScroll {
   readonly #redraw: () => void;
+  /**
+   * Moves what the last draw put on screen to a new `scrollX`, without redrawing. Set by a draw that built the row
+   * as one translatable strip (`attach`). A board redraw rebuilds every `Text` on the table, each a canvas and a
+   * texture upload; at one redraw per pointer move a drag froze a phone for the length of the gesture.
+   */
+  #apply: ((scrollX: number) => void) | null = null;
   /** In unscrolled-layout pixels — how far the row has been dragged or scrolled left. */
   #scrollX = 0;
   /** This draw's ceiling for `#scrollX`, re-measured by `drawHand` every draw. */
   #maxScroll = 0;
   /** The hand's own content rect, unscrolled — where a wheel gesture has to land to scroll it. */
   #contentRect: Rect | null = null;
-  /** Whether the tabbed hand shows every card at full size (and scrolls further) instead of collapsing the overflow to spines. */
-  #fannedOut = false;
 
   constructor(redraw: () => void) {
     this.#redraw = redraw;
@@ -59,16 +44,13 @@ export class HandScroll {
     return this.#scrollX;
   }
 
-  get fannedOut(): boolean {
-    return this.#fannedOut;
-  }
-
   get canScroll(): boolean {
     return this.#maxScroll > 0;
   }
 
-  /** Records this draw's row, clamping the scroll to what now fits. */
+  /** Records this draw's row, clamping the scroll to what now fits. Forgets the last draw's strip: it is gone. */
   measure(content: Rect, rowRight: number): void {
+    this.#apply = null;
     this.#maxScroll = Math.max(0, rowRight - (content.x + content.width));
     this.#scrollX = this.#maxScroll > 0 ? Math.min(this.#scrollX, this.#maxScroll) : 0;
     this.#contentRect = content;
@@ -80,7 +62,13 @@ export class HandScroll {
     const next = Math.min(this.#maxScroll, Math.max(0, this.#scrollX + delta));
     if (next === this.#scrollX) return;
     this.#scrollX = next;
-    this.#redraw();
+    if (this.#apply) this.#apply(next);
+    else this.#redraw();
+  }
+
+  /** After `measure`: this draw's row can follow the scroll by itself, so a scroll no longer needs a redraw. */
+  attach(apply: (scrollX: number) => void): void {
+    this.#apply = apply;
   }
 
   /**
@@ -112,14 +100,5 @@ export class HandScroll {
     const right = rect.x + rect.width;
     if (drawn.x < left) this.scrollBy(drawn.x - left);
     else if (drawn.x + drawn.width > right && drawn.width <= rect.width) this.scrollBy(drawn.x + drawn.width - right);
-  }
-
-  toggleFan(): void {
-    this.#fannedOut = !this.#fannedOut;
-    // A fresh view onto whatever shape the row just took, rather than
-    // leaving the player scrolled to a position that meant something
-    // different a moment ago.
-    this.#scrollX = 0;
-    this.#redraw();
   }
 }

@@ -14,12 +14,12 @@ So the "AI" is two things: the engine running the procedure itself (it needs no 
 
 ## Where it lives
 
-| File | What |
-|---|---|
-| `packages/engine/src/villain/phase.ts` | Villain phase steps one to five, moved out of `flow.ts`: step-one threat, activations (villain once per player in player order, then that player's minions), dealing (one each + hazard icons, round-robin from the first player), revealing in player order, passing the first player token. `flow.ts` keeps the round structure and delegates here. |
-| `packages/engine/src/villain/authority.ts` | The routing rules above: `encounterTargetSelector`, `simultaneousOrderer`, `isEncounterSide`, `effectChoiceAuthority`. |
-| `packages/engine/src/villain/audit.ts` | `auditVillainPhases(log, deps)` — an independent re-check of every villain phase in a recorded game (below). |
-| `packages/engine/src/resolve/enemy-activation.ts` | Attack/scheme stack frames and boost cards. These are unchanged: Phase 3 only sequences them. |
+| File                                              | What                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `packages/engine/src/villain/phase.ts`            | Villain phase steps one to five, moved out of `flow.ts`: step-one threat, activations (villain once per player in player order, then that player's minions), dealing (one each + hazard icons, round-robin from the first player), revealing in player order, passing the first player token. `flow.ts` keeps the round structure and delegates here. |
+| `packages/engine/src/villain/authority.ts`        | The routing rules above: `encounterTargetSelector`, `simultaneousOrderer`, `isEncounterSide`, `effectChoiceAuthority`.                                                                                                                                                                                                                                |
+| `packages/engine/src/villain/audit.ts`            | `auditVillainPhases(log, deps)` — an independent re-check of every villain phase in a recorded game (below).                                                                                                                                                                                                                                          |
+| `packages/engine/src/resolve/enemy-activation.ts` | Attack/scheme stack frames and boost cards. These are unchanged: Phase 3 only sequences them.                                                                                                                                                                                                                                                         |
 
 ### `PendingChoice.authority`
 
@@ -33,16 +33,16 @@ A client can label these, for example "Choosing for the villain: Genetically Enh
 
 ### Choice routing, villain side
 
-| Decision | Asked of | Authority | Rule |
-|---|---|---|---|
-| Declare defender | attacked player | player | RRG "Defend" |
-| Minion activation order (`chooseMinionToActivate`) | the engaged player whose activations are running | player | RRG silent; see readings |
-| Encounter attachment with several legal hosts, incl. "highest printed HP" ties (`chooseAttachmentTarget`) | **first player** (was: revealing player) | firstPlayerTargets | RRG "First Player" |
-| Script `chooser: firstPlayer` on an encounter card (Caught Off Guard, Masters of Mayhem's search) | first player | firstPlayerTargets | RRG "First Player" |
-| One effect makes several enemies attack/scheme (`orderEnemies`, new: Gang-Up's minions, Masters of Mayhem, Swarm Attack) | first player | firstPlayerOrders | RRG "First Player" |
-| Simultaneous forced abilities (`orderTriggers`) | first player | firstPlayerOrders | RRG "First Player" |
-| "Choose to either …" / "choose and discard …" on an encounter card | the resolving player | player | RRG "Choose" |
-| Optional abilities on encounter cards (Hero Actions, responses) | the first player is offered them | player | unchanged Phase 1 simplification |
+| Decision                                                                                                                 | Asked of                                         | Authority          | Rule                             |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------ | ------------------ | -------------------------------- |
+| Declare defender                                                                                                         | attacked player                                  | player             | RRG "Defend"                     |
+| Minion activation order (`chooseMinionToActivate`)                                                                       | the engaged player whose activations are running | player             | RRG silent; see readings         |
+| Encounter attachment with several legal hosts, incl. "highest printed HP" ties (`chooseAttachmentTarget`)                | **first player** (was: revealing player)         | firstPlayerTargets | RRG "First Player"               |
+| Script `chooser: firstPlayer` on an encounter card (Caught Off Guard, Masters of Mayhem's search)                        | first player                                     | firstPlayerTargets | RRG "First Player"               |
+| One effect makes several enemies attack/scheme (`orderEnemies`, new: Gang-Up's minions, Masters of Mayhem, Swarm Attack) | first player                                     | firstPlayerOrders  | RRG "First Player"               |
+| Simultaneous forced abilities (`orderTriggers`)                                                                          | first player                                     | firstPlayerOrders  | RRG "First Player"               |
+| "Choose to either …" / "choose and discard …" on an encounter card                                                       | the resolving player                             | player             | RRG "Choose"                     |
+| Optional abilities on encounter cards (Hero Actions, responses)                                                          | the first player is offered them                 | player             | unchanged Phase 1 simplification |
 
 ## Behavior changes
 

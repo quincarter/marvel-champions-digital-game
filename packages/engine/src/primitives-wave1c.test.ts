@@ -19,9 +19,38 @@ import type { GameState } from "./state.js";
 import { createGame } from "./setup.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import { runCommands, runCommandsPicking } from "./testing/drive.js";
-import { stubAlly, stubAttachment, stubEvent, stubIdentity, stubMainScheme, stubMinion, stubResource, stubSideScheme, stubSupport, stubTreachery, stubUpgrade, stubVillain } from "./testing/fixtures.js";
+import {
+  stubAlly,
+  stubAttachment,
+  stubEvent,
+  stubIdentity,
+  stubMainScheme,
+  stubMinion,
+  stubResource,
+  stubSideScheme,
+  stubSupport,
+  stubTreachery,
+  stubUpgrade,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { auditVillainPhases } from "./villain/audit.js";
-import { ALLY, RESOURCE, DEFAULT_CARDS, DEFAULT_DECK, expectOk, giveCard, giveCards, HERO, newGame, payFor, resolvePending, seatIdentities, settle, settleUntil, withEncounterPiles } from "./testing/scenario.js";
+import {
+  ALLY,
+  RESOURCE,
+  DEFAULT_CARDS,
+  DEFAULT_DECK,
+  expectOk,
+  giveCard,
+  giveCards,
+  HERO,
+  newGame,
+  payFor,
+  resolvePending,
+  seatIdentities,
+  settle,
+  settleUntil,
+  withEncounterPiles,
+} from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const self: TargetRef = { kind: "self" };
@@ -55,16 +84,28 @@ const THRESHOLD = stubAbility("threshold.forced-response", {
         { kind: "addCounters", target: self, counterType: "punished", amount: one },
         // "Remove all but 3 threat from this scheme": already expressible, but it is the other half of the sentence,
         // so the test pins that the pair works together.
-        { kind: "removeThreat", target: self, amount: { kind: "scaled", value: { kind: "threat", of: self }, plus: -3 } },
+        {
+          kind: "removeThreat",
+          target: self,
+          amount: { kind: "scaled", value: { kind: "threat", of: self }, plus: -3 },
+        },
       ],
     },
   ],
 });
-const THRESHOLD_SCHEME = stubSideScheme({ id: "threshold-scheme", startingThreat: 8, boostIcons: 0, abilities: [THRESHOLD.ref] });
+const THRESHOLD_SCHEME = stubSideScheme({
+  id: "threshold-scheme",
+  startingThreat: 8,
+  boostIcons: 0,
+  abilities: [THRESHOLD.ref],
+});
 
 /** "When Wrecker schemes, place the threat on his side scheme instead of the main scheme." */
 const OWN_SCHEME = stubAbility("boss.own-scheme", {
-  trigger: { kind: "constant", rules: [{ kind: "schemeThreatDestination", enemy: { self: true }, scheme: "ownSignatureSideScheme" }] },
+  trigger: {
+    kind: "constant",
+    rules: [{ kind: "schemeThreatDestination", enemy: { self: true }, scheme: "ownSignatureSideScheme" }],
+  },
   effects: [],
 });
 
@@ -79,7 +120,9 @@ const PUT_SCHEMES = stubAbility("scenario.setup", {
 });
 const SCENARIO = stubMainScheme({
   id: "scenario",
-  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), aSideAbilities: [PUT_SCHEMES.ref] }],
+  stages: [
+    { startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), aSideAbilities: [PUT_SCHEMES.ref] },
+  ],
 });
 
 interface GameOptions {
@@ -101,7 +144,9 @@ function schemeGame(options: GameOptions = {}): { deps: EngineDeps; state: GameS
       seed: 5,
       cards: [...DEFAULT_CARDS, boss, SCENARIO, signature, BLANK],
       villainCardId: boss.id,
-      villains: [{ villainCardId: boss.id, encounterDeck: copies(BLANK.id, 20), signatureSideSchemeCardId: signature.id }],
+      villains: [
+        { villainCardId: boss.id, encounterDeck: copies(BLANK.id, 20), signatureSideSchemeCardId: signature.id },
+      ],
       mainSchemeCardId: SCENARIO.id,
       encounterDeck: [],
       players: [{ identityCardId: cardId("hero"), deck: DEFAULT_DECK }],
@@ -121,12 +166,26 @@ describe("`compare`: a live value against a threshold", () => {
     const scheme = signatureId(state);
     const threat = (of: TargetRef): ValueSpec => ({ kind: "threat", of });
     const ref: TargetRef = { kind: "named", name: THRESHOLD_SCHEME.name };
-    const at = (op: "atLeast" | "atMost" | "equalTo", n: number): Predicate => ({ kind: "compare", left: threat(ref), op, right: c(n) });
+    const at = (op: "atLeast" | "atMost" | "equalTo", n: number): Predicate => ({
+      kind: "compare",
+      left: threat(ref),
+      op,
+      right: c(n),
+    });
 
     expect(mustInstance(state, scheme).threat).toBe(8);
-    expect([evaluate(state, at("atLeast", 8), context), evaluate(state, at("atLeast", 9), context)]).toEqual([true, false]);
-    expect([evaluate(state, at("atMost", 8), context), evaluate(state, at("atMost", 7), context)]).toEqual([true, false]);
-    expect([evaluate(state, at("equalTo", 8), context), evaluate(state, at("equalTo", 7), context)]).toEqual([true, false]);
+    expect([evaluate(state, at("atLeast", 8), context), evaluate(state, at("atLeast", 9), context)]).toEqual([
+      true,
+      false,
+    ]);
+    expect([evaluate(state, at("atMost", 8), context), evaluate(state, at("atMost", 7), context)]).toEqual([
+      true,
+      false,
+    ]);
+    expect([evaluate(state, at("equalTo", 8), context), evaluate(state, at("equalTo", 7), context)]).toEqual([
+      true,
+      false,
+    ]);
   });
 
   it("compares two live values, not just a literal threshold", () => {
@@ -176,8 +235,18 @@ const NO_ICONS = stubTreachery({ id: "no-icons", boostIcons: 0 });
 const iconEvent = (id: string, count: number) => {
   const effects: readonly EffectSpec[] = [
     { kind: "discardEncounterCards", count: c(count), bind: "dumped" },
-    { kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "icons", amount: { kind: "var", name: "dumped.boostIcons" } },
-    { kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "dumped", amount: { kind: "var", name: "dumped.count" } },
+    {
+      kind: "addCounters",
+      target: { kind: "identityOf", player: { kind: "controller" } },
+      counterType: "icons",
+      amount: { kind: "var", name: "dumped.boostIcons" },
+    },
+    {
+      kind: "addCounters",
+      target: { kind: "identityOf", player: { kind: "controller" } },
+      counterType: "dumped",
+      amount: { kind: "var", name: "dumped.count" },
+    },
   ];
   const ability = stubAbility(`${id}.action`, { trigger: { kind: "action" }, effects });
   return { card: stubEvent({ id, cost: 0, abilities: [ability.ref] }), ability };
@@ -200,7 +269,10 @@ function iconGame(encounter: readonly CardId[]): GameState {
       mainSchemeCardId: SCENARIO.id,
       encounterDeck: encounter,
       includeIdentitySets: false,
-      players: identities.map((identity) => ({ identityCardId: identity.id, deck: [...DEFAULT_DECK, DISCARD_TWO.card.id, DISCARD_THREE.card.id] })),
+      players: identities.map((identity) => ({
+        identityCardId: identity.id,
+        deck: [...DEFAULT_DECK, DISCARD_TWO.card.id, DISCARD_THREE.card.id],
+      })),
     },
     iconDeps,
   );
@@ -210,9 +282,16 @@ function iconGame(encounter: readonly CardId[]): GameState {
 
 const playCard = (state: GameState, card: { readonly id: CardId }): GameState => {
   const given = giveCard(state, p1, card.id);
-  return runCommands(given.state, iconDeps, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null }).state;
+  return runCommands(given.state, iconDeps, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  }).state;
 };
-const counter = (state: GameState, name: string) => mustInstance(state, mustPlayer(state, p1).identity.instanceId).counters[name];
+const counter = (state: GameState, name: string) =>
+  mustInstance(state, mustPlayer(state, p1).identity.instanceId).counters[name];
 
 describe("`discardEncounterCards` binds the boost icons it discarded", () => {
   it("sums the icons across every card discarded, not just the first", () => {
@@ -271,12 +350,30 @@ const UNSCATHED = stubAbility("unscathed.response", {
     forced: true,
     on: { on: "defended", targetIs: { categories: ["hero"], controller: "you" }, resultsAtMost: { damage: 0 } },
   },
-  effects: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "unscathed", amount: one }],
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "identityOf", player: { kind: "controller" } },
+      counterType: "unscathed",
+      amount: one,
+    },
+  ],
 });
 /** The same Response without the bound: the control that proves the bound is what stops it. */
 const ANY_DEFENSE = stubAbility("any-defense.response", {
-  trigger: { kind: "response", forced: true, on: { on: "defended", targetIs: { categories: ["hero"], controller: "you" } } },
-  effects: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "defended", amount: one }],
+  trigger: {
+    kind: "response",
+    forced: true,
+    on: { on: "defended", targetIs: { categories: ["hero"], controller: "you" } },
+  },
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "identityOf", player: { kind: "controller" } },
+      counterType: "defended",
+      amount: one,
+    },
+  ],
 });
 
 /** A game whose villain hits for `atk` and whose hero has `def`, parked on p1's first turn in hero form. */
@@ -348,13 +445,23 @@ const WEAPON = trait("Weapon");
 /** No `attachesTo`: an upgrade with none attaches to its controller's identity (`actions.ts` `ownIdentity`). */
 const HERO_WEAPON = stubUpgrade({ id: "hero-weapon", cost: 0, traits: [WEAPON] });
 /** "Attach to a friendly character": the same trait and type, but it can sit on an ally instead. */
-const ALLY_WEAPON: UpgradeCard = { ...stubUpgrade({ id: "ally-weapon", cost: 0, traits: [WEAPON] }), attachesTo: { kind: "friendlyCharacter" } };
+const ALLY_WEAPON: UpgradeCard = {
+  ...stubUpgrade({ id: "ally-weapon", cost: 0, traits: [WEAPON] }),
+  attachesTo: { kind: "friendlyCharacter" },
+};
 const HELPER = stubAlly({ id: "helper", cost: 0, atk: 1, thw: 1, hp: 3 });
 
 /** "Exhaust a Weapon upgrade on your hero → …": the cost the host filter unblocks. */
 const MEAN_SWING_ACTION = stubAbility("mean-swing.action", {
   trigger: { kind: "action" },
-  cost: { exhaustCards: { slot: "weapon", query: { categories: ["upgrade"], trait: WEAPON, host: { kind: "identityOf", player: { kind: "controller" } } }, min: 1, max: 1 } },
+  cost: {
+    exhaustCards: {
+      slot: "weapon",
+      query: { categories: ["upgrade"], trait: WEAPON, host: { kind: "identityOf", player: { kind: "controller" } } },
+      min: 1,
+      max: 1,
+    },
+  },
   effects: [{ kind: "dealDamage", target: { kind: "villain" }, amount: c(3) }],
 });
 const MEAN_SWING = stubEvent({ id: "mean-swing", cost: 0, abilities: [MEAN_SWING_ACTION.ref] });
@@ -364,12 +471,19 @@ const hostDeps = depsOf(MEAN_SWING_ACTION);
 /** Whether `legalActions` offers this hand card as playable right now. */
 function playable(state: GameState, card: InstanceId): boolean {
   const actions = legalActions(state, p1, hostDeps);
-  return actions.kind === "turn" && actions.legal.some((a) => a.example.type === "playCard" && a.example.cardInstanceId === card);
+  return (
+    actions.kind === "turn" &&
+    actions.legal.some((a) => a.example.type === "playCard" && a.example.cardInstanceId === card)
+  );
 }
 
 /** A one-player game with a Weapon upgrade on the hero and an identical one on an ally. */
 function hostGame(): { state: GameState; onHero: InstanceId; onAlly: InstanceId; ally: InstanceId } {
-  const start = newGame({ extraCards: [HERO_WEAPON, ALLY_WEAPON, HELPER, MEAN_SWING], deck: [...DEFAULT_DECK, HELPER.id, HERO_WEAPON.id, ALLY_WEAPON.id, MEAN_SWING.id], deps: hostDeps });
+  const start = newGame({
+    extraCards: [HERO_WEAPON, ALLY_WEAPON, HELPER, MEAN_SWING],
+    deck: [...DEFAULT_DECK, HELPER.id, HERO_WEAPON.id, ALLY_WEAPON.id, MEAN_SWING.id],
+    deps: hostDeps,
+  });
   const given = giveCards(start, p1, HELPER.id, HERO_WEAPON.id, ALLY_WEAPON.id);
   const [ally, onHero, onAlly] = given.ids as [InstanceId, InstanceId, InstanceId];
   const played = runCommands(
@@ -395,7 +509,16 @@ describe("`TargetQuery.host`: a card attached to what a ref names", () => {
     expect(matching({ kind: "identityOf", player: { kind: "controller" } })).toEqual([onHero]);
     expect(matching({ kind: "each", query: { categories: ["ally"] } })).toEqual([onAlly]);
     // An unattached card never matches a host filter.
-    expect(cardsInPlay(state).filter((id) => matchesQuery(state, id, { categories: ["ally"], host: { kind: "identityOf", player: { kind: "controller" } } }, ctx))).toEqual([]);
+    expect(
+      cardsInPlay(state).filter((id) =>
+        matchesQuery(
+          state,
+          id,
+          { categories: ["ally"], host: { kind: "identityOf", player: { kind: "controller" } } },
+          ctx,
+        ),
+      ),
+    ).toEqual([]);
   });
 
   it("an 'exhaust a Weapon upgrade on your hero →' cost can only pay with the hero's copy", () => {
@@ -403,14 +526,23 @@ describe("`TargetQuery.host`: a card attached to what a ref names", () => {
     const given = giveCards(state, p1, MEAN_SWING.id);
     const [event] = given.ids as [InstanceId];
     expect(playable(given.state, event)).toBe(true);
-    const after = runCommands(given.state, hostDeps, { type: "playCard", playerId: p1, cardInstanceId: event, payment: [], attachToInstanceId: null }).state;
+    const after = runCommands(given.state, hostDeps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: event,
+      payment: [],
+      attachToInstanceId: null,
+    }).state;
     expect(mustInstance(after, onHero).exhausted).toBe(true);
     expect(mustInstance(after, onAlly).exhausted).toBe(false);
   });
 
   it("with the hero's copy already exhausted the cost cannot be paid at all, though an identical ally copy is ready", () => {
     const { state, onHero } = hostGame();
-    const exhausted: GameState = { ...state, instances: { ...state.instances, [onHero]: { ...mustInstance(state, onHero), exhausted: true } } };
+    const exhausted: GameState = {
+      ...state,
+      instances: { ...state.instances, [onHero]: { ...mustInstance(state, onHero), exhausted: true } },
+    };
     const given = giveCards(exhausted, p1, MEAN_SWING.id);
     const [event] = given.ids as [InstanceId];
     expect(playable(given.state, event)).toBe(false);
@@ -442,9 +574,25 @@ const VILLAIN_BOOSTER = stubTreachery({ id: "villain-booster", boostIcons: 0, ab
 const BOOST_THE_ALLY = stubAbility("boost-ally.boost", {
   trigger: { kind: "boost" },
   effects: [
-    { kind: "modifyStatUntil", stat: "atk", amount: c(3), target: { kind: "each", query: { categories: ["ally"] } }, until: "endOfAttack" },
-    { kind: "addCounters", target: { kind: "villain" }, counterType: "allyAtk", amount: { kind: "stat", of: { kind: "each", query: { categories: ["ally"] } }, stat: "atk" } },
-    { kind: "addCounters", target: { kind: "villain" }, counterType: "villainAtk", amount: { kind: "stat", of: { kind: "villain" }, stat: "atk" } },
+    {
+      kind: "modifyStatUntil",
+      stat: "atk",
+      amount: c(3),
+      target: { kind: "each", query: { categories: ["ally"] } },
+      until: "endOfAttack",
+    },
+    {
+      kind: "addCounters",
+      target: { kind: "villain" },
+      counterType: "allyAtk",
+      amount: { kind: "stat", of: { kind: "each", query: { categories: ["ally"] } }, stat: "atk" },
+    },
+    {
+      kind: "addCounters",
+      target: { kind: "villain" },
+      counterType: "villainAtk",
+      amount: { kind: "stat", of: { kind: "villain" }, stat: "atk" },
+    },
   ],
 });
 const ALLY_BOOSTER = stubTreachery({ id: "ally-booster", boostIcons: 0, abilities: [BOOST_THE_ALLY.ref] });
@@ -515,7 +663,12 @@ const holder: TargetRef = { kind: "slot", slot: "holder" };
 const REPLACE_STATUS = stubAbility("replace-status.action", {
   trigger: { kind: "action" },
   effects: [
-    { kind: "chooseTarget", slot: "holder", query: { categories: ["character"], hasAnyStatus: true }, chooser: { kind: "controller" } },
+    {
+      kind: "chooseTarget",
+      slot: "holder",
+      query: { categories: ["character"], hasAnyStatus: true },
+      chooser: { kind: "controller" },
+    },
     {
       kind: "chooseOne",
       chooser: { kind: "controller" },
@@ -545,7 +698,10 @@ const statusDeps = depsOf(REPLACE_STATUS);
 
 const withStatus = (state: GameState, id: InstanceId, status: "stunned" | "confused" | "tough"): GameState => ({
   ...state,
-  instances: { ...state.instances, [id]: { ...mustInstance(state, id), statuses: { ...mustInstance(state, id).statuses, [status]: 1 } } },
+  instances: {
+    ...state.instances,
+    [id]: { ...mustInstance(state, id), statuses: { ...mustInstance(state, id).statuses, [status]: 1 } },
+  },
 });
 
 describe("`TargetQuery.hasAnyStatus`: a character carrying a status card of any type", () => {
@@ -564,7 +720,9 @@ describe("`TargetQuery.hasAnyStatus`: a character carrying a status card of any 
     }
     // ANDed with `hasStatus` like every other field, not replaced by it.
     const stunned = withStatus(start, villain, "stunned");
-    expect(cardsInPlay(stunned).filter((id) => matchesQuery(stunned, id, { hasAnyStatus: true, hasStatus: "tough" }, ctx))).toEqual([]);
+    expect(
+      cardsInPlay(stunned).filter((id) => matchesQuery(stunned, id, { hasAnyStatus: true, hasStatus: "tough" }, ctx)),
+    ).toEqual([]);
   });
 
   it("'choose a status card in play, replace it with a different one' composes with `chooseOne` and `hasStatus`", () => {
@@ -597,18 +755,34 @@ describe("`TargetQuery.hasAnyStatus`: a character carrying a status card of any 
 const TOLL_ACTION = stubAbility("toll.action", {
   trigger: { kind: "action" },
   effects: [
-    { kind: "reduceNextCardCost", player: { kind: "controller" }, amount: c(-3), duration: "untilPlayed", cardFilter: { categories: ["event"] } },
+    {
+      kind: "reduceNextCardCost",
+      player: { kind: "controller" },
+      amount: c(-3),
+      duration: "untilPlayed",
+      cardFilter: { categories: ["event"] },
+    },
     {
       kind: "afterNextCardPlayed",
       player: { kind: "controller" },
       cardFilter: { categories: ["event"] },
-      effects: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "tollPaid", amount: one }],
+      effects: [
+        {
+          kind: "addCounters",
+          target: { kind: "identityOf", player: { kind: "controller" } },
+          counterType: "tollPaid",
+          amount: one,
+        },
+      ],
     },
   ],
 });
 /** A support, so the card that creates the effect stays in play and is not itself the "next event". */
 const TOLL = stubSupport({ id: "toll", cost: 0, abilities: [TOLL_ACTION.ref] });
-const CHEAP_EVENT_ACTION = stubAbility("cheap.action", { trigger: { kind: "action" }, effects: [{ kind: "draw", player: { kind: "controller" }, amount: one }] });
+const CHEAP_EVENT_ACTION = stubAbility("cheap.action", {
+  trigger: { kind: "action" },
+  effects: [{ kind: "draw", player: { kind: "controller" }, amount: one }],
+});
 const CHEAP_EVENT = stubEvent({ id: "cheap", cost: 1, abilities: [CHEAP_EVENT_ACTION.ref] });
 const CHEAP_ALLY = stubAlly({ id: "cheap-ally", cost: 1, atk: 1, thw: 1, hp: 2 });
 
@@ -621,9 +795,23 @@ const tollGame = () =>
   });
 const useToll = (state: GameState): { state: GameState } => {
   const given = giveCards(state, p1, TOLL.id);
-  const played = runCommands(given.state, tollDeps, { type: "playCard", playerId: p1, cardInstanceId: given.ids[0] as InstanceId, payment: [], attachToInstanceId: null }).state;
+  const played = runCommands(given.state, tollDeps, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: given.ids[0] as InstanceId,
+    payment: [],
+    attachToInstanceId: null,
+  }).state;
   const support = mustPlayer(played, p1).playArea.find((id) => played.instances[id]?.cardId === TOLL.id) as InstanceId;
-  return { state: runCommands(played, tollDeps, { type: "useAbility", playerId: p1, cardInstanceId: support, abilityId: TOLL_ACTION.ref.id, payment: [] }).state };
+  return {
+    state: runCommands(played, tollDeps, {
+      type: "useAbility",
+      playerId: p1,
+      cardInstanceId: support,
+      abilityId: TOLL_ACTION.ref.id,
+      payment: [],
+    }).state,
+  };
 };
 
 describe("`untilPlayed`: a cost change with no phase or round bound", () => {
@@ -645,7 +833,13 @@ describe("`untilPlayed`: a cost change with no phase or round bound", () => {
     const event = withEvent.ids[0] as InstanceId;
     expect(playCostOf(withEvent.state, p1, event, tollDeps)?.current).toBe(4);
 
-    const paid = runCommands(withEvent.state, tollDeps, { type: "playCard", playerId: p1, cardInstanceId: event, payment: payFor(withEvent.state, p1, 4), attachToInstanceId: null }).state;
+    const paid = runCommands(withEvent.state, tollDeps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: event,
+      payment: payFor(withEvent.state, p1, 4),
+      attachToInstanceId: null,
+    }).state;
     // The delayed half fired once the event's play finished…
     expect(mustInstance(paid, identity).counters.tollPaid).toBe(1);
     // …and both halves are gone, so the next event costs its printed price again.
@@ -659,7 +853,13 @@ describe("`untilPlayed`: a cost change with no phase or round bound", () => {
     const identity = mustPlayer(state, p1).identity.instanceId;
     const withAlly = giveCards(state, p1, CHEAP_ALLY.id);
     const ally = withAlly.ids[0] as InstanceId;
-    const after = runCommands(withAlly.state, tollDeps, { type: "playCard", playerId: p1, cardInstanceId: ally, payment: payFor(withAlly.state, p1, 1), attachToInstanceId: null }).state;
+    const after = runCommands(withAlly.state, tollDeps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: ally,
+      payment: payFor(withAlly.state, p1, 1),
+      attachToInstanceId: null,
+    }).state;
     expect(mustInstance(after, identity).counters.tollPaid).toBeUndefined();
     const withEvent = giveCards(after, p1, CHEAP_EVENT.id);
     expect(playCostOf(withEvent.state, p1, withEvent.ids[0] as InstanceId, tollDeps)?.current).toBe(4);
@@ -682,7 +882,11 @@ describe("`untilPlayed`: a cost change with no phase or round bound", () => {
  * to its owner's discard — only its own abilities are skipped.
  */
 const COUNTERSPELL_INTERRUPT = stubAbility("counterspell.interrupt", {
-  trigger: { kind: "interrupt", forced: true, on: { on: "cardBeingPlayed", playerIs: "controller", targetIs: { categories: ["event"] } } },
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "cardBeingPlayed", playerIs: "controller", targetIs: { categories: ["event"] } },
+  },
   effects: [{ kind: "cancelTriggeringEvent" }, { kind: "discardFromPlay", target: { kind: "self" } }],
 });
 const COUNTERSPELL = stubUpgrade({ id: "counterspell", cost: 0, abilities: [COUNTERSPELL_INTERRUPT.ref] });
@@ -695,15 +899,33 @@ const BLAST = stubEvent({ id: "blast", cost: 1, abilities: [BLAST_ACTION.ref] })
 /** "Response: after you play a card …" — still fires, because the card is still considered played. */
 const WATCHER_PLAYED = stubAbility("watcher-played.response", {
   trigger: { kind: "response", forced: true, on: { on: "cardPlayed", playerIs: "controller" } },
-  effects: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "sawPlay", amount: one }],
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "identityOf", player: { kind: "controller" } },
+      counterType: "sawPlay",
+      amount: one,
+    },
+  ],
 });
 const WATCHER = stubSupport({ id: "play-watcher", cost: 0, abilities: [WATCHER_PLAYED.ref] });
 
 const cancelDeps = depsOf(COUNTERSPELL_INTERRUPT, BLAST_ACTION, WATCHER_PLAYED);
-const cancelGame = () => newGame({ extraCards: [COUNTERSPELL, BLAST, WATCHER], deck: [...DEFAULT_DECK, COUNTERSPELL.id, BLAST.id, WATCHER.id], deps: cancelDeps });
+const cancelGame = () =>
+  newGame({
+    extraCards: [COUNTERSPELL, BLAST, WATCHER],
+    deck: [...DEFAULT_DECK, COUNTERSPELL.id, BLAST.id, WATCHER.id],
+    deps: cancelDeps,
+  });
 const playFree = (state: GameState, card: { readonly id: CardId }): GameState => {
   const given = giveCards(state, p1, card.id);
-  return runCommands(given.state, cancelDeps, { type: "playCard", playerId: p1, cardInstanceId: given.ids[0] as InstanceId, payment: [], attachToInstanceId: null }).state;
+  return runCommands(given.state, cancelDeps, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: given.ids[0] as InstanceId,
+    payment: [],
+    attachToInstanceId: null,
+  }).state;
 };
 
 describe("a cancelled play stops the cancelled card's own effects (RRG 1.8 'Cancel', p. 13)", () => {
@@ -715,7 +937,13 @@ describe("a cancelled play stops the cancelled card's own effects (RRG 1.8 'Canc
     const blast = given.ids[0] as InstanceId;
     const handBefore = mustPlayer(given.state, p1).hand.length;
 
-    const after = runCommands(given.state, cancelDeps, { type: "playCard", playerId: p1, cardInstanceId: blast, payment: payFor(given.state, p1, 1), attachToInstanceId: null }).state;
+    const after = runCommands(given.state, cancelDeps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: blast,
+      payment: payFor(given.state, p1, 1),
+      attachToInstanceId: null,
+    }).state;
 
     expect(mustInstance(after, villain).damage).toBe(0); // the effects never initiated
     expect(mustPlayer(after, p1).discard).toContain(blast); // "it is discarded"
@@ -730,7 +958,13 @@ describe("a cancelled play stops the cancelled card's own effects (RRG 1.8 'Canc
     const start = cancelGame();
     const villain = activeVillain(start).instanceId;
     const given = giveCards(start, p1, BLAST.id);
-    const after = runCommands(given.state, cancelDeps, { type: "playCard", playerId: p1, cardInstanceId: given.ids[0] as InstanceId, payment: payFor(given.state, p1, 1), attachToInstanceId: null }).state;
+    const after = runCommands(given.state, cancelDeps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.ids[0] as InstanceId,
+      payment: payFor(given.state, p1, 1),
+      attachToInstanceId: null,
+    }).state;
     expect(mustInstance(after, villain).damage).toBe(3);
   });
 });
@@ -786,7 +1020,9 @@ function giveGame(top: readonly CardId[]): GameState {
 
 type Events = ReturnType<typeof runCommands>["events"];
 const flippedCards = (state: GameState, events: Events, enemy: InstanceId) =>
-  events.flatMap((e) => (e.type === "boostCardFlipped" && e.enemyInstanceId === enemy ? [state.instances[e.instanceId]?.cardId] : []));
+  events.flatMap((e) =>
+    e.type === "boostCardFlipped" && e.enemyInstanceId === enemy ? [state.instances[e.instanceId]?.cardId] : [],
+  );
 const threatFrom = (events: Events, source: InstanceId) =>
   events.flatMap((e) => (e.type === "threatPlaced" && e.sourceInstanceId === source ? [e.amount] : []));
 
@@ -800,7 +1036,12 @@ describe("`giveBoostCard`: a boost card dealt outside an activation waits facedo
     const [waiting] = mustInstance(roundOne.state, villain).boostCards;
     expect(roundOne.state.instances[waiting as InstanceId]?.cardId).toBe(WAITER.id);
     expect(mustInstance(roundOne.state, waiting as InstanceId).faceup).toBe(false);
-    expect(roundOne.events).toContainEqual({ type: "boostCardDealt", enemyInstanceId: villain, instanceId: waiting, outsideActivation: true });
+    expect(roundOne.events).toContainEqual({
+      type: "boostCardDealt",
+      enemyInstanceId: villain,
+      instanceId: waiting,
+      outsideActivation: true,
+    });
     expect(flippedCards(roundOne.state, roundOne.events, villain)).toEqual([NO_ICONS.id]);
 
     const roundTwo = runCommands(roundOne.state, giveDeps, endTurn);
@@ -817,14 +1058,24 @@ describe("`giveBoostCard`: a boost card dealt outside an activation waits facedo
   it("any enemy can hold one, a non-villainous minion flips only that card, and a non-enemy is never given one", () => {
     // Round 1: NO_ICONS is the villain's boost card, LACKEY is dealt, revealed and engaged.
     const roundOne = runCommands(giveGame([NO_ICONS.id, LACKEY.id, WAITER.id, NORMAL.id]), giveDeps, endTurn).state;
-    const lackey = mustPlayer(roundOne, p1).playArea.find((id) => roundOne.instances[id]?.cardId === LACKEY.id) as InstanceId;
+    const lackey = mustPlayer(roundOne, p1).playArea.find(
+      (id) => roundOne.instances[id]?.cardId === LACKEY.id,
+    ) as InstanceId;
     expect(lackey).toBeDefined();
     const identity = mustPlayer(roundOne, p1).identity.instanceId;
 
     const given = giveCards(roundOne, p1, GIVE_AROUND.id);
-    const played = runCommands(given.state, giveDeps, { type: "playCard", playerId: p1, cardInstanceId: given.ids[0] as InstanceId, payment: [], attachToInstanceId: null });
+    const played = runCommands(given.state, giveDeps, {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: given.ids[0] as InstanceId,
+      payment: [],
+      attachToInstanceId: null,
+    });
     // WAITER went to the minion; the identity named by the same ref got nothing, and no second card was drawn for it.
-    expect(mustInstance(played.state, lackey).boostCards.map((id) => played.state.instances[id]?.cardId)).toEqual([WAITER.id]);
+    expect(mustInstance(played.state, lackey).boostCards.map((id) => played.state.instances[id]?.cardId)).toEqual([
+      WAITER.id,
+    ]);
     expect(mustInstance(played.state, identity).boostCards).toEqual([]);
     expect(played.events.filter((e) => e.type === "boostCardDealt")).toHaveLength(1);
 
@@ -859,7 +1110,12 @@ const TOSS_ACTION = stubAbility("toss.action", {
     {
       kind: "chooseCards",
       slot: "tossed",
-      from: { kind: "zone", zone: "hand", player: { kind: "controller" }, filter: { anyPrintedResource: ["mental", "physical"] } },
+      from: {
+        kind: "zone",
+        zone: "hand",
+        player: { kind: "controller" },
+        filter: { anyPrintedResource: ["mental", "physical"] },
+      },
       chooser: { kind: "controller" },
       min: 1,
       max: 1,
@@ -879,17 +1135,45 @@ const tossGame = () =>
   });
 const playToss = (state: GameState): GameState => {
   const given = giveCards(state, p1, TOSS.id);
-  return settleUntil(expectOk(applyCommand(given.state, { type: "playCard", playerId: p1, cardInstanceId: given.ids[0] as InstanceId, payment: [], attachToInstanceId: null }, tossDeps)), "chooseCards", tossDeps);
+  return settleUntil(
+    expectOk(
+      applyCommand(
+        given.state,
+        {
+          type: "playCard",
+          playerId: p1,
+          cardInstanceId: given.ids[0] as InstanceId,
+          payment: [],
+          attachToInstanceId: null,
+        },
+        tossDeps,
+      ),
+    ),
+    "chooseCards",
+    tossDeps,
+  );
 };
 
 describe("`TargetQuery.anyPrintedResource`: a card printing any of several resource types", () => {
   it("matches a printed icon of any listed type, on any card type, and never a wild or unlisted icon", () => {
     const given = giveCards(tossGame(), p1, MENTAL.id, PHYSICAL.id, ENERGY.id, WILD.id, MENTAL_EVENT.id);
-    const [mental, physical, energy, wild, event] = given.ids as [InstanceId, InstanceId, InstanceId, InstanceId, InstanceId];
+    const [mental, physical, energy, wild, event] = given.ids as [
+      InstanceId,
+      InstanceId,
+      InstanceId,
+      InstanceId,
+      InstanceId,
+    ];
     const ctx: EffectContext = { selfInstanceId: null, controllerId: p1, event: null, bindings: {}, deps: tossDeps };
     const matches = (id: InstanceId, q: Parameters<typeof matchesQuery>[2]) => matchesQuery(given.state, id, q, ctx);
     const either = { anyPrintedResource: ["mental", "physical"] } as const;
-    expect([mental, physical, energy, wild, event].map((id) => matches(id, either))).toEqual([true, true, false, false, true]);
+    expect([mental, physical, energy, wild, event].map((id) => matches(id, either))).toEqual([
+      true,
+      true,
+      false,
+      false,
+      true,
+    ]);
     expect(matches(wild, { anyPrintedResource: ["wild"] })).toBe(true);
     // ANDed with the other fields: narrowing to resource cards drops the event.
     expect(matches(event, { ...either, categories: ["resource"] })).toBe(false);
@@ -907,10 +1191,16 @@ describe("`TargetQuery.anyPrintedResource`: a card printing any of several resou
 
   it("'if able': with neither type in hand nothing is asked and nothing is discarded", () => {
     const given = giveCards(tossGame(), p1, ENERGY.id, WILD.id);
-    const noEither = { ...given.state, players: given.state.players.map((p) => ({ ...p, hand: p.hand.filter((id) => {
-      const card = given.state.instances[id]?.cardId;
-      return card !== MENTAL.id && card !== PHYSICAL.id && card !== MENTAL_EVENT.id;
-    }) })) };
+    const noEither = {
+      ...given.state,
+      players: given.state.players.map((p) => ({
+        ...p,
+        hand: p.hand.filter((id) => {
+          const card = given.state.instances[id]?.cardId;
+          return card !== MENTAL.id && card !== PHYSICAL.id && card !== MENTAL_EVENT.id;
+        }),
+      })),
+    };
     const handBefore = mustPlayer(noEither, p1).hand;
     const after = playToss(noEither);
     expect(after.pendingChoice).toBeNull();
@@ -936,7 +1226,13 @@ describe("`TargetQuery.anyPrintedResource`: a card printing any of several resou
 const BUILDUP_RULE = stubAbility("buildup.constant", {
   trigger: {
     kind: "constant",
-    rules: [{ kind: "excessDamageAsThreat", source: { hostOfSelf: true }, scheme: { kind: "signatureSideSchemeOf", villain: { kind: "host" } } }],
+    rules: [
+      {
+        kind: "excessDamageAsThreat",
+        source: { hostOfSelf: true },
+        scheme: { kind: "signatureSideSchemeOf", villain: { kind: "host" } },
+      },
+    ],
   },
   effects: [],
 });
@@ -944,25 +1240,44 @@ const BUILDUP_DISCARD = stubAbility("buildup.forced-response", {
   trigger: { kind: "response", forced: true, on: { on: "enemyAttack", sourceIs: { hostOfSelf: true } } },
   effects: [{ kind: "discardFromPlay", target: { kind: "self" } }],
 });
-const BUILDUP = stubAttachment({ id: "buildup", attachesTo: { kind: "villain" }, abilities: [BUILDUP_RULE.ref, BUILDUP_DISCARD.ref] });
+const BUILDUP = stubAttachment({
+  id: "buildup",
+  attachesTo: { kind: "villain" },
+  abilities: [BUILDUP_RULE.ref, BUILDUP_DISCARD.ref],
+});
 /** The same rule printed on the villain itself, naming "his" scheme without a ref. */
 const OWN_EXCESS = stubAbility("bruiser.own-excess", {
-  trigger: { kind: "constant", rules: [{ kind: "excessDamageAsThreat", source: { self: true }, scheme: "ownSignatureSideScheme" }] },
+  trigger: {
+    kind: "constant",
+    rules: [{ kind: "excessDamageAsThreat", source: { self: true }, scheme: "ownSignatureSideScheme" }],
+  },
   effects: [],
 });
 const BUILDUP_SCHEME = stubSideScheme({ id: "buildup-scheme", startingThreat: 1, boostIcons: 0 });
 const excessDeps = depsOf(PUT_SCHEMES, BUILDUP_RULE, BUILDUP_DISCARD, OWN_EXCESS);
 
 /** p1's second turn, in hero form, against an ATK 5 villain; with `attached` the buildup was revealed in round 1. */
-function excessGame(options: { readonly attached: boolean; readonly villainAbilities?: readonly StubAbility[] }): GameState {
-  const bruiser = stubVillain({ id: "bruiser", stages: [{ hp: flat(40), atk: 5, sch: 0, abilities: (options.villainAbilities ?? []).map((a) => a.ref) }] });
+function excessGame(options: {
+  readonly attached: boolean;
+  readonly villainAbilities?: readonly StubAbility[];
+}): GameState {
+  const bruiser = stubVillain({
+    id: "bruiser",
+    stages: [{ hp: flat(40), atk: 5, sch: 0, abilities: (options.villainAbilities ?? []).map((a) => a.ref) }],
+  });
   const top = options.attached ? [BLANK.id, BUILDUP.id] : [];
   const result = createGame(
     {
       seed: 9,
       cards: [...DEFAULT_CARDS, bruiser, SCENARIO, BUILDUP_SCHEME, BLANK, BUILDUP],
       villainCardId: bruiser.id,
-      villains: [{ villainCardId: bruiser.id, encounterDeck: [...top, ...copies(BLANK.id, 16)], signatureSideSchemeCardId: BUILDUP_SCHEME.id }],
+      villains: [
+        {
+          villainCardId: bruiser.id,
+          encounterDeck: [...top, ...copies(BLANK.id, 16)],
+          signatureSideSchemeCardId: BUILDUP_SCHEME.id,
+        },
+      ],
       mainSchemeCardId: SCENARIO.id,
       encounterDeck: [],
       players: [{ identityCardId: cardId("hero"), deck: DEFAULT_DECK }],
@@ -973,7 +1288,13 @@ function excessGame(options: { readonly attached: boolean; readonly villainAbili
   const start = settle(result.state, undefined, excessDeps);
   const deck = [...activeEncounterDeck(start).deck];
   const ordered: InstanceId[] = [];
-  for (const card of top) ordered.push(...deck.splice(deck.findIndex((id) => start.instances[id]?.cardId === card), 1));
+  for (const card of top)
+    ordered.push(
+      ...deck.splice(
+        deck.findIndex((id) => start.instances[id]?.cardId === card),
+        1,
+      ),
+    );
   return runCommands(withEncounterPiles(start, { deck: [...ordered, ...deck] }), excessDeps, endTurn, toHero).state;
 }
 
@@ -981,12 +1302,20 @@ function excessGame(options: { readonly attached: boolean; readonly villainAbili
 function defendWithAlly(state: GameState, tough = false) {
   const given = giveCards(state, p1, ALLY.id, RESOURCE.id, RESOURCE.id);
   const ally = given.ids[0] as InstanceId;
-  let played = runCommands(given.state, excessDeps, { type: "playCard", playerId: p1, cardInstanceId: ally, payment: payFor(given.state, p1, 2), attachToInstanceId: null }).state;
+  let played = runCommands(given.state, excessDeps, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: ally,
+    payment: payFor(given.state, p1, 2),
+    attachToInstanceId: null,
+  }).state;
   if (tough) played = withStatus(played, ally, "tough");
-  const pickAlly = (s: GameState): readonly string[] => (s.pendingChoice?.prompt.kind === "declareDefender" ? [ally] : resolveDefault(s));
+  const pickAlly = (s: GameState): readonly string[] =>
+    s.pendingChoice?.prompt.kind === "declareDefender" ? [ally] : resolveDefault(s);
   return { ally, ...runCommandsPicking(played, excessDeps, pickAlly, endTurn) };
 }
-const resolveDefault = (s: GameState): readonly string[] => s.pendingChoice?.options.slice(0, s.pendingChoice.minSelections).map((o) => o.optionId) ?? [];
+const resolveDefault = (s: GameState): readonly string[] =>
+  s.pendingChoice?.options.slice(0, s.pendingChoice.minSelections).map((o) => o.optionId) ?? [];
 const buildupOn = (state: GameState) => cardsInPlay(state).find((id) => state.instances[id]?.cardId === BUILDUP.id);
 
 describe("`excessDamageAsThreat`: excess damage dealt is placed as threat on a scheme", () => {
@@ -1000,8 +1329,16 @@ describe("`excessDamageAsThreat`: excess damage dealt is placed as threat on a s
     const { state, events, ally } = defendWithAlly(start);
     expect(mustPlayer(state, p1).playArea).not.toContain(ally);
     expect(mustInstance(state, scheme).threat).toBe(before + 2);
-    const converted = events.findIndex((e) => e.type === "excessDamageAsThreat" && e.amount === 2 && e.schemeInstanceId === scheme && e.targetInstanceId === ally);
-    const placed = events.findIndex((e) => e.type === "threatPlaced" && e.schemeInstanceId === scheme && e.amount === 2);
+    const converted = events.findIndex(
+      (e) =>
+        e.type === "excessDamageAsThreat" &&
+        e.amount === 2 &&
+        e.schemeInstanceId === scheme &&
+        e.targetInstanceId === ally,
+    );
+    const placed = events.findIndex(
+      (e) => e.type === "threatPlaced" && e.schemeInstanceId === scheme && e.amount === 2,
+    );
     const discarded = events.findIndex((e) => e.type === "cardDiscardedFromPlay" && e.instanceId === attachment);
     expect(converted).toBeGreaterThanOrEqual(0);
     expect(placed).toBeGreaterThan(converted);
@@ -1080,12 +1417,20 @@ function projectileGame(...allies: readonly AnyCard[]): { state: GameState; alli
   const played = runCommands(
     given.state,
     defendDeps,
-    ...given.ids.map((id): Command => ({ type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null })),
+    ...given.ids.map((id): Command => ({
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: id,
+      payment: [],
+      attachToInstanceId: null,
+    })),
   ).state;
   return { state: played, allies: given.ids };
 }
-const defendingWith = (defender: string) => (s: GameState): readonly string[] =>
-  s.pendingChoice?.prompt.kind === "declareDefender" ? [defender] : resolveDefault(s);
+const defendingWith =
+  (defender: string) =>
+  (s: GameState): readonly string[] =>
+    s.pendingChoice?.prompt.kind === "declareDefender" ? [defender] : resolveDefault(s);
 const damageTo = (events: Events, target: InstanceId) =>
   events.flatMap((e) => (e.type === "damageDealt" && e.targetInstanceId === target ? [e.amount] : []));
 
@@ -1118,11 +1463,24 @@ describe("`TargetRef defendingCharacter`: the defender of the enemy attack in pr
     const { state, allies } = projectileGame(FRAIL);
     const ally = allies[0] as InstanceId;
     const identity = mustPlayer(state, p1).identity.instanceId;
-    const { state: after, events, session } = runCommandsPicking(state, defendDeps, defendingWith(ally), toHero, endTurn);
+    const {
+      state: after,
+      events,
+      session,
+    } = runCommandsPicking(state, defendDeps, defendingWith(ally), toHero, endTurn);
     expect(mustPlayer(after, p1).playArea).not.toContain(ally);
-    expect(events).toContainEqual(expect.objectContaining({ type: "defenderLeftPlay", defenderInstanceId: ally, targetInstanceId: identity }));
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "defenderLeftPlay", defenderInstanceId: ally, targetInstanceId: identity }),
+    );
     // No DEF reduction: the identity did not defend, and the ally's damage does not carry over.
-    expect(events).toContainEqual(expect.objectContaining({ type: "attackResolved", targetInstanceId: identity, defenseReduction: 0, damageDealt: 2 }));
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "attackResolved",
+        targetInstanceId: identity,
+        defenseReduction: 0,
+        damageDealt: 2,
+      }),
+    );
     expect(mustInstance(after, identity).damage).toBe(2);
     expect(auditVillainPhases(session.log, defendDeps).violations).toEqual([]);
   });

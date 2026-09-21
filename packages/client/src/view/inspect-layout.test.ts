@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { rectsOverlap } from "./layout.js";
-import { cardFaceLayout, inspectLayout, inspectLayoutRects } from "./inspect-layout.js";
+import { cardFaceContentHeight, cardFaceLayout, inspectLayout, inspectLayoutRects } from "./inspect-layout.js";
 
 /** docs/phase4-screen-gaps.md's own required sizes for this workstream, plus the reference viewports. */
 const SIZES = [
@@ -72,7 +72,9 @@ describe("inspectLayout", () => {
     if (layout.mode !== "sheet") throw new Error("expected sheet mode");
     expect(layout.content.y).toBeGreaterThanOrEqual(layout.handle.y + layout.handle.height);
     expect(layout.content.y + layout.content.height).toBeLessThanOrEqual(layout.footer.y + 0.01);
-    expect(layout.footerPrimaryRow.y + layout.footerPrimaryRow.height).toBeLessThanOrEqual(layout.footerQuietRow.y + 0.01);
+    expect(layout.footerPrimaryRow.y + layout.footerPrimaryRow.height).toBeLessThanOrEqual(
+      layout.footerQuietRow.y + 0.01,
+    );
   });
 
   test("'Full rules text' expands the sheet to the full viewport height", () => {
@@ -82,36 +84,133 @@ describe("inspectLayout", () => {
     expect(expanded.sheet.height).toBeGreaterThan(collapsed.sheet.height);
     expect(expanded.sheet.height).toBe(844);
   });
+
+  // "The pair is content-sized, not viewport-stretched" — owner feedback 2026-09-21: the previous build stretched
+  // both panels to nearly the viewport height, leaving the ink panel mostly empty with a bare scrollbar in it.
+  test("a short card and a short rules panel give a short pair, not a viewport-stretched one", () => {
+    const layout = inspectLayout(
+      { x: 0, y: 0, width: 1440, height: 980 },
+      { cardContentHeight: 360, rulesContentHeight: 340 },
+    );
+    if (layout.mode !== "panels") throw new Error("expected panels mode");
+    expect(layout.card.height).toBeCloseTo(360, 5);
+    expect(layout.rules.height).toBeCloseTo(360, 5);
+    expect(layout.card.height).toBeLessThan(980 * 0.6);
+  });
+
+  test("the pair's height is the taller of the two panels' own content heights", () => {
+    const layout = inspectLayout(
+      { x: 0, y: 0, width: 1440, height: 980 },
+      { cardContentHeight: 500, rulesContentHeight: 620 },
+    );
+    if (layout.mode !== "panels") throw new Error("expected panels mode");
+    expect(layout.card.height).toBeCloseTo(620, 5);
+    expect(layout.rules.height).toBeCloseTo(620, 5);
+  });
+
+  test("a very long card or rules panel caps at the viewport rather than overflowing it", () => {
+    const layout = inspectLayout(
+      { x: 0, y: 0, width: 1440, height: 980 },
+      { cardContentHeight: 4000, rulesContentHeight: 500 },
+    );
+    if (layout.mode !== "panels") throw new Error("expected panels mode");
+    expect(layout.card.y).toBeGreaterThanOrEqual(0);
+    expect(layout.card.y + layout.card.height).toBeLessThanOrEqual(980);
+  });
+
+  test("the pair is vertically centered in the viewport", () => {
+    const layout = inspectLayout(
+      { x: 0, y: 0, width: 1440, height: 980 },
+      { cardContentHeight: 400, rulesContentHeight: 400 },
+    );
+    if (layout.mode !== "panels") throw new Error("expected panels mode");
+    const spaceAbove = layout.card.y;
+    const spaceBelow = 980 - layout.hint.height - (layout.card.y + layout.card.height);
+    expect(spaceAbove).toBeCloseTo(spaceBelow, 1);
+  });
 });
 
 describe("cardFaceLayout", () => {
   const rect = { x: 0, y: 0, width: 400, height: 660 };
+  const short = {
+    bodySize: 14,
+    rulesTextLines: 2,
+    printedTextLines: 0,
+    flavorLines: 0,
+    hasStats: false,
+    hasIcons: false,
+  };
+  const long = {
+    bodySize: 14,
+    rulesTextLines: 40,
+    printedTextLines: 0,
+    flavorLines: 0,
+    hasStats: true,
+    hasIcons: true,
+  };
 
-  test("a short card keeps a big picture: art is at least about half the panel", () => {
-    const layout = cardFaceLayout(rect, { rulesTextLines: 2, hasStats: false, hasIcons: false });
+  test("a card at its own natural height (cardFaceLayout given exactly cardFaceContentHeight) fits its art at D08's own 250/400 aspect, no clamp involved", () => {
+    const natural = cardFaceContentHeight(rect.width, short);
+    const layout = cardFaceLayout({ ...rect, height: natural }, short);
     expect(layout.art).not.toBeNull();
-    expect(layout.art!.height).toBeGreaterThan((rect.height - 90) * 0.4);
+    expect(layout.art!.height).toBeCloseTo(Math.round(rect.width * (250 / 400)), 0);
   });
 
   test("a very long rules text still leaves a positive scroll region and a positive (if smaller) art region — nothing collapses to zero or goes negative", () => {
-    const layout = cardFaceLayout(rect, { rulesTextLines: 40, hasStats: true, hasIcons: true });
+    const layout = cardFaceLayout(rect, long);
     expect(layout.scroll.height).toBeGreaterThan(0);
     expect(layout.scroll.width).toBeGreaterThan(0);
     if (layout.art) expect(layout.art.height).toBeGreaterThan(0);
     expect(layout.stats).not.toBeNull();
-    expect(layout.icons).not.toBeNull();
   });
 
-  test("stats and icons rows never overlap the scroll region or the footer", () => {
-    const layout = cardFaceLayout(rect, { rulesTextLines: 12, hasStats: true, hasIcons: true });
+  test("stats never overlaps the scroll region or the footer", () => {
+    const layout = cardFaceLayout(rect, { ...long, rulesTextLines: 12 });
     if (layout.stats) expect(rectsOverlap(layout.stats, layout.scroll)).toBe(false);
-    if (layout.icons) expect(rectsOverlap(layout.icons, layout.scroll)).toBe(false);
     expect(rectsOverlap(layout.scroll, layout.footer)).toBe(false);
   });
 
   test("a tiny panel degrades to no art rather than a negative-height rect", () => {
-    const layout = cardFaceLayout({ x: 0, y: 0, width: 200, height: 100 }, { rulesTextLines: 20, hasStats: false, hasIcons: false });
+    const layout = cardFaceLayout({ x: 0, y: 0, width: 200, height: 100 }, { ...short, rulesTextLines: 20 });
     if (layout.art) expect(layout.art.height).toBeGreaterThan(0);
     expect(layout.scroll.height).toBeGreaterThanOrEqual(0);
+  });
+
+  test("a panel taller than the card's own natural height leaves the extra room as blank space above a footer still pinned to the very bottom", () => {
+    const natural = cardFaceContentHeight(rect.width, short);
+    const layout = cardFaceLayout({ ...rect, height: natural + 120 }, short);
+    expect(layout.footer.y + layout.footer.height).toBeCloseTo(natural + 120, 0);
+    expect(layout.scroll.height).toBeGreaterThan(0);
+  });
+});
+
+describe("cardFaceContentHeight", () => {
+  const short = {
+    bodySize: 14,
+    rulesTextLines: 2,
+    printedTextLines: 0,
+    flavorLines: 0,
+    hasStats: false,
+    hasIcons: false,
+  };
+  const long = {
+    bodySize: 14,
+    rulesTextLines: 12,
+    printedTextLines: 4,
+    flavorLines: 2,
+    hasStats: true,
+    hasIcons: true,
+  };
+
+  test("more text, printed-text, flavor, stats and pips all add height", () => {
+    expect(cardFaceContentHeight(400, long)).toBeGreaterThan(cardFaceContentHeight(400, short));
+  });
+
+  test("a wider panel gets a taller art band, and a taller natural height with it", () => {
+    expect(cardFaceContentHeight(500, short)).toBeGreaterThan(cardFaceContentHeight(400, short));
+  });
+
+  test("large card text (17px) makes the same line count taller", () => {
+    expect(cardFaceContentHeight(400, { ...short, bodySize: 17 })).toBeGreaterThan(cardFaceContentHeight(400, short));
   });
 });

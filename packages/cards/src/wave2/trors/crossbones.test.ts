@@ -1,10 +1,21 @@
 import { cardsInPlay } from "@mc/engine";
-import { firstLegal, identityOf, inst, instancesOf, P1, patchInstance, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  firstLegal,
+  identityOf,
+  inst,
+  instancesOf,
+  P1,
+  patchInstance,
+  settle,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 import { CROSSBONES_SET } from "./crossbones.js";
 
-const crossbonesVsHawkeye = () => startWave2Game(wave2Scenario("crossbones", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 5 }));
+const crossbonesVsHawkeye = () =>
+  startWave2Game(wave2Scenario("crossbones", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 5 }));
 
 /**
  * The Crossbones scenario's own scripted cards (`crossbones.ts`). A full villain-stage-advance harness for "When
@@ -58,7 +69,10 @@ describe("Crossbones scenario cards", () => {
     const inner = wrapper.kind === "if" ? wrapper.then : [];
     const discard = inner.find((e) => e.kind === "discardEncounterCards");
     expect(discard).toBeDefined();
-    expect(discard).toMatchObject({ kind: "discardEncounterCards", count: { kind: "stat", of: { kind: "villain" }, stat: "atk" } });
+    expect(discard).toMatchObject({
+      kind: "discardEncounterCards",
+      count: { kind: "stat", of: { kind: "villain" }, stat: "atk" },
+    });
   });
 
   it("Crossbones (I/II/III): while he has a Weapon attachment, his attacks gain piercing", () => {

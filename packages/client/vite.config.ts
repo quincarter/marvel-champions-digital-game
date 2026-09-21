@@ -22,5 +22,11 @@ export default defineConfig({
     // Phaser is large and ships as one chunk; the warning adds nothing here.
     chunkSizeWarningLimit: 2000,
   },
-  server: { host: true },
+  server: {
+    host: true,
+    // Never watch the Tauri build tree: cargo rewrites executables under
+    // src-tauri/target while a desktop build runs, and a watch handle on one
+    // of them fails with EBUSY on Windows and takes the whole dev server down.
+    watch: { ignored: ["**/src-tauri/**", "**/android/**", "**/ios/**"] },
+  },
 });

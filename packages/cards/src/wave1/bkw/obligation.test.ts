@@ -1,5 +1,20 @@
 import { activeEncounterDeck } from "@mc/engine";
-import { answer, endTurn, firstLegal, inst, instancesOf, moveToHand, P1, payWith, play, playerOf, settle, settleUntil, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  answer,
+  endTurn,
+  firstLegal,
+  inst,
+  instancesOf,
+  moveToHand,
+  P1,
+  payWith,
+  play,
+  playerOf,
+  settle,
+  settleUntil,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
 import { BKW_DEPS, runBkw, startBkwGame } from "./testing.js";
 
@@ -13,7 +28,12 @@ describe("Burn Notice (Black Widow's obligation)", () => {
     // Spycraft is "Play only if you control a SPY character": Black Widow is a Spy, Natasha Romanoff is not.
     const hero = runBkw(given.state, toHero());
     const withSpycraft = runBkw(hero, play(P1, spycraft, payWith(hero, P1, 1, [spycraft, hook])));
-    const withBoth = settle(runBkw(withSpycraft, play(P1, hook, payWith(withSpycraft, P1, 2, [hook]))), firstLegal, undefined, BKW_DEPS);
+    const withBoth = settle(
+      runBkw(withSpycraft, play(P1, hook, payWith(withSpycraft, P1, 2, [hook]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     expect(inst(withBoth, hook).attachedTo ?? playerOf(withBoth, P1).playArea.includes(hook)).toBeTruthy();
 
     const stacked = stackEncounterDeck(withBoth, ADVANCE, "08025");

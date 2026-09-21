@@ -19,7 +19,7 @@ import { accent, hit, ink, signal, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McSelectionRing, fitText, label, paintPanel } from "../ui/widgets.js";
 import { cardArt, drawArt } from "../art/card-art.js";
-import { artFor } from "../art/art-source.js";
+import { CARD_BACKS, artFor } from "../art/art-source.js";
 import { characterPanel, faceOf } from "../view/board-model.js";
 import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
@@ -28,7 +28,12 @@ import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceHeaderInstanceId, choiceHeaderText } from "../view/choice-source.js";
 import { seatIdentityName } from "../view/names.js";
 import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice.js";
-import { defendChoiceLayout, defendOptionSlots } from "../view/defend-choice-layout.js";
+import {
+  defendChoiceLayout,
+  defendMatchupLayout,
+  defendOptionPicture,
+  defendOptionSlots,
+} from "../view/defend-choice-layout.js";
 import {
   canConfirmChoice,
   cardChoiceDisplayOrder,
@@ -45,6 +50,8 @@ import { appSession } from "../session.js";
 import { bindGamepad, bindKeyboard } from "./board/input.js";
 import { SCENES } from "./keys.js";
 import { bindHoldTarget } from "../ui/hold-target.js";
+import { destroyChildren } from "../ui/destroy-children.js";
+import { OverlayMotion } from "../ui/transitions.js";
 
 export class ChoiceOverlay extends Phaser.Scene {
   #selected: string[] = [];
@@ -57,12 +64,22 @@ export class ChoiceOverlay extends Phaser.Scene {
   #route: readonly ChoiceFocusTarget[] = [];
   #focusRects = new Map<string, Rect>();
   #focusRing: McSelectionRing | null = null;
+  /**
+   * Not `#close`d by an X/Back here — most decisions are cancel-less. Instead
+   * `#confirm` starts this fading the instant it dispatches an answer (the
+   * store's own worker round-trip takes a beat), and the Board stops this
+   * scene once the answered decision actually leaves the state
+   * (`syncChoiceOverlay`). If the engine rejects the answer, a fresh instance
+   * plays the entrance again rather than trying to "un-leave" this one.
+   */
+  #motion = new OverlayMotion();
 
   constructor() {
     super({ key: SCENES.choice });
   }
 
   create(): void {
+    this.#motion = new OverlayMotion();
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#rebuild());
     const onResize = (): void => this.#rebuild();
@@ -105,6 +122,10 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   #rebuild(): void {
+    // Already answered and fading out (`#confirm`) — the Board will stop this
+    // scene once the state catches up; a redraw here would only flash a new
+    // choice's sheet in underneath the outgoing one.
+    if (this.#motion.leaving) return;
     const { store } = appSession();
     const state = store.state;
     const choice = state.game?.pendingChoice;
@@ -123,7 +144,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#focusRing?.destroy();
     this.#focusRing = null;
     this.#focusRects.clear();
-    this.children.removeAll(true);
+    destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
     const phone = formFactorFor(width, height) === "phone";
@@ -144,22 +165,15 @@ export class ChoiceOverlay extends Phaser.Scene {
     // used to fall through to the bare-list branch below purely because
     // `ref.kind` was "ability", not "card": the option named a card just as
     // concretely, the check just didn't recognize it. See `refInstanceId`.
-    const asCards =
-      choice.options.length > 0 &&
-      choice.options.every((option) => refInstanceId(option.ref) !== null);
+    const asCards = choice.options.length > 0 && choice.options.every((option) => refInstanceId(option.ref) !== null);
 
     // The 70%-ink scrim.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+    const panelsFrom = this.children.list.length;
 
-    const sheetWidth = Math.min(
-      width - (phone ? 16 : 80),
-      asCards ? 1040 : 560,
-    );
-    const sheetHeight = Math.min(
-      height - (phone ? 16 : 80),
-      asCards ? 620 : 560,
-    );
+    const sheetWidth = Math.min(width - (phone ? 16 : 80), asCards ? 1040 : 560);
+    const sheetHeight = Math.min(height - (phone ? 16 : 80), asCards ? 620 : 560);
     const sheet: Rect = {
       x: (width - sheetWidth) / 2,
       y: (height - sheetHeight) / 2,
@@ -175,7 +189,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     // what tells them apart, so the whole identity line goes up there.
     const decider = state.game.players.find((player) => player.playerId === choice.playerId);
     const seat =
-      state.game.players.length > 1 && decider ? characterPanel(state.game, decider.identity.instanceId, POOL_DEPS) : null;
+      state.game.players.length > 1 && decider
+        ? characterPanel(state.game, decider.identity.instanceId, POOL_DEPS)
+        : null;
     const bar: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: seat ? 56 : 38 };
     const barG = this.add.graphics();
     barG.fillStyle(surface.ink.hex, 1).fillRect(bar.x, bar.y, bar.width, bar.height);
@@ -190,9 +206,7 @@ export class ChoiceOverlay extends Phaser.Scene {
       else titleRight = bar.x + bar.width - 10;
 
       const nameRight = titleRight;
-      this.add
-        .text(nameRight, bar.y + 13, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex))
-        .setOrigin(1, 0);
+      this.add.text(nameRight, bar.y + 13, seat.name, textStyle(typeRole.rowTitle, surface.paper.hex)).setOrigin(1, 0);
       label(this, nameRight, bar.y + 31, seat.subtitle, typeRole.label, surface.paper.hex, ink.meta).setOrigin(1, 0);
       titleRight = nameRight - 120;
     }
@@ -212,7 +226,9 @@ export class ChoiceOverlay extends Phaser.Scene {
       }
     }
 
-    const titleText = state.game ? choiceHeaderText(state.game, choice, POOL_DEPS, promptTitle(choice.prompt.kind)) : promptTitle(choice.prompt.kind);
+    const titleText = state.game
+      ? choiceHeaderText(state.game, choice, POOL_DEPS, promptTitle(choice.prompt.kind))
+      : promptTitle(choice.prompt.kind);
     const title = this.add
       .text(titleLeft, bar.y + bar.height / 2, titleText, textStyle(typeRole.barTitle, surface.paper.hex))
       .setOrigin(0, 0.5)
@@ -249,7 +265,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     const listHeight = commitTop - listTop - 8;
 
     if (asCards && listHeight >= 120) {
-      this.#route = choiceFocusOrder(cardChoiceDisplayOrder(choice.options, this.#selected), choice.minSelections === 0);
+      this.#route = choiceFocusOrder(
+        cardChoiceDisplayOrder(choice.options, this.#selected),
+        choice.minSelections === 0,
+      );
       this.#drawCardChoice(
         {
           x: sheet.x + 12,
@@ -261,13 +280,17 @@ export class ChoiceOverlay extends Phaser.Scene {
       );
       this.#drawCommit(sheet, commitTop, choice);
       this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+      this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
       return;
     }
 
     const rowHeight = hit.target;
     const capacity = Math.max(1, Math.floor(listHeight / (rowHeight + 4)));
     const shown = choice.options.slice(0, capacity);
-    this.#route = choiceFocusOrder(shown.map((option) => option.optionId), choice.minSelections === 0);
+    this.#route = choiceFocusOrder(
+      shown.map((option) => option.optionId),
+      choice.minSelections === 0,
+    );
 
     shown.forEach((option, index) => {
       const order = this.#selected.indexOf(option.optionId);
@@ -276,10 +299,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         option.ref.kind === "player" && state.game
           ? playerOptionLabel(state.game, option.ref.playerId, state.perspectiveId)
           : option.label;
-      const rowLabel =
-        choice.ordered && order >= 0
-          ? `${order + 1}. ${text}`
-          : text;
+      const rowLabel = choice.ordered && order >= 0 ? `${order + 1}. ${text}` : text;
       this.#buttons.push(
         new McButton(this, {
           kind: "secondary",
@@ -316,6 +336,7 @@ export class ChoiceOverlay extends Phaser.Scene {
 
     this.#drawCommit(sheet, commitTop, choice);
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+    this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
   }
 
   /**
@@ -335,45 +356,165 @@ export class ChoiceOverlay extends Phaser.Scene {
     const view = defendChoiceViewOf(game, choice, POOL_DEPS, appSession().store.state.perspectiveId, this.#selected);
     if (!view) return;
 
-    this.#route = choiceFocusOrder(view.options.map((option) => option.optionId), false);
+    this.#route = choiceFocusOrder(
+      view.options.map((option) => option.optionId),
+      false,
+    );
 
     // Ink void, board dimmed but visible underneath (this class's own doc comment) — the design's own D10/P15
     // composition is a run of cream cards and an ink rail over a dark ground, never one big white sheet behind them.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
+    const panelsFrom = this.children.list.length;
 
     const layout = defendChoiceLayout({ x: 0, y: 0, width, height });
 
     // Header: an ink bar naming the attack, same ground as the generic sheet's own title bar.
     const headerG = this.add.graphics();
-    headerG.fillStyle(surface.ink.hex, 1).fillRect(layout.header.x, layout.header.y, layout.header.width, layout.header.height);
+    headerG
+      .fillStyle(surface.ink.hex, 1)
+      .fillRect(layout.header.x, layout.header.y, layout.header.width, layout.header.height);
     const authorityTag = choice.soleDecider ? "PERIL" : "AUTHORITY: PLAYER";
-    label(this, layout.header.x + layout.header.width - 12, layout.header.y + layout.header.height / 2, authorityTag, typeRole.label, surface.paper.hex, ink.secondary).setOrigin(1, 0.5);
+    label(
+      this,
+      layout.header.x + layout.header.width - 12,
+      layout.header.y + layout.header.height / 2 + 10,
+      authorityTag,
+      typeRole.label,
+      surface.paper.hex,
+      ink.secondary,
+    ).setOrigin(1, 0.5);
+    // Why this is happening, above what is happening: a villain-phase activation and a card's effect read the same
+    // in "X attacks you" alone, and they are not the same moment of the round.
+    label(
+      this,
+      layout.header.x + 12,
+      layout.header.y + 10,
+      view.summary.cause.eyebrow,
+      typeRole.label,
+      view.summary.cause.kind === "cardEffect" ? signal.caution.hex : surface.paper.hex,
+      1,
+    );
+    const target = view.summary.targetName === "you" ? `you — ${view.summary.targetCardName}` : view.summary.targetName;
     const headerTitle = this.add
-      .text(layout.header.x + 12, layout.header.y + layout.header.height / 2, `${view.summary.attackerName} attacks ${view.summary.targetName}`, textStyle(typeRole.barTitle, surface.paper.hex))
+      .text(
+        layout.header.x + 12,
+        layout.header.y + layout.header.height / 2 + 10,
+        `${view.summary.attackerName} attacks ${target}`,
+        textStyle(typeRole.barTitle, surface.paper.hex),
+      )
       .setOrigin(0, 0.5)
       .setLetterSpacing(2);
     fitText(headerTitle, layout.header.width - 140, typeRole.barTitle.size);
 
-    // Incoming attack summary.
+    // Incoming attack: the attacker's scan, what it swings with, and the character it is aimed at.
     const summaryG = this.add.graphics();
     paintPanel(summaryG, layout.summary, "card", "rest");
-    let sy = layout.summary.y + 10;
-    this.add.text(layout.summary.x + 12, sy, `Base ATK ${view.summary.baseAtk} · ${view.summary.facedownCount} boost card${view.summary.facedownCount === 1 ? "" : "s"} facedown`, textStyle(typeRole.rowTitle, surface.ink.hex));
-    sy += 20;
-    for (const note of view.summary.forcedNotes) {
-      const t = this.add.text(layout.summary.x + 12, sy, note, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(layout.summary.width - 24);
-      sy += t.height + 4;
+    const matchup = defendMatchupLayout(layout.summary, layout.formFactor);
+    label(
+      this,
+      layout.summary.x + 12,
+      layout.summary.y + 10,
+      "incoming attack",
+      typeRole.label,
+      surface.ink.hex,
+      ink.label,
+    );
+    this.#drawScan(game, view.summary.attackerInstanceId, matchup.attacker);
+    this.#drawScan(game, view.summary.targetInstanceId, matchup.target);
+    summaryG
+      .lineStyle(3, accent.heroRed.hex, 1)
+      .strokeRect(matchup.target.x - 2, matchup.target.y - 2, matchup.target.width + 4, matchup.target.height + 4);
+    fitText(
+      this.add.text(
+        matchup.attackerCaption.x,
+        matchup.attackerCaption.y,
+        view.summary.attackerName,
+        textStyle(typeRole.rowTitle, surface.ink.hex),
+      ),
+      matchup.attackerCaption.width,
+      typeRole.rowTitle.size,
+    );
+    fitText(
+      this.add
+        .text(
+          matchup.targetCaption.x + matchup.targetCaption.width,
+          matchup.targetCaption.y,
+          view.summary.targetCaption,
+          textStyle(typeRole.rowTitle, accent.heroRed.hex),
+        )
+        .setOrigin(1, 0),
+      matchup.targetCaption.width,
+      typeRole.rowTitle.size,
+    );
+
+    // Between them: ATK, an arrow pointing at the target, and one facedown back per boost card still to flip.
+    const mid = matchup.middle;
+    const midX = mid.x + mid.width / 2;
+    // Stacked top to bottom with every height taken from the column's own, so a phone's short column shrinks the
+    // number and drops the backs rather than letting them land on each other.
+    const atkSize = Math.min(44, Math.max(18, Math.round(mid.height * 0.24)));
+    label(this, midX, mid.y + 2, "base atk", typeRole.label, surface.ink.hex, ink.label).setOrigin(0.5, 0);
+    this.add
+      .text(midX, mid.y + 15, String(view.summary.baseAtk), textStyle(typeRole.stat, accent.heroRed.hex))
+      .setOrigin(0.5, 0)
+      .setFontSize(atkSize);
+    const arrowY = mid.y + 15 + atkSize + 16;
+    summaryG.fillStyle(accent.heroRed.hex, 1).fillRect(mid.x + 4, arrowY - 3, mid.width - 20, 6);
+    summaryG.fillTriangle(
+      mid.x + mid.width - 18,
+      arrowY - 10,
+      mid.x + mid.width - 18,
+      arrowY + 10,
+      mid.x + mid.width - 2,
+      arrowY,
+    );
+    const boostLabelY = mid.y + mid.height - 12;
+    const boosts = Math.min(view.summary.facedownCount, 4);
+    const backHeight = Math.min(64, boostLabelY - 4 - (arrowY + 14));
+    if (boosts > 0 && backHeight >= 22) {
+      const backWidth = Math.round(backHeight * (63 / 88));
+      const step = boosts > 1 ? Math.min(backWidth + 4, (mid.width - backWidth) / (boosts - 1)) : 0;
+      const rowWidth = backWidth + step * (boosts - 1);
+      const backKey = cardArt(this).request(this, CARD_BACKS.encounter);
+      for (let index = 0; index < boosts; index++) {
+        const rect: Rect = {
+          x: midX - rowWidth / 2 + index * step,
+          y: arrowY + 14,
+          width: backWidth,
+          height: backHeight,
+        };
+        if (!drawArt(this, backKey, rect, { fit: "cover" }))
+          summaryG.fillStyle(surface.ink.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+      }
     }
-    if (view.summary.boostAbilityNote) {
-      const t = this.add.text(layout.summary.x + 12, sy, view.summary.boostAbilityNote, textStyle(typeRole.body, surface.ink.hex, ink.secondary)).setWordWrapWidth(layout.summary.width - 24);
-      sy += t.height + 4;
+    const boostText =
+      mid.width < 120 ? `+${view.summary.facedownCount} boost` : `+ ${view.summary.facedownCount} boost facedown`;
+    label(this, midX, boostLabelY, boostText, typeRole.label, surface.ink.hex, ink.secondary).setOrigin(0.5, 0);
+
+    // The notes, clipped to their own rect rather than allowed to run under the option cards.
+    const notes = matchup.notes;
+    const noteLines: { readonly text: string; readonly role: "body" | "label" }[] = [
+      ...view.summary.forcedNotes.map((text) => ({ text, role: "body" as const })),
+      ...(view.summary.boostAbilityNote ? [{ text: view.summary.boostAbilityNote, role: "body" as const }] : []),
+      { text: `Play a defense event: ${view.defenseEventsNote}`, role: "body" },
+      { text: view.rangeCaveat, role: "label" },
+    ];
+    let sy = notes.y;
+    if (notes.width >= 120) {
+      for (const line of noteLines) {
+        const style =
+          line.role === "label"
+            ? textStyle(typeRole.label, surface.ink.hex, ink.label)
+            : textStyle(typeRole.body, surface.ink.hex, ink.secondary);
+        const t = this.add.text(notes.x, sy, line.text, style).setWordWrapWidth(notes.width);
+        if (sy + t.height > notes.y + notes.height) {
+          t.destroy();
+          break;
+        }
+        sy += t.height + 4;
+      }
     }
-    const eventsLine = this.add
-      .text(layout.summary.x + 12, sy, `Play a defense event: ${view.defenseEventsNote}`, textStyle(typeRole.body, surface.ink.hex, ink.secondary))
-      .setWordWrapWidth(layout.summary.width - 24);
-    sy += eventsLine.height + 4;
-    this.add.text(layout.summary.x + 12, sy, view.rangeCaveat, textStyle(typeRole.label, surface.ink.hex, ink.label)).setWordWrapWidth(layout.summary.width - 24);
 
     // Options.
     const slots = defendOptionSlots(layout.options, view.options.length, layout.formFactor);
@@ -389,7 +530,9 @@ export class ChoiceOverlay extends Phaser.Scene {
     let rowY = layout.stack.y + 24;
     for (const row of view.stack) {
       const text = row.openWindow ? `${row.label} ← here` : row.label;
-      const style = row.openWindow ? textStyle(typeRole.body, accent.heroRed.hex, 1) : textStyle(typeRole.body, surface.paper.hex, ink.secondary);
+      const style = row.openWindow
+        ? textStyle(typeRole.body, accent.heroRed.hex, 1)
+        : textStyle(typeRole.body, surface.paper.hex, ink.secondary);
       const t = this.add.text(layout.stack.x + 10, rowY, text, style).setWordWrapWidth(layout.stack.width - 20);
       rowY += t.height + 4;
       if (rowY > layout.stack.y + layout.stack.height) break;
@@ -398,7 +541,12 @@ export class ChoiceOverlay extends Phaser.Scene {
     // Waiting on — light on the dark scrim, not the summary/option cards' dark-on-cream (this text sits directly on
     // the dimmed board, per the design's own D10 "WAITING ON" copy, which is likewise plain light text on the void).
     this.add
-      .text(layout.waitingOn.x, layout.waitingOn.y, view.waitingOn, textStyle(typeRole.body, surface.paper.hex, ink.secondary))
+      .text(
+        layout.waitingOn.x,
+        layout.waitingOn.y,
+        view.waitingOn,
+        textStyle(typeRole.body, surface.paper.hex, ink.secondary),
+      )
       .setWordWrapWidth(layout.waitingOn.width)
       .setMaxLines(2);
 
@@ -419,6 +567,15 @@ export class ChoiceOverlay extends Phaser.Scene {
     this.#drawFocusRing();
 
     this.cameras.main.setBackgroundColor(cssOf(accent.heroRed.hex, 0));
+    this.#motion.enter(this, { scrim: [scrim], panels: this.children.list.slice(panelsFrom) });
+  }
+
+  /** A card's scan at its current face, with a plain ink plate until (or unless) the image arrives. */
+  #drawScan(game: GameState, instanceId: InstanceId, rect: Rect): void {
+    const source = artFor(cardOf(game, instanceId), faceOf(game, instanceId));
+    const key = source ? cardArt(this).request(this, source) : null;
+    if (key && drawArt(this, key, rect, { fit: "contain" })) return;
+    this.add.graphics().fillStyle(surface.ink.hex, 0.85).fillRect(rect.x, rect.y, rect.width, rect.height);
   }
 
   /**
@@ -436,36 +593,48 @@ export class ChoiceOverlay extends Phaser.Scene {
     const g = this.add.graphics();
     paintPanel(g, slot, "card", option.selected ? "selected" : "rest");
 
+    // The card the option is about: the defender who would exhaust, or for "No defense" the character left to take it.
+    const picture = defendOptionPicture(slot);
+    const game = appSession().store.state.game;
+    if (picture && game) this.#drawScan(game, option.pictureInstanceId, picture);
+    const textX = picture ? picture.x + picture.width + 10 : slot.x + 10;
+    const textWidth = slot.x + slot.width - 10 - textX;
+
     let y = slot.y + 8;
-    const title = this.add.text(slot.x + 10, y, option.title, textStyle(typeRole.rowTitle, surface.ink.hex));
-    fitText(title, slot.width - 20, typeRole.rowTitle.size);
+    const title = this.add.text(textX, y, option.title, textStyle(typeRole.rowTitle, surface.ink.hex));
+    fitText(title, textWidth, typeRole.rowTitle.size);
     y += title.height + 4;
 
     const costLine =
       option.kind === "decline"
         ? "Stays ready."
         : `Exhausts ${option.exhaustsNames.join(", ")}${option.defenseReduction > 0 ? ` · DEF ${option.defenseReduction}` : ""}.`;
-    const cost = this.add.text(slot.x + 10, y, costLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary)).setWordWrapWidth(slot.width - 20);
+    const cost = this.add
+      .text(textX, y, costLine, textStyle(typeRole.label, surface.ink.hex, ink.secondary))
+      .setWordWrapWidth(textWidth);
     y += cost.height + 6;
 
-    const damage = this.add.text(slot.x + 10, y, option.damageHeadline, {
+    const damage = this.add.text(textX, y, option.damageHeadline, {
       ...textStyle(typeRole.stat, accent.heroRed.hex),
     });
     y += damage.height + 4;
 
     if (option.hpAfter) {
-      const hp = this.add.text(slot.x + 10, y, option.hpAfter, textStyle(typeRole.label, surface.ink.hex, ink.secondary));
+      const hp = this.add.text(textX, y, option.hpAfter, textStyle(typeRole.label, surface.ink.hex, ink.secondary));
       y += hp.height + 4;
     }
 
     if (option.consequences.length > 0 && y < slot.y + slot.height - 12) {
       this.add
-        .text(slot.x + 10, y, option.consequences.join(" "), textStyle(typeRole.body, surface.ink.hex, ink.secondary))
-        .setWordWrapWidth(slot.width - 20)
+        .text(textX, y, option.consequences.join(" "), textStyle(typeRole.body, surface.ink.hex, ink.secondary))
+        .setWordWrapWidth(textWidth)
         .setMaxLines(Math.max(1, Math.floor((slot.y + slot.height - y - 8) / 16)));
     }
 
-    const zone = this.add.zone(slot.x, slot.y, slot.width, slot.height).setOrigin(0, 0).setInteractive({ useHandCursor: true });
+    const zone = this.add
+      .zone(slot.x, slot.y, slot.width, slot.height)
+      .setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true });
     zone.on("pointerup", () => this.#toggle(option.optionId, 1));
   }
 
@@ -480,28 +649,22 @@ export class ChoiceOverlay extends Phaser.Scene {
    * one fully visible, so the card you just chose is always the readable one.
    */
   #drawCardChoice(area: Rect, choice: PendingChoice): void {
-    const byId = new Map(
-      choice.options.map((option) => [option.optionId, option] as const),
-    );
+    const byId = new Map(choice.options.map((option) => [option.optionId, option] as const));
     // Pick order, not list order: the last thing you touched is the last drawn,
     // and the last drawn is the one on top.
     const picked = this.#selected.flatMap((optionId) => {
       const option = byId.get(optionId);
       return option ? [option] : [];
     });
-    const available = choice.options.filter(
-      (option) => !this.#selected.includes(option.optionId),
-    );
+    const available = choice.options.filter((option) => !this.#selected.includes(option.optionId));
 
     const captionHeight = 16;
     const gap = 10;
     // The stack only gives up room once something is in the picked row, and
     // gives up all of it once nothing is left in the stack.
     const split = picked.length === 0 ? 0 : available.length === 0 ? 1 : 0.5;
-    const pickedHeight =
-      split === 0 ? 0 : Math.round((area.height - gap) * split);
-    const availableHeight =
-      area.height - pickedHeight - (pickedHeight > 0 ? gap : 0);
+    const pickedHeight = split === 0 ? 0 : Math.round((area.height - gap) * split);
+    const availableHeight = area.height - pickedHeight - (pickedHeight > 0 ? gap : 0);
 
     if (pickedHeight > captionHeight + 40) {
       const row: Rect = {
@@ -510,20 +673,8 @@ export class ChoiceOverlay extends Phaser.Scene {
         width: area.width,
         height: pickedHeight - captionHeight,
       };
-      label(
-        this,
-        area.x,
-        area.y,
-        `selected ${picked.length}`,
-        typeRole.label,
-        surface.ink.hex,
-        ink.label,
-      );
-      const slots = cardRow(
-        { ...row, y: row.y + captionHeight },
-        picked.length,
-        { gap: 6 },
-      );
+      label(this, area.x, area.y, `selected ${picked.length}`, typeRole.label, surface.ink.hex, ink.label);
+      const slots = cardRow({ ...row, y: row.y + captionHeight }, picked.length, { gap: 6 });
       picked.forEach((option, index) => {
         const slot = slots[index];
         if (slot) this.#drawCardOption(slot, option, choice.ordered);
@@ -560,8 +711,7 @@ export class ChoiceOverlay extends Phaser.Scene {
   /** One red commit, plus a quiet alternative when declining is legal. */
   #drawCommit(sheet: Rect, commitTop: number, choice: PendingChoice): void {
     const canCommit = canConfirmChoice(choice, this.#selected.length);
-    const commitWidth =
-      choice.minSelections === 0 ? (sheet.width - 32) / 2 : sheet.width - 24;
+    const commitWidth = choice.minSelections === 0 ? (sheet.width - 32) / 2 : sheet.width - 24;
 
     this.#buttons.push(
       new McButton(this, {
@@ -618,11 +768,7 @@ export class ChoiceOverlay extends Phaser.Scene {
    * One option drawn as the card it names. A selected card wears the red ring
    * and, when the order matters, the number it will resolve in.
    */
-  #drawCardOption(
-    slot: Rect,
-    option: PendingChoice["options"][number],
-    ordered: boolean,
-  ): void {
+  #drawCardOption(slot: Rect, option: PendingChoice["options"][number], ordered: boolean): void {
     const { store } = appSession();
     const state = store.state.game;
     const instanceId = refInstanceId(option.ref);
@@ -641,10 +787,7 @@ export class ChoiceOverlay extends Phaser.Scene {
     };
     const source =
       state && instanceId
-        ? artFor(
-            state.cardPool[state.instances[instanceId]?.cardId ?? ""],
-            faceOf(state, instanceId),
-          )
+        ? artFor(state.cardPool[state.instances[instanceId]?.cardId ?? ""], faceOf(state, instanceId))
         : null;
     const key = cardArt(this).request(this, source);
     /**
@@ -707,9 +850,7 @@ export class ChoiceOverlay extends Phaser.Scene {
         height: 22,
       };
       const chipG = this.add.graphics();
-      chipG
-        .fillStyle(accent.heroRed.hex, 1)
-        .fillRect(chip.x, chip.y, chip.width, chip.height);
+      chipG.fillStyle(accent.heroRed.hex, 1).fillRect(chip.x, chip.y, chip.width, chip.height);
       this.add
         .text(
           chip.x + chip.width / 2,
@@ -751,6 +892,7 @@ export class ChoiceOverlay extends Phaser.Scene {
    * the sheet, because an open decision has to be answered.
    */
   #onIntent(intent: GamepadIntent): void {
+    if (this.#motion.leaving) return;
     const choice = appSession().store.state.game?.pendingChoice;
     if (!choice) return;
     switch (intent) {
@@ -820,22 +962,39 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   #onInspectToggle(optionId: string): void {
+    if (this.#motion.leaving) return;
     this.#toggle(optionId, this.#maxSelections);
   }
 
   #toggle(optionId: string, max: number): void {
+    if (this.#motion.leaving) return;
     const at = this.#selected.indexOf(optionId);
-    if (at >= 0)
-      this.#selected = this.#selected.filter((id) => id !== optionId);
+    if (at >= 0) this.#selected = this.#selected.filter((id) => id !== optionId);
     else if (max === 1) this.#selected = [optionId];
-    else if (this.#selected.length < max)
-      this.#selected = [...this.#selected, optionId];
+    else if (this.#selected.length < max) this.#selected = [...this.#selected, optionId];
     this.#rebuild();
   }
 
   async #confirm(): Promise<void> {
+    if (this.#motion.leaving) return;
+    const selected = this.#selected;
+    // Fade the moment the answer is sent, not once the store update lands —
+    // dispatch is a round trip through the worker, so this runs while the
+    // engine is still answering. If the Board stops this scene mid-fade
+    // (the common case: the choice left the state) that's fine, nothing
+    // here needs to run again. `done` is a no-op because stopping the scene
+    // is the Board's job (`syncChoiceOverlay`), not this overlay's own.
+    this.#motion.exit(this, () => {});
     // The store issues this as the player the engine named, not as "the human".
-    await appSession().store.resolveChoice(this.#selected);
+    const accepted = await appSession().store.resolveChoice(selected);
+    if (!accepted) {
+      // Rejected: the sheet is still the live way to answer this choice, so
+      // it comes back rather than sitting faded on a decision nobody can
+      // reach — a fresh `OverlayMotion` plays the entrance again instead of
+      // trying to run `exit` backwards.
+      this.#motion = new OverlayMotion();
+      this.#rebuild();
+    }
   }
 }
 

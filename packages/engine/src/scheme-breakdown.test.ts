@@ -30,7 +30,10 @@ const deckOf = (id: CardId, count = 40): readonly CardId[] => Array.from({ lengt
 type Resolved = Extract<GameEvent, { type: "schemeResolved" }>;
 
 /** Four rounds of an alter-ego player doing nothing, so the villain schemes every round. */
-function schemeEvents(villain: ReturnType<typeof stubVillain>, abilities: readonly ReturnType<typeof stubAbility>[] = []) {
+function schemeEvents(
+  villain: ReturnType<typeof stubVillain>,
+  abilities: readonly ReturnType<typeof stubAbility>[] = [],
+) {
   const deps = depsOf(...abilities);
   const state = newGame({
     villain,
@@ -70,7 +73,10 @@ test("the threat placed by the activation is exactly what the breakdown says", (
     if (event.type !== "schemeResolved") return;
     const placed = events
       .slice(index)
-      .find((later): later is Extract<GameEvent, { type: "threatPlaced" }> => later.type === "threatPlaced" && later.sourceInstanceId === event.enemyInstanceId);
+      .find(
+        (later): later is Extract<GameEvent, { type: "threatPlaced" }> =>
+          later.type === "threatPlaced" && later.sourceInstanceId === event.enemyInstanceId,
+      );
     if (placed) pairs.push({ resolved: event, placed });
   });
 
@@ -88,7 +94,10 @@ test("a reduction to the threat placed is its own term, not folded into SCH", ()
     trigger: { kind: "interrupt", forced: true, on: { on: "enemyScheme" } },
     effects: [{ kind: "modifyAttack", threatBonus: { kind: "const", value: -1 } }],
   });
-  const villain = stubVillain({ id: "villain", stages: [{ hp: flat(200), atk: 2, sch: 1, abilities: [emergency.ref] }] });
+  const villain = stubVillain({
+    id: "villain",
+    stages: [{ hp: flat(200), atk: 2, sch: 1, abilities: [emergency.ref] }],
+  });
   const { events } = schemeEvents(villain, [emergency]);
 
   const resolved = events.filter((event): event is Resolved => event.type === "schemeResolved");

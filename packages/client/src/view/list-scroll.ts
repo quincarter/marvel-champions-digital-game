@@ -15,7 +15,7 @@
  *
  * Like the log's own scroll state, this lives outside the scene's display
  * list on purpose — see `ui/virtual-list.ts`, which owns a `ListScroll` and
- * is itself the thing that survives a scene's `children.removeAll(true)`
+ * is itself the thing that survives a scene's `destroyChildren(scene)`
  * sweep, the same way `McTextInput` does.
  */
 
@@ -122,7 +122,12 @@ export class ListScroll {
 }
 
 /** The scroll thumb, as fractions of the track. Null when every row already fits — nothing to scroll. */
-export function thumbOf(offsetPx: number, count: number, rowHeight: number, viewportHeight: number): ScrollThumb | null {
+export function thumbOf(
+  offsetPx: number,
+  count: number,
+  rowHeight: number,
+  viewportHeight: number,
+): ScrollThumb | null {
   const contentHeight = count * rowHeight;
   if (contentHeight <= viewportHeight || contentHeight <= 0) return null;
   const size = Math.min(1, viewportHeight / contentHeight);

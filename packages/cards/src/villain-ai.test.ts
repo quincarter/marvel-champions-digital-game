@@ -62,7 +62,12 @@ function playPassively(initial: GameState, maxCommands = 5_000): GameSession {
         choice.prompt.kind === "declareDefender" && choice.options.some((o) => o.optionId === "decline")
           ? ["decline"]
           : choice.options.slice(0, choice.minSelections).map((o) => o.optionId);
-      command = { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: selected };
+      command = {
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: selected,
+      };
     } else if (state.step.phase === "player" && state.step.kind === "turn") {
       command = { type: "endTurn", playerId: state.step.activePlayerId };
     } else {
@@ -109,7 +114,9 @@ describe("decisions made on the encounter side's behalf", () => {
     const { session } = playToOutcome(initial, CORE_DEPS);
     const audit = auditVillainPhases(session.log, CORE_DEPS);
     expect(audit.violations).toEqual([]);
-    const decisions = audit.phases.flatMap((phase) => phase.decisions.map((d) => ({ ...d, firstPlayerId: phase.firstPlayerId })));
+    const decisions = audit.phases.flatMap((phase) =>
+      phase.decisions.map((d) => ({ ...d, firstPlayerId: phase.firstPlayerId })),
+    );
     expect(decisions.length).toBeGreaterThan(0);
     for (const decision of decisions) {
       expect(["player", "firstPlayerTargets", "firstPlayerOrders"]).toContain(decision.authority);

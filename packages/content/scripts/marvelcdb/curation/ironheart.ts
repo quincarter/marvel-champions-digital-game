@@ -38,7 +38,8 @@ export const IRONHEART_CURATION: PackCuration = {
   pack: {
     name: "Ironheart",
     releaseDate: "2022-05-20",
-    releaseDateSource: 'Hall of Heroes Ironheart/Riri Williams page (https://hallofheroeslcg.com/ironheart-riri-williams/): "Release date: May 20, 2022"',
+    releaseDateSource:
+      'Hall of Heroes Ironheart/Riri Williams page (https://hallofheroeslcg.com/ironheart-riri-williams/): "Release date: May 20, 2022"',
   },
   outDir: "src/data/ironheart",
   exportPrefix: "IRONHEART",
@@ -47,11 +48,14 @@ export const IRONHEART_CURATION: PackCuration = {
   errata: [],
 
   scriptingNotes: {
-    "29001a.level-up": "Level Up! Action: remove 6 progress counters from Ironheart -> ready her and swap her with Version 2 Ironheart (29002a). A same-identity hero-form swap, not a flip.",
-    "29002a.level-up": "Level Up! Action: remove 6 progress counters -> ready her, give her a tough status card, and swap her with Version 3 Ironheart (29003a).",
+    "29001a.level-up":
+      "Level Up! Action: remove 6 progress counters from Ironheart -> ready her and swap her with Version 2 Ironheart (29002a). A same-identity hero-form swap, not a flip.",
+    "29002a.level-up":
+      "Level Up! Action: remove 6 progress counters -> ready her, give her a tough status card, and swap her with Version 3 Ironheart (29003a).",
   },
   cardNotes: {
-    "29001a": "Ironheart is three separate two-sided identity cards (Version 1/2/3, not a three-sided foldable card) — see this file's header comment.",
+    "29001a":
+      "Ironheart is three separate two-sided identity cards (Version 1/2/3, not a three-sided foldable card) — see this file's header comment.",
   },
 
   scenarios: [],

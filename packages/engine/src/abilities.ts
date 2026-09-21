@@ -1,7 +1,17 @@
 import type { AbilityId, KeywordInstance, Trait } from "@mc/content";
 import type { InstanceId, PlayerId } from "./ids.js";
 import type { ResourcePool, ResourceRequirement, TypedResource } from "./resources.js";
-import type { AttackKeyword, EffectSpec, PlayerRef, Predicate, SchemeValueName, StatName, TargetQuery, TargetRef, ValueSpec } from "./spec.js";
+import type {
+  AttackKeyword,
+  EffectSpec,
+  PlayerRef,
+  Predicate,
+  SchemeValueName,
+  StatName,
+  TargetQuery,
+  TargetRef,
+  ValueSpec,
+} from "./spec.js";
 import type { Form } from "./state.js";
 import type { TriggerEventKind } from "./trigger-events.js";
 
@@ -165,7 +175,14 @@ export interface StatModifierSpec {
    * icon if …", read from the boost card itself while it resolves, `boostIconsFor`), or an ally's consequential
    * damage ("takes +1 consequential damage after it attacks", Enraged).
    */
-  readonly stat: StatName | "hp" | "handSize" | SchemeValueName | "boostIcons" | "consequentialAttack" | "consequentialThwart";
+  readonly stat:
+    | StatName
+    | "hp"
+    | "handSize"
+    | SchemeValueName
+    | "boostIcons"
+    | "consequentialAttack"
+    | "consequentialThwart";
   /**
    * A number, or a value read from game state on every check: "+1 THW for each
    * side scheme in play" (`count`), "X is equal to Titania's remaining hit
@@ -207,19 +224,51 @@ export interface TraitGrantSpec {
 /** Rule restrictions a constant ability imposes (RRG "Cannot" wins over "can"). */
 export type RuleSpec =
   /** "X cannot take damage [while …]" (Ultron III, Madame Hydra); `fromSource`: "…from Black Panther upgrades" (Killmonger). */
-  | { readonly kind: "cannotTakeDamage"; readonly target: TargetQuery; readonly while?: Predicate; readonly fromSource?: TargetQuery }
+  | {
+      readonly kind: "cannotTakeDamage";
+      readonly target: TargetQuery;
+      readonly while?: Predicate;
+      readonly fromSource?: TargetQuery;
+    }
   /** "Threat cannot be removed from this scheme" (Countdown to Oblivion); `by: "thwart"`: "… from attached scheme by thwarting" (Held Hostage). */
-  | { readonly kind: "threatCannotBeRemoved"; readonly target: TargetQuery; readonly while?: Predicate; readonly by?: "thwart" }
+  | {
+      readonly kind: "threatCannotBeRemoved";
+      readonly target: TargetQuery;
+      readonly while?: Predicate;
+      readonly by?: "thwart";
+    }
   /** "While Baron Zemo is engaged with you, you cannot thwart." `player` is resolved with "you" as the rule card's speaker (`speakerOf`). */
   | { readonly kind: "cannotThwart"; readonly player: PlayerRef; readonly while?: Predicate }
   /** "… cannot ready" (All Tied Up). */
   | { readonly kind: "cannotReady"; readonly target: TargetQuery; readonly while?: Predicate }
   /** "You cannot change form" (All Tied Up). */
   | { readonly kind: "cannotChangeForm"; readonly player: PlayerRef; readonly while?: Predicate }
-  /** "Players cannot attack other villains." (Distracting Taunts): player attacks against a matching card are illegal. */
-  | { readonly kind: "cannotAttack"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Players cannot attack other villains." (Distracting Taunts): player attacks against a matching `target` are
+   * illegal. `player` scopes the restriction to one player — "You cannot attack Kang" (Fear of Kang, `toafk` 11049).
+   * Absent, it binds the whole table, which is what Distracting Taunts' plural printed wording means; every caller
+   * that predates the field keeps that meaning. Resolved with "you" as the rule card's speaker (`speakerOf`), so an
+   * obligation's "you" is the player whose play area holds it (RRG 1.8 "Obligation", p. 30: "Abilities on
+   * obligations that use the words 'you' or 'your' apply only to the player whose play area the obligation is in").
+   *
+   * **The attacking player is the attacker's controller**, not whoever's turn it is: RRG 1.8 "Guard" (p. 21) states
+   * that "that player cannot use cards they control to attack a villain" is *equivalent to* the constant ability
+   * "The engaged player cannot attack any villain", so an attack by a player's ally is that player's attack. An
+   * attack by an enemy has no controller and is never restricted by this rule. docs/phase7-wave2.md §25.
+   */
+  | {
+      readonly kind: "cannotAttack";
+      readonly target: TargetQuery;
+      readonly player?: PlayerRef;
+      readonly while?: Predicate;
+    }
   /** "Resolve each 'When Revealed' ability that you reveal 1 additional time." (Media Coverage). */
-  | { readonly kind: "repeatWhenRevealed"; readonly player: PlayerRef; readonly times: number; readonly while?: Predicate }
+  | {
+      readonly kind: "repeatWhenRevealed";
+      readonly player: PlayerRef;
+      readonly times: number;
+      readonly while?: Predicate;
+    }
   /**
    * "Increase your ally limit by N" — for the controller of the card (The Triskelion), optionally conditional
    * ("If each of your allies has the Avenger trait, increase your ally limit by 1" — Avengers Tower, `cap` pack).
@@ -238,7 +287,12 @@ export type RuleSpec =
    * chosen and checked (guard, patrol, crisis) when the power is used, each target is attacked, and each retaliate
    * damages her in the order of her choice. docs/phase7-wave2.md §3.7.
    */
-  | { readonly kind: "divideBasicPower"; readonly power: "attack" | "thwart"; readonly target: TargetQuery; readonly while?: Predicate }
+  | {
+      readonly kind: "divideBasicPower";
+      readonly power: "attack" | "thwart";
+      readonly target: TargetQuery;
+      readonly while?: Predicate;
+    }
   /** "When a character thwarts this side scheme, they may use their ATK instead of their THW" (The Red House): `basicThwart.useAtk`. */
   | { readonly kind: "thwartWithAtk"; readonly scheme: TargetQuery; readonly while?: Predicate }
   /**
@@ -249,14 +303,20 @@ export type RuleSpec =
    * - `via` matches the card whose ability is making the attack — the event for a "Hero Action (attack)", the
    *   upgrade or ally for an ability on one. A basic attack has no such card and never matches a rule with `via`.
    *
-   * Both are optional and ANDed. A rule with neither grants the keyword to every attack in the game, which no card
-   * does; `@mc/cards` should always set at least one.
+   * - `basicOnly` matches only a **basic** attack — "your basic attacks gain piercing" (Red Room Training 13008,
+   *   Brute Force `qsv`, Psi-Katana `psylocke`). RRG 1.8 "Basic Power" (p. 10): a basic attack is a character using
+   *   its ATK, which is exactly what `attack.basic` records, so an attack an event or ability makes is excluded even
+   *   when the same character makes it. The mirror of `via`, which excludes a basic attack rather than requiring one.
+   *
+   * All three are optional and ANDed. A rule with none of them grants the keyword to every attack in the game, which
+   * no card does; `@mc/cards` should always set at least one.
    */
   | {
       readonly kind: "attackKeywords";
       readonly keywords: readonly AttackKeyword[];
       readonly attacker?: TargetQuery;
       readonly via?: TargetQuery;
+      readonly basicOnly?: boolean;
       readonly while?: Predicate;
     }
   /**
@@ -268,7 +328,12 @@ export type RuleSpec =
    * "Players cannot trigger 'Alter-Ego Action' abilities on obligations." (Corrupted Timestream): an action ability of a
    * card matching `on`, with that form label (absent: any), cannot be triggered.
    */
-  | { readonly kind: "cannotTriggerActions"; readonly on: TargetQuery; readonly form?: Form; readonly while?: Predicate }
+  | {
+      readonly kind: "cannotTriggerActions";
+      readonly on: TargetQuery;
+      readonly form?: Form;
+      readonly while?: Predicate;
+    }
   /**
    * "When this scheme is defeated, shuffle it into the encounter deck instead of discarding it." (Time Portal): a matching
    * side scheme that is defeated goes into the encounter deck, which is shuffled, instead of the discard pile.
@@ -281,7 +346,12 @@ export type RuleSpec =
    * ability on each Wrecking Crew villain (docs/phase7-wave1.md §3.6). A scheme activation by a matching enemy places
    * its threat on that villain's signature side scheme while it is in play, else on the main scheme.
    */
-  | { readonly kind: "schemeThreatDestination"; readonly enemy: TargetQuery; readonly scheme: "ownSignatureSideScheme"; readonly while?: Predicate }
+  | {
+      readonly kind: "schemeThreatDestination";
+      readonly enemy: TargetQuery;
+      readonly scheme: "ownSignatureSideScheme";
+      readonly while?: Predicate;
+    }
   /**
    * "Excess damage dealt by Thunderball is placed as threat on his corresponding side scheme" (Radioactive Buildup,
    * 07022). Whenever a card matching `source` deals damage beyond the target's remaining hit points, that much threat
@@ -294,7 +364,12 @@ export type RuleSpec =
    * points, so it is placed even when a tough status card or "cannot take damage" stops the target taking it (ruling,
    * Jan 26, 2026 (3)). See `resolve/event.ts` `applyDamage` for the ordering and the open overkill question.
    */
-  | { readonly kind: "excessDamageAsThreat"; readonly source: TargetQuery; readonly scheme: "ownSignatureSideScheme" | TargetRef; readonly while?: Predicate }
+  | {
+      readonly kind: "excessDamageAsThreat";
+      readonly source: TargetQuery;
+      readonly scheme: "ownSignatureSideScheme" | TargetRef;
+      readonly while?: Predicate;
+    }
   /**
    * "Treat the printed text box of each [Tech] player card as if it were blank." (Tech Theft 12026, a side scheme's
    * constant): a whole *class* of cards, matched live, as against the lasting `blankTextBox` effect, which blanks a
@@ -389,8 +464,20 @@ export interface AbilityCost {
    * discard up to 5 cards" (min 0, max 5) / "Discard X cards from your hand →" with no printed cap (Shield Toss:
    * `max` omitted — bounded only by hand size, since a player can never select a card twice or one not in hand).
    * Picked in `costChoices.discard`; the cards are bound to slot `discard` and their count to var `bind`.
+   *
+   * `filter` narrows *which* hand cards can pay: "Discard a [physical] resource from your hand →" (the Temporal
+   * obligations, `toafk` 11018/11019/11021) is `{ printedResource: "physical" }`; "Discard a hero-specific card from
+   * your hand →" (Depowered 11020) is `{ identitySetOf: you }`. Every pick must match, and a hand holding fewer than
+   * `min` matching cards cannot pay the cost at all, so the ability is never offered (RRG 1.8 "Initiating Abilities",
+   * p. 24, steps 3 and 5; "Cost", p. 13: a cost is paid in full). The effect-side sibling is
+   * `EffectSpec discardFromHand.filter`. docs/phase7-wave2.md §19.
    */
-  readonly discardFromHand?: { readonly min: number; readonly max?: number; readonly bind?: string };
+  readonly discardFromHand?: {
+    readonly min: number;
+    readonly max?: number;
+    readonly bind?: string;
+    readonly filter?: TargetQuery;
+  };
   /**
    * "Pay the printed cost of an ally in any player's discard pile →" (Make the
    * Call): the card picked in `costChoices[slot]` adds its printed cost to the
@@ -463,10 +550,7 @@ export interface AbilityLimit {
  * `topCardOfDiscard` copies the printed resources of the top card of the
  * controller's discard pile (Pepper Potts).
  */
-export type ResourceGeneration =
-  | number
-  | Partial<ResourcePool>
-  | { readonly kind: "topCardOfDiscard" };
+export type ResourceGeneration = number | Partial<ResourcePool> | { readonly kind: "topCardOfDiscard" };
 
 export interface AbilityDefinition {
   readonly trigger: AbilityTriggerSpec;
@@ -499,5 +583,4 @@ export interface AbilitySource {
   readonly definition: AbilityDefinition;
 }
 
-export const abilityUseKey = (instanceId: InstanceId, abilityId: AbilityId): string =>
-  `${instanceId}:${abilityId}`;
+export const abilityUseKey = (instanceId: InstanceId, abilityId: AbilityId): string => `${instanceId}:${abilityId}`;

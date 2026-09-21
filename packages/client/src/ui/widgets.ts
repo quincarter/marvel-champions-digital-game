@@ -12,8 +12,25 @@
  */
 
 import Phaser from "phaser";
-import type { InputText as RexInputText, TextArea as RexTextArea, TextAreaInput as RexTextAreaInput } from "phaser4-rex-plugins/templates/ui/ui-components";
-import { accent, border, hit, ink, minType, selectionRing, signal, statHue, status, surface, typeRole, type TypeSpec } from "../tokens.js";
+import type {
+  InputText as RexInputText,
+  TextArea as RexTextArea,
+  TextAreaInput as RexTextAreaInput,
+} from "phaser4-rex-plugins/templates/ui/ui-components";
+import {
+  accent,
+  border,
+  hit,
+  ink,
+  minType,
+  selectionRing,
+  signal,
+  statHue,
+  status,
+  surface,
+  typeRole,
+  type TypeSpec,
+} from "../tokens.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import { ribbonHeight, type Rect } from "../view/layout.js";
 import { PressArm } from "../view/press-arm.js";
@@ -35,7 +52,12 @@ export function paintPanel(g: Phaser.GameObjects.Graphics, rect: Rect, kind: Wid
 
 /** A dashed outline: the system's mark for a slot that isn't filled yet. */
 /** Defaults to the "quiet" skin's own ink stroke (the design system's ordinary "slot not filled" mark); a caller with something more specific to say — the active-but-still-empty seat card's red "SEAT N · PICKING" border (`scenes/seats.ts`) — passes its own colour instead. */
-export function dashedRect(g: Phaser.GameObjects.Graphics, rect: Rect, width: number, color: number = skin("quiet", "rest").stroke): void {
+export function dashedRect(
+  g: Phaser.GameObjects.Graphics,
+  rect: Rect,
+  width: number,
+  color: number = skin("quiet", "rest").stroke,
+): void {
   const step = border.dashSegment + border.dashGap;
   const line = (x1: number, y1: number, x2: number, y2: number): void => {
     const length = Math.hypot(x2 - x1, y2 - y1);
@@ -143,7 +165,6 @@ export class McButton {
     this.#label = scene.add
       .text(0, 0, caseOf(options.type, options.label), textStyle(options.type, 0))
       .setOrigin(0.5, 0.5);
-    if (options.type.letterSpacing) this.#label.setLetterSpacing(options.type.letterSpacing);
     this.#value = options.value
       ? scene.add.text(0, 0, options.value, textStyle(options.type, 0)).setOrigin(0.5, 0.5)
       : null;
@@ -174,7 +195,12 @@ export class McButton {
       this.#options.onClick();
     });
 
-    this.container = scene.add.container(0, 0, [this.#graphics, this.#label, ...(this.#value ? [this.#value] : []), this.#zone]);
+    this.container = scene.add.container(0, 0, [
+      this.#graphics,
+      this.#label,
+      ...(this.#value ? [this.#value] : []),
+      this.#zone,
+    ]);
     this.redraw();
   }
 
@@ -208,8 +234,17 @@ export class McButton {
     this.#graphics.clear();
     paintPanel(this.#graphics, rect, this.#options.kind, state);
     if (this.#options.hatch !== undefined) {
-      hatchRect(this.#graphics, { x: rect.x + 2, y: rect.y + 2, width: rect.width - 4, height: rect.height - 4 }, this.#options.hatch, 0.55, 10, 4);
-      this.#graphics.lineStyle(3, this.#options.hatch, 1).strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
+      hatchRect(
+        this.#graphics,
+        { x: rect.x + 2, y: rect.y + 2, width: rect.width - 4, height: rect.height - 4 },
+        this.#options.hatch,
+        0.55,
+        10,
+        4,
+      );
+      this.#graphics
+        .lineStyle(3, this.#options.hatch, 1)
+        .strokeRect(rect.x + 1.5, rect.y + 1.5, rect.width - 3, rect.height - 3);
     }
 
     const hasValue = this.#value !== null;
@@ -324,7 +359,6 @@ export function label(
   alpha: number = ink.label,
 ): Phaser.GameObjects.Text {
   const object = scene.add.text(x, y, caseOf(spec, text), textStyle(spec, color, alpha));
-  if (spec.letterSpacing) object.setLetterSpacing(spec.letterSpacing);
   return object;
 }
 
@@ -361,11 +395,19 @@ export function sectionHeader(
   rightLabel?: string,
   collect?: Phaser.GameObjects.GameObject[],
 ): number {
-  const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setLetterSpacing(typeRole.barTitle.letterSpacing).setFontSize(19);
+  const heading = scene.add.text(x, y, text, textStyle(typeRole.barTitle, color)).setFontSize(19);
   collect?.push(heading);
   let rightWidth = 0;
   if (rightLabel) {
-    const right = label(scene, x + width, y + heading.height / 2, rightLabel, typeRole.label, color, ink.label).setOrigin(1, 0.5);
+    const right = label(
+      scene,
+      x + width,
+      y + heading.height / 2,
+      rightLabel,
+      typeRole.label,
+      color,
+      ink.label,
+    ).setOrigin(1, 0.5);
     rightWidth = right.width + 14;
     collect?.push(right);
   }
@@ -408,9 +450,18 @@ export class McTabs {
     const rail = scene.add.graphics();
     paintPanel(rail, rect, "rail", "rest");
 
-    const cellWidth = rect.width / Math.max(1, tabs.length);
+    // A rail taller than it is wide is a column (the landscape phone board's, down its left edge): same cells, stacked.
+    const column = rect.height > rect.width;
+    const count = Math.max(1, tabs.length);
+    const cellWidth = column ? rect.width : rect.width / count;
+    const cellHeight = column ? rect.height / count : rect.height;
     tabs.forEach((tab, index) => {
-      const cell: Rect = { x: rect.x + index * cellWidth, y: rect.y, width: cellWidth, height: rect.height };
+      const cell: Rect = {
+        x: column ? rect.x : rect.x + index * cellWidth,
+        y: column ? rect.y + index * cellHeight : rect.y,
+        width: cellWidth,
+        height: cellHeight,
+      };
       this.#buttons.push(
         new McButton(scene, {
           kind: "rail",
@@ -427,7 +478,12 @@ export class McTabs {
         const badge = scene.add.graphics();
         badge.fillStyle(accent.heroRed.hex, 1).fillRect(cell.x + cell.width - 18, cell.y + 4, 14, 14);
         const text = scene.add
-          .text(cell.x + cell.width - 11, cell.y + 11, String(Math.min(9, tab.badge)), textStyle(typeRole.label, surface.paper.hex))
+          .text(
+            cell.x + cell.width - 11,
+            cell.y + 11,
+            String(Math.min(9, tab.badge)),
+            textStyle(typeRole.label, surface.paper.hex),
+          )
           .setOrigin(0.5);
         this.#badges.push(badge, text);
       }
@@ -498,13 +554,23 @@ export class McCardTile {
       this.#objects.push(ground);
       if (!options.paintArt(artSlot)) {
         this.#objects.push(
-          label(scene, artSlot.x + artSlot.width / 2, artSlot.y + artSlot.height / 2, "art", typeRole.label, surface.ink.hex, ink.meta).setOrigin(0.5),
+          label(
+            scene,
+            artSlot.x + artSlot.width / 2,
+            artSlot.y + artSlot.height / 2,
+            "art",
+            typeRole.label,
+            surface.ink.hex,
+            ink.meta,
+          ).setOrigin(0.5),
         );
       }
       // A rule between the card and its name, the same 2px detail weight the
       // stat tiles use — so the caption reads as part of this tile.
       const rule = scene.add.graphics();
-      rule.fillStyle(surface.ink.hex, alpha).fillRect(artSlot.x, artSlot.y + artSlot.height, artSlot.width, border.detail);
+      rule
+        .fillStyle(surface.ink.hex, alpha)
+        .fillRect(artSlot.x, artSlot.y + artSlot.height, artSlot.width, border.detail);
       this.#objects.push(rule);
     }
 
@@ -514,12 +580,19 @@ export class McCardTile {
     const captionHeight = rect.y + rect.height - captionTop - border.object;
     if (selected) {
       const strip = scene.add.graphics();
-      strip.fillStyle(surface.ink.hex, 1).fillRect(rect.x + border.object, captionTop, rect.width - border.object * 2, captionHeight);
+      strip
+        .fillStyle(surface.ink.hex, 1)
+        .fillRect(rect.x + border.object, captionTop, rect.width - border.object * 2, captionHeight);
       this.#objects.push(strip);
     }
 
     const text = scene.add
-      .text(rect.x + rect.width / 2, captionTop + captionHeight / 2, options.label, textStyle(typeRole.rowTitle, selected ? surface.paper.hex : surface.ink.hex, alpha))
+      .text(
+        rect.x + rect.width / 2,
+        captionTop + captionHeight / 2,
+        options.label,
+        textStyle(typeRole.rowTitle, selected ? surface.paper.hex : surface.ink.hex, alpha),
+      )
       .setOrigin(0.5);
     fitText(text, rect.width - 12);
     this.#objects.push(text);
@@ -572,17 +645,53 @@ export const CAPTION_HEIGHT = 26;
  * that the text stops being readable, and a shorter readable name beats a
  * complete unreadable one.
  */
-export function fitText(text: Phaser.GameObjects.Text, maxWidth: number, startSize: number = typeRole.rowTitle.size): void {
-  const full = text.text;
-  for (let size = startSize; size >= CAPTION_FLOOR; size -= 1) {
+export function fitText(
+  text: Phaser.GameObjects.Text,
+  maxWidth: number,
+  startSize: number = typeRole.rowTitle.size,
+): void {
+  // Every `setFontSize`/`setText` re-rasterises the label onto its own canvas, and a board redraw fits dozens of
+  // them, so this asks for as few as the answer needs: none when the label already fits as created, and a binary
+  // search otherwise. Width only grows with size and with length, so both searches land where a linear scan would.
+  if (Number.parseFloat(String(text.style.fontSize)) !== startSize) text.setFontSize(startSize);
+  if (text.width <= maxWidth) return;
+
+  let low = CAPTION_FLOOR;
+  let high = startSize - 1;
+  let fits: number | null = null;
+  while (low <= high) {
+    const size = (low + high) >> 1;
     text.setFontSize(size);
-    if (text.width <= maxWidth) return;
+    if (text.width <= maxWidth) {
+      fits = size;
+      low = size + 1;
+    } else {
+      high = size - 1;
+    }
   }
-  let trimmed = full;
-  while (trimmed.length > 1 && text.width > maxWidth) {
-    trimmed = trimmed.slice(0, -1);
-    text.setText(`${trimmed.trimEnd()}…`);
+  if (fits !== null) {
+    if (Number.parseFloat(String(text.style.fontSize)) !== fits) text.setFontSize(fits);
+    return;
   }
+
+  // A label created below the floor is never grown to it.
+  text.setFontSize(Math.min(CAPTION_FLOOR, startSize));
+  const full = text.text;
+  const clipped = (length: number): string => `${full.slice(0, length).trimEnd()}…`;
+  let short = 1;
+  let long = full.length - 1;
+  let best = 1;
+  while (short <= long) {
+    const length = (short + long) >> 1;
+    text.setText(clipped(length));
+    if (text.width <= maxWidth) {
+      best = length;
+      short = length + 1;
+    } else {
+      long = length - 1;
+    }
+  }
+  text.setText(clipped(best));
 }
 
 /** How wide the scroll track (and its thumb) draws, on either ground. */
@@ -622,7 +731,6 @@ export interface McScrollPanelOptions {
  */
 export class McScrollPanel {
   readonly panel: RexTextArea;
-  readonly #text: Phaser.GameObjects.Text;
 
   constructor(scene: Phaser.Scene, options: McScrollPanelOptions) {
     const { rect } = options;
@@ -632,36 +740,33 @@ export class McScrollPanel {
     const trackFill = onInk ? surface.paper.hex : surface.ink.hex;
 
     const textObject = scene.add.text(0, 0, "", textStyle(type, textColor, options.alpha ?? 1));
-    if (type.letterSpacing) textObject.setLetterSpacing(type.letterSpacing);
-
 
     const track = scene.add.rectangle(0, 0, SCROLL_TRACK_WIDTH, 10, trackFill, onInk ? 0.22 : 0.14).setOrigin(0.5);
     const thumb = scene.add.rectangle(0, 0, SCROLL_TRACK_WIDTH, 40, trackFill, onInk ? 0.9 : 0.8).setOrigin(0.5);
 
-    this.#text = textObject;
     this.panel = addTextArea(scene, {
-        x: rect.x,
-        y: rect.y,
-        width: rect.width,
-        height: rect.height,
-        origin: 0,
-        text: textObject,
-        content: options.text,
-        /**
-         * Mask the overflow, don't crop it.
-         *
-         * rexUI computes the wrap width itself and it is correct — but for a
-         * plain Phaser `Text` it then defaults to `textCrop`, i.e. clipping via
-         * `setCrop`, and that crop came out far narrower than the wrapped text
-         * it was clipping: card rules text rendered as a single line reading
-         * "If this stage is completed, the player" and simply stopped, with the
-         * wrapped remainder cropped away. `textCrop: false` selects rexUI's
-         * geometry-mask path instead, which clips to the block it actually
-         * measured.
-         */
-        textCrop: false,
-        space: { left: SCROLL_PADDING_X, right: SCROLL_PADDING_X, top: 2, bottom: 2, sliderX: SCROLL_SLIDER_GAP },
-        slider: { track, thumb, width: SCROLL_TRACK_WIDTH },
+      x: rect.x,
+      y: rect.y,
+      width: rect.width,
+      height: rect.height,
+      origin: 0,
+      text: textObject,
+      content: options.text,
+      /**
+       * Mask the overflow, don't crop it.
+       *
+       * rexUI computes the wrap width itself and it is correct — but for a
+       * plain Phaser `Text` it then defaults to `textCrop`, i.e. clipping via
+       * `setCrop`, and that crop came out far narrower than the wrapped text
+       * it was clipping: card rules text rendered as a single line reading
+       * "If this stage is completed, the player" and simply stopped, with the
+       * wrapped remainder cropped away. `textCrop: false` selects rexUI's
+       * geometry-mask path instead, which clips to the block it actually
+       * measured.
+       */
+      textCrop: false,
+      space: { left: SCROLL_PADDING_X, right: SCROLL_PADDING_X, top: 2, bottom: 2, sliderX: SCROLL_SLIDER_GAP },
+      slider: { track, thumb, width: SCROLL_TRACK_WIDTH },
       mouseWheelScroller: true,
     } as RexTextArea.IConfig).layout();
   }
@@ -681,7 +786,6 @@ export class McScrollPanel {
     this.panel.destroy();
   }
 }
-
 
 export interface McTextInputOptions {
   readonly rect: Rect;
@@ -987,7 +1091,9 @@ export class McMultilineInput {
    * but drew nothing.
    */
   get gameObjects(): readonly Phaser.GameObjects.GameObject[] {
-    const root = this.#input as unknown as Phaser.GameObjects.GameObject & { getAllChildren(): Phaser.GameObjects.GameObject[] };
+    const root = this.#input as unknown as Phaser.GameObjects.GameObject & {
+      getAllChildren(): Phaser.GameObjects.GameObject[];
+    };
     return [root, ...root.getAllChildren()];
   }
 
@@ -1063,7 +1169,6 @@ export class McStatBadge {
     this.#ribbon = scene.add.graphics();
     this.#number = scene.add.text(0, 0, "", textStyle(typeRole.stat, surface.paper.hex)).setOrigin(0.5, 0.5);
     this.#label = scene.add.text(0, 0, "", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5, 0.5);
-    if (typeRole.label.letterSpacing) this.#label.setLetterSpacing(typeRole.label.letterSpacing);
     this.#chip = scene.add.graphics();
     this.#chipText = scene.add.text(0, 0, "", textStyle(typeRole.label, surface.paper.hex)).setOrigin(0.5, 0.5);
     this.container = scene.add.container(options.cx, options.cy, [
@@ -1130,7 +1235,9 @@ export class McStatBadge {
       this.#chip
         .fillStyle(bonus > 0 ? signal.heal.hex : surface.ink.hex, alpha)
         .fillRect(chipX - chipWidth / 2, chipY - chipHeight / 2, chipWidth, chipHeight);
-      this.#chip.lineStyle(1.5, surface.paper.hex, alpha).strokeRect(chipX - chipWidth / 2, chipY - chipHeight / 2, chipWidth, chipHeight);
+      this.#chip
+        .lineStyle(1.5, surface.paper.hex, alpha)
+        .strokeRect(chipX - chipWidth / 2, chipY - chipHeight / 2, chipWidth, chipHeight);
       this.#chipText.setPosition(chipX, chipY);
     }
   }
@@ -1176,8 +1283,9 @@ export class McHpPlate {
   constructor(scene: Phaser.Scene, options: McHpPlateOptions) {
     this.#options = options;
     this.#graphics = scene.add.graphics();
-    this.#caption = scene.add.text(0, 0, caseOf(typeRole.label, "hp"), textStyle(typeRole.label, surface.ink.hex)).setOrigin(0, 0.5);
-    if (typeRole.label.letterSpacing) this.#caption.setLetterSpacing(typeRole.label.letterSpacing);
+    this.#caption = scene.add
+      .text(0, 0, caseOf(typeRole.label, "hp"), textStyle(typeRole.label, surface.ink.hex))
+      .setOrigin(0, 0.5);
     this.#current = scene.add.text(0, 0, "", textStyle(typeRole.stat, surface.ink.hex)).setOrigin(0, 0.5);
     this.#max = scene.add.text(0, 0, "", textStyle(typeRole.statSmall, surface.ink.hex)).setOrigin(0, 0.5);
     this.#chip = scene.add.graphics();

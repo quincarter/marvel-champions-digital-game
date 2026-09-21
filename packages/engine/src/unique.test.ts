@@ -8,7 +8,16 @@ import { mustPlayer } from "./query.js";
 import { createGame } from "./setup.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubMinion, stubSupport, stubUpgrade, stubVillain } from "./testing/fixtures.js";
+import {
+  stubAlly,
+  stubEvent,
+  stubIdentity,
+  stubMainScheme,
+  stubMinion,
+  stubSupport,
+  stubUpgrade,
+  stubVillain,
+} from "./testing/fixtures.js";
 import {
   DEFAULT_CARDS,
   DEFAULT_DECK,
@@ -71,7 +80,11 @@ describe("cardsMatch (RRG 'Unique Icon')", () => {
 
   it("matches across card types with no subtitles — the Jessica Jones ally vs. minion example", () => {
     const allyCard = ally("jj-ally", "Jessica Jones");
-    const minion: AnyCard = { ...stubMinion({ id: "jj-minion", hp: 3, atk: 2, sch: 1 }), name: "Jessica Jones", unique: true };
+    const minion: AnyCard = {
+      ...stubMinion({ id: "jj-minion", hp: 3, atk: 2, sch: 1 }),
+      name: "Jessica Jones",
+      unique: true,
+    };
     expect(cardsMatch(allyCard, minion)).toBe(true);
   });
 
@@ -95,7 +108,9 @@ describe("cardsMatch (RRG 'Unique Icon')", () => {
   });
 
   it("does not match two cards that share a title but have different subtitles", () => {
-    expect(cardsMatch(ally("bp-tchalla", "Black Panther", "T'Challa"), ally("bp-shuri", "Black Panther", "Shuri"))).toBe(false);
+    expect(
+      cardsMatch(ally("bp-tchalla", "Black Panther", "T'Challa"), ally("bp-shuri", "Black Panther", "Shuri")),
+    ).toBe(false);
   });
 
   it("never matches a card without the unique icon, however identical", () => {
@@ -286,7 +301,9 @@ function mockingbirdInPlayAndInDiscard() {
   const after: GameState = {
     ...played,
     players: played.players.map((seat) =>
-      seat.playerId === p1 ? { ...seat, hand: seat.hand.filter((id) => id !== spare), discard: [spare, ...seat.discard] } : seat,
+      seat.playerId === p1
+        ? { ...seat, hand: seat.hand.filter((id) => id !== spare), discard: [spare, ...seat.discard] }
+        : seat,
     ),
   };
   expect(mustPlayer(after, p1).playArea).toContain(inPlay);
@@ -327,8 +344,16 @@ describe("RRG 'Unique Icon': a matching card cannot be put into play either", ()
  */
 describe("RRG 'Unique Icon': a non-villain encounter card is discarded instead", () => {
   it("discards a unique minion that would enter play beside the matching villain, and logs why", () => {
-    const RONAN_VILLAIN = { ...stubVillain({ id: "ronan-villain", stages: [{ hp: flat(30), atk: 2, sch: 1 }] }), name: "Ronan the Accuser", unique: true };
-    const RONAN_MINION: AnyCard = { ...stubMinion({ id: "ronan-minion", hp: 5, atk: 3, sch: 1, boostIcons: 0 }), name: "Ronan the Accuser", unique: true };
+    const RONAN_VILLAIN = {
+      ...stubVillain({ id: "ronan-villain", stages: [{ hp: flat(30), atk: 2, sch: 1 }] }),
+      name: "Ronan the Accuser",
+      unique: true,
+    };
+    const RONAN_MINION: AnyCard = {
+      ...stubMinion({ id: "ronan-minion", hp: 5, atk: 3, sch: 1, boostIcons: 0 }),
+      name: "Ronan the Accuser",
+      unique: true,
+    };
     const THUG: AnyCard = stubMinion({ id: "thug", hp: 2, atk: 1, sch: 1, boostIcons: 0 });
     const summon = stubAbility("summon", {
       trigger: { kind: "whenRevealed" },

@@ -51,7 +51,11 @@ export { TextArea, InputText, TextAreaInput };
  * shape's coordinates stay in world space — the same space `#layoutTrack`
  * (and every other caller) already draws the mask rect in.
  */
-export function setMask(gameObject: Phaser.GameObjects.GameObject, maskGameObject: Phaser.GameObjects.GameObject, maskType: MaskType = "world"): void {
+export function setMask(
+  gameObject: Phaser.GameObjects.GameObject,
+  maskGameObject: Phaser.GameObjects.GameObject,
+  maskType: MaskType = "world",
+): void {
   SetMask(gameObject, maskGameObject, false, maskType);
 }
 
@@ -84,7 +88,10 @@ export function addInputText(scene: Phaser.Scene, config: ConstructorParameters<
  * events, exactly as `InputText` does; nothing here adds a *visible* second
  * kind of DOM control to the app.
  */
-export function addTextAreaInput(scene: Phaser.Scene, config: ConstructorParameters<typeof TextAreaInput>[1]): TextAreaInput {
+export function addTextAreaInput(
+  scene: Phaser.Scene,
+  config: ConstructorParameters<typeof TextAreaInput>[1],
+): TextAreaInput {
   const gameObject = new TextAreaInput(scene, config);
   scene.add.existing(gameObject as unknown as Phaser.GameObjects.GameObject);
   return gameObject;

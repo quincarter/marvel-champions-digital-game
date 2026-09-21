@@ -4,7 +4,10 @@ import type { Rect } from "./layout.js";
 
 const right = (rect: Rect): number => rect.x + rect.width;
 const inside = (inner: Rect, rect: Rect): boolean =>
-  rect.x >= inner.x - 0.001 && rect.y >= inner.y - 0.001 && right(rect) <= right(inner) + 0.001 && rect.y + rect.height <= inner.y + inner.height + 0.001;
+  rect.x >= inner.x - 0.001 &&
+  rect.y >= inner.y - 0.001 &&
+  right(rect) <= right(inner) + 0.001 &&
+  rect.y + rect.height <= inner.y + inner.height + 0.001;
 
 describe("hand row", () => {
   // The long table's hand at 1280×800: 1260 wide, ~150 tall once the caption is taken.

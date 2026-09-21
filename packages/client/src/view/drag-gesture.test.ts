@@ -123,7 +123,15 @@ describe("Momentum", () => {
 
 describe("Momentum composed with ListScroll — the clamp-at-an-end contract `ui/virtual-list.ts#onUpdate` relies on", () => {
   /** What `McVirtualList#onUpdate` does each frame: apply one momentum tick to the scroll, and stop momentum the instant the scroll reports no movement (an end was hit). */
-  function runToStop(scroll: ListScroll, momentum: Momentum, count: number, rowHeight: number, viewportHeight: number, frameMs = 16, maxTicks = 100_000): number {
+  function runToStop(
+    scroll: ListScroll,
+    momentum: Momentum,
+    count: number,
+    rowHeight: number,
+    viewportHeight: number,
+    frameMs = 16,
+    maxTicks = 100_000,
+  ): number {
     let ticks = 0;
     while (momentum.active && ticks < maxTicks) {
       const delta = momentum.tick(frameMs);

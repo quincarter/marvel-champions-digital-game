@@ -217,6 +217,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     statModifiers: { atk: 1, sch: 1 },
     encounterSetIds: [encounterSetId("the_hood")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("WEAPON")],
     keywords: [],
     text: {
@@ -287,6 +288,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/24012.png") },
     encounterSetIds: [encounterSetId("the_hood")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -396,6 +398,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/24017.png") },
     encounterSetIds: [encounterSetId("beasty_boys")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -419,6 +422,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     hp: 8,
     encounterSetIds: [encounterSetId("brothers_grimm")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("MASTERS OF EVIL"), trait("MYSTIC")],
     keywords: [],
     text: {
@@ -541,6 +545,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     startingThreat: { base: 0, perPlayer: 2 },
     icons: ["hazard"],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -588,6 +593,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("crossfire_crew")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("CRIMINAL"), trait("CROSSFIRE'S CREW")],
     keywords: [],
     text: {
@@ -634,6 +640,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("crossfire_crew")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("CRIMINAL"), trait("CROSSFIRE'S CREW")],
     keywords: [],
     text: {
@@ -674,6 +681,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/24029.png") },
     encounterSetIds: [encounterSetId("expert_ii")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "peril" }, { name: "surge" }],
     text: {
@@ -734,6 +742,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/24032.png") },
     encounterSetIds: [encounterSetId("expert_ii")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "peril" }, { name: "surge" }],
     text: {
@@ -992,6 +1001,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("sinister_syndicate")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [],
     text: {
@@ -1015,6 +1025,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("sinister_syndicate")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("CRIMINAL"), trait("MASTERS OF EVIL")],
     keywords: [],
     text: {
@@ -1038,6 +1049,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("sinister_syndicate")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL"), trait("MASTERS OF EVIL")],
     keywords: [],
     text: {
@@ -1061,6 +1073,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("sinister_syndicate")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [],
     text: {
@@ -1084,6 +1097,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("sinister_syndicate")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [],
     text: {
@@ -1161,6 +1175,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/24050.png") },
     encounterSetIds: [encounterSetId("standard_ii")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1201,6 +1216,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/24052.png") },
     encounterSetIds: [encounterSetId("standard_ii")],
     boostIcons: 2,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1241,6 +1257,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/24054.png") },
     encounterSetIds: [encounterSetId("standard_ii")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "surge" }],
     text: {
@@ -1352,6 +1369,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/24059.png") },
     encounterSetIds: [encounterSetId("state_of_emergency")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1575,6 +1593,7 @@ export const HOOD_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/24069.png") },
     encounterSetIds: [encounterSetId("wrecking_crew_modular")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

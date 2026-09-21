@@ -3,7 +3,17 @@
 import { type Ctx, emit, moveCard, syncSeparateDeckTop, updateInstance, updatePlayer } from "../ctx.js";
 import { leavePlay, shuffleZone } from "../effects.js";
 import type { EncounterDeckId, InstanceId, PlayerId } from "../ids.js";
-import { activeEncounterDeckId, cardOf, discardZoneFor, encounterDeckOf, getInstance, getPlayer, mustPlayer, separateDeckOf, villainOf } from "../query.js";
+import {
+  activeEncounterDeckId,
+  cardOf,
+  discardZoneFor,
+  encounterDeckOf,
+  getInstance,
+  getPlayer,
+  mustPlayer,
+  separateDeckOf,
+  villainOf,
+} from "../query.js";
 import { nextInt } from "../rng.js";
 import { cardsInPlay, type EffectContext, matchesQuery, resolvePlayers, resolveRef, resolveValue } from "../select.js";
 import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
@@ -22,17 +32,27 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       return [...seen];
     }
     case "ref":
-      return filtered(resolveRef(state, selector.ref, context).filter((id) => getInstance(state, id) !== undefined), selector.filter);
+      return filtered(
+        resolveRef(state, selector.ref, context).filter((id) => getInstance(state, id) !== undefined),
+        selector.filter,
+      );
     case "encounter": {
       const deckIds = selector.deckOf
-        ? [...new Set(resolveRef(state, selector.deckOf, context).flatMap((id) => villainOf(state, id)?.encounterDeckId ?? []))]
+        ? [
+            ...new Set(
+              resolveRef(state, selector.deckOf, context).flatMap((id) => villainOf(state, id)?.encounterDeckId ?? []),
+            ),
+          ]
         : [activeEncounterDeckId(state)];
       const ids: InstanceId[] = [];
       for (const deckId of deckIds) {
         const piles = encounterDeckOf(state, deckId);
         let deck = piles.deck;
         if (selector.top) deck = deck.slice(0, Math.max(0, resolveValue(state, selector.top, context)));
-        ids.push(...(selector.zones.includes("deck") ? deck : []), ...(selector.zones.includes("discard") ? piles.discard : []));
+        ids.push(
+          ...(selector.zones.includes("deck") ? deck : []),
+          ...(selector.zones.includes("discard") ? piles.discard : []),
+        );
       }
       return filtered(ids, selector.filter);
     }
@@ -53,11 +73,18 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       const piles = state.scenarioDecks[selector.name];
       if (!piles) return [];
       const zones = selector.zones ?? ["deck"];
-      const deck = selector.top ? piles.deck.slice(0, Math.max(0, resolveValue(state, selector.top, context))) : piles.deck;
-      return filtered([...(zones.includes("deck") ? deck : []), ...(zones.includes("discard") ? piles.discard : [])], selector.filter);
+      const deck = selector.top
+        ? piles.deck.slice(0, Math.max(0, resolveValue(state, selector.top, context)))
+        : piles.deck;
+      return filtered(
+        [...(zones.includes("deck") ? deck : []), ...(zones.includes("discard") ? piles.discard : [])],
+        selector.filter,
+      );
     }
     case "setAside":
-      return resolvePlayers(state, selector.player, context).flatMap((playerId) => filtered(mustPlayer(state, playerId).setAside, selector.filter));
+      return resolvePlayers(state, selector.player, context).flatMap((playerId) =>
+        filtered(mustPlayer(state, playerId).setAside, selector.filter),
+      );
     case "tucked":
       return resolveRef(state, selector.under, context).flatMap((id) => getInstance(state, id)?.tucked ?? []);
     case "separateDeck": {
@@ -65,8 +92,13 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       return resolvePlayers(state, selector.player, context).flatMap((playerId) => {
         const piles = getPlayer(state, playerId)?.separateDecks[selector.name];
         if (!piles) return [];
-        const deck = selector.top ? piles.deck.slice(0, Math.max(0, resolveValue(state, selector.top, context))) : piles.deck;
-        return filtered([...(zones.includes("deck") ? deck : []), ...(zones.includes("discard") ? piles.discard : [])], selector.filter);
+        const deck = selector.top
+          ? piles.deck.slice(0, Math.max(0, resolveValue(state, selector.top, context)))
+          : piles.deck;
+        return filtered(
+          [...(zones.includes("deck") ? deck : []), ...(zones.includes("discard") ? piles.discard : [])],
+          selector.filter,
+        );
       });
     }
     case "zone": {
@@ -143,9 +175,17 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
       case "separateDiscard":
       case "separateDeckTop":
       case "separateDeckShuffle": {
-        if (instance.home.kind !== "separateDeck" || !owner || !getPlayer(ctx.state, owner)?.separateDecks[instance.home.name]) continue;
+        if (
+          instance.home.kind !== "separateDeck" ||
+          !owner ||
+          !getPlayer(ctx.state, owner)?.separateDecks[instance.home.name]
+        )
+          continue;
         const name = instance.home.name;
-        to = destination === "separateDiscard" ? { kind: "separateDiscard", playerId: owner, name } : { kind: "separateDeck", playerId: owner, name };
+        to =
+          destination === "separateDiscard"
+            ? { kind: "separateDiscard", playerId: owner, name }
+            : { kind: "separateDeck", playerId: owner, name };
         if (destination !== "separateDiscard") separateDecks.set(`${owner}/${name}`, { playerId: owner, name });
         break;
       }
@@ -174,7 +214,10 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
 export function shuffleSeparateDeck(ctx: Ctx, playerId: PlayerId, name: string): void {
   const piles = separateDeckOf(ctx.state, playerId, name);
   const order = shuffleZone(ctx, { kind: "separateDeck", playerId, name }, piles.deck);
-  updatePlayer(ctx, playerId, (p) => ({ ...p, separateDecks: { ...p.separateDecks, [name]: { ...piles, deck: order } } }));
+  updatePlayer(ctx, playerId, (p) => ({
+    ...p,
+    separateDecks: { ...p.separateDecks, [name]: { ...piles, deck: order } },
+  }));
   syncSeparateDeckTop(ctx, playerId, name);
 }
 
@@ -196,7 +239,11 @@ export function buildScenarioDeck(ctx: Ctx, name: string): void {
       const card = cardOf(ctx.state, id);
       if (!card) continue;
       if (cardType !== undefined && card.type !== cardType) continue;
-      if (encounterSetIds !== undefined && !("encounterSetIds" in card && card.encounterSetIds.some((set: string) => encounterSetIds.includes(set)))) continue;
+      if (
+        encounterSetIds !== undefined &&
+        !("encounterSetIds" in card && card.encounterSetIds.some((set: string) => encounterSetIds.includes(set)))
+      )
+        continue;
       moveCard(ctx, id, { kind: "scenarioDeck", name });
       if (piles.discardPile === "own") updateInstance(ctx, id, (i) => ({ ...i, home: { kind: "scenarioDeck", name } }));
     }
@@ -211,7 +258,8 @@ export function buildScenarioDeck(ctx: Ctx, name: string): void {
  */
 export function resetEmptyScenarioDecks(ctx: Ctx): void {
   for (const [name, piles] of Object.entries(ctx.state.scenarioDecks)) {
-    if (piles.whenEmpty !== "reshuffleDiscardWithoutPenalty" || piles.deck.length > 0 || piles.discard.length === 0) continue;
+    if (piles.whenEmpty !== "reshuffleDiscardWithoutPenalty" || piles.deck.length > 0 || piles.discard.length === 0)
+      continue;
     for (const id of [...piles.discard]) {
       moveCard(ctx, id, { kind: "scenarioDeck", name });
       updateInstance(ctx, id, (i) => ({ ...i, faceup: false }));
@@ -224,5 +272,8 @@ export function resetEmptyScenarioDecks(ctx: Ctx): void {
 /** Shuffles an encounter deck: "the encounter deck" is the active villain's. */
 export function shuffleEncounterDeck(ctx: Ctx, deckId: EncounterDeckId = activeEncounterDeckId(ctx.state)): void {
   const order = shuffleZone(ctx, { kind: "encounterDeck", deckId }, encounterDeckOf(ctx.state, deckId).deck);
-  ctx.state = { ...ctx.state, encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { ...encounterDeckOf(ctx.state, deckId), deck: order } } };
+  ctx.state = {
+    ...ctx.state,
+    encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { ...encounterDeckOf(ctx.state, deckId), deck: order } },
+  };
 }

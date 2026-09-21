@@ -8,19 +8,27 @@ describe("parseMarvelCdbReference", () => {
   });
 
   test("a decklist URL is a decklist reference", () => {
-    expect(parseMarvelCdbReference("https://marvelcdb.com/decklist/view/1/black-panther-protection-starter-deck")).toEqual({
+    expect(
+      parseMarvelCdbReference("https://marvelcdb.com/decklist/view/1/black-panther-protection-starter-deck"),
+    ).toEqual({
       kind: "decklist",
       id: "1",
     });
   });
 
   test("a deck URL is a deck reference", () => {
-    expect(parseMarvelCdbReference("https://marvelcdb.com/deck/view/12345/my-deck")).toEqual({ kind: "deck", id: "12345" });
+    expect(parseMarvelCdbReference("https://marvelcdb.com/deck/view/12345/my-deck")).toEqual({
+      kind: "deck",
+      id: "12345",
+    });
   });
 
   test("http, no slug, and trailing query strings all still parse", () => {
     expect(parseMarvelCdbReference("http://marvelcdb.com/deck/view/7")).toEqual({ kind: "deck", id: "7" });
-    expect(parseMarvelCdbReference("https://marvelcdb.com/decklist/view/9?utm_source=x")).toEqual({ kind: "decklist", id: "9" });
+    expect(parseMarvelCdbReference("https://marvelcdb.com/decklist/view/9?utm_source=x")).toEqual({
+      kind: "decklist",
+      id: "9",
+    });
   });
 
   test("garbage input is refused rather than guessed at", () => {

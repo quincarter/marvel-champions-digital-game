@@ -91,7 +91,9 @@ export function plannedAttackDamage(
   // initiated this attack seeded onto it ("attacks with +X ATK"). Boost icons are added even to a dashed ATK
   // (FAQ "Green Goblin (#1B)", p. 59: a flip mid-attack deals 0 plus the icons).
   const baseAtk = enemy.atk + (enemy.missing.includes("atk") ? 0 : (vars.atkBonus ?? 0));
-  const defenderProfile = override.defenderInstanceId ? characterProfile(state, override.defenderInstanceId, deps) : undefined;
+  const defenderProfile = override.defenderInstanceId
+    ? characterProfile(state, override.defenderInstanceId, deps)
+    : undefined;
   const defenseReduction = override.basicDefense && defenderProfile?.kind === "identity" ? defenderProfile.def : 0;
   return { baseAtk, defenseReduction, damage: Math.max(0, baseAtk + override.boostIcons - defenseReduction) };
 }
@@ -113,7 +115,8 @@ export function overkillRecipient(state: GameState, targetId: InstanceId, defend
     return active.defeated ? null : active.instanceId;
   }
   if (card?.type !== "ally") return null;
-  const defended = defending ?? state.stack.some((frame) => frame.kind === "enemyAttack" && frame.defenderInstanceId === targetId);
+  const defended =
+    defending ?? state.stack.some((frame) => frame.kind === "enemyAttack" && frame.defenderInstanceId === targetId);
   if (!defended) return null;
   const controller = controllerOf(state, targetId);
   return controller ? (getPlayer(state, controller)?.identity.instanceId ?? null) : null;
@@ -195,7 +198,9 @@ function unseenPool(state: GameState, enemyId: InstanceId, need: number, scope: 
     const home = getInstance(state, id)?.home;
     return home?.kind === "encounterDeck" ? home.deckId === deckId : home?.kind === "activeEncounterDeck";
   };
-  const facedown = (Object.keys(state.instances) as InstanceId[]).filter((id) => fromSameDeck(id) && facedownOutOfDeck(state, id));
+  const facedown = (Object.keys(state.instances) as InstanceId[]).filter(
+    (id) => fromSameDeck(id) && facedownOutOfDeck(state, id),
+  );
   if (scope === "wholeSet") return [...piles.deck, ...piles.discard, ...facedown];
   const pool = [...piles.deck, ...facedown];
   return pool.length >= need ? pool : [...pool, ...piles.discard];
@@ -209,7 +214,13 @@ const facedownOutOfDeck = (state: GameState, id: InstanceId): boolean => {
   return !piles.some((deck) => deck.deck.includes(id) || deck.discard.includes(id));
 };
 
-function boundOf(state: GameState, deps: EngineDeps, enemyId: InstanceId, count: number, scope: BoostScope): BoostBound {
+function boundOf(
+  state: GameState,
+  deps: EngineDeps,
+  enemyId: InstanceId,
+  count: number,
+  scope: BoostScope,
+): BoostBound {
   const pool = unseenPool(state, enemyId, count, scope);
   const icons = pool.map((id) => boostIconsFor(state, deps, id)).sort((a, b) => a - b);
   const take = Math.min(count, icons.length);
@@ -250,8 +261,13 @@ const sameOutcome = (a: Outcome, b: Outcome): boolean =>
  * Whether this attack carries overkill: either the enemy has the keyword, or something granted it to this attack in
  * progress ("that attack gains overkill" records `overkill` on the activation's event frame).
  */
-const attackHasOverkill = (state: GameState, deps: EngineDeps, frame: Extract<StackFrame, { kind: "enemyAttack" }>): boolean =>
-  (activationVarsOf(state, frame.eventFrameId).overkill ?? 0) > 0 || hasKeyword(state, frame.enemyInstanceId, "overkill", deps);
+const attackHasOverkill = (
+  state: GameState,
+  deps: EngineDeps,
+  frame: Extract<StackFrame, { kind: "enemyAttack" }>,
+): boolean =>
+  (activationVarsOf(state, frame.eventFrameId).overkill ?? 0) > 0 ||
+  hasKeyword(state, frame.enemyInstanceId, "overkill", deps);
 
 /**
  * Reports, for one option, what `boostIcons` more icons would do — including where the outcome *changes kind*, which
@@ -261,12 +277,20 @@ function outcomeAt(
   state: GameState,
   deps: EngineDeps,
   frame: Extract<StackFrame, { kind: "enemyAttack" }>,
-  option: { readonly targetInstanceId: InstanceId; readonly defenderInstanceId: InstanceId | null; readonly basicDefense: boolean },
+  option: {
+    readonly targetInstanceId: InstanceId;
+    readonly defenderInstanceId: InstanceId | null;
+    readonly basicDefense: boolean;
+  },
   boostIcons: number,
   overkill: boolean,
   ranged: boolean,
 ): Outcome {
-  const planned = plannedAttackDamage(state, deps, frame, { boostIcons, defenderInstanceId: option.defenderInstanceId, basicDefense: option.basicDefense });
+  const planned = plannedAttackDamage(state, deps, frame, {
+    boostIcons,
+    defenderInstanceId: option.defenderInstanceId,
+    basicDefense: option.basicDefense,
+  });
   const damageDealt = planned?.damage ?? 0;
   const target = getInstance(state, option.targetInstanceId);
   const maxHp = maxHitPoints(state, option.targetInstanceId, deps) ?? 0;
@@ -282,7 +306,10 @@ function outcomeAt(
   const defeated = damageTaken > 0 && already + damageTaken >= maxHp;
   const excess = overkill && defeated ? already + damageTaken - maxHp : 0;
   // The defender has not been declared yet, so the preview says who it would be rather than reading the frame.
-  const recipient = excess > 0 ? overkillRecipient(state, option.targetInstanceId, option.defenderInstanceId === option.targetInstanceId) : null;
+  const recipient =
+    excess > 0
+      ? overkillRecipient(state, option.targetInstanceId, option.defenderInstanceId === option.targetInstanceId)
+      : null;
 
   // RRG 1.8 "Retaliate X" (p. 38): a forced response after the character is attacked, so the character must still be
   // in play once the attack resolves; and "Ranged" (p. 37) — an attack with ranged ignores retaliate entirely.
@@ -325,12 +352,14 @@ export function defendPreview(
   const ranged = hasKeyword(state, frame.enemyInstanceId, "ranged", deps);
 
   return choice.options.map((option) => {
-    const defenderInstanceId = option.ref.kind === "card" && inPlay.includes(option.ref.instanceId) ? option.ref.instanceId : null;
+    const defenderInstanceId =
+      option.ref.kind === "card" && inPlay.includes(option.ref.instanceId) ? option.ref.instanceId : null;
     // Declaring a defender through this prompt is always a basic defense (p. 9 step 2); "no defense" leaves the
     // attack's existing target where it is.
     const basicDefense = defenderInstanceId !== null;
     const targetInstanceId = defenderInstanceId ?? frame.targetInstanceId;
-    const targetPlayerId = (defenderInstanceId ? controllerOf(state, defenderInstanceId) : null) ?? frame.targetPlayerId;
+    const targetPlayerId =
+      (defenderInstanceId ? controllerOf(state, defenderInstanceId) : null) ?? frame.targetPlayerId;
     const shape = { targetInstanceId, defenderInstanceId, basicDefense };
     const planned = plannedAttackDamage(state, deps, frame, { boostIcons: 0, defenderInstanceId, basicDefense });
 

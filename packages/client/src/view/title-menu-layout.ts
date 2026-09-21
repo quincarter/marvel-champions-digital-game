@@ -87,7 +87,9 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   const column = Math.min(menuPanel.width - pad * 2, 520);
   const left = menuPanel.x + (menuPanel.width - column) / 2;
 
-  const titleSize = phone ? 44 : Math.min(72, Math.round(menuPanel.width / 7), Math.round(height * (short ? 0.075 : 0.1)));
+  const titleSize = phone
+    ? 44
+    : Math.min(72, Math.round(menuPanel.width / 7), Math.round(height * (short ? 0.075 : 0.1)));
 
   let y = pad + titleSize * 0.6;
   const eyebrow: Rect = { x: left, y, width: column, height: 16 };
@@ -115,5 +117,22 @@ export function titleMenuLayout(input: TitleMenuLayoutInput): TitleMenuLayout {
   const footerY = Math.max(y, menuPanel.y + menuPanel.height - pad - hit.target);
   const footer: Rect = { x: left, y: footerY, width: column, height: hit.target };
 
-  return { split, pad, artPanel, divider, menuPanel, left, column, titleSize, eyebrow, rule, continueRow, newGame, decks, campaign, settings, footer };
+  return {
+    split,
+    pad,
+    artPanel,
+    divider,
+    menuPanel,
+    left,
+    column,
+    titleSize,
+    eyebrow,
+    rule,
+    continueRow,
+    newGame,
+    decks,
+    campaign,
+    settings,
+    footer,
+  };
 }

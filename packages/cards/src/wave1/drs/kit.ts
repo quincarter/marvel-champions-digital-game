@@ -69,7 +69,8 @@ const SPELL = trait("Spell");
  * worded "discard the top card of your deck. If that card's printed resource has: …" branches
  * (`packages/cards/src/core/aspects/aggression.ts`).
  */
-const milled = (bind: string, type: "physical" | "energy" | "mental") => anyOf(varAtLeast(`${bind}.${type}`), varAtLeast(`${bind}.wild`));
+const milled = (bind: string, type: "physical" | "energy" | "mental") =>
+  anyOf(varAtLeast(`${bind}.${type}`), varAtLeast(`${bind}.wild`));
 
 /**
  * Doctor Strange / Stephen Strange (09001a/b) and his signature hero kit (09002–09011, printed
@@ -104,7 +105,10 @@ export const DRS_KIT = defineAbilities({
   "09001b.stephen-strange-constant": coveredByEngineRule(),
 
   // Natural Talent — Action: Discard the top card of the Invocation deck. (Limit once per phase.)
-  "09001b.natural-talent": action({ limit: { count: 1, period: "phase" } }, moveCards(invocationTop(1), "separateDiscard")),
+  "09001b.natural-talent": action(
+    { limit: { count: 1, period: "phase" } },
+    moveCards(invocationTop(1), "separateDiscard"),
+  ),
 
   // Wong — Action: Exhaust Wong → choose to either heal 1 damage from your identity or discard the top card of the
   // Invocation deck.
@@ -165,7 +169,10 @@ export const DRS_KIT = defineAbilities({
 
   // Protective Ward — Hero Interrupt: When a treachery is revealed from the encounter deck, cancel all of its
   // effects and discard it.
-  "09007.protective-ward-interrupt": heroInterrupt(when.encounterCardRevealed(query("treachery")), cancelRevealedCard()),
+  "09007.protective-ward-interrupt": heroInterrupt(
+    when.encounterCardRevealed(query("treachery")),
+    cancelRevealedCard(),
+  ),
 
   // Sanctum Sanctorum — Alter-Ego Action: Exhaust Sanctum Sanctorum → shuffle a Spell card from your discard pile
   // into your deck and draw 1 card.
@@ -194,10 +201,10 @@ export const DRS_KIT = defineAbilities({
     gets("atk", 1, { hostOfSelf: true }),
     gets("def", 1, { hostOfSelf: true }),
   ),
-  "09010.magical-enhancements-forced-interrupt": forcedResponse(
-    after.entersPlay("self"),
-    { kind: "atEndOfRound", effects: [ifThen(exists({ self: true }), discard(self))] },
-  ),
+  "09010.magical-enhancements-forced-interrupt": forcedResponse(after.entersPlay("self"), {
+    kind: "atEndOfRound",
+    effects: [ifThen(exists({ self: true }), discard(self))],
+  }),
 
   // The Eye of Agamotto — Hero Resource: Exhaust The Eye of Agamotto → generate a [wild] resource.
   "09011.the-eye-of-agamotto-resource": heroResource({ wild: 1 }, { cost: exhaustThis }),
@@ -206,14 +213,24 @@ export const DRS_KIT = defineAbilities({
   // the Invocation deck discard pile.
   "09032.crimson-bands-of-cyttorak-special": {
     trigger: { kind: "special" },
-    effects: [anEnemy("enemy"), stun(chosen("enemy")), dealDamage(7, chosen("enemy")), moveCards(cards(self), "separateDiscard")],
+    effects: [
+      anEnemy("enemy"),
+      stun(chosen("enemy")),
+      dealDamage(7, chosen("enemy")),
+      moveCards(cards(self), "separateDiscard"),
+    ],
   },
 
   // Images of Ikonn (Invocation) — Special: Confuse the villain and remove 4 threat from a scheme. Place this card
   // in the Invocation deck discard pile.
   "09033.images-of-ikonn-special": {
     trigger: { kind: "special" },
-    effects: [confuse(theVillain), aScheme("scheme"), removeThreat(4, chosen("scheme")), moveCards(cards(self), "separateDiscard")],
+    effects: [
+      confuse(theVillain),
+      aScheme("scheme"),
+      removeThreat(4, chosen("scheme")),
+      moveCards(cards(self), "separateDiscard"),
+    ],
   },
 
   // Seven Rings of Raggadorr (Invocation) — Special: Give up to 3 characters each a tough status card. Place this
@@ -222,7 +239,11 @@ export const DRS_KIT = defineAbilities({
   // to several cards" reading `ready(each(...))`/`dealDamage(1, each(...))` already rely on).
   "09034.seven-rings-of-raggadorr-special": {
     trigger: { kind: "special" },
-    effects: [chooseTarget("characters", query("character"), { optional: true, count: 3 }), giveTough(chosen("characters")), moveCards(cards(self), "separateDiscard")],
+    effects: [
+      chooseTarget("characters", query("character"), { optional: true, count: 3 }),
+      giveTough(chosen("characters")),
+      moveCards(cards(self), "separateDiscard"),
+    ],
   },
 
   // Vapors of Valtorr (Invocation) — Special: Choose a status card in play. Replace that status card with a
@@ -238,19 +259,28 @@ export const DRS_KIT = defineAbilities({
           "It has the stunned status",
           { when: hasStatus(chosen("target"), "stunned") },
           removeStatus(chosen("target"), "stunned"),
-          chooseOne(option("Give it the confused status", giveStatus(chosen("target"), "confused")), option("Give it the tough status", giveStatus(chosen("target"), "tough"))),
+          chooseOne(
+            option("Give it the confused status", giveStatus(chosen("target"), "confused")),
+            option("Give it the tough status", giveStatus(chosen("target"), "tough")),
+          ),
         ),
         option(
           "It has the confused status",
           { when: hasStatus(chosen("target"), "confused") },
           removeStatus(chosen("target"), "confused"),
-          chooseOne(option("Give it the stunned status", giveStatus(chosen("target"), "stunned")), option("Give it the tough status", giveStatus(chosen("target"), "tough"))),
+          chooseOne(
+            option("Give it the stunned status", giveStatus(chosen("target"), "stunned")),
+            option("Give it the tough status", giveStatus(chosen("target"), "tough")),
+          ),
         ),
         option(
           "It has the tough status",
           { when: hasStatus(chosen("target"), "tough") },
           removeStatus(chosen("target"), "tough"),
-          chooseOne(option("Give it the stunned status", giveStatus(chosen("target"), "stunned")), option("Give it the confused status", giveStatus(chosen("target"), "confused"))),
+          chooseOne(
+            option("Give it the stunned status", giveStatus(chosen("target"), "stunned")),
+            option("Give it the confused status", giveStatus(chosen("target"), "confused")),
+          ),
         ),
       ),
       moveCards(cards(self), "separateDiscard"),

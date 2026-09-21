@@ -1,5 +1,14 @@
 import { cardId } from "@mc/content";
-import { createGame, type EngineDeps, type GameSetupConfig, type GameState, activeEncounterDeck, activeEncounterDeckId, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  createGame,
+  type EngineDeps,
+  type GameSetupConfig,
+  type GameState,
+  activeEncounterDeck,
+  activeEncounterDeckId,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { firstLegal, runWith, settle } from "../../testing/harness.js";
 import { WAVE1_ABILITIES } from "../index.js";
 
@@ -12,7 +21,8 @@ import { WAVE1_ABILITIES } from "../index.js";
 export const HLK_DEPS: EngineDeps = { abilities: WAVE1_ABILITIES };
 
 /** `run`, wired to `HLK_DEPS` — the `hlk`-only analog of `../testing.ts`'s `runWave1`. */
-export const runHlk = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState => runWith(HLK_DEPS, state, ...commands);
+export const runHlk = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState =>
+  runWith(HLK_DEPS, state, ...commands);
 
 /** A wave 1 game past setup, with every opening hand kept, using `HLK_DEPS` — the `hlk`-only analog of `startWave1Game`. */
 export function startHlkGame(config: GameSetupConfig): GameState {
@@ -40,7 +50,9 @@ export function stackFromSetAside(state: GameState, player: PlayerId, ...codes: 
     const found = owner.setAside.find((id) => state.instances[id]?.cardId === cardId(code) && !ids.includes(id));
     if (!found) throw new Error(`no ${code} in ${player}'s setAside`);
     ids.push(found);
-    players = players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((id) => id !== found) } : p));
+    players = players.map((p) =>
+      p.playerId === player ? { ...p, setAside: p.setAside.filter((id) => id !== found) } : p,
+    );
   }
   return {
     ...state,

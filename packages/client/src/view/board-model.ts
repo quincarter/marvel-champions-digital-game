@@ -165,7 +165,11 @@ export interface AttachmentChip {
 
 /** "Web-Shooter · 2 web · exhausted" — everything a chip has room to say. */
 export function attachmentChipLabel(chip: AttachmentChip): string {
-  return [chip.name, ...chip.counters.map((counter) => `${counter.count} ${counter.name}`), chip.exhausted ? "exhausted" : null]
+  return [
+    chip.name,
+    ...chip.counters.map((counter) => `${counter.count} ${counter.name}`),
+    chip.exhausted ? "exhausted" : null,
+  ]
     .filter(Boolean)
     .join(" · ");
 }
@@ -465,7 +469,9 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     mainScheme: schemePanel(state, state.mainScheme.instanceId, deps, true),
     sideSchemes,
     minions: minionsOf(state).map((id) => characterPanel(state, id, deps)),
-    environments: state.villainArea.filter((id) => cardOf(state, id)?.type === "environment").map((id) => environmentPanel(state, id)),
+    environments: state.villainArea
+      .filter((id) => cardOf(state, id)?.type === "environment")
+      .map((id) => environmentPanel(state, id)),
     me: characterPanel(state, me.identity.instanceId, deps),
     myForm: me.identity.form,
     myPlayArea: me.playArea
@@ -481,7 +487,10 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
     hand: me.hand.map((id) => handCardView(state, id, perspectiveId, deps)),
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },
-    encounterPiles: { deck: activeEncounterDeck(state).deck.length, discard: activeEncounterDeck(state).discard.length },
+    encounterPiles: {
+      deck: activeEncounterDeck(state).deck.length,
+      discard: activeEncounterDeck(state).discard.length,
+    },
     myDiscard: me.discard,
     myDiscardTop: topOfDiscard(state, me.discard),
     encounterDiscardTop: topOfDiscard(state, activeEncounterDeck(state).discard),
@@ -509,12 +518,19 @@ const phaseOf = (state: GameState): BoardModel["phase"] => {
 };
 
 /** The design's five-step villain phase, in the order `GameStep` runs them. */
-const VILLAIN_STEPS = ["placeThreat", "enemyActivations", "dealEncounterCards", "revealEncounterCards", "passFirstPlayer"] as const;
+const VILLAIN_STEPS = [
+  "placeThreat",
+  "enemyActivations",
+  "dealEncounterCards",
+  "revealEncounterCards",
+  "passFirstPlayer",
+] as const;
 
 function stepLabel(state: GameState, perspectiveId: PlayerId): string {
   const { step } = state;
   // Three outcomes, not two: a conceded game is neither a win nor a defeat (see `GameOutcome`).
-  if (state.outcome) return state.outcome.result === "win" ? "Victory" : state.outcome.result === "conceded" ? "Conceded" : "Defeat";
+  if (state.outcome)
+    return state.outcome.result === "win" ? "Victory" : state.outcome.result === "conceded" ? "Conceded" : "Defeat";
   switch (step.phase) {
     case "setup":
       return step.kind === "mulligan" ? "Setup — mulligan" : "Setup — draw starting hands";
@@ -591,7 +607,8 @@ export function characterPanel(state: GameState, id: InstanceId, deps: EngineDep
 function seatEffectsOf(state: GameState, playerId: PlayerId | null): readonly string[] {
   if (playerId === null) return [];
   const reduction = state.lastingEffects.reduce(
-    (total, effect) => (effect.kind === "costReduction" && effect.playerId === playerId ? total + effect.amount : total),
+    (total, effect) =>
+      effect.kind === "costReduction" && effect.playerId === playerId ? total + effect.amount : total,
     0,
   );
   return reduction > 0 ? [`next card costs ${reduction} less`] : [];
@@ -632,7 +649,10 @@ export function faceOf(state: GameState, instanceId: InstanceId): CardFace {
       const villain = villainOf(state, instanceId) ?? activeVillain(state);
       return {
         kind: "villainStage",
-        sideIndex: Math.max(0, card.sides.findIndex((side) => side.side === villain.side)),
+        sideIndex: Math.max(
+          0,
+          card.sides.findIndex((side) => side.side === villain.side),
+        ),
         stageIndex: villain.stageIndex,
       };
     }
@@ -765,7 +785,8 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
   if (!instance) throw new Error(`no card instance ${id}`);
   const card = cardOf(state, id);
   // Crisis is a printed icon in the threat box (RRG "Crisis Icon"), not a keyword.
-  const crisis = card?.type === "side_scheme" ? card.icons.includes("crisis") : mainSchemeStage(state).icons.includes("crisis");
+  const crisis =
+    card?.type === "side_scheme" ? card.icons.includes("crisis") : mainSchemeStage(state).icons.includes("crisis");
 
   if (isMain) {
     const stage = mainSchemeStage(state);
@@ -791,7 +812,9 @@ export function schemePanel(state: GameState, id: InstanceId, _deps: EngineDeps,
   // signatureSideSchemeId`), and the table has to say whose: with four in play at once under one "side schemes"
   // list, "Side scheme · Crisis" told the player nothing about which villain it was thwarting toward.
   const signatureOf = state.villains.find((villain) => villain.signatureSideSchemeId === id);
-  const villainName = signatureOf ? (currentName(state, signatureOf.instanceId) ?? cardOf(state, signatureOf.instanceId)?.name ?? null) : null;
+  const villainName = signatureOf
+    ? (currentName(state, signatureOf.instanceId) ?? cardOf(state, signatureOf.instanceId)?.name ?? null)
+    : null;
 
   return {
     instanceId: id,
@@ -834,7 +857,17 @@ function countersOf(state: GameState, id: InstanceId): readonly { readonly name:
 export function handCardView(state: GameState, id: InstanceId, playerId: PlayerId, deps: EngineDeps): HandCardView {
   const card = cardOf(state, id);
   if (!card) {
-    return { instanceId: id, name: "Unknown card", typeLine: "", cost: null, currentCost: null, costSources: [], rulesText: "", resourceIcons: [], art: null };
+    return {
+      instanceId: id,
+      name: "Unknown card",
+      typeLine: "",
+      cost: null,
+      currentCost: null,
+      costSources: [],
+      rulesText: "",
+      resourceIcons: [],
+      art: null,
+    };
   }
 
   const traits = "traits" in card ? (card.traits as readonly string[]) : [];
@@ -905,7 +938,9 @@ export function seatRow(state: GameState, playerId: PlayerId, deps: EngineDeps):
     effects: seatEffectsOf(state, playerId),
     borrowed: player.playArea.flatMap((id) => {
       const ownerId = getInstance(state, id)?.ownerId ?? null;
-      return ownerId !== null && ownerId !== playerId ? [`${cardOf(state, id)?.name ?? "a card"} · from ${playerName(state, ownerId)}`] : [];
+      return ownerId !== null && ownerId !== playerId
+        ? [`${cardOf(state, id)?.name ?? "a card"} · from ${playerName(state, ownerId)}`]
+        : [];
     }),
   };
 }

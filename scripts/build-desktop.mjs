@@ -1,5 +1,9 @@
 #!/usr/bin/env node
-// `tauri build`, made repeatable on macOS.
+// `tauri build` for whichever OS this is running on, made repeatable on macOS.
+//
+// Tauri bundles with the host's own toolchain, so each OS produces its own installers (the same split as
+// .github/workflows/desktop-build.yml): macOS gets the .app and .dmg, Windows the .msi and NSIS -setup.exe,
+// Linux the .deb/.rpm/.AppImage. Nothing below is macOS-only except the DMG clean-up, which is skipped elsewhere.
 //
 // Tauri's DMG step (bundle_dmg.sh) mounts a scratch image, then drives Finder over AppleScript to arrange the
 // installer window. When that step fails — Finder busy, an automation prompt nobody answered, a run from a task
@@ -11,6 +15,8 @@ import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { collectDesktopBundles, defaultReleaseDir, writeChecksumManifest } from "./lib/release-collector.mjs";
+import { pnpm } from "./lib/run.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const clientDir = path.join(repoRoot, "packages", "client");
@@ -41,12 +47,23 @@ function clearStaleDmgState() {
   }
 }
 
+function clearStaleMsvcState() {
+  if (process.platform !== "win32") return;
+  try {
+    spawnSync("taskkill", ["/F", "/IM", "vctip.exe"], { stdio: "ignore" });
+  } catch {
+    // ignore
+  }
+}
+
 function tauriBuild(args, env = process.env) {
-  return spawnSync("pnpm", ["exec", "tauri", "build", ...args], { cwd: clientDir, env, stdio: "inherit" }).status ?? 1;
+  return pnpm(["exec", "tauri", "build", ...args], { cwd: clientDir, env }).status ?? 1;
 }
 
 clearStaleDmgState();
+clearStaleMsvcState();
 let status = tauriBuild(extraArgs);
+clearStaleMsvcState();
 
 if (status !== 0 && process.platform === "darwin") {
   console.log("\n[build-desktop] The build failed. Retrying the DMG without the Finder window-layout step…");
@@ -54,6 +71,20 @@ if (status !== 0 && process.platform === "darwin") {
   // With CI set, Tauri passes --skip-jenkins to bundle_dmg.sh, which skips the AppleScript/Finder part.
   status = tauriBuild(["--bundles", "dmg", ...extraArgs], { ...process.env, CI: "true" });
   if (status === 0) console.log("[build-desktop] DMG built (plain window layout). The .app bundle is unaffected.");
+}
+
+if (status === 0) {
+  const staged = collectDesktopBundles();
+  if (staged.length > 0) {
+    writeChecksumManifest();
+    console.log("\n========================================================");
+    console.log(`  Desktop build staged to: ${defaultReleaseDir}`);
+    for (const file of staged) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+      console.log(`  - ${file.name} (${sizeMb} MB) · sha256 ${file.sha256.slice(0, 16)}…`);
+    }
+    console.log("========================================================");
+  }
 }
 
 process.exit(status);

@@ -13,7 +13,8 @@ export const VISION_CURATION: PackCuration = {
   pack: {
     name: "Vision",
     releaseDate: "2022-01-14",
-    releaseDateSource: "Hall of Heroes Vision page (https://hallofheroeslcg.com/vision/): \"Release date: January 14, 2022\"",
+    releaseDateSource:
+      'Hall of Heroes Vision page (https://hallofheroeslcg.com/vision/): "Release date: January 14, 2022"',
   },
   outDir: "src/data/vision",
   exportPrefix: "VISION",

@@ -18,7 +18,8 @@ export const ANGEL_CURATION: PackCuration = {
   pack: {
     name: "Angel",
     releaseDate: "2023-09-22",
-    releaseDateSource: 'Hall of Heroes Angel/Warren Worthington III page (https://hallofheroeslcg.com/angel-warren-worthington-iii/): "September 22, 2023"; cycle grouping confirmed against Hall of Heroes\' own card database navigation (https://hallofheroeslcg.com/browse/), which lists Angel alongside Psylocke, X-23 and Deadpool under Cycle 7.',
+    releaseDateSource:
+      'Hall of Heroes Angel/Warren Worthington III page (https://hallofheroeslcg.com/angel-warren-worthington-iii/): "September 22, 2023"; cycle grouping confirmed against Hall of Heroes\' own card database navigation (https://hallofheroeslcg.com/browse/), which lists Angel alongside Psylocke, X-23 and Deadpool under Cycle 7.',
   },
   outDir: "src/data/angel",
   exportPrefix: "ANGEL",

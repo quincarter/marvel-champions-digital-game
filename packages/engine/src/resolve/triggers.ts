@@ -27,20 +27,16 @@ function matchesPattern(
   const subjects = eventSubjects(event);
   if (pattern.selfIs === "source" && !subjects.sources.includes(selfId)) return false;
   if (pattern.selfIs === "target" && !subjects.targets.includes(selfId)) return false;
-  if (
-    pattern.selfIs === "either" &&
-    !subjects.sources.includes(selfId) &&
-    !subjects.targets.includes(selfId)
-  ) {
+  if (pattern.selfIs === "either" && !subjects.sources.includes(selfId) && !subjects.targets.includes(selfId)) {
     return false;
   }
   const controller = controllerOverride ?? controllerOf(state, selfId);
   if (pattern.playerIs === "controller") {
     // An encounter card has no controller: its "you" is the player the event is about.
-    if (!controller) return actingPlayerOf(event, pattern) !== null && matchesRest(state, pattern, event, selfId, null, deps);
+    if (!controller)
+      return actingPlayerOf(event, pattern) !== null && matchesRest(state, pattern, event, selfId, null, deps);
     // RRG p.9: "after [enemy] attacks you" resolves for the attacked player, not the defender.
-    const attackedPlayer =
-      pattern.usesAttackedPlayer && event.kind === "enemyAttack" ? event.attackedPlayerId : null;
+    const attackedPlayer = pattern.usesAttackedPlayer && event.kind === "enemyAttack" ? event.attackedPlayerId : null;
     if (attackedPlayer !== null) {
       if (controller !== attackedPlayer) return false;
     } else if (!subjects.players.includes(controller)) {
@@ -111,7 +107,6 @@ function actingPlayerOf(event: TriggerEvent, pattern: EventPattern): PlayerId | 
   return eventSubjects(event).players[0] ?? null;
 }
 
-
 /** RRG "Hero Interrupt"/"Alter-Ego Response": the gate is on the controller's current form. */
 const formSatisfied = (state: GameState, controllerId: PlayerId | null, form: Form | undefined): boolean => {
   if (!form) return true;
@@ -138,7 +133,11 @@ export function candidatesFor(
       if (limitReached(state, id, ref.id, definition, event)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
       // RRG "Cost": an ability whose cost can't be paid can't be triggered.
-      if (definition.cost && controllerId && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set()))) {
+      if (
+        definition.cost &&
+        controllerId &&
+        isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set()))
+      ) {
         continue;
       }
       const acting = controllerId ?? actingPlayerOf(event, trigger.on);
@@ -179,12 +178,14 @@ function spentCardCandidates(
       const trigger = definition.trigger;
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
       if (trigger.on.selfIs !== "source") continue;
-      const kinds: readonly TriggerEvent["kind"][] = typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
+      const kinds: readonly TriggerEvent["kind"][] =
+        typeof trigger.on.on === "string" ? [trigger.on.on] : trigger.on.on;
       if (!kinds.includes("resourcesSpent")) continue;
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
       if (limitReached(state, id, ref.id, definition, event)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps, controllerId)) continue;
-      if (definition.cost && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set()))) continue;
+      if (definition.cost && isPriceFault(planCost(state, deps, id, controllerId, definition.cost, {}, new Set())))
+        continue;
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId, definition }, forced));
     }
   }

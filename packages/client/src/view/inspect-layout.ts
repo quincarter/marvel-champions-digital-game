@@ -22,6 +22,24 @@
  * their caps and center with more margin, exactly as D08's own `padding: 0
  * 70px` does at 1440px.
  *
+ * **The pair is content-sized, not viewport-stretched** (owner feedback,
+ * 2026-09-21: the ink "Rules & state" panel was reading as mostly empty with
+ * a bare scrollbar track in it). The panel height is `max(card panel's own
+ * content height, rules panel's own content height)`, clamped to the
+ * viewport minus padding, then the pair is vertically centered — the same
+ * shape D08 draws for its one worked example, where both panels happen to
+ * come out equal. Neither pure function in here measures text: both take
+ * pre-measured numbers (`cardFaceContentHeight`'s own `CardFaceContent`,
+ * mirroring `cardFaceLayout`'s), the same "the scene measures, this file only
+ * lays out" contract `cardFaceLayout` already kept for `rulesTextLines`. The
+ * rules panel's own content height has no pure counterpart here — its
+ * sections (right now / timing / keywords / traits / history) are the
+ * scene's own bespoke draw, not `inspect-layout.ts`'s concern — so
+ * `scenes/inspect.ts#rebuild` calls `inspectLayout` twice: once to learn each
+ * panel's *width* (content-independent), then again, after measuring both
+ * panels' natural content height at that width, to get the final centered
+ * rect pair.
+ *
  * **Sheet mode.** P14's bottom sheet: a grab handle, a scrolling content
  * region, and a sticky ink footer of two rows (the primary Play/Pay row,
  * then the quiet Full rules text/Close row). `expanded` (the "Full rules
@@ -37,7 +55,7 @@
  * testable without a canvas.
  */
 
-import { estimateWrappedLines, formFactorFor, type Rect } from "./layout.js";
+import { formFactorFor, type Rect } from "./layout.js";
 
 export interface InspectPanelsLayout {
   readonly mode: "panels";
@@ -64,8 +82,8 @@ const CARD_MAX_WIDTH = 400;
 const RULES_MAX_WIDTH = 440;
 const PANEL_GAP = 26;
 const HINT_HEIGHT = 24;
+/** The floor under both panels' height — mostly a guard against a degenerate near-zero viewport; real content almost always exceeds it. */
 const PANEL_MIN_HEIGHT = 320;
-const PANEL_MAX_HEIGHT = 660;
 
 const SHEET_HANDLE_HEIGHT = 18;
 const SHEET_FOOTER_PRIMARY_HEIGHT = 48;
@@ -79,15 +97,27 @@ const SHEET_COLLAPSED_FRACTION = 0.78;
 export interface InspectLayoutOptions {
   /** Phone only: "Full rules text" was tapped, so the sheet grows to cover the whole viewport. */
   readonly expanded?: boolean;
+  /**
+   * Panels only: each panel's own natural (unclamped) content height in px — the scene's own measurement, passed in
+   * rather than measured here (this file's own header comment). Defaults to `PANEL_MIN_HEIGHT`, which is what a
+   * caller gets on the first of `scenes/inspect.ts#rebuild`'s two `inspectLayout` calls, made before either panel's
+   * content has been measured, purely to learn the panels' own (content-independent) width.
+   */
+  readonly cardContentHeight?: number;
+  readonly rulesContentHeight?: number;
 }
 
 export function inspectLayout(viewport: Rect, opts: InspectLayoutOptions = {}): InspectLayout {
   const formFactor = formFactorFor(viewport.width, viewport.height);
   if (formFactor === "phone") return sheetLayout(viewport, opts.expanded ?? false);
-  return panelsLayout(viewport);
+  return panelsLayout(
+    viewport,
+    opts.cardContentHeight ?? PANEL_MIN_HEIGHT,
+    opts.rulesContentHeight ?? PANEL_MIN_HEIGHT,
+  );
 }
 
-function panelsLayout(viewport: Rect): InspectPanelsLayout {
+function panelsLayout(viewport: Rect, cardContentHeight: number, rulesContentHeight: number): InspectPanelsLayout {
   const pad = clamp(viewport.width * 0.03, 24, 70);
   const gap = clamp(viewport.width * 0.018, 10, PANEL_GAP);
   const totalWidth = Math.max(0, viewport.width - pad * 2);
@@ -95,26 +125,55 @@ function panelsLayout(viewport: Rect): InspectPanelsLayout {
   const rulesWidth = Math.max(0, Math.min(RULES_MAX_WIDTH, totalWidth - gap - cardWidth));
   const groupWidth = cardWidth + gap + rulesWidth;
 
-  const height = Math.max(0, viewport.height - pad * 2 - HINT_HEIGHT);
-  const panelHeight = clamp(height, PANEL_MIN_HEIGHT, PANEL_MAX_HEIGHT);
+  // "The pair's height = max(card content height, rules content height), clamped to the viewport minus padding" —
+  // this file's own header comment. `maxHeight` itself never drops below `PANEL_MIN_HEIGHT`, so a very short
+  // viewport degrades to that floor rather than to something smaller still.
+  const maxHeight = Math.max(PANEL_MIN_HEIGHT, viewport.height - pad * 2 - HINT_HEIGHT);
+  const natural = Math.max(PANEL_MIN_HEIGHT, cardContentHeight, rulesContentHeight);
+  const panelHeight = Math.min(natural, maxHeight);
 
   const groupX = viewport.x + (viewport.width - groupWidth) / 2;
-  const groupY = viewport.y + Math.max(pad / 2, (viewport.height - HINT_HEIGHT - panelHeight) / 2);
+  const groupY = viewport.y + Math.max(0, (viewport.height - HINT_HEIGHT - panelHeight) / 2);
 
   const card: Rect = { x: groupX, y: groupY, width: cardWidth, height: panelHeight };
   const rules: Rect = { x: groupX + cardWidth + gap, y: groupY, width: rulesWidth, height: panelHeight };
-  const hint: Rect = { x: viewport.x, y: viewport.y + viewport.height - HINT_HEIGHT, width: viewport.width, height: HINT_HEIGHT };
+  const hint: Rect = {
+    x: viewport.x,
+    y: viewport.y + viewport.height - HINT_HEIGHT,
+    width: viewport.width,
+    height: HINT_HEIGHT,
+  };
   return { mode: "panels", card, rules, hint };
 }
 
 function sheetLayout(viewport: Rect, expanded: boolean): InspectSheetLayout {
   const sheetHeight = expanded ? viewport.height : Math.round(viewport.height * SHEET_COLLAPSED_FRACTION);
-  const sheet: Rect = { x: viewport.x, y: viewport.y + viewport.height - sheetHeight, width: viewport.width, height: sheetHeight };
+  const sheet: Rect = {
+    x: viewport.x,
+    y: viewport.y + viewport.height - sheetHeight,
+    width: viewport.width,
+    height: sheetHeight,
+  };
   const handle: Rect = { x: sheet.x, y: sheet.y, width: sheet.width, height: SHEET_HANDLE_HEIGHT };
 
-  const footerHeight = SHEET_FOOTER_PAD_TOP + SHEET_FOOTER_PRIMARY_HEIGHT + SHEET_FOOTER_GAP + SHEET_FOOTER_QUIET_HEIGHT + SHEET_FOOTER_PAD_BOTTOM;
-  const footer: Rect = { x: sheet.x, y: sheet.y + sheet.height - footerHeight, width: sheet.width, height: footerHeight };
-  const footerPrimaryRow: Rect = { x: footer.x + 12, y: footer.y + SHEET_FOOTER_PAD_TOP, width: footer.width - 24, height: SHEET_FOOTER_PRIMARY_HEIGHT };
+  const footerHeight =
+    SHEET_FOOTER_PAD_TOP +
+    SHEET_FOOTER_PRIMARY_HEIGHT +
+    SHEET_FOOTER_GAP +
+    SHEET_FOOTER_QUIET_HEIGHT +
+    SHEET_FOOTER_PAD_BOTTOM;
+  const footer: Rect = {
+    x: sheet.x,
+    y: sheet.y + sheet.height - footerHeight,
+    width: sheet.width,
+    height: footerHeight,
+  };
+  const footerPrimaryRow: Rect = {
+    x: footer.x + 12,
+    y: footer.y + SHEET_FOOTER_PAD_TOP,
+    width: footer.width - 24,
+    height: SHEET_FOOTER_PRIMARY_HEIGHT,
+  };
   const footerQuietRow: Rect = {
     x: footer.x + 12,
     y: footerPrimaryRow.y + footerPrimaryRow.height + SHEET_FOOTER_GAP,
@@ -140,8 +199,9 @@ export function inspectLayoutRects(layout: InspectLayout): readonly Rect[] {
 const clamp = (value: number, min: number, max: number): number => Math.min(max, Math.max(min, value));
 
 // ---------------------------------------------------------------------------
-// The card panel's own internal split (D08's paper card): header, art, the
-// scrolling rules-text region, an optional stat line, resource pips, footer.
+// The card panel's own internal split (D08's paper card): header, a
+// fixed-height art band, an optional stat line, the rules/printed-text/
+// flavor/pips block, footer.
 // ---------------------------------------------------------------------------
 
 export interface CardFaceLayout {
@@ -151,57 +211,133 @@ export interface CardFaceLayout {
   readonly art: Rect | null;
   readonly artRule: Rect | null;
   readonly stats: Rect | null;
+  /**
+   * The rules-text/printed-text/flavor/resource-pips block. Drawn as plain stacked text (and graphics, for the
+   * pips) when the scene's own measurement says it fits — D08 draws no scrollbar on an ordinary card — or as a
+   * `McScrollPanel` filling this same rect when it doesn't (`scenes/inspect.ts#drawCardPanel`'s own comment).
+   */
   readonly scroll: Rect;
-  readonly icons: Rect | null;
   readonly footerRule: Rect;
   readonly footer: Rect;
 }
 
 export interface CardFaceContent {
-  /** From `estimateWrappedLines(model.rulesText + printed + flavor, bodyWidth, CHAR_WIDTH)` — the scene's job, since only it knows the live wrap width and font metrics. */
+  /** The rules-text font size in play: 14, or 17 under `largeCardText` (`scenes/inspect.ts`'s own comment on that setting). Both the line height used here and the scene's own wrap-width measurement scale from it. */
+  readonly bodySize: number;
+  /** `estimateWrappedLines(model.rulesText, bodyWidth, bodySize * CHAR_WIDTH_RATIO)` — the scene's job, since only it knows the live wrap width. */
   readonly rulesTextLines: number;
+  /** Wrapped lines of the printed-text-superseded-by-errata block, its own one-line label included. 0 for a card with no errata. */
+  readonly printedTextLines: number;
+  /** Wrapped lines of the flavor text, at 11px. 0 for a card with none. */
+  readonly flavorLines: number;
   readonly hasStats: boolean;
+  /** The resource-pip row ("Generates 2 energy when spent"). */
   readonly hasIcons: boolean;
 }
 
 const HEADER_HEIGHT = 62;
-const FOOTER_HEIGHT = 28;
+const FOOTER_HEIGHT = 30;
 const RULE_WEIGHT = 4;
-const STATS_HEIGHT = 30;
-const ICONS_HEIGHT = 30;
-/** Matches `typeRole.body`'s 11px/1.45 line height, the role the rules-text scroll panel draws with. */
-const BODY_LINE_HEIGHT = 16;
+const STATS_HEIGHT = 22;
+const ICONS_HEIGHT = 26;
+/** D08's own `padding:14px` / `gap:10px` on the card's text block. */
+const TEXT_PAD = 14;
+const TEXT_GAP = 10;
+/** D08's own 250px art band at its own 400px panel width — scaled to whatever width the panel actually draws at. */
+const ART_ASPECT = 250 / 400;
+/** Below this the art band reads as a sliver, not a picture, so it is dropped entirely rather than drawn tiny. */
+const MIN_ART_HEIGHT = 60;
+/** The floor the text block is guaranteed before the art is allowed to claim the rest — never zero, never negative. */
+const MIN_TEXT_HEIGHT = 20;
+const RULES_LINE_HEIGHT_RATIO = 1.45;
+/** The printed-text-superseded-by-errata block always draws at 11px (point 4 of the owner's own list). */
+const PRINTED_LINE_HEIGHT = 11 * RULES_LINE_HEIGHT_RATIO;
+/** Flavor's own 11px/1.4 line height (D08's `font-style:italic;opacity:.65;line-height:1.4`). */
+const FLAVOR_LINE_HEIGHT = 11 * 1.4;
+
+function artHeightFor(width: number): number {
+  return Math.round(width * ART_ASPECT);
+}
+
+/** The text block's own natural height: padding, the rules text, and whichever of printed text/flavor/pips are present, each with its own leading gap. */
+function textBlockHeight(content: CardFaceContent): number {
+  let inner = content.rulesTextLines * content.bodySize * RULES_LINE_HEIGHT_RATIO;
+  if (content.printedTextLines > 0) inner += TEXT_GAP + content.printedTextLines * PRINTED_LINE_HEIGHT;
+  if (content.flavorLines > 0) inner += TEXT_GAP + content.flavorLines * FLAVOR_LINE_HEIGHT;
+  if (content.hasIcons) inner += TEXT_GAP + ICONS_HEIGHT;
+  return TEXT_PAD * 2 + inner;
+}
 
 /**
- * The scan gets the room, and the text fits around it — the opposite of the
- * table, where text leads (`scenes/inspect.ts`'s own header comment, carried
- * over verbatim from the pre-rebuild file). Whatever the text needs is
- * estimated first, but the art keeps a floor of just over half the panel so a
- * short "deal 3 damage" card never shrinks its own picture down to nothing.
+ * The card panel's own natural (unclamped) height at `width` — what
+ * `scenes/inspect.ts#rebuild` measures and hands to `inspectLayout` as
+ * `cardContentHeight` (this file's own header comment, point 1).
+ */
+export function cardFaceContentHeight(width: number, content: CardFaceContent): number {
+  const stats = content.hasStats ? STATS_HEIGHT + TEXT_GAP : 0;
+  return (
+    HEADER_HEIGHT +
+    RULE_WEIGHT +
+    artHeightFor(width) +
+    RULE_WEIGHT +
+    stats +
+    textBlockHeight(content) +
+    RULE_WEIGHT +
+    FOOTER_HEIGHT
+  );
+}
+
+/**
+ * The card panel's own internal split, for whatever `rect` `panelsLayout` actually granted it — which may be
+ * exactly `cardFaceContentHeight(rect.width, content)` (the ordinary case, nothing clamped) or shorter (the rules
+ * panel was the taller of the pair, or the viewport itself capped both) or taller (the rules panel was taller and
+ * every panel shares its height — the extra room becomes blank paper between the text block and the footer, which
+ * stays pinned to the very bottom of `rect` either way).
+ *
+ * The art band is fixed at `ART_ASPECT` of the panel's own width (D08's own 250px-at-400px band) and only shrinks —
+ * down to nothing, on a truly tiny panel — once the space below the header can't hold both it and a sliver of text.
  */
 export function cardFaceLayout(rect: Rect, content: CardFaceContent): CardFaceLayout {
   const header: Rect = { x: rect.x, y: rect.y, width: rect.width, height: HEADER_HEIGHT };
-  const headerRule: Rect = { x: rect.x + 5, y: rect.y + HEADER_HEIGHT, width: rect.width - 10, height: RULE_WEIGHT };
+  const headerRule: Rect = { x: rect.x, y: rect.y + HEADER_HEIGHT, width: rect.width, height: RULE_WEIGHT };
 
   const footer: Rect = { x: rect.x, y: rect.y + rect.height - FOOTER_HEIGHT, width: rect.width, height: FOOTER_HEIGHT };
-  const footerRule: Rect = { x: rect.x + 5, y: footer.y, width: rect.width - 10, height: RULE_WEIGHT };
+  const footerRule: Rect = { x: rect.x, y: footer.y - RULE_WEIGHT, width: rect.width, height: RULE_WEIGHT };
 
   const artTop = rect.y + HEADER_HEIGHT + RULE_WEIGHT;
-  const available = Math.max(0, footer.y - artTop);
-  const textHeight = content.rulesTextLines * BODY_LINE_HEIGHT + (content.hasStats ? STATS_HEIGHT : 0) + (content.hasIcons ? ICONS_HEIGHT : 0) + 24;
-  const artHeight = Math.max(Math.min(available * 0.52, available), Math.min(available * 0.78, available - textHeight - 20));
+  const availableBelowHeader = Math.max(0, footerRule.y - artTop);
+  const stats = content.hasStats ? STATS_HEIGHT + TEXT_GAP : 0;
 
-  const art: Rect | null = artHeight > 40 ? { x: rect.x + 5, y: artTop, width: rect.width - 10, height: artHeight } : null;
-  const artRule: Rect | null = art ? { x: art.x, y: art.y + art.height, width: art.width, height: RULE_WEIGHT } : null;
+  const desiredArt = artHeightFor(rect.width);
+  // The art's own trailing rule (`RULE_WEIGHT`) is reserved here too, not just the art's height and the text
+  // floor below it — omitting it let the art claim 4px more than `cardFaceContentHeight` had actually budgeted
+  // for it, which shorted the scroll region by that same 4px in the ordinary (unclamped) case and, at the margin,
+  // tipped an otherwise-fitting card into the `McScrollPanel` fallback (found reading a tablet-portrait screenshot
+  // during D08 verification, 2026-09-21: a short Interrupt card scrolling when it had no need to).
+  const reserveForText = Math.min(MIN_TEXT_HEIGHT + stats, availableBelowHeader);
+  const artHeight = Math.max(0, Math.min(desiredArt, availableBelowHeader - RULE_WEIGHT - reserveForText));
 
-  let y = (art ? art.y + art.height + RULE_WEIGHT : artTop) + 12;
-  const stats: Rect | null = content.hasStats ? { x: rect.x + 14, y, width: rect.width - 28, height: STATS_HEIGHT } : null;
-  if (stats) y += STATS_HEIGHT;
+  let bodyTop = artTop;
+  let art: Rect | null = null;
+  let artRule: Rect | null = null;
+  if (artHeight >= MIN_ART_HEIGHT) {
+    art = { x: rect.x + 5, y: artTop, width: rect.width - 10, height: artHeight };
+    artRule = { x: rect.x, y: artTop + artHeight, width: rect.width, height: RULE_WEIGHT };
+    bodyTop = artTop + artHeight + RULE_WEIGHT;
+  }
 
-  const iconsTop = footer.y - (content.hasIcons ? ICONS_HEIGHT : 0) - 6;
-  const icons: Rect | null = content.hasIcons ? { x: rect.x + 14, y: iconsTop, width: rect.width - 28, height: ICONS_HEIGHT } : null;
+  let stats_: Rect | null = null;
+  if (content.hasStats) {
+    stats_ = { x: rect.x + 14, y: bodyTop, width: rect.width - 28, height: STATS_HEIGHT };
+    bodyTop += STATS_HEIGHT + TEXT_GAP;
+  }
 
-  const scroll: Rect = { x: rect.x + 10, y, width: rect.width - 20, height: Math.max(0, iconsTop - y) };
+  const scroll: Rect = {
+    x: rect.x + 10,
+    y: bodyTop,
+    width: rect.width - 20,
+    height: Math.max(0, footerRule.y - bodyTop),
+  };
 
-  return { header, headerRule, art, artRule, stats, scroll, icons, footerRule, footer };
+  return { header, headerRule, art, artRule, stats: stats_, scroll, footerRule, footer };
 }

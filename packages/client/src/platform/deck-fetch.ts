@@ -9,13 +9,23 @@
  */
 
 import { nativeGet } from "./native-http.js";
-import { deckImportError, interpretDeckResponse, marvelCdbDeckUrl, type DeckImportAnswer, type MarvelCdbDeckKind } from "./marvelcdb-upstream.js";
+import {
+  deckImportError,
+  interpretDeckResponse,
+  marvelCdbDeckUrl,
+  type DeckImportAnswer,
+  type MarvelCdbDeckKind,
+} from "./marvelcdb-upstream.js";
 import { detectPlatform, type Platform } from "./platform.js";
 
 /** Must match `MARVELCDB_IMPORT_ROUTE` in vite-marvelcdb-import.ts (a root-level plugin file, not part of this bundle). */
 const ROUTE = "/api/marvelcdb-import/";
 
-export async function fetchMarvelCdbDeck(kind: MarvelCdbDeckKind, id: string, platform: Platform = detectPlatform()): Promise<DeckImportAnswer> {
+export async function fetchMarvelCdbDeck(
+  kind: MarvelCdbDeckKind,
+  id: string,
+  platform: Platform = detectPlatform(),
+): Promise<DeckImportAnswer> {
   if (platform === "web") {
     const response = await fetch(`${ROUTE}${kind}/${id}`);
     return { status: response.status, body: await response.text() };

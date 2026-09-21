@@ -54,7 +54,8 @@ function recordArt(cards: readonly RawCard[]): void {
     if (c.imagesrc && !CORE_ART_BY_NAME.has(key)) CORE_ART_BY_NAME.set(key, c.imagesrc);
     if (c.linked_card) {
       const linkedKey = `${c.linked_card.type_code} ${c.linked_card.name}`;
-      if (c.linked_card.imagesrc && !CORE_ART_BY_NAME.has(linkedKey)) CORE_ART_BY_NAME.set(linkedKey, c.linked_card.imagesrc);
+      if (c.linked_card.imagesrc && !CORE_ART_BY_NAME.has(linkedKey))
+        CORE_ART_BY_NAME.set(linkedKey, c.linked_card.imagesrc);
     }
   }
 }
@@ -64,13 +65,17 @@ try {
   const allPacks = readdirSync(rawDir)
     .filter((f) => f.endsWith(".json"))
     .map((f) => f.slice(0, -".json".length));
-  const ordered = [...PRIORITY_ORDER.filter((p) => allPacks.includes(p)), ...allPacks.filter((p) => !PRIORITY_ORDER.includes(p)).sort()];
+  const ordered = [
+    ...PRIORITY_ORDER.filter((p) => allPacks.includes(p)),
+    ...allPacks.filter((p) => !PRIORITY_ORDER.includes(p)).sort(),
+  ];
   for (const pack of ordered) {
     const raw = JSON.parse(readFileSync(`${rawDir}${pack}.json`, "utf8")) as { cards: RawCard[] };
     recordArt(raw.cards);
     if (pack === "core") {
       for (const c of raw.cards) {
-        if (c.faction_code === "encounter" && c.type_code !== "obligation" && c.card_set_code) CORE_ENCOUNTER_SET_CODES.add(c.card_set_code);
+        if (c.faction_code === "encounter" && c.type_code !== "obligation" && c.card_set_code)
+          CORE_ENCOUNTER_SET_CODES.add(c.card_set_code);
       }
     }
   }

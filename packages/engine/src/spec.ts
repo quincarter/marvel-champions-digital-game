@@ -9,6 +9,10 @@ import type { Trait } from "@mc/content";
  * that time period."
  */
 export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfTurn";
+// Type-only, and the only reference spec.ts makes to `abilities.ts` (which imports types back from here):
+// `EffectSpec applyRuleUntil` carries the same `RuleSpec` union a constant ability's own `rules` do, so a
+// restriction is written once whether a card in play or a lasting effect imposes it (docs/phase7-wave2.md §22).
+import type { RuleSpec } from "./abilities.js";
 import type { PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep } from "./state.js";
@@ -88,6 +92,16 @@ export interface TargetQuery {
   readonly host?: TargetRef;
   /** In play facedown as something else ("each facedown Drone minion"). */
   readonly facedown?: boolean;
+  /**
+   * The card's boost area prints a star icon (★), or does not: "If that card has a star icon (★) in the boost area,
+   * defeat the attacked minion" (Longshot 35033, `wolv`) is `{ starIcon: true }` over the discarded card.
+   *
+   * The same printed fact `ValueSpec starIcons` counts, asked as a yes/no (`hasStarIcon`): read from
+   * `@mc/content`'s `starIcon` field, not from whether a `boost`-triggered ability is scripted (§18.6). A card with
+   * no boost area — any player card — never matches `true`. RRG 1.8 "Boost, Boost Icon" (p. 11): a star is not a
+   * boost icon, so this says nothing about the card's pip count.
+   */
+  readonly starIcon?: boolean;
   /** Cards with at least one printed icon of this resource type ("each card with a printed [mental] resource"). Wild is its own type. */
   readonly printedResource?: "physical" | "mental" | "energy" | "wild";
   /**
@@ -159,6 +173,49 @@ export interface TargetQuery {
    * is about set ownership, not about these deckbuilding filters).
    */
   readonly identitySetOf?: PlayerRef;
+  /**
+   * The minion of this player's own nemesis set: "each player searches the encounter deck, discard pile, and
+   * set-aside area for **their** nemesis minion" (Kang's Wrath 4B, 11013), "search … for **your** nemesis minion"
+   * (The Hood's Ambush; Face the Past, `magneto`), "reveal **your** set-aside nemesis minion" (Advance, Core).
+   *
+   * RRG 1.8 "Nemesis Encounter Set" (p. 30): "An identity's 'nemesis minion' is the minion belonging to that
+   * identity's nemesis set. If a nemesis set has multiple minions in it, the 'nemesis minion' is designated by
+   * parenthetical text printed on one or more of those minions." Both halves are checked: the card carries the
+   * parenthetical (`MinionCard.nemesisMinion`) **and** belongs to an encounter set that is this player's identity's
+   * own `nemesisEncounterSetId`.
+   *
+   * Unlike `identitySetOf` (player cards, read off the set icon in `aspect`), a nemesis set is encounter-side, which
+   * is why it needs its own field rather than a wider `identitySetOf` — see the same ruling's set-ownership note
+   * (Jun 25, 2026 (4)). Matches wherever the card is: in play, in a deck, in a discard pile or set aside.
+   */
+  readonly nemesisMinionOf?: PlayerRef;
+  /**
+   * The card has at least one trait in common with the cards this ref names: "play a card from your hand **that
+   * shares a trait with your hero**" (Team-Building Exercise, `ant` 12024) is `{ sharesTraitWith: identityOf(you) }`.
+   *
+   * `trait`/`anyTrait` name traits the *script* fixes; this one is whatever traits another card happens to have right
+   * now, which a generic basic-aspect card played by any hero cannot hardcode. Both sides are read live through
+   * `traitsOf`, so a granted trait counts on either end (RRG 1.8 "Gains", p. 21) — with the same `DEFAULT_DEPS` guard
+   * §17.5 put on a constant trait grant's own condition, which is what stops a grant whose target uses this field
+   * from re-entering the trait scan.
+   *
+   * A ref that names nothing, or names only cards with no traits, matches nothing: there is no trait to share.
+   * docs/phase7-wave2.md §20.1.
+   */
+  readonly sharesTraitWith?: TargetRef;
+  /**
+   * The card belongs to an encounter set that the cards this ref names belong to: "discard cards from the encounter
+   * deck until a card from the **Ant-Man Nemesis set** is discarded" (Yellowjacket's Plan, `ant` 12029) is
+   * `{ encounterSetOf: self }` — the card doing the searching is itself in that set, which is how every printed
+   * "a card from the <X> set" in cycle 1 is worded (the card naming the set is always a member of it).
+   *
+   * Reads `encounterSetIds` off the card data, so it matches wherever the card is (in an encounter deck, a discard
+   * pile, set aside, in play). A player card, or an encounter card belonging to no set, never matches.
+   *
+   * The sibling of `nemesisMinionOf`, which asks a narrower question (that player's nemesis set, *and* the
+   * parenthetical) through the same `encounterSetIds` field. docs/phase7-wave2.md §20.2.
+   */
+  readonly encounterSetOf?: TargetRef;
 }
 
 /** Names one instance without knowing its id at authoring time. */
@@ -315,6 +372,20 @@ export type ValueSpec =
   | { readonly kind: "threat"; readonly of: TargetRef }
   /** Boost icons printed on a card: "1 more than the number of boost icons on the discarded card" (with `scaled`). */
   | { readonly kind: "boostIcons"; readonly of: TargetRef }
+  /**
+   * How many of the cards a ref names print a star icon (★) in the boost area, wherever they are: "For each star icon
+   * in the boost area discarded this way, place 1 threat on the main scheme" (Slipping Sanity 15023, `scw`).
+   *
+   * **A star icon is not a boost icon** — RRG 1.8 "Boost, Boost Icon" (p. 11): "A star icon is not itself considered
+   * a boost icon, and does not contribute to the villain's ATK or SCH value." `starIcons` and `boostIcons` are
+   * therefore independent counts over the same pile; a card printing both pips and a star contributes to both
+   * (docs/phase7-wave2.md §24). A boost area carries at most one star, so each matching card adds exactly 1.
+   *
+   * Printed data (`hasStarIcon`), read wherever the cards are, and deliberately *not* derived from whether the card
+   * has a scripted `boost` ability — see §18.6. The sibling of `totalPrintedResources`; `<bind>.starIcons` is the
+   * same number summed over a `moveCards`/`discardEncounterCards` bind.
+   */
+  | { readonly kind: "starIcons"; readonly cards: TargetRef }
   /** A player's hand size; `printed` ignores modifiers ("draw up to your printed hand size"). */
   | { readonly kind: "handSize"; readonly player: PlayerRef; readonly printed?: boolean }
   /** Cards in a player's hand. */
@@ -336,7 +407,11 @@ export type ValueSpec =
    * a pool summed over a `moveCards`/`discardEncounterCards` bind, this reads whatever a `TargetRef` names, so a card
    * bound by a cost's own `discardFromHand` slot (which reports only a count) can be measured.
    */
-  | { readonly kind: "totalPrintedResources"; readonly cards: TargetRef; readonly types?: readonly ("physical" | "mental" | "energy" | "wild")[] }
+  | {
+      readonly kind: "totalPrintedResources";
+      readonly cards: TargetRef;
+      readonly types?: readonly ("physical" | "mental" | "energy" | "wild")[];
+    }
   /**
    * A villain's printed stage number (Death from Above, Wicked Ambitions): the numeral printed on the stage card
    * (`VillainStage.stageNumber`), not its index in the deck — expert play starts on stage II, whose number is 2.
@@ -411,7 +486,12 @@ export type Predicate =
    * and `varAtLeast` are the older, narrower spellings of the `atLeast` case and stay as they are; prefer `compare`
    * for anything new. Both sides are evaluated in this ability's context at the moment the predicate is read.
    */
-  | { readonly kind: "compare"; readonly left: ValueSpec; readonly op: "atLeast" | "atMost" | "equalTo"; readonly right: ValueSpec }
+  | {
+      readonly kind: "compare";
+      readonly left: ValueSpec;
+      readonly op: "atLeast" | "atMost" | "equalTo";
+      readonly right: ValueSpec;
+    }
   /**
    * The players are split into separate game areas (docs/phase7-wave2.md §3.1). The Master of Time 2B's "When all the
    * players have joined this game area, advance to stage 4A" is a `stateCheck` on `not(gameAreasSplit)`.
@@ -456,7 +536,13 @@ export type EffectSpec =
    * *players* removing threat from the main scheme while one is in play; this one effect steps over that check only.
    * It does not touch a `threatCannotBeRemoved` rule, which is a "cannot" (RRG 1.8 "'Cannot'", p. 11) and absolute.
    */
-  | { readonly kind: "removeThreat"; readonly target: TargetRef; readonly amount: ValueSpec; readonly ignoreCrisis?: boolean; readonly bind?: string }
+  | {
+      readonly kind: "removeThreat";
+      readonly target: TargetRef;
+      readonly amount: ValueSpec;
+      readonly ignoreCrisis?: boolean;
+      readonly bind?: string;
+    }
   /**
    * "(attack)": "Deal N damage to an enemy" resolved as an attack by your
    * identity (or `attacker`): guard, retaliate, "after X attacks" and overkill
@@ -520,6 +606,21 @@ export type EffectSpec =
       /** Scheme activations: "reduce the amount of threat placed on the scheme by 1" (Emergency) → `-1`. */
       readonly threatBonus?: ValueSpec;
     }
+  /**
+   * "Get +N to that power for this use" (Rapid Growth 13005; Venom's Pistol; Scarlet Witch ally `qsv`): a bonus to the
+   * basic power currently being used, on the character using it, for that use only.
+   *
+   * Resolves against the `basicPowerUsing` event on the stack (docs/phase7-wave2.md §17.4), so "that power" is read
+   * rather than named — one effect covers ATK, THW and DEF, which is what a card that says "one of your hero's basic
+   * powers (THW, ATK, or DEF)" needs from a single ability. It is a `statModifier` on that character for the matching
+   * stat, so it composes with every other modifier and is read when the power's value is read, whatever else the same
+   * ability did first (a form change, for instance). Its duration is the activation the power belongs to — the
+   * attack, the thwart, or the enemy attack a defense answers — so it expires with that use, never carrying into the
+   * next one. Outside a basic-power use it does nothing.
+   *
+   * `amount` is signed: a negative is "reduce your hero's ATK for that attack" (Ultimate Nullifier).
+   */
+  | { readonly kind: "modifyBasicPower"; readonly amount: ValueSpec }
   /** "At the end of this attack, …" — runs after the current attack's responses. The triggering event carries its `results`. */
   | { readonly kind: "atEndOfAttack"; readonly effects: readonly EffectSpec[] }
   /** "After this activation ends, shuffle this card into the encounter deck" (Goblin Knight's boost): `atEndOfAttack`'s timing, for an attack or a scheme. */
@@ -582,8 +683,40 @@ export type EffectSpec =
     }
   /** "Until the end of the phase, treat this card's printed text box as if it were blank" (Edison's Giant Robot). */
   | { readonly kind: "blankTextBox"; readonly target: TargetRef; readonly until: LastingUntil }
+  /**
+   * "You cannot change form **until your next turn ends**" (Care for Cassie, `ant` 12025) / "You cannot ready your
+   * identity until your next turn ends" (Need for Speed, `qsv` 14024): a `RuleSpec` with a clock on it, as a
+   * `LastingEffectBody ruleGrant`. Both cards discard themselves as they resolve, so there is no card left in play
+   * to carry the restriction as a constant ability — the restriction has to outlive its source (RRG 1.8 "Lasting
+   * Effects", p. 26). docs/phase7-wave2.md §22.
+   *
+   * `until`:
+   * - `"endOfPhase"` / `"endOfRound"` — the ordinary boundaries;
+   * - `"endOfTurn"` — the turn in progress; like every other "this turn" effect it is **not created** outside one
+   *   (RRG 1.8 "Lasting Effects", p. 26, and §13.3);
+   * - `"endOfNextTurn"` — "until your next turn ends": the first turn `player` *begins* from now on. Created
+   *   whenever the effect resolves, including in the villain phase, which is where both obligations resolve.
+   *
+   * `player` is whose turn `"endOfNextTurn"` waits for; absent, the ability's controller ("**your** next turn").
+   * It is read for that duration only.
+   *
+   * `"endOfAttack"` is deliberately absent: no card prints a restriction scoped to one attack, and an
+   * attack-scoped one would have to name the activation frame the way `modifyStatUntil` does.
+   */
+  | {
+      readonly kind: "applyRuleUntil";
+      readonly rule: RuleSpec;
+      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn";
+      readonly player?: PlayerRef;
+    }
   /** "Gain the Aerial trait until the end of the phase" (Rocket Boots). */
-  | { readonly kind: "grantTraitUntil"; readonly trait: Trait; readonly target?: TargetRef; readonly affects?: TargetQuery; readonly until: LastingUntil }
+  | {
+      readonly kind: "grantTraitUntil";
+      readonly trait: Trait;
+      readonly target?: TargetRef;
+      readonly affects?: TargetQuery;
+      readonly until: LastingUntil;
+    }
   /** A delayed effect: "At the end of the round, if Nick Fury is still in play, discard him." Fires after round-end lasting effects expire. */
   | { readonly kind: "atEndOfRound"; readonly effects: readonly EffectSpec[] }
   /**
@@ -635,7 +768,11 @@ export type EffectSpec =
   | {
       readonly kind: "chooseOne";
       readonly chooser: PlayerRef;
-      readonly options: readonly { readonly label: string; readonly condition?: Predicate; readonly effects: readonly EffectSpec[] }[];
+      readonly options: readonly {
+        readonly label: string;
+        readonly condition?: Predicate;
+        readonly effects: readonly EffectSpec[];
+      }[];
       /**
        * "Choose two of the following (you may choose the same option twice)" (Double Time; docs/phase7-wave2.md §3.7):
        * `count` options are chosen and resolve in the order chosen. RRG 1.8 "Choose (Option)" (p. 12) forbids choosing an
@@ -746,7 +883,12 @@ export type EffectSpec =
    * and sets `<bind>.made` to 1; paying nothing (or too little) declines and
    * sets it to 0, so the alternative can follow as `if not <bind>.made`.
    */
-  | { readonly kind: "spendResources"; readonly player: PlayerRef; readonly resources: ResourceRequirement; readonly bind: string }
+  | {
+      readonly kind: "spendResources";
+      readonly player: PlayerRef;
+      readonly resources: ResourceRequirement;
+      readonly bind: string;
+    }
   /**
    * "Put the top card of your deck into play facedown, engaged with you as a
    * [Drone] minion." For each player, `count` times (default 1). An empty deck
@@ -754,7 +896,12 @@ export type EffectSpec =
    * your deck and dealing yourself a facedown encounter card"). When it leaves
    * play it goes to its owner's zones and is itself again.
    */
-  | { readonly kind: "putIntoPlayFacedown"; readonly player: PlayerRef; readonly count?: ValueSpec; readonly as: FacedownRole }
+  | {
+      readonly kind: "putIntoPlayFacedown";
+      readonly player: PlayerRef;
+      readonly count?: ValueSpec;
+      readonly as: FacedownRole;
+    }
   /** Binds the cards a selector names now into `slot` (and `<slot>.count`): "your set-aside nemesis minion", "the Breakin' & Takin' side scheme in the encounter deck or discard". */
   | { readonly kind: "selectCards"; readonly slot: string; readonly cards: CardSelector }
   /** "Reveal it": each card goes through the full reveal procedure (RRG "Reveal") for `player`, from wherever it is. */
@@ -819,7 +966,12 @@ export type EffectSpec =
    * encounter card happen at the next draw from that deck rather than the instant it empties. That is a pre-existing
    * engine-wide modeling choice, not one this effect makes.
    */
-  | { readonly kind: "discardDeckUntil"; readonly player: PlayerRef; readonly filter: TargetQuery; readonly bind: string }
+  | {
+      readonly kind: "discardDeckUntil";
+      readonly player: PlayerRef;
+      readonly filter: TargetQuery;
+      readonly bind: string;
+    }
   /**
    * "Discard the top N cards of the encounter deck" (Electro, Lightning Bolt, Shock Therapy). The active villain's
    * deck (§3.2); each card goes to its own deck's discard pile (`home`).
@@ -831,9 +983,14 @@ export type EffectSpec =
    * reset first (with its acceleration token), and the discarding then happens from the new deck.
    *
    * `bind` binds the discarded cards to that slot, their number to `<bind>.count`, the sum of their boost icons
-   * (printed plus modifiers) to `<bind>.boostIcons` and their printed resource icons to `<bind>.physical` /
+   * (printed plus modifiers) to `<bind>.boostIcons`, how many of them print a star icon in the boost area to
+   * `<bind>.starIcons`, and their printed resource icons to `<bind>.physical` /
    * `.mental` / `.energy` / `.wild` — the same bind shape `moveCards` reports, so "1 indirect damage for each boost
-   * icon discarded this way" reads `<bind>.boostIcons` whichever effect did the discarding. The totals cover exactly
+   * icon discarded this way" reads `<bind>.boostIcons` whichever effect did the discarding. `<bind>.starIcons` is a
+   * separate total, not a part of `<bind>.boostIcons` (RRG 1.8 "Boost, Boost Icon", p. 11: "A star icon is not itself
+   * considered a boost icon"): "Discard the top 5 cards of the encounter deck. For each star icon in the boost area
+   * discarded this way, place 1 threat on the main scheme" (Slipping Sanity 15023, `scw`) reads `<bind>.starIcons`,
+   * and a discarded card printing both pips and a star adds to both totals. The totals cover exactly
    * the cards this effect reached: a discard cut short by the empty-deck rule above counts only what it got.
    * `forEachDiscarded` runs its
    * effects once per discarded card, in discard order, with that card bound to its `slot` ("Each time a Goblin minion
@@ -848,7 +1005,12 @@ export type EffectSpec =
   /** "Place a random card from their hand facedown here" — tucked cards are out of play (RRG "Tuck"). */
   | { readonly kind: "tuckCards"; readonly cards: CardSelector; readonly under: TargetRef; readonly facedown?: boolean }
   /** "Assign X damage among heroes and allies": the chooser places it one point at a time; each character then takes its share as one damage event. */
-  | { readonly kind: "assignDamage"; readonly amount: ValueSpec; readonly among: TargetQuery; readonly chooser: PlayerRef }
+  | {
+      readonly kind: "assignDamage";
+      readonly amount: ValueSpec;
+      readonly among: TargetQuery;
+      readonly chooser: PlayerRef;
+    }
   /**
    * "Deal N indirect damage to each player" / "… to you" (RRG 1.8 "Indirect Damage", p. 24). Each player divides it
    * among the characters they control (one `assignIndirectDamage` choice, `authority: "player"`; user decision,
@@ -857,7 +1019,12 @@ export type EffectSpec =
    * friendly character. Everything assigned then resolves simultaneously as one `damageGroup`. `bind`: `<bind>.amount`
    * (damage taken, summed) and `<bind>.made`.
    */
-  | { readonly kind: "dealIndirectDamage"; readonly to: PlayerRef | "group"; readonly amount: ValueSpec; readonly bind?: string }
+  | {
+      readonly kind: "dealIndirectDamage";
+      readonly to: PlayerRef | "group";
+      readonly amount: ValueSpec;
+      readonly bind?: string;
+    }
   | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**
    * "Discard N cards from your hand" / "Each player must choose and discard 1 resource of any type from their hand
@@ -873,7 +1040,13 @@ export type EffectSpec =
    *
    * `random` discards at random instead of asking, and honours `filter` the same way.
    */
-  | { readonly kind: "discardFromHand"; readonly player: PlayerRef; readonly amount: ValueSpec; readonly random?: boolean; readonly filter?: TargetQuery }
+  | {
+      readonly kind: "discardFromHand";
+      readonly player: PlayerRef;
+      readonly amount: ValueSpec;
+      readonly random?: boolean;
+      readonly filter?: TargetQuery;
+    }
   /** Turns the top N encounter cards faceup without revealing them (RRG "Search"). */
   | {
       readonly kind: "revealTopOfEncounterDeck";
@@ -884,8 +1057,18 @@ export type EffectSpec =
   | { readonly kind: "ready"; readonly target: TargetRef }
   | { readonly kind: "giveStatus"; readonly target: TargetRef; readonly status: StatusName }
   | { readonly kind: "removeStatus"; readonly target: TargetRef; readonly status: StatusName }
-  | { readonly kind: "addCounters"; readonly target: TargetRef; readonly counterType: string; readonly amount: ValueSpec }
-  | { readonly kind: "removeCounters"; readonly target: TargetRef; readonly counterType: string; readonly amount: ValueSpec }
+  | {
+      readonly kind: "addCounters";
+      readonly target: TargetRef;
+      readonly counterType: string;
+      readonly amount: ValueSpec;
+    }
+  | {
+      readonly kind: "removeCounters";
+      readonly target: TargetRef;
+      readonly counterType: string;
+      readonly amount: ValueSpec;
+    }
   /**
    * "Attach 1 card from your hand facedown here" (Bruno Carrelli): `facedown` attaches it face down, and a facedown
    * card in play has no title, traits, keywords or abilities until it is turned faceup or leaves play.
@@ -904,7 +1087,12 @@ export type EffectSpec =
    * instructs it. `chooser` orders the cards and they go back on top of the encounter deck in that order, the first
    * card chosen ending up on top.
    */
-  | { readonly kind: "reorderCards"; readonly cards: CardSelector; readonly chooser: PlayerRef; readonly to: "encounterDeckTop" }
+  | {
+      readonly kind: "reorderCards";
+      readonly cards: CardSelector;
+      readonly chooser: PlayerRef;
+      readonly to: "encounterDeckTop";
+    }
   /**
    * "Set his hit point dial to 1 instead" (Captain America's Helmet), as a replacement for a defeat. RRG 1.8 "Hit
    * Points" (p. 22): the dial is the character's remaining hit points, so this sets sustained damage to maximum hit
@@ -920,7 +1108,12 @@ export type EffectSpec =
    * produce while it resolves, and it ends when that card finishes resolving — a card returned to hand and replayed
    * in the same phase does not keep it. Prevention is not removal, so Shrink does nothing for a prevent effect.
    */
-  | { readonly kind: "modifyCardEffect"; readonly card: TargetRef; readonly damage?: ValueSpec; readonly threatRemoved?: ValueSpec }
+  | {
+      readonly kind: "modifyCardEffect";
+      readonly card: TargetRef;
+      readonly damage?: ValueSpec;
+      readonly threatRemoved?: ValueSpec;
+    }
   | { readonly kind: "putIntoPlay"; readonly card: TargetRef; readonly controller: PlayerRef }
   /**
    * "Deal an encounter card to each player" / "Deal 2 encounter cards to each player" (Green Goblin II). Cards come
@@ -971,7 +1164,11 @@ export type EffectSpec =
    * Completed). Logged with an existing outcome reason: a win as `villainDefeated`, a loss as `reason` (default
    * `mainSchemeCompleted`). Needed where `Scenario.victory` is `"cardAbility"` (docs/phase7-wave2.md §3.4).
    */
-  | { readonly kind: "endGame"; readonly result: "win" | "loss"; readonly reason?: "mainSchemeCompleted" | "allPlayersDefeated" }
+  | {
+      readonly kind: "endGame";
+      readonly result: "win" | "loss";
+      readonly reason?: "mainSchemeCompleted" | "allPlayersDefeated";
+    }
   /**
    * "Add Kang (Immortus) to the game area" / "Reveal Kang (III) and add him to the game area" (docs/phase7-wave2.md
    * §3.4): each set-aside villain `villain` names (bind it with `selectCards` over `encounterSetAside` first) enters play
@@ -997,7 +1194,12 @@ export type EffectSpec =
    * it"), then its B side's starting threat is placed. `removeUnused` then removes the rest of the group from the game
    * ("Remove any unused stage 3 schemes from the game"). Only in a scenario with `separateGameAreas`.
    */
-  | { readonly kind: "revealMainSchemeStage"; readonly player: PlayerRef; readonly stageNumber: number; readonly removeUnused?: boolean }
+  | {
+      readonly kind: "revealMainSchemeStage";
+      readonly player: PlayerRef;
+      readonly stageNumber: number;
+      readonly removeUnused?: boolean;
+    }
   /**
    * "Create your own game area and place this scheme in it" (Kang's stage 3A cards): a new separate game area for the
    * resolving player, whose main scheme is this card (the stage instance `revealMainSchemeStage` created). The player's
@@ -1028,7 +1230,13 @@ export type EffectSpec =
    * no destination. `bind`: `<bind>.made`, `<bind>.amount` (placed) and `<bind>.forcedResponses`, the number of forced
    * responses the placement triggered ("If that scheme's 'Forced Response' ability is not triggered this way …").
    */
-  | { readonly kind: "moveThreat"; readonly from: TargetRef; readonly to: TargetRef; readonly amount?: ValueSpec; readonly bind?: string }
+  | {
+      readonly kind: "moveThreat";
+      readonly from: TargetRef;
+      readonly to: TargetRef;
+      readonly amount?: ValueSpec;
+      readonly bind?: string;
+    }
   /**
    * "Place the active counter on Wrecker" / "Move the active counter to the villain whose scheme has the most
    * threat" (The Wrecking Crew insert, "The Active Villain"). Moves it to the first undefeated villain `villain`
@@ -1069,7 +1277,12 @@ export type EffectSpec =
       readonly count?: number | ValueSpec;
       readonly optional?: boolean;
     }
-  | { readonly kind: "if"; readonly condition: Predicate; readonly then: readonly EffectSpec[]; readonly otherwise?: readonly EffectSpec[] }
+  | {
+      readonly kind: "if";
+      readonly condition: Predicate;
+      readonly then: readonly EffectSpec[];
+      readonly otherwise?: readonly EffectSpec[];
+    }
   /** RRG "Cancel": stops the interrupted event from resolving (its responses do not fire). */
   | { readonly kind: "cancelTriggeringEvent" }
   /**

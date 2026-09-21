@@ -19,7 +19,15 @@ import type { EffectSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import { runCommands } from "./testing/drive.js";
-import { stubEvent, stubMainScheme, stubMinion, stubSideScheme, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import {
+  stubEvent,
+  stubMainScheme,
+  stubMinion,
+  stubSideScheme,
+  stubSupport,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { DEFAULT_CARDS, DEFAULT_DECK, giveCard, HERO } from "./testing/scenario.js";
 import { auditVillainPhases } from "./villain/audit.js";
 
@@ -40,23 +48,44 @@ const actionEvent = (id: string, effects: readonly EffectSpec[]) => {
 const X_ACCELERATION = stubAbility("cloud.x", {
   trigger: {
     kind: "constant",
-    modifiers: [{ stat: "acceleration", amount: { kind: "count", query: { categories: ["enemy"], trait: GOBLIN } }, target: { self: true }, setBase: true }],
+    modifiers: [
+      {
+        stat: "acceleration",
+        amount: { kind: "count", query: { categories: ["enemy"], trait: GOBLIN } },
+        target: { self: true },
+        setBase: true,
+      },
+    ],
   },
   effects: [],
 });
-const cloudBase = stubMainScheme({ id: "cloud", stages: [{ startingThreat: flat(0), targetThreat: flat(50), acceleration: flat(0), abilities: [X_ACCELERATION.ref] }] });
+const cloudBase = stubMainScheme({
+  id: "cloud",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(50), acceleration: flat(0), abilities: [X_ACCELERATION.ref] }],
+});
 const CLOUD: MainSchemeCard = { ...cloudBase, stages: [{ ...cloudBase.stages[0], printedX: ["acceleration"] }] };
-const GOBLIN_VILLAIN = stubVillain({ id: "goblin-villain", stages: [{ hp: flat(30), atk: 0, sch: 0, traits: [GOBLIN] }] });
+const GOBLIN_VILLAIN = stubVillain({
+  id: "goblin-villain",
+  stages: [{ hp: flat(30), atk: 0, sch: 0, traits: [GOBLIN] }],
+});
 const GOBLIN_MINION = stubMinion({ id: "goblin-minion", traits: [GOBLIN], atk: 0, sch: 0, hp: 3, boostIcons: 0 });
 
 // Target threat: "Increase the target threat value of attached scheme by 4."
 const TARGET_UP = stubAbility("surveillance.constant", {
-  trigger: { kind: "constant", modifiers: [{ stat: "targetThreat", amount: 4, target: { categories: ["mainScheme"] } }] },
+  trigger: {
+    kind: "constant",
+    modifiers: [{ stat: "targetThreat", amount: 4, target: { categories: ["mainScheme"] } }],
+  },
   effects: [],
 });
 const SURVEILLANCE = stubSupport({ id: "surveillance", cost: 0, abilities: [TARGET_UP.ref] });
-const PLACE_TWO = actionEvent("place-two", [{ kind: "placeThreat", target: mainScheme, amount: { kind: "const", value: 2 } }]);
-const SHORT = stubMainScheme({ id: "short", stages: [{ startingThreat: flat(0), targetThreat: flat(5), acceleration: flat(0) }] });
+const PLACE_TWO = actionEvent("place-two", [
+  { kind: "placeThreat", target: mainScheme, amount: { kind: "const", value: 2 } },
+]);
+const SHORT = stubMainScheme({
+  id: "short",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(5), acceleration: flat(0) }],
+});
 const PLAIN_VILLAIN = stubVillain({ id: "plain", stages: [{ hp: flat(30), atk: 0, sch: 0 }] });
 
 // When Completed on a non-final stage, and on the final one.
@@ -78,7 +107,11 @@ const TAKEOVER = stubMainScheme({
 
 // "Remove all but 3 threat from the main scheme."
 const ALL_BUT_THREE = actionEvent("all-but-three", [
-  { kind: "removeThreat", target: mainScheme, amount: { kind: "scaled", value: { kind: "threat", of: mainScheme }, plus: -3 } },
+  {
+    kind: "removeThreat",
+    target: mainScheme,
+    amount: { kind: "scaled", value: { kind: "threat", of: mainScheme }, plus: -3 },
+  },
 ]);
 
 // Moving threat.
@@ -95,28 +128,73 @@ const moveAll = (id: string, to: string) =>
     {
       kind: "if",
       condition: { kind: "varAtLeast", name: "moved.forcedResponses", amount: 1 },
-      then: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "triggered", amount: one }],
-      otherwise: [{ kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "notTriggered", amount: one }],
+      then: [
+        {
+          kind: "addCounters",
+          target: { kind: "identityOf", player: { kind: "controller" } },
+          counterType: "triggered",
+          amount: one,
+        },
+      ],
+      otherwise: [
+        {
+          kind: "addCounters",
+          target: { kind: "identityOf", player: { kind: "controller" } },
+          counterType: "notTriggered",
+          amount: one,
+        },
+      ],
     },
   ]);
 const MOVE_TO_WATCHED = moveAll("move-to-watched", WATCHED.name);
 const MOVE_TO_PLAIN = moveAll("move-to-plain", PLAIN.name);
 
 const EVENTS = [PLACE_TWO, ALL_BUT_THREE, MOVE_TO_WATCHED, MOVE_TO_PLAIN];
-const ABILITIES: readonly StubAbility[] = [X_ACCELERATION, TARGET_UP, WHEN_COMPLETED, PLACED_HERE, ...EVENTS.map((e) => e.ability)];
+const ABILITIES: readonly StubAbility[] = [
+  X_ACCELERATION,
+  TARGET_UP,
+  WHEN_COMPLETED,
+  PLACED_HERE,
+  ...EVENTS.map((e) => e.ability),
+];
 const deps: EngineDeps = depsOf(...ABILITIES);
 
-function game(options: { readonly villain?: AnyCard; readonly scheme?: MainSchemeCard; readonly encounter?: readonly CardId[] } = {}): GameState {
+function game(
+  options: {
+    readonly villain?: AnyCard;
+    readonly scheme?: MainSchemeCard;
+    readonly encounter?: readonly CardId[];
+  } = {},
+): GameState {
   const villain = options.villain ?? PLAIN_VILLAIN;
   const scheme = options.scheme ?? SHORT;
   const result = createGame(
     {
       seed: 3,
-      cards: [...DEFAULT_CARDS, GOBLIN_VILLAIN, PLAIN_VILLAIN, CLOUD, SHORT, TAKEOVER, GOBLIN_MINION, SURVEILLANCE, BLANK, LOW, WATCHED, PLAIN, ...EVENTS.map((e) => e.card)],
+      cards: [
+        ...DEFAULT_CARDS,
+        GOBLIN_VILLAIN,
+        PLAIN_VILLAIN,
+        CLOUD,
+        SHORT,
+        TAKEOVER,
+        GOBLIN_MINION,
+        SURVEILLANCE,
+        BLANK,
+        LOW,
+        WATCHED,
+        PLAIN,
+        ...EVENTS.map((e) => e.card),
+      ],
       villainCardId: villain.id,
       mainSchemeCardId: scheme.id,
       encounterDeck: options.encounter ?? copies(BLANK.id, 12),
-      players: [{ identityCardId: HERO.id, deck: [...DEFAULT_DECK, SURVEILLANCE.id, ...EVENTS.flatMap((e) => copies(e.card.id, 2))] }],
+      players: [
+        {
+          identityCardId: HERO.id,
+          deck: [...DEFAULT_DECK, SURVEILLANCE.id, ...EVENTS.flatMap((e) => copies(e.card.id, 2))],
+        },
+      ],
     },
     deps,
   );
@@ -126,7 +204,13 @@ function game(options: { readonly villain?: AnyCard; readonly scheme?: MainSchem
 
 function play(state: GameState, card: AnyCard) {
   const given = giveCard(state, p1, card.id);
-  return runCommands(given.state, deps, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+  return runCommands(given.state, deps, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  });
 }
 
 const withThreat = (state: GameState, id: InstanceId, threat: number): GameState => ({
@@ -150,17 +234,25 @@ function intoPlay(state: GameState, card: AnyCard, threat = 0): { readonly state
       encounterDecks: { ...state.encounterDecks, [deckId]: { ...piles, deck: piles.deck.filter((x) => x !== id) } },
       villainArea: minion ? state.villainArea : [...state.villainArea, id],
       players: state.players.map((p) => (minion && p.playerId === p1 ? { ...p, playArea: [...p.playArea, id] } : p)),
-      instances: { ...state.instances, [id]: { ...mustInstance(state, id), faceup: true, threat, engagedWith: minion ? p1 : null } },
+      instances: {
+        ...state.instances,
+        [id]: { ...mustInstance(state, id), faceup: true, threat, engagedWith: minion ? p1 : null },
+      },
     },
   };
 }
 
-const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) => events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
+const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
+  events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 const endTurn: Command = { type: "endTurn", playerId: p1 };
 
 describe("§3.8 scheme values, When Completed, signature side schemes, moving threat", () => {
   it("an X acceleration follows the Goblin enemies in play, and step one places it", () => {
-    const start = game({ villain: GOBLIN_VILLAIN, scheme: CLOUD, encounter: [...copies(GOBLIN_MINION.id, 2), ...copies(BLANK.id, 10)] });
+    const start = game({
+      villain: GOBLIN_VILLAIN,
+      scheme: CLOUD,
+      encounter: [...copies(GOBLIN_MINION.id, 2), ...copies(BLANK.id, 10)],
+    });
     expect(mainSchemeValue(start, "acceleration", deps)).toBe(1);
     const withMinion = intoPlay(start, GOBLIN_MINION);
     expect(mainSchemeValue(withMinion.state, "acceleration", deps)).toBe(2);
@@ -169,7 +261,10 @@ describe("§3.8 scheme values, When Completed, signature side schemes, moving th
     expect(mustInstance(state, state.mainScheme.instanceId).threat).toBe(2);
     expect(auditVillainPhases(session.log, deps).violations).toEqual([]);
 
-    const gone: GameState = { ...state, players: state.players.map((p) => ({ ...p, playArea: p.playArea.filter((id) => id !== withMinion.id) })) };
+    const gone: GameState = {
+      ...state,
+      players: state.players.map((p) => ({ ...p, playArea: p.playArea.filter((id) => id !== withMinion.id) })),
+    };
     expect(mainSchemeValue(gone, "acceleration", deps)).toBe(1);
   });
 
@@ -219,18 +314,21 @@ describe("§3.8 scheme values, When Completed, signature side schemes, moving th
   it.each([
     { event: MOVE_TO_WATCHED, destination: WATCHED, counter: "triggered", placedHere: 1 },
     { event: MOVE_TO_PLAIN, destination: PLAIN, counter: "notTriggered", placedHere: undefined },
-  ])("moved threat is removed from its source and placed on $destination.id (RRG 1.8 'Move', p. 30)", ({ event, destination, counter, placedHere }) => {
-    const start = game({ encounter: [LOW.id, WATCHED.id, PLAIN.id, ...copies(BLANK.id, 9)] });
-    const low = intoPlay(start, LOW, 1);
-    const target = intoPlay(low.state, destination, 3);
-    const { state, events } = play(target.state, event.card);
-    expect(mustInstance(state, target.id).threat).toBe(4);
-    expect(mustInstance(state, target.id).counters.placedHere).toBe(placedHere);
-    // The source reached 0 threat by removal, so it is defeated.
-    expect(ofType(events, "schemeDefeated").map((e) => e.instanceId)).toEqual([low.id]);
-    expect(state.villainArea).not.toContain(low.id);
-    expect(mustInstance(state, mustPlayer(state, p1).identity.instanceId).counters[counter]).toBe(1);
-  });
+  ])(
+    "moved threat is removed from its source and placed on $destination.id (RRG 1.8 'Move', p. 30)",
+    ({ event, destination, counter, placedHere }) => {
+      const start = game({ encounter: [LOW.id, WATCHED.id, PLAIN.id, ...copies(BLANK.id, 9)] });
+      const low = intoPlay(start, LOW, 1);
+      const target = intoPlay(low.state, destination, 3);
+      const { state, events } = play(target.state, event.card);
+      expect(mustInstance(state, target.id).threat).toBe(4);
+      expect(mustInstance(state, target.id).counters.placedHere).toBe(placedHere);
+      // The source reached 0 threat by removal, so it is defeated.
+      expect(ofType(events, "schemeDefeated").map((e) => e.instanceId)).toEqual([low.id]);
+      expect(state.villainArea).not.toContain(low.id);
+      expect(mustInstance(state, mustPlayer(state, p1).identity.instanceId).counters[counter]).toBe(1);
+    },
+  );
 });
 
 // --- Signature side schemes (two villains, so defeating one does not win) --------------------------------------
@@ -248,7 +346,15 @@ const SIGNATURE_RULE = stubAbility("crew.signature-rule", {
 });
 const CREW_SCHEME = stubMainScheme({
   id: "crew-scheme",
-  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), aSideAbilities: [PUT_SCHEMES.ref], abilities: [SIGNATURE_RULE.ref] }],
+  stages: [
+    {
+      startingThreat: flat(0),
+      targetThreat: flat(99),
+      acceleration: flat(0),
+      aSideAbilities: [PUT_SCHEMES.ref],
+      abilities: [SIGNATURE_RULE.ref],
+    },
+  ],
 });
 /** "This card cannot leave play while [its villain] is in play." */
 const STAYS = stubAbility("signature.stays", {
@@ -266,14 +372,41 @@ const STAYS = stubAbility("signature.stays", {
 });
 const SIGNATURE_DEFEATED = stubAbility("signature.when-defeated", {
   trigger: { kind: "whenDefeated" },
-  effects: [{ kind: "addCounters", target: { kind: "each", query: { categories: ["villain"] } }, counterType: "signatureDefeated", amount: one }],
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "each", query: { categories: ["villain"] } },
+      counterType: "signatureDefeated",
+      amount: one,
+    },
+  ],
 });
-const SIGNATURE = stubSideScheme({ id: "signature", startingThreat: 1, boostIcons: 0, abilities: [STAYS.ref, SIGNATURE_DEFEATED.ref] });
+const SIGNATURE = stubSideScheme({
+  id: "signature",
+  startingThreat: 1,
+  boostIcons: 0,
+  abilities: [STAYS.ref, SIGNATURE_DEFEATED.ref],
+});
 const FIRST = stubVillain({ id: "first", stages: [{ hp: flat(10), atk: 0, sch: 0 }] });
 const SECOND = stubVillain({ id: "second", stages: [{ hp: flat(10), atk: 0, sch: 0 }] });
-const CLEAR_SIDE = actionEvent("clear-side", [{ kind: "removeThreat", target: { kind: "each", query: { categories: ["sideScheme"] } }, amount: { kind: "const", value: 10 } }]);
-const DISCARD_SIDE = actionEvent("discard-side", [{ kind: "discardFromPlay", target: { kind: "each", query: { categories: ["sideScheme"] } } }]);
-const crewDeps: EngineDeps = depsOf(PUT_SCHEMES, SIGNATURE_RULE, STAYS, SIGNATURE_DEFEATED, CLEAR_SIDE.ability, DISCARD_SIDE.ability);
+const CLEAR_SIDE = actionEvent("clear-side", [
+  {
+    kind: "removeThreat",
+    target: { kind: "each", query: { categories: ["sideScheme"] } },
+    amount: { kind: "const", value: 10 },
+  },
+]);
+const DISCARD_SIDE = actionEvent("discard-side", [
+  { kind: "discardFromPlay", target: { kind: "each", query: { categories: ["sideScheme"] } } },
+]);
+const crewDeps: EngineDeps = depsOf(
+  PUT_SCHEMES,
+  SIGNATURE_RULE,
+  STAYS,
+  SIGNATURE_DEFEATED,
+  CLEAR_SIDE.ability,
+  DISCARD_SIDE.ability,
+);
 
 function crew(): GameState {
   const result = createGame(
@@ -297,7 +430,13 @@ function crew(): GameState {
 
 function crewPlay(state: GameState, card: AnyCard) {
   const given = giveCard(state, p1, card.id);
-  return runCommands(given.state, crewDeps, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+  return runCommands(given.state, crewDeps, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  });
 }
 
 describe("§3.8 signature side schemes", () => {
@@ -314,14 +453,26 @@ describe("§3.8 signature side schemes", () => {
 
     const kept = crewPlay(cleared.state, DISCARD_SIDE.card);
     expect(kept.state.villainArea).toContain(scheme);
-    expect(ofType(kept.events, "leavePlayBlocked")).toEqual([{ type: "leavePlayBlocked", instanceId: scheme, reason: "cannotLeavePlay" }]);
+    expect(ofType(kept.events, "leavePlayBlocked")).toEqual([
+      { type: "leavePlayBlocked", instanceId: scheme, reason: "cannotLeavePlay" },
+    ]);
 
     // Defeat the first villain with a basic attack from 2 hit points left.
     const hero = runCommands(kept.state, crewDeps, { type: "changeForm", playerId: p1 }).state;
     const identity = mustPlayer(hero, p1).identity.instanceId;
     const maxHp = characterProfile(hero, first.instanceId, crewDeps)?.maxHp ?? 0;
-    const primed: GameState = { ...hero, instances: { ...hero.instances, [first.instanceId]: { ...mustInstance(hero, first.instanceId), damage: maxHp - 2 } } };
-    const result = applyCommand(primed, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: first.instanceId }, crewDeps);
+    const primed: GameState = {
+      ...hero,
+      instances: {
+        ...hero.instances,
+        [first.instanceId]: { ...mustInstance(hero, first.instanceId), damage: maxHp - 2 },
+      },
+    };
+    const result = applyCommand(
+      primed,
+      { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: first.instanceId },
+      crewDeps,
+    );
     if (!result.ok) throw new Error(result.error.message);
     const after = runCommands(result.state, crewDeps).state;
     expect(after.outcome).toBeNull();

@@ -1,6 +1,5 @@
 import { applyCommand, activeVillain, remainingHitPoints, type GameState } from "@mc/engine";
 import {
-  answer,
   endTurn,
   firstLegal,
   identityOf,
@@ -25,7 +24,8 @@ import { wave1Scenario } from "../setup.js";
 import { BKW_DEPS, runBkw, startBkwGame } from "./testing.js";
 
 // Real wave 1 content: the Black Widow (Justice) precon against Rhino, standard, solo.
-const bkwVsRhino = (seed = 2101) => startBkwGame(wave1Scenario("rhino", { players: [{ starterDeckId: "bkw-justice" }], seed }));
+const bkwVsRhino = (seed = 2101) =>
+  startBkwGame(wave1Scenario("rhino", { players: [{ starterDeckId: "bkw-justice" }], seed }));
 
 // A neutral boost card (0 icons, no boost ability): "Advance", the same card msm/thor/cap/hlk tests use as `ADVANCE`
 // to soak up the villain's own enemy-activation boost draw before a stacked card reaches the per-player reveal.
@@ -50,15 +50,30 @@ describe("Black Widow / Natasha Romanoff kit", () => {
     const given = moveToHand(start, P1, "08009", "08008", "08015", "08016", "08019"); // Synth-Suit, Grappling Hook (both Preparation), + filler to pay both costs
     const [suit, hook] = given.ids as [never, never];
     const hero = runBkw(given.state, toHero());
-    const withSuit = settle(runBkw(hero, play(P1, suit, payWith(hero, P1, 3, [suit, hook]))), firstLegal, undefined, BKW_DEPS);
-    const withHook = settle(runBkw(withSuit, play(P1, hook, payWith(withSuit, P1, 2, [hook]))), firstLegal, undefined, BKW_DEPS);
+    const withSuit = settle(
+      runBkw(hero, play(P1, suit, payWith(hero, P1, 3, [suit, hook]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
+    const withHook = settle(
+      runBkw(withSuit, play(P1, hook, payWith(withSuit, P1, 2, [hook]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     const stacked = stackEncounterDeck(withHook, ADVANCE, "01188"); // Advance soaks Rhino's own boost; Caught Off Guard is the real reveal, cancelled below
     const exhausted = patchInstance(stacked, identityOf(stacked), { exhausted: true }); // so Synth-Suit's "ready" is observable
     const villain = activeVillain(exhausted).instanceId;
     const hpBefore = remainingHitPoints(exhausted, villain);
     // Stop right after the reveal step (before the round ends): the *next* round's own "turn" step readies every
     // card automatically (RRG "start of turn"), which would make Synth-Suit's own exhaust-cost unobservable.
-    const after = settle(runBkw(exhausted, endTurn()), preferring("grappling-hook-interrupt", "widowmaker", "synth-suit-response"), (s) => s.step.kind === "passFirstPlayer", BKW_DEPS);
+    const after = settle(
+      runBkw(exhausted, endTurn()),
+      preferring("grappling-hook-interrupt", "widowmaker", "synth-suit-response"),
+      (s) => s.step.kind === "passFirstPlayer",
+      BKW_DEPS,
+    );
     expect(playerOf(after, P1).discard).toContain(hook); // discarded by Grappling Hook's own interrupt cost
     expect(remainingHitPoints(after, villain)).toBe(hpBefore! - 1); // Widowmaker's 1 damage
     expect(inst(after, identityOf(after)).exhausted).toBe(false); // Synth-Suit readied her
@@ -70,10 +85,20 @@ describe("Black Widow / Natasha Romanoff kit", () => {
     const given = moveToHand(start, P1, "08008", "08010"); // Grappling Hook (cost 2), Widow's Bite (cost 1) — both Preparation
     const [hook, bite] = given.ids as [never, never];
     const deckBefore1 = playerOf(given.state, P1).deck.length;
-    const withHook = settle(runBkw(given.state, play(P1, hook, payWith(given.state, P1, 2, [hook, bite]))), preferring("mission-prep"), undefined, BKW_DEPS);
+    const withHook = settle(
+      runBkw(given.state, play(P1, hook, payWith(given.state, P1, 2, [hook, bite]))),
+      preferring("mission-prep"),
+      undefined,
+      BKW_DEPS,
+    );
     expect(playerOf(withHook, P1).deck.length).toBe(deckBefore1 - 1); // Mission Prep's own draw
     const deckBefore2 = playerOf(withHook, P1).deck.length;
-    const withBite = settle(runBkw(withHook, play(P1, bite, payWith(withHook, P1, 1, [bite]))), preferring("mission-prep"), undefined, BKW_DEPS);
+    const withBite = settle(
+      runBkw(withHook, play(P1, bite, payWith(withHook, P1, 1, [bite]))),
+      preferring("mission-prep"),
+      undefined,
+      BKW_DEPS,
+    );
     expect(playerOf(withBite, P1).deck.length).toBe(deckBefore2); // limit once per phase: no second draw
   });
 
@@ -82,18 +107,33 @@ describe("Black Widow / Natasha Romanoff kit", () => {
     const given = moveToHand(start, P1, "08002", "08008"); // Winter Soldier (printed cost 4), Grappling Hook (Preparation)
     const [winterSoldier, hook] = given.ids as [never, never];
     const hero = runBkw(given.state, toHero());
-    const withHook = settle(runBkw(hero, play(P1, hook, payWith(hero, P1, 2, [hook, winterSoldier]))), firstLegal, undefined, BKW_DEPS);
+    const withHook = settle(
+      runBkw(hero, play(P1, hook, payWith(hero, P1, 2, [hook, winterSoldier]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     // 4 - 1 (one Preparation card controlled) = 3.
-    const after = settle(runBkw(withHook, play(P1, winterSoldier, payWith(withHook, P1, 3, [winterSoldier]))), firstLegal, undefined, BKW_DEPS);
+    const after = settle(
+      runBkw(withHook, play(P1, winterSoldier, payWith(withHook, P1, 3, [winterSoldier]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     expect(playerOf(after, P1).playArea).toContain(winterSoldier);
   });
 
-  it("Covert Ops: Action (thwart) — playable in alter-ego form, since the printed text omits \"Hero\"", () => {
+  it('Covert Ops: Action (thwart) — playable in alter-ego form, since the printed text omits "Hero"', () => {
     const start = bkwVsRhino();
     const given = moveToHand(start, P1, "08003");
     const [ops] = given.ids as [never];
     const before = mainThreat(given.state);
-    const after = settle(runBkw(given.state, play(P1, ops, payWith(given.state, P1, 3, [ops]))), firstLegal, undefined, BKW_DEPS);
+    const after = settle(
+      runBkw(given.state, play(P1, ops, payWith(given.state, P1, 3, [ops]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     expect(mainThreat(after)).toBe(Math.max(0, before - 4));
     const villain = activeVillain(after).instanceId;
     expect(inst(after, villain).statuses.confused).toBeGreaterThan(0);
@@ -105,9 +145,16 @@ describe("Black Widow / Natasha Romanoff kit", () => {
     const [dance] = given.ids as [never];
     const hero = runBkw(given.state, toHero());
     const villain = activeVillain(hero).instanceId;
-    const stunned = patchInstance(hero, identityOf(hero), { statuses: { ...inst(hero, identityOf(hero)).statuses, stunned: 1 } });
+    const stunned = patchInstance(hero, identityOf(hero), {
+      statuses: { ...inst(hero, identityOf(hero)).statuses, stunned: 1 },
+    });
     const hpBefore = remainingHitPoints(stunned, villain);
-    const after = settle(runBkw(stunned, play(P1, dance, payWith(stunned, P1, 3, [dance]))), firstLegal, undefined, BKW_DEPS);
+    const after = settle(
+      runBkw(stunned, play(P1, dance, payWith(stunned, P1, 3, [dance]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     // First attack (1 damage) cancelled by the stun; second (2) and third (3) go through: 5 total.
     expect(remainingHitPoints(after, villain)).toBe(hpBefore! - 5);
     expect(inst(after, identityOf(after)).statuses.stunned).toBe(0);
@@ -119,7 +166,12 @@ describe("Black Widow / Natasha Romanoff kit", () => {
     const [safeHouse, hook] = given.ids as [never, never];
     const withSafeHouse = settle(runBkw(given.state, play(P1, safeHouse, [hook])), firstLegal, undefined, BKW_DEPS); // hook itself pays the 1-cost, landing in discard
     expect(playerOf(withSafeHouse, P1).discard).toContain(hook);
-    const after = settle(runBkw(withSafeHouse, use(P1, safeHouse, "08005.safe-house-29-action")), picking(hook), undefined, BKW_DEPS);
+    const after = settle(
+      runBkw(withSafeHouse, use(P1, safeHouse, "08005.safe-house-29-action")),
+      picking(hook),
+      undefined,
+      BKW_DEPS,
+    );
     expect(playerOf(after, P1).hand).toContain(hook);
     expect(playerOf(after, P1).discard).not.toContain(hook);
     expect(inst(after, safeHouse).exhausted).toBe(true);
@@ -129,9 +181,19 @@ describe("Black Widow / Natasha Romanoff kit", () => {
     const start = bkwVsRhino();
     const given = moveToHand(start, P1, "08007", "08008", "08003"); // Gauntlet, Grappling Hook (Preparation), Covert Ops (not Preparation)
     const [gauntlet, hook, ops] = given.ids as [never, never, never];
-    const withGauntlet = settle(runBkw(given.state, play(P1, gauntlet, payWith(given.state, P1, 1, [gauntlet, hook, ops]))), firstLegal, undefined, BKW_DEPS);
+    const withGauntlet = settle(
+      runBkw(given.state, play(P1, gauntlet, payWith(given.state, P1, 1, [gauntlet, hook, ops]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     const withHook = settle(
-      runBkw(withGauntlet, play(P1, hook, payWith(withGauntlet, P1, 1, [hook, ops]), { abilities: [resourceAbility(gauntlet, "08007.black-widows-gauntlet-resource")] })),
+      runBkw(
+        withGauntlet,
+        play(P1, hook, payWith(withGauntlet, P1, 1, [hook, ops]), {
+          abilities: [resourceAbility(gauntlet, "08007.black-widows-gauntlet-resource")],
+        }),
+      ),
       firstLegal,
       undefined,
       BKW_DEPS,
@@ -141,7 +203,13 @@ describe("Black Widow / Natasha Romanoff kit", () => {
 
     // Negative: the same generated resource cannot pay for Covert Ops (no Preparation trait) — the play is illegal.
     const readied = patchInstance(withHook, gauntlet, { exhausted: false });
-    const attempt = applyCommand(readied, play(P1, ops, payWith(readied, P1, 2, [ops]), { abilities: [resourceAbility(gauntlet, "08007.black-widows-gauntlet-resource")] }), BKW_DEPS);
+    const attempt = applyCommand(
+      readied,
+      play(P1, ops, payWith(readied, P1, 2, [ops]), {
+        abilities: [resourceAbility(gauntlet, "08007.black-widows-gauntlet-resource")],
+      }),
+      BKW_DEPS,
+    );
     expect(attempt.ok).toBe(false);
   });
 
@@ -149,10 +217,20 @@ describe("Black Widow / Natasha Romanoff kit", () => {
     const start = bkwVsRhino();
     const given = moveToHand(start, P1, "08010");
     const [bite] = given.ids as [never];
-    const withBite = settle(runBkw(given.state, play(P1, bite, payWith(given.state, P1, 1, [bite]))), firstLegal, undefined, BKW_DEPS);
+    const withBite = settle(
+      runBkw(given.state, play(P1, bite, payWith(given.state, P1, 1, [bite]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     const hero = runBkw(withBite, toHero());
     const stacked = stackEncounterDeck(hero, ADVANCE, "01101"); // Hydra Mercenary: printed 1 ATK / 3 HP
-    const after = settle(runBkw(stacked, endTurn()), preferring("widows-bite-response"), (s) => s.step.kind === "turn", BKW_DEPS);
+    const after = settle(
+      runBkw(stacked, endTurn()),
+      preferring("widows-bite-response"),
+      (s) => s.step.kind === "turn",
+      BKW_DEPS,
+    );
     // "01101" (Hydra Mercenary) has 2 copies in Rhino's own encounter set; only the one revealed and engaged with P1
     // matters here (`instancesOf` alone can return either copy, including the still-facedown one left in the deck).
     const minion = instancesOf(after, "01101").find((id) => after.instances[id]?.engagedWith === P1)!;
@@ -170,9 +248,16 @@ describe("Black Widow pack cards", () => {
     // Test surgery (matching msm's `moveToDiscard`): put Grappling Hook straight in the discard pile.
     const inDiscard: GameState = {
       ...given.state,
-      players: given.state.players.map((p) => (p.playerId === P1 ? { ...p, hand: p.hand.filter((id) => id !== hook), discard: [...p.discard, hook] } : p)),
+      players: given.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: p.hand.filter((id) => id !== hook), discard: [...p.discard, hook] } : p,
+      ),
     };
-    const after = settle(runBkw(inDiscard, play(P1, coulson, payWith(inDiscard, P1, 3, [coulson]))), preferring("agent-coulson-response", hook), undefined, BKW_DEPS);
+    const after = settle(
+      runBkw(inDiscard, play(P1, coulson, payWith(inDiscard, P1, 3, [coulson]))),
+      preferring("agent-coulson-response", hook),
+      undefined,
+      BKW_DEPS,
+    );
     expect(playerOf(after, P1).playArea).toContain(coulson);
     expect(playerOf(after, P1).hand).toContain(hook);
     expect(playerOf(after, P1).discard).not.toContain(hook);
@@ -182,7 +267,12 @@ describe("Black Widow pack cards", () => {
     const start = bkwVsRhino();
     const given = moveToHand(start, P1, "08012");
     const [quake] = given.ids as [never];
-    const withQuake = settle(runBkw(given.state, play(P1, quake, payWith(given.state, P1, 2, [quake]))), firstLegal, undefined, BKW_DEPS);
+    const withQuake = settle(
+      runBkw(given.state, play(P1, quake, payWith(given.state, P1, 2, [quake]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     // Stay in alter-ego form: this engine's "Activation" ties attack-vs-scheme to the engaged player's current form
     // (`packages/engine/src/villain/phase.ts`'s `activateEnemy`), so an alter-ego-form Black Widow makes her engaged
     // minion scheme instead of attack.
@@ -191,7 +281,12 @@ describe("Black Widow pack cards", () => {
     // (`packages/engine/src/villain/phase.ts`), so a minion revealed this round only gets engaged — it doesn't
     // activate (and so can't scheme) until the *next* villain phase. Round 1 just gets it into play.
     const roundTwo = settle(runBkw(stacked, endTurn()), firstLegal, (s) => s.step.kind === "turn", BKW_DEPS);
-    const after = settle(runBkw(roundTwo, endTurn()), preferring("quake-response"), (s) => s.step.kind === "turn", BKW_DEPS);
+    const after = settle(
+      runBkw(roundTwo, endTurn()),
+      preferring("quake-response"),
+      (s) => s.step.kind === "turn",
+      BKW_DEPS,
+    );
     const minion = instancesOf(after, "01101").find((id) => after.instances[id]?.engagedWith === P1)!;
     expect(inst(after, minion).damage).toBe(2);
     expect(inst(after, quake).exhausted).toBe(true);
@@ -208,7 +303,12 @@ describe("Black Widow pack cards", () => {
     // is a legal attack target (the other is still facedown in the deck).
     const minion = instancesOf(revealed, "01101").find((id) => revealed.instances[id]?.engagedWith === P1)!;
     const before = mainThreat(revealed);
-    const after = settle(runBkw(revealed, play(P1, strike, payWith(revealed, P1, 3, [strike]))), picking(minion), undefined, BKW_DEPS);
+    const after = settle(
+      runBkw(revealed, play(P1, strike, payWith(revealed, P1, 3, [strike]))),
+      picking(minion),
+      undefined,
+      BKW_DEPS,
+    );
     expect(playerOf(after, P1).playArea).not.toContain(minion); // defeated
     expect(mainThreat(after)).toBe(Math.max(0, before - 2));
   });
@@ -218,10 +318,25 @@ describe("Black Widow pack cards", () => {
     const given = moveToHand(start, P1, "08008", "08010"); // Grappling Hook; Widow's Bite as a canary upgrade
     const [hook, bite] = given.ids as [never, never];
     const hero = runBkw(given.state, toHero()); // "Hero Interrupt": only usable in hero form
-    const withBite = settle(runBkw(hero, play(P1, bite, payWith(hero, P1, 1, [bite, hook]))), firstLegal, undefined, BKW_DEPS);
-    const withHook = settle(runBkw(withBite, play(P1, hook, payWith(withBite, P1, 2, [hook]))), firstLegal, undefined, BKW_DEPS);
+    const withBite = settle(
+      runBkw(hero, play(P1, bite, payWith(hero, P1, 1, [bite, hook]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
+    const withHook = settle(
+      runBkw(withBite, play(P1, hook, payWith(withBite, P1, 2, [hook]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     const stacked = stackEncounterDeck(withHook, ADVANCE, "01188"); // Caught Off Guard: "discard an upgrade you control"
-    const after = settle(runBkw(stacked, endTurn()), preferring("grappling-hook-interrupt"), (s) => s.step.kind === "turn", BKW_DEPS);
+    const after = settle(
+      runBkw(stacked, endTurn()),
+      preferring("grappling-hook-interrupt"),
+      (s) => s.step.kind === "turn",
+      BKW_DEPS,
+    );
     expect(playerOf(after, P1).discard).toContain(hook); // discarded by Grappling Hook's own interrupt cost
     expect(inst(after, bite).attachedTo).not.toBeNull(); // the canary upgrade survives (still attached) — 01188 never resolved
     expect(playerOf(after, P1).discard).not.toContain(bite);
@@ -232,12 +347,22 @@ describe("Black Widow pack cards", () => {
     const given = moveToHand(start, P1, "08018");
     const [spycraft] = given.ids as [never];
     const hero = runBkw(given.state, toHero()); // "control a Spy character": only Black Widow's hero face has SPY
-    const withSpycraft = settle(runBkw(hero, play(P1, spycraft, payWith(hero, P1, 1, [spycraft]))), firstLegal, undefined, BKW_DEPS);
+    const withSpycraft = settle(
+      runBkw(hero, play(P1, spycraft, payWith(hero, P1, 1, [spycraft]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     const before = mainThreat(withSpycraft);
     // Advance (Rhino's attack boost); Caught Off Guard (cancelled); Advance again ("the villain schemes"); Hard to Keep
     // Down (01104, that scheme's 0-icon boost card; Core has only two Advances).
     const stacked = stackEncounterDeck(withSpycraft, ADVANCE, "01188", "01186", "01104");
-    const after = settle(runBkw(stacked, endTurn()), preferring("spycraft-interrupt"), (s) => s.step.kind === "turn", BKW_DEPS);
+    const after = settle(
+      runBkw(stacked, endTurn()),
+      preferring("spycraft-interrupt"),
+      (s) => s.step.kind === "turn",
+      BKW_DEPS,
+    );
     expect(playerOf(after, P1).discard).toContain(spycraft);
     // +1 from The Break-In's acceleration (step 1), +1 from Rhino's SCH when the second reveal's "the villain
     // schemes" resolves: proof the chain (cancel → reveal another) actually ran.
@@ -249,9 +374,19 @@ describe("Black Widow pack cards", () => {
     const given = moveToHand(start, P1, "08023", "08003"); // Quincarrier; Covert Ops (cost 3, to pay with the generated resource)
     const [carrier, ops] = given.ids as [never, never];
     const hero = runBkw(given.state, toHero()); // AVENGER is on Black Widow's hero face only
-    const withCarrier = settle(runBkw(hero, play(P1, carrier, payWith(hero, P1, 3, [carrier, ops]))), firstLegal, undefined, BKW_DEPS);
+    const withCarrier = settle(
+      runBkw(hero, play(P1, carrier, payWith(hero, P1, 3, [carrier, ops]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     const after = settle(
-      runBkw(withCarrier, play(P1, ops, payWith(withCarrier, P1, 2, [ops]), { abilities: [resourceAbility(carrier, "08023.quincarrier-resource")] })),
+      runBkw(
+        withCarrier,
+        play(P1, ops, payWith(withCarrier, P1, 2, [ops]), {
+          abilities: [resourceAbility(carrier, "08023.quincarrier-resource")],
+        }),
+      ),
       firstLegal,
       undefined,
       BKW_DEPS,
@@ -270,7 +405,12 @@ describe("Black Widow pack cards", () => {
     // Advance (Rhino's attack boost); Advance dealt to Black Widow ("the villain schemes"); Hard to Keep Down (01104,
     // that scheme's 0-icon boost card; Core has only two Advances).
     const stacked = stackEncounterDeck(withCI, ADVANCE, ADVANCE, "01104");
-    const after = settle(runBkw(stacked, endTurn()), preferring("counterintelligence-interrupt"), (s) => s.step.kind === "turn", BKW_DEPS);
+    const after = settle(
+      runBkw(stacked, endTurn()),
+      preferring("counterintelligence-interrupt"),
+      (s) => s.step.kind === "turn",
+      BKW_DEPS,
+    );
     // The first placement is The Break-In's 1 acceleration threat in step 1, fully prevented. Counterintelligence is
     // then discarded, so the dealt Advance's scheme (Rhino's SCH 1) lands.
     expect(mainThreat(after)).toBe(before + 1);

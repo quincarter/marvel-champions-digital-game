@@ -15,7 +15,10 @@ const identityOf = (starterDeckId: string): string => {
 };
 
 const setUp = (starterDeckIds: readonly string[]) =>
-  createGame(coreScenario("rhino", { players: starterDeckIds.map((starterDeckId) => ({ starterDeckId })), seed: 99 }), CORE_DEPS);
+  createGame(
+    coreScenario("rhino", { players: starterDeckIds.map((starterDeckId) => ({ starterDeckId })), seed: 99 }),
+    CORE_DEPS,
+  );
 
 test("two seats on the same Core starter deck are rejected", () => {
   const result = setUp(["core-captain-marvel-leadership", "core-captain-marvel-leadership"]);

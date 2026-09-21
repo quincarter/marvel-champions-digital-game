@@ -1,11 +1,13 @@
 # Phase 7 working spec: wave 2 (cycle 1)
 
 This is the shared brief for every agent working Phase 7's second content wave:
+
 - `card-data-pipeline`, `game-rules-architect`, `ability-scripting-engineer`, `encounter-ai-designer` and `rules-qa-engineer`.
 - It turns PLAN.md Phase 7's "Wave 2 scope decided (2026-09-18)" into schema decisions, per-pack setup needs, and a prioritized list of engine primitives.
 - The model is `docs/phase7-wave1.md`, and its §3 primitives are assumed. If you change a decision here, update this file in the same change.
 
 **Wave 2** is cycle 1, in release order:
+
 - The Rise of Red Skull (`trors`): Hawkeye, Spider-Woman, and five scenarios (Crossbones, Absorbing Man, Taskmaster, Zola, Red Skull);
 - The Once and Future Kang scenario pack (`toafk`);
 - the Ant-Man (`ant`), Wasp (`wsp`), Quicksilver (`qsv`) and Scarlet Witch (`scw`) hero packs.
@@ -157,7 +159,7 @@ New `Scenario` fields, each validated as enums the way `MultipleVillains` is:
   - **Experimental Weapons** (Crossbones), Red Skull rulebook p. 5: "take all four cards in the Experimental Weapons encounter set, shuffle them together, and set them facedown next to the main-scheme deck. [...] After a card from the Experimental Weapons deck enters play, it is considered to be part of the encounter deck. When that card is discarded, it is placed in the encounter deck discard pile."
     - This gives `discardPile: "encounter"`, `whenEmpty: "remainsEmpty"`.
   - **The side-scheme deck** (Red Skull), Red Skull rulebook p. 15: "search the encounter deck for each side scheme and shuffle them together into their own deck [...] The side-scheme deck has its own discard pile. [...] If the side-scheme deck is ever empty, shuffle the side-scheme discard pile into the side-scheme deck. There is no penalty for doing this."
-    - Errata (RRG 1.8 p. 66, #128A): "Shuffle every other *encounter* side scheme".
+    - Errata (RRG 1.8 p. 66, #128A): "Shuffle every other _encounter_ side scheme".
     - This gives `contents: { cardType: "side_scheme" }`, `discardPile: "own"`, `whenEmpty: "reshuffleDiscardWithoutPenalty"`.
   - **Built by the main scheme's 1A `Setup:`**, which moves the matching cards out of the encounter deck built at Appendix II step 10. The engine never builds these decks on its own.
   - The Crossbones rulebook page lists "Experimental Weapons set" among the encounter sets, so it belongs in `Scenario.encounterSetIds`.
@@ -183,19 +185,19 @@ Cycle 1 prints Incite X, Permanent, Piercing, Ranged, Setup, Villainous and Team
 
 Printed keyword lines, verbatim with HTML removed (the parser must accept each):
 
-| Keyword | Printed forms | Cards |
-|---|---|---|
-| Incite | `Incite 1.`, `Incite 2.` | 04056, 04069, 04106, 04121, 04135, 04152, 11029, 11046, 11048, 14025, 14028; 14026 |
-| Villainous | `Villainous. (When this minion activates, give it a boost card.)` | 11041, 11047 |
-| Permanent | `Permanent. Setup.` on one line | 04159a/b–04162a/b |
-| Setup (keyword) | `Setup.` | 04155–04158, 04159a/b–04162a/b |
-| Team-Up | `Team-Up (Ant-Man and Wasp). Max 1 per deck.` and `Team-Up (Quicksilver and Scarlet Witch). Max 1 per deck.` on one line | 12020, 13020; 14018, 15018 |
-| Toughness | `Toughness.`, and bare `Toughness` without a period (11001) | 04020, 04114, 04130, 04131, 11001–11006, 11032, 11034–11039, 11041, 11047 |
-| Retaliate | `Retaliate 1.` (with `Toughness.` on the same line on 11003, 11036) | 04014, 04109–04111, 04130, 11003, 11017, 11036, 11042 |
-| Guard | `Guard.`, and `Guard.(While …` without a space (04153) | 04130, 04153, 11017, 11042, 13028 |
-| Quickstrike | `Quickstrike.` | 04027, 04116, 04146, 11030, 11043 |
-| Surge | `Surge.`; `Incite 1. Surge.` on one line (11048) | 04080–04083, 11028, 11048 |
-| Uses | `Uses (3 attack counters).`; `Uses (3 counters).` (12028, a suspected data error, §5) | 04042, 12028 |
+| Keyword         | Printed forms                                                                                                            | Cards                                                                              |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Incite          | `Incite 1.`, `Incite 2.`                                                                                                 | 04056, 04069, 04106, 04121, 04135, 04152, 11029, 11046, 11048, 14025, 14028; 14026 |
+| Villainous      | `Villainous. (When this minion activates, give it a boost card.)`                                                        | 11041, 11047                                                                       |
+| Permanent       | `Permanent. Setup.` on one line                                                                                          | 04159a/b–04162a/b                                                                  |
+| Setup (keyword) | `Setup.`                                                                                                                 | 04155–04158, 04159a/b–04162a/b                                                     |
+| Team-Up         | `Team-Up (Ant-Man and Wasp). Max 1 per deck.` and `Team-Up (Quicksilver and Scarlet Witch). Max 1 per deck.` on one line | 12020, 13020; 14018, 15018                                                         |
+| Toughness       | `Toughness.`, and bare `Toughness` without a period (11001)                                                              | 04020, 04114, 04130, 04131, 11001–11006, 11032, 11034–11039, 11041, 11047          |
+| Retaliate       | `Retaliate 1.` (with `Toughness.` on the same line on 11003, 11036)                                                      | 04014, 04109–04111, 04130, 11003, 11017, 11036, 11042                              |
+| Guard           | `Guard.`, and `Guard.(While …` without a space (04153)                                                                   | 04130, 04153, 11017, 11042, 13028                                                  |
+| Quickstrike     | `Quickstrike.`                                                                                                           | 04027, 04116, 04146, 11030, 11043                                                  |
+| Surge           | `Surge.`; `Incite 1. Surge.` on one line (11048)                                                                         | 04080–04083, 11028, 11048                                                          |
+| Uses            | `Uses (3 attack counters).`; `Uses (3 counters).` (12028, a suspected data error, §5)                                    | 04042, 12028                                                                       |
 
 - **Piercing and Ranged are never printed as keyword lines in cycle 1.** They are always granted: "gains piercing" / "gain piercing" (04009, 04012, 04027, 04044, 04058–04060, 04102, 04148, 11005, 11032, 11038, 11043, 13008, 14029) and "gains ranged" / "gain ranged" (04002, 04020, 04029, 04072, 04149; with piercing: 04101, 04132).
 - **Other granted keywords:** "gains retaliate 1" (04073, 04103, 04118, 04133, 13008), "gains guard" (04117), "gains overkill" (11015, 13004), "gains surge" (04085, 04117–04119, 04150, 11026, 11027, 13030).
@@ -209,14 +211,14 @@ RRG 1.8 Appendix II (p. 51) with the wave 1 engine. Step 13, "Campaign Setup", i
 
 ### 2.1 Hero packs
 
-| Pack | Identity | Obligation | Nemesis set (nemesis minion in bold) | Other setup and legality |
-|---|---|---|---|---|
-| `trors` | Hawkeye / Clint Barton (04001a/b) | Criminal Past (04026) | **Crossfire** (04027), Marked for Death, Crossfire's Rifle, Sniper Shot ×2 | none. Precon: Leadership (Red Skull rulebook p. 18). |
-| `trors` | Spider-Woman / Jessica Drew (04031a/b) | Uncertain Loyalties (04053) | **The Viper** (04054), The Viper's Ambition, Hydra Regular ×2, Hail Hydra! | Two aspects, equal split (§1.2). Precon: Aggression + Justice, 15 + 11 + 11 + 3 basic resources (p. 18). |
-| `ant` | Ant-Man / Scott Lang (12001a/b/c) | Care for Cassie (12025) | **Yellowjacket** (12027), Tech Theft, Size Increase ×2, Yellowjacket's Plan | Three-sided (§1.1). Precon: Leadership (insert). |
-| `wsp` | Wasp / Nadia Van Dyne (13001a/b/c) | Red Dreams (13026) | **Beetle** (13028), Mother's Orders, Beetle Armor MK IV, Beetle Mania ×2 | Three-sided (§1.1). Precon: Aggression. |
-| `qsv` | Quicksilver / Pietro Maximoff (14001a/b) | Need for Speed (14024) | **Avalanche** (14026), Extortion of Seismic Proportion, Vibration Resistance, Earthquake ×2 | Precon: Protection. |
-| `scw` | Scarlet Witch / Wanda Maximoff (15001a/b) | Slipping Sanity **×2** (15023; §1.10) | **Luminous** (15025), The Next Evolution, Magical Suspension, Chaos Manipulation | Precon: Justice. |
+| Pack    | Identity                                  | Obligation                            | Nemesis set (nemesis minion in bold)                                                        | Other setup and legality                                                                                 |
+| ------- | ----------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `trors` | Hawkeye / Clint Barton (04001a/b)         | Criminal Past (04026)                 | **Crossfire** (04027), Marked for Death, Crossfire's Rifle, Sniper Shot ×2                  | none. Precon: Leadership (Red Skull rulebook p. 18).                                                     |
+| `trors` | Spider-Woman / Jessica Drew (04031a/b)    | Uncertain Loyalties (04053)           | **The Viper** (04054), The Viper's Ambition, Hydra Regular ×2, Hail Hydra!                  | Two aspects, equal split (§1.2). Precon: Aggression + Justice, 15 + 11 + 11 + 3 basic resources (p. 18). |
+| `ant`   | Ant-Man / Scott Lang (12001a/b/c)         | Care for Cassie (12025)               | **Yellowjacket** (12027), Tech Theft, Size Increase ×2, Yellowjacket's Plan                 | Three-sided (§1.1). Precon: Leadership (insert).                                                         |
+| `wsp`   | Wasp / Nadia Van Dyne (13001a/b/c)        | Red Dreams (13026)                    | **Beetle** (13028), Mother's Orders, Beetle Armor MK IV, Beetle Mania ×2                    | Three-sided (§1.1). Precon: Aggression.                                                                  |
+| `qsv`   | Quicksilver / Pietro Maximoff (14001a/b)  | Need for Speed (14024)                | **Avalanche** (14026), Extortion of Seismic Proportion, Vibration Resistance, Earthquake ×2 | Precon: Protection.                                                                                      |
+| `scw`   | Scarlet Witch / Wanda Maximoff (15001a/b) | Slipping Sanity **×2** (15023; §1.10) | **Luminous** (15025), The Next Evolution, Magical Suspension, Chaos Manipulation            | Precon: Justice.                                                                                         |
 
 - **Nemesis sets hold other minions too:** Hydra Regular with The Viper, just as wave 1's did (docs/phase7-wave1.md §1.7). Curation sets `nemesisMinion` only on the named minion.
 - **Same title, different codes.** Hydra Regular (04056, nemesis; 04152, Hydra Patrol) and Hail Hydra! (04057, nemesis; 04147, Hydra Assault) are each one card by title printed in two sets (RRG 1.8 "Copy", p. 13). The errata for Hail Hydra! applies to both (#57, #147).
@@ -227,13 +229,13 @@ RRG 1.8 Appendix II (p. 51) with the wave 1 engine. Step 13, "Campaign Setup", i
 
 Each scenario's villain deck is I–II standard and II–III expert. Each rulebook page reads "Remove [villain] (I) and add [villain] (III) for expert mode." The modular sets come from each 1A "Contents", with errata.
 
-| Scenario | Main scheme deck | Encounter sets (required) | Modular (count) | 1A Setup | Needs |
-|---|---|---|---|---|---|
-| Crossbones | Attack on Mount Athena → The Infinity Stone → The Getaway (3B loses) | Crossbones, Experimental Weapons, Standard | Hydra Assault, Weapon Master, Legions of Hydra (3; errata #61A) | "Create the Experimental Weapons deck" | §1.8 / §3.3 separate deck; Crossbones III "Reveal the top card of the Experimental Weapons deck" |
-| Absorbing Man | None Shall Pass (single stage; 1B loses) | Absorbing Man, Standard | Hydra Patrol (1) | "Discard cards from the encounter deck until an environment is discarded. Put that card into play and shuffle the encounter discard pile into the encounter deck." | Environments with Surge enter without surging (Red Skull rulebook p. 7: "Putting a card into play is not the same as revealing a card."); delay counters; "gains the trait of each environment" (§3.11) |
-| Taskmaster | Hunting Down Heroes (single stage) | Taskmaster, **Hydra Patrol**, Standard | Weapon Master (1) | "Set each Captive ally aside out of play. Search the encounter deck for Hydra Patrol and put it into play." | Captive allies set aside (§3.10, §4.5). Rulebook p. 10: "The Hydra Patrol set [...] is required when playing Taskmaster." |
-| Zola | The Island of Dr. Zola → The Mad Doctor | Zola, Standard | Under Attack (1, Core) | "Search the encounter deck for Hydra Prison and reveal it. Each player searches the encounter deck for a copy of Ultimate Bio-Servant and puts it into play engaged with them." | Hydra Prison tucks player allies facedown (§3.10) |
-| Red Skull | The Rise of Red Skull → New World Hydra | Red Skull, Standard | Hydra Assault, Hydra Patrol (2) | "Put the Red House into play. Shuffle every other encounter side scheme into the side-scheme deck [...] Set The Sleeper aside, out of play." (errata #128A) | §1.8 / §3.3 side-scheme deck; 1B/2B "reveal the top card of the side-scheme deck and put it into play" |
+| Scenario      | Main scheme deck                                                     | Encounter sets (required)                  | Modular (count)                                                 | 1A Setup                                                                                                                                                                        | Needs                                                                                                                                                                                                   |
+| ------------- | -------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Crossbones    | Attack on Mount Athena → The Infinity Stone → The Getaway (3B loses) | Crossbones, Experimental Weapons, Standard | Hydra Assault, Weapon Master, Legions of Hydra (3; errata #61A) | "Create the Experimental Weapons deck"                                                                                                                                          | §1.8 / §3.3 separate deck; Crossbones III "Reveal the top card of the Experimental Weapons deck"                                                                                                        |
+| Absorbing Man | None Shall Pass (single stage; 1B loses)                             | Absorbing Man, Standard                    | Hydra Patrol (1)                                                | "Discard cards from the encounter deck until an environment is discarded. Put that card into play and shuffle the encounter discard pile into the encounter deck."              | Environments with Surge enter without surging (Red Skull rulebook p. 7: "Putting a card into play is not the same as revealing a card."); delay counters; "gains the trait of each environment" (§3.11) |
+| Taskmaster    | Hunting Down Heroes (single stage)                                   | Taskmaster, **Hydra Patrol**, Standard     | Weapon Master (1)                                               | "Set each Captive ally aside out of play. Search the encounter deck for Hydra Patrol and put it into play."                                                                     | Captive allies set aside (§3.10, §4.5). Rulebook p. 10: "The Hydra Patrol set [...] is required when playing Taskmaster."                                                                               |
+| Zola          | The Island of Dr. Zola → The Mad Doctor                              | Zola, Standard                             | Under Attack (1, Core)                                          | "Search the encounter deck for Hydra Prison and reveal it. Each player searches the encounter deck for a copy of Ultimate Bio-Servant and puts it into play engaged with them." | Hydra Prison tucks player allies facedown (§3.10)                                                                                                                                                       |
+| Red Skull     | The Rise of Red Skull → New World Hydra                              | Red Skull, Standard                        | Hydra Assault, Hydra Patrol (2)                                 | "Put the Red House into play. Shuffle every other encounter side scheme into the side-scheme deck [...] Set The Sleeper aside, out of play." (errata #128A)                     | §1.8 / §3.3 side-scheme deck; 1B/2B "reveal the top card of the side-scheme deck and put it into play"                                                                                                  |
 
 - **Rulebook clarification, Taskmaster (p. 10).** When Shadow of the Past would bring in a nemesis minion with the same title as an enemy in play, "Your nemesis minion cannot enter the game [...] However, you still reveal your nemesis' side scheme and shuffle the rest of your nemesis's set into the encounter deck. This will cause Shadow of the Past to gain surge." This follows from the existing unique rule; pin it with a test when Taskmaster is scripted.
 - **Campaign instructions on every rulebook page are skipped.** That covers the Experimental attachments shuffled in, persistent damage and the rest.
@@ -258,6 +260,7 @@ Each scenario's villain deck is I–II standard and II–III expert. Each rulebo
 **Build the mechanism, not the card.** Engine code never names a card; card names below say where each primitive is needed.
 
 **Priority order:**
+
 - **First, state-shape changes** that would force scripts to be rewritten if they came later: §3.1–§3.4.
 - **Then primitives many cards share:** §3.5–§3.10.
 - **Last, the vocabulary tail:** §3.11–§3.12.
@@ -276,6 +279,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 > - **Not done:** hazard icons still deal from the whole table's count; the client shows only the central scheme (`board-model.ts` reads `state.mainScheme`); the Kang cards themselves are unscripted (`ability-scripting-engineer`).
 
 **Rules** (Kang insert; each is a `SeparateGameAreas` field, §1.8):
+
 - "Cards and components in one game area cannot affect another game area (with the exception of the text on stage 2B). Players cannot attack or defend enemies in other game areas, and they cannot target any game elements in the other game areas."
 - "they continue to use the same encounter deck and encounter discard pile. Play still proceeds in turn order, and the first player token is still passed to the next player at the end of the villain phase."
 - "'Each player' refers to each player in the same game area."
@@ -285,12 +289,14 @@ A pack whose cards need an unbuilt primitive stays data only.
 - Status cards and attachments on a defeated Kang don't transfer, because there is no next villain in the villain deck (insert, "Rules Clarifications").
 
 **State:**
+
 - `GameState.gameAreas: { areaId, playerIds, villainIds, mainScheme: MainSchemeState, sideSchemeIds, villainArea }[]`, or a single implicit area when the scenario has none.
 - `areaOf(instance)` for every in-play card.
 - The central stage is a main scheme instance outside every area.
 - **Several main scheme instances at once** (one stage 3 per area, plus 2B centrally). `GameState.mainScheme` becomes per-area. That is the largest reader change since `state.villains` in wave 1.
 
 **Resolution:**
+
 - **Area-relative lookups.** "The villain", "the main scheme", "each player", "first player choices" and targeting all resolve inside the resolving card's area. Environments are in every area (FAQ p. 60), and so is the central stage.
 - **Villain phase.** Each area runs step 1 (threat on its own stage 3) and its villain's activations.
 - **Stage-scoped effects:**
@@ -302,10 +308,12 @@ A pack whose cards need an unbuilt primitive stays data only.
 - **Villain defeat.** Defeating a Kang (II) doesn't win (`victory: "cardAbility"`), and there is no next stage.
 
 **Also needed:**
+
 - **Tuck facedown under a main scheme stage not yet in play.** "place 1 set-aside Kang's Dominion facedown under stage 4A", then 4A: "Reveal each face down Kang's Dominion under this stage."
 - **"Add Kang (Immortus) to the game area"** from the set-aside villains (§3.4).
 
 **Tests:**
+
 - 4 players each reveal a random stage 3 in turn order, and unused ones are removed from the game;
 - area isolation for targeting, attacks and defense;
 - "each player" is per area;
@@ -333,6 +341,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 **State:** `IdentityState.heroFormIndex: number | null`, where `null` is alter-ego form, 0 is `hero`, and `n` is `additionalHeroForms[n-1]`. Keep `form: "hero" | "alterEgo"` so existing readers work.
 
 **Resolution:**
+
 - **Reading the face.** `characterProfile`, traits, keywords, hand size and `activeAbilityRefs` read the face that is up.
 - **The command.** `changeForm` gains `to?: { heroForm: number } | "alterEgo"`, and `legalActions` offers each reachable face.
   - **Reading:** a voluntary hero-to-hero change uses the once-per-round change, since the insert applies "the standard rules for changing form". See §4.
@@ -345,12 +354,14 @@ A pack whose cards need an unbuilt primitive stays data only.
 - **Limits persist across faces.** Ruling Jan 26, 2026 (ruling 6, answer 2): "Limits apply to cards. An identity never leaves play when flipping."
 
 **Cards:**
+
 - the Ant-Man and Wasp identities; Resize, Swarm Tactics, Rapid Growth;
 - Moxie, Lay Down the Law, Surprise Attack, Perseverance ("After you change form");
 - Ant-Man's Helmet, Giant Strength, Wrist Gauntlets, Pym Particles, Army of Ants, Red Room Training, Wasp's Helmet, Bio-Synthetic Wings, Giant Help, Pinpoint Strike, Wasp Sting;
 - Wasp ally (12002), Ant-Man ally (13002), Yellowjacket (12027) — "While you are in [Giant] hero form".
 
 **Tests:**
+
 - alter-ego to each hero form;
 - hero to hero;
 - the voluntary limit;
@@ -372,6 +383,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 **State.** Generalize wave 1's `PlayerState.separateDecks` (docs/phase7-wave1.md §3.5) to a scenario-owned `GameState.scenarioDecks` with the same zone kinds and `CardHome { kind: "scenarioDeck"; name }`.
 
 **Resolution:**
+
 - `EffectSpec buildScenarioDeck { name }`, run by 1A's script, moves the matching cards out of the encounter deck and shuffles them.
 - `CardSelector scenarioDeck { name, top? }` serves "Reveal the top card of the …deck".
 - Discards follow `discardPile`:
@@ -380,9 +392,11 @@ A pack whose cards need an unbuilt primitive stays data only.
 - Reuse the Invocation reshuffle for `reshuffleDiscardWithoutPenalty`.
 
 **Set aside at setup.** A `GameSetupConfig.setAside` list of scenario cards that start out of play: Captive allies, The Sleeper, Kang's Dominion ×4, and the set-aside villains of §3.4.
+
 - RRG 1.8 "Scenario-Specific Card" (p. 38) lists the encounter deck as "attachment, environment, minion, side scheme, and treachery cards", so the Captive allies need never enter it (§4.5).
 
 **Tests:**
+
 - Crossbones III reveals from the Experimental Weapons deck, and a discarded Experimental attachment goes to the encounter discard;
 - the side-scheme deck reshuffles its own discard with no acceleration token;
 - stage 1B reveals and puts into play from the side-scheme deck;
@@ -400,6 +414,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 > - `dashedValues` read as an unmodifiable 0 (`mainSchemeValue`), and a dashed target threat never completes.
 
 **Resolution:**
+
 - **Setup:**
   - `setAsideVillainCardIds` become set-aside villain instances;
   - `expertVillains` substitutes in expert mode;
@@ -411,6 +426,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 - **Main scheme values** read `dashedValues` as unmodifiable 0, and a dashed target threat never completes.
 
 **Tests:**
+
 - Kang (I) defeated doesn't win and advances to stage 2 at the end of the phase;
 - expert substitution;
 - a dashed-value stage never completes by threat;
@@ -442,6 +458,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 > - **Not done:** counts made by card effects (Hex Bolt, Taskmaster's `discardEncounterCards` totals) have no window; §4.8 is still open. Star icons in the boost area (Slipping Sanity) have no value spec yet.
 
 **Rules and cards:**
+
 - **Counting discarded cards' icons.** "discard the top card of the encounter deck … take damage equal to the number of boost icons on that card", on Taskmaster I–III, Crossbones' Machine Gun, Full Auto, Cornered Staff, Chitauri Soldier, Luminous, Chaos Manipulation, Wiccan, the Scarlet Witch ally, Hex Bolt and Molecular Decay.
 - **Replacing a count.** Chaos Control (15001a): "When boost icons on an encounter card would be counted, discard the top card of the encounter deck and count the number of boost icons on that card instead."
 - **Modifying one count.** Scarlet Witch's Crest: "increase or decrease the number of boost icons on that card by 1 for this count."
@@ -450,6 +467,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 - **Order of Hex Bolt.** FAQ "Hex Bolt (#4)" (RRG 1.8 p. 61): "resolve the first sentence of Hex Bolt entirely, without interruption. Then, determine and resolve the appropriate bulleted abilities based off of what was discarded."
 
 **Model:**
+
 - **One counting function** that every read goes through: the boost step of an activation (`boostIconsFor`, `modifiers.ts`) and `<bind>.boostIcons` on discard effects.
 - **An interruptible `boostIconsCounted { cardInstanceId, reason }` event.** It sits before the value is fixed, so a replacement (Chaos Control) or a per-count modifier (Crest) applies.
 - **A `boostIcons` modifier** that may target every encounter card (The Next Evolution), not only the boost card's own constant.
@@ -465,6 +483,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 > - **Not done:** `legalActions` doesn't enumerate divided basic powers (the command is accepted; a client needs a picker).
 
 **Rules and cards:**
+
 - **Wasp's Giant constants.** "Threat you remove using your basic thwart power (THW) can be divided among schemes as you choose." and the same for damage with ATK.
 - **FAQ "Wasp (#1C)" (RRG 1.8 p. 61):**
   - the thwart "simultaneously remove[s] threat from each scheme that Wasp chooses. Wasp cannot choose the main scheme as a target while she is engaged with a minion with the patrol keyword or there is a card with a crisis icon in play [...] this applies even if the card [...] is removed from play during her basic thwart's resolution";
@@ -474,6 +493,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 - **Choosing options twice:** Double Time ("Choose two of the following (you may choose the same option twice)").
 
 **Model:**
+
 - **One division choice.** A `divide { amount, among: TargetQuery }` choice, then simultaneous resolution. Reuse wave 1's `damageGroup` frame (§3.7 there) and add a threat-removal group.
 - **Legality is fixed when targets are chosen,** per the FAQ.
 - **A basic power with several targets** produces one `attack` event per target and one retaliate each, in an order the attacker picks.
@@ -490,6 +510,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 > - **Landed later (§9):** playing a card inside an ability with a reduction (Team-Building Exercise) — `playFromHand.costReduction`, which also covers an event with a cost of its own and an upgrade with its own host.
 
 **Rules and cards:**
+
 - **Overpaying.** Ant-Man ally (12011): "place 1 pym counter on him (to a maximum of 4) for each resource you overpaid for Ant-Man's cost". Wasp ally (13012) counts [energy] only.
   - RRG 1.8 "Cost" (p. 13): "While paying a cost, a player is permitted to generate resources beyond the specified cost. Resources generated beyond the specified cost are considered to have been overpaid for that cost and were not paid for that cost."
   - Model: `payment.overpaid` (by type) recorded on the `cardPlayed` / `cardBeingPlayed` event, and `legalActions` allowing a payment larger than the cost for such a card.
@@ -569,7 +590,7 @@ A pack whose cards need an unbuilt primitive stays data only.
 
 ### 3.12 Selection and value vocabulary
 
-> **Status (2026-09-18):** the only gap was random selection among set-aside cards: `CardSelector encounterSetAside.random`, tested in `primitives-wave2.test.ts`. Everything else on this list is existing vocabulary (`selectCards`/`chooseCards` over any deck's top, `superlative` with `printedCost`, `chooseTarget.count` as a value, `chooseOne` over statuses, `villainStageNumber`, `<bind>.<resource>` and `resourceTypes`). "Each player searches for a *different* obligation" has no cross-player exclusion yet.
+> **Status (2026-09-18):** the only gap was random selection among set-aside cards: `CardSelector encounterSetAside.random`, tested in `primitives-wave2.test.ts`. Everything else on this list is existing vocabulary (`selectCards`/`chooseCards` over any deck's top, `superlative` with `printedCost`, `chooseTarget.count` as a value, `chooseOne` over statuses, `villainStageNumber`, `<bind>.<resource>` and `resourceTypes`). "Each player searches for a _different_ obligation" has no cross-player exclusion yet.
 
 - **"Look at the top card of any deck"** (Jessica Drew).
 - **Each player searching for a different card.** Past Machinations: "Each player searches the encounter deck and discard pile for a different obligation and reveals it".
@@ -587,28 +608,28 @@ A pack whose cards need an unbuilt primitive stays data only.
 > recorded while scripting `trors` (docs/phase7-wave2-scripting.md §6), in the task's priority order. Every shape
 > below is additive: no existing `AbilityDefinition` changes, and engine tests are green after each.
 >
-> | Gap | Shape | Status |
-> |---|---|---|
-> | §6.1 attack-keyword grant | `attack.keywords`, `modifyAttack.keywords`, `RuleSpec attackKeywords` | **Landed**, §3.13.1 |
-> | §6.2 OR of aspects | `TargetQuery.anyAspect` | **Landed**, §3.13.2 |
-> | §6.3 wild-resource cost | `ResourceRequirement.wild` | **Landed**, §3.13.3 |
-> | §6.6 prevent this attack's damage | `modifyAttack.preventAllDamage` | **Landed**, §3.13.4 |
-> | §6.4 crisis-ignoring thwart | `thwart.ignoreCrisis` / `removeThreat.ignoreCrisis` | **Landed**, §3.13.5 |
-> | §6.5 a card's printed resource icons | `ValueSpec totalPrintedResources` | **Landed**, §3.13.6 |
-> | §6.7 the defeating player | `PlayerRef defeatingPlayer` | **Landed**, §3.13.7 |
-> | §6.11 once per round per aspect | `AbilityLimit.per` | **Landed**, §3.13.8 |
-> | §6.10 "after a player changes to hero form" | `EventPattern.eventIs` | **Landed**, §3.13.9 |
-> | §6.9 Interrupt on a card entering play, and "each other" | `cardEntersPlay` is interruptible; `TargetQuery.excluding` | **Landed**, §3.13.10 |
-> | §6.11 blanking a class of cards (Tech Theft) | `RuleSpec blankTextBox` + the blanked-set layer | **Landed later**, §8 |
-> | §3.8 play a card inside an ability with a reduction | `playFromHand.costReduction` | **Landed later**, §9 |
-> | §3.6 / §4.8 boost counts made by card effects | — | **Not done**, §3.13.11 (open rules question) |
+> | Gap                                                      | Shape                                                                 | Status                                       |
+> | -------------------------------------------------------- | --------------------------------------------------------------------- | -------------------------------------------- |
+> | §6.1 attack-keyword grant                                | `attack.keywords`, `modifyAttack.keywords`, `RuleSpec attackKeywords` | **Landed**, §3.13.1                          |
+> | §6.2 OR of aspects                                       | `TargetQuery.anyAspect`                                               | **Landed**, §3.13.2                          |
+> | §6.3 wild-resource cost                                  | `ResourceRequirement.wild`                                            | **Landed**, §3.13.3                          |
+> | §6.6 prevent this attack's damage                        | `modifyAttack.preventAllDamage`                                       | **Landed**, §3.13.4                          |
+> | §6.4 crisis-ignoring thwart                              | `thwart.ignoreCrisis` / `removeThreat.ignoreCrisis`                   | **Landed**, §3.13.5                          |
+> | §6.5 a card's printed resource icons                     | `ValueSpec totalPrintedResources`                                     | **Landed**, §3.13.6                          |
+> | §6.7 the defeating player                                | `PlayerRef defeatingPlayer`                                           | **Landed**, §3.13.7                          |
+> | §6.11 once per round per aspect                          | `AbilityLimit.per`                                                    | **Landed**, §3.13.8                          |
+> | §6.10 "after a player changes to hero form"              | `EventPattern.eventIs`                                                | **Landed**, §3.13.9                          |
+> | §6.9 Interrupt on a card entering play, and "each other" | `cardEntersPlay` is interruptible; `TargetQuery.excluding`            | **Landed**, §3.13.10                         |
+> | §6.11 blanking a class of cards (Tech Theft)             | `RuleSpec blankTextBox` + the blanked-set layer                       | **Landed later**, §8                         |
+> | §3.8 play a card inside an ability with a reduction      | `playFromHand.costReduction`                                          | **Landed later**, §9                         |
+> | §3.6 / §4.8 boost counts made by card effects            | —                                                                     | **Not done**, §3.13.11 (open rules question) |
 >
 > Tests: `packages/engine/src/primitives-wave2b.test.ts` (21 tests, the last three §9's). Nothing below renumbers or
 > removes an existing field; the only observable shape change anywhere is §3.13.3's, and it is opt-in.
 
 #### 3.13.1 An attack keyword granted to one attack (§6.1)
 
-RRG 1.8 words piercing (p. 32), ranged (p. 35) and overkill (p. 31) as properties of *an attack* — "An attack with
+RRG 1.8 words piercing (p. 32), ranged (p. 35) and overkill (p. 31) as properties of _an attack_ — "An attack with
 the … keyword" — not of a character, so a grant can be scoped to a single attack. `AttackKeyword = "piercing" |
 "ranged" | "overkill"` (`spec.ts`). Three ways to grant one, all folded together once, when the attack pushes its
 damage, by `attackKeywordsOf` (`keywords.ts`), and then stamped on the events it pushes (`dealDamage.piercing`,
@@ -661,7 +682,7 @@ card" with one field, and it costs the caller one constant in `@mc/cards`.
 Resource" (p. 48): "Some card abilities specifically require wild resources to be spent", and a generated wild "may
 specify which resource type (energy, mental, physical, or wild) it is being used as" — a wild may be declared wild,
 but no typed resource can be declared a wild. `satisfies` pays the wild slots first, then the typed slots, then lets
-the wilds *left over* cover a typed shortfall, then the generic part.
+the wilds _left over_ cover a typed shortfall, then the generic part.
 
 ```ts
 // "Hero Action: Exhaust your hero and spend a [wild] resource → …" (Crossfire's Rifle 04029)
@@ -679,7 +700,7 @@ list. `required: poolTotal(query.requirement)` is already right.
 #### 3.13.4 "Prevent all damage from that attack", from attack initiation (§6.6)
 
 **`modifyAttack.preventAllDamage?: boolean`.** The `preventDamage` effect only adjusts an already-pushed `dealDamage`
-frame, so it is a silent no-op for an interrupt that fires at attack *initiation* (docs/phase7-wave2-scripting.md
+frame, so it is a silent no-op for an interrupt that fires at attack _initiation_ (docs/phase7-wave2-scripting.md
 §4.1). This flag instead rides the **activation's own event frame** — the same place `overkill`, `atkBonus` and
 `extraBoost` already live — so it is set before a defender is declared and read when that attack finally deals
 damage, whoever ends up defending and whatever the defense arithmetic produces. It expires with the attack, because
@@ -693,6 +714,7 @@ the frame does.
 ```
 
 Semantics, per RRG 1.8 "Prevent" (p. 34), pinned by test:
+
 - the damage is still **dealt** — excess damage is measured before the check, so an `excessDamageAsThreat` rule still
   fires — but the target **takes** none;
 - **no tough status card is spent** (the attack never reaches the tough step);
@@ -701,7 +723,7 @@ Semantics, per RRG 1.8 "Prevent" (p. 34), pinned by test:
   has no `parentFrameId` pointing at the activation and is untouched.
 
 **Flagged, unconfirmed reading** (also in a code comment at `resolve/event.ts` `applyDamage`): a fully prevented
-*piercing* attack discards no tough status cards here. RRG 1.8 "Piercing" (p. 32) exempts an attack that "would deal
+_piercing_ attack discards no tough status cards here. RRG 1.8 "Piercing" (p. 32) exempts an attack that "would deal
 no damage", while p. 34 says prevented damage is still dealt, so the two readings disagree. No cycle 1 card reaches
 the combination.
 
@@ -722,7 +744,7 @@ event and read by `threatRemovalBlocked` (`resolve/event.ts`).
 
 Scope, deliberately narrow: it steps over **only** the RRG 1.8 "Crisis Icon" (p. 14) check, for that one removal. A
 `threatCannotBeRemoved` rule (Countdown to Oblivion, Held Hostage) is a "cannot" — RRG 1.8 "'Cannot'" (p. 11), "an
-absolute prohibition" — and still blocks. The command-level refusal of a *basic* thwart against the main scheme
+absolute prohibition" — and still blocks. The command-level refusal of a _basic_ thwart against the main scheme
 under a crisis icon (`actions.ts`) is untouched; no card grants that.
 
 #### 3.13.6 A referenced card's printed resource icons (§6.5)
@@ -749,14 +771,15 @@ player back as a value.
 
 ```ts
 // "When Defeated: Crossbones activates against the player who defeated this scheme." (Crossbones' Assault 04070)
-whenDefeated(enemyAttack(theVillain, { against: { kind: "defeatingPlayer" } }))
+whenDefeated(enemyAttack(theVillain, { against: { kind: "defeatingPlayer" } }));
 ```
 
 Two supporting changes, both additive:
+
 - **`schemeDefeated` now carries `defeatedByPlayerId`** — the player whose thwart the removal belonged to, else the
   controller of whatever removed the last threat, else null. It is also the event's player subject, so
   `playerIs: "controller"` now works on a `schemeDefeated` pattern the way it already did on `characterDefeated`
-  ("after *you* defeat a side scheme"). No card in the pool used that pattern before, so nothing changes behaviour.
+  ("after _you_ defeat a side scheme"). No card in the pool used that pattern before, so nothing changes behaviour.
 - **A side scheme's When Defeated abilities now resolve with the `schemeDefeated` event in context** (a minion's
   already got its `characterDefeated` event). Checked against every Core, wave 1 and wave 2 `whenDefeated` script:
   none reads an event-scoped ref, so nothing else moves.
@@ -791,8 +814,8 @@ it.
   effects: [ /* "they" is PlayerRef { kind: "eventPlayer" } */ ] }
 ```
 
-The "any player" half needed nothing new: **omit `playerIs`** and the pattern is "after *a player* …" rather than
-"after *you* …" (`on.youChangeForm`'s hardcoded `playerIs: "controller"` is the DSL's, not the engine's).
+The "any player" half needed nothing new: **omit `playerIs`** and the pattern is "after _a player_ …" rather than
+"after _you_ …" (`on.youChangeForm`'s hardcoded `playerIs: "controller"` is the DSL's, not the engine's).
 
 #### 3.13.10 An Interrupt on a card entering play, and "each other" (docs/phase7-wave2-scripting.md §6.9)
 
@@ -815,7 +838,7 @@ the query.
 { kind: "discardFromPlay", target: { kind: "each", query: { categories: ["environment"], excluding: { kind: "eventTarget" } } } }
 ```
 
-`self: false` already excluded the ability's *own* card; this excludes a card the ability names some other way (the
+`self: false` already excluded the ability's _own_ card; this excludes a card the ability names some other way (the
 triggering event's subject, a slot, the host). Useful well beyond this card — any "each other …" text.
 
 #### 3.13.11 Recorded as NOT done in this pass
@@ -829,11 +852,11 @@ calls. **Both were built in the pass after this one — §8 and §9 below.**
 **Boost counts made by card effects** — Hex Bolt (15004), Taskmaster's and Crossbones' "discard the top card of the
 encounter deck … boost icons on that card". **Not built, deliberately: it is §4.8's open rules question,** not an
 engine gap. The `boostIconsCounting` window exists only inside an activation's boost step; extending it to
-`<bind>.boostIcons` reads by card effects *is* choosing the reading that Chaos Control's "when boost icons on an
+`<bind>.boostIcons` reads by card effects _is_ choosing the reading that Chaos Control's "when boost icons on an
 encounter card would be counted" reaches those counts. The doc's own proposal (§4.8: "every count, since the text
 says 'an encounter card', not 'a boost card'") is marked unconfirmed, and there is no FFG ruling in
 `marvel-champions-rulings-post-rrg-1-7.md`. **Surfaced for the user rather than picked quietly.** Note that the
-cards themselves are only blocked on the *interaction*: Hex Bolt's own counting already works through
+cards themselves are only blocked on the _interaction_: Hex Bolt's own counting already works through
 `<bind>.boostIcons`, and FAQ "Hex Bolt (#4)" (RRG 1.8 p. 61) settles its internal order. Scripting them is fine
 today; what is undecided is whether Chaos Control (`scw`, not started) can replace those counts.
 
@@ -873,7 +896,7 @@ today; what is undecided is whether Chaos Control (`scw`, not started) can repla
     - **Implemented:** the card cannot be played (`requirementUnmeetable`, `actions.ts`), because resources beyond a cost "were not paid for that cost" (RRG 1.8 "Cost", p. 13). The other reading is that the required resources are always spent even above the reduced cost. Needs confirming.
 
 13. **What the Prerequisite keyword gates** (§7.5). RRG 1.8 has no entry; the Fear No Evil rulebook (p. 3) is the only source and is not in this repo, and the one printed card that has it (Defend Our City 61029, a **player side scheme**) carries no reminder text.
-    - Unclear whether the keyword bars *playing* the card, bars *triggering its abilities*, or both — and, on a card that enters play some other way, whether it keeps checking while the card is in play or only at the moment it is played.
+    - Unclear whether the keyword bars _playing_ the card, bars _triggering its abilities_, or both — and, on a card that enters play some other way, whether it keeps checking while the card is in play or only at the moment it is played.
     - **Implemented: data only.** The schema shape is `{ name: "prerequisite", traits?, form? }` and the engine does nothing with it; a card carrying it cannot be marked playable. Nothing is guessed. Read the rulebook page before building the semantics; `PlayRestrictions.form` / `requiresIdentityTrait` is the likely target.
 
 ---
@@ -884,50 +907,56 @@ today; what is undecided is whether Chaos Control (`scw`, not started) can repla
 
 This is `card-data-pipeline`'s code; nothing here was edited.
 
-| Survey category | What to do |
-|---|---|
-| "hero without a linked alter-ego" / "unhandled type hero" (12001c, 13001c) | Fold the unlinked `…c` hero record into its identity's `additionalHeroForms` (§1.1). Its abilities key as `12001c.<slug>`. |
-| Spider-Woman's aspect cards (04035–04038), not yet flagged by the survey | `faction_code` aspect + `card_set_code` of an identity → `aspect: hero:04031a`, `printedAspect: <faction>` (§1.2). |
-| "unknown faction encounter" + "deck_limit missing" (04097–04100) | Captive allies: `aspect: "none"` (after the image check), `specificTo: { kind: "scenario", encounterSetId: "taskmaster" }`, `deckLimit: 1` (they are unique; campaign mode may add them to decks). |
-| "unknown faction campaign" (04155–04162) | `aspect: "basic"`, `specificTo: { kind: "campaign", encounterSetId: "hydra_camp" }`. |
-| "obligation with faction campaign" (04163–04166) | Encounter obligations in `expcamp` sets, marked `EncounterSet.campaignSpecific`. |
-| "upgrade without a cost" (04159a–04162a) | `cost: 0, specialCost: "dash"` after the image check; the `…b` records become `flipSide` (§1.5). |
-| MarvelCDB `cost: -1` (14006) | `cost: 0, specialCost: "X"` (§1.3). |
-| Ally `health: 0` (12011, 13012) | Emit `hp: 0`; the schema now accepts it. |
-| "villain set: stage names differ" (kang, exp_kang) | One `VillainCard` per Kang record, each with one stage whose `stageNumber` is its numeral (§1.8). |
-| "main scheme missing starting/target/acceleration threat" (11008b) | `dashedValues: ["startingThreat", "targetThreat", "acceleration"]` with zeros, after the image check (§1.6). |
-| Kang's four stage 3 records | Four stages with `stageNumber: 3`, each with its `name` (§1.6). |
-| "attach rule shape not recognized" | `Attach to the Villain.` (capital V) → `villain`. `Attach to Kang.` → `villain` (one villain per area). `Attach to your identity.` → `yourIdentity`. `Attach to an [Avenger] ally.` → `qualified { category: "ally", trait }`. `Attach to the minion with the most remaining hit points without another copy of X attached.` → `superlative { among: "minion", order: "highest", measure: "remainingHp", withoutAttachmentNamed }`. `Attach to X, if able. If you cannot, attach to the villain.` and `Attach to X. Otherwise, attach to the villain.` → `ifAble` (§1.7). `Attach to Crossbones.` / `Attach to Taskmaster.` / `Attach to Red Skull.` / `Attach to Absorbing Man.` → `villain`. |
-| "Max 1 per phase." (14005) | `playRestrictions.maxPerPhase` (§1.9). |
-| "Play only if you are in [Giant] / [Tiny] hero form." (12003, 12004) | `form: "hero"`, `requiresIdentityTrait` (§1.1). |
-| Scenarios | `setAsideVillainCardIds`, `expertVillains` and `victory` for Kang; `separateDecks` for Crossbones and Red Skull; `modularSetCount` 3 for Crossbones and 2 for Red Skull (§2). |
+| Survey category                                                            | What to do                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "hero without a linked alter-ego" / "unhandled type hero" (12001c, 13001c) | Fold the unlinked `…c` hero record into its identity's `additionalHeroForms` (§1.1). Its abilities key as `12001c.<slug>`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| Spider-Woman's aspect cards (04035–04038), not yet flagged by the survey   | `faction_code` aspect + `card_set_code` of an identity → `aspect: hero:04031a`, `printedAspect: <faction>` (§1.2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| "unknown faction encounter" + "deck_limit missing" (04097–04100)           | Captive allies: `aspect: "none"` (after the image check), `specificTo: { kind: "scenario", encounterSetId: "taskmaster" }`, `deckLimit: 1` (they are unique; campaign mode may add them to decks).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| "unknown faction campaign" (04155–04162)                                   | `aspect: "basic"`, `specificTo: { kind: "campaign", encounterSetId: "hydra_camp" }`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| "obligation with faction campaign" (04163–04166)                           | Encounter obligations in `expcamp` sets, marked `EncounterSet.campaignSpecific`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| "upgrade without a cost" (04159a–04162a)                                   | `cost: 0, specialCost: "dash"` after the image check; the `…b` records become `flipSide` (§1.5).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| MarvelCDB `cost: -1` (14006)                                               | `cost: 0, specialCost: "X"` (§1.3).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Ally `health: 0` (12011, 13012)                                            | Emit `hp: 0`; the schema now accepts it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| "villain set: stage names differ" (kang, exp_kang)                         | One `VillainCard` per Kang record, each with one stage whose `stageNumber` is its numeral (§1.8).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| "main scheme missing starting/target/acceleration threat" (11008b)         | `dashedValues: ["startingThreat", "targetThreat", "acceleration"]` with zeros, after the image check (§1.6).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| Kang's four stage 3 records                                                | Four stages with `stageNumber: 3`, each with its `name` (§1.6).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| "attach rule shape not recognized"                                         | `Attach to the Villain.` (capital V) → `villain`. `Attach to Kang.` → `villain` (one villain per area). `Attach to your identity.` → `yourIdentity`. `Attach to an [Avenger] ally.` → `qualified { category: "ally", trait }`. `Attach to the minion with the most remaining hit points without another copy of X attached.` → `superlative { among: "minion", order: "highest", measure: "remainingHp", withoutAttachmentNamed }`. `Attach to X, if able. If you cannot, attach to the villain.` and `Attach to X. Otherwise, attach to the villain.` → `ifAble` (§1.7). `Attach to Crossbones.` / `Attach to Taskmaster.` / `Attach to Red Skull.` / `Attach to Absorbing Man.` → `villain`. |
+| "Max 1 per phase." (14005)                                                 | `playRestrictions.maxPerPhase` (§1.9).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| "Play only if you are in [Giant] / [Tiny] hero form." (12003, 12004)       | `form: "hero"`, `requiresIdentityTrait` (§1.1).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Scenarios                                                                  | `setAsideVillainCardIds`, `expertVillains` and `victory` for Kang; `separateDecks` for Crossbones and Red Skull; `modularSetCount` 3 for Crossbones and 2 for Red Skull (§2).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 
 ### 5.2 Raw-data errors curation must fix, each with a source
 
 **Errata missing from MarvelCDB** (RRG 1.8 p. 66; the raw text is the pre-errata wording):
+
 - **Marked for Death (04028).** "places her faceup beneath this card. When this scheme is defeated, return Mockingbird" must read "tucks her faceup beneath this card. When this scheme is defeated, return the tucked Mockingbird to her owner's hand."
 - **The Rise of Red Skull 1A (04128a, and the aggregate 04128's `back_text`).** "Shuffle every other side scheme" must read "every other encounter side scheme".
 - **Bitter Rival (04136).** "Exhaust a character you control for each side scheme in play." must read "For each side scheme in play, choose and exhaust a character you control."
 - **Beetle (13028).** "choose to either spend a [physical] resource" must read "the defeating player chooses to either spend a [physical] resource".
 
 **Errata already in the raw text** (verify, don't re-apply):
+
 - Hail Hydra! (04057, 04147): the shuffle happens only if searched;
 - Attack on Mount Athena 1A (04061a): Hydra Assault;
 - Twisted Reality (04135): Forced Interrupt;
 - Avengers Tower (04021): the Avenger trait.
 
 **A record that is not a printed card:**
+
 - **10098** "Shang-Chi" (`faction_code: hero`, `card_set_code: taskmaster`, `position: 98`, `deck_limit: 1`) duplicates the Captive ally 04098, under a code in Hulk's range. The survey reports it as "hero card in set taskmaster with no identity". Drop it and cite this doc.
 
 **Stats to check against the card image before emitting** (a printed "—" is an absent field in MarvelCDB):
+
 - **Red Skull I (04125)** has no `attack`; stages II and III print 1 and 2.
 - **Kang (Scarlet Centurion) (11005)** has no `scheme`; the expert card (11038) prints 1.
 
 **Names:**
+
 - **The Rise of Red Skull aggregate 04128** is named "The Rise of the Red Skull"; the A/B records and the rulebook (p. 15) say "The Rise of Red Skull".
 - **The Infinity Stone 2A (04062a)** has a trailing period in its name ("The Infinity Stone."). The Crossbones rulebook page (p. 5) calls the stage "The Infinity Gem", so read the card image before choosing.
 
 **Text:**
+
 - **Size Increase (12028)** reads "Uses (3 counters)." while its ability removes "size counter[s]". Probably "Uses (3 size counters).", so check the image.
 - **Crossbones II (04059)**: "Crossbone's Machine Gun" should be "Crossbones' Machine Gun" (04064's title). Uncorrected, this is a named search that finds nothing.
 - **Weapon Master (04150)**: "When Reveled" appears twice. The parser's trigger regex won't match it, so it would silently become plain text.
@@ -950,12 +979,14 @@ The ten schema needs in `docs/phase7-wave2-data.md` §3, each checked against th
 > Status: landed in `packages/content/src/schema/**` with fixtures in `packages/content/src/schema/wave2-later-packs.test.ts` (20 tests), and the engine side in `packages/engine/src/wave2-later-packs.test.ts` (20 tests). Core, wave 1 and cycle 1 behaviour is unchanged.
 
 **New sources read** (fetched 2026-09-18 from the Hall of Heroes product pages, not stored in the repo):
+
 - Civil War rulebook, `https://hallofheroeslcg.com/wp-content/uploads/2025/10/civil-war-pdf.pdf` (PDF pages cited).
 - Agents of S.H.I.E.L.D. rulebook, `https://hallofheroeslcg.com/wp-content/uploads/2025/03/mc50_rulebook.pdf`.
 - Fear No Evil rulebook, `https://hallofheroeslcg.com/wp-content/uploads/2026/08/mc60_rulebook-web.pdf`.
 - SP//dr Hero Pack insert, `https://hallofheroeslcg.com/wp-content/uploads/2022/07/z2.jpg` (read as an image).
 
 **Modes that aren't built.** Campaign, competitive (team-vs-team) and the Agents of S.H.I.E.L.D. evidence mechanic all stay data only. Each is marked so it cannot be misused in a standard game:
+
 - `validateDeck` refuses `campaign_card`, `competitive_card`, `scenario_card`, evidence (`not_a_player_card`) and a separated identity (`unsupported_identity`);
 - `createGame` refuses an evidence card in any deck and a separated identity at any seat;
 - `validateScenarioEncounterSets(scenario, sets)` (new, `validation.ts`) refuses a standalone scenario that names a campaign-specific or competitive-only set, or a set that isn't registered.
@@ -1027,23 +1058,23 @@ The ten schema needs in `docs/phase7-wave2-data.md` §3, each checked against th
 
 ### 6.12 Parser mappings the pipeline needs
 
-| Raw data | Emit |
-|---|---|
-| `Requirement ([mental][mental]).` and every other Requirement line | `{ name: "requirement", resources: { <type>: <count>, ... } }` (count repeated icons; prefer this over `icon` for single icons too) |
-| `Discount N (T).` / `Discount N (T1 or T2).` | `{ name: "discount", value: N, traits: [T] }` / `traits: [T1, T2]` |
-| `type_code: "leader"` | `VillainCard` with `printedType: "leader"`, stages I–IV by `stage` |
-| `faction_code: "basic"` in a `card_set_type_name_code: "leader"` set (56129–56136, 56207–56214, 57032–57033 …) | `specificTo: { kind: "competitive", encounterSetId: <card_set_code> }` |
-| set `standard_pvp` | `EncounterSet.competitiveOnly: true` |
-| `evidence_means` / `evidence_motive` / `evidence_opportunity` | `EvidenceCard` with `evidence: "means"` / `"motive"` / `"opportunity"` |
-| `Attach to the enemy leader.` / `Attach to your leader.` (incl. as an `ifAble` side, and "Attack to Paladin" 56118, a MarvelCDB typo for "Attach") | `{ kind: "leader", of: "enemy" }` / `{ kind: "leader", of: "yours" }` |
-| `Attach to a non-permanent side scheme.` | `qualified { category: "sideScheme", withoutKeyword: "permanent" }` |
-| `Attach to an X or Y.` / `Attach to A or B.` | `anyOf` of the two parsed hosts |
-| `the villain with the highest/lowest activation order value` | `superlative { among: "villain", measure: "activationOrder" }` |
-| `the minion with the most traits` | `superlative { among: "minion", order: "highest", measure: "traitCount" }` |
-| `Attach to the villain who is not the active villain.` | `{ kind: "nonActiveVillain" }` |
-| traits `Activation Order N` (sm 27094–27099) | drop from `traits`; `VillainCard.activationOrder: N` |
-| villain records `…a` / linked `…b` / unlinked `…c` of one stage (aoa 45184–45186) | one `VillainCard` with sides A, B, C |
-| `spdr` 31001a/31001b | `separatedIdentity` from a second source for Peni Parker (31002), which MarvelCDB lacks |
+| Raw data                                                                                                                                           | Emit                                                                                                                                |
+| -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `Requirement ([mental][mental]).` and every other Requirement line                                                                                 | `{ name: "requirement", resources: { <type>: <count>, ... } }` (count repeated icons; prefer this over `icon` for single icons too) |
+| `Discount N (T).` / `Discount N (T1 or T2).`                                                                                                       | `{ name: "discount", value: N, traits: [T] }` / `traits: [T1, T2]`                                                                  |
+| `type_code: "leader"`                                                                                                                              | `VillainCard` with `printedType: "leader"`, stages I–IV by `stage`                                                                  |
+| `faction_code: "basic"` in a `card_set_type_name_code: "leader"` set (56129–56136, 56207–56214, 57032–57033 …)                                     | `specificTo: { kind: "competitive", encounterSetId: <card_set_code> }`                                                              |
+| set `standard_pvp`                                                                                                                                 | `EncounterSet.competitiveOnly: true`                                                                                                |
+| `evidence_means` / `evidence_motive` / `evidence_opportunity`                                                                                      | `EvidenceCard` with `evidence: "means"` / `"motive"` / `"opportunity"`                                                              |
+| `Attach to the enemy leader.` / `Attach to your leader.` (incl. as an `ifAble` side, and "Attack to Paladin" 56118, a MarvelCDB typo for "Attach") | `{ kind: "leader", of: "enemy" }` / `{ kind: "leader", of: "yours" }`                                                               |
+| `Attach to a non-permanent side scheme.`                                                                                                           | `qualified { category: "sideScheme", withoutKeyword: "permanent" }`                                                                 |
+| `Attach to an X or Y.` / `Attach to A or B.`                                                                                                       | `anyOf` of the two parsed hosts                                                                                                     |
+| `the villain with the highest/lowest activation order value`                                                                                       | `superlative { among: "villain", measure: "activationOrder" }`                                                                      |
+| `the minion with the most traits`                                                                                                                  | `superlative { among: "minion", order: "highest", measure: "traitCount" }`                                                          |
+| `Attach to the villain who is not the active villain.`                                                                                             | `{ kind: "nonActiveVillain" }`                                                                                                      |
+| traits `Activation Order N` (sm 27094–27099)                                                                                                       | drop from `traits`; `VillainCard.activationOrder: N`                                                                                |
+| villain records `…a` / linked `…b` / unlinked `…c` of one stage (aoa 45184–45186)                                                                  | one `VillainCard` with sides A, B, C                                                                                                |
+| `spdr` 31001a/31001b                                                                                                                               | `separatedIdentity` from a second source for Peni Parker (31002), which MarvelCDB lacks                                             |
 
 ### 6.13 Two validator fixes the pipeline reported (`docs/phase7-wave2-data.md` Part 1)
 
@@ -1074,7 +1105,7 @@ validates and every existing test passes unchanged. Fixtures: `packages/content/
   ```
 - **The measure is named `printedCost`, not `cost`** — deliberately, to match the existing `printedHp`/`printedAtk`
   and the engine's own `ValueSpec printedCost`. RRG 1.8 "Printed" (p. 35): a card in play has no other cost, because
-  cost modifiers change what a card costs *to play*, not what it costs once it is in play. **Pipeline: emit
+  cost modifiers change what a card costs _to play_, not what it costs once it is in play. **Pipeline: emit
   `measure: "printedCost"` for "the … with the highest/lowest cost".**
 - **Validation:** `printedCost` is refused over an encounter-only pool (`minion`, `enemy`, `villain`), since only
   player cards print a cost; `ally` and `friendlyCharacter` are both accepted.
@@ -1105,7 +1136,7 @@ validates and every existing test passes unchanged. Fixtures: `packages/content/
 - **Card:** Puncture Wound (`x23` 43012): "Attach to an enemy that X-23 or Honey Badger attacked this turn."
 - **Shape:** `{ kind: "qualified", category: "enemy", attackedThisTurnBy: ["X-23", "Honey Badger"] }` — the card
   titles whose attacks count. An empty list is refused (it could only mean "no host").
-- **The only *temporal* qualifier in the set:** every other `HostQualifiers` field reads a static characteristic of
+- **The only _temporal_ qualifier in the set:** every other `HostQualifiers` field reads a static characteristic of
   the candidate, while this one reads history. **The engine records no per-turn attack history**, so the qualifier
   matches nothing and the attachment is discarded (RRG 1.8 "Attach To", p. 8; FAQ "Counterspell (#30)", p. 60) —
   chosen over guessing, and pinned by a test so it cannot drift into a silent half-implementation.
@@ -1142,14 +1173,14 @@ pipeline to remove.
 
 ### 7.7 Parser mappings this adds
 
-| Raw text | Emit |
-|---|---|
+| Raw text                                                       | Emit                                                                                                            |
+| -------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `Attach to the ally with the highest cost without X attached.` | `{ kind: "superlative", among: "ally", order: "highest", measure: "printedCost", withoutAttachmentNamed: "X" }` |
-| `Attach to an encounter card in play.` | `{ kind: "encounterCard" }` (+ `playRestrictions.maxPerHost` for "Max 1 per encounter card") |
-| `Attach to a character with "X" in its title.` | `{ kind: "qualified", category: "character", titleContains: "X" }` |
-| `Attach to an enemy that A or B attacked this turn.` | `{ kind: "qualified", category: "enemy", attackedThisTurnBy: ["A", "B"] }` (data only) |
-| `Prerequisite (T).` / `Prerequisite (T1 or T2).` | `{ name: "prerequisite", traits: [T] }` / `traits: [T1, T2]` |
-| `Starting.` (with or without its reminder text) | `{ name: "starting" }` |
+| `Attach to an encounter card in play.`                         | `{ kind: "encounterCard" }` (+ `playRestrictions.maxPerHost` for "Max 1 per encounter card")                    |
+| `Attach to a character with "X" in its title.`                 | `{ kind: "qualified", category: "character", titleContains: "X" }`                                              |
+| `Attach to an enemy that A or B attacked this turn.`           | `{ kind: "qualified", category: "enemy", attackedThisTurnBy: ["A", "B"] }` (data only)                          |
+| `Prerequisite (T).` / `Prerequisite (T1 or T2).`               | `{ name: "prerequisite", traits: [T] }` / `traits: [T1, T2]`                                                    |
+| `Starting.` (with or without its reminder text)                | `{ name: "starting" }`                                                                                          |
 
 ### 7.8 Not requested, and not done
 
@@ -1170,7 +1201,7 @@ unchanged.
 
 ### 8.1 The shape
 
-**`RuleSpec { kind: "blankTextBox"; target: TargetQuery; while?: Predicate }`** — the *constant* sibling of the
+**`RuleSpec { kind: "blankTextBox"; target: TargetQuery; while?: Predicate }`** — the _constant_ sibling of the
 existing lasting `EffectSpec blankTextBox`, which blanks a fixed list of cards for a duration.
 
 ```ts
@@ -1197,7 +1228,7 @@ rather than worked around:
 1. **Recursion.** Finding the rule needs the in-play cards' live abilities, and matching its `{ trait: TECH }` target
    needs `traitsOf`, which needs them too. Cut exactly the way `traitsOf` already cuts trait grants: the scan reads
    each source's refs with the **lasting** blank check only, and evaluates the rule's own `target` and `while` under
-   `DEFAULT_DEPS`, so granted traits and keywords are never consulted. **A card that has the trait only as a *grant*
+   `DEFAULT_DEPS`, so granted traits and keywords are never consulted. **A card that has the trait only as a _grant_
    is therefore not blanked** — pinned by a test. A blanking rule cannot depend on another blanking rule, so one pass
    is a fixed point.
 2. **Cost.** `activeAbilityRefs` is the engine's hottest read. Two memos keep the lookup O(1) amortized, both over
@@ -1219,10 +1250,10 @@ checks, and the action/resource-ability paths in `actions.ts`.
 `blank-text-box.test.ts` counts reads of `state.instances[...]` — the lookup every card read goes through — during
 one full ability scan of the board, at 4 and at 20 filler cards. Measured both ways while writing it:
 
-| build | rule in the pool, not in play | rule in play | overhead at n = 20 |
-|---|---|---|---|
-| memoized (this one) | 3.29× | 3.31× | 1.70× |
-| per-lookup rescan (the cliff) | 9.86× | 9.94× | 2.39× |
+| build                         | rule in the pool, not in play | rule in play | overhead at n = 20 |
+| ----------------------------- | ----------------------------- | ------------ | ------------------ |
+| memoized (this one)           | 3.29×                         | 3.31×        | 1.70×              |
+| per-lookup rescan (the cliff) | 9.86×                         | 9.94×        | 2.39×              |
 
 Five times the board is five times the reads if the scan is linear and ~25× if it is quadratic, so the test's bound
 of 5 sits with about 50% headroom on either side of the two builds.
@@ -1258,7 +1289,7 @@ is spent until the last step.
 
 1. **Is a card the player cannot afford offered at all? — Settled by the RRG; followed.** RRG 1.8 "Initiating
    Abilities" (p. 24) step 3 makes "the player's ability to pay [the costs], taking modifiers into account" a
-   condition checked *before* the card is played, and step 5 says a play whose costs cannot be paid "abort[s] this
+   condition checked _before_ the card is played, and step 5 says a play whose costs cannot be paid "abort[s] this
    process without paying any costs". So an unaffordable card is not a legal choice, and a payment that falls short
    plays nothing and spends nothing. Both halves are pinned by test.
    - The affordability test is "does the largest payment the player could legally make for **this** card cover the
@@ -1348,7 +1379,7 @@ to the central stage, so every existing log line is byte-identical; a redirect a
 ### 10.4 "Cannot join a game area unless …" (§6.13's first half) — no primitive needed
 
 **"Players cannot join this game area unless there are no other game areas remaining."** (The Master of Time 2B.)
-The engine already does exactly this and always has: `executeJoinGameArea` offers the *separate* areas as
+The engine already does exactly this and always has: `executeJoinGameArea` offers the _separate_ areas as
 destinations and only dissolves into the central area when none is left. That follows from §3.1's own model — The
 Once and Future Kang insert has a joining player "choose a game area", and the central stage "remains in play in a
 central location … though it is not part of any other game area".
@@ -1358,7 +1389,7 @@ code that reads like a safety net. What the pass added instead is an explicit te
 (`game-areas.test.ts`, "a player joining while another area remains joins that area, never the central one"), so
 the claim is asserted rather than assumed and a future change to the join procedure breaks visibly.
 
-**If a later card restricts joining a *separate* area** (nothing in the pool does today), that is when the rule
+**If a later card restricts joining a _separate_ area** (nothing in the pool does today), that is when the rule
 becomes real; the shape to add is `RuleSpec cannotJoinGameArea { while?: Predicate }` on a card in that area,
 filtering `executeJoinGameArea`'s destination list.
 
@@ -1377,7 +1408,7 @@ Added beside the existing `atk`/`sch`. "Attach to the ally with the lowest THW w
 withoutAttachmentNamed: "Possessed" }`.
 
 **Current THW, not printed** — and the request asked for "printed THW". The printed card says "THW" with no
-qualifier, and RRG 1.8 "Printed" (p. 35) makes "printed" the *explicit* word for the value on the card; the
+qualifier, and RRG 1.8 "Printed" (p. 35) makes "printed" the _explicit_ word for the value on the card; the
 existing unqualified `atk`/`sch` are current for the same reason. A `printedThw` can be added beside it the day a
 card prints that wording; none does.
 
@@ -1398,7 +1429,7 @@ The one thing missing was that the back face **prints no hit points at all**, an
 point dial carries across a flip (RRG 1.8 "Flip", p. 20; the Green Goblin insert, Risky Business "New Rules") —
 which is also why the back face's own text has to say "set his hit point dial to his printed hit points" when it
 flips back. The validator checks the flag is only on a later side **and** that its `hp` repeats the same stage
-number's value from the face that does print them, so it is a *verified* carry-over rather than a number the
+number's value from the face that does print them, so it is a _verified_ carry-over rather than a number the
 pipeline invented.
 
 ```ts
@@ -1416,7 +1447,7 @@ three call sites in `packages/client` (`scenario-detail.ts`, `table-setup-previe
 **Parser mapping:** MarvelCDB's `stage: "A1"`/`"B1"` is standard-vs-expert, so emit **two single-stage
 `VillainCard`s** (the way `toafk`'s Kang / Expert Kang split already is), each with sides A and B from its own
 `…a`/`…b` pair. Note the labels are not the same thing as The Wrecking Crew's version "A"/"B", which the schema
-already documents as consecutive *stages of one deck*.
+already documents as consecutive _stages of one deck_.
 
 ### 11.3 `HostQualifiers.attackedThisTurnBy` made real (§7.4 was data only)
 
@@ -1450,7 +1481,7 @@ serializes like everything else.
 `hercules` 59002–59004 — hero-owned, encounter-shaped cards (`faction_code: "hero"`, typed
 `attachment`/`obligation`, printed "Victory 0." with a `When Revealed:` that attaches or plays them, no resource
 cost, no deck slot). **Left open deliberately.** The pipeline proposed no shape and said so; neither does this pass,
-because the question is not "which field is missing" but *what a hero-owned encounter card is* — whether it is a
+because the question is not "which field is missing" but _what a hero-owned encounter card is_ — whether it is a
 player card that happens to be revealed, a scenario-specific card owned by an identity (§1.4's `specificTo` is the
 nearest existing idea), or a third thing needing its own setup step like `IdentitySeparateDeck`. Guessing a shape
 here would cost more to undo than to wait: it needs the Hercules rulebook, which is not in the repo.
@@ -1531,7 +1562,7 @@ in any order". One event per card would have fixed that order by payment order.
   event is pushed once they are. Every "When you spend this card" interrupt in the pool (bonus damage/threat on
   that event, stat boosts on that ally, draw a card, place a counter) reads the same either way. **Energy Siphon
   (58006)** is the exception: "take up to 3 damage → this card generates 1 additional [energy] resource for each
-  damage taken this way". It changes what the card *generates*, which happens during pricing, before any payment is
+  damage taken this way". It changes what the card _generates_, which happens during pricing, before any payment is
   final. The event cannot express that, and **it stays unscriptable**. It needs a pricing-time hook on the card's
   own resource value (a `ResourceGeneration` computed from a cost paid inside the payment), which is a payment-model
   change, not a trigger.
@@ -1556,13 +1587,13 @@ Tests: `packages/engine/src/turn-duration.test.ts` (3 tests, all with two player
 A sentence-level scan of every `printed` text in `packages/content/src/data` (skipping the "when/after your turn
 begins/ends" triggers, which are events and not durations) finds seven cards:
 
-| Card | Wording | Needs | Status |
-|---|---|---|---|
-| Giant Strength (`ant` 12009) | "+1 ATK until the end of this turn" | `LastingUntil "endOfTurn"` | **landed** |
-| Deft Focus (`magneto` 49023) | "the next superpower card you play this turn" | `reduceNextCardCost` `duration: "turn"` | **landed** |
-| Puncture Wound (`x23` 43012) | "an enemy that X-23 or Honey Badger attacked this turn" | per-turn attack history | landed in §11.3 (reviewed in §14) |
-| Gamora (`gam` 18006, 18007) | "if you have played a thwart/attack event this turn" | a per-turn **play history** readable by trait | **open** (below) |
-| Lockjaw (`msm` 05018), Deadpool 44032 | "during your turn" | a condition on whose turn it is, not a duration | not requested; no change |
+| Card                                  | Wording                                                 | Needs                                           | Status                            |
+| ------------------------------------- | ------------------------------------------------------- | ----------------------------------------------- | --------------------------------- |
+| Giant Strength (`ant` 12009)          | "+1 ATK until the end of this turn"                     | `LastingUntil "endOfTurn"`                      | **landed**                        |
+| Deft Focus (`magneto` 49023)          | "the next superpower card you play this turn"           | `reduceNextCardCost` `duration: "turn"`         | **landed**                        |
+| Puncture Wound (`x23` 43012)          | "an enemy that X-23 or Honey Badger attacked this turn" | per-turn attack history                         | landed in §11.3 (reviewed in §14) |
+| Gamora (`gam` 18006, 18007)           | "if you have played a thwart/attack event this turn"    | a per-turn **play history** readable by trait   | **open** (below)                  |
+| Lockjaw (`msm` 05018), Deadpool 44032 | "during your turn"                                      | a condition on whose turn it is, not a duration | not requested; no change          |
 
 ### 13.2 The shape
 
@@ -1570,7 +1601,7 @@ begins/ends" triggers, which are events and not durations) finds seven cards:
   `LastingDuration` gains `{ kind: "endOfTurn" }`.
   ```ts
   // "you get +1 ATK until the end of this turn" (Giant Strength 12009)
-  modifyStat("atk", 1, yourIdentity, "endOfTurn")
+  modifyStat("atk", 1, yourIdentity, "endOfTurn");
   ```
 - **`reduceNextCardCost.duration` gains `"turn"`** (DSL `NextCardCostDuration`). It maps onto the same `endOfTurn`
   duration: `reduceNextCardCost(you, 1, "turn", { trait: SUPERPOWER })`.
@@ -1588,12 +1619,12 @@ steps (discard, draw, ready) belong to no player's turn (RRG 1.8 "Player Phase",
 `turnInProgress(state)` (`query.ts`) is the test: `step` is a player-phase `turn`. So if something makes Ant-Man change
 to Giant form during the villain phase, Giant Strength's response resolves and gives nothing. `endOfAttack` already
 does the same thing with no attack in progress. Pinned by a test that also checks an "end of the phase" effect made
-at the same moment *is* created.
+at the same moment _is_ created.
 
 ### 13.4 Open: "if you have played a [trait] event this turn" (Gamora)
 
-This is a *read* of play history, not a duration, so it is not part of this primitive. It needs a per-turn record of
-the cards each player played, readable by trait (a thwart *event* is the `Thwart` trait on an event). The existing
+This is a _read_ of play history, not a duration, so it is not part of this primitive. It needs a per-turn record of
+the cards each player played, readable by trait (a thwart _event_ is the `Thwart` trait on an event). The existing
 `playedByPlayerThisRound` is keyed by card type only, which cannot express it. The natural shape is
 `GameState.playedThisTurn: Record<PlayerId, readonly CardId[]>`, cleared in `beginTurn` next to `attackedThisTurn`,
 with a `Predicate { kind: "playedThisTurn"; player; filter: { cardType?, trait? } }` reading printed traits from card
@@ -1612,12 +1643,15 @@ A review of §11.3 against the RRG, as item 3 of this batch. The mechanism was r
 
 1. **The attacker's title is recorded when it attacks, from the faceup side.** RRG 1.8 "Identity" (p. 23): "If a
    card refers to a hero or alter-ego by title, it refers only to the identity with that title, and not to the other
-   side of the card." §11.3 matched at *query* time through `currentName`, which answers an identity's **card**
+   side of the card." §11.3 matched at _query_ time through `currentName`, which answers an identity's **card**
    title whatever its form. So an identity whose card title differs from its hero face matched on the wrong string,
    and an alter-ego matched a qualifier naming the hero. The value is now
    ```ts
-   attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>
-   interface AttackRecord { attackerInstanceId: InstanceId; attackerTitle: string }   // exported from @mc/engine
+   attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>;
+   interface AttackRecord {
+     attackerInstanceId: InstanceId;
+     attackerTitle: string;
+   } // exported from @mc/engine
    ```
    The title comes from `titleShowing(state, id)` (`query.ts`): an identity's faceup face name, anything else's
    `currentName`. "That X-23 attacked" is a fact about the attack, so an X-23 who attacks and then changes to Laura
@@ -1641,7 +1675,7 @@ A review of §11.3 against the RRG, as item 3 of this batch. The mechanism was r
 
 - An attack whose `characterAttacked` event is cancelled by an interrupt is not recorded, because the write is that
   event's apply step. RRG 1.8 "Cancel" (p. 11): cancel abilities "prevent [effects] from resolving".
-- The same attacker attacking the same character twice in a turn is recorded once. The qualifier asks *whether*,
+- The same attacker attacking the same character twice in a turn is recorded once. The qualifier asks _whether_,
   not how often.
 - Enemy attacks during a player's turn (quickstrike, "the villain attacks you" effects) are recorded against the
   character they attacked. No current qualifier asks about them, and recording them costs nothing.
@@ -1678,12 +1712,12 @@ request's "printed THW" is answered by §11.1: the card says "THW", so it is the
 
 **Schema: nothing left.** The raw records (`raw/marvelcdb/gmw.json`, `mts.json`) show the whole shape:
 
-| Code | `stage` | Face | HP (raw) | ATK/SCH (raw) |
-|---|---|---|---|---|
-| 16080a / 16080b | `A1` / `A2` | Collector front / "cannot be defeated" back, **standard** | 8 per player / 0 | 1/1 / 0/0 |
-| 16081a / 16081b | `B1` / `B2` | the same, **expert** | 10 per player / 0 | 2/2 / 2/2 |
-| 21136a / 21136b | `A1` / `A2` | Hela front / back, **standard** | 8 per player / 0 | 1/1 / 0/0 |
-| 21137a / 21137b | `B1` / `B2` | the same, **expert** | 9 per player / 0 | 2/2 / 1/1 |
+| Code            | `stage`     | Face                                                      | HP (raw)          | ATK/SCH (raw) |
+| --------------- | ----------- | --------------------------------------------------------- | ----------------- | ------------- |
+| 16080a / 16080b | `A1` / `A2` | Collector front / "cannot be defeated" back, **standard** | 8 per player / 0  | 1/1 / 0/0     |
+| 16081a / 16081b | `B1` / `B2` | the same, **expert**                                      | 10 per player / 0 | 2/2 / 2/2     |
+| 21136a / 21136b | `A1` / `A2` | Hela front / back, **standard**                           | 8 per player / 0  | 1/1 / 0/0     |
+| 21137a / 21137b | `B1` / `B2` | the same, **expert**                                      | 9 per player / 0  | 2/2 / 1/1     |
 
 **The label has two parts: the letter is standard/expert, and the digit is the face** (1 = front, 2 = back). That
 is exactly §11.2's shape, with one correction: each back face prints its **own** ATK and SCH, so the back side's
@@ -1695,7 +1729,7 @@ validator checks the carry-over.
 **Parser: not handled yet.** `stageOrder` (`scripts/marvelcdb/normalize/villains.ts`) reads only a roman numeral
 or a single letter, so `"A1"`/`"A2"` both come out as 0 and the pack fails with "not a roman numeral". That is the
 real remaining blocker, and it is the pipeline's. **No collision with the MaGog rule:** that rule groups a linked
-pair whose faces print *different* stages as standard/expert versions (39001a `"A"` / 39001b `"B"`). A1/A2 compare
+pair whose faces print _different_ stages as standard/expert versions (39001a `"A"` / 39001b `"B"`). A1/A2 compare
 as 0 and 0 today, so the rule doesn't fire. **When the parser learns "A1", it must compare the letters, not the
 whole label.** A1 vs A2 is the same mode (flip faces, the rule above); A vs B is a different mode (MaGog's
 versions). Comparing whole labels would misfile the Collector as MaGog.
@@ -1706,6 +1740,7 @@ and MaGog's are the same shape ("When MaGog would be defeated, reset his hit poi
 print "cannot be defeated". The engine's villain defeat (`defeatVillainStage`, `resolve/defeat.ts`) is **not an
 event**. It runs inline from the defeat sweep with no interrupt window, and there is no villain-level "cannot be
 defeated" rule. Both are needed before `gmw`/`mts`/`mojo`'s villains can be scripted:
+
 - a `characterDefeated` event for a villain stage, pushed only when heard (the same pattern the identity's defeat
   already uses in `checkDefeats`), so an interrupt can replace it;
 - a `RuleSpec cannotBeDefeated { target }` that the defeat sweep reads.
@@ -1718,6 +1753,7 @@ Not built in this pass. It changes the core defeat path, which needs its own tes
 §11.4 left this open for want of the Hercules insert. **The insert is readable.** Hall of Heroes' Hercules page
 links a scan of the printed FFG insert (`hallofheroeslcg.com/wp-content/uploads/2026/02/hercules-pdf.jpg`, viewed
 and deleted from the scratchpad). Two sections settle the shape:
+
 - **"The Gift and Labor Decks":** "he begins each game with two special 3-card decks. To create the GIFT and LABOR
   decks, shuffle the three GIFT cards together to form the GIFT deck and the three LABOR cards to form the LABOR
   deck. Then, place both of these decks facedown in your play area. During the game, while in alter-ego form you
@@ -1761,6 +1797,7 @@ refused at setup. `validateDeck` reports it as `unsupported_identity`, exactly a
 separated identity. The shared check is `unbuildableSeparateDeck` (`deck.ts`). The Hercules pack stays data only.
 
 **What building it needs** (a follow-up, not a schema question):
+
 - setup shuffles both decks into the player's play area;
 - the "New Labors of Hercules" action reveals the top Labor card through the ordinary reveal procedure (RRG 1.8
   "Reveal", p. 38: "If a player is instructed by card text to reveal an encounter card from … any other game area,
@@ -1776,3 +1813,914 @@ triggers Atonement, but that needs confirming before it is built.
 **Parser mapping:** `card_set_code: "hercules_labor_deck"` → encounter card with `separateDeck: "Labor"`,
 `encounterSetIds: []`. `"hercules_gift_deck"` → player card with `separateDeck: "Gift"`, `deckLimit: 0`. The
 identity lists both decks as above.
+
+---
+
+## 16. Review: an action's pre-cost condition, `trigger.while` (owner: `game-rules-architect`; landed 2026-09-19)
+
+Item 5 of this batch reviews a change made outside this role's ownership. Action triggers gained `while?: Predicate`
+(`AbilityTriggerSpec` in `abilities.ts`; DSL `action`/`heroAction`/`alterEgoAction({ while })`). It models a
+condition printed before the cost: "Hero Action: If you are in Tiny hero form, exhaust Army of Ants → deal 1 damage
+to an enemy." (`ant` 12007.) Tests: `packages/engine/src/action-condition.test.ts` (2 tests).
+
+### 16.1 The rules reading: confirmed
+
+RRG 1.8 "Play Restrictions and Permissions" (p. 33): cards contain "specific conditions that must be true in order
+to use them", and "In order to use an ability or play a card, all of its play restrictions must be observed".
+"Initiating Abilities" (p. 24) checks play restrictions at **step 2**, before the cost is determined (step 3) or paid
+(step 5). So an unmet pre-arrow condition means the action **cannot be initiated**, and nothing is paid. That is
+what the change does in `useAbility`: it refuses the command before any cost is planned.
+
+It is a different sentence from a condition **after** the arrow ("Exhaust X → if you are in Tiny form, draw 1
+card"). There the cost is paid and only the effect is conditional, so it is an effect-level `if`. **Scripters: use
+`while` only for text between the timing word and the arrow.**
+
+### 16.2 The legal-move enumeration: confirmed
+
+`legalActions` (`legal.ts`) builds each action's real `useAbility`/`playCard` command and trial-runs it through the
+pure `applyCommand`. A false condition therefore comes back in `illegal` with the engine's reason
+(`no_valid_target`, "that ability cannot be triggered: its condition is not met") and never in `legal`. The client can show it greyed out
+with a reason. No enumeration-side change was needed, and a test asserts it for both a card in play and an event.
+
+### 16.3 What was adjusted: events
+
+The check existed only in `useAbility`, but an event's action is initiated by **playing the card**. An event
+scripted with `heroAction({ while }, …)` could be played with the condition false, and its cost paid for nothing, by:
+
+- `playCard`;
+- `playFromHand` paying for it (Team-Building Exercise, §9);
+- `playFromHand` ignoring its cost (Chaos Magic, §3.8).
+
+All four paths now share one check, `actionConditionUnmet(state, deps, definition, sourceId, playerId)`
+(`actions.ts`), placed next to each path's existing form gate. "You" is the initiating player; "this card" is the
+card the action is on (for an event, the card in hand). `useAbility`'s own message changed from the generic "that
+ability cannot be triggered right now" to "that ability cannot be triggered: its condition is not met". A client can
+tell it apart from the `cannotTriggerActions` rule, which keeps the first message, and the scripter's existing
+`/cannot be triggered/` assertions still hold.
+
+---
+
+## 17. The `wsp`/`toafk` primitives, and the `traitsOf` crash (owner: `game-rules-architect`; landed 2026-09-19)
+
+The four gaps `ability-scripting-engineer` recorded while scripting `toafk` and `wsp`
+(docs/phase7-wave2-scripting.md §6.16–§6.19), plus the found-by-testing engine crash recorded as §6.15. Tests:
+`packages/engine/src/primitives-wave2c.test.ts` (20 tests, one `describe` per item below), all with synthetic cards —
+engine code never names a card.
+
+| Gap                                   | Shape                                                                       | Status                                                         |
+| ------------------------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| §6.16 "their nemesis minion"          | `TargetQuery.nemesisMinionOf: PlayerRef`                                    | **Landed**, §17.1                                              |
+| §6.17 what defeated it                | `characterDefeated`/`schemeDefeated`.`sourceInstanceId` (an event _source_) | **Landed**, §17.2                                              |
+| §6.19 basic attacks only              | `RuleSpec attackKeywords.basicOnly`                                         | **Landed**, §17.3                                              |
+| §6.18 "+N to that power for this use" | `basicPowerUsing` event + `EffectSpec modifyBasicPower`                     | **Landed** for ATK/THW/DEF, §17.4; recovery flagged, not built |
+| §6.15 `traitsOf` recursion            | a `DEFAULT_DEPS` guard on a constant trait grant's own condition            | **Landed**, §17.5 (a semantic call, read it)                   |
+
+Everything is additive: no existing `AbilityDefinition`, event, log line or script changes shape, and the full suite
+(engine, cards, client) is green after each commit.
+
+### 17.1 "Their nemesis minion" as a live per-player query (§6.16)
+
+**`TargetQuery.nemesisMinionOf?: PlayerRef`** (`spec.ts`, matched in `select.ts` `explainQuery`; new `QueryExclusion`
+`notNemesisMinion`, with its one wording string added to the client's exhaustive table).
+
+RRG 1.8 "Nemesis Encounter Set" (p. 30) defines the term in two halves, and both are checked:
+
+> "An identity's 'nemesis minion' is the minion belonging to that identity's nemesis set. If a nemesis set has
+> multiple minions in it, the 'nemesis minion' is designated by parenthetical text printed on one or more of those
+> minions."
+
+So: the card carries the "(X's nemesis minion.)" parenthetical — `MinionCard.nemesisMinion`, already in the content
+schema — **and** one of its `encounterSetIds` is that player's identity's own `nemesisEncounterSetId`. A minion
+flagged in a set nobody at the table plays matches nobody; the _other_ minion of a nemesis set matches nobody.
+
+```ts
+// "Each player searches the encounter deck, discard pile, and set-aside area for their nemesis minion and puts it
+//  into play engaged with them." (Kang's Wrath 4B, 11013b — the §10.1 `anyOf` pool with this as the filter.)
+{ kind: "anyOf", of: [
+  { kind: "encounter", zones: ["deck", "discard"], filter: { nemesisMinionOf: { kind: "scoped" } } },
+  { kind: "setAside", player: { kind: "scoped" }, filter: { nemesisMinionOf: { kind: "scoped" } } },
+] }
+```
+
+- **Not a widened `identitySetOf`**, which reads a _player_ card's set icon out of `aspect`; a nemesis set is
+  encounter-side (ruling, Jun 25, 2026 (4): "Nemesis sets belong to that identity" — set ownership, not the
+  deckbuilding filter), so it needs its own field rather than a special case inside that one.
+- **Matches wherever the card is** — in play, in a deck or discard pile, or set aside (RRG 1.8 "Set Aside", p. 39:
+  set-aside cards are out of play "until they are referenced by … a card ability"). That is what makes one selector
+  enough; nothing about the field is search-specific.
+- **`{ kind: "each" }` works**, so "each player … their nemesis minion" is one query rather than a per-player loop:
+  the field resolves the `PlayerRef` and asks whether the card belongs to _any_ of the players it names.
+- **Sizing:** four cards in the emitted pool need it today — Kang's Wrath 4B, The Hood's Ambush (`hood`), Face the
+  Past (`magneto`, the card the Jan 17, 2026 (5) ruling is about), and Advance (Core, "reveal your set-aside nemesis
+  minion"). Nothing about it is Kang-specific.
+
+### 17.2 What defeated it, beside who (§6.17)
+
+**`characterDefeated.sourceInstanceId` and `schemeDefeated.sourceInstanceId`** (`trigger-events.ts`), optional and
+absent when nothing caused the defeat, beside the `defeatedByPlayerId` each already carried.
+
+They are the event's **source subject** (`eventSubjects`), so an existing `EventPattern.sourceIs` reads them with no
+new pattern field:
+
+```ts
+// "Response: After Wasp (or an event you play) defeats a minion or side scheme, deal 1 damage to the villain."
+// (Small but Mighty, 13001a.)
+{ kind: "response", forced: false, on: {
+  on: ["characterDefeated", "schemeDefeated"],
+  sourceIs: { categories: ["identity", "event"], owner: "you" },
+} }
+```
+
+`on.defeated({ byYou: true })` matches the defeating _player_, which an ally's own attack satisfies too; this says
+which **card** did it. Where each field comes from:
+
+- `characterDefeated`: the defeating `dealDamage`'s `sourceInstanceId`, carried on the defeat sweep's existing hint.
+  For an attack that is the attacking character — so an attack made by an "(attack)" event is sourced to the
+  _identity_, with the event as the attack's `via`. For a card effect's damage it is the card itself.
+- `schemeDefeated`: the `removeThreat`'s own `sourceInstanceId`. A thwart's removal is already sourced to the
+  thwarting character (RRG 1.8 "Thwart", p. 44 — the character performs it, basic or "(thwart)"-labeled), so unlike
+  the defeating _player_ this needs no thwart special case.
+
+**One consequence to know, flagged rather than hidden:** because an attack- or thwart-labeled event's power is
+performed by the identity, "an event you play defeated it" and "your identity defeated it" are the _same_ answer for
+those cards. Small but Mighty accepts both halves, so it reads correctly either way; a future card that wants only
+the event half (none in the pool) would need the attack's `via` on the defeat event as well. Use `owner: "you"`
+rather than `controller: "you"` in the query: an event card's controller is cleared once it is discarded, its owner
+never is.
+
+Logging: no log-shape change at all. The whole trigger event is already written to the log by `triggerEvent`
+(`initiated`/`resolved`), so the replay trace records the new field for free.
+
+### 17.3 An attack keyword granted to basic attacks only (§6.19)
+
+**`RuleSpec attackKeywords.basicOnly?: boolean`** (`abilities.ts`; read in `rules.ts` `grantedAttackKeywords`, which
+now takes the attack's own `basic` flag through `AttackKeywordContext`).
+
+`via` could already _exclude_ a basic attack (a basic attack's `viaId` is null, so it never matches a rule with
+`via`); nothing could require one. "While you are in Tiny hero form, your basic attacks gain piercing" (Red Room
+Training 13008) could therefore only be scripted as "your attacks gain piercing", which over-grants to the player's
+own event attacks — a rules bug, not an approximation.
+
+```ts
+{ kind: "attackKeywords", keywords: ["piercing"], attacker: { categories: ["identity"], controller: "you" }, basicOnly: true }
+```
+
+- **"Basic" is how the attack was made, not who made it** (RRG 1.8 "Basic Power", p. 10: ATK "can be used by a
+  character to perform a basic attack"), which is exactly the `attack` event's own `basic` flag. So an ally's basic
+  attack is one, and an enemy activation is not — a rule with `basicOnly` and no `attacker` filter reaches every
+  basic attack in the game and no villain attack. All three are pinned by test.
+- **Sizing:** four cards today — Red Room Training, Brute Force (`qsv`), Psi-Katana (`psylocke`), Wolverine's own
+  upgrade (`wolv`) — all with the identical "your basic attacks gain piercing" wording.
+
+### 17.4 "+N to that power for this use" (§6.18)
+
+Two additive pieces. The request asked for "a basic-power-activation scope"; the scope turned out to exist already
+(`endOfAttack`'s activation frame covers a basic attack, a basic thwart _and_ a basic defense, since a defense
+belongs to the enemy attack's frame). What was actually missing was a **window** and a **dynamic stat**, so that is
+what was built.
+
+**1. `basicPowerUsing`** (`trigger-events.ts`), the interrupt twin of `basicPowerUsed`, in the engine's existing
+"-ing" idiom (`cardReadying`, `encounterCardRevealing`, `cardBeingPlayed`): same three fields
+(`characterInstanceId`, `power`, `playerId`), interruptible, pushed **on top of** the power's own events so its
+interrupt window resolves before the power's value is read. Pushed only when an ability could react, so nothing about
+an unheard power changes. A stunned attack or a confused thwart reaches neither event (the cancel returns first), so
+a cancelled power is not "used" for any timing — FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61).
+
+Why one new event rather than an `on: ["attack", "thwart", "defended"]` list: those three have different shapes and
+different subjects (the thwarter is the source; the defender is the _target_ of `defended`; `attackKind` only applies
+to two of them), so a single ability could not say "the character using the power is your hero" across them. Rapid
+Growth is one printed ability and therefore one trigger.
+
+**2. `EffectSpec modifyBasicPower { amount: ValueSpec }`** (`spec.ts`, applied in `resolve/apply-effect.ts`): "get
++N to **that** power for this use". It reads the power off the `basicPowerUsing` event on the stack, maps it to the
+stat (attack→`atk`, thwart→`thw`, defense→`def`, recover→`rec`), and adds a `statModifier` lasting effect on the
+character using the power, scoped `endOfEvent` to the activation the use belongs to.
+
+```ts
+// "Hero Interrupt: When you use one of your hero's basic powers (THW, ATK, or DEF), change to your Giant hero form
+//  and get +2 to that power for this use." (Rapid Growth 13005.)
+{ trigger: { kind: "interrupt", forced: false, form: "hero", on: { on: "basicPowerUsing", playerIs: "controller", targetIs: { categories: ["identity"], controller: "you" } } },
+  effects: [ …changeForm…, { kind: "modifyBasicPower", amount: { kind: "const", value: 2 } }] }
+```
+
+- **A `statModifier`, not a frozen number**, so it composes with every other modifier and is read when the power's
+  value is read — which is why the same ability can change form _first_ and still get the new form's power +2,
+  whatever order its effects are written in.
+- **"For this use"** is the activation frame, so it expires with that attack / that thwart / that enemy attack and
+  never carries into the next use. Outside a basic-power use the effect does nothing at all (tested).
+- **It lands on the character using the power**, not on the controller's hero: an ally's own basic attack gets it.
+- **DEF is included.** The window opens where the defender is declared and exhausted, before step 4 reads DEF (RRG
+  1.8 "Attack (Enemy Activation)", p. 9). Tested as a difference: 5 ATK − (2 + 2) versus 5 ATK − 2.
+- **DSL surface for `@mc/cards`** (not written here — `ability-scripting-engineer` owns it): a pattern builder
+  `on.basicPowerUsing({ power?, playerIs })` beside the existing `on.basicPowerUsed`, and an effect builder
+  `modifyBasicPower(amount)`. A card that names one power ("when you use your basic ATK") narrows with
+  `eventIs: { power: "attack" }`.
+
+**Recovery: deliberately not wired, and here is the exact reason.** Recovery is the one basic power with no event
+frame of its own — `basicRecover` heals inside the command — so there is nothing for an interrupt to precede and
+nothing for "this use" to expire with. No card in the emitted pool needs one: recovery is an alter-ego power (RRG 1.8
+"Recover, Recovery", p. 36; "Basic Power", p. 11, "Generally, only alter-egos have recovery power"), and every card
+in the pool that interrupts a basic power is either a **Hero** Interrupt (Rapid Growth, Venom's Pistol) or names
+"(THW, ATK, or DEF)" explicitly (Nova's Supernova Helmet, Quicksilver's Super Speed, Psylocke's Psi-Energy Control),
+or sits on an ally, which has neither DEF nor REC (the Scarlet Witch ally, `qsv` 14002). The `power` field already
+covers all four values, so nothing changes shape when one arrives. **The change it would need:** give the recovery
+its own event frame the way `attack` and `thwart` have one — an event whose apply step heals by the character's
+current REC — so the window precedes it and REC is re-read after the window closes. Flagged for the user rather than
+half-built.
+
+**Open corner, flagged not resolved: a divided basic attack.** Wasp's Giant form divides her basic ATK among enemies
+(FAQ "Wasp (#1C)"), and the shares are declared and validated _when the power is used_ — before this window opens —
+as fixed per-target amounts. So a `modifyBasicPower` during a divided basic attack changes the character's ATK but
+not the shares, and the bonus is lost. Whether the printed rules even allow a division to grow after it is declared
+(the shares must total the power's value at declaration) is not something the RRG answers; the engine's behaviour is
+the conservative one and is recorded here rather than guessed at in code.
+
+### 17.5 A constant trait grant conditional on a trait (§6.15) — a semantic call
+
+`traitsOf` (`select.ts`) evaluated every constant `traitGrant`'s `while` under the full registry, so a
+`while: hasTrait(...)` re-entered `traitsOf`, unconditionally and with inputs that never changed:
+`RangeError: Maximum call stack size exceeded` for **any** card on the board, the moment such an ability was in play.
+`statBonus`/`modifiersFor` reach the same scan, so a stat modifier of the same shape crashed identically. Four tests
+reproduce it with generic fixtures before the fix.
+
+**The fix:** a constant trait grant's own `while` and `target` are evaluated under `DEFAULT_DEPS` — printed
+characteristics and lasting effects only, never traits (or keywords, or anything else) that _constant abilities_
+grant. That is the guard `blankedByConstantRules` (immediately below it) already uses for the identical class of
+self-reference, with the same justification written into its own docblock.
+
+**This is the engine's reading, not a printed rule.** The RRG does not settle it: "Modifiers" (p. 29) recalculates a
+quantity "from the start, considering the unmodified base value and all active modifiers", with no rule for a
+modifier whose own condition depends on the result; "Constant Abilities" (p. 5) only says a conditional one is active
+"anytime the specific condition is met". Two properties decided it:
+
+1. **It terminates** for every board, including mutually-referential grants (two cards each "while the other has
+   TAGGED, gain TAGGED"): both conditions read the printed base, so neither fires. Tested.
+2. **It is order-independent**: every condition reads the same fixed base, so no answer depends on which card the
+   scan visits first, or which card the caller asked about. Tested with a pair where one card _prints_ the trait: the
+   other gains it, and the printed one does not gain a second copy back.
+
+**What it costs:** "while X has the Giant trait" does not see a Giant trait another _constant ability_ granted X (a
+lasting "gains the trait until the end of the phase" still counts — lasting effects are applied before the guarded
+scan). No card in the pool chains two constant trait grants, and the cards that need this work correctly because a
+three-sided identity **prints** Giant/Tiny on its own hero face (§1.1, §3.2): the condition reads a printed trait and
+still tracks form changes live, which is also tested.
+
+**A sibling hole left open, deliberately, and recorded here:** `modifiersFor`'s own `while` is still evaluated under
+the full registry. It can no longer loop through `traitsOf`, but a stat modifier whose condition compares _the same
+stat it modifies_ (`while: compare({ kind: "stat", … })`) would recurse the same way. Nothing in the pool writes
+that, and guarding it the same way would change what existing stat-modifier conditions can see, so it is flagged
+rather than changed on spec.
+
+### 17.6 What this unblocks in `KNOWN_SKIPPED`
+
+For `ability-scripting-engineer` (`packages/cards/src/wave2/coverage.test.ts`; the engine side does not touch card
+scripts). Every other entry in those lists is blocked on something else and stays put.
+
+| Ref                                                            | Card                      | Primitive |
+| -------------------------------------------------------------- | ------------------------- | --------- |
+| `11013b.when-revealed`                                         | Kang's Wrath 4B (`toafk`) | §17.1     |
+| `13001a.small-but-mighty`                                      | Wasp's hero face (`wsp`)  | §17.2     |
+| `13008.red-room-training-constant-2`                           | Red Room Training (`wsp`) | §17.3     |
+| `13005.rapid-growth-interrupt`                                 | Rapid Growth (`wsp`)      | §17.4     |
+| `12027.yellowjacket-constant`, `12027.yellowjacket-constant-2` | Yellowjacket (`ant`)      | §17.5     |
+| `13002.ant-man-constant`, `13002.ant-man-constant-2`           | Ant-Man ally (`wsp`)      | §17.5     |
+
+Still blocked on their own gaps, for the avoidance of doubt: `04028.when-revealed` (a fixed-name search across a
+player's hand/deck/discard _and_ the play area — a different pool from §17.1's), `13012.wasp-interrupt` and
+`12011.ant-man-interrupt` (reading an overpayment from a later interrupt), `12024`, `12032`, `12025.obligation`,
+`12029.when-revealed`, and `toafk`'s four data-shape/resource-cost blocks.
+
+---
+
+## 18. The wave 2 skip-backlog audit (owner: `game-rules-architect`; landed 2026-09-19)
+
+`packages/cards/src/wave2/coverage.test.ts`'s `KNOWN_SKIPPED` had drifted: `12024.team-building-exercise-action` was
+still listed as blocked on `playFromHand.costReduction` (§9) months after that landed. This section is the audit that
+found how far the drift went, and §§19–22 are what it turned up as genuinely missing. The **30 Hydra Campaign refs**
+in `KNOWN_SKIPPED.trors` (04155–04166) are out of scope throughout: they are deferred by design while campaign mode
+is unbuilt (PLAN.md Phase 7).
+
+Method: for each of the fifteen non-campaign refs, read the engine source for the primitive the module docblock
+claims is missing, and — where it turned out to exist — **prove it end to end with a real command sequence**, never
+off the type alone. Evidence for the three "already there" verdicts is
+`packages/engine/src/primitives-wave2d.test.ts` (8 tests, one `describe` per claim).
+
+### 18.1 The verdicts
+
+| Ref                                   | Pack    | Verdict                                                                                                      |
+| ------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------ |
+| `04028.when-revealed`                 | `trors` | **Already unblocked** — `anyOf` (§10.1) + `CardSelector ref` over `each(query)` + `tuckCards` (§3.10). §18.4 |
+| `11018.weakened-action`               | `toafk` | **Still blocked** — `AbilityCost.discardFromHand` has no `filter`. Built in §19                              |
+| `11019.stolen-memories-action`        | `toafk` | **Still blocked** — same. Built in §19                                                                       |
+| `11021.time-travel-hijinks-action`    | `toafk` | **Still blocked** — same. Built in §19                                                                       |
+| `11020.obligation`                    | `toafk` | **Not a primitive gap** — a data gap (`@mc/content`): one ref carries two clauses. §18.2                     |
+| `11049.obligation`                    | `toafk` | **Not a primitive gap** — same shape. §18.2                                                                  |
+| `12011.ant-man-interrupt`             | `ant`   | **Already unblocked** — `overpaid.*` reaches a `cardEntersPlay` interrupt. §18.3                             |
+| `13012.wasp-interrupt`                | `wsp`   | **Already unblocked** — same, per resource type. §18.3                                                       |
+| `12024.team-building-exercise-action` | `ant`   | **Still blocked** on the _second_ half only: a "shares a trait with" query. Built in §20.1                   |
+| `12032.muster-courage-action`         | `ant`   | **Already unblocked** — `chooseTarget.count: ValueSpec` + `optional`, not `chooseCards.max`. §18.5           |
+| `12029.when-revealed`                 | `ant`   | **Still blocked** — no query matches "belongs to encounter set X". Built in §20.2                            |
+| `12025.obligation`                    | `ant`   | **Still blocked** — no lasting "cannot change form". Built in §22                                            |
+| `14024.obligation`                    | `qsv`   | **Still blocked** — no lasting "cannot ready". Built in §22                                                  |
+| `14009.friction-resistance-response`  | `qsv`   | **Still blocked** — no "after a card readies" event. Built in §21                                            |
+| `15023.obligation`                    | `scw`   | **Still blocked, and not on the engine** — the content schema records no star icon. §18.6                    |
+
+### 18.2 `11020` and `11049`: a data gap, owned by `card-data-pipeline`
+
+Both cards print **two independent clauses** and `@mc/content` gives them **one** ability ref:
+
+- Depowered (11020): "You cannot play hero-specific cards." + "Alter-Ego Action: Discard a hero-specific card from
+  your hand → discard this obligation."
+- Fear of Kang (11049): "You cannot attack Kang." + "Alter-Ego Action: Discard a random card from your hand →
+  discard this obligation."
+
+An `AbilityDefinition` carries exactly one `AbilityTriggerSpec`, so one ref cannot be both a `constant` and an
+`action`. **Every primitive each clause needs already exists**, which is what makes this purely a data shape:
+`RuleSpec cannotPlay` (whose own docblock names Depowered) with `TargetQuery.identitySetOf` for "hero-specific";
+`RuleSpec cannotAttack`; `AbilityCost.discardRandomFromHand`; and §19's new `discardFromHand.filter` for
+11020's own chosen discard. The fix is the same split the pipeline already made for 11018/11019/11021: a
+`.<name>-constant` ref beside the `.<name>-action` ref. No engine change.
+
+### 18.3 `12011`/`13012`: an overpayment is already readable from a later interrupt
+
+"Interrupt: When Ant-Man enters play, place 1 pym counter on him (to a maximum of 4) for each resource you overpaid
+for Ant-Man's cost." The skip recorded that `overpaid.*` was bound only inside the resolution that paid the cost,
+"confirmed by the validator". Neither half holds today:
+
+- `abilityFrame` (`resolve/frames.ts`) merges `playPaymentVars(ctx, candidate.instanceId)` into **every** ability
+  frame for a card that still has a `playCard` frame on the stack — not only the frame that paid.
+- `enterPlay` (`resolve/enter-play.ts`) announces `cardEntersPlay` from inside that `playCard` frame, so the
+  interrupt's frame is built while the payment vars are still visible.
+- `@mc/cards`' validator has `"overpaid."` in its ambient-prefix set (`dsl/validate.ts`), so it does not reject the
+  read either.
+
+Tested three ways: 3 resources for a cost-1 ally gives 2 counters; an exact payment gives 0; and `overpaid.energy`
+counts 2 of a 3-resource overpayment made of 2 `[energy]` + 2 `[physical]` (Wasp's wording), and 0 when the whole
+overpayment is the wrong type. RRG 1.8 "Cost" (p. 13): "Resources generated beyond the specified cost are considered
+to have been overpaid for that cost."
+
+### 18.4 `04028`: the play area is reachable as part of one search pool
+
+"The Clint Barton player searches their hand, deck, discard pile, **and play area** for Mockingbird and tucks her
+faceup beneath this card." (Errata, RRG 1.8 p. 66.) `CardSelector zone` genuinely cannot reach the play area —
+`PlayerZone` is `"hand" | "deck" | "discard"` and should stay that way, since a play area is not an out-of-play zone.
+But `anyOf` (§10.1) exists precisely to union selectors into **one pool and one choice**, and `CardSelector ref` over
+`TargetRef each` _is_ the play area:
+
+```ts
+{ kind: "anyOf", of: [
+  { kind: "zone", zone: ["hand", "deck", "discard"], player: eventPlayer, filter: { name: "Mockingbird" } },
+  { kind: "ref", ref: { kind: "each", query: { categories: ["ally"], controller: "any" } }, filter: { name: "Mockingbird" } },
+] }
+```
+
+`tuckCards` already handles the in-play case: it calls `leavePlay` rather than `moveCard`, so the ally's attachments
+are discarded and she comes back as a new instance (RRG 1.8 "Leaves Play", p. 27). Both halves are tested — found in
+the deck, and found in play and taken out of it. The `anyOf` docblock in `spec.ts` already cited card 04028 by
+number; the skip simply predated it.
+
+### 18.5 `12032`: "up to X" is a `chooseTarget`, not a `chooseCards`
+
+"Give up to X friendly characters a tough status card… (to a maximum of 3)", X being the villain's stage number. The
+skip named `EffectSpec chooseCards.max`, which is indeed a fixed `number` — but `chooseCards` is the _out-of-play_
+selector ("search your deck", "look at the top 3"). A choice among characters **in play** is `chooseTarget`, whose
+`count` has been `number | ValueSpec` since Shield Toss, and whose `optional: true` is exactly "up to" (RRG 1.8
+"Choose (Game Element)", p. 12: an effect resolves as much as it can). `ValueSpec villainStageNumber` and
+`scaled.max` supply the rest:
+
+```ts
+{ kind: "chooseTarget", slot: "brave", query: { categories: ["hero", "ally"], controller: "any" },
+  chooser: controller, count: { kind: "scaled", value: { kind: "villainStageNumber" }, max: 3 }, optional: true }
+```
+
+Tested as a live read, not a constant: with three friendly characters on the board the prompt offers all three as
+options but bounds the selection at `0–1` on villain stage I, and the same card bounds it at `0–2` after the villain
+advances to stage II. Selecting none is legal and gives nothing.
+
+### 18.6 `15023`: blocked on card data, not on the engine
+
+"Discard the top 5 cards of the encounter deck. For each star icon (★) **in the boost area** discarded this way,
+place 1 threat on the main scheme." (Slipping Sanity.) RRG 1.8 "Boost" (p. 11): "A star icon is not itself considered
+a boost icon", so `<bind>.boostIcons` is the wrong number and there is no right one.
+
+**The fact is a printed characteristic and `@mc/content` does not record it.** The card schema has `boostIcons` (a
+pip count) and nothing that says a card's boost area carries a star. The engine's only star-adjacent derivation is
+`hasBoostAbility` (`defend-preview.ts`, module-private): "does this card carry a printed ability whose `trigger.kind`
+is `boost`?", asked of `deps.abilities`.
+
+**Deliberately not generalised into a `ValueSpec`**, and the reason is the drift this very section is about: that
+derivation reads the _ability registry_, so a card whose Boost ability is unscripted — including one sitting in
+`KNOWN_SKIPPED` — would silently contribute 0 stars, and a scripter un-skipping an unrelated card would silently
+change how much threat Slipping Sanity places. A printed icon must not depend on what has been scripted.
+
+**What `card-data-pipeline` needs to add**, stated precisely so the engine half is a one-liner afterwards:
+
+- Field: `starIcon?: boolean` on every encounter-side card type that can carry a boost area (`treachery`, `minion`,
+  `side_scheme`, `attachment`, `obligation`, `environment`), beside the existing `boostIcons`. Absent reads as
+  `false`. A single boolean, not a count: a boost area carries at most one star.
+- Backfill: true exactly for the cards that print ★ in the boost area — which is the same set as the cards printing a
+  "★ Boost:" ability, so the existing per-card text is enough to derive it at ingest without new source material.
+- Validation: a card with a `boost`-triggered ability ref and `starIcon: false` (or the reverse) is worth an
+  ingest-time warning, since the two should agree.
+
+Once that lands, the engine side is a `ValueSpec { kind: "starIcons", cards: TargetRef }` beside
+`totalPrintedResources`, plus a `<bind>.starIcons` total on `discardEncounterCards` — and a `TargetQuery.starIcon?:
+boolean` for Longshot (`wolv`), which needs the same fact as a yes/no rather than a count. Not built here: an engine
+read with no data behind it is worse than no read at all.
+
+---
+
+## 19. A resource-type-filtered discard **cost** (owner: `game-rules-architect`; landed 2026-09-19)
+
+"Alter-Ego Action: Discard a [physical] resource from your hand → discard this obligation." (Weakened 11018;
+Stolen Memories 11019 reads `[mental]`, Time-Travel Hijinks 11021 `[energy]`, Depowered 11020 "a hero-specific
+card".) Tests: `packages/engine/src/primitives-wave2d.test.ts` §19 (5 tests).
+
+**The shape: `AbilityCost.discardFromHand` gains `filter?: TargetQuery`.** One field, additive, defaulting to the
+old behaviour. The effect-side `EffectSpec discardFromHand` has had a `filter` since Power Drain; the cost side had
+`{ min, max, bind }` and nothing to say _which_ cards may pay.
+
+```ts
+// "Discard a [physical] resource from your hand →"
+cost: { discardFromHand: { min: 1, max: 1, filter: { printedResource: "physical" } } }
+// "Discard a hero-specific card from your hand →" (Depowered)
+cost: { discardFromHand: { min: 1, max: 1, filter: { identitySetOf: { kind: "controller" } } } }
+```
+
+**Where it is enforced, and why in two places:**
+
+- `planCost` (`actions.ts`) checks every pick against the filter, in the paying player's own context
+  (`controllerId: playerId`, `selfInstanceId: source`) so `identitySetOf: you` means _their_ hero's set. A pick that
+  fails is `no_valid_target` and the whole cost is refused **before any of it is paid** — RRG 1.8 "Cost" (p. 13): a
+  cost is paid in full, and RRG 1.8 "Initiating Abilities" (p. 24) step 5 aborts "without paying any costs".
+- `discardPicks` (`legal.ts`) narrows the auto-filled candidates the same way, so `legalActions` offers the ability
+  only while a matching card is in hand, and the `example` command it hands the client picks a matching card rather
+  than the cheapest card in hand. `discardPicks` now takes `deps`, since a `TargetQuery` needs an `EffectContext`.
+
+**Rules calls, both settled by the RRG rather than chosen:**
+
+- **A printed wild icon does not pay a typed cost.** RRG 1.8 "Wild Resource" (p. 48): "When resources are not being
+  generated for a cost, a wild resource does not have any characteristic other than 'wild resource'." The card is not
+  being spent for resources here — it is being discarded as a cost, and the cost names a printed icon — so
+  `printedResource: "physical"` does not match a wild. This is the reading `TargetQuery.printedResource` already
+  documented ("Wild is its own type") and the ruling of Jan 11, 2026 (3) ("a 'printed resource' is the bottom-left
+  icon"); the test pins it.
+- **A card already committed to the resource payment cannot also be the discard**, and neither can the ability's own
+  card. Both were already true (`reserved`, `id === sourceId`) and are unchanged: RRG 1.8 "Cost" (p. 13), multiple
+  costs "must be paid simultaneously".
+
+**What it deliberately does not do.** It does not filter `discardRandomFromHand` ("discard a random card", Fear of
+Kang 11049): a random discard has no choice to constrain, and no card in the pool asks for a _filtered_ random
+discard. If one arrives it needs its own decision about what happens when the filtered pool is empty, which is not a
+question this field can answer silently.
+
+---
+
+## 20. Two dynamic card queries (owner: `game-rules-architect`; landed 2026-09-19)
+
+Two `TargetQuery` fields, both additive, both for the same underlying shape: a filter whose criterion is **another
+card's current characteristics**, which the existing fixed-value fields (`trait`, `anyTrait`, `name`, `aspect`)
+cannot say. Tests: `packages/engine/src/primitives-wave2d.test.ts` §20.1 (1 test) and §20.2 (2 tests).
+
+### 20.1 `sharesTraitWith?: TargetRef` (Team-Building Exercise 12024)
+
+"Action: Play a card from your hand **that shares a trait with your hero**, reducing its resource cost by 1."
+
+`playFromHand.costReduction` landed in §9; this is the other half of the same sentence. The card is a generic
+basic-aspect card any hero can run, so "your hero" is not a trait a script can hardcode — it has to be read off the
+identity at resolution time.
+
+```ts
+{ kind: "playFromHand", player: controller, costReduction: 1,
+  filter: { sharesTraitWith: { kind: "identityOf", player: { kind: "controller" } } } }
+```
+
+- **Both sides are read live** through `traitsOf`, so a granted trait counts on either end (RRG 1.8 "Gains", p. 21):
+  an ally that gained Avenger this phase shares it, and a hero in a form that prints Giant shares Giant.
+- **One shared trait is enough**, and a card with no traits — or a ref naming nothing — matches nothing, because
+  there is no trait to share. Both pinned by the test (a two-trait card sharing only one of them matches; a
+  trait-less ally and a resource card do not).
+- **Termination.** The query's ref is a finite spec tree, so a `sharesTraitWith` cannot reach itself, and inside a
+  constant trait grant's own `target` the §17.5 guard already forces `DEFAULT_DEPS` — printed traits on both sides,
+  no re-entry into the grant scan. No new guard was needed; this note records why.
+- New `QueryExclusion` `noSharedTrait`, with its wording added to the client's exhaustive table
+  (`packages/client/src/view/highlights.ts`: "shares no trait with that card").
+
+### 20.2 `encounterSetOf?: TargetRef` (Yellowjacket's Plan 12029)
+
+"When Revealed: Discard cards from the encounter deck until a card from the **Ant-Man Nemesis set** is discarded this
+way. Reveal that card."
+
+Nothing matched "belongs to encounter set X". `nemesisMinionOf` (§17.1) already reads `encounterSetIds` off card
+data, but asks a narrower question — _that player's_ nemesis set, **and** the "(X's nemesis minion.)" parenthetical —
+so it cannot serve "any card from this set".
+
+```ts
+{ kind: "discardEncounterUntil", filter: { encounterSetOf: { kind: "self" } }, bind: "found" }
+```
+
+**Why a `TargetRef`, not an `EncounterSetId`.** A set id would work for this card, but it makes every script that
+names a set carry a string that has to stay in step with the data, and it puts a set name inside `@mc/cards` —
+exactly the kind of card-specific constant the engine boundary exists to avoid. Every printed "a card from the
+<X> set" in cycle 1 sits on a card that is **itself** a member of that set, so `self` says it without naming
+anything. A card that one day names another set can use any ref that reaches a member of it.
+
+- **Reads card data, so it is zone-independent**: a card in an encounter deck, a discard pile, the set-aside area or
+  in play all answer the same way. That is what the printed text needs, since the search runs over a deck. Tested by
+  matching an instance still in the encounter deck.
+- **A player card never matches**, and neither does an encounter card belonging to no set (an obligation): both have
+  no `encounterSetIds` to share. Tested.
+- New `QueryExclusion` `wrongEncounterSet`, wording added to the client table ("not from that encounter set").
+
+### 20.3 What §19 and §20 do _not_ settle, and is recorded rather than guessed
+
+`11029.when-revealed` ("Each player searches the encounter deck and discard pile for a **different** obligation")
+is still scripted as "each player's own choice": nothing compares one player's pick against another's inside
+`forEachPlayer`, and `encounterSetOf` does not help. It is an `excludeSlots` that would have to span a per-player
+scope — flagged here because §20 is the section a future reader will check first, not because it is being fixed now.
+
+---
+
+## 21. "After you ready X": the `cardReadied` announcement (owner: `game-rules-architect`; landed 2026-09-19)
+
+"Hero Response: After you ready Quicksilver, ready this card." (Friction Resistance, `qsv` 14009.) Tests:
+`packages/engine/src/primitives-wave2d.test.ts` §21 (4 tests).
+
+**The shape.** `TriggerEvent cardReadied { instanceId }` — the "-ed" twin of `cardReadying`, in the idiom the engine
+already uses for `basicPowerUsing`/`basicPowerUsed`. It is an announcement (`isAnnouncement` default), so it opens a
+response window and nothing else, and like every other optional announcement it goes on the stack only when an
+ability could react.
+
+```ts
+// "Hero Response: After you ready Quicksilver, ready this card."
+{ trigger: { kind: "response", forced: false, form: "hero",
+             on: { on: "cardReadied", targetIs: { categories: ["identity"], controller: "you" } } },
+  effects: [{ kind: "ready", target: { kind: "self" } }] }
+```
+
+The readied card is the event's **target**, matching `cardReadying`. Neither carries a player subject: "after **you**
+ready X" is said by the query's own `controller: "you"`, which is the ability controller's card — one `playerIs`
+would have been ambiguous anyway, since an effect can ready a card its controller does not own.
+
+**Where it is announced.** A new `readyAndAnnounce` (`resolve/event.ts`), used by both ready paths — the direct one
+in `readyOrAnnounce` (the common case: the end-of-phase ready of a whole table, where nothing pushes a
+`cardReadying` event at all) and the `cardReadying` event's own apply step. It is guarded on the card actually going
+from exhausted to ready.
+
+**Why not just respond to `cardReadying`.** It would have half-worked and been wrong in one case, which is the whole
+reason for the new event. `cardReadying` is not an announcement, so it opens a response window after its apply step,
+and `heard` counts response candidates — so a `response` on `cardReadying` _would_ have fired. But its apply step
+calls `readyCard`, which returns without readying when RRG 1.8 "'Cannot'" (p. 11) forbids it (All Tied Up: "…cannot
+ready"), and the event resolves anyway. The response would then fire on a ready that never happened. The same holds
+for a card an interrupt readied first. Both are pinned as tests: with a "cannot ready" rule in play the hero stays
+exhausted **and** the response does not fire; a card that was already ready does not fire it either.
+
+**Exactly one announcement per ready, for the card that readied.** The fourth test ends a turn so the end-of-phase
+step readies both the identity and the upgrade: the response's `targetIs` names only the identity, so it fires once,
+not twice. (The tally is a test-only counter the printed card does not have — "ready this card" is not observable on
+a step that was going to ready it anyway.)
+
+---
+
+## 22. A restriction with a clock on it: `applyRuleUntil` (owner: `game-rules-architect`; landed 2026-09-20)
+
+> "• Choose and discard 1 card from your hand. **You cannot change form until your next turn ends.** Discard this
+> obligation." (Care for Cassie, `ant` 12025.)
+> "• Exhaust your identity. **You cannot ready your identity until your next turn ends.** Discard this obligation."
+> (Need for Speed, `qsv` 14024.)
+
+Tests: `packages/engine/src/primitives-wave2d.test.ts` §22 (5 tests, two of them two-player).
+
+Both restrictions already exist as `RuleSpec`s — `cannotChangeForm` and `cannotReady` were built for All Tied Up.
+What was missing is that a `RuleSpec` could only come from a **constant ability on a card in play**, and these two
+obligations _discard themselves_ in the same sentence that imposes the restriction. There is no card left to carry
+it. Three additive pieces:
+
+### 22.1 `LastingEffectBody ruleGrant`
+
+```ts
+{ kind: "ruleGrant", rule: RuleSpec, scope: LastingScope }
+```
+
+The **same** `RuleSpec` union a constant ability's `rules` carry, so a restriction is written once and behaves
+identically whether a card in play or a lasting effect imposes it. `activeRules` (`rules.ts`) now scans
+`state.lastingEffects` beside the cards in play; every consumer (`cannotChangeForm`, `cannotReady`, `cannotThwart`,
+`cannotPlay`, the ally limit, …) picks them up with no change of its own. RRG 1.8 "Lasting Effects" (p. 26): a
+lasting effect "continues to affect the game … whether or not the card that created the lasting effect is in play".
+
+`ActiveRule` gained a `speakerId` so a lasting rule's "you" is the creating ability's controller rather than
+`speakerOf`'s card-position fallback, which has nothing to read once the card is gone. Constant-ability rules keep
+exactly the `speakerOf` behaviour they had.
+
+**One judgement call, made explicitly: a player-scoped rule's `player` ref is resolved when the effect is created
+and frozen into it**, one `ruleGrant` per player named. A lasting effect is read long after its ability finished,
+with no triggering event and usually no source card, so `eventPlayer` (an obligation's "When Revealed") or `scoped`
+(inside `forEachPlayer`) would otherwise resolve to nobody and the restriction would silently do nothing. Freezing
+also makes it inspectable: the effect in `GameState.lastingEffects` names the player it binds. Tested with
+`player: { kind: "each" }` at a two-player table — two effects, one per player, each on that player's own clock.
+
+### 22.2 `LastingDuration endOfPlayerTurn` — "until your next turn ends"
+
+```ts
+{ kind: "endOfPlayerTurn", playerId, skipRound?: number }
+```
+
+It ends when `playerId` finishes the first turn they **begin** after the effect was created. `skipRound` is set only
+when the effect is created during that player's own turn, and names the round that turn belongs to: a turn already
+under way is not their "next" one. A player takes exactly one turn per round (RRG 1.8 "Player Phase", p. 34), so a
+round number identifies that turn uniquely — which is why this needs no mutation as rounds pass and why the state
+stays readable. Expiry happens in `finishTurn`, beside `endOfTurn`'s (§13.2), and is logged as
+`lastingEffectEnded { reason: "expired" }` like every other duration.
+
+**The reading of "your next turn", which the RRG does not settle — recorded as a design choice.** The RRG defines no
+"next", and no FFG ruling covers these two cards (checked against `marvel-champions-rulings-post-rrg-1-7.md`, which
+has nothing on either card or on "next turn"). Two readings exist when the effect is created _during_ that player's
+own turn: "your next turn" is the current one, or the one after it. This engine takes **the one after it**, for
+three reasons:
+
+1. It is what the words say — a turn in progress is not the one that comes next.
+2. It never produces a zero-length restriction. Under the other reading a card that resolved late in your turn would
+   restrict nothing at all, which is not a thing either obligation can be trying to do.
+3. It does not depend on evaluation order or on how much of the turn is left, so the same board always answers the
+   same way (§17.5's precedent for picking the terminating, order-independent reading where the RRG is silent).
+
+In practice both obligations resolve in the **villain phase**, where no turn is in progress and the two readings
+agree; the choice only shows up if a card effect reveals one during a player's turn.
+
+**This duration is created outside a turn, unlike `endOfTurn`.** §13.3 established that an "until the end of this
+turn" effect made outside a turn is _not created at all_ — RRG 1.8 "Lasting Effects" (p. 26): "A lasting effect that
+expires at the end of a specified time period can only be initiated during that time period." That rule does not
+bite here: the time period this one specifies is "from now until the end of your next turn", which **includes now**.
+Both obligations depend on that, since they resolve in the villain phase. Tested.
+
+### 22.3 `EffectSpec applyRuleUntil`
+
+```ts
+// "You cannot change form until your next turn ends."
+{ kind: "applyRuleUntil", rule: { kind: "cannotChangeForm", player: controller }, until: "endOfNextTurn" }
+// "You cannot ready your identity until your next turn ends."
+{ kind: "applyRuleUntil", rule: { kind: "cannotReady", target: { categories: ["identity"], controller: "you" } }, until: "endOfNextTurn" }
+```
+
+`until` is `"endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn"`. `"endOfTurn"` keeps §13.3's rule (not
+created outside a turn). `player` names whose turn `"endOfNextTurn"` waits for; absent, the player the rule itself
+binds, then the ability's controller.
+
+**`"endOfAttack"` is deliberately absent.** No card in the pool prints a restriction scoped to one attack, and one
+would have to name the activation frame the way `modifyStatUntil` does — a different shape, not a missing value.
+
+**Observable behaviour worth knowing:** a `cannotReady` restriction survives the end-of-phase ready step, so the
+identity stays exhausted through it (RRG 1.8 "'Cannot'", p. 11 — `readyCard` refuses, and §21's `cardReadied` is
+therefore not announced either). Tested end to end: exhausted, still exhausted after one ready step, ready after the
+next.
+
+### 22.4 One type-only import, and why
+
+`spec.ts` now has `import type { RuleSpec } from "./abilities.js"`, and `abilities.ts` already imports types back
+from `spec.ts`. The cycle is type-only and erased, and it is the price of `applyRuleUntil` carrying the _same_
+`RuleSpec` union as a constant ability rather than a parallel "restrictions that can have a clock" union that would
+have to be kept in step with it. Recorded here so the next reader knows it is deliberate.
+
+---
+
+## 23. What §§18–22 unblock in `KNOWN_SKIPPED` (owner: `game-rules-architect`; 2026-09-20)
+
+For `ability-scripting-engineer` (`packages/cards/src/wave2/coverage.test.ts`; nothing here touches card scripts).
+Twelve of the fifteen non-campaign refs can now be scripted; the other three are not engine work.
+
+| Ref                                   | Card                           | What it needs, and where it landed                                        |
+| ------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `04028.when-revealed`                 | Marked for Death (`trors`)     | Already there: `anyOf` + `ref`/`each` + `tuckCards` (§18.4)               |
+| `12011.ant-man-interrupt`             | Ant-Man ally (`ant`)           | Already there: `overpaid.total` in a `cardEntersPlay` interrupt (§18.3)   |
+| `13012.wasp-interrupt`                | Wasp ally (`wsp`)              | Already there: `overpaid.energy`, same window (§18.3)                     |
+| `12032.muster-courage-action`         | Muster Courage (`ant`)         | Already there: `chooseTarget.count` + `optional` (§18.5)                  |
+| `11018.weakened-action`               | Weakened (`toafk`)             | `AbilityCost.discardFromHand.filter` (§19)                                |
+| `11019.stolen-memories-action`        | Stolen Memories (`toafk`)      | Same (§19)                                                                |
+| `11021.time-travel-hijinks-action`    | Time-Travel Hijinks (`toafk`)  | Same (§19)                                                                |
+| `12024.team-building-exercise-action` | Team-Building Exercise (`ant`) | `playFromHand.costReduction` (§9) + `TargetQuery.sharesTraitWith` (§20.1) |
+| `12029.when-revealed`                 | Yellowjacket's Plan (`ant`)    | `TargetQuery.encounterSetOf` (§20.2)                                      |
+| `14009.friction-resistance-response`  | Friction Resistance (`qsv`)    | `TriggerEvent cardReadied` (§21)                                          |
+| `12025.obligation`                    | Care for Cassie (`ant`)        | `applyRuleUntil` + `endOfNextTurn` (§22)                                  |
+| `14024.obligation`                    | Need for Speed (`qsv`)         | Same (§22)                                                                |
+
+**Not unblocked, and not engine work:**
+
+| Ref                | Card                    | Owner                                                                                                                                                                                             |
+| ------------------ | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `11020.obligation` | Depowered (`toafk`)     | `card-data-pipeline`: split the one ref into a constant and an action (§18.2). Every primitive both clauses need already exists.                                                                  |
+| `11049.obligation` | Fear of Kang (`toafk`)  | Same split, same reason (§18.2)                                                                                                                                                                   |
+| `15023.obligation` | Slipping Sanity (`scw`) | `card-data-pipeline`: a `starIcon?: boolean` field on encounter-side cards, backfilled (§18.6). The engine read is a one-liner afterwards and deliberately was not written on top of absent data. |
+
+**The 30 Hydra Campaign refs (`trors` 04155–04166) stay skipped by design** while campaign mode is unbuilt
+(PLAN.md Phase 7). Nothing in §§18–22 was built for them.
+
+**DSL surface `@mc/cards` will want** (not written here — `ability-scripting-engineer` owns it): a `filter` option on
+the existing discard-cost builder; `sharesTraitWith(ref)` and `encounterSetOf(ref)` query helpers; `on.cardReadied(
+query)`; and `applyRuleUntil` builders — most usefully two named ones, `cannotChangeFormUntil(...)` and
+`cannotReadyUntil(...)`, since those are the two the printed cards need.
+
+---
+
+## 24. Three reads of the printed star icon (owner: `game-rules-architect`; landed 2026-09-20)
+
+The engine half of §18.6, now that the data exists. `card-data-pipeline` landed `starIcon?: boolean` on
+`EncounterCardCommon` and `SideSchemeCard` (absent reads as `false`), backfilled for 159 cards across 32 packs from
+printed text and cross-checked against MarvelCDB's independent `boost_star` with no disagreements. Tests:
+`packages/engine/src/primitives-wave2e.test.ts` §24 (15 tests).
+
+**One correction to the brief this section was written from**, since a wrong number here would mislead scripting: of
+the 159 starred cards, **43 also print boost pips and 116 print a star with no pips at all** (counted over
+`packages/content/src/data/*/cards.ts`: `starIcon: true` against `boostIcons`, distribution 0 ×116, 1 ×32, 2 ×10,
+3 ×1; spot-checked against MarvelCDB, which reports `boost: null, boost_star: true` for e.g. Weapons Runner 01121
+and `boost: 2, boost_star: true` for Hired Gun 02007). The claim that 134 cards print both does not hold. The
+engine's behaviour is unaffected — both cases are counted independently either way — but the both-pips-and-a-star
+case is the _minority_ case, which makes pinning it more important, not less.
+
+**The rule this is all built on.** RRG 1.8 "Boost, Boost Icon" (p. 11): "If the boost field has a star icon, it
+indicates that the card has a 'Boost' ability … **A star icon is not itself considered a boost icon, and does not
+contribute to the villain's ATK or SCH value.**" So stars and boost pips are two independent printed facts about the
+same corner of the same card, and the engine counts them separately — a card printing both adds to both totals, and
+neither number is derivable from the other. §24.2 pins exactly that: over a pile of
+`[2 pips + star, star only, 2 pips, plain, 2 pips + star]`, `starIcons` is 3 and `boostIcons` is 6.
+
+Only the _boost-area_ star. RRG 1.8 "Star Icon" (p. 40) also puts stars beside an enemy's ATK/SCH value and in an
+attachment's ATK/SCH field; those are a different printed fact, the content field does not record them, and no card
+in the pool counts them. If one ever does, that is a new field, not a widening of this one.
+
+### 24.1 One printed read: `hasStarIcon`
+
+`hasStarIcon(state, instanceId)` (`query.ts`, beside `cardOf`, exported from the package root). It reads the
+`@mc/content` field and nothing else — no `EngineDeps`, so it _cannot_ consult the ability registry. That signature
+is the point of the design, not an accident: §18.6 rejected deriving the star from "does this card carry an ability
+whose `trigger.kind` is `boost`?" (`defend-preview.ts`'s module-private `hasBoostAbility`) because that derivation
+reads `deps.abilities` — an unscripted Boost ability would contribute zero stars, and a scripter un-skipping an
+unrelated card would silently change how much threat Slipping Sanity places. §24.5 pins both halves: a starred card
+whose Boost ability is _not_ in the registry still counts 1, and a card carrying a scripted `boost`-triggered ability
+but no printed star counts 0.
+
+Unlike `boostIconsFor`, there are no modifiers to apply. Nothing in the pool says "this card gains a star icon", and
+a star has no game effect of its own (RRG 1.8 "Star Icon", p. 40: "In and of itself, the star icon has no effect") —
+it is only ever a thing cards _count_. If a card ever grants one, this becomes a `ModifiedStat`; until then it stays
+a printed read.
+
+### 24.2 `ValueSpec { kind: "starIcons", cards: TargetRef }`
+
+"How many of the cards this ref names print a star", read wherever they are — the sibling of
+`totalPrintedResources`, and shaped the same way (`cards`, not `of`, because it is a count over a set rather than a
+read of one card). Zone-independent by construction, which matters because the pile being counted is normally already
+in a discard pile by the time the question is asked. A boost area carries at most one star, so each matching card
+adds exactly 1; an empty ref is 0.
+
+### 24.3 `<bind>.starIcons`
+
+A new total on `discardEncounterCards` and on `moveCards`, beside the existing `<bind>.count`, `<bind>.boostIcons`
+and `<bind>.physical`/`.mental`/`.energy`/`.wild`. Both effects were given it so the bind shape stays one shape: "for
+each star icon discarded this way" reads `<bind>.starIcons` whichever effect did the discarding, exactly as
+`<bind>.boostIcons` already did.
+
+It covers exactly the cards the effect reached. A `discardEncounterCards` cut short by RRG 1.8 "Encounter Deck"
+(p. 17) — deck emptied mid-discard, "do not continue the discard effect with the newly shuffled encounter deck" —
+counts only what it got, which §24.1's fourth test pins (two starred cards reached out of a requested five, two
+threat placed, not four).
+
+**Slipping Sanity end to end.** "Discard the top 5 cards of the encounter deck. For each star icon (★) in the boost
+area discarded this way, place 1 threat on the main scheme." (15023, `scw`.) The whole sentence is two effects:
+
+```ts
+[
+  { kind: "discardEncounterCards", count: { kind: "const", value: 5 }, bind: "sanity" },
+  { kind: "placeThreat", target: { kind: "mainScheme" }, amount: { kind: "var", name: "sanity.starIcons" } },
+];
+```
+
+Tested as a real discard of five off a real encounter deck, with a sixth starred card left on top to prove the count
+is bounded by the discard rather than by the deck.
+
+### 24.4 `TargetQuery.starIcon?: boolean`
+
+The same fact as a yes/no, for Longshot (35033, `wolv`): "Response: After Longshot attacks a non-ELITE minion,
+discard the top card of the encounter deck. If that card has a star icon (★) in the boost area, defeat the attacked
+minion." Paired with the existing `refMatches` predicate and its `anywhere` flag, which is what reads a card sitting
+in a discard pile:
+
+```ts
+{ kind: "if",
+  condition: { kind: "refMatches", ref: { kind: "slot", slot: "flip" }, query: { starIcon: true }, anywhere: true },
+  then: [ /* defeat the attacked minion */ ] }
+```
+
+Note for the scripter: `@mc/cards`' `refMatches(ref, query)` builder does not expose the engine's `anywhere` flag,
+and the discarded card is in a discard pile by the time the question is asked, so either that builder grows an
+options argument or Longshot reads the count instead — `valueAtLeast(starIcons(slot("flip")), 1)`, which is
+zone-independent by construction and needs no flag. Both routes are tested (§24.4).
+
+A card with no boost area — any player card — has no star, so it never matches `{ starIcon: true }`. The clause's
+rejection code is `QueryExclusion "wrongStarIcon"`, worded for the client in
+`packages/client/src/view/highlights.ts` ("wrong star icon in the boost area") — the only client edit, needed for
+that table's `Record<ExclusionCode, string>` to typecheck.
+
+### 24.5 What `ability-scripting-engineer` needs
+
+Nothing in `packages/cards` was touched here (`KNOWN_SKIPPED` is untouched). Two refs are now unblocked, and both
+need only DSL surface over primitives that exist:
+
+| Ref                       | Card                    | What it now needs                                                                                                                                                                                                                                                                                                                                                                        |
+| ------------------------- | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `15023.obligation`        | Slipping Sanity (`scw`) | `discardEncounterCards(5, bind)` + `placeThreat(mainScheme, v("<bind>.starIcons"))`. The builder for the bound total is the same one `<bind>.boostIcons` already uses; nothing new beyond letting the `.starIcons` name through.                                                                                                                                                         |
+| `35033.longshot-response` | Longshot (`wolv`)       | `discardEncounterCards(1, bind)` + an `if` on the discarded card, then the existing defeat effect. Two spellings, both tested: `valueAtLeast(starIcons(slot(bind)), 1)` — needs only a `starIcons(ref)` value builder — or `refMatches(slot(bind), { starIcon: true })` **with `anywhere: true`**, which the current `refMatches` builder cannot express. The first is the shorter path. |
+
+One warning worth carrying into the DSL: `starIcons` and `boostIcons` are **not** interchangeable, and a card that
+reads "for each boost icon" must not be scripted with `starIcons` (or vice versa). The two numbers disagree on 116 of
+the pool's 159 starred cards (a star, no pips) and on every unstarred card that prints pips.
+
+---
+
+## 25. "You cannot attack X": a player scope for `cannotAttack` (owner: `game-rules-architect`; landed 2026-09-20)
+
+> "**You cannot attack Kang.** Alter-Ego Action: Discard a random card from your hand → discard this obligation."
+> (Fear of Kang, `toafk` 11049.)
+
+Tests: `packages/engine/src/primitives-wave2e.test.ts` §25 (6 tests, five of them two-player). The last non-campaign
+ref in the wave 2 skip backlog (§23's "not unblocked" table listed 11049 as a data split; that was only half the
+story — the constant half needed this).
+
+### 25.1 `RuleSpec cannotAttack` gains `player?: PlayerRef`
+
+```ts
+{ kind: "cannotAttack"; target: TargetQuery; player?: PlayerRef; while?: Predicate }
+```
+
+`cannotAttack` was the one restriction in its family with no player scope — `cannotThwart`, `cannotChangeForm`,
+`cannotReady` and `cannotPlay` all carry one. It was built for Distracting Taunts (`twc` 07035, "**Players** cannot
+attack other villains"), which is genuinely global, and nothing needed otherwise until Fear of Kang. `player` is
+**optional**, so every existing caller keeps the table-wide meaning it has today; that is pinned by its own test
+rather than left as an assumption.
+
+`player` is resolved with "you" as the rule card's speaker (`speakerOf`), the same as `cannotThwart`'s. For an
+obligation — a card no player _controls_ — the speaker is the player whose play area holds it. RRG 1.8 "Obligation"
+(p. 30): "Abilities on obligations that use the words 'you' or 'your' apply only to the player whose play area the
+obligation is in."
+
+**Who counts as the attacking player: the attacker's controller.** Not the active player, and emphatically not the
+rule card's controller (an obligation's is `null`). RRG 1.8 "Guard" (p. 21) settles this for the whole family: "While
+a minion with the guard keyword is engaged with a player, that player cannot use cards they control to attack a
+villain … The guard keyword is **equivalent to** the following constant ability: 'The engaged player cannot attack
+any villain.'" The RRG equates "cannot use cards they control to attack" with "cannot attack", so a player's ally
+attacking is that player attacking, and a scoped `cannotAttack` blocks it. Tested with allies on both sides of the
+scope.
+
+An attack made by an enemy is nobody's attack: `canAttack` returns early when the attacker has no controller, so
+neither guard nor `cannotAttack` (both worded about _players_) ever touches a villain's or minion's activation. That
+early return already existed; it is now the documented reason the new parameter is always a real `PlayerId`.
+
+`attackForbidden` (`packages/engine/src/select.ts`) took only the target; it now takes the attacking player as well.
+Every caller of `canAttack` — the `basicAttack` command (`actions.ts`), the `attack` effect (`resolve/apply-effect.ts`,
+which covers an event's or an ally ability's attack) and the `attackableBy` query (`select.ts`) — already supplies
+an attacker instance, so nothing above it changed shape and `canAttack`'s exported signature is untouched
+(`@mc/cards`' `testing/driver.ts` calls it).
+
+### 25.2 One rule scan, so constant and lasting rules behave alike
+
+`attackForbidden` had its own hand-rolled loop over constant abilities, written before `activeRules` existed. That
+loop never saw `ruleGrant` lasting effects (§22.1), so `applyRuleUntil({ kind: "cannotAttack", … })` would have been
+accepted by the type system, created a lasting effect, appeared in the log — and silently restricted nothing. No card
+in the pool does that today, which is exactly why it would have been found late. `attackForbidden` now reads through
+`activeRules` like every other restriction, and a lasting `cannotAttack` works; tested.
+
+To make that possible without a `select.ts` ↔ `rules.ts` import cycle, `activeRules`, `speakerOf` and `rulePlayers`
+moved from `rules.ts` into `select.ts` (unchanged in behaviour) and `rules.ts` imports them back. `rules.ts` is still
+where every _consumer_ lives; only the scan moved, because its oldest caller lives in `select.ts`.
+
+### 25.3 `cannotPlay`'s `cards` query now reads the speaker's "you"
+
+The lesser version of the same gap, found by `ability-scripting-engineer` while scripting Depowered (`toafk` 11020):
+`cannotPlay` resolves its `player` field in the speaker context but matched its `cards` query in the source card's
+raw context. On an obligation that context has `controllerId: null`, so `identitySetOf: you` (or any other `you` ref)
+matched nothing and the restriction quietly did nothing at all — worse than erroring. `ActiveRule` now carries a
+`speakerContext` beside `context`, and `cannotPlayCard` matches `cards` in it. The two clauses of one printed
+sentence ("_you_ cannot play _your_ hero-specific cards") now agree on who "you" is. On a player-controlled card the
+two contexts are identical, so nothing that worked before changes.
+
+**Deliberately not done, and why.** The general form of this — every `target`/`enemy`/`scheme` query and every
+`while` predicate on every `RuleSpec` reading the speaker context — is a bigger change than it looks and is _not_
+made here (the §3.13.11 precedent for recording a non-fix rather than half-doing it). It would alter how `while`
+predicates evaluate for every rule on every controller-less card in a play area (obligations, engaged minions), which
+is a behaviour change to rules that are working today, for no card that needs it. The narrow fix covers the one
+shape that is provably broken: a query that is the companion of a `player` field. If a future card needs "you" inside
+a rule's `target`, do the general change on purpose, with its own tests, rather than widening this one.
+
+### 25.4 What `ability-scripting-engineer` needs to do next
+
+Nothing in `packages/cards` was touched here (`KNOWN_SKIPPED` included). To close 11049:
+
+1. Script `11049.fear-of-kang-constant` as `constant(rule({ kind: "cannotAttack", target: query("villain", { name:
+cardName("11001") }), player: you }))` — the `rule` builder passes a `RuleSpec` straight through, so no DSL change
+   is needed — and add it to `KANG_ENCOUNTER_SET`.
+2. Drop it from `KNOWN_SKIPPED` in `wave2/coverage.test.ts`.
+3. `wave2/toafk/fear-of-kang-constant.test.ts` is still worth keeping, but its second half now asserts the _fixed_
+   behaviour: rewrite it to build the rule **with** `player` and expect P2 to be unblocked, or retarget it at the
+   shipped ability. Its current first test asserts the old, wrong behaviour of a bare target-only rule and will still
+   pass (a rule with no `player` is still table-wide by design) — so it needs its docblock updated, not deleting.
+4. `11020.depowered-constant`'s `cards: { identitySetOf: eachPlayer }` workaround can become `you` if you prefer the
+   narrower reading; both now work, and §25.3 is why. Simplify the comment in `wave2/toafk/kang-encounter-set.ts`
+   either way — the "silently does nothing" hazard it documents is gone.

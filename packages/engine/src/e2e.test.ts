@@ -244,7 +244,6 @@ const setupConfig = (seed: number, players: number): GameSetupConfig => ({
         ],
 });
 
-
 // ---------------------------------------------------------------------------
 // A scripted driver. Every command goes through the session log, so the whole
 // game can be replayed from `initialState` + `commands` at the end.
@@ -290,7 +289,11 @@ function answer(driver: Driver, optionIds: readonly string[]): void {
 }
 
 /** Pays exactly `cost` out of the resource cards a `payForCard` prompt offers. */
-function payWithResources(current: GameState, options: readonly { optionId: string }[], cost: number): readonly string[] {
+function payWithResources(
+  current: GameState,
+  options: readonly { optionId: string }[],
+  cost: number,
+): readonly string[] {
   const picked = options
     .filter((option) => {
       const [kind, id] = option.optionId.split(":");
@@ -331,8 +334,7 @@ function settle(driver: Driver, policy: Policy = {}): void {
 
 // --- board queries used by the script -------------------------------------
 
-const heroOf = (current: GameState, player: PlayerId): InstanceId =>
-  mustPlayer(current, player).identity.instanceId;
+const heroOf = (current: GameState, player: PlayerId): InstanceId => mustPlayer(current, player).identity.instanceId;
 
 const inHand = (current: GameState, player: PlayerId, card: CardId): InstanceId | undefined =>
   mustPlayer(current, player).hand.find((id) => current.instances[id]?.cardId === card);
@@ -410,8 +412,7 @@ const has = <T extends GameEvent["type"]>(
   events: readonly GameEvent[],
   type: T,
   match: (event: Extract<GameEvent, { type: T }>) => boolean = () => true,
-): boolean =>
-  events.some((event): boolean => event.type === type && match(event as Extract<GameEvent, { type: T }>));
+): boolean => events.some((event): boolean => event.type === type && match(event as Extract<GameEvent, { type: T }>));
 
 const triggerOption = (instance: InstanceId, ability: string): string => `${instance}:${ability}`;
 
@@ -502,7 +503,9 @@ test("two players play a full game from createGame through defeating the villain
   const phaseOneEvents = since(driver, phaseOne);
   expect(has(phaseOneEvents, "cardPlayed", (e) => e.cardId === REFLEXES.id && e.playerId === p1)).toBe(true);
   // RRG "Cancel": a canceled effect is treated as never having occurred.
-  expect(has(phaseOneEvents, "triggerEvent", (e) => e.phase === "cancelled" && e.event.kind === "dealDamage")).toBe(true);
+  expect(has(phaseOneEvents, "triggerEvent", (e) => e.phase === "cancelled" && e.event.kind === "dealDamage")).toBe(
+    true,
+  );
   expect(mustInstance(state(driver), p1Hero).damage).toBe(0);
   expect(mustInstance(state(driver), p2Hero).damage).toBe(2);
 
@@ -568,7 +571,12 @@ test("two players play a full game from createGame through defeating the villain
     ).ok,
   ).toBe(true);
   // Thwarting is unaffected by guard.
-  send(driver, { type: "basicThwart", playerId: p1, thwarterInstanceId: p1Hero, schemeInstanceId: state(driver).mainScheme.instanceId });
+  send(driver, {
+    type: "basicThwart",
+    playerId: p1,
+    thwarterInstanceId: p1Hero,
+    schemeInstanceId: state(driver).mainScheme.instanceId,
+  });
   settle(driver);
   expect(mustInstance(state(driver), state(driver).mainScheme.instanceId).threat).toBe(0);
 
@@ -582,10 +590,10 @@ test("two players play a full game from createGame through defeating the villain
   expect(has(phaseTwoEvents, "surgeTriggered", (e) => e.playerId === p1)).toBe(true);
   // RRG "Surge": the original card finishes resolving, then the extra card is revealed.
   const surgeAt = phaseTwoEvents.findIndex((e) => e.type === "surgeTriggered");
+  expect(phaseTwoEvents.slice(surgeAt).some((e) => e.type === "encounterCardRevealed" && e.playerId === p1)).toBe(true);
   expect(
-    phaseTwoEvents.slice(surgeAt).some((e) => e.type === "encounterCardRevealed" && e.playerId === p1),
-  ).toBe(true);
-  expect(mustPlayer(state(driver), p1).playArea.filter((id) => state(driver).instances[id]?.cardId === TOUGH_MINION.id)).toHaveLength(1);
+    mustPlayer(state(driver), p1).playArea.filter((id) => state(driver).instances[id]?.cardId === TOUGH_MINION.id),
+  ).toHaveLength(1);
   // The guard minion died last round, so the villain is attackable again.
   expect(remainingHitPoints(state(driver), villainId, DEPS)).toBe(4);
 
@@ -616,7 +624,11 @@ test("two players play a full game from createGame through defeating the villain
   const retaliateEvents = since(driver, retaliateMark);
   expect(has(retaliateEvents, "damageDealt", (e) => e.targetInstanceId === spiker && e.amount === 3)).toBe(true);
   expect(
-    has(retaliateEvents, "damageDealt", (e) => e.sourceInstanceId === spiker && e.targetInstanceId === p2Hero && e.amount === 1),
+    has(
+      retaliateEvents,
+      "damageDealt",
+      (e) => e.sourceInstanceId === spiker && e.targetInstanceId === p2Hero && e.amount === 1,
+    ),
   ).toBe(true);
 
   const winMark = mark(driver);
@@ -632,8 +644,6 @@ test("two players play a full game from createGame through defeating the villain
   expect(replayed.ok).toBe(true);
   if (replayed.ok) expect(replayed.state).toEqual(final);
 });
-
-
 
 // ---------------------------------------------------------------------------
 // One player, setup through a loss.

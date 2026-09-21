@@ -7,7 +7,15 @@
  * from `@mc/content`").
  */
 
-import { cardOf, currentName, getInstance, getPlayer, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  cardOf,
+  currentName,
+  getInstance,
+  getPlayer,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { faceVisible } from "./visibility.js";
 
 /**

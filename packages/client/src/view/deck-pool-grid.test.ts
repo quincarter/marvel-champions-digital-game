@@ -24,7 +24,9 @@ describe("poolGridGeometry", () => {
     test(`width ${width}: no two cells in the same row overlap`, () => {
       const geometry = poolGridGeometry(width, 30);
       const rowRect: Rect = { x: 20, y: 40, width, height: geometry.cellHeight };
-      const cells = Array.from({ length: geometry.columns }, (_unused, column) => poolCellRect(geometry, rowRect, column));
+      const cells = Array.from({ length: geometry.columns }, (_unused, column) =>
+        poolCellRect(geometry, rowRect, column),
+      );
       for (let i = 0; i < cells.length; i++) {
         for (let j = i + 1; j < cells.length; j++) {
           expect(rectsOverlap(cells[i]!, cells[j]!), `cell ${i} overlaps cell ${j}`).toBe(false);

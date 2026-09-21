@@ -19,7 +19,12 @@ export const base = (ctx: Ctx) => ({ frameId: nextFrameId(ctx), answer: null }) 
  * is in progress; seeding them here is how an effect that *initiates* an activation scopes a bonus to exactly it
  * ("Green Goblin attacks with +X ATK").
  */
-export const eventFrame = (ctx: Ctx, event: TriggerEvent, reportTo: ReportTarget | null = null, vars: Vars = {}): StackFrame => ({
+export const eventFrame = (
+  ctx: Ctx,
+  event: TriggerEvent,
+  reportTo: ReportTarget | null = null,
+  vars: Vars = {},
+): StackFrame => ({
   ...base(ctx),
   kind: "event",
   event,
@@ -39,10 +44,15 @@ export function pushEvent(ctx: Ctx, event: TriggerEvent, reportTo: ReportTarget 
 }
 
 /** Adds `delta` into the vars of a frame that carries vars (event, effects, ability, playCard frames). */
-export function addFrameVars(ctx: Ctx, frameId: FrameId | null | undefined, delta: Readonly<Record<string, number>>): void {
+export function addFrameVars(
+  ctx: Ctx,
+  frameId: FrameId | null | undefined,
+  delta: Readonly<Record<string, number>>,
+): void {
   if (!frameId || Object.keys(delta).length === 0) return;
   updateFrame(ctx, frameId, (frame) => {
-    if (frame.kind !== "event" && frame.kind !== "effects" && frame.kind !== "ability" && frame.kind !== "playCard") return frame;
+    if (frame.kind !== "event" && frame.kind !== "effects" && frame.kind !== "ability" && frame.kind !== "playCard")
+      return frame;
     const vars: Record<string, number> = { ...frame.vars };
     for (const [key, amount] of Object.entries(delta)) vars[key] = (vars[key] ?? 0) + amount;
     return { ...frame, vars };
@@ -50,7 +60,11 @@ export function addFrameVars(ctx: Ctx, frameId: FrameId | null | undefined, delt
 }
 
 /** Adds cards to a frame's named slots (event frames: `slots`; effect/ability/play frames: `bindings`). */
-export function addFrameSlots(ctx: Ctx, frameId: FrameId | null | undefined, delta: Readonly<Record<string, readonly InstanceId[]>>): void {
+export function addFrameSlots(
+  ctx: Ctx,
+  frameId: FrameId | null | undefined,
+  delta: Readonly<Record<string, readonly InstanceId[]>>,
+): void {
   if (!frameId || Object.keys(delta).length === 0) return;
   const merge = (current: Bindings): Bindings => {
     const next: Record<string, readonly InstanceId[]> = { ...current };
@@ -59,18 +73,23 @@ export function addFrameSlots(ctx: Ctx, frameId: FrameId | null | undefined, del
   };
   updateFrame(ctx, frameId, (frame) => {
     if (frame.kind === "event") return { ...frame, slots: merge(frame.slots) };
-    if (frame.kind === "effects" || frame.kind === "ability" || frame.kind === "playCard") return { ...frame, bindings: merge(frame.bindings) };
+    if (frame.kind === "effects" || frame.kind === "ability" || frame.kind === "playCard")
+      return { ...frame, bindings: merge(frame.bindings) };
     return frame;
   });
 }
-
 
 /**
  * Several events at once, in the order they were listed: `events[0]` resolves
  * first. `pushFrames` prepends, so anything that queues per-target events in a
  * loop has to build the whole batch before pushing or it resolves backwards.
  */
-export function pushEvents(ctx: Ctx, events: readonly TriggerEvent[], reportTo: ReportTarget | null = null, vars: Vars = {}): void {
+export function pushEvents(
+  ctx: Ctx,
+  events: readonly TriggerEvent[],
+  reportTo: ReportTarget | null = null,
+  vars: Vars = {},
+): void {
   pushFrames(
     ctx,
     // Each event gets its own copy of `vars`: "each enemy attacks with +X ATK" is +X per attack, never cumulative.
@@ -128,7 +147,9 @@ function playPaymentVars(ctx: Ctx, instanceId: InstanceId): Vars {
   if (play?.kind !== "playCard") return {};
   // `overpaid.*` and a chosen `x` travel the same way ("for each resource you overpaid", Ant-Man ally; docs/phase7-wave2.md
   // §3.8).
-  return Object.fromEntries(Object.entries(play.vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"));
+  return Object.fromEntries(
+    Object.entries(play.vars).filter(([key]) => key.startsWith("paid.") || key.startsWith("overpaid.") || key === "x"),
+  );
 }
 
 export function abilityFrame(
@@ -163,7 +184,14 @@ export function pushActionAbility(
   vars: Vars = {},
 ): void {
   pushFrames(ctx, [
-    abilityFrame(ctx, { instanceId, abilityId, controllerId, forced: false, fromHand: false }, null, null, bindings, vars),
+    abilityFrame(
+      ctx,
+      { instanceId, abilityId, controllerId, forced: false, fromHand: false },
+      null,
+      null,
+      bindings,
+      vars,
+    ),
   ]);
 }
 
@@ -196,7 +224,10 @@ export function gameAbilityFrames(
   // A flipped encounter card's live abilities are its other face's (RRG 1.8 "Flip").
   const refs =
     refsOverride ??
-    (card.type === "villain" || card.type === "main_scheme" || card.type === "hero_identity" || ctx.state.instances[instanceId]?.flipped
+    (card.type === "villain" ||
+    card.type === "main_scheme" ||
+    card.type === "hero_identity" ||
+    ctx.state.instances[instanceId]?.flipped
       ? activeAbilityRefs(ctx.state, instanceId, ctx.deps)
       : printedAbilityRefs(card));
   const frames: StackFrame[] = [];

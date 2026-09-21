@@ -27,7 +27,11 @@ const TABLE_DETAILS = [
   "Sound isn't built yet (PLAN.md Phase 8).",
 ];
 
-const input = (keywordCount: number): PauseLayoutInput => ({ keywordCount, quickReferenceDetails: QUICK_REFERENCE_DETAILS, tableDetails: TABLE_DETAILS });
+const input = (keywordCount: number): PauseLayoutInput => ({
+  keywordCount,
+  quickReferenceDetails: QUICK_REFERENCE_DETAILS,
+  tableDetails: TABLE_DETAILS,
+});
 
 describe("pauseLayout", () => {
   for (const { name, width, height } of ALL_SIZES) {
@@ -59,7 +63,9 @@ describe("pauseLayout", () => {
     }
     expect(pauseLayout({ x: 0, y: 0, width: PAUSE_PHONE_MAX_WIDTH, height: 900 }, input(8)).kind).toBe("wide");
     expect(pauseLayout({ x: 0, y: 0, width: PAUSE_PHONE_MAX_WIDTH - 1, height: 900 }, input(8)).kind).toBe("phone");
-    expect(pauseLayout({ x: 0, y: 0, width: PHONE_SIZE.width, height: PHONE_SIZE.height }, input(8)).kind).toBe("phone");
+    expect(pauseLayout({ x: 0, y: 0, width: PHONE_SIZE.width, height: PHONE_SIZE.height }, input(8)).kind).toBe(
+      "phone",
+    );
   });
 
   describe("wide (desktop + tablet)", () => {
@@ -127,9 +133,13 @@ describe("pauseLayout", () => {
       const layout = pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, input(0));
       if (layout.kind !== "phone") throw new Error("expected phone");
       expect(layout.closeButton.x).toBeGreaterThanOrEqual(layout.header.x);
-      expect(layout.closeButton.x + layout.closeButton.width).toBeLessThanOrEqual(layout.header.x + layout.header.width);
+      expect(layout.closeButton.x + layout.closeButton.width).toBeLessThanOrEqual(
+        layout.header.x + layout.header.width,
+      );
       expect(layout.closeButton.y).toBeGreaterThanOrEqual(layout.header.y);
-      expect(layout.closeButton.y + layout.closeButton.height).toBeLessThanOrEqual(layout.header.y + layout.header.height + 0.001);
+      expect(layout.closeButton.y + layout.closeButton.height).toBeLessThanOrEqual(
+        layout.header.y + layout.header.height + 0.001,
+      );
     });
 
     test("Resume sits full width above Save & quit and Concede, which split the row beneath it", () => {
@@ -145,7 +155,10 @@ describe("pauseLayout", () => {
       const six = Array.from({ length: 6 }, (_unused, i) => `Row ${i}.`);
       const two = Array.from({ length: 2 }, (_unused, i) => `Row ${i}.`);
       const layout = (qr: readonly string[], t: readonly string[]) =>
-        pauseLayout({ x: 0, y: 0, width: 390, height: 844 }, { keywordCount: 0, quickReferenceDetails: qr, tableDetails: t });
+        pauseLayout(
+          { x: 0, y: 0, width: 390, height: 844 },
+          { keywordCount: 0, quickReferenceDetails: qr, tableDetails: t },
+        );
       const emptyLayout = layout([], []);
       const sixTwoLayout = layout(six, two);
       if (emptyLayout.kind !== "phone" || sixTwoLayout.kind !== "phone") throw new Error("expected phone");

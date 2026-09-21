@@ -256,6 +256,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("risky_business")],
     boostIcons: 2,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [],
     text: {
@@ -279,6 +280,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("risky_business")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("MERCENARY")],
     keywords: [{ name: "guard" }],
     text: {
@@ -301,6 +303,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     startingThreat: { base: 0, perPlayer: 2 },
     icons: ["crisis"],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -346,6 +349,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     startingThreat: { base: 0, perPlayer: 2 },
     icons: ["hazard"],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -366,6 +370,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/02012.png") },
     encounterSetIds: [encounterSetId("risky_business")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -606,6 +611,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     hp: 7,
     encounterSetIds: [encounterSetId("mutagen_formula")],
     boostIcons: 2,
+    starIcon: true,
     traits: [trait("ELITE"), trait("GOBLIN")],
     keywords: [],
     text: {
@@ -629,6 +635,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("mutagen_formula")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("GOBLIN")],
     keywords: [],
     text: {
@@ -652,6 +659,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("mutagen_formula")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("GOBLIN")],
     keywords: [{ name: "guard" }],
     text: {
@@ -675,6 +683,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("mutagen_formula")],
     boostIcons: 2,
+    starIcon: true,
     traits: [trait("ELITE"), trait("GOBLIN")],
     keywords: [],
     text: {
@@ -720,6 +729,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     startingThreat: { base: 0, perPlayer: 2 },
     icons: [],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -783,6 +793,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/02030.png") },
     encounterSetIds: [encounterSetId("mutagen_formula")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -895,6 +906,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/02035.png") },
     encounterSetIds: [encounterSetId("goblin_gimmicks")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -915,6 +927,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/02036.png") },
     encounterSetIds: [encounterSetId("goblin_gimmicks")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1002,6 +1015,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/02040.png") },
     encounterSetIds: [encounterSetId("a_mess_of_things")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1047,6 +1061,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("power_drain")],
     boostIcons: 2,
+    starIcon: true,
     traits: [trait("CRIMINAL")],
     keywords: [],
     text: {
@@ -1067,6 +1082,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/02043.png") },
     encounterSetIds: [encounterSetId("power_drain")],
     boostIcons: 2,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1087,6 +1103,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/02044.png") },
     encounterSetIds: [encounterSetId("power_drain")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1107,6 +1124,7 @@ export const GOB_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/02045.png") },
     encounterSetIds: [encounterSetId("power_drain")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

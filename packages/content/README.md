@@ -1,10 +1,10 @@
 # @mc/content
 
 Card data schema and normalized card data for Marvel Champions: Digital
-Edition. `src/schema/` defines the *shape* (see `src/schema/schema.test.ts` for
+Edition. `src/schema/` defines the _shape_ (see `src/schema/schema.test.ts` for
 hand-typed fixtures covering every card type); `src/data/` holds generated,
 validated card data (Core Set so far) — see "What ingestion produces" below.
-No card art lives here, ever — only *references* to where it can be found.
+No card art lives here, ever — only _references_ to where it can be found.
 
 ## Shape
 
@@ -23,20 +23,21 @@ No card art lives here, ever — only *references* to where it can be found.
 - **Allies** always carry `consequentialDamage: { attack, thwart }` — the small numbers printed beside the icons.
 - **Villains and minions** have `atk` and `sch` (scheme), not THW. Villain `stages` are the printed I/II/III numerals; standard vs. expert is a scenario-level choice of which stages to use, not a card property.
 - **Main scheme stages** have `startingThreat`, `targetThreat`, and `acceleration` (all `ScalingValue`) plus `icons`. **Side schemes** have only `startingThreat` — they're defeated when thwarted to 0.
-- **Boost icons** are a required field on every encounter-deck card (minion, attachment, treachery, obligation, environment, side scheme) because the encounter deck *is* the boost deck. There is no "boost card" type. A boost-star effect is an ability whose registry entry has a `boost` trigger.
+- **Boost icons** are a required field on every encounter-deck card (minion, attachment, treachery, obligation, environment, side scheme) because the encounter deck _is_ the boost deck. There is no "boost card" type. A boost-star effect is an ability whose registry entry has a `boost` trigger.
 - **Card art** is referenced two ways, never stored. Both are pointers; no image bytes are in this repo, and neither is a licence to redistribute the art (`CLAUDE.md` IP boundary).
   - `art?: ArtRef` — a key into a gitignored **local** asset folder, for a user's own scans.
   - `images?: CardImages` / per-face `image?: ImageRef` — where the **source** publishes the art, as MarvelCDB's own site-relative path (`/bundles/cards/01001a.png`). The host is resolved at use time by `imageUrl(ref, base?)` in `schema/images.ts`, so the data stays references rather than thousands of baked URLs and a client can point at a mirror without the card data changing.
 
   A client should prefer a local `ArtRef` when it has one and fall back to the `ImageRef`.
+
 - **An artwork reference exists for every printed face**, and ingestion fails if one is missing. Where the reference lives follows how the schema models faces:
 
-  | Card type | Where the reference lives | Source |
-  |---|---|---|
-  | Single-faced (ally, event, support, upgrade, resource, minion, treachery, side scheme, attachment, obligation, environment) | `images.front` (and `images.back` when the source has one) | the record's `imagesrc` / `backimagesrc` |
-  | Hero identity | `hero.image` and `alterEgo.image`, mirrored as `images.front` / `images.back` | the record's `imagesrc`, and its **`linked_card`'s** `imagesrc` — MarvelCDB publishes the alter-ego as a linked card that "flips", not as a back image |
-  | Villain | `sides[].stages[].image`; no card-level `images` | each stage's own record (a three-stage villain is three printed cards) |
-  | Main scheme | `stages[].aSide.image` and `stages[].image`; no card-level `images` | the B side from the `…b` record; the **A side from the aggregate record** (`01097` for `01097a`), which ingestion drops as a duplicate but is the only place the pair's front face is published |
+  | Card type                                                                                                                   | Where the reference lives                                                     | Source                                                                                                                                                                                          |
+  | --------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Single-faced (ally, event, support, upgrade, resource, minion, treachery, side scheme, attachment, obligation, environment) | `images.front` (and `images.back` when the source has one)                    | the record's `imagesrc` / `backimagesrc`                                                                                                                                                        |
+  | Hero identity                                                                                                               | `hero.image` and `alterEgo.image`, mirrored as `images.front` / `images.back` | the record's `imagesrc`, and its **`linked_card`'s** `imagesrc` — MarvelCDB publishes the alter-ego as a linked card that "flips", not as a back image                                          |
+  | Villain                                                                                                                     | `sides[].stages[].image`; no card-level `images`                              | each stage's own record (a three-stage villain is three printed cards)                                                                                                                          |
+  | Main scheme                                                                                                                 | `stages[].aSide.image` and `stages[].image`; no card-level `images`           | the B side from the `…b` record; the **A side from the aggregate record** (`01097` for `01097a`), which ingestion drops as a duplicate but is the only place the pair's front face is published |
 
 ## Versioning
 
@@ -60,7 +61,7 @@ Runs under Node ≥ 22.6 type stripping (`node --experimental-strip-types`), no 
 1. **Fetch + raw cache.** `https://marvelcdb.com/api/public/cards/<pack>` is written verbatim to
    `raw/marvelcdb/<pack>.json` (`{ source, fetchedAt, pack, cards }`) — every field the API returns,
    including `imagesrc`, `backimagesrc`, `meta`, `octgn_id` and `url` (and the same fields inside
-   `linked_card`). Those are *references* — MarvelCDB image paths, an OCTGN guid, a MarvelCDB page URL
+   `linked_card`). Those are _references_ — MarvelCDB image paths, an OCTGN guid, a MarvelCDB page URL
    — not image bytes; no art is stored in the repo, which is the CLAUDE.md IP boundary.
    `--offline` re-runs everything below from this cache, so data changes are reviewable as a diff
    of the curation + generated files alone.
@@ -74,12 +75,12 @@ Runs under Node ≥ 22.6 type stripping (`node --experimental-strip-types`), no 
    `deckLimit`/`playRestrictions`, "Attach to …" becomes `attachesTo`, attachment stat boxes become
    `statModifiers`. Scaling: `health_per_hero`, or a **false** `*_fixed` flag on
    base_threat/threat/escalation_threat, means "per player" (The Break-In! 1B = 7 per player target,
-   1 per player acceleration; Breakin' & Takin' = flat 2). MarvelCDB *aggregate* records (bare
+   1 per player acceleration; Breakin' & Takin' = flat 2). MarvelCDB _aggregate_ records (bare
    `01097`, `01144`, … duplicating their `a/b` variants) are dropped and listed in
    `CORE_DROPPED_SOURCE_RECORDS`. The run fails on anything it can't classify, any unused curation
    entry, or any MarvelCDB record that didn't land in a card.
 3. **Curate** (`scripts/marvelcdb/curation/<pack>.ts`). Everything MarvelCDB can't supply or gets
-   wrong, each entry with its evidence: transcription corrections (applied to printed *and* current
+   wrong, each entry with its evidence: transcription corrections (applied to printed _and_ current
    text — the card always said this), official errata (printed text reconstructed from the current
    text), scripting notes, card-level data decisions, scenarios, starter decks.
 4. **Emit** (`emit.ts`) typed modules to `src/data/core/`: `cards.ts` (`CORE_CARDS`), `packs.ts`,
@@ -102,11 +103,12 @@ abilities. A leading `[star]` is a printed reminder icon and stays in the text o
 **Sources and cross-checks.** MarvelCDB is the primary transcription; every Core card was diffed
 against the independent Cerebro database, and every disagreement was settled against the printed card
 (and the Core Learn to Play booklet where relevant) — see `curation/core.ts` for each decision.
-Card images were only *looked at* for that verification; none are stored anywhere in the repo. The
+Card images were only _looked at_ for that verification; none are stored anywhere in the repo. The
 raw cache keeps MarvelCDB's `imagesrc`/`backimagesrc` paths, and ingestion carries them through to
 the normalized data as `ImageRef`s (see "Card art" above) — paths, never bytes.
 
 **Core Set decisions worth knowing** (all recorded in `CORE_PROVENANCE`):
+
 - Hand-corrected MarvelCDB errors: `"I'm Tough!"` title; Usurp the Throne capitalization; Concussion
   Blasters' +1 ATK stat box; Heart-Shaped Herb has 0 boost icons (boost star only); Whiplash's CRIMINAL
   trait; Ultron (III) and Tiger Shark carry no threat/hazard (MarvelCDB artifacts); a dozen wording

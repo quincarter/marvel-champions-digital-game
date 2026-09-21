@@ -34,7 +34,11 @@ export function withLocalArt(raw: readonly RawCard[], localCodes: ReadonlySet<st
     const linked = r.linked_card ? fill(r.linked_card) : r.linked_card;
     const local = !r.imagesrc && localCodes.has(r.code);
     if (!local && linked === r.linked_card) return r;
-    return { ...r, ...(local ? { imagesrc: `/bundles/cards/${r.code}.png` } : {}), ...(linked ? { linked_card: linked } : {}) };
+    return {
+      ...r,
+      ...(local ? { imagesrc: `/bundles/cards/${r.code}.png` } : {}),
+      ...(linked ? { linked_card: linked } : {}),
+    };
   };
   return raw.map(fill);
 }
@@ -90,8 +94,18 @@ export function printedFaces(card: AnyCard): { readonly what: string; readonly i
         // A separated identity's other two faces (docs/phase7-wave2.md §6.10 — SP//dr) are printed cards too.
         ...(card.separatedIdentity
           ? [
-              { what: "the hero card's other side", ...(card.separatedIdentity.heroCardOtherSide.image ? { image: card.separatedIdentity.heroCardOtherSide.image } : {}) },
-              { what: "the alter-ego card's other side", ...(card.separatedIdentity.alterEgoCardOtherSide.image ? { image: card.separatedIdentity.alterEgoCardOtherSide.image } : {}) },
+              {
+                what: "the hero card's other side",
+                ...(card.separatedIdentity.heroCardOtherSide.image
+                  ? { image: card.separatedIdentity.heroCardOtherSide.image }
+                  : {}),
+              },
+              {
+                what: "the alter-ego card's other side",
+                ...(card.separatedIdentity.alterEgoCardOtherSide.image
+                  ? { image: card.separatedIdentity.alterEgoCardOtherSide.image }
+                  : {}),
+              },
             ]
           : []),
       ];

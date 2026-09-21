@@ -76,6 +76,7 @@ import { GMW_CURATION } from "./curation/gmw.ts";
 import { WONDER_MAN_CURATION } from "./curation/wonder_man.ts";
 import { X23_CURATION } from "./curation/x23.ts";
 import { PSYLOCKE_CURATION } from "./curation/psylocke.ts";
+import { JUBILEE_CURATION } from "./curation/jubilee.ts";
 import { VALK_CURATION } from "./curation/valk.ts";
 import { DEADPOOL_CURATION } from "./curation/deadpool.ts";
 import { SPIDERHAM_CURATION } from "./curation/spiderham.ts";
@@ -134,6 +135,7 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   wonder_man: WONDER_MAN_CURATION,
   x23: X23_CURATION,
   psylocke: PSYLOCKE_CURATION,
+  jubilee: JUBILEE_CURATION,
   valk: VALK_CURATION,
   deadpool: DEADPOOL_CURATION,
   spiderham: SPIDERHAM_CURATION,
@@ -158,7 +160,10 @@ const CATEGORIES: readonly Category[] = [
   { label: "unhandled MarvelCDB type_code", re: /: unhandled type (\w+)/ },
   { label: "hero without a linked alter-ego (extra hero face / dangling link)", re: /hero without a linked alter-ego/ },
   { label: "hero/alter-ego hit points differ", re: /hero\/alter-ego hit points differ/ },
-  { label: "hero card in a set with no identity (kit card outside its hero's card_set_code)", re: /hero card in set .* with no identity/ },
+  {
+    label: "hero card in a set with no identity (kit card outside its hero's card_set_code)",
+    re: /hero card in set .* with no identity/,
+  },
   { label: "unknown faction_code (not hero/encounter/a CoreAspect)", re: /unknown faction/ },
   { label: "obligation count != 1 for a hero set", re: /expected exactly one obligation/ },
   { label: "no nemesis encounter set for a hero", re: /no nemesis set/ },
@@ -168,22 +173,43 @@ const CATEGORIES: readonly Category[] = [
   { label: "non-printed field present (needs ignoreFields correction)", re: /not a printed field on this card type/ },
   { label: "main scheme record not an A/B pair", re: /main scheme record is not an A side/ },
   { label: "main scheme stage not an NA\\/NB pair", re: /not an NA\/NB pair/ },
-  { label: "main scheme missing starting/target/acceleration threat", re: /missing (starting threat|target threat|acceleration)/ },
+  {
+    label: "main scheme missing starting/target/acceleration threat",
+    re: /missing (starting threat|target threat|acceleration)/,
+  },
   { label: "keywords on a main scheme A side", re: /keywords on a main scheme A side/ },
-  { label: "aggregate record mismatch (possible MarvelCDB data error, cf. Core's swapped A/B)", re: /aggregate .* does not match its B side|aggregate .* quantity .* != variants/ },
+  {
+    label: "aggregate record mismatch (possible MarvelCDB data error, cf. Core's swapped A/B)",
+    re: /aggregate .* does not match its B side|aggregate .* quantity .* != variants/,
+  },
   { label: "ally missing atk/thw (printed dash — needs cardNotes)", re: /ally has no (attack|thwart)/ },
   { label: "minion ATK is X or invalid (needs cardNotes)", re: /printed ATK is X|minion ATK .* invalid/ },
   { label: "deck_limit missing/invalid", re: /deck_limit .* invalid/ },
   { label: "Max N per deck text vs deck_limit mismatch", re: /Max .* per deck but deck_limit/ },
-  { label: "attach rule shape not recognized by the parser", re: /(second attach rule|unrecognized attach rule|attach rule on a|attachment without an attach rule|player card attaches to a villain by name|attaches to a villain by name is not this set's villain)/ },
+  {
+    label: "attach rule shape not recognized by the parser",
+    re: /(second attach rule|unrecognized attach rule|attach rule on a|attachment without an attach rule|player card attaches to a villain by name|attaches to a villain by name is not this set's villain)/,
+  },
   { label: "ifAble attach host: one side didn't parse", re: /ifAble attach host: could not parse/ },
-  { label: "Requirement keyword needs more than one resource icon (schema gap)", re: /Requirement keyword needs more than one resource icon/ },
-  { label: "Discount keyword needs a target-trait qualifier (schema gap)", re: /Discount keyword needs a target-trait qualifier/ },
+  {
+    label: "Requirement keyword needs more than one resource icon (schema gap)",
+    re: /Requirement keyword needs more than one resource icon/,
+  },
+  {
+    label: "Discount keyword needs a target-trait qualifier (schema gap)",
+    re: /Discount keyword needs a target-trait qualifier/,
+  },
   { label: "play/deck restriction text on a non-player card", re: /play\/deck restriction on a non-player card/ },
-  { label: "campaign-specific obligation (schema gap — ObligationCard has no specificTo)", re: /obligation with faction campaign/ },
+  {
+    label: "campaign-specific obligation (schema gap — ObligationCard has no specificTo)",
+    re: /obligation with faction campaign/,
+  },
   { label: "unknown text token (icon/markup the text normalizer doesn't map)", re: /unknown text token/ },
   { label: "boost_star flag vs Boost ability text mismatch", re: /boost_star=.* but text/ },
-  { label: "MarvelCDB record never turned into a card (falls out of every code path)", re: /was not turned into any card/ },
+  {
+    label: "MarvelCDB record never turned into a card (falls out of every code path)",
+    re: /was not turned into any card/,
+  },
   { label: "no artwork reference for a printed face", re: /no artwork reference/ },
   { label: "duplicate MarvelCDB code", re: /duplicate MarvelCDB code/ },
   { label: "resource/event/support/upgrade cost shape", re: /(without a cost|resource with a cost)/ },
@@ -246,7 +272,12 @@ function parseArgs(argv: readonly string[]): Args {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const packs = args.packs ?? (await readdir(RAW_DIR)).filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -".json".length)).sort();
+  const packs =
+    args.packs ??
+    (await readdir(RAW_DIR))
+      .filter((f) => f.endsWith(".json"))
+      .map((f) => f.slice(0, -".json".length))
+      .sort();
 
   const results: PackResult[] = [];
   for (const pack of packs) results.push(await surveyPack(pack));
@@ -266,18 +297,23 @@ async function main(): Promise<void> {
   const clean = results.filter((r) => r.ok);
   const failed = results.filter((r) => !r.ok);
 
-  console.log(`Surveyed ${results.length} packs — ${clean.length} normalize cleanly under their registered/bare curation, ${failed.length} do not.\n`);
+  console.log(
+    `Surveyed ${results.length} packs — ${clean.length} normalize cleanly under their registered/bare curation, ${failed.length} do not.\n`,
+  );
   if (clean.length > 0) console.log(`Clean: ${clean.map((r) => r.pack).join(", ")}\n`);
 
   console.log("Per-pack error counts:");
   for (const r of [...results].sort((a, b) => b.errorLines.length - a.errorLines.length)) {
-    if (r.errorLines.length > 0) console.log(`  ${r.pack} (${r.cardCount} cards): ${r.errorLines.length} issues${r.crash ? " [CRASH]" : ""}`);
+    if (r.errorLines.length > 0)
+      console.log(`  ${r.pack} (${r.cardCount} cards): ${r.errorLines.length} issues${r.crash ? " [CRASH]" : ""}`);
   }
 
   console.log("\nGap matrix (category → count across packs, packs affected):");
   const sorted = [...byCategory.entries()].sort(([, a], [, b]) => b.count - a.count);
   for (const [cat, { count, packs: ps }] of sorted) {
-    console.log(`  [${count}] ${cat} — ${ps.size} pack(s): ${[...ps].sort().slice(0, 10).join(", ")}${ps.size > 10 ? ", ..." : ""}`);
+    console.log(
+      `  [${count}] ${cat} — ${ps.size} pack(s): ${[...ps].sort().slice(0, 10).join(", ")}${ps.size > 10 ? ", ..." : ""}`,
+    );
   }
 
   if (args.jsonOut) {
@@ -285,8 +321,19 @@ async function main(): Promise<void> {
       surveyedAt: new Date().toISOString(),
       packCount: results.length,
       cleanPacks: clean.map((r) => r.pack),
-      results: results.map((r) => ({ pack: r.pack, cardCount: r.cardCount, ok: r.ok, ...(r.crash ? { crash: r.crash } : {}), errorLines: r.errorLines })),
-      gapMatrix: sorted.map(([category, { count, examples, packs: ps }]) => ({ category, count, packs: [...ps].sort(), examples })),
+      results: results.map((r) => ({
+        pack: r.pack,
+        cardCount: r.cardCount,
+        ok: r.ok,
+        ...(r.crash ? { crash: r.crash } : {}),
+        errorLines: r.errorLines,
+      })),
+      gapMatrix: sorted.map(([category, { count, examples, packs: ps }]) => ({
+        category,
+        count,
+        packs: [...ps].sort(),
+        examples,
+      })),
     };
     await writeFile(args.jsonOut, `${JSON.stringify(json, null, 2)}\n`);
     console.log(`\nWrote full detail → ${args.jsonOut}`);

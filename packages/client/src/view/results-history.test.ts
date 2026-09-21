@@ -92,7 +92,6 @@ describe("resultsHistoryOf: best clear", () => {
 
 describe("resultsHistoryOf: deck attribution", () => {
   const STARTER_SEAT: CorePlayer = { starterDeckId: "core-spider-man-justice" };
-  const CUSTOM_SEAT: CorePlayer = { identityCardId: "01010a", deck: [], deckId: "local-deck-42" };
 
   test("a multi-seat game credits each distinct deck once, not once per seat", () => {
     const saves: SaveMeta[] = [meta({ config: config({ players: [STARTER_SEAT, STARTER_SEAT] }), status: "won" })];
@@ -106,7 +105,10 @@ describe("resultsHistoryOf: deck attribution", () => {
     const collidingId = "shared-id";
     const saves: SaveMeta[] = [
       meta({ config: config({ players: [{ starterDeckId: collidingId }] }), status: "won" }),
-      meta({ config: config({ players: [{ identityCardId: "01010a", deck: [], deckId: collidingId }] }), status: "lost" }),
+      meta({
+        config: config({ players: [{ identityCardId: "01010a", deck: [], deckId: collidingId }] }),
+        status: "lost",
+      }),
     ];
     const history = resultsHistoryOf(saves);
     expect(history.decks).toHaveLength(2);
@@ -165,10 +167,49 @@ describe("resultsHistoryOf: deck attribution", () => {
 describe("resultsHistoryOf: ordering independence", () => {
   test("shuffled input produces the identical output", () => {
     const saves: SaveMeta[] = [
-      meta({ config: config({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }] }), status: "won", round: 3, updatedAt: 10 }),
-      meta({ config: config({ scenarioId: "klaw", difficulty: "expert", players: [{ identityCardId: "01010a", deck: [], deckId: "local-deck-1" }] }), status: "lost", round: 5, updatedAt: 20 }),
-      meta({ config: config({ scenarioId: "rhino", difficulty: "expert", players: [{ starterDeckId: "core-spider-man-justice" }, { identityCardId: "01010a", deck: [], deckId: "local-deck-1" }] }), status: "won", round: 4, updatedAt: 30 }),
-      meta({ config: config({ scenarioId: "ultron", difficulty: "standard", players: [{ identityCardId: "01010a", deck: [] } as unknown as CorePlayer] }), status: "abandoned", round: 1, updatedAt: 40 }),
+      meta({
+        config: config({
+          scenarioId: "rhino",
+          difficulty: "standard",
+          players: [{ starterDeckId: "core-spider-man-justice" }],
+        }),
+        status: "won",
+        round: 3,
+        updatedAt: 10,
+      }),
+      meta({
+        config: config({
+          scenarioId: "klaw",
+          difficulty: "expert",
+          players: [{ identityCardId: "01010a", deck: [], deckId: "local-deck-1" }],
+        }),
+        status: "lost",
+        round: 5,
+        updatedAt: 20,
+      }),
+      meta({
+        config: config({
+          scenarioId: "rhino",
+          difficulty: "expert",
+          players: [
+            { starterDeckId: "core-spider-man-justice" },
+            { identityCardId: "01010a", deck: [], deckId: "local-deck-1" },
+          ],
+        }),
+        status: "won",
+        round: 4,
+        updatedAt: 30,
+      }),
+      meta({
+        config: config({
+          scenarioId: "ultron",
+          difficulty: "standard",
+          players: [{ identityCardId: "01010a", deck: [] } as unknown as CorePlayer],
+        }),
+        status: "abandoned",
+        round: 1,
+        updatedAt: 40,
+      }),
       meta({ status: "incompatible" }),
       meta({ status: "active" }),
     ];

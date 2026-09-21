@@ -47,7 +47,8 @@ export function prepare(ctx: NormalizeContext, r: RawCard): Prepared {
     ctx.usedCorrections.add(i);
     if (c.textReplace) {
       const count = text.split(c.textReplace.find).length - 1;
-      if (count !== 1) errors.push(`${r.code}: correction text "${c.textReplace.find}" found ${count} times (expected 1)`);
+      if (count !== 1)
+        errors.push(`${r.code}: correction text "${c.textReplace.find}" found ${count} times (expected 1)`);
       else text = text.replace(c.textReplace.find, c.textReplace.replace);
     }
     if (c.name !== undefined) name = c.name;

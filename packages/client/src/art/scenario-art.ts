@@ -92,12 +92,20 @@ export function parseArtCatalog(files: Readonly<Record<string, string>>): ArtCat
 }
 
 /** The villain's own artwork for a scenario, or null when there is none. */
-export function villainArtFor(catalog: ArtCatalog, scenarioId: string, random: () => number = Math.random): Picture | null {
+export function villainArtFor(
+  catalog: ArtCatalog,
+  scenarioId: string,
+  random: () => number = Math.random,
+): Picture | null {
   return pickPicture(catalog.scenarios.get(scenarioId)?.villain ?? [], null, random);
 }
 
 /** A pack's own cover art (W2b's shelf-header thumbnail), or null when this pack has none — the common case today, since no pack ships one yet. */
-export function packCoverFor(catalog: ArtCatalog, packCode: string, random: () => number = Math.random): Picture | null {
+export function packCoverFor(
+  catalog: ArtCatalog,
+  packCode: string,
+  random: () => number = Math.random,
+): Picture | null {
   return pickPicture(catalog.packs.get(packCode)?.cover ?? [], null, random);
 }
 
@@ -116,16 +124,29 @@ export function outcomeArtFor(
   random: () => number = Math.random,
 ): Picture | null {
   const scenario = catalog.scenarios.get(scenarioId);
-  const own = result === "win" ? scenario?.["villain-loses"] : result === "loss" ? scenario?.["villain-wins"] : undefined;
+  const own =
+    result === "win" ? scenario?.["villain-loses"] : result === "loss" ? scenario?.["villain-wins"] : undefined;
   const generic = catalog.outcomes[result === "win" ? "victory" : "defeat"];
   return pickPicture(own && own.length > 0 ? own : generic, null, random);
 }
 
 // Three literal patterns (a glob pattern cannot be built from a variable) covering the three conventions above.
 const files = {
-  ...(import.meta.glob("../../../../art/scenarios/*/*.{png,jpg,jpeg,webp,avif}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
-  ...(import.meta.glob("../../../../art/outcomes/*.{png,jpg,jpeg,webp,avif}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
-  ...(import.meta.glob("../../../../art/packs/*/*.{png,jpg,jpeg,webp,avif}", { eager: true, query: "?url", import: "default" }) as Record<string, string>),
+  ...(import.meta.glob("../../../../art/scenarios/*/*.{png,jpg,jpeg,webp,avif}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
+  ...(import.meta.glob("../../../../art/outcomes/*.{png,jpg,jpeg,webp,avif}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
+  ...(import.meta.glob("../../../../art/packs/*/*.{png,jpg,jpeg,webp,avif}", {
+    eager: true,
+    query: "?url",
+    import: "default",
+  }) as Record<string, string>),
 };
 
 /** Everything in `art/scenarios/`, `art/outcomes/` and `art/packs/`. */

@@ -110,7 +110,9 @@ function imageRefFor(card: AnyCard, face: CardFace): ImageRef | undefined {
       return (face.side === "A" ? stage.aSide.image : stage.image) ?? card.images?.front;
     }
     case "flipSide":
-      return "flipSide" in card && card.flipSide ? (card.flipSide.image ?? card.images?.back ?? card.images?.front) : card.images?.front;
+      return "flipSide" in card && card.flipSide
+        ? (card.flipSide.image ?? card.images?.back ?? card.images?.front)
+        : card.images?.front;
     default:
       return card.images?.front;
   }
@@ -136,7 +138,6 @@ export const CARD_BACKS: Readonly<Record<CardBack, ArtSource>> = {
   villain: source("bundles/cards/marvel-villain-back.webp"),
 };
 
-
 /** The path under `assets/card-art/` (and under `/card-art/` when served) an `ArtSource` names. */
 export function artPathOf(art: ArtSource): string {
   return art.url.slice(CARD_ART_ROUTE.length);
@@ -156,10 +157,17 @@ export function allArtFor(card: AnyCard): readonly ArtSource[] {
   const faces: CardFace[] = [{ kind: "front" }];
   if (card.type === "hero_identity") faces.push({ kind: "hero" }, { kind: "alterEgo" });
   if (card.type === "villain") {
-    card.sides.forEach((side, sideIndex) => side.stages.forEach((_, stageIndex) => faces.push({ kind: "villainStage", sideIndex, stageIndex })));
+    card.sides.forEach((side, sideIndex) =>
+      side.stages.forEach((_, stageIndex) => faces.push({ kind: "villainStage", sideIndex, stageIndex })),
+    );
   }
   if (card.type === "main_scheme") {
-    card.stages.forEach((_, stageIndex) => faces.push({ kind: "mainSchemeStage", stageIndex, side: "A" }, { kind: "mainSchemeStage", stageIndex, side: "B" }));
+    card.stages.forEach((_, stageIndex) =>
+      faces.push(
+        { kind: "mainSchemeStage", stageIndex, side: "A" },
+        { kind: "mainSchemeStage", stageIndex, side: "B" },
+      ),
+    );
   }
   if ("flipSide" in card && card.flipSide) faces.push({ kind: "flipSide" });
 

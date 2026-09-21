@@ -583,6 +583,7 @@ export const NOVA_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/28024.png") },
     encounterSetIds: [encounterSetId("nova_nemesis")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

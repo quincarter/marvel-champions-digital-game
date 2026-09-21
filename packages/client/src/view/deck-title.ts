@@ -14,7 +14,11 @@ import { deckStatusOf } from "./deck-status.js";
 import type { DeckOption } from "./deck-list-model.js";
 import type { DeckSourceKind } from "./roster-filter.js";
 
-export const SOURCE_LABEL: Readonly<Record<DeckSourceKind, string>> = { precon: "Precon", imported: "Imported", userBuilt: "Built" };
+export const SOURCE_LABEL: Readonly<Record<DeckSourceKind, string>> = {
+  precon: "Precon",
+  imported: "Imported",
+  userBuilt: "Built",
+};
 
 /** A capitalized aspect/basic name for a short deck title ("justice" → "Justice"). */
 export function titleCase(word: string): string {

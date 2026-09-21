@@ -22,7 +22,11 @@ export interface NativeResponse {
 /** `bytes` for images, `text` for JSON — CapacitorHttp encodes the two differently. */
 export type NativeBody = "bytes" | "text";
 
-export async function nativeGet(platform: Exclude<Platform, "web">, url: string, as: NativeBody = "bytes"): Promise<NativeResponse> {
+export async function nativeGet(
+  platform: Exclude<Platform, "web">,
+  url: string,
+  as: NativeBody = "bytes",
+): Promise<NativeResponse> {
   return platform === "tauri" ? tauriGet(url) : capacitorGet(url, as);
 }
 
@@ -40,7 +44,8 @@ async function tauriGet(url: string): Promise<NativeResponse> {
 async function capacitorGet(url: string, as: NativeBody): Promise<NativeResponse> {
   const { CapacitorHttp } = await import("@capacitor/core");
   const response = await CapacitorHttp.get({ url, responseType: as === "bytes" ? "arraybuffer" : "text" });
-  const contentType = Object.entries(response.headers).find(([name]) => name.toLowerCase() === "content-type")?.[1] ?? "";
+  const contentType =
+    Object.entries(response.headers).find(([name]) => name.toLowerCase() === "content-type")?.[1] ?? "";
   return { status: response.status, contentType: contentType.toLowerCase(), body: capacitorBody(response.data, as) };
 }
 

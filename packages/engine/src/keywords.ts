@@ -1,9 +1,25 @@
 import type { KeywordInstance, KeywordName } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import type { InstanceId } from "./ids.js";
-import { cardOf, encounterFace, identityFace, isVillain, mainSchemeStageOf, mainSchemeStateOf, villainStageOf } from "./query.js";
+import {
+  cardOf,
+  encounterFace,
+  identityFace,
+  isVillain,
+  mainSchemeStageOf,
+  mainSchemeStateOf,
+  villainStageOf,
+} from "./query.js";
 import { grantedAttackKeywords } from "./rules.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate, matchesQuery, textBoxBlankFor, type EffectContext } from "./select.js";
+import {
+  activeAbilityRefs,
+  cardsInPlay,
+  controllerOf,
+  evaluate,
+  matchesQuery,
+  textBoxBlankFor,
+  type EffectContext,
+} from "./select.js";
 import type { AttackKeyword, StatusName } from "./spec.js";
 import type { GameState } from "./state.js";
 
@@ -17,7 +33,11 @@ import type { GameState } from "./state.js";
  * `deps` lets keywords *gained* from constant abilities ("Klaw gains retaliate
  * 1") count; without it only printed keywords are seen.
  */
-export function printedKeywordsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly KeywordInstance[] {
+export function printedKeywordsOf(
+  state: GameState,
+  id: InstanceId,
+  deps: EngineDeps = DEFAULT_DEPS,
+): readonly KeywordInstance[] {
   const card = cardOf(state, id);
   if (!card) return [];
   // RRG 1.8 "Blank" (p. 10): no printed text in the text box, keywords included. `deps` makes a *constant*
@@ -49,7 +69,13 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
     for (const ref of activeAbilityRefs(state, sourceId, deps)) {
       const definition = deps.abilities[ref.id];
       if (definition?.trigger.kind !== "constant" || !definition.trigger.keywordGrants) continue;
-      const context: EffectContext = { selfInstanceId: sourceId, controllerId: controllerOf(state, sourceId), event: null, bindings: {}, deps };
+      const context: EffectContext = {
+        selfInstanceId: sourceId,
+        controllerId: controllerOf(state, sourceId),
+        event: null,
+        bindings: {},
+        deps,
+      };
       for (const grant of definition.trigger.keywordGrants) {
         if (grant.while && !evaluate(state, grant.while, context)) continue;
         if (matchesQuery(state, id, grant.target, context)) granted.push(grant.keyword);
@@ -59,14 +85,22 @@ function grantedKeywords(state: GameState, deps: EngineDeps, id: InstanceId): re
   return granted;
 }
 
-export function keywordsOf(state: GameState, id: InstanceId, deps: EngineDeps = DEFAULT_DEPS): readonly KeywordInstance[] {
+export function keywordsOf(
+  state: GameState,
+  id: InstanceId,
+  deps: EngineDeps = DEFAULT_DEPS,
+): readonly KeywordInstance[] {
   const printed = printedKeywordsOf(state, id, deps);
   const granted = grantedKeywords(state, deps, id);
   return granted.length === 0 ? printed : [...printed, ...granted];
 }
 
-export const hasKeyword = (state: GameState, id: InstanceId, name: KeywordName, deps: EngineDeps = DEFAULT_DEPS): boolean =>
-  keywordsOf(state, id, deps).some((keyword) => keyword.name === name);
+export const hasKeyword = (
+  state: GameState,
+  id: InstanceId,
+  name: KeywordName,
+  deps: EngineDeps = DEFAULT_DEPS,
+): boolean => keywordsOf(state, id, deps).some((keyword) => keyword.name === name);
 
 /** RRG "Keywords": repeated instances of a numbered keyword add their values together. */
 export function keywordTotal(
@@ -101,6 +135,8 @@ export interface AttackKeywordContext {
   readonly attackerInstanceId: InstanceId;
   /** The card whose ability is making the attack ("your [Arrow] attacks"); null for a basic attack or an enemy activation. */
   readonly viaInstanceId?: InstanceId | null;
+  /** Whether this is a character's basic attack ("your basic attacks gain piercing"); false for an enemy activation. */
+  readonly basic?: boolean;
   /** Keywords the attack carries itself: `attack.keywords` ("this attack gains piercing"). */
   readonly keywords?: readonly AttackKeyword[];
   /** The attack/activation event frame's vars, where `modifyAttack` records a grant made mid-activation. */
@@ -117,9 +153,13 @@ export interface AttackKeywordContext {
  *    event frame ("the attack gains piercing", Crossfire's boost) — the same var `overkill` has always used;
  * 4. a constant `attackKeywords` rule in play ("each of your [Arrow] attacks gain ranged", Hawkeye's Bow).
  */
-export function attackKeywordsOf(state: GameState, deps: EngineDeps, attack: AttackKeywordContext): readonly AttackKeyword[] {
+export function attackKeywordsOf(
+  state: GameState,
+  deps: EngineDeps,
+  attack: AttackKeywordContext,
+): readonly AttackKeyword[] {
   const via = attack.viaInstanceId ?? null;
-  const fromRules = grantedAttackKeywords(state, deps, attack.attackerInstanceId, via);
+  const fromRules = grantedAttackKeywords(state, deps, attack.attackerInstanceId, via, attack.basic === true);
   return ATTACK_KEYWORDS.filter(
     (name) =>
       hasKeyword(state, attack.attackerInstanceId, name, deps) ||
@@ -133,14 +173,24 @@ export function attackKeywordsOf(state: GameState, deps: EngineDeps, attack: Att
  * RRG "Status Cards": one of each type per character. Steady allows a second
  * stunned and a second confused; stalwart allows neither.
  */
-export function statusCapacity(state: GameState, id: InstanceId, status: StatusName, deps: EngineDeps = DEFAULT_DEPS): number {
+export function statusCapacity(
+  state: GameState,
+  id: InstanceId,
+  status: StatusName,
+  deps: EngineDeps = DEFAULT_DEPS,
+): number {
   if (status === "tough") return 1;
   if (hasKeyword(state, id, "stalwart", deps)) return 0;
   return hasKeyword(state, id, "steady", deps) ? 2 : 1;
 }
 
 /** RRG "Steady": a steady character is not stunned/confused until it holds two of that card. */
-export function statusActive(state: GameState, id: InstanceId, status: StatusName, deps: EngineDeps = DEFAULT_DEPS): boolean {
+export function statusActive(
+  state: GameState,
+  id: InstanceId,
+  status: StatusName,
+  deps: EngineDeps = DEFAULT_DEPS,
+): boolean {
   const instance = state.instances[id];
   if (!instance) return false;
   const needed = status === "tough" ? 1 : hasKeyword(state, id, "steady", deps) ? 2 : 1;

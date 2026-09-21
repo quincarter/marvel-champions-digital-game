@@ -1,6 +1,15 @@
 import { trait } from "@mc/content";
-import type { AbilityDefinition, EffectSpec, EventPattern, Predicate, PlayerRef, TargetQuery, TargetRef, ValueSpec } from "@mc/engine";
-import { amount, flatten, self, you, type Amount, type EffectArg } from "../../dsl/index.js";
+import type {
+  AbilityDefinition,
+  EffectSpec,
+  EventPattern,
+  Predicate,
+  PlayerRef,
+  TargetQuery,
+  TargetRef,
+  ValueSpec,
+} from "@mc/engine";
+import { amount, flatten, self, type Amount, type EffectArg } from "../../dsl/index.js";
 
 /**
  * Small local helpers for the Green Goblin (`gob`) scenario pack: thin composition over `EffectSpec`/`Predicate`/
@@ -69,7 +78,11 @@ export const removeCounters = (counterType: string, n: Amount, target: TargetRef
  * "Deal N indirect damage to each player" / "… to you" (RRG 1.8 "Indirect Damage", p. 24; docs/phase7-wave1.md
  * §3.7). Landed `EffectSpec.dealIndirectDamage` (`spec.ts`), no `dsl/effects.ts` wrapper yet.
  */
-export const dealIndirectDamage = (n: Amount, to: PlayerRef | "group", opts: { readonly bind?: string } = {}): EffectSpec => ({
+export const dealIndirectDamage = (
+  n: Amount,
+  to: PlayerRef | "group",
+  opts: { readonly bind?: string } = {},
+): EffectSpec => ({
   kind: "dealIndirectDamage",
   to,
   amount: amount(n),
@@ -83,12 +96,17 @@ export const dealIndirectDamage = (n: Amount, to: PlayerRef | "group", opts: { r
  */
 export const discardEncounterCards = (
   count: Amount,
-  opts: { readonly bind?: string; readonly forEachDiscarded?: { readonly slot: string; readonly effects: readonly EffectArg[] } } = {},
+  opts: {
+    readonly bind?: string;
+    readonly forEachDiscarded?: { readonly slot: string; readonly effects: readonly EffectArg[] };
+  } = {},
 ): EffectSpec => ({
   kind: "discardEncounterCards",
   count: amount(count),
   ...(opts.bind ? { bind: opts.bind } : {}),
-  ...(opts.forEachDiscarded ? { forEachDiscarded: { slot: opts.forEachDiscarded.slot, effects: flatten(opts.forEachDiscarded.effects) } } : {}),
+  ...(opts.forEachDiscarded
+    ? { forEachDiscarded: { slot: opts.forEachDiscarded.slot, effects: flatten(opts.forEachDiscarded.effects) } }
+    : {}),
 });
 
 /**
@@ -96,17 +114,28 @@ export const discardEncounterCards = (
  * counterpart of `atEndOfAttack` for a scheme activation too. Landed `EffectSpec.atEndOfActivation` (`spec.ts`), no
  * `dsl/effects.ts` wrapper yet.
  */
-export const atEndOfActivation = (...effects: readonly EffectArg[]): EffectSpec => ({ kind: "atEndOfActivation", effects: flatten(effects) });
+export const atEndOfActivation = (...effects: readonly EffectArg[]): EffectSpec => ({
+  kind: "atEndOfActivation",
+  effects: flatten(effects),
+});
 
 /** "Where X is equal to the villain's stage number" (Death from Above, Wicked Ambitions, Regenerative Healing). Landed `ValueSpec.villainStageNumber` (`spec.ts`), no `dsl/values.ts` wrapper yet. */
-export const villainStageNumberOf = (of?: TargetRef): ValueSpec => ({ kind: "villainStageNumber", ...(of ? { of } : {}) });
+export const villainStageNumberOf = (of?: TargetRef): ValueSpec => ({
+  kind: "villainStageNumber",
+  ...(of ? { of } : {}),
+});
 
 /**
  * A ref matches a query wherever it is, not just in play (the discarded card in "if that card is a Goblin minion" —
  * Goblin Knight, Electromagnetic Pulse, Wicked Ambitions). Landed `Predicate.refMatches.anywhere` (`spec.ts`), no
  * `dsl/values.ts` wrapper yet. Copied from `wave1/hlk/local.ts`'s identical helper.
  */
-export const refMatchesAnywhere = (ref: TargetRef, q: TargetQuery): Predicate => ({ kind: "refMatches", ref, query: q, anywhere: true });
+export const refMatchesAnywhere = (ref: TargetRef, q: TargetQuery): Predicate => ({
+  kind: "refMatches",
+  ref,
+  query: q,
+  anywhere: true,
+});
 
 /**
  * "The enemy … attacks the hero with the fewest hit points remaining" (Mad Genius): an `enemyAttack` against a
@@ -124,7 +153,12 @@ export const enemyAttackCharacter = (enemies: TargetRef, targetCharacter: Target
  * "The X with the highest/lowest Y" (`TargetRef.superlative`, docs/phase7-wave1.md §3.12). Copied from
  * `wave1/hlk/local.ts`'s identical helper (its default `slot` is "candidate", matched by `dsl`'s `chosen("candidate")`).
  */
-export const superlative = (order: "highest" | "lowest", among: TargetRef, measure: ValueSpec): TargetRef => ({ kind: "superlative", among, order, measure });
+export const superlative = (order: "highest" | "lowest", among: TargetRef, measure: ValueSpec): TargetRef => ({
+  kind: "superlative",
+  among,
+  order,
+  measure,
+});
 
 /**
  * "The first [X] [discarded/found] this way" (Unleashing the Mutagen 1B, Overrun's own "first" isn't needed but
@@ -133,7 +167,13 @@ export const superlative = (order: "highest" | "lowest", among: TargetRef, measu
  * one without asking anyone. `among` should already be filtered to just the eligible candidates (e.g. via
  * `selectCards` with a `cards(ref, filter)` selector) — this never itself filters by trait/type.
  */
-export const firstOf = (among: TargetRef): TargetRef => ({ kind: "superlative", among, order: "highest", measure: { kind: "const", value: 0 }, ties: "first" });
+export const firstOf = (among: TargetRef): TargetRef => ({
+  kind: "superlative",
+  among,
+  order: "highest",
+  measure: { kind: "const", value: 0 },
+  ties: "first",
+});
 
 /**
  * "The villain attacks you. If you are in alter-ego form, do not give the villain a boost card for this
@@ -141,7 +181,12 @@ export const firstOf = (among: TargetRef): TargetRef => ({ kind: "superlative", 
  * not yet exposed by the `enemyAttack()` builder in `dsl/effects.ts` (which only takes `against`/`bind`/
  * `additionalResolution`).
  */
-export const enemyAttackNoBoost = (enemies: TargetRef, against: PlayerRef): EffectSpec => ({ kind: "enemyAttack", enemies, against, boost: false });
+export const enemyAttackNoBoost = (enemies: TargetRef, against: PlayerRef): EffectSpec => ({
+  kind: "enemyAttack",
+  enemies,
+  against,
+  boost: false,
+});
 
 /**
  * "If you cannot, this card gains surge" (Goblin Glider): whether the ability's own card actually attached this
@@ -151,4 +196,7 @@ export const enemyAttackNoBoost = (enemies: TargetRef, against: PlayerRef): Effe
 export const isAttached = (of: TargetRef): Predicate => ({ kind: "isAttached", of });
 
 /** A `whenCompleted` ability (RRG 1.8 "When Completed Abilities", p. 48; docs/phase7-wave1.md §3.8). No `dsl/abilities.ts` wrapper yet. */
-export const whenCompleted = (...effects: readonly EffectArg[]): AbilityDefinition => ({ trigger: { kind: "whenCompleted" }, effects: flatten(effects) });
+export const whenCompleted = (...effects: readonly EffectArg[]): AbilityDefinition => ({
+  trigger: { kind: "whenCompleted" },
+  effects: flatten(effects),
+});

@@ -57,14 +57,16 @@ export function focusOrder(mode: FocusMode, marks: Highlights | null): readonly 
   // that itself (PLAN.md Phase 4, "abilities on cards in play are not
   // reachable from the UI").
   const abilityCards: FocusTarget[] = marks
-    ? [...marks.usableAbilities].filter((id) => !mode.hand.includes(id)).map((instanceId) => ({ kind: "card", instanceId }))
+    ? [...marks.usableAbilities]
+        .filter((id) => !mode.hand.includes(id))
+        .map((instanceId) => ({ kind: "card", instanceId }))
     : [];
   // An unusable control still takes focus: "why can't I attack?" is a question
   // the player has to be able to reach the answer to, and the reason lives on
   // the button. Only controls the engine never offers at all are skipped.
-  const basics: FocusTarget[] = BASICS.filter((action) => marks?.basics.some((basic) => basic.action === action) ?? false).map(
-    (action) => ({ kind: "basic", action }),
-  );
+  const basics: FocusTarget[] = BASICS.filter(
+    (action) => marks?.basics.some((basic) => basic.action === action) ?? false,
+  ).map((action) => ({ kind: "basic", action }));
   return [...cards, ...abilityCards, ...basics];
 }
 

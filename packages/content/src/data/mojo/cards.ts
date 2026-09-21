@@ -187,6 +187,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     attachesTo: { kind: "villain" },
     encounterSetIds: [encounterSetId("magog")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CONDITION")],
     keywords: [],
     text: {
@@ -213,6 +214,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     statModifiers: { atk: 1, sch: 1 },
     encounterSetIds: [encounterSetId("magog")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("CONDITION")],
     keywords: [],
     text: {
@@ -328,6 +330,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/39011.png") },
     encounterSetIds: [encounterSetId("magog")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -796,6 +799,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     statModifiers: { atk: 1 },
     encounterSetIds: [encounterSetId("mojo")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("WEAPON")],
     keywords: [],
     text: {
@@ -823,6 +827,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("mojo")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("ROBOT"), trait("THESPIAN")],
     keywords: [],
     text: {
@@ -894,6 +899,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/39032.png") },
     encounterSetIds: [encounterSetId("mojo")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -939,6 +945,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/39034.png") },
     encounterSetIds: [encounterSetId("mojo")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1201,6 +1208,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     startingThreat: { base: 0, perPlayer: 6 },
     icons: [],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "surge" }],
     text: {
@@ -1222,6 +1230,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/39046.png") },
     encounterSetIds: [encounterSetId("fantasy")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -1408,6 +1417,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("sci-fi")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("PROGRAM")],
     keywords: [],
     text: {
@@ -1432,6 +1442,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("sci-fi")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("PROGRAM")],
     keywords: [],
     text: {
@@ -1480,6 +1491,7 @@ export const MOJO_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("sci-fi")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("PROGRAM")],
     keywords: [],
     text: {

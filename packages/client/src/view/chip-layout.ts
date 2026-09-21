@@ -103,7 +103,10 @@ export function compactChipWidth(label: string): number {
  * *evenly* among however many chips it decided to put there (right for a difficulty/modular-set choice row of
  * equal-weight options, wrong for a filter strip where "Core" and "Playable now" are not the same width).
  */
-export function packCompactChipsToRows<T extends ChipLabel>(chips: readonly T[], rowWidth: number): readonly (readonly T[])[] {
+export function packCompactChipsToRows<T extends ChipLabel>(
+  chips: readonly T[],
+  rowWidth: number,
+): readonly (readonly T[])[] {
   const rows: T[][] = [];
   let current: T[] = [];
   let currentWidth = 0;

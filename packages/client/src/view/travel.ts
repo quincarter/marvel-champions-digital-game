@@ -31,6 +31,7 @@
  */
 
 import type { GameEvent, InstanceId, ZoneId } from "@mc/engine";
+import type { ArtSource } from "../art/art-source.js";
 import type { Rect } from "./layout.js";
 
 export interface Travel {
@@ -39,6 +40,8 @@ export interface Travel {
   readonly instanceId: InstanceId;
   readonly from: Rect;
   readonly to: Rect;
+  /** The card's own face, when the scene already has it cached — the ghost draws the scan instead of a plain parchment rectangle. Null falls back to the rectangle, the same as before this existed. */
+  readonly art: ArtSource | null;
 }
 
 /**
@@ -47,7 +50,14 @@ export interface Travel {
  * mid-resolution, and cards removed from the game outright. A move between
  * two of these is a move the player was never entitled to watch happen.
  */
-const HIDDEN_ZONE_KINDS = new Set<ZoneId["kind"]>(["deck", "encounterDeck", "setAside", "tucked", "resolving", "removedFromGame"]);
+const HIDDEN_ZONE_KINDS = new Set<ZoneId["kind"]>([
+  "deck",
+  "encounterDeck",
+  "setAside",
+  "tucked",
+  "resolving",
+  "removedFromGame",
+]);
 
 function isHidden(zone: ZoneId): boolean {
   return HIDDEN_ZONE_KINDS.has(zone.kind);
@@ -91,6 +101,7 @@ export function travelsFrom(
   events: readonly GameEvent[],
   anchorBefore: (instanceId: InstanceId, zone: ZoneId) => Rect | null,
   anchorAfter: (instanceId: InstanceId, zone: ZoneId) => Rect | null,
+  artOf: (instanceId: InstanceId) => ArtSource | null,
 ): readonly Travel[] {
   const travels: Travel[] = [];
   events.forEach((event, index) => {
@@ -102,7 +113,7 @@ export function travelsFrom(
     const to = anchorAfter(event.instanceId, event.to);
     if (!from || !to || rectsEqual(from, to)) return;
 
-    travels.push({ id: `travel-${index}`, instanceId: event.instanceId, from, to });
+    travels.push({ id: `travel-${index}`, instanceId: event.instanceId, from, to, art: artOf(event.instanceId) });
   });
   return travels;
 }

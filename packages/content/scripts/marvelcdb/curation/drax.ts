@@ -13,7 +13,7 @@ export const DRAX_CURATION: PackCuration = {
   pack: {
     name: "Drax",
     releaseDate: "2021-06-18",
-    releaseDateSource: "Hall of Heroes Drax page (https://hallofheroeslcg.com/drax-2/): \"Release date: June 18, 2021\"",
+    releaseDateSource: 'Hall of Heroes Drax page (https://hallofheroeslcg.com/drax-2/): "Release date: June 18, 2021"',
   },
   outDir: "src/data/drax",
   exportPrefix: "DRAX",

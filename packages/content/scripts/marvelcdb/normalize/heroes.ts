@@ -1,8 +1,23 @@
 /** Step 3: hero identities — one card per hero record, assembled with its linked alter-ego record. */
-import type { HeroFace, HeroIdentityCard, IdentitySeparateDeck, SeparatedIdentity, Trait } from "../../../src/schema/index.ts";
+import type {
+  HeroFace,
+  HeroIdentityCard,
+  IdentitySeparateDeck,
+  SeparatedIdentity,
+  Trait,
+} from "../../../src/schema/index.ts";
 import { imageOf, imagesOf } from "./art.ts";
 import { brand, traitOf } from "./brand.ts";
-import { abilityRefs, baseFields, expectNoAttach, expectNoPlayerData, imageOfWithOverride, parse, record, type NormalizeContext } from "./context.ts";
+import {
+  abilityRefs,
+  baseFields,
+  expectNoAttach,
+  expectNoPlayerData,
+  imageOfWithOverride,
+  parse,
+  record,
+  type NormalizeContext,
+} from "./context.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import { parseCardText } from "../parse-text.ts";
 import { parseTraits, toPlainText } from "../text.ts";
@@ -14,7 +29,10 @@ import type { SeparatedIdentitySource, SeparatedIdentitySourceFace } from "../cu
  * Wasp's the same): MarvelCDB publishes it as its own `hero`-type record in the same `card_set_code`, with no
  * `linked_card`, so it never pairs with an alter-ego the way the outside face does.
  */
-function buildExtraFace(ctx: NormalizeContext, r: RawCard): { face: HeroFace & { traits: readonly Trait[] }; prepared: Prepared } {
+function buildExtraFace(
+  ctx: NormalizeContext,
+  r: RawCard,
+): { face: HeroFace & { traits: readonly Trait[] }; prepared: Prepared } {
   const p = prepare(ctx, r);
   const parsed = parse(ctx, p);
   expectNoPlayerData(ctx, p, parsed);
@@ -46,18 +64,45 @@ function buildCuratedFace(
   ctx: NormalizeContext,
   code: string,
   source: SeparatedIdentitySourceFace,
-): { traits: Trait[]; text: { printed: string; current: string }; keywords: ReturnType<typeof parseCardText>["keywords"]; abilities: ReturnType<typeof abilityRefs> } {
+): {
+  traits: Trait[];
+  text: { printed: string; current: string };
+  keywords: ReturnType<typeof parseCardText>["keywords"];
+  abilities: ReturnType<typeof abilityRefs>;
+} {
   const text = toPlainText(source.text);
   const traits = parseTraits(source.traits.join(". ")).map(traitOf);
   const parsed = parseCardText(text, { villainNames: ctx.villainNames, multipleVillains: ctx.packHasMultipleVillains });
   for (const u of parsed.unclassified) ctx.errors.push(`${code}: ${u}`);
-  return { traits, text: { printed: text, current: text }, keywords: parsed.keywords, abilities: abilityRefs(ctx, code, source.name, parsed.abilities) };
+  return {
+    traits,
+    text: { printed: text, current: text },
+    keywords: parsed.keywords,
+    abilities: abilityRefs(ctx, code, source.name, parsed.abilities),
+  };
 }
 
 /** A `Prepared`-shaped record for a curated face with no backing `RawCard` (see `record`'s `parts` parameter). */
 function syntheticPrepared(ctx: NormalizeContext, code: string, name: string, note: string): Prepared {
-  const raw: RawCard = { code, name, pack_code: ctx.curation.packCode, type_code: "alter_ego", faction_code: "hero", position: 0, quantity: 1 };
-  return { raw, name, traits: [], boost: 0, attack: undefined, text: { printed: "", current: "" }, notes: [note], ignored: new Set() };
+  const raw: RawCard = {
+    code,
+    name,
+    pack_code: ctx.curation.packCode,
+    type_code: "alter_ego",
+    faction_code: "hero",
+    position: 0,
+    quantity: 1,
+  };
+  return {
+    raw,
+    name,
+    traits: [],
+    boost: 0,
+    attack: undefined,
+    text: { printed: "", current: "" },
+    notes: [note],
+    ignored: new Set(),
+  };
 }
 
 /**
@@ -86,7 +131,8 @@ function buildSeparatedIdentity(
   const set = r.card_set_code ?? "";
   const obligations = topLevel.filter((x) => x.type_code === "obligation" && x.card_set_code === set);
   const nemesisSet = `${set}_nemesis`;
-  if (obligations.length !== 1) errors.push(`${r.code}: expected exactly one obligation in set ${set}, found ${obligations.length}`);
+  if (obligations.length !== 1)
+    errors.push(`${r.code}: expected exactly one obligation in set ${set}, found ${obligations.length}`);
   if (!topLevel.some((x) => x.card_set_code === nemesisSet)) errors.push(`${r.code}: no nemesis set ${nemesisSet}`);
 
   const heroImage = imageOfWithOverride(ctx, r.code, r.imagesrc);
@@ -167,14 +213,21 @@ function buildSeparatedIdentity(
     obligationCardId: brand("card", obligations[0]?.code ?? ""),
     nemesisEncounterSetId: brand("encounterSet", nemesisSet),
     ...(separateDecks ? { separateDecks } : {}),
-    separatedIdentity: { alterEgoCardNumber: alterEgoCode, heroCardOtherSide: heroOtherFace, alterEgoCardOtherSide: alterEgoOtherFace },
+    separatedIdentity: {
+      alterEgoCardNumber: alterEgoCode,
+      heroCardOtherSide: heroOtherFace,
+      alterEgoCardOtherSide: alterEgoOtherFace,
+    },
     ...(ctx.curation.identityDeckbuilding?.[r.code] ? { deckbuilding: ctx.curation.identityDeckbuilding[r.code] } : {}),
   };
   ctx.handled.add(r.code).add(other.code);
   record(ctx, card, set, [h, pOther, syntheticAlterEgo, syntheticAlterEgoOther]);
 }
 
-export function normalizeHeroes(ctx: NormalizeContext, separateDecksByIdentity: ReadonlyMap<string, IdentitySeparateDeck[]>): void {
+export function normalizeHeroes(
+  ctx: NormalizeContext,
+  separateDecksByIdentity: ReadonlyMap<string, IdentitySeparateDeck[]>,
+): void {
   const { errors, topLevel } = ctx;
   const heroRecords = topLevel.filter((x) => x.type_code === "hero");
 
@@ -206,7 +259,10 @@ export function normalizeHeroes(ctx: NormalizeContext, separateDecksByIdentity: 
     const a = prepare(ctx, ae);
     const hp = parse(ctx, h);
     const ap = parse(ctx, a);
-    for (const [p, parsed] of [[h, hp], [a, ap]] as const) {
+    for (const [p, parsed] of [
+      [h, hp],
+      [a, ap],
+    ] as const) {
       expectNoPlayerData(ctx, p, parsed);
       expectNoAttach(ctx, p, parsed);
     }
@@ -214,14 +270,21 @@ export function normalizeHeroes(ctx: NormalizeContext, separateDecksByIdentity: 
     const set = r.card_set_code ?? "";
     const obligations = topLevel.filter((x) => x.type_code === "obligation" && x.card_set_code === set);
     const nemesisSet = `${set}_nemesis`;
-    if (obligations.length !== 1) errors.push(`${r.code}: expected exactly one obligation in set ${set}, found ${obligations.length}`);
+    if (obligations.length !== 1)
+      errors.push(`${r.code}: expected exactly one obligation in set ${set}, found ${obligations.length}`);
     if (!topLevel.some((x) => x.card_set_code === nemesisSet)) errors.push(`${r.code}: no nemesis set ${nemesisSet}`);
     const heroImage = imageOfWithOverride(ctx, r.code, r.imagesrc);
     const alterEgoImage = imageOfWithOverride(ctx, ae.code, ae.imagesrc);
     // Record the override in provenance, the same as any other curated data decision (`record`'s notes come from
     // `Prepared.notes`, not from `imageOverrides` itself).
-    if (heroImage && !r.imagesrc) h.notes.push(`${r.code}: no artwork on MarvelCDB; art reference substituted from a curated second source [evidence: curation.imageOverrides]`);
-    if (alterEgoImage && !ae.imagesrc) a.notes.push(`${ae.code}: no artwork on MarvelCDB; art reference substituted from a curated second source [evidence: curation.imageOverrides]`);
+    if (heroImage && !r.imagesrc)
+      h.notes.push(
+        `${r.code}: no artwork on MarvelCDB; art reference substituted from a curated second source [evidence: curation.imageOverrides]`,
+      );
+    if (alterEgoImage && !ae.imagesrc)
+      a.notes.push(
+        `${ae.code}: no artwork on MarvelCDB; art reference substituted from a curated second source [evidence: curation.imageOverrides]`,
+      );
     const separateDecks = separateDecksByIdentity.get(r.code);
     const extraFaceRecords = extraFacesBySet.get(set) ?? [];
     const extraFaces = extraFaceRecords.map((ef) => buildExtraFace(ctx, ef));
@@ -261,7 +324,9 @@ export function normalizeHeroes(ctx: NormalizeContext, separateDecksByIdentity: 
       nemesisEncounterSetId: brand("encounterSet", nemesisSet),
       ...(separateDecks ? { separateDecks } : {}),
       ...(extraFaces.length > 0 ? { additionalHeroForms: extraFaces.map((f) => f.face) } : {}),
-      ...(ctx.curation.identityDeckbuilding?.[r.code] ? { deckbuilding: ctx.curation.identityDeckbuilding[r.code] } : {}),
+      ...(ctx.curation.identityDeckbuilding?.[r.code]
+        ? { deckbuilding: ctx.curation.identityDeckbuilding[r.code] }
+        : {}),
     };
     ctx.handled.add(r.code).add(ae.code);
     for (const ef of extraFaceRecords) ctx.handled.add(ef.code);

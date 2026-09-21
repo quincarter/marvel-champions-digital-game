@@ -43,7 +43,12 @@ const cancelBoostIcons = (bind: string): EffectSpec => ({ kind: "cancelBoostIcon
  * trigger event is landed, but `dsl/abilities.ts`'s `on`/`when` object has no sugar for it, so it's composed here
  * as a raw `EventPattern`.
  */
-const whileTheVillainAttacks: EventPattern = { on: "boostCardTurnedFaceup", sourceIs: { categories: ["villain"] }, activation: "attack", playerIs: "controller" };
+const whileTheVillainAttacks: EventPattern = {
+  on: "boostCardTurnedFaceup",
+  sourceIs: { categories: ["villain"] },
+  activation: "attack",
+  playerIs: "controller",
+};
 
 /**
  * Aggression/Justice/Protection/basic-aspect filler cards bundled in the Ms. Marvel pack, not part of her signature

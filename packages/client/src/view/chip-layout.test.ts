@@ -2,7 +2,15 @@ import { describe, expect, test } from "vitest";
 import { deckFromStarterDeck } from "@mc/content";
 import { POOL_STARTER_DECKS } from "../content/pool.js";
 import { heroAspectsOf } from "./roster-filter.js";
-import { chipRowFits, chipStripHeight, compactChipWidth, minChipCellWidth, packCompactChipsToRows, wrapChipsToRows, type ChipLabel } from "./chip-layout.js";
+import {
+  chipRowFits,
+  chipStripHeight,
+  compactChipWidth,
+  minChipCellWidth,
+  packCompactChipsToRows,
+  wrapChipsToRows,
+  type ChipLabel,
+} from "./chip-layout.js";
 
 /** The real Heroes roster chip set (`scenes/title.ts#heroChipDefs`), in the same order: aspects, then source, then "Playable now". */
 function realHeroChips(): readonly ChipLabel[] {
@@ -106,7 +114,10 @@ describe("packCompactChipsToRows (W2b's second pass: compact chips sized to thei
   });
 
   test("a chip wider than the whole row still gets its own row", () => {
-    const rows = packCompactChipsToRows([{ id: "huge", text: "A Genuinely Enormous Label That Never Fits Anywhere" }], 60);
+    const rows = packCompactChipsToRows(
+      [{ id: "huge", text: "A Genuinely Enormous Label That Never Fits Anywhere" }],
+      60,
+    );
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveLength(1);
   });

@@ -10,12 +10,20 @@ import { encounterSetId, flat, type CardId } from "@mc/content";
 import { describe, expect, it } from "vitest";
 import type { EngineDeps } from "./abilities.js";
 import type { GameEvent } from "./events.js";
-import { playerId, type InstanceId } from "./ids.js";
+import { playerId } from "./ids.js";
 import { characterProfile, encounterDeckOf, mustInstance, mustPlayer } from "./query.js";
 import { createGame, type GameSetupConfig, type SetupResult } from "./setup.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
-import { stubIdentity, stubMainScheme, stubMinion, stubObligation, stubSideScheme, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import {
+  stubIdentity,
+  stubMainScheme,
+  stubMinion,
+  stubObligation,
+  stubSideScheme,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { DEFAULT_CARDS, DEFAULT_DECK, HERO, resolvePending } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -91,15 +99,34 @@ const SETUP_IDENTITY = stubIdentity({
 
 const NEMESIS_SET = "hero-nemesis";
 const OBLIGATION = stubObligation({ id: "hero-obligation" });
-const NEMESIS_MINION = stubMinion({ id: "nemesis-minion", encounterSetIds: [NEMESIS_SET], atk: 1, sch: 1, hp: 3, boostIcons: 0 });
-const SET_HERO = stubIdentity({ id: "set-hero", hp: 10, atk: 2, thw: 2, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6 });
+const NEMESIS_MINION = stubMinion({
+  id: "nemesis-minion",
+  encounterSetIds: [NEMESIS_SET],
+  atk: 1,
+  sch: 1,
+  hp: 3,
+  boostIcons: 0,
+});
+const SET_HERO = stubIdentity({
+  id: "set-hero",
+  hp: 10,
+  atk: 2,
+  thw: 2,
+  def: 2,
+  rec: 3,
+  heroHandSize: 5,
+  alterEgoHandSize: 6,
+});
 const SET_HERO_WITH_SET = {
   ...SET_HERO,
   obligationCardId: OBLIGATION.id,
   nemesisEncounterSetId: encounterSetId(NEMESIS_SET),
 };
 
-const PLAIN_SCHEME = stubMainScheme({ id: "plain-scheme", stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }] });
+const PLAIN_SCHEME = stubMainScheme({
+  id: "plain-scheme",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }],
+});
 
 const deps: EngineDeps = depsOf(
   SCHEME_1A_SETUP,
@@ -130,7 +157,9 @@ const CARDS = [
   SET_HERO_WITH_SET,
 ];
 
-function build(config: Partial<GameSetupConfig> & Pick<GameSetupConfig, "villainCardId" | "mainSchemeCardId">): SetupResult {
+function build(
+  config: Partial<GameSetupConfig> & Pick<GameSetupConfig, "villainCardId" | "mainSchemeCardId">,
+): SetupResult {
   return createGame(
     {
       seed: 8,
@@ -158,16 +187,19 @@ describe("§3.15 steps 8–9: the per-villain version choice", () => {
     { version: "A" as const, stageIndex: 0, lastStageIndex: 0, atk: 1 },
     { version: "B" as const, stageIndex: 1, lastStageIndex: 1, atk: 2 },
     { version: "extreme" as const, stageIndex: 0, lastStageIndex: 1, atk: 1 },
-  ])("version $version starts at stage $stageIndex and ends at stage $lastStageIndex", ({ version, stageIndex, lastStageIndex, atk }) => {
-    const state = mustBuild({
-      villainCardId: WRECKER.id,
-      mainSchemeCardId: PLAIN_SCHEME.id,
-      encounterDeck: [],
-      villains: [{ villainCardId: WRECKER.id, encounterDeck: copies(BLANK.id, 6), version }],
-    });
-    expect(state.villains[0]).toMatchObject({ stageIndex, lastStageIndex });
-    expect(characterProfile(state, state.villains[0]!.instanceId, deps)?.atk).toBe(atk);
-  });
+  ])(
+    "version $version starts at stage $stageIndex and ends at stage $lastStageIndex",
+    ({ version, stageIndex, lastStageIndex, atk }) => {
+      const state = mustBuild({
+        villainCardId: WRECKER.id,
+        mainSchemeCardId: PLAIN_SCHEME.id,
+        encounterDeck: [],
+        villains: [{ villainCardId: WRECKER.id, encounterDeck: copies(BLANK.id, 6), version }],
+      });
+      expect(state.villains[0]).toMatchObject({ stageIndex, lastStageIndex });
+      expect(characterProfile(state, state.villains[0]!.instanceId, deps)?.atk).toBe(atk);
+    },
+  );
 
   it("each villain chooses its own version, so a mixed table is legal", () => {
     const state = mustBuild({
@@ -208,7 +240,11 @@ describe("§3.15 steps 8–9: the per-villain version choice", () => {
 
 describe("§3.15 steps 4–5 and 10: identity sets and encounter decks", () => {
   it("skipping the identity encounter sets leaves the obligation and nemesis set out of the game", () => {
-    const without = mustBuild({ villainCardId: WRECKER.id, mainSchemeCardId: PLAIN_SCHEME.id, players: [{ identityCardId: SET_HERO_WITH_SET.id, deck: DEFAULT_DECK }] });
+    const without = mustBuild({
+      villainCardId: WRECKER.id,
+      mainSchemeCardId: PLAIN_SCHEME.id,
+      players: [{ identityCardId: SET_HERO_WITH_SET.id, deck: DEFAULT_DECK }],
+    });
     const deck = encounterDeckOf(without, without.encounterDeckOrder[0]!).deck;
     expect(deck.every((id) => mustInstance(without, id).cardId === BLANK.id)).toBe(true);
     expect(mustPlayer(without, p1).setAside).toEqual([]);
@@ -239,14 +275,19 @@ describe("§3.15 steps 4–5 and 10: identity sets and encounter decks", () => {
     for (const villain of state.villains) {
       const piles = encounterDeckOf(state, villain.encounterDeckId);
       expect(piles.deck.every((id) => mustInstance(state, id).home).valueOf()).toBe(true);
-      for (const id of piles.deck) expect(mustInstance(state, id).home).toEqual({ kind: "encounterDeck", deckId: villain.encounterDeckId });
+      for (const id of piles.deck)
+        expect(mustInstance(state, id).home).toEqual({ kind: "encounterDeck", deckId: villain.encounterDeckId });
     }
     // The signature side scheme is set aside, and is its villain's, not a deck card.
     expect(state.encounterSetAside).toEqual([state.villains[0]?.signatureSideSchemeId]);
   });
 
   it("any number of modular sets is accepted, including none", () => {
-    const none = mustBuild({ villainCardId: WRECKER.id, mainSchemeCardId: PLAIN_SCHEME.id, encounterDeck: copies(BLANK.id, 10) });
+    const none = mustBuild({
+      villainCardId: WRECKER.id,
+      mainSchemeCardId: PLAIN_SCHEME.id,
+      encounterDeck: copies(BLANK.id, 10),
+    });
     expect(encounterDeckOf(none, none.encounterDeckOrder[0]!).deck).toHaveLength(10);
 
     const several = mustBuild({

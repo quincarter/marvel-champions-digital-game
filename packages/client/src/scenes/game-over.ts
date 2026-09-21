@@ -36,6 +36,8 @@ import type { SessionConfig } from "../engine/host.js";
 import { appSession } from "../session.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
+import { destroyChildren } from "../ui/destroy-children.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 /** Dots on the outcome ground, darker than the paper grid so they read on red and green. */
 const GROUND_DOTS = { spacing: 9, radius: 1, alpha: 0.22 } as const;
@@ -82,14 +84,19 @@ export class GameOverScene extends Phaser.Scene {
     });
     this.#route = new FocusRoute(this);
     const { game, config } = appSession().store.state;
-    this.#outcomeArt = game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
+    this.#outcomeArt =
+      game?.outcome && config ? outcomeArtFor(ART_CATALOG, config.scenarioId, game.outcome.result) : null;
+    if (game?.outcome && config) {
+      appSession().music?.playOutcome(config.scenarioId, game.outcome.result);
+    }
     this.#draw();
+    fadeScreenIn(this);
   }
 
   #draw(): void {
     for (const button of this.#buttons) button.destroy();
     this.#buttons = [];
-    this.children.removeAll(true);
+    destroyChildren(this);
     this.#status = null;
     this.#stops = new Map();
     this.#order = [];
@@ -100,8 +107,11 @@ export class GameOverScene extends Phaser.Scene {
     let ringColor: number | undefined;
     if (!game) {
       this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
-      this.#button("primary", "Back to title", { x: (width - 280) / 2, y: height / 2 - 26, width: 280, height: hit.primary }, () =>
-        this.scene.start(SCENES.title),
+      this.#button(
+        "primary",
+        "Back to title",
+        { x: (width - 280) / 2, y: height / 2 - 26, width: 280, height: hit.primary },
+        () => goToScreen(this, SCENES.title),
       );
     } else {
       const model = gameOverModel(game, record, config, POOL_DEPS);
@@ -144,9 +154,21 @@ export class GameOverScene extends Phaser.Scene {
       const box: Rect = { x: width - pad - blowWidth, y: pad, width: blowWidth, height: 0 };
       const frame = this.add.graphics();
       const caption = label(this, box.x + 16, box.y + 16, "Final blow", typeRole.label, surface.paper.hex, ink.meta);
-      const title = this.#display(box.x + 16, caption.y + caption.height + 6, model.finalBlow.title, 22, surface.paper.hex, blowWidth - 32);
+      const title = this.#display(
+        box.x + 16,
+        caption.y + caption.height + 6,
+        model.finalBlow.title,
+        22,
+        surface.paper.hex,
+        blowWidth - 32,
+      );
       const body = this.add
-        .text(box.x + 16, title.y + title.height + 8, model.finalBlow.body, textStyle(typeRole.body, surface.paper.hex, 0.85))
+        .text(
+          box.x + 16,
+          title.y + title.height + 8,
+          model.finalBlow.body,
+          textStyle(typeRole.body, surface.paper.hex, 0.85),
+        )
         .setWordWrapWidth(blowWidth - 32);
       const boxHeight = body.y + body.height + 16 - box.y;
       frame.fillStyle(surface.ink.hex, 1).fillRect(box.x, box.y, box.width, boxHeight);
@@ -167,7 +189,11 @@ export class GameOverScene extends Phaser.Scene {
       const g = this.add.graphics();
       g.fillStyle(surface.paper.hex, 1).fillRect(x, bodyTop, cardWidth, cardHeight);
       g.lineStyle(4, surface.ink.hex, 1).strokeRect(x, bodyTop, cardWidth, cardHeight);
-      fitText(label(this, x + 16, bodyTop + 14, stat.label, typeRole.label, surface.ink.hex, ink.meta), cardWidth - 32, typeRole.label.size);
+      fitText(
+        label(this, x + 16, bodyTop + 14, stat.label, typeRole.label, surface.ink.hex, ink.meta),
+        cardWidth - 32,
+        typeRole.label.size,
+      );
       const value = this.#display(x + 16, bodyTop + 32, stat.value, 30, surface.ink.hex);
       fitText(value, cardWidth - 32, 30);
       fitText(
@@ -205,10 +231,18 @@ export class GameOverScene extends Phaser.Scene {
     let actionY = bodyBottom - backHeight - (buttonHeight + 10) * actions.length;
     actionY = Math.max(actionY, bodyTop + tableHeight + 14);
     for (const action of actions) {
-      this.#button(action.primary ? "secondary" : "quiet", action.label, { x: sideX, y: actionY, width: sideWidth, height: buttonHeight }, action.run, action.unavailable);
+      this.#button(
+        action.primary ? "secondary" : "quiet",
+        action.label,
+        { x: sideX, y: actionY, width: sideWidth, height: buttonHeight },
+        action.run,
+        action.unavailable,
+      );
       actionY += buttonHeight + 10;
     }
-    this.#button("quiet", "Back to title", { x: sideX, y: actionY, width: sideWidth, height: backHeight }, () => this.scene.start(SCENES.title));
+    this.#button("quiet", "Back to title", { x: sideX, y: actionY, width: sideWidth, height: backHeight }, () =>
+      goToScreen(this, SCENES.title),
+    );
     this.#status = this.add
       .text(sideX, bodyTop + tableHeight + 4, "", textStyle(typeRole.emphasis, surface.paper.hex))
       .setWordWrapWidth(sideWidth);
@@ -266,9 +300,18 @@ export class GameOverScene extends Phaser.Scene {
     const column = width - pad * 2;
     const kicker = label(this, pad, y, model.kicker, typeRole.label, accentHue, 1).setFontSize(10);
     y = kicker.y + kicker.height + 5;
-    const headline = this.#display(pad, y, model.headline, Math.round(Math.min(50, width * 0.13)), surface.paper.hex, column);
+    const headline = this.#display(
+      pad,
+      y,
+      model.headline,
+      Math.round(Math.min(50, width * 0.13)),
+      surface.paper.hex,
+      column,
+    );
     y = headline.y + headline.height + 10;
-    const summary = this.add.text(pad, y, model.summary, textStyle(typeRole.body, surface.paper.hex, 0.8)).setWordWrapWidth(column);
+    const summary = this.add
+      .text(pad, y, model.summary, textStyle(typeRole.body, surface.paper.hex, 0.8))
+      .setWordWrapWidth(column);
     y = summary.y + summary.height + 12;
 
     const boxGap = 7;
@@ -277,7 +320,12 @@ export class GameOverScene extends Phaser.Scene {
     model.quickStats.forEach((stat, index) => {
       const x = pad + index * (boxWidth + boxGap);
       const g = this.add.graphics();
-      g.lineStyle(2.5, model.tone === "win" ? signal.caution.hex : surface.paper.hex, 1).strokeRect(x, y, boxWidth, boxHeight);
+      g.lineStyle(2.5, model.tone === "win" ? signal.caution.hex : surface.paper.hex, 1).strokeRect(
+        x,
+        y,
+        boxWidth,
+        boxHeight,
+      );
       label(this, x + 9, y + 8, stat.label, typeRole.label, surface.paper.hex, ink.meta).setFontSize(8);
       this.#display(x + 9, y + 22, stat.value, 24, surface.paper.hex);
     });
@@ -287,7 +335,12 @@ export class GameOverScene extends Phaser.Scene {
       const row = this.add.graphics();
       row.lineStyle(2.5, surface.paper.hex, 1).strokeRect(pad, y, column, 52);
       label(this, pad + 11, y + 10, "Table MVP", typeRole.label, surface.paper.hex, ink.meta);
-      this.add.text(pad + 11, y + 26, `${model.mvp.name} · ${model.mvp.detail}`, textStyle(typeRole.emphasis, surface.paper.hex));
+      this.add.text(
+        pad + 11,
+        y + 26,
+        `${model.mvp.name} · ${model.mvp.detail}`,
+        textStyle(typeRole.emphasis, surface.paper.hex),
+      );
       this.add.text(pad + column - 11, y + 26, "★", textStyle(typeRole.stat, signal.caution.hex)).setOrigin(1, 0.3);
       y += 52 + 12;
     }
@@ -298,17 +351,34 @@ export class GameOverScene extends Phaser.Scene {
     const rowCount = Math.ceil((rest.length + 1) / 2);
     let actionY = height - 20 - hit.primary - 8 - rowCount * (hit.target + 7);
     actionY = Math.max(actionY, y);
-    this.#status = this.add.text(pad, actionY - 18, "", textStyle(typeRole.emphasis, accent.heroRed.hex)).setWordWrapWidth(column);
+    this.#status = this.add
+      .text(pad, actionY - 18, "", textStyle(typeRole.emphasis, accent.heroRed.hex))
+      .setWordWrapWidth(column);
     if (primary) {
-      this.#button("primary", primary.label, { x: pad, y: actionY, width: column, height: hit.primary }, primary.run, primary.unavailable);
+      this.#button(
+        "primary",
+        primary.label,
+        { x: pad, y: actionY, width: column, height: hit.primary },
+        primary.run,
+        primary.unavailable,
+      );
       actionY += hit.primary + 8;
     }
-    const quiet = [...rest, { label: "Back to title", primary: false, run: () => this.scene.start(SCENES.title), unavailable: undefined }];
+    const quiet = [
+      ...rest,
+      { label: "Back to title", primary: false, run: () => goToScreen(this, SCENES.title), unavailable: undefined },
+    ];
     const halfWidth = (column - 7) / 2;
     quiet.forEach((action, index) => {
       const x = pad + (index % 2) * (halfWidth + 7);
       const rowY = actionY + Math.floor(index / 2) * (hit.target + 7);
-      this.#button("secondary", action.label, { x, y: rowY, width: halfWidth, height: hit.target }, action.run, action.unavailable);
+      this.#button(
+        "secondary",
+        action.label,
+        { x, y: rowY, width: halfWidth, height: hit.target },
+        action.run,
+        action.unavailable,
+      );
     });
   }
 
@@ -318,12 +388,22 @@ export class GameOverScene extends Phaser.Scene {
     g.lineStyle(4, surface.paper.hex, 1).strokeRect(rect.x, rect.y, rect.width, rect.height);
 
     const heading = this.#display(rect.x + 20, rect.y + 18, model.beatsHeading, 22, surface.paper.hex);
-    g.fillStyle(surface.paper.hex, 0.3).fillRect(heading.x + heading.width + 10, heading.y + heading.height / 2 - 1, rect.x + rect.width - 20 - (heading.x + heading.width + 10), 3);
+    g.fillStyle(surface.paper.hex, 0.3).fillRect(
+      heading.x + heading.width + 10,
+      heading.y + heading.height / 2 - 1,
+      rect.x + rect.width - 20 - (heading.x + heading.width + 10),
+      3,
+    );
 
     let y = heading.y + heading.height + 14;
     const textWidth = rect.width - 40 - 64;
     if (model.beats.length === 0) {
-      this.add.text(rect.x + 20, y, "Nothing in the log stood out as a turning point.", textStyle(typeRole.body, surface.paper.hex, 0.7));
+      this.add.text(
+        rect.x + 20,
+        y,
+        "Nothing in the log stood out as a turning point.",
+        textStyle(typeRole.body, surface.paper.hex, 0.7),
+      );
     }
     for (const beat of model.beats) {
       if (y > rect.y + rect.height - 50) break;
@@ -334,7 +414,15 @@ export class GameOverScene extends Phaser.Scene {
         .setWordWrapWidth(textWidth);
       y += Math.max(26, text.height) + 12;
     }
-    label(this, rect.x + 20, rect.y + rect.height - 26, "Derived from the game log — no hidden information used", typeRole.label, surface.paper.hex, 0.5);
+    label(
+      this,
+      rect.x + 20,
+      rect.y + rect.height - 26,
+      "Derived from the game log — no hidden information used",
+      typeRole.label,
+      surface.paper.hex,
+      0.5,
+    );
   }
 
   /**
@@ -342,11 +430,23 @@ export class GameOverScene extends Phaser.Scene {
    * shuffle; "Same seed" replays the identical deal. The replay viewer is drawn
    * but unavailable until it exists.
    */
-  #actions(config: SessionConfig | null): readonly { label: string; primary: boolean; run: () => void; unavailable: string | undefined }[] {
+  #actions(
+    config: SessionConfig | null,
+  ): readonly { label: string; primary: boolean; run: () => void; unavailable: string | undefined }[] {
     const missing = config ? undefined : "this game's setup isn't available";
     return [
-      { label: "Run it back", primary: true, run: () => config && void this.#rematch({ ...config, seed: rollSeed() }), unavailable: missing },
-      { label: "Same seed, same hands", primary: false, run: () => config && void this.#rematch(config), unavailable: missing },
+      {
+        label: "Run it back",
+        primary: true,
+        run: () => config && void this.#rematch({ ...config, seed: rollSeed() }),
+        unavailable: missing,
+      },
+      {
+        label: "Same seed, same hands",
+        primary: false,
+        run: () => config && void this.#rematch(config),
+        unavailable: missing,
+      },
       { label: "Watch the replay", primary: false, run: () => undefined, unavailable: "replays aren't built yet" },
     ];
   }
@@ -361,20 +461,36 @@ export class GameOverScene extends Phaser.Scene {
       this.#status?.setText(store.state.error ?? "could not start the rematch");
       return;
     }
-    this.scene.start(SCENES.board);
+    goToScreen(this, SCENES.board);
   }
 
   /** Bangers display text, uppercased the way the type role asks, wrapped when a width is given. */
-  #display(x: number, y: number, text: string, size: number, color: number, wrapWidth?: number): Phaser.GameObjects.Text {
+  #display(
+    x: number,
+    y: number,
+    text: string,
+    size: number,
+    color: number,
+    wrapWidth?: number,
+  ): Phaser.GameObjects.Text {
     const object = this.add
-      .text(x, y, caseOf(typeRole.screenTitle, text), { ...textStyle(typeRole.screenTitle, color), fontSize: `${size}px` })
+      .text(x, y, caseOf(typeRole.screenTitle, text), {
+        ...textStyle(typeRole.screenTitle, color),
+        fontSize: `${size}px`,
+      })
       .setLetterSpacing(Math.max(1, Math.round(size * 0.03)))
       .setLineSpacing(-Math.round(size * 0.14));
     if (wrapWidth) object.setWordWrapWidth(wrapWidth);
     return object;
   }
 
-  #button(kind: "primary" | "secondary" | "quiet", text: string, rect: Rect, onClick: () => void, unavailable?: string): void {
+  #button(
+    kind: "primary" | "secondary" | "quiet",
+    text: string,
+    rect: Rect,
+    onClick: () => void,
+    unavailable?: string,
+  ): void {
     const key = `button:${this.#order.length}`;
     this.#order.push(key);
     // Enter on an unavailable action does what a tap on it does: nothing.

@@ -51,9 +51,10 @@ export const BREAKOUT = defineAbilities({
   // does not retrigger it.
   "07001b.breakout-forced-response": forcedResponse(
     after.threatPlaced("self"),
-    ifThen(
-      allOf(duringVillainPhaseStepOne, not(refMatches(eventSource, {}))),
-      [placeThreat(1, each(query("sideScheme"))), ...pickVillainBy("highest", firstPlayer), setActiveVillain(pickedVillain)],
-    ),
+    ifThen(allOf(duringVillainPhaseStepOne, not(refMatches(eventSource, {}))), [
+      placeThreat(1, each(query("sideScheme"))),
+      ...pickVillainBy("highest", firstPlayer),
+      setActiveVillain(pickedVillain),
+    ]),
   ),
 });

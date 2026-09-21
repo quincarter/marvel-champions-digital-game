@@ -1,6 +1,11 @@
 import { describe, expect, test } from "vitest";
 import { CARD_ASPECT, type Rect } from "./layout.js";
-import { openingHandLayout, openingHandMaxScroll, openingHandThumb, READABLE_CARD_WIDTH } from "./opening-hand-layout.js";
+import {
+  openingHandLayout,
+  openingHandMaxScroll,
+  openingHandThumb,
+  READABLE_CARD_WIDTH,
+} from "./opening-hand-layout.js";
 
 /** The phone hand row at 390×844 (`setup-walkthrough-layout.ts`'s focus composition: a 358px body column). */
 const PHONE_ROW: Rect = { x: 16, y: 190, width: 358, height: 236 };

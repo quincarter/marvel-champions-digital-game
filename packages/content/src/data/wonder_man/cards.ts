@@ -699,6 +699,7 @@ export const WONDER_MAN_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/58029.jpg") },
     encounterSetIds: [encounterSetId("wonder_man_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

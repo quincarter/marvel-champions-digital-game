@@ -17,7 +17,9 @@ import { initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { appSession } from "../session.js";
 import { SCENES } from "./keys.js";
+import { boardModel } from "../view/board-model.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
+import type { InspectData } from "./inspect.js";
 import type { DeckCheckSceneData } from "./deck-check.js";
 import type { DecksSceneData } from "./decks.js";
 import type { RulesSceneData } from "./rules.js";
@@ -25,6 +27,7 @@ import type { RulesTab } from "../view/rules-layout.js";
 import type { ScenarioSelectData } from "./scenario-select.js";
 import type { SeatsData } from "./seats.js";
 import type { TableSetupData } from "./table-setup.js";
+import { goToScreen } from "../ui/transitions.js";
 
 /**
  * Dev-only screenshot entry point: `?screen=…` jumps straight past Title, for
@@ -61,7 +64,8 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
       seatDeckId: preconDecks(POOL_VERSION)[0]!.id as string,
       seed: rollSeed(),
     });
-    if (screen === "scenario-select") return { key: SCENES.scenarioSelect, data: { draft } satisfies ScenarioSelectData };
+    if (screen === "scenario-select")
+      return { key: SCENES.scenarioSelect, data: { draft } satisfies ScenarioSelectData };
     if (screen === "seats") return { key: SCENES.seats, data: { draft } satisfies SeatsData };
     return { key: SCENES.setup, data: { draft } satisfies TableSetupData };
   }
@@ -94,6 +98,24 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.setupDeal, data: {} };
   }
 
+  // `?screen=inspect[&card=N]`: the Inspect sheet over a live board, open on
+  // the Nth card of the opening hand (default the first), for checking the
+  // sheet against D08/P14/T06 at every size without clicking through a game.
+  // The mulligan is kept as dealt, so the sheet reads a hand card during the
+  // player's own turn — the state D08 draws — rather than a mulligan option.
+  if (screen === "inspect") {
+    await startDevGame();
+    const { store } = appSession();
+    if (store.state.game?.pendingChoice) await store.resolveChoice([]);
+    const state = store.state;
+    if (!state.game || state.perspectiveId === null) return { key: SCENES.board, data: {} };
+    const hand = boardModel(state.game, state.perspectiveId, POOL_DEPS).hand.map((card) => card.instanceId);
+    const index = Number(params.get("card") ?? "0");
+    const instanceId = hand[Number.isInteger(index) && index >= 0 ? index : 0];
+    if (!instanceId) return { key: SCENES.board, data: {} };
+    return { key: SCENES.inspect, data: { instanceId, siblings: hand } satisfies InspectData };
+  }
+
   return null;
 }
 
@@ -110,7 +132,11 @@ async function startDevGame(): Promise<void> {
   if (store.state.game) return;
   const scenario = POOL_SCENARIOS[0]!;
   const seat = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS)[0]!;
-  const draft = initialSetupDraft({ scenarioId: scenario.id as string, seatDeckId: seat.deck.id as string, seed: rollSeed() });
+  const draft = initialSetupDraft({
+    scenarioId: scenario.id as string,
+    seatDeckId: seat.deck.id as string,
+    seed: rollSeed(),
+  });
   await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)]));
 }
 
@@ -124,8 +150,14 @@ async function startDevSetupGame(): Promise<void> {
   if (store.state.game) return;
   const scenario = POOL_SCENARIOS[0]!;
   const options = deckOptionsOf([], POOL_CARDS, POOL_VERSION, POOL_DEPS);
-  const seats = options.filter((option, index, all) => all.findIndex((other) => other.identityName === option.identityName) === index).slice(0, 4);
-  const draft = initialSetupDraft({ scenarioId: scenario.id as string, seatDeckId: seats[0]!.deck.id as string, seed: rollSeed() });
+  const seats = options
+    .filter((option, index, all) => all.findIndex((other) => other.identityName === option.identityName) === index)
+    .slice(0, 4);
+  const draft = initialSetupDraft({
+    scenarioId: scenario.id as string,
+    seatDeckId: seats[0]!.deck.id as string,
+    seed: rollSeed(),
+  });
   await store.start(toSessionConfig(draft, seats.map(corePlayerForSeat)));
 }
 
@@ -137,23 +169,26 @@ export class BootScene extends Phaser.Scene {
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.void.hex));
     const { width, height } = this.scale.gameSize;
-    this.add
-      .text(width / 2, height / 2, "LOADING", textStyle(typeRole.label, surface.paper.hex, 0.6))
-      .setOrigin(0.5)
-      .setLetterSpacing(typeRole.label.letterSpacing);
+    this.add.text(width / 2, height / 2, "LOADING", textStyle(typeRole.label, surface.paper.hex, 0.6)).setOrigin(0.5);
+
+    this.scene.launch(SCENES.music);
 
     void this.#awaitFonts()
       .then(() => devScreenJump())
       .then((jump) => {
         if (!jump) {
-          this.scene.start(SCENES.title);
+          // Boot's own normal hand-off (no `?screen=` dev jump): a plain fade, same as every other
+          // screen-to-screen move. The dev jumps below stay hard cuts — they're QA/screenshot entry
+          // points (`scripts/shoot-app.mjs`), where landing on the target screen instantly matters
+          // more than a fade "reads as a page turning".
+          goToScreen(this, SCENES.title);
           return;
         }
         // `pause`'s own screenshot needs the Board running underneath it,
         // exactly like a real pause — `scene.launch`, never `scene.start`,
         // so Board keeps drawing (`scenes/pause.ts`'s own doc comment: "the
         // board keeps running underneath, exactly like every other overlay").
-        if (jump.key === SCENES.rules || jump.key === SCENES.settings) {
+        if (jump.key === SCENES.rules || jump.key === SCENES.settings || jump.key === SCENES.inspect) {
           this.scene.start(SCENES.board);
           this.scene.launch(jump.key, jump.data);
         } else {

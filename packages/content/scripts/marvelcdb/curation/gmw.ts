@@ -23,7 +23,8 @@ export const GMW_CURATION: PackCuration = {
   pack: {
     name: "Galaxy's Most Wanted",
     releaseDate: "2021-04-02",
-    releaseDateSource: 'Hall of Heroes Galaxy\'s Most Wanted page (https://hallofheroeslcg.com/galaxys-most-wanted/): "Release date: April 2, 2021"',
+    releaseDateSource:
+      'Hall of Heroes Galaxy\'s Most Wanted page (https://hallofheroeslcg.com/galaxys-most-wanted/): "Release date: April 2, 2021"',
   },
   outDir: "src/data/gmw",
   exportPrefix: "GMW",
@@ -31,8 +32,9 @@ export const GMW_CURATION: PackCuration = {
   corrections: [
     {
       code: "16142",
-      reason: "The Milano enters play through Setup (\"Permanent. Setup. The first player controls the Milano.\"), never paid for from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/16142), \"Cost: —\"",
+      reason:
+        'The Milano enters play through Setup ("Permanent. Setup. The first player controls the Milano."), never paid for from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/16142), "Cost: —"',
       specialCost: "dash",
     },
   ],

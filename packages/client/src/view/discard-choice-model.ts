@@ -63,7 +63,11 @@ function actionAbilityCost(state: GameState, deps: EngineDeps, action: LegalActi
 }
 
 /** The `discardFromHand` cost this action would pay, or null when it has none. */
-export function discardCostOf(state: GameState, deps: EngineDeps, action: LegalAction["action"]): DiscardCostShape | null {
+export function discardCostOf(
+  state: GameState,
+  deps: EngineDeps,
+  action: LegalAction["action"],
+): DiscardCostShape | null {
   const cost = actionAbilityCost(state, deps, action)?.discardFromHand;
   if (!cost) return null;
   return { min: cost.min, max: cost.max ?? null };
@@ -148,7 +152,15 @@ export function discardChoiceView(state: GameState, choice: DiscardChoiceState, 
   const picked = new Set(choice.picked);
   const base = choice.action.example;
   if (base.type !== "playCard" && base.type !== "useAbility") {
-    return { source: choice.source, min: choice.min, max: choice.max, candidates: choice.candidates, picked, command: null, blockedBy: "not a discard cost" };
+    return {
+      source: choice.source,
+      min: choice.min,
+      max: choice.max,
+      candidates: choice.candidates,
+      picked,
+      command: null,
+      blockedBy: "not a discard cost",
+    };
   }
   const command: Command = { ...base, costChoices: { ...base.costChoices, discard: choice.picked } };
   const result = applyCommand(state, command, deps);

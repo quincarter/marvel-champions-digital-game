@@ -181,7 +181,14 @@ export function paymentView(
   }
 
   const paid = picked.reduce((total, optionId) => total + poolTotal(byOption.get(optionId)?.pool), 0);
-  const attempt = tryPayment(state, playerId, payment.action, picked, paymentContext(payment.target, payment.controllerId), deps);
+  const attempt = tryPayment(
+    state,
+    playerId,
+    payment.action,
+    picked,
+    paymentContext(payment.target, payment.controllerId),
+    deps,
+  );
 
   const { action } = payment;
   const subject = action.kind === "playCard" || action.kind === "useAbility" ? action.instanceId : null;

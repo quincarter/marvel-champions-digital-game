@@ -44,9 +44,15 @@ describe("matchesSearch", () => {
 });
 
 describe("heroRosterMatches", () => {
-  const spiderMan = deckFromStarterDeck(POOL_STARTER_DECKS.find((d) => (d.id as string) === "core-spider-man-justice")!, "poolv1");
+  const spiderMan = deckFromStarterDeck(
+    POOL_STARTER_DECKS.find((d) => (d.id as string) === "core-spider-man-justice")!,
+    "poolv1",
+  );
   const spiderManIdentity = CARDS_BY_ID.get(spiderMan.identityCardId as string);
-  const capLeadership = deckFromStarterDeck(POOL_STARTER_DECKS.find((d) => (d.id as string) === "cap-leadership")!, "poolv1");
+  const capLeadership = deckFromStarterDeck(
+    POOL_STARTER_DECKS.find((d) => (d.id as string) === "cap-leadership")!,
+    "poolv1",
+  );
   const capIdentity = CARDS_BY_ID.get(capLeadership.identityCardId as string);
 
   test("matches the hero's face name", () => {
@@ -135,9 +141,15 @@ describe("scenarioRosterMatches", () => {
 });
 
 describe("heroRosterMatches: quick-filter chips", () => {
-  const spiderMan = deckFromStarterDeck(POOL_STARTER_DECKS.find((d) => (d.id as string) === "core-spider-man-justice")!, "poolv1");
+  const spiderMan = deckFromStarterDeck(
+    POOL_STARTER_DECKS.find((d) => (d.id as string) === "core-spider-man-justice")!,
+    "poolv1",
+  );
   const spiderManIdentity = CARDS_BY_ID.get(spiderMan.identityCardId as string);
-  const capLeadership = deckFromStarterDeck(POOL_STARTER_DECKS.find((d) => (d.id as string) === "cap-leadership")!, "poolv1");
+  const capLeadership = deckFromStarterDeck(
+    POOL_STARTER_DECKS.find((d) => (d.id as string) === "cap-leadership")!,
+    "poolv1",
+  );
   const capIdentity = CARDS_BY_ID.get(capLeadership.identityCardId as string);
 
   test("the aspect chip only shows decks built in that aspect", () => {
@@ -152,13 +164,24 @@ describe("heroRosterMatches: quick-filter chips", () => {
 
   test("playableOnly hides a deck the caller reports as blocked, without needing to know why", () => {
     expect(heroRosterMatches(spiderMan, spiderManIdentity, { text: "", playableOnly: true }, null)).toBe(true);
-    expect(heroRosterMatches(spiderMan, spiderManIdentity, { text: "", playableOnly: true }, "Spider-Man is already at the table")).toBe(false);
+    expect(
+      heroRosterMatches(
+        spiderMan,
+        spiderManIdentity,
+        { text: "", playableOnly: true },
+        "Spider-Man is already at the table",
+      ),
+    ).toBe(false);
     // Off by default: a blocked deck still shows (dimmed, with its reason) unless the chip is on.
-    expect(heroRosterMatches(spiderMan, spiderManIdentity, { text: "" }, "Spider-Man is already at the table")).toBe(true);
+    expect(heroRosterMatches(spiderMan, spiderManIdentity, { text: "" }, "Spider-Man is already at the table")).toBe(
+      true,
+    );
   });
 
   test("chips combine with the text search and with each other", () => {
-    expect(heroRosterMatches(capLeadership, capIdentity, { text: "captain", aspect: "leadership", source: "precon" })).toBe(true);
+    expect(
+      heroRosterMatches(capLeadership, capIdentity, { text: "captain", aspect: "leadership", source: "precon" }),
+    ).toBe(true);
     expect(heroRosterMatches(capLeadership, capIdentity, { text: "captain", aspect: "justice" })).toBe(false);
   });
 });
@@ -183,7 +206,11 @@ describe("deckSourcesOf", () => {
 
   test("a mix reports every kind present, precon first", () => {
     const precon = deckFromStarterDeck(POOL_STARTER_DECKS[0]!, "poolv1");
-    const imported: Deck = { ...precon, id: "d2" as Deck["id"], source: { kind: "imported", site: "marvelcdb", marvelcdbDeckId: null, url: null, importedAt: "now" } };
+    const imported: Deck = {
+      ...precon,
+      id: "d2" as Deck["id"],
+      source: { kind: "imported", site: "marvelcdb", marvelcdbDeckId: null, url: null, importedAt: "now" },
+    };
     const userBuilt: Deck = { ...precon, id: "d3" as Deck["id"], source: { kind: "userBuilt", createdAt: "now" } };
     expect(deckSourcesOf([userBuilt, imported, precon])).toEqual(["precon", "imported", "userBuilt"]);
   });
@@ -224,7 +251,11 @@ describe("withSelectionPinned", () => {
   });
 
   test("nothing selected: behaves like a plain filter", () => {
-    const result = withSelectionPinned(items, (item) => item.startsWith("b"), () => false);
+    const result = withSelectionPinned(
+      items,
+      (item) => item.startsWith("b"),
+      () => false,
+    );
     expect(result).toEqual(["breakout"]);
   });
 

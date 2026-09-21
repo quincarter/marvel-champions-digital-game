@@ -198,10 +198,4 @@ export interface PlayerSideSchemeCard extends PlayerCardCommon, CostedCard {
   readonly startingThreat: ScalingValue;
 }
 
-export type PlayerCard =
-  | AllyCard
-  | EventCard
-  | SupportCard
-  | UpgradeCard
-  | ResourceCard
-  | PlayerSideSchemeCard;
+export type PlayerCard = AllyCard | EventCard | SupportCard | UpgradeCard | ResourceCard | PlayerSideSchemeCard;

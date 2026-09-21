@@ -107,7 +107,13 @@ export const ABSORBING_MAN_SET = defineAbilities({
   // Absorbing Man (II) — same constant, plus When Revealed: if Super Absorbing Power is in play, deal 1 encounter
   // card to each player. Otherwise, search for it and reveal it (entering play), shuffling only if searched.
   "04077.absorbing-man-constant": constant(gainsTraitsOf(query("environment"), query("villain", { self: true }))),
-  "04077.when-revealed": whenRevealed(ifThen(inPlay(SUPER_ABSORBING_POWER), dealEncounterCard(eachPlayer), searchAndReveal(SUPER_ABSORBING_POWER, ["deck", "discard"], firstPlayer))),
+  "04077.when-revealed": whenRevealed(
+    ifThen(
+      inPlay(SUPER_ABSORBING_POWER),
+      dealEncounterCard(eachPlayer),
+      searchAndReveal(SUPER_ABSORBING_POWER, ["deck", "discard"], firstPlayer),
+    ),
+  ),
   // Absorbing Man (III) — same constant, plus Forced Response: after he activates against you, Ice/Stone place 1
   // threat; Metal/Wood take 1 indirect damage. The four extra ability refs the data carries beyond the response
   // (`-constant-2`/`-3`) are the same "gains the trait" constant repeated per stage in the source data; only the
@@ -129,7 +135,10 @@ export const ABSORBING_MAN_SET = defineAbilities({
     moveCards(encounterCards(["discard"]), "encounterDeckShuffle"),
   ),
   // None Shall Pass — Forced Response: after resolving step one of the villain phase, place 1 delay counter here.
-  "04079b.none-shall-pass-forced-response": forcedResponse(on.threatPlaced(query("mainScheme")), addCounters(DELAY, 1, self)),
+  "04079b.none-shall-pass-forced-response": forcedResponse(
+    on.threatPlaced(query("mainScheme")),
+    addCounters(DELAY, 1, self),
+  ),
   // None Shall Pass — Forced Interrupt: when an environment enters play, discard each other environment card in
   // play. `cardEntersPlay` is now interruptible (its own enter-play keywords resolve as that event's *apply* step,
   // not before it's announced), and `TargetQuery.excluding` names "every environment except the one that just
@@ -142,11 +151,20 @@ export const ABSORBING_MAN_SET = defineAbilities({
   // Dense Forest / Snowy Hillside / Rocky Outcrop / Abandoned Facility — Surge (data). Forced Response: after
   // Absorbing Man makes an undefended attack against you, a worse effect if 5+ delay counters on the main scheme.
   // [star] Boost: Put this card into play.
-  "04080.dense-forest-forced-response": forcedResponse(on.villainAttacks({ againstYou: true }), ifThen(undefendedAttack, dealIndirectDamage(you, ifElse(HIGH_DELAY, 2, 1)))),
+  "04080.dense-forest-forced-response": forcedResponse(
+    on.villainAttacks({ againstYou: true }),
+    ifThen(undefendedAttack, dealIndirectDamage(you, ifElse(HIGH_DELAY, 2, 1))),
+  ),
   "04080.boost": boost(putIntoPlay(self, firstPlayer)),
-  "04081.snowy-hillside-forced-response": forcedResponse(on.villainAttacks({ againstYou: true }), ifThen(undefendedAttack, placeThreat(ifElse(HIGH_DELAY, 2, 1), theMainScheme))),
+  "04081.snowy-hillside-forced-response": forcedResponse(
+    on.villainAttacks({ againstYou: true }),
+    ifThen(undefendedAttack, placeThreat(ifElse(HIGH_DELAY, 2, 1), theMainScheme)),
+  ),
   "04081.boost": boost(putIntoPlay(self, firstPlayer)),
-  "04082.rocky-outcrop-forced-response": forcedResponse(on.villainAttacks({ againstYou: true }), ifThen(undefendedAttack, heal(ifElse(HIGH_DELAY, 2, 1), theVillain))),
+  "04082.rocky-outcrop-forced-response": forcedResponse(
+    on.villainAttacks({ againstYou: true }),
+    ifThen(undefendedAttack, heal(ifElse(HIGH_DELAY, 2, 1), theVillain)),
+  ),
   "04082.boost": boost(putIntoPlay(self, firstPlayer)),
   "04083.abandoned-facility-forced-response": forcedResponse(
     on.villainAttacks({ againstYou: true }),
@@ -156,7 +174,10 @@ export const ABSORBING_MAN_SET = defineAbilities({
 
   // Ball and Chain — Attach to Absorbing Man (data). Hero Action: spend a [physical] resource → shuffle this card
   // into the encounter deck. [star] Boost: Reveal this card.
-  "04084.ball-and-chain-action": heroAction({ cost: spend({ physical: 1 }) }, moveCards({ kind: "ref", ref: self }, "encounterDeckShuffle")),
+  "04084.ball-and-chain-action": heroAction(
+    { cost: spend({ physical: 1 }) },
+    moveCards({ kind: "ref", ref: self }, "encounterDeckShuffle"),
+  ),
   "04084.boost": boost(revealCard(self, firstPlayer)),
 
   // Stall Tactics — When Revealed: place 1 threat per 2 delay counters; if that's 0, gain surge instead. [star]
@@ -172,19 +193,28 @@ export const ABSORBING_MAN_SET = defineAbilities({
 
   // Swinging Stone — When Revealed (Alter-Ego): Absorbing Man schemes (+1 SCH if he has the Stone trait). When
   // Revealed (Hero): Absorbing Man attacks you (+1 ATK if Stone).
-  "04086.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(theVillain, { schBonus: ifElse(hasTrait(theVillain, STONE), 1, 0) })),
-  "04086.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you, atkBonus: ifElse(hasTrait(theVillain, STONE), 1, 0) })),
+  "04086.when-revealed-alter-ego": whenRevealedAlterEgo(
+    enemyScheme(theVillain, { schBonus: ifElse(hasTrait(theVillain, STONE), 1, 0) }),
+  ),
+  "04086.when-revealed-hero": whenRevealedHero(
+    enemyAttack(theVillain, { against: you, atkBonus: ifElse(hasTrait(theVillain, STONE), 1, 0) }),
+  ),
 
   // Steel Kick — When Revealed (Alter-Ego): place 2 threat (3 if Metal). When Revealed (Hero): take 3 indirect
   // damage (4 if Metal).
-  "04087.when-revealed-alter-ego": whenRevealedAlterEgo(placeThreat(ifElse(hasTrait(theVillain, METAL), 3, 2), theMainScheme)),
+  "04087.when-revealed-alter-ego": whenRevealedAlterEgo(
+    placeThreat(ifElse(hasTrait(theVillain, METAL), 3, 2), theMainScheme),
+  ),
   "04087.when-revealed-hero": whenRevealedHero(dealIndirectDamage(you, ifElse(hasTrait(theVillain, METAL), 4, 3))),
 
   // Piercing Thorns — When Revealed: discard 1 card at random from your hand; if Absorbing Man has the Wood
   // trait, also discard 1 card you control. [star] Boost: if Stone or Wood, you are stunned.
   "04088.when-revealed": whenRevealed(
     discardAtRandom(1, you),
-    ifThen(hasTrait(theVillain, WOOD), [chooseTarget("controlled", query(["ally", "upgrade", "support"], { controller: "you" })), discard(chosen("controlled"))]),
+    ifThen(hasTrait(theVillain, WOOD), [
+      chooseTarget("controlled", query(["ally", "upgrade", "support"], { controller: "you" })),
+      discard(chosen("controlled")),
+    ]),
   ),
   "04088.boost": boost(ifThen(anyOf(hasTrait(theVillain, STONE), hasTrait(theVillain, WOOD)), stun(yourIdentity))),
 
@@ -203,7 +233,10 @@ export const ABSORBING_MAN_SET = defineAbilities({
 
   // Icy Grip — When Revealed: you are stunned; if Ice, also take 2 indirect damage. [star] Boost: if Ice or
   // Metal, give the villain a tough status card.
-  "04090.when-revealed": whenRevealed(stun(yourIdentity), ifThen(hasTrait(theVillain, ICE), dealIndirectDamage(you, 2))),
+  "04090.when-revealed": whenRevealed(
+    stun(yourIdentity),
+    ifThen(hasTrait(theVillain, ICE), dealIndirectDamage(you, 2)),
+  ),
   "04090.boost": boost(ifThen(anyOf(hasTrait(theVillain, ICE), hasTrait(theVillain, METAL)), giveTough(theVillain))),
 
   // Avalanche! — When Revealed: each player must choose to spend an [energy] resource or take indirect damage

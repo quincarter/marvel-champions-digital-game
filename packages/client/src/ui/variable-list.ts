@@ -6,7 +6,7 @@
  * one `McVirtualList`, which draws every row at the same height.
  *
  * Everything else about it is deliberately identical to `McVirtualList`: recreated fresh every
- * scene rebuild (not persisted across `children.removeAll(true)`); the caller owns scroll
+ * scene rebuild (not persisted across `destroyChildren(scene)`); the caller owns scroll
  * position across rebuilds (`VariableListScroll`, this list's `ListScroll`); rows are recycled by
  * index against the current window; it owns its own background panel, painted first inside its
  * own container; and touch/mouse drag-to-scroll is handled the same way. See that file's own doc
@@ -80,7 +80,12 @@ export class McVariableList {
     });
     this.#thumb.on("drag", (pointer: Phaser.Input.Pointer) => this.#onThumbDrag(pointer));
 
-    this.#root = scene.add.container(0, 0, [...(this.#background ? [this.#background] : []), this.#rowLayer, this.#track, this.#thumb]);
+    this.#root = scene.add.container(0, 0, [
+      ...(this.#background ? [this.#background] : []),
+      this.#rowLayer,
+      this.#track,
+      this.#thumb,
+    ]);
 
     scene.input.on(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
     scene.input.on(Phaser.Input.Events.POINTER_DOWN, this.#onPointerDown, this);
@@ -118,7 +123,12 @@ export class McVariableList {
   }
 
   rectFor(index: number): Rect {
-    return { x: this.#rect.x, y: this.#rect.y + this.#scroll.rowTop(this.#heights, index), width: this.#rect.width, height: this.#heights[index] ?? 0 };
+    return {
+      x: this.#rect.x,
+      y: this.#rect.y + this.#scroll.rowTop(this.#heights, index),
+      width: this.#rect.width,
+      height: this.#heights[index] ?? 0,
+    };
   }
 
   scrollIntoView(index: number): void {
@@ -167,7 +177,8 @@ export class McVariableList {
 
   #onWheel(pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number): void {
     const { rect } = this;
-    if (pointer.x < rect.x || pointer.x > rect.x + rect.width || pointer.y < rect.y || pointer.y > rect.y + rect.height) return;
+    if (pointer.x < rect.x || pointer.x > rect.x + rect.width || pointer.y < rect.y || pointer.y > rect.y + rect.height)
+      return;
     const deltaMode = (pointer.event as WheelEvent | undefined)?.deltaMode ?? 1;
     const amount = deltaMode === 0 ? dy : dy * WHEEL_LINE_PX;
     if (amount === 0) return;
@@ -180,7 +191,8 @@ export class McVariableList {
     const trackHeight = this.#rect.height;
     const deltaPx = ((pointer.y - this.#thumbDragStartY) / trackHeight) * contentHeight;
     const target = this.#thumbDragStartOffset + deltaPx;
-    if (this.#scroll.scrollByPx(target - this.#scroll.offsetPx, this.#heights, this.#rect.height)) this.#redrawWindow(false);
+    if (this.#scroll.scrollByPx(target - this.#scroll.offsetPx, this.#heights, this.#rect.height))
+      this.#redrawWindow(false);
   }
 
   #inScrollbarColumn(x: number): boolean {
@@ -214,7 +226,8 @@ export class McVariableList {
     const result = this.#drag.end(pointer.id, this.#scene.time.now);
     if (!result) return;
     if (result.wasTap) {
-      if (!this.#onRowActivate || !pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x)) return;
+      if (!this.#onRowActivate || !pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x))
+        return;
       const index = this.#rowIndexAt(pointer.y);
       if (index !== null) this.#onRowActivate(index, pointer);
       return;
@@ -251,7 +264,12 @@ export class McVariableList {
       if (this.#rows.has(index)) continue;
       let rowTop = 0;
       for (let i = 0; i < index; i++) rowTop += this.#heights[i]!;
-      const zeroScrollRect: Rect = { x: this.#rect.x, y: this.#rect.y + rowTop, width: this.#rect.width, height: this.#heights[index]! };
+      const zeroScrollRect: Rect = {
+        x: this.#rect.x,
+        y: this.#rect.y + rowTop,
+        width: this.#rect.width,
+        height: this.#heights[index]!,
+      };
       const row = this.#renderRow(index, zeroScrollRect);
       this.#rowLayer.add(row.objects as Phaser.GameObjects.GameObject[]);
       this.#rows.set(index, row);
@@ -263,7 +281,10 @@ export class McVariableList {
     this.#thumb.setVisible(thumb !== null);
     this.#track.setVisible(thumb !== null);
     if (thumb) {
-      this.#thumb.setPosition(this.#rect.x + this.#rect.width - SCROLLBAR_WIDTH, this.#rect.y + thumb.top * this.#rect.height);
+      this.#thumb.setPosition(
+        this.#rect.x + this.#rect.width - SCROLLBAR_WIDTH,
+        this.#rect.y + thumb.top * this.#rect.height,
+      );
       this.#thumb.setSize(SCROLLBAR_WIDTH, Math.max(16, thumb.size * this.#rect.height));
     }
   }

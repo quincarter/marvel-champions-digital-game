@@ -3,7 +3,11 @@ import { abilityRefsOf, createGame, unscriptedCards, type AbilityRegistry } from
 import { CORE_DEPS } from "./index.js";
 import { coreScenario, starterDeckSetup } from "./setup.js";
 
-const contentsOf = (deck: StarterDeck): DeckContents => ({ identityCardId: deck.identityCardId, aspects: deck.aspects, cards: deck.cards });
+const contentsOf = (deck: StarterDeck): DeckContents => ({
+  identityCardId: deck.identityCardId,
+  aspects: deck.aspects,
+  cards: deck.cards,
+});
 const spiderManDeck = (): StarterDeck => {
   const deck = CORE_STARTER_DECKS.find((d) => d.id === "core-spider-man-justice");
   if (!deck) throw new Error("no Spider-Man starter deck");
@@ -21,7 +25,9 @@ describe("unscriptedCards with the Core ability registry", () => {
     const blackCat = CORE_CARDS.find((c) => c.id === "01002");
     const ref = blackCat ? abilityRefsOf(blackCat)[0] : undefined;
     if (!ref) throw new Error("Black Cat has no ability reference");
-    expect(unscriptedCards(contentsOf(spiderManDeck()), CORE_CARDS, { abilities: registryWithout(ref.id) })).toEqual([cardId("01002")]);
+    expect(unscriptedCards(contentsOf(spiderManDeck()), CORE_CARDS, { abilities: registryWithout(ref.id) })).toEqual([
+      cardId("01002"),
+    ]);
   });
 
   it("names the identity's obligation too, since setup brings it into the game", () => {
@@ -30,7 +36,9 @@ describe("unscriptedCards with the Core ability registry", () => {
     const obligation = CORE_CARDS.find((c) => c.id === identity.obligationCardId);
     const ref = obligation ? abilityRefsOf(obligation)[0] : undefined;
     if (!ref) throw new Error("Spider-Man's obligation has no ability reference");
-    expect(unscriptedCards(contentsOf(spiderManDeck()), CORE_CARDS, { abilities: registryWithout(ref.id) })).toEqual([identity.obligationCardId]);
+    expect(unscriptedCards(contentsOf(spiderManDeck()), CORE_CARDS, { abilities: registryWithout(ref.id) })).toEqual([
+      identity.obligationCardId,
+    ]);
   });
 });
 
@@ -71,13 +79,19 @@ describe("createGame refuses an illegal deck (coreScenario enforces legality)", 
   });
 
   it("a custom seat that chooses no aspect is refused", () => {
-    const result = createGame(coreScenario("rhino", { players: [{ identityCardId: "01001a", deck: spiderMan.deck }], seed: 1 }), CORE_DEPS);
+    const result = createGame(
+      coreScenario("rhino", { players: [{ identityCardId: "01001a", deck: spiderMan.deck }], seed: 1 }),
+      CORE_DEPS,
+    );
     expect(!result.ok && result.error.illegalDecks?.[0]?.problems.map((p) => p.code)).toEqual(["aspect_choice"]);
   });
 
   it("a custom seat with a legal list and its aspect is seated", () => {
     const result = createGame(
-      coreScenario("rhino", { players: [{ identityCardId: "01001a", deck: spiderMan.deck, aspects: ["justice"] }], seed: 1 }),
+      coreScenario("rhino", {
+        players: [{ identityCardId: "01001a", deck: spiderMan.deck, aspects: ["justice"] }],
+        seed: 1,
+      }),
       CORE_DEPS,
     );
     expect(result.ok).toBe(true);

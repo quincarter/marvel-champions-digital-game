@@ -1,15 +1,34 @@
-import { cannotLeavePlay, mustDefendWithAlly, notDefeatedWithoutThreat, schemeThreatDestination, villainOf, type GameState, type InstanceId } from "@mc/engine";
-import { P1, endTurn, identityOf, inst, patchInstance, playerOf, settle, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
+import {
+  cannotLeavePlay,
+  mustDefendWithAlly,
+  notDefeatedWithoutThreat,
+  schemeThreatDestination,
+  villainOf,
+  type GameState,
+} from "@mc/engine";
+import {
+  P1,
+  endTurn,
+  identityOf,
+  inst,
+  patchInstance,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  use,
+} from "../../testing/harness.js";
+import { withActive } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
-const spiderManVsBreakout = () => startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
+const spiderManVsBreakout = () =>
+  startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
 const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): GameState =>
   settle(runTwc(state, ...commands), undefined, (s) => s.step.phase === "player" && s.step.kind === "turn", TWC_DEPS);
 
 const bulldozerId = (state: GameState) => state.villains[3]!.instanceId;
 const clearTheRoadId = (state: GameState) => villainOf(state, bulldozerId(state))!.signatureSideSchemeId!;
-const withActive = (state: GameState, id: InstanceId): GameState => ({ ...state, activeVillainId: id });
 
 describe("Bulldozer (07046/07047)", () => {
   it("redirects his own scheme threat to Clear the Road instead of the main scheme", () => {
@@ -104,7 +123,9 @@ describe("Leading the Charge (07059)", () => {
   it("is in Bulldozer's own 15-card encounter deck", () => {
     const state = spiderManVsBreakout();
     const deckId = bulldozerId(state) && state.villains[3]!.encounterDeckId;
-    const found = Object.values(state.instances).some((i) => i.cardId === "07059" && i.home?.kind === "encounterDeck" && i.home.deckId === deckId);
+    const found = Object.values(state.instances).some(
+      (i) => i.cardId === "07059" && i.home?.kind === "encounterDeck" && i.home.deckId === deckId,
+    );
     expect(found).toBe(true);
   });
 });

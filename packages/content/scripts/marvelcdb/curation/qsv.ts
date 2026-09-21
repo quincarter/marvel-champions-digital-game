@@ -28,7 +28,8 @@ export const QSV_CURATION: PackCuration = {
   pack: {
     name: "Quicksilver",
     releaseDate: "2021-02-05",
-    releaseDateSource: "Hall of Heroes Quicksilver page (https://hallofheroeslcg.com/quicksilver/): \"Release date: February 5, 2021\"",
+    releaseDateSource:
+      'Hall of Heroes Quicksilver page (https://hallofheroeslcg.com/quicksilver/): "Release date: February 5, 2021"',
   },
   outDir: "src/data/qsv",
   exportPrefix: "QSV",
@@ -48,11 +49,30 @@ export const QSV_CURATION: PackCuration = {
       aspect: "protection",
       cards: {
         // Hero cards (14002-14011), each at its printed kit quantity.
-        "14002": 1, "14003": 4, "14004": 2, "14005": 2, "14006": 1, "14007": 1, "14008": 1, "14009": 1, "14010": 1, "14011": 1,
+        "14002": 1,
+        "14003": 4,
+        "14004": 2,
+        "14005": 2,
+        "14006": 1,
+        "14007": 1,
+        "14008": 1,
+        "14009": 1,
+        "14010": 1,
+        "14011": 1,
         // Protection aspect cards.
-        "14012": 3, "14013": 1, "14014": 3, "14015": 3, "14016": 2, "14017": 3,
+        "14012": 3,
+        "14013": 1,
+        "14014": 3,
+        "14015": 3,
+        "14016": 2,
+        "14017": 3,
         // Basic cards.
-        "14018": 1, "14019": 1, "14020": 1, "14021": 1, "14022": 3, "14023": 3,
+        "14018": 1,
+        "14019": 1,
+        "14020": 1,
+        "14021": 1,
+        "14022": 3,
+        "14023": 3,
       },
       obligationCode: "14024",
       nemesisCodes: ["14025", "14026", "14027", "14028"],
@@ -60,13 +80,11 @@ export const QSV_CURATION: PackCuration = {
       sources: [
         "Hall of Heroes Quicksilver Deck title-card back, printed decklist (https://hallofheroeslcg.com/wp-content/uploads/2020/12/qs.jpg, linked from https://hallofheroeslcg.com/quicksilver/)",
       ],
-      note:
-        "Cross-checked item-by-item against raw (qsv.json) by name, code and quantity: item 2 \"Scarlet Witch\" is 14002 (qty 1, the Team-Up ally printed in this hero kit, faction_code \"hero\"), and every Basic/Protection/nemesis item matches its listed code and quantity exactly (e.g. \"28 Earthquake x2\" = 14028, quantity 2 in raw).",
+      note: 'Cross-checked item-by-item against raw (qsv.json) by name, code and quantity: item 2 "Scarlet Witch" is 14002 (qty 1, the Team-Up ally printed in this hero kit, faction_code "hero"), and every Basic/Protection/nemesis item matches its listed code and quantity exactly (e.g. "28 Earthquake x2" = 14028, quantity 2 in raw).',
     },
   ],
 
   imageOverrides: {
-    "14001b":
-      "https://hallofheroeslcg.com/wp-content/uploads/2020/12/0b.jpg",
+    "14001b": "https://hallofheroeslcg.com/wp-content/uploads/2020/12/0b.jpg",
   },
 };

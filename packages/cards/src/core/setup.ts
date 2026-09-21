@@ -1,4 +1,11 @@
-import { CORE_CARDS, CORE_SCENARIOS, CORE_STARTER_DECKS, type AnyCard, type CardId, type CoreAspect } from "@mc/content";
+import {
+  CORE_CARDS,
+  CORE_SCENARIOS,
+  CORE_STARTER_DECKS,
+  type AnyCard,
+  type CardId,
+  type CoreAspect,
+} from "@mc/content";
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
 
 export type CoreDifficulty = "standard" | "expert";
@@ -61,7 +68,11 @@ export function encounterCardsOf(setIds: readonly string[]): CardId[] {
   const deck: CardId[] = [];
   for (const setId of setIds) {
     const members = CORE_CARDS.filter(
-      (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId) && card.type !== "villain" && card.type !== "main_scheme",
+      (card) =>
+        "encounterSetIds" in card &&
+        (card.encounterSetIds as readonly string[]).includes(setId) &&
+        card.type !== "villain" &&
+        card.type !== "main_scheme",
     );
     if (members.length === 0) throw new Error(`encounter set ${setId} has no Core cards`);
     for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) deck.push(card.id);

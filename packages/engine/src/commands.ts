@@ -32,7 +32,11 @@ export type Command =
    * RRG "Form, Change Form". `to` names the form, needed only for a three-sided identity (docs/phase7-wave2.md §3.2):
    * `{ heroForm: n }` is the hero face `IdentityState.heroFormIndex` n. Absent: the other form of a two-faced identity.
    */
-  | { readonly type: "changeForm"; readonly playerId: PlayerId; readonly to?: "alterEgo" | { readonly heroForm: number } }
+  | {
+      readonly type: "changeForm";
+      readonly playerId: PlayerId;
+      readonly to?: "alterEgo" | { readonly heroForm: number };
+    }
   | {
       readonly type: "playCard";
       readonly playerId: PlayerId;

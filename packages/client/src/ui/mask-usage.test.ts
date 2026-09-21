@@ -25,7 +25,8 @@ function tsFilesUnder(dir: string): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) files.push(...tsFilesUnder(full));
-    else if (entry.isFile() && (full.endsWith(".ts") || full.endsWith(".tsx")) && !full.endsWith(".test.ts")) files.push(full);
+    else if (entry.isFile() && (full.endsWith(".ts") || full.endsWith(".tsx")) && !full.endsWith(".test.ts"))
+      files.push(full);
   }
   return files;
 }

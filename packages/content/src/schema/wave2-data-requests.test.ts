@@ -13,7 +13,16 @@ import {
   validateAttachmentHost,
   validateCard,
 } from "./index.js";
-import type { AttachmentCard, AttachmentHost, HeroIdentityCard, KeywordInstance, MainSchemeCard, MinionCard, UpgradeCard, VillainCard } from "./index.js";
+import type {
+  AttachmentCard,
+  AttachmentHost,
+  HeroIdentityCard,
+  KeywordInstance,
+  MainSchemeCard,
+  MinionCard,
+  UpgradeCard,
+  VillainCard,
+} from "./index.js";
 
 /**
  * docs/phase7-wave2.md §7: the schema requests `card-data-pipeline` raised in `docs/phase7-wave2-data.md`
@@ -27,7 +36,13 @@ import type { AttachmentCard, AttachmentHost, HeroIdentityCard, KeywordInstance,
 const CYCLE = cycleId("data-requests-fixture");
 const text = unerrataedText;
 
-const upgrade = (id: string, pack: string, name: string, attachesTo: AttachmentHost, keywords: readonly KeywordInstance[] = []): UpgradeCard => ({
+const upgrade = (
+  id: string,
+  pack: string,
+  name: string,
+  attachesTo: AttachmentHost,
+  keywords: readonly KeywordInstance[] = [],
+): UpgradeCard => ({
   id: cardId(id),
   name,
   setCode: setCode(pack),
@@ -70,9 +85,18 @@ describe("§7.1 the ally pool and the printed-cost measure", () => {
   });
 
   it("still accepts every measure that already existed, over its own pool", () => {
-    expect(validateAttachmentHost({ kind: "superlative", among: "villain", order: "highest", measure: "activationOrder" }, "a")).toEqual([]);
-    expect(validateAttachmentHost({ kind: "superlative", among: "minion", order: "lowest", measure: "remainingHp" }, "a")).toEqual([]);
-    expect(validateAttachmentHost({ kind: "superlative", among: "ally", order: "highest", measure: "bulk" as never }, "a")).not.toEqual([]);
+    expect(
+      validateAttachmentHost(
+        { kind: "superlative", among: "villain", order: "highest", measure: "activationOrder" },
+        "a",
+      ),
+    ).toEqual([]);
+    expect(
+      validateAttachmentHost({ kind: "superlative", among: "minion", order: "lowest", measure: "remainingHp" }, "a"),
+    ).toEqual([]);
+    expect(
+      validateAttachmentHost({ kind: "superlative", among: "ally", order: "highest", measure: "bulk" as never }, "a"),
+    ).not.toEqual([]);
   });
 });
 
@@ -103,7 +127,10 @@ describe("§7.3 a title substring qualifier", () => {
 
   it("works on a superlative host too, since both share HostQualifiers", () => {
     expect(
-      validateAttachmentHost({ kind: "superlative", among: "ally", order: "highest", measure: "printedCost", titleContains: "Spider" }, "a"),
+      validateAttachmentHost(
+        { kind: "superlative", among: "ally", order: "highest", measure: "printedCost", titleContains: "Spider" },
+        "a",
+      ),
     ).toEqual([]);
   });
 });
@@ -127,18 +154,29 @@ describe("§7.5 the Fear No Evil keywords", () => {
 
   it("Prerequisite names a form, or an OR of traits, and needs at least one", () => {
     // Defend Our City (jj 61029): "Prerequisite ([Defender])."
-    const card = upgrade("61029", "jj", "Defend Our City", { kind: "yourIdentity" }, [{ name: "prerequisite", traits: [DEFENDER] }]);
+    const card = upgrade("61029", "jj", "Defend Our City", { kind: "yourIdentity" }, [
+      { name: "prerequisite", traits: [DEFENDER] },
+    ]);
     expect(validateCard(card).errors).toEqual([]);
-    expect(validateCard(upgrade("61029b", "jj", "Form Only", { kind: "yourIdentity" }, [{ name: "prerequisite", form: "hero" }])).errors).toEqual([]);
-    expect(validateCard(upgrade("61029c", "jj", "Neither", { kind: "yourIdentity" }, [{ name: "prerequisite" }])).errors).not.toEqual([]);
     expect(
-      validateCard(upgrade("61029d", "jj", "Empty", { kind: "yourIdentity" }, [{ name: "prerequisite", traits: [] }])).errors,
+      validateCard(
+        upgrade("61029b", "jj", "Form Only", { kind: "yourIdentity" }, [{ name: "prerequisite", form: "hero" }]),
+      ).errors,
+    ).toEqual([]);
+    expect(
+      validateCard(upgrade("61029c", "jj", "Neither", { kind: "yourIdentity" }, [{ name: "prerequisite" }])).errors,
+    ).not.toEqual([]);
+    expect(
+      validateCard(upgrade("61029d", "jj", "Empty", { kind: "yourIdentity" }, [{ name: "prerequisite", traits: [] }]))
+        .errors,
     ).not.toEqual([]);
   });
 
   it("Starting takes no parameters", () => {
     // Innate Reflexes (fne 60038): "Starting. (You may add this card to your hand before drawing your starting hand.)"
-    const card = upgrade("60038", "fne", "Innate Reflexes", { kind: "yourIdentity", form: "hero" }, [{ name: "starting" }]);
+    const card = upgrade("60038", "fne", "Innate Reflexes", { kind: "yourIdentity", form: "hero" }, [
+      { name: "starting" },
+    ]);
     expect(validateCard(card).errors).toEqual([]);
   });
 
@@ -154,9 +192,15 @@ describe("§7.5 the Fear No Evil keywords", () => {
 });
 
 describe("§11 the requests still open after §7", () => {
-  it("§11.1 `HostMeasure \"thw\"` ranks the ally pool by current THW (Possessed, storm 36038)", () => {
+  it('§11.1 `HostMeasure "thw"` ranks the ally pool by current THW (Possessed, storm 36038)', () => {
     // "Attach to the ally with the lowest THW without Possessed attached."
-    const host: AttachmentHost = { kind: "superlative", among: "ally", order: "lowest", measure: "thw", withoutAttachmentNamed: "Possessed" };
+    const host: AttachmentHost = {
+      kind: "superlative",
+      among: "ally",
+      order: "lowest",
+      measure: "thw",
+      withoutAttachmentNamed: "Possessed",
+    };
     expect(validateAttachmentHost(host, "attachment")).toEqual([]);
     expect(validateAttachmentHost({ ...host, measure: "printedThw" as never }, "attachment")).not.toEqual([]);
   });
@@ -195,7 +239,10 @@ describe("§11 the requests still open after §7", () => {
     expect(validateCard(headless).errors).not.toEqual([]);
     const mismatched: VillainCard = {
       ...collector,
-      sides: [collector.sides[0]!, { side: "B", name: "Collector", stages: [{ ...stage(true), hp: { base: 99, perPlayer: 0 } }] }],
+      sides: [
+        collector.sides[0]!,
+        { side: "B", name: "Collector", stages: [{ ...stage(true), hp: { base: 99, perPlayer: 0 } }] },
+      ],
     };
     expect(validateCard(mismatched).errors).not.toEqual([]);
   });
@@ -289,8 +336,26 @@ describe("§15 an identity's encounter-backed separate deck (Hercules's Labor de
     quantityInSet: 1,
     unique: true,
     hp: 14,
-    hero: { faceName: "Hercules", atk: 3, thw: 1, def: 2, handSize: 5, keywords: [], traits: [trait("Avenger")], text: text("Atonement — Response: …"), abilities: [] },
-    alterEgo: { faceName: "Hercules", rec: 4, handSize: 6, keywords: [], traits: [], text: text("Hercules begins the game with a labor deck and a gift deck. (See insert.)"), abilities: [] },
+    hero: {
+      faceName: "Hercules",
+      atk: 3,
+      thw: 1,
+      def: 2,
+      handSize: 5,
+      keywords: [],
+      traits: [trait("Avenger")],
+      text: text("Atonement — Response: …"),
+      abilities: [],
+    },
+    alterEgo: {
+      faceName: "Hercules",
+      rec: 4,
+      handSize: 6,
+      keywords: [],
+      traits: [],
+      text: text("Hercules begins the game with a labor deck and a gift deck. (See insert.)"),
+      abilities: [],
+    },
     obligationCardId: cardId("59018"),
     nemesisEncounterSetId: encounterSetId("hercules_nemesis"),
     separateDecks: [
@@ -325,8 +390,16 @@ describe("§15 an identity's encounter-backed separate deck (Hercules's Labor de
   it("refuses a deck with no discard pile that reshuffles one, and an unknown card family", () => {
     const [laborDeck, giftDeck] = hercules.separateDecks ?? [];
     if (!laborDeck || !giftDeck) throw new Error("fixture has two decks");
-    expect(validateCard({ ...hercules, separateDecks: [{ ...laborDeck, whenEmpty: "reshuffleDiscardWithoutPenalty" }, giftDeck] }).valid).toBe(false);
-    const oddFamily = { ...hercules, separateDecks: [{ ...laborDeck, cardFamily: "villain" }, giftDeck] } as unknown as HeroIdentityCard;
+    expect(
+      validateCard({
+        ...hercules,
+        separateDecks: [{ ...laborDeck, whenEmpty: "reshuffleDiscardWithoutPenalty" }, giftDeck],
+      }).valid,
+    ).toBe(false);
+    const oddFamily = {
+      ...hercules,
+      separateDecks: [{ ...laborDeck, cardFamily: "villain" }, giftDeck],
+    } as unknown as HeroIdentityCard;
     expect(validateCard(oddFamily).valid).toBe(false);
   });
 });

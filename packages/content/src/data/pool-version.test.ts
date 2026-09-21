@@ -38,7 +38,7 @@ describe("poolVersionOf", () => {
   test("does not depend on a card's own key order", () => {
     const a: AnyCard = stub();
     // Same data, reconstructed with keys inserted in a different order.
-    const reordered = Object.fromEntries([...Object.entries(a)].reverse()) as unknown as AnyCard;
+    const reordered = Object.fromEntries(Object.entries(a).reverse()) as unknown as AnyCard;
     expect(poolVersionOf([a])).toBe(poolVersionOf([reordered]));
   });
 

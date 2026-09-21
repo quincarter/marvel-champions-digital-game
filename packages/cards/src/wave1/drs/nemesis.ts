@@ -34,7 +34,8 @@ import {
 import { candidateSlot, printedCostOf, superlativeAmong } from "./local.js";
 
 /** See `kit.ts`'s `milled` — the same "printed-resource branch" shape, reused here for Baron Mordo. */
-const mordoHas = (type: "physical" | "energy" | "mental") => anyOf(varAtLeast(`mordo.${type}`), varAtLeast("mordo.wild"));
+const mordoHas = (type: "physical" | "energy" | "mental") =>
+  anyOf(varAtLeast(`mordo.${type}`), varAtLeast("mordo.wild"));
 
 /**
  * "Discard a card from your hand with the highest cost" (Thoughtcasting, both halves): bind every hand card, break
@@ -118,6 +119,12 @@ export const DRS_NEMESIS = defineAbilities({
   // Thoughtcasting — When Revealed (Alter-Ego): Discard a card from your hand with the highest cost. Place threat
   // on the main scheme equal to the printed cost of that card. When Revealed (Hero): Discard a card from your hand
   // with the highest cost. Take damage equal to the printed cost of that card.
-  "09031.when-revealed-alter-ego": whenRevealedAlterEgo(...discardHighestCostCard("discarded"), placeThreat(printedCostOf(chosen("discarded")), theMainScheme)),
-  "09031.when-revealed-hero": whenRevealedHero(...discardHighestCostCard("discarded"), takeDamage(printedCostOf(chosen("discarded")))),
+  "09031.when-revealed-alter-ego": whenRevealedAlterEgo(
+    ...discardHighestCostCard("discarded"),
+    placeThreat(printedCostOf(chosen("discarded")), theMainScheme),
+  ),
+  "09031.when-revealed-hero": whenRevealedHero(
+    ...discardHighestCostCard("discarded"),
+    takeDamage(printedCostOf(chosen("discarded"))),
+  ),
 });

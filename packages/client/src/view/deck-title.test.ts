@@ -26,7 +26,12 @@ describe("cardTitleOf / deckMetaLine: Decks & Collection and Deck check read a d
   });
 
   test("a saved deck's title is simply its own name, and the meta line names its source", () => {
-    const saved: Deck = { ...precon, id: "userdeck:1" as Deck["id"], name: "My Spidey deck", source: { kind: "userBuilt", createdAt: "2026-01-01T00:00:00.000Z" } };
+    const saved: Deck = {
+      ...precon,
+      id: "userdeck:1" as Deck["id"],
+      name: "My Spidey deck",
+      source: { kind: "userBuilt", createdAt: "2026-01-01T00:00:00.000Z" },
+    };
     const option = deckOptionOf(saved, POOL_CARDS, POOL_VERSION, POOL_DEPS);
     expect(cardTitleOf(option)).toBe("My Spidey deck");
     expect(deckMetaLine(option, POOL_CARDS)).toMatch(/· built$/);

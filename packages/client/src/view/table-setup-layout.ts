@@ -195,7 +195,13 @@ function modularColumnsFor(width: number): number {
 }
 
 /** Shrinks `rowCounts` (in place, by index) one row at a time — always from whichever budget is currently largest — until their combined height (`rowCounts.reduce + headers*eachHeaderHeight`) fits `maxHeight`, or every budget has hit `floor`. Mirrors the single-panel version this module used before the correction, generalized to more than one panel at once so no one panel is starved while another still has rows to give up. */
-function trimRowBudgets(rowCounts: number[], rowHeight: number, floor: number, fixedHeight: number, maxHeight: number): void {
+function trimRowBudgets(
+  rowCounts: number[],
+  rowHeight: number,
+  floor: number,
+  fixedHeight: number,
+  maxHeight: number,
+): void {
   const totalHeight = (): number => fixedHeight + rowCounts.reduce((sum, n) => sum + n * rowHeight, 0);
   while (totalHeight() > maxHeight && rowCounts.some((n) => n > floor)) {
     let maxIndex = 0;
@@ -212,11 +218,21 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   const backWidth = 90;
   const stepWidth = Math.min(160, Math.max(90, width * 0.28));
   const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
-  const step: Rect = { x: width - headerPad - stepWidth, y: (HEADER_HEIGHT - hit.target) / 2, width: stepWidth, height: hit.target };
+  const step: Rect = {
+    x: width - headerPad - stepWidth,
+    y: (HEADER_HEIGHT - hit.target) / 2,
+    width: stepWidth,
+    height: hit.target,
+  };
 
   const bodyTop = HEADER_HEIGHT + GUTTER;
   const bodyBottom = height - GUTTER;
-  const sidebar: Rect = { x: width - GUTTER - SIDEBAR_WIDTH, y: bodyTop, width: SIDEBAR_WIDTH, height: bodyBottom - bodyTop };
+  const sidebar: Rect = {
+    x: width - GUTTER - SIDEBAR_WIDTH,
+    y: bodyTop,
+    width: SIDEBAR_WIDTH,
+    height: bodyBottom - bodyTop,
+  };
   const bodyLeft = GUTTER;
   const bodyWidth = sidebar.x - GUTTER - bodyLeft;
 
@@ -230,12 +246,22 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   y += SECTION_HEADER_HEIGHT + 8;
   const modularColumns = modularColumnsFor(bodyWidth);
   const modularRows = Math.max(1, Math.ceil(input.modularCardCount / modularColumns));
-  const modularGrid: Rect = { x: bodyLeft, y, width: bodyWidth, height: modularRows * MODULAR_CARD_HEIGHT + (modularRows - 1) * ROW_GAP };
+  const modularGrid: Rect = {
+    x: bodyLeft,
+    y,
+    width: bodyWidth,
+    height: modularRows * MODULAR_CARD_HEIGHT + (modularRows - 1) * ROW_GAP,
+  };
   y += modularGrid.height + SECTION_GAP;
 
   const randomWidth = 90;
   const seatingHeader: Rect = { x: bodyLeft, y, width: bodyWidth - randomWidth - 10, height: SECTION_HEADER_HEIGHT };
-  const randomControl: Rect = { x: bodyLeft + bodyWidth - randomWidth, y, width: randomWidth, height: SECTION_HEADER_HEIGHT };
+  const randomControl: Rect = {
+    x: bodyLeft + bodyWidth - randomWidth,
+    y,
+    width: randomWidth,
+    height: SECTION_HEADER_HEIGHT,
+  };
   y += SECTION_HEADER_HEIGHT + 8;
   const seatingRow: Rect = { x: bodyLeft, y, width: bodyWidth, height: SEAT_CARD_HEIGHT };
   y += SEAT_CARD_HEIGHT + SECTION_GAP;
@@ -247,10 +273,24 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   const panelGap = 16;
   const panelWidth = (bodyWidth - panelGap * 2) / 3;
   const composition: Rect = { x: bodyLeft, y: panelsTop, width: panelWidth, height: panelsHeight };
-  const whatsInThere: Rect = { x: bodyLeft + panelWidth + panelGap, y: panelsTop, width: panelWidth, height: panelsHeight };
-  const nemesis: Rect = { x: bodyLeft + (panelWidth + panelGap) * 2, y: panelsTop, width: panelWidth, height: panelsHeight };
+  const whatsInThere: Rect = {
+    x: bodyLeft + panelWidth + panelGap,
+    y: panelsTop,
+    width: panelWidth,
+    height: panelsHeight,
+  };
+  const nemesis: Rect = {
+    x: bodyLeft + (panelWidth + panelGap) * 2,
+    y: panelsTop,
+    width: panelWidth,
+    height: panelsHeight,
+  };
   const bodyRows = Math.max(0, Math.floor((panelsHeight - PANEL_HEADER_HEIGHT - PANEL_PAD) / PANEL_ROW_HEIGHT));
-  const rowBudgets: readonly [number, number, number] = [Math.min(bodyRows, input.compositionRows), Math.min(bodyRows, input.whatsInThereRows), Math.min(bodyRows, input.nemesisLines)];
+  const rowBudgets: readonly [number, number, number] = [
+    Math.min(bodyRows, input.compositionRows),
+    Math.min(bodyRows, input.whatsInThereRows),
+    Math.min(bodyRows, input.nemesisLines),
+  ];
 
   // Sidebar content.
   const inset = 16;
@@ -267,7 +307,12 @@ function wideLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Table
   const seed: Rect = { x: sLeft, y: sy, width: seedWidth, height: hit.target };
   const reroll: Rect = { x: sLeft + seedWidth + 10, y: sy, width: rerollWidth, height: hit.target };
   sy += hit.target + 6;
-  const dealItOut: Rect = { x: sLeft, y: sidebar.y + sidebar.height - inset - hit.primary, width: sWidth, height: hit.primary };
+  const dealItOut: Rect = {
+    x: sLeft,
+    y: sidebar.y + sidebar.height - inset - hit.primary,
+    width: sWidth,
+    height: hit.primary,
+  };
   const seedHelperHeight = Math.max(0, dealItOut.y - 6 - sy);
   const seedHelper: Rect = { x: sLeft, y: sy, width: sWidth, height: seedHelperHeight };
 
@@ -310,7 +355,12 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   const backWidth = 70;
   const stepWidth = Math.min(120, Math.max(70, width * 0.26));
   const back: Rect = { x: headerPad, y: (HEADER_HEIGHT - hit.target) / 2, width: backWidth, height: hit.target };
-  const step: Rect = { x: width - headerPad - stepWidth, y: (HEADER_HEIGHT - hit.target) / 2, width: stepWidth, height: hit.target };
+  const step: Rect = {
+    x: width - headerPad - stepWidth,
+    y: (HEADER_HEIGHT - hit.target) / 2,
+    width: stepWidth,
+    height: hit.target,
+  };
 
   const left = pad;
   const column = width - pad * 2;
@@ -329,7 +379,12 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   y += SECTION_HEADER_HEIGHT + 6;
   const modularColumns = modularColumnsFor(column);
   const modularRows = Math.max(1, Math.ceil(input.modularCardCount / modularColumns));
-  const modularGrid: Rect = { x: left, y, width: column, height: modularRows * NARROW_MODULAR_CARD_HEIGHT + (modularRows - 1) * NARROW_MODULAR_GRID_GAP };
+  const modularGrid: Rect = {
+    x: left,
+    y,
+    width: column,
+    height: modularRows * NARROW_MODULAR_CARD_HEIGHT + (modularRows - 1) * NARROW_MODULAR_GRID_GAP,
+  };
   y += modularGrid.height + gap;
 
   // Seating: one horizontal row (P12's own "FIRST PLAYER" row), Random as the row's own extra dashed cell — no
@@ -368,8 +423,16 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   const gameSummaryHeader: Rect = { x: left, y: mandatoryBottom, width: column, height: SECTION_HEADER_HEIGHT };
   const summaryCap = Math.max(0, roomAbove - gap - encounterFloor);
   const summaryRoomLeft = Math.max(0, summaryCap - SECTION_HEADER_HEIGHT - 6);
-  const summaryRowsAvailable = Math.max(0, Math.min(GAME_SUMMARY_ROW_COUNT, Math.floor((summaryRoomLeft - 1 - 6) / PANEL_ROW_HEIGHT)));
-  const gameSummaryRows: Rect = { x: left, y: mandatoryBottom + SECTION_HEADER_HEIGHT + 6, width: column, height: summaryRowsAvailable * PANEL_ROW_HEIGHT };
+  const summaryRowsAvailable = Math.max(
+    0,
+    Math.min(GAME_SUMMARY_ROW_COUNT, Math.floor((summaryRoomLeft - 1 - 6) / PANEL_ROW_HEIGHT)),
+  );
+  const gameSummaryRows: Rect = {
+    x: left,
+    y: mandatoryBottom + SECTION_HEADER_HEIGHT + 6,
+    width: column,
+    height: summaryRowsAvailable * PANEL_ROW_HEIGHT,
+  };
   const rule: Rect = { x: left, y: gameSummaryRows.y + gameSummaryRows.height + 6, width: column, height: 1 };
 
   const encounterTop = rule.y + rule.height + gap;
@@ -425,7 +488,8 @@ function narrowLayout(input: TableSetupLayoutInput, formFactor: FormFactor): Tab
   // A zero-height rect still registers as "overlapping" (`rectsOverlap`'s own strict inequalities) anything whose
   // y-range it sits strictly inside, so a collapsed rect's `y` is pulled back to `limit` too, not left wherever
   // the sequential flow originally put it — a point exactly at another rect's own edge never overlaps it.
-  const clampBottom = (r: Rect): Rect => (r.y >= limit ? { ...r, y: limit, height: 0 } : r.y + r.height > limit ? { ...r, height: limit - r.y } : r);
+  const clampBottom = (r: Rect): Rect =>
+    r.y >= limit ? { ...r, y: limit, height: 0 } : r.y + r.height > limit ? { ...r, height: limit - r.y } : r;
 
   return {
     formFactor,
@@ -594,7 +658,12 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
   const column = width - pad * 2;
 
   const headerBar: Rect = { x: 0, y: 0, width, height: HEADER_HEIGHT };
-  const back: Rect = { x: 12, y: (HEADER_HEIGHT - COMPACT_BACK_SIZE) / 2, width: COMPACT_BACK_SIZE, height: COMPACT_BACK_SIZE };
+  const back: Rect = {
+    x: 12,
+    y: (HEADER_HEIGHT - COMPACT_BACK_SIZE) / 2,
+    width: COMPACT_BACK_SIZE,
+    height: COMPACT_BACK_SIZE,
+  };
   const stepWidth = 40;
   const step: Rect = { x: width - 12 - stepWidth, y: (HEADER_HEIGHT - 24) / 2, width: stepWidth, height: 24 };
 
@@ -605,7 +674,12 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
   const footerHeight = footerPadV * 2 + footerSummaryHeight + footerGap + dealItOutHeight;
   const footer: Rect = { x: 0, y: height - footerHeight, width, height: footerHeight };
   const footerSummary: Rect = { x: pad, y: footer.y + footerPadV, width: column, height: footerSummaryHeight };
-  const dealItOut: Rect = { x: pad, y: footerSummary.y + footerSummaryHeight + footerGap, width: column, height: dealItOutHeight };
+  const dealItOut: Rect = {
+    x: pad,
+    y: footerSummary.y + footerSummaryHeight + footerGap,
+    width: column,
+    height: dealItOutHeight,
+  };
 
   const viewport: Rect = { x: 0, y: headerBar.height, width, height: footer.y - headerBar.height };
 
@@ -615,16 +689,24 @@ export function tableSetupCompactLayout(input: TableSetupCompactLayoutInput): Ta
   rows.push({ id: "spacer:top", height: COMPACT_CONTENT_PAD_TOP });
   rows.push({ id: "header:difficulty", height: COMPACT_HEADER_ROW_HEIGHT });
   rows.push({ id: "difficulty", height: COMPACT_DIFFICULTY_ROW_HEIGHT + COMPACT_ROW_GAP });
-  rows.push({ id: "header:modular", height: (modularHeaderStacked ? COMPACT_HEADER_ROW_HEIGHT_STACKED : COMPACT_HEADER_ROW_HEIGHT) });
-  for (const id of input.requiredModularIds) rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
-  for (const id of input.candidateModularIds) rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
+  rows.push({
+    id: "header:modular",
+    height: modularHeaderStacked ? COMPACT_HEADER_ROW_HEIGHT_STACKED : COMPACT_HEADER_ROW_HEIGHT,
+  });
+  for (const id of input.requiredModularIds)
+    rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
+  for (const id of input.candidateModularIds)
+    rows.push({ id: `modular:${id}`, height: COMPACT_MODULAR_ROW_HEIGHT + COMPACT_ROW_GAP });
   rows.push({ id: "header:firstPlayer", height: COMPACT_HEADER_ROW_HEIGHT });
   rows.push({ id: "firstPlayer", height: COMPACT_FIRST_PLAYER_ROW_HEIGHT + COMPACT_ROW_GAP });
   rows.push({ id: "header:seed", height: COMPACT_HEADER_ROW_HEIGHT });
   rows.push({ id: "seed", height: COMPACT_SEED_ROW_HEIGHT + COMPACT_ROW_GAP });
   rows.push({ id: "header:encounter", height: COMPACT_HEADER_ROW_HEIGHT });
   const encounterRowCount = input.compositionRows + input.whatsInThereRows + (input.hasNemesisStandby ? 1 : 0);
-  const encounterPanelHeight = PANEL_PAD * 2 + Math.max(1, encounterRowCount) * PANEL_ROW_HEIGHT + (input.compositionRows > 0 && input.whatsInThereRows > 0 ? 6 : 0);
+  const encounterPanelHeight =
+    PANEL_PAD * 2 +
+    Math.max(1, encounterRowCount) * PANEL_ROW_HEIGHT +
+    (input.compositionRows > 0 && input.whatsInThereRows > 0 ? 6 : 0);
   rows.push({ id: "encounterPanel", height: encounterPanelHeight });
   rows.push({ id: "spacer:bottom", height: COMPACT_CONTENT_PAD_BOTTOM });
 

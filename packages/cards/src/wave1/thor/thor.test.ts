@@ -1,7 +1,13 @@
-import { activeEncounterDeck, activeVillain, applyCommand, characterProfile, remainingHitPoints, traitsOf } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  activeVillain,
+  applyCommand,
+  characterProfile,
+  remainingHitPoints,
+  traitsOf,
+} from "@mc/engine";
 import {
   answer,
-  endTurn,
   firstLegal,
   identityOf,
   inst,
@@ -25,7 +31,8 @@ import { wave1Scenario } from "../setup.js";
 import { runThor, stackFromSetAside, startThorGame, THOR_DEPS } from "./testing.js";
 
 // Real wave 1 content: the Thor (Aggression) precon against Rhino, standard, solo.
-const thorVsRhino = (seed = 11) => startThorGame(wave1Scenario("rhino", { players: [{ starterDeckId: "thor-aggression" }], seed }));
+const thorVsRhino = (seed = 11) =>
+  startThorGame(wave1Scenario("rhino", { players: [{ starterDeckId: "thor-aggression" }], seed }));
 
 describe("Thor kit", () => {
   it('"Have at thee!": draws 2 cards after you engage a minion (limit once per phase)', () => {
@@ -112,7 +119,10 @@ describe("Thor kit", () => {
     const inPlay = runThor(hero, play(P1, mjolnir, payWith(hero, P1, 1, [mjolnir, throwCard])));
     const villain = activeVillain(inPlay).instanceId;
     const hpBefore = remainingHitPoints(inPlay, villain, THOR_DEPS);
-    const played = runThor(inPlay, play(P1, throwCard, payWith(inPlay, P1, 3, [throwCard, mjolnir]), { costChoices: { exhausted: [mjolnir] } }));
+    const played = runThor(
+      inPlay,
+      play(P1, throwCard, payWith(inPlay, P1, 3, [throwCard, mjolnir]), { costChoices: { exhausted: [mjolnir] } }),
+    );
     const after = settle(played, firstLegal, undefined, THOR_DEPS);
     expect(remainingHitPoints(after, villain, THOR_DEPS)).toBe(hpBefore! - 8);
     expect(playerOf(after, P1).hand).toContain(mjolnir);

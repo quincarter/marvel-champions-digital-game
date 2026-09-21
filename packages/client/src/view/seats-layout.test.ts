@@ -1,6 +1,13 @@
 import { describe, expect, test } from "vitest";
 import { rectsOverlap } from "./layout.js";
-import { MAX_SEATS, NARROW_SHELVES_MIN_HEIGHT, SEAT_CHIP_HEIGHT, SEAT_SLOT_HEIGHT, seatsLayout, seatsLayoutRects } from "./seats-layout.js";
+import {
+  MAX_SEATS,
+  NARROW_SHELVES_MIN_HEIGHT,
+  SEAT_CHIP_HEIGHT,
+  SEAT_SLOT_HEIGHT,
+  seatsLayout,
+  seatsLayoutRects,
+} from "./seats-layout.js";
 
 const SIZES: readonly { readonly width: number; readonly height: number }[] = [
   { width: 390, height: 844 }, // phone
@@ -62,10 +69,14 @@ describe("seatsLayout", () => {
   test("narrow: the chips are one scrolling row regardless of how many rows they would wrap to; wide wraps them", () => {
     const narrow = seatsLayout({ width: 390, height: 844, chipRows: 3, detailLines: 4 });
     expect(narrow.chipsScroll).toBe(true);
-    expect(narrow.chips.height).toBe(seatsLayout({ width: 390, height: 844, chipRows: 1, detailLines: 4 }).chips.height);
+    expect(narrow.chips.height).toBe(
+      seatsLayout({ width: 390, height: 844, chipRows: 1, detailLines: 4 }).chips.height,
+    );
     const wide = seatsLayout({ width: 1440, height: 900, chipRows: 2, detailLines: 4 });
     expect(wide.chipsScroll).toBe(false);
-    expect(wide.chips.height).toBeGreaterThan(seatsLayout({ width: 1440, height: 900, chipRows: 1, detailLines: 4 }).chips.height);
+    expect(wide.chips.height).toBeGreaterThan(
+      seatsLayout({ width: 1440, height: 900, chipRows: 1, detailLines: 4 }).chips.height,
+    );
   });
 
   test("narrow: no detail panel; the seat summary line and its 'Clear seat' control sit under the seat chips, above the roster header", () => {
@@ -77,8 +88,13 @@ describe("seatsLayout", () => {
     expect(layout.seatSummary!.y + layout.seatSummary!.height).toBeLessThanOrEqual(layout.rosterHeader.y);
     // Clear seat is inside the summary row, right-aligned, and a full touch target.
     expect(layout.clearSeat!.y).toBeGreaterThanOrEqual(layout.seatSummary!.y);
-    expect(layout.clearSeat!.y + layout.clearSeat!.height).toBeLessThanOrEqual(layout.seatSummary!.y + layout.seatSummary!.height);
-    expect(layout.clearSeat!.x + layout.clearSeat!.width).toBeCloseTo(layout.seatSummary!.x + layout.seatSummary!.width, 0);
+    expect(layout.clearSeat!.y + layout.clearSeat!.height).toBeLessThanOrEqual(
+      layout.seatSummary!.y + layout.seatSummary!.height,
+    );
+    expect(layout.clearSeat!.x + layout.clearSeat!.width).toBeCloseTo(
+      layout.seatSummary!.x + layout.seatSummary!.width,
+      0,
+    );
     expect(layout.clearSeat!.height).toBeGreaterThanOrEqual(44);
     // Wide has the panel and none of the narrow-only pieces.
     const wide = seatsLayout({ width: 1440, height: 900, chipRows: 2, detailLines: 4 });
@@ -147,7 +163,9 @@ describe("seatsLayout", () => {
   });
 
   test("the shelves viewport never collapses, even with a long detail panel or a short viewport", () => {
-    expect(seatsLayout({ width: 400, height: 700, chipRows: 2, detailLines: 40 }).shelves.height).toBeGreaterThanOrEqual(NARROW_SHELVES_MIN_HEIGHT);
+    expect(
+      seatsLayout({ width: 400, height: 700, chipRows: 2, detailLines: 40 }).shelves.height,
+    ).toBeGreaterThanOrEqual(NARROW_SHELVES_MIN_HEIGHT);
     expect(seatsLayout({ width: 1024, height: 768, chipRows: 3, detailLines: 40 }).shelves.height).toBeGreaterThan(0);
   });
 
@@ -156,7 +174,10 @@ describe("seatsLayout", () => {
       const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 6 });
       expect(layout.usePreconstructed.y).toBe(layout.rosterHeader.y);
       expect(layout.usePreconstructed.height).toBe(layout.rosterHeader.height);
-      expect(layout.usePreconstructed.x + layout.usePreconstructed.width).toBeCloseTo(layout.rosterHeader.x + layout.rosterHeader.width, 0);
+      expect(layout.usePreconstructed.x + layout.usePreconstructed.width).toBeCloseTo(
+        layout.rosterHeader.x + layout.rosterHeader.width,
+        0,
+      );
       expect(layout.usePreconstructed.width).toBeLessThan(layout.rosterHeader.width);
       expect(layout.rosterHeader.y + layout.rosterHeader.height).toBeLessThanOrEqual(layout.search.y);
     }

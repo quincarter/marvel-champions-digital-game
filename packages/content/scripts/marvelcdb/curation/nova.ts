@@ -13,7 +13,8 @@ export const NOVA_CURATION: PackCuration = {
   pack: {
     name: "Nova",
     releaseDate: "2022-05-20",
-    releaseDateSource: 'Hall of Heroes Sam Alexander/Nova page (https://hallofheroeslcg.com/sam-alexander-nova/): "Release date: May 20, 2022"',
+    releaseDateSource:
+      'Hall of Heroes Sam Alexander/Nova page (https://hallofheroeslcg.com/sam-alexander-nova/): "Release date: May 20, 2022"',
   },
   outDir: "src/data/nova",
   exportPrefix: "NOVA",

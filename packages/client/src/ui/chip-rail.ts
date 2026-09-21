@@ -107,7 +107,12 @@ export class McChipRail {
 
   /** Where chip `index` sits on screen right now — for focus rings. */
   rectFor(index: number): Rect {
-    return { x: this.#rect.x + (this.#offsets[index] ?? 0) - this.#scroll.offsetPx, y: this.#rect.y, width: this.#widths[index] ?? 0, height: this.#rect.height };
+    return {
+      x: this.#rect.x + (this.#offsets[index] ?? 0) - this.#scroll.offsetPx,
+      y: this.#rect.y,
+      width: this.#widths[index] ?? 0,
+      height: this.#rect.height,
+    };
   }
 
   /** Scrolls the minimum distance so chip `index` is fully visible — `FocusStop.ensureVisible`. */
@@ -133,7 +138,10 @@ export class McChipRail {
   }
 
   #layoutMask(): void {
-    this.#maskShape.clear().fillStyle(0xffffff).fillRect(this.#rect.x, this.#rect.y, this.#rect.width, this.#rect.height);
+    this.#maskShape
+      .clear()
+      .fillStyle(0xffffff)
+      .fillRect(this.#rect.x, this.#rect.y, this.#rect.width, this.#rect.height);
   }
 
   #redraw(): void {

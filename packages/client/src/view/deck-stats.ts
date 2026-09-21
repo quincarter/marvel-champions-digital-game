@@ -32,7 +32,7 @@
  *   checks this holds for Doctor Strange's real precon rather than trusting
  *   the comment alone.
  */
-import type { CardId, CardType, CoreAspect, Deck, DeckCardEntry } from "@mc/content";
+import type { CardId, CoreAspect, Deck, DeckCardEntry } from "@mc/content";
 import type { CardPool } from "@mc/engine";
 
 /** The card types that can appear in a player deck (`Deck.cards`) — never `hero_identity` or any encounter/villain type. */
@@ -88,7 +88,14 @@ const emptyAspectCounts = (): { -readonly [K in keyof DeckAspectCounts]: number 
   hero: 0,
 });
 
-const CORE_ASPECTS: ReadonlySet<CoreAspect> = new Set<CoreAspect>(["aggression", "justice", "leadership", "protection", "basic", "pool"]);
+const CORE_ASPECTS: ReadonlySet<CoreAspect> = new Set<CoreAspect>([
+  "aggression",
+  "justice",
+  "leadership",
+  "protection",
+  "basic",
+  "pool",
+]);
 
 /** `deck`'s stats against `pool` — a real card pool (a list, or `GameState.cardPool`-shaped record). */
 export function deckStatsOf(deck: Pick<Deck, "cards">, pool: CardPool): DeckStats {
@@ -126,9 +133,7 @@ export function deckStatsOf(deck: Pick<Deck, "cards">, pool: CardPool): DeckStat
     }
   }
 
-  const costCurve = [...costCounts.entries()]
-    .map(([cost, count]) => ({ cost, count }))
-    .sort((a, b) => a.cost - b.cost);
+  const costCurve = [...costCounts.entries()].map(([cost, count]) => ({ cost, count })).sort((a, b) => a.cost - b.cost);
 
   return {
     totalCards,
@@ -154,7 +159,10 @@ export interface CostCurveBar {
  * every design canvas draws it.
  */
 export function costCurveBars(stats: DeckStats, capAt = 4): readonly CostCurveBar[] {
-  const bars: { label: string; count: number }[] = Array.from({ length: capAt }, (_unused, cost) => ({ label: String(cost), count: 0 }));
+  const bars: { label: string; count: number }[] = Array.from({ length: capAt }, (_unused, cost) => ({
+    label: String(cost),
+    count: 0,
+  }));
   let overflow = 0;
   for (const bucket of stats.costCurve) {
     if (bucket.cost < capAt) bars[bucket.cost]!.count += bucket.count;
@@ -246,7 +254,10 @@ export function deckListGroupsOf(deck: Pick<Deck, "cards">, pool: CardPool): rea
   }
 
   return GROUP_ORDER.filter(({ key }) => buckets.has(key)).map(({ key, label }) => {
-    const entries = buckets.get(key)!.slice().sort((a, b) => a.name.localeCompare(b.name));
+    const entries = buckets
+      .get(key)!
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
     return { key, label, count: entries.reduce((sum, e) => sum + e.quantity, 0), entries };
   });
 }
@@ -259,7 +270,10 @@ export function deckListGroupsOf(deck: Pick<Deck, "cards">, pool: CardPool): rea
  * kept group's own `count` is recomputed from the entries actually kept, so a group header never claims a quantity
  * the filtered grid doesn't back up.
  */
-export function filterDeckListGroups(groups: readonly DeckListGroup[], type: PlayerCardType | null): readonly DeckListGroup[] {
+export function filterDeckListGroups(
+  groups: readonly DeckListGroup[],
+  type: PlayerCardType | null,
+): readonly DeckListGroup[] {
   if (type === null) return groups;
   return groups
     .map((group) => ({ ...group, entries: group.entries.filter((entry) => entry.type === type) }))

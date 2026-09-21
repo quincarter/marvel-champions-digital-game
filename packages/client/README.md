@@ -1,7 +1,7 @@
 # `@mc/client`
 
-The player-facing client: a 2D tabletop-style board in the mold of *Sentinels of
-the Multiverse*, drawn entirely in **Phaser 4** with **Vite**. There is no DOM UI
+The player-facing client: a 2D tabletop-style board in the mold of _Sentinels of
+the Multiverse_, drawn entirely in **Phaser 4** with **Vite**. There is no DOM UI
 framework — Phaser draws every screen, the table and every overlay.
 
 Run it:
@@ -97,7 +97,7 @@ display list, or fire a widget's `pointerup` directly:
 
 ```js
 const board = window.__mcGame.scene.getScene("Board");
-board.children.list.filter(o => o.type === "Text").map(o => o.text);
+board.children.list.filter((o) => o.type === "Text").map((o) => o.text);
 ```
 
 That last trick matters: a WebGL canvas does not always screenshot cleanly right

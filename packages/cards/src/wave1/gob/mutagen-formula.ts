@@ -78,13 +78,31 @@ const GOBLIN_MINION = query(["minion"], { trait: GOBLIN_TRAIT });
  */
 export const MUTAGEN_FORMULA = defineAbilities({
   // Green Goblin (I) — [star] Forced Response: After Green Goblin attacks and damages you, place 1 threat on the main scheme.
-  "02014.green-goblin-forced-response": forcedResponse(after.villainAttacks({ againstYou: true, damages: true }), placeThreat(1, theMainScheme)),
+  "02014.green-goblin-forced-response": forcedResponse(
+    after.villainAttacks({ againstYou: true, damages: true }),
+    placeThreat(1, theMainScheme),
+  ),
   // Green Goblin (II) — When Revealed: Deal 2 encounter cards to each player. Same Forced Response as (I).
-  "02015.when-revealed": whenRevealed(forEachPlayer(eachPlayer, dealEncounterCard(thatPlayer), dealEncounterCard(thatPlayer))),
-  "02015.green-goblin-forced-response": forcedResponse(after.villainAttacks({ againstYou: true, damages: true }), placeThreat(1, theMainScheme)),
+  "02015.when-revealed": whenRevealed(
+    forEachPlayer(eachPlayer, dealEncounterCard(thatPlayer), dealEncounterCard(thatPlayer)),
+  ),
+  "02015.green-goblin-forced-response": forcedResponse(
+    after.villainAttacks({ againstYou: true, damages: true }),
+    placeThreat(1, theMainScheme),
+  ),
   // Green Goblin (III) — When Revealed: Deal 3 encounter cards to each player. Forced Response: place 2 threat.
-  "02016.when-revealed": whenRevealed(forEachPlayer(eachPlayer, dealEncounterCard(thatPlayer), dealEncounterCard(thatPlayer), dealEncounterCard(thatPlayer))),
-  "02016.green-goblin-forced-response": forcedResponse(after.villainAttacks({ againstYou: true, damages: true }), placeThreat(2, theMainScheme)),
+  "02016.when-revealed": whenRevealed(
+    forEachPlayer(
+      eachPlayer,
+      dealEncounterCard(thatPlayer),
+      dealEncounterCard(thatPlayer),
+      dealEncounterCard(thatPlayer),
+    ),
+  ),
+  "02016.green-goblin-forced-response": forcedResponse(
+    after.villainAttacks({ againstYou: true, damages: true }),
+    placeThreat(2, theMainScheme),
+  ),
 
   // Unleashing the Mutagen 1A — Setup: Put a Goblin Thrall minion into play engaged with each player (found in the
   // encounter deck, RRG 1.8 "Find", p. 19 — a fresh copy per player). `putIntoPlay`'s controller is `thatPlayer`,
@@ -121,7 +139,9 @@ export const MUTAGEN_FORMULA = defineAbilities({
   // Mutagen Cloud 2B — X is equal to the number of Goblin enemies (including Green Goblin) in play (`printedX`,
   // content data — `stages[1].printedX === ["acceleration"]`). "If this stage is completed, the players lose the
   // game" is a scenario/data rule with no ability of its own (Hostile Takeover 2B's identical empty `abilities: []`).
-  "02018b.mutagen-cloud-constant": constant(gets("acceleration", countOf(GOBLIN_ENEMY), { self: true }, { setBase: true })),
+  "02018b.mutagen-cloud-constant": constant(
+    gets("acceleration", countOf(GOBLIN_ENEMY), { self: true }, { setBase: true }),
+  ),
 
   // Goblin Glider — Attach per `attachesTo` (data/engine, docs/phase7-wave1.md §3.14). When Revealed: if you
   // cannot, this card gains surge (`Predicate.isAttached`, landed against this exact card).
@@ -130,12 +150,19 @@ export const MUTAGEN_FORMULA = defineAbilities({
 
   // Hysteria — Attach to Green Goblin (data). [star] Forced Interrupt: When Green Goblin schemes or attacks, give
   // him 1 additional boost card for that activation. `"host"`: the attached villain, per `Who`'s convention.
-  "02020.hysteria-forced-interrupt": forcedInterrupt(when.enemySchemesOrAttacks("host"), modifyAttack({ extraBoostCards: 1 })),
+  "02020.hysteria-forced-interrupt": forcedInterrupt(
+    when.enemySchemesOrAttacks("host"),
+    modifyAttack({ extraBoostCards: 1 }),
+  ),
   "02020.hysteria-action": heroAction({ cost: spend({ mental: 2 }) }, discard(self)),
 
   // Pumpkin Bombs — Attach to the villain (data). [star] Forced Response: After the villain attacks you, discard
   // Pumpkin Bombs and take 2 indirect damage.
-  "02021.pumpkin-bombs-forced-response": forcedResponse(after.villainAttacks({ againstYou: true }), discard(self), dealIndirectDamage(2, you)),
+  "02021.pumpkin-bombs-forced-response": forcedResponse(
+    after.villainAttacks({ againstYou: true }),
+    discard(self),
+    dealIndirectDamage(2, you),
+  ),
   "02021.pumpkin-bombs-action": heroAction({ cost: spend({ physical: 2 }) }, discard(self)),
 
   // Goblin Knight — Elite, Goblin (data). [star] Forced Response: After Goblin Knight attacks you, discard 1 card
@@ -185,24 +212,43 @@ export const MUTAGEN_FORMULA = defineAbilities({
   // previous stand-in here, which was a proven bug: it buffed every *other* activation in the same phase too, so
   // two copies of this card revealed in one phase (2+ players, or a surge chain) made the second activation +2X,
   // and a copy revealed in the player phase left the villain buffed into the villain phase.
-  "02029.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(theVillain, { against: you, schBonus: villainStageNumberOf(theVillain) })),
+  "02029.when-revealed-alter-ego": whenRevealedAlterEgo(
+    enemyScheme(theVillain, { against: you, schBonus: villainStageNumberOf(theVillain) }),
+  ),
   // When Revealed (Hero): Green Goblin attacks with +X ATK, X = the villain's stage number.
-  "02029.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you, atkBonus: villainStageNumberOf(theVillain) })),
+  "02029.when-revealed-hero": whenRevealedHero(
+    enemyAttack(theVillain, { against: you, atkBonus: villainStageNumberOf(theVillain) }),
+  ),
 
   // I See You — When Revealed: Green Goblin attacks you. If you are in alter-ego form, do not give the villain a
   // boost card for this activation (`EffectSpec.enemyAttack.boost: false`, documented against this exact card).
-  "02030.when-revealed": whenRevealed(ifThen(isAlterEgo(), enemyAttackNoBoost(theVillain, you), enemyAttack(theVillain, { against: you }))),
+  "02030.when-revealed": whenRevealed(
+    ifThen(isAlterEgo(), enemyAttackNoBoost(theVillain, you), enemyAttack(theVillain, { against: you })),
+  ),
   // [star] Boost: This card gets +1 boost icon if at least one Goblin minion is engaged with you — a constant
   // modifier read while the card is still sitting in the deck as a boost-card candidate (docs/phase7-wave1.md §3.9,
   // `boostIconsFor`). The card data's ability id ends in "-boost", but (like Oscorp Manufacturing's "-constant" and
   // Mad Genius's "-constant") that is an ingestion-naming artifact, not the trigger kind this needs.
-  "02030.boost": constant(gets("boostIcons", 1, { self: true }, { while: exists({ categories: ["minion"], trait: GOBLIN_TRAIT, engagedWith: "you" }) })),
+  "02030.boost": constant(
+    gets(
+      "boostIcons",
+      1,
+      { self: true },
+      { while: exists({ categories: ["minion"], trait: GOBLIN_TRAIT, engagedWith: "you" }) },
+    ),
+  ),
 
   // Overconfidence — When Revealed (Alter-Ego): Green Goblin schemes. If at least 3 threat was placed by this
   // activation, this card gains surge.
-  "02031.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(theVillain, { against: you, bind: "oc" }), ifThen(varAtLeast("oc.threatPlaced", 3), surge())),
+  "02031.when-revealed-alter-ego": whenRevealedAlterEgo(
+    enemyScheme(theVillain, { against: you, bind: "oc" }),
+    ifThen(varAtLeast("oc.threatPlaced", 3), surge()),
+  ),
   // When Revealed (Hero): Green Goblin attacks you. If at least 3 damage was placed (dealt) by this activation, this card gains surge.
-  "02031.when-revealed-hero": whenRevealedHero(enemyAttack(theVillain, { against: you, bind: "oc2" }), ifThen(varAtLeast("oc2.damage", 3), surge())),
+  "02031.when-revealed-hero": whenRevealedHero(
+    enemyAttack(theVillain, { against: you, bind: "oc2" }),
+    ifThen(varAtLeast("oc2.damage", 3), surge()),
+  ),
 
   // Wicked Ambitions — When Revealed: Discard X cards from the encounter deck, X = double the villain's stage
   // number. Each time a Goblin minion is discarded this way, choose to either take 3 damage or put that minion into
@@ -214,7 +260,10 @@ export const MUTAGEN_FORMULA = defineAbilities({
         effects: [
           ifThen(
             refMatchesAnywhere(chosen("wa"), GOBLIN_MINION),
-            chooseOne(option("Take 3 damage", takeDamage(3)), option("Put that minion into play engaged with you", putIntoPlay(chosen("wa"), you))),
+            chooseOne(
+              option("Take 3 damage", takeDamage(3)),
+              option("Put that minion into play engaged with you", putIntoPlay(chosen("wa"), you)),
+            ),
           ),
         ],
       },

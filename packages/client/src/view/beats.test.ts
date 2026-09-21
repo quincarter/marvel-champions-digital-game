@@ -53,7 +53,12 @@ describe("beatsFrom", () => {
 
   test("anchors a resolved ability on the card whose ability it is — an Invocation Special with no other beat-worthy event still shows something", () => {
     const beats = beatsFrom([
-      { type: "abilityResolved", instanceId: id("invocation-1"), abilityId: "09036.winds-of-watoomb-special" as never, controllerId: "p1" as never },
+      {
+        type: "abilityResolved",
+        instanceId: id("invocation-1"),
+        abilityId: "09036.winds-of-watoomb-special" as never,
+        controllerId: "p1" as never,
+      },
     ]);
     expect(beats).toHaveLength(1);
     expect(beats[0]!.anchor).toBe("invocation-1");

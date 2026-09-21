@@ -36,7 +36,9 @@ beforeAll(async () => {
   const store = new SessionStore(new LocalEngineHost());
   await store.start(SPIDER_MAN_AND_CAP);
   for (let step = 0; step < 10 && store.state.legal?.actions.kind === "choice"; step++) {
-    const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+    const { choice } = store.state.legal.actions as {
+      choice: { options: readonly { optionId: string }[]; minSelections: number };
+    };
     await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((option) => option.optionId));
   }
   const started = store.state.game!;
@@ -50,7 +52,9 @@ beforeAll(async () => {
   state = {
     ...started,
     players: started.players.map((seat) =>
-      seat.playerId === me ? { ...seat, deck: seat.deck.filter((id) => id !== fromDeck), hand: [...seat.hand, fromDeck] } : seat,
+      seat.playerId === me
+        ? { ...seat, deck: seat.deck.filter((id) => id !== fromDeck), hand: [...seat.hand, fromDeck] }
+        : seat,
     ),
   };
 });
@@ -66,7 +70,9 @@ describe("a cost the table changed", () => {
   });
 
   test("a card nothing is modifying reports the same number twice and blames nobody", () => {
-    const untouched = boardModel(state, me, WAVE1_DEPS).hand.find((entry) => entry.instanceId !== mockingbird && entry.cost !== null)!;
+    const untouched = boardModel(state, me, WAVE1_DEPS).hand.find(
+      (entry) => entry.instanceId !== mockingbird && entry.cost !== null,
+    )!;
     expect(untouched.currentCost).toBe(untouched.cost);
     expect(untouched.costSources).toEqual([]);
   });

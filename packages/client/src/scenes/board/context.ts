@@ -15,6 +15,7 @@ import type { Highlights } from "../../view/highlights.js";
 import type { Rect } from "../../view/layout.js";
 import type { BoardController } from "./controller.js";
 import type { HandScroll } from "./hand.js";
+import type { BoardMotion } from "./motion.js";
 
 /**
  * What one draw leaves behind, rebuilt from empty on every draw. The scene
@@ -34,9 +35,21 @@ export interface BoardFrame {
   /** Widgets that own listeners, destroyed before the next draw. */
   readonly buttons: McButton[];
   readonly rings: McSelectionRing[];
+  /**
+   * Mask shapes this draw made. A mask shape is never on the display list (it would render), so clearing the
+   * scene's children does not reach it and the next draw has to destroy it by name.
+   */
+  readonly masks: Phaser.GameObjects.Graphics[];
 }
 
-export const emptyFrame = (): BoardFrame => ({ hitRects: new Map(), focusRects: new Map(), pileRects: new Map(), buttons: [], rings: [] });
+export const emptyFrame = (): BoardFrame => ({
+  hitRects: new Map(),
+  focusRects: new Map(),
+  pileRects: new Map(),
+  buttons: [],
+  rings: [],
+  masks: [],
+});
 
 /**
  * A pile's key in `BoardFrame.pileRects`: the zone kind, whose pile it is when
@@ -60,6 +73,8 @@ export interface BoardDrawContext {
   readonly controller: BoardController;
   readonly hand: HandScroll;
   readonly frame: BoardFrame;
+  /** Timed motions still live from the most recently landed state — status stamps, an exhaust turn, an HP/threat count, the defeat flash. */
+  readonly motion: BoardMotion;
   /**
    * Registers a card as a tap target: a tap acts (answering an open target or
    * payment prompt first, `onTap` otherwise), a hold or right-click inspects,

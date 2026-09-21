@@ -26,10 +26,28 @@ export type {
 } from "./state.js";
 export { NO_STATUSES } from "./state.js";
 
-export type { AttackInProgress, ChoiceOption, ChoicePrompt, ChoiceRef, DecisionAuthority, PendingChoice } from "./choices.js";
+export type {
+  AttackInProgress,
+  ChoiceOption,
+  ChoicePrompt,
+  ChoiceRef,
+  DecisionAuthority,
+  PendingChoice,
+} from "./choices.js";
 
-export { effectChoiceAuthority, encounterTargetSelector, isEncounterSide, simultaneousOrderer } from "./villain/authority.js";
-export type { AuditViolation, VillainActivationRecord, VillainAudit, VillainDecisionRecord, VillainPhaseRecord } from "./villain/audit.js";
+export {
+  effectChoiceAuthority,
+  encounterTargetSelector,
+  isEncounterSide,
+  simultaneousOrderer,
+} from "./villain/authority.js";
+export type {
+  AuditViolation,
+  VillainActivationRecord,
+  VillainAudit,
+  VillainDecisionRecord,
+  VillainPhaseRecord,
+} from "./villain/audit.js";
 export { auditVillainPhases } from "./villain/audit.js";
 
 export type {
@@ -137,7 +155,15 @@ export type {
 export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
 export { eventSubjects, isAnnouncement } from "./trigger-events.js";
 
-export type { Bindings, BoostInProgress, StackFrame, StackFrameKind, StackView, TriggerCandidate, WindowTiming } from "./stack.js";
+export type {
+  Bindings,
+  BoostInProgress,
+  StackFrame,
+  StackFrameKind,
+  StackView,
+  TriggerCandidate,
+  WindowTiming,
+} from "./stack.js";
 export { describeFrame, viewStack } from "./stack.js";
 
 /** The resolution stack as rows a client can word (`stack-view.ts`); `frameCardId` is the card a frame resolves. */
@@ -185,15 +211,7 @@ export type { GameSetupConfig, PlayerSetup, SetupResult, VillainSetup } from "./
 export { createGame } from "./setup.js";
 
 export type { CommandResult, GameLog, GameSession, ReplayResult, SessionResult } from "./engine.js";
-export {
-  appendCommand,
-  applyCommand,
-  applyCommands,
-  createLog,
-  replay,
-  sessionApply,
-  startSession,
-} from "./engine.js";
+export { appendCommand, applyCommand, applyCommands, createLog, replay, sessionApply, startSession } from "./engine.js";
 
 export type { CharacterKind, CharacterProfile } from "./query.js";
 export {
@@ -218,6 +236,7 @@ export {
   getInstance,
   getPlayer,
   handSize,
+  hasStarIcon,
   isMinion,
   isTerminal,
   maxHitPoints,

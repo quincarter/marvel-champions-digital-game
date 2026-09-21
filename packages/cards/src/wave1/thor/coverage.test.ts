@@ -1,6 +1,7 @@
-import { THOR_CARDS, type AbilityReference, type AnyCard } from "@mc/content";
+import { THOR_CARDS } from "@mc/content";
 import { wave1ReprintPairs } from "../reprints.js";
 import { THOR_ABILITIES } from "./index.js";
+import { abilityRefIds } from "../../ability-refs.js";
 
 /**
  * Local coverage check for the Thor (`thor`) pack (docs/phase7-wave1-scripting.md "What to deliver" #5): every
@@ -9,19 +10,6 @@ import { THOR_ABILITIES } from "./index.js";
  * `pack-cards.ts`). The main session's `wave1/coverage.test.ts` does the same check across every pack once this
  * one is registered in `WAVE1_ABILITIES` — this file is the pack-local version a pack agent owns in the meantime.
  */
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities.map((ref) => ref.id)));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities].map((ref) => ref.id));
-    default:
-      return "abilities" in card ? (card.abilities as readonly AbilityReference[]).map((ref) => ref.id) : [];
-  }
-}
 
 const reprintIds = new Set<string>();
 {

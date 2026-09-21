@@ -176,7 +176,13 @@ export interface HostQualifiers {
 /** What a `superlative` host ranks candidates among. */
 export type SuperlativeHostPool = "minion" | "enemy" | "villain" | "friendlyCharacter" | "ally";
 
-export const SUPERLATIVE_HOST_POOLS: readonly SuperlativeHostPool[] = ["minion", "enemy", "villain", "friendlyCharacter", "ally"];
+export const SUPERLATIVE_HOST_POOLS: readonly SuperlativeHostPool[] = [
+  "minion",
+  "enemy",
+  "villain",
+  "friendlyCharacter",
+  "ally",
+];
 
 /**
  * The value a `superlative` host ranks by. `printedHp`/`printedAtk` are the printed values (RRG 1.8 "Printed");
@@ -199,7 +205,16 @@ export const SUPERLATIVE_HOST_POOLS: readonly SuperlativeHostPool[] = ["minion",
  *   so this is the printed value (RRG 1.8 "Printed", p. 35), named like `printedHp`/`printedAtk`. A card with no
  *   printed cost is no candidate.
  */
-export type HostMeasure = "printedHp" | "remainingHp" | "printedAtk" | "atk" | "thw" | "sch" | "activationOrder" | "traitCount" | "printedCost";
+export type HostMeasure =
+  | "printedHp"
+  | "remainingHp"
+  | "printedAtk"
+  | "atk"
+  | "thw"
+  | "sch"
+  | "activationOrder"
+  | "traitCount"
+  | "printedCost";
 
 export const HOST_MEASURES: readonly HostMeasure[] = [
   "printedHp",

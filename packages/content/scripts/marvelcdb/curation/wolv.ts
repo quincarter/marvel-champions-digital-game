@@ -20,7 +20,8 @@ export const WOLV_CURATION: PackCuration = {
   pack: {
     name: "Wolverine",
     releaseDate: "2022-11-11",
-    releaseDateSource: 'Hall of Heroes Logan/Wolverine page (https://hallofheroeslcg.com/logan-wolverine/): "Release date: November 11, 2022"',
+    releaseDateSource:
+      'Hall of Heroes Logan/Wolverine page (https://hallofheroeslcg.com/logan-wolverine/): "Release date: November 11, 2022"',
   },
   outDir: "src/data/wolv",
   exportPrefix: "WOLV",
@@ -29,7 +30,7 @@ export const WOLV_CURATION: PackCuration = {
     {
       code: "35002",
       reason:
-        "Wolverine's Claws is a Permanent signature weapon, exhausted for its Hero Action rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
+        'Wolverine\'s Claws is a Permanent signature weapon, exhausted for its Hero Action rather than played for a resource cost: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
       evidence: 'MarvelCDB card listing (marvelcdb.com/card/35002), "Cost: —"',
       specialCost: "dash",
     },

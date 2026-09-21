@@ -44,7 +44,10 @@ export interface PoolGridGeometry {
 /** How the pool grid divides a pane of `width` px holding `cardCount` cards. `columns` is always at least 1, even at a width narrower than `MIN_CELL_WIDTH` (a single, slightly-too-narrow column beats an empty grid). */
 export function poolGridGeometry(width: number, cardCount: number): PoolGridGeometry {
   const usable = Math.max(1, width);
-  const columns = Math.max(1, Math.min(MAX_COLUMNS, Math.round((usable + POOL_GRID_GAP) / (TARGET_CELL_WIDTH + POOL_GRID_GAP))));
+  const columns = Math.max(
+    1,
+    Math.min(MAX_COLUMNS, Math.round((usable + POOL_GRID_GAP) / (TARGET_CELL_WIDTH + POOL_GRID_GAP))),
+  );
   const cellWidth = Math.max(MIN_CELL_WIDTH, (usable - (columns - 1) * POOL_GRID_GAP) / columns);
   const artHeight = cellWidth * CARD_ASPECT;
   const cellHeight = artHeight + CAPTION_HEIGHT;
@@ -59,7 +62,12 @@ export function poolCellRect(geometry: PoolGridGeometry, rowRect: Rect, column: 
 }
 
 /** Which column an absolute `pointerX` lands in within `rowRect` — null in the trailing gap past the last real column, or past the row's own last populated cell (`columnCountInRow` — a short final row). */
-export function poolColumnAt(geometry: PoolGridGeometry, rowRect: Rect, pointerX: number, columnCountInRow: number = geometry.columns): number | null {
+export function poolColumnAt(
+  geometry: PoolGridGeometry,
+  rowRect: Rect,
+  pointerX: number,
+  columnCountInRow: number = geometry.columns,
+): number | null {
   const rel = pointerX - rowRect.x;
   if (rel < 0) return null;
   const stride = geometry.cellWidth + POOL_GRID_GAP;

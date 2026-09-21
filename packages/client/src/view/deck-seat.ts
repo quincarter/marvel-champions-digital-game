@@ -50,5 +50,7 @@ export function corePlayerFromDeck(deck: Deck): CorePlayer {
  * turn "which deck is in this seat" into what setup actually needs.
  */
 export function corePlayerForSeat(option: DeckOption): CorePlayer {
-  return option.deck.source.kind === "precon" ? { starterDeckId: option.deck.source.starterDeckId as string } : corePlayerFromDeck(option.deck);
+  return option.deck.source.kind === "precon"
+    ? { starterDeckId: option.deck.source.starterDeckId as string }
+    : corePlayerFromDeck(option.deck);
 }

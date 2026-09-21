@@ -142,15 +142,26 @@ export function advanceSetupWalkthroughLog(
   const log = appendEvents(accumulator.log, events, state, perspectiveId, deps);
   const revealedInstanceIds = [
     ...accumulator.revealedInstanceIds,
-    ...events.filter((event): event is Extract<GameEvent, { type: "encounterCardRevealed" }> => event.type === "encounterCardRevealed").map((event) => event.instanceId),
+    ...events
+      .filter(
+        (event): event is Extract<GameEvent, { type: "encounterCardRevealed" }> =>
+          event.type === "encounterCardRevealed",
+      )
+      .map((event) => event.instanceId),
   ];
   const discardedByPlayer = new Map<PlayerId, number>();
   for (const event of events) {
     if (event.type !== "cardDiscardedFromHand") continue;
     discardedByPlayer.set(event.playerId, (discardedByPlayer.get(event.playerId) ?? 0) + 1);
   }
-  const mulliganedCounts = discardedByPlayer.size === 0 ? accumulator.mulliganedCounts : { ...accumulator.mulliganedCounts, ...Object.fromEntries(discardedByPlayer) };
-  const seed = accumulator.seed ?? events.find((event): event is Extract<GameEvent, { type: "gameCreated" }> => event.type === "gameCreated")?.seed ?? null;
+  const mulliganedCounts =
+    discardedByPlayer.size === 0
+      ? accumulator.mulliganedCounts
+      : { ...accumulator.mulliganedCounts, ...Object.fromEntries(discardedByPlayer) };
+  const seed =
+    accumulator.seed ??
+    events.find((event): event is Extract<GameEvent, { type: "gameCreated" }> => event.type === "gameCreated")?.seed ??
+    null;
   return { log, revealedInstanceIds, mulliganedCounts, seed };
 }
 
@@ -179,7 +190,11 @@ function checklistOf(state: GameState, deps: EngineDeps, revealedCount: number):
 }
 
 /** RRG 1.8 Appendix II step 4: each hero's own obligation card, shuffled into the encounter deck. Read straight off the printed identity, the same field S3's `view/encounter-preview.ts` reads (no engine re-derivation). */
-function obligationNoteOf(state: GameState, playerId: PlayerId, cardsById: ReadonlyMap<string, AnyCard>): string | null {
+function obligationNoteOf(
+  state: GameState,
+  playerId: PlayerId,
+  cardsById: ReadonlyMap<string, AnyCard>,
+): string | null {
   const player = getPlayer(state, playerId);
   if (!player) return null;
   const identity = cardOf(state, player.identity.instanceId);
@@ -188,14 +203,27 @@ function obligationNoteOf(state: GameState, playerId: PlayerId, cardsById: Reado
   return obligation ? `obligation ${obligation.name} shuffled in` : null;
 }
 
-function seatStatusOf(state: GameState, accumulator: SetupWalkthroughLog, deps: EngineDeps, cardsById: ReadonlyMap<string, AnyCard>, playerId: PlayerId): SetupSeatStatus {
+function seatStatusOf(
+  state: GameState,
+  accumulator: SetupWalkthroughLog,
+  deps: EngineDeps,
+  cardsById: ReadonlyMap<string, AnyCard>,
+  playerId: PlayerId,
+): SetupSeatStatus {
   const player = getPlayer(state, playerId);
   const step = state.step;
-  const stillDeciding = step.phase === "setup" && step.kind === "mulligan" && step.remainingPlayerIds.includes(playerId);
+  const stillDeciding =
+    step.phase === "setup" && step.kind === "mulligan" && step.remainingPlayerIds.includes(playerId);
   const isCurrent = state.pendingChoice?.prompt.kind === "mulligan" && state.pendingChoice.playerId === playerId;
   const mulliganed = accumulator.mulliganedCounts[playerId] ?? 0;
 
-  const seatState: SetupSeatState = isCurrent ? "deciding" : stillDeciding ? "waiting" : mulliganed > 0 ? "mulliganed" : "kept";
+  const seatState: SetupSeatState = isCurrent
+    ? "deciding"
+    : stillDeciding
+      ? "waiting"
+      : mulliganed > 0
+        ? "mulliganed"
+        : "kept";
   const handSize = player?.hand.length ?? 0;
   const statusLabel: string =
     seatState === "deciding"
@@ -207,7 +235,12 @@ function seatStatusOf(state: GameState, accumulator: SetupWalkthroughLog, deps: 
           : `Kept ${handSize} · ready`;
 
   const aspect = deckAspect(state, playerId);
-  const subtitle = [aspect ? aspect.charAt(0).toUpperCase() + aspect.slice(1) : null, obligationNoteOf(state, playerId, cardsById)].filter((part): part is string => part !== null).join(" · ");
+  const subtitle = [
+    aspect ? aspect.charAt(0).toUpperCase() + aspect.slice(1) : null,
+    obligationNoteOf(state, playerId, cardsById),
+  ]
+    .filter((part): part is string => part !== null)
+    .join(" · ");
 
   return {
     playerId,
@@ -234,27 +267,47 @@ function seatStatusOf(state: GameState, accumulator: SetupWalkthroughLog, deps: 
  * these, never before — this is the table as it was dealt, and the log is the
  * table as it has changed since.
  */
-export function staticSetupLines(state: GameState, deps: EngineDeps, cardsById: ReadonlyMap<string, AnyCard>, seed: number | null): readonly LogLine[] {
+export function staticSetupLines(
+  state: GameState,
+  deps: EngineDeps,
+  cardsById: ReadonlyMap<string, AnyCard>,
+  seed: number | null,
+): readonly LogLine[] {
   const villain = activeVillain(state);
   const villainPanel = characterPanel(state, villain.instanceId, deps);
   const deckSize = state.encounterDecks[villain.encounterDeckId]?.deck.length ?? 0;
   const scheme = schemePanel(state, state.mainScheme.instanceId, deps, true);
   const mainSchemeName = cardOf(state, state.mainScheme.instanceId)?.name ?? "the main scheme";
-  const obligationCount = playerOrder(state).filter((player) => obligationNoteOf(state, player.playerId, cardsById) !== null).length;
+  const obligationCount = playerOrder(state).filter(
+    (player) => obligationNoteOf(state, player.playerId, cardsById) !== null,
+  ).length;
   const handSizes = playerOrder(state).map((player) => getPlayer(state, player.playerId)?.hand.length ?? 0);
 
   const texts = [
     seed !== null ? `Seed ${seed} · encounter deck shuffled (${deckSize})` : null,
     `${villainPanel.name} placed at stage ${villain.stageIndex + 1}${villainPanel.hp ? ` — ${villainPanel.hp.max} HP` : ""}`,
     `${mainSchemeName} — ${scheme.threat} starting threat`,
-    obligationCount > 0 ? `${obligationCount} obligation${obligationCount === 1 ? "" : "s"} shuffled into the encounter deck` : null,
+    obligationCount > 0
+      ? `${obligationCount} obligation${obligationCount === 1 ? "" : "s"} shuffled into the encounter deck`
+      : null,
     `Opening hands dealt: ${handSizes.join(" / ")}`,
   ].filter((text): text is string => text !== null);
 
-  return texts.map((text, index) => ({ id: `setup-fact-${index}`, ref: "Setup", round: 0, text, tags: [], voice: "scenario" as const }));
+  return texts.map((text, index) => ({
+    id: `setup-fact-${index}`,
+    ref: "Setup",
+    round: 0,
+    text,
+    tags: [],
+    voice: "scenario" as const,
+  }));
 }
 
-function revealedCardOf(state: GameState, accumulator: SetupWalkthroughLog, deps: EngineDeps): SetupRevealedCard | null {
+function revealedCardOf(
+  state: GameState,
+  accumulator: SetupWalkthroughLog,
+  deps: EngineDeps,
+): SetupRevealedCard | null {
   const instanceId = accumulator.revealedInstanceIds.at(-1);
   if (instanceId === undefined) return null;
   // Any perspective reads the same thing here: a revealed encounter card is public to the whole table
@@ -263,7 +316,12 @@ function revealedCardOf(state: GameState, accumulator: SetupWalkthroughLog, deps
   return { instanceId, name: model.name, typeLine: model.typeLine, rulesText: model.rulesText, art: model.art };
 }
 
-export function setupWalkthroughViewOf(state: GameState, accumulator: SetupWalkthroughLog, deps: EngineDeps, cardsById: ReadonlyMap<string, AnyCard>): SetupWalkthroughView {
+export function setupWalkthroughViewOf(
+  state: GameState,
+  accumulator: SetupWalkthroughLog,
+  deps: EngineDeps,
+  cardsById: ReadonlyMap<string, AnyCard>,
+): SetupWalkthroughView {
   const revealedCount = accumulator.revealedInstanceIds.length;
   const checklist = checklistOf(state, deps, revealedCount);
   const currentIndex = checklist.findIndex((item) => item.state === "current");

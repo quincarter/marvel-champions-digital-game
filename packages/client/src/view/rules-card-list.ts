@@ -41,13 +41,16 @@ export interface RulesCardListGroup {
 
 function uniqueCardsOf(cards: Iterable<AnyCard>): readonly RulesCardListCard[] {
   const byId = new Map<string, RulesCardListCard>();
-  for (const card of cards) if (!byId.has(card.id as string)) byId.set(card.id as string, { cardId: card.id as string, name: card.name });
+  for (const card of cards)
+    if (!byId.has(card.id as string)) byId.set(card.id as string, { cardId: card.id as string, name: card.name });
   return [...byId.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Every card in the static `pool` naming `setId` among its own `encounterSetIds`. */
 function poolCardsForSet(pool: readonly AnyCard[], setId: string): readonly RulesCardListCard[] {
-  return uniqueCardsOf(pool.filter((card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId)));
+  return uniqueCardsOf(
+    pool.filter((card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId)),
+  );
 }
 
 /** Every encounter-side card with at least one real instance in `game` right now (any zone — deck, discard, in play, set-aside), grouped by each of its own printed `encounterSetIds`. */
@@ -71,7 +74,11 @@ function inGameCardsBySet(game: GameState): ReadonlyMap<string, AnyCard[]> {
  * name — matching the task's "IN THIS GAME" / "NOT IN THIS GAME" split. With no game, every set is
  * `inGame: false` and there is only the one sorted list (nothing to split).
  */
-export function rulesCardListOf(game: GameState | null, pool: readonly AnyCard[], encounterSets: readonly EncounterSet[]): readonly RulesCardListGroup[] {
+export function rulesCardListOf(
+  game: GameState | null,
+  pool: readonly AnyCard[],
+  encounterSets: readonly EncounterSet[],
+): readonly RulesCardListGroup[] {
   const inGameCards = game ? inGameCardsBySet(game) : new Map<string, AnyCard[]>();
 
   const inGame: RulesCardListGroup[] = [];

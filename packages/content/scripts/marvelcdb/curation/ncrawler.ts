@@ -13,7 +13,8 @@ export const NCRAWLER_CURATION: PackCuration = {
   pack: {
     name: "Nightcrawler",
     releaseDate: "2024-09-20",
-    releaseDateSource: "Hall of Heroes Nightcrawler page (https://hallofheroeslcg.com/nightcrawler-kurt-wagner/): \"Release date: September 20, 2024\"",
+    releaseDateSource:
+      'Hall of Heroes Nightcrawler page (https://hallofheroeslcg.com/nightcrawler-kurt-wagner/): "Release date: September 20, 2024"',
   },
   outDir: "src/data/ncrawler",
   exportPrefix: "NCRAWLER",

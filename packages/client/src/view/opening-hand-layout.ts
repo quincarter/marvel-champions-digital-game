@@ -45,9 +45,19 @@ export function openingHandLayout(rect: Rect, count: number): OpeningHandLayout 
   }
 
   const viewport: Rect = { x: rect.x, y: rect.y, width: rect.width, height: Math.max(1, rect.height - INDICATOR_ROOM) };
-  const slots = cardRow(viewport, count, { gap: CARD_GAP, maxHeight: viewport.height, fan: "expanded", align: "start" });
+  const slots = cardRow(viewport, count, {
+    gap: CARD_GAP,
+    maxHeight: viewport.height,
+    fan: "expanded",
+    align: "start",
+  });
   const right = slots.reduce((max, slot) => Math.max(max, slot.x + slot.width), viewport.x);
-  const indicator: Rect = { x: rect.x, y: rect.y + rect.height - INDICATOR_HEIGHT, width: rect.width, height: INDICATOR_HEIGHT };
+  const indicator: Rect = {
+    x: rect.x,
+    y: rect.y + rect.height - INDICATOR_HEIGHT,
+    width: rect.width,
+    height: INDICATOR_HEIGHT,
+  };
   return { mode: "strip", slots, viewport, contentWidth: right - viewport.x, indicator };
 }
 

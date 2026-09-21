@@ -140,8 +140,14 @@ describe("parseDecklistText", () => {
   });
 
   test("empty input fails loudly", () => {
-    expect(parseDecklistText("", CORE_CARDS)).toEqual({ ok: false, problems: [expect.objectContaining({ code: "invalid_input" })] });
-    expect(parseDecklistText("   \n\n  ", CORE_CARDS)).toEqual({ ok: false, problems: [expect.objectContaining({ code: "invalid_input" })] });
+    expect(parseDecklistText("", CORE_CARDS)).toEqual({
+      ok: false,
+      problems: [expect.objectContaining({ code: "invalid_input" })],
+    });
+    expect(parseDecklistText("   \n\n  ", CORE_CARDS)).toEqual({
+      ok: false,
+      problems: [expect.objectContaining({ code: "invalid_input" })],
+    });
   });
 
   test("oversized paste is refused before it is walked", () => {

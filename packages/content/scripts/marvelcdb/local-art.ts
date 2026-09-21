@@ -3,7 +3,17 @@ import { readdir } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const CARD_ART_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "..", "assets", "card-art", "bundles", "cards");
+const CARD_ART_DIR = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "..",
+  "..",
+  "..",
+  "assets",
+  "card-art",
+  "bundles",
+  "cards",
+);
 
 /** Every `<code>.png` in the art folder, as its code. Empty when the folder is absent (a checkout without art). */
 export async function localArtCodes(): Promise<ReadonlySet<string>> {

@@ -9,10 +9,8 @@ import {
   type InstanceId,
   type PlayerId,
 } from "@mc/engine";
-import { mergeRegistries } from "../../dsl/index.js";
 import { firstLegal, runWith, settle } from "../../testing/harness.js";
 import { WAVE1_ABILITIES } from "../index.js";
-import { TWC_ABILITIES } from "./index.js";
 
 /**
  * Test deps for The Wrecking Crew (`twc`) pack. `TWC_ABILITIES` is NOT registered in `../index.ts`'s
@@ -22,7 +20,8 @@ import { TWC_ABILITIES } from "./index.js";
  */
 export const TWC_DEPS: EngineDeps = { abilities: WAVE1_ABILITIES };
 
-export const runTwc = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState => runWith(TWC_DEPS, state, ...commands);
+export const runTwc = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState =>
+  runWith(TWC_DEPS, state, ...commands);
 
 export function startTwcGame(config: GameSetupConfig): GameState {
   const created = createGame(config, TWC_DEPS);
@@ -46,7 +45,9 @@ export function stackFromSetAside(state: GameState, player: PlayerId, ...codes: 
     const found = owner.setAside.find((id) => state.instances[id]?.cardId === cardId(code) && !ids.includes(id));
     if (!found) throw new Error(`no ${code} in ${player}'s setAside`);
     ids.push(found);
-    players = players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((id) => id !== found) } : p));
+    players = players.map((p) =>
+      p.playerId === player ? { ...p, setAside: p.setAside.filter((id) => id !== found) } : p,
+    );
   }
   return {
     ...state,
@@ -64,7 +65,10 @@ export function forceMinionIntoPlay(state: GameState, id: InstanceId, player: Pl
   const piles = activeEncounterDeck(state);
   return {
     ...state,
-    encounterDecks: { ...state.encounterDecks, [deckId]: { deck: piles.deck.filter((x) => x !== id), discard: piles.discard.filter((x) => x !== id) } },
+    encounterDecks: {
+      ...state.encounterDecks,
+      [deckId]: { deck: piles.deck.filter((x) => x !== id), discard: piles.discard.filter((x) => x !== id) },
+    },
     players: state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
     instances: { ...state.instances, [id]: { ...state.instances[id]!, engagedWith: player } },
   };
@@ -90,7 +94,10 @@ export function forceAttachToVillain(state: GameState, id: InstanceId, villainIn
   const host = state.instances[villainInstanceId];
   if (!host) throw new Error(`no villain instance ${villainInstanceId}`);
   const encounterDecks = Object.fromEntries(
-    Object.entries(state.encounterDecks).map(([deckId, piles]) => [deckId, { deck: piles.deck.filter((x) => x !== id), discard: piles.discard.filter((x) => x !== id) }]),
+    Object.entries(state.encounterDecks).map(([deckId, piles]) => [
+      deckId,
+      { deck: piles.deck.filter((x) => x !== id), discard: piles.discard.filter((x) => x !== id) },
+    ]),
   );
   return {
     ...state,

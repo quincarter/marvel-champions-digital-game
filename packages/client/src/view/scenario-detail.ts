@@ -65,7 +65,8 @@ export function scenarioDetailOf(
 ): ScenarioDetail {
   const sets = new Map(encounterSets.map((set) => [set.id as string, set]));
   const villain = cardsById.get(scenario.villainCardId as string);
-  if (!villain || villain.type !== "villain") throw new Error(`scenario ${scenario.id} villain ${scenario.villainCardId} not found`);
+  if (!villain || villain.type !== "villain")
+    throw new Error(`scenario ${scenario.id} villain ${scenario.villainCardId} not found`);
   const side = villain.sides.find((s) => s.side === (villain.startingSide ?? "A")) ?? villain.sides[0]!;
   const stages: readonly StageDetail[] = side.stages.map((stage: VillainStage) => ({
     stageNumber: stage.stageNumber,
@@ -76,7 +77,8 @@ export function scenarioDetailOf(
   }));
 
   const mainScheme = cardsById.get(scenario.mainSchemeCardId as string);
-  if (!mainScheme || mainScheme.type !== "main_scheme") throw new Error(`scenario ${scenario.id} main scheme ${scenario.mainSchemeCardId} not found`);
+  if (!mainScheme || mainScheme.type !== "main_scheme")
+    throw new Error(`scenario ${scenario.id} main scheme ${scenario.mainSchemeCardId} not found`);
   const firstStage = mainScheme.stages[0]!;
 
   const otherVillainNames = (scenario.multipleVillains?.villains ?? [])
@@ -110,9 +112,13 @@ export function scenarioDetailOf(
  */
 export function scenarioDetailLines(detail: ScenarioDetail): readonly string[] {
   const lines: string[] = [];
-  lines.push(`Villain: ${detail.villainName}${detail.otherVillainNames.length > 0 ? ` + ${detail.otherVillainNames.length} more (${detail.otherVillainNames.join(", ")})` : ""}`);
+  lines.push(
+    `Villain: ${detail.villainName}${detail.otherVillainNames.length > 0 ? ` + ${detail.otherVillainNames.length} more (${detail.otherVillainNames.join(", ")})` : ""}`,
+  );
   lines.push(`Main scheme: ${detail.mainSchemeName} — starting threat ${formatScaling(detail.startingThreat)}`);
-  lines.push(`Standard: stage ${detail.villainStagesStandard.join("–")} · Expert: stage ${detail.villainStagesExpert.join("–")}`);
+  lines.push(
+    `Standard: stage ${detail.villainStagesStandard.join("–")} · Expert: stage ${detail.villainStagesExpert.join("–")}`,
+  );
   for (const stage of detail.stages) {
     const label = stage.stageLabel ?? `${stage.stageNumber}`;
     lines.push(`  Stage ${label}: ${formatScaling(stage.hp)} HP · ATK ${stage.atk} · SCH ${stage.sch}`);

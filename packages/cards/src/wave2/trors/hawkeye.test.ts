@@ -1,5 +1,14 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeckId, applyCommand, cardsInPlay, characterProfile, hasKeyword, traitsOf, type GameState, type InstanceId } from "@mc/engine";
+import {
+  activeEncounterDeckId,
+  applyCommand,
+  cardsInPlay,
+  characterProfile,
+  hasKeyword,
+  traitsOf,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
 import {
   answer,
   endTurn,
@@ -16,16 +25,20 @@ import {
   playerOf,
   putOnTopOfDeck,
   resourceAbility,
+  runWith,
   settle,
   settleUntil,
   toHero,
   use,
 } from "../../testing/harness.js";
+import { stackSetAside, stackSetAsideBehindBoost } from "../../testing/staging.js";
+import { expectResolved, traceAbilities } from "../../testing/trace.js";
 import { wave2Scenario } from "../setup.js";
 import { runWave2, startWave2Game, WAVE2_DEPS } from "../testing.js";
 
 // Real wave 2 content: the Hawkeye (Leadership) precon against Rhino, standard, solo.
-const hawkeyeVsRhino = () => startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 11 }));
+const hawkeyeVsRhino = () =>
+  startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 11 }));
 
 /** Hawkeye's Bow (04002, cost 0) moved to hand and played into play, keeping the current form (hero if already). */
 function heroWithBow(state = hawkeyeVsRhino()) {
@@ -34,24 +47,6 @@ function heroWithBow(state = hawkeyeVsRhino()) {
   const [bow] = given.ids as [InstanceId];
   const played = settle(runWave2(given.state, play(P1, bow, [])), firstLegal, undefined, WAVE2_DEPS);
   return { state: played, bow };
-}
-
-/**
- * A set-aside nemesis-set card (RRG 1.8 Appendix II step 5, "set aside", kept per-player on `PlayerState.setAside`
- * — never shuffled into the encounter deck at setup) moved onto the top of the encounter deck for a reveal test,
- * the test-only-surgery counterpart of `stackEncounterDeck` for cards that never reach the deck.
- */
-function stackSetAside(state: GameState, code: string, player = P1): GameState {
-  const owner = playerOf(state, player);
-  const id = owner.setAside.find((i) => state.instances[i]?.cardId === cardId(code));
-  if (!id) throw new Error(`no ${code} set aside for ${player}`);
-  const deckId = activeEncounterDeckId(state);
-  const pile = state.encounterDecks[deckId]!;
-  return {
-    ...state,
-    players: state.players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((i) => i !== id) } : p)),
-    encounterDecks: { ...state.encounterDecks, [deckId]: { ...pile, deck: [id, ...pile.deck] } },
-  };
 }
 
 /**
@@ -87,7 +82,9 @@ describe("Hawkeye kit", () => {
 
   it("Hawkeye's Bow: +1 ATK, and each of your Arrow attacks gain ranged (ignoring a retaliate enemy's damage back)", () => {
     // Red Skull scenario for The Sleeper (04130: Guard, Retaliate 1, Toughness) — Rhino has no retaliate keyword.
-    const start = startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+    const start = startWave2Game(
+      wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
     const hero = runWave2(start, toHero());
     const staged = stageScenarioSetAsideForReveal(hero, "04130");
     const revealed = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
@@ -113,7 +110,9 @@ describe("Hawkeye kit", () => {
   });
 
   it("Hawkeye's Bow: without ranged, the same first attack against The Sleeper takes its retaliate 1 back (the control this pack's ranged grant is checked against)", () => {
-    const start = startWave2Game(wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }));
+    const start = startWave2Game(
+      wave2Scenario("red-skull", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 2026 }),
+    );
     const hero = runWave2(start, toHero());
     const staged = stageScenarioSetAsideForReveal(hero, "04130");
     const revealed = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
@@ -122,7 +121,12 @@ describe("Hawkeye kit", () => {
     const identity = identityOf(revealed);
     const before = inst(revealed, identity).damage;
     const after = settle(
-      runWave2(revealed, { type: "basicAttack", playerId: P1, attackerInstanceId: identity, targetInstanceId: sleeper }),
+      runWave2(revealed, {
+        type: "basicAttack",
+        playerId: P1,
+        attackerInstanceId: identity,
+        targetInstanceId: sleeper,
+      }),
       firstLegal,
       undefined,
       WAVE2_DEPS,
@@ -133,11 +137,18 @@ describe("Hawkeye kit", () => {
   it("Mockingbird: Interrupt, spending 1 resource of any type and returning her to hand, prevents all damage from the villain's initiated attack against you", () => {
     // Seed 1 (unlike this file's usual seed 11) has Rhino attack rather than scheme on the very first villain
     // phase, so Mockingbird's interrupt window (attack *initiation*, before a defender is even declared) is reached.
-    const start = startWave2Game(wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 1 }));
+    const start = startWave2Game(
+      wave2Scenario("rhino", { players: [{ starterDeckId: "hawkeye-leadership" }], seed: 1 }),
+    );
     const hero = runWave2(start, toHero());
     const given = moveToHand(hero, P1, "04004");
     const [mockingbird] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, mockingbird, payWith(given.state, P1, 3, [mockingbird]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, mockingbird, payWith(given.state, P1, 3, [mockingbird]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const identity = identityOf(played);
     const before = inst(played, identity).damage;
     // Answered explicitly, three steps only (discard down to hand size, choose the interrupt, pay its 1-resource
@@ -175,13 +186,22 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04011");
     const [kate] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, kate, payWith(given.state, P1, 2, [kate]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, kate, payWith(given.state, P1, 2, [kate]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     // Discard Hawkeye's Bow (04002, cost 0, one [wild] printed resource) as the ability's own cost: X = 1.
     const withDiscardable = moveToHand(played, P1, "04002");
     const [bow] = withDiscardable.ids as [InstanceId];
     const villain = withDiscardable.state.villains[0]!.instanceId;
     const before = inst(withDiscardable.state, villain).damage;
-    const result = applyCommand(withDiscardable.state, use(P1, kate, "04011.hawkeye-action", [], { discard: [bow] }), WAVE2_DEPS);
+    const result = applyCommand(
+      withDiscardable.state,
+      use(P1, kate, "04011.hawkeye-action", [], { discard: [bow] }),
+      WAVE2_DEPS,
+    );
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     const after = settle(result.state, picking(villain), undefined, WAVE2_DEPS);
@@ -206,8 +226,18 @@ describe("Hawkeye kit", () => {
     const [sonicArrow] = withTop.ids as [InstanceId];
     const given = moveToHand(withTop.state, P1, "04003");
     const [quiver] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, quiver, payWith(given.state, P1, 1, [quiver]))), firstLegal, undefined, WAVE2_DEPS);
-    const after = settle(runWave2(played, use(P1, quiver, "04003.hawkeyes-quiver-action")), picking(sonicArrow), undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, quiver, payWith(given.state, P1, 1, [quiver]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const after = settle(
+      runWave2(played, use(P1, quiver, "04003.hawkeyes-quiver-action")),
+      picking(sonicArrow),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(after, quiver).exhausted).toBe(true);
     expect(inst(after, sonicArrow).attachedTo).toBe(quiver);
   });
@@ -218,13 +248,27 @@ describe("Hawkeye kit", () => {
     const [sonicArrow] = withTop.ids as [InstanceId];
     const given = moveToHand(withTop.state, P1, "04003");
     const [quiver] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, quiver, payWith(given.state, P1, 1, [quiver]))), firstLegal, undefined, WAVE2_DEPS);
-    const withArrow = settle(runWave2(played, use(P1, quiver, "04003.hawkeyes-quiver-action")), picking(sonicArrow), undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, quiver, payWith(given.state, P1, 1, [quiver]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const withArrow = settle(
+      runWave2(played, use(P1, quiver, "04003.hawkeyes-quiver-action")),
+      picking(sonicArrow),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(withArrow, sonicArrow).attachedTo).toBe(quiver);
     // Playing the attached Sonic Arrow doesn't need it in hand — the constant grants it as if it were — but it
     // does still need Hawkeye's Bow in play to pay its own cost.
     const withBow = heroWithBow(withArrow);
-    const result = applyCommand(withBow.state, play(P1, sonicArrow, payWith(withBow.state, P1, 2, [withBow.bow])), WAVE2_DEPS);
+    const result = applyCommand(
+      withBow.state,
+      play(P1, sonicArrow, payWith(withBow.state, P1, 2, [withBow.bow])),
+      WAVE2_DEPS,
+    );
     expect(result.ok).toBe(true);
   });
 
@@ -288,7 +332,9 @@ describe("Hawkeye kit", () => {
     const given = moveToHand(withBow.state, P1, "04009");
     const [vibraniumArrow] = given.ids as [InstanceId];
     const villain = given.state.villains[0]!.instanceId;
-    const toughened = patchInstance(given.state, villain, { statuses: { ...inst(given.state, villain).statuses, tough: 1 } });
+    const toughened = patchInstance(given.state, villain, {
+      statuses: { ...inst(given.state, villain).statuses, tough: 1 },
+    });
     const before = inst(toughened, villain).damage;
     const after = settle(
       runWave2(toughened, play(P1, vibraniumArrow, payWith(toughened, P1, 2, [vibraniumArrow, withBow.bow]))),
@@ -308,12 +354,19 @@ describe("Hawkeye kit", () => {
     const hero = runWave2(start, toHero());
     const given = moveToHand(hero, P1, "04010", "04002", "04005");
     const [marksman, bow, sonicArrow] = given.ids as [InstanceId, InstanceId, InstanceId];
-    const withMarksman = settle(runWave2(given.state, play(P1, marksman, payWith(given.state, P1, 1, [marksman, bow, sonicArrow]))), firstLegal, undefined, WAVE2_DEPS);
+    const withMarksman = settle(
+      runWave2(given.state, play(P1, marksman, payWith(given.state, P1, 1, [marksman, bow, sonicArrow]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const withBow = settle(runWave2(withMarksman, play(P1, bow, [])), firstLegal, undefined, WAVE2_DEPS);
     // Pays Sonic Arrow's cost (2) with Expert Marksman's own resource ability plus 1 other card.
     const played = applyCommand(
       withBow,
-      play(P1, sonicArrow, payWith(withBow, P1, 1, [sonicArrow, marksman, bow]), { abilities: [resourceAbility(marksman, "04010.expert-marksman-resource")] }),
+      play(P1, sonicArrow, payWith(withBow, P1, 1, [sonicArrow, marksman, bow]), {
+        abilities: [resourceAbility(marksman, "04010.expert-marksman-resource")],
+      }),
       WAVE2_DEPS,
     );
     expect(played.ok).toBe(true);
@@ -325,7 +378,12 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04012");
     const [blackKnight] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, blackKnight, payWith(given.state, P1, 3, [blackKnight]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, blackKnight, payWith(given.state, P1, 3, [blackKnight]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(playerOf(played, P1).playArea).toContain(blackKnight);
     expect(hasKeyword(played, blackKnight, "piercing", WAVE2_DEPS)).toBe(true);
   });
@@ -334,9 +392,19 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04013");
     const [goliath] = given.ids as [InstanceId];
-    const played = settle(runWave2(given.state, play(P1, goliath, payWith(given.state, P1, 4, [goliath]))), firstLegal, undefined, WAVE2_DEPS);
+    const played = settle(
+      runWave2(given.state, play(P1, goliath, payWith(given.state, P1, 4, [goliath]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const baseAtk = characterProfile(played, goliath, WAVE2_DEPS)?.atk ?? 0;
-    const boosted = settle(runWave2(played, use(P1, goliath, "04013.goliath-action")), firstLegal, undefined, WAVE2_DEPS);
+    const boosted = settle(
+      runWave2(played, use(P1, goliath, "04013.goliath-action")),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(characterProfile(boosted, goliath, WAVE2_DEPS)?.atk).toBe(baseAtk + 4);
     const afterEnd = settle(runWave2(boosted, endTurn()), firstLegal, undefined, WAVE2_DEPS);
     expect(playerOf(afterEnd, P1).playArea).not.toContain(goliath);
@@ -347,8 +415,17 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04015", "04014");
     const [skyCycle, usAgent] = given.ids as [InstanceId, InstanceId];
-    const withAlly = settle(runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [skyCycle, usAgent]))), firstLegal, undefined, WAVE2_DEPS);
-    const attached = applyCommand(withAlly, play(P1, skyCycle, payWith(withAlly, P1, 1, [skyCycle]), { attachToInstanceId: usAgent }), WAVE2_DEPS);
+    const withAlly = settle(
+      runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [skyCycle, usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const attached = applyCommand(
+      withAlly,
+      play(P1, skyCycle, payWith(withAlly, P1, 1, [skyCycle]), { attachToInstanceId: usAgent }),
+      WAVE2_DEPS,
+    );
     expect(attached.ok).toBe(true);
     if (!attached.ok) return;
     const settledAttach = settle(attached.state, firstLegal, undefined, WAVE2_DEPS);
@@ -363,8 +440,18 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04016", "04014");
     const [teamTraining, usAgent] = given.ids as [InstanceId, InstanceId];
-    const withTraining = settle(runWave2(given.state, play(P1, teamTraining, payWith(given.state, P1, 2, [teamTraining, usAgent]))), firstLegal, undefined, WAVE2_DEPS);
-    const withAlly = settle(runWave2(withTraining, play(P1, usAgent, payWith(withTraining, P1, 3, [usAgent]))), firstLegal, undefined, WAVE2_DEPS);
+    const withTraining = settle(
+      runWave2(given.state, play(P1, teamTraining, payWith(given.state, P1, 2, [teamTraining, usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const withAlly = settle(
+      runWave2(withTraining, play(P1, usAgent, payWith(withTraining, P1, 3, [usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     // U.S. Agent prints 5 hit points; Team Training's own +1 should be visible on the resolved profile.
     expect(characterProfile(withAlly, usAgent, WAVE2_DEPS)?.maxHp).toBe(6);
   });
@@ -373,8 +460,18 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04017", "04014");
     const [readyForAction, usAgent] = given.ids as [InstanceId, InstanceId];
-    const withAlly = settle(runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [readyForAction, usAgent]))), firstLegal, undefined, WAVE2_DEPS);
-    const after = settle(runWave2(withAlly, play(P1, readyForAction, payWith(withAlly, P1, 1, [readyForAction]))), picking(usAgent), undefined, WAVE2_DEPS);
+    const withAlly = settle(
+      runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [readyForAction, usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    const after = settle(
+      runWave2(withAlly, play(P1, readyForAction, payWith(withAlly, P1, 1, [readyForAction]))),
+      picking(usAgent),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(after, usAgent).statuses.tough).toBeGreaterThan(0);
   });
 
@@ -382,10 +479,20 @@ describe("Hawkeye kit", () => {
     const start = hawkeyeVsRhino();
     const given = moveToHand(runWave2(start, toHero()), P1, "04022", "04014");
     const [heroes, usAgent] = given.ids as [InstanceId, InstanceId];
-    const withAlly = settle(runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [heroes, usAgent]))), firstLegal, undefined, WAVE2_DEPS);
+    const withAlly = settle(
+      runWave2(given.state, play(P1, usAgent, payWith(given.state, P1, 3, [heroes, usAgent]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
     const exhaustedAlly = patchInstance(withAlly, usAgent, { exhausted: true });
     const identity = identityOf(exhaustedAlly);
-    const after = settle(runWave2(exhaustedAlly, play(P1, heroes, [])), picking(identity, usAgent), undefined, WAVE2_DEPS);
+    const after = settle(
+      runWave2(exhaustedAlly, play(P1, heroes, [])),
+      picking(identity, usAgent),
+      undefined,
+      WAVE2_DEPS,
+    );
     expect(inst(after, identity).exhausted).toBe(true);
     expect(inst(after, usAgent).exhausted).toBe(false);
   });
@@ -402,14 +509,9 @@ describe("Hawkeye's obligation and nemesis (Criminal Past, Crossfire)", () => {
 
   it("Crossfire's Rifle: Hero Action, exhausting your hero and spending a [wild] resource, discards it", () => {
     // Crossfire's Rifle attaches to Crossfire if he's in play, else the villain (data, `AttachmentHost.ifAble`) —
-    // staged on top of the encounter deck (behind a filler for the villain's own boost draw) so its generic
-    // attachment-reveal rule attaches it to Rhino, the only enemy in this scenario.
-    const start = stackSetAside(hawkeyeVsRhino(), "04029");
-    const deckId = activeEncounterDeckId(start);
-    const pile = start.encounterDecks[deckId]!;
-    const filler = pile.deck[1]!; // index 0 is Crossfire's Rifle, just staged onto the very top
-    const rest = pile.deck.slice(2);
-    const staged = { ...start, encounterDecks: { ...start.encounterDecks, [deckId]: { ...pile, deck: [filler, pile.deck[0]!, ...rest] } } };
+    // staged behind a filler for the villain's own boost draw so its generic attachment-reveal rule attaches it to
+    // Rhino, the only enemy in this scenario.
+    const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04029");
     const hero = runWave2(staged, toHero());
     const revealed = settle(runWave2(hero, endTurn()), firstLegal, undefined, WAVE2_DEPS);
     const rifle = instancesOf(revealed, "04029").find((id) => cardsInPlay(revealed).includes(id));
@@ -443,17 +545,77 @@ describe("Hawkeye's obligation and nemesis (Criminal Past, Crossfire)", () => {
   });
 
   it("Sniper Shot: in hero form, deals 3 damage to your hero", () => {
-    const start = stackSetAside(hawkeyeVsRhino(), "04030");
-    const hero = runWave2(start, toHero());
+    // Bare `stackSetAside` (no filler) silently reaches Rhino's own automatic boost draw instead of the player's
+    // own reveal (every villain gets one unconditionally, drawn from the very top of the deck before any player's
+    // own encounter card — `enemy-activation.ts`'s `getsBoostCard`, `flow.ts`'s villain-phase step order): confirmed
+    // by instrumenting this exact test, which previously passed only because Rhino's own attack that same villain
+    // phase happened to deal >= 3 damage on its own, never actually revealing Sniper Shot at all.
+    // `traceAbilities` closes that hole for good: `expectResolved` fails loudly (rather than passing on a
+    // coincidence) if Sniper Shot's own ability is never actually looked up, e.g. if it's eaten as a boost card
+    // again.
+    const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04030");
+    const hero = runWave2(staged, toHero());
     const before = inst(hero, identityOf(hero)).damage;
-    const settled = settle(runWave2(hero, endTurn()), firstLegal, undefined, WAVE2_DEPS);
-    expect(inst(settled, identityOf(settled)).damage).toBeGreaterThanOrEqual(before + 3);
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    trace.reset();
+    const settled = settle(runWith(deps, hero, endTurn()), firstLegal, undefined, deps);
+    expectResolved(trace, "04030.when-revealed-hero");
+    // Exact, not a lower bound (seed 11 is pinned, so this whole villain phase is deterministic): an untargeted
+    // Rhino attacks in hero form (ATK 2, undefended, plus 2 boost icons off this round's own dealt boost card = 4),
+    // and Sniper Shot's own printed 3 lands on top of it.
+    expect(inst(settled, identityOf(settled)).damage).toBe(before + 4 + 3);
   });
 
   it("Sniper Shot: in alter-ego form, places 3 threat on the main scheme", () => {
-    const start = stackSetAside(hawkeyeVsRhino(), "04030");
-    const before = inst(start, start.mainScheme.instanceId).threat;
-    const settled = settle(runWave2(start, endTurn()), firstLegal, undefined, WAVE2_DEPS);
-    expect(inst(settled, settled.mainScheme.instanceId).threat).toBeGreaterThanOrEqual(before + 3);
+    const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04030");
+    const before = inst(staged, staged.mainScheme.instanceId).threat;
+    const { deps, trace } = traceAbilities(WAVE2_DEPS);
+    trace.reset();
+    const settled = settle(runWith(deps, staged, endTurn()), firstLegal, undefined, deps);
+    expectResolved(trace, "04030.when-revealed-alter-ego");
+    // Exact, not a lower bound (seed 11 pinned): the villain phase's own unconditional step-one threat placement
+    // (+1) always lands regardless of Sniper Shot; an alter-ego hero can't be attacked, so Rhino schemes instead
+    // (SCH 1, undefended, plus 2 boost icons off this round's own dealt boost card = 3); Sniper Shot's own printed 3
+    // is the third term. This reveal alone completes the main scheme (a real, pinned-seed consequence, not a test
+    // artifact) — reading the resulting state is still legitimate.
+    expect(inst(settled, settled.mainScheme.instanceId).threat).toBe(before + 1 + 3 + 3);
+  });
+
+  it("Marked for Death: When Revealed, finds Mockingbird in the deck and tucks her faceup beneath it (errata, RRG 1.8 p. 66)", () => {
+    // The same boost-draw trap Sniper Shot's own tests hit above — `stackSetAsideBehindBoost`, not bare
+    // `stackSetAside`, or Rhino's own automatic boost draw eats this card before it ever reaches a player's reveal.
+    const staged = stackSetAsideBehindBoost(hawkeyeVsRhino(), "04028");
+    const settled = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    const marked = instancesOf(settled, "04028").find((id) => settled.villainArea.includes(id));
+    if (!marked) throw new Error("Marked for Death never entered play");
+    const tucked = inst(settled, marked).tucked;
+    expect(tucked).toHaveLength(1);
+    const mockingbird = tucked[0]!;
+    expect(inst(settled, mockingbird).cardId).toBe(cardId("04004"));
+    expect(inst(settled, mockingbird).faceup).toBe(true);
+    expect(playerOf(settled, P1).deck).not.toContain(mockingbird);
+  });
+
+  it("Marked for Death: finds Mockingbird already in play, takes her out of it, and tucks the resulting instance", () => {
+    const hero = runWave2(hawkeyeVsRhino(), toHero());
+    const given = moveToHand(hero, P1, "04004");
+    const [mockingbird] = given.ids as [InstanceId];
+    const played = settle(
+      runWave2(given.state, play(P1, mockingbird, payWith(given.state, P1, 3, [mockingbird]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    expect(playerOf(played, P1).playArea).toContain(mockingbird);
+    const staged = stackSetAsideBehindBoost(played, "04028");
+    const settled = settle(runWave2(staged, endTurn()), firstLegal, undefined, WAVE2_DEPS);
+    expect(playerOf(settled, P1).playArea).not.toContain(mockingbird);
+    const marked = instancesOf(settled, "04028").find((id) => settled.villainArea.includes(id));
+    if (!marked) throw new Error("Marked for Death never entered play");
+    const tucked = inst(settled, marked).tucked;
+    expect(tucked).toHaveLength(1);
+    // A card that leaves play is a new instance of the same card (docs/phase7-wave2-scripting.md §5) — match on
+    // the card id, not the old in-play instance id.
+    expect(inst(settled, tucked[0]!).cardId).toBe(cardId("04004"));
   });
 });

@@ -1,20 +1,7 @@
-import { CORE_CARDS, type AnyCard } from "@mc/content";
+import { CORE_CARDS } from "@mc/content";
 import { CORE_ABILITIES } from "./index.js";
 import { PENDING } from "./pending.js";
-
-/** Every ability slot a card prints: both identity faces, every villain stage, every main scheme side. */
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities].map((ref) => ref.id);
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities.map((ref) => ref.id)));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities].map((ref) => ref.id));
-    default:
-      return "abilities" in card ? card.abilities.map((ref) => ref.id) : [];
-  }
-}
+import { abilityRefIds } from "../ability-refs.js";
 
 const ALL_REFS = CORE_CARDS.flatMap(abilityRefIds);
 const registered = new Set(Object.keys(CORE_ABILITIES));
@@ -27,7 +14,9 @@ describe("Core Set ability coverage", () => {
 
   it("every ability reference has a registry entry (except the explicit PENDING list)", () => {
     const missing = ALL_REFS.filter((id) => !registered.has(id) && !PENDING.includes(id));
-    expect(missing, `unscripted ability refs (script them or list them in PENDING):\n${missing.join("\n")}`).toEqual([]);
+    expect(missing, `unscripted ability refs (script them or list them in PENDING):\n${missing.join("\n")}`).toEqual(
+      [],
+    );
   });
 
   it("PENDING only lists real refs that are still unscripted", () => {

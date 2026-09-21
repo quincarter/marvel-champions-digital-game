@@ -1,0 +1,5 @@
+#!/bin/sh
+# Lint and format what is about to be committed (lint-staged config in package.json).
+# Installed by `pnpm install` through the root `prepare` script (`git config core.hooksPath .githooks`).
+# Skip once with `git commit --no-verify` when you must; CI's `pnpm check` runs the same two tools over the whole tree.
+pnpm exec lint-staged

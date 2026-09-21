@@ -62,7 +62,14 @@ export function executePlaceThreat(ctx: Ctx): void {
           area.mainScheme.accelerationTokens +
           ctx.state.mainScheme.accelerationTokens +
           countSchemeIcons(ctx.state, "acceleration", area);
-        return [{ kind: "placeThreat" as const, schemeInstanceId: area.mainScheme.instanceId, amount, sourceInstanceId: null }];
+        return [
+          {
+            kind: "placeThreat" as const,
+            schemeInstanceId: area.mainScheme.instanceId,
+            amount,
+            sourceInstanceId: null,
+          },
+        ];
       }),
     );
     return;
@@ -108,7 +115,8 @@ export function executeEnemyActivations(ctx: Ctx, step: Extract<GameStep, { kind
     // With separate game areas the villain is the one in that player's area (docs/phase7-wave2.md §3.1). A defeated
     // villain with no successor (Kang (I) under `victory: "cardAbility"`) does not activate.
     const villainId = activeVillainIdFor(ctx.state, areaOfPlayer(ctx.state, current.playerId));
-    if (villainId && villainOf(ctx.state, villainId)?.defeated === false) activateEnemy(ctx, villainId, current.playerId);
+    if (villainId && villainOf(ctx.state, villainId)?.defeated === false)
+      activateEnemy(ctx, villainId, current.playerId);
     return;
   }
   const minions = current.playArea.filter((id) => isMinion(ctx.state, id) && !activatedMinionIds.includes(id));

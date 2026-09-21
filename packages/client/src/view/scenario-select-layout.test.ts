@@ -96,7 +96,10 @@ describe("scenarioSelectLayout", () => {
     expect(layout.statStrip.width).toBeCloseTo(layout.shelves.width, 0);
   });
   test("narrow: shut, the stages panel is one bar and the stat strip folds away with it, so the shelves get the room", () => {
-    for (const size of [{ width: 375, height: 667 }, { width: 412, height: 924 }]) {
+    for (const size of [
+      { width: 375, height: 667 },
+      { width: 412, height: 924 },
+    ]) {
       const shut = scenarioSelectLayout({ ...size, chipRows: 2, detailLines: 12, detailCollapsed: true });
       expect(shut.detailOverlay).toBe(false);
       expect(shut.detail.height).toBe(DETAIL_COLLAPSED_HEIGHT);
@@ -105,12 +108,16 @@ describe("scenarioSelectLayout", () => {
       expect(shut.shelves.height).toBeGreaterThanOrEqual(230);
       expect(shut.detail.y + shut.detail.height).toBeLessThanOrEqual(shut.footer.y);
       const rects = scenarioSelectLayoutRects(shut);
-      for (let i = 0; i < rects.length; i++) for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      for (let i = 0; i < rects.length; i++)
+        for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
     }
   });
 
   test("narrow: open, the panel is a sheet over the chips and shelves; its bar has not moved, and the roster keeps its shut geometry", () => {
-    for (const size of [{ width: 375, height: 667 }, { width: 412, height: 924 }]) {
+    for (const size of [
+      { width: 375, height: 667 },
+      { width: 412, height: 924 },
+    ]) {
       const shut = scenarioSelectLayout({ ...size, chipRows: 2, detailLines: 12, detailCollapsed: true });
       const open = scenarioSelectLayout({ ...size, chipRows: 2, detailLines: 12, detailCollapsed: false });
       expect(open.detailOverlay).toBe(true);
@@ -121,11 +128,15 @@ describe("scenarioSelectLayout", () => {
       expect(open.detail.y + open.detail.height).toBe(shut.detail.y + shut.detail.height);
       // The strip sits inside the sheet, and the sheet never reaches the search field or the CTA.
       expect(open.statStrip.y).toBeGreaterThanOrEqual(open.detail.y);
-      expect(open.statStrip.y + open.statStrip.height).toBeLessThan(open.detail.y + open.detail.height - DETAIL_COLLAPSED_HEIGHT);
+      expect(open.statStrip.y + open.statStrip.height).toBeLessThan(
+        open.detail.y + open.detail.height - DETAIL_COLLAPSED_HEIGHT,
+      );
       expect(rectsOverlap(open.detail, open.search)).toBe(false);
       expect(rectsOverlap(open.detail, open.next)).toBe(false);
       // Room for three stage boxes under the strip even on the small phone.
-      expect(open.detail.height - DETAIL_COLLAPSED_HEIGHT - (open.statStrip.height + 26)).toBeGreaterThanOrEqual(3 * 52);
+      expect(open.detail.height - DETAIL_COLLAPSED_HEIGHT - (open.statStrip.height + 26)).toBeGreaterThanOrEqual(
+        3 * 52,
+      );
     }
   });
 

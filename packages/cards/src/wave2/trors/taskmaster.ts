@@ -126,7 +126,10 @@ export const TASKMASTER_SET = defineAbilities({
       eachPlayer,
       ifThen(
         isHero(thatPlayer),
-        chooseOne(option("Place 1 threat here", placeThreat(1, theMainScheme)), option("Take 1 damage", dealDamage(1, identityOf(thatPlayer)))),
+        chooseOne(
+          option("Place 1 threat here", placeThreat(1, theMainScheme)),
+          option("Take 1 damage", dealDamage(1, identityOf(thatPlayer))),
+        ),
       ),
     ),
   ),
@@ -134,25 +137,56 @@ export const TASKMASTER_SET = defineAbilities({
   // Moon Knight — Response: after you play him, spend a [wild] resource → draw 2 cards.
   "04097.moon-knight-response": response(on.youPlayThis(), { cost: spend(1) }, draw(2)),
   // Shang-Chi — Response: after you play him, spend a [energy] resource → stun an enemy.
-  "04098.shang-chi-response": response(on.youPlayThis(), { cost: spend({ energy: 1 }) }, chooseTarget("enemy", query("enemy")), stun(chosen("enemy"))),
+  "04098.shang-chi-response": response(
+    on.youPlayThis(),
+    { cost: spend({ energy: 1 }) },
+    chooseTarget("enemy", query("enemy")),
+    stun(chosen("enemy")),
+  ),
   // White Tiger — Response: after you play her, spend a [mental] resource → remove 3 threat from a scheme.
-  "04099.white-tiger-response": response(on.youPlayThis(), { cost: spend({ mental: 1 }) }, chooseTarget("scheme", query("scheme")), removeThreat(3, chosen("scheme"))),
+  "04099.white-tiger-response": response(
+    on.youPlayThis(),
+    { cost: spend({ mental: 1 }) },
+    chooseTarget("scheme", query("scheme")),
+    removeThreat(3, chosen("scheme")),
+  ),
   // Elektra — Response: after you play her, spend a [physical] resource → deal 3 damage to an enemy.
-  "04100.elektra-response": response(on.youPlayThis(), { cost: spend({ physical: 1 }) }, chooseTarget("enemy", query("enemy")), dealDamage(3, chosen("enemy"))),
+  "04100.elektra-response": response(
+    on.youPlayThis(),
+    { cost: spend({ physical: 1 }) },
+    chooseTarget("enemy", query("enemy")),
+    dealDamage(3, chosen("enemy")),
+  ),
 
   // Hydra Hunter — [star] his attacks gain piercing and ranged. [star] Boost: if you are in hero form, take 1
   // damage. Otherwise place 1 threat on the main scheme.
-  "04101.hydra-hunter-constant": constant(gainsKeyword({ name: "piercing" }, query("minion", { self: true })), gainsKeyword({ name: "ranged" }, query("minion", { self: true }))),
-  "04101.boost": { trigger: { kind: "boost" }, effects: [ifThen(isHero(), dealDamage(1, identityOf(you)), placeThreat(1, theMainScheme))] },
+  "04101.hydra-hunter-constant": constant(
+    gainsKeyword({ name: "piercing" }, query("minion", { self: true })),
+    gainsKeyword({ name: "ranged" }, query("minion", { self: true })),
+  ),
+  "04101.boost": {
+    trigger: { kind: "boost" },
+    effects: [ifThen(isHero(), dealDamage(1, identityOf(you)), placeThreat(1, theMainScheme))],
+  },
 
   // Taskmaster's Sword — Attach to Taskmaster (data). [star] His attacks gain piercing. Hero Action: exhaust your
   // hero and spend [M][P] → discard.
-  "04102.taskmasters-sword-constant": constant(gainsKeyword({ name: "piercing" }, query("enemy", { hostOfSelf: true }))),
-  "04102.taskmasters-sword-action": heroAction({ cost: [exhaustYourHero, spend({ mental: 1, physical: 1 })] }, discard(self)),
+  "04102.taskmasters-sword-constant": constant(
+    gainsKeyword({ name: "piercing" }, query("enemy", { hostOfSelf: true })),
+  ),
+  "04102.taskmasters-sword-action": heroAction(
+    { cost: [exhaustYourHero, spend({ mental: 1, physical: 1 })] },
+    discard(self),
+  ),
 
   // Taskmaster's Shield — Attach to Taskmaster (data). Taskmaster gains retaliate 1. Hero Action as above.
-  "04103.taskmasters-shield-constant": constant(gainsKeyword({ name: "retaliate", value: 1 }, query("enemy", { hostOfSelf: true }))),
-  "04103.taskmasters-shield-action": heroAction({ cost: [exhaustYourHero, spend({ mental: 1, physical: 1 })] }, discard(self)),
+  "04103.taskmasters-shield-constant": constant(
+    gainsKeyword({ name: "retaliate", value: 1 }, query("enemy", { hostOfSelf: true })),
+  ),
+  "04103.taskmasters-shield-action": heroAction(
+    { cost: [exhaustYourHero, spend({ mental: 1, physical: 1 })] },
+    discard(self),
+  ),
 
   // Photographic Reflexes — Attach to Taskmaster. Forced Interrupt: when a player attacks Taskmaster, prevent all
   // damage that would be dealt to him and deal an equal amount to that player's identity instead, then discard.
@@ -179,14 +213,23 @@ export const TASKMASTER_SET = defineAbilities({
     ifThen(isHero(), [
       selectCards("milled", zone("deck", you, { top: 5 })),
       moveCards(cards(chosen("milled")), "discard"),
-      ifThen(valueAtLeast(countAmong(chosen("milled"), query("event", { trait: ATTACK })), 1), enemyAttack(theVillain, { against: you })),
+      ifThen(
+        valueAtLeast(countAmong(chosen("milled"), query("event", { trait: ATTACK })), 1),
+        enemyAttack(theVillain, { against: you }),
+      ),
     ]),
   ),
 
   // Hunted by Hydra — Incite 1 (data). When Revealed: each player in hero form takes 1 damage and discards 1
   // card at random from their hand.
   "04106.when-revealed": whenRevealed(
-    forEachPlayer(eachPlayer, ifThen(isHero(thatPlayer), [dealDamage(1, identityOf(thatPlayer)), discardFromHand(1, thatPlayer, { random: true })])),
+    forEachPlayer(
+      eachPlayer,
+      ifThen(isHero(thatPlayer), [
+        dealDamage(1, identityOf(thatPlayer)),
+        discardFromHand(1, thatPlayer, { random: true }),
+      ]),
+    ),
   ),
 
   // Captured by Hydra — When Revealed: place 1 random set-aside Captive ally facedown beneath this scheme.
@@ -196,8 +239,14 @@ export const TASKMASTER_SET = defineAbilities({
   ),
   // Captured by Hydra — When Defeated: the player who defeated it takes that ally into their hand and removes this
   // scheme from the game. Got its own ability ref in a later data pass (module docblock).
-  "04107.when-defeated": whenDefeated(takeIntoHand(tuckedUnder(self), defeatingPlayer), moveCards(cards(self), "removedFromGame")),
+  "04107.when-defeated": whenDefeated(
+    takeIntoHand(tuckedUnder(self), defeatingPlayer),
+    moveCards(cards(self), "removedFromGame"),
+  ),
 
   // Taskmaster's Training Camp — Forced Response: after a minion enters play, give it a tough status card.
-  "04108.taskmasters-training-camp-forced-response": forcedResponse(on.entersPlay(query("minion")), giveTough(eventTarget)),
+  "04108.taskmasters-training-camp-forced-response": forcedResponse(
+    on.entersPlay(query("minion")),
+    giveTough(eventTarget),
+  ),
 });

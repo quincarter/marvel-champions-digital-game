@@ -30,7 +30,8 @@ export const FNE_CURATION: PackCuration = {
   pack: {
     name: "Fear No Evil",
     releaseDate: "2026-07-01",
-    releaseDateSource: 'Hall of Heroes Fear No Evil page (https://hallofheroeslcg.com/fear-no-evil/): "Release date: July, 2026" (no specific day given; the first of the month is used as a placeholder — confirm before trusting this exact date).',
+    releaseDateSource:
+      'Hall of Heroes Fear No Evil page (https://hallofheroeslcg.com/fear-no-evil/): "Release date: July, 2026" (no specific day given; the first of the month is used as a placeholder — confirm before trusting this exact date).',
   },
   outDir: "src/data/fne",
   exportPrefix: "FNE",

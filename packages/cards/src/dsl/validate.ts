@@ -21,7 +21,10 @@ const UNLABELED_ATTACK = Symbol("ability-scripting-engineer: unlabeled attack, s
  * Use only when a card's own text (or an FAQ ruling on it) makes an unlabeled attack effect correct; every other
  * ability with an `attack` effect must still carry `{ label: "attack" }`.
  */
-export function allowUnlabeledAttack<T extends AbilityDefinition>(definition: T, reason: { readonly citation: string }): T {
+export function allowUnlabeledAttack<T extends AbilityDefinition>(
+  definition: T,
+  reason: { readonly citation: string },
+): T {
   if (!reason.citation.trim()) throw new Error("allowUnlabeledAttack needs a citation");
   Object.defineProperty(definition, UNLABELED_ATTACK, { value: true, enumerable: false, configurable: false });
   return definition;
@@ -61,7 +64,9 @@ function checkBoostCards(definition: AbilityDefinition, problems: string[]): voi
   for (const effect of allEffects(definition.effects)) {
     if (effect.kind !== "giveBoostCard") continue;
     if (definition.trigger.kind === "boost") {
-      problems.push("giveBoostCard deals a facedown boost card outside an activation; inside a Boost ability use modifyAttack({ extraBoostCards }) for \"for this activation\"");
+      problems.push(
+        'giveBoostCard deals a facedown boost card outside an activation; inside a Boost ability use modifyAttack({ extraBoostCards }) for "for this activation"',
+      );
     }
     if (effect.count?.kind === "const" && (!Number.isInteger(effect.count.value) || effect.count.value < 1)) {
       problems.push("giveBoostCard: a constant count must be a whole number of at least 1");
@@ -73,24 +78,32 @@ function checkBoostCards(definition: AbilityDefinition, problems: string[]): voi
 function checkCost(definition: AbilityDefinition, problems: string[]): void {
   const cost = definition.cost;
   if (!cost) return;
-  for (const [name, pick] of [["exhaustCards", cost.exhaustCards], ["returnToHand", cost.returnToHand]] as const) {
+  for (const [name, pick] of [
+    ["exhaustCards", cost.exhaustCards],
+    ["returnToHand", cost.returnToHand],
+  ] as const) {
     if (!pick) continue;
     // RRG 1.8 "Cost" (p. 14): "A cost requiring 'any number' or 'up to' some number of game elements requires a minimum of one".
-    if (!Number.isInteger(pick.min) || pick.min < 1) problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);
-    if (pick.max !== undefined && (!Number.isInteger(pick.max) || pick.max < pick.min)) problems.push(`cost ${name}: max must be a whole number no smaller than min`);
+    if (!Number.isInteger(pick.min) || pick.min < 1)
+      problems.push(`cost ${name}: min must be a whole number of at least 1 (RRG 1.8 "Cost", p. 14)`);
+    if (pick.max !== undefined && (!Number.isInteger(pick.max) || pick.max < pick.min))
+      problems.push(`cost ${name}: max must be a whole number no smaller than min`);
   }
   // `discardFromHand` keeps min 0 legal: "Discard X cards" lets the player choose X (RRG 1.8 "'X' (Value)", p. 29).
   const discard = cost.discardFromHand;
-  if (discard && discard.max !== undefined && discard.max < discard.min) problems.push("cost discardFromHand: max must be no smaller than min");
+  if (discard && discard.max !== undefined && discard.max < discard.min)
+    problems.push("cost discardFromHand: max must be no smaller than min");
   const random = cost.discardRandomFromHand;
-  if (random !== undefined && (!Number.isInteger(random) || random < 1)) problems.push("cost discardRandomFromHand: must be a whole number of at least 1");
+  if (random !== undefined && (!Number.isInteger(random) || random < 1))
+    problems.push("cost discardRandomFromHand: must be a whole number of at least 1");
   const slots = [
     ...(cost.discardFromHand ? ["discard"] : []),
     ...(cost.payPrintedCostOf ? [cost.payPrintedCostOf.slot] : []),
     ...(cost.exhaustCards ? [cost.exhaustCards.slot] : []),
     ...(cost.returnToHand ? [cost.returnToHand.slot] : []),
   ];
-  if (new Set(slots).size !== slots.length) problems.push(`cost components pick into the same slot (${slots.join(", ")}); give each its own slot`);
+  if (new Set(slots).size !== slots.length)
+    problems.push(`cost components pick into the same slot (${slots.join(", ")}); give each its own slot`);
 }
 
 /** `scaled.divide` needs a positive whole divisor; the engine would otherwise read the value as 0. */
@@ -103,13 +116,18 @@ function checkScaled(value: unknown, path: string, problems: string[]): void {
   const record = value as Record<string, unknown>;
   if (record.kind === "scaled" && record.divide !== undefined) {
     const divide = record.divide as { by?: unknown; round?: unknown };
-    if (typeof divide.by !== "number" || !Number.isInteger(divide.by) || divide.by < 1) problems.push(`${path}: scaled divide.by must be a whole number of at least 1`);
-    if (divide.round !== "down" && divide.round !== "up") problems.push(`${path}: scaled divide.round must be "down" or "up"`);
+    if (typeof divide.by !== "number" || !Number.isInteger(divide.by) || divide.by < 1)
+      problems.push(`${path}: scaled divide.by must be a whole number of at least 1`);
+    if (divide.round !== "down" && divide.round !== "up")
+      problems.push(`${path}: scaled divide.round must be "down" or "up"`);
   }
   // An empty list is almost certainly an authoring slip: `sum` of nothing is 0, and `anyTrait`/`anyPrintedResource` of nothing matches no card.
-  if (record.kind === "sum" && (!Array.isArray(record.values) || record.values.length === 0)) problems.push(`${path}: sum needs at least one value`);
-  if (Array.isArray(record.anyTrait) && record.anyTrait.length === 0) problems.push(`${path}: anyTrait needs at least one trait`);
-  if (Array.isArray(record.anyPrintedResource) && record.anyPrintedResource.length === 0) problems.push(`${path}: anyPrintedResource needs at least one resource type`);
+  if (record.kind === "sum" && (!Array.isArray(record.values) || record.values.length === 0))
+    problems.push(`${path}: sum needs at least one value`);
+  if (Array.isArray(record.anyTrait) && record.anyTrait.length === 0)
+    problems.push(`${path}: anyTrait needs at least one trait`);
+  if (Array.isArray(record.anyPrintedResource) && record.anyPrintedResource.length === 0)
+    problems.push(`${path}: anyPrintedResource needs at least one resource type`);
   for (const [key, item] of Object.entries(record)) checkScaled(item, `${path}.${key}`, problems);
 }
 
@@ -136,10 +154,13 @@ function checkPlain(value: unknown, path: string, problems: string[]): void {
 
 function checkTrigger(definition: AbilityDefinition, problems: string[]): void {
   const trigger = definition.trigger;
-  if ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.on) problems.push(`${trigger.kind} needs an event pattern`);
+  if ((trigger.kind === "interrupt" || trigger.kind === "response") && !trigger.on)
+    problems.push(`${trigger.kind} needs an event pattern`);
   if (trigger.kind === "constant" && definition.effects.length > 0) problems.push("a constant ability has no effects");
-  if (definition.generates !== undefined && trigger.kind !== "resource") problems.push("only resource abilities generate resources");
-  if (trigger.kind === "constant" && (definition.cost || definition.limit || definition.label)) problems.push("a constant ability has no cost, limit or label");
+  if (definition.generates !== undefined && trigger.kind !== "resource")
+    problems.push("only resource abilities generate resources");
+  if (trigger.kind === "constant" && (definition.cost || definition.limit || definition.label))
+    problems.push("a constant ability has no cost, limit or label");
 }
 
 /** Every effect in the tree, including nested branches and deferred effects. */
@@ -174,9 +195,12 @@ function nestedLists(effect: EffectSpec): (readonly EffectSpec[])[] {
 function checkLabels(definition: AbilityDefinition, problems: string[]): void {
   const kinds = new Set(allEffects(definition.effects).map((e) => e.kind));
   if (kinds.has("attack") && !(definition.label ?? []).includes("attack") && !hasUnlabeledAttackOptOut(definition)) {
-    problems.push('an attack effect belongs to an (attack)-labeled ability (opt out with allowUnlabeledAttack for a documented exception like Dance of Death, FAQ "Dance of Death (#4)", RRG 1.8 p. 59)');
+    problems.push(
+      'an attack effect belongs to an (attack)-labeled ability (opt out with allowUnlabeledAttack for a documented exception like Dance of Death, FAQ "Dance of Death (#4)", RRG 1.8 p. 59)',
+    );
   }
-  if (kinds.has("thwart") && !(definition.label ?? []).includes("thwart")) problems.push("a thwart effect belongs to a (thwart)-labeled ability");
+  if (kinds.has("thwart") && !(definition.label ?? []).includes("thwart"))
+    problems.push("a thwart effect belongs to a (thwart)-labeled ability");
 }
 
 interface Scope {
@@ -209,11 +233,17 @@ function checkRefs(value: unknown, scope: Scope, where: string, problems: string
   if (record.kind === "slot" && typeof record.slot === "string" && !known(scope, scope.slots, record.slot)) {
     problems.push(`${where}: slot "${record.slot}" is read before it is bound`);
   }
-  if ((record.kind === "var" || record.kind === "varAtLeast") && typeof record.name === "string" && !known(scope, scope.vars, record.name)) {
+  if (
+    (record.kind === "var" || record.kind === "varAtLeast") &&
+    typeof record.name === "string" &&
+    !known(scope, scope.vars, record.name)
+  ) {
     problems.push(`${where}: var "${record.name}" is read before it is bound`);
   }
   if (Array.isArray(record.excludeSlots)) {
-    for (const slot of record.excludeSlots) if (typeof slot === "string" && !known(scope, scope.slots, slot)) problems.push(`${where}: excluded slot "${slot}" is never bound`);
+    for (const slot of record.excludeSlots)
+      if (typeof slot === "string" && !known(scope, scope.slots, slot))
+        problems.push(`${where}: excluded slot "${slot}" is never bound`);
   }
   if (typeof record.inSlot === "string" && !known(scope, scope.slots, record.inSlot)) {
     problems.push(`${where}: slot "${record.inSlot}" is read before it is bound`);
@@ -293,7 +323,14 @@ function walk(effects: readonly EffectSpec[], scope: Scope, path: string, proble
 }
 
 function checkBindings(definition: AbilityDefinition, problems: string[]): void {
-  const scope: Scope = { slots: new Set(), vars: new Set(), prefixes: new Set(["paid.", "sequence.", "self.counters."]) };
+  // `"x"`: the play's own var for a cost printed "X" (`specialCost: "X"`; Speed Cyclone 14006, docs/phase7-wave2.md
+  // §3.8) — bound by `playCard.x` before any of the card's own abilities run, the same class of externally-supplied
+  // var `"paid."`/`"overpaid."` already are (never bound *by* the ability itself, so nothing here could bind it).
+  const scope: Scope = {
+    slots: new Set(),
+    vars: new Set(["x"]),
+    prefixes: new Set(["paid.", "overpaid.", "sequence.", "self.counters."]),
+  };
   const cost = definition.cost;
   if (cost?.discardFromHand) {
     scope.slots.add("discard");

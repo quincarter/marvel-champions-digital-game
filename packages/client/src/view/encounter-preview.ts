@@ -83,7 +83,11 @@ export interface EncounterDeckPreview {
 
 const cardsOf = (pool: CardPool): readonly AnyCard[] => (Array.isArray(pool) ? pool : Object.values(pool));
 
-function breakdownOf(cardIds: readonly CardId[], byId: ReadonlyMap<string, AnyCard>, setNames: ReadonlyMap<string, string>): Pick<VillainDeckPreview, "totalCards" | "bySet" | "byType" | "surgeCount"> {
+function breakdownOf(
+  cardIds: readonly CardId[],
+  byId: ReadonlyMap<string, AnyCard>,
+  setNames: ReadonlyMap<string, string>,
+): Pick<VillainDeckPreview, "totalCards" | "bySet" | "byType" | "surgeCount"> {
   const typeCounts = new Map<CardType, number>();
   const setCounts = new Map<string, number>();
   let surgeCount = 0;
@@ -96,7 +100,8 @@ function breakdownOf(cardIds: readonly CardId[], byId: ReadonlyMap<string, AnyCa
         setCounts.set(setId, (setCounts.get(setId) ?? 0) + 1);
       }
     }
-    if ("keywords" in card && (card.keywords as readonly { readonly name: string }[]).some((k) => k.name === "surge")) surgeCount += 1;
+    if ("keywords" in card && (card.keywords as readonly { readonly name: string }[]).some((k) => k.name === "surge"))
+      surgeCount += 1;
   }
   const byType = [...typeCounts.entries()].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count);
   const bySet = [...setCounts.entries()]
@@ -113,7 +118,11 @@ function breakdownOf(cardIds: readonly CardId[], byId: ReadonlyMap<string, AnyCa
  * `POOL_CARDS`); `encounterSets` supplies display names for `bySet`
  * (`CORE_ENCOUNTER_SETS`/`WAVE1_ENCOUNTER_SETS`).
  */
-export function encounterDeckPreviewOf(config: GameSetupConfig, pool: CardPool, encounterSets: readonly EncounterSet[]): EncounterDeckPreview {
+export function encounterDeckPreviewOf(
+  config: GameSetupConfig,
+  pool: CardPool,
+  encounterSets: readonly EncounterSet[],
+): EncounterDeckPreview {
   const byId = new Map(cardsOf(pool).map((card) => [card.id as string, card]));
   const setNames = new Map(encounterSets.map((set) => [set.id as string, set.name]));
   const nameOf = (id: string): string => byId.get(id)?.name ?? id;
@@ -154,7 +163,9 @@ export function encounterDeckPreviewOf(config: GameSetupConfig, pool: CardPool, 
       }
 
       const nemesisSetId = heroIdentity.nemesisEncounterSetId as string;
-      const nemesisCards = cardsOf(pool).filter((card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(nemesisSetId));
+      const nemesisCards = cardsOf(pool).filter(
+        (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(nemesisSetId),
+      );
       const cardCount = nemesisCards.reduce((sum, card) => sum + card.quantityInSet, 0);
       if (cardCount > 0) {
         nemesisSetsHeldBack.push({

@@ -11,4 +11,10 @@ import { WRECKER_SET } from "./wrecker.js";
  * This is the ONE export this pack adds — see `docs/phase7-wave1-scripting.md`. Merged with `mergeRegistries`
  * (never an object spread — a spread silently hides a duplicate id, `docs/phase7-wave1-scripting.md`).
  */
-export const TWC_ABILITIES: AbilityRegistry = mergeRegistries(BREAKOUT, WRECKER_SET, THUNDERBALL_SET, PILEDRIVER_SET, BULLDOZER_SET);
+export const TWC_ABILITIES: AbilityRegistry = mergeRegistries(
+  BREAKOUT,
+  WRECKER_SET,
+  THUNDERBALL_SET,
+  PILEDRIVER_SET,
+  BULLDOZER_SET,
+);

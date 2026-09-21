@@ -18,7 +18,8 @@ export const WONDER_MAN_CURATION: PackCuration = {
   pack: {
     name: "Wonder Man",
     releaseDate: "2026-02-20",
-    releaseDateSource: 'Hall of Heroes Simon Williams/Wonder Man page (https://hallofheroeslcg.com/simon-williams-wonder-man/): "Release date: February 20, 2026"',
+    releaseDateSource:
+      'Hall of Heroes Simon Williams/Wonder Man page (https://hallofheroeslcg.com/simon-williams-wonder-man/): "Release date: February 20, 2026"',
   },
   outDir: "src/data/wonder_man",
   exportPrefix: "WONDER_MAN",
@@ -26,14 +27,16 @@ export const WONDER_MAN_CURATION: PackCuration = {
   corrections: [
     {
       code: "58002",
-      reason: "Ionic Physiology is Permanent, entering play through its own text rather than being paid for from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 \"Dash (Value)\", p. 15), not a data gap.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/58002), \"Cost: —\"",
+      reason:
+        'Ionic Physiology is Permanent, entering play through its own text rather than being paid for from hand: raw sends no `cost` at all — the printed-dash pattern (RRG 1.8 "Dash (Value)", p. 15), not a data gap.',
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/58002), "Cost: —"',
       specialCost: "dash",
     },
     {
       code: "58031",
-      reason: "Cameo is a Setup: search-and-attach support, never played for a resource cost: raw sends no `cost` at all — same reasoning as 58002.",
-      evidence: "MarvelCDB card listing (marvelcdb.com/card/58031), \"Cost: —\"",
+      reason:
+        "Cameo is a Setup: search-and-attach support, never played for a resource cost: raw sends no `cost` at all — same reasoning as 58002.",
+      evidence: 'MarvelCDB card listing (marvelcdb.com/card/58031), "Cost: —"',
       specialCost: "dash",
     },
   ],

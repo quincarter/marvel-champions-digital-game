@@ -27,7 +27,12 @@ export function driveSession(
     for (let guard = 0; current.state.pendingChoice && !current.state.outcome; guard++) {
       if (guard > 100) throw new Error("choices did not settle");
       const choice = current.state.pendingChoice;
-      apply({ type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: pick(current.state) });
+      apply({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: pick(current.state),
+      });
     }
   };
   answer();
@@ -45,7 +50,12 @@ export function runCommands(state: GameState, deps: EngineDeps, ...commands: rea
 }
 
 /** `runCommands` with a custom choice picker. */
-export function runCommandsPicking(state: GameState, deps: EngineDeps, pick: (state: GameState) => readonly string[], ...commands: readonly Command[]) {
+export function runCommandsPicking(
+  state: GameState,
+  deps: EngineDeps,
+  pick: (state: GameState) => readonly string[],
+  ...commands: readonly Command[]
+) {
   const { session, events } = driveSession(startSession(state), deps, commands, pick);
   return { state: session.state, events, session };
 }

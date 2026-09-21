@@ -9,14 +9,23 @@
  */
 
 import { describe, expect, test } from "vitest";
-import { CORE_CARDS, CORE_POOL_VERSION, CORE_STARTER_DECKS, deckFromStarterDeck, type AnyCard, type Deck } from "@mc/content";
+import {
+  CORE_CARDS,
+  CORE_POOL_VERSION,
+  CORE_STARTER_DECKS,
+  deckFromStarterDeck,
+  type AnyCard,
+  type Deck,
+} from "@mc/content";
 import { CORE_DEPS } from "@mc/cards";
 import { deckOptionOf, type DeckOption } from "./deck-list-model.js";
 import { seatOptions } from "./seats.js";
 
 const CARDS = new Map<string, AnyCard>(CORE_CARDS.map((card) => [card.id as string, card]));
 const optionOf = (deck: Deck): DeckOption => deckOptionOf(deck, CORE_CARDS, CORE_POOL_VERSION, CORE_DEPS);
-const PRECON_OPTIONS: readonly DeckOption[] = CORE_STARTER_DECKS.map((starter) => optionOf(deckFromStarterDeck(starter, CORE_POOL_VERSION)));
+const PRECON_OPTIONS: readonly DeckOption[] = CORE_STARTER_DECKS.map((starter) =>
+  optionOf(deckFromStarterDeck(starter, CORE_POOL_VERSION)),
+);
 
 const options = (seated: readonly string[], max = 4) => seatOptions(PRECON_OPTIONS, seated, CARDS, max);
 const find = (seated: readonly string[], deckId: string) => options(seated).find((o) => o.deckId === deckId)!;
@@ -26,9 +35,9 @@ describe("seatOptions", () => {
     const leadership = "precon:core-captain-marvel-leadership";
     const aggression = "precon:core-captain-marvel-aggression-tutorial";
     // Different decks, different aspects, same identity card.
-    expect(
-      PRECON_OPTIONS.find((o) => (o.deck.id as string) === leadership)!.deck.identityCardId,
-    ).toBe(PRECON_OPTIONS.find((o) => (o.deck.id as string) === aggression)!.deck.identityCardId);
+    expect(PRECON_OPTIONS.find((o) => (o.deck.id as string) === leadership)!.deck.identityCardId).toBe(
+      PRECON_OPTIONS.find((o) => (o.deck.id as string) === aggression)!.deck.identityCardId,
+    );
 
     const blocked = find([leadership], aggression);
     expect(blocked.blockedBy).toContain("Captain Marvel");
@@ -64,7 +73,11 @@ describe("seatOptions", () => {
     // legality — a full identity-specific card list swapped onto a different
     // identity id would (correctly) fail `validateDeck` for an unrelated reason.
     const spiderMan = CARDS.get("01001a")!;
-    const milesLike = { ...spiderMan, id: "99001a", alterEgo: { ...(spiderMan as never as { alterEgo: { faceName: string } }).alterEgo, faceName: "Miles Morales" } } as AnyCard;
+    const milesLike = {
+      ...spiderMan,
+      id: "99001a",
+      alterEgo: { ...(spiderMan as never as { alterEgo: { faceName: string } }).alterEgo, faceName: "Miles Morales" },
+    } as AnyCard;
     const cards = new Map(CARDS).set("99001a", milesLike);
     const bareOption = (deck: Deck): DeckOption => ({
       deck,
@@ -77,14 +90,24 @@ describe("seatOptions", () => {
       blockedReason: null,
       warning: null,
     });
-    const otherDeck: Deck = { ...deckFromStarterDeck(CORE_STARTER_DECKS[0]!, CORE_POOL_VERSION), id: "other-spider-man" as never, identityCardId: "99001a" as never };
+    const otherDeck: Deck = {
+      ...deckFromStarterDeck(CORE_STARTER_DECKS[0]!, CORE_POOL_VERSION),
+      id: "other-spider-man" as never,
+      identityCardId: "99001a" as never,
+    };
     const decks = [PRECON_OPTIONS[0]!, bareOption(otherDeck)];
-    const result = seatOptions(decks, [PRECON_OPTIONS[0]!.deck.id as string], cards).find((o) => o.deckId === "other-spider-man")!;
+    const result = seatOptions(decks, [PRECON_OPTIONS[0]!.deck.id as string], cards).find(
+      (o) => o.deckId === "other-spider-man",
+    )!;
     expect(result.blockedBy).toBeNull();
   });
 
   test("a deck that cannot be seated (illegal, or missing scripts) is blocked with the engine's own reason", () => {
-    const illegal: Deck = { ...deckFromStarterDeck(CORE_STARTER_DECKS[0]!, CORE_POOL_VERSION), id: "illegal-deck" as never, cards: [] };
+    const illegal: Deck = {
+      ...deckFromStarterDeck(CORE_STARTER_DECKS[0]!, CORE_POOL_VERSION),
+      id: "illegal-deck" as never,
+      cards: [],
+    };
     const decks = [PRECON_OPTIONS[0]!, optionOf(illegal)];
     const result = seatOptions(decks, [], CARDS).find((o) => o.deckId === "illegal-deck")!;
     expect(result.blockedBy).not.toBeNull();

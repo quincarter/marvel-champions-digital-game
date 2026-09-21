@@ -1,6 +1,6 @@
 import type { ChoiceOption } from "./choices.js";
 import { emit, pushFrames, requestChoice, setStep, updatePlayer, type Ctx } from "./ctx.js";
-import { drawCards, endLastingEffect, expireLastingEffects } from "./effects.js";
+import { drawCards, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
@@ -153,7 +153,9 @@ export function afterMulliganChoice(ctx: Ctx, playerId: PlayerId): void {
  */
 function executePlayerSetupAbilities(ctx: Ctx, step: Extract<GameStep, { kind: "playerSetupAbilities" }>): void {
   if (!step.resolved) {
-    const frames = playerOrder(ctx.state).flatMap((player) => gameAbilityFrames(ctx, player.identity.instanceId, ["setup"], null));
+    const frames = playerOrder(ctx.state).flatMap((player) =>
+      gameAbilityFrames(ctx, player.identity.instanceId, ["setup"], null),
+    );
     setStep(ctx, { phase: "setup", kind: "playerSetupAbilities", resolved: true });
     pushFrames(ctx, frames);
     return;
@@ -191,6 +193,8 @@ export function finishTurn(ctx: Ctx, playerId: PlayerId): void {
   // "Until the end of this turn" (docs/phase7-wave2.md §13): expires as soon as the turn's end is reached (RRG 1.8
   // "Lasting Effects", p. 26), before the next player's turn begins or the end-of-phase steps start.
   expireLastingEffects(ctx, "endOfTurn");
+  // …and "until your next turn ends" (§22), which is the same timing point for a different player's clock.
+  expirePlayerTurnEffects(ctx, playerId);
   // …and "attacked this turn" is empty until the next turn begins, so the end-of-phase steps and the villain phase
   // never read the last player's attacks as their own (§14).
   ctx.state = { ...ctx.state, attackedThisTurn: {} };
@@ -275,9 +279,13 @@ function executeEndPhaseReady(ctx: Ctx): void {
 }
 
 /** The delayed effects waiting on this timing point, marked fired (they resolve through the stack next). */
-function takeDelayed(ctx: Ctx, kind: "endOfPhase" | "endOfRound"): readonly Extract<LastingEffect, { kind: "delayedEffects" }>[] {
+function takeDelayed(
+  ctx: Ctx,
+  kind: "endOfPhase" | "endOfRound",
+): readonly Extract<LastingEffect, { kind: "delayedEffects" }>[] {
   const delayed = ctx.state.lastingEffects.filter(
-    (effect): effect is Extract<LastingEffect, { kind: "delayedEffects" }> => effect.kind === "delayedEffects" && effect.duration.kind === kind,
+    (effect): effect is Extract<LastingEffect, { kind: "delayedEffects" }> =>
+      effect.kind === "delayedEffects" && effect.duration.kind === kind,
   );
   for (const effect of delayed) endLastingEffect(ctx, effect.id, "fired");
   return delayed;
@@ -311,7 +319,13 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
   }
   clearAbilityUses(ctx, "round");
   // "Max X per round" and "first … each round" count again from zero.
-  ctx.state = { ...ctx.state, round: ctx.state.round + 1, playedThisRound: {}, playedThisPhase: {}, playedByPlayerThisRound: {} };
+  ctx.state = {
+    ...ctx.state,
+    round: ctx.state.round + 1,
+    playedThisRound: {},
+    playedThisPhase: {},
+    playedByPlayerThisRound: {},
+  };
   emit(ctx, { type: "roundStarted", round: ctx.state.round });
   beginPlayerPhase(ctx);
   announce(ctx, { kind: "villainPhaseEnded" });

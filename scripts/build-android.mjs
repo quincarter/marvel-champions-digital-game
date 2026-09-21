@@ -1,11 +1,15 @@
 #!/usr/bin/env node
+// Signed release APK, from any OS with the Android SDK installed (Gradle runs everywhere; apksigner is a .bat
+// wrapper on Windows, which is why every command below goes through ./lib/run.mjs).
 
-import { execSync, spawnSync } from "node:child_process";
+import { execSync } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { defaultReleaseDir, writeChecksumManifest } from "./lib/release-collector.mjs";
+import { pnpm, run } from "./lib/run.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
@@ -65,6 +69,62 @@ function findApkSignerDir() {
   return null;
 }
 
+function ensureJavaHome() {
+  if (process.env.JAVA_HOME && fs.existsSync(process.env.JAVA_HOME)) {
+    return;
+  }
+  const miseBase = path.join(os.homedir(), "AppData", "Local", "mise", "installs", "java");
+  if (fs.existsSync(miseBase)) {
+    const candidates = fs
+      .readdirSync(miseBase)
+      .filter(
+        (d) =>
+          (d.startsWith("temurin-17") || d.startsWith("17") || d.startsWith("temurin-21") || d.startsWith("21")) &&
+          fs.existsSync(path.join(miseBase, d, "bin")),
+      )
+      .sort()
+      .reverse();
+    if (candidates.length > 0) {
+      const chosen = path.join(miseBase, candidates[0]);
+      process.env.JAVA_HOME = chosen;
+      process.env.PATH = `${path.join(chosen, "bin")}${path.delimiter}${process.env.PATH}`;
+      console.log(`[build-android] Discovered JAVA_HOME in mise: ${chosen}`);
+    }
+  }
+}
+
+function ensureAndroidSdk() {
+  const candidates = [
+    process.env.ANDROID_HOME,
+    process.env.ANDROID_SDK_ROOT,
+    process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, "Android", "Sdk") : null,
+    path.join(os.homedir(), "Library", "Android", "sdk"),
+    path.join(os.homedir(), "Android", "Sdk"),
+  ].filter(Boolean);
+
+  const sdkDir = candidates.find((p) => p && fs.existsSync(p));
+  if (!sdkDir) return null;
+
+  if (!process.env.ANDROID_HOME) {
+    process.env.ANDROID_HOME = sdkDir;
+  }
+  if (!process.env.ANDROID_SDK_ROOT) {
+    process.env.ANDROID_SDK_ROOT = sdkDir;
+  }
+
+  const localProps = path.join(androidDir, "local.properties");
+  if (!fs.existsSync(localProps)) {
+    const escaped = sdkDir.replace(/\\/g, "\\\\");
+    fs.writeFileSync(localProps, `sdk.dir=${escaped}\n`, "utf8");
+    console.log(`[build-android] Created ${localProps} pointing to ${sdkDir}`);
+  }
+
+  return sdkDir;
+}
+
+ensureJavaHome();
+ensureAndroidSdk();
+
 // Ensure apksigner is in PATH
 const apksignerDir = findApkSignerDir();
 if (apksignerDir) {
@@ -74,7 +134,7 @@ if (apksignerDir) {
 
 // Keystore resolution
 const keystorePath = process.env.ANDROID_KEYSTORE_PATH
-  ? path.resolve(process.env.ANDROID_KEYSTORE_PATH)
+  ? path.resolve(repoRoot, process.env.ANDROID_KEYSTORE_PATH)
   : path.join(repoRoot, "marvel-champions.keystore");
 
 if (!fs.existsSync(keystorePath)) {
@@ -90,11 +150,7 @@ console.log(`[build-android] Using keystore: ${keystorePath} (alias: ${keystoreA
 
 // Step 1: Mobile sync (client build + cap sync)
 console.log("[build-android] Step 1: Syncing mobile assets...");
-const syncResult = spawnSync("pnpm", ["mobile:sync"], {
-  cwd: clientDir,
-  env: process.env,
-  stdio: "inherit",
-});
+const syncResult = pnpm(["mobile:sync"], { cwd: clientDir });
 
 if (syncResult.status !== 0) {
   console.error("[build-android] ERROR: mobile:sync failed.");
@@ -103,8 +159,7 @@ if (syncResult.status !== 0) {
 
 // Step 2: Capacitor build android with apksigner (v2/v3 signature scheme)
 console.log("[build-android] Step 2: Building release APK with apksigner...");
-const buildResult = spawnSync(
-  "pnpm",
+const buildResult = pnpm(
   [
     "cap",
     "build",
@@ -122,11 +177,7 @@ const buildResult = spawnSync(
     "--keystorealiaspass",
     keystoreKeyPass,
   ],
-  {
-    cwd: clientDir,
-    env: process.env,
-    stdio: "inherit",
-  }
+  { cwd: clientDir },
 );
 
 if (buildResult.status !== 0) {
@@ -142,10 +193,7 @@ if (!fs.existsSync(signedApk)) {
 }
 
 console.log("[build-android] Step 3: Verifying APK signature scheme...");
-const verifyResult = spawnSync("apksigner", ["verify", "-v", signedApk], {
-  env: process.env,
-  encoding: "utf8",
-});
+const verifyResult = run("apksigner", ["verify", "-v", signedApk], { capture: true });
 
 if (verifyResult.status !== 0) {
   console.error("[build-android] ERROR: APK signature verification failed!");
@@ -158,19 +206,29 @@ if (verifyResult.status !== 0) {
 // "App not installed". Uploading the wrong one of the two is an easy mistake, so the file to send lives alone.
 const gradle = fs.readFileSync(path.join(androidDir, "app", "build.gradle"), "utf8");
 const versionName = gradle.match(/versionName\s+"([^"]+)"/)?.[1] ?? "0";
+
+// Stage to dist/android for backwards compatibility
 const shareDir = path.join(repoRoot, "dist", "android");
 fs.mkdirSync(shareDir, { recursive: true });
 for (const stale of fs.readdirSync(shareDir)) if (stale.endsWith(".apk")) fs.rmSync(path.join(shareDir, stale));
 const shareApk = path.join(shareDir, `marvel-champions-${versionName}.apk`);
 fs.copyFileSync(signedApk, shareApk);
-const sha256 = crypto.createHash("sha256").update(fs.readFileSync(shareApk)).digest("hex");
 
-const stats = fs.statSync(shareApk);
+// Stage to the unified release/ directory
+fs.mkdirSync(defaultReleaseDir, { recursive: true });
+const releaseApk = path.join(defaultReleaseDir, `marvel-champions-${versionName}.apk`);
+fs.copyFileSync(signedApk, releaseApk);
+writeChecksumManifest();
+
+const sha256 = crypto.createHash("sha256").update(fs.readFileSync(releaseApk)).digest("hex");
+
+const stats = fs.statSync(releaseApk);
 const sizeMb = (stats.size / (1024 * 1024)).toFixed(2);
 
 console.log("\n========================================================");
 console.log("  Android Release Build Successful!");
-console.log(`  Share THIS file: ${shareApk}`);
+console.log(`  Staged to release/: ${releaseApk}`);
+console.log(`  (Also at: ${shareApk})`);
 console.log(`  ${stats.size} bytes (${sizeMb} MB) · sha256 ${sha256.slice(0, 16)}…`);
 console.log("  After downloading it on the phone, the size should match to the byte.");
 console.log("  Signatures verified: APK Signature Scheme v2 & v3 active");

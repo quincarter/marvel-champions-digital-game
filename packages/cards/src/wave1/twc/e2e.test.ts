@@ -18,7 +18,9 @@ describe("wave1Scenario('breakout')", () => {
     const created = createGame(config, TWC_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const result = playToOutcome(created.state, TWC_DEPS);
-    console.info(`[twc e2e] Breakout (standard, solo) — Spider-Man: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+    console.info(
+      `[twc e2e] Breakout (standard, solo) — Spider-Man: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+    );
     expect(result.outcome).not.toBeNull();
     expect(result.rounds).toBeGreaterThanOrEqual(1);
     const replayed = replay(result.session.log, TWC_DEPS);
@@ -34,7 +36,9 @@ describe("wave1Scenario('breakout')", () => {
     const created = createGame(config, TWC_DEPS);
     if (!created.ok) throw new Error(`setup failed: ${created.error.message}`);
     const result = playToOutcome(created.state, TWC_DEPS);
-    console.info(`[twc e2e] Breakout (standard, 2-player) — Spider-Man/Captain Marvel: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`);
+    console.info(
+      `[twc e2e] Breakout (standard, 2-player) — Spider-Man/Captain Marvel: ${result.outcome ? `${result.outcome.result} (${result.outcome.reason})` : "no outcome"} in round ${result.rounds}, ${result.commands} commands`,
+    );
     expect(result.outcome).not.toBeNull();
     expect(result.rounds).toBeGreaterThanOrEqual(1);
     const replayed = replay(result.session.log, TWC_DEPS);

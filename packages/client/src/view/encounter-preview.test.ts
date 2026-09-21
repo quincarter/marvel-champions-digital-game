@@ -43,7 +43,12 @@ describe("encounterDeckPreviewOf: a Core scenario (Rhino)", () => {
 
   test("Spider-Man's obligation is shuffled in and his nemesis set is held back", () => {
     expect(preview.obligationsShuffledIn).toEqual([
-      { identityCardId: "01001a", heroName: "Spider-Man", obligationCardId: "01165", obligationName: "Eviction Notice" },
+      {
+        identityCardId: "01001a",
+        heroName: "Spider-Man",
+        obligationCardId: "01165",
+        obligationName: "Eviction Notice",
+      },
     ]);
     expect(preview.nemesisSetsHeldBack).toHaveLength(1);
     const nemesis = preview.nemesisSetsHeldBack[0]!;
@@ -54,11 +59,17 @@ describe("encounterDeckPreviewOf: a Core scenario (Rhino)", () => {
   });
 
   test("a scenario with two seats reports one obligation/nemesis pair per hero", () => {
-    const twoPlayer = coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-black-panther-protection" }], seed: 1 });
+    const twoPlayer = coreScenario("rhino", {
+      players: [{ starterDeckId: "core-spider-man-justice" }, { starterDeckId: "core-black-panther-protection" }],
+      seed: 1,
+    });
     const twoPlayerPreview = encounterDeckPreviewOf(twoPlayer, CORE_CARDS, CORE_ENCOUNTER_SETS);
     expect(twoPlayerPreview.obligationsShuffledIn).toHaveLength(2);
     expect(twoPlayerPreview.nemesisSetsHeldBack).toHaveLength(2);
-    expect(twoPlayerPreview.obligationsShuffledIn.map((o) => o.heroName).sort()).toEqual(["Black Panther", "Spider-Man"]);
+    expect(twoPlayerPreview.obligationsShuffledIn.map((o) => o.heroName).sort()).toEqual([
+      "Black Panther",
+      "Spider-Man",
+    ]);
   });
 });
 

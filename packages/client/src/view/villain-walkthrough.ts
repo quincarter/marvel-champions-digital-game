@@ -15,7 +15,17 @@
  * (docs/phase3-encounter-ai.md).
  */
 
-import type { ChoiceOption, ChoicePrompt, DecisionAuthority, EngineDeps, GameEvent, GameState, InstanceId, PendingChoice, PlayerId } from "@mc/engine";
+import type {
+  ChoiceOption,
+  ChoicePrompt,
+  DecisionAuthority,
+  EngineDeps,
+  GameEvent,
+  GameState,
+  InstanceId,
+  PendingChoice,
+  PlayerId,
+} from "@mc/engine";
 import { logLine } from "./log-lines.js";
 import { cardName, playerName, seatName } from "./names.js";
 
@@ -259,19 +269,40 @@ export function appendWalkthrough(
       case "enemyActivated":
         activation =
           event.activation === "attack"
-            ? { kind: "attack", enemyInstanceId: event.enemyInstanceId, attackedPlayerId: event.playerId, boosts: [], defender: null, resolved: null }
-            : { kind: "scheme", enemyInstanceId: event.enemyInstanceId, playerId: event.playerId, boosts: [], resolved: null };
+            ? {
+                kind: "attack",
+                enemyInstanceId: event.enemyInstanceId,
+                attackedPlayerId: event.playerId,
+                boosts: [],
+                defender: null,
+                resolved: null,
+              }
+            : {
+                kind: "scheme",
+                enemyInstanceId: event.enemyInstanceId,
+                playerId: event.playerId,
+                boosts: [],
+                resolved: null,
+              };
         break;
       case "boostCardFlipped":
         if (activation && activation.enemyInstanceId === event.enemyInstanceId) {
-          activation = { ...activation, boosts: [...activation.boosts, { instanceId: event.instanceId, boostIcons: event.boostIcons, cancelled: null }] };
+          activation = {
+            ...activation,
+            boosts: [
+              ...activation.boosts,
+              { instanceId: event.instanceId, boostIcons: event.boostIcons, cancelled: null },
+            ],
+          };
         }
         break;
       case "boostCancelled":
         if (activation) {
           activation = {
             ...activation,
-            boosts: activation.boosts.map((b) => (b.instanceId === event.instanceId ? { ...b, cancelled: event.scope } : b)),
+            boosts: activation.boosts.map((b) =>
+              b.instanceId === event.instanceId ? { ...b, cancelled: event.scope } : b,
+            ),
           };
         }
         break;
@@ -456,10 +487,15 @@ export interface InlineInterruptOption {
  * parked with `minSelections: 0` (`resolve/window.ts`) for exactly that
  * reason. Nothing here invents a new answer shape.
  */
-export function inlineInterruptFor(choice: PendingChoice, viewer: PlayerId | null): readonly InlineInterruptOption[] | null {
+export function inlineInterruptFor(
+  choice: PendingChoice,
+  viewer: PlayerId | null,
+): readonly InlineInterruptOption[] | null {
   if (choice.prompt.kind !== "chooseTriggers" || choice.playerId !== viewer) return null;
   const options = choice.options.flatMap((option) =>
-    option.ref.kind === "card" || option.ref.kind === "ability" ? [{ optionId: option.optionId, instanceId: option.ref.instanceId }] : [],
+    option.ref.kind === "card" || option.ref.kind === "ability"
+      ? [{ optionId: option.optionId, instanceId: option.ref.instanceId }]
+      : [],
   );
   return options.length > 0 ? options : null;
 }

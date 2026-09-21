@@ -43,7 +43,12 @@ describe("playCostOf", () => {
   it("leaves a card nothing is modifying alone: no contributions, and current equals printed", () => {
     const given = moveToHand(spiderManBesideSteve(), P1, FIRST_AID);
     const [firstAid] = given.ids as [InstanceId];
-    expect(playCostOf(given.state, P1, firstAid, WAVE1_DEPS)).toEqual({ printed: 1, current: 1, contributions: [], reduction: 0 });
+    expect(playCostOf(given.state, P1, firstAid, WAVE1_DEPS)).toEqual({
+      printed: 1,
+      current: 1,
+      contributions: [],
+      reduction: 0,
+    });
   });
 
   it("is null for a card with no printed cost at all", () => {

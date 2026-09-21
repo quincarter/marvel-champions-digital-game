@@ -33,11 +33,18 @@ const action = (id: string, effects: readonly EffectSpec[]) => {
 
 const WEAPONS = "Experimental Weapons";
 const SIDE = "side-scheme";
-const weapon = (id: string) => ({ ...stubAttachment({ id, attachesTo: { kind: "villain" } }), encounterSetIds: [encounterSetId("experimental_weapons")] });
+const weapon = (id: string) => ({
+  ...stubAttachment({ id, attachesTo: { kind: "villain" } }),
+  encounterSetIds: [encounterSetId("experimental_weapons")],
+});
 const WEAPON_A = weapon("weapon-a");
 const WEAPON_B = weapon("weapon-b");
 const SCHEME_X = stubSideScheme({ id: "scheme-x", startingThreat: 2 });
-const CAPTIVE = { ...stubAlly({ id: "captive", cost: 0, atk: 1, thw: 1, hp: 3 }), aspect: "none" as const, specificTo: { kind: "scenario" as const, encounterSetId: encounterSetId("taskmaster") } };
+const CAPTIVE = {
+  ...stubAlly({ id: "captive", cost: 0, atk: 1, thw: 1, hp: 3 }),
+  aspect: "none" as const,
+  specificTo: { kind: "scenario" as const, encounterSetId: encounterSetId("taskmaster") },
+};
 
 const SETUP = stubAbility("scheme.setup", {
   trigger: { kind: "setup" },
@@ -47,21 +54,63 @@ const SETUP = stubAbility("scheme.setup", {
   ],
 });
 abilities.push(SETUP);
-const SCHEME = stubMainScheme({ id: "athena", stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), aSideAbilities: [SETUP.ref] }] });
+const SCHEME = stubMainScheme({
+  id: "athena",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), aSideAbilities: [SETUP.ref] }],
+});
 const DECKS: readonly ScenarioSeparateDeck[] = [
-  { name: WEAPONS, contents: { encounterSetIds: [encounterSetId("experimental_weapons")] }, discardPile: "encounter", whenEmpty: "remainsEmpty" },
-  { name: SIDE, contents: { cardType: "side_scheme" }, discardPile: "own", whenEmpty: "reshuffleDiscardWithoutPenalty" },
+  {
+    name: WEAPONS,
+    contents: { encounterSetIds: [encounterSetId("experimental_weapons")] },
+    discardPile: "encounter",
+    whenEmpty: "remainsEmpty",
+  },
+  {
+    name: SIDE,
+    contents: { cardType: "side_scheme" },
+    discardPile: "own",
+    whenEmpty: "reshuffleDiscardWithoutPenalty",
+  },
 ];
 
-const top = (name: string, slot: string): EffectSpec => ({ kind: "selectCards", slot, cards: { kind: "scenarioDeck", name, top: { kind: "const", value: 1 } } });
+const top = (name: string, slot: string): EffectSpec => ({
+  kind: "selectCards",
+  slot,
+  cards: { kind: "scenarioDeck", name, top: { kind: "const", value: 1 } },
+});
 /** "Reveal the top card of the Experimental Weapons deck." */
-const REVEAL_WEAPON = action("reveal-weapon", [top(WEAPONS, "w"), { kind: "revealCard", cards: { kind: "slot", slot: "w" }, player: { kind: "controller" } }]);
+const REVEAL_WEAPON = action("reveal-weapon", [
+  top(WEAPONS, "w"),
+  { kind: "revealCard", cards: { kind: "slot", slot: "w" }, player: { kind: "controller" } },
+]);
 /** "Reveal the top card of the side-scheme deck and put it into play." */
-const REVEAL_SCHEME = action("reveal-scheme", [top(SIDE, "s"), { kind: "putIntoPlay", card: { kind: "slot", slot: "s" }, controller: { kind: "controller" } }]);
-const DISCARD_WEAPONS = action("discard-weapons", [{ kind: "discardFromPlay", target: { kind: "each", query: { categories: ["attachment"] } } }]);
-const CLEAR_SCHEMES = action("clear-schemes", [{ kind: "removeThreat", target: { kind: "each", query: { categories: ["sideScheme"] } }, amount: { kind: "const", value: 99 } }]);
+const REVEAL_SCHEME = action("reveal-scheme", [
+  top(SIDE, "s"),
+  { kind: "putIntoPlay", card: { kind: "slot", slot: "s" }, controller: { kind: "controller" } },
+]);
+const DISCARD_WEAPONS = action("discard-weapons", [
+  { kind: "discardFromPlay", target: { kind: "each", query: { categories: ["attachment"] } } },
+]);
+const CLEAR_SCHEMES = action("clear-schemes", [
+  {
+    kind: "removeThreat",
+    target: { kind: "each", query: { categories: ["sideScheme"] } },
+    amount: { kind: "const", value: 99 },
+  },
+]);
 const TOOLS = [REVEAL_WEAPON, REVEAL_SCHEME, DISCARD_WEAPONS, CLEAR_SCHEMES];
-const TOOLKIT = stubIdentity({ id: "toolkit", hp: 30, atk: 1, thw: 1, def: 1, rec: 1, heroHandSize: 5, alterEgoHandSize: 5, heroAbilities: TOOLS, alterEgoAbilities: TOOLS });
+const TOOLKIT = stubIdentity({
+  id: "toolkit",
+  hp: 30,
+  atk: 1,
+  thw: 1,
+  def: 1,
+  rec: 1,
+  heroHandSize: 5,
+  alterEgoHandSize: 5,
+  heroAbilities: TOOLS,
+  alterEgoAbilities: TOOLS,
+});
 const deps: EngineDeps = depsOf(...abilities);
 
 function game(): GameState {
@@ -71,7 +120,13 @@ function game(): GameState {
       cards: [...DEFAULT_CARDS, TOOLKIT, SCHEME, WEAPON_A, WEAPON_B, SCHEME_X, CAPTIVE] as readonly AnyCard[],
       villainCardId: VILLAIN.id,
       mainSchemeCardId: SCHEME.id,
-      encounterDeck: [WEAPON_A.id, WEAPON_B.id, SCHEME_X.id, SCHEME_X.id, ...Array.from({ length: 10 }, () => TREACHERY.id)],
+      encounterDeck: [
+        WEAPON_A.id,
+        WEAPON_B.id,
+        SCHEME_X.id,
+        SCHEME_X.id,
+        ...Array.from({ length: 10 }, () => TREACHERY.id),
+      ],
       scenarioDecks: DECKS,
       setAside: [CAPTIVE.id],
       includeIdentitySets: false,
@@ -84,18 +139,32 @@ function game(): GameState {
 }
 const use = (session: GameSession, tool: typeof REVEAL_WEAPON): GameSession => {
   const identity = session.state.players[0]!.identity.instanceId;
-  const result = sessionApply(session, { type: "useAbility", playerId: p1, cardInstanceId: identity, abilityId: abilityId(tool.id), payment: [] }, deps);
+  const result = sessionApply(
+    session,
+    { type: "useAbility", playerId: p1, cardInstanceId: identity, abilityId: abilityId(tool.id), payment: [] },
+    deps,
+  );
   if (!result.ok) throw new Error(result.error.message);
   let current = result.session;
   while (current.state.pendingChoice) {
     const choice = current.state.pendingChoice;
-    const answered = sessionApply(current, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: defaultPick(current.state) }, deps);
+    const answered = sessionApply(
+      current,
+      {
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: defaultPick(current.state),
+      },
+      deps,
+    );
     if (!answered.ok) throw new Error(answered.error.message);
     current = answered.session;
   }
   return current;
 };
-const named = (state: GameState, ids: readonly InstanceId[]) => ids.map((id) => mustInstance(state, id).cardId as string);
+const named = (state: GameState, ids: readonly InstanceId[]) =>
+  ids.map((id) => mustInstance(state, id).cardId as string);
 
 describe("scenario decks (docs/phase7-wave2.md §3.3)", () => {
   it("the 1A Setup builds each deck out of the encounter deck; nothing is built without it", () => {
@@ -109,9 +178,13 @@ describe("scenario decks (docs/phase7-wave2.md §3.3)", () => {
   it("Experimental Weapons: a revealed weapon enters play, is discarded to the encounter discard pile, and an empty deck reveals nothing", () => {
     let session = startSession(game());
     session = use(session, REVEAL_WEAPON);
-    expect(cardsInPlayOf(session.state).filter((id) => mustInstance(session.state, id).cardId.startsWith("weapon"))).toHaveLength(1);
+    expect(
+      cardsInPlayOf(session.state).filter((id) => mustInstance(session.state, id).cardId.startsWith("weapon")),
+    ).toHaveLength(1);
     session = use(session, DISCARD_WEAPONS);
-    expect(named(session.state, activeEncounterDeck(session.state).discard).filter((id) => id.startsWith("weapon"))).toHaveLength(1);
+    expect(
+      named(session.state, activeEncounterDeck(session.state).discard).filter((id) => id.startsWith("weapon")),
+    ).toHaveLength(1);
     session = use(session, REVEAL_WEAPON);
     session = use(session, REVEAL_WEAPON);
     expect(session.state.scenarioDecks[WEAPONS]!.deck).toEqual([]);

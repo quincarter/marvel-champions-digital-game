@@ -116,7 +116,10 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
   "04038.inconspicuous-action": heroAction({ label: "thwart" }, divide("threat", 3, query("scheme"))),
 
   // Self-Propelled Glide — Hero Action: Ready Spider-Woman. She gains aerial until the end of the round.
-  "04039.self-propelled-glide-action": heroAction(ready(yourIdentity), gainTraitUntil(AERIAL, yourIdentity, "endOfRound")),
+  "04039.self-propelled-glide-action": heroAction(
+    ready(yourIdentity),
+    gainTraitUntil(AERIAL, yourIdentity, "endOfRound"),
+  ),
 
   // Spider-Girl — Response: After you play Spider-Girl from your hand, stun and confuse a minion.
   "04040.spider-girl-response": response(
@@ -143,11 +146,19 @@ export const SPIDER_WOMAN_KIT = defineAbilities({
   ),
 
   // Spider-Man — Response: After you play Spider-Man from your hand, remove 3 [per_hero] threat from a side scheme.
-  "04045.spider-man-response": response(after.youPlayThis(), chooseTarget("scheme", query("sideScheme")), removeThreat(perHero(3), chosen("scheme"))),
+  "04045.spider-man-response": response(
+    after.youPlayThis(),
+    chooseTarget("scheme", query("sideScheme")),
+    removeThreat(perHero(3), chosen("scheme")),
+  ),
 
   // Skilled Investigator — Play under any player's control (data). Hero Response: After a side scheme is
   // defeated, exhaust Skilled Investigator → draw 1 card.
-  "04047.skilled-investigator-response": heroResponse(after.schemeDefeated(query("sideScheme")), { cost: { exhaustSelf: true } }, draw(1)),
+  "04047.skilled-investigator-response": heroResponse(
+    after.schemeDefeated(query("sideScheme")),
+    { cost: { exhaustSelf: true } },
+    draw(1),
+  ),
 
   // Clear the Area — Hero Action (thwart): Remove 2 threat from a scheme. If this removes the last threat on that
   // scheme, draw 1 card. Checked before the removal (so "the last threat" reads pre-removal threat <= 2, not the

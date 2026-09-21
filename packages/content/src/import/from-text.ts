@@ -37,7 +37,13 @@ import type { AnyCard } from "../schema/cards/index.js";
 import type { CoreAspect } from "../schema/aspects.js";
 import type { DeckCardEntry } from "../schema/decks.js";
 import { indexByName, normalizeName, splitByQuantityInSet } from "./pool-index.js";
-import { MAX_IMPORT_LINES, MAX_IMPORT_TEXT_LENGTH, MAX_LINE_QUANTITY, type ImportProblem, type ImportResult } from "./types.js";
+import {
+  MAX_IMPORT_LINES,
+  MAX_IMPORT_TEXT_LENGTH,
+  MAX_LINE_QUANTITY,
+  type ImportProblem,
+  type ImportResult,
+} from "./types.js";
 
 const problem = (code: ImportProblem["code"], message: string): ImportProblem => ({ code, message });
 
@@ -85,14 +91,24 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
   if (text.length > MAX_IMPORT_TEXT_LENGTH) {
     return {
       ok: false,
-      problems: [problem("oversized_input", `That decklist is ${text.length} characters, more than the ${MAX_IMPORT_TEXT_LENGTH} this importer accepts.`)],
+      problems: [
+        problem(
+          "oversized_input",
+          `That decklist is ${text.length} characters, more than the ${MAX_IMPORT_TEXT_LENGTH} this importer accepts.`,
+        ),
+      ],
     };
   }
   const lines = text.split(/\r?\n/);
   if (lines.length > MAX_IMPORT_LINES) {
     return {
       ok: false,
-      problems: [problem("oversized_input", `That decklist has ${lines.length} lines, more than the ${MAX_IMPORT_LINES} this importer accepts.`)],
+      problems: [
+        problem(
+          "oversized_input",
+          `That decklist has ${lines.length} lines, more than the ${MAX_IMPORT_LINES} this importer accepts.`,
+        ),
+      ],
     };
   }
 
@@ -117,13 +133,17 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
   }
 
   if (!heroName) {
-    problems.push(problem("missing_identity", 'No "Hero:" or "Identity:" line was found, so no identity can be determined.'));
+    problems.push(
+      problem("missing_identity", 'No "Hero:" or "Identity:" line was found, so no identity can be determined.'),
+    );
   }
   if (aspects.length === 0) {
     problems.push(problem("missing_aspect", 'No "Aspect:" line was found.'));
   }
   if (cardLines.length === 0) {
-    problems.push(problem("invalid_input", "No card lines were recognized in this text (expected lines like \"2x Web-Shooter\")."));
+    problems.push(
+      problem("invalid_input", 'No card lines were recognized in this text (expected lines like "2x Web-Shooter").'),
+    );
   }
 
   const byName = indexByName(pool);
@@ -133,7 +153,12 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
     if (candidates.length === 0) {
       problems.push(problem("unknown_identity", `No hero identity named "${heroName}" is in the card pool.`));
     } else if (candidates.length > 1) {
-      problems.push(problem("ambiguous_card_name", `More than one hero identity is named "${heroName}"; import by MarvelCDB id instead.`));
+      problems.push(
+        problem(
+          "ambiguous_card_name",
+          `More than one hero identity is named "${heroName}"; import by MarvelCDB id instead.`,
+        ),
+      );
     } else {
       identityCard = candidates[0]!;
     }
@@ -149,7 +174,12 @@ export function parseDecklistText(text: string, pool: readonly AnyCard[]): Impor
   const cards: DeckCardEntry[] = [];
   for (const [key, { quantity, raw }] of merged) {
     if (!Number.isInteger(quantity) || quantity < 1 || quantity > MAX_LINE_QUANTITY) {
-      problems.push(problem("invalid_quantity", `"${raw}" lists a quantity of ${quantity}, which is not a whole number between 1 and ${MAX_LINE_QUANTITY}.`));
+      problems.push(
+        problem(
+          "invalid_quantity",
+          `"${raw}" lists a quantity of ${quantity}, which is not a whole number between 1 and ${MAX_LINE_QUANTITY}.`,
+        ),
+      );
       continue;
     }
     const matches = byName.get(key) ?? [];

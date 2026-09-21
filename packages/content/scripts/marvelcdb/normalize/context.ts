@@ -60,7 +60,8 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     // A separated identity's hero record (wave 2, docs/phase7-wave2.md §6.10 — SP//dr) links to its own other
     // side, not an alter-ego, so the ordinary check below doesn't recognize it as the primary identity of its
     // set. `heroes.ts`'s curated `separatedIdentities` is the structural signal that this is one anyway.
-    if (r.linked_card?.type_code === "alter_ego" || curation.separatedIdentities?.[r.code]) heroBySet.set(r.card_set_code, r);
+    if (r.linked_card?.type_code === "alter_ego" || curation.separatedIdentities?.[r.code])
+      heroBySet.set(r.card_set_code, r);
   }
   // A hero-kit card MarvelCDB files under a themed auxiliary set instead of the identity's own
   // (`PackCuration.auxiliaryHeroSetCodes`'s doc comment — Storm's Weather Deck): alias the auxiliary code to
@@ -87,7 +88,9 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
     cycleId: brand("cycle", curation.cycle.id),
     // Leader records (wave 2, docs/phase7-wave2.md §6.3) are normalized the same way as villains, so a card
     // attaching "to <leader name>" by name resolves the same way "to <villain name>" does.
-    villainNames: new Set(flat.topLevel.filter((r) => r.type_code === "villain" || r.type_code === "leader").map((r) => r.name)),
+    villainNames: new Set(
+      flat.topLevel.filter((r) => r.type_code === "villain" || r.type_code === "leader").map((r) => r.name),
+    ),
     packHasMultipleVillains: curation.scenarios.some((s) => s.multipleVillains !== undefined),
     heroBySet,
     cards: [],
@@ -106,7 +109,11 @@ export function createContext(raw: readonly RawCard[], curation: PackCuration): 
  * A face's artwork reference, falling back to a curated second-source URL (`PackCuration.imageOverrides`) when
  * MarvelCDB has none for that record at all. See that field's doc comment for the evidence bar.
  */
-export function imageOfWithOverride(ctx: NormalizeContext, code: string, src: string | null | undefined): ImageRef | undefined {
+export function imageOfWithOverride(
+  ctx: NormalizeContext,
+  code: string,
+  src: string | null | undefined,
+): ImageRef | undefined {
   const own = imageOf(src);
   if (own) return own;
   const override = ctx.curation.imageOverrides?.[code];
@@ -125,13 +132,20 @@ export function parse(ctx: NormalizeContext, p: Prepared): ParsedText {
   for (const u of parsed.unclassified) ctx.errors.push(`${p.raw.code}: ${u}`);
   const hasBoostAbility = parsed.abilities.some((a) => a.kind === "boost");
   if (Boolean(p.raw.boost_star) !== hasBoostAbility) {
-    ctx.errors.push(`${p.raw.code}: boost_star=${String(p.raw.boost_star)} but text ${hasBoostAbility ? "has" : "has no"} a Boost ability`);
+    ctx.errors.push(
+      `${p.raw.code}: boost_star=${String(p.raw.boost_star)} but text ${hasBoostAbility ? "has" : "has no"} a Boost ability`,
+    );
   }
   return parsed;
 }
 
 /** Ability ids for one face, with any curated scripting note attached. */
-export function abilityRefs(ctx: NormalizeContext, code: string, cardName: string, abilities: readonly ParsedAbility[]): AbilityReference[] {
+export function abilityRefs(
+  ctx: NormalizeContext,
+  code: string,
+  cardName: string,
+  abilities: readonly ParsedAbility[],
+): AbilityReference[] {
   return assignAbilityIds(code, cardName, abilities, ctx.usedAbilityIds).map(({ id, ability }) => {
     const note = ctx.curation.scriptingNotes[id];
     if (note !== undefined) ctx.usedNotes.add(id);
@@ -209,7 +223,9 @@ export function checkNoSchemeFields(ctx: NormalizeContext, p: Prepared): void {
   for (const f of ["base_threat", "scheme_crisis", "scheme_acceleration", "scheme_hazard"] as const) {
     const v = p.raw[f];
     if (v !== null && v !== undefined && !p.ignored.has(f)) {
-      ctx.errors.push(`${p.raw.code} (${p.raw.type_code}) has ${f}=${String(v)} — not a printed field on this card type; verify and add an ignoreFields correction`);
+      ctx.errors.push(
+        `${p.raw.code} (${p.raw.type_code}) has ${f}=${String(v)} — not a printed field on this card type; verify and add an ignoreFields correction`,
+      );
     }
   }
 }

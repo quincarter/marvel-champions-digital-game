@@ -24,7 +24,8 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
     {
       id: "reduced-motion",
       title: "Reduced motion",
-      detail: "Skip travel animation and auto-advancing reveals; beats and state changes still appear, just without the motion.",
+      detail:
+        "Skip travel animation and auto-advancing reveals; beats and state changes still appear, just without the motion.",
       on: settings.reducedMotion,
     },
     {
@@ -36,15 +37,15 @@ export function settingsRowInfoOf(settings: Settings): readonly SettingsRowInfo[
     {
       id: "large-card-text",
       title: "Large card text",
-      detail: "Reads a card's full rules text larger in the Inspect sheet — the screen whose whole job is reading a card closely.",
+      detail:
+        "Reads a card's full rules text larger in the Inspect sheet — the screen whose whole job is reading a card closely.",
       on: settings.largeCardText,
     },
     {
       id: "sound",
       title: "Sound",
-      detail: "Not built yet.",
-      on: false,
-      unavailable: "Sound isn't built yet (PLAN.md Phase 8).",
+      detail: "Background music and audio across menus and games.",
+      on: settings.sound,
     },
   ];
 }
@@ -57,19 +58,20 @@ export function sharperTextTargetResolution(devicePixelRatio: number): number {
 /**
  * `settings` with one row's toggle applied — the one place that logic lives,
  * so Pause's inline "Table" group and the standalone Settings screen flip the
- * same field the same way. `"sound"` is a no-op (drawn unavailable; there is
- * nothing to toggle yet), returned unchanged rather than throwing, since a
- * caller may route every row id through this uniformly.
+ * same field the same way.
  */
 export function nextSettingsAfterToggle(settings: Settings, id: SettingsRowId, devicePixelRatio: number): Settings {
   switch (id) {
     case "reduced-motion":
       return { ...settings, reducedMotion: !settings.reducedMotion };
     case "sharper-text":
-      return { ...settings, textResolution: settings.textResolution > 1 ? 1 : sharperTextTargetResolution(devicePixelRatio) };
+      return {
+        ...settings,
+        textResolution: settings.textResolution > 1 ? 1 : sharperTextTargetResolution(devicePixelRatio),
+      };
     case "large-card-text":
       return { ...settings, largeCardText: !settings.largeCardText };
     case "sound":
-      return settings;
+      return { ...settings, sound: !settings.sound };
   }
 }

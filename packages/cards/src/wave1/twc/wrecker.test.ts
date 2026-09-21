@@ -11,11 +11,23 @@ import {
   type GameSession,
   type GameState,
 } from "@mc/engine";
-import { P1, endTurn, identityOf, inst, patchInstance, playerOf, settle, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
+import {
+  P1,
+  endTurn,
+  identityOf,
+  inst,
+  patchInstance,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  use,
+} from "../../testing/harness.js";
 import { wave1Scenario } from "../setup.js";
 import { findInstance, forceAttachToVillain, runTwc, startTwcGame, TWC_DEPS } from "./testing.js";
 
-const spiderManVsBreakout = () => startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
+const spiderManVsBreakout = () =>
+  startTwcGame(wave1Scenario("breakout", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 41 }));
 const play = (state: GameState, ...commands: Parameters<typeof runTwc>[1][]): GameState =>
   settle(runTwc(state, ...commands), undefined, (s) => s.step.phase === "player" && s.step.kind === "turn", TWC_DEPS);
 

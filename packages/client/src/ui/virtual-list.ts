@@ -6,7 +6,7 @@
  *
  * **Recreated every scene rebuild, like every other non-DOM widget on these
  * screens** (buttons, labels, panels) — not persisted across
- * `children.removeAll(true)` the way `McTextInput` is. An earlier version
+ * `destroyChildren(scene)` the way `McTextInput` is. An earlier version
  * tried to persist it (detach its root before the sweep, reattach after, the
  * `McTextInput` pattern), and that was the wrong pattern here: a DOM input
  * has to persist to keep browser focus and keystrokes, but this widget has
@@ -157,7 +157,12 @@ export class McVirtualList {
     // Background first, so it is always *behind* the rows — painted inside
     // this same container rather than by the scene, so their relative order
     // can never be disturbed by what the scene draws around this widget.
-    this.#root = scene.add.container(0, 0, [...(this.#background ? [this.#background] : []), this.#rowLayer, this.#track, this.#thumb]);
+    this.#root = scene.add.container(0, 0, [
+      ...(this.#background ? [this.#background] : []),
+      this.#rowLayer,
+      this.#track,
+      this.#thumb,
+    ]);
 
     scene.input.on(Phaser.Input.Events.POINTER_WHEEL, this.#onWheel, this);
     scene.input.on(Phaser.Input.Events.POINTER_DOWN, this.#onPointerDown, this);
@@ -203,7 +208,12 @@ export class McVirtualList {
 
   /** The rect row `index` sits at right now (may be partly or wholly outside the list's own rect if it isn't on screen). */
   rectFor(index: number): Rect {
-    return { x: this.#rect.x, y: this.#rect.y + this.#scroll.rowTop(index, this.#rowHeight), width: this.#rect.width, height: this.#rowHeight };
+    return {
+      x: this.#rect.x,
+      y: this.#rect.y + this.#scroll.rowTop(index, this.#rowHeight),
+      width: this.#rect.width,
+      height: this.#rowHeight,
+    };
   }
 
   /** Scrolls the minimum distance to bring row `index` fully on screen. */
@@ -212,7 +222,8 @@ export class McVirtualList {
   }
 
   scrollByPage(direction: 1 | -1): void {
-    if (this.#scroll.scrollByPage(direction, this.#count, this.#rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    if (this.#scroll.scrollByPage(direction, this.#count, this.#rowHeight, this.#rect.height))
+      this.#redrawWindow(false);
   }
 
   scrollToStart(): void {
@@ -254,7 +265,8 @@ export class McVirtualList {
 
   #onWheel(pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number): void {
     const { rect } = this;
-    if (pointer.x < rect.x || pointer.x > rect.x + rect.width || pointer.y < rect.y || pointer.y > rect.y + rect.height) return;
+    if (pointer.x < rect.x || pointer.x > rect.x + rect.width || pointer.y < rect.y || pointer.y > rect.y + rect.height)
+      return;
     // A pixel-mode wheel (most trackpads) reports `dy` already in pixels, and
     // scrolling by exactly that amount is what "smooth" means; a line-mode
     // wheel (most mice) reports a handful of lines (deltaY like ±1 or ±3),
@@ -275,7 +287,8 @@ export class McVirtualList {
     const trackHeight = this.#rect.height;
     const deltaPx = ((pointer.y - this.#thumbDragStartY) / trackHeight) * contentHeight;
     const target = this.#thumbDragStartOffset + deltaPx;
-    if (this.#scroll.scrollByPx(target - this.#scroll.offsetPx, this.#count, this.#rowHeight, this.#rect.height)) this.#redrawWindow(false);
+    if (this.#scroll.scrollByPx(target - this.#scroll.offsetPx, this.#count, this.#rowHeight, this.#rect.height))
+      this.#redrawWindow(false);
   }
 
   /** The scrollbar's own column — excluded from starting a body drag, so pressing the thumb doesn't also start a competing list-body drag. */
@@ -304,7 +317,8 @@ export class McVirtualList {
     const result = this.#drag.end(pointer.id, this.#scene.time.now);
     if (!result) return;
     if (result.wasTap) {
-      if (!this.#onRowActivate || !pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x)) return;
+      if (!this.#onRowActivate || !pointInRect(pointer.x, pointer.y, this.#rect) || this.#inScrollbarColumn(pointer.x))
+        return;
       const index = this.#rowIndexAt(pointer.y);
       if (index >= 0 && index < this.#count) this.#onRowActivate(index, pointer);
       return;
@@ -344,7 +358,12 @@ export class McVirtualList {
     }
     for (const index of wanted) {
       if (this.#rows.has(index)) continue;
-      const zeroScrollRect: Rect = { x: this.#rect.x, y: this.#rect.y + index * this.#rowHeight, width: this.#rect.width, height: this.#rowHeight };
+      const zeroScrollRect: Rect = {
+        x: this.#rect.x,
+        y: this.#rect.y + index * this.#rowHeight,
+        width: this.#rect.width,
+        height: this.#rowHeight,
+      };
       const row = this.#renderRow(index, zeroScrollRect);
       this.#rowLayer.add(row.objects as Phaser.GameObjects.GameObject[]);
       this.#rows.set(index, row);
@@ -356,7 +375,10 @@ export class McVirtualList {
     this.#thumb.setVisible(thumb !== null);
     this.#track.setVisible(thumb !== null);
     if (thumb) {
-      this.#thumb.setPosition(this.#rect.x + this.#rect.width - SCROLLBAR_WIDTH, this.#rect.y + thumb.top * this.#rect.height);
+      this.#thumb.setPosition(
+        this.#rect.x + this.#rect.width - SCROLLBAR_WIDTH,
+        this.#rect.y + thumb.top * this.#rect.height,
+      );
       this.#thumb.setSize(SCROLLBAR_WIDTH, Math.max(16, thumb.size * this.#rect.height));
     }
   }

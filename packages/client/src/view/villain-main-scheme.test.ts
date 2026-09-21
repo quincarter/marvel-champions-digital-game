@@ -14,13 +14,21 @@ import { mainSchemeCalloutOf } from "./villain-main-scheme.js";
 
 async function rhinoState(): Promise<GameState> {
   const store = new SessionStore(new LocalEngineHost());
-  await store.start({ scenarioId: "rhino", difficulty: "standard", players: [{ starterDeckId: "core-spider-man-justice" }], seed: 2026 });
+  await store.start({
+    scenarioId: "rhino",
+    difficulty: "standard",
+    players: [{ starterDeckId: "core-spider-man-justice" }],
+    seed: 2026,
+  });
   return store.state.game!;
 }
 
 const withThreat = (state: GameState, threat: number): GameState => {
   const id = state.mainScheme.instanceId;
-  const patched: StateWithoutPool = { ...state, instances: { ...state.instances, [id]: { ...state.instances[id]!, threat } } };
+  const patched: StateWithoutPool = {
+    ...state,
+    instances: { ...state.instances, [id]: { ...state.instances[id]!, threat } },
+  };
   return { ...patched, cardPool: state.cardPool };
 };
 

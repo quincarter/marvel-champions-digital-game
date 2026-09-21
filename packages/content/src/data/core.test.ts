@@ -52,7 +52,9 @@ const PRINTED_BLANK_TEXT = ["01014", "01044", "01094", "01156"];
 
 describe("Core Set data — integrity", () => {
   it("every record passes validateCard()", () => {
-    const failures = CORE_CARDS.map((c) => ({ id: c.id, errors: validateCard(c).errors })).filter((f) => f.errors.length > 0);
+    const failures = CORE_CARDS.map((c) => ({ id: c.id, errors: validateCard(c).errors })).filter(
+      (f) => f.errors.length > 0,
+    );
     expect(failures).toEqual([]);
   });
 
@@ -148,9 +150,11 @@ describe("Core Set data — matches the raw MarvelCDB cache", () => {
       rawBySet.set(set, [...(rawBySet.get(set) ?? []), r.code]);
     }
     const emittedBySet = new Map<string, string[]>();
-    for (const p of CORE_PROVENANCE) emittedBySet.set(p.cardSetCode, [...(emittedBySet.get(p.cardSetCode) ?? []), ...p.marvelcdbCodes]);
+    for (const p of CORE_PROVENANCE)
+      emittedBySet.set(p.cardSetCode, [...(emittedBySet.get(p.cardSetCode) ?? []), ...p.marvelcdbCodes]);
     expect([...emittedBySet.keys()].sort()).toEqual([...rawBySet.keys()].sort());
-    for (const [set, codes] of rawBySet) expect(emittedBySet.get(set)?.slice().sort(), set).toEqual(codes.slice().sort());
+    for (const [set, codes] of rawBySet)
+      expect(emittedBySet.get(set)?.slice().sort(), set).toEqual(codes.slice().sort());
   });
 
   it("physical copy counts per card_set_code match the raw quantities", () => {
@@ -163,7 +167,8 @@ describe("Core Set data — matches the raw MarvelCDB cache", () => {
     const setOf = new Map(CORE_PROVENANCE.map((p) => [p.cardId as string, p.cardSetCode]));
     const copies = new Map<string, number>();
     for (const c of CORE_CARDS) {
-      const n = c.type === "villain" ? c.sides[0].stages.length : c.type === "main_scheme" ? c.stages.length : c.quantityInSet;
+      const n =
+        c.type === "villain" ? c.sides[0].stages.length : c.type === "main_scheme" ? c.stages.length : c.quantityInSet;
       const set = setOf.get(c.id) as string;
       copies.set(set, (copies.get(set) ?? 0) + n);
     }
@@ -180,13 +185,29 @@ describe("Core Set data — spot checks across card types", () => {
   it("Spider-Man identity: faces, stats, abilities, obligation/nemesis links", () => {
     const spidey = card<HeroIdentityCard>("01001a", "hero_identity");
     expect(spidey.hp).toBe(10);
-    expect(spidey.hero).toMatchObject({ faceName: "Spider-Man", atk: 2, thw: 1, def: 3, handSize: 5, traits: ["AVENGER"], keywords: [] });
+    expect(spidey.hero).toMatchObject({
+      faceName: "Spider-Man",
+      atk: 2,
+      thw: 1,
+      def: 3,
+      handSize: 5,
+      traits: ["AVENGER"],
+      keywords: [],
+    });
     expect(spidey.hero.abilities).toEqual([{ id: "01001a.spider-sense", label: "Spider-Sense" }]);
-    expect(spidey.alterEgo).toMatchObject({ faceName: "Peter Parker", rec: 3, handSize: 6, traits: ["GENIUS"], keywords: [] });
+    expect(spidey.alterEgo).toMatchObject({
+      faceName: "Peter Parker",
+      rec: 3,
+      handSize: 6,
+      traits: ["GENIUS"],
+      keywords: [],
+    });
     expect(abilityIds(spidey.alterEgo)).toEqual(["01001b.scientist"]);
     expect(spidey.obligationCardId).toBe("01165");
     expect(spidey.nemesisEncounterSetId).toBe("spider_man_nemesis");
-    expect(spidey.alterEgo.text.current).toBe("Scientist — Resource: Generate a [mental] resource. (Limit once per round.)");
+    expect(spidey.alterEgo.text.current).toBe(
+      "Scientist — Resource: Generate a [mental] resource. (Limit once per round.)",
+    );
   });
 
   it("Black Panther: Retaliate 1 on the hero face only; Foresight is a named Setup ability", () => {
@@ -250,14 +271,23 @@ describe("Core Set data — spot checks across card types", () => {
 
   it("Klaw and Ultron main scheme decks keep every stage in order with A/B abilities", () => {
     const klaw = card<MainSchemeCard>("01116a", "main_scheme");
-    expect(klaw.stages.map((s) => [s.stageNumber, s.targetThreat.perPlayer])).toEqual([[1, 6], [2, 8]]);
+    expect(klaw.stages.map((s) => [s.stageNumber, s.targetThreat.perPlayer])).toEqual([
+      [1, 6],
+      [2, 8],
+    ]);
     expect(klaw.stages.map((s) => [abilityIds(s.aSide), abilityIds(s)])).toEqual([
       [["01116a.setup"], ["01116b.when-revealed"]],
       [["01117a.when-revealed"], []],
     ]);
     const ultron = card<MainSchemeCard>("01137a", "main_scheme");
-    expect(ultron.stages.map((s) => [s.stageNumber, s.targetThreat.perPlayer])).toEqual([[1, 3], [2, 10], [3, 5]]);
-    expect(abilityIds(ultron.stages[2] as MainSchemeCard["stages"][0])).toEqual(["01139b.countdown-to-oblivion-constant"]);
+    expect(ultron.stages.map((s) => [s.stageNumber, s.targetThreat.perPlayer])).toEqual([
+      [1, 3],
+      [2, 10],
+      [3, 5],
+    ]);
+    expect(abilityIds(ultron.stages[2] as MainSchemeCard["stages"][0])).toEqual([
+      "01139b.countdown-to-oblivion-constant",
+    ]);
     expect(ultron.stages[0].aSide.text.current).toMatch(/Advance to stage 1B\.$/);
   });
 
@@ -273,10 +303,16 @@ describe("Core Set data — spot checks across card types", () => {
   it("encounter attachments: host rules and stat boxes", () => {
     expect(card<AttachmentCard>("01141", "attachment").statModifiers).toEqual({ sch: 1 });
     expect(card<AttachmentCard>("01153", "attachment").statModifiers).toEqual({ atk: 1 }); // hand-corrected
-    expect(card<AttachmentCard>("01142", "attachment").attachesTo).toEqual({ kind: "namedCard", name: "Ultron Drones" });
+    expect(card<AttachmentCard>("01142", "attachment").attachesTo).toEqual({
+      kind: "namedCard",
+      name: "Ultron Drones",
+    });
     expect(card<AttachmentCard>("01163", "attachment").attachesTo).toEqual({ kind: "minionWithHighestPrintedHp" });
     const bio = card<AttachmentCard>("01185", "attachment");
-    expect(bio.attachesTo).toEqual({ kind: "minionWithHighestPrintedHp", withoutAttachmentNamed: "Biomechanical Upgrades" });
+    expect(bio.attachesTo).toEqual({
+      kind: "minionWithHighestPrintedHp",
+      withoutAttachmentNamed: "Biomechanical Upgrades",
+    });
     expect(bio.keywords).toEqual([{ name: "surge" }]);
     expect(card<AttachmentCard>("01119", "attachment").statModifiers).toBeUndefined();
   });
@@ -305,7 +341,14 @@ describe("Core Set data — spot checks across card types", () => {
     const hawkeye = byId.get("01066");
     expect(hawkeye?.type).toBe("ally");
     if (hawkeye?.type !== "ally") return;
-    expect(hawkeye).toMatchObject({ cost: 3, atk: 1, thw: 1, hp: 3, consequentialDamage: { attack: 1, thwart: 1 }, resourceIcons: { energy: 1 } });
+    expect(hawkeye).toMatchObject({
+      cost: 3,
+      atk: 1,
+      thw: 1,
+      hp: 3,
+      consequentialDamage: { attack: 1, thwart: 1 },
+      resourceIcons: { energy: 1 },
+    });
     expect(hawkeye.keywords).toEqual([]);
     expect(abilityIds(hawkeye)).toEqual(["01066.hawkeye-constant", "01066.hawkeye-response"]);
   });
@@ -343,7 +386,7 @@ describe("Core Set data — spot checks across card types", () => {
     }
   });
 
-  it("Titania: printed ATK X is carried as \"X\" plus a noted constant ability", () => {
+  it('Titania: printed ATK X is carried as "X" plus a noted constant ability', () => {
     const titania = card<MinionCard>("01162", "minion");
     expect([titania.atk, titania.sch, titania.hp, titania.boostIcons]).toEqual(["X", 1, 6, 2]);
     expect(titania.abilities[0]?.id).toBe("01162.titania-constant");
@@ -393,7 +436,9 @@ describe("Core Set data — spot checks across card types", () => {
   it("a nemesis set: Spider-Man's", () => {
     const set = CORE_ENCOUNTER_SETS.find((s) => s.id === "spider_man_nemesis");
     expect(set?.nemesisOfIdentityId).toBe("01001a");
-    const members = CORE_CARDS.filter((c) => "encounterSetIds" in c && (c.encounterSetIds as readonly string[]).includes("spider_man_nemesis"));
+    const members = CORE_CARDS.filter(
+      (c) => "encounterSetIds" in c && (c.encounterSetIds as readonly string[]).includes("spider_man_nemesis"),
+    );
     expect(members.map((c) => [c.id, c.type])).toEqual([
       ["01166", "side_scheme"],
       ["01167", "minion"],
@@ -419,7 +464,10 @@ describe("Core Set data — spot checks across card types", () => {
     expect(byId.get("01105")?.name).toBe('"I\'m Tough!"');
     expect(byId.get("01156")?.name).toBe("Usurp the Throne");
     const herb = byId.get("01158");
-    expect(herb?.type === "treachery" && [herb.boostIcons, abilityIds(herb)]).toEqual([0, ["01158.when-revealed", "01158.boost"]]);
+    expect(herb?.type === "treachery" && [herb.boostIcons, abilityIds(herb)]).toEqual([
+      0,
+      ["01158.when-revealed", "01158.boost"],
+    ]);
   });
 
   it("deck limits come from the cards", () => {
@@ -432,7 +480,9 @@ describe("Core Set data — spot checks across card types", () => {
 });
 
 describe("Core Set data — artwork references", () => {
-  const rawByCode = new Map(rawCache.cards.flatMap((r) => (r.linked_card ? [r, r.linked_card] : [r])).map((r) => [r.code, r]));
+  const rawByCode = new Map(
+    rawCache.cards.flatMap((r) => (r.linked_card ? [r, r.linked_card] : [r])).map((r) => [r.code, r]),
+  );
   const src = (code: string) => rawByCode.get(code)?.["imagesrc"];
 
   /**
@@ -449,7 +499,10 @@ describe("Core Set data — artwork references", () => {
         ];
       case "villain":
         return c.sides.flatMap((side) =>
-          side.stages.map((st) => ({ what: `${side.side}${st.stageNumber}`, ...(st.image ? { image: st.image } : {}) })),
+          side.stages.map((st) => ({
+            what: `${side.side}${st.stageNumber}`,
+            ...(st.image ? { image: st.image } : {}),
+          })),
         );
       case "main_scheme":
         return c.stages.flatMap((st) => [
@@ -462,7 +515,11 @@ describe("Core Set data — artwork references", () => {
   }
 
   it("every printed face of every card has an artwork reference", () => {
-    const missing = CORE_CARDS.flatMap((c) => faces(c).filter((f) => !f.image).map((f) => `${c.id}:${f.what}`));
+    const missing = CORE_CARDS.flatMap((c) =>
+      faces(c)
+        .filter((f) => !f.image)
+        .map((f) => `${c.id}:${f.what}`),
+    );
     expect(missing).toEqual([]);
   });
 
@@ -513,11 +570,7 @@ describe("Core Set data — artwork references", () => {
 
   it("a villain carries one reference per stage, since each stage is its own card", () => {
     const rhino = card<VillainCard>("01094", "villain");
-    expect(rhino.sides[0].stages.map((s) => s.image)).toEqual([
-      src("01094"),
-      src("01095"),
-      src("01096"),
-    ]);
+    expect(rhino.sides[0].stages.map((s) => s.image)).toEqual([src("01094"), src("01095"), src("01096")]);
     // No card-level pair: there is no single "front" for a three-stage villain.
     expect(rhino.images).toBeUndefined();
   });
@@ -561,7 +614,9 @@ describe("Core Set data — artwork references", () => {
   it("imageUrl resolves a reference against the source host, and leaves an absolute one alone", () => {
     const spiderMan = card<HeroIdentityCard>("01001a", "hero_identity");
     expect(imageUrl(spiderMan.hero.image!)).toBe("https://marvelcdb.com/bundles/cards/01001a.png");
-    expect(imageUrl(spiderMan.hero.image!, "https://mirror.example/")).toBe("https://mirror.example/bundles/cards/01001a.png");
+    expect(imageUrl(spiderMan.hero.image!, "https://mirror.example/")).toBe(
+      "https://mirror.example/bundles/cards/01001a.png",
+    );
     expect(imageUrl(imageRef("https://cdn.example/x.png"))).toBe("https://cdn.example/x.png");
   });
 });

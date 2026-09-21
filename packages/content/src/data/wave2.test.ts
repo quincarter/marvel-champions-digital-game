@@ -10,11 +10,11 @@ import {
   type MainSchemeCard,
   type VillainCard,
 } from "../schema/index.js";
-import { ANT_CARDS, ANT_PACK, ANT_PROVENANCE, ANT_STARTER_DECKS } from "./ant/index.js";
-import { WSP_CARDS, WSP_PACK, WSP_PROVENANCE, WSP_STARTER_DECKS } from "./wsp/index.js";
-import { QSV_CARDS, QSV_PACK, QSV_PROVENANCE, QSV_STARTER_DECKS } from "./qsv/index.js";
-import { SCW_CARDS, SCW_PACK, SCW_PROVENANCE, SCW_STARTER_DECKS } from "./scw/index.js";
-import { TRORS_CARDS, TRORS_PACK, TRORS_PROVENANCE, TRORS_STARTER_DECKS } from "./trors/index.js";
+import { ANT_CARDS, ANT_PACK, ANT_PROVENANCE } from "./ant/index.js";
+import { WSP_CARDS, WSP_PACK, WSP_PROVENANCE } from "./wsp/index.js";
+import { QSV_CARDS, QSV_PACK, QSV_PROVENANCE } from "./qsv/index.js";
+import { SCW_CARDS, SCW_PACK, SCW_PROVENANCE } from "./scw/index.js";
+import { TRORS_CARDS, TRORS_PACK, TRORS_PROVENANCE } from "./trors/index.js";
 import { TOAFK_CARDS, TOAFK_PACK, TOAFK_PROVENANCE } from "./toafk/index.js";
 import { WAVE2_CARDS, WAVE2_ENCOUNTER_SETS, WAVE2_SCENARIOS, WAVE2_STARTER_DECKS } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
@@ -39,7 +39,9 @@ interface PackFixture {
 }
 
 function rawCacheOf(code: string): { cards: RawRecord[] } {
-  return JSON.parse(readFileSync(new URL(`../../raw/marvelcdb/${code}.json`, import.meta.url), "utf8")) as { cards: RawRecord[] };
+  return JSON.parse(readFileSync(new URL(`../../raw/marvelcdb/${code}.json`, import.meta.url), "utf8")) as {
+    cards: RawRecord[];
+  };
 }
 
 const PACKS: readonly PackFixture[] = [
@@ -60,8 +62,9 @@ function byId<T extends AnyCard>(cards: readonly AnyCard[], id: string, type: T[
 
 describe("wave 2 (cycle 1) data — integrity (every pack)", () => {
   it("every emitted card passes validateCard()", () => {
-    const failures = WAVE2_CARDS.map((c) => ({ id: c.id, errors: validateCard(c).errors }))
-      .filter((f) => f.errors.length > 0);
+    const failures = WAVE2_CARDS.map((c) => ({ id: c.id, errors: validateCard(c).errors })).filter(
+      (f) => f.errors.length > 0,
+    );
     expect(failures).toEqual([]);
   });
 
@@ -71,21 +74,24 @@ describe("wave 2 (cycle 1) data — integrity (every pack)", () => {
     expect(WAVE2_CARDS.length).toBe(CORE_CARDS.length + PACKS.reduce((n, p) => n + p.cards.length, 0));
   });
 
-  it.each(PACKS.map((p) => [p.code, p] as const))("%s: every non-aggregate/non-dropped MarvelCDB record is covered exactly once", (code, pack) => {
-    const raw = rawCacheOf(code);
-    const rawCodes = new Set(raw.cards.flatMap((r) => (r.linked_card ? [r.code, r.linked_card.code] : [r.code])));
-    const isAggregate = (c: string) => /\d$/.test(c) && rawCodes.has(`${c}a`);
-    const coveredCodes = new Set(pack.provenance.flatMap((p) => p.marvelcdbCodes));
-    // trors drops one ignored record (10098, not a printed card — see curation/trors.ts) and toafk drops its
-    // main-scheme aggregate B/A sides folded into A/B pairs; both are legitimately uncovered by provenance.
-    const knownDrops = new Set(code === "trors" ? ["10098"] : []);
-    for (const c of rawCodes) {
-      if (isAggregate(c) || knownDrops.has(c)) continue;
-      expect(coveredCodes.has(c), `${code} ${c} not covered by any emitted card`).toBe(true);
-    }
-    const cardIds = new Set(pack.cards.map((c) => c.id as string));
-    for (const p of pack.provenance) expect(cardIds.has(p.cardId as string), `${code} ${p.cardId}`).toBe(true);
-  });
+  it.each(PACKS.map((p) => [p.code, p] as const))(
+    "%s: every non-aggregate/non-dropped MarvelCDB record is covered exactly once",
+    (code, pack) => {
+      const raw = rawCacheOf(code);
+      const rawCodes = new Set(raw.cards.flatMap((r) => (r.linked_card ? [r.code, r.linked_card.code] : [r.code])));
+      const isAggregate = (c: string) => /\d$/.test(c) && rawCodes.has(`${c}a`);
+      const coveredCodes = new Set(pack.provenance.flatMap((p) => p.marvelcdbCodes));
+      // trors drops one ignored record (10098, not a printed card — see curation/trors.ts) and toafk drops its
+      // main-scheme aggregate B/A sides folded into A/B pairs; both are legitimately uncovered by provenance.
+      const knownDrops = new Set(code === "trors" ? ["10098"] : []);
+      for (const c of rawCodes) {
+        if (isAggregate(c) || knownDrops.has(c)) continue;
+        expect(coveredCodes.has(c), `${code} ${c} not covered by any emitted card`).toBe(true);
+      }
+      const cardIds = new Set(pack.cards.map((c) => c.id as string));
+      for (const p of pack.provenance) expect(cardIds.has(p.cardId as string), `${code} ${p.cardId}`).toBe(true);
+    },
+  );
 
   it.each(PACKS.map((p) => [p.code, p] as const))("%s: every card belongs to its own pack/cycle1", (code, pack) => {
     for (const c of pack.cards) {
@@ -112,7 +118,18 @@ describe("wave 2 (cycle 1) data — integrity (every pack)", () => {
   it("wave 2 registers encounter sets for every pack, with no duplicate ids", () => {
     const ids = WAVE2_ENCOUNTER_SETS.map((s) => s.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids).toEqual(expect.arrayContaining(["hawkeye_nemesis", "spider_woman_nemesis", "kang", "exp_kang", "ant_nemesis", "wsp_nemesis", "qsv_nemesis", "scw_nemesis"]));
+    expect(ids).toEqual(
+      expect.arrayContaining([
+        "hawkeye_nemesis",
+        "spider_woman_nemesis",
+        "kang",
+        "exp_kang",
+        "ant_nemesis",
+        "wsp_nemesis",
+        "qsv_nemesis",
+        "scw_nemesis",
+      ]),
+    );
   });
 
   it("the wave 2 pool version is deterministic and well-formed", () => {
@@ -171,11 +188,21 @@ describe("cycle 1 scenarios — The Rise of Red Skull's five plus The Once and F
   it("Crossbones' Experimental Weapons and Red Skull's side-scheme deck are separate decks, not part of the flat encounter deck", () => {
     const crossbones = WAVE2_SCENARIOS.find((s) => s.id === "crossbones");
     expect(crossbones?.separateDecks).toEqual([
-      { name: "Experimental Weapons", contents: { encounterSetIds: ["exper_weapon"] }, discardPile: "encounter", whenEmpty: "remainsEmpty" },
+      {
+        name: "Experimental Weapons",
+        contents: { encounterSetIds: ["exper_weapon"] },
+        discardPile: "encounter",
+        whenEmpty: "remainsEmpty",
+      },
     ]);
     const redSkull = WAVE2_SCENARIOS.find((s) => s.id === "red-skull");
     expect(redSkull?.separateDecks).toEqual([
-      { name: "side-scheme deck", contents: { cardType: "side_scheme" }, discardPile: "own", whenEmpty: "reshuffleDiscardWithoutPenalty" },
+      {
+        name: "side-scheme deck",
+        contents: { cardType: "side_scheme" },
+        discardPile: "own",
+        whenEmpty: "reshuffleDiscardWithoutPenalty",
+      },
     ]);
   });
 });
@@ -192,7 +219,10 @@ describe("cycle 1 starter decks — schema validation (content-level; engine dec
   it("every precon is exactly 40 cards and verified against a real photographed/printed source", () => {
     for (const d of WAVE2_STARTER_DECKS) {
       expect(d.provenance.verified, d.id as string).toBe(true);
-      expect(d.cards.reduce((n, e) => n + e.quantity, 0), d.id as string).toBe(40);
+      expect(
+        d.cards.reduce((n, e) => n + e.quantity, 0),
+        d.id as string,
+      ).toBe(40);
     }
   });
 
@@ -299,7 +329,9 @@ describe("The Rise of Red Skull — errata and curated corrections", () => {
 
   it("Beetle (13028): 'the defeating player chooses' errata applied", () => {
     const card = WSP_CARDS.find((c) => c.id === "13028");
-    expect(card && "text" in card ? card.text.current : undefined).toContain("the defeating player chooses to either spend");
+    expect(card && "text" in card ? card.text.current : undefined).toContain(
+      "the defeating player chooses to either spend",
+    );
   });
 
   it("Crossbones' Machine Gun named search typo fixed (04059 no longer searches for 'Crossbone's Machine Gun')", () => {
@@ -318,7 +350,10 @@ describe("The Rise of Red Skull — errata and curated corrections", () => {
     for (const id of ["04097", "04098", "04099", "04100"]) {
       const card = TRORS_CARDS.find((c) => c.id === id);
       expect(card && "aspect" in card ? card.aspect : undefined, id).toBe("none");
-      expect(card && "specificTo" in card ? card.specificTo : undefined, id).toEqual({ kind: "scenario", encounterSetId: "taskmaster" });
+      expect(card && "specificTo" in card ? card.specificTo : undefined, id).toEqual({
+        kind: "scenario",
+        encounterSetId: "taskmaster",
+      });
     }
   });
 
@@ -367,7 +402,12 @@ describe("The Once and Future Kang — one villain per Kang record, stage altern
     const scheme = TOAFK_CARDS.find((c) => c.type === "main_scheme") as MainSchemeCard | undefined;
     expect(scheme?.stages.map((s) => s.stageNumber)).toEqual([1, 2, 3, 3, 3, 3, 4]);
     const stage3Names = scheme?.stages.filter((s) => s.stageNumber === 3).map((s) => s.name);
-    expect(stage3Names).toEqual(["The Chronopolis", "Inexorable Fate", "The Realm of Rama-Tut", "The Present Future War"]);
+    expect(stage3Names).toEqual([
+      "The Chronopolis",
+      "Inexorable Fate",
+      "The Realm of Rama-Tut",
+      "The Present Future War",
+    ]);
   });
 
   it("The Master of Time (stage 2) has dashed starting/target/acceleration threat", () => {

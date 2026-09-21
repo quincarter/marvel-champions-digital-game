@@ -44,7 +44,8 @@ export const SPDR_CURATION: PackCuration = {
   pack: {
     name: "SP//dr",
     releaseDate: "2022-07-15",
-    releaseDateSource: "Hall of Heroes Peni Parker/SP//dr page (https://hallofheroeslcg.com/peni-parker-sp-dr/): \"Release date: July 15, 2022\"",
+    releaseDateSource:
+      'Hall of Heroes Peni Parker/SP//dr page (https://hallofheroeslcg.com/peni-parker-sp-dr/): "Release date: July 15, 2022"',
   },
   outDir: "src/data/spdr",
   exportPrefix: "SPDR",
@@ -81,10 +82,10 @@ export const SPDR_CURATION: PackCuration = {
       },
       evidence:
         "Hall of Heroes SP//dr release-page gallery, https://hallofheroeslcg.com/peni-parker-sp-dr/ — " +
-        "s0a.jpg (Peni Parker, alter-ego, collector mark \"2A\") and s2.jpg (SP//dr upgrade side, collector mark \"SP//DR (2/17)\", \"2B\"); " +
-        "both viewed directly 2026-09-19, not stored (CLAUDE.md \"Content & IP boundaries\"). " +
-        "Hit points (14) and hand size (4) cross-checked against the same dial SP//dr Suit prints (insert, \"Separated Identity Card\": " +
-        "\"Both identity cards share a single hit point dial\").",
+        's0a.jpg (Peni Parker, alter-ego, collector mark "2A") and s2.jpg (SP//dr upgrade side, collector mark "SP//DR (2/17)", "2B"); ' +
+        'both viewed directly 2026-09-19, not stored (CLAUDE.md "Content & IP boundaries"). ' +
+        'Hit points (14) and hand size (4) cross-checked against the same dial SP//dr Suit prints (insert, "Separated Identity Card": ' +
+        '"Both identity cards share a single hit point dial").',
     },
   },
 };

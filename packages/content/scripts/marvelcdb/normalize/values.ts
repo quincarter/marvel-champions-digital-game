@@ -1,10 +1,23 @@
 /** Small conversions from MarvelCDB field values to schema values, shared by the card-type modules. */
-import type { CoreAspect, ErrataStatus, ResourceIconCounts, ScalingValue, SchemeIcon } from "../../../src/schema/index.ts";
+import type {
+  CoreAspect,
+  ErrataStatus,
+  ResourceIconCounts,
+  ScalingValue,
+  SchemeIcon,
+} from "../../../src/schema/index.ts";
 import type { Errata } from "../curation/types.ts";
 import type { RawCard } from "../raw-types.ts";
 
 export const ROMAN: Readonly<Record<string, number>> = { I: 1, II: 2, III: 3, IV: 4, V: 5 };
-export const CORE_ASPECTS: readonly CoreAspect[] = ["aggression", "justice", "leadership", "protection", "basic", "pool"];
+export const CORE_ASPECTS: readonly CoreAspect[] = [
+  "aggression",
+  "justice",
+  "leadership",
+  "protection",
+  "basic",
+  "pool",
+];
 export const PLAYER_TYPES = new Set(["ally", "event", "support", "upgrade", "resource", "player_side_scheme"]);
 
 export const scalingOf = (value: number, perPlayer: boolean): ScalingValue =>
@@ -40,5 +53,8 @@ export function schemeIcons(r: RawCard): SchemeIcon[] {
 }
 
 export function errataStatus(e: Errata): ErrataStatus {
-  return { currentVersion: e.version, history: [{ version: e.version, changedFields: [...e.changedFields], note: e.note }] };
+  return {
+    currentVersion: e.version,
+    history: [{ version: e.version, changedFields: [...e.changedFields], note: e.note }],
+  };
 }

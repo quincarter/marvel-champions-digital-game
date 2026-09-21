@@ -9,7 +9,14 @@ import type {
   SideSchemeCard,
 } from "../../../src/schema/index.ts";
 import { brand } from "./brand.ts";
-import { checkNoSchemeFields, expectNoAttach, expectNoPlayerData, record, type NormalizeContext, type SingleRecord } from "./context.ts";
+import {
+  checkNoSchemeFields,
+  expectNoAttach,
+  expectNoPlayerData,
+  record,
+  type NormalizeContext,
+  type SingleRecord,
+} from "./context.ts";
 import type { Prepared } from "./prepare.ts";
 import { scalingOf, schemeIcons } from "./values.ts";
 
@@ -34,7 +41,8 @@ export function normalizeEncounterCard(
   // Service/Snitches get Stitches sets) is faction "campaign", not "encounter": every such card belongs to its
   // own `campaignSpecific` `EncounterSet` instead of the pack's ordinary encounter sets.
   const isCampaignCard = r.faction_code === "campaign";
-  if (r.faction_code !== "encounter" && !isCampaignCard) errors.push(`${r.code}: ${r.type_code} with faction ${r.faction_code}`);
+  if (r.faction_code !== "encounter" && !isCampaignCard)
+    errors.push(`${r.code}: ${r.type_code} with faction ${r.faction_code}`);
   expectNoPlayerData(ctx, p, parsed);
   const encounterCommon = {
     // An ordinary obligation belongs to a hero kit, not an encounter set; it reaches the encounter deck through
@@ -60,9 +68,12 @@ export function normalizeEncounterCard(
       // An absent ATK is ambiguous between a printed "0★" (Taskmaster) and a printed "—"; a human must look at
       // the card and record which in a cardNotes entry (docs/phase7-wave1.md §1.12).
       if (rawAtk === undefined && !curation.cardNotes[r.code]) {
-        errors.push(`${r.code}: minion ATK is absent (printed "0" with a reminder star, or "—"?) — needs a cardNotes entry`);
+        errors.push(
+          `${r.code}: minion ATK is absent (printed "0" with a reminder star, or "—"?) — needs a cardNotes entry`,
+        );
       }
-      if (rawAtk === null || (rawAtk !== undefined && rawAtk < -1)) errors.push(`${r.code}: minion ATK ${String(rawAtk)} invalid`);
+      if (rawAtk === null || (rawAtk !== undefined && rawAtk < -1))
+        errors.push(`${r.code}: minion ATK ${String(rawAtk)} invalid`);
       if ((r.scheme === null || r.scheme === undefined) && !curation.cardNotes[r.code]) {
         errors.push(`${r.code}: minion has no scheme value (printed "0", or "—"?) — needs a cardNotes entry`);
       }
@@ -87,7 +98,9 @@ export function normalizeEncounterCard(
       if (parsed.attachesToVillainNamed) {
         // Leader records normalize the same way villains do (docs/phase7-wave2.md §6.3), so a card that attaches
         // to a leader by name ("Attach to Iron Man.") is checked against the pack's leader set the same way.
-        const villain = ctx.topLevel.find((x) => (x.type_code === "villain" || x.type_code === "leader") && x.card_set_code === r.card_set_code);
+        const villain = ctx.topLevel.find(
+          (x) => (x.type_code === "villain" || x.type_code === "leader") && x.card_set_code === r.card_set_code,
+        );
         if (villain?.name !== parsed.attachesToVillainNamed) {
           errors.push(`${r.code}: "Attach to ${parsed.attachesToVillainNamed}." is not this set's villain`);
         }
@@ -118,7 +131,8 @@ export function normalizeEncounterCard(
       return;
     case "side_scheme": {
       expectNoAttach(ctx, p, parsed);
-      if (r.base_threat === null || r.base_threat === undefined) errors.push(`${r.code}: side scheme without starting threat`);
+      if (r.base_threat === null || r.base_threat === undefined)
+        errors.push(`${r.code}: side scheme without starting threat`);
       const { encounterSetIds, boostIcons, traits, keywords, text, abilities: abs } = encounterCommon;
       const scheme: SideSchemeCard = {
         ...common,

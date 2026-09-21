@@ -221,9 +221,10 @@ export function inspectModel(
   const profile = characterProfile(state, instanceId, deps);
   const current = remainingHitPoints(state, instanceId, deps);
   const max = maxHitPoints(state, instanceId, deps);
-  const keywordChips = keywordsOf(state, instanceId, deps).map(
-    (keyword): KeywordChip => ({ text: keywordLabel(keyword), glossaryId: glossaryEntry(keyword.name) ? keyword.name : null }),
-  );
+  const keywordChips = keywordsOf(state, instanceId, deps).map((keyword): KeywordChip => ({
+    text: keywordLabel(keyword),
+    glossaryId: glossaryEntry(keyword.name) ? keyword.name : null,
+  }));
 
   return {
     instanceId,
@@ -242,7 +243,11 @@ export function inspectModel(
       ? profileStatTiles(
           profile,
           printedStatsOf(state, instanceId),
-          profile.kind === "identity" ? ["thw", "atk", "def", "rec"] : profile.kind === "ally" ? ["thw", "atk"] : ["atk", "sch"],
+          profile.kind === "identity"
+            ? ["thw", "atk", "def", "rec"]
+            : profile.kind === "ally"
+              ? ["thw", "atk"]
+              : ["atk", "sch"],
           current,
           max,
         )
@@ -278,7 +283,12 @@ export function inspectModel(
  * Priced for the viewer, since a cost modifier can be one seat's and not another's, and with no attachment host:
  * an upgrade's host isn't chosen until the play is under way, so a host-conditional price isn't earned yet.
  */
-function priceNoteFor(state: GameState, perspectiveId: PlayerId, instanceId: InstanceId, deps: EngineDeps): string | null {
+function priceNoteFor(
+  state: GameState,
+  perspectiveId: PlayerId,
+  instanceId: InstanceId,
+  deps: EngineDeps,
+): string | null {
   const price = playCostOf(state, perspectiveId, instanceId, deps);
   if (!price || price.current === price.printed) return null;
   const names: string[] = [];
@@ -291,7 +301,12 @@ function priceNoteFor(state: GameState, perspectiveId: PlayerId, instanceId: Ins
 }
 
 /** Every action ability `legalActions` currently lists for this card, named and priced. */
-function usableAbilitiesOf(state: GameState, instanceId: InstanceId, legal: LegalActions | null, deps: EngineDeps): readonly UsableAbility[] {
+function usableAbilitiesOf(
+  state: GameState,
+  instanceId: InstanceId,
+  legal: LegalActions | null,
+  deps: EngineDeps,
+): readonly UsableAbility[] {
   if (!legal) return [];
   return abilityActionsFor(legal, instanceId).map((entry) => ({
     abilityId: entry.action.abilityId,
@@ -301,7 +316,10 @@ function usableAbilitiesOf(state: GameState, instanceId: InstanceId, legal: Lega
 }
 
 /** Every card kind's text, since the schema keeps it in a different place per kind. */
-function textOf(card: AnyCard, face: CardFace = { kind: "front" }): { readonly printed: string; readonly current: string } {
+function textOf(
+  card: AnyCard,
+  face: CardFace = { kind: "front" },
+): { readonly printed: string; readonly current: string } {
   if ("text" in card) return card.text;
   if (card.type === "hero_identity") return face.kind === "alterEgo" ? card.alterEgo.text : card.hero.text;
   if (card.type === "villain") {
@@ -324,7 +342,8 @@ function printedKeywordsOf(card: AnyCard, face: CardFace): readonly KeywordInsta
     return (face.kind === "villainStage" ? (side.stages[face.stageIndex] ?? side.stages[0]) : side.stages[0]).keywords;
   }
   if (card.type === "main_scheme") {
-    return (face.kind === "mainSchemeStage" ? (card.stages[face.stageIndex] ?? card.stages[0]) : card.stages[0]).keywords;
+    return (face.kind === "mainSchemeStage" ? (card.stages[face.stageIndex] ?? card.stages[0]) : card.stages[0])
+      .keywords;
   }
   return "keywords" in card ? card.keywords : [];
 }
@@ -380,9 +399,10 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
     };
   }
   const text = textOf(card, face);
-  const keywordChips = printedKeywordsOf(card, face).map(
-    (keyword): KeywordChip => ({ text: keywordLabel(keyword), glossaryId: glossaryEntry(keyword.name) ? keyword.name : null }),
-  );
+  const keywordChips = printedKeywordsOf(card, face).map((keyword): KeywordChip => ({
+    text: keywordLabel(keyword),
+    glossaryId: glossaryEntry(keyword.name) ? keyword.name : null,
+  }));
   return {
     instanceId: "" as InstanceId,
     name: faceNameOf(card, face),
@@ -484,7 +504,6 @@ function keywordLabel(keyword: KeywordInstance): string {
   }
 }
 
-
 /**
  * "Right now", straight off `legalActions`. Nothing here decides legality: it
  * finds this card among the actions the engine already ruled on and repeats
@@ -498,12 +517,18 @@ function statusOf(
   payment: InspectPayment | null,
 ): InspectStatus {
   if (!legal || legal.kind !== "turn") {
-    return { playable: null, message: legal?.kind === "choice" ? "A decision is open — answer it first." : "", targets: [] };
+    return {
+      playable: null,
+      message: legal?.kind === "choice" ? "A decision is open — answer it first." : "",
+      targets: [],
+    };
   }
   const owned = state.players.find((player) => player.playerId === perspectiveId)?.hand.includes(instanceId) ?? false;
 
   const playable = legal.legal.find(
-    (entry) => (entry.action.kind === "playCard" || entry.action.kind === "useAbility") && entry.action.instanceId === instanceId,
+    (entry) =>
+      (entry.action.kind === "playCard" || entry.action.kind === "useAbility") &&
+      entry.action.instanceId === instanceId,
   );
   if (playable) {
     return {
@@ -513,19 +538,26 @@ function statusOf(
       // card with a cost is tapped, and a right-click/hold on it while that's happening is exactly the mid-payment
       // scenario the mock draws. Outside that, "2 resources committed" isn't a number the engine has an answer
       // for yet (nothing has been picked), so the plainer sentence stands rather than inventing one.
-      message: paymentMessage(payment, instanceId) ?? (playable.needsPayment ? "Playable — you can afford it." : "Playable."),
+      message:
+        paymentMessage(payment, instanceId) ?? (playable.needsPayment ? "Playable — you can afford it." : "Playable."),
       targets: playable.targets.map((target) => cardName(state, target)),
     };
   }
   const illegal = legal.illegal.find(
-    (entry) => (entry.action.kind === "playCard" || entry.action.kind === "useAbility") && entry.action.instanceId === instanceId,
+    (entry) =>
+      (entry.action.kind === "playCard" || entry.action.kind === "useAbility") &&
+      entry.action.instanceId === instanceId,
   );
   if (illegal) return { playable: false, message: illegal.message, targets: [] };
 
   // Not a card the player could play — but it may be something they can aim at.
   const aimedAt = legal.legal.filter((entry) => entry.targets.includes(instanceId));
   if (aimedAt.length > 0) {
-    return { playable: null, message: `A legal target for: ${aimedAt.map((entry) => entry.action.kind).join(", ")}.`, targets: [] };
+    return {
+      playable: null,
+      message: `A legal target for: ${aimedAt.map((entry) => entry.action.kind).join(", ")}.`,
+      targets: [],
+    };
   }
   const blocked = legal.legal
     .flatMap((entry) => entry.blockedTargets)
@@ -616,7 +648,11 @@ function timingEntriesFor(state: GameState, instanceId: InstanceId, deps: Engine
 }
 
 /** Every keyword this card prints, with the glossary's own definition — for the Inspect sheet's "keywords" box. */
-function keywordDefinitionsFor(state: GameState, instanceId: InstanceId, deps: EngineDeps): readonly KeywordDefinition[] {
+function keywordDefinitionsFor(
+  state: GameState,
+  instanceId: InstanceId,
+  deps: EngineDeps,
+): readonly KeywordDefinition[] {
   const seen = new Set<string>();
   const entries: KeywordDefinition[] = [];
   for (const keyword of keywordsOf(state, instanceId, deps)) {

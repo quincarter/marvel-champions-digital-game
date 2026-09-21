@@ -1,30 +1,53 @@
 {
   "name": "marvel-champions-game",
+  "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@11.24.0",
-  "engines": {
-    "node": ">=22"
-  },
   "scripts": {
     "dev": "pnpm --filter @mc/client dev",
     "preview": "pnpm --filter @mc/client build && pnpm --filter @mc/client preview",
     "desktop:dev": "pnpm --filter @mc/client desktop:dev",
-    "desktop:build": "pnpm --filter @mc/client desktop:build",
+    "desktop:build": "node scripts/build-desktop.mjs",
+    "ship-it": "node scripts/ship-it.mjs",
     "ios": "pnpm --filter @mc/client ios",
     "android": "pnpm --filter @mc/client android",
     "cap": "pnpm --filter @mc/client cap",
-    "android:build": "pnpm --filter @mc/client android:build",
+    "android:build": "node scripts/build-android.mjs",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
-    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
+    "check": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test && pnpm build",
     "capture:screens": "node scripts/capture-design-screenshots.mjs",
+    "campaign:scrape": "uv run scripts/scrape_campaign_markdown.py",
     "ingest": "pnpm --filter @mc/content ingest --",
-    "clean": "rm -rf packages/*/dist"
+    "clean": "node scripts/clean.mjs",
+    "refs": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false refs-report",
+    "card": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false card-brief",
+    "dsl": "pnpm --filter @mc/cards exec vitest run --config vitest.tools.config.ts --reporter=verbose --silent=false dsl-index",
+    "prepare": "git config core.hooksPath .githooks"
   },
   "devDependencies": {
+    "lint-staged": "^17.5.1",
+    "oxfmt": "^0.70.0",
+    "oxlint": "^1.85.0",
     "playwright": "^1.63.0",
     "typescript": "^7.0.2",
     "vitest": "^5.0.1"
-  }
+  },
+  "lint-staged": {
+    "*.{ts,mts,cts,js,mjs,cjs}": [
+      "oxlint",
+      "oxfmt --no-error-on-unmatched-pattern"
+    ],
+    "*.{json,jsonc,md,yml,yaml,toml,css,html}": [
+      "oxfmt --no-error-on-unmatched-pattern"
+    ]
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.24.0"
 }

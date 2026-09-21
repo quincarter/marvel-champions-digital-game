@@ -14,7 +14,9 @@ interface RawRecord {
   readonly faction_code: string;
   readonly deck_limit?: number | null;
 }
-const raw = JSON.parse(readFileSync(new URL("../../raw/marvelcdb/core.json", import.meta.url), "utf8")) as { cards: RawRecord[] };
+const raw = JSON.parse(readFileSync(new URL("../../raw/marvelcdb/core.json", import.meta.url), "utf8")) as {
+  cards: RawRecord[];
+};
 const rawByCode = new Map(raw.cards.map((r) => [r.code, r]));
 const byId = new Map<string, AnyCard>(CORE_CARDS.map((c) => [c.id, c]));
 

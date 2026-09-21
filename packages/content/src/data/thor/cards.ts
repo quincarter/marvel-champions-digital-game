@@ -680,6 +680,7 @@ export const THOR_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("thor_nemesis")],
     boostIcons: 1,
+    starIcon: true,
     traits: [trait("GIANT")],
     keywords: [{ name: "toughness" }],
     text: {

@@ -19,7 +19,16 @@ import {
   stubUpgrade,
   stubVillain,
 } from "./testing/fixtures.js";
-import { HERO, RESOURCE, defaultPick, newGame, resolvePending, runWith, settle, settleUntil } from "./testing/scenario.js";
+import {
+  HERO,
+  RESOURCE,
+  defaultPick,
+  newGame,
+  resolvePending,
+  runWith,
+  settle,
+  settleUntil,
+} from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const endTurn = { type: "endTurn", playerId: p1 } as const;
@@ -70,7 +79,9 @@ function auto(trace: Trace, deps: EngineDeps, pick = defaultPick): Trace {
 const trace = (state: GameState): Trace => ({ state, events: [] });
 
 const damagedInOrder = (events: readonly GameEvent[]): readonly InstanceId[] =>
-  events.filter((e): e is Extract<GameEvent, { type: "damageDealt" }> => e.type === "damageDealt").map((e) => e.targetInstanceId);
+  events
+    .filter((e): e is Extract<GameEvent, { type: "damageDealt" }> => e.type === "damageDealt")
+    .map((e) => e.targetInstanceId);
 
 // ---------------------------------------------------------------------------
 // Multi-target effects resolve in the order the effect listed them.
@@ -104,9 +115,7 @@ test("an effect that damages several targets resolves them first-listed first", 
 
   const roundTwo = settle(runWith(deps, start, endTurn), undefined, deps);
   const roundThree = settle(runWith(deps, roundTwo, endTurn), undefined, deps);
-  const minions = mustPlayer(roundThree, p1).playArea.filter(
-    (id) => roundThree.instances[id]?.cardId === minion.id,
-  );
+  const minions = mustPlayer(roundThree, p1).playArea.filter((id) => roundThree.instances[id]?.cardId === minion.id);
   expect(minions).toHaveLength(2);
   const [first, second] = minions as [InstanceId, InstanceId];
 
@@ -231,7 +240,14 @@ const stunCommand = (state: GameState): Command => ({
 
 // RRG "Stalwart": the character cannot be stunned or confused at all.
 test("a stalwart character cannot be given a stun status", () => {
-  const stalwart = stubMinion({ id: "stalwart-thug", atk: 1, sch: 1, hp: 5, boostIcons: 0, keywords: [{ name: "stalwart" }] });
+  const stalwart = stubMinion({
+    id: "stalwart-thug",
+    atk: 1,
+    sch: 1,
+    hp: 5,
+    boostIcons: 0,
+    keywords: [{ name: "stalwart" }],
+  });
   const { deps, state, minion } = withMinionInPlay(stalwart.id, [stalwart]);
   const stunned = auto(go(trace(state), deps, stunCommand(state)), deps, (s) =>
     s.pendingChoice?.prompt.kind === "chooseTarget" ? [minion] : defaultPick(s),
@@ -242,7 +258,14 @@ test("a stalwart character cannot be given a stun status", () => {
 
 // RRG "Steady": it takes two status cards of a type before the character has that status.
 test("a steady character holds two stun cards and is not stunned until the second", () => {
-  const steady = stubMinion({ id: "steady-thug", atk: 1, sch: 1, hp: 5, boostIcons: 0, keywords: [{ name: "steady" }] });
+  const steady = stubMinion({
+    id: "steady-thug",
+    atk: 1,
+    sch: 1,
+    hp: 5,
+    boostIcons: 0,
+    keywords: [{ name: "steady" }],
+  });
   const { deps, state, minion } = withMinionInPlay(steady.id, [steady]);
   const pick = (s: GameState): readonly string[] =>
     s.pendingChoice?.prompt.kind === "chooseTarget" ? [minion] : defaultPick(s);
@@ -312,11 +335,21 @@ test("a choice made while a peril card resolves is marked sole-decider", () => {
   const ability = stubAbility("peril-choice", {
     trigger: { kind: "whenRevealed" },
     effects: [
-      { kind: "chooseTarget", slot: "victim", chooser: { kind: "eventPlayer" }, query: { categories: ["hero", "alterEgo"] } },
+      {
+        kind: "chooseTarget",
+        slot: "victim",
+        chooser: { kind: "eventPlayer" },
+        query: { categories: ["hero", "alterEgo"] },
+      },
       { kind: "dealDamage", target: { kind: "slot", slot: "victim" }, amount: { kind: "const", value: 1 } },
     ],
   });
-  const treachery = stubTreachery({ id: "peril-card", boostIcons: 0, keywords: [{ name: "peril" }], abilities: [ability.ref] });
+  const treachery = stubTreachery({
+    id: "peril-card",
+    boostIcons: 0,
+    keywords: [{ name: "peril" }],
+    abilities: [ability.ref],
+  });
   const deps = depsOf(ability);
   const start = newGame({
     villain: VILLAIN,
@@ -372,7 +405,14 @@ test("a quickstrike minion attacks the player it engages as it enters play", () 
 });
 
 test("a quickstrike minion does not attack a player in alter-ego form", () => {
-  const minion = stubMinion({ id: "striker", atk: 3, sch: 1, hp: 5, boostIcons: 0, keywords: [{ name: "quickstrike" }] });
+  const minion = stubMinion({
+    id: "striker",
+    atk: 3,
+    sch: 1,
+    hp: 5,
+    boostIcons: 0,
+    keywords: [{ name: "quickstrike" }],
+  });
   const start = newGame({
     villain: VILLAIN,
     mainScheme: SCHEME,
@@ -391,7 +431,16 @@ const attackWithAlly = (
   allyKeywords: readonly KeywordInstance[],
   minionKeywords: readonly KeywordInstance[],
 ): { readonly minionDamage: number; readonly allyDamage: number } => {
-  const ally = stubAlly({ id: "gunner", cost: 0, atk: 2, thw: 1, hp: 5, resources: 1, keywords: allyKeywords, consequentialAttack: 0 });
+  const ally = stubAlly({
+    id: "gunner",
+    cost: 0,
+    atk: 2,
+    thw: 1,
+    hp: 5,
+    resources: 1,
+    keywords: allyKeywords,
+    consequentialAttack: 0,
+  });
   const minion = stubMinion({ id: "target", atk: 0, sch: 0, hp: 9, boostIcons: 0, keywords: minionKeywords });
   const start = newGame({
     villain: VILLAIN,
@@ -401,7 +450,9 @@ const attackWithAlly = (
     encounterDeck: deckOf(minion.id),
   });
   const roundTwo = settle(runWith({ abilities: {} }, start, endTurn));
-  const minionId = mustPlayer(roundTwo, p1).playArea.find((id) => roundTwo.instances[id]?.cardId === minion.id) as InstanceId;
+  const minionId = mustPlayer(roundTwo, p1).playArea.find(
+    (id) => roundTwo.instances[id]?.cardId === minion.id,
+  ) as InstanceId;
   const allyId = mustPlayer(roundTwo, p1).hand.find((id) => roundTwo.instances[id]?.cardId === ally.id) as InstanceId;
   const after = settle(
     runWith(

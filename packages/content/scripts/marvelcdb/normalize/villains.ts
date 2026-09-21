@@ -3,7 +3,16 @@ import type { RawCard } from "../raw-types.ts";
 import type { Trait, VillainCard, VillainDashStat, VillainSide, VillainStage } from "../../../src/schema/index.ts";
 import { imageOf } from "./art.ts";
 import { brand } from "./brand.ts";
-import { abilityRefs, baseFields, checkNoSchemeFields, expectNoAttach, expectNoPlayerData, parse, record, type NormalizeContext } from "./context.ts";
+import {
+  abilityRefs,
+  baseFields,
+  checkNoSchemeFields,
+  expectNoAttach,
+  expectNoPlayerData,
+  parse,
+  record,
+  type NormalizeContext,
+} from "./context.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import { ROMAN, scalingOf } from "./values.ts";
 
@@ -38,7 +47,10 @@ function extractActivationOrder(traits: readonly Trait[]): { traits: Trait[]; ac
   return activationOrder !== undefined ? { traits: kept, activationOrder } : { traits: kept };
 }
 
-function buildVillainStage(ctx: NormalizeContext, r: RawCard): { stage: VillainStage; prepared: Prepared; activationOrder?: number } {
+function buildVillainStage(
+  ctx: NormalizeContext,
+  r: RawCard,
+): { stage: VillainStage; prepared: Prepared; activationOrder?: number } {
   const { errors } = ctx;
   const p = prepare(ctx, r);
   checkNoSchemeFields(ctx, p);
@@ -108,13 +120,24 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
           if (!first || !second) continue;
           if (first.prepared.name !== second.prepared.name) errors.push(`${r.code}: villain version names differ`);
           const card: VillainCard = {
-            ...baseFields(ctx, first.prepared, first.prepared.raw.code, pair.map((face) => face.code), null),
+            ...baseFields(
+              ctx,
+              first.prepared,
+              first.prepared.raw.code,
+              pair.map((face) => face.code),
+              null,
+            ),
             type: "villain",
             encounterSetIds: [brand("encounterSet", set)],
             sides: [{ side: "A", name: first.prepared.name, stages: [first.stage, second.stage] }],
             ...(printedType ? { printedType } : {}),
           };
-          record(ctx, card, set, built.map((b) => b.prepared));
+          record(
+            ctx,
+            card,
+            set,
+            built.map((b) => b.prepared),
+          );
         }
         continue;
       }
@@ -164,8 +187,12 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
       // top-level, *unlinked* record per stage (…c) alongside the linked A/B pair (…a linked to hidden …b).
       // Recognized structurally, not by name: every A-side record here has a linked B, and there is exactly one
       // further unlinked villain record per stage.
-      const linkedRecords = stageRecords.filter((r) => r.linked_card?.type_code === "villain").sort((x, y) => stageOrder(x) - stageOrder(y));
-      const unlinkedExtras = stageRecords.filter((r) => !(r.linked_card?.type_code === "villain")).sort((x, y) => stageOrder(x) - stageOrder(y));
+      const linkedRecords = stageRecords
+        .filter((r) => r.linked_card?.type_code === "villain")
+        .sort((x, y) => stageOrder(x) - stageOrder(y));
+      const unlinkedExtras = stageRecords
+        .filter((r) => !(r.linked_card?.type_code === "villain"))
+        .sort((x, y) => stageOrder(x) - stageOrder(y));
       const threeSided = unlinkedExtras.length > 0 && unlinkedExtras.length === linkedRecords.length;
 
       const stagesA: VillainStage[] = [];
@@ -212,12 +239,14 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
       if (!firstA || !firstB || !firstStageA || !firstStageB) continue;
       if (new Set(partsA.map((p) => p.name)).size !== 1) errors.push(`villain set ${set}: side A stage names differ`);
       if (new Set(partsB.map((p) => p.name)).size !== 1) errors.push(`villain set ${set}: side B stage names differ`);
-      if (threeSided && new Set(partsC.map((p) => p.name)).size !== 1) errors.push(`villain set ${set}: side C stage names differ`);
+      if (threeSided && new Set(partsC.map((p) => p.name)).size !== 1)
+        errors.push(`villain set ${set}: side C stage names differ`);
       const sides: [VillainSide, VillainSide, ...VillainSide[]] = [
         { side: "A", name: firstA.name, stages: [firstStageA, ...stagesA.slice(1)] },
         { side: "B", name: firstB.name, stages: [firstStageB, ...stagesB.slice(1)] },
       ];
-      if (threeSided && firstC && firstStageC) sides.push({ side: "C", name: firstC.name, stages: [firstStageC, ...stagesC.slice(1)] });
+      if (threeSided && firstC && firstStageC)
+        sides.push({ side: "C", name: firstC.name, stages: [firstStageC, ...stagesC.slice(1)] });
       const card: VillainCard = {
         // No card-level images: every stage of every side is its own printed card.
         ...baseFields(ctx, firstA, firstA.raw.code, codes, null),
@@ -252,7 +281,13 @@ export function normalizeVillains(ctx: NormalizeContext): Map<string, string> {
     }
     const card: VillainCard = {
       // No card-level images: every stage is a separate printed card.
-      ...baseFields(ctx, first, first.raw.code, parts.map((p) => p.raw.code), null),
+      ...baseFields(
+        ctx,
+        first,
+        first.raw.code,
+        parts.map((p) => p.raw.code),
+        null,
+      ),
       type: "villain",
       encounterSetIds: [brand("encounterSet", set)],
       sides: [{ side: "A", name: first.name, stages: [firstStage, ...stages.slice(1)] }],

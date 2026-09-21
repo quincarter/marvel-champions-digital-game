@@ -1,8 +1,8 @@
 import { trait } from "@mc/content";
 import {
+  addCounters,
   aScheme,
   cards,
-  chooseCards,
   chooseTarget,
   chosen,
   constant,
@@ -10,25 +10,33 @@ import {
   dealDamage,
   defineAbilities,
   discardDeckUntil,
-  each,
   eventResult,
+  exhaustThis,
   exists,
+  forcedInterrupt,
   gets,
   giveTough,
   heal,
   heroAction,
   heroResponse,
+  identityOf,
   ifElse,
   modifyStat,
   moveCards,
   on,
   paidWith,
+  playFromHandReducingCost,
   query,
   remainingHpOf,
   removeThreat,
   response,
+  scaled,
   self,
+  sharesTraitWith,
   valueAtLeast,
+  varOf,
+  villainStageNumberOf,
+  you,
   yourIdentity,
 } from "../../dsl/index.js";
 import { excludedFromAllyLimit } from "../../dsl/abilities.js";
@@ -41,36 +49,35 @@ const AVENGER = trait("AVENGER");
  * reprints (First Aid 12019, Energy 12021, Genius 12022, Strength 12023) are aliased by `../reprints.ts`, not
  * scripted here.
  *
- * **Skipped (missing engine primitive — see docs/phase7-wave2-scripting.md):**
+ * **Previously skipped, now scripted (docs/phase7-wave2.md §18/§23):**
  * - `12024.team-building-exercise-action` — "play a card from your hand **that shares a trait with your hero**,
- *   reducing its resource cost by 1" needs the reduced-cost-play primitive `playFromHand.costReduction`
- *   (docs/phase7-wave2.md §9, landed) *and* a `TargetQuery` filter for "shares a trait with a referenced card" —
- *   the second half doesn't exist. `TargetQuery.trait`/`anyTrait` match one fixed trait or a fixed OR of several,
- *   never "whatever traits another specific card currently has" (the printed example in docs/phase7-wave2.md §9.1,
- *   `{ trait: AVENGER }`, is a fixed trait, not this card's dynamic one — Team-Building Exercise itself is a
- *   generic basic-aspect card played by any hero, so "your hero" is not a fixed trait this script can hardcode).
- *   Closest existing primitive: `RuleSpec gainsTraitsOf`'s `traitsOf: TargetQuery` (a *grant* reading another
- *   card's printed traits live), the same shape a `TargetQuery.sharesTraitWith: TargetRef` field would need.
+ *   reducing its resource cost by 1" is `playFromHandReducingCost` (§9, landed) with a `filter` built from
+ *   `TargetQuery.sharesTraitWith` (§20.1, new) — `dsl/values.ts`'s `sharesTraitWith(ref)` wraps it. Both sides are
+ *   read live through `traitsOf`, so a granted trait counts on either end (RRG 1.8 "Gains", p. 21).
  * - `12032.muster-courage-action` — "give up to X friendly characters a tough status card (to a maximum of 3),
- *   where X is the villain's stage number" needs a dynamic upper bound on a choice; `EffectSpec.chooseCards.max`
- *   is a fixed `number`, not a `ValueSpec` the way `chooseTarget.count`/`discardFromHand.amount` already are.
+ *   where X is the villain's stage number" is `chooseTarget`'s `count: ValueSpec` (`scaled(villainStageNumberOf(),
+ *   { max: 3 })`) plus `optional: true` for "up to" — not `chooseCards.max` (the *out-of-play* selector), which
+ *   the original skip named. docs/phase7-wave2.md §18.5.
  * - `12011.ant-man-interrupt` — "place 1 pym counter on him (to a maximum of 4) for each resource you overpaid for
- *   Ant-Man's cost" needs `overpaid.total` (docs/phase7-wave2.md §3.8) readable from a *later* `cardEntersPlay`
- *   interrupt on the same card, not just within the same ability resolution that paid the cost — confirmed by the
- *   validator ("read before it is bound") rather than assumed.
+ *   Ant-Man's cost" reads `overpaid.total` from the `cardEntersPlay` interrupt itself: `abilityFrame` merges the
+ *   play's own payment vars into every ability frame for a card still on a `playCard` frame, so a later interrupt
+ *   on the same card already sees them — the skip's claim that this needed a new primitive didn't hold up under
+ *   a real command sequence. docs/phase7-wave2.md §18.3.
  */
 export const ANT_PACK_CARDS = defineAbilities({
   // Ant-Man (12011, ally, Hank Pym) — Ant-Man gets +1 hit point for each pym counter on him.
   "12011.ant-man-constant": constant(gets("hp", countersOn(self, "pym"), query("ally", { self: true }))),
   // Ant-Man — Interrupt: when Ant-Man enters play, place 1 pym counter on him (to a maximum of 4) for each
-  // resource overpaid for his cost. SKIPPED (missing primitive — module docblock addendum): `overpaid.total`
-  // (docs/phase7-wave2.md §3.8) is a var bound by the *same* ability resolution that pays a cost — the engine's
-  // own validator rejects reading it from a later, separate `cardEntersPlay` interrupt on the same card ("read
-  // before it is bound"), confirming this isn't yet carried from a play's own payment into a later trigger on the
-  // card that play brought into play.
+  // resource overpaid for his cost (docs/phase7-wave2.md §18.3, module docblock).
+  "12011.ant-man-interrupt": forcedInterrupt(
+    on.entersPlay("self"),
+    addCounters("pym", scaled(varOf("overpaid.total"), { max: 4 }), self),
+  ),
 
   // Giant-Man (12012) — Giant-Man gets +2 ATK while he has 3 or more remaining hit points.
-  "12012.giant-man-constant": constant(gets("atk", 2, query("ally", { self: true }), { while: valueAtLeast(remainingHpOf(self), 3) })),
+  "12012.giant-man-constant": constant(
+    gets("atk", 2, query("ally", { self: true }), { while: valueAtLeast(remainingHpOf(self), 3) }),
+  ),
 
   // Ronin (12013) — Ronin gets +1 THW and +1 ATK while an upgrade is attached to them.
   "12013.ronin-constant": constant(
@@ -84,7 +91,10 @@ export const ANT_PACK_CARDS = defineAbilities({
 
   // Call for Aid (12015) — Hero Action: discard cards from the top of your deck until you discard an Avenger
   // ally, then add that ally to your hand.
-  "12015.call-for-aid-action": heroAction(discardDeckUntil(query("ally", { trait: AVENGER }), "found"), moveCards(cards(chosen("found")), "hand")),
+  "12015.call-for-aid-action": heroAction(
+    discardDeckUntil(query("ally", { trait: AVENGER }), "found"),
+    moveCards(cards(chosen("found")), "hand"),
+  ),
 
   // Moxie (12016) — Hero Response: after you change form, your hero gets +1 THW, +1 ATK, +1 DEF until the end of
   // the round.
@@ -109,7 +119,10 @@ export const ANT_PACK_CARDS = defineAbilities({
   // Moment of Triumph (12030, Aggression) — Hero Response: after you attack and defeat an enemy, heal 1 damage
   // from your hero for each point of excess damage dealt to that enemy by that attack. `excessDealt` is the same
   // var overkill's own spillover reads (`resolve/event.ts`), reported on the attack's own event results.
-  "12030.moment-of-triumph-response": heroResponse(on.attacks("self", { defeats: true }), heal(eventResult("excessDealt"), yourIdentity)),
+  "12030.moment-of-triumph-response": heroResponse(
+    on.attacks("self", { defeats: true }),
+    heal(eventResult("excessDealt"), yourIdentity),
+  ),
 
   // Lay Down the Law (12031, Justice) — Hero Response (thwart): after you change form, remove 3 threat from a
   // scheme (4 instead if you paid for this card using a [mental] resource).
@@ -120,11 +133,28 @@ export const ANT_PACK_CARDS = defineAbilities({
     removeThreat(ifElse(paidWith("mental"), 4, 3), chosen("scheme")),
   ),
 
-  // Muster Courage (12032, Protection) — SKIPPED (missing primitive — module docblock addendum): "give up to X
-  // friendly characters a tough status card (to a maximum of 3), where X is the villain's stage number" needs a
-  // dynamic upper bound on a choice; `EffectSpec.chooseCards.max` is a fixed `number`, not a `ValueSpec` the way
-  // `chooseTarget.count`/`discardFromHand.amount` already are, so "up to X" can't be read live — a flat `max: 3`
-  // would wrongly allow 3 choices on villain stage 1 or 2.
+  // Muster Courage (12032, Protection) — Hero Action: give up to X friendly characters a tough status card (to a
+  // maximum of 3), where X is the villain's stage number. Not `EffectSpec.chooseCards` (the *out-of-play* selector
+  // — "search your deck", "look at the top 3") — a choice among characters already in play is `chooseTarget`,
+  // whose `count` has been `Amount` (a plain number or a live `ValueSpec`) since Shield Toss, and whose
+  // `optional: true` is exactly "up to" (RRG 1.8 "Choose (Game Element)", p. 12: an effect resolves as much as it
+  // can). docs/phase7-wave2.md §18.5.
+  "12032.muster-courage-action": heroAction(
+    chooseTarget("brave", query(["hero", "ally"], { controller: "any" }), {
+      optional: true,
+      count: scaled(villainStageNumberOf(), { max: 3 }),
+    }),
+    giveTough(chosen("brave")),
+  ),
+
+  // Team-Building Exercise (12024, Basic) — Hero Action: Exhaust Team-Building Exercise → play a card from your
+  // hand that shares a trait with your hero, reducing its resource cost by 1. `playFromHandReducingCost` (§9) with
+  // a `sharesTraitWith(identityOf(you))` filter (§20.1, `dsl/values.ts`) reads "your hero" live rather than as a
+  // hardcoded trait — this is a generic basic-aspect card, playable by any hero. docs/phase7-wave2.md §23.
+  "12024.team-building-exercise-action": heroAction(
+    { cost: exhaustThis },
+    playFromHandReducingCost(1, you, { filter: sharesTraitWith(identityOf(you)) }),
+  ),
 
   // Assess the Situation (12033, Basic) — Action: you get +1 hand size until the end of the phase.
   "12033.assess-the-situation-action": {

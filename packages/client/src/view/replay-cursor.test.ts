@@ -33,7 +33,8 @@ const ULTRON_CONFIG: SessionConfig = {
 function anyLegalCommand(legal: LegalActions, playerId: PlayerId): Command {
   if (legal.kind === "choice") {
     const picked = legal.choice.options.slice(0, legal.choice.minSelections);
-    if (picked.length < legal.choice.minSelections) throw new Error("pending choice has too few options for its own minimum");
+    if (picked.length < legal.choice.minSelections)
+      throw new Error("pending choice has too few options for its own minimum");
     return {
       type: "resolveChoice",
       playerId: legal.choice.playerId,
@@ -183,7 +184,8 @@ describe("ReplayCursor", () => {
     expect(cursor.at(playerPhase!.commandIndex).state.step.phase).toBe("player");
 
     // Moments are strictly ordered by the command index they belong to.
-    for (let i = 1; i < moments.length; i++) expect(moments[i]!.commandIndex).toBeGreaterThanOrEqual(moments[i - 1]!.commandIndex);
+    for (let i = 1; i < moments.length; i++)
+      expect(moments[i]!.commandIndex).toBeGreaterThanOrEqual(moments[i - 1]!.commandIndex);
   });
 
   test("never touches the live session: its state and log are identical, by reference where applicable, before and after any cursor movement", async () => {

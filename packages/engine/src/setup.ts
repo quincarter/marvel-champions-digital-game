@@ -1,4 +1,13 @@
-import type { AnyCard, CardId, CoreAspect, DeckCardEntry, DeckContents, HeroIdentityCard, ScenarioSeparateDeck, VillainSideLetter } from "@mc/content";
+import type {
+  AnyCard,
+  CardId,
+  CoreAspect,
+  DeckCardEntry,
+  DeckContents,
+  HeroIdentityCard,
+  ScenarioSeparateDeck,
+  VillainSideLetter,
+} from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
 import { unbuildableSeparateDeck, validateDeck } from "./deck.js";
 import { createCtx, emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
@@ -210,14 +219,22 @@ interface PlannedVillain {
 }
 
 /** The villains to create, one-villain configs included, or the reason the config is malformed. */
-function planVillains(config: GameSetupConfig, pool: Readonly<Record<string, AnyCard>>): readonly PlannedVillain[] | string {
+function planVillains(
+  config: GameSetupConfig,
+  pool: Readonly<Record<string, AnyCard>>,
+): readonly PlannedVillain[] | string {
   let setups: readonly VillainSetup[];
   if (config.villains) {
     const [first] = config.villains;
     if (!first) return "villains must list at least one villain";
     if (first.villainCardId !== config.villainCardId) return "villainCardId must name the first of villains";
-    if (config.encounterDeck.length > 0) return "with villains, each villain has its own encounterDeck; encounterDeck must be empty";
-    if (config.villainSide !== undefined || config.villainStartStageIndex !== undefined || config.villainLastStageIndex !== undefined) {
+    if (config.encounterDeck.length > 0)
+      return "with villains, each villain has its own encounterDeck; encounterDeck must be empty";
+    if (
+      config.villainSide !== undefined ||
+      config.villainStartStageIndex !== undefined ||
+      config.villainLastStageIndex !== undefined
+    ) {
       return "with villains, side and stages are set per villain";
     }
     const ids = config.villains.map((v) => v.villainCardId);
@@ -248,10 +265,18 @@ function planVillains(config: GameSetupConfig, pool: Readonly<Record<string, Any
     const startStageIndex = range ? range[0] : (setup.startStageIndex ?? 0);
     if (!villainSide.stages[startStageIndex]) return `villain has no stage index ${startStageIndex}`;
     const lastStageIndex = range ? range[1] : (setup.lastStageIndex ?? villainSide.stages.length - 1);
-    if (!villainSide.stages[lastStageIndex] || lastStageIndex < startStageIndex) return `villain has no last stage index ${lastStageIndex}`;
+    if (!villainSide.stages[lastStageIndex] || lastStageIndex < startStageIndex)
+      return `villain has no last stage index ${lastStageIndex}`;
     const scheme = setup.signatureSideSchemeCardId;
     if (scheme !== undefined && pool[scheme]?.type !== "side_scheme") return `${scheme} is not a side scheme card`;
-    planned.push({ card, side, startStageIndex, lastStageIndex, encounterDeck: setup.encounterDeck, signatureSideSchemeCardId: scheme ?? null });
+    planned.push({
+      card,
+      side,
+      startStageIndex,
+      lastStageIndex,
+      encounterDeck: setup.encounterDeck,
+      signatureSideSchemeCardId: scheme ?? null,
+    });
   }
   return planned;
 }
@@ -297,11 +322,17 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
   const villainInstanceIds: InstanceId[] = [];
   for (const [index, planned] of plannedVillains.entries()) {
     const id = nextId();
-    instances[id] = { ...blankInstance(id, planned.card.id, null, { kind: "encounterDeck", deckId: deckIds[index] as EncounterDeckId }), faceup: true };
+    instances[id] = {
+      ...blankInstance(id, planned.card.id, null, { kind: "encounterDeck", deckId: deckIds[index] as EncounterDeckId }),
+      faceup: true,
+    };
     villainInstanceIds.push(id);
   }
   const mainSchemeInstanceId = nextId();
-  instances[mainSchemeInstanceId] = { ...blankInstance(mainSchemeInstanceId, mainSchemeCard.id, null, ACTIVE_DECK_HOME), faceup: true };
+  instances[mainSchemeInstanceId] = {
+    ...blankInstance(mainSchemeInstanceId, mainSchemeCard.id, null, ACTIVE_DECK_HOME),
+    faceup: true,
+  };
 
   const players: PlayerState[] = [];
   const obligationIds: InstanceId[] = [];
@@ -321,14 +352,18 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     // The SP//dr insert's "Separated Identity Card" (two identity cards sharing one dial) is not modeled; seating it as an
     // ordinary identity would silently play a different game (docs/phase7-wave2.md §6.10).
     if (identityCard.separatedIdentity !== undefined) {
-      return invalid(`${identityLabel(identityCard)} is a separated identity (two identity cards), which this engine cannot seat yet`);
+      return invalid(
+        `${identityLabel(identityCard)} is a separated identity (two identity cards), which this engine cannot seat yet`,
+      );
     }
     // Only Doctor Strange's kind of separate deck is built (a player-card deck with its own discard pile). Hercules's
     // Labor deck (encounter cards) and Gift deck (no discard pile) are data only (docs/phase7-wave2.md §15); building
     // either as if it were the Invocation deck would silently play a different game.
     const unbuilt = unbuildableSeparateDeck(identityCard);
     if (unbuilt) {
-      return invalid(`${identityLabel(identityCard)}'s ${unbuilt.name} deck is a kind of separate deck this engine cannot build yet`);
+      return invalid(
+        `${identityLabel(identityCard)}'s ${unbuilt.name} deck is a kind of separate deck this engine cannot build yet`,
+      );
     }
     // RRG 1.8 "Unique Icon" — identities chosen at setup cannot match (see `cardsMatch`).
     const taken = seatedIdentities.find((seated) => cardsMatch(seated.card, identityCard));
@@ -343,7 +378,10 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     }
     seatedIdentities.push({ playerId: id, card: identityCard });
     const identityInstanceId = nextId();
-    instances[identityInstanceId] = { ...blankInstance(identityInstanceId, identityCard.id, id, PLAYER_HOME), faceup: true };
+    instances[identityInstanceId] = {
+      ...blankInstance(identityInstanceId, identityCard.id, id, PLAYER_HOME),
+      faceup: true,
+    };
 
     const deck: InstanceId[] = [];
     for (const cardId of setup.deck) {
@@ -364,7 +402,10 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
         if (!card) return invalid(`unknown card ${entry.cardId} in ${identityCard.id}'s ${definition.name} deck`);
         for (let copy = 0; copy < entry.quantity; copy++) {
           const separateInstanceId = nextId();
-          instances[separateInstanceId] = blankInstance(separateInstanceId, card.id, id, { kind: "separateDeck", name: definition.name });
+          instances[separateInstanceId] = blankInstance(separateInstanceId, card.id, id, {
+            kind: "separateDeck",
+            name: definition.name,
+          });
           ids.push(separateInstanceId);
         }
       }
@@ -432,7 +473,8 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
       const card = pool[cardId];
       if (!card) return invalid(`unknown encounter card ${cardId}`);
       // The Agents of S.H.I.E.L.D. rulebook (p. 6): "Evidence cards are not added to any deck" (docs/phase7-wave2.md §6.4).
-      if (card.type === "evidence") return invalid(`${cardId} is an evidence card, which is never in the encounter deck`);
+      if (card.type === "evidence")
+        return invalid(`${cardId} is an evidence card, which is never in the encounter deck`);
       const cardInstanceId = nextId();
       instances[cardInstanceId] = blankInstance(cardInstanceId, card.id, null, { kind: "encounterDeck", deckId });
       deck.push(cardInstanceId);
@@ -447,21 +489,34 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
   for (const cardId of config.setAside ?? []) {
     const card = pool[cardId];
     if (!card) return invalid(`unknown set-aside card ${cardId}`);
-    if (card.type === "evidence" || card.type === "villain") return invalid(`${cardId} cannot be set aside as a scenario card`);
+    if (card.type === "evidence" || card.type === "villain")
+      return invalid(`${cardId} cannot be set aside as a scenario card`);
     const id = nextId();
     const playerCard = "deckLimit" in card;
-    instances[id] = blankInstance(id, card.id, null, playerCard ? PLAYER_HOME : { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId });
+    instances[id] = blankInstance(
+      id,
+      card.id,
+      null,
+      playerCard ? PLAYER_HOME : { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId },
+    );
     encounterSetAside.push(id);
   }
   const scenarioDecks: Record<string, ScenarioDeckState> = {};
   for (const deck of config.scenarioDecks ?? []) {
     if (scenarioDecks[deck.name]) return invalid(`scenario deck ${deck.name} is listed twice`);
-    scenarioDecks[deck.name] = { deck: [], discard: [], discardPile: deck.discardPile, whenEmpty: deck.whenEmpty, contents: deck.contents };
+    scenarioDecks[deck.name] = {
+      deck: [],
+      discard: [],
+      discardPile: deck.discardPile,
+      whenEmpty: deck.whenEmpty,
+      contents: deck.contents,
+    };
   }
   for (const cardId of config.setAsideVillainCardIds ?? []) {
     const card = pool[cardId];
     if (!card || card.type !== "villain") return invalid(`${cardId} is not a villain card`);
-    if (plannedVillains.some((planned) => planned.card.id === cardId)) return invalid(`${cardId} is both in the villain deck and set aside`);
+    if (plannedVillains.some((planned) => planned.card.id === cardId))
+      return invalid(`${cardId} is both in the villain deck and set aside`);
     const id = nextId();
     instances[id] = blankInstance(id, card.id, null, { kind: "encounterDeck", deckId: deckIds[0] as EncounterDeckId });
     encounterSetAside.push(id);
@@ -515,7 +570,10 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     nextGameAreaSeq: 1,
     spentMainSchemeStages: [],
     revealedMainSchemes: [],
-    scenarioRules: { victory: config.victory ?? "finalVillainStage", separateGameAreas: config.separateGameAreas ?? false },
+    scenarioRules: {
+      victory: config.victory ?? "finalVillainStage",
+      separateGameAreas: config.separateGameAreas ?? false,
+    },
     encounterDecks,
     encounterDeckOrder: deckIds,
     encounterSetAside,
@@ -561,7 +619,10 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
   }
   for (const deckId of deckIds) {
     const shuffled = shuffleZone(ctx, { kind: "encounterDeck", deckId }, encounterDeckOf(ctx.state, deckId).deck);
-    ctx.state = { ...ctx.state, encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: shuffled, discard: [] } } };
+    ctx.state = {
+      ...ctx.state,
+      encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: shuffled, discard: [] } },
+    };
   }
 
   const startingThreat = mainSchemeValue(ctx.state, "startingThreat", deps);
@@ -584,7 +645,14 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
   // "Advance to stage 1B" is implicit (the engine already sits on 1B), so 1B's
   // own "When Revealed" resolves right after the 1A setup text.
   pushFrames(ctx, [
-    ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["setup"], null, mainSchemeStage(ctx.state).aSide.abilities, firstPlayer.playerId),
+    ...gameAbilityFrames(
+      ctx,
+      mainSchemeInstanceId,
+      ["setup"],
+      null,
+      mainSchemeStage(ctx.state).aSide.abilities,
+      firstPlayer.playerId,
+    ),
     ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["setup"], null, undefined, firstPlayer.playerId),
     ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["whenRevealed"], null, undefined, firstPlayer.playerId),
     ...villainInstanceIds.flatMap((villainId) => [

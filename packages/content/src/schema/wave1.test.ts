@@ -38,7 +38,13 @@ import type {
 const CYCLE = cycleId("wave-1-fixture");
 const text = unerrataedText;
 
-const stage = (stageNumber: number, hp: number, atk: number, sch: number, extra: Partial<VillainStage> = {}): VillainStage => ({
+const stage = (
+  stageNumber: number,
+  hp: number,
+  atk: number,
+  sch: number,
+  extra: Partial<VillainStage> = {},
+): VillainStage => ({
   stageNumber,
   hp: perPlayerOnly(hp),
   atk,
@@ -66,8 +72,16 @@ describe("The Wrecking Crew: villain versions A and B are stages (insert, 'Adjus
         side: "A",
         name: "Wrecker",
         stages: [
-          stage(1, 14, 2, 2, { stageLabel: "A", traits: [trait("Wrecking Crew")], abilities: [{ id: abilityId("07002.scheme-redirect") }] }),
-          stage(2, 18, 3, 3, { stageLabel: "B", traits: [trait("Wrecking Crew")], abilities: [{ id: abilityId("07003.scheme-redirect") }] }),
+          stage(1, 14, 2, 2, {
+            stageLabel: "A",
+            traits: [trait("Wrecking Crew")],
+            abilities: [{ id: abilityId("07002.scheme-redirect") }],
+          }),
+          stage(2, 18, 3, 3, {
+            stageLabel: "B",
+            traits: [trait("Wrecking Crew")],
+            abilities: [{ id: abilityId("07003.scheme-redirect") }],
+          }),
         ],
       },
     ],
@@ -81,7 +95,9 @@ describe("The Wrecking Crew: villain versions A and B are stages (insert, 'Adjus
     const [a, b] = wrecker.sides[0].stages as unknown as [VillainStage, VillainStage];
     const { stageLabel: _dropped, ...unlabelled } = b;
     expect(validateCard({ ...wrecker, sides: [{ ...wrecker.sides[0], stages: [a, unlabelled] }] }).valid).toBe(false);
-    expect(validateCard({ ...wrecker, sides: [{ ...wrecker.sides[0], stages: [a, { ...b, stageLabel: " " }] }] }).valid).toBe(false);
+    expect(
+      validateCard({ ...wrecker, sides: [{ ...wrecker.sides[0], stages: [a, { ...b, stageLabel: " " }] }] }).valid,
+    ).toBe(false);
   });
 
   const day: SideSchemeCard = {
@@ -100,7 +116,10 @@ describe("The Wrecking Crew: villain versions A and B are stages (insert, 'Adjus
     traits: [],
     keywords: [],
     text: text("Wrecker's Side Scheme. This card cannot leave play while Wrecker is in play."),
-    abilities: [{ id: abilityId("07004.cannot-leave-play") }, { id: abilityId("07004.hard-hitter"), label: "Hard Hitter" }],
+    abilities: [
+      { id: abilityId("07004.cannot-leave-play") },
+      { id: abilityId("07004.hard-hitter"), label: "Hard Hitter" },
+    ],
     signatureOf: "Wrecker",
   };
 
@@ -147,9 +166,15 @@ describe("The Wrecking Crew: villain versions A and B are stages (insert, 'Adjus
   it("rejects a villain list that does not start with villainCardId, has one villain, or repeats one", () => {
     expect(validateScenario({ ...breakout, villainCardId: cardId("07017") }).valid).toBe(false);
     const [first] = breakout.multipleVillains?.villains ?? [];
-    const one = { ...breakout, multipleVillains: { ...breakout.multipleVillains, villains: [first] } } as unknown as Scenario;
+    const one = {
+      ...breakout,
+      multipleVillains: { ...breakout.multipleVillains, villains: [first] },
+    } as unknown as Scenario;
     expect(validateScenario(one).valid).toBe(false);
-    const repeated = { ...breakout, multipleVillains: { ...breakout.multipleVillains, villains: [first, first] } } as unknown as Scenario;
+    const repeated = {
+      ...breakout,
+      multipleVillains: { ...breakout.multipleVillains, villains: [first, first] },
+    } as unknown as Scenario;
     expect(validateScenario(repeated).valid).toBe(false);
   });
 
@@ -157,7 +182,10 @@ describe("The Wrecking Crew: villain versions A and B are stages (insert, 'Adjus
     const multi = breakout.multipleVillains;
     if (!multi) throw new Error("fixture has multipleVillains");
     const [first, ...rest] = multi.villains;
-    const bare = { ...breakout, multipleVillains: { ...multi, villains: [{ ...first, encounterSetIds: [] }, ...rest] } } as unknown as Scenario;
+    const bare = {
+      ...breakout,
+      multipleVillains: { ...multi, villains: [{ ...first, encounterSetIds: [] }, ...rest] },
+    } as unknown as Scenario;
     expect(validateScenario(bare).valid).toBe(false);
     expect(validateScenario({ ...breakout, modularSetCount: -1 }).valid).toBe(false);
   });
@@ -196,7 +224,10 @@ describe("Risky Business: a villain deck of double-sided stage cards (Green Gobl
       },
     ],
   };
-  const [normanSide, goblinSide] = normanAndGoblin.sides as unknown as [VillainCard["sides"][0], VillainCard["sides"][0]];
+  const [normanSide, goblinSide] = normanAndGoblin.sides as unknown as [
+    VillainCard["sides"][0],
+    VillainCard["sides"][0],
+  ];
 
   it("validates: two faces with matching stage numbers, Norman up at setup, printed dashes", () => {
     expect(validateCard(normanAndGoblin).errors).toEqual([]);
@@ -204,15 +235,27 @@ describe("Risky Business: a villain deck of double-sided stage cards (Green Gobl
 
   it("rejects faces whose stage numbers differ (they are the two sides of the same cards)", () => {
     const [one, two] = goblinSide.stages as unknown as [VillainStage, VillainStage];
-    expect(validateCard({ ...normanAndGoblin, sides: [normanSide, { ...goblinSide, stages: [one, two] }] }).valid).toBe(false);
+    expect(validateCard({ ...normanAndGoblin, sides: [normanSide, { ...goblinSide, stages: [one, two] }] }).valid).toBe(
+      false,
+    );
   });
 
   it("rejects a dash on a stat with a value, a dash on a stat villains do not print, and a third side", () => {
     const [one, ...rest] = normanSide.stages as unknown as [VillainStage, ...VillainStage[]];
-    expect(validateCard({ ...normanAndGoblin, sides: [{ ...normanSide, stages: [{ ...one, atk: 2 }, ...rest] }, goblinSide] }).valid).toBe(false);
+    expect(
+      validateCard({
+        ...normanAndGoblin,
+        sides: [{ ...normanSide, stages: [{ ...one, atk: 2 }, ...rest] }, goblinSide],
+      }).valid,
+    ).toBe(false);
     const thw = { ...one, dashedStats: ["thw"] } as unknown as VillainStage;
-    expect(validateCard({ ...normanAndGoblin, sides: [{ ...normanSide, stages: [thw, ...rest] }, goblinSide] }).valid).toBe(false);
-    const three = { ...normanAndGoblin, sides: [normanSide, goblinSide, { ...goblinSide, side: "B" }] } as unknown as VillainCard;
+    expect(
+      validateCard({ ...normanAndGoblin, sides: [{ ...normanSide, stages: [thw, ...rest] }, goblinSide] }).valid,
+    ).toBe(false);
+    const three = {
+      ...normanAndGoblin,
+      sides: [normanSide, goblinSide, { ...goblinSide, side: "B" }],
+    } as unknown as VillainCard;
     expect(validateCard(three).valid).toBe(false);
   });
 
@@ -233,13 +276,17 @@ describe("Risky Business: a villain deck of double-sided stage cards (Green Gobl
     boostIcons: 0,
     traits: [],
     keywords: [],
-    text: text("Criminal Enterprise enter play with 2[per_hero] infamy counters on it. If there are no infamy counters here, flip Norman Osborn and Criminal Enterprise."),
+    text: text(
+      "Criminal Enterprise enter play with 2[per_hero] infamy counters on it. If there are no infamy counters here, flip Norman Osborn and Criminal Enterprise.",
+    ),
     abilities: [{ id: abilityId("02006a.enters-with-infamy") }, { id: abilityId("02006a.flip") }],
     flipSide: {
       name: "State of Madness",
       traits: [],
       keywords: [],
-      text: text("State of Madness enter play with 2[per_hero] madness counters on it. If there are no madness counters here, flip Green Goblin and State of Madness."),
+      text: text(
+        "State of Madness enter play with 2[per_hero] madness counters on it. If there are no madness counters here, flip Green Goblin and State of Madness.",
+      ),
       abilities: [{ id: abilityId("02006b.enters-with-madness") }, { id: abilityId("02006b.flip") }],
     },
   };
@@ -251,8 +298,13 @@ describe("Risky Business: a villain deck of double-sided stage cards (Green Gobl
   it("rejects a flip side without text, or one reusing a front-face ability id", () => {
     const back = criminalEnterprise.flipSide;
     if (!back) throw new Error("fixture has a flip side");
-    expect(validateCard({ ...criminalEnterprise, flipSide: { ...back, text: { printed: "", current: "" } } }).valid).toBe(false);
-    expect(validateCard({ ...criminalEnterprise, flipSide: { ...back, abilities: [{ id: abilityId("02006a.flip") }] } }).valid).toBe(false);
+    expect(
+      validateCard({ ...criminalEnterprise, flipSide: { ...back, text: { printed: "", current: "" } } }).valid,
+    ).toBe(false);
+    expect(
+      validateCard({ ...criminalEnterprise, flipSide: { ...back, abilities: [{ id: abilityId("02006a.flip") }] } })
+        .valid,
+    ).toBe(false);
   });
 });
 
@@ -276,7 +328,9 @@ describe("Mutagen Formula: a main scheme value printed as X", () => {
         acceleration: flat(0),
         printedX: ["acceleration"],
         icons: [],
-        text: text("X is equal to the number of Goblin enemies (including Green Goblin) in play. If this stage is completed, the players lose the game."),
+        text: text(
+          "X is equal to the number of Goblin enemies (including Green Goblin) in play. If this stage is completed, the players lose the game.",
+        ),
         traits: [],
         keywords: [],
         abilities: [{ id: abilityId("02018b.x-acceleration") }],
@@ -299,7 +353,16 @@ describe("Mutagen Formula: a main scheme value printed as X", () => {
 
 describe("attachment hosts printed on wave 1 cards", () => {
   it.each([
-    ["Goblin Glider: the enemy with the highest printed hit points and without another Goblin Glider attached", { kind: "superlative", among: "enemy", order: "highest", measure: "printedHp", withoutAttachmentNamed: "Goblin Glider" }],
+    [
+      "Goblin Glider: the enemy with the highest printed hit points and without another Goblin Glider attached",
+      {
+        kind: "superlative",
+        among: "enemy",
+        order: "highest",
+        measure: "printedHp",
+        withoutAttachmentNamed: "Goblin Glider",
+      },
+    ],
     ["Pumpkin Bombs: the villain", { kind: "villain" }],
     ["Magic Crowbar: Wrecker, one of several villains", { kind: "namedVillain", name: "Wrecker" }],
     ["Held Hostage: the active villain's side scheme", { kind: "villainSideScheme", of: "activeVillain" }],
@@ -311,8 +374,14 @@ describe("attachment hosts printed on wave 1 cards", () => {
     ["Under Surveillance: the main scheme", { kind: "mainScheme" }],
     ["(later packs) a scheme", { kind: "scheme" }],
     ["(later packs) a non-ELITE minion", { kind: "qualified", category: "minion", withoutTrait: trait("Elite") }],
-    ["(later packs) a Sentinel minion without Stun Beam attached", { kind: "qualified", category: "minion", trait: trait("Sentinel"), withoutAttachmentNamed: "Stun Beam" }],
-    ["(later packs) the minion with the most remaining hit points", { kind: "superlative", among: "minion", order: "highest", measure: "remainingHp" }],
+    [
+      "(later packs) a Sentinel minion without Stun Beam attached",
+      { kind: "qualified", category: "minion", trait: trait("Sentinel"), withoutAttachmentNamed: "Stun Beam" },
+    ],
+    [
+      "(later packs) the minion with the most remaining hit points",
+      { kind: "superlative", among: "minion", order: "highest", measure: "remainingHp" },
+    ],
   ] as const)("%s", (_label, host) => {
     expect(validateAttachmentHost(host, "attachment")).toEqual([]);
   });
@@ -323,7 +392,10 @@ describe("attachment hosts printed on wave 1 cards", () => {
     ["yourIdentity in a form that does not exist", { kind: "yourIdentity", form: "villain" }],
     ["qualified with no qualifier", { kind: "qualified", category: "ally" }],
     ["qualified over an unknown category", { kind: "qualified", category: "support", trait: "Avenger" }],
-    ["superlative with an unknown measure", { kind: "superlative", among: "enemy", order: "highest", measure: "boostIcons" }],
+    [
+      "superlative with an unknown measure",
+      { kind: "superlative", among: "enemy", order: "highest", measure: "boostIcons" },
+    ],
     ["superlative with no order", { kind: "superlative", among: "enemy", measure: "atk" }],
   ])("rejects %s", (_label, host) => {
     expect(validateAttachmentHost(host, "attachment").length).toBeGreaterThan(0);
@@ -343,9 +415,17 @@ describe("attachment hosts printed on wave 1 cards", () => {
       boostIcons: 3,
       traits: [trait("Vehicle")],
       keywords: [],
-      text: text("Attach to the enemy with the highest printed hit points and without another Goblin Glider attached. If you cannot, this card gains surge."),
+      text: text(
+        "Attach to the enemy with the highest printed hit points and without another Goblin Glider attached. If you cannot, this card gains surge.",
+      ),
       abilities: [{ id: abilityId("02019.surge-if-unattached") }, { id: abilityId("02019.hero-action") }],
-      attachesTo: { kind: "superlative", among: "enemy", order: "highest", measure: "printedHp", withoutAttachmentNamed: "Goblin Glider" } satisfies AttachmentHost,
+      attachesTo: {
+        kind: "superlative",
+        among: "enemy",
+        order: "highest",
+        measure: "printedHp",
+        withoutAttachmentNamed: "Goblin Glider",
+      } satisfies AttachmentHost,
       statModifiers: { atk: 1 },
     };
     expect(validateCard(glider).errors).toEqual([]);
@@ -366,7 +446,9 @@ describe("nemesis minions are marked (Shadow of the Past reveals 'your set-aside
     boostIcons: 2,
     traits: [trait("Hydra"), trait("Elite")],
     keywords: [{ name: "quickstrike" }],
-    text: text("Quickstrike. While Baron Zemo is engaged with you, you cannot thwart. (Captain America's nemesis minion.)"),
+    text: text(
+      "Quickstrike. While Baron Zemo is engaged with you, you cannot thwart. (Captain America's nemesis minion.)",
+    ),
     abilities: [{ id: abilityId("03028.cannot-thwart") }],
     atk: 3,
     sch: 1,
@@ -393,7 +475,9 @@ describe("play restrictions printed on wave 1 player cards", () => {
     aspect: "leadership",
     traits: [],
     keywords: [],
-    text: text("Max 1 per round. Hero Action: Ready each Avenger character you control. Until the end of the phase, each Avenger character in play gets +1 THW and +1 ATK."),
+    text: text(
+      "Max 1 per round. Hero Action: Ready each Avenger character you control. Until the end of the phase, each Avenger character in play gets +1 THW and +1 ATK.",
+    ),
     abilities: [{ id: abilityId("03015.hero-action") }],
     deckLimit: 3,
     cost: 4,
@@ -412,7 +496,9 @@ describe("play restrictions printed on wave 1 player cards", () => {
     aspect: "basic",
     traits: [trait("Title")],
     keywords: [],
-    text: text("Play only if your identity has the Avenger trait. Attach to a friendly character. Max 1 per character. Attached character gets +1 hit point and gains the Avenger trait."),
+    text: text(
+      "Play only if your identity has the Avenger trait. Attach to a friendly character. Max 1 per character. Attached character gets +1 hit point and gains the Avenger trait.",
+    ),
     abilities: [{ id: abilityId("03025.constant") }],
     deckLimit: 3,
     cost: 0,
@@ -425,13 +511,18 @@ describe("play restrictions printed on wave 1 player cards", () => {
     expect(validateCard(avengersAssemble).errors).toEqual([]);
     expect(validateCard(honoraryAvenger).errors).toEqual([]);
     const { attachesTo: _host, ...ownIdentityUpgrade } = honoraryAvenger;
-    const spycraft: UpgradeCard = { ...ownIdentityUpgrade, playRestrictions: { requiresControlledCharacterTrait: trait("Spy"), maxPerPlayer: 1 } };
+    const spycraft: UpgradeCard = {
+      ...ownIdentityUpgrade,
+      playRestrictions: { requiresControlledCharacterTrait: trait("Spy"), maxPerPlayer: 1 },
+    };
     expect(validateCard(spycraft).errors).toEqual([]);
   });
 
   it("rejects a non-positive per-round maximum and an empty trait", () => {
     expect(validateCard({ ...avengersAssemble, playRestrictions: { maxPerRound: 0 } }).valid).toBe(false);
-    expect(validateCard({ ...honoraryAvenger, playRestrictions: { requiresIdentityTrait: trait(" ") } }).valid).toBe(false);
+    expect(validateCard({ ...honoraryAvenger, playRestrictions: { requiresIdentityTrait: trait(" ") } }).valid).toBe(
+      false,
+    );
   });
 
   const { playRestrictions: _maxPerRound, ...unrestrictedEvent } = avengersAssemble;
@@ -479,7 +570,9 @@ describe("play restrictions printed on wave 1 player cards", () => {
       handSize: 5,
       keywords: [],
       traits: [trait("Avenger"), trait("Mystic")],
-      text: text("Spell Mastery — Action: Exhaust Doctor Strange and pay the cost of the top card of the Invocation deck → resolve the \"Special\" ability on that card."),
+      text: text(
+        'Spell Mastery — Action: Exhaust Doctor Strange and pay the cost of the top card of the Invocation deck → resolve the "Special" ability on that card.',
+      ),
       abilities: [{ id: abilityId("09001a.spell-mastery"), label: "Spell Mastery" }],
     },
     alterEgo: {
@@ -488,7 +581,9 @@ describe("play restrictions printed on wave 1 player cards", () => {
       handSize: 6,
       keywords: [],
       traits: [trait("Mystic")],
-      text: text("Stephen Strange begins the game with an Invocation deck. (See insert.) Natural Talent — Action: Discard the top card of the Invocation deck. (Limit once per phase.)"),
+      text: text(
+        "Stephen Strange begins the game with an Invocation deck. (See insert.) Natural Talent — Action: Discard the top card of the Invocation deck. (Limit once per phase.)",
+      ),
       abilities: [{ id: abilityId("09001b.natural-talent"), label: "Natural Talent" }],
     },
     obligationCardId: cardId("09027"),
@@ -515,7 +610,10 @@ describe("play restrictions printed on wave 1 player cards", () => {
     if (!first) throw new Error("fixture deck has cards");
     expect(validateCard({ ...strange, separateDecks: [{ ...deck, cards: [first, first] }] }).valid).toBe(false);
     expect(validateCard({ ...strange, separateDecks: [{ ...deck, cards: [] }] }).valid).toBe(false);
-    const penalty = { ...strange, separateDecks: [{ ...deck, whenEmpty: "encounterCard" }] } as unknown as HeroIdentityCard;
+    const penalty = {
+      ...strange,
+      separateDecks: [{ ...deck, whenEmpty: "encounterCard" }],
+    } as unknown as HeroIdentityCard;
     expect(validateCard(penalty).valid).toBe(false);
     expect(validateCard({ ...strange, separateDecks: [deck, deck] }).valid).toBe(false);
   });

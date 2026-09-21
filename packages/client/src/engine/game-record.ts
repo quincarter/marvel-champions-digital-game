@@ -13,7 +13,16 @@
  * owns, the card the engine named as the source".
  */
 
-import { cardOf, controllerOf, getInstance, isMinion, type GameEvent, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  cardOf,
+  controllerOf,
+  getInstance,
+  isMinion,
+  type GameEvent,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 
 export interface SeatRecord {
   readonly playerId: PlayerId;
@@ -90,7 +99,13 @@ export const emptyRecord = (): GameRecord => ({
   activation: null,
 });
 
-const blankSeat = (playerId: PlayerId): SeatRecord => ({ playerId, damage: 0, thwart: 0, cardsPlayed: 0, defeatedInRound: null });
+const blankSeat = (playerId: PlayerId): SeatRecord => ({
+  playerId,
+  damage: 0,
+  thwart: 0,
+  cardsPlayed: 0,
+  defeatedInRound: null,
+});
 
 const blankRound = (round: number): RoundRecord => ({
   round,
@@ -130,10 +145,22 @@ const isVillain = (state: GameState, id: InstanceId): boolean => cardOf(state, i
 export function recordEvents(record: GameRecord, events: readonly GameEvent[], state: GameState): GameRecord {
   let round = record.round;
   const seats = new Map<PlayerId, SeatRecord>(
-    (record.seats.length > 0 ? record.seats : state.players.map((player) => blankSeat(player.playerId))).map((seat) => [seat.playerId, seat]),
+    (record.seats.length > 0 ? record.seats : state.players.map((player) => blankSeat(player.playerId))).map((seat) => [
+      seat.playerId,
+      seat,
+    ]),
   );
   const rounds = new Map<number, RoundRecord>(record.rounds.map((entry) => [entry.round, entry]));
-  let { threatPlaced, threatRemoved, damageToEnemies, damageToVillain, lastThreat, lastVillainDamage, lastEliminated, activation } = record;
+  let {
+    threatPlaced,
+    threatRemoved,
+    damageToEnemies,
+    damageToVillain,
+    lastThreat,
+    lastVillainDamage,
+    lastEliminated,
+    activation,
+  } = record;
 
   const onRound = (patch: (entry: RoundRecord) => RoundRecord): void => {
     rounds.set(round, patch(rounds.get(round) ?? blankRound(round)));
@@ -159,14 +186,20 @@ export function recordEvents(record: GameRecord, events: readonly GameEvent[], s
         onSeat(seatFor(state, event.sourceInstanceId), (seat) => ({ ...seat, damage: seat.damage + event.amount }));
         if (villain) {
           damageToVillain += event.amount;
-          lastVillainDamage = { targetInstanceId: event.targetInstanceId, amount: event.amount, sourceInstanceId: event.sourceInstanceId, round };
+          lastVillainDamage = {
+            targetInstanceId: event.targetInstanceId,
+            amount: event.amount,
+            sourceInstanceId: event.sourceInstanceId,
+            round,
+          };
           onRound((entry) => ({ ...entry, damageToVillain: entry.damageToVillain + event.amount }));
         }
         break;
       }
       case "threatPlaced": {
         threatPlaced += event.amount;
-        const against = activation && activation.enemyInstanceId === event.sourceInstanceId ? activation.playerId : null;
+        const against =
+          activation && activation.enemyInstanceId === event.sourceInstanceId ? activation.playerId : null;
         lastThreat = {
           schemeInstanceId: event.schemeInstanceId,
           amount: event.amount,

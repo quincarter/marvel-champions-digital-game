@@ -44,14 +44,22 @@ export const BASIC = defineAbilities({
   "01084.nick-fury-forced-response": forcedResponse(
     after.entersPlay("self"),
     chooseOne(
-      option("Remove 2 threat from a scheme", { when: exists(query("scheme", { hasThreat: true })) }, removeThreatFromAScheme(2)),
+      option(
+        "Remove 2 threat from a scheme",
+        { when: exists(query("scheme", { hasThreat: true })) },
+        removeThreatFromAScheme(2),
+      ),
       option("Draw 3 cards", draw(3)),
       option("Deal 4 damage to an enemy", damageAnEnemy(4)),
     ),
     atEndOfRound(ifThen(exists({ self: true }), discard(self))),
   ),
   // Emergency — Interrupt (thwart): When the villain schemes, reduce the amount of threat placed on the scheme by 1.
-  "01085.emergency-interrupt": interrupt(when.enemySchemes(query("villain")), { label: "thwart" }, modifyAttack({ threatBonus: -1 })),
+  "01085.emergency-interrupt": interrupt(
+    when.enemySchemes(query("villain")),
+    { label: "thwart" },
+    modifyAttack({ threatBonus: -1 }),
+  ),
   // First Aid — Action: Heal 2 damage from any character.
   "01086.first-aid-action": action(chooseTarget("character", query("character")), heal(2, chosen("character"))),
   // Haymaker — Hero Action (attack): Deal 3 damage to an enemy.
@@ -59,7 +67,11 @@ export const BASIC = defineAbilities({
   // Avengers Mansion — Action: Exhaust Avengers Mansion → choose a player. That player draws 1 card.
   "01091.avengers-mansion-action": action({ cost: exhaustThis }, choosePlayer(), draw(1, chosenPlayer())),
   // Helicarrier — Action: Exhaust Helicarrier → choose a player. Reduce the resource cost of the next card that player plays this phase by 1.
-  "01092.helicarrier-action": action({ cost: exhaustThis }, choosePlayer(), reduceNextCardCost(chosenPlayer(), 1, "phase")),
+  "01092.helicarrier-action": action(
+    { cost: exhaustThis },
+    choosePlayer(),
+    reduceNextCardCost(chosenPlayer(), 1, "phase"),
+  ),
   // Tenacity — Hero Action: Spend a [physical] resource and discard this card → ready your hero.
   "01093.tenacity-action": heroAction({ cost: [spend({ physical: 1 }), discardThis] }, ready(yourIdentity)),
 });

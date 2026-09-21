@@ -14,7 +14,8 @@ export const DEADPOOL_CURATION: PackCuration = {
   pack: {
     name: "Deadpool",
     releaseDate: "2023-11-17",
-    releaseDateSource: 'Hall of Heroes Wade Wilson/Deadpool page (https://hallofheroeslcg.com/deadpool/): "Release date: November 17, 2023"',
+    releaseDateSource:
+      'Hall of Heroes Wade Wilson/Deadpool page (https://hallofheroeslcg.com/deadpool/): "Release date: November 17, 2023"',
   },
   outDir: "src/data/deadpool",
   exportPrefix: "DEADPOOL",

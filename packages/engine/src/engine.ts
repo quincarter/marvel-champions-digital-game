@@ -19,11 +19,7 @@ export type CommandResult =
  * The only way game state changes. Pure: same state + command + deps always
  * produce the same next state and the same events.
  */
-export function applyCommand(
-  state: GameState,
-  command: Command,
-  deps: EngineDeps = DEFAULT_DEPS,
-): CommandResult {
+export function applyCommand(state: GameState, command: Command, deps: EngineDeps = DEFAULT_DEPS): CommandResult {
   try {
     if (state.outcome) {
       return { ok: false, error: engineError("game_over", "the game has ended", command) };
@@ -205,11 +201,7 @@ export type SessionResult =
   | { readonly ok: false; readonly error: EngineError };
 
 /** Applies a command and records it, so the session can always be replayed from its log. */
-export function sessionApply(
-  session: GameSession,
-  command: Command,
-  deps: EngineDeps = DEFAULT_DEPS,
-): SessionResult {
+export function sessionApply(session: GameSession, command: Command, deps: EngineDeps = DEFAULT_DEPS): SessionResult {
   const result = applyCommand(session.state, command, deps);
   if (!result.ok) return { ok: false, error: result.error };
   return {

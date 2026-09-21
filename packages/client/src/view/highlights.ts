@@ -9,7 +9,15 @@
  * board must not reflow while the player's hand is already moving.
  */
 
-import type { ActionRef, EngineErrorCode, ExclusionCode, InstanceId, LegalAction, LegalActions, PlayerId } from "@mc/engine";
+import type {
+  ActionRef,
+  EngineErrorCode,
+  ExclusionCode,
+  InstanceId,
+  LegalAction,
+  LegalActions,
+  PlayerId,
+} from "@mc/engine";
 
 /** The five buttons in the design's action bar. */
 export type BasicAction = "attack" | "thwart" | "recover" | "changeForm" | "endTurn";
@@ -57,7 +65,11 @@ export interface OpenChoice {
   readonly minSelections: number;
   readonly maxSelections: number;
   readonly ordered: boolean;
-  readonly options: readonly { readonly optionId: string; readonly label: string; readonly instanceId: InstanceId | null }[];
+  readonly options: readonly {
+    readonly optionId: string;
+    readonly label: string;
+    readonly instanceId: InstanceId | null;
+  }[];
 }
 
 /** A `LegalAction` narrowed to the `useAbility` case, so callers can read `abilityId` directly. */
@@ -73,7 +85,8 @@ export type UsableAbilityAction = LegalAction & { readonly action: Extract<Actio
 export function abilityActionsFor(actions: LegalActions, instanceId: InstanceId): readonly UsableAbilityAction[] {
   if (actions.kind !== "turn") return [];
   return actions.legal.filter(
-    (entry): entry is UsableAbilityAction => entry.action.kind === "useAbility" && entry.action.instanceId === instanceId,
+    (entry): entry is UsableAbilityAction =>
+      entry.action.kind === "useAbility" && entry.action.instanceId === instanceId,
   );
 }
 
@@ -174,6 +187,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   hasExcludedTrait: "has an excluded trait",
   wrongName: "not the named card",
   wrongFacedown: "wrong face up or down",
+  wrongStarIcon: "wrong star icon in the boost area",
   notHostOfSelf: "isn't hosting this card",
   notAttachedToHost: "not attached to the right host",
   wrongOwner: "not owned by you",
@@ -195,6 +209,9 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongSignatureSideScheme: "not this villain's signature side scheme",
   notEngagedWithPlayer: "not engaged with the right player",
   wrongIdentitySet: "not from this identity's set",
+  notNemesisMinion: "not this player's nemesis minion",
+  noSharedTrait: "shares no trait with that card",
+  wrongEncounterSet: "not from that encounter set",
   otherGameArea: "in another game area",
   notInPlay: "not in play",
   alterEgoForm: "in alter-ego form",

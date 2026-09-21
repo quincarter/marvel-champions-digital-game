@@ -41,7 +41,11 @@ export interface VillainPhaseRecord {
   /** Step one's threat: what was placed and what the acceleration rules call for. */
   readonly accelerationThreat: { readonly placed: number; readonly expected: number } | null;
   readonly activations: readonly VillainActivationRecord[];
-  readonly boostCards: readonly { readonly enemyInstanceId: InstanceId; readonly instanceId: InstanceId; readonly boostIcons: number | null }[];
+  readonly boostCards: readonly {
+    readonly enemyInstanceId: InstanceId;
+    readonly instanceId: InstanceId;
+    readonly boostIcons: number | null;
+  }[];
   readonly dealt: readonly { readonly playerId: PlayerId; readonly instanceId: InstanceId }[];
   readonly revealed: readonly { readonly playerId: PlayerId; readonly instanceId: InstanceId }[];
   readonly nextFirstPlayerId: PlayerId | null;
@@ -82,7 +86,9 @@ function shadowOf(state: GameState): Shadow {
     firstPlayerId: state.firstPlayerId,
     forms: new Map(state.players.map((p) => [p.playerId, p.identity.form])),
     engaged: new Map(state.players.map((p) => [p.playerId, new Set(p.playArea.filter((id) => isMinion(state, id)))])),
-    sideSchemes: new Set(state.villainArea.filter((id) => state.cardPool[state.instances[id]?.cardId ?? ""]?.type === "side_scheme")),
+    sideSchemes: new Set(
+      state.villainArea.filter((id) => state.cardPool[state.instances[id]?.cardId ?? ""]?.type === "side_scheme"),
+    ),
     eliminated: new Set(state.players.filter((p) => p.eliminated).map((p) => p.playerId)),
     tokens: state.mainScheme.accelerationTokens,
     mainStage: state.mainScheme.stageIndex,
@@ -118,7 +124,8 @@ function observeShadow(shadow: Shadow, state: GameState, event: GameEvent): void
     case "cardMoved": {
       const type = state.cardPool[event.cardId]?.type;
       if (event.from.kind === "playArea") shadow.engaged.get(event.from.playerId)?.delete(event.instanceId);
-      if (event.to.kind === "playArea" && type === "minion") shadow.engaged.get(event.to.playerId)?.add(event.instanceId);
+      if (event.to.kind === "playArea" && type === "minion")
+        shadow.engaged.get(event.to.playerId)?.add(event.instanceId);
       if (event.from.kind === "villainArea") shadow.sideSchemes.delete(event.instanceId);
       if (event.to.kind === "villainArea" && type === "side_scheme") shadow.sideSchemes.add(event.instanceId);
       return;
@@ -130,7 +137,8 @@ function observeShadow(shadow: Shadow, state: GameState, event: GameEvent): void
 
 const schemeIcons = (state: GameState, shadow: Shadow, icon: "acceleration" | "hazard"): number => {
   const main = state.cardPool[state.mainScheme.cardId];
-  let total = main?.type === "main_scheme" ? (main.stages[shadow.mainStage]?.icons.filter((i) => i === icon).length ?? 0) : 0;
+  let total =
+    main?.type === "main_scheme" ? (main.stages[shadow.mainStage]?.icons.filter((i) => i === icon).length ?? 0) : 0;
   for (const id of shadow.sideSchemes) {
     const card = state.cardPool[state.instances[id]?.cardId ?? ""];
     if (card?.type === "side_scheme") total += card.icons.filter((i) => i === icon).length;
@@ -148,7 +156,8 @@ function nextClockwise(seats: readonly PlayerId[], from: PlayerId, eliminated: R
 }
 
 /** Any of the scenario's villains (the active one activates; any villain may be given a boost card by an effect). */
-const isAVillain = (state: GameState, id: InstanceId): boolean => state.villains.some((villain) => villain.instanceId === id);
+const isAVillain = (state: GameState, id: InstanceId): boolean =>
+  state.villains.some((villain) => villain.instanceId === id);
 
 const isVillainous = (card: AnyCard | undefined): boolean =>
   card?.type === "minion" && card.keywords.some((k) => k.name === "villainous");
@@ -170,7 +179,8 @@ class PhaseTracker {
   private readonly steps: GameStep["kind"][] = [];
   private accelerationThreat: { placed: number; expected: number } | null = null;
   private readonly activations: VillainActivationRecord[] = [];
-  private readonly boostCards: { enemyInstanceId: InstanceId; instanceId: InstanceId; boostIcons: number | null }[] = [];
+  private readonly boostCards: { enemyInstanceId: InstanceId; instanceId: InstanceId; boostIcons: number | null }[] =
+    [];
   private readonly dealt: { playerId: PlayerId; instanceId: InstanceId }[] = [];
   private readonly revealed: { playerId: PlayerId; instanceId: InstanceId }[] = [];
   private readonly decisions: VillainDecisionRecord[] = [];
@@ -223,12 +233,18 @@ class PhaseTracker {
         if (event.to.kind !== this.step) this.steps.push(event.to.kind);
         // A step cut short by the game ending isn't expected to finish.
         const finished = event.to.phase !== "gameOver";
-        if (finished && event.from.kind === "enemyActivations" && event.to.kind !== "enemyActivations") this.checkActivations(shadow);
+        if (finished && event.from.kind === "enemyActivations" && event.to.kind !== "enemyActivations")
+          this.checkActivations(shadow);
         if (event.to.kind === "dealEncounterCards") {
-          this.dealAtStep = { players: this.order.filter((p) => !shadow.eliminated.has(p)), hazards: schemeIcons(this.state, shadow, "hazard") };
+          this.dealAtStep = {
+            players: this.order.filter((p) => !shadow.eliminated.has(p)),
+            hazards: schemeIcons(this.state, shadow, "hazard"),
+          };
         }
-        if (finished && event.from.kind === "dealEncounterCards" && event.to.kind !== "dealEncounterCards") this.checkDealt();
-        if (finished && event.from.kind === "revealEncounterCards" && event.to.kind !== "revealEncounterCards") this.checkRevealed(shadow);
+        if (finished && event.from.kind === "dealEncounterCards" && event.to.kind !== "dealEncounterCards")
+          this.checkDealt();
+        if (finished && event.from.kind === "revealEncounterCards" && event.to.kind !== "revealEncounterCards")
+          this.checkRevealed(shadow);
         return;
       }
       case "triggerEvent": {
@@ -251,11 +267,20 @@ class PhaseTracker {
         ) {
           // The stage's acceleration with its modifiers ("X is equal to the number of Goblin enemies"), read from the
           // state at the start of the command that opened this phase: the one engine rule this audit borrows.
-          const atStage: GameState = { ...this.state, mainScheme: { ...this.state.mainScheme, stageIndex: shadow.mainStage } };
-          const expected = mainSchemeValue(atStage, "acceleration", this.deps) + shadow.tokens + schemeIcons(this.state, shadow, "acceleration");
+          const atStage: GameState = {
+            ...this.state,
+            mainScheme: { ...this.state.mainScheme, stageIndex: shadow.mainStage },
+          };
+          const expected =
+            mainSchemeValue(atStage, "acceleration", this.deps) +
+            shadow.tokens +
+            schemeIcons(this.state, shadow, "acceleration");
           this.accelerationThreat = { placed: trigger.amount, expected };
           if (trigger.amount !== expected) {
-            this.violate("step1.acceleration", `step one placed ${trigger.amount} threat; acceleration calls for ${expected}`);
+            this.violate(
+              "step1.acceleration",
+              `step one placed ${trigger.amount} threat; acceleration calls for ${expected}`,
+            );
           }
         }
         if (villainActs) this.villainAttacksAndSchemes++;
@@ -264,7 +289,11 @@ class PhaseTracker {
       case "enemyActivated":
         return this.onActivation(event, shadow);
       case "boostCardDealt": {
-        this.boostCards.push({ enemyInstanceId: event.enemyInstanceId, instanceId: event.instanceId, boostIcons: null });
+        this.boostCards.push({
+          enemyInstanceId: event.enemyInstanceId,
+          instanceId: event.instanceId,
+          boostIcons: null,
+        });
         // A card ability's boost card ("give the villain 1 facedown boost card") is exempt from both checks below:
         // RRG 1.8 "Boost, Boost Icon" (p. 11) says it "remains facedown on that enemy until that enemy activates",
         // so it is expected not to flip this phase, and card text names its own recipient (the Golden Rules, p. 4).
@@ -273,7 +302,10 @@ class PhaseTracker {
         if (isAVillain(this.state, event.enemyInstanceId)) {
           this.villainBoosts++;
         } else if (!isVillainous(this.state.cardPool[this.state.instances[event.enemyInstanceId]?.cardId ?? ""])) {
-          this.violate("boost.recipient", `${event.enemyInstanceId} got a boost card but is neither the villain nor villainous`);
+          this.violate(
+            "boost.recipient",
+            `${event.enemyInstanceId} got a boost card but is neither the villain nor villainous`,
+          );
         }
         return;
       }
@@ -297,7 +329,10 @@ class PhaseTracker {
         if (!this.dealt.some((d) => d.instanceId === event.instanceId && d.playerId === event.playerId)) return;
         const index = this.order.indexOf(event.playerId);
         if (index < this.lastRevealIndex) {
-          this.violate("step4.order", `${event.playerId} revealed after a later player in player order had started revealing`);
+          this.violate(
+            "step4.order",
+            `${event.playerId} revealed after a later player in player order had started revealing`,
+          );
         }
         this.lastRevealIndex = Math.max(this.lastRevealIndex, index);
         return;
@@ -308,18 +343,32 @@ class PhaseTracker {
         this.nextFirstPlayerId = event.playerId;
         const expected = nextClockwise(this.seats, shadow.firstPlayerId, shadow.eliminated);
         if (event.playerId !== expected) {
-          this.violate("step5.firstPlayer", `the first player token went to ${event.playerId}; ${expected ?? "nobody"} is next clockwise from ${shadow.firstPlayerId}`);
+          this.violate(
+            "step5.firstPlayer",
+            `the first player token went to ${event.playerId}; ${expected ?? "nobody"} is next clockwise from ${shadow.firstPlayerId}`,
+          );
         }
         return;
       }
       case "choiceRequested": {
         const { choice } = event;
-        this.decisions.push({ choiceId: choice.choiceId, playerId: choice.playerId, prompt: choice.prompt.kind, authority: choice.authority });
+        this.decisions.push({
+          choiceId: choice.choiceId,
+          playerId: choice.playerId,
+          prompt: choice.prompt.kind,
+          authority: choice.authority,
+        });
         if (choice.authority !== "player" && choice.playerId !== shadow.firstPlayerId) {
-          this.violate("authority.firstPlayer", `${choice.prompt.kind} (${choice.authority}) went to ${choice.playerId}, not the first player ${shadow.firstPlayerId}`);
+          this.violate(
+            "authority.firstPlayer",
+            `${choice.prompt.kind} (${choice.authority}) went to ${choice.playerId}, not the first player ${shadow.firstPlayerId}`,
+          );
         }
         if (choice.prompt.kind === "chooseMinionToActivate" && choice.playerId !== this.activatingFor) {
-          this.violate("step2.minionOrder", `minion order asked of ${choice.playerId} during ${this.activatingFor ?? "no"} player's activations`);
+          this.violate(
+            "step2.minionOrder",
+            `minion order asked of ${choice.playerId} during ${this.activatingFor ?? "no"} player's activations`,
+          );
         }
         return;
       }
@@ -329,39 +378,62 @@ class PhaseTracker {
   }
 
   private onActivation(event: Extract<GameEvent, { type: "enemyActivated" }>, shadow: Shadow): void {
-    this.activations.push({ enemyInstanceId: event.enemyInstanceId, playerId: event.playerId, activation: event.activation });
+    this.activations.push({
+      enemyInstanceId: event.enemyInstanceId,
+      playerId: event.playerId,
+      activation: event.activation,
+    });
     if (this.step !== "enemyActivations") {
       this.violate("step2.timing", `${event.enemyInstanceId} activated outside step two`);
       return;
     }
     const expected = shadow.forms.get(event.playerId) === "hero" ? "attack" : "scheme";
     if (event.activation !== expected) {
-      this.violate("step2.form", `${event.enemyInstanceId} ${event.activation}ed against ${event.playerId}, who is in ${shadow.forms.get(event.playerId)} form`);
+      this.violate(
+        "step2.form",
+        `${event.enemyInstanceId} ${event.activation}ed against ${event.playerId}, who is in ${shadow.forms.get(event.playerId)} form`,
+      );
     }
     if (isAVillain(this.state, event.enemyInstanceId)) {
-      while (this.activationCursor < this.order.length && shadow.eliminated.has(this.order[this.activationCursor] as PlayerId)) this.activationCursor++;
+      while (
+        this.activationCursor < this.order.length &&
+        shadow.eliminated.has(this.order[this.activationCursor] as PlayerId)
+      )
+        this.activationCursor++;
       const due = this.order[this.activationCursor];
-      if (event.playerId !== due) this.violate("step2.villainOrder", `the villain activated against ${event.playerId}; ${due ?? "nobody"} was next`);
+      if (event.playerId !== due)
+        this.violate(
+          "step2.villainOrder",
+          `the villain activated against ${event.playerId}; ${due ?? "nobody"} was next`,
+        );
       this.activationCursor++;
       this.activatingFor = event.playerId;
       this.minionsActivated.set(event.playerId, new Set());
       return;
     }
     if (event.playerId !== this.activatingFor) {
-      this.violate("step2.minionTiming", `${event.enemyInstanceId} activated against ${event.playerId} during ${this.activatingFor ?? "no"} player's activations`);
+      this.violate(
+        "step2.minionTiming",
+        `${event.enemyInstanceId} activated against ${event.playerId} during ${this.activatingFor ?? "no"} player's activations`,
+      );
     }
     if (!shadow.engaged.get(event.playerId)?.has(event.enemyInstanceId)) {
-      this.violate("step2.engagement", `${event.enemyInstanceId} activated against ${event.playerId} but isn't engaged with them`);
+      this.violate(
+        "step2.engagement",
+        `${event.enemyInstanceId} activated against ${event.playerId} but isn't engaged with them`,
+      );
     }
     const done = this.minionsActivated.get(event.playerId) ?? new Set<InstanceId>();
-    if (done.has(event.enemyInstanceId)) this.violate("step2.once", `${event.enemyInstanceId} activated twice against ${event.playerId}`);
+    if (done.has(event.enemyInstanceId))
+      this.violate("step2.once", `${event.enemyInstanceId} activated twice against ${event.playerId}`);
     done.add(event.enemyInstanceId);
     this.minionsActivated.set(event.playerId, done);
   }
 
   private checkActivations(shadow: Shadow): void {
     for (const pending of this.order.slice(this.activationCursor)) {
-      if (!shadow.eliminated.has(pending)) this.violate("step2.villainOnce", `the villain never activated against ${pending}`);
+      if (!shadow.eliminated.has(pending))
+        this.violate("step2.villainOnce", `the villain never activated against ${pending}`);
     }
     for (const [playerId, activated] of this.minionsActivated) {
       if (shadow.eliminated.has(playerId)) continue;
@@ -384,7 +456,11 @@ class PhaseTracker {
     }
     for (const [playerId, count] of expected) {
       const got = this.dealt.filter((d) => d.playerId === playerId).length;
-      if (got !== count) this.violate("step3.deal", `${playerId} was dealt ${got} encounter card(s); expected ${count} (${hazards} hazard icon(s))`);
+      if (got !== count)
+        this.violate(
+          "step3.deal",
+          `${playerId} was dealt ${got} encounter card(s); expected ${count} (${hazards} hazard icon(s))`,
+        );
     }
   }
 
@@ -404,11 +480,17 @@ class PhaseTracker {
       for (const step of this.steps) if (step === VILLAIN_STEPS[cursor]) cursor++;
       if (cursor < VILLAIN_STEPS.length) this.violate("steps", `villain phase steps ran as ${this.steps.join(" → ")}`);
       if (this.accelerationThreat === null) this.violate("step1.acceleration", "no step-one threat was placed");
-      const encounterCardsLeft = Object.values(finalState.encounterDecks).some((piles) => piles.deck.length + piles.discard.length > 0);
+      const encounterCardsLeft = Object.values(finalState.encounterDecks).some(
+        (piles) => piles.deck.length + piles.discard.length > 0,
+      );
       if (encounterCardsLeft && this.villainBoosts < this.villainAttacksAndSchemes) {
-        this.violate("boost.villain", `the villain attacked or schemed ${this.villainAttacksAndSchemes} time(s) but got ${this.villainBoosts} boost card(s)`);
+        this.violate(
+          "boost.villain",
+          `the villain attacked or schemed ${this.villainAttacksAndSchemes} time(s) but got ${this.villainBoosts} boost card(s)`,
+        );
       }
-      for (const id of this.unflippedBoosts) this.violate("boost.flipped", `boost card ${id} was dealt but never flipped`);
+      for (const id of this.unflippedBoosts)
+        this.violate("boost.flipped", `boost card ${id} was dealt but never flipped`);
       if (this.nextFirstPlayerId === null) this.violate("step5.firstPlayer", "the first player token was never passed");
     }
     return {
@@ -442,7 +524,11 @@ export function auditVillainPhases(log: GameLog, deps: EngineDeps = DEFAULT_DEPS
   for (const [index, command] of log.commands.entries()) {
     const result = applyCommand(state, command, deps);
     if (!result.ok) {
-      violations.push({ round: state.round, rule: "replay", message: `command ${index} (${command.type}) was rejected: ${result.error.message}` });
+      violations.push({
+        round: state.round,
+        rule: "replay",
+        message: `command ${index} (${command.type}) was rejected: ${result.error.message}`,
+      });
       break;
     }
     // Exact state at the start of every command; events carry it forward within the command.

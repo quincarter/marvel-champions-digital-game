@@ -1,4 +1,16 @@
-import { cards, changeForm, defineAbilities, discardFromHand, exhaust, ifThen, isAlterEgo, moveCards, self, whenRevealed, yourIdentity } from "../../dsl/index.js";
+import {
+  cards,
+  changeForm,
+  defineAbilities,
+  discardFromHand,
+  exhaust,
+  ifThen,
+  isAlterEgo,
+  moveCards,
+  self,
+  whenRevealed,
+  yourIdentity,
+} from "../../dsl/index.js";
 
 /**
  * Inner Demons (10025), Hulk's obligation. Unlike Core's shared "give to the alter-ego player, you may flip,

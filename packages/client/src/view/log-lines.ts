@@ -103,7 +103,12 @@ export function appendEvents(
 }
 
 /** Exposed for tests: one event's line, or null if it isn't player-readable. */
-export function logLine(event: GameEvent, state: GameState, perspectiveId: PlayerId | null, deps: EngineDeps): Beat | null {
+export function logLine(
+  event: GameEvent,
+  state: GameState,
+  perspectiveId: PlayerId | null,
+  deps: EngineDeps,
+): Beat | null {
   return describe(event, state, perspectiveId, deps);
 }
 
@@ -197,12 +202,18 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
         voice: "villain",
       };
     case "boostCardFlipped":
-      return { text: `Boost: ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`, voice: "villain" };
+      return {
+        text: `Boost: ${event.boostIcons} icon${event.boostIcons === 1 ? "" : "s"} for ${card(event.enemyInstanceId)}.`,
+        voice: "villain",
+      };
     // A player card (Attacrobatics, Target Acquired) cancelling all or part of a just-flipped boost card
     // (RRG 1.8 "Boost", p. 11) — worded so the villain-phase breakdown can show it beside the boost card itself.
     case "boostCancelled":
       return {
-        text: event.scope === "ability" ? `${card(event.instanceId)}'s Boost ability is cancelled.` : `${card(event.instanceId)}'s boost icons are cancelled.`,
+        text:
+          event.scope === "ability"
+            ? `${card(event.instanceId)}'s Boost ability is cancelled.`
+            : `${card(event.instanceId)}'s boost icons are cancelled.`,
         voice: "player",
       };
     case "defenderDeclared":
@@ -240,13 +251,22 @@ function describe(event: GameEvent, state: GameState, viewer: PlayerId | null, d
     case "encounterCardRevealed":
       return { text: `${who(event.playerId)} revealed ${card(event.instanceId)}.`, voice: "villain" };
     case "surgeTriggered":
-      return { text: `Surge — ${who(event.playerId)} ${verb(event.playerId, "reveal", "reveals")} another encounter card.`, voice: "villain" };
+      return {
+        text: `Surge — ${who(event.playerId)} ${verb(event.playerId, "reveal", "reveals")} another encounter card.`,
+        voice: "villain",
+      };
     case "accelerationTokenAdded":
-      return { text: `Acceleration: ${event.total} token${event.total === 1 ? "" : "s"} on the main scheme.`, voice: "villain" };
+      return {
+        text: `Acceleration: ${event.total} token${event.total === 1 ? "" : "s"} on the main scheme.`,
+        voice: "villain",
+      };
     case "overkillSpilled":
       return { text: `Overkill: ${event.amount} damage spills to ${card(event.toInstanceId)}.`, voice: "player" };
     case "firstPlayerChanged":
-      return { text: `${who(event.playerId)} ${verb(event.playerId, "are", "is")} the first player.`, voice: "scenario" };
+      return {
+        text: `${who(event.playerId)} ${verb(event.playerId, "are", "is")} the first player.`,
+        voice: "scenario",
+      };
     case "playerEliminated":
       return { text: `${who(event.playerId)} ${verb(event.playerId, "are", "is")} out of the game.`, voice: "loss" };
     case "cardDiscardedFromPlay":

@@ -72,25 +72,26 @@ export const CORE_CURATION: PackCuration = {
       code: "01156",
       name: "Usurp the Throne",
       reason: 'MarvelCDB capitalizes "The".',
-      evidence: "Cerebro; L2P p.20 (\"Usurp the Throne\")",
+      evidence: 'Cerebro; L2P p.20 ("Usurp the Throne")',
     },
     {
       code: "01152",
       textReplace: { find: "After the villain take damage", replace: "After the villain takes damage" },
-      reason: "MarvelCDB typo. (Name note: L2P p.23 lists this card as \"Vibranium Chassis\"; the printed title is Vibranium Armor, which MarvelCDB and Cerebro both use.)",
+      reason:
+        'MarvelCDB typo. (Name note: L2P p.23 lists this card as "Vibranium Chassis"; the printed title is Vibranium Armor, which MarvelCDB and Cerebro both use.)',
       evidence: "card; Cerebro",
     },
     {
       code: "01153",
       attack: 1,
       reason: "MarvelCDB omits the +1 ATK stat box printed on the attachment.",
-      evidence: "card (+1 ATK box); Cerebro (Attack \"+1\")",
+      evidence: 'card (+1 ATK box); Cerebro (Attack "+1")',
     },
     {
       code: "01158",
       boost: 0,
       reason: "MarvelCDB lists 1 boost icon; the card's boost area has only the boost star.",
-      evidence: "card; Cerebro (Boost \"{s}\")",
+      evidence: 'card; Cerebro (Boost "{s}")',
     },
     {
       code: "01172",
@@ -109,7 +110,7 @@ export const CORE_CURATION: PackCuration = {
       textReplace: { find: "Then shuffle the encounter deck.", replace: "Shuffle the encounter deck." },
       ignoreFields: ["base_threat", "base_threat_fixed", "scheme_hazard"],
       reason:
-        "MarvelCDB adds a \"Then\" not on the card, and carries base_threat=3 / scheme_hazard=1 on a villain — Ultron (III) has no threat value or scheme icon printed.",
+        'MarvelCDB adds a "Then" not on the card, and carries base_threat=3 / scheme_hazard=1 on a villain — Ultron (III) has no threat value or scheme icon printed.',
       evidence: "card; Cerebro",
     },
     {
@@ -140,7 +141,7 @@ export const CORE_CURATION: PackCuration = {
       code: "01165",
       textReplace: { find: "form. Choose:", replace: "form. Choose one:" },
       reason:
-        "Eviction Notice prints \"Choose one:\" (the other four Core obligations print \"Choose:\", as MarvelCDB has them).",
+        'Eviction Notice prints "Choose one:" (the other four Core obligations print "Choose:", as MarvelCDB has them).',
       evidence: "card (all five Core obligations checked)",
     },
     {
@@ -193,7 +194,7 @@ export const CORE_CURATION: PackCuration = {
       version: "RRG 1.5",
       changedFields: ["text"],
       note: "Removed the (thwart) label: the ability is no longer a thwart.",
-      evidence: "MarvelCDB errata field; card (printed with \"(thwart)\")",
+      evidence: 'MarvelCDB errata field; card (printed with "(thwart)")',
       printedReplace: { find: "Alter-Ego Action:", replace: "Alter-Ego Action (thwart):" },
     },
     {
@@ -201,7 +202,7 @@ export const CORE_CURATION: PackCuration = {
       version: "RRG 1.6",
       changedFields: ["text"],
       note: 'Added periods to "M.O.D.O.K." (printed "MODOK").',
-      evidence: "MarvelCDB errata field; card (printed \"MODOK\")",
+      evidence: 'MarvelCDB errata field; card (printed "MODOK")',
       printedReplace: { find: "M.O.D.O.K.", replace: "MODOK" },
     },
     {
@@ -209,7 +210,7 @@ export const CORE_CURATION: PackCuration = {
       version: "RRG 1.5",
       changedFields: ["name"],
       note: 'Added periods to the card title (printed "MODOK"; current "M.O.D.O.K.").',
-      evidence: "MarvelCDB errata field; card (printed \"MODOK\")",
+      evidence: 'MarvelCDB errata field; card (printed "MODOK")',
     },
   ],
 
@@ -227,42 +228,46 @@ export const CORE_CURATION: PackCuration = {
     "01043d.wakanda-forever-action": "Identical to 01043a.wakanda-forever-action (different resource icon only).",
     "01046.energy-daggers-special":
       "Special: only usable when Wakanda Forever! resolves it. 1 damage to the villain and each enemy engaged with the chosen player, 2 instead if this is the final step.",
-    "01047.panther-claws-special": "Special (attack): only usable via Wakanda Forever!; 4 damage instead of 2 on the final step.",
-    "01048.tactical-genius-special": "Special (thwart): only usable via Wakanda Forever!; 2 threat instead of 1 on the final step.",
+    "01047.panther-claws-special":
+      "Special (attack): only usable via Wakanda Forever!; 4 damage instead of 2 on the final step.",
+    "01048.tactical-genius-special":
+      "Special (thwart): only usable via Wakanda Forever!; 2 threat instead of 1 on the final step.",
     "01049.vibranium-suit-special":
       "Special (attack): only usable via Wakanda Forever!; moves damage (removes it from your hero, deals it to the enemy); 2 instead of 1 on the final step.",
     "01057.combat-training-constant":
-      "\"Your hero\" is the hero of the player who controls this upgrade (Play under any player's control).",
+      '"Your hero" is the hero of the player who controls this upgrade (Play under any player\'s control).',
     "01065.heroic-intuition-constant":
-      "\"Your hero\" is the hero of the player who controls this upgrade (Play under any player's control).",
+      '"Your hero" is the hero of the player who controls this upgrade (Play under any player\'s control).',
     "01081.armored-vest-constant":
-      "\"Your hero\" is the hero of the player who controls this upgrade (Play under any player's control).",
+      '"Your hero" is the hero of the player who controls this upgrade (Play under any player\'s control).',
     "01066.hawkeye-constant":
       "Enters play with 4 arrow counters. Not the Uses keyword: Hawkeye is not discarded when the counters run out.",
     "01084.nick-fury-forced-response":
       "Two effects in one paragraph: the enters-play choice, and a delayed effect — at the end of the round, if Nick Fury is still in play, discard him.",
-    "01097a.setup": "\"Advance to stage 1B\" is the whole ability; advancing to the B side is implicit in the engine.",
+    "01097a.setup": '"Advance to stage 1B" is the whole ability; advancing to the B side is implicit in the engine.',
     "01099.charge-forced-interrupt":
       "The [star] is a reminder icon. +3 ATK is in statModifiers (applies while attached). Rhino's attack gains overkill (excess damage to a defending ally goes to its controller); discard Charge at the end of that attack.",
-    "01113.klaw-forced-interrupt": "Klaw (I) has a printed ATK of 0: his attack damage comes entirely from boost cards.",
+    "01113.klaw-forced-interrupt":
+      "Klaw (I) has a printed ATK of 0: his attack damage comes entirely from boost cards.",
     "01116a.setup":
       "Search the encounter deck for Defense Network and reveal it, shuffle; then advance to 1B (implicit).",
-    "01117a.when-revealed": "\"Advance to stage 2B\" is implicit in the engine.",
+    "01117a.when-revealed": '"Advance to stage 2B" is implicit in the engine.',
     "01127.the-immortal-klaw-constant":
       "The villain gets +10 hit points while this side scheme is in play; it loses them when the scheme leaves play.",
     "01136.ultron-constant":
       "Two constant effects: each Drone minion (facedown Drones and Advanced Ultron Drones) gets +1 ATK/+1 hit point; Ultron cannot take damage while any Drone minion is in play.",
     "01137a.setup": "Put the Ultron Drones environment into play, shuffle; then advance to 1B (implicit).",
-    "01138a.when-revealed": "\"Advance to stage 2B\" is implicit in the engine.",
-    "01139a.when-revealed": "\"Advance to stage 3B\" is implicit in the engine.",
+    "01138a.when-revealed": '"Advance to stage 2B" is implicit in the engine.',
+    "01139a.when-revealed": '"Advance to stage 3B" is implicit in the engine.',
     "01139b.countdown-to-oblivion-constant": "Threat cannot be removed from this main scheme stage by any means.",
     "01140.ultron-drones-constant":
       "Sets the base ATK/SCH/hit points of facedown Drone minions (player cards put into play facedown engaged with a player).",
     "01140.ultron-drones-forced-response":
       "A defeated facedown Drone goes to its owner's (the player's) discard pile, not the encounter discard pile.",
-    "01132.melter-constant": "The [star] is a reminder icon. The engaged player must defend Melter's attacks with an ally they control, if able.",
+    "01132.melter-constant":
+      "The [star] is a reminder icon. The engaged player must defend Melter's attacks with an ally they control, if able.",
     "01162.titania-constant":
-      "Printed ATK is X (data carries atk: \"X\"). X = Titania's remaining hit points, continuously.",
+      'Printed ATK is X (data carries atk: "X"). X = Titania\'s remaining hit points, continuously.',
     "01163.genetically-enhanced-constant":
       "Two effects: if no minions are in play when revealed, this card gains surge (and has nothing to attach to); the attached minion gets +3 hit points.",
     "01107.when-revealed": "1 per player additional threat, on top of the printed starting threat.",
@@ -286,14 +291,15 @@ export const CORE_CURATION: PackCuration = {
 
   cardNotes: {
     "01050":
-      "Printed THW is \"—\" (cannot thwart), not 0. Data carries thw: null (schema PrintedStat); the engine refuses thwarts by a character with a \"—\" THW.",
-    "01162": "Printed ATK is X (= remaining hit points); data carries atk: \"X\" plus the constant ability 01162.titania-constant.",
-    "01184": "Title errata (RRG 1.5): printed \"MODOK\", current \"M.O.D.O.K.\" — `name` holds the current title.",
+      'Printed THW is "—" (cannot thwart), not 0. Data carries thw: null (schema PrintedStat); the engine refuses thwarts by a character with a "—" THW.',
+    "01162":
+      'Printed ATK is X (= remaining hit points); data carries atk: "X" plus the constant ability 01162.titania-constant.',
+    "01184": 'Title errata (RRG 1.5): printed "MODOK", current "M.O.D.O.K." — `name` holds the current title.',
     "01097a": "Main scheme stage names are not representable per stage yet; single-stage scheme, so no loss here.",
     "01116a":
-      "Two-stage main scheme deck: stage 1 is \"Underground Distribution\", stage 2 is \"Secret Rendezvous\" (01117). MainSchemeStage has no per-stage name yet, so `name` is the stage-1 name — flagged as a schema follow-up.",
+      'Two-stage main scheme deck: stage 1 is "Underground Distribution", stage 2 is "Secret Rendezvous" (01117). MainSchemeStage has no per-stage name yet, so `name` is the stage-1 name — flagged as a schema follow-up.',
     "01137a":
-      "Three-stage main scheme deck: \"The Crimson Cowl\" (1), \"Assault on NORAD\" (2, 01138), \"Countdown to Oblivion\" (3, 01139). MainSchemeStage has no per-stage name yet — flagged as a schema follow-up.",
+      'Three-stage main scheme deck: "The Crimson Cowl" (1), "Assault on NORAD" (2, 01138), "Countdown to Oblivion" (3, 01139). MainSchemeStage has no per-stage name yet — flagged as a schema follow-up.',
   },
 
   scenarios: [
@@ -336,8 +342,22 @@ export const CORE_CURATION: PackCuration = {
       identityCode: "01001a",
       aspect: "justice",
       cards: {
-        "01002": 1, "01003": 2, "01004": 2, "01005": 3, "01006": 1, "01007": 2, "01008": 2, "01009": 2,
-        "01058": 1, "01059": 1, "01060": 2, "01061": 2, "01062": 2, "01063": 2, "01064": 2, "01065": 2,
+        "01002": 1,
+        "01003": 2,
+        "01004": 2,
+        "01005": 3,
+        "01006": 1,
+        "01007": 2,
+        "01008": 2,
+        "01009": 2,
+        "01058": 1,
+        "01059": 1,
+        "01060": 2,
+        "01061": 2,
+        "01062": 2,
+        "01063": 2,
+        "01064": 2,
+        "01065": 2,
         ...BASIC_PRECON,
       },
       obligationCode: "01165",
@@ -346,7 +366,7 @@ export const CORE_CURATION: PackCuration = {
       sources: [
         "Spider-Man starter deck title card, printed decklist (image linked from the Hall of Heroes Core Set page, https://hallofheroeslcg.com/core-set-2/)",
         `${L2P} p.21 "Starter Decks — Spider-Man / Justice"`,
-        "MarvelCDB decklist #2419 \"Spider-Man (Justice) - Core Set Starter Deck\" (cross-check, identical)",
+        'MarvelCDB decklist #2419 "Spider-Man (Justice) - Core Set Starter Deck" (cross-check, identical)',
       ],
     },
     {
@@ -356,7 +376,15 @@ export const CORE_CURATION: PackCuration = {
       aspect: "leadership",
       cards: {
         ...CAPTAIN_MARVEL_KIT,
-        "01066": 1, "01067": 1, "01068": 1, "01069": 2, "01070": 2, "01071": 2, "01072": 2, "01073": 1, "01074": 2,
+        "01066": 1,
+        "01067": 1,
+        "01068": 1,
+        "01069": 2,
+        "01070": 2,
+        "01071": 2,
+        "01072": 2,
+        "01073": 1,
+        "01074": 2,
         ...BASIC_PRECON,
       },
       obligationCode: "01175",
@@ -364,10 +392,9 @@ export const CORE_CURATION: PackCuration = {
       verified: true,
       sources: [
         `${L2P} p.21 "Starter Decks — Captain Marvel / Leadership"`,
-        "MarvelCDB decklist #2418 \"Captain Marvel (Leadership) - Core Set Starter Deck\" (cross-check, identical)",
+        'MarvelCDB decklist #2418 "Captain Marvel (Leadership) - Core Set Starter Deck" (cross-check, identical)',
       ],
-      note:
-        "The Learn to Play starter-deck page says this list differs from the pre-sorted tutorial deck; see core-captain-marvel-aggression-tutorial.",
+      note: "The Learn to Play starter-deck page says this list differs from the pre-sorted tutorial deck; see core-captain-marvel-aggression-tutorial.",
     },
     {
       id: "core-captain-marvel-aggression-tutorial",
@@ -382,8 +409,7 @@ export const CORE_CURATION: PackCuration = {
         "Captain Marvel starter deck title card, printed decklist (image linked from the Hall of Heroes Core Set page, https://hallofheroeslcg.com/core-set-2/)",
         `${L2P} p.5 setup step 6 ("the Captain Marvel deck consists of the remaining Captain Marvel cards, as well as the Aggression (red) and basic (gray) cards from that Starter Pack")`,
       ],
-      note:
-        "The deck pre-sorted in the Core box for the tutorial game. Shares its Aggression cards with the She-Hulk and Iron Man starter decks.",
+      note: "The deck pre-sorted in the Core box for the tutorial game. Shares its Aggression cards with the She-Hulk and Iron Man starter decks.",
     },
     {
       id: "core-she-hulk-aggression",
@@ -391,7 +417,15 @@ export const CORE_CURATION: PackCuration = {
       identityCode: "01019a",
       aspect: "aggression",
       cards: {
-        "01020": 1, "01021": 1, "01022": 2, "01023": 2, "01024": 3, "01025": 1, "01026": 1, "01027": 2, "01028": 2,
+        "01020": 1,
+        "01021": 1,
+        "01022": 2,
+        "01023": 2,
+        "01024": 3,
+        "01025": 1,
+        "01026": 1,
+        "01027": 2,
+        "01028": 2,
         ...AGGRESSION_PRECON,
         ...BASIC_PRECON,
       },
@@ -400,10 +434,9 @@ export const CORE_CURATION: PackCuration = {
       verified: true,
       sources: [
         `${L2P} p.21 "Starter Decks — She-Hulk / Aggression"`,
-        "MarvelCDB decklist #2420 \"She-Hulk (Aggression) - Core Set Starter Deck\" (cross-check, identical)",
+        'MarvelCDB decklist #2420 "She-Hulk (Aggression) - Core Set Starter Deck" (cross-check, identical)',
       ],
-      note:
-        "L2P p.20: cannot be played at the same time as the Iron Man starter deck from one Core Set (shared Aggression cards); it recommends swapping in Spider-Man's Justice cards.",
+      note: "L2P p.20: cannot be played at the same time as the Iron Man starter deck from one Core Set (shared Aggression cards); it recommends swapping in Spider-Man's Justice cards.",
     },
     {
       id: "core-iron-man-aggression",
@@ -411,7 +444,16 @@ export const CORE_CURATION: PackCuration = {
       identityCode: "01029a",
       aspect: "aggression",
       cards: {
-        "01030": 1, "01031": 3, "01032": 2, "01033": 1, "01034": 1, "01035": 1, "01036": 1, "01037": 1, "01038": 2, "01039": 2,
+        "01030": 1,
+        "01031": 3,
+        "01032": 2,
+        "01033": 1,
+        "01034": 1,
+        "01035": 1,
+        "01036": 1,
+        "01037": 1,
+        "01038": 2,
+        "01039": 2,
         ...AGGRESSION_PRECON,
         ...BASIC_PRECON,
       },
@@ -420,7 +462,7 @@ export const CORE_CURATION: PackCuration = {
       verified: true,
       sources: [
         `${L2P} p.20 "Starter Decks — Iron Man / Aggression"`,
-        "MarvelCDB decklist #2417 \"Iron Man (Aggression) - Core Set Starter Deck\" (cross-check, identical)",
+        'MarvelCDB decklist #2417 "Iron Man (Aggression) - Core Set Starter Deck" (cross-check, identical)',
       ],
       note: "L2P p.20: cannot be played at the same time as the She-Hulk starter deck from one Core Set (shared Aggression cards).",
     },
@@ -430,9 +472,26 @@ export const CORE_CURATION: PackCuration = {
       identityCode: "01040a",
       aspect: "protection",
       cards: {
-        "01041": 1, "01042": 1, "01043a": 1, "01043b": 1, "01043c": 1, "01043d": 2, "01044": 3,
-        "01045": 1, "01046": 1, "01047": 1, "01048": 1, "01049": 1,
-        "01075": 1, "01076": 1, "01077": 2, "01078": 2, "01079": 2, "01080": 2, "01081": 2, "01082": 2,
+        "01041": 1,
+        "01042": 1,
+        "01043a": 1,
+        "01043b": 1,
+        "01043c": 1,
+        "01043d": 2,
+        "01044": 3,
+        "01045": 1,
+        "01046": 1,
+        "01047": 1,
+        "01048": 1,
+        "01049": 1,
+        "01075": 1,
+        "01076": 1,
+        "01077": 2,
+        "01078": 2,
+        "01079": 2,
+        "01080": 2,
+        "01081": 2,
+        "01082": 2,
         ...BASIC_PRECON,
       },
       obligationCode: "01155",
@@ -440,7 +499,7 @@ export const CORE_CURATION: PackCuration = {
       verified: true,
       sources: [
         `${L2P} p.20 "Starter Decks — Black Panther / Protection" ("Wakanda Forever! (x5)" = all five printed variants)`,
-        "MarvelCDB decklist #2416 \"Black Panther (Protection) - Core Set Starter Deck\" (cross-check, identical incl. variants 43a–c ×1, 43d ×2)",
+        'MarvelCDB decklist #2416 "Black Panther (Protection) - Core Set Starter Deck" (cross-check, identical incl. variants 43a–c ×1, 43d ×2)',
       ],
     },
   ],

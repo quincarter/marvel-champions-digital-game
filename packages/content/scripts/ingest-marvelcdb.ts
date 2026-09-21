@@ -76,6 +76,8 @@ import { IRONHEART_CURATION } from "./marvelcdb/curation/ironheart.ts";
 import { ICEMAN_CURATION } from "./marvelcdb/curation/iceman.ts";
 import { WONDER_MAN_CURATION } from "./marvelcdb/curation/wonder_man.ts";
 import { X23_CURATION } from "./marvelcdb/curation/x23.ts";
+import { PSYLOCKE_CURATION } from "./marvelcdb/curation/psylocke.ts";
+import { JUBILEE_CURATION } from "./marvelcdb/curation/jubilee.ts";
 import { VALK_CURATION } from "./marvelcdb/curation/valk.ts";
 import { DEADPOOL_CURATION } from "./marvelcdb/curation/deadpool.ts";
 import { SPIDERHAM_CURATION } from "./marvelcdb/curation/spiderham.ts";
@@ -142,8 +144,10 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   mojo: MOJO_CURATION,
   angel: ANGEL_CURATION,
   storm: STORM_CURATION,
-  // hercules, fne, gmw, psylocke: curated (survey.ts), but NOT registered here — each has at least
-  // one card still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
+  psylocke: PSYLOCKE_CURATION,
+  jubilee: JUBILEE_CURATION,
+  // hercules, fne, gmw: curated (survey.ts), but NOT registered here — each has at least one card
+  // still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
   // game-rules-architect" / parser-gap log).
 };
 
@@ -163,7 +167,10 @@ interface Args {
 
 async function allPackCodes(): Promise<string[]> {
   const files = await readdir(RAW_DIR);
-  return files.filter((f) => f.endsWith(".json")).map((f) => f.slice(0, -".json".length)).sort();
+  return files
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => f.slice(0, -".json".length))
+    .sort();
 }
 
 async function parseArgs(argv: readonly string[]): Promise<Args> {
@@ -184,7 +191,8 @@ async function parseArgs(argv: readonly string[]): Promise<Args> {
     else throw new Error(`unknown argument ${String(a)}`);
   }
   if (all && pack) throw new Error("--all and --pack are mutually exclusive");
-  if (all && !offline) throw new Error("--all requires --offline — it reads the committed raw caches, it does not refetch 63 packs");
+  if (all && !offline)
+    throw new Error("--all requires --offline — it reads the committed raw caches, it does not refetch 63 packs");
   const packs = all ? await allPackCodes() : [pack ?? "core"];
   return { packs, offline, dryRun, allowBare };
 }
@@ -219,7 +227,8 @@ function modules(n: NormalizedPack, curation: PackCuration, cache: RawCache): Re
     `Hand corrections / curated data: packages/content/scripts/marvelcdb/curation/${curation.packCode}.ts`,
     `Regenerate: pnpm --filter @mc/content ingest -- --pack ${curation.packCode} [--offline]`,
   ];
-  const mod = (spec: Omit<ModuleSpec, "header" | "schemaSpecifier">) => emitModule({ header, schemaSpecifier: schema, ...spec });
+  const mod = (spec: Omit<ModuleSpec, "header" | "schemaSpecifier">) =>
+    emitModule({ header, schemaSpecifier: schema, ...spec });
   return {
     "cards.ts": mod({
       typeImports: { [schema]: ["AnyCard"] },
@@ -248,7 +257,14 @@ function modules(n: NormalizedPack, curation: PackCuration, cache: RawCache): Re
     }),
     "encounterSets.ts": mod({
       typeImports: { [schema]: ["EncounterSet"] },
-      exports: [{ name: `${P}_ENCOUNTER_SETS`, type: "readonly EncounterSet[]", value: n.encounterSets, rootBrands: { id: "encounterSetId" } }],
+      exports: [
+        {
+          name: `${P}_ENCOUNTER_SETS`,
+          type: "readonly EncounterSet[]",
+          value: n.encounterSets,
+          rootBrands: { id: "encounterSetId" },
+        },
+      ],
     }),
     "scenarios.ts": mod({
       typeImports: { [schema]: ["Scenario"] },
@@ -264,12 +280,24 @@ function modules(n: NormalizedPack, curation: PackCuration, cache: RawCache): Re
     }),
     "starterDecks.ts": mod({
       typeImports: { [schema]: ["StarterDeck"] },
-      exports: [{ name: `${P}_STARTER_DECKS`, type: "readonly StarterDeck[]", value: n.starterDecks, rootBrands: { id: "starterDeckId" } }],
+      exports: [
+        {
+          name: `${P}_STARTER_DECKS`,
+          type: "readonly StarterDeck[]",
+          value: n.starterDecks,
+          rootBrands: { id: "starterDeckId" },
+        },
+      ],
     }),
     "provenance.ts": mod({
       typeImports: { "../types.js": ["CardProvenance", "DroppedSourceRecord"] },
       exports: [
-        { name: `${P}_PROVENANCE`, type: "readonly CardProvenance[]", value: n.provenance, rootBrands: { cardId: "cardId" } },
+        {
+          name: `${P}_PROVENANCE`,
+          type: "readonly CardProvenance[]",
+          value: n.provenance,
+          rootBrands: { cardId: "cardId" },
+        },
         {
           name: `${P}_DROPPED_SOURCE_RECORDS`,
           type: "readonly DroppedSourceRecord[]",
@@ -282,7 +310,9 @@ function modules(n: NormalizedPack, curation: PackCuration, cache: RawCache): Re
     "index.ts": [
       ...header.map((h) => `// ${h}`),
       "",
-      ...["cards", "packs", "encounterSets", "scenarios", "starterDecks", "provenance"].map((m) => `export * from "./${m}.js";`),
+      ...["cards", "packs", "encounterSets", "scenarios", "starterDecks", "provenance"].map(
+        (m) => `export * from "./${m}.js";`,
+      ),
       "",
     ].join("\n"),
   };
@@ -312,14 +342,21 @@ async function ingestOne(pack: string, args: Args): Promise<{ ok: boolean; summa
     `${pack}: ${normalized.cards.length} cards (${[...byType].map(([t, n]) => `${t} ${n}`).join(", ")}), ` +
     `${normalized.encounterSets.length} encounter sets, ${normalized.scenarios.length} scenarios, ` +
     `${normalized.starterDecks.length} starter decks, ${normalized.dropped.length} dropped aggregates`;
-  if (args.dryRun) return { ok: true, summary: `${stats} [dry run, ${registered ? "registered" : "bare"} curation — nothing written]` };
+  if (args.dryRun)
+    return {
+      ok: true,
+      summary: `${stats} [dry run, ${registered ? "registered" : "bare"} curation — nothing written]`,
+    };
 
   const outDir = join(PKG_ROOT, curation.outDir);
   await mkdir(outDir, { recursive: true });
   for (const [file, source] of Object.entries(modules(normalized, curation, cache))) {
     await writeFile(join(outDir, file), source);
   }
-  return { ok: true, summary: `${stats} → ${relative(PKG_ROOT, outDir)}${registered ? "" : " [BARE CURATION — placeholder cycle/pack metadata, verify before trusting]"}` };
+  return {
+    ok: true,
+    summary: `${stats} → ${relative(PKG_ROOT, outDir)}${registered ? "" : " [BARE CURATION — placeholder cycle/pack metadata, verify before trusting]"}`,
+  };
 }
 
 async function main(): Promise<void> {
@@ -330,7 +367,8 @@ async function main(): Promise<void> {
     console.log(summary);
     if (!ok) failures++;
   }
-  if (args.packs.length > 1) console.log(`\n${args.packs.length - failures}/${args.packs.length} packs normalized cleanly.`);
+  if (args.packs.length > 1)
+    console.log(`\n${args.packs.length - failures}/${args.packs.length} packs normalized cleanly.`);
   if (failures > 0 && !args.dryRun) process.exit(1);
 }
 

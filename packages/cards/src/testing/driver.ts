@@ -59,7 +59,8 @@ export function playToOutcome(initial: GameState, deps: EngineDeps, options: Dri
   while (!session.state.outcome && commands < maxCommands) {
     const command = nextCommand(session.state, deps, memory);
     const result = sessionApply(session, command, deps);
-    if (!result.ok) throw new Error(`driver issued an illegal ${command.type}: ${result.error.code}: ${result.error.message}`);
+    if (!result.ok)
+      throw new Error(`driver issued an illegal ${command.type}: ${result.error.code}: ${result.error.message}`);
     session = result.session;
     commands++;
   }
@@ -75,7 +76,13 @@ interface TurnMemory {
 
 function nextCommand(state: GameState, deps: EngineDeps, memory: TurnMemory): Command {
   const choice = state.pendingChoice;
-  if (choice) return { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: answerChoice(state, choice) };
+  if (choice)
+    return {
+      type: "resolveChoice",
+      playerId: choice.playerId,
+      choiceId: choice.choiceId,
+      selectedOptionIds: answerChoice(state, choice),
+    };
   if (state.step.phase !== "player" || state.step.kind !== "turn") {
     throw new Error(`no choice pending and not a player turn (${state.step.phase}/${state.step.kind})`);
   }
@@ -124,7 +131,12 @@ function liveRefs(state: GameState, id: InstanceId): readonly string[] {
   return "abilities" in c ? c.abilities.map((r) => r.id) : [];
 }
 
-function* turnCandidates(state: GameState, deps: EngineDeps, playerId: PlayerId, memory: TurnMemory): Generator<Candidate> {
+function* turnCandidates(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  memory: TurnMemory,
+): Generator<Candidate> {
   const player = getPlayer(state, playerId);
   if (!player) return;
   const identityId = player.identity.instanceId;
@@ -136,8 +148,10 @@ function* turnCandidates(state: GameState, deps: EngineDeps, playerId: PlayerId,
 
   // 1. Form and recovery: heal up in alter-ego, otherwise go hero to act.
   if (form === "alterEgo") {
-    if (!identity.exhausted && identity.damage > 0 && hpLeft * 2 <= profile.maxHp) yield { command: { type: "basicRecover", playerId } };
-    if (!player.identity.changedFormThisRound && hpLeft * 2 > profile.maxHp) yield { command: { type: "changeForm", playerId } };
+    if (!identity.exhausted && identity.damage > 0 && hpLeft * 2 <= profile.maxHp)
+      yield { command: { type: "basicRecover", playerId } };
+    if (!player.identity.changedFormThisRound && hpLeft * 2 > profile.maxHp)
+      yield { command: { type: "changeForm", playerId } };
   }
 
   // 2. Play cards from hand, paying with the fewest other cards.
@@ -148,7 +162,16 @@ function* turnCandidates(state: GameState, deps: EngineDeps, playerId: PlayerId,
     if (c.type === "event" && !action) continue; // interrupt/response events are played from windows
     for (const payment of payments(state, deps, playerId, id, c.cost)) {
       for (const extra of playExtras(state, deps, playerId, id, c, action, payment)) {
-        yield { command: { type: "playCard", playerId, cardInstanceId: id, payment, attachToInstanceId: extra.attachTo, ...(extra.costChoices ? { costChoices: extra.costChoices } : {}) } };
+        yield {
+          command: {
+            type: "playCard",
+            playerId,
+            cardInstanceId: id,
+            payment,
+            attachToInstanceId: extra.attachTo,
+            ...(extra.costChoices ? { costChoices: extra.costChoices } : {}),
+          },
+        };
       }
     }
   }
@@ -162,9 +185,21 @@ function* turnCandidates(state: GameState, deps: EngineDeps, playerId: PlayerId,
       if (definition?.trigger.kind !== "action") continue;
       const memo = `${id}:${ability}`;
       if (memory.used.has(memo)) continue;
-      const choices = definition.cost?.discardFromHand ? { discard: player.hand.slice(0, definition.cost.discardFromHand.min) } : undefined;
+      const choices = definition.cost?.discardFromHand
+        ? { discard: player.hand.slice(0, definition.cost.discardFromHand.min) }
+        : undefined;
       for (const payment of payments(state, deps, playerId, null, 0, definition)) {
-        yield { memo, command: { type: "useAbility", playerId, cardInstanceId: id, abilityId: ability as never, payment, ...(choices ? { costChoices: choices } : {}) } };
+        yield {
+          memo,
+          command: {
+            type: "useAbility",
+            playerId,
+            cardInstanceId: id,
+            abilityId: ability as never,
+            payment,
+            ...(choices ? { costChoices: choices } : {}),
+          },
+        };
       }
     }
   }
@@ -173,9 +208,12 @@ function* turnCandidates(state: GameState, deps: EngineDeps, playerId: PlayerId,
   const stage = mainSchemeStage(state);
   const target = scale(stage.targetThreat, state.startingPlayerCount);
   const mainThreat = getInstance(state, state.mainScheme.instanceId)?.threat ?? 0;
-  const sideSchemes = schemesInPlay(state).filter((id) => id !== state.mainScheme.instanceId && (getInstance(state, id)?.threat ?? 0) > 0);
+  const sideSchemes = schemesInPlay(state).filter(
+    (id) => id !== state.mainScheme.instanceId && (getInstance(state, id)?.threat ?? 0) > 0,
+  );
   const thwartFirst = mainThreat * 2 >= target || sideSchemes.length > 0;
-  const thwartTarget = mainThreat * 2 >= target || sideSchemes.length === 0 ? state.mainScheme.instanceId : (sideSchemes[0] as InstanceId);
+  const thwartTarget =
+    mainThreat * 2 >= target || sideSchemes.length === 0 ? state.mainScheme.instanceId : (sideSchemes[0] as InstanceId);
   const enemies = cardsInPlay(state).filter((id) => {
     const c = card(state, id);
     return isVillain(state, id) || c?.type === "minion" || getInstance(state, id)?.facedownAs;
@@ -184,10 +222,14 @@ function* turnCandidates(state: GameState, deps: EngineDeps, playerId: PlayerId,
   for (const attacker of attackers) {
     const ready = !getInstance(state, attacker)?.exhausted;
     if (!ready || (attacker === identityId && form !== "hero")) continue;
-    const thwart: Candidate = { command: { type: "basicThwart", playerId, thwarterInstanceId: attacker, schemeInstanceId: thwartTarget } };
+    const thwart: Candidate = {
+      command: { type: "basicThwart", playerId, thwarterInstanceId: attacker, schemeInstanceId: thwartTarget },
+    };
     const attacks: Candidate[] = enemies
       .filter((enemy) => canAttack(state, attacker, enemy, deps))
-      .map((enemy) => ({ command: { type: "basicAttack", playerId, attackerInstanceId: attacker, targetInstanceId: enemy } }));
+      .map((enemy) => ({
+        command: { type: "basicAttack", playerId, attackerInstanceId: attacker, targetInstanceId: enemy },
+      }));
     if (thwartFirst) {
       yield thwart;
       yield* attacks;
@@ -198,7 +240,8 @@ function* turnCandidates(state: GameState, deps: EngineDeps, playerId: PlayerId,
   }
 
   // 5. A badly hurt hero flips to alter-ego (after acting) to recover next turn.
-  if (form === "hero" && !player.identity.changedFormThisRound && hpLeft <= 4) yield { command: { type: "changeForm", playerId } };
+  if (form === "hero" && !player.identity.changedFormThisRound && hpLeft <= 4)
+    yield { command: { type: "changeForm", playerId } };
 }
 
 function actionAbility(deps: EngineDeps, c: AnyCard): AbilityDefinition | undefined {
@@ -226,17 +269,22 @@ function* payments(
   const player = getPlayer(state, playerId);
   if (!player) return;
   const fixed = ability?.cost?.resources;
-  const needed = printedCost + (typeof fixed === "number" ? fixed : fixed ? Object.values(fixed).reduce((a, b) => a + (b ?? 0), 0) : 0);
+  const needed =
+    printedCost +
+    (typeof fixed === "number" ? fixed : fixed ? Object.values(fixed).reduce((a, b) => a + (b ?? 0), 0) : 0);
   const extra = ability?.cost?.resourcesX ? 1 : 0;
   const abilityPayments: Payment[] = [];
   for (const id of cardsInPlay(state)) {
     if (controllerOf(state, id) !== playerId) continue;
     for (const ref of liveRefs(state, id)) {
-      if (deps.abilities[ref]?.trigger.kind === "resource") abilityPayments.push({ ability: { instanceId: id, abilityId: ref as never } });
+      if (deps.abilities[ref]?.trigger.kind === "resource")
+        abilityPayments.push({ ability: { instanceId: id, abilityId: ref as never } });
     }
   }
   const hand = player.hand.filter((id) => id !== playing);
-  const byValue = [...hand].sort((a, b) => Number(card(state, b)?.type === "resource") - Number(card(state, a)?.type === "resource"));
+  const byValue = [...hand].sort(
+    (a, b) => Number(card(state, b)?.type === "resource") - Number(card(state, a)?.type === "resource"),
+  );
   const total = needed + extra;
   if (total === 0) {
     yield [];
@@ -290,17 +338,26 @@ function* playExtras(
   const spare = (player?.hand ?? []).filter((h) => h !== id && !reserved.has(h));
   const costChoices: Record<string, readonly InstanceId[]> = {};
   if (action?.cost?.discardFromHand) {
-    const n = Math.max(action.cost.discardFromHand.min, Math.min(action.cost.discardFromHand.max ?? spare.length, spare.length, 2));
+    const n = Math.max(
+      action.cost.discardFromHand.min,
+      Math.min(action.cost.discardFromHand.max ?? spare.length, spare.length, 2),
+    );
     if (spare.length < n) return;
     costChoices.discard = spare.slice(0, n);
   }
   const pay = action?.cost?.payPrintedCostOf;
   const pickSlots = pay
-    ? state.players.flatMap((p) => p.discard.filter((d) => card(state, d)?.type === "ally")).map((d) => ({ ...costChoices, [pay.slot]: [d] }))
+    ? state.players
+        .flatMap((p) => p.discard.filter((d) => card(state, d)?.type === "ally"))
+        .map((d) => ({ ...costChoices, [pay.slot]: [d] }))
     : [costChoices];
-  const hosts: (InstanceId | null)[] = c.type === "upgrade" && c.attachesTo ? cardsInPlay(state).filter((h) => getInstance(state, h)?.faceup !== undefined) : [null];
+  const hosts: (InstanceId | null)[] =
+    c.type === "upgrade" && c.attachesTo
+      ? cardsInPlay(state).filter((h) => getInstance(state, h)?.faceup !== undefined)
+      : [null];
   for (const choices of pickSlots) {
-    for (const host of hosts) yield Object.keys(choices).length > 0 ? { attachTo: host, costChoices: choices } : { attachTo: host };
+    for (const host of hosts)
+      yield Object.keys(choices).length > 0 ? { attachTo: host, costChoices: choices } : { attachTo: host };
   }
   void deps;
 }
@@ -367,7 +424,7 @@ function payFromOptions(
     const pool = printedResources(c);
     return pool.wild > 0 || (["physical", "mental", "energy"] as const).some((t) => (typed[t] ?? 0) > 0 && pool[t] > 0);
   };
-  const ordered = [...choice.options.map((o) => o.optionId)].sort((a, b) => Number(matchesType(b)) - Number(matchesType(a)));
+  const ordered = choice.options.map((o) => o.optionId).sort((a, b) => Number(matchesType(b)) - Number(matchesType(a)));
   const picks: string[] = [];
   let sum = 0;
   for (const optionId of ordered) {

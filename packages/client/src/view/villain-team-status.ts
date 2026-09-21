@@ -24,7 +24,11 @@ export interface TeamStatusRow {
  * All seats in table order (including an eliminated one, worded by `seatRow`
  * itself) — a villain phase can hit anyone at the table, not just the viewer.
  */
-export function teamStatusOf(state: GameState, deps: EngineDeps, targetPlayerId: PlayerId | null): readonly TeamStatusRow[] {
+export function teamStatusOf(
+  state: GameState,
+  deps: EngineDeps,
+  targetPlayerId: PlayerId | null,
+): readonly TeamStatusRow[] {
   return [...state.players]
     .sort((a, b) => a.seatIndex - b.seatIndex)
     .map((player) => ({ seat: seatRow(state, player.playerId, deps), targeted: player.playerId === targetPlayerId }));

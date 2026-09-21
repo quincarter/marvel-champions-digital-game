@@ -19,7 +19,10 @@ const endTurn = (player: PlayerId): Command => ({ type: "endTurn", playerId: pla
 const copies = (id: CardId, n = 20): readonly CardId[] => Array.from({ length: n }, () => id);
 
 const VILLAIN = stubVillain({ id: "villain", stages: [{ hp: flat(40), atk: 1, sch: 1 }] });
-const SCHEME = stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(0), targetThreat: flat(60), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "scheme",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(60), acceleration: flat(0) }],
+});
 
 interface Asked {
   readonly kind: string;
@@ -34,7 +37,10 @@ function settleRecording(state: GameState, deps: EngineDeps, asked: Asked[]): Ga
     if (guard > 200) throw new Error("choices did not settle");
     const choice = current.pendingChoice;
     asked.push({ kind: choice.prompt.kind, playerId: choice.playerId, authority: choice.authority });
-    const picks = choice.prompt.kind === "declareDefender" ? ["decline"] : choice.options.slice(0, choice.minSelections).map((o) => o.optionId);
+    const picks =
+      choice.prompt.kind === "declareDefender"
+        ? ["decline"]
+        : choice.options.slice(0, choice.minSelections).map((o) => o.optionId);
     current = resolvePending(current, picks, deps);
   }
   return current;
@@ -56,7 +62,13 @@ function stackEncounter(state: GameState, ...order: readonly CardId[]): GameStat
 describe("RRG 'First Player': an encounter card with several eligible targets", () => {
   it("an attachment's host is picked by the first player, even when another player revealed it", () => {
     const shackles = stubAttachment({ id: "shackles", attachesTo: { kind: "anyCharacter" } });
-    const start = newGame({ players: 2, villain: VILLAIN, mainScheme: SCHEME, extraCards: [shackles], encounterDeck: copies(shackles.id) });
+    const start = newGame({
+      players: 2,
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [shackles],
+      encounterDeck: copies(shackles.id),
+    });
 
     const roundOne: Asked[] = [];
     const roundTwo = settleRecording(run(start, endTurn(p1), endTurn(p2)), DEFAULT_DEPS, roundOne);
@@ -77,13 +89,25 @@ describe("RRG 'First Player': an encounter card with several eligible targets", 
     const ability = stubAbility("pick", {
       trigger: { kind: "whenRevealed" },
       effects: [
-        { kind: "chooseTarget", slot: "targeted", query: { categories: ["character"] }, chooser: { kind: "firstPlayer" } },
+        {
+          kind: "chooseTarget",
+          slot: "targeted",
+          query: { categories: ["character"] },
+          chooser: { kind: "firstPlayer" },
+        },
         { kind: "chooseTarget", slot: "chosen", query: { categories: ["character"] }, chooser: { kind: "controller" } },
       ],
     });
     const card = stubTreachery({ id: "pick", boostIcons: 0, abilities: [ability.ref] });
     const deps = depsOf(ability);
-    const start = newGame({ players: 2, villain: VILLAIN, mainScheme: SCHEME, extraCards: [card], encounterDeck: copies(card.id), deps });
+    const start = newGame({
+      players: 2,
+      villain: VILLAIN,
+      mainScheme: SCHEME,
+      extraCards: [card],
+      encounterDeck: copies(card.id),
+      deps,
+    });
 
     const asked: Asked[] = [];
     settleRecording(runWith(deps, start, endTurn(p1), endTurn(p2)), deps, asked);
@@ -133,11 +157,17 @@ describe("RRG 'First Player': several enemies attacking or scheming from one eff
 
     const reversed = [...(choice?.options.map((o) => o.optionId) ?? [])].reverse();
     let session: GameSession = startSession(atOrder);
-    const result = sessionApply(session, { type: "resolveChoice", playerId: p1, choiceId: choice?.choiceId as never, selectedOptionIds: reversed }, deps);
+    const result = sessionApply(
+      session,
+      { type: "resolveChoice", playerId: p1, choiceId: choice?.choiceId as never, selectedOptionIds: reversed },
+      deps,
+    );
     if (!result.ok) throw new Error(result.error.message);
     session = result.session;
     const schemed = result.events.flatMap((e) =>
-      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "enemyScheme" ? [e.event.enemyInstanceId] : [],
+      e.type === "triggerEvent" && e.phase === "initiated" && e.event.kind === "enemyScheme"
+        ? [e.event.enemyInstanceId]
+        : [],
     );
     expect(schemed).toEqual(reversed);
   });
@@ -155,7 +185,10 @@ function playRounds(state: GameState, rounds: number): GameSession {
           type: "resolveChoice",
           playerId: choice.playerId,
           choiceId: choice.choiceId,
-          selectedOptionIds: choice.prompt.kind === "declareDefender" ? ["decline"] : choice.options.slice(0, choice.minSelections).map((o) => o.optionId),
+          selectedOptionIds:
+            choice.prompt.kind === "declareDefender"
+              ? ["decline"]
+              : choice.options.slice(0, choice.minSelections).map((o) => o.optionId),
         }
       : { type: "endTurn", playerId: current.step.kind === "turn" ? current.step.activePlayerId : p1 };
     const result = sessionApply(session, command);
@@ -170,7 +203,9 @@ describe("auditVillainPhases", () => {
     const session = playRounds(newGame({ players: 2 }), 3);
     const audit = auditVillainPhases(session.log);
     expect(audit.violations).toEqual([]);
-    expect(audit.phases.map((phase) => [phase.round, phase.firstPlayerId, phase.nextFirstPlayerId, phase.completed])).toEqual([
+    expect(
+      audit.phases.map((phase) => [phase.round, phase.firstPlayerId, phase.nextFirstPlayerId, phase.completed]),
+    ).toEqual([
       [1, p1, p2, true],
       [2, p2, p1, true],
       [3, p1, p2, true],

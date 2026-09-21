@@ -84,7 +84,8 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
   {
     id: "exhausted",
     displayName: "Exhausted",
-    definition: "A card rotated sideways to show it's been used or committed this way can't be exhausted again until something readies it.",
+    definition:
+      "A card rotated sideways to show it's been used or committed this way can't be exhausted again until something readies it.",
     citeLabel: "RRG 1.8 p. 19",
     unverified: false,
     cardRefs: [],
@@ -92,7 +93,8 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
   {
     id: "ready",
     displayName: "Ready",
-    definition: "A card's normal, upright state. Readying an exhausted card returns it to this state — unless readying it has its own cost the controller declines to pay, in which case it stays exhausted.",
+    definition:
+      "A card's normal, upright state. Readying an exhausted card returns it to this state — unless readying it has its own cost the controller declines to pay, in which case it stays exhausted.",
     citeLabel: "RRG 1.8 p. 36",
     unverified: false,
     cardRefs: [],
@@ -100,7 +102,8 @@ const TABLE_STATE_ENTRIES: readonly RulesEntry[] = [
   {
     id: "facedownBoostCard",
     displayName: "Facedown boost card",
-    definition: "Dealt to an enemy from its encounter deck the moment it attacks or schemes (or, for a villainous minion, whenever it uses a basic power), then turned face up one at a time to add its icons to that activation's total.",
+    definition:
+      "Dealt to an enemy from its encounter deck the moment it attacks or schemes (or, for a villainous minion, whenever it uses a basic power), then turned face up one at a time to add its icons to that activation's total.",
     citeLabel: "RRG 1.8 p. 11",
     unverified: false,
     cardRefs: [],
@@ -163,14 +166,21 @@ function dedupeCardRefs(refs: readonly RulesCardRef[]): readonly RulesCardRef[] 
 function tableAssociationsOf(
   state: GameState,
   deps: EngineDeps,
-): { readonly keywords: ReadonlyMap<KeywordName, readonly RulesCardRef[]>; readonly statuses: ReadonlyMap<keyof StatusCounts, readonly RulesCardRef[]> } {
+): {
+  readonly keywords: ReadonlyMap<KeywordName, readonly RulesCardRef[]>;
+  readonly statuses: ReadonlyMap<keyof StatusCounts, readonly RulesCardRef[]>;
+} {
   const keywordRefs = new Map<KeywordName, RulesCardRef[]>();
   const statusRefs = new Map<keyof StatusCounts, RulesCardRef[]>();
   for (const id of tableInstanceIds(state)) {
     const instance = getInstance(state, id);
     if (!instance) continue;
     const card = state.cardPool[instance.cardId as unknown as string] as AnyCard | undefined;
-    const ref: RulesCardRef = { cardId: instance.cardId as unknown as string, instanceId: id as unknown as string, name: card?.name ?? "Unknown card" };
+    const ref: RulesCardRef = {
+      cardId: instance.cardId as unknown as string,
+      instanceId: id as unknown as string,
+      name: card?.name ?? "Unknown card",
+    };
     for (const keyword of keywordsOf(state, id, deps)) {
       const list = keywordRefs.get(keyword.name) ?? [];
       list.push(ref);
@@ -189,7 +199,11 @@ function tableAssociationsOf(
   };
 }
 
-const normalize = (text: string): string => text.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const normalize = (text: string): string =>
+  text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "");
 
 /** `entries`, narrowed to the ones matching `query` in their term, definition, or an associated card's name — case- and accent-insensitive. Empty query matches everything. */
 function filterByQuery(entries: readonly RulesEntry[], query: string): readonly RulesEntry[] {
@@ -271,7 +285,9 @@ export function rulesGlossaryPoolOf(pool: readonly AnyCard[], query = ""): reado
       byKeyword.set(name, list);
     }
   }
-  const entries: RulesEntry[] = GLOSSARY_ENTRIES.map((entry) => toRulesEntry(entry, dedupeCardRefs(byKeyword.get(entry.id as KeywordName) ?? [])));
+  const entries: RulesEntry[] = GLOSSARY_ENTRIES.map((entry) =>
+    toRulesEntry(entry, dedupeCardRefs(byKeyword.get(entry.id as KeywordName) ?? [])),
+  );
   entries.push(...TABLE_STATE_ENTRIES);
   entries.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return filterByQuery(entries, query);
@@ -279,11 +295,19 @@ export function rulesGlossaryPoolOf(pool: readonly AnyCard[], query = ""): reado
 
 /** Every glossary entry `@mc/content` and this module know about, with no card associations — kept for the existing "does the flagged conflict survive" test; a screen wanting cards too should use `rulesGlossaryPoolOf`. */
 export function everyGlossaryEntry(): readonly RulesEntry[] {
-  return [...GLOSSARY_ENTRIES.map((entry) => toRulesEntry(entry)), ...TABLE_STATE_ENTRIES].sort((a, b) => a.displayName.localeCompare(b.displayName));
+  return [...GLOSSARY_ENTRIES.map((entry) => toRulesEntry(entry)), ...TABLE_STATE_ENTRIES].sort((a, b) =>
+    a.displayName.localeCompare(b.displayName),
+  );
 }
 
 export interface VillainPhaseStep {
-  readonly id: "placeThreat" | "enemyActivations" | "dealEncounterCards" | "revealEncounterCards" | "passFirstPlayer" | "endOfRound";
+  readonly id:
+    | "placeThreat"
+    | "enemyActivations"
+    | "dealEncounterCards"
+    | "revealEncounterCards"
+    | "passFirstPlayer"
+    | "endOfRound";
   readonly label: string;
   readonly detail: string;
   /** True for the step the live game is on right now, so the reference doubles as "where are we". */
@@ -310,12 +334,44 @@ export interface VillainPhaseStep {
 export function villainPhaseOrder(state?: GameState): readonly VillainPhaseStep[] {
   const currentKind = state && state.step.phase === "villain" ? state.step.kind : null;
   const steps: readonly Omit<VillainPhaseStep, "current">[] = [
-    { id: "placeThreat", label: "1. Place threat", detail: "The main scheme's acceleration value, plus one per acceleration icon/token in play, is placed on it.", art: "mainScheme" },
-    { id: "enemyActivations", label: "2. Enemies activate", detail: "In player order: the villain activates against that player, then each minion engaged with them, in that player's choice of order.", art: "villain" },
-    { id: "dealEncounterCards", label: "3. Deal encounter cards", detail: "Each player is dealt one encounter card facedown, plus one more per hazard icon in play.", art: "encounterBack" },
-    { id: "revealEncounterCards", label: "4. Reveal encounter cards", detail: "The first player reveals and resolves their dealt cards one at a time, then each other player does the same in turn order.", art: "encounterBack" },
-    { id: "passFirstPlayer", label: "5. Pass first player", detail: "The first player token passes to the next player clockwise.", art: null },
-    { id: "endOfRound", label: "6. End of round", detail: "\"Until end of round\" effects expire, delayed effects resolve, and a new round begins.", art: null },
+    {
+      id: "placeThreat",
+      label: "1. Place threat",
+      detail: "The main scheme's acceleration value, plus one per acceleration icon/token in play, is placed on it.",
+      art: "mainScheme",
+    },
+    {
+      id: "enemyActivations",
+      label: "2. Enemies activate",
+      detail:
+        "In player order: the villain activates against that player, then each minion engaged with them, in that player's choice of order.",
+      art: "villain",
+    },
+    {
+      id: "dealEncounterCards",
+      label: "3. Deal encounter cards",
+      detail: "Each player is dealt one encounter card facedown, plus one more per hazard icon in play.",
+      art: "encounterBack",
+    },
+    {
+      id: "revealEncounterCards",
+      label: "4. Reveal encounter cards",
+      detail:
+        "The first player reveals and resolves their dealt cards one at a time, then each other player does the same in turn order.",
+      art: "encounterBack",
+    },
+    {
+      id: "passFirstPlayer",
+      label: "5. Pass first player",
+      detail: "The first player token passes to the next player clockwise.",
+      art: null,
+    },
+    {
+      id: "endOfRound",
+      label: "6. End of round",
+      detail: '"Until end of round" effects expire, delayed effects resolve, and a new round begins.',
+      art: null,
+    },
   ];
   return steps.map((step) => ({ ...step, current: step.id === currentKind }));
 }

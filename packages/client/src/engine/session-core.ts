@@ -149,7 +149,10 @@ export interface ReplayBaseline {
 export function rebuildBaseline(config: SessionConfig, storedInitialState: StateWithoutPool): ReplayBaseline {
   const fresh = createGame(scenarioFor(config), POOL_DEPS);
   if (!fresh.ok) {
-    throw new SetupError({ ...fresh.error, message: `this saved game can no longer be set up: ${fresh.error.message}` });
+    throw new SetupError({
+      ...fresh.error,
+      message: `this saved game can no longer be set up: ${fresh.error.message}`,
+    });
   }
   return { initialState: { ...storedInitialState, cardPool: fresh.state.cardPool }, setupEvents: fresh.events };
 }

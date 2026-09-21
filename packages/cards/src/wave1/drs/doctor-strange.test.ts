@@ -1,27 +1,38 @@
 import { cardId, trait } from "@mc/content";
-import { activeEncounterDeck, activeVillain, characterProfile, remainingHitPoints, traitsOf, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
-import { endTurn, firstLegal, identityOf, inst, moveToHand, P1, patchInstance, payWith, picking, play, playerOf, settle, stackEncounterDeck, toHero, use } from "../../testing/harness.js";
+import {
+  activeEncounterDeck,
+  activeVillain,
+  characterProfile,
+  remainingHitPoints,
+  traitsOf,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
+import {
+  endTurn,
+  firstLegal,
+  identityOf,
+  inst,
+  moveToHand,
+  P1,
+  patchInstance,
+  payWith,
+  picking,
+  play,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+  use,
+} from "../../testing/harness.js";
+import { moveToDiscard } from "../../testing/staging.js";
 import { wave1Scenario } from "../setup.js";
 import { DRS_DEPS, runDrs, stackInvocation, startDrsGame } from "./testing.js";
 
 // Real wave 1 content: the Doctor Strange (Protection) precon against Rhino, standard, solo.
-const drsVsRhino = (seed = 2001) => startDrsGame(wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed }));
-
-/** Test-only surgery: moves a copy of `code` straight from deck to the player's discard pile, matching
- * `wave1/msm/ms-marvel.test.ts`'s identically-shaped `moveToDiscard`. */
-function moveToDiscard(state: GameState, player: PlayerId, code: string): { readonly state: GameState; readonly id: InstanceId } {
-  const owner = playerOf(state, player);
-  const wanted = (id: InstanceId) => state.instances[id]?.cardId === cardId(code);
-  const id = owner.deck.find(wanted) ?? owner.hand.find(wanted);
-  if (!id) throw new Error(`${player} has no ${code} in deck or hand`);
-  return {
-    id,
-    state: {
-      ...state,
-      players: state.players.map((p) => (p.playerId === player ? { ...p, deck: p.deck.filter((x) => x !== id), hand: p.hand.filter((x) => x !== id), discard: [...p.discard, id] } : p)),
-    },
-  };
-}
+const drsVsRhino = (seed = 2001) =>
+  startDrsGame(wave1Scenario("rhino", { players: [{ starterDeckId: "drs-protection" }], seed }));
 
 /** The card code of the active encounter deck's current top card. */
 function encounterTop(state: GameState): string {
@@ -74,7 +85,17 @@ describe("Doctor Strange hero kit", () => {
     const [top, ...rest] = piles.deck;
     const emptied: GameState = {
       ...start,
-      players: start.players.map((p) => (p.playerId === P1 ? { ...p, separateDecks: { ...p.separateDecks, Invocation: { ...piles, deck: [top!], discard: [...piles.discard, ...rest] } } } : p)),
+      players: start.players.map((p) =>
+        p.playerId === P1
+          ? {
+              ...p,
+              separateDecks: {
+                ...p.separateDecks,
+                Invocation: { ...piles, deck: [top!], discard: [...piles.discard, ...rest] },
+              },
+            }
+          : p,
+      ),
     };
     const identity = identityOf(emptied);
     const after = runDrs(emptied, use(P1, identity, "09001b.natural-talent"));
@@ -90,10 +111,20 @@ describe("Doctor Strange hero kit", () => {
   it("Wong: exhausts Wong, then heals 1 damage from the identity or discards the top Invocation card", () => {
     const given = moveToHand(drsVsRhino(), P1, "09002");
     const [wong] = given.ids as [InstanceId];
-    const withWong = settle(runDrs(given.state, play(P1, wong, payWith(given.state, P1, 3, [wong]))), firstLegal, undefined, DRS_DEPS);
+    const withWong = settle(
+      runDrs(given.state, play(P1, wong, payWith(given.state, P1, 3, [wong]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     const damaged = patchInstance(withWong, identityOf(withWong), { damage: 2 });
     const discardBefore = playerOf(damaged, P1).separateDecks["Invocation"]!.discard.length;
-    const after = settle(runDrs(damaged, use(P1, wong, "09002.wong-action")), picking("Heal 1 damage from your identity"), undefined, DRS_DEPS);
+    const after = settle(
+      runDrs(damaged, use(P1, wong, "09002.wong-action")),
+      picking("Heal 1 damage from your identity"),
+      undefined,
+      DRS_DEPS,
+    );
     expect(inst(after, identityOf(after)).damage).toBe(1);
     expect(playerOf(after, P1).separateDecks["Invocation"]!.discard.length).toBe(discardBefore);
   });
@@ -131,7 +162,10 @@ describe("Doctor Strange hero kit", () => {
     const hero = runDrs(withStrange, toHero());
     const handBefore = playerOf(hero, P1).hand.length;
     const after = settle(
-      runDrs(hero, play(P1, mota, payWith(hero, P1, 1, [mota]), { costChoices: { invocation: [topInvocation(hero)] } })),
+      runDrs(
+        hero,
+        play(P1, mota, payWith(hero, P1, 1, [mota]), { costChoices: { invocation: [topInvocation(hero)] } }),
+      ),
       firstLegal,
       undefined,
       DRS_DEPS,
@@ -151,7 +185,12 @@ describe("Doctor Strange hero kit", () => {
     const { state: withDiscard, id: wong } = moveToDiscard(given.state, P1, "09002");
     // "Alter-Ego Action:" on an event card (Mystical Studies): playing it (in alter-ego form, the default at
     // setup) resolves the action directly, the same shape as Big Hands' "Hero Action (attack): Deal 4 damage".
-    const after = settle(runDrs(withDiscard, play(P1, studies, payWith(withDiscard, P1, 1, [studies]))), picking(wong), undefined, DRS_DEPS);
+    const after = settle(
+      runDrs(withDiscard, play(P1, studies, payWith(withDiscard, P1, 1, [studies]))),
+      picking(wong),
+      undefined,
+      DRS_DEPS,
+    );
     expect(playerOf(after, P1).hand).toContain(wong);
   });
 
@@ -189,9 +228,19 @@ describe("Doctor Strange hero kit", () => {
     const [sanctum] = given.ids as [InstanceId];
     // Astral Projection (09003) carries the Spell trait.
     const { state: withDiscard, id: astral } = moveToDiscard(given.state, P1, "09003");
-    const played = settle(runDrs(withDiscard, play(P1, sanctum, payWith(withDiscard, P1, 1, [sanctum]))), firstLegal, undefined, DRS_DEPS);
+    const played = settle(
+      runDrs(withDiscard, play(P1, sanctum, payWith(withDiscard, P1, 1, [sanctum]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     const handBefore = playerOf(played, P1).hand.length;
-    const after = settle(runDrs(played, use(P1, sanctum, "09008.sanctum-sanctorum-action")), picking(astral), undefined, DRS_DEPS);
+    const after = settle(
+      runDrs(played, use(P1, sanctum, "09008.sanctum-sanctorum-action")),
+      picking(astral),
+      undefined,
+      DRS_DEPS,
+    );
     expect(playerOf(after, P1).discard).not.toContain(astral);
     expect(playerOf(after, P1).hand.length).toBe(handBefore + 1);
   });
@@ -200,7 +249,12 @@ describe("Doctor Strange hero kit", () => {
     const given = moveToHand(drsVsRhino(), P1, "09009");
     const [cloak] = given.ids as [InstanceId];
     const hero = runDrs(given.state, toHero());
-    const withCloak = settle(runDrs(hero, play(P1, cloak, payWith(hero, P1, 2, [cloak]))), firstLegal, undefined, DRS_DEPS);
+    const withCloak = settle(
+      runDrs(hero, play(P1, cloak, payWith(hero, P1, 2, [cloak]))),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     expect(traitsOf(withCloak, identityOf(withCloak), DRS_DEPS)).toContain(trait("Aerial"));
     expect(inst(withCloak, cloak).attachedTo).toBe(identityOf(withCloak));
     const exhausted = patchInstance(withCloak, identityOf(withCloak), { exhausted: true });
@@ -240,7 +294,15 @@ describe("Invocation cards", () => {
     const villain = activeVillain(stacked).instanceId;
     const hpBefore = remainingHitPoints(stacked, villain);
     const payment = payWith(stacked, P1, 2).map((id) => ({ fromHand: id }) as const);
-    const after = settle(runDrs(stacked, use(P1, identityOf(stacked), "09001a.spell-mastery", payment, { invocation: [topInvocation(stacked)] })), firstLegal, undefined, DRS_DEPS);
+    const after = settle(
+      runDrs(
+        stacked,
+        use(P1, identityOf(stacked), "09001a.spell-mastery", payment, { invocation: [topInvocation(stacked)] }),
+      ),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     expect(remainingHitPoints(after, villain)).toBe(hpBefore! - 7);
     expect(after.instances[villain]?.statuses.stunned).toBeGreaterThan(0);
   });
@@ -251,7 +313,15 @@ describe("Invocation cards", () => {
     const villain = activeVillain(stacked).instanceId;
     const threatBefore = inst(stacked, stacked.mainScheme.instanceId).threat;
     const payment = payWith(stacked, P1, 1).map((id) => ({ fromHand: id }) as const);
-    const after = settle(runDrs(stacked, use(P1, identityOf(stacked), "09001a.spell-mastery", payment, { invocation: [topInvocation(stacked)] })), firstLegal, undefined, DRS_DEPS);
+    const after = settle(
+      runDrs(
+        stacked,
+        use(P1, identityOf(stacked), "09001a.spell-mastery", payment, { invocation: [topInvocation(stacked)] }),
+      ),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     expect(after.instances[villain]?.statuses.confused).toBeGreaterThan(0);
     expect(inst(after, after.mainScheme.instanceId).threat).toBe(Math.max(0, threatBefore - 4));
   });
@@ -261,7 +331,12 @@ describe("Invocation cards", () => {
     const stacked = stackInvocation(hero, P1, "09034");
     const identity = identityOf(stacked);
     const payment = payWith(stacked, P1, 1).map((id) => ({ fromHand: id }) as const);
-    const after = settle(runDrs(stacked, use(P1, identity, "09001a.spell-mastery", payment, { invocation: [topInvocation(stacked)] })), picking(identity), undefined, DRS_DEPS);
+    const after = settle(
+      runDrs(stacked, use(P1, identity, "09001a.spell-mastery", payment, { invocation: [topInvocation(stacked)] })),
+      picking(identity),
+      undefined,
+      DRS_DEPS,
+    );
     expect(inst(after, identity).statuses.tough).toBeGreaterThan(0);
   });
 
@@ -269,7 +344,15 @@ describe("Invocation cards", () => {
     const hero = runDrs(drsVsRhino(), toHero());
     const stacked = stackInvocation(hero, P1, "09036");
     const handBefore = playerOf(stacked, P1).hand.length;
-    const after = settle(runDrs(stacked, use(P1, identityOf(stacked), "09001a.spell-mastery", [], { invocation: [topInvocation(stacked)] })), firstLegal, undefined, DRS_DEPS);
+    const after = settle(
+      runDrs(
+        stacked,
+        use(P1, identityOf(stacked), "09001a.spell-mastery", [], { invocation: [topInvocation(stacked)] }),
+      ),
+      firstLegal,
+      undefined,
+      DRS_DEPS,
+    );
     expect(playerOf(after, P1).hand.length).toBe(handBefore + 3);
   });
 
@@ -281,7 +364,10 @@ describe("Invocation cards", () => {
     const stunned = patchInstance(hero, identity, { statuses: { ...inst(hero, identity).statuses, stunned: 1 } });
     const stacked = stackInvocation(stunned, P1, "09035");
     const payment = payWith(stacked, P1, 0).map((id) => ({ fromHand: id }) as const);
-    const invoked = runDrs(stacked, use(P1, identity, "09001a.spell-mastery", payment, { invocation: [topInvocation(stacked)] }));
+    const invoked = runDrs(
+      stacked,
+      use(P1, identity, "09001a.spell-mastery", payment, { invocation: [topInvocation(stacked)] }),
+    );
     // Choose Doctor Strange as the character with a status (the only candidate, still a real choice to settle —
     // docs/phase7-wave1-scripting.md "Test conventions"). The outer `chooseOne` ("which status does it currently
     // have?") resolves without asking, since only the "stunned" branch's condition is true. The nested `chooseOne`
@@ -291,6 +377,10 @@ describe("Invocation cards", () => {
     expect(inst(after, identity).statuses.stunned).toBe(0);
     expect(inst(after, identity).statuses.confused).toBeGreaterThan(0);
     // The resolved Invocation card goes to the Invocation discard pile, per its own "Special" text.
-    expect(playerOf(after, P1).separateDecks["Invocation"]?.discard.some((id) => after.instances[id]?.cardId === cardId("09035"))).toBe(true);
+    expect(
+      playerOf(after, P1).separateDecks["Invocation"]?.discard.some(
+        (id) => after.instances[id]?.cardId === cardId("09035"),
+      ),
+    ).toBe(true);
   });
 });

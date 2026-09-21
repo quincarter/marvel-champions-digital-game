@@ -22,7 +22,8 @@ import { wave1Scenario } from "../setup.js";
 import { BKW_DEPS, forceMinionIntoPlay, runBkw, stackFromSetAside, startBkwGame } from "./testing.js";
 
 // Real wave 1 content: the Black Widow (Justice) precon against Rhino, standard, solo.
-const bkwVsRhino = (seed = 4201) => startBkwGame(wave1Scenario("rhino", { players: [{ starterDeckId: "bkw-justice" }], seed }));
+const bkwVsRhino = (seed = 4201) =>
+  startBkwGame(wave1Scenario("rhino", { players: [{ starterDeckId: "bkw-justice" }], seed }));
 
 // A neutral boost card (0 icons, no boost ability): "Advance" — see `black-widow.test.ts`'s own `ADVANCE` doc note.
 // `stackFromSetAside` always inserts at the absolute top of the encounter deck, so stacking `ADVANCE` *after* it
@@ -36,7 +37,8 @@ const ADVANCE = "01186";
  * top of the deck is dealt/revealed. Isolates a stacked card's own effect from the villain's unavoidable collateral
  * activation each round (`packages/engine/src/villain/phase.ts`'s step order: `enemyActivations` before
  * `dealEncounterCards`/`revealEncounterCards`). */
-const atRevealStep = (state: GameState): GameState => settle(runBkw(state, endTurn()), firstLegal, (s) => s.step.kind === "revealEncounterCards", BKW_DEPS);
+const atRevealStep = (state: GameState): GameState =>
+  settle(runBkw(state, endTurn()), firstLegal, (s) => s.step.kind === "revealEncounterCards", BKW_DEPS);
 
 describe("Black Widow's nemesis set", () => {
   it("Taskmaster: gets +1 SCH and +1 ATK for each upgrade controlled by the player it's engaged with", () => {
@@ -51,8 +53,18 @@ describe("Black Widow's nemesis set", () => {
     const given = moveToHand(withTaskmaster, P1, "08008", "08009"); // Grappling Hook, Synth-Suit — 2 upgrades
     const [hook, suit] = given.ids as [never, never];
     const hero = runBkw(given.state, toHero());
-    const withHook = settle(runBkw(hero, play(P1, hook, payWith(hero, P1, 2, [hook, suit]))), firstLegal, undefined, BKW_DEPS);
-    const withBoth = settle(runBkw(withHook, play(P1, suit, payWith(withHook, P1, 3, [suit]))), firstLegal, undefined, BKW_DEPS);
+    const withHook = settle(
+      runBkw(hero, play(P1, hook, payWith(hero, P1, 2, [hook, suit]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
+    const withBoth = settle(
+      runBkw(withHook, play(P1, suit, payWith(withHook, P1, 3, [suit]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     const after = characterProfile(withBoth, taskmaster, BKW_DEPS)!;
     expect(after.atk).toBe(2);
     expect(after.sch).toBe(2);
@@ -77,7 +89,12 @@ describe("Black Widow's nemesis set", () => {
     const start = bkwVsRhino();
     const given = moveToHand(start, P1, "08008"); // Grappling Hook, an upgrade P1 controls
     const [hook] = given.ids as [never];
-    const withHook = settle(runBkw(given.state, play(P1, hook, payWith(given.state, P1, 2, [hook]))), firstLegal, undefined, BKW_DEPS);
+    const withHook = settle(
+      runBkw(given.state, play(P1, hook, payWith(given.state, P1, 2, [hook]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     expect(playerOf(withHook, P1).playArea.includes(hook) || inst(withHook, hook).attachedTo !== null).toBe(true);
     const staged = stackFromSetAside(withHook, P1, "08026");
     const afterUpgrade = atRevealStep(staged);
@@ -86,7 +103,9 @@ describe("Black Widow's nemesis set", () => {
     expect(mainThreat(afterUpgrade)).toBe(3);
     // Taskmaster's own card never entered play — it was only ever the boost card, discarded once applied — proving
     // the bonus targeted a fixed ref ("the villain") rather than "whichever card this ability is printed on".
-    const taskmaster = activeEncounterDeck(afterUpgrade).discard.find((id) => afterUpgrade.instances[id]?.cardId === cardId("08026"));
+    const taskmaster = activeEncounterDeck(afterUpgrade).discard.find(
+      (id) => afterUpgrade.instances[id]?.cardId === cardId("08026"),
+    );
     expect(taskmaster).toBeDefined();
     expect(taskmaster).not.toBe(villain);
   });
@@ -104,7 +123,12 @@ describe("Black Widow's nemesis set", () => {
     const start = bkwVsRhino();
     const given = moveToHand(start, P1, "08008"); // Grappling Hook, an upgrade to discard
     const [hook] = given.ids as [never];
-    const withHook = settle(runBkw(given.state, play(P1, hook, payWith(given.state, P1, 2, [hook]))), firstLegal, undefined, BKW_DEPS);
+    const withHook = settle(
+      runBkw(given.state, play(P1, hook, payWith(given.state, P1, 2, [hook]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     const staged = stackEncounterDeck(stackFromSetAside(withHook, P1, "08029"), ADVANCE);
     const atReveal = atRevealStep(staged);
     const before = mainThreat(atReveal);
@@ -118,7 +142,12 @@ describe("Black Widow's nemesis set", () => {
     const given = moveToHand(start, P1, "08008");
     const [hook] = given.ids as [never];
     const hero = runBkw(given.state, toHero());
-    const withHook = settle(runBkw(hero, play(P1, hook, payWith(hero, P1, 2, [hook]))), firstLegal, undefined, BKW_DEPS);
+    const withHook = settle(
+      runBkw(hero, play(P1, hook, payWith(hero, P1, 2, [hook]))),
+      firstLegal,
+      undefined,
+      BKW_DEPS,
+    );
     const staged = stackEncounterDeck(stackFromSetAside(withHook, P1, "08029"), ADVANCE);
     const atReveal = atRevealStep(staged);
     const damageBefore = inst(atReveal, identityOf(atReveal)).damage;
@@ -127,4 +156,3 @@ describe("Black Widow's nemesis set", () => {
     expect(inst(after, identityOf(after)).damage).toBe(damageBefore + 1);
   });
 });
-

@@ -724,6 +724,7 @@ export const ANGEL_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/42028.png") },
     encounterSetIds: [encounterSetId("angel_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

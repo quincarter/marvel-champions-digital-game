@@ -735,6 +735,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("magneto_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ACOLYTE")],
     keywords: [{ name: "guard" }],
     text: {
@@ -758,6 +759,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("magneto_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ACOLYTE")],
     keywords: [{ name: "quickstrike" }],
     text: {
@@ -960,6 +962,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("hellfire")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("HELLFIRE")],
     keywords: [{ name: "quickstrike" }, { name: "villainous" }],
     text: {
@@ -984,6 +987,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("hellfire")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("HELLFIRE")],
     keywords: [{ name: "guard" }, { name: "patrol" }, { name: "surge" }],
     text: {
@@ -1027,6 +1031,7 @@ export const MAGNETO_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/49042.jpg") },
     encounterSetIds: [encounterSetId("hellfire")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

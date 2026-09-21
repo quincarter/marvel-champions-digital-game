@@ -77,17 +77,29 @@ const WRECKER = query("villain", { name: "Wrecker" });
 export const WRECKER_SET = defineAbilities({
   // Wrecker (I/II) — [star] When Wrecker schemes, place the threat on his side scheme instead of the main scheme.
   // Landed `RuleSpec.schemeThreatDestination` (`abilities.ts`), whose own doc comment quotes this exact card.
-  "07002.wrecker-constant": constant(rule({ kind: "schemeThreatDestination", enemy: WRECKER, scheme: "ownSignatureSideScheme" })),
-  "07003.wrecker-constant": constant(rule({ kind: "schemeThreatDestination", enemy: WRECKER, scheme: "ownSignatureSideScheme" })),
+  "07002.wrecker-constant": constant(
+    rule({ kind: "schemeThreatDestination", enemy: WRECKER, scheme: "ownSignatureSideScheme" }),
+  ),
+  "07003.wrecker-constant": constant(
+    rule({ kind: "schemeThreatDestination", enemy: WRECKER, scheme: "ownSignatureSideScheme" }),
+  ),
   // Wrecker (I/II) — [star] While Wrecker is attacking, he gets +2 ATK if the attack is undefended.
   "07002.wrecker-constant-2": constant(gets("atk", 2, WRECKER, { while: undefendedAttack })),
   "07003.wrecker-constant-2": constant(gets("atk", 2, WRECKER, { while: undefendedAttack })),
 
   // Day of Reckoning — Wrecker's Side Scheme. This card cannot leave play while Wrecker is in play.
-  "07004.day-of-reckoning-constant": constant(rule({ kind: "cannotLeavePlay", target: query("sideScheme", { name: "Day of Reckoning" }), while: exists(WRECKER) })),
+  "07004.day-of-reckoning-constant": constant(
+    rule({
+      kind: "cannotLeavePlay",
+      target: query("sideScheme", { name: "Day of Reckoning" }),
+      while: exists(WRECKER),
+    }),
+  ),
   // The Wrecking Crew insert, "Signature Side Schemes": "These side schemes are not discarded when they have no
   // threat on them." Landed `RuleSpec.notDefeatedWithoutThreat`.
-  "07004.day-of-reckoning-constant-2": constant(rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Day of Reckoning" }) })),
+  "07004.day-of-reckoning-constant-2": constant(
+    rule({ kind: "notDefeatedWithoutThreat", target: query("sideScheme", { name: "Day of Reckoning" }) }),
+  ),
   // Hard Hitter — Forced Response: After threat is placed here, if there is 10 or more threat here, deal 2 damage
   // to each friendly character. Remove all but 3 threat from this scheme. `threatAtLeast` (`Predicate` `compare`,
   // wave B primitives batch, docs/phase7-wave1-scripting.md §6) is the live-threat-vs-threshold read this needed;
@@ -95,18 +107,26 @@ export const WRECKER_SET = defineAbilities({
   // `THRESHOLD` fixture, pins the pair resolving as one unit, not "remove down to 3" unconditionally).
   "07004.hard-hitter": forcedResponse(
     after.threatPlaced("self"),
-    ifThen(threatAtLeast(self, 10), [dealDamage(2, each(FRIENDLY_CHARACTER)), removeThreat(scaled(threatOn(self), { plus: -3 }), self)]),
+    ifThen(threatAtLeast(self, 10), [
+      dealDamage(2, each(FRIENDLY_CHARACTER)),
+      removeThreat(scaled(threatOn(self), { plus: -3 }), self),
+    ]),
   ),
 
   // Held Hostage — Attach to the active villain's side scheme. Threat cannot be removed from attached scheme by
   // thwarting.
-  "07005.held-hostage-constant": constant(rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" })),
+  "07005.held-hostage-constant": constant(
+    rule({ kind: "threatCannotBeRemoved", target: query("sideScheme", { hostOfSelf: true }), by: "thwart" }),
+  ),
   // Hero Action: The villain corresponding to the attached side scheme attacks you. Then discard this card.
   "07005.held-hostage-action": heroAction(enemyAttack(villainOfSideScheme(host), { against: you }), discard(self)),
 
   // Magic Crowbar — Attach to Wrecker. [star] Forced Response: After Wrecker attacks, place 1 threat on the side
   // scheme with the least threat.
-  "07006.magic-crowbar-forced-response": forcedResponse(after.enemyAttacks("host"), placeThreat(1, leastThreatSideScheme)),
+  "07006.magic-crowbar-forced-response": forcedResponse(
+    after.enemyAttacks("host"),
+    placeThreat(1, leastThreatSideScheme),
+  ),
   // Hero Action: Exhaust your hero and discard 1 card at random from your hand → discard this card.
   // `discardRandomFromHandCost` (`dsl/abilities.ts`) picks with the game's own seeded RNG, landed for exactly this
   // card (docs/phase7-wave1-scripting.md §6).
@@ -118,7 +138,10 @@ export const WRECKER_SET = defineAbilities({
   "07007.wreckers-command-forced-response": forcedResponse(
     after.enemySchemes("host"),
     bindTargets("wreckers-command-own-scheme", signatureSideSchemeOf(host)),
-    placeThreat(1, each(query("sideScheme", { signatureSideScheme: true, excludeSlots: ["wreckers-command-own-scheme"] }))),
+    placeThreat(
+      1,
+      each(query("sideScheme", { signatureSideScheme: true, excludeSlots: ["wreckers-command-own-scheme"] })),
+    ),
   ),
   // Hero Action: Spend [physical][physical] resources → discard this card.
   "07007.wreckers-command-action": heroAction({ cost: spend({ physical: 2 }) }, discard(self)),
@@ -126,14 +149,25 @@ export const WRECKER_SET = defineAbilities({
   // Escaped Convict — Surge. [star] Boost: Move the active counter to the villain whose side scheme has the least
   // threat. If you are in hero form, that villain attacks you after this attack. That attack does not get a boost
   // card.
-  "07009.boost": boost(setActiveVillain(leastThreatVillain), ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you))),
+  "07009.boost": boost(
+    setActiveVillain(leastThreatVillain),
+    ifThen(isHero(), enemyAttackAfterThisNoBoost(theVillain, you)),
+  ),
 
   // Buddy System — When Revealed: Choose the villain whose side scheme has the least threat. Reveal the top card of
   // his deck (top 2 cards instead if he is the only villain in play). "He is the only villain in play" = no *other*
   // villain exists, once the chosen one is excluded (`excludeSlots`), so no count-comparison predicate is needed.
   "07010.when-revealed": whenRevealed(
     pickVillainBy("lowest"),
-    selectCards("looked", encounterCards(["deck"], undefined, ifElse(not(exists(query("villain", { excludeSlots: [VILLAIN_PICK_SLOT] }))), 2, 1), pickedVillain)),
+    selectCards(
+      "looked",
+      encounterCards(
+        ["deck"],
+        undefined,
+        ifElse(not(exists(query("villain", { excludeSlots: [VILLAIN_PICK_SLOT] }))), 2, 1),
+        pickedVillain,
+      ),
+    ),
     revealCard(chosen("looked")),
   ),
   // [star] Boost: Move the active counter to the villain whose side scheme has the least threat.
@@ -146,21 +180,39 @@ export const WRECKER_SET = defineAbilities({
     ifThen(
       exists(query("upgrade", { controller: "you" })),
       chooseOne(
-        option("Discard an upgrade you control", chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" })), discard(chosen("discarded-upgrade"))),
-        option("Place threat on the active villain's side scheme", placeThreat(countOf(query("upgrade", { controller: "you" })), signatureSideSchemeOf(theVillain))),
+        option(
+          "Discard an upgrade you control",
+          chooseTarget("discarded-upgrade", query("upgrade", { controller: "you" })),
+          discard(chosen("discarded-upgrade")),
+        ),
+        option(
+          "Place threat on the active villain's side scheme",
+          placeThreat(countOf(query("upgrade", { controller: "you" })), signatureSideSchemeOf(theVillain)),
+        ),
       ),
       surge(),
     ),
   ),
   // [star] Boost: If this attack is undefended, discard an upgrade you control.
-  "07011.boost": boost(ifThen(undefendedAttack, [chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" })), discard(chosen("chaos-boost-upgrade"))])),
+  "07011.boost": boost(
+    ifThen(undefendedAttack, [
+      chooseTarget("chaos-boost-upgrade", query("upgrade", { controller: "you" })),
+      discard(chosen("chaos-boost-upgrade")),
+    ]),
+  ),
 
   // Crowbar Toss — When Revealed (Alter-Ego): Wrecker schemes. Then, move the active villain counter to the villain
   // whose side scheme has the least threat.
-  "07012.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(named("Wrecker")), setActiveVillain(leastThreatVillain)),
+  "07012.when-revealed-alter-ego": whenRevealedAlterEgo(
+    enemyScheme(named("Wrecker")),
+    setActiveVillain(leastThreatVillain),
+  ),
   // When Revealed (Hero): Wrecker attacks you. Then, move the active villain counter to the villain whose side
   // scheme has the least threat.
-  "07012.when-revealed-hero": whenRevealedHero(enemyAttack(named("Wrecker"), { against: you }), setActiveVillain(leastThreatVillain)),
+  "07012.when-revealed-hero": whenRevealedHero(
+    enemyAttack(named("Wrecker"), { against: you }),
+    setActiveVillain(leastThreatVillain),
+  ),
 
   // Get Wrecked! — When Revealed (Alter-Ego): The villain whose side scheme has the most threat schemes.
   "07013.when-revealed-alter-ego": whenRevealedAlterEgo(enemyScheme(mostThreatVillain)),
@@ -188,7 +240,11 @@ export const WRECKER_SET = defineAbilities({
   // You're Dead Meat! — When Revealed: Deal 1 damage to the hero or ally with the fewest remaining hit points. If
   // that character is defeated this way, place 3 threat on Wrecker's side scheme.
   "07016.when-revealed": whenRevealed(
-    dealDamage(1, superlative("lowest", each(FRIENDLY_CHARACTER), remainingHpOf(chosen("candidate")), { ties: "first" }), { bind: "hit" }),
+    dealDamage(
+      1,
+      superlative("lowest", each(FRIENDLY_CHARACTER), remainingHpOf(chosen("candidate")), { ties: "first" }),
+      { bind: "hit" },
+    ),
     ifThen(varAtLeast("hit.defeated"), placeThreat(3, signatureSideSchemeOf(named("Wrecker")))),
   ),
 });

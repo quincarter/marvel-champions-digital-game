@@ -13,7 +13,7 @@ import { CARDS_BY_ID, POOL_ENCOUNTER_SETS, POOL_PACKS, POOL_SCENARIOS, packNameO
 import { ART_CATALOG, packCoverFor, villainArtFor } from "../art/scenario-art.js";
 import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { artFor } from "../art/art-source.js";
-import { cardArt, drawArt } from "../art/card-art.js";
+import { cardArt } from "../art/card-art.js";
 import { dotGrid, ink, surface, typeRole } from "../tokens.js";
 import { cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McTextInput, fitText, label, paintDotGrid } from "../ui/widgets.js";
@@ -32,10 +32,19 @@ import { DETAIL_COLLAPSED_HEIGHT, scenarioSelectLayout, detailPanelWidthFor } fr
 import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import { appSession } from "../session.js";
-import { drawCompactChipStrip, drawPackGrid, drawSearchField, drawShelfRosterPanel, renderShelfCard, renderShelfHeader } from "./roster-panel.js";
+import {
+  drawCompactChipStrip,
+  drawPackGrid,
+  drawSearchField,
+  drawShelfRosterPanel,
+  renderShelfCard,
+  renderShelfHeader,
+} from "./roster-panel.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { SeatsData } from "./seats.js";
+import { destroyChildren } from "../ui/destroy-children.js";
+import { fadeScreenIn, goToScreen } from "../ui/transitions.js";
 
 export interface ScenarioSelectData {
   readonly draft: SetupDraft;
@@ -74,6 +83,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
   create(): void {
     this.cameras.main.setBackgroundColor(cssOf(surface.paper.hex));
+    appSession().music?.playTitle();
     this.scale.on("resize", this.#rebuild, this);
     // The villain stage-I card-scan fallback (`#renderScenarioCard`) is drawn through `cardArt(this).request`,
     // which only *asks* the loader — nothing about that call redraws the scene once the scan actually arrives.
@@ -107,6 +117,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       this.game.events.off("mc-choice-toggle", this.#onInspectChoose, this);
     });
     this.#rebuild();
+    fadeScreenIn(this);
     void appSession()
       .store.listSaves()
       .then((saves) => {
@@ -119,7 +130,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
   #back(): void {
     this.scale.off("resize", this.#rebuild, this);
-    this.scene.start(SCENES.title);
+    goToScreen(this, SCENES.title);
   }
 
   #drillOut(): void {
@@ -149,7 +160,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
-    this.children.removeAll(true);
+    destroyChildren(this);
     for (const node of kept) this.children.add(node);
 
     const { width, height } = this.scale.gameSize;
@@ -161,7 +172,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
       text: packNameOf(code),
       selected: this.#draft.scenarioFilter.product === code,
       onClick: () => {
-        this.#draft = setScenarioFilter(this.#draft, { ...this.#draft.scenarioFilter, product: this.#draft.scenarioFilter.product === code ? null : code });
+        this.#draft = setScenarioFilter(this.#draft, {
+          ...this.#draft.scenarioFilter,
+          product: this.#draft.scenarioFilter.product === code ? null : code,
+        });
         this.#rebuild();
       },
     }));
@@ -177,7 +191,13 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // gutters narrower, 300px+ on wide) and drew the extra row straight through the first shelf's header
     // (2026-09-19 phone check: "The Wrecking Crew" sat on top of "CORE SET").
     const layoutFor = (chipRowCount: number): ReturnType<typeof scenarioSelectLayout> =>
-      scenarioSelectLayout({ width, height, chipRows: chipRowCount, detailLines: 12, detailCollapsed: !this.#stagesOpen });
+      scenarioSelectLayout({
+        width,
+        height,
+        chipRows: chipRowCount,
+        detailLines: 12,
+        detailCollapsed: !this.#stagesOpen,
+      });
     const estimatedRows = packCompactChipsToRows(chipDefs, width).length;
     const firstPass = layoutFor(estimatedRows);
     const chipRows = packCompactChipsToRows(chipDefs, firstPass.chips.width);
@@ -185,16 +205,46 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     // Ground: paper body under a full-width ink header bar (docs/design-renders/ScreensDesktop_01-02.png).
     this.add.rectangle(0, 0, width, height, surface.paper.hex).setOrigin(0, 0);
-    paintDotGrid(this, { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height }, "paper", dotGrid.onPaper);
-    this.add.rectangle(layout.headerBar.x, layout.headerBar.y, layout.headerBar.width, layout.headerBar.height, surface.ink.hex).setOrigin(0, 0);
+    paintDotGrid(
+      this,
+      { x: 0, y: layout.headerBar.height, width, height: height - layout.headerBar.height },
+      "paper",
+      dotGrid.onPaper,
+    );
+    this.add
+      .rectangle(
+        layout.headerBar.x,
+        layout.headerBar.y,
+        layout.headerBar.width,
+        layout.headerBar.height,
+        surface.ink.hex,
+      )
+      .setOrigin(0, 0);
 
     const back = (): void => this.#back();
-    this.#buttons.push(new McButton(this, { kind: "onInk", label: "◂ Back", type: typeRole.backLabel, rect: layout.back, onClick: back }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "onInk",
+        label: "◂ Back",
+        type: typeRole.backLabel,
+        rect: layout.back,
+        onClick: back,
+      }),
+    );
     this.#stops.set("back", { rect: layout.back, activate: back });
     const titleX = layout.back.x + layout.back.width + 16;
-    const title = this.add.text(titleX, layout.headerBar.height / 2, "Choose a scenario", textStyle(typeRole.pageTitle, surface.paper.hex)).setOrigin(0, 0.5);
+    const title = this.add
+      .text(titleX, layout.headerBar.height / 2, "Choose a scenario", textStyle(typeRole.pageTitle, surface.paper.hex))
+      .setOrigin(0, 0.5);
     fitText(title, layout.step.x - titleX - 12, typeRole.pageTitle.size);
-    this.add.text(layout.step.x + layout.step.width, layout.headerBar.height / 2, "STEP 1 OF 4", textStyle(typeRole.label, surface.paper.hex, ink.label)).setOrigin(1, 0.5);
+    this.add
+      .text(
+        layout.step.x + layout.step.width,
+        layout.headerBar.height / 2,
+        "STEP 1 OF 4",
+        textStyle(typeRole.label, surface.paper.hex, ink.label),
+      )
+      .setOrigin(1, 0.5);
 
     this.#searchInput = drawSearchField(
       this,
@@ -217,10 +267,33 @@ export class ScenarioSelectScene extends Phaser.Scene {
     if (this.#drill.packId !== null) {
       const shelf = shelves.find((s) => s.id === this.#drill.packId);
       const drillBack = (): void => this.#drillOut();
-      this.#buttons.push(new McButton(this, { kind: "quiet", label: "◂ All packs", type: typeRole.rowTitle, rect: { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 }, onClick: drillBack }));
-      this.#stops.set("drill-back", { rect: { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 }, activate: drillBack });
-      this.add.text(layout.shelves.x + 140, layout.shelves.y + 14, shelf ? shelf.title.toUpperCase() : "", textStyle(typeRole.sectionHeader, surface.ink.hex)).setOrigin(0, 0.5);
-      const gridRect: Rect = { x: layout.shelves.x, y: layout.shelves.y + 36, width: layout.shelves.width, height: layout.shelves.height - 36 };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: "◂ All packs",
+          type: typeRole.rowTitle,
+          rect: { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 },
+          onClick: drillBack,
+        }),
+      );
+      this.#stops.set("drill-back", {
+        rect: { x: layout.shelves.x, y: layout.shelves.y, width: 130, height: 28 },
+        activate: drillBack,
+      });
+      this.add
+        .text(
+          layout.shelves.x + 140,
+          layout.shelves.y + 14,
+          shelf ? shelf.title.toUpperCase() : "",
+          textStyle(typeRole.sectionHeader, surface.ink.hex),
+        )
+        .setOrigin(0, 0.5);
+      const gridRect: Rect = {
+        x: layout.shelves.x,
+        y: layout.shelves.y + 36,
+        width: layout.shelves.width,
+        height: layout.shelves.height - 36,
+      };
       const items = shelf?.items ?? [];
       this.#grid = drawPackGrid({
         scene: this,
@@ -253,7 +326,15 @@ export class ScenarioSelectScene extends Phaser.Scene {
         screen: "scenario-select",
         focusPrefix: "scenario",
         idOf: (s) => s.id as string,
-        renderHeader: (shelf, rect) => renderShelfHeader(this, shelf, rect, shelf.id === "your-decks" ? null : this.#packCoverFor(shelf.id), () => this.#roster?.refreshVisible(), `${shelf.items.length} ${shelf.items.length === 1 ? "SCENARIO" : "SCENARIOS"}`),
+        renderHeader: (shelf, rect) =>
+          renderShelfHeader(
+            this,
+            shelf,
+            rect,
+            shelf.id === "your-decks" ? null : this.#packCoverFor(shelf.id),
+            () => this.#roster?.refreshVisible(),
+            `${shelf.items.length} ${shelf.items.length === 1 ? "SCENARIO" : "SCENARIOS"}`,
+          ),
         renderCard: (s, _shelfIndex, _itemIndex, rect) => this.#renderScenarioCard(s, rect),
         onCardActivate: (s) => {
           this.#draft = setScenario(this.#draft, s, s.id as string);
@@ -278,7 +359,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
     // Stat strip (D02's own band below the roster): main scheme, starting threat, villain HP (stage I), encounter sets — the same `detail` the ink panel already computed, so the two can't disagree.
     // Zero-height while the phone's disclosure is shut — the strip folds away with the stages.
     // (An open phone sheet draws the strip itself, over its own ground — see `#drawSidePanel`.)
-    if (layout.statStrip.height > 0 && !layout.detailOverlay) this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
+    if (layout.statStrip.height > 0 && !layout.detailOverlay)
+      this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
 
     // The side panel (D02's own "SCENARIO STAGES" sidebar): a Bangers header, one outlined box per stage (bright at
     // the draft's current difficulty, dim otherwise), the played record, and the CTA pinned at the foot.
@@ -286,17 +368,47 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
     const next = (): void => {
       this.scale.off("resize", this.#rebuild, this);
-      this.scene.start(SCENES.seats, { draft: this.#draft } satisfies SeatsData);
+      goToScreen(this, SCENES.seats, { draft: this.#draft } satisfies SeatsData);
     };
-    this.#buttons.push(new McButton(this, { kind: "primary", label: "Choose heroes ▸", type: typeRole.barTitle, rect: layout.next, onClick: next }));
+    this.#buttons.push(
+      new McButton(this, {
+        kind: "primary",
+        label: "Choose heroes ▸",
+        type: typeRole.barTitle,
+        rect: layout.next,
+        onClick: next,
+      }),
+    );
     this.#stops.set("next", { rect: layout.next, activate: next });
-    label(this, layout.footer.x, layout.footer.y, "Step 1 of 4 · scenario", typeRole.label, surface.paper.hex, ink.label);
+    label(
+      this,
+      layout.footer.x,
+      layout.footer.y,
+      "Step 1 of 4 · scenario",
+      typeRole.label,
+      surface.paper.hex,
+      ink.label,
+    );
 
-    this.#route?.set(scenarioSelectFocusOrder({ scenarioIds: cardIds, scenarioChipIds: chipDefs.map((c) => c.id), stagesToggle: !layout.wide }), this.#stops);
+    this.#route?.set(
+      scenarioSelectFocusOrder({
+        scenarioIds: cardIds,
+        scenarioChipIds: chipDefs.map((c) => c.id),
+        stagesToggle: !layout.wide,
+      }),
+      this.#stops,
+    );
   }
 
   /** Card size: ~300px wide (D02's own roughly-300px-wide art-dominant cards), tall enough to fill most of the shelf viewport's own height, capped so it doesn't run away on a very tall monitor. */
-  #cardMetrics(shelvesRect: Rect): { cardWidth: number; cardHeight: number; cardGap: number; headerHeight: number; headerToCardsGap: number; shelfGap: number } {
+  #cardMetrics(shelvesRect: Rect): {
+    cardWidth: number;
+    cardHeight: number;
+    cardGap: number;
+    headerHeight: number;
+    headerToCardsGap: number;
+    shelfGap: number;
+  } {
     const headerHeight = 30;
     const headerToCardsGap = 8;
     const shelfGap = 20;
@@ -358,8 +470,16 @@ export class ScenarioSelectScene extends Phaser.Scene {
     const cells: readonly { readonly label: string; readonly value: string }[] = [
       { label: "Main scheme", value: detail.mainSchemeName },
       { label: "Starting threat", value: `${formatScaling(detail.startingThreat)} start${accel}` },
-      { label: "Villain HP", value: detail.stages.map((stage) => formatScaling(stage.hp).split(" ")[0]).join(" · ") || (firstStage ? formatScaling(firstStage.hp) : "—") },
-      { label: "Encounter sets", value: `${detail.villainName.toUpperCase()} · ${(detail.recommendedModularSetNames[0] ?? "").toUpperCase()}` },
+      {
+        label: "Villain HP",
+        value:
+          detail.stages.map((stage) => formatScaling(stage.hp).split(" ")[0]).join(" · ") ||
+          (firstStage ? formatScaling(firstStage.hp) : "—"),
+      },
+      {
+        label: "Encounter sets",
+        value: `${detail.villainName.toUpperCase()} · ${(detail.recommendedModularSetNames[0] ?? "").toUpperCase()}`,
+      },
     ];
     const perRow = Math.ceil(cells.length / rows);
     const cellWidth = rect.width / perRow;
@@ -383,7 +503,11 @@ export class ScenarioSelectScene extends Phaser.Scene {
     return this.#draft.difficulty === "standard" ? detail.villainStagesStandard : detail.villainStagesExpert;
   }
 
-  #drawSidePanel(layout: ReturnType<typeof scenarioSelectLayout>, detail: ScenarioDetail, detailTextWidth: number): void {
+  #drawSidePanel(
+    layout: ReturnType<typeof scenarioSelectLayout>,
+    detail: ScenarioDetail,
+    detailTextWidth: number,
+  ): void {
     const rect = layout.detail;
     this.add.rectangle(rect.x, rect.y, rect.width, rect.height, surface.ink.hex).setOrigin(0, 0);
     let y = rect.y + 16;
@@ -395,33 +519,71 @@ export class ScenarioSelectScene extends Phaser.Scene {
       // risen over the roster from that same bar (`view/scenario-select-layout.ts`). The bar names what is inside
       // even when shut, so the stages are one tap away rather than gone.
       const open = this.#stagesOpen;
-      const bar: Rect = { x: rect.x, y: rect.y + rect.height - DETAIL_COLLAPSED_HEIGHT, width: rect.width, height: DETAIL_COLLAPSED_HEIGHT };
+      const bar: Rect = {
+        x: rect.x,
+        y: rect.y + rect.height - DETAIL_COLLAPSED_HEIGHT,
+        width: rect.width,
+        height: DETAIL_COLLAPSED_HEIGHT,
+      };
       if (open) {
         // Swallows taps meant for the cards and chips the sheet is covering.
-        this.add.zone(rect.x, rect.y, rect.width, rect.height - bar.height).setOrigin(0, 0).setInteractive();
+        this.add
+          .zone(rect.x, rect.y, rect.width, rect.height - bar.height)
+          .setOrigin(0, 0)
+          .setInteractive();
         const rule = this.add.graphics();
         rule.lineStyle(1, surface.paper.hex, ink.disabled).lineBetween(bar.x, bar.y, bar.x + bar.width, bar.y);
       }
       const [from, to] = this.#currentStageRange(detail);
       const summary = `${detail.villainName.toUpperCase()} · STAGE ${roman(from)}${to > from ? `–${roman(to)}` : ""}`;
-      this.add.text(bar.x + 16, bar.y + bar.height / 2, "Scenario stages", textStyle(typeRole.sectionHeader, surface.paper.hex)).setOrigin(0, 0.5);
-      this.add.text(bar.x + bar.width - 16, bar.y + bar.height / 2, open ? "▾" : "▴", textStyle(typeRole.sectionHeader, surface.paper.hex)).setOrigin(1, 0.5);
+      this.add
+        .text(
+          bar.x + 16,
+          bar.y + bar.height / 2,
+          "Scenario stages",
+          textStyle(typeRole.sectionHeader, surface.paper.hex),
+        )
+        .setOrigin(0, 0.5);
+      this.add
+        .text(
+          bar.x + bar.width - 16,
+          bar.y + bar.height / 2,
+          open ? "▾" : "▴",
+          textStyle(typeRole.sectionHeader, surface.paper.hex),
+        )
+        .setOrigin(1, 0.5);
       if (!open) {
-        const hint = this.add.text(bar.x + bar.width - 40, bar.y + bar.height / 2, summary, textStyle(typeRole.label, surface.paper.hex, ink.label)).setOrigin(1, 0.5);
+        const hint = this.add
+          .text(
+            bar.x + bar.width - 40,
+            bar.y + bar.height / 2,
+            summary,
+            textStyle(typeRole.label, surface.paper.hex, ink.label),
+          )
+          .setOrigin(1, 0.5);
         fitText(hint, bar.width - 40 - 170, typeRole.label.size);
       }
       const toggle = (): void => {
         this.#stagesOpen = !this.#stagesOpen;
         this.#rebuild();
       };
-      this.add.zone(bar.x, bar.y, bar.width, bar.height).setOrigin(0, 0).setInteractive({ useHandCursor: true }).on("pointerup", toggle);
+      this.add
+        .zone(bar.x, bar.y, bar.width, bar.height)
+        .setOrigin(0, 0)
+        .setInteractive({ useHandCursor: true })
+        .on("pointerup", toggle);
       this.#stops.set("stages-toggle", { rect: bar, activate: toggle });
       if (!open) return;
       this.#drawStatStrip(layout.statStrip, detail, layout.statStripRows);
       y = layout.statStrip.y + layout.statStrip.height + 14;
     }
     if (detail.otherVillainNames.length > 0) {
-      const note = this.add.text(rect.x + 16, y, `+ ${detail.otherVillainNames.length} more: ${detail.otherVillainNames.join(", ")}`, textStyle(typeRole.label, surface.paper.hex, ink.label));
+      const note = this.add.text(
+        rect.x + 16,
+        y,
+        `+ ${detail.otherVillainNames.length} more: ${detail.otherVillainNames.join(", ")}`,
+        textStyle(typeRole.label, surface.paper.hex, ink.label),
+      );
       note.setWordWrapWidth(rect.width - 32);
       y += note.height + 8;
     }
@@ -433,10 +595,24 @@ export class ScenarioSelectScene extends Phaser.Scene {
       if (y + boxHeight > contentBottom) break;
       const current = stage.stageNumber >= rangeStart && stage.stageNumber <= rangeEnd;
       const box = this.add.graphics();
-      box.lineStyle(current ? 2 : 1, surface.paper.hex, current ? 1 : ink.disabled).strokeRect(rect.x + 16, y, rect.width - 32, boxHeight);
+      box
+        .lineStyle(current ? 2 : 1, surface.paper.hex, current ? 1 : ink.disabled)
+        .strokeRect(rect.x + 16, y, rect.width - 32, boxHeight);
       const stageLabel = stage.stageLabel ?? roman(stage.stageNumber);
-      this.add.text(rect.x + 24, y + 6, `${stageLabel} · ${detail.villainName.toUpperCase()}`, textStyle(typeRole.sectionHeader, surface.paper.hex, current ? 1 : ink.disabled)).setFontSize(15);
-      this.add.text(rect.x + 24, y + 26, `SCH ${stage.sch} · HP ${formatScaling(stage.hp)} · ATK ${stage.atk}`, textStyle(typeRole.label, surface.paper.hex, current ? ink.label : ink.disabled));
+      this.add
+        .text(
+          rect.x + 24,
+          y + 6,
+          `${stageLabel} · ${detail.villainName.toUpperCase()}`,
+          textStyle(typeRole.sectionHeader, surface.paper.hex, current ? 1 : ink.disabled),
+        )
+        .setFontSize(15);
+      this.add.text(
+        rect.x + 24,
+        y + 26,
+        `SCH ${stage.sch} · HP ${formatScaling(stage.hp)} · ATK ${stage.atk}`,
+        textStyle(typeRole.label, surface.paper.hex, current ? ink.label : ink.disabled),
+      );
       y += boxHeight + 8;
     }
     y += 8;
@@ -449,7 +625,12 @@ export class ScenarioSelectScene extends Phaser.Scene {
       record && record.combined.gamesPlayed > 0
         ? `Your record: ${record.combined.wins} win${record.combined.wins === 1 ? "" : "s"} · ${record.combined.losses} loss${record.combined.losses === 1 ? "" : "es"}.${record.combined.bestClearRounds !== null ? ` Best clear: round ${record.combined.bestClearRounds}.` : ""}`
         : "Not played yet.";
-    const recordNode = this.add.text(rect.x + 16, y, recordText, textStyle(typeRole.body, surface.paper.hex, ink.label));
+    const recordNode = this.add.text(
+      rect.x + 16,
+      y,
+      recordText,
+      textStyle(typeRole.body, surface.paper.hex, ink.label),
+    );
     recordNode.setWordWrapWidth(rect.width - 32);
     y += recordNode.height + 14;
     // "Encounter sets" / "Recommended modular" as label-over-value blocks (second-pass item 5), matching the
@@ -485,7 +666,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
       (s) => this.#draft.scenarioId === (s.id as string),
     ).map((s) => {
       const villain = CARDS_BY_ID.get(s.villainCardId as string);
-      const passesChips = !this.#draft.scenarioFilter.product || (s.packCode as string) === this.#draft.scenarioFilter.product;
+      const passesChips =
+        !this.#draft.scenarioFilter.product || (s.packCode as string) === this.#draft.scenarioFilter.product;
       return {
         item: s,
         packCode: s.packCode as string,
@@ -503,7 +685,10 @@ export class ScenarioSelectScene extends Phaser.Scene {
 
   #inspectScenario(s: Scenario): void {
     const card = CARDS_BY_ID.get(s.villainCardId as string);
-    const face = card?.type === "villain" ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const) : ({ kind: "hero" } as const);
+    const face =
+      card?.type === "villain"
+        ? ({ kind: "villainStage", sideIndex: 0, stageIndex: 0 } as const)
+        : ({ kind: "hero" } as const);
     this.scene.launch(SCENES.inspect, {
       card: { cardId: s.villainCardId as CardId, face },
       choice: { optionId: s.id as string, label: s.multipleVillains ? "Play this scenario" : "Play this villain" },

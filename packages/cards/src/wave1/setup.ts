@@ -1,4 +1,11 @@
-import { CORE_STARTER_DECKS, WAVE1_CARDS, WAVE1_SCENARIOS, WAVE1_STARTER_DECKS, type AnyCard, type CardId } from "@mc/content";
+import {
+  CORE_STARTER_DECKS,
+  WAVE1_CARDS,
+  WAVE1_SCENARIOS,
+  WAVE1_STARTER_DECKS,
+  type AnyCard,
+  type CardId,
+} from "@mc/content";
 
 type VillainVersion = "A" | "B" | "extreme";
 import type { GameSetupConfig, PlayerSetup, VillainSetup } from "@mc/engine";
@@ -57,7 +64,8 @@ const cardsById = new Map<string, AnyCard>(WAVE1_CARDS.map((card) => [card.id, c
 
 /** A wave 1 or Core starter deck as a player seat (quantities expanded; the identity isn't part of the deck). */
 export function wave1StarterDeckSetup(starterDeckId: string): PlayerSetup {
-  const starter = WAVE1_STARTER_DECKS.find((d) => d.id === starterDeckId) ?? CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);
+  const starter =
+    WAVE1_STARTER_DECKS.find((d) => d.id === starterDeckId) ?? CORE_STARTER_DECKS.find((d) => d.id === starterDeckId);
   if (!starter) throw new Error(`no wave 1 or Core starter deck ${starterDeckId}`);
   return {
     identityCardId: starter.identityCardId,
@@ -69,7 +77,11 @@ export function wave1StarterDeckSetup(starterDeckId: string): PlayerSetup {
 const seatsOf = (players: readonly CorePlayer[]): PlayerSetup[] =>
   players.map((seat) => {
     if ("starterDeckId" in seat) return wave1StarterDeckSetup(seat.starterDeckId);
-    return { identityCardId: seat.identityCardId as CardId, deck: seat.deck as readonly CardId[], ...(seat.aspects ? { aspects: seat.aspects } : {}) };
+    return {
+      identityCardId: seat.identityCardId as CardId,
+      deck: seat.deck as readonly CardId[],
+      ...(seat.aspects ? { aspects: seat.aspects } : {}),
+    };
   });
 
 /**
@@ -82,7 +94,11 @@ function wave1EncounterCardsOf(setIds: readonly string[]): CardId[] {
   const deck: CardId[] = [];
   for (const setId of setIds) {
     const members = WAVE1_CARDS.filter(
-      (card) => "encounterSetIds" in card && (card.encounterSetIds as readonly string[]).includes(setId) && card.type !== "villain" && card.type !== "main_scheme",
+      (card) =>
+        "encounterSetIds" in card &&
+        (card.encounterSetIds as readonly string[]).includes(setId) &&
+        card.type !== "villain" &&
+        card.type !== "main_scheme",
     );
     if (members.length === 0) throw new Error(`encounter set ${setId} has no wave 1 cards`);
     for (const card of members) for (let copy = 0; copy < card.quantityInSet; copy++) deck.push(card.id);
@@ -91,8 +107,12 @@ function wave1EncounterCardsOf(setIds: readonly string[]): CardId[] {
 }
 
 /** A single-villain wave 1 scenario (Risky Business, Mutagen Formula) — the `gobScenario` shape, generalized. */
-function buildSingleVillain(scenario: (typeof WAVE1_SCENARIOS)[number], options: Wave1ScenarioOptions): GameSetupConfig {
-  if (options.difficulty === "extreme") throw new Error(`${scenario.id} has one villain; "extreme" is Breakout's own multi-villain challenge`);
+function buildSingleVillain(
+  scenario: (typeof WAVE1_SCENARIOS)[number],
+  options: Wave1ScenarioOptions,
+): GameSetupConfig {
+  if (options.difficulty === "extreme")
+    throw new Error(`${scenario.id} has one villain; "extreme" is Breakout's own multi-villain challenge`);
   const difficulty = options.difficulty ?? "standard";
   const villain = cardsById.get(scenario.villainCardId);
   if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);
@@ -138,10 +158,16 @@ function buildSingleVillain(scenario: (typeof WAVE1_SCENARIOS)[number], options:
 function buildMultiVillain(scenario: (typeof WAVE1_SCENARIOS)[number], options: Wave1ScenarioOptions): GameSetupConfig {
   const multi = scenario.multipleVillains;
   if (!multi) throw new Error(`${scenario.id} has no multipleVillains`);
-  if (options.difficulty !== undefined && options.difficulty !== "standard" && options.difficulty !== "expert" && options.difficulty !== "extreme") {
+  if (
+    options.difficulty !== undefined &&
+    options.difficulty !== "standard" &&
+    options.difficulty !== "expert" &&
+    options.difficulty !== "extreme"
+  ) {
     throw new Error(`unknown difficulty ${options.difficulty as string}`);
   }
-  const defaultVersion: VillainVersion = options.difficulty === "expert" ? "B" : options.difficulty === "extreme" ? "extreme" : "A";
+  const defaultVersion: VillainVersion =
+    options.difficulty === "expert" ? "B" : options.difficulty === "extreme" ? "extreme" : "A";
   if (options.players.length < 1 || options.players.length > 4) throw new Error("a game has 1-4 players");
   const villains: VillainSetup[] = multi.villains.map((villain, index) => ({
     villainCardId: villain.villainCardId,
@@ -170,13 +196,24 @@ function buildMultiVillain(scenario: (typeof WAVE1_SCENARIOS)[number], options: 
  */
 export function wave1Scenario(scenarioId: string, options: Wave1ScenarioOptions): GameSetupConfig {
   const scenario = WAVE1_SCENARIOS.find((s) => s.id === scenarioId);
-  if (scenario) return scenario.multipleVillains ? buildMultiVillain(scenario, options) : buildSingleVillain(scenario, options);
-  if (options.difficulty === "extreme") throw new Error(`${scenarioId} is a Core scenario; "extreme" is Breakout's own multi-villain challenge`);
+  if (scenario)
+    return scenario.multipleVillains ? buildMultiVillain(scenario, options) : buildSingleVillain(scenario, options);
+  if (options.difficulty === "extreme")
+    throw new Error(`${scenarioId} is a Core scenario; "extreme" is Breakout's own multi-villain challenge`);
   const players: readonly CorePlayer[] = options.players.map((seat) => {
     if (!("starterDeckId" in seat)) return seat;
     const setup = wave1StarterDeckSetup(seat.starterDeckId);
-    return { identityCardId: setup.identityCardId, deck: setup.deck, ...(setup.aspects ? { aspects: setup.aspects } : {}) };
+    return {
+      identityCardId: setup.identityCardId,
+      deck: setup.deck,
+      ...(setup.aspects ? { aspects: setup.aspects } : {}),
+    };
   });
   const { difficulty: _difficulty, villainVersions: _villainVersions, ...rest } = options;
-  return coreScenario(scenarioId, { ...rest, ...(options.difficulty ? { difficulty: options.difficulty as CoreDifficulty } : {}), players, cardPool: WAVE1_CARDS });
+  return coreScenario(scenarioId, {
+    ...rest,
+    ...(options.difficulty ? { difficulty: options.difficulty as CoreDifficulty } : {}),
+    players,
+    cardPool: WAVE1_CARDS,
+  });
 }

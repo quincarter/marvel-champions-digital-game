@@ -248,11 +248,30 @@ export const selectionRing = {
   pulseMs: 900,
 } as const;
 
-/** How long the readable state-change beats run. Halved to 0 under reduced motion. */
+/**
+ * How long each kind of motion runs. Every one is "enough to make the state
+ * change readable, not spectacle" (PLAN.md Phase 4): a card is never seen
+ * to *arrive* so much as to have been *put down*. Under reduced motion the
+ * information stays and the movement goes — a beat is held still, a wipe is
+ * a plain caption, a panel appears in place (`ui/transitions.ts`).
+ */
 export const motion = {
+  /** A ghost card travelling between two zones (`view/travel.ts`). */
   cardMoveMs: 220,
+  /** A damage or heal beat, and the HP number counting to its new value. */
   damageMs: 260,
+  /** The threat meter's fill sliding to its new length. */
   threatMs: 300,
+  /** The band that wipes across the table when the phase or the round turns. */
   phaseWipeMs: 420,
+  /** A status stamped onto a card: STUNNED, CONFUSED, TOUGH. */
   statusStampMs: 340,
+  /** A card in play turning a quarter turn as it exhausts, and back as it readies. */
+  exhaustTurnMs: 240,
+  /** An overlay (Inspect, a decision, Pause) rising into place over the table. */
+  overlayEnterMs: 180,
+  /** The same overlay leaving. Shorter: the player has already decided. */
+  overlayExitMs: 120,
+  /** One full screen giving way to the next (Title → Scenario, Setup → Board). */
+  screenFadeMs: 200,
 } as const;

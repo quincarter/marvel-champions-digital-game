@@ -10,7 +10,13 @@
  * `docs/phase7-wave1-scripting.md` — but scripting coverage is per pack (`wave1/coverage.test.ts`'s `PACK_STATUS`),
  * so this file stays the one check every wave 1 precon gets regardless of whether its pack is scripted yet.
  */
-import { WAVE1_CARDS, WAVE1_STARTER_DECKS, type DeckContents, type HeroIdentityCard, type StarterDeck } from "@mc/content";
+import {
+  WAVE1_CARDS,
+  WAVE1_STARTER_DECKS,
+  type DeckContents,
+  type HeroIdentityCard,
+  type StarterDeck,
+} from "@mc/content";
 import { requiredIdentitySet, validateDeck } from "@mc/engine";
 
 const byId = new Map(WAVE1_CARDS.map((c) => [c.id as string, c]));
@@ -36,7 +42,9 @@ describe("wave 1 precons — six hero packs", () => {
 
   it.each(WAVE1_STARTER_DECKS.map((d) => [d.id, d] as const))("%s: validateDeck reports no problems", (_id, deck) => {
     const result = validateDeck(contentsOf(deck), WAVE1_CARDS);
-    expect(result.ok, result.ok ? undefined : JSON.stringify((result as { problems: unknown }).problems, null, 2)).toBe(true);
+    expect(result.ok, result.ok ? undefined : JSON.stringify((result as { problems: unknown }).problems, null, 2)).toBe(
+      true,
+    );
   });
 
   it.each(WAVE1_STARTER_DECKS.map((d) => [d.id, d] as const))("%s: sources are verified", (_id, deck) => {
@@ -44,35 +52,44 @@ describe("wave 1 precons — six hero packs", () => {
     expect(deck.provenance.sources.length).toBeGreaterThan(0);
   });
 
-  it.each(WAVE1_STARTER_DECKS.map((d) => [d.id, d] as const))("%s: exactly 40 cards, within box quantity and deck limit", (_id, deck) => {
-    expect(deck.cards.reduce((n, e) => n + e.quantity, 0)).toBe(40);
-    for (const e of deck.cards) {
-      const card = byId.get(e.cardId as string);
-      expect(card && "deckLimit" in card, e.cardId as string).toBe(true);
-      if (!card || !("deckLimit" in card)) continue;
-      expect(e.quantity, e.cardId as string).toBeLessThanOrEqual(Math.min(card.quantityInSet, card.deckLimit));
-    }
-  });
-
-  it.each(WAVE1_STARTER_DECKS.map((d) => [d.id, d] as const))("%s: requiredIdentitySet matches the deck's signature cards exactly", (_id, deck) => {
-    const identity = byId.get(deck.identityCardId as string);
-    expect(identity?.type).toBe("hero_identity");
-    if (identity?.type !== "hero_identity") return;
-    const required = requiredIdentitySet(identity as HeroIdentityCard, WAVE1_CARDS);
-    const inDeck = new Map(deck.cards.map((e) => [e.cardId as string, e.quantity]));
-    for (const req of required) {
-      expect(inDeck.get(req.cardId as string), `${deck.id}: missing/short ${req.cardId}`).toBe(req.quantity);
-    }
-    // And nothing the deck carries a hero-set aspect that isn't in `required` (the exempted separate-deck
-    // cards excepted, e.g. Doctor Strange's Invocation events).
-    const requiredIds = new Set(required.map((r) => r.cardId as string));
-    for (const e of deck.cards) {
-      const card = byId.get(e.cardId as string);
-      if (card && "aspect" in card && card.aspect === `hero:${identity.id}`) {
-        expect(requiredIds.has(e.cardId as string), `${deck.id}: ${e.cardId} is a hero-set card missing from requiredIdentitySet`).toBe(true);
+  it.each(WAVE1_STARTER_DECKS.map((d) => [d.id, d] as const))(
+    "%s: exactly 40 cards, within box quantity and deck limit",
+    (_id, deck) => {
+      expect(deck.cards.reduce((n, e) => n + e.quantity, 0)).toBe(40);
+      for (const e of deck.cards) {
+        const card = byId.get(e.cardId as string);
+        expect(card && "deckLimit" in card, e.cardId as string).toBe(true);
+        if (!card || !("deckLimit" in card)) continue;
+        expect(e.quantity, e.cardId as string).toBeLessThanOrEqual(Math.min(card.quantityInSet, card.deckLimit));
       }
-    }
-  });
+    },
+  );
+
+  it.each(WAVE1_STARTER_DECKS.map((d) => [d.id, d] as const))(
+    "%s: requiredIdentitySet matches the deck's signature cards exactly",
+    (_id, deck) => {
+      const identity = byId.get(deck.identityCardId as string);
+      expect(identity?.type).toBe("hero_identity");
+      if (identity?.type !== "hero_identity") return;
+      const required = requiredIdentitySet(identity as HeroIdentityCard, WAVE1_CARDS);
+      const inDeck = new Map(deck.cards.map((e) => [e.cardId as string, e.quantity]));
+      for (const req of required) {
+        expect(inDeck.get(req.cardId as string), `${deck.id}: missing/short ${req.cardId}`).toBe(req.quantity);
+      }
+      // And nothing the deck carries a hero-set aspect that isn't in `required` (the exempted separate-deck
+      // cards excepted, e.g. Doctor Strange's Invocation events).
+      const requiredIds = new Set(required.map((r) => r.cardId as string));
+      for (const e of deck.cards) {
+        const card = byId.get(e.cardId as string);
+        if (card && "aspect" in card && card.aspect === `hero:${identity.id}`) {
+          expect(
+            requiredIds.has(e.cardId as string),
+            `${deck.id}: ${e.cardId} is a hero-set card missing from requiredIdentitySet`,
+          ).toBe(true);
+        }
+      }
+    },
+  );
 
   it("Doctor Strange's Invocation cards are never listed in the deck", () => {
     const deck = deckId("drs-protection");

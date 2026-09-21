@@ -1,34 +1,42 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeVillain, applyCommand, type Command, type GameEvent, type GameState, type InstanceId } from "@mc/engine";
-import { applyOk, endTurn, firstLegal, identityOf, inst, moveToHand, P1, patchInstance, payWith, picking, play as playCommand, playerOf, settle, stackEncounterDeck, toHero } from "../../testing/harness.js";
+import {
+  activeEncounterDeck,
+  activeVillain,
+  applyCommand,
+  type Command,
+  type GameState,
+  type InstanceId,
+} from "@mc/engine";
+import {
+  endTurn,
+  identityOf,
+  inst,
+  moveToHand,
+  P1,
+  patchInstance,
+  payWith,
+  picking,
+  play as playCommand,
+  playerOf,
+  settle,
+  stackEncounterDeck,
+  toHero,
+} from "../../testing/harness.js";
+import { driveEvents } from "../testing.js";
 import { GOB_DEPS, runGob, startGobGame } from "./testing.js";
 import { wave1Scenario } from "../setup.js";
 
 const spiderManVsRiskyBusiness = (modularSetIds: readonly string[]) =>
-  startGobGame(wave1Scenario("risky-business", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 17, modularSetIds }));
+  startGobGame(
+    wave1Scenario("risky-business", {
+      players: [{ starterDeckId: "core-spider-man-justice" }],
+      seed: 17,
+      modularSetIds,
+    }),
+  );
 
-const play = (state: GameState, ...commands: readonly Command[]): GameState => settle(runGob(state, ...commands), undefined, undefined, GOB_DEPS);
-
-function driveEvents(state: GameState, ...commands: readonly Command[]): { readonly state: GameState; readonly events: readonly GameEvent[] } {
-  let current = state;
-  const events: GameEvent[] = [];
-  const settleOne = () => {
-    while (current.pendingChoice && !current.outcome) {
-      const choice = current.pendingChoice;
-      const result = applyOk(current, { type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: firstLegal(current) }, GOB_DEPS);
-      current = result.state;
-      events.push(...result.events);
-    }
-  };
-  settleOne();
-  for (const command of commands) {
-    const result = applyOk(current, command, GOB_DEPS);
-    current = result.state;
-    events.push(...result.events);
-    settleOne();
-  }
-  return { state: current, events };
-}
+const play = (state: GameState, ...commands: readonly Command[]): GameState =>
+  settle(runGob(state, ...commands), undefined, undefined, GOB_DEPS);
 
 describe("Goblin Gimmicks", () => {
   it("Regenerative Healing: heals the villain X = double the villain's stage number (stage 1: 2), and gains no surge", () => {
@@ -76,7 +84,9 @@ describe("A Mess of Things", () => {
     const identity = identityOf(start);
     const stunned = patchInstance(start, identity, { statuses: { stunned: 1, confused: 0, tough: 0 } });
     const after = play(stackEncounterDeck(stunned, "02012", "02037"), endTurn());
-    const mess = Object.keys(after.instances).find((id) => after.instances[id as never]?.cardId === "02037") as InstanceId;
+    const mess = Object.keys(after.instances).find(
+      (id) => after.instances[id as never]?.cardId === "02037",
+    ) as InstanceId;
     // Printed startingThreat 2 (base 2, flat) + 2 additional per stunned friendly character (1) = 4.
     expect(inst(after, mess).threat).toBe(4);
   });
@@ -147,7 +157,9 @@ describe("Power Drain", () => {
     // Electro (02042, 2 boost icons) and Electromagnetic Pulse (02043, 2 boost icons) wait right behind it,
     // untouched by anything else, to be the exact 2 cards its own "When Defeated" discards.
     const round1 = play(stackEncounterDeck(start, "02012", "02041", "02042", "02043"), endTurn());
-    const powerDrain = Object.keys(round1.instances).find((id) => round1.instances[id as never]?.cardId === "02041") as InstanceId;
+    const powerDrain = Object.keys(round1.instances).find(
+      (id) => round1.instances[id as never]?.cardId === "02041",
+    ) as InstanceId;
     expect(powerDrain).toBeDefined();
     expect(round1.villainArea).toContain(powerDrain);
     expect(inst(round1, powerDrain).threat).toBe(2);
@@ -178,7 +190,9 @@ describe("Running Interference", () => {
     // Spider-Man's starter deck has no guaranteed spare [mental]+[physical] resource cards in hand at turn 1 in
     // every seed, so `firstLegal`'s default (decline the payment) is the deterministic outcome to assert on.
     const after = play(stackEncounterDeck(start, "02012", "02046"), endTurn());
-    const running = Object.keys(after.instances).find((id) => after.instances[id as never]?.cardId === "02046") as InstanceId;
+    const running = Object.keys(after.instances).find(
+      (id) => after.instances[id as never]?.cardId === "02046",
+    ) as InstanceId;
     expect(inst(after, running).threat).toBeGreaterThanOrEqual(1); // printed 1[per_hero] (1) plus, if declined, +2
   });
 

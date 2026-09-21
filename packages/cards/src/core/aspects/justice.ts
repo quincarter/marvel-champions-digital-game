@@ -37,7 +37,11 @@ export const JUSTICE = defineAbilities({
   // The Power of Justice — Double the number of resources this card generates while paying for a Justice (yellow) card.
   "01062.the-power-of-justice-constant": constant(doublesResourcesWhilePayingFor({ aspect: "justice" })),
   // Interrogation Room — Response: After you defeat a minion, exhaust Interrogation Room → remove 1 threat from a scheme.
-  "01063.interrogation-room-response": response(after.defeated(query("minion"), { byYou: true }), { cost: exhaustThis }, removeThreatFromAScheme(1)),
+  "01063.interrogation-room-response": response(
+    after.defeated(query("minion"), { byYou: true }),
+    { cost: exhaustThis },
+    removeThreatFromAScheme(1),
+  ),
   // Surveillance Team — Uses (3 snoop counters). Action: Exhaust Surveillance Team and remove 1 snoop counter from it → remove 1 threat from a scheme.
   "01064.surveillance-team-action": action({ cost: [exhaustThis, removeCounter("snoop")] }, removeThreatFromAScheme(1)),
   // Heroic Intuition — Your hero gets +1 THW. ("Your" = the player who controls this upgrade.)

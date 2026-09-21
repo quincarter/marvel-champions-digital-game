@@ -642,6 +642,7 @@ export const NCRAWLER_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("nightcrawler_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("NEYAPHEM")],
     keywords: [{ name: "quickstrike" }],
     text: {

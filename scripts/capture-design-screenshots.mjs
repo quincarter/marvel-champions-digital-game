@@ -1,18 +1,18 @@
 #!/usr/bin/env node
 
-import { chromium } from 'playwright';
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
-import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { chromium } from "playwright";
+import { mkdir, readdir, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 const projectRoot = process.cwd();
 const defaults = {
-  input: 'Marvel Champions game screens',
-  output: 'artifacts/design-screenshots',
+  input: "Marvel Champions game screens",
+  output: "artifacts/design-screenshots",
   width: 1600,
   height: 1200,
-  browser: 'chrome',
+  browser: "chrome",
 };
 
 function usage() {
@@ -40,21 +40,21 @@ function parseArgs(args) {
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
     // pnpm forwards the conventional argument separator to the script.
-    if (arg === '--') {
+    if (arg === "--") {
       continue;
     }
-    if (arg === '--help' || arg === '-h') {
+    if (arg === "--help" || arg === "-h") {
       options.help = true;
       continue;
     }
 
     const key = arg.slice(2);
-    if (!['input', 'output', 'width', 'height', 'browser'].includes(key) || !arg.startsWith('--')) {
+    if (!["input", "output", "width", "height", "browser"].includes(key) || !arg.startsWith("--")) {
       throw new Error(`Unknown option: ${arg}`);
     }
 
     const value = args[index + 1];
-    if (!value || value.startsWith('--')) {
+    if (!value || value.startsWith("--")) {
       throw new Error(`Missing value for ${arg}`);
     }
     options[key] = value;
@@ -63,8 +63,13 @@ function parseArgs(args) {
 
   options.width = Number(options.width);
   options.height = Number(options.height);
-  if (!Number.isInteger(options.width) || options.width < 1 || !Number.isInteger(options.height) || options.height < 1) {
-    throw new Error('--width and --height must be positive whole numbers.');
+  if (
+    !Number.isInteger(options.width) ||
+    options.width < 1 ||
+    !Number.isInteger(options.height) ||
+    options.height < 1
+  ) {
+    throw new Error("--width and --height must be positive whole numbers.");
   }
 
   return options;
@@ -77,8 +82,8 @@ async function findHtmlFiles(directory) {
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const entryPath = path.join(directory, entry.name);
     if (entry.isDirectory()) {
-      files.push(...await findHtmlFiles(entryPath));
-    } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.html')) {
+      files.push(...(await findHtmlFiles(entryPath)));
+    } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".html")) {
       files.push(entryPath);
     }
   }
@@ -87,17 +92,19 @@ async function findHtmlFiles(directory) {
 }
 
 function screenshotName(relativeFile) {
-  return relativeFile
-    .replace(/\.html$/i, '')
-    .replace(/[\\/]/g, '--')
-    .replace(/[^a-z0-9._-]+/gi, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .toLowerCase() + '.png';
+  return (
+    relativeFile
+      .replace(/\.html$/i, "")
+      .replace(/[\\/]/g, "--")
+      .replace(/[^a-z0-9._-]+/gi, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "")
+      .toLowerCase() + ".png"
+  );
 }
 
 function outputDirectoryName(relativeFile) {
-  return screenshotName(relativeFile).replace(/\.png$/i, '');
+  return screenshotName(relativeFile).replace(/\.png$/i, "");
 }
 
 async function main() {
@@ -126,8 +133,8 @@ async function main() {
   } catch (error) {
     throw new Error(
       `Could not launch the ${options.browser} browser channel. Install Google Chrome or run ` +
-      '`pnpm exec playwright install chromium`, then retry.\n\n' +
-      error.message,
+        "`pnpm exec playwright install chromium`, then retry.\n\n" +
+        error.message,
     );
   }
 
@@ -143,7 +150,7 @@ async function main() {
       const outputFile = path.join(outputDirectory, screenshotName(relativeFile));
       console.log(`Capturing ${relativeFile}`);
 
-      await page.goto(pathToFileURL(file).href, { waitUntil: 'domcontentloaded' });
+      await page.goto(pathToFileURL(file).href, { waitUntil: "domcontentloaded" });
       await page.evaluate(async () => {
         await document.fonts?.ready;
         await Promise.all([...document.images].map((image) => image.decode().catch(() => undefined)));
@@ -157,25 +164,26 @@ async function main() {
       };
       manifest.push(capture);
 
-      const screenLocator = page.locator('[data-screen-label], div[id]');
-      const screens = await screenLocator.evaluateAll((elements) => elements
-        .map((element, index) => ({
-          index,
-          label: element.getAttribute('data-screen-label') ?? element.id,
-          isScreen: element.hasAttribute('data-screen-label') || /^s\d{2}$/.test(element.id),
-        }))
-        .filter((screen) => screen.isScreen),
+      const screenLocator = page.locator("[data-screen-label], div[id]");
+      const screens = await screenLocator.evaluateAll((elements) =>
+        elements
+          .map((element, index) => ({
+            index,
+            label: element.getAttribute("data-screen-label") ?? element.id,
+            isScreen: element.hasAttribute("data-screen-label") || /^s\d{2}$/.test(element.id),
+          }))
+          .filter((screen) => screen.isScreen),
       );
 
       if (screens.length > 0) {
-        const individualDirectory = path.join(outputDirectory, 'individual', outputDirectoryName(relativeFile));
+        const individualDirectory = path.join(outputDirectory, "individual", outputDirectoryName(relativeFile));
         await mkdir(individualDirectory, { recursive: true });
 
         for (let index = 0; index < screens.length; index += 1) {
           const screen = screens[index];
           const screenFile = path.join(
             individualDirectory,
-            `${String(index + 1).padStart(2, '0')}-${screenshotName(screen.label)}`,
+            `${String(index + 1).padStart(2, "0")}-${screenshotName(screen.label)}`,
           );
           await screenLocator.nth(screen.index).screenshot({ path: screenFile });
           capture.screens.push({
@@ -189,12 +197,19 @@ async function main() {
     await browser?.close();
   }
 
-  const manifestFile = path.join(outputDirectory, 'manifest.json');
-  await writeFile(manifestFile, `${JSON.stringify({
-    generatedAt: new Date().toISOString(),
-    viewport: { width: options.width, height: options.height },
-    captures: manifest,
-  }, null, 2)}\n`);
+  const manifestFile = path.join(outputDirectory, "manifest.json");
+  await writeFile(
+    manifestFile,
+    `${JSON.stringify(
+      {
+        generatedAt: new Date().toISOString(),
+        viewport: { width: options.width, height: options.height },
+        captures: manifest,
+      },
+      null,
+      2,
+    )}\n`,
+  );
 
   console.log(`Captured ${manifest.length} HTML file(s) in ${path.relative(projectRoot, outputDirectory)}`);
 }

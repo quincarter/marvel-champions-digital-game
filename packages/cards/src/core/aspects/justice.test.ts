@@ -18,7 +18,8 @@ import {
   toHero,
 } from "../../testing/harness.js";
 
-const spiderManVsRhino = () => startCoreGame(coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }));
+const spiderManVsRhino = () =>
+  startCoreGame(coreScenario("rhino", { players: [{ starterDeckId: "core-spider-man-justice" }], seed: 11 }));
 
 describe("Justice", () => {
   it("Interrogation Room: after you defeat a minion, exhaust it → remove 1 threat from a scheme", () => {
@@ -33,7 +34,11 @@ describe("Justice", () => {
     // Guard: the Hydra Mercenary is the only enemy Spider-Man may attack.
     expect(targeting.pendingChoice?.options.map((o) => o.optionId)).toEqual([mercenary]);
     const roomOption = `${room}:01063.interrogation-room-response`;
-    const offered = settle(answer(targeting, [mercenary as string]), firstLegal, (s) => s.pendingChoice?.options.some((o) => o.optionId === roomOption) ?? false);
+    const offered = settle(
+      answer(targeting, [mercenary as string]),
+      firstLegal,
+      (s) => s.pendingChoice?.options.some((o) => o.optionId === roomOption) ?? false,
+    );
     const after = settle(answer(offered, [roomOption]));
     expect(activeEncounterDeck(after).discard).toContain(mercenary);
     expect(inst(after, room).exhausted).toBe(true);

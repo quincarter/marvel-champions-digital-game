@@ -20,7 +20,10 @@ test("'I Object!' resolves at most once per round across full 4-player games", (
       for (const seed of [11, 12]) {
         const players: string[] = [...HEROES];
         players.splice(seat, 0, "core-she-hulk-aggression");
-        const created = createGame(coreScenario(villain, { players: players.map((starterDeckId) => ({ starterDeckId })), seed }), CORE_DEPS);
+        const created = createGame(
+          coreScenario(villain, { players: players.map((starterDeckId) => ({ starterDeckId })), seed }),
+          CORE_DEPS,
+        );
         if (!created.ok) throw new Error(created.error.message);
         const { session } = playToOutcome(created.state, CORE_DEPS, { maxCommands: 4000 });
 

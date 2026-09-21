@@ -25,8 +25,18 @@ const PACIFIST = stubAlly({ id: "pacifist", cost: 0, atk: null, thw: 1, hp: 3 })
 const allyThwart = stubAbility("ally-thwart", {
   trigger: { kind: "action" },
   effects: [
-    { kind: "chooseTarget", slot: "a", chooser: { kind: "controller" }, query: { categories: ["ally"], controller: "you" } },
-    { kind: "thwart", target: { kind: "mainScheme" }, amount: { kind: "const", value: 2 }, thwarter: { kind: "slot", slot: "a" } },
+    {
+      kind: "chooseTarget",
+      slot: "a",
+      chooser: { kind: "controller" },
+      query: { categories: ["ally"], controller: "you" },
+    },
+    {
+      kind: "thwart",
+      target: { kind: "mainScheme" },
+      amount: { kind: "const", value: 2 },
+      thwarter: { kind: "slot", slot: "a" },
+    },
   ],
 });
 const ORDER = stubEvent({ id: "order", cost: 0, abilities: [allyThwart.ref] });
@@ -43,20 +53,39 @@ function start() {
   });
   const given = giveCards(state, p1, "hulk", "pacifist", "order");
   const [hulk, pacifist, order] = given.ids as [InstanceId, InstanceId, InstanceId];
-  const play = (id: InstanceId): Command => ({ type: "playCard", playerId: p1, cardInstanceId: id, payment: [], attachToInstanceId: null });
+  const play = (id: InstanceId): Command => ({
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: id,
+    payment: [],
+    attachToInstanceId: null,
+  });
   return { deps, state: runWith(deps, given.state, play(hulk), play(pacifist)), hulk, pacifist, order, play };
 }
 
 test("an ally with a printed '—' THW cannot make a basic thwart, and stays ready", () => {
   const { deps, state, hulk } = start();
-  const result = applyCommand(state, { type: "basicThwart", playerId: p1, thwarterInstanceId: hulk, schemeInstanceId: state.mainScheme.instanceId }, deps);
+  const result = applyCommand(
+    state,
+    { type: "basicThwart", playerId: p1, thwarterInstanceId: hulk, schemeInstanceId: state.mainScheme.instanceId },
+    deps,
+  );
   expect(result.ok).toBe(false);
   expect(mustInstance(state, hulk).exhausted).toBe(false);
 });
 
 test("an ally with a printed '—' ATK cannot make a basic attack", () => {
   const { deps, state, pacifist } = start();
-  const result = applyCommand(state, { type: "basicAttack", playerId: p1, attackerInstanceId: pacifist, targetInstanceId: activeVillain(state).instanceId }, deps);
+  const result = applyCommand(
+    state,
+    {
+      type: "basicAttack",
+      playerId: p1,
+      attackerInstanceId: pacifist,
+      targetInstanceId: activeVillain(state).instanceId,
+    },
+    deps,
+  );
   expect(result.ok).toBe(false);
 });
 
@@ -64,9 +93,27 @@ test("a '(thwart)' effect made by a character with a '—' THW removes no threat
   const { deps, state, hulk, pacifist, order, play } = start();
   const atChoice = runWith(deps, state, play(order));
   expect(atChoice.pendingChoice?.options.map((o) => o.optionId)).toEqual(expect.arrayContaining([hulk, pacifist]));
-  const byHulk = applyCommand(atChoice, { type: "resolveChoice", playerId: p1, choiceId: atChoice.pendingChoice?.choiceId as never, selectedOptionIds: [hulk] }, deps);
+  const byHulk = applyCommand(
+    atChoice,
+    {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: atChoice.pendingChoice?.choiceId as never,
+      selectedOptionIds: [hulk],
+    },
+    deps,
+  );
   expect(byHulk.ok && threat(byHulk.state)).toBe(5);
-  const byPacifist = applyCommand(atChoice, { type: "resolveChoice", playerId: p1, choiceId: atChoice.pendingChoice?.choiceId as never, selectedOptionIds: [pacifist] }, deps);
+  const byPacifist = applyCommand(
+    atChoice,
+    {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: atChoice.pendingChoice?.choiceId as never,
+      selectedOptionIds: [pacifist],
+    },
+    deps,
+  );
   expect(byPacifist.ok && threat(byPacifist.state)).toBe(3);
 });
 
@@ -74,16 +121,30 @@ test("an enemy with a printed '—' SCH skips its scheme activation; an 'X' stat
   const idler = stubMinion({ id: "idler", atk: 1, sch: null, hp: 3, boostIcons: 0 });
   const titan = stubMinion({ id: "titan", atk: "X", sch: 1, hp: 6, boostIcons: 0 });
   const deps = depsOf();
-  const state = newGame({ villain: VILLAIN, mainScheme: SCHEME, extraCards: [idler, titan, BLANK], encounterDeck: copies(idler.id, 20), deps });
+  const state = newGame({
+    villain: VILLAIN,
+    mainScheme: SCHEME,
+    extraCards: [idler, titan, BLANK],
+    encounterDeck: copies(idler.id, 20),
+    deps,
+  });
   const roundTwo = settle(runWith(deps, state, { type: "endTurn", playerId: p1 }), undefined, deps);
   expect(mustPlayer(roundTwo, p1).playArea.some((id) => roundTwo.instances[id]?.cardId === idler.id)).toBe(true);
   // Round 2: the engaged idler activates against an alter-ego (a scheme) — and places nothing.
   const roundThree = settle(runWith(deps, roundTwo, { type: "endTurn", playerId: p1 }), undefined, deps);
   expect(threat(roundThree)).toBe(5);
 
-  const withTitan = newGame({ villain: VILLAIN, mainScheme: SCHEME, extraCards: [titan, BLANK], encounterDeck: copies(titan.id, 20), deps });
+  const withTitan = newGame({
+    villain: VILLAIN,
+    mainScheme: SCHEME,
+    extraCards: [titan, BLANK],
+    encounterDeck: copies(titan.id, 20),
+    deps,
+  });
   const titanRound = settle(runWith(deps, withTitan, { type: "endTurn", playerId: p1 }), undefined, deps);
-  const titanId = mustPlayer(titanRound, p1).playArea.find((id) => titanRound.instances[id]?.cardId === titan.id) as InstanceId;
+  const titanId = mustPlayer(titanRound, p1).playArea.find(
+    (id) => titanRound.instances[id]?.cardId === titan.id,
+  ) as InstanceId;
   expect(characterProfile(titanRound, titanId, deps)?.atk).toBe(0);
   expect(characterProfile(titanRound, titanId, deps)?.missing).toEqual([]);
 });

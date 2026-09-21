@@ -860,6 +860,7 @@ export const STORM_CARDS: readonly AnyCard[] = [
     startingThreat: { base: 6, perPlayer: 0 },
     icons: ["acceleration"],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -907,6 +908,7 @@ export const STORM_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/36039.png") },
     encounterSetIds: [encounterSetId("shadow_king")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {

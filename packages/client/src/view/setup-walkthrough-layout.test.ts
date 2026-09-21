@@ -47,8 +47,20 @@ describe("setupWalkthroughLayout", () => {
   }
 
   test("a two-row checklist at phone width shrinks the hand row and revealed panel to stay on screen, never the checklist or the commit row's touch target", () => {
-    const oneRow = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 3, seatCount: 4, checklistRows: 1 });
-    const twoRows = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 3, seatCount: 4, checklistRows: 2 });
+    const oneRow = setupWalkthroughLayout({
+      width: 390,
+      height: 844,
+      otherSeatCount: 3,
+      seatCount: 4,
+      checklistRows: 1,
+    });
+    const twoRows = setupWalkthroughLayout({
+      width: 390,
+      height: 844,
+      otherSeatCount: 3,
+      seatCount: 4,
+      checklistRows: 2,
+    });
     expect(twoRows.checklist.height).toBeGreaterThan(oneRow.checklist.height);
     expect(twoRows.handRow.height).toBeLessThan(oneRow.handRow.height);
     expect(twoRows.commitRow.height).toBe(oneRow.commitRow.height);
@@ -57,7 +69,14 @@ describe("setupWalkthroughLayout", () => {
 
   test("the phone hand row never shrinks below a strip of readable full-height cards; the revealed panel gives first", () => {
     // The tightest phone case this screen is tested at: a 4-player game, a two-row checklist, a revealed setup card.
-    const phone = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 3, seatCount: 4, checklistRows: 2, hasRevealedCard: true });
+    const phone = setupWalkthroughLayout({
+      width: 390,
+      height: 844,
+      otherSeatCount: 3,
+      seatCount: 4,
+      checklistRows: 2,
+      hasRevealedCard: true,
+    });
     expect(phone.handRow.height).toBeGreaterThanOrEqual(180);
     // The room came out of the revealed-card panel, not the commit row or the log's own floor.
     expect(phone.revealedPanel!.height).toBeLessThan(120);
@@ -67,12 +86,26 @@ describe("setupWalkthroughLayout", () => {
   });
 
   test("when even the floors can't fit (a five-row checklist on a narrow phone), the strip floor gives way to the row floor before anything overflows", () => {
-    const phone = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 3, seatCount: 4, checklistRows: 5, hasRevealedCard: true });
+    const phone = setupWalkthroughLayout({
+      width: 390,
+      height: 844,
+      otherSeatCount: 3,
+      seatCount: 4,
+      checklistRows: 5,
+      hasRevealedCard: true,
+    });
     expect(phone.handRow.height).toBe(120);
     expect(phone.revealedPanel!.height).toBe(70);
     // A four-row checklist with two other seats is the tightest case that still fits: the hand gives up its strip
     // floor only as far as needed.
-    const tight = setupWalkthroughLayout({ width: 390, height: 844, otherSeatCount: 2, seatCount: 3, checklistRows: 4, hasRevealedCard: true });
+    const tight = setupWalkthroughLayout({
+      width: 390,
+      height: 844,
+      otherSeatCount: 2,
+      seatCount: 3,
+      checklistRows: 4,
+      hasRevealedCard: true,
+    });
     expect(tight.handRow.height).toBeGreaterThanOrEqual(120);
     expect(tight.handRow.height).toBeLessThan(180);
     expect(tight.logPanel!.y + tight.logPanel!.height).toBeLessThanOrEqual(tight.commitRow.y);
@@ -80,7 +113,11 @@ describe("setupWalkthroughLayout", () => {
 
   test("tablet landscape is the all-seats composition; every other size is the focus composition", () => {
     expect(setupWalkthroughLayout({ width: 1024, height: 768, otherSeatCount: 3, seatCount: 4 }).mode).toBe("allSeats");
-    for (const size of [{ width: 390, height: 844 }, { width: 768, height: 1024 }, { width: 1440, height: 900 }]) {
+    for (const size of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+      { width: 1440, height: 900 },
+    ]) {
       expect(setupWalkthroughLayout({ ...size, otherSeatCount: 3, seatCount: 4 }).mode).toBe("focus");
     }
   });
@@ -123,7 +160,9 @@ describe("setupWalkthroughLayout", () => {
     const ys = new Set(desktop.otherSeats.map((rect) => Math.round(rect.y)));
     expect(ys.size).toBe(1);
     for (let i = 1; i < desktop.otherSeats.length; i++) {
-      expect(desktop.otherSeats[i]!.x).toBeGreaterThanOrEqual(desktop.otherSeats[i - 1]!.x + desktop.otherSeats[i - 1]!.width);
+      expect(desktop.otherSeats[i]!.x).toBeGreaterThanOrEqual(
+        desktop.otherSeats[i - 1]!.x + desktop.otherSeats[i - 1]!.width,
+      );
     }
   });
 
@@ -133,7 +172,9 @@ describe("setupWalkthroughLayout", () => {
     const xs = new Set(phone.otherSeats.map((rect) => Math.round(rect.x)));
     expect(xs.size).toBe(1);
     for (let i = 1; i < phone.otherSeats.length; i++) {
-      expect(phone.otherSeats[i]!.y).toBeGreaterThanOrEqual(phone.otherSeats[i - 1]!.y + phone.otherSeats[i - 1]!.height);
+      expect(phone.otherSeats[i]!.y).toBeGreaterThanOrEqual(
+        phone.otherSeats[i - 1]!.y + phone.otherSeats[i - 1]!.height,
+      );
     }
   });
 
@@ -148,8 +189,20 @@ describe("setupWalkthroughLayout", () => {
   });
 
   test("fidelity pass: the revealed-card panel is short when nothing has been revealed yet, tall once something has", () => {
-    const empty = setupWalkthroughLayout({ width: 1440, height: 900, otherSeatCount: 1, seatCount: 2, hasRevealedCard: false });
-    const full = setupWalkthroughLayout({ width: 1440, height: 900, otherSeatCount: 1, seatCount: 2, hasRevealedCard: true });
+    const empty = setupWalkthroughLayout({
+      width: 1440,
+      height: 900,
+      otherSeatCount: 1,
+      seatCount: 2,
+      hasRevealedCard: false,
+    });
+    const full = setupWalkthroughLayout({
+      width: 1440,
+      height: 900,
+      otherSeatCount: 1,
+      seatCount: 2,
+      hasRevealedCard: true,
+    });
     expect(empty.revealedPanel!.height).toBeLessThan(full.revealedPanel!.height);
     // The log panel absorbs the room the short panel frees up.
     expect(empty.logPanel!.height).toBeGreaterThan(full.logPanel!.height);

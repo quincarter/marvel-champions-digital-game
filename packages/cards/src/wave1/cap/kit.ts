@@ -81,13 +81,18 @@ export const CAP_KIT = defineAbilities({
 
   // Living Legend — Reduce the cost of the first ally played each round by 1.
   // FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): applies to the very first ally played each round, whatever form it's played in.
-  "03001b.steve-rogers-constant": constant(costModifier({ delta: -1, appliesTo: query("ally"), while: firstThisRound("ally") })),
+  "03001b.steve-rogers-constant": constant(
+    costModifier({ delta: -1, appliesTo: query("ally"), while: firstThisRound("ally") }),
+  ),
 
   // Setup: Search your deck and discard pile for the Captain America's Shield upgrade and add it to your hand.
   // Shuffle your deck. FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): only the deck and discard are searched, and this
   // resolves after the opening draw and mulligan (Appendix II step 16; docs/phase7-wave1.md §3.15/§2.1), which is
   // what makes searching the discard meaningful. The multi-zone `zone()` this needs is the reviewed DSL follow-up.
-  "03001b.setup": setup(moveCards(zone(["deck", "discard"], you, { filter: query("upgrade", { name: SHIELD_NAME }) }), "hand"), shuffleDeck()),
+  "03001b.setup": setup(
+    moveCards(zone(["deck", "discard"], you, { filter: query("upgrade", { name: SHIELD_NAME }) }), "hand"),
+    shuffleDeck(),
+  ),
 
   // Agent 13 — Response: After Agent 13 enters play, remove 2 threat from a scheme.
   "03002.agent-13-response": response(after.entersPlay("self"), removeThreatFromAScheme(2)),
@@ -97,12 +102,20 @@ export const CAP_KIT = defineAbilities({
 
   // Heroic Strike — Hero Action (attack): Deal 6 damage to an enemy. If you paid for this card using a [physical]
   // resource, stun that enemy.
-  "03004.heroic-strike-action": heroAction({ label: "attack" }, attackAnEnemy(6), ifThen(paidWith("physical"), stun(chosen("enemy")))),
+  "03004.heroic-strike-action": heroAction(
+    { label: "attack" },
+    attackAnEnemy(6),
+    ifThen(paidWith("physical"), stun(chosen("enemy"))),
+  ),
 
   // Shield Block — Interrupt (defense): When you would take any amount of damage, exhaust Captain America's Shield
   // → prevent all of that damage.
   // Only a Shield Steve controls can pay (RRG 1.8 "Cost", p. 14; ruling June 25, 2026 #1), which the engine enforces.
-  "03005.shield-block-interrupt": interrupt(when.damage(YOUR_IDENTITY), { label: "defense", cost: exhaustCardsCost(SHIELD) }, preventDamage()),
+  "03005.shield-block-interrupt": interrupt(
+    when.damage(YOUR_IDENTITY),
+    { label: "defense", cost: exhaustCardsCost(SHIELD) },
+    preventDamage(),
+  ),
 
   // Shield Toss — Hero Action (attack): Discard X cards from your hand, then return Captain America's Shield from
   // play to your hand → deal 4 damage to X enemies. §3.12: "X enemies" is `chooseTarget.count` as a `ValueSpec`;
@@ -120,10 +133,16 @@ export const CAP_KIT = defineAbilities({
 
   // Captain America's Helmet — Interrupt: When Captain America would be defeated, set his hit point dial to 1
   // instead. Then, discard this card. Not a heal (the card doesn't say "heal"; docs/phase7-wave1.md §3.13).
-  "03008.captain-americas-helmet-interrupt": interrupt(when.defeated("host"), instead(setRemainingHitPoints(1, host), discard(self))),
+  "03008.captain-americas-helmet-interrupt": interrupt(
+    when.defeated("host"),
+    instead(setRemainingHitPoints(1, host), discard(self)),
+  ),
 
   // Captain America's Shield — Restricted (data). Captain America gets +1 DEF and gains retaliate 1.
-  "03009.captain-americas-shield-constant": constant(gets("def", 1, YOUR_IDENTITY), gainsKeyword({ name: "retaliate", value: 1 }, YOUR_IDENTITY)),
+  "03009.captain-americas-shield-constant": constant(
+    gets("def", 1, YOUR_IDENTITY),
+    gainsKeyword({ name: "retaliate", value: 1 }, YOUR_IDENTITY),
+  ),
 
   // Super-Soldier Serum — Resource: Exhaust Super-Soldier Serum → generate a [physical] resource.
   "03010.super-soldier-serum-resource": resource({ physical: 1 }, { cost: exhaustThis }),
@@ -164,19 +183,35 @@ export const CAP_KIT = defineAbilities({
   // Quinjet — Action: Put an Avenger ally from your hand into play with printed cost equal to or less than the
   // number of time counters on Quinjet. Then, discard Quinjet. `maxPrintedCost` reads a live counter (new).
   "03019.quinjet-action": action(
-    chooseCards("ally", zone("hand", you, { filter: query("ally", { trait: AVENGER, maxPrintedCost: countersOn(self, "time") }) }), { min: 1, max: 1 }),
+    chooseCards(
+      "ally",
+      zone("hand", you, { filter: query("ally", { trait: AVENGER, maxPrintedCost: countersOn(self, "time") }) }),
+      { min: 1, max: 1 },
+    ),
     putIntoPlay(chosen("ally")),
     discard(self),
   ),
 
   // Avengers Tower — If each of your allies has the Avenger trait, increase your ally limit by 1. Vacuously true
   // with no allies, per the literal reading of "each of your X" (no counterexample exists).
-  "03024.avengers-tower-constant": constant(rule({ kind: "allyLimit", amount: 1, while: not(exists(query("ally", { controller: "you", withoutTrait: AVENGER }))) })),
+  "03024.avengers-tower-constant": constant(
+    rule({
+      kind: "allyLimit",
+      amount: 1,
+      while: not(exists(query("ally", { controller: "you", withoutTrait: AVENGER }))),
+    }),
+  ),
   // Avengers Tower — Action: Exhaust Avengers Tower → reduce the cost of the next Avenger ally played this phase by 1.
-  "03024.avengers-tower-action": action({ cost: exhaustThis }, reduceNextCardCost(you, 1, "phase", { categories: ["ally"], trait: AVENGER })),
+  "03024.avengers-tower-action": action(
+    { cost: exhaustThis },
+    reduceNextCardCost(you, 1, "phase", { categories: ["ally"], trait: AVENGER }),
+  ),
 
   // Honorary Avenger — Attach to a friendly character (data). Attached character gets +1 hit point and gains the
   // Avenger trait. Play restriction ("Play only if your identity has the Avenger trait", "Max 1 per character")
   // is card data (`playRestrictions`).
-  "03025.honorary-avenger-constant": constant(gets("hp", 1, { hostOfSelf: true }), gainsTrait(AVENGER, { hostOfSelf: true })),
+  "03025.honorary-avenger-constant": constant(
+    gets("hp", 1, { hostOfSelf: true }),
+    gainsTrait(AVENGER, { hostOfSelf: true }),
+  ),
 });

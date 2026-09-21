@@ -2,7 +2,15 @@
  * Brand casts. The schema's helper functions can't be imported at runtime under Node type-stripping (schema files use
  * `.js` specifiers), and these are the same zero-cost casts.
  */
-import type { AbilityReference, AnyCard, EncounterSet, ImageRef, Scenario, StarterDeck, Trait } from "../../../src/schema/index.ts";
+import type {
+  AbilityReference,
+  AnyCard,
+  EncounterSet,
+  ImageRef,
+  Scenario,
+  StarterDeck,
+  Trait,
+} from "../../../src/schema/index.ts";
 
 type Branded<K extends keyof BrandMap> = BrandMap[K];
 interface BrandMap {

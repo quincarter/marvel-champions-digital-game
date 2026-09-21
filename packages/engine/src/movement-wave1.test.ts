@@ -22,7 +22,17 @@ import type { EffectSpec, TargetRef, ValueSpec } from "./spec.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import { runCommands } from "./testing/drive.js";
-import { stubAlly, stubEvent, stubIdentity, stubMainScheme, stubMinion, stubSupport, stubTreachery, stubUpgrade, stubVillain } from "./testing/fixtures.js";
+import {
+  stubAlly,
+  stubEvent,
+  stubIdentity,
+  stubMainScheme,
+  stubMinion,
+  stubSupport,
+  stubTreachery,
+  stubUpgrade,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { DEFAULT_CARDS, DEFAULT_DECK, giveCard, HERO, seatIdentities, withEncounterPiles } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -38,8 +48,18 @@ const AERIAL = trait("Aerial");
 
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 const QUIET_VILLAIN = stubVillain({ id: "quiet", stages: [{ hp: flat(50), atk: 0, sch: 0 }] });
-const LONG_SCHEME = stubMainScheme({ id: "long", stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }] });
-const TOUGH_MINION = stubMinion({ id: "tough-minion", atk: 0, sch: 0, hp: 9, boostIcons: 0, keywords: [{ name: "toughness" }] });
+const LONG_SCHEME = stubMainScheme({
+  id: "long",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }],
+});
+const TOUGH_MINION = stubMinion({
+  id: "tough-minion",
+  atk: 0,
+  sch: 0,
+  hp: 9,
+  boostIcons: 0,
+  keywords: [{ name: "toughness" }],
+});
 const THUG = stubMinion({ id: "thug", atk: 0, sch: 0, hp: 9, boostIcons: 0 });
 
 const action = (id: string, effects: readonly EffectSpec[]) => {
@@ -52,24 +72,39 @@ const action = (id: string, effects: readonly EffectSpec[]) => {
 /** Morphogenetics: "After you play an [Attack] event, … return that event to your hand." */
 const RETURN_EVENT = stubAbility("morphogenetics.response", {
   trigger: { kind: "response", forced: true, on: { on: "cardPlayed", playerIs: "controller" } },
-  effects: [{ kind: "moveCards", cards: { kind: "ref", ref: eventTarget, filter: { categories: ["event"] } }, to: "hand" }],
+  effects: [
+    { kind: "moveCards", cards: { kind: "ref", ref: eventTarget, filter: { categories: ["event"] } }, to: "hand" },
+  ],
 });
 const MORPHO = stubSupport({ id: "morpho", cost: 0, abilities: [RETURN_EVENT.ref] });
-const PLAIN_EVENT = action("plain-event", [{ kind: "addCounters", target: yourIdentity, counterType: "played", amount: num(1) }]);
+const PLAIN_EVENT = action("plain-event", [
+  { kind: "addCounters", target: yourIdentity, counterType: "played", amount: num(1) },
+]);
 /** Damage dealt through a real effect, so the defeat sweep runs (a hand-edited damage total never triggers one). */
-const ZAP_ALLY = action("zap-ally", [{ kind: "dealDamage", target: { kind: "each", query: { categories: ["ally"] } }, amount: num(2) }]);
+const ZAP_ALLY = action("zap-ally", [
+  { kind: "dealDamage", target: { kind: "each", query: { categories: ["ally"] } }, amount: num(2) },
+]);
 const SELF_HARM = action("self-harm", [{ kind: "dealDamage", target: yourIdentity, amount: num(10) }]);
 
 /** Clea: "When Clea is defeated, shuffle her into her owner's deck." */
 const CLEA_INTERRUPT = stubAbility("clea.interrupt", {
   trigger: { kind: "interrupt", forced: true, on: { on: "characterDefeated", selfIs: "target" } },
-  effects: [{ kind: "replaceTriggeringEvent", with: [{ kind: "moveCards", cards: { kind: "ref", ref: self }, to: "deckShuffle" }] }],
+  effects: [
+    {
+      kind: "replaceTriggeringEvent",
+      with: [{ kind: "moveCards", cards: { kind: "ref", ref: self }, to: "deckShuffle" }],
+    },
+  ],
 });
 const CLEA = stubAlly({ id: "clea", cost: 0, atk: 1, thw: 1, hp: 2, abilities: [CLEA_INTERRUPT.ref] });
 
 /** Captain America's Helmet: "When Captain America would be defeated, set his hit point dial to 1 instead. Then, discard this card." */
 const HELMET_INTERRUPT = stubAbility("helmet.interrupt", {
-  trigger: { kind: "interrupt", forced: true, on: { on: "characterDefeated", targetIs: { categories: ["identity"], controller: "you" } } },
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "characterDefeated", targetIs: { categories: ["identity"], controller: "you" } },
+  },
   effects: [
     { kind: "replaceTriggeringEvent", with: [{ kind: "setRemainingHitPoints", target: eventTarget, amount: num(1) }] },
     { kind: "discardFromPlay", target: self },
@@ -84,14 +119,27 @@ const BEAT_COP_MOVE = stubAbility("beat-cop.move", {
 });
 const BEAT_COP_SPEND = stubAbility("beat-cop.spend", {
   trigger: { kind: "action" },
-  effects: [{ kind: "dealDamage", target: { kind: "each", query: { categories: ["minion"] } }, amount: { kind: "threat", of: self } }],
+  effects: [
+    {
+      kind: "dealDamage",
+      target: { kind: "each", query: { categories: ["minion"] } },
+      amount: { kind: "threat", of: self },
+    },
+  ],
 });
 const BEAT_COP = stubSupport({ id: "beat-cop", cost: 0, abilities: [BEAT_COP_MOVE.ref, BEAT_COP_SPEND.ref] });
 
 /** Get Over Here!: "engage that enemy". */
 const ENGAGED_COUNTER = stubAbility("watcher.engaged", {
   trigger: { kind: "response", forced: true, on: { on: "minionEngaged" } },
-  effects: [{ kind: "addCounters", target: { kind: "each", query: { categories: ["mainScheme"] } }, counterType: "engaged", amount: num(1) }],
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "each", query: { categories: ["mainScheme"] } },
+      counterType: "engaged",
+      amount: num(1),
+    },
+  ],
 });
 const WATCHER = stubSupport({ id: "watcher", cost: 0, abilities: [ENGAGED_COUNTER.ref] });
 const GET_OVER_HERE = action("get-over-here", [
@@ -102,7 +150,14 @@ const GET_OVER_HERE = action("get-over-here", [
 /** Heimdall: "look at the top 3 cards of the encounter deck. Discard 1 of them and put the others back in any order." */
 const HEIMDALL = action("heimdall", [
   { kind: "selectCards", slot: "looked", cards: { kind: "encounter", zones: ["deck"], top: num(3) } },
-  { kind: "chooseCards", slot: "tossed", from: { kind: "ref", ref: { kind: "slot", slot: "looked" } }, chooser: you, min: 1, max: 1 },
+  {
+    kind: "chooseCards",
+    slot: "tossed",
+    from: { kind: "ref", ref: { kind: "slot", slot: "looked" } },
+    chooser: you,
+    min: 1,
+    max: 1,
+  },
   { kind: "moveCards", cards: { kind: "ref", ref: { kind: "slot", slot: "tossed" } }, to: "discard" },
   {
     kind: "reorderCards",
@@ -116,7 +171,14 @@ const HEIMDALL = action("heimdall", [
 const BRUNO_ATTACH = stubAbility("bruno.attach", {
   trigger: { kind: "action" },
   effects: [
-    { kind: "chooseCards", slot: "card", from: { kind: "zone", zone: "hand", player: you }, chooser: you, min: 1, max: 1 },
+    {
+      kind: "chooseCards",
+      slot: "card",
+      from: { kind: "zone", zone: "hand", player: you },
+      chooser: you,
+      min: 1,
+      max: 1,
+    },
     { kind: "attach", card: { kind: "slot", slot: "card" }, to: self, facedown: true },
   ],
 });
@@ -128,17 +190,37 @@ const BRUNO = stubSupport({ id: "bruno", cost: 0, abilities: [BRUNO_ATTACH.ref, 
 /** The card Bruno hides: its own ability would place a counter if it were live. */
 const NOISY = stubAbility("noisy.response", {
   trigger: { kind: "response", forced: true, on: { on: "turnStarted" } },
-  effects: [{ kind: "addCounters", target: { kind: "each", query: { categories: ["mainScheme"] } }, counterType: "noisy", amount: num(1) }],
+  effects: [
+    {
+      kind: "addCounters",
+      target: { kind: "each", query: { categories: ["mainScheme"] } },
+      counterType: "noisy",
+      amount: num(1),
+    },
+  ],
 });
 const NOISY_CARD = stubUpgrade({ id: "noisy", cost: 0, abilities: [NOISY.ref] });
 
 /** Lightning Strike: "This damage ignores tough status cards if you have the Aerial trait." */
-const STRIKE = action("strike", [{ kind: "dealDamage", target: { kind: "each", query: { categories: ["minion"] } }, amount: num(3), ignoreTough: true }]);
-const PLAIN_STRIKE = action("plain-strike", [{ kind: "dealDamage", target: { kind: "each", query: { categories: ["minion"] } }, amount: num(3) }]);
+const STRIKE = action("strike", [
+  {
+    kind: "dealDamage",
+    target: { kind: "each", query: { categories: ["minion"] } },
+    amount: num(3),
+    ignoreTough: true,
+  },
+]);
+const PLAIN_STRIKE = action("plain-strike", [
+  { kind: "dealDamage", target: { kind: "each", query: { categories: ["minion"] } }, amount: num(3) },
+]);
 
 /** Embiggen!: "When you play an [Attack] event, … increase the amount of damage that event deals by 2." */
 const EMBIGGEN = stubAbility("embiggen.interrupt", {
-  trigger: { kind: "interrupt", forced: true, on: { on: "cardBeingPlayed", playerIs: "controller", targetIs: { categories: ["event"] } } },
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "cardBeingPlayed", playerIs: "controller", targetIs: { categories: ["event"] } },
+  },
   effects: [{ kind: "modifyCardEffect", card: eventTarget, damage: num(2) }],
 });
 const EMBIGGEN_CARD = stubUpgrade({ id: "embiggen", cost: 0, abilities: [EMBIGGEN.ref] });
@@ -150,7 +232,11 @@ const TWICE = action("twice", [
 
 /** Shrink: "increase the amount of threat that event removes by 2". */
 const SHRINK = stubAbility("shrink.interrupt", {
-  trigger: { kind: "interrupt", forced: true, on: { on: "cardBeingPlayed", playerIs: "controller", targetIs: { categories: ["event"] } } },
+  trigger: {
+    kind: "interrupt",
+    forced: true,
+    on: { on: "cardBeingPlayed", playerIs: "controller", targetIs: { categories: ["event"] } },
+  },
   effects: [{ kind: "modifyCardEffect", card: eventTarget, threatRemoved: num(2) }],
 });
 const SHRINK_CARD = stubUpgrade({ id: "shrink", cost: 0, abilities: [SHRINK.ref] });
@@ -161,7 +247,15 @@ const ENRAGED = stubAbility("enraged.constant", {
   trigger: { kind: "constant", modifiers: [{ stat: "consequentialAttack", amount: 1, target: { self: true } }] },
   effects: [],
 });
-const ENRAGED_ALLY = stubAlly({ id: "enraged-ally", cost: 0, atk: 2, thw: 1, hp: 9, consequentialAttack: 1, abilities: [ENRAGED.ref] });
+const ENRAGED_ALLY = stubAlly({
+  id: "enraged-ally",
+  cost: 0,
+  atk: 2,
+  thw: 1,
+  hp: 9,
+  consequentialAttack: 1,
+  abilities: [ENRAGED.ref],
+});
 const CALM_ALLY = stubAlly({ id: "calm-ally", cost: 0, atk: 2, thw: 1, hp: 9, consequentialAttack: 1 });
 
 /** Teamwork: "When you use your basic attack power (ATK), exhaust an ally you control → add that ally's matching power." */
@@ -209,10 +303,25 @@ const ABILITIES: readonly StubAbility[] = [
 ];
 const deps: EngineDeps = depsOf(...ABILITIES);
 
-const PLAYER_CARDS = [MORPHO, CLEA, HELMET, BEAT_COP, WATCHER, BRUNO, NOISY_CARD, EMBIGGEN_CARD, SHRINK_CARD, ENRAGED_ALLY, CALM_ALLY, ...EVENTS.map((e) => e.card)];
+const PLAYER_CARDS = [
+  MORPHO,
+  CLEA,
+  HELMET,
+  BEAT_COP,
+  WATCHER,
+  BRUNO,
+  NOISY_CARD,
+  EMBIGGEN_CARD,
+  SHRINK_CARD,
+  ENRAGED_ALLY,
+  CALM_ALLY,
+  ...EVENTS.map((e) => e.card),
+];
 const CARDS = [...DEFAULT_CARDS, QUIET_VILLAIN, LONG_SCHEME, BLANK, TOUGH_MINION, THUG, ...PLAYER_CARDS];
 
-function game(options: { readonly players?: number; readonly identity?: typeof HERO; readonly encounter?: readonly CardId[] } = {}): GameState {
+function game(
+  options: { readonly players?: number; readonly identity?: typeof HERO; readonly encounter?: readonly CardId[] } = {},
+): GameState {
   const identities = seatIdentities(options.identity ?? HERO, options.players ?? 1);
   const result = createGame(
     {
@@ -222,7 +331,10 @@ function game(options: { readonly players?: number; readonly identity?: typeof H
       mainSchemeCardId: LONG_SCHEME.id,
       encounterDeck: options.encounter ?? copies(BLANK.id, 16),
       includeIdentitySets: false,
-      players: identities.map((identity) => ({ identityCardId: identity.id, deck: [...DEFAULT_DECK, ...PLAYER_CARDS.map((c) => c.id)] })),
+      players: identities.map((identity) => ({
+        identityCardId: identity.id,
+        deck: [...DEFAULT_DECK, ...PLAYER_CARDS.map((c) => c.id)],
+      })),
     },
     deps,
   );
@@ -236,7 +348,13 @@ const ok = (state: GameState, command: Command): GameState => {
   return result.state;
 };
 
-const playCard = (player: playerIdType, id: InstanceId): Command => ({ type: "playCard", playerId: player, cardInstanceId: id, payment: [], attachToInstanceId: null });
+const playCard = (player: playerIdType, id: InstanceId): Command => ({
+  type: "playCard",
+  playerId: player,
+  cardInstanceId: id,
+  payment: [],
+  attachToInstanceId: null,
+});
 type playerIdType = typeof p1;
 
 function play(state: GameState, cardId: CardId, player = p1) {
@@ -253,13 +371,17 @@ const useAbility = (player: playerIdType, id: InstanceId, abilityId: string): Co
 });
 
 const toHero = (state: GameState, player = p1): GameState => ok(state, { type: "changeForm", playerId: player });
-const withThreat =(state: GameState, id: InstanceId, threat: number): GameState => ({
+const withThreat = (state: GameState, id: InstanceId, threat: number): GameState => ({
   ...state,
   instances: { ...state.instances, [id]: { ...mustInstance(state, id), threat } },
 });
 
 /** Test surgery: the first copy of `card` in the encounter deck enters play engaged with `player`. */
-function engageMinion(state: GameState, cardId: CardId, player = p1): { readonly state: GameState; readonly id: InstanceId } {
+function engageMinion(
+  state: GameState,
+  cardId: CardId,
+  player = p1,
+): { readonly state: GameState; readonly id: InstanceId } {
   const deck = activeEncounterDeck(state).deck;
   const id = deck.find((candidate) => state.instances[candidate]?.cardId === cardId);
   if (!id) throw new Error(`no ${cardId} in the encounter deck`);
@@ -268,12 +390,16 @@ function engageMinion(state: GameState, cardId: CardId, player = p1): { readonly
     state: {
       ...withEncounterPiles(state, { deck: deck.filter((x) => x !== id) }),
       players: state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
-      instances: { ...state.instances, [id]: { ...mustInstance(state, id), faceup: true, engagedWith: player, controllerId: null } },
+      instances: {
+        ...state.instances,
+        [id]: { ...mustInstance(state, id), faceup: true, engagedWith: player, controllerId: null },
+      },
     },
   };
 }
 
-const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) => events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
+const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
+  events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 
 describe("§3.13 moving a card as it is played or defeated", () => {
   it("a response to playing an event returns it to hand instead of leaving it in the discard pile", () => {
@@ -301,7 +427,9 @@ describe("§3.13 moving a card as it is played or defeated", () => {
     const { state, events } = play(start.state, SELF_HARM.card.id);
     expect(mustPlayer(state, p1).eliminated).toBe(false);
     expect(mustInstance(state, identity).damage).toBe(maxHp - 1);
-    expect(ofType(events, "hitPointsSet")).toEqual([{ type: "hitPointsSet", instanceId: identity, remaining: 1, damage: maxHp - 1 }]);
+    expect(ofType(events, "hitPointsSet")).toEqual([
+      { type: "hitPointsSet", instanceId: identity, remaining: 1, damage: maxHp - 1 },
+    ]);
     expect(mustPlayer(state, p1).discard).toContain(start.id);
 
     // The Core path is unchanged: with nothing listening, the identity's defeat eliminates the player outright.
@@ -348,14 +476,24 @@ describe("§3.13 placement: threat, engagement and deck order", () => {
     const atToss = ok(given.state, playCard(p1, given.id));
     // First choice: which of the top 3 to discard.
     expect(atToss.pendingChoice?.prompt).toEqual({ kind: "chooseCards", slot: "tossed" });
-    const atOrder = ok(atToss, { type: "resolveChoice", playerId: p1, choiceId: atToss.pendingChoice!.choiceId, selectedOptionIds: [a] });
+    const atOrder = ok(atToss, {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: atToss.pendingChoice!.choiceId,
+      selectedOptionIds: [a],
+    });
 
     const order = atOrder.pendingChoice;
     expect(order?.prompt).toEqual({ kind: "orderCards", to: "encounterDeckTop" });
     expect(order?.ordered).toBe(true);
     expect(order?.options.map((option) => option.optionId)).toEqual([b, c]);
 
-    const done = ok(atOrder, { type: "resolveChoice", playerId: p1, choiceId: order!.choiceId, selectedOptionIds: [c, b] });
+    const done = ok(atOrder, {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: order!.choiceId,
+      selectedOptionIds: [c, b],
+    });
     expect(activeEncounterDeck(done).deck.slice(0, 3)).toEqual([c, b, d]);
     expect(activeEncounterDeck(done).discard).toContain(a);
   });
@@ -369,7 +507,12 @@ describe("§3.13 facedown attachments", () => {
     // Pick the card to hide rather than letting the harness take the first card in hand.
     const atChoice = ok(handed.state, useAbility(p1, bruno, "bruno.attach"));
     expect(atChoice.pendingChoice?.prompt).toEqual({ kind: "chooseCards", slot: "card" });
-    const hidden = ok(atChoice, { type: "resolveChoice", playerId: p1, choiceId: atChoice.pendingChoice!.choiceId, selectedOptionIds: [handed.id] });
+    const hidden = ok(atChoice, {
+      type: "resolveChoice",
+      playerId: p1,
+      choiceId: atChoice.pendingChoice!.choiceId,
+      selectedOptionIds: [handed.id],
+    });
 
     const attached = mustInstance(hidden, bruno).attachments;
     expect(attached).toContain(handed.id);
@@ -377,7 +520,13 @@ describe("§3.13 facedown attachments", () => {
     // Blank while facedown: no title for a `named` target, and no live abilities.
     expect(currentName(hidden, handed.id)).toBeUndefined();
     expect(activeAbilityRefs(hidden, handed.id)).toEqual([]);
-    expect(selectTargets(hidden, { name: NOISY_CARD.name }, { selfInstanceId: null, controllerId: p1, event: null, bindings: {}, deps })).toEqual([]);
+    expect(
+      selectTargets(
+        hidden,
+        { name: NOISY_CARD.name },
+        { selfInstanceId: null, controllerId: p1, event: null, bindings: {}, deps },
+      ),
+    ).toEqual([]);
 
     const returned = runCommands(hidden, deps, useAbility(p1, bruno, "bruno.return")).state;
     expect(mustPlayer(returned, p1).hand).toContain(handed.id);
@@ -389,7 +538,13 @@ describe("§3.13 damage and threat amounts", () => {
   it("damage that ignores tough is taken and leaves the status card in place; ordinary damage is prevented by it", () => {
     const start = game({ encounter: [TOUGH_MINION.id, ...copies(BLANK.id, 15)] });
     const minion = engageMinion(start, TOUGH_MINION.id);
-    const tough = { ...minion.state, instances: { ...minion.state.instances, [minion.id]: { ...mustInstance(minion.state, minion.id), statuses: { stunned: 0, confused: 0, tough: 1 } } } };
+    const tough = {
+      ...minion.state,
+      instances: {
+        ...minion.state.instances,
+        [minion.id]: { ...mustInstance(minion.state, minion.id), statuses: { stunned: 0, confused: 0, tough: 1 } },
+      },
+    };
 
     const ignored = play(tough, STRIKE.card.id).state;
     expect(mustInstance(ignored, minion.id).damage).toBe(3);
@@ -423,11 +578,21 @@ describe("§3.13 damage and threat amounts", () => {
     const enraged = play(hero, ENRAGED_ALLY.id);
     const calm = play(enraged.state, CALM_ALLY.id);
     const villain = calm.state.villains[0]?.instanceId as InstanceId;
-    const attacked = runCommands(calm.state, deps, { type: "basicAttack", playerId: p1, attackerInstanceId: enraged.id, targetInstanceId: villain }).state;
+    const attacked = runCommands(calm.state, deps, {
+      type: "basicAttack",
+      playerId: p1,
+      attackerInstanceId: enraged.id,
+      targetInstanceId: villain,
+    }).state;
     // Printed 1 consequential damage, +1 from its own modifier.
     expect(mustInstance(attacked, enraged.id).damage).toBe(2);
 
-    const other = runCommands(calm.state, deps, { type: "basicAttack", playerId: p1, attackerInstanceId: calm.id, targetInstanceId: villain }).state;
+    const other = runCommands(calm.state, deps, {
+      type: "basicAttack",
+      playerId: p1,
+      attackerInstanceId: calm.id,
+      targetInstanceId: villain,
+    }).state;
     expect(mustInstance(other, calm.id).damage).toBe(1);
   });
 
@@ -437,7 +602,12 @@ describe("§3.13 damage and threat amounts", () => {
     const ally = play(hero, CALM_ALLY.id);
     const identity = mustPlayer(ally.state, p1).identity.instanceId;
     const villain = ally.state.villains[0]?.instanceId as InstanceId;
-    const attacked = runCommands(ally.state, deps, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: villain }).state;
+    const attacked = runCommands(ally.state, deps, {
+      type: "basicAttack",
+      playerId: p1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain,
+    }).state;
     // Hero ATK 2 plus the ally's ATK 2, for this attack only.
     expect(mustInstance(attacked, villain).damage).toBe(4);
     expect(characterProfile(attacked, identity, deps)?.atk).toBe(2);

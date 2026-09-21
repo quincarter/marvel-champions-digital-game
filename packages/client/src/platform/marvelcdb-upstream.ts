@@ -35,7 +35,10 @@ export function interpretDeckResponse(
   upstream: { readonly ok: boolean; readonly contentType: string; readonly body: string },
 ): DeckImportAnswer {
   if (!upstream.ok || !upstream.contentType.includes("application/json") || upstream.body.trim().length === 0) {
-    return deckImportError(404, `MarvelCDB has no ${kind === "deck" ? "deck" : "public decklist"} at id ${id} (it may not exist, or may be private).`);
+    return deckImportError(
+      404,
+      `MarvelCDB has no ${kind === "deck" ? "deck" : "public decklist"} at id ${id} (it may not exist, or may be private).`,
+    );
   }
   return { status: 200, body: upstream.body };
 }

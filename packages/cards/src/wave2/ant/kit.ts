@@ -12,7 +12,6 @@ import {
   draw,
   each,
   exhaustThis,
-  gets,
   heal,
   heroAction,
   heroResponse,
@@ -46,11 +45,19 @@ const TINY = trait("TINY");
  */
 export const ANT_MAN_KIT = defineAbilities({
   // Puny Pest — Response: After you change to this form (Tiny hero), remove 1 threat from a scheme.
-  "12001a.puny-pest": response(on.youChangeForm(), chooseTarget("scheme", query("scheme")), removeThreat(1, chosen("scheme"))),
+  "12001a.puny-pest": response(
+    on.youChangeForm(),
+    chooseTarget("scheme", query("scheme")),
+    removeThreat(1, chosen("scheme")),
+  ),
   // Time to Unwind — Response: After you change to this form (alter-ego), heal 1 damage from Scott Lang.
   "12001b.time-to-unwind": response(on.youChangeForm(), heal(1, yourIdentity)),
   // Giant Nuisance — Response: After you change to this form (Giant hero), deal 1 damage to an enemy.
-  "12001c.giant-nuisance": response(on.youChangeForm(), chooseTarget("enemy", query("enemy")), dealDamage(1, chosen("enemy"))),
+  "12001c.giant-nuisance": response(
+    on.youChangeForm(),
+    chooseTarget("enemy", query("enemy")),
+    dealDamage(1, chosen("enemy")),
+  ),
 
   // Wasp (12002, ally) — Hero Response: after Wasp enters play, deal 2 damage to an enemy if you are in Giant hero
   // form, or remove 2 threat from a scheme if you are in Tiny hero form.
@@ -87,22 +94,35 @@ export const ANT_MAN_KIT = defineAbilities({
   // Pym Particles (resource) — Hero Response: after you spend this card, heal 2 damage from your hero if in Giant
   // hero form, or draw 1 card if in Tiny hero form. "Hero Response" already gates this to hero form, so the else
   // branch (not Giant) is exactly Tiny.
-  "12006.pym-particles-response": heroResponse(on.youSpendThis(), ifThen(youHaveTrait(GIANT), heal(2, yourIdentity), draw(1))),
+  "12006.pym-particles-response": heroResponse(
+    on.youSpendThis(),
+    ifThen(youHaveTrait(GIANT), heal(2, yourIdentity), draw(1)),
+  ),
 
   // Army of Ants — Hero Action: If you are in Tiny hero form, exhaust Army of Ants → deal 1 damage to an enemy.
   // The form check comes before the cost, so outside Tiny hero form the action cannot be triggered at all rather
   // than letting the player pay for nothing.
-  "12007.army-of-ants-action": heroAction({ cost: exhaustThis, while: youHaveTrait(TINY) }, chooseTarget("enemy", query("enemy")), dealDamage(1, chosen("enemy"))),
+  "12007.army-of-ants-action": heroAction(
+    { cost: exhaustThis, while: youHaveTrait(TINY) },
+    chooseTarget("enemy", query("enemy")),
+    dealDamage(1, chosen("enemy")),
+  ),
 
   // Ant-Man's Helmet — Hero Response: after you change to Giant hero form, heal 2 damage from your hero. Hero
   // Response: after you change to Tiny hero form, draw 1 card.
-  "12008.ant-mans-helmet-response": heroResponse(on.youChangeForm(), ifThen(youHaveTrait(GIANT), heal(2, yourIdentity))),
+  "12008.ant-mans-helmet-response": heroResponse(
+    on.youChangeForm(),
+    ifThen(youHaveTrait(GIANT), heal(2, yourIdentity)),
+  ),
   "12008.ant-mans-helmet-hero-response": heroResponse(on.youChangeForm(), ifThen(youHaveTrait(TINY), draw(1))),
 
   // Giant Strength — Hero Response: after you change to Giant hero form, you get +1 ATK until the end of this
   // turn. `on.youChangeForm()` fires on any form change (as Ant-Man's Helmet above does too); the printed "to
   // Giant hero form" is the `ifThen` guard.
-  "12009.giant-strength-response": heroResponse(on.youChangeForm(), ifThen(youHaveTrait(GIANT), modifyStat("atk", 1, yourIdentity, "endOfTurn"))),
+  "12009.giant-strength-response": heroResponse(
+    on.youChangeForm(),
+    ifThen(youHaveTrait(GIANT), modifyStat("atk", 1, yourIdentity, "endOfTurn")),
+  ),
 
   // Wrist Gauntlets — Hero Action: If you are in Giant hero form, exhaust and spend [P][P] → stun an enemy. Hero
   // Action: If you are in Tiny hero form, exhaust and spend [E][E] → confuse an enemy. Each form check precedes its

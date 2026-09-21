@@ -60,7 +60,11 @@ export const BKW_PACK_CARDS = defineAbilities({
 
   // Quake — Response: After a minion schemes, exhaust Quake → deal 2 damage to that minion. "That minion" is the
   // event's source (the minion that schemed, `enemyScheme`'s `eventSubjects`, `packages/engine/src/trigger-events.ts`).
-  "08012.quake-response": response(after.enemySchemes(query("minion")), { cost: exhaustThis }, dealDamage(2, eventSource)),
+  "08012.quake-response": response(
+    after.enemySchemes(query("minion")),
+    { cost: exhaustThis },
+    dealDamage(2, eventSource),
+  ),
 
   // Stealth Strike — Hero Action (attack): Deal 4 damage to an enemy. If that enemy is defeated by this attack,
   // remove 2 threat from a scheme. `attack`'s `bind` reports `<bind>.defeated` (`packages/engine/src/spec.ts`'s own
@@ -74,13 +78,22 @@ export const BKW_PACK_CARDS = defineAbilities({
 
   // Counterintelligence — Interrupt: When any amount of threat would be placed on the main scheme, discard
   // Counterintelligence → prevent 3 of that threat. (Max 1 per player is card data, `playRestrictions.maxPerPlayer`.)
-  "08017.counterintelligence-interrupt": interrupt(when.threatPlaced(query("mainScheme")), { cost: discardThis }, preventThreat(3)),
+  "08017.counterintelligence-interrupt": interrupt(
+    when.threatPlaced(query("mainScheme")),
+    { cost: discardThis },
+    preventThreat(3),
+  ),
 
   // Spycraft — Interrupt: When you reveal an encounter card, discard Spycraft → cancel the effects of that card
   // and discard it. Then, reveal another card from the encounter deck. ("Play only if you control a Spy character"
   // is card data, `playRestrictions.requiresControlledCharacterTrait`.) Same shape as Core's own "Black Widow"
   // event (01075, `core/aspects/protection.ts`).
-  "08018.spycraft-interrupt": interrupt(youReveal(), { cost: discardThis }, cancelRevealedCard(), revealEncounterCard(you)),
+  "08018.spycraft-interrupt": interrupt(
+    youReveal(),
+    { cost: discardThis },
+    cancelRevealedCard(),
+    revealEncounterCard(you),
+  ),
 
   // Quincarrier — Resource: Exhaust Quincarrier → generate a [wild] resource. ("Play only if your identity has the
   // Avenger trait" is card data, `playRestrictions.requiresIdentityTrait`.)
@@ -88,7 +101,11 @@ export const BKW_PACK_CARDS = defineAbilities({
 
   // Target Acquired — Hero Response: After a boost card is turned faceup, discard Target Acquired → cancel that
   // card's boost ability. (Max 1 per player is card data.)
-  "08024.target-acquired-response": heroResponse(onBoostCardTurnedFaceup(), { cost: discardThis }, cancelBoostAbility()),
+  "08024.target-acquired-response": heroResponse(
+    onBoostCardTurnedFaceup(),
+    { cost: discardThis },
+    cancelBoostAbility(),
+  ),
 
   // Counterattack — Hero Response (attack): After you take damage from an enemy attack, discard Counterattack →
   // deal an equal amount of damage to that enemy. Same shape as Core's own "Counter-Punch" (01077,
@@ -111,11 +128,19 @@ export const BKW_PACK_CARDS = defineAbilities({
 
   // Defensive Stance — Hero Interrupt: When you would take any amount of damage, discard Defensive Stance →
   // prevent 3 of that damage.
-  "08032.defensive-stance-interrupt": heroInterrupt(when.damage(YOUR_IDENTITY), { cost: discardThis }, preventDamage(3)),
+  "08032.defensive-stance-interrupt": heroInterrupt(
+    when.damage(YOUR_IDENTITY),
+    { cost: discardThis },
+    preventDamage(3),
+  ),
 
   // Espionage — Interrupt: When the surge keyword on an encounter card would be resolved, discard Espionage →
   // draw 2 cards. ("Play only if you control a Spy character" is card data.) `{ on: "surgeResolving", playerIs:
   // "controller" }` is the landed primitive for this exact card (`packages/engine/src/triggers-wave1.test.ts`'s
   // `SURGE_DRAW` stub, docs/phase7-wave1.md §3.11), no `dsl/abilities.ts` wrapper yet.
-  "08033.espionage-interrupt": interrupt({ on: "surgeResolving", playerIs: "controller" }, { cost: discardThis }, draw(2)),
+  "08033.espionage-interrupt": interrupt(
+    { on: "surgeResolving", playerIs: "controller" },
+    { cost: discardThis },
+    draw(2),
+  ),
 });

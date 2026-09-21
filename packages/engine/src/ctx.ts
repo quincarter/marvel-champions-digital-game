@@ -1,6 +1,14 @@
 import type { GameEvent } from "./events.js";
 import { EngineInvariantError } from "./errors.js";
-import { choiceId, frameId as makeFrameId, instanceId, type ChoiceId, type FrameId, type InstanceId, type PlayerId } from "./ids.js";
+import {
+  choiceId,
+  frameId as makeFrameId,
+  instanceId,
+  type ChoiceId,
+  type FrameId,
+  type InstanceId,
+  type PlayerId,
+} from "./ids.js";
 import { hasKeyword } from "./keywords.js";
 import { locateCard, mustInstance, mustPlayer, separateDeckDefinition, zoneContents as zoneOf } from "./query.js";
 import type { ChoiceOption, ChoicePrompt, DecisionAuthority, PendingChoice } from "./choices.js";
@@ -24,11 +32,7 @@ export function emit(ctx: Ctx, event: GameEvent): void {
   ctx.events.push(event);
 }
 
-export function updateInstance(
-  ctx: Ctx,
-  id: InstanceId,
-  update: (instance: CardInstance) => CardInstance,
-): void {
+export function updateInstance(ctx: Ctx, id: InstanceId, update: (instance: CardInstance) => CardInstance): void {
   const current = mustInstance(ctx.state, id);
   ctx.state = {
     ...ctx.state,
@@ -36,11 +40,7 @@ export function updateInstance(
   };
 }
 
-export function updatePlayer(
-  ctx: Ctx,
-  id: PlayerId,
-  update: (player: PlayerState) => PlayerState,
-): void {
+export function updatePlayer(ctx: Ctx, id: PlayerId, update: (player: PlayerState) => PlayerState): void {
   const players = ctx.state.players.map((p) => (p.playerId === id ? update(p) : p));
   ctx.state = { ...ctx.state, players };
 }
@@ -114,11 +114,7 @@ function setZone(state: GameState, zone: ZoneId, ids: readonly InstanceId[]): Ga
   }
 }
 
-function withPlayer(
-  state: GameState,
-  id: PlayerId,
-  update: (player: PlayerState) => PlayerState,
-): GameState {
+function withPlayer(state: GameState, id: PlayerId, update: (player: PlayerState) => PlayerState): GameState {
   mustPlayer(state, id);
   return { ...state, players: state.players.map((p) => (p.playerId === id ? update(p) : p)) };
 }
@@ -292,11 +288,7 @@ export function setFrame(ctx: Ctx, frame: StackFrame): void {
   };
 }
 
-export function updateFrame(
-  ctx: Ctx,
-  id: FrameId,
-  update: (frame: StackFrame) => StackFrame,
-): void {
+export function updateFrame(ctx: Ctx, id: FrameId, update: (frame: StackFrame) => StackFrame): void {
   ctx.state = {
     ...ctx.state,
     stack: ctx.state.stack.map((frame) => (frame.frameId === id ? update(frame) : frame)),

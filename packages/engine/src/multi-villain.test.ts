@@ -23,7 +23,14 @@ import { legalActions } from "./legal.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import { stubMinion, stubSideScheme, stubTreachery, stubVillain, stubMainScheme } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, defaultPick, HERO, seatIdentities, withEncounterPiles } from "./testing/scenario.js";
+import {
+  DEFAULT_CARDS,
+  DEFAULT_DECK,
+  defaultPick,
+  HERO,
+  seatIdentities,
+  withEncounterPiles,
+} from "./testing/scenario.js";
 import { auditVillainPhases } from "./villain/audit.js";
 
 const p1 = playerId("p1");
@@ -36,13 +43,21 @@ type Name = (typeof NAMES)[number];
 const SIGNATURE_THREAT: Record<Name, number> = { wrecker: 1, thunderball: 3, piledriver: 3, bulldozer: 2 };
 
 const goon = (name: Name) => stubMinion({ id: `goon-${name}`, atk: 0, sch: 0, hp: 2, boostIcons: 0 });
-const signature = (name: Name) => stubSideScheme({ id: `scheme-${name}`, startingThreat: SIGNATURE_THREAT[name], boostIcons: 0 });
+const signature = (name: Name) =>
+  stubSideScheme({ id: `scheme-${name}`, startingThreat: SIGNATURE_THREAT[name], boostIcons: 0 });
 const plainVillain = (name: Name, stages = 1): VillainCard =>
   stubVillain({ id: name, stages: Array.from({ length: stages }, () => ({ hp: flat(5), atk: 0, sch: 0 })) });
 
 const GUARD = stubMinion({ id: "guard", atk: 0, sch: 0, hp: 3, boostIcons: 0, keywords: [{ name: "guard" }] });
 const SURGE = stubTreachery({ id: "surge-thunderball", boostIcons: 0, keywords: [{ name: "surge" }] });
-const NEMESIS = stubMinion({ id: "nemesis-minion", encounterSetIds: ["hero-nemesis"], atk: 0, sch: 0, hp: 2, boostIcons: 0 });
+const NEMESIS = stubMinion({
+  id: "nemesis-minion",
+  encounterSetIds: ["hero-nemesis"],
+  atk: 0,
+  sch: 0,
+  hp: 2,
+  boostIcons: 0,
+});
 
 /** Breakout 1A's setup, as data: "Put the … side schemes into play. Place the active counter on Wrecker." */
 const BREAKOUT_SETUP = stubAbility("breakout.setup", {
@@ -55,9 +70,14 @@ const BREAKOUT_SETUP = stubAbility("breakout.setup", {
 });
 const BREAKOUT = stubMainScheme({
   id: "breakout",
-  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), aSideAbilities: [BREAKOUT_SETUP.ref] }],
+  stages: [
+    { startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0), aSideAbilities: [BREAKOUT_SETUP.ref] },
+  ],
 });
-const NO_SETUP_SCHEME = stubMainScheme({ id: "no-setup", stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }] });
+const NO_SETUP_SCHEME = stubMainScheme({
+  id: "no-setup",
+  stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }],
+});
 
 interface CrewOptions {
   readonly players?: number;
@@ -75,7 +95,9 @@ interface CrewOptions {
 /** A Breakout-shaped game straight out of `createGame`, still on the mulligan choices. */
 function crewAtMulligan(options: CrewOptions = {}): { readonly state: GameState; readonly deps: EngineDeps } {
   const deps = depsOf(BREAKOUT_SETUP, ...(options.abilities ?? []));
-  const villainCards = NAMES.map((name) => options.villains?.[name] ?? plainVillain(name, options.stages ? options.stages.last + 1 : 1));
+  const villainCards = NAMES.map(
+    (name) => options.villains?.[name] ?? plainVillain(name, options.stages ? options.stages.last + 1 : 1),
+  );
   const identities = seatIdentities(HERO, options.players ?? 1);
   const scheme = options.setup === false ? NO_SETUP_SCHEME : BREAKOUT;
   const config: GameSetupConfig = {
@@ -109,7 +131,11 @@ function crewAtMulligan(options: CrewOptions = {}): { readonly state: GameState;
 }
 
 /** Applies commands through a session, answering every choice with `defaultPick`, collecting events. */
-function drive(session: GameSession, deps: EngineDeps, commands: readonly Command[] = []): { session: GameSession; events: GameEvent[] } {
+function drive(
+  session: GameSession,
+  deps: EngineDeps,
+  commands: readonly Command[] = [],
+): { session: GameSession; events: GameEvent[] } {
   let current = session;
   const events: GameEvent[] = [];
   const apply = (command: Command): void => {
@@ -122,7 +148,12 @@ function drive(session: GameSession, deps: EngineDeps, commands: readonly Comman
     for (let guard = 0; current.state.pendingChoice && !current.state.outcome; guard++) {
       if (guard > 100) throw new Error("choices did not settle");
       const choice = current.state.pendingChoice;
-      apply({ type: "resolveChoice", playerId: choice.playerId, choiceId: choice.choiceId, selectedOptionIds: defaultPick(current.state) });
+      apply({
+        type: "resolveChoice",
+        playerId: choice.playerId,
+        choiceId: choice.choiceId,
+        selectedOptionIds: defaultPick(current.state),
+      });
     }
   };
   answerChoices();
@@ -134,7 +165,11 @@ function drive(session: GameSession, deps: EngineDeps, commands: readonly Comman
 }
 
 /** Ends turns (and answers choices) until round `round` begins. */
-function playUntilRound(session: GameSession, deps: EngineDeps, round: number): { session: GameSession; events: GameEvent[] } {
+function playUntilRound(
+  session: GameSession,
+  deps: EngineDeps,
+  round: number,
+): { session: GameSession; events: GameEvent[] } {
   let current = drive(session, deps);
   const events = [...current.events];
   for (let guard = 0; current.session.state.round < round && !current.session.state.outcome; guard++) {
@@ -167,10 +202,15 @@ const ok = (state: GameState, deps: EngineDeps, command: Command) => {
   return result;
 };
 
-const toHero = (state: GameState, deps: EngineDeps, player: PlayerId = p1): GameState => ok(state, deps, { type: "changeForm", playerId: player }).state;
+const toHero = (state: GameState, deps: EngineDeps, player: PlayerId = p1): GameState =>
+  ok(state, deps, { type: "changeForm", playerId: player }).state;
 
 /** Test surgery: an out-of-play encounter card (deck or set aside) enters play engaged with `player`. */
-function engage(state: GameState, cardName: string, player: PlayerId): { readonly state: GameState; readonly id: InstanceId } {
+function engage(
+  state: GameState,
+  cardName: string,
+  player: PlayerId,
+): { readonly state: GameState; readonly id: InstanceId } {
   const outOfPlay = [
     ...state.encounterDeckOrder.flatMap((deckId) => encounterDeckOf(state, deckId).deck),
     ...state.players.flatMap((p) => p.setAside),
@@ -178,7 +218,10 @@ function engage(state: GameState, cardName: string, player: PlayerId): { readonl
   const id = outOfPlay.find((candidate) => nameOf(state, candidate) === cardName);
   if (!id) throw new Error(`no out-of-play ${cardName}`);
   const encounterDecks = Object.fromEntries(
-    Object.entries(state.encounterDecks).map(([deckId, piles]) => [deckId, { ...piles, deck: piles.deck.filter((x) => x !== id) }]),
+    Object.entries(state.encounterDecks).map(([deckId, piles]) => [
+      deckId,
+      { ...piles, deck: piles.deck.filter((x) => x !== id) },
+    ]),
   );
   return {
     id,
@@ -190,7 +233,10 @@ function engage(state: GameState, cardName: string, player: PlayerId): { readonl
         setAside: p.setAside.filter((x) => x !== id),
         playArea: p.playerId === player ? [...p.playArea, id] : p.playArea,
       })),
-      instances: { ...state.instances, [id]: { ...mustInstance(state, id), faceup: true, engagedWith: player, controllerId: null } },
+      instances: {
+        ...state.instances,
+        [id]: { ...mustInstance(state, id), faceup: true, engagedWith: player, controllerId: null },
+      },
     },
   };
 }
@@ -207,7 +253,12 @@ function strike(state: GameState, deps: EngineDeps, target: InstanceId, player: 
       [target]: { ...mustInstance(state, target), damage: Math.max(0, maxHp - HERO.hero.atk) },
     },
   };
-  return ok(primed, deps, { type: "basicAttack", playerId: player, attackerInstanceId: identity, targetInstanceId: target });
+  return ok(primed, deps, {
+    type: "basicAttack",
+    playerId: player,
+    attackerInstanceId: identity,
+    targetInstanceId: target,
+  });
 }
 
 const withActive = (state: GameState, id: InstanceId): GameState => ({ ...state, activeVillainId: id });
@@ -249,7 +300,9 @@ describe("§3.1 several villains, and the active villain", () => {
     const { state, deps } = crewAtMulligan({ players: 2 });
     const { session, events } = playUntilRound(startSession(state), deps, 3);
     const wrecker = villainIdOf(session.state, "wrecker");
-    const activations = events.filter((e): e is Extract<GameEvent, { type: "enemyActivated" }> => e.type === "enemyActivated");
+    const activations = events.filter(
+      (e): e is Extract<GameEvent, { type: "enemyActivated" }> => e.type === "enemyActivated",
+    );
     const byVillains = activations.filter((e) => villainOf(session.state, e.enemyInstanceId));
     // Two rounds × two players, every one of them Wrecker.
     expect(byVillains).toHaveLength(4);
@@ -266,22 +319,36 @@ describe("§3.1 several villains, and the active villain", () => {
       trigger: { kind: "response", forced: true, on: { on: "enemyScheme", selfIs: "source" } },
       effects: [{ kind: "setActiveVillain", villain: { kind: "named", name: "thunderball" } }],
     });
-    const wreckerCard = stubVillain({ id: "wrecker", stages: [{ hp: flat(5), atk: 0, sch: 0, abilities: [handOff.ref] }] });
+    const wreckerCard = stubVillain({
+      id: "wrecker",
+      stages: [{ hp: flat(5), atk: 0, sch: 0, abilities: [handOff.ref] }],
+    });
     const { state, deps } = crewAtMulligan({ players: 2, villains: { wrecker: wreckerCard }, abilities: [handOff] });
     const { session, events } = playUntilRound(startSession(state), deps, 2);
     const [wrecker, thunderball] = [villainIdOf(session.state, "wrecker"), villainIdOf(session.state, "thunderball")];
-    const villainActivations = events.filter((e) => e.type === "enemyActivated" && villainOf(session.state, e.enemyInstanceId));
-    expect(villainActivations.map((e) => (e.type === "enemyActivated" ? [nameOf(session.state, e.enemyInstanceId), e.playerId] : null))).toEqual([
+    const villainActivations = events.filter(
+      (e) => e.type === "enemyActivated" && villainOf(session.state, e.enemyInstanceId),
+    );
+    expect(
+      villainActivations.map((e) =>
+        e.type === "enemyActivated" ? [nameOf(session.state, e.enemyInstanceId), e.playerId] : null,
+      ),
+    ).toEqual([
       ["wrecker", p1],
       ["thunderball", p2],
     ]);
     expect(events).toContainEqual({ type: "activeVillainChanged", from: wrecker, to: thunderball, reason: "effect" });
 
     // §3.2: each boost card comes from the deck of the villain active when it is dealt, and step 3 deals from Thunderball's.
-    const boosts = events.filter((e): e is Extract<GameEvent, { type: "boostCardDealt" }> => e.type === "boostCardDealt");
+    const boosts = events.filter(
+      (e): e is Extract<GameEvent, { type: "boostCardDealt" }> => e.type === "boostCardDealt",
+    );
     expect(boosts.map((e) => nameOf(session.state, e.instanceId))).toEqual(["goon-wrecker", "goon-thunderball"]);
     const dealt = events.filter((e) => e.type === "cardMoved" && e.to.kind === "dealtEncounter");
-    expect(dealt.map((e) => (e.type === "cardMoved" ? nameOf(session.state, e.instanceId) : null))).toEqual(["goon-thunderball", "goon-thunderball"]);
+    expect(dealt.map((e) => (e.type === "cardMoved" ? nameOf(session.state, e.instanceId) : null))).toEqual([
+      "goon-thunderball",
+      "goon-thunderball",
+    ]);
     expect(auditVillainPhases(session.log, deps).violations).toEqual([]);
 
     // Replay deep-equal: the log alone reproduces the state.
@@ -309,7 +376,9 @@ describe("§3.1 several villains, and the active villain", () => {
     const basicAttackOf = (s: GameState) => {
       const actions = legalActions(s, p1, deps);
       if (actions.kind !== "turn") throw new Error(`not p1's turn: ${actions.kind}`);
-      return [...actions.legal, ...actions.illegal].find((a) => a.action.kind === "basicAttack" && a.action.instanceId === identity);
+      return [...actions.legal, ...actions.illegal].find(
+        (a) => a.action.kind === "basicAttack" && a.action.instanceId === identity,
+      );
     };
     const open = basicAttackOf(hero);
     expect(open && "targets" in open ? open.targets : []).toEqual(expect.arrayContaining(NAMES.map(villain)));
@@ -328,7 +397,12 @@ describe("§3.1 several villains, and the active villain", () => {
     const { state, deps, villain } = crew();
     const hero = toHero(state, deps);
     const identity = mustPlayer(hero, p1).identity.instanceId;
-    const after = ok(hero, deps, { type: "basicAttack", playerId: p1, attackerInstanceId: identity, targetInstanceId: villain("thunderball") }).state;
+    const after = ok(hero, deps, {
+      type: "basicAttack",
+      playerId: p1,
+      attackerInstanceId: identity,
+      targetInstanceId: villain("thunderball"),
+    }).state;
     expect(mustInstance(after, villain("thunderball")).damage).toBe(HERO.hero.atk);
     expect(after.activeVillainId).toBe(villain("wrecker"));
   });
@@ -356,11 +430,19 @@ describe("§3.1 several villains, and the active villain", () => {
     const { state, deps, villain } = crew();
     const hero = toHero(state, deps);
     const bulldozerScheme = villainOf(hero, villain("bulldozer"))?.signatureSideSchemeId as InstanceId;
-    const leading: GameState = { ...hero, instances: { ...hero.instances, [bulldozerScheme]: { ...mustInstance(hero, bulldozerScheme), threat: 9 } } };
+    const leading: GameState = {
+      ...hero,
+      instances: { ...hero.instances, [bulldozerScheme]: { ...mustInstance(hero, bulldozerScheme), threat: 9 } },
+    };
     const { state: after, events } = strike(leading, deps, villain("wrecker"));
     expect(after.pendingChoice).toBeNull();
     expect(after.activeVillainId).toBe(villain("bulldozer"));
-    expect(events).toContainEqual({ type: "activeVillainChanged", from: villain("wrecker"), to: villain("bulldozer"), reason: "activeVillainDefeated" });
+    expect(events).toContainEqual({
+      type: "activeVillainChanged",
+      from: villain("wrecker"),
+      to: villain("bulldozer"),
+      reason: "activeVillainDefeated",
+    });
   });
 
   it("a tie for the most threat is a first-player choice on the encounter side's behalf (firstPlayerTargets)", () => {
@@ -371,9 +453,19 @@ describe("§3.1 several villains, and the active villain", () => {
     expect(choice?.authority).toBe("firstPlayerTargets");
     expect(choice?.playerId).toBe(after.firstPlayerId);
     expect(choice?.options.map((option) => option.optionId)).toEqual([villain("thunderball"), villain("piledriver")]);
-    const chosen = ok(after, deps, { type: "resolveChoice", playerId: choice!.playerId, choiceId: choice!.choiceId, selectedOptionIds: [villain("piledriver")] });
+    const chosen = ok(after, deps, {
+      type: "resolveChoice",
+      playerId: choice!.playerId,
+      choiceId: choice!.choiceId,
+      selectedOptionIds: [villain("piledriver")],
+    });
     expect(chosen.state.activeVillainId).toBe(villain("piledriver"));
-    expect(chosen.events).toContainEqual({ type: "activeVillainChanged", from: villain("wrecker"), to: villain("piledriver"), reason: "activeVillainDefeated" });
+    expect(chosen.events).toContainEqual({
+      type: "activeVillainChanged",
+      from: villain("wrecker"),
+      to: villain("piledriver"),
+      reason: "activeVillainDefeated",
+    });
   });
 
   it("the game is won only when the last villain is defeated", () => {
@@ -409,14 +501,19 @@ describe("§3.2 an encounter deck per villain, and discard routing", () => {
   it("boosting, dealing and surging all draw from the active villain's deck", () => {
     const { state, deps, villain } = crew({ deckExtras: { thunderball: [SURGE.id] } });
     const thunderballActive = withActive(state, villain("thunderball"));
-    const piles = encounterDeckOf(thunderballActive, villainOf(thunderballActive, villain("thunderball"))!.encounterDeckId);
+    const piles = encounterDeckOf(
+      thunderballActive,
+      villainOf(thunderballActive, villain("thunderball"))!.encounterDeckId,
+    );
     const surgeId = piles.deck.find((id) => nameOf(thunderballActive, id) === SURGE.id) as InstanceId;
     const goons = piles.deck.filter((id) => id !== surgeId);
     // Boost card, then the dealt card (the surge treachery), then the card its surge deals.
     const stacked = withEncounterPiles(thunderballActive, { deck: [goons[0]!, surgeId, ...goons.slice(1)] });
     const { events } = playUntilRound(startSession(stacked), deps, 2);
     const thunderballDeck = villainOf(stacked, villain("thunderball"))!.encounterDeckId;
-    const drawnFrom = events.flatMap((e) => (e.type === "cardMoved" && e.from.kind === "encounterDeck" ? [e.from.deckId] : []));
+    const drawnFrom = events.flatMap((e) =>
+      e.type === "cardMoved" && e.from.kind === "encounterDeck" ? [e.from.deckId] : [],
+    );
     expect(drawnFrom.length).toBe(3);
     expect(drawnFrom.every((deckId) => deckId === thunderballDeck)).toBe(true);
     expect(events.some((e) => e.type === "surgeTriggered")).toBe(true);
@@ -445,12 +542,16 @@ describe("§3.2 an encounter deck per villain, and discard routing", () => {
     const emptied = withEncounterPiles(state, { deck: [], discard: wreckerPiles.deck });
     const untouched = state.encounterDeckOrder.slice(1).map((deckId) => encounterDeckOf(emptied, deckId));
     const { session, events } = playUntilRound(startSession(emptied), deps, 2);
-    const shuffles = events.filter((e) => e.type === "deckShuffled" && (e.zone.kind === "encounterDeck" || e.zone.kind === "encounterDiscard"));
+    const shuffles = events.filter(
+      (e) => e.type === "deckShuffled" && (e.zone.kind === "encounterDeck" || e.zone.kind === "encounterDiscard"),
+    );
     expect(shuffles).toHaveLength(1);
     expect(shuffles[0]).toMatchObject({ zone: { kind: "encounterDeck", deckId: state.encounterDeckOrder[0] } });
     expect(events.filter((e) => e.type === "accelerationTokenAdded")).toHaveLength(1);
     expect(session.state.mainScheme.accelerationTokens).toBe(1);
-    expect(state.encounterDeckOrder.slice(1).map((deckId) => encounterDeckOf(session.state, deckId))).toEqual(untouched);
+    expect(state.encounterDeckOrder.slice(1).map((deckId) => encounterDeckOf(session.state, deckId))).toEqual(
+      untouched,
+    );
   });
 
   it("'the encounter deck' in selectors and destinations is the active villain's; `deckOf` names another villain's deck", () => {
@@ -458,15 +559,22 @@ describe("§3.2 an encounter deck per villain, and discard routing", () => {
     const active = withActive(state, villain("thunderball"));
     const ctx = createCtx(active, deps);
     const context = { selfInstanceId: null, controllerId: p1, event: null, bindings: {} };
-    const [, thunderballDeck, , bulldozerDeck] = active.encounterDeckOrder.map((deckId) => encounterDeckOf(active, deckId).deck);
+    const [, thunderballDeck, , bulldozerDeck] = active.encounterDeckOrder.map(
+      (deckId) => encounterDeckOf(active, deckId).deck,
+    );
     expect(selectCards(ctx, { kind: "encounter", zones: ["deck"] }, context)).toEqual(thunderballDeck);
-    expect(selectCards(ctx, { kind: "encounter", zones: ["deck"], deckOf: { kind: "named", name: "bulldozer" } }, context)).toEqual(bulldozerDeck);
+    expect(
+      selectCards(ctx, { kind: "encounter", zones: ["deck"], deckOf: { kind: "named", name: "bulldozer" } }, context),
+    ).toEqual(bulldozerDeck);
 
     // "Shuffle it into the encounter deck" (ruling, Jan 17, 2026 (5): into the active villain's), keeping its home.
     const stray = bulldozerDeck![0]!;
     moveCardsTo(ctx, [stray], "encounterDeckShuffle");
     expect(encounterDeckOf(ctx.state, active.encounterDeckOrder[1]!).deck).toContain(stray);
     expect(encounterDeckOf(ctx.state, active.encounterDeckOrder[3]!).deck).not.toContain(stray);
-    expect(mustInstance(ctx.state, stray).home).toEqual({ kind: "encounterDeck", deckId: active.encounterDeckOrder[3] });
+    expect(mustInstance(ctx.state, stray).home).toEqual({
+      kind: "encounterDeck",
+      deckId: active.encounterDeckOrder[3],
+    });
   });
 });

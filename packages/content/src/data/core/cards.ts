@@ -3116,6 +3116,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     hp: 2,
     encounterSetIds: [encounterSetId("klaw")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("MERCENARY")],
     keywords: [{ name: "surge" }],
     text: {
@@ -3156,6 +3157,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01123.png") },
     encounterSetIds: [encounterSetId("klaw")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -3306,6 +3308,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     hp: 7,
     encounterSetIds: [encounterSetId("masters_of_evil")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("MASTERS OF EVIL")],
     keywords: [],
     text: {
@@ -3329,6 +3332,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("masters_of_evil")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("MASTERS OF EVIL")],
     keywords: [],
     text: {
@@ -3352,6 +3356,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("masters_of_evil")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("MASTERS OF EVIL")],
     keywords: [],
     text: {
@@ -3375,6 +3380,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("masters_of_evil")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("MASTERS OF EVIL")],
     keywords: [],
     text: {
@@ -3699,6 +3705,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01144a.png") },
     encounterSetIds: [encounterSetId("ultron")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -3719,6 +3726,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01144b.png") },
     encounterSetIds: [encounterSetId("ultron")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -3739,6 +3747,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01144c.png") },
     encounterSetIds: [encounterSetId("ultron")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -3779,6 +3788,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01146.png") },
     encounterSetIds: [encounterSetId("ultron")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -3959,6 +3969,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01154.png") },
     encounterSetIds: [encounterSetId("under_attack")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -4048,6 +4059,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01158.png") },
     encounterSetIds: [encounterSetId("black_panther_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "surge" }],
     text: {
@@ -4197,6 +4209,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01164.png") },
     encounterSetIds: [encounterSetId("she_hulk_nemesis")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -4288,6 +4301,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01168.png") },
     encounterSetIds: [encounterSetId("spider_man_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -4406,6 +4420,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01173.png") },
     encounterSetIds: [encounterSetId("iron_man_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [],
     text: {
@@ -4524,6 +4539,7 @@ export const CORE_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/01178.png") },
     encounterSetIds: [encounterSetId("captain_marvel_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "surge" }],
     text: {

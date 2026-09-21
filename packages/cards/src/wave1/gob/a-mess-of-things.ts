@@ -3,7 +3,6 @@ import {
   boost,
   countOf,
   defineAbilities,
-  each,
   enemyAttack,
   eventTarget,
   forcedResponse,
@@ -11,16 +10,11 @@ import {
   named,
   not,
   placeThreat,
-  query,
   scaled,
   self,
   stun,
-  surge,
-  theVillain,
   varAtLeast,
   whenRevealed,
-  whenRevealedAlterEgo,
-  whenRevealedHero,
   you,
   yourIdentity,
 } from "../../dsl/index.js";
@@ -33,15 +27,19 @@ const SCORPION = named("Scorpion");
  */
 export const A_MESS_OF_THINGS = defineAbilities({
   // A Mess of Things — When Revealed: Place 2 additional threat here for each stunned friendly character.
-  "02037.when-revealed": whenRevealed(placeThreat(scaled(countOf({ categories: ["identity", "ally"], hasStatus: "stunned" }), { times: 2 }), self)),
+  "02037.when-revealed": whenRevealed(
+    placeThreat(scaled(countOf({ categories: ["identity", "ally"], hasStatus: "stunned" }), { times: 2 }), self),
+  ),
 
   // Scorpion — Quickstrike (data). [star] Forced Response: After Scorpion attacks and damages a character, stun
   // that character.
   "02038.scorpion-forced-response": forcedResponse(after.enemyAttacks("self", { damages: true }), stun(eventTarget)),
 
-
   // Tail Sweep — When Revealed: Scorpion attacks your hero. If no attack was made this way, you are stunned.
-  "02040.when-revealed": whenRevealed(enemyAttack(SCORPION, { against: you, bind: "sweep" }), ifThen(not(varAtLeast("sweep.made")), stun(yourIdentity))),
+  "02040.when-revealed": whenRevealed(
+    enemyAttack(SCORPION, { against: you, bind: "sweep" }),
+    ifThen(not(varAtLeast("sweep.made")), stun(yourIdentity)),
+  ),
   // [star] Boost: You are stunned.
   "02040.boost": boost(stun(yourIdentity)),
 });

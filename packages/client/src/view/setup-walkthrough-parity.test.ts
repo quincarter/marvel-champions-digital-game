@@ -78,7 +78,10 @@ describe("SetupDealScene and ChoiceOverlay answer a mulligan the same way", () =
       const choice = current.pendingChoice;
       expect(choice?.prompt.kind).toBe("mulligan");
       expect(choice!.maxSelections).toBeGreaterThan(1);
-      const result = sessionApply({ state: current, log: session.log }, { type: "resolveChoice", playerId: player as PlayerId, choiceId: choice!.choiceId, selectedOptionIds: [] });
+      const result = sessionApply(
+        { state: current, log: session.log },
+        { type: "resolveChoice", playerId: player as PlayerId, choiceId: choice!.choiceId, selectedOptionIds: [] },
+      );
       if (!result.ok) throw new Error(result.error.message);
       current = result.session.state;
     }
@@ -110,8 +113,18 @@ describe("SetupDealScene and ChoiceOverlay answer a mulligan the same way", () =
       // The premise the test exists to check: for this choice kind, the two rules never disagree.
       expect(sceneSelected).toEqual(genericSelected);
 
-      const genericResult = sessionApply(genericSession, { type: "resolveChoice", playerId: player as PlayerId, choiceId: genericChoice!.choiceId, selectedOptionIds: genericSelected });
-      const sceneResult = sessionApply(sceneSession, { type: "resolveChoice", playerId: player as PlayerId, choiceId: sceneChoice!.choiceId, selectedOptionIds: sceneSelected });
+      const genericResult = sessionApply(genericSession, {
+        type: "resolveChoice",
+        playerId: player as PlayerId,
+        choiceId: genericChoice!.choiceId,
+        selectedOptionIds: genericSelected,
+      });
+      const sceneResult = sessionApply(sceneSession, {
+        type: "resolveChoice",
+        playerId: player as PlayerId,
+        choiceId: sceneChoice!.choiceId,
+        selectedOptionIds: sceneSelected,
+      });
       if (!genericResult.ok) throw new Error(genericResult.error.message);
       if (!sceneResult.ok) throw new Error(sceneResult.error.message);
       genericSession = genericResult.session;

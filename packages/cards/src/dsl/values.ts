@@ -64,6 +64,22 @@ export const theVillain: TargetRef = { kind: "villain" };
  */
 export const defendingCharacter: TargetRef = { kind: "defendingCharacter" };
 export const theMainScheme: TargetRef = { kind: "mainScheme" };
+/**
+ * The central main scheme stage, outside every separate game area (docs/phase7-wave2.md §3.1): "place 1 set-aside
+ * Kang's Dominion facedown under stage 4A" while game areas are still split. Distinct from `theMainScheme`, which
+ * resolves inside the *current* context's own area.
+ */
+export const centralMainScheme: TargetRef = { kind: "mainScheme", of: "central" };
+/**
+ * "Each face down [card] under this stage/card" (Kang's Wrath 4A, 11013a): the cards tucked under what `of` names,
+ * still out of play (RRG 1.8 "Tuck", p. 45) — the `TargetRef` sibling of the `tuckedUnder` `CardSelector` (`dsl/
+ * effects.ts`), needed anywhere a ref is required (`revealCard`'s `cards`, above all) rather than a selector.
+ */
+export const tuckedUnderRef = (of: TargetRef, filter?: TargetQuery): TargetRef => ({
+  kind: "tuckedUnder",
+  of,
+  ...(filter ? { filter } : {}),
+});
 /** A player's identity, in whichever form it is ("you take 2 damage", "your hero", "Peter Parker"). */
 export const identityOf = (player: PlayerRef = you): TargetRef => ({ kind: "identityOf", player });
 export const yourIdentity: TargetRef = identityOf(you);
@@ -77,6 +93,21 @@ export const eventTarget: TargetRef = { kind: "eventTarget" };
 export const each = (q: TargetQuery): TargetRef => ({ kind: "each", query: q });
 /** The card in play with this exact printed name. */
 export const named = (name: string): TargetRef => ({ kind: "named", name });
+/**
+ * "The X with the highest/lowest Y" (Mad Genius, Clash of the Titans, Time-Travel Hijinks' "the highest-cost card
+ * you control"): each candidate in `among` is measured once, with itself bound to `slot` (default `"candidate"`) so
+ * `measure` can read the candidate's own values. Ties resolve to every tied card by default (`ties: "all"`) since a
+ * ref is resolved with nobody to ask; an effect that needs exactly one breaks the tie itself (`bindTargets` this,
+ * then `chooseTarget({ inSlot })`). Several packs (`wave1/{gob,hlk,twc,bkw,drs}/local.ts`) carry an identical
+ * per-pack copy of this builder predating its centralization here — not deduplicated by this change, since doing so
+ * safely means touching every one of those packs' own files.
+ */
+export const superlative = (
+  order: "highest" | "lowest",
+  among: TargetRef,
+  measure: ValueSpec,
+  opts: { readonly ties?: "all" | "first"; readonly slot?: string } = {},
+): TargetRef => ({ kind: "superlative", among, order, measure, ...opts });
 
 // ---------------------------------------------------------------------------
 // Queries
@@ -86,6 +117,21 @@ export const query = (
   categories: TargetCategory | readonly TargetCategory[],
   rest: Omit<TargetQuery, "categories"> = {},
 ): TargetQuery => ({ categories: typeof categories === "string" ? [categories] : categories, ...rest });
+
+/**
+ * "… that shares a trait with your hero" (Team-Building Exercise, `ant` 12024): `query(categories, sharesTraitWith(
+ * identityOf(you)))`. Both sides are read live through `traitsOf` — a granted trait counts on either end (RRG 1.8
+ * "Gains", p. 21) — and a ref naming nothing, or naming only trait-less cards, matches nothing (there is no trait
+ * to share). docs/phase7-wave2.md §20.1.
+ */
+export const sharesTraitWith = (ref: TargetRef): Pick<TargetQuery, "sharesTraitWith"> => ({ sharesTraitWith: ref });
+/**
+ * "… a card from the [X] Nemesis set" (Yellowjacket's Plan, `ant` 12029): `query(categories, encounterSetOf(self))`
+ * — every printed "a card from the <X> set" in cycle 1 sits on a card that is itself a member of that set, so
+ * `self` says it without naming the set anywhere in `@mc/cards`. Reads `encounterSetIds` off card data, so it
+ * matches wherever the card is (deck, discard, set aside, in play). docs/phase7-wave2.md §20.2.
+ */
+export const encounterSetOf = (ref: TargetRef): Pick<TargetQuery, "encounterSetOf"> => ({ encounterSetOf: ref });
 
 /** "Friendly character": any identity or ally (every player's, RRG "Friendly"). */
 export const FRIENDLY_CHARACTER: TargetQuery = query(["identity", "ally"]);
@@ -139,11 +185,27 @@ export const sum = (...values: readonly Amount[]): ValueSpec => ({ kind: "sum", 
  * How many of a bound-slot's cards match a query, wherever they are (unlike `countOf`, not restricted to in play):
  * "for each treachery looked at this way" (Falcon: `countAmong(chosen("looked"), query("treachery"))`).
  */
-export const countAmong = (cardsRef: TargetRef, q: TargetQuery): ValueSpec => ({ kind: "countInRef", cards: cardsRef, query: q });
+export const countAmong = (cardsRef: TargetRef, q: TargetQuery): ValueSpec => ({
+  kind: "countInRef",
+  cards: cardsRef,
+  query: q,
+});
+/**
+ * "Where X is equal to the villain's stage number" (Death from Above, Wicked Ambitions, Regenerative Healing,
+ * Muster Courage, Running Interference, United We Stand, Browbeat): `of` defaults to the active villain. Several
+ * packs (`wave1/gob/local.ts` first) carried an identical per-pack copy of this builder predating its
+ * centralization here, the same situation `superlative`/`printedCostOf` were in.
+ */
+export const villainStageNumberOf = (of?: TargetRef): ValueSpec => ({
+  kind: "villainStageNumber",
+  ...(of ? { of } : {}),
+});
 export const damageOn = (of: TargetRef): ValueSpec => ({ kind: "damage", of });
 export const threatOn = (of: TargetRef): ValueSpec => ({ kind: "threat", of });
 export const boostIconsOn = (of: TargetRef): ValueSpec => ({ kind: "boostIcons", of });
 export const remainingHpOf = (of: TargetRef): ValueSpec => ({ kind: "remainingHp", of });
+/** A card's own printed resource cost (0 for a card that prints none): "the highest-cost card you control". */
+export const printedCostOf = (of: TargetRef): ValueSpec => ({ kind: "printedCost", of });
 export const countersOn = (of: TargetRef, counterType: string): ValueSpec => ({ kind: "counters", of, counterType });
 /** "For each different resource type discarded this way" (wild counts as its own type). */
 export const resourceTypesOf = (cardsRef: TargetRef): ValueSpec => ({ kind: "resourceTypes", cards: cardsRef });
@@ -216,11 +278,26 @@ export const damagedAtLeast = (of: TargetRef, n: number): Predicate => ({ kind: 
  * be any `ValueSpec`, so the threshold can itself be read from the board. Use it for anything the older
  * `damagedAtLeast`/`counterAtLeast`/`varAtLeast` spellings don't already cover.
  */
-export const valueAtLeast = (value: Amount, threshold: Amount): Predicate => ({ kind: "compare", left: amount(value), op: "atLeast", right: amount(threshold) });
+export const valueAtLeast = (value: Amount, threshold: Amount): Predicate => ({
+  kind: "compare",
+  left: amount(value),
+  op: "atLeast",
+  right: amount(threshold),
+});
 /** "If there is no threat here" / "if you have 2 or fewer cards in hand": the upper-bound half of `valueAtLeast`. */
-export const valueAtMost = (value: Amount, threshold: Amount): Predicate => ({ kind: "compare", left: amount(value), op: "atMost", right: amount(threshold) });
+export const valueAtMost = (value: Amount, threshold: Amount): Predicate => ({
+  kind: "compare",
+  left: amount(value),
+  op: "atMost",
+  right: amount(threshold),
+});
 /** "If X is exactly N". */
-export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({ kind: "compare", left: amount(value), op: "equalTo", right: amount(threshold) });
+export const valueEquals = (value: Amount, threshold: Amount): Predicate => ({
+  kind: "compare",
+  left: amount(value),
+  op: "equalTo",
+  right: amount(threshold),
+});
 /** "If there is N or more threat on <scheme>" — the spelling the Wrecking Crew signature side schemes print. */
 export const threatAtLeast = (of: TargetRef, n: Amount): Predicate => valueAtLeast(threatOn(of), n);
 /** A result of the triggering event ("if this attack dealt damage" → `eventDealt("damage")`). */
@@ -246,7 +323,12 @@ export const duringVillainPhaseStepOne: Predicate = { kind: "gameStep", phase: "
  * played each round by 1"). FAQ "Steve Rogers (#1B)" (RRG 1.8 p. 59): applies to the very first ally that player
  * plays each round, whatever form they're in when it's played — so this reads the round count, not the phase's.
  */
-export const firstThisRound = (cardType: string, player: PlayerRef = you): Predicate => ({ kind: "playedThisRound", player, cardType, atMost: 0 });
+export const firstThisRound = (cardType: string, player: PlayerRef = you): Predicate => ({
+  kind: "playedThisRound",
+  player,
+  cardType,
+  atMost: 0,
+});
 
 // ---------------------------------------------------------------------------
 // Wave 2 (cycle 1, docs/phase7-wave2.md) additions

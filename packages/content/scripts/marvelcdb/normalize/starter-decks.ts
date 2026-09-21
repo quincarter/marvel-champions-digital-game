@@ -8,7 +8,8 @@ export function normalizeStarterDecks(ctx: NormalizeContext): StarterDeck[] {
   const byId = new Map(cards.map((c) => [c.id as string, c]));
   return ctx.curation.starterDecks.map((d) => {
     const identity = byId.get(d.identityCode);
-    if (!identity || identity.type !== "hero_identity") errors.push(`deck ${d.id}: ${d.identityCode} is not an identity`);
+    if (!identity || identity.type !== "hero_identity")
+      errors.push(`deck ${d.id}: ${d.identityCode} is not an identity`);
     let total = 0;
     for (const [code, qty] of Object.entries(d.cards)) {
       total += qty;
@@ -48,10 +49,15 @@ export function normalizeStarterDecks(ctx: NormalizeContext): StarterDeck[] {
     }
     if (identity?.type === "hero_identity") {
       if (identity.obligationCardId !== d.obligationCode) {
-        errors.push(`deck ${d.id}: source lists obligation ${d.obligationCode}, identity links ${identity.obligationCardId}`);
+        errors.push(
+          `deck ${d.id}: source lists obligation ${d.obligationCode}, identity links ${identity.obligationCardId}`,
+        );
       }
       const nemesis = cards
-        .filter((c) => "encounterSetIds" in c && (c.encounterSetIds as readonly string[]).includes(identity.nemesisEncounterSetId))
+        .filter(
+          (c) =>
+            "encounterSetIds" in c && (c.encounterSetIds as readonly string[]).includes(identity.nemesisEncounterSetId),
+        )
         .map((c) => c.id as string)
         .sort();
       if (nemesis.join() !== [...d.nemesisCodes].sort().join()) {

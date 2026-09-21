@@ -1,8 +1,16 @@
 import { cardId } from "@mc/content";
-import { activeEncounterDeck, activeEncounterDeckId, createGame, type EngineDeps, type GameSetupConfig, type GameState, type InstanceId, type PlayerId } from "@mc/engine";
+import {
+  activeEncounterDeck,
+  activeEncounterDeckId,
+  createGame,
+  type EngineDeps,
+  type GameSetupConfig,
+  type GameState,
+  type InstanceId,
+  type PlayerId,
+} from "@mc/engine";
 import { firstLegal, runWith, settle } from "../../testing/harness.js";
 import { WAVE1_ABILITIES } from "../index.js";
-import { BKW_ABILITIES } from "./index.js";
 
 /**
  * Local test deps for the Black Widow pack, until the main session registers `BKW_ABILITIES` in `../index.ts`'s
@@ -13,7 +21,8 @@ import { BKW_ABILITIES } from "./index.js";
  */
 export const BKW_DEPS: EngineDeps = { abilities: WAVE1_ABILITIES };
 
-export const runBkw = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState => runWith(BKW_DEPS, state, ...commands);
+export const runBkw = (state: GameState, ...commands: Parameters<typeof runWith>[2][]): GameState =>
+  runWith(BKW_DEPS, state, ...commands);
 
 export function startBkwGame(config: GameSetupConfig): GameState {
   const created = createGame(config, BKW_DEPS);
@@ -40,7 +49,9 @@ export function stackFromSetAside(state: GameState, player: PlayerId, ...codes: 
     const found = owner.setAside.find((id) => state.instances[id]?.cardId === cardId(code) && !ids.includes(id));
     if (!found) throw new Error(`no ${code} in ${player}'s setAside`);
     ids.push(found);
-    players = players.map((p) => (p.playerId === player ? { ...p, setAside: p.setAside.filter((id) => id !== found) } : p));
+    players = players.map((p) =>
+      p.playerId === player ? { ...p, setAside: p.setAside.filter((id) => id !== found) } : p,
+    );
   }
   return {
     ...state,
@@ -59,7 +70,10 @@ export function forceMinionIntoPlay(state: GameState, id: InstanceId, player: Pl
   const piles = activeEncounterDeck(state);
   return {
     ...state,
-    encounterDecks: { ...state.encounterDecks, [deckId]: { deck: piles.deck.filter((x) => x !== id), discard: piles.discard.filter((x) => x !== id) } },
+    encounterDecks: {
+      ...state.encounterDecks,
+      [deckId]: { deck: piles.deck.filter((x) => x !== id), discard: piles.discard.filter((x) => x !== id) },
+    },
     players: state.players.map((p) => (p.playerId === player ? { ...p, playArea: [...p.playArea, id] } : p)),
     instances: { ...state.instances, [id]: { ...state.instances[id]!, engagedWith: player } },
   };

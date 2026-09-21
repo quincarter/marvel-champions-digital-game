@@ -479,6 +479,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     attachesTo: { kind: "yourIdentity" },
     encounterSetIds: [encounterSetId("kang")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("TEMPORAL")],
     keywords: [],
     text: {
@@ -502,6 +503,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("kang")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ROBOT"), trait("TEMPORAL")],
     keywords: [{ name: "guard" }, { name: "retaliate", value: 1 }],
     text: {
@@ -578,7 +580,14 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
       current: "You cannot play hero-specific cards.\nAlter-Ego Action: Discard a hero-specific card from your hand → discard this obligation.",
     },
     flavor: "\"Greater men than you have trembled at my name. Lesser men have fainted at its mention!\" —Kang",
-    abilities: [{ id: abilityId("11020.obligation") }],
+    // Two independent printed clauses (a constant restriction, then a separate Alter-Ego Action) cannot share one
+    // AbilityDefinition — an AbilityDefinition carries exactly one AbilityTriggerSpec. Split the same way
+    // 11018/11019/11021 already are: a `-constant` ref beside a `-action` ref (docs/phase7-wave2.md §18.2,
+    // docs/phase7-wave2-data.md). Not yet scripted — that is `ability-scripting-engineer`'s follow-up.
+    abilities: [
+      { id: abilityId("11020.depowered-constant") },
+      { id: abilityId("11020.depowered-action") },
+    ],
   },
   {
     id: cardId("11021"),
@@ -746,6 +755,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/11028.png") },
     encounterSetIds: [encounterSetId("kang")],
     boostIcons: 1,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "surge" }],
     text: {
@@ -789,6 +799,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 2,
     encounterSetIds: [encounterSetId("temporal")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("SOLDIER"), trait("TEMPORAL")],
     keywords: [{ name: "quickstrike" }],
     text: {
@@ -1091,6 +1102,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 4,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [],
     text: {
@@ -1114,6 +1126,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [{ name: "toughness" }, { name: "villainous" }],
     text: {
@@ -1137,6 +1150,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 6,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [{ name: "guard" }, { name: "retaliate", value: 1 }],
     text: {
@@ -1160,6 +1174,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [{ name: "quickstrike" }],
     text: {
@@ -1183,6 +1198,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 5,
     encounterSetIds: [encounterSetId("anachronauts")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [],
     text: {
@@ -1271,6 +1287,7 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
     hp: 3,
     encounterSetIds: [encounterSetId("mot")],
     boostIcons: 0,
+    starIcon: true,
     traits: [trait("ELITE"), trait("TEMPORAL")],
     keywords: [{ name: "incite", value: 1 }, { name: "surge" }],
     text: {
@@ -1297,7 +1314,13 @@ export const TOAFK_CARDS: readonly AnyCard[] = [
       printed: "You cannot attack Kang.\nAlter-Ego Action: Discard a random card from your hand → discard this obligation.",
       current: "You cannot attack Kang.\nAlter-Ego Action: Discard a random card from your hand → discard this obligation.",
     },
-    abilities: [{ id: abilityId("11049.obligation") }],
+    // Same two-clauses-one-ref shape as 11020 (a constant restriction plus an independent Alter-Ego Action):
+    // split into a `-constant` ref and a `-action` ref (docs/phase7-wave2.md §18.2, docs/phase7-wave2-data.md).
+    // Not yet scripted.
+    abilities: [
+      { id: abilityId("11049.fear-of-kang-constant") },
+      { id: abilityId("11049.fear-of-kang-action") },
+    ],
   },
   {
     id: cardId("11050"),

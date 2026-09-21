@@ -7,9 +7,17 @@ const BUTTON = 44;
 /** The rect the inline interrupt window leaves for its cards, between its heading and "Let it resolve". */
 const CASES: readonly { readonly name: string; readonly formFactor: FormFactor; readonly rect: Rect }[] = [
   { name: "phone 390×844", formFactor: formFactorFor(390, 844), rect: { x: 34, y: 200, width: 322, height: 520 } },
-  { name: "tablet portrait 768×1024", formFactor: formFactorFor(768, 1024), rect: { x: 66, y: 300, width: 620, height: 560 } },
+  {
+    name: "tablet portrait 768×1024",
+    formFactor: formFactorFor(768, 1024),
+    rect: { x: 66, y: 300, width: 620, height: 560 },
+  },
   { name: "desktop 1440×900", formFactor: formFactorFor(1440, 900), rect: { x: 90, y: 330, width: 1080, height: 440 } },
-  { name: "desktop 2000×1255", formFactor: formFactorFor(2000, 1255), rect: { x: 90, y: 330, width: 1470, height: 690 } },
+  {
+    name: "desktop 2000×1255",
+    formFactor: formFactorFor(2000, 1255),
+    rect: { x: 90, y: 330, width: 1470, height: 690 },
+  },
 ];
 
 const inside = (inner: Rect, outer: Rect): boolean =>

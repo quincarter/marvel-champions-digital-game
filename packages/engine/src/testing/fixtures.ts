@@ -204,19 +204,17 @@ export interface StubVillainStage {
 }
 
 const villainStages = (stages: readonly StubVillainStage[]): [VillainStage, ...VillainStage[]] => {
-  const built = stages.map(
-    (stage, index): VillainStage => ({
-      stageNumber: index + 1,
-      hp: stage.hp,
-      atk: stage.atk,
-      sch: stage.sch,
-      ...(stage.dashedStats ? { dashedStats: stage.dashedStats } : {}),
-      text,
-      traits: stage.traits ?? [],
-      keywords: stage.keywords ?? [],
-      abilities: stage.abilities ?? [],
-    }),
-  );
+  const built = stages.map((stage, index): VillainStage => ({
+    stageNumber: index + 1,
+    hp: stage.hp,
+    atk: stage.atk,
+    sch: stage.sch,
+    ...(stage.dashedStats ? { dashedStats: stage.dashedStats } : {}),
+    text,
+    traits: stage.traits ?? [],
+    keywords: stage.keywords ?? [],
+    abilities: stage.abilities ?? [],
+  }));
   const [first, ...rest] = built;
   if (!first) throw new Error("stubVillain needs at least one stage");
   return [first, ...rest];
@@ -299,20 +297,18 @@ export function stubMainScheme(spec: {
     readonly aSideAbilities?: readonly AbilityReference[];
   }[];
 }): MainSchemeCard {
-  const stages = spec.stages.map(
-    (stage, index): MainSchemeStage => ({
-      stageNumber: index + 1,
-      startingThreat: stage.startingThreat,
-      targetThreat: stage.targetThreat,
-      acceleration: stage.acceleration,
-      icons: stage.icons ?? [],
-      text,
-      traits: [],
-      keywords: stage.keywords ?? [],
-      abilities: stage.abilities ?? [],
-      aSide: { text, abilities: stage.aSideAbilities ?? [] },
-    }),
-  );
+  const stages = spec.stages.map((stage, index): MainSchemeStage => ({
+    stageNumber: index + 1,
+    startingThreat: stage.startingThreat,
+    targetThreat: stage.targetThreat,
+    acceleration: stage.acceleration,
+    icons: stage.icons ?? [],
+    text,
+    traits: [],
+    keywords: stage.keywords ?? [],
+    abilities: stage.abilities ?? [],
+    aSide: { text, abilities: stage.aSideAbilities ?? [] },
+  }));
   const [first, ...rest] = stages;
   if (!first) throw new Error("stubMainScheme needs at least one stage");
   return {
@@ -332,14 +328,20 @@ export function stubMinion(spec: {
   readonly sch: number | "X" | null;
   readonly hp: number;
   readonly boostIcons?: number;
+  /** The boost area prints a star icon (★): a printed fact, separate from `boostIcons` (RRG 1.8 "Boost", p. 11). */
+  readonly starIcon?: boolean;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
+  /** The "(X's nemesis minion.)" parenthetical (RRG 1.8 "Nemesis Encounter Set", p. 30). */
+  readonly nemesisMinion?: boolean;
 }): MinionCard {
   return {
     ...base(spec.id, spec.id),
     type: "minion",
     encounterSetIds: (spec.encounterSetIds ?? []).map((id) => encounterSetId(id)),
+    ...(spec.nemesisMinion === undefined ? {} : { nemesisMinion: spec.nemesisMinion }),
     boostIcons: spec.boostIcons ?? 1,
+    ...(spec.starIcon === undefined ? {} : { starIcon: spec.starIcon }),
     traits: spec.traits ?? [],
     keywords: spec.keywords ?? [],
     text,
@@ -355,6 +357,8 @@ export function stubTreachery(spec: {
   /** Encounter sets the card belongs to (a nemesis set, for setup tests). */
   readonly encounterSetIds?: readonly string[];
   readonly boostIcons?: number;
+  /** The boost area prints a star icon (★): a printed fact, separate from `boostIcons` (RRG 1.8 "Boost", p. 11). */
+  readonly starIcon?: boolean;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
 }): TreacheryCard {
@@ -363,6 +367,7 @@ export function stubTreachery(spec: {
     type: "treachery",
     encounterSetIds: (spec.encounterSetIds ?? []).map((id) => encounterSetId(id)),
     boostIcons: spec.boostIcons ?? 1,
+    ...(spec.starIcon === undefined ? {} : { starIcon: spec.starIcon }),
     traits: [],
     keywords: spec.keywords ?? [],
     text,
@@ -377,6 +382,8 @@ export function stubSideScheme(spec: {
   readonly startingThreat: number;
   readonly icons?: readonly SchemeIcon[];
   readonly boostIcons?: number;
+  /** The boost area prints a star icon (★): a printed fact, separate from `boostIcons` (RRG 1.8 "Boost", p. 11). */
+  readonly starIcon?: boolean;
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
 }): SideSchemeCard {
@@ -387,6 +394,7 @@ export function stubSideScheme(spec: {
     startingThreat: flat(spec.startingThreat),
     icons: spec.icons ?? [],
     boostIcons: spec.boostIcons ?? 1,
+    ...(spec.starIcon === undefined ? {} : { starIcon: spec.starIcon }),
     traits: [],
     keywords: spec.keywords ?? [],
     text,

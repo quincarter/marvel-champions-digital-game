@@ -74,7 +74,8 @@ export function seatOptions(
       // "already taken" without the name doesn't say which one took it.
       return { deckId, seated, blockedBy: `${clash.name} is already at the table`, warning };
     }
-    if (seatedDeckIds.length >= maxSeats) return { deckId, seated, blockedBy: `${maxSeats} seats is the maximum`, warning };
+    if (seatedDeckIds.length >= maxSeats)
+      return { deckId, seated, blockedBy: `${maxSeats} seats is the maximum`, warning };
     return { deckId, seated, blockedBy: null, warning };
   });
 }

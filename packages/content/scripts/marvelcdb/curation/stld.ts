@@ -13,7 +13,8 @@ export const STLD_CURATION: PackCuration = {
   pack: {
     name: "Star-Lord",
     releaseDate: "2021-05-14",
-    releaseDateSource: "Hall of Heroes Star-Lord page (https://hallofheroeslcg.com/peter-quill-star-lord/): \"Release date: May 14, 2021\"",
+    releaseDateSource:
+      'Hall of Heroes Star-Lord page (https://hallofheroeslcg.com/peter-quill-star-lord/): "Release date: May 14, 2021"',
   },
   outDir: "src/data/stld",
   exportPrefix: "STLD",

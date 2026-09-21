@@ -116,7 +116,11 @@ export const THOR_PACK_CARDS = defineAbilities({
 
   // Jarnbjorn — Restricted (data). Response: After your hero attacks an enemy, spend a [physical] resource → deal
   // 2 damage to an enemy.
-  "06019.jarnbjorn-response": response(after.attacks(YOUR_HERO, { target: query("enemy") }), { cost: spend({ physical: 1 }) }, damageAnEnemy(2)),
+  "06019.jarnbjorn-response": response(
+    after.attacks(YOUR_HERO, { target: query("enemy") }),
+    { cost: spend({ physical: 1 }) },
+    damageAnEnemy(2),
+  ),
 
   // Heimdall — Response: After Heimdall enters play, look at the top 3 cards of the encounter deck. Discard 1 of
   // them and put the others back in any order. `EffectSpec.reorderCards` (packages/engine/src/spec.ts, named for
@@ -154,7 +158,10 @@ export const THOR_PACK_CARDS = defineAbilities({
 
   // Second Wind — Action: Heal 4 damage from an identity (5 damage instead if you paid for this card using a
   // [mental] resource).
-  "06033.second-wind-action": action(chooseTarget("identity", query("identity")), heal(ifElse(paidWith("mental"), 5, 4), chosen("identity"))),
+  "06033.second-wind-action": action(
+    chooseTarget("identity", query("identity")),
+    heal(ifElse(paidWith("mental"), 5, 4), chosen("identity")),
+  ),
 
   // Enhanced Physique — Uses (3 physical counters) (data). Hero Resource: Exhaust Enhanced Physique and remove 1
   // physical counter from it → generate a [physical] resource.

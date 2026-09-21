@@ -11,6 +11,7 @@
 import { ANT_CARDS, QSV_CARDS, SCW_CARDS, TOAFK_CARDS, TRORS_CARDS, WSP_CARDS, type AnyCard } from "@mc/content";
 import { CORE_ABILITIES } from "../core/index.js";
 import { WAVE2_ABILITIES, wave2ReprintPairs } from "./index.js";
+import { abilityRefIds } from "../ability-refs.js";
 
 // `WAVE2_CARDS` includes Core, and the engine skips an unregistered ability silently, so a missing Core script
 // would quietly play Rhino, Klaw or Ultron (or a Core hero) with no abilities in any wave 2 game.
@@ -19,24 +20,6 @@ describe("wave 2 ability registry", () => {
     for (const [id, definition] of Object.entries(CORE_ABILITIES)) expect(WAVE2_ABILITIES[id], id).toBe(definition);
   });
 });
-
-function abilityRefIds(card: AnyCard): string[] {
-  switch (card.type) {
-    case "hero_identity":
-      return [...card.hero.abilities, ...card.alterEgo.abilities, ...(card.additionalHeroForms ?? []).flatMap((face) => face.abilities)].map((ref) => ref.id);
-    case "villain":
-      return card.sides.flatMap((side) => side.stages.flatMap((stage) => stage.abilities.map((ref) => ref.id)));
-    case "main_scheme":
-      return card.stages.flatMap((stage) => [...stage.aSide.abilities, ...stage.abilities].map((ref) => ref.id));
-    default: {
-      // A double-sided card (a campaign upgrade pair, an encounter card's flip side, …) carries its other face's
-      // abilities on `flipSide`, not on the card itself (docs/phase7-wave2.md §1.5).
-      const own = "abilities" in card ? card.abilities.map((ref) => ref.id) : [];
-      const flip = "flipSide" in card && card.flipSide ? card.flipSide.abilities.map((ref) => ref.id) : [];
-      return [...own, ...flip];
-    }
-  }
-}
 
 /**
  * Every ability id `reprints.ts` supplies for this pack's own cards (it aliases pairs across every wave 2 pack).
@@ -63,11 +46,11 @@ const reprintIdsOf = (cards: readonly AnyCard[]): ReadonlySet<string> => {
  */
 const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not started">> = {
   trors: "scripted",
-  toafk: "in progress",
+  toafk: "scripted",
   ant: "scripted",
-  wsp: "not started",
-  qsv: "not started",
-  scw: "not started",
+  wsp: "scripted",
+  qsv: "scripted",
+  scw: "scripted",
 };
 
 /**
@@ -76,14 +59,12 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * other ref must resolve, and each listed ref must still be unresolved, so an entry can't go stale.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // Computed 2026-09-19 against TRORS_CARDS/WAVE2_ABILITIES — regenerate the same way (a small throwaway test
-  // dumping `allRefs.filter((id) => !(id in WAVE2_ABILITIES))`) whenever this list needs updating; hand-typing
-  // ability slugs from memory is exactly how this list drifted from reality the first time it was written.
+  // Regenerated 2026-09-20 against TRORS_CARDS/WAVE2_ABILITIES (the throwaway-test method these comments describe)
+  // after un-skipping `04028.when-revealed` (docs/phase7-wave2.md §18.4/§23: the skip had gone stale — `anyOf` +
+  // `ref`/`each` + `tuckCards` were all already there).
   trors: [
-    // --- Hawkeye obligation/nemesis (wave2/trors/hawkeye-obligation-nemesis.ts): missing-primitive block, see
-    //     that file's module docblock (needs searching a player's hand/deck/discard *and* play area as one pool). ---
-    "04028.when-revealed",
-    // --- Hydra Campaign cards: data only while campaign mode is deferred (docs/phase7-wave2.md, PLAN.md Phase 7). ---
+    // --- Hydra Campaign cards: data only while campaign mode is deferred (PLAN.md, "Campaign mode"; `trors` is
+    //     slated to be the first box built). ---
     "04155.adrenal-stims-action",
     "04156.tactical-scanner-action",
     "04157.emergency-teleporter-action",
@@ -115,53 +96,29 @@ const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
     "04165.obligation",
     "04166.obligation",
   ],
-  // Computed 2026-09-19 against TOAFK_CARDS/WAVE2_ABILITIES, same method as trors' own list above.
-  toafk: [
-    // --- Kang's own villain/main scheme (wave2/toafk/kang.ts): missing-primitive and data-gap blocks, see that
-    //     file's module docblock. ---
-    "11008b.the-master-of-time-forced-interrupt",
-    "11008b.the-master-of-time-constant",
-    "11013a.when-revealed",
-    "11013b.when-revealed",
-    // --- Kang/Temporal encounter set (wave2/toafk/kang-encounter-set.ts): missing-primitive blocks (a
-    //     resource-type-filtered discard cost; a "highest-cost card" selector; a dynamic "your own hero" match),
-    //     see that file's module docblock. ---
-    "11018.weakened-action",
-    "11019.stolen-memories-action",
-    "11020.obligation",
-    "11021.when-revealed",
-    "11021.time-travel-hijinks-action",
-    // --- Expert encounter set (11040-11051): not started yet. ---
-    "11040.when-revealed",
-    "11040.boost",
-    "11041.boost",
-    "11042.boost",
-    "11043.terminatrix-constant",
-    "11043.boost",
-    "11044.when-revealed",
-    "11044.boost",
-    "11045.when-defeated",
-    "11046.when-revealed",
-    "11047.kang-master-of-time-constant",
-    "11048.boost",
-    "11049.obligation",
-    "11050.when-defeated",
-    "11051.when-revealed",
-  ],
-  // Computed 2026-09-19 against ANT_CARDS/WAVE2_ABILITIES, same method as trors'/toafk's own lists above.
-  ant: [
-    // --- Ant-Man obligation/nemesis (wave2/ant/obligation-nemesis.ts): missing-primitive blocks, plus a
-    //     found-by-testing engine crash (traitsOf's unguarded recursion through a `while: hasTrait(...)` on a
-    //     constant trait/stat grant) — see that file's module docblock. ---
-    "12025.obligation",
-    "12027.yellowjacket-constant",
-    "12027.yellowjacket-constant-2",
-    "12029.when-revealed",
-    // --- Pack cards (wave2/ant/pack-cards.ts): missing-primitive blocks. ---
-    "12011.ant-man-interrupt",
-    "12024.team-building-exercise-action",
-    "12032.muster-courage-action",
-  ],
+  // Regenerated 2026-09-20 (`pnpm refs`) after scripting `11049.fear-of-kang-constant` ("You cannot attack Kang",
+  // `player: you`) — the last non-campaign ref in the wave 2 skip backlog: `game-rules-architect` gave `RuleSpec
+  // cannotAttack` a `player?: PlayerRef` field mirroring `cannotPlay`'s (docs/phase7-wave2.md §25), so the
+  // over-broad table-wide reading that kept this ref skipped is gone; `kang-encounter-set.ts`'s docblock and
+  // `toafk/fear-of-kang-constant.test.ts` have the two-player proof for both the fixed shape and the still-correct
+  // bare/table-wide shape Distracting Taunts (`twc` 07035) genuinely needs. Fully scripted.
+  toafk: [],
+  // Regenerated 2026-09-20 against ANT_CARDS/WAVE2_ABILITIES, after un-skipping all five remaining refs
+  // (docs/phase7-wave2.md §18/§23): `12011.ant-man-interrupt` and `12032.muster-courage-action` were already
+  // unblocked (stale skips, §18.3/§18.5); `12024.team-building-exercise-action` and `12029.when-revealed` needed
+  // `TargetQuery.sharesTraitWith`/`encounterSetOf` (§20.1/§20.2); `12025.obligation` needed `applyRuleUntil` (§22).
+  ant: [],
+  // Regenerated 2026-09-20 against WSP_CARDS/WAVE2_ABILITIES, after un-skipping `13012.wasp-interrupt` (docs/
+  // phase7-wave2.md §18.3/§23: `overpaid.energy` was already readable from a later `cardEntersPlay` interrupt).
+  wsp: [],
+  // Regenerated 2026-09-20 against QSV_CARDS/WAVE2_ABILITIES, after un-skipping both remaining refs (docs/
+  // phase7-wave2.md §23): `14009.friction-resistance-response` needed the new `cardReadied` announcement (§21);
+  // `14024.obligation` needed `applyRuleUntil` (§22), the same primitive `12025.obligation` (`ant`) needed.
+  qsv: [],
+  // Regenerated 2026-09-20 (`pnpm refs`) after scripting `15023.obligation` (Slipping Sanity) — `card-data-
+  // pipeline` landed a printed `starIcon` field (docs/phase7-wave2.md §24), the engine grew `<bind>.starIcons`
+  // on `discardEncounterCards`, and `obligation-nemesis.ts`'s docblock has the rest. Fully scripted.
+  scw: [],
 };
 
 const PACKS: ReadonlyArray<{ readonly code: string; readonly cards: readonly AnyCard[] }> = [
@@ -190,13 +147,21 @@ describe("wave 2 pack ability coverage", () => {
     if (PACK_STATUS[code] === "scripted" || PACK_STATUS[code] === "in progress") {
       it(`every ability reference resolves (scripted directly, or aliased as a reprint), except its documented skips`, () => {
         const skipped = KNOWN_SKIPPED[code] ?? [];
-        expect(missing, `unscripted ${code} ability refs:\n${missing.join("\n")}`).toEqual(expect.arrayContaining([...skipped]));
-        expect(missing.filter((id) => !skipped.includes(id)), `unscripted ${code} ability refs not in KNOWN_SKIPPED`).toEqual([]);
+        expect(missing, `unscripted ${code} ability refs:\n${missing.join("\n")}`).toEqual(
+          expect.arrayContaining([...skipped]),
+        );
+        expect(
+          missing.filter((id) => !skipped.includes(id)),
+          `unscripted ${code} ability refs not in KNOWN_SKIPPED`,
+        ).toEqual([]);
         expect(missing).toHaveLength(skipped.length);
       });
     } else {
       it(`is not started: nothing resolves beyond reprints.ts's automatic reprint aliasing`, () => {
-        expect(resolvedBeyondReprints, `${code} ability refs resolved outside reprints.ts — update PACK_STATUS if this pack is now started:\n${resolvedBeyondReprints.join("\n")}`).toEqual([]);
+        expect(
+          resolvedBeyondReprints,
+          `${code} ability refs resolved outside reprints.ts — update PACK_STATUS if this pack is now started:\n${resolvedBeyondReprints.join("\n")}`,
+        ).toEqual([]);
       });
     }
   });

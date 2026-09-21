@@ -21,7 +21,8 @@ export const HOOD_CURATION: PackCuration = {
   pack: {
     name: "The Hood",
     releaseDate: "2021-11-26",
-    releaseDateSource: 'Hall of Heroes The Hood page (https://hallofheroeslcg.com/the-hood/): "Release date: November 26, 2021 (Expected)"',
+    releaseDateSource:
+      'Hall of Heroes The Hood page (https://hallofheroeslcg.com/the-hood/): "Release date: November 26, 2021 (Expected)"',
   },
   outDir: "src/data/hood",
   exportPrefix: "HOOD",

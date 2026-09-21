@@ -32,7 +32,11 @@ export interface LogMoment {
  * alone doesn't fit — the same "still better shown than skipped" rule
  * `log-view.ts`'s own `windowEndingAt` states for the on-table log panel.
  */
-export function recentLogMoments(lines: readonly LogLine[], availableHeight: number, textWidth: number): readonly LogMoment[] {
+export function recentLogMoments(
+  lines: readonly LogLine[],
+  availableHeight: number,
+  textWidth: number,
+): readonly LogMoment[] {
   const newestFirst = [...lines].reverse();
   const moments: LogMoment[] = [];
   let used = 0;

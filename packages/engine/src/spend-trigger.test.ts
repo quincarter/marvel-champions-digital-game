@@ -19,7 +19,15 @@ import { mustInstance, mustPlayer } from "./query.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import { runCommandsPicking } from "./testing/drive.js";
-import { stubAlly, stubEvent, stubMainScheme, stubResource, stubSupport, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import {
+  stubAlly,
+  stubEvent,
+  stubMainScheme,
+  stubResource,
+  stubSupport,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { defaultPick, giveCards, newGame, RESOURCE } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -29,59 +37,101 @@ const copies = (id: CardId, n = 4): readonly CardId[] => Array.from({ length: n 
 const hand = (...ids: readonly InstanceId[]): readonly Payment[] => ids.map((id) => ({ fromHand: id }));
 
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
-const SCHEME = stubMainScheme({ id: "scheme", stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }] });
+const SCHEME = stubMainScheme({
+  id: "scheme",
+  stages: [{ startingThreat: flat(5), targetThreat: flat(40), acceleration: flat(0) }],
+});
 
 /** "Hero Response: After you spend this card, draw 1 card." (Pym Particles 12006's shape.) */
 const drawOnSpend = (id: string) =>
-  stubAbility(`${id}.response`, def({
-    trigger: { kind: "response", forced: false, form: "hero", on: { on: "resourcesSpent", selfIs: "source", playerIs: "controller" } },
-    effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
-  }));
+  stubAbility(
+    `${id}.response`,
+    def({
+      trigger: {
+        kind: "response",
+        forced: false,
+        form: "hero",
+        on: { on: "resourcesSpent", selfIs: "source", playerIs: "controller" },
+      },
+      effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
+    }),
+  );
 const PARTICLES_ABILITY = drawOnSpend("particles");
 const PARTICLES = stubResource({ id: "particles", icons: 1, abilities: [PARTICLES_ABILITY.ref] });
 const TWIN_ABILITY = drawOnSpend("twin");
 const TWIN = stubResource({ id: "twin", icons: 1, abilities: [TWIN_ABILITY.ref] });
 
 /** "Interrupt: When you spend this card to play an ally, …" — narrowed by the card being paid for. */
-const ALLY_ONLY_ABILITY = stubAbility("allyonly.interrupt", def({
-  trigger: {
-    kind: "interrupt",
-    forced: false,
-    on: { on: "resourcesSpent", selfIs: "source", playerIs: "controller", targetIs: { categories: ["ally"] }, eventIs: { purpose: "playCard" } },
-  },
-  effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
-}));
+const ALLY_ONLY_ABILITY = stubAbility(
+  "allyonly.interrupt",
+  def({
+    trigger: {
+      kind: "interrupt",
+      forced: false,
+      on: {
+        on: "resourcesSpent",
+        selfIs: "source",
+        playerIs: "controller",
+        targetIs: { categories: ["ally"] },
+        eventIs: { purpose: "playCard" },
+      },
+    },
+    effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
+  }),
+);
 const ALLY_ONLY = stubResource({ id: "allyonly", icons: 1, abilities: [ALLY_ONLY_ABILITY.ref] });
 
 const FRIEND = stubAlly({ id: "friend", cost: 2, atk: 1, thw: 1, hp: 3 });
 /** "Action: Spend 1 resource → draw 1 card." An in-play card with a resource cost on an ability. */
-const GADGET_ABILITY = stubAbility("gadget.action", def({
-  trigger: { kind: "action" },
-  cost: { resources: 1 },
-  effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
-}));
+const GADGET_ABILITY = stubAbility(
+  "gadget.action",
+  def({
+    trigger: { kind: "action" },
+    cost: { resources: 1 },
+    effects: [{ kind: "draw", player: { kind: "controller" }, amount: { kind: "const", value: 1 } }],
+  }),
+);
 const GADGET = stubSupport({ id: "gadget", cost: 0, abilities: [GADGET_ABILITY.ref] });
 
 /** "Hero Interrupt: When you spend this card to play an [Attack] event, that event deals 1 additional damage." (Aggressive Energy 35020's shape.) */
-const BOOST_ABILITY = stubAbility("boost.interrupt", def({
-  trigger: {
-    kind: "interrupt",
-    forced: false,
-    form: "hero",
-    on: { on: "resourcesSpent", selfIs: "source", playerIs: "controller", targetIs: { categories: ["event"] }, eventIs: { purpose: "playCard" } },
-  },
-  effects: [{ kind: "modifyCardEffect", card: { kind: "eventTarget" }, damage: { kind: "const", value: 1 } }],
-}));
+const BOOST_ABILITY = stubAbility(
+  "boost.interrupt",
+  def({
+    trigger: {
+      kind: "interrupt",
+      forced: false,
+      form: "hero",
+      on: {
+        on: "resourcesSpent",
+        selfIs: "source",
+        playerIs: "controller",
+        targetIs: { categories: ["event"] },
+        eventIs: { purpose: "playCard" },
+      },
+    },
+    effects: [{ kind: "modifyCardEffect", card: { kind: "eventTarget" }, damage: { kind: "const", value: 1 } }],
+  }),
+);
 const BOOST = stubResource({ id: "boost", icons: 1, abilities: [BOOST_ABILITY.ref] });
 /** "Hero Action (attack): deal 2 damage to the villain." */
-const STRIKE_ABILITY = stubAbility("strike.action", def({
-  trigger: { kind: "action", form: "hero" },
-  label: ["attack"],
-  effects: [{ kind: "attack", target: { kind: "villain" }, amount: { kind: "const", value: 2 } }],
-}));
+const STRIKE_ABILITY = stubAbility(
+  "strike.action",
+  def({
+    trigger: { kind: "action", form: "hero" },
+    label: ["attack"],
+    effects: [{ kind: "attack", target: { kind: "villain" }, amount: { kind: "const", value: 2 } }],
+  }),
+);
 const STRIKE = stubEvent({ id: "strike", cost: 1, abilities: [STRIKE_ABILITY.ref] });
 
-const ALL: readonly StubAbility[] = [PARTICLES_ABILITY, TWIN_ABILITY, ALLY_ONLY_ABILITY, GADGET_ABILITY, BOOST_ABILITY, STRIKE_ABILITY];
+const ALL: readonly StubAbility[] = [
+  PARTICLES_ABILITY,
+  TWIN_ABILITY,
+  ALLY_ONLY_ABILITY,
+  GADGET_ABILITY,
+  BOOST_ABILITY,
+  STRIKE_ABILITY,
+];
 
 function setup(): { deps: EngineDeps; state: GameState } {
   const deps = depsOf(...ALL);
@@ -107,7 +157,10 @@ const acceptTriggers = (state: GameState): readonly string[] => {
 };
 
 const spendWindows = (events: readonly GameEvent[]) =>
-  events.filter((e): e is Extract<GameEvent, { type: "windowOpened" }> => e.type === "windowOpened" && e.event.kind === "resourcesSpent");
+  events.filter(
+    (e): e is Extract<GameEvent, { type: "windowOpened" }> =>
+      e.type === "windowOpened" && e.event.kind === "resourcesSpent",
+  );
 const indexOf = (events: readonly GameEvent[], test: (e: GameEvent) => boolean) => events.findIndex(test);
 const drawn = (events: readonly GameEvent[]) => events.filter((e) => e.type === "cardDrawn").length;
 
@@ -133,19 +186,35 @@ describe("§12 'After you spend this card' (the resourcesSpent event)", () => {
 
     // Step 5 (pay, then its responses) before step 6 (the card commences being played).
     const draw = indexOf(events, (e) => e.type === "cardDrawn");
-    const entered = indexOf(events, (e) => e.type === "cardMoved" && e.instanceId === friend && e.to.kind === "playArea");
+    const entered = indexOf(
+      events,
+      (e) => e.type === "cardMoved" && e.instanceId === friend && e.to.kind === "playArea",
+    );
     expect(draw).toBeGreaterThanOrEqual(0);
     expect(draw).toBeLessThan(entered);
 
     // The event names every spent card, the payer, and the card being paid for.
-    expect(window?.event).toMatchObject({ kind: "resourcesSpent", cardInstanceIds: [particles, res], playerId: p1, forPlayerId: p1, payingForInstanceId: friend, purpose: "playCard" });
+    expect(window?.event).toMatchObject({
+      kind: "resourcesSpent",
+      cardInstanceIds: [particles, res],
+      playerId: p1,
+      forPlayerId: p1,
+      payingForInstanceId: friend,
+      purpose: "playCard",
+    });
   });
 
   it("is a 'Hero Response': not offered in alter-ego form, and a payment nothing reacts to pushes no event", () => {
     const { deps, state } = setup();
     const given = giveCards(state, p1, "particles", "res", "friend");
     const [particles, res, friend] = given.ids as [InstanceId, InstanceId, InstanceId];
-    const play: Command = { type: "playCard", playerId: p1, cardInstanceId: friend, payment: hand(particles, res), attachToInstanceId: null };
+    const play: Command = {
+      type: "playCard",
+      playerId: p1,
+      cardInstanceId: friend,
+      payment: hand(particles, res),
+      attachToInstanceId: null,
+    };
     // Alter-ego form: the form gate (RRG 1.8 "Ability", p. 5) drops the only listener, so nothing is announced at all.
     const { events } = runCommandsPicking(given.state, deps, acceptTriggers, play);
     expect(events.some((e) => e.type === "triggerEvent" && e.event.kind === "resourcesSpent")).toBe(false);

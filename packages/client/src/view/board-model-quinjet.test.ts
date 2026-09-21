@@ -33,7 +33,9 @@ async function pickOrDecline(store: SessionStore, optionId: string): Promise<voi
   const legal = store.state.legal!.actions;
   if (legal.kind !== "choice") throw new Error("no pending choice");
   const offered = legal.choice.options.map((o) => o.optionId);
-  const selected = offered.includes(optionId) ? [optionId] : legal.choice.options.slice(0, legal.choice.minSelections).map((o) => o.optionId);
+  const selected = offered.includes(optionId)
+    ? [optionId]
+    : legal.choice.options.slice(0, legal.choice.minSelections).map((o) => o.optionId);
   await store.resolveChoice(selected);
 }
 
@@ -42,7 +44,9 @@ describe("Quinjet's time counters reach the board", () => {
     const store = new SessionStore(new LocalEngineHost());
     await store.start(CAP_VS_RHINO);
     for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
-      const { choice } = store.state.legal.actions as { choice: { options: readonly { optionId: string }[]; minSelections: number } };
+      const { choice } = store.state.legal.actions as {
+        choice: { options: readonly { optionId: string }[]; minSelections: number };
+      };
       await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
     }
     let legal = store.state.legal!.actions;
@@ -53,9 +57,16 @@ describe("Quinjet's time counters reach the board", () => {
 
     legal = store.state.legal!.actions;
     if (legal.kind !== "turn") throw new Error("expected a turn");
-    const playQuinjet = legal.legal.find((entry) => entry.action.kind === "playCard" && cardOf(store.state.game!, entry.action.instanceId)?.id === "03019");
+    const playQuinjet = legal.legal.find(
+      (entry) => entry.action.kind === "playCard" && cardOf(store.state.game!, entry.action.instanceId)?.id === "03019",
+    );
     if (!playQuinjet) throw new Error("expected Quinjet to be playable");
-    const quinjetId = playQuinjet.action.kind === "playCard" ? playQuinjet.action.instanceId : (() => { throw new Error("unreachable"); })();
+    const quinjetId =
+      playQuinjet.action.kind === "playCard"
+        ? playQuinjet.action.instanceId
+        : (() => {
+            throw new Error("unreachable");
+          })();
     await store.dispatch(playQuinjet.example);
 
     let state: GameState = store.state.game!;

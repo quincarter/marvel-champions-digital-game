@@ -34,7 +34,16 @@ import { attachmentHostCandidates } from "./resolve/index.js";
 import { matchesQuery, type EffectContext } from "./select.js";
 import { createGame } from "./setup.js";
 import type { GameState } from "./state.js";
-import { stubAttachment, stubEvent, stubIdentity, stubMainScheme, stubMinion, stubObligation, stubTreachery, stubVillain } from "./testing/fixtures.js";
+import {
+  stubAttachment,
+  stubEvent,
+  stubIdentity,
+  stubMainScheme,
+  stubMinion,
+  stubObligation,
+  stubTreachery,
+  stubVillain,
+} from "./testing/fixtures.js";
 import { DEFAULT_CARDS, DEFAULT_DECK, HERO, newGameAtMulligan } from "./testing/scenario.js";
 
 const p1 = playerId("p1");
@@ -44,7 +53,17 @@ const ref = (id: string): AbilityReference => ({ id: abilityId(id) });
 
 const SW = "sw";
 const spiderWoman: HeroIdentityCard = {
-  ...stubIdentity({ id: SW, name: "Spider-Woman", hp: 11, atk: 1, thw: 1, def: 1, rec: 3, heroHandSize: 5, alterEgoHandSize: 6 }),
+  ...stubIdentity({
+    id: SW,
+    name: "Spider-Woman",
+    hp: 11,
+    atk: 1,
+    thw: 1,
+    def: 1,
+    rec: 3,
+    heroHandSize: 5,
+    alterEgoHandSize: 6,
+  }),
   deckbuilding: { aspectCount: 2, equalCardsPerAspect: true },
 };
 const signature = (id: string, quantity: number, printedAspect?: CoreAspect): EventCard => ({
@@ -70,7 +89,11 @@ const JUSTICE = aspectCards("justice", 5);
 const SW_POOL: readonly AnyCard[] = [spiderWoman, ...SIGNATURE, ...AGGRESSION, ...JUSTICE];
 
 /** The signature set plus `aggression` Aggression and `justice` Justice cards (3 copies per title, then the rest). */
-function swDeck(aggression: number, justice: number, aspects: readonly CoreAspect[] = ["aggression", "justice"]): DeckContents {
+function swDeck(
+  aggression: number,
+  justice: number,
+  aspects: readonly CoreAspect[] = ["aggression", "justice"],
+): DeckContents {
   const take = (cards: readonly EventCard[], n: number) =>
     cards.flatMap((card, i) => {
       const quantity = Math.max(0, Math.min(3, n - 3 * i));
@@ -79,7 +102,11 @@ function swDeck(aggression: number, justice: number, aspects: readonly CoreAspec
   return {
     identityCardId: spiderWoman.id,
     aspects,
-    cards: [...SIGNATURE.map((card) => ({ cardId: card.id, quantity: card.quantityInSet })), ...take(AGGRESSION, aggression), ...take(JUSTICE, justice)],
+    cards: [
+      ...SIGNATURE.map((card) => ({ cardId: card.id, quantity: card.quantityInSet })),
+      ...take(AGGRESSION, aggression),
+      ...take(JUSTICE, justice),
+    ],
   };
 }
 const codes = (deck: DeckContents, pool: readonly AnyCard[]): readonly DeckProblemCode[] => {
@@ -101,7 +128,10 @@ describe("Spider-Woman's Double Agent (FAQ 'Jessica Drew (#31B)', p. 60)", () =>
     // each (docs/phase7-wave2.md §1.2).
     const verdict = validateDeck(swDeck(13, 13), SW_POOL);
     expect(verdict.ok).toBe(true);
-    const withoutVenom = { ...swDeck(13, 13), cards: swDeck(13, 13).cards.filter((e) => e.cardId !== cardId("venom-blast")) };
+    const withoutVenom = {
+      ...swDeck(13, 13),
+      cards: swDeck(13, 13).cards.filter((e) => e.cardId !== cardId("venom-blast")),
+    };
     expect(codes(withoutVenom, SW_POOL)).toContain("identity_set_mismatch");
   });
 
@@ -138,15 +168,34 @@ describe("scenario- and campaign-specific player cards (RRG 1.8 'Classifications
 
 // ---- Three-sided identities ----------------------------------------------------------------------------------------
 
-const giantFace = { ...HERO.hero, faceName: "Giant Guy", traits: [trait("Giant")], abilities: [ref("tri.giant-response")] };
+const giantFace = {
+  ...HERO.hero,
+  faceName: "Giant Guy",
+  traits: [trait("Giant")],
+  abilities: [ref("tri.giant-response")],
+};
 const threeSided: HeroIdentityCard = {
-  ...stubIdentity({ id: "tri", name: "Tiny Guy", hp: 12, atk: 2, thw: 2, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6, heroAbilities: [ref("tri.tiny-response")] }),
+  ...stubIdentity({
+    id: "tri",
+    name: "Tiny Guy",
+    hp: 12,
+    atk: 2,
+    thw: 2,
+    def: 2,
+    rec: 3,
+    heroHandSize: 5,
+    alterEgoHandSize: 6,
+    heroAbilities: [ref("tri.tiny-response")],
+  }),
   additionalHeroForms: [giantFace],
 };
 
 describe("three-sided identities (Ant-Man insert, 'Foldable Cards')", () => {
   it("Team-Up checks every hero face's title (RRG 1.8 'Team-Up', p. 43)", () => {
-    const teamUp: PlayerCard = { ...stubEvent({ id: "team-up", cost: 1 }), keywords: [{ name: "teamUp", names: ["Giant Guy", "Somebody Else"] }] };
+    const teamUp: PlayerCard = {
+      ...stubEvent({ id: "team-up", cost: 1 }),
+      keywords: [{ name: "teamUp", names: ["Giant Guy", "Somebody Else"] }],
+    };
     const filler = aspectCards("leadership", 14);
     const deck: DeckContents = {
       identityCardId: threeSided.id,
@@ -169,7 +218,13 @@ describe("three-sided identities (Ant-Man insert, 'Foldable Cards')", () => {
   it("the other face of a double-sided card counts toward its abilities", () => {
     const flip: PlayerCard = {
       ...stubEvent({ id: "basic-upgrade", cost: 0, abilities: [ref("basic-upgrade.a")] }),
-      flipSide: { name: "Improved Upgrade", traits: [], keywords: [], text: unerrataedText("x"), abilities: [ref("basic-upgrade.b")] },
+      flipSide: {
+        name: "Improved Upgrade",
+        traits: [],
+        keywords: [],
+        text: unerrataedText("x"),
+        abilities: [ref("basic-upgrade.b")],
+      },
     };
     expect(abilityRefsOf(flip).map((r) => r.id)).toEqual(["basic-upgrade.a", "basic-upgrade.b"]);
   });
@@ -182,7 +237,13 @@ describe("an identity-specific card that prints an aspect is that aspect's card 
     const venom = signature("venom-blast", 1, "aggression");
     const state = newGameAtMulligan({ extraCards: [venom], deck: [...DEFAULT_DECK, venom.id] });
     const id = Object.values(state.instances).find((i) => i.cardId === venom.id)?.instanceId as InstanceId;
-    const context: EffectContext = { selfInstanceId: null, controllerId: p1, event: null, bindings: {}, deps: DEFAULT_DEPS };
+    const context: EffectContext = {
+      selfInstanceId: null,
+      controllerId: p1,
+      event: null,
+      bindings: {},
+      deps: DEFAULT_DEPS,
+    };
     expect(matchesQuery(state, id, { aspect: "aggression" }, context)).toBe(true);
     expect(matchesQuery(state, id, { aspect: "justice" }, context)).toBe(false);
     expect(matchesQuery(state, id, { aspect: `hero:${SW}` }, context)).toBe(true);
@@ -206,12 +267,19 @@ describe("setup shuffles every copy of the identity's obligation (RRG 1.8 'Oblig
 
 describe("'Attach to Yellowjacket, if able. If you cannot, attach to the villain.' (docs/phase7-wave2.md §1.7)", () => {
   const VILLAIN = stubVillain({ id: "quiet", stages: [{ hp: flat(50), atk: 0, sch: 0 }] });
-  const SCHEME = stubMainScheme({ id: "long", stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }] });
+  const SCHEME = stubMainScheme({
+    id: "long",
+    stages: [{ startingThreat: flat(0), targetThreat: flat(99), acceleration: flat(0) }],
+  });
   const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
   const YELLOWJACKET = stubMinion({ id: "Yellowjacket", atk: 0, sch: 0, hp: 4, boostIcons: 0 });
   const SIZE = stubAttachment({
     id: "size-increase",
-    attachesTo: { kind: "ifAble", preferred: { kind: "namedCard", name: "Yellowjacket" }, otherwise: { kind: "villain" } },
+    attachesTo: {
+      kind: "ifAble",
+      preferred: { kind: "namedCard", name: "Yellowjacket" },
+      otherwise: { kind: "villain" },
+    },
   });
 
   function game(): GameState {
@@ -227,7 +295,13 @@ describe("'Attach to Yellowjacket, if able. If you cannot, attach to the villain
     if (!result.ok) throw new Error(result.error.message);
     return result.state;
   }
-  const context: EffectContext = { selfInstanceId: null, controllerId: p1, event: null, bindings: {}, deps: DEFAULT_DEPS };
+  const context: EffectContext = {
+    selfInstanceId: null,
+    controllerId: p1,
+    event: null,
+    bindings: {},
+    deps: DEFAULT_DEPS,
+  };
   const host = SIZE.attachesTo;
 
   it("falls back to the villain when the preferred host is not in play", () => {
@@ -242,9 +316,19 @@ describe("'Attach to Yellowjacket, if able. If you cannot, attach to the villain
     const deckId = Object.keys(start.encounterDecks)[0] as string;
     const state: GameState = {
       ...start,
-      encounterDecks: { ...start.encounterDecks, [deckId]: { ...activeEncounterDeck(start), deck: deck.filter((id) => id !== jacket) } },
+      encounterDecks: {
+        ...start.encounterDecks,
+        [deckId]: { ...activeEncounterDeck(start), deck: deck.filter((id) => id !== jacket) },
+      },
       players: start.players.map((p) => ({ ...p, playArea: [...p.playArea, jacket] })),
-      instances: { ...start.instances, [jacket]: { ...(start.instances[jacket] as NonNullable<GameState["instances"][string]>), faceup: true, engagedWith: p1 } },
+      instances: {
+        ...start.instances,
+        [jacket]: {
+          ...(start.instances[jacket] as NonNullable<GameState["instances"][string]>),
+          faceup: true,
+          engagedWith: p1,
+        },
+      },
     };
     expect(attachmentHostCandidates(state, host, context)).toEqual([jacket]);
   });

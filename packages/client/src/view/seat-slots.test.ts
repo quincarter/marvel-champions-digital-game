@@ -20,7 +20,19 @@ describe("seatSlotsOf", () => {
     expect(slots[0]!.identityName).toBe(spiderMan.identityName);
     expect(slots[0]!.aspectLabel).toBe("Justice");
     expect(slots[0]!.hp).toBeGreaterThan(0);
-    expect(slots[1]).toEqual({ index: 1, deckId: null, deckName: null, identityName: null, aspectLabel: null, hp: null, handSize: null, thw: null, atk: null, def: null, active: false });
+    expect(slots[1]).toEqual({
+      index: 1,
+      deckId: null,
+      deckName: null,
+      identityName: null,
+      aspectLabel: null,
+      hp: null,
+      handSize: null,
+      thw: null,
+      atk: null,
+      def: null,
+      active: false,
+    });
   });
 
   test("a full table (4 seats) has no empty slots", () => {

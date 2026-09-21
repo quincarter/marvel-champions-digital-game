@@ -97,7 +97,12 @@ export type TriggerEventBody =
       /** "That attack does not get a boost card" (Escaped Convict, I See You): step 1 deals nothing. */
       readonly noBoost?: boolean;
     }
-  | { readonly kind: "enemyScheme"; readonly enemyInstanceId: InstanceId; readonly playerId: PlayerId; readonly noBoost?: boolean }
+  | {
+      readonly kind: "enemyScheme";
+      readonly enemyInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+      readonly noBoost?: boolean;
+    }
   /**
    * A boost card was turned faceup during an activation (RRG 1.8 "Boost", p. 11), before its "Boost" ability resolves
    * and its icons are added: "When a boost card is turned faceup" (Attacrobatics, an interrupt) and "After a boost card is
@@ -186,13 +191,25 @@ export type TriggerEventBody =
       readonly kind: "characterDefeated";
       readonly instanceId: InstanceId;
       readonly parentFrameId?: FrameId | null;
-      readonly overkill?: { readonly amount: number; readonly toInstanceId: InstanceId; readonly sourceInstanceId: InstanceId | null };
+      readonly overkill?: {
+        readonly amount: number;
+        readonly toInstanceId: InstanceId;
+        readonly sourceInstanceId: InstanceId | null;
+      };
       /**
        * The player whose card dealt the defeating damage ("after *you* defeat a
        * minion"), when the defeat came from a damage event with a player-controlled
        * source. It is the event's player subject, so `playerIs: "controller"` matches it.
        */
       readonly defeatedByPlayerId?: PlayerId | null;
+      /**
+       * **What** dealt the defeating damage, where `defeatedByPlayerId` is **who**: the card that was the damage's
+       * source (the attacking character, or the card whose effect dealt it). It is the event's source subject, so
+       * `sourceIs` matches it — which is how "After Wasp (or an event you play) defeats a minion" (Small but Mighty,
+       * 13001a) says what "you defeat" cannot: an ally's attack has the same defeating *player* and a different
+       * defeating *card*. Null when nothing player- or card-driven defeated it.
+       */
+      readonly sourceInstanceId?: InstanceId | null;
     }
   /** An encounter card has been flipped faceup and is about to resolve (RRG "Reveal"): the point to cancel it. */
   | { readonly kind: "encounterCardRevealing"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
@@ -200,8 +217,17 @@ export type TriggerEventBody =
    * A side scheme reached no threat and is defeated (RRG 1.8 "Defeat", p. 15). `defeatedByPlayerId` is the player
    * whose thwart or card effect removed the last threat — "the player who defeated this scheme" (Crossbones' Assault
    * 04070), "the defeating player" (Mystique's Manipulations errata, RRG 1.8 p. 66). Null when no player did it.
+   *
+   * `sourceInstanceId` is the card that removed that last threat, the `characterDefeated` field of the same name: the
+   * thwarting character for a thwart (basic or "(thwart)"-labeled — the character performs it, RRG 1.8 "Thwart",
+   * p. 44), the card whose effect removed the threat otherwise.
    */
-  | { readonly kind: "schemeDefeated"; readonly instanceId: InstanceId; readonly defeatedByPlayerId?: PlayerId | null }
+  | {
+      readonly kind: "schemeDefeated";
+      readonly instanceId: InstanceId;
+      readonly defeatedByPlayerId?: PlayerId | null;
+      readonly sourceInstanceId?: InstanceId | null;
+    }
   | { readonly kind: "villainStageAdvanced"; readonly stageIndex: number; readonly instanceId: InstanceId }
   /** `schemeInstanceId` is set only for a separate game area's own stage (docs/phase7-wave2.md §3.1). */
   | { readonly kind: "mainSchemeAdvanced"; readonly stageIndex: number; readonly schemeInstanceId?: InstanceId }
@@ -217,15 +243,45 @@ export type TriggerEventBody =
    * 1 for this count" (Scarlet Witch's Crest) interrupt it with `replaceBoostCount` / `adjustBoostCount`. Announced only
    * when an ability could react. Counts made by card effects (Hex Bolt) are not announced yet (§4.8).
    */
-  | { readonly kind: "boostIconsCounting"; readonly enemyInstanceId: InstanceId; readonly cardInstanceId: InstanceId; readonly playerId: PlayerId }
+  | {
+      readonly kind: "boostIconsCounting";
+      readonly enemyInstanceId: InstanceId;
+      readonly cardInstanceId: InstanceId;
+      readonly playerId: PlayerId;
+    }
   /**
    * A character used a basic power (docs/phase7-wave2.md §3.11): "After you use a basic power" (Quicksilver's Super
-   * Speed; Captain Marvel ally 04032; Rapid Growth). FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61): a stunned attack or a
+   * Speed; Captain Marvel ally 04032). FAQ "Quicksilver (#1A)" (RRG 1.8 p. 61): a stunned attack or a
    * confused thwart "is not considered to have used a basic power", so it is announced only once the power resolves.
-   * Announced only when an ability could react.
+   * Announced only when an ability could react. The *interrupt* side of the same moment is `basicPowerUsing`.
    */
   | {
       readonly kind: "basicPowerUsed";
+      readonly characterInstanceId: InstanceId;
+      readonly power: "attack" | "thwart" | "defense" | "recover";
+      readonly playerId: PlayerId;
+    }
+  /**
+   * A character is using a basic power, before the power's own value is read (docs/phase7-wave2.md §17.4): "Hero
+   * Interrupt: When you use one of your hero's basic powers (THW, ATK, or DEF), … get +2 to that power for this use"
+   * (Rapid Growth 13005), "When you use one of Venom's basic powers, … Venom gets +1 to that power for this use"
+   * (Venom's Pistol). The interrupt twin of `basicPowerUsed`, the way `cardReadying` is to a ready and
+   * `encounterCardRevealing` is to a reveal: one event whose shape is the same for every power, so a card that names
+   * several of them at once is one trigger rather than one per power (each power's own event — `attack`, `thwart`,
+   * the enemy attack a defense belongs to — has a different shape and a different subject).
+   *
+   * Pushed **on top of** the power's own events, so it resolves first: an interrupt to it runs before the power's
+   * value is read, which is what "for this use" needs. Its *response* window therefore also runs before the power
+   * resolves — "after you use a basic power" is `basicPowerUsed`, which is announced beneath the power.
+   *
+   * Not pushed for a basic recovery: that power has no event frame of its own (`basicRecover` heals in the command),
+   * so there is nothing for an interrupt to precede. No card in the pool needs one — recovery is an alter-ego power
+   * (RRG 1.8 "Recover, Recovery", p. 36; "Basic Power", p. 11) and every card that interrupts a basic power is either
+   * a Hero Interrupt or names "(THW, ATK, or DEF)". The `power` field still covers all four so nothing changes shape
+   * the day one does; see docs/phase7-wave2.md §17.4 for the change that would need.
+   */
+  | {
+      readonly kind: "basicPowerUsing";
       readonly characterInstanceId: InstanceId;
       readonly power: "attack" | "thwart" | "defense" | "recover";
       readonly playerId: PlayerId;
@@ -235,6 +291,16 @@ export type TriggerEventBody =
    * instead" (Frozen in Time) replaces it. Pushed only when an ability could react; otherwise the card readies at once.
    */
   | { readonly kind: "cardReadying"; readonly instanceId: InstanceId }
+  /**
+   * A card **has** readied (docs/phase7-wave2.md §21): "Hero Response: After you ready Quicksilver, ready this card."
+   * (Friction Resistance, `qsv` 14009.) The "-ed" twin of `cardReadying`, in the same idiom as
+   * `basicPowerUsing`/`basicPowerUsed`: an announcement, so it opens a response window and nothing else.
+   *
+   * Announced only when the ready actually changed the card from exhausted to ready — never when the card was
+   * already ready, and never when RRG 1.8 "'Cannot'" (p. 11) stopped it (All Tied Up). "After you ready X" is a
+   * fact about a ready that happened.
+   */
+  | { readonly kind: "cardReadied"; readonly instanceId: InstanceId }
   | { readonly kind: "turnStarted"; readonly playerId: PlayerId }
   /**
    * A minion engaged a player (RRG 1.8 "Engage", p. 18): it entered play in their area, was put into play engaged with
@@ -254,7 +320,12 @@ export type TriggerEventBody =
    * An ability resolved: it was triggered and its effects resolved (RRG 1.8 "Resolve", p. 37). "After you resolve the
    * ability of a Preparation card you control" (Black Widow; Synth-Suit too, ruling Feb 28, 2026 (2)).
    */
-  | { readonly kind: "abilityResolved"; readonly instanceId: InstanceId; readonly abilityId: AbilityId; readonly controllerId: PlayerId | null }
+  | {
+      readonly kind: "abilityResolved";
+      readonly instanceId: InstanceId;
+      readonly abilityId: AbilityId;
+      readonly controllerId: PlayerId | null;
+    }
   /** A card (villain or double-sided encounter card) has flipped. An announcement: the flip has happened. */
   | { readonly kind: "cardFlipped"; readonly instanceId: InstanceId }
   /** A player changed form (by the once-per-round flip or a card effect): "after you change to this form". */
@@ -312,6 +383,8 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "boostIconsCounting":
     // "When attached character would ready" (docs/phase7-wave2.md §3.11): the ready is still to come.
     case "cardReadying":
+    // "When you use one of your hero's basic powers" (§17.4): the power is still to come.
+    case "basicPowerUsing":
     case "turnEnding":
     case "surgeResolving":
     case "cardBeingPlayed":
@@ -364,11 +437,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "thwart":
       return of([event.thwarterInstanceId], [event.schemeInstanceId], [event.playerId]);
     case "enemyAttack":
-      return of(
-        [event.enemyInstanceId],
-        [event.targetInstanceId],
-        [event.attackedPlayerId, event.targetPlayerId],
-      );
+      return of([event.enemyInstanceId], [event.targetInstanceId], [event.attackedPlayerId, event.targetPlayerId]);
     case "enemyScheme":
       return of([event.enemyInstanceId], [], [event.playerId]);
     case "characterAttacked":
@@ -381,11 +450,13 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "cardRevealed":
     case "encounterCardRevealing":
       return of([event.instanceId], [event.instanceId], [event.playerId]);
+    // The defeating card is the event's source, so `sourceIs` reads "after [this card] defeats …"; the defeated card
+    // stays the target, and the defeating player the player subject.
     case "characterDefeated":
-      return of([], [event.instanceId], [event.defeatedByPlayerId ?? null]);
+      return of([event.sourceInstanceId ?? null], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "schemeDefeated":
       // The defeating player, so "after *you* defeat a side scheme" reads like the `characterDefeated` case above.
-      return of([], [event.instanceId], [event.defeatedByPlayerId ?? null]);
+      return of([event.sourceInstanceId ?? null], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "cardFlipped":
       return of([], [event.instanceId], []);
     case "mainSchemeCompleted":
@@ -393,8 +464,13 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
     case "boostIconsCounting":
       return of([event.enemyInstanceId], [event.cardInstanceId], [event.playerId]);
     case "basicPowerUsed":
+    case "basicPowerUsing":
       return of([event.characterInstanceId], [event.characterInstanceId], [event.playerId]);
     case "cardReadying":
+    // The readied card is the event's *target*, so "after you ready Quicksilver" is
+    // `targetIs: { categories: ["identity"], controller: "you" }` — the query's own `controller` says whose ready it
+    // was, which is why neither of these carries a player subject.
+    case "cardReadied":
       return of([], [event.instanceId], []);
     case "boostCardTurnedFaceup":
       return of([event.enemyInstanceId], [event.boostInstanceId], [event.playerId]);

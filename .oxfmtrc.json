@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "printWidth": 120,
+  "ignorePatterns": [
+    "Marvel Champions game screens/**",
+    "artifacts/**",
+    "docs/cards/**",
+    "docs/campaign-modes/**",
+    "docs/design-renders/**",
+    "packages/content/raw/**",
+    "packages/content/src/data/*/**",
+    "**/src-tauri/target/**",
+    "**/android/**",
+    "**/ios/**",
+    "docs/cards_reference.md",
+    "marvel-champions-rulings-post-rrg-1-7.md",
+    "hallofheroes-llms.txt"
+  ]
+}

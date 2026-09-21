@@ -93,6 +93,9 @@ export function cardArt(scene: Phaser.Scene): CardArt {
  * remembers two things it alone knows: what has already been handed to the
  * loader (don't ask twice) and what came back 404 (don't ask again, ever).
  */
+/** How long arrivals are gathered before the screens showing them redraw. Short enough to read as "the art popped in". */
+const ARRIVAL_WINDOW_MS = 120;
+
 export class CardArt {
   /** Keys already handed to the loader, so one scan is fetched once. */
   readonly #requested = new Set<string>();
@@ -276,11 +279,15 @@ export class CardArt {
     }
   }
 
-  /** Coalesces a run of arrivals into one redraw, so eight cards cost one pass. */
+  /**
+   * Coalesces a run of arrivals into one redraw, so eight cards cost one pass. Over a window rather than a frame:
+   * scans stream in across many frames, every listener rebuilds its whole screen, and one rebuild per frame for the
+   * length of a download is what made a list of thumbnails (Rules reference, the roster) stutter on a tablet.
+   */
   #notify(scene: Phaser.Scene): void {
     if (this.#notifyScene) return;
     this.#notifyScene = scene;
-    scene.time.delayedCall(0, () => {
+    scene.time.delayedCall(ARRIVAL_WINDOW_MS, () => {
       if (this.#notifyScene !== scene) return;
       this.#notifyScene = null;
       this.#fireListeners();
@@ -347,7 +354,11 @@ export function drawArt(
       ? Math.max(rect.width / sourceWidth, rect.height / sourceHeight)
       : Math.min(rect.width / sourceWidth, rect.height / sourceHeight);
 
-  const image = scene.add.image(0, 0, key).setOrigin(0, 0).setScale(scale).setAlpha(options.alpha ?? 1);
+  const image = scene.add
+    .image(0, 0, key)
+    .setOrigin(0, 0)
+    .setScale(scale)
+    .setAlpha(options.alpha ?? 1);
 
   if (fit === "contain") {
     // Centred in the slot, whole card visible.

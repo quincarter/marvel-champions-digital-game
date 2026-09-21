@@ -40,7 +40,8 @@ describe("abilityLabelOf", () => {
     // Spider-Man's identity names both faces' signature abilities — pick
     // whichever face the game actually started in, so the test doesn't
     // depend on which side Setup left the player on.
-    const heroAbilityId = player.identity.form === "hero" ? abilityId("01001a.spider-sense") : abilityId("01001b.scientist");
+    const heroAbilityId =
+      player.identity.form === "hero" ? abilityId("01001a.spider-sense") : abilityId("01001b.scientist");
     const printed = player.identity.form === "hero" ? "Spider-Sense" : "Scientist";
     const label = abilityLabelOf(state, identityId, heroAbilityId, CORE_DEPS);
     expect(label).toBe(`${cardName(state, identityId)} — ${printed}`);
@@ -51,9 +52,11 @@ describe("abilityLabelOf", () => {
     expect(abilityLabelOf(state, identityId, abilityId("test.bare"), deps)).toBe(cardName(state, identityId));
   });
 
-  test("names a Special ability \"Special\" — the RRG's own term, never printed on the AbilityReference itself", () => {
+  test('names a Special ability "Special" — the RRG\'s own term, never printed on the AbilityReference itself', () => {
     const deps = { abilities: { "test.special": { trigger: { kind: "special" }, effects: [] } as AbilityDefinition } };
-    expect(abilityLabelOf(state, identityId, abilityId("test.special"), deps)).toBe(`${cardName(state, identityId)} — Special`);
+    expect(abilityLabelOf(state, identityId, abilityId("test.special"), deps)).toBe(
+      `${cardName(state, identityId)} — Special`,
+    );
   });
 
   // The next three use the real `AbilityCost` shapes from `CORE_DEPS` for the

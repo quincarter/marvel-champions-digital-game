@@ -654,6 +654,7 @@ export const QSV_CARDS: readonly AnyCard[] = [
     images: { front: imageRef("/bundles/cards/14028.png") },
     encounterSetIds: [encounterSetId("qsv_nemesis")],
     boostIcons: 0,
+    starIcon: true,
     traits: [],
     keywords: [{ name: "incite", value: 1 }],
     text: {

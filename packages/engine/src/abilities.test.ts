@@ -180,7 +180,13 @@ test("useAbility pays an exhaust-plus-counter cost and enforces its limit", () =
     },
   };
 
-  const use = { type: "useAbility", playerId: p1, cardInstanceId: upgradeId, abilityId: ability.ref.id, payment: [] } as const;
+  const use = {
+    type: "useAbility",
+    playerId: p1,
+    cardInstanceId: upgradeId,
+    abilityId: ability.ref.id,
+    payment: [],
+  } as const;
   const used = runWith(deps, loaded, use);
   expect(remainingHitPoints(used, activeVillain(used).instanceId)).toBe(18);
   expect(mustInstance(used, upgradeId).exhausted).toBe(true);
@@ -207,9 +213,20 @@ test("a once-per-round limit resets when the round does", () => {
     deps,
   });
   const upgradeId = findInHand(start, p1, upgrade.id);
-  const use = { type: "useAbility", playerId: p1, cardInstanceId: upgradeId, abilityId: ability.ref.id, payment: [] } as const;
+  const use = {
+    type: "useAbility",
+    playerId: p1,
+    cardInstanceId: upgradeId,
+    abilityId: ability.ref.id,
+    payment: [],
+  } as const;
 
-  const afterFirst = runWith(deps, start, { type: "playCard", playerId: p1, cardInstanceId: upgradeId, payment: [], attachToInstanceId: null }, use);
+  const afterFirst = runWith(
+    deps,
+    start,
+    { type: "playCard", playerId: p1, cardInstanceId: upgradeId, payment: [], attachToInstanceId: null },
+    use,
+  );
   expect(applyCommand(afterFirst, use, deps).ok).toBe(false);
 
   const nextRound = settle(runWith(deps, afterFirst, endTurn), undefined, deps);

@@ -21,7 +21,17 @@ import type { GameState } from "./state.js";
 import { depsOf, stubAbility } from "./testing/abilities.js";
 import { runCommands } from "./testing/drive.js";
 import { stubEvent, stubIdentity, stubSideScheme, stubSupport, stubTreachery } from "./testing/fixtures.js";
-import { DEFAULT_CARDS, DEFAULT_DECK, fromHand, giveCard, giveCards, MAIN_SCHEME, newGame, RESOURCE, VILLAIN } from "./testing/scenario.js";
+import {
+  DEFAULT_CARDS,
+  DEFAULT_DECK,
+  fromHand,
+  giveCard,
+  giveCards,
+  MAIN_SCHEME,
+  newGame,
+  RESOURCE,
+  VILLAIN,
+} from "./testing/scenario.js";
 
 const p1 = playerId("p1");
 const INVOCATION = "Invocation";
@@ -33,7 +43,12 @@ const topOfInvocation: CardZoneQuery = { zone: "separateDeck", separateDeck: INV
 const SPELL_SPECIAL = stubAbility("spell.special", {
   trigger: { kind: "special" },
   effects: [
-    { kind: "addCounters", target: { kind: "identityOf", player: { kind: "controller" } }, counterType: "spells", amount: one },
+    {
+      kind: "addCounters",
+      target: { kind: "identityOf", player: { kind: "controller" } },
+      counterType: "spells",
+      amount: one,
+    },
     { kind: "moveCards", cards: { kind: "ref", ref: { kind: "self" } }, to: "separateDiscard" },
   ],
 });
@@ -53,7 +68,13 @@ const SPELL_MASTERY = stubAbility("sorcerer.spell-mastery", {
 const NATURAL_TALENT = stubAbility("sorcerer.natural-talent", {
   trigger: { kind: "action" },
   limit: { count: 1, period: "phase" },
-  effects: [{ kind: "moveCards", cards: { kind: "separateDeck", player: { kind: "controller" }, name: INVOCATION, top: one }, to: "separateDiscard" }],
+  effects: [
+    {
+      kind: "moveCards",
+      cards: { kind: "separateDeck", player: { kind: "controller" }, name: INVOCATION, top: one },
+      to: "separateDiscard",
+    },
+  ],
 });
 const SORCERER: HeroIdentityCard = {
   ...stubIdentity({
@@ -113,7 +134,12 @@ const DARK_DEFEATED = stubAbility("dark.when-defeated", {
   trigger: { kind: "whenDefeated" },
   effects: [{ kind: "moveCards", cards: { kind: "tucked", under: { kind: "self" } }, to: "separateDeckShuffle" }],
 });
-const DARK = stubSideScheme({ id: "dark", startingThreat: 1, boostIcons: 0, abilities: [DARK_REVEALED.ref, DARK_DEFEATED.ref] });
+const DARK = stubSideScheme({
+  id: "dark",
+  startingThreat: 1,
+  boostIcons: 0,
+  abilities: [DARK_REVEALED.ref, DARK_DEFEATED.ref],
+});
 const DISCARD_SCHEMES_ACTION = stubAbility("discard-schemes.action", {
   trigger: { kind: "action" },
   effects: [{ kind: "discardFromPlay", target: { kind: "each", query: { categories: ["sideScheme"] } } }],
@@ -121,7 +147,16 @@ const DISCARD_SCHEMES_ACTION = stubAbility("discard-schemes.action", {
 const DISCARD_SCHEMES = stubEvent({ id: "discard-schemes", cost: 0, abilities: [DISCARD_SCHEMES_ACTION.ref] });
 const BLANK = stubTreachery({ id: "blank", boostIcons: 0 });
 
-const deps: EngineDeps = depsOf(SPELL_SPECIAL, SPELL_MASTERY, NATURAL_TALENT, MYSTIC_ARTS_ACTION, WATCHER_RESPONSE, DARK_REVEALED, DARK_DEFEATED, DISCARD_SCHEMES_ACTION);
+const deps: EngineDeps = depsOf(
+  SPELL_SPECIAL,
+  SPELL_MASTERY,
+  NATURAL_TALENT,
+  MYSTIC_ARTS_ACTION,
+  WATCHER_RESPONSE,
+  DARK_REVEALED,
+  DARK_DEFEATED,
+  DISCARD_SCHEMES_ACTION,
+);
 const copies = (id: CardId, n: number): readonly CardId[] => Array.from({ length: n }, () => id);
 
 function setup(encounter: readonly CardId[] = copies(BLANK.id, 12)) {
@@ -132,7 +167,12 @@ function setup(encounter: readonly CardId[] = copies(BLANK.id, 12)) {
       villainCardId: VILLAIN.id,
       mainSchemeCardId: MAIN_SCHEME.id,
       encounterDeck: encounter,
-      players: [{ identityCardId: SORCERER.id, deck: [...DEFAULT_DECK, MYSTIC_ARTS.id, WATCHER.id, ...copies(DISCARD_SCHEMES.id, 2)] }],
+      players: [
+        {
+          identityCardId: SORCERER.id,
+          deck: [...DEFAULT_DECK, MYSTIC_ARTS.id, WATCHER.id, ...copies(DISCARD_SCHEMES.id, 2)],
+        },
+      ],
     },
     deps,
   );
@@ -151,10 +191,15 @@ const invocation = (state: GameState) => separateDeckOf(state, p1, INVOCATION);
 const identityId = (state: GameState) => mustPlayer(state, p1).identity.instanceId;
 const toHero: Command = { type: "changeForm", playerId: p1 };
 const endTurn: Command = { type: "endTurn", playerId: p1 };
-const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) => events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
+const ofType = <T extends GameEvent["type"]>(events: readonly GameEvent[], type: T) =>
+  events.filter((e): e is Extract<GameEvent, { type: T }> => e.type === type);
 const faceups = (state: GameState, ids: readonly InstanceId[]) => ids.map((id) => mustInstance(state, id).faceup);
 
-const spellMastery = (state: GameState, resources: readonly InstanceId[], pick: InstanceId = invocation(state).deck[0] as InstanceId): Command => ({
+const spellMastery = (
+  state: GameState,
+  resources: readonly InstanceId[],
+  pick: InstanceId = invocation(state).deck[0] as InstanceId,
+): Command => ({
   type: "useAbility",
   playerId: p1,
   cardInstanceId: identityId(state),
@@ -165,7 +210,13 @@ const spellMastery = (state: GameState, resources: readonly InstanceId[], pick: 
 
 function playFree(state: GameState, card: AnyCard) {
   const given = giveCard(state, p1, card.id);
-  return runCommands(given.state, deps, { type: "playCard", playerId: p1, cardInstanceId: given.id, payment: [], attachToInstanceId: null });
+  return runCommands(given.state, deps, {
+    type: "playCard",
+    playerId: p1,
+    cardInstanceId: given.id,
+    payment: [],
+    attachToInstanceId: null,
+  });
 }
 
 const inPlay = (state: GameState, card: AnyCard): InstanceId => {
@@ -180,13 +231,17 @@ describe("§3.5 an identity's separate deck (Invocation)", () => {
     const piles = invocation(state);
     expect(piles.deck).toHaveLength(5);
     expect(piles.discard).toEqual([]);
-    expect(new Set(piles.deck.map((id) => mustInstance(state, id).cardId))).toEqual(new Set(SPELLS.map((spell) => spell.id)));
+    expect(new Set(piles.deck.map((id) => mustInstance(state, id).cardId))).toEqual(
+      new Set(SPELLS.map((spell) => spell.id)),
+    );
     for (const id of piles.deck) {
       expect(mustInstance(state, id)).toMatchObject({ ownerId: p1, home: { kind: "separateDeck", name: INVOCATION } });
       expect(mustPlayer(state, p1).deck).not.toContain(id);
     }
     expect(faceups(state, piles.deck)).toEqual([true, false, false, false, false]);
-    expect(events).toContainEqual(expect.objectContaining({ type: "deckShuffled", zone: { kind: "separateDeck", playerId: p1, name: INVOCATION } }));
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "deckShuffled", zone: { kind: "separateDeck", playerId: p1, name: INVOCATION } }),
+    );
     // A Core identity has none.
     expect(mustPlayer(newGame(), p1).separateDecks).toEqual({});
   });
@@ -222,7 +277,9 @@ describe("§3.5 an identity's separate deck (Invocation)", () => {
     const [last, ...others] = invocation(hero).deck as [InstanceId, ...InstanceId[]];
     const primed: GameState = {
       ...hero,
-      players: hero.players.map((p) => (p.playerId === p1 ? { ...p, separateDecks: { [INVOCATION]: { deck: [last], discard: others } } } : p)),
+      players: hero.players.map((p) =>
+        p.playerId === p1 ? { ...p, separateDecks: { [INVOCATION]: { deck: [last], discard: others } } } : p,
+      ),
     };
     const dealtBefore = mustPlayer(primed, p1).dealtEncounter;
 
@@ -230,7 +287,9 @@ describe("§3.5 an identity's separate deck (Invocation)", () => {
     expect(invocation(state).deck).toHaveLength(5);
     expect(invocation(state).discard).toEqual([]);
     expect(faceups(state, invocation(state).deck).filter(Boolean)).toHaveLength(1);
-    expect(ofType(events, "separateDeckReset")).toEqual([{ type: "separateDeckReset", playerId: p1, name: INVOCATION }]);
+    expect(ofType(events, "separateDeckReset")).toEqual([
+      { type: "separateDeckReset", playerId: p1, name: INVOCATION },
+    ]);
     expect(ofType(events, "accelerationTokenAdded")).toEqual([]);
     expect(mustPlayer(state, p1).dealtEncounter).toEqual(dealtBefore);
     expect(state.mainScheme.accelerationTokens).toBe(0);
@@ -258,7 +317,13 @@ describe("§3.5 an identity's separate deck (Invocation)", () => {
   it("Natural Talent discards the top card, once per phase", () => {
     const { state: start } = game();
     const [top, next] = invocation(start).deck as [InstanceId, InstanceId];
-    const use: Command = { type: "useAbility", playerId: p1, cardInstanceId: identityId(start), abilityId: NATURAL_TALENT.ref.id, payment: [] };
+    const use: Command = {
+      type: "useAbility",
+      playerId: p1,
+      cardInstanceId: identityId(start),
+      abilityId: NATURAL_TALENT.ref.id,
+      payment: [],
+    };
     const { state } = runCommands(start, deps, use);
     expect(invocation(state).discard).toEqual([top]);
     expect(invocation(state).deck[0]).toBe(next);
@@ -271,12 +336,20 @@ describe("§3.5 an identity's separate deck (Invocation)", () => {
     const revealed = runCommands(start, deps, endTurn).state;
     const scheme = revealed.villainArea.find((id) => revealed.instances[id]?.cardId === DARK.id) as InstanceId;
     const [tucked] = mustInstance(revealed, scheme).tucked as [InstanceId];
-    expect(mustInstance(revealed, tucked)).toMatchObject({ faceup: false, home: { kind: "separateDeck", name: INVOCATION } });
+    expect(mustInstance(revealed, tucked)).toMatchObject({
+      faceup: false,
+      home: { kind: "separateDeck", name: INVOCATION },
+    });
     expect(invocation(revealed).deck).toHaveLength(4);
     expect(mustInstance(revealed, invocation(revealed).deck[0] as InstanceId).faceup).toBe(true);
 
     const hero = runCommands(revealed, deps, toHero).state;
-    const { state } = runCommands(hero, deps, { type: "basicThwart", playerId: p1, thwarterInstanceId: identityId(hero), schemeInstanceId: scheme });
+    const { state } = runCommands(hero, deps, {
+      type: "basicThwart",
+      playerId: p1,
+      thwarterInstanceId: identityId(hero),
+      schemeInstanceId: scheme,
+    });
     expect(state.villainArea).not.toContain(scheme);
     expect(invocation(state).deck).toHaveLength(5);
     expect(invocation(state).deck).toContain(tucked);
