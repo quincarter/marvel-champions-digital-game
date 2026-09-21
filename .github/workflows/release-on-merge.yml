@@ -65,6 +65,28 @@ jobs:
             echo "should_release=false" >> "$GITHUB_OUTPUT"
           fi
 
+      - uses: pnpm/action-setup@v4
+        if: steps.check_changes.outputs.has_changes == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.check_changes.outputs.has_changes == 'true'
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install workspace dependencies
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Pre-release quality gate (lint, format, typecheck, test, build)
+        if: steps.check_changes.outputs.has_changes == 'true'
+        run: |
+          pnpm lint
+          pnpm fmt:check
+          pnpm typecheck
+          pnpm test
+          pnpm build
+
       - name: Cut Release and Update Changelog
         id: cut
         if: steps.check_changes.outputs.has_changes == 'true'
@@ -192,8 +214,6 @@ jobs:
           workspaces: packages/client/src-tauri -> target
 
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm test
 
       - name: Build Tauri desktop bundles
         uses: tauri-apps/tauri-action@v0
