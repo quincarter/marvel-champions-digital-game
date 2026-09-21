@@ -22,7 +22,7 @@ describe("campaign types are plain serializable data", () => {
     expect(entry?.logBefore.rng).toEqual({ value: 4242, draws: 0 });
     // The card removed from the campaign is *not* in the baseline, so restoring the baseline cannot bring it back.
     expect(entry?.logBefore.removedFromCampaign).toEqual([]);
-    expect(after.removedFromCampaign).toEqual(["syn-relic-b"]);
+    expect(after.removedFromCampaign).toEqual([{ cardId: "syn-relic-b" }]);
   });
 
   it("carries the campaign RNG seed beside its advancing state", () => {

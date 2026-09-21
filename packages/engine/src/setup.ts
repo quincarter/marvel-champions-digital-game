@@ -9,23 +9,15 @@ import type {
   VillainSideLetter,
 } from "@mc/content";
 import { DEFAULT_DEPS, type EngineDeps } from "./abilities.js";
+import { NO_CAMPAIGN_WRITES, type CampaignGameInput } from "./campaign.js";
 import { unbuildableSeparateDeck, validateDeck } from "./deck.js";
-import { createCtx, emit, moveCard, pushFrames, updateInstance, type Ctx } from "./ctx.js";
-import { giveStatus, shuffleZone } from "./effects.js";
+import { createCtx, emit, type Ctx } from "./ctx.js";
 import { engineError, type EngineError } from "./errors.js";
 import { runFlow } from "./flow.js";
 import { encounterDeckId, instanceId, playerId, type EncounterDeckId, type InstanceId, type PlayerId } from "./ids.js";
-import { hasKeyword } from "./keywords.js";
 import { createRng } from "./rng.js";
+import { FIRST_CAMPAIGN_STEP, FIRST_STANDALONE_STEP, resolveScenarioSetup } from "./setup-steps.js";
 import { cardsMatch } from "./unique.js";
-import { encounterDeckOf, mainSchemeStage, mainSchemeValue, mustCardOf } from "./query.js";
-import {
-  announce,
-  applyEnterPlayKeywords,
-  enterPlayOnReveal,
-  gameAbilityFrames,
-  shuffleSeparateDeck,
-} from "./resolve/index.js";
 import {
   NO_STATUSES,
   type CardHome,
@@ -140,6 +132,18 @@ export interface GameSetupConfig {
    * no owner until a player takes it (RRG 1.8 "Ownership and Control", p. 31).
    */
   readonly setAside?: readonly CardId[];
+  /**
+   * This game is one scenario of a campaign (RRG 1.8 "Modes of Play", p. 29), as the campaign runner composed it:
+   * the log values it may read, the setup instructions to resolve at each window, and what the campaign has already
+   * removed (design §7.1). Frozen into `GameState.campaign` and therefore into the replay baseline, so the game
+   * replays without the campaign log — which is the whole reason the boundary is a value rather than a lookup.
+   *
+   * `seats` must line up with `players`, seat by seat: seat *numbers* are the campaign log's own (MC10 p. 17's
+   * "player number"), so they are not assumed to be 1, 2, 3, 4 in table order.
+   *
+   * Absent for a standalone game, which is then byte for byte the game it was before campaign mode existed.
+   */
+  readonly campaign?: CampaignGameInput;
 }
 
 /**
@@ -551,9 +555,18 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
   const [firstVillain] = villains;
   if (!firstVillain) return invalid("a game has at least one villain");
 
+  // Seat-by-seat alignment is what makes a per-seat campaign-log read addressable (`campaignSeatNumber`), so a
+  // mismatch is refused here rather than read as "this player has no campaign column" at some later window.
+  if (config.campaign && config.campaign.seats.length !== config.players.length) {
+    return invalid(
+      `the campaign composed ${config.campaign.seats.length} seats for a table of ${config.players.length}`,
+    );
+  }
+
   const state: GameState = {
     round: 1,
-    step: { phase: "setup", kind: "drawStartingHands" },
+    // A campaign game starts before Appendix II begins, so MC60 p. 9's pre-setup instructions can resolve first.
+    step: config.campaign ? FIRST_CAMPAIGN_STEP : FIRST_STANDALONE_STEP,
     firstPlayerId: firstPlayer.playerId,
     startingPlayerCount: players.length,
     players,
@@ -591,6 +604,8 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     playedThisPhase: {},
     playedByPlayerThisRound: {},
     attackedThisTurn: {},
+    // Both absent outside a campaign, so a standalone game's serialized state is unchanged (see `GameState`).
+    ...(config.campaign ? { campaign: config.campaign, campaignWrites: NO_CAMPAIGN_WRITES } : {}),
     pendingChoice: null,
     outcome: null,
     rng: createRng(config.seed),
@@ -608,60 +623,10 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
     seed: config.seed,
   });
 
-  for (const player of players) {
-    const shuffled = shuffleZone(ctx, { kind: "deck", playerId: player.playerId }, player.deck);
-    ctx.state = {
-      ...ctx.state,
-      players: ctx.state.players.map((p) => (p.playerId === player.playerId ? { ...p, deck: shuffled } : p)),
-    };
-    // RRG 1.8 Appendix II step 6 (p. 51), for separate decks too; the top card turns faceup as the identity says.
-    for (const name of Object.keys(player.separateDecks)) shuffleSeparateDeck(ctx, player.playerId, name);
-  }
-  for (const deckId of deckIds) {
-    const shuffled = shuffleZone(ctx, { kind: "encounterDeck", deckId }, encounterDeckOf(ctx.state, deckId).deck);
-    ctx.state = {
-      ...ctx.state,
-      encounterDecks: { ...ctx.state.encounterDecks, [deckId]: { deck: shuffled, discard: [] } },
-    };
-  }
-
-  const startingThreat = mainSchemeValue(ctx.state, "startingThreat", deps);
-  if (startingThreat > 0) {
-    updateInstance(ctx, mainSchemeInstanceId, (i) => ({ ...i, threat: i.threat + startingThreat }));
-    emit(ctx, {
-      type: "threatPlaced",
-      schemeInstanceId: mainSchemeInstanceId,
-      amount: startingThreat,
-      sourceInstanceId: null,
-    });
-  }
-
-  // RRG "Toughness": each villain's starting stage enters play with its tough status.
-  for (const villainId of villainInstanceIds) {
-    if (hasKeyword(ctx.state, villainId, "toughness", deps)) giveStatus(ctx, villainId, "tough");
-  }
-  putSetupCardsIntoPlay(ctx, firstPlayer.playerId);
-  // RRG Appendix II step 12: main scheme 1A setup text, then each villain's, in printed order.
-  // "Advance to stage 1B" is implicit (the engine already sits on 1B), so 1B's
-  // own "When Revealed" resolves right after the 1A setup text.
-  pushFrames(ctx, [
-    ...gameAbilityFrames(
-      ctx,
-      mainSchemeInstanceId,
-      ["setup"],
-      null,
-      mainSchemeStage(ctx.state).aSide.abilities,
-      firstPlayer.playerId,
-    ),
-    ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["setup"], null, undefined, firstPlayer.playerId),
-    ...gameAbilityFrames(ctx, mainSchemeInstanceId, ["whenRevealed"], null, undefined, firstPlayer.playerId),
-    ...villainInstanceIds.flatMap((villainId) => [
-      ...gameAbilityFrames(ctx, villainId, ["setup"], null, undefined, firstPlayer.playerId),
-      // RRG Appendix II "Resolve Scenario Setup and When Revealed Abilities": the starting villain
-      // stage is revealed too (expert Rhino II reveals Breakin' & Takin' during setup).
-      ...gameAbilityFrames(ctx, villainId, ["whenRevealed"], null, undefined, firstPlayer.playerId),
-    ]),
-  ]);
+  // RRG 1.8 Appendix II steps 6-12 (p. 51). A campaign game runs this as a flow step instead (`setup-steps.ts`),
+  // after MC60 p. 9's `beforeScenarioSetup` instructions have resolved; a standalone game runs it here, in the same
+  // place and the same order it always has, so its state and its event stream are unchanged.
+  if (!config.campaign) resolveScenarioSetup(ctx);
   // Identity "Setup:" abilities are RRG 1.8 Appendix II step 16 (p. 51), after the draw and the mulligan: they run
   // from the `playerSetupAbilities` flow step (`flow.ts`), not here.
   // Steps 14 (draw) and 15 (mulligan) run as flow steps, so they happen after
@@ -669,29 +634,4 @@ export function createGame(config: GameSetupConfig, deps: EngineDeps = DEFAULT_D
   runFlow(ctx);
 
   return { ok: true, state: ctx.state, events: ctx.events };
-}
-
-/** RRG Appendix II step 11: every card with the setup keyword begins the game in play. */
-function putSetupCardsIntoPlay(ctx: Ctx, revealingPlayerId: PlayerId): void {
-  for (const deckId of ctx.state.encounterDeckOrder) {
-    for (const id of [...encounterDeckOf(ctx.state, deckId).deck]) {
-      if (!hasKeyword(ctx.state, id, "setup")) continue;
-      updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
-      enterPlayOnReveal(ctx, id, revealingPlayerId);
-    }
-  }
-  for (const player of ctx.state.players) {
-    for (const id of [...player.deck]) {
-      if (!hasKeyword(ctx.state, id, "setup")) continue;
-      const card = mustCardOf(ctx.state, id);
-      updateInstance(ctx, id, (i) => ({ ...i, faceup: true, controllerId: player.playerId }));
-      if (card.type === "upgrade") {
-        moveCard(ctx, id, { kind: "attachment", hostInstanceId: player.identity.instanceId });
-      } else {
-        moveCard(ctx, id, { kind: "playArea", playerId: player.playerId });
-      }
-      applyEnterPlayKeywords(ctx, id);
-      announce(ctx, { kind: "cardEntersPlay", instanceId: id, playerId: player.playerId });
-    }
-  }
 }

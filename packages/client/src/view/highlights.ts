@@ -212,6 +212,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   notNemesisMinion: "not this player's nemesis minion",
   noSharedTrait: "shares no trait with that card",
   wrongEncounterSet: "not from that encounter set",
+  notInCampaignLog: "not recorded in the campaign log",
   otherGameArea: "in another game area",
   notInPlay: "not in play",
   alterEgoForm: "in alter-ego form",

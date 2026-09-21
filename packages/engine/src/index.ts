@@ -159,6 +159,7 @@ export type {
  */
 export type {
   CampaignAttemptOutcome,
+  CampaignCardFace,
   CampaignChoiceRecord,
   CampaignChoiceSource,
   CampaignDefinition,
@@ -168,8 +169,10 @@ export type {
   CampaignGrant,
   CampaignGraph,
   CampaignHistoryEntry,
+  CampaignInGameWrites,
   CampaignInstruction,
   CampaignLog,
+  CampaignLogValueSpec,
   CampaignLogSnapshot,
   CampaignLogView,
   CampaignNode,
@@ -195,7 +198,18 @@ export type {
   LossPolicy,
   ResolvedInstruction,
 } from "./campaign.js";
-export { CAMPAIGN_LOG_SCHEMA, DEFAULT_CAMPAIGN_WINDOW } from "./campaign.js";
+export { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, DEFAULT_CAMPAIGN_WINDOW, NO_CAMPAIGN_WRITES } from "./campaign.js";
+/** Reading the frozen campaign snapshot a game carries (`GameState.campaign`), for view models and the runner. */
+export {
+  campaignFaceOf,
+  campaignLogCardIds,
+  campaignLogContains,
+  campaignLogField,
+  campaignLogIsSet,
+  campaignLogNumber,
+  campaignSeatNumber,
+  sameCampaignFace,
+} from "./campaign-state.js";
 
 export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
 export { eventSubjects, isAnnouncement } from "./trigger-events.js";

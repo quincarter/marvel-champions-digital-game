@@ -344,3 +344,56 @@ export const totalPrintedResources = (
   cardsRef: TargetRef,
   types?: readonly ("physical" | "mental" | "energy" | "wild")[],
 ): ValueSpec => ({ kind: "totalPrintedResources", cards: cardsRef, ...(types ? { types } : {}) });
+
+// ---------------------------------------------------------------------------
+// Campaign mode (docs/campaign-mode-design.md §6.1)
+// ---------------------------------------------------------------------------
+
+/** How a campaign-log read is scoped: whose column, and whether entries are being counted. */
+export interface CampaignLogRead {
+  /** Absent reads the shared field; a `PlayerRef` reads that seat's column (MC10 p. 7's per-seat hit points). */
+  readonly seat?: PlayerRef;
+  /** Count a list field's entries ("the number of X recorded") rather than read a number field's value. */
+  readonly of?: "count";
+}
+
+/**
+ * "The number of delay counters recorded in the campaign log" (MC10 p. 15). Reads the snapshot the campaign froze
+ * into this game, so it is 0 in a game that is not part of a campaign.
+ */
+export const campaignLogValue = (field: string, read: CampaignLogRead = {}): ValueSpec => ({
+  kind: "campaignLog",
+  field,
+  ...(read.seat ? { seat: read.seat } : {}),
+  ...(read.of ? { of: read.of } : {}),
+});
+
+/** "If <card> is in the campaign pool" (MC21 p. 17): the field lists this card id, option or instruction id. */
+export const campaignLogHas = (field: string, value: string, read: CampaignLogRead = {}): Predicate => ({
+  kind: "campaignLog",
+  field,
+  has: value,
+  ...(read.seat ? { seat: read.seat } : {}),
+});
+
+/** "If the <X> box is checked" — and with `set: false`, the printed "if it is not". */
+export const campaignLogIsSet = (field: string, set = true, read: CampaignLogRead = {}): Predicate => ({
+  kind: "campaignLog",
+  field,
+  isSet: set,
+  ...(read.seat ? { seat: read.seat } : {}),
+});
+
+/** "If N or more <X> are recorded in the campaign log". */
+export const campaignLogAtLeast = (field: string, n: number, read: CampaignLogRead = {}): Predicate => ({
+  kind: "campaignLog",
+  field,
+  atLeast: n,
+  ...(read.seat ? { seat: read.seat } : {}),
+  ...(read.of ? { of: read.of } : {}),
+});
+
+/** "Each <X> recorded in the campaign log", as a query clause narrowing cards to the ones the field names. */
+export const inCampaignLogField = (field: string, seat?: PlayerRef): Pick<TargetQuery, "inCampaignLogField"> => ({
+  inCampaignLogField: { field, ...(seat ? { seat } : {}) },
+});

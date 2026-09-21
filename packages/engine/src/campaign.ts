@@ -12,10 +12,11 @@
  * `docs/campaign-mode-design.md` §1), not against the first box we build, so each non-obvious member cites the
  * printed sentence that forces it — `MC60 p. 9` means page 9 of the Fear No Evil rulebook conversion.
  *
- * **This module is types only.** The runner (`resolveBetweenGames`, `campaignResultOf`, `applyCampaignResult`), the
- * in-game primitives (`campaignLog` values/predicates, `recordInCampaignLog`, the setup windows as `GameStep`s) and
- * the campaign `DeckContext` are later steps (design §11 steps 3-5). Nothing here has behaviour, and every type is
- * plain JSON — no functions, classes, `Map`, `Set` or `Date` — so a log round-trips through `JSON.stringify`.
+ * **This module is data only.** The runner (`resolveBetweenGames`, `campaignResultOf`, `applyCampaignResult`) and the
+ * campaign `DeckContext` are later steps (design §11 steps 4-5). Nothing here has behaviour, and every type is plain
+ * JSON — no functions, classes, `Map`, `Set` or `Date` — so a log round-trips through `JSON.stringify`. The in-game
+ * primitives (design §11 step 3) are declared where the rest of the executable vocabulary lives — `spec.ts`'s
+ * `ValueSpec`/`Predicate`/`CardSelector`/`EffectSpec` — and read the frozen `GameState.campaign` snapshot only.
  */
 
 import type {
@@ -30,7 +31,7 @@ import type {
   Trait,
 } from "@mc/content";
 import type { RngState } from "./rng.js";
-import type { EffectSpec, TargetCategory, TargetQuery } from "./spec.js";
+import type { CardSelector, EffectSpec, Predicate, TargetCategory, TargetQuery, ValueSpec } from "./spec.js";
 
 // ---------------------------------------------------------------------------------------------------------------
 // §4 The definition
@@ -233,6 +234,84 @@ export type CampaignWindow =
 
 /** The default window for a setup instruction with no window printed on it (MC10 p. 3 + MC50 p. 4; see above). */
 export const DEFAULT_CAMPAIGN_WINDOW: CampaignWindow = "afterScenarioSetup";
+
+/**
+ * The order the engine resolves the windows in, which is the order the `setup` flow steps run (`setup-steps.ts`).
+ *
+ * Three of the five — `afterScenarioSetup`, `beforeStartingHands`, `beforePlayerSetup` — name *the same printed gap*:
+ * after RRG 1.8 Appendix II step 12 ("Resolve Scenario Setup and When Revealed Abilities", p. 51) and before step 14
+ * ("Draw Starting Hands"). MC10 p. 3 ("Then, follow that scenario's setup instructions"), MC50 p. 4 ("before players
+ * draw their starting hands") and MC60 p. 9 step 8 (deck surgery between scenario setup and player setup) all land
+ * there, and no rulebook prints two of them for one scenario, so their order relative to each other is an **engine
+ * convention**, not a rule: latest-sounding last. Flagged in design §6.1/Q7 rather than silently chosen.
+ */
+export const CAMPAIGN_WINDOW_ORDER = [
+  "beforeScenarioSetup",
+  "afterScenarioSetup",
+  "beforeStartingHands",
+  "beforePlayerSetup",
+  "afterMulligans",
+] as const satisfies readonly CampaignWindow[];
+
+// ---------------------------------------------------------------------------------------------------------------
+// §4.3c What an in-game instruction (or an ordinary card ability) writes back
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * One card **face** removed from the campaign (RRG 1.8 p. 29).
+ *
+ * Removal is by face, not by physical card: ruling **April 30, 2026 (4)** answer 2, on the MC45 campaign — "Prelate
+ * versions of minions remain available for the Apocalypse scenario even if their Overseer counterparts were crossed
+ * out of the campaign log." The two versions are two faces of one double-sided card, which in `@mc/content` is one
+ * `CardId` plus a `flipSide`, so a `CardId` alone cannot say which of them was crossed out.
+ *
+ * `face` is the printed name of the *other* face (`CardFlipSide.name`), matching how `LogValue` `cardRef` and
+ * `CampaignGrant` already name a face; absent means the card's front face, which is every single-sided card.
+ */
+export interface CampaignCardFace {
+  readonly cardId: CardId;
+  readonly face?: string;
+}
+
+/**
+ * The value an in-game `recordInCampaignLog` writes, in the engine's own executable vocabulary (`ValueSpec`,
+ * `Predicate`, `CardSelector`) rather than the between-games `CampaignGameQuery`: inside a game there *is* a
+ * `GameState`, so a write reads it the way any card ability would.
+ *
+ * Only the log field kinds an in-game instruction can produce are here. `strikeList`, `instructionList` and
+ * `cardState` are never written in one sentence in-game: a strike is `mode: "strike"` with a `choice` value (the same
+ * way `LogWriteSpec` spells it), and the other two are written between games.
+ */
+export type CampaignLogValueSpec =
+  /** "Record the number of delay counters on the main scheme" (MC10 p. 7). */
+  | { readonly kind: "number"; readonly amount: ValueSpec }
+  /** "Check the box" (MC60 p. 13); `when` makes it conditional, absent is simply true. */
+  | { readonly kind: "flag"; readonly when?: Predicate }
+  /** "Record the name of each Experimental attachment that entered the game" (MC10 p. 5). */
+  | { readonly kind: "cardList"; readonly cards: CardSelector }
+  /** One card, optionally with the face it is on (MC10 p. 12's "Improved" side). The first card the selector names. */
+  | { readonly kind: "cardRef"; readonly card: CardSelector; readonly withFace?: true }
+  /** A named option of a `choice` or `strikeList` field. */
+  | { readonly kind: "choice"; readonly option: string }
+  | { readonly kind: "text"; readonly value: string };
+
+/**
+ * What a game has written back to the campaign so far, accumulated in `GameState` as plain data and folded into the
+ * `CampaignLog` by the runner (design §7.2) — **the game itself never touches anything outside `GameState`**.
+ *
+ * Kept apart from the frozen `GameState.campaign` input on purpose: the input is the replay baseline and never
+ * changes, and these writes are the only campaign state a game produces. Both stick whatever the outcome, because
+ * RRG 1.8 p. 29 keeps a removal "even if players retry the scenario wherein that card was removed", and design §6.2
+ * extends the same reading to an in-game log write — which is why a lost game's writes must stay distinguishable
+ * from the between-games writes a retry rolls back to `LossPolicy.retryBaseline`.
+ */
+export interface CampaignInGameWrites {
+  readonly logWrites: readonly LogWrite[];
+  readonly removedFromCampaign: readonly CampaignCardFace[];
+}
+
+/** A game that has written nothing back yet. */
+export const NO_CAMPAIGN_WRITES: CampaignInGameWrites = { logWrites: [], removedFromCampaign: [] };
 
 // ---------------------------------------------------------------------------------------------------------------
 // §4.3b Reading the finished game
@@ -539,7 +618,7 @@ export interface CampaignLogSnapshot {
   readonly shared: Readonly<Record<string, LogValue>>;
   readonly hidden: Readonly<Record<string, LogValue>>;
   readonly seats: readonly CampaignSeat[];
-  readonly removedFromCampaign: readonly CardId[];
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   readonly position: CampaignPosition;
   readonly rng: RngState;
 }
@@ -565,8 +644,8 @@ export interface CampaignLog {
   readonly shared: Readonly<Record<string, LogValue>>;
   /** Fields declared `hidden` (MC50 p. 5). Never crosses into a view model. */
   readonly hidden: Readonly<Record<string, LogValue>>;
-  /** RRG 1.8 p. 29: no longer usable "during the rest of the campaign, even if players retry". */
-  readonly removedFromCampaign: readonly CardId[];
+  /** RRG 1.8 p. 29: no longer usable "during the rest of the campaign, even if players retry". By face — see `CampaignCardFace`. */
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   readonly position: CampaignPosition;
   /** The seed the campaign RNG was created from, kept beside the advancing state so a campaign can be re-derived. */
   readonly seed: number;
@@ -615,7 +694,7 @@ export interface CampaignStepTrace {
   readonly skipped?: "modes" | "condition";
   readonly writes: readonly LogWrite[];
   readonly choices: readonly CampaignChoiceRecord[];
-  readonly removedFromCampaign: readonly CardId[];
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   readonly grants: readonly CampaignGrant[];
 }
 
@@ -648,8 +727,8 @@ export interface CampaignGameInput {
   readonly log: CampaignLogView;
   /** Already filtered by mode and by `when`, already in printed order; the engine runs each window's list as given. */
   readonly instructions: readonly ResolvedInstruction[];
-  /** RRG 1.8 p. 29 removals, so nothing can re-enter the game through a search. */
-  readonly removedFromCampaign: readonly CardId[];
+  /** RRG 1.8 p. 29 removals, so nothing can re-enter the game through a search. By face (ruling April 30, 2026 (4)). */
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   readonly seats: readonly CampaignSeatInput[];
   /** Seed for anything the *in-game* instructions randomise; drawn from the log's RNG so it is not a second source. */
   readonly seed: number;
@@ -701,7 +780,7 @@ export interface CampaignGameResult {
    * `removeFromCampaign` resolved *in game* — MC10 p. 3's Tech upgrades print "Discard this card and remove it from
    * the campaign log". Applied whatever the outcome, because RRG 1.8 p. 29 keeps it across a retry.
    */
-  readonly removedFromCampaign: readonly CardId[];
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   /** `recordInCampaignLog` resolved in game. Applied whatever the outcome, for the same reason. */
   readonly logWrites: readonly LogWrite[];
   /** Grants with `permanence: "thisGame"` expiring now — MC32 p. 5's "use it or lose it" role upgrades. */

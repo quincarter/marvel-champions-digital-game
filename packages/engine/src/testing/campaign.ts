@@ -20,7 +20,19 @@
 
 import { campaignId, cardId, encounterSetId, scenarioId } from "@mc/content";
 import { createRng } from "../rng.js";
-import type { CampaignDefinition, CampaignLog, CampaignLogSnapshot, CampaignSeat } from "../campaign.js";
+import type {
+  CampaignCardFace,
+  CampaignDefinition,
+  CampaignGameInput,
+  CampaignLog,
+  CampaignLogSnapshot,
+  CampaignLogView,
+  CampaignSeat,
+  CampaignSeatInput,
+  CampaignWindow,
+  ResolvedInstruction,
+} from "../campaign.js";
+import type { EffectSpec } from "../spec.js";
 
 const CITE = "MC00 p. 1";
 
@@ -388,7 +400,7 @@ export const SYNTHETIC_CAMPAIGN_LOG: CampaignLog = {
     favors: { kind: "instructionList", ids: ["syn.favor.ward"] },
   },
   hidden: { saboteur: { kind: "choice", option: "warden-two" } },
-  removedFromCampaign: [RELIC_B],
+  removedFromCampaign: [{ cardId: RELIC_B }],
   position: { nextNodeId: "omega", resolved: { alpha: "completed" }, progress: { omega: 1 } },
   seed: 4242,
   rng: { value: 4242, draws: 2 },
@@ -421,7 +433,7 @@ export const SYNTHETIC_CAMPAIGN_LOG: CampaignLog = {
           kind: "betweenGames",
           writes: [{ field: "errands", seatNumber: null, mode: "strike", value: { kind: "choice", option: "north" } }],
           choices: [{ slot: "relic", seatNumber: 1, picked: [RELIC_A] }],
-          removedFromCampaign: [RELIC_B],
+          removedFromCampaign: [{ cardId: RELIC_B }],
           grants: [{ cardId: RELIC_A, permanence: "campaign", face: "improved", grantedAtNodeId: "alpha" }],
         },
         {
@@ -440,3 +452,61 @@ export const SYNTHETIC_CAMPAIGN_LOG: CampaignLog = {
   ],
   status: "active",
 };
+
+// ---------------------------------------------------------------------------------------------------------------
+// The game side of the boundary (design §7.1): what the runner will hand `createGame`
+// ---------------------------------------------------------------------------------------------------------------
+
+/** The readable half of the log above, flattened as a game reads it. Hidden fields stay out (MC50 p. 5's envelope). */
+export const SYNTHETIC_LOG_VIEW: CampaignLogView = {
+  shared: SYNTHETIC_CAMPAIGN_LOG.shared,
+  perSeat: SYNTHETIC_CAMPAIGN_LOG.seats.map((seat) => ({ seatNumber: seat.seatNumber, fields: seat.fields })),
+};
+
+/** The seats as the campaign composed them, in table order. */
+export const SYNTHETIC_SEAT_INPUTS: readonly CampaignSeatInput[] = SYNTHETIC_CAMPAIGN_LOG.seats.map((seat) => ({
+  seatNumber: seat.seatNumber,
+  identityCardId: seat.identityCardId,
+  deck: seat.deck.cards.flatMap((line) => Array.from({ length: line.quantity }, () => line.cardId)),
+  aspects: seat.deck.aspects,
+  grantedCardIds: seat.grants.map((grant) => grant.cardId),
+}));
+
+/** One instruction the runner has already gated and ordered, ready for the engine to resolve at its window. */
+export const syntheticInstruction = (
+  instructionId: string,
+  window: CampaignWindow,
+  effects: readonly EffectSpec[],
+): ResolvedInstruction => ({
+  instructionId,
+  text: `Synthetic instruction ${instructionId}.`,
+  citation: CITE,
+  window,
+  effects,
+});
+
+/**
+ * A `CampaignGameInput` over the synthetic campaign — what `resolveBetweenGames` (design §11 step 4) will produce.
+ * Every part is overridable, because an engine test is about the *shape* of the input, never about a box.
+ */
+export function syntheticCampaignInput(
+  over: {
+    readonly nodeId?: string;
+    readonly log?: CampaignLogView;
+    readonly instructions?: readonly ResolvedInstruction[];
+    readonly seats?: readonly CampaignSeatInput[];
+    readonly removedFromCampaign?: readonly CampaignCardFace[];
+  } = {},
+): CampaignGameInput {
+  return {
+    campaignId: SYNTHETIC_CAMPAIGN_ID,
+    nodeId: over.nodeId ?? "alpha",
+    definitionVersion: SYNTHETIC_CAMPAIGN.version,
+    modes: SYNTHETIC_CAMPAIGN_LOG.modes,
+    log: over.log ?? SYNTHETIC_LOG_VIEW,
+    instructions: over.instructions ?? [],
+    removedFromCampaign: over.removedFromCampaign ?? SYNTHETIC_CAMPAIGN_LOG.removedFromCampaign,
+    seats: over.seats ?? SYNTHETIC_SEAT_INPUTS,
+    seed: 4242,
+  };
+}

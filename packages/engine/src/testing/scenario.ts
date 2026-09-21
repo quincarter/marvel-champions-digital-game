@@ -7,6 +7,7 @@ import {
   type MainSchemeCard,
   type VillainCard,
 } from "@mc/content";
+import type { CampaignGameInput } from "../campaign.js";
 import { createGame, type GameSetupConfig } from "../setup.js";
 import { applyCommand, type CommandResult } from "../engine.js";
 import { DEFAULT_DEPS, type EngineDeps } from "../abilities.js";
@@ -79,6 +80,8 @@ export interface NewGameOptions {
   readonly encounterDeck?: readonly CardId[];
   readonly deck?: readonly CardId[];
   readonly deps?: EngineDeps;
+  /** Plays this game as one scenario of a campaign (`GameSetupConfig.campaign`); absent is a standalone game. */
+  readonly campaign?: CampaignGameInput;
 }
 
 /**
@@ -118,6 +121,7 @@ export function newGameAtMulligan(options: NewGameOptions = {}): GameState {
       identityCardId: seatIdentity.id,
       deck: options.deck ?? DEFAULT_DECK,
     })),
+    ...(options.campaign ? { campaign: options.campaign } : {}),
   };
   const result = createGame(config, options.deps ?? DEFAULT_DEPS);
   if (!result.ok) throw new Error(`setup failed: ${result.error.message}`);

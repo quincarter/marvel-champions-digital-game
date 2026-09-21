@@ -13,6 +13,9 @@ export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfT
 // `EffectSpec applyRuleUntil` carries the same `RuleSpec` union a constant ability's own `rules` do, so a
 // restriction is written once whether a card in play or a lasting effect imposes it (docs/phase7-wave2.md §22).
 import type { RuleSpec } from "./abilities.js";
+// Type-only, and erased at compile time, so the cycle with `campaign.ts` (which names `EffectSpec` and friends) is
+// only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
+import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
 import type { PlayerId } from "./ids.js";
 import type { ResourceRequirement, TypedResource } from "./resources.js";
 import type { FacedownRole, Form, GameStep } from "./state.js";
@@ -216,6 +219,15 @@ export interface TargetQuery {
    * parenthetical) through the same `encounterSetIds` field. docs/phase7-wave2.md §20.2.
    */
   readonly encounterSetOf?: TargetRef;
+  /**
+   * The card's title is recorded in this campaign-log field: "Shuffle each EXPERIMENTAL attachment **recorded in the
+   * campaign log** into the encounter deck" (MC10 p. 7) as a *filter*, where the `campaignLog` `CardSelector` is the
+   * same fact as a *pool*. `seat` reads a per-seat field (MC10 p. 10's rescued allies); absent reads the shared one.
+   *
+   * Read from the frozen `GameState.campaign.log` snapshot (design §7.1), never from storage, so it is a fact about
+   * card *data* — it matches wherever the card is, and a game with no campaign input matches nothing.
+   */
+  readonly inCampaignLogField?: { readonly field: string; readonly seat?: PlayerRef };
 }
 
 /** Names one instance without knowing its id at authoring time. */
@@ -417,7 +429,22 @@ export type ValueSpec =
    * (`VillainStage.stageNumber`), not its index in the deck — expert play starts on stage II, whose number is 2.
    * `of` absent is the active villain ("the villain").
    */
-  | { readonly kind: "villainStageNumber"; readonly of?: TargetRef };
+  | { readonly kind: "villainStageNumber"; readonly of?: TargetRef }
+  /**
+   * A number recorded in the campaign log: "Place threat on the main scheme equal to the number of delay counters
+   * recorded in the campaign log" (MC10 p. 15), "set each player's hit points to their remaining hit point value"
+   * (MC10 p. 7, per seat).
+   *
+   * Read from `GameState.campaign.log`, the snapshot the campaign runner froze into this game (design §7.1) — the
+   * engine never reaches out to a live log, which is what keeps `applyCommand` pure and a saved campaign game
+   * replayable while the log keeps evolving underneath it. No campaign input, or no such field, is 0.
+   *
+   * `seat` names whose column to read (`PlayerRef`; several players resolve to the first, as every other `of` does);
+   * absent reads the shared field. `of: "count"` asks for the *number of entries* in a list-valued field
+   * ("the number of Rescued Captive allies recorded"), which is the only way to get a number out of one — without
+   * it, only a `number` field (its value) and a `flag` field (1/0) read as anything but 0.
+   */
+  | { readonly kind: "campaignLog"; readonly field: string; readonly seat?: PlayerRef; readonly of?: "count" };
 
 export type StatName = "atk" | "thw" | "def" | "rec" | "sch";
 
@@ -501,7 +528,26 @@ export type Predicate =
    * Every player in this effect's game area is defeated (eliminated): "If all the players at this stage are defeated,
    * this stage is complete." (Kang's stage 3 cards). False outside a separate game area.
    */
-  | { readonly kind: "areaPlayersDefeated" };
+  | { readonly kind: "areaPlayersDefeated" }
+  /**
+   * A campaign-log field says something: "If Cosmo is in the campaign pool …" (MC21 p. 17) is `has`, "If the
+   * 'Trust Established?' box is checked" is `isSet`, "if 3 or more delay counters are recorded" is `atLeast`.
+   *
+   * Every condition given must hold (they are ANDed, like a `TargetQuery`'s clauses); with none given it asks only
+   * whether the field is present at all. `of: "count"` makes `atLeast` count a list's entries rather than read a
+   * number (the same switch `ValueSpec campaignLog` has). Reads the frozen `GameState.campaign.log` snapshot, so a
+   * game with no campaign input is always false.
+   */
+  | {
+      readonly kind: "campaignLog";
+      readonly field: string;
+      readonly seat?: PlayerRef;
+      /** A card id, an option name or an instruction id the field lists. */
+      readonly has?: string;
+      readonly atLeast?: number;
+      readonly of?: "count";
+      readonly isSet?: boolean;
+    };
 
 export type StatusName = "stunned" | "confused" | "tough";
 
@@ -1317,7 +1363,36 @@ export type EffectSpec =
       readonly player: PlayerRef;
       readonly effects: readonly EffectSpec[];
       readonly cardFilter?: TargetQuery;
-    };
+    }
+  /**
+   * Writes a campaign-log field from inside the game: MC10 p. 7's "Record the number of delay counters on the main
+   * scheme in the campaign log", and the card text of MC10's campaign upgrades (design §6.2).
+   *
+   * The write does **not** touch a campaign log — no game may. It accumulates in `GameState.campaignWrites` as a
+   * plain `LogWrite`, which the runner folds into the log when the game ends, whatever the outcome (RRG 1.8 p. 29's
+   * reading, design §6.2). `seat` absent writes the shared field; `{ kind: "each" }` writes the same value into every
+   * seat's column (a *different* value per seat is `forEachPlayer` around this effect). Outside a campaign game
+   * (no `GameState.campaign`) it does nothing.
+   */
+  | {
+      readonly kind: "recordInCampaignLog";
+      readonly field: string;
+      readonly seat?: PlayerRef;
+      readonly mode: LogWriteMode;
+      readonly value: CampaignLogValueSpec;
+    }
+  /**
+   * "Remove it from the campaign log" (MC10 p. 3 card text; MC32 p. 5's use-it-or-lose-it; MC60 p. 13).
+   *
+   * RRG 1.8 p. 29: "If a card is removed from a campaign, that card can no longer be used during the rest of the
+   * campaign, even if players retry the scenario wherein that card was removed." Recorded **by face** — ruling
+   * April 30, 2026 (4) answer 2, see `CampaignCardFace` — into `GameState.campaignWrites`, exactly like a log write
+   * and for the same reason.
+   *
+   * It is a log operation only: what happens to the card *in this game* is whatever the printed sentence beside it
+   * says ("Discard this card **and** remove it from the campaign log"), scripted as its own effect.
+   */
+  | { readonly kind: "removeFromCampaign"; readonly cards: CardSelector };
 
 /** A player's own out-of-play zones a selector can read. */
 export type PlayerZone = "hand" | "deck" | "discard";
@@ -1381,6 +1456,21 @@ export type CardSelector =
    * list cannot.
    */
   | { readonly kind: "anyOf"; readonly of: readonly CardSelector[] }
+  /**
+   * The cards a campaign-log field names, wherever they are in the game: "Shuffle each EXPERIMENTAL attachment
+   * recorded in the campaign log into the encounter deck" (MC10 p. 7), MC21 p. 7's campaign pool, MC50 p. 19.
+   *
+   * A field lists *titles*, and a title can be listed more than once — ruling **June 2, 2026 (3)** answer 3, "Record
+   * each copy individually (titles can appear multiple times)", and answer 4, "Remove a number of cards equal to the
+   * count recorded". So each entry names one card: two entries of the same title name two instances, in the order
+   * the game created them, and a title with no matching instance left names nothing.
+   */
+  | {
+      readonly kind: "campaignLog";
+      readonly field: string;
+      readonly seat?: PlayerRef;
+      readonly filter?: TargetQuery;
+    }
   | {
       /**
        * A player's own zones. Several at once are searched as one pool: "search your deck **and** discard pile for a

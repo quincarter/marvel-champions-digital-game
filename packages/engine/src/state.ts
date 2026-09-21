@@ -1,4 +1,5 @@
 import type { AnyCard, CardId, Trait, VillainSideLetter } from "@mc/content";
+import type { CampaignGameInput, CampaignInGameWrites, CampaignWindow } from "./campaign.js";
 import type { EncounterDeckId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { RngState } from "./rng.js";
@@ -275,6 +276,18 @@ export interface ScenarioRules {
  * player being eliminated mid-step can't shift anyone else's place in line.
  */
 export type GameStep =
+  /**
+   * A campaign's own setup instructions for this scenario, at one of RRG Appendix II's five printed windows
+   * (`CampaignWindow`, resolved in `CAMPAIGN_WINDOW_ORDER`). **Campaign games only**: a game created without
+   * `GameSetupConfig.campaign` never reaches this step or `scenarioSetup`, and its step sequence is unchanged.
+   */
+  | { readonly phase: "setup"; readonly kind: "campaignWindow"; readonly window: CampaignWindow }
+  /**
+   * RRG 1.8 Appendix II steps 6-12 (p. 51): shuffle the decks, place starting threat, put setup cards into play,
+   * resolve the scenario's own setup abilities. A flow step only in a campaign game, where `beforeScenarioSetup`
+   * instructions have to resolve *before* it; otherwise `createGame` runs the same code inline as it always has.
+   */
+  | { readonly phase: "setup"; readonly kind: "scenarioSetup" }
   /** RRG Appendix II step 14, after setup cards and setup abilities have resolved. */
   | { readonly phase: "setup"; readonly kind: "drawStartingHands" }
   | { readonly phase: "setup"; readonly kind: "mulligan"; readonly remainingPlayerIds: readonly PlayerId[] }
@@ -421,6 +434,18 @@ export interface GameState {
    *   to Laura Kinney still attacked as X-23, and nothing an alter-ego does is recorded under the hero's title.
    */
   readonly attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>;
+  /**
+   * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
+   * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without
+   * consulting the campaign log at all, which is what lets the log keep evolving underneath saved games.
+   *
+   * **Absent, not null, outside a campaign** (with `campaignWrites`, which is present exactly when this is): a
+   * standalone game's serialized state is byte for byte what it was before campaign mode existed, so every save
+   * written until now still replays.
+   */
+  readonly campaign?: CampaignGameInput;
+  /** What this game has written back to the campaign so far (design §6.1). Present exactly when `campaign` is. */
+  readonly campaignWrites?: CampaignInGameWrites;
   readonly pendingChoice: PendingChoice | null;
   readonly outcome: GameOutcome | null;
   readonly rng: RngState;

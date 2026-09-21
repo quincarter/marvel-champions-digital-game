@@ -370,13 +370,19 @@ A `record` instruction is the read half of the same boundary: it reads the _fini
 
 `CampaignWindow` — five values, all printed in some rulebook:
 
-| Window                | Meaning                                                                                      | Citation              |
-| --------------------- | -------------------------------------------------------------------------------------------- | --------------------- |
-| `beforeScenarioSetup` | before RRG Appendix II begins                                                                | MC60 p. 9 steps 1–7   |
-| `beforePlayerSetup`   | after the encounter deck is built, before decks are shuffled/drawn (deck surgery)            | MC60 p. 9 step 8      |
-| `afterScenarioSetup`  | **the default.** After Appendix II step 12 (scenario setup abilities), before step 13 (draw) | MC10 p. 3 + MC50 p. 4 |
-| `beforeStartingHands` | explicit synonym of the default, kept because MC50 prints it                                 | MC50 p. 4             |
-| `afterMulligans`      | after Appendix II step 15                                                                    | MC50 p. 11            |
+| #   | Window                | Meaning                                                                                      | Citation              |
+| --- | --------------------- | -------------------------------------------------------------------------------------------- | --------------------- |
+| 1   | `beforeScenarioSetup` | before RRG Appendix II's scenario setup begins                                               | MC60 p. 9 steps 1–7   |
+| 2   | `afterScenarioSetup`  | **the default.** After Appendix II step 12 (scenario setup abilities), before step 14 (draw) | MC10 p. 3 + MC50 p. 4 |
+| 3   | `beforeStartingHands` | explicit synonym of the default, kept because MC50 prints it                                 | MC50 p. 4             |
+| 4   | `beforePlayerSetup`   | the last thing before player setup (deck surgery)                                            | MC60 p. 9 step 8      |
+| 5   | `afterMulligans`      | after Appendix II step 15                                                                    | MC50 p. 11            |
+
+The `#` column is the order the engine resolves them in, exported as `CAMPAIGN_WINDOW_ORDER`. **As built:** windows
+2–4 all name the same printed gap — after Appendix II step 12 and before step 14 — so their order relative to each
+other is an engine convention (latest-sounding last), not a rule. No rulebook prints two of them for one scenario.
+The draw is Appendix II **step 14**, not 13 (the original sketch miscounted); steps 15 and 16 are the mulligan and
+the player setup abilities, as `flow.ts` has always had them.
 
 The default's placement is a _reading_: MC10 p. 3 says only "set up the scenario as per the normal rules of the game.
 Then, follow that scenario's setup instructions". MC50 p. 4 pins the same sentence to "before players draw their
@@ -423,15 +429,23 @@ export interface LogWrite {
 
 ### 4.4 Values and predicates over the log
 
-The in-game half reuses the engine's existing vocabulary, extended by exactly two members:
+The in-game half reuses the engine's existing vocabulary, extended by exactly two members (built in `spec.ts`;
+`seat` absent is the shared field, and several players resolve to the first, as every singular `PlayerRef` does):
 
 ```ts
 // ValueSpec gains:
 | { readonly kind: "campaignLog"; readonly field: string; readonly seat?: PlayerRef; readonly of?: "count" }
-// Predicate gains:
-| { readonly kind: "campaignLog"; readonly field: string; readonly seat?: PlayerRef;
-    readonly has?: CardId | string; readonly atLeast?: number; readonly isSet?: boolean }
+// Predicate gains (`of` added as built, so `atLeast` can count a list the same way the value does; `has` is
+// `string` because the engine never names a card — a `CardId` is one):
+| { readonly kind: "campaignLog"; readonly field: string; readonly seat?: PlayerRef; readonly has?: string;
+    readonly atLeast?: number; readonly of?: "count"; readonly isSet?: boolean }
 ```
+
+**As built**, `of: "count"` is what makes a list readable as a number; without it only a `number` field (its value)
+and a `flag` field (1/0) read as anything but 0, so a misspelled field cannot read as a plausible number. Every
+condition on the predicate is ANDed; with none given it asks whether the field is present at all, and a field the
+frozen view does not carry satisfies `isSet: false` and nothing else. `campaign-state.ts` holds the readers, as
+total functions: no campaign, no field, wrong kind and an unseated player all read as "nothing recorded".
 
 The between-games half has its own tiny value language (no `GameState` to read):
 
@@ -480,7 +494,7 @@ export type CampaignOp =
       readonly permanence: "campaign" | "thisGame";
     } // `thisGame` = MC32 p. 5
   | { readonly kind: "revokeCard"; readonly seat: "self" | "each"; readonly card: CampaignValue }
-  /** RRG p. 29. Applies to every seat and to the encounter side; survives a retry. */
+  /** RRG p. 29. Applies to every seat and to the encounter side; survives a retry. Resolved to a `CampaignCardFace`. */
   | { readonly kind: "removeFromCampaign"; readonly cards: readonly CampaignValue[] }
   | { readonly kind: "setGrantFace"; readonly card: CampaignValue; readonly face: string } // MC10 p. 12, MC27 p. 22
   // --- choices and randomness -------------------------------------------------------------
@@ -624,9 +638,21 @@ export interface CampaignLogSnapshot {
   readonly shared: Readonly<Record<string, LogValue>>;
   readonly hidden: Readonly<Record<string, LogValue>>;
   readonly seats: readonly CampaignSeat[];
-  readonly removedFromCampaign: readonly CardId[];
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   readonly position: CampaignPosition;
   readonly rng: RngState;
+}
+
+/**
+ * **As built, replacing `CardId` everywhere a removal is recorded.** RRG p. 29's removal is by card *face*: ruling
+ * April 30, 2026 (4) answer 2, "Prelate versions of minions remain available for the Apocalypse scenario even if
+ * their Overseer counterparts were crossed out of the campaign log" — two faces of one double-sided card, which
+ * `@mc/content` models as one `CardId` plus a `flipSide`. `face` is the other face's printed name; absent is the
+ * front face, i.e. every single-sided card. Flagged in §1.2 from the start; the sketch's `CardId[]` could not say it.
+ */
+export interface CampaignCardFace {
+  readonly cardId: CardId;
+  readonly face?: string;
 }
 
 /** Storage shape, exported so storage and the log agree on one number. */
@@ -648,7 +674,7 @@ export interface CampaignLog {
   /** Fields declared `hidden` (MC50 p. 5). Never crosses into a view model. */
   readonly hidden: Readonly<Record<string, LogValue>>;
   /** RRG p. 29: "that card can no longer be used during the rest of the campaign, even if players retry". */
-  readonly removedFromCampaign: readonly CardId[];
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   readonly position: CampaignPosition;
   /** As built: the seed the RNG was created from, kept beside the advancing state so a campaign can be re-derived. */
   readonly seed: number;
@@ -696,7 +722,7 @@ export interface CampaignStepTrace {
   readonly skipped?: "modes" | "condition";
   readonly writes: readonly LogWrite[];
   readonly choices: readonly CampaignChoiceRecord[];
-  readonly removedFromCampaign: readonly CardId[];
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   readonly grants: readonly CampaignGrant[];
 }
 
@@ -825,21 +851,48 @@ export const TRORS_CAMPAIGN = defineCampaign({
 
 ### 6.1 New engine primitives
 
-| Primitive                                | Shape                                                                                         | Needed by                                                                            |
-| ---------------------------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Read a log field in-game                 | `ValueSpec { kind: "campaignLog" }`                                                           | MC10 p. 15 (delay counters → threat), MC16 p. 18, MC27 p. 15, MC40 p. 16, MC60 p. 17 |
-| Test a log field in-game                 | `Predicate { kind: "campaignLog" }`                                                           | MC21 p. 17 ("If Cosmo is in the campaign pool"), MC32 p. 10, MC60 p. 9               |
-| Select the cards a log field names       | `CardSelector { kind: "campaignLog"; field }` + `TargetQuery.inCampaignLogField`              | MC10 p. 7, MC27 p. 22, MC32 p. 10, MC50 p. 19                                        |
-| Write a log field from in-game card text | `EffectSpec { kind: "recordInCampaignLog"; field; value }`                                    | MC10 Hydra Campaign upgrades ("remove it from the campaign log → …")                 |
-| Remove from the campaign from in-game    | `EffectSpec { kind: "removeFromCampaign"; cards }`                                            | MC10 upgrades, MC32 p. 5, MC60 p. 13                                                 |
-| Per-seat scoping of a log read           | `PlayerRef` already suffices (`seat?: PlayerRef`)                                             | MC10 p. 7 (per-seat HP)                                                              |
-| Campaign setup windows                   | `GameStep` gains four `setup` kinds; `flow.ts` runs each window's frames                      | MC50 p. 4/p. 11, MC60 p. 9                                                           |
-| Campaign input on a game                 | `GameSetupConfig.campaign?: CampaignGameInput`, stored in `GameState.campaign`                | determinism (§7)                                                                     |
-| Campaign trace events                    | `campaignInstructionResolved`, `campaignLogRead`, `campaignLogWritten`, `campaignCardRemoved` | rules-qa replay                                                                      |
+| Primitive                                | Shape                                                                                            | Needed by                                                                            |
+| ---------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
+| Read a log field in-game                 | `ValueSpec { kind: "campaignLog" }`                                                              | MC10 p. 15 (delay counters → threat), MC16 p. 18, MC27 p. 15, MC40 p. 16, MC60 p. 17 |
+| Test a log field in-game                 | `Predicate { kind: "campaignLog" }`                                                              | MC21 p. 17 ("If Cosmo is in the campaign pool"), MC32 p. 10, MC60 p. 9               |
+| Select the cards a log field names       | `CardSelector { kind: "campaignLog"; field; seat?; filter? }` + `TargetQuery.inCampaignLogField` | MC10 p. 7, MC27 p. 22, MC32 p. 10, MC50 p. 19                                        |
+| Write a log field from in-game card text | `EffectSpec { kind: "recordInCampaignLog"; field; seat?; mode; value }`                          | MC10 Hydra Campaign upgrades ("remove it from the campaign log → …")                 |
+| Remove from the campaign from in-game    | `EffectSpec { kind: "removeFromCampaign"; cards: CardSelector }`                                 | MC10 upgrades, MC32 p. 5, MC60 p. 13                                                 |
+| Per-seat scoping of a log read           | `PlayerRef` already suffices (`seat?: PlayerRef`)                                                | MC10 p. 7 (per-seat HP)                                                              |
+| Campaign setup windows                   | `GameStep` gains `campaignWindow` (carrying the window) and `scenarioSetup`; `flow.ts` runs them | MC50 p. 4/p. 11, MC60 p. 9                                                           |
+| Campaign input on a game                 | `GameSetupConfig.campaign?: CampaignGameInput`, stored in `GameState.campaign`                   | determinism (§7)                                                                     |
+| What a game writes back                  | `GameState.campaignWrites?: CampaignInGameWrites` — plain data the runner folds in               | §6.2, §7.2                                                                           |
+| Campaign trace events                    | `campaignInstructionResolved`, `campaignLogRead`, `campaignLogWritten`, `campaignCardRemoved`    | rules-qa replay                                                                      |
 
-That is **five effect/value/selector members, four setup-step kinds, one config field, four events.** Nothing else in
+That is **five effect/value/selector members, two setup-step kinds, two state fields, four events.** Nothing else in
 the engine changes shape. Crucially, the engine reads the campaign log only from the frozen `GameState.campaign.log`
 snapshot; it never reaches out to storage, so `applyCommand` stays pure and `replay()` stays deterministic.
+
+**As built (step 3), where the sketch above did not survive contact with the interpreter:**
+
+- **Two step kinds, not four.** `{ kind: "campaignWindow"; window }` covers all five windows — five near-identical
+  `GameStep` kinds would be five copies of one branch in every switch — and `scenarioSetup` is new: Appendix II
+  steps 6–12 had to become a step of its own so `beforeScenarioSetup` can resolve _before_ it and stop for a choice.
+  Both exist **only in a campaign game**: `createGame` still runs steps 6–12 inline (`resolveScenarioSetup`, shared
+  code, one call site each) when there is no campaign, so a standalone game's state and event stream are unchanged.
+  `stepAfterCampaignWindow` switches exhaustively on `CampaignWindow`, so a new window cannot be added without
+  being given a place in the flow.
+- **`GameState.campaign` and `GameState.campaignWrites` are absent, not null,** outside a campaign, so a standalone
+  game's serialized state is byte for byte what it was before campaign mode existed and every save still replays.
+- **In-game writes accumulate in `GameState.campaignWrites`** (`CampaignInGameWrites`: the `LogWrite`s and the
+  removed `CampaignCardFace`s) rather than being reduced out of the event stream. A game never touches anything
+  outside `GameState`; the runner folds them in whatever the outcome, which is what keeps a lost game's writes
+  distinguishable from the between-games writes `retryBaseline` rolls back (§6.2, Q6).
+- **`campaignLogRead` is emitted for the `CardSelector` read only.** `ValueSpec`/`Predicate` reads happen inside
+  `resolveValue`/`evaluate`, which are pure and re-entrant and which legality checks, `preview()` and `why-not.ts`
+  call speculatively; emitting there would log reads that never happened and make the event stream depend on which
+  questions a client asked. Those reads stay reconstructible instead — the log is frozen in state.
+- **The write's value is its own small union**, `CampaignLogValueSpec` (`number` / `flag` / `cardList` / `cardRef` /
+  `choice` / `text`), in the engine's _in-game_ vocabulary (`ValueSpec`, `Predicate`, `CardSelector`) rather than
+  the between-games `CampaignGameQuery`. A strike is `mode: "strike"` with a `choice` value, exactly as
+  `LogWriteSpec` spells it; `strikeList`/`instructionList`/`cardState` are never written in one in-game sentence.
+- **`createGame` refuses a campaign whose `seats` do not line up with `players`**, because seat-by-seat alignment is
+  what makes a per-seat read addressable (the seat _numbers_ are the log's own — MC10 p. 17).
 
 ### 6.2 In-game card text that touches the log
 
@@ -852,6 +905,12 @@ campaign_", and RRG p. 29 adds that it survives a retry.
 
 Because a removal made in a _lost_ game still sticks, `removeFromCampaign` effects are folded into the log
 **regardless of the game's outcome** (§7). This is the one place where a lost game writes the log in MC10.
+
+As built, the effect is a **log operation only**: it records the face (`CampaignCardFace`, ruling April 30, 2026 (4))
+in `GameState.campaignWrites` and does nothing to the card in this game — what happens to the card is whatever the
+printed sentence beside it says ("Discard this card **and** remove it from the campaign log"), scripted as its own
+effect. Recording the same face twice records it once; a second _face_ of the same card is a separate removal, which
+is the point of the ruling.
 
 ---
 
@@ -881,8 +940,8 @@ export interface CampaignGameInput {
   readonly log: CampaignLogView;
   /** Already filtered by mode and by `when`, already in printed order, grouped by window. */
   readonly instructions: readonly ResolvedInstruction[];
-  /** Cards removed from the campaign, so nothing can re-enter through a search. */
-  readonly removedFromCampaign: readonly CardId[];
+  /** Cards removed from the campaign, so nothing can re-enter through a search. By face (`CampaignCardFace`). */
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   /** Per seat: the deck list as the campaign composed it, and which of those cards are campaign grants. */
   readonly seats: readonly CampaignSeatInput[];
   /** Seed for anything the *in-game* instructions randomise; drawn from the log's RNG. */
@@ -932,8 +991,8 @@ export interface CampaignGameResult {
   readonly outcome: "won" | "lost";
   /** Each `record` instruction's computed value, in printed order, with the instruction id that produced it. */
   readonly records: readonly { readonly instructionId: string; readonly write: LogWrite }[];
-  /** `removeFromCampaign` effects that resolved in-game. Applied even on a loss (RRG p. 29). */
-  readonly removedFromCampaign: readonly CardId[];
+  /** `removeFromCampaign` effects that resolved in-game. Applied even on a loss (RRG p. 29). By face. */
+  readonly removedFromCampaign: readonly CampaignCardFace[];
   /** `recordInCampaignLog` effects that resolved in-game. Applied even on a loss. */
   readonly logWrites: readonly LogWrite[];
   /** Grants with `permanence: "thisGame"`, expiring now (MC32 p. 5's role upgrades). */
@@ -1096,7 +1155,7 @@ Ordered, each step independently verifiable. C1 and MC10's C2 are built together
 | --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | `PlayModes`, `ModePredicate`, `difficultyOf`/`modesOf`; migrate `cards/*/setup.ts` and `SessionConfig`                                                                                                                                                                                                                                                            | `game-rules-architect`       | full suite green; unit tests on the projection and on the "difficulty and modes disagree" throw                                                               |
 | 2   | `packages/engine/src/campaign.ts`: every type in §4–§5 and §7. **No behaviour.**                                                                                                                                                                                                                                                                                  | `game-rules-architect`       | `pnpm typecheck`; a synthetic two-node fixture campaign in `engine/src/testing/`                                                                              |
-| 3   | Engine primitives: the `campaignLog` value/predicate, `recordInCampaignLog`, `removeFromCampaign`, the campaign `CardSelector`, `GameSetupConfig.campaign`, the four setup windows, the four trace events                                                                                                                                                         | `game-rules-architect`       | `campaign-primitives.test.ts` against the synthetic campaign — no real box named                                                                              |
+| 3   | **Landed.** Engine primitives: the `campaignLog` value/predicate/selector, `TargetQuery.inCampaignLogField`, `recordInCampaignLog`, `removeFromCampaign`, `GameSetupConfig.campaign` frozen into `GameState`, the five setup windows, the four trace events                                                                                                       | `game-rules-architect`       | `campaign-primitives.test.ts` against the synthetic campaign — no real box named                                                                              |
 | 4   | The runner: `resolveBetweenGames`, `startGameFromLog`, `campaignResultOf`, `applyCampaignResult`, seeded campaign RNG, pending-choice re-entry                                                                                                                                                                                                                    | `game-rules-architect`       | a synthetic campaign played end to end headlessly, including a loss, a retry, and a `removeFromCampaign` surviving the retry                                  |
 | 5   | `validateDeck` `DeckContext`, five new problem codes, both current refusals made conditional                                                                                                                                                                                                                                                                      | `game-rules-architect`       | `deck.test.ts`: campaign card legal inside its campaign and illegal outside; removed card refused; identity lock; frozen deck; granted cards exempt from size |
 | 6   | Content: `Campaign` record fields; emit records for all ten boxes; confirm MC50/MC56/MC60 campaign-card counts against their rulebooks (PLAN.md §C2 open item); correct the MC56 row                                                                                                                                                                              | `card-data-pipeline`         | `validateCampaign`; a test that every box's campaign sets are `campaignSpecific`                                                                              |
@@ -1153,14 +1212,16 @@ they were spent between scenarios (before the node), not during it. **Recommenda
 restore the log to its state when the node's instructions began, keeping only `removeFromCampaign`, in-game
 `recordInCampaignLog` writes, and `defeat` instruction writes. Confirm this reading of MC40 p. 7.
 
-**Q7. Where exactly does "after normal setup" sit in RRG Appendix II?**
+**Q7. Where exactly does "after normal setup" sit in RRG Appendix II?** _(Still open; built as recommended.)_
 MC10 p. 3 says only "_set up the scenario as per the normal rules of the game. Then, follow that scenario's setup
 instructions_". MC50 p. 4 pins the same sentence to "_before players draw their starting hands_". MC10 p. 7's own
 setup-keyword instruction is incoherent after the draw. Ruling June 2, 2026 (3) answer 2 says "_Campaign setup finishes
 before resolving Collector II's When Revealed damage_", which would put campaign setup _before_ Appendix II step 12 for
 MC16 — **this conflicts with MC10 p. 3's "then"**. **Recommendation:** default `afterScenarioSetup` = after Appendix II
-step 12, before step 13, and let MC16's definition override the two affected instructions to `beforeScenarioSetup` with
-the ruling cited in a comment. Flagged, not silently resolved.
+step 12, before step **14** (the draw; the sketch said 13, miscounting), and let MC16's definition override the two
+affected instructions to `beforeScenarioSetup` with the ruling cited in a comment. Flagged, not silently resolved —
+and the reason `beforeScenarioSetup` is built now rather than when MC16 lands: the override has to be available to a
+definition without an engine change.
 
 **Q8. Do campaign grants count toward the three-copy limit?**
 MC27 p. 22's Aspect Advantage adds "_the maximum number of copies of that card, by title_" and says they do not count

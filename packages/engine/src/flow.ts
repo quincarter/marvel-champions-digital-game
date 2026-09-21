@@ -1,5 +1,13 @@
+import type { CampaignWindow } from "./campaign.js";
 import type { ChoiceOption } from "./choices.js";
 import { emit, pushFrames, requestChoice, setStep, updatePlayer, type Ctx } from "./ctx.js";
+import {
+  resolveCampaignWindow,
+  resolveScenarioSetup,
+  stepAfterCampaignWindow,
+  stepAfterMulligans,
+  STEP_AFTER_SCENARIO_SETUP,
+} from "./setup-steps.js";
 import { drawCards, endLastingEffect, expireLastingEffects, expirePlayerTurnEffects } from "./effects.js";
 import { readyOrAnnounce } from "./resolve/event.js";
 import type { LastingEffect } from "./lasting.js";
@@ -57,6 +65,10 @@ export function runFlow(ctx: Ctx): void {
 function executeStep(ctx: Ctx): void {
   const step = ctx.state.step;
   switch (step.kind) {
+    case "campaignWindow":
+      return executeCampaignWindow(ctx, step.window);
+    case "scenarioSetup":
+      return executeScenarioSetupStep(ctx);
     case "drawStartingHands":
       return executeDrawStartingHands(ctx);
     case "mulligan":
@@ -99,6 +111,23 @@ const handOptions = (ctx: Ctx, playerId: PlayerId): readonly ChoiceOption[] =>
     ref: { kind: "card", instanceId: id },
   }));
 
+/**
+ * A campaign's setup instructions for one window (campaign games only; design §6.1).
+ *
+ * The step advances as the frames are pushed rather than after they resolve: the stack takes priority over the phase
+ * structure in `runFlow`, so the instructions still finish — choices and all — before the next step executes.
+ */
+function executeCampaignWindow(ctx: Ctx, window: CampaignWindow): void {
+  resolveCampaignWindow(ctx, window);
+  setStep(ctx, stepAfterCampaignWindow(window));
+}
+
+/** RRG 1.8 Appendix II steps 6-12 as a step, so a campaign can resolve instructions on either side of it. */
+function executeScenarioSetupStep(ctx: Ctx): void {
+  resolveScenarioSetup(ctx);
+  setStep(ctx, STEP_AFTER_SCENARIO_SETUP);
+}
+
 // RRG Appendix II step 14, after setup cards and setup abilities have resolved.
 function executeDrawStartingHands(ctx: Ctx): void {
   for (const player of ctx.state.players) {
@@ -115,7 +144,8 @@ function executeDrawStartingHands(ctx: Ctx): void {
 function executeMulligan(ctx: Ctx, remainingPlayerIds: readonly PlayerId[]): void {
   const [current, ...rest] = livePlayers(ctx.state, remainingPlayerIds);
   if (!current) {
-    setStep(ctx, { phase: "setup", kind: "playerSetupAbilities" });
+    // MC50 p. 11's "After resolving mulligans" window goes here, between steps 15 and 16, in a campaign game.
+    setStep(ctx, stepAfterMulligans(ctx.state));
     return;
   }
   const player = mustPlayer(ctx.state, current);

@@ -31,6 +31,14 @@ import {
   villainOf,
   villainStageOf,
 } from "./query.js";
+import type { LogValue } from "./campaign.js";
+import {
+  campaignLogContains,
+  campaignLogField,
+  campaignLogIsSet,
+  campaignLogNumber,
+  campaignSeatNumber,
+} from "./campaign-state.js";
 import { boostIconsFor } from "./modifiers.js";
 import { printedResources, RESOURCE_TYPES } from "./resources.js";
 import { currentActivationFrameId, type Bindings, type Vars } from "./stack.js";
@@ -270,6 +278,8 @@ export type QueryExclusion =
   | "notNemesisMinion"
   | "noSharedTrait"
   | "wrongEncounterSet"
+  /** The card's title is not recorded in the campaign-log field the query names (`inCampaignLogField`). */
+  | "notInCampaignLog"
   /** In a different separate game area from the effect's (docs/phase7-wave2.md §3.1). */
   | "otherGameArea";
 
@@ -450,7 +460,44 @@ export function explainQuery(
     );
     if (!sets.some((setId) => wanted.has(setId))) return "wrongEncounterSet";
   }
+  if (query.inCampaignLogField) {
+    // "Each EXPERIMENTAL attachment recorded in the campaign log" (MC10 p. 7) as a filter. Membership only: the
+    // `campaignLog` selector is where a title recorded twice names two cards (ruling June 2, 2026 (3) answer 3).
+    const value = campaignFieldRead(state, query.inCampaignLogField, context);
+    if (!campaignLogContains(value, instance.cardId)) return "notInCampaignLog";
+  }
   return null;
+}
+
+/**
+ * The campaign-log field an in-game read names: the shared one, or the column of the seat `seat` resolves to.
+ *
+ * Undefined when the game has no campaign, when the field is not in the frozen view, or when `seat` names nobody
+ * seated in the campaign — every reader above treats all three the same way, as "nothing recorded".
+ */
+export function campaignFieldRead(
+  state: GameState,
+  spec: { readonly field: string; readonly seat?: PlayerRef },
+  context: EffectContext,
+): LogValue | undefined {
+  if (!state.campaign) return undefined;
+  const seatNumber = campaignSeatRead(state, spec, context);
+  if (spec.seat && seatNumber === null) return undefined;
+  return campaignLogField(state, spec.field, seatNumber);
+}
+
+/**
+ * Whose column a campaign-log read or write addresses: the seat `seat` resolves to (the first, as every `PlayerRef`
+ * used as a singular does), or null for the shared field and for a `seat` that names nobody.
+ */
+export function campaignSeatRead(
+  state: GameState,
+  spec: { readonly seat?: PlayerRef },
+  context: EffectContext,
+): number | null {
+  if (!spec.seat) return null;
+  const [playerId] = resolvePlayers(state, spec.seat, context);
+  return playerId === undefined ? null : campaignSeatNumber(state, playerId);
 }
 
 /** The encounter sets a card belongs to (`encounterSetIds`); empty for a player card. */
@@ -937,6 +984,10 @@ export function resolveValue(
         : [activeVillainIdFor(state, contextArea(state, context)) ?? activeVillain(state).instanceId];
       return id && isVillain(state, id) ? villainStageOf(state, id).stageNumber : 0;
     }
+    // A number the campaign recorded, read out of the frozen `GameState.campaign.log` (design §7.1). Not traced:
+    // see `campaignLogRead` in `events.ts` for why a pure, re-entrant read must not emit.
+    case "campaignLog":
+      return campaignLogNumber(campaignFieldRead(state, value, context), value.of);
   }
 }
 
@@ -1027,6 +1078,18 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     case "areaPlayersDefeated": {
       const area = contextArea(state, context);
       return area !== null && area.playerIds.every((id) => getPlayer(state, id)?.eliminated !== false);
+    }
+    case "campaignLog": {
+      // Every condition given must hold; with none given the question is only "is the field there at all?", which
+      // is how "if <field> is in the campaign log" reads when a box tracks a field's mere presence. A field the
+      // frozen view does not carry reads as nothing recorded — so `isSet: false` holds for it, and nothing else does.
+      if (!state.campaign) return false;
+      const value = campaignFieldRead(state, predicate, context);
+      if (predicate.has !== undefined && !campaignLogContains(value, predicate.has)) return false;
+      if (predicate.atLeast !== undefined && campaignLogNumber(value, predicate.of) < predicate.atLeast) return false;
+      if (predicate.isSet !== undefined && campaignLogIsSet(value) !== predicate.isSet) return false;
+      const asked = predicate.has !== undefined || predicate.atLeast !== undefined || predicate.isSet !== undefined;
+      return asked || value !== undefined;
     }
   }
 }

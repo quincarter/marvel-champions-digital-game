@@ -14,8 +14,18 @@ import {
   separateDeckOf,
   villainOf,
 } from "../query.js";
+import { campaignLogCardIds } from "../campaign-state.js";
 import { nextInt } from "../rng.js";
-import { cardsInPlay, type EffectContext, matchesQuery, resolvePlayers, resolveRef, resolveValue } from "../select.js";
+import {
+  campaignFieldRead,
+  campaignSeatRead,
+  cardsInPlay,
+  type EffectContext,
+  matchesQuery,
+  resolvePlayers,
+  resolveRef,
+  resolveValue,
+} from "../select.js";
 import type { CardDestination, CardSelector, TargetQuery } from "../spec.js";
 import type { ZoneId } from "../state.js";
 
@@ -36,6 +46,37 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
         resolveRef(state, selector.ref, context).filter((id) => getInstance(state, id) !== undefined),
         selector.filter,
       );
+    case "campaignLog": {
+      // "Each EXPERIMENTAL attachment recorded in the campaign log" (MC10 p. 7): the field lists *titles*, and one
+      // title can be listed twice (ruling June 2, 2026 (3) answer 3), so each entry claims one not-yet-claimed
+      // instance of that card, in the order the game created its instances. A title with no instance left names
+      // nothing — the same arithmetic as answer 4's "remove a number of cards equal to the count recorded".
+      const value = campaignFieldRead(state, selector, context);
+      const cardIds = campaignLogCardIds(value);
+      const pool = Object.keys(state.instances) as InstanceId[];
+      const claimed = new Set<InstanceId>();
+      const found: InstanceId[] = [];
+      for (const cardId of cardIds) {
+        const match = pool.find(
+          (id) =>
+            !claimed.has(id) &&
+            state.instances[id]?.cardId === cardId &&
+            (!selector.filter || matchesQuery(state, id, selector.filter, context)),
+        );
+        if (!match) continue;
+        claimed.add(match);
+        found.push(match);
+      }
+      // The one campaign-log read a game makes that is not re-entrant, so the one that can be traced (`events.ts`).
+      emit(ctx, {
+        type: "campaignLogRead",
+        field: selector.field,
+        seatNumber: campaignSeatRead(state, selector, context),
+        cardIds,
+        instanceIds: found,
+      });
+      return found;
+    }
     case "encounter": {
       const deckIds = selector.deckOf
         ? [
