@@ -65,6 +65,26 @@ function cardIdsIn(value: unknown, found: Set<string> = new Set()): ReadonlySet<
   return found;
 }
 
+/** Every object with this `kind` anywhere in a step, found structurally (the same walk `fieldsIn` does). */
+function opsOfKind(
+  value: unknown,
+  kind: string,
+  found: Record<string, unknown>[] = [],
+): readonly Record<string, unknown>[] {
+  if (Array.isArray(value)) {
+    for (const item of value) opsOfKind(item, kind, found);
+    return found;
+  }
+  if (value !== null && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    if (record.kind === kind) found.push(record);
+    for (const v of Object.values(record)) opsOfKind(v, kind, found);
+  }
+  return found;
+}
+
+const stepsOfEveryInstruction = (): readonly unknown[] => allInstructions().map((instruction) => instruction.step);
+
 describe("TRORS_CAMPAIGN_DEFINITION", () => {
   it("campaignId matches the @mc/content Campaign record, and the version and loss policy are present", () => {
     expect(TRORS_CAMPAIGN_DEFINITION.campaignId).toBe(TRORS_CAMPAIGN_RECORD.id);
@@ -139,6 +159,122 @@ describe("TRORS_CAMPAIGN_DEFINITION", () => {
     const named = new Set<string>();
     for (const instruction of allInstructions()) cardIdsIn(instruction.step, named);
     for (const id of named) expect(pool.has(id), id).toBe(true);
+  });
+
+  it("lists exactly the printed bullets of each scenario, in printed order", () => {
+    const graph = TRORS_CAMPAIGN_DEFINITION.graph;
+    if (graph.kind !== "linear") throw new Error("expected a linear graph");
+    const listed = Object.fromEntries(
+      graph.nodes.map((node) => [
+        node.id,
+        {
+          setup: node.setup.map((instruction) => instruction.id),
+          victory: node.victory.map((instruction) => instruction.id),
+          defeat: (node.defeat ?? []).map((instruction) => instruction.id),
+        },
+      ]),
+    );
+    // Pinned exactly, so a bullet cannot go missing the way the four blocked by the engine's vocabulary once were.
+    expect(listed).toEqual({
+      crossbones: {
+        setup: ["mc10.s1.setup.identity"],
+        victory: ["mc10.s1.victory.tech", "mc10.s1.victory.experimental", "mc10.s1.victory.hp"],
+        defeat: [],
+      },
+      "absorbing-man": {
+        setup: [
+          "mc10.s2.setup.setup-keyword",
+          "mc10.s2.setup.experimental",
+          "mc10.s2.setup.hp-set",
+          "mc10.s2.setup.obligation",
+          "mc10.s2.setup.obligation-heal",
+        ],
+        victory: ["mc10.s2.victory.delay", "mc10.s2.victory.basic", "mc10.s2.victory.hp"],
+        defeat: [],
+      },
+      taskmaster: {
+        setup: [
+          "mc10.s3.setup.setup-keyword",
+          "mc10.s3.setup.experimental",
+          "mc10.s3.setup.hp-set",
+          "mc10.s3.setup.obligation",
+          "mc10.s3.setup.obligation-heal",
+        ],
+        victory: ["mc10.s3.victory.rescued-record", "mc10.s3.victory.rescued-grant", "mc10.s3.victory.hp"],
+        defeat: [],
+      },
+      zola: {
+        setup: [
+          "mc10.s4.setup.setup-keyword",
+          "mc10.s4.setup.experimental",
+          "mc10.s4.setup.hp-set",
+          "mc10.s4.setup.obligation",
+          "mc10.s4.setup.obligation-heal",
+        ],
+        victory: [
+          "mc10.s4.victory.engaged",
+          "mc10.s4.victory.prison",
+          "mc10.s4.victory.prison-remove",
+          "mc10.s4.victory.hero-form",
+          "mc10.s4.victory.improved",
+          "mc10.s4.victory.hp",
+        ],
+        defeat: [],
+      },
+      "red-skull": {
+        setup: [
+          "mc10.s5.setup.setup-keyword",
+          "mc10.s5.setup.experimental",
+          "mc10.s5.setup.delay-threat-standard",
+          "mc10.s5.setup.delay-threat-expert",
+          "mc10.s5.setup.hp",
+          "mc10.s5.setup.obligation",
+          "mc10.s5.setup.obligation-heal",
+          "mc10.s5.setup.engaged-deal-card",
+        ],
+        victory: ["mc10.s5.victory.win"],
+        defeat: ["mc10.s5.defeat.lose-campaign"],
+      },
+    });
+  });
+
+  it("draws only from this box's own campaign sets (RRG 1.8 p. 11)", () => {
+    const own = new Set(TRORS_CAMPAIGN_RECORD.campaignSetIds.map((id) => id as string));
+    const sources = opsOfKind(stepsOfEveryInstruction(), "campaignSet");
+    expect(sources.length).toBeGreaterThan(0);
+    for (const source of sources)
+      expect(own.has(source.encounterSetId as string), String(source.encounterSetId)).toBe(true);
+  });
+
+  it("filters a campaign set to a real, non-empty, proper sub-pool of it", () => {
+    const inSet = (setId: string): readonly (typeof TRORS_CARDS)[number][] =>
+      TRORS_CARDS.filter((card) => "specificTo" in card && card.specificTo?.encounterSetId === setId);
+    const filtered = opsOfKind(stepsOfEveryInstruction(), "campaignSet").filter(
+      (source) => source.filter !== undefined,
+    );
+    // Both of MC10's filtered choices: one printed set, two printed pools (p. 5's TECH, p. 7's CONDITION).
+    expect(filtered).toHaveLength(2);
+    for (const source of filtered) {
+      const whole = inSet(source.encounterSetId as string);
+      const traits = (source.filter as { readonly traits?: readonly string[] }).traits ?? [];
+      const traitsOf = (card: (typeof TRORS_CARDS)[number]): readonly string[] =>
+        "traits" in card ? (card.traits as readonly string[]) : [];
+      const matching = whole.filter((card) => traits.some((t) => traitsOf(card).includes(t)));
+      expect(matching.length, JSON.stringify(source.filter)).toBeGreaterThan(0);
+      expect(matching.length).toBeLessThan(whole.length);
+    }
+  });
+
+  it("names a real other face for every card it flips (MC10 p. 12)", () => {
+    const byId = new Map(TRORS_CARDS.map((card) => [card.id as string, card]));
+    const flips = opsOfKind(stepsOfEveryInstruction(), "setGrantFace");
+    expect(flips).toHaveLength(4);
+    for (const flip of flips) {
+      const cardId = (flip.card as { readonly value?: unknown }).value as string;
+      const card = byId.get(cardId);
+      expect(card, cardId).toBeDefined();
+      expect((card as { readonly flipSide?: { readonly name: string } }).flipSide?.name, cardId).toBe(flip.face);
+    }
   });
 
   it("round-trips through JSON", () => {

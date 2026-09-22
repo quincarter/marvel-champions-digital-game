@@ -12,64 +12,53 @@
  * least as clearly as calls into a bespoke builder API would, and the engine's own types catch every shape error.
  *
  * ---------------------------------------------------------------------------------------------------------------
- * VOCABULARY GAPS (found writing this file; not hacked around — each is a `// TODO(gap N)` at its instruction,
- * with the exact printed text, and is owned by `game-rules-architect`):
+ * WHAT THIS BOX ASKED OF THE FOUNDATION. Writing it found six gaps, all now closed in `@mc/engine` (this file is
+ * content, so none of them is worked around here):
  *
- * Gap 1 — `CampaignChoiceSource` (`kind: "campaignSet"`) has no card-data filter (trait/category). MC10's
- *   `hydra_camp` encounter set holds two unrelated four-card pools — the TECH upgrades (04155–04158) and the
- *   "Basic" Condition upgrades (04159a–04162a) — offered as *separate* choices in different scenarios. `campaignSet`
- *   can only offer the whole set undifferentiated; `kind: "cards"` can name a literal id list but has no
- *   `excludeGranted`, so two players could take the same single-copy physical card. Blocks: Crossbones victory
- *   "choose one of the TECH upgrades" (MC10 p. 5) and Absorbing Man victory "choose one of the 'Basic' Condition
- *   upgrades" (MC10 p. 7).
- * Gap 2 — `CampaignGameQuery` has no member reading cards tucked under a host card (`InstanceRecord.tucked`;
- *   `cardsInPlay` deliberately excludes them, per `packages/engine/src/select.ts`'s own comment, "tucked cards are
- *   out of play"). Blocks: Zola victory "record the name of each ally underneath [Hydra Prison]" and its paired
- *   `removeFromCampaign` (MC10 p. 12).
- * Gap 3 — `CampaignOp` has no way to make a `random` draw *optional*: `random` always draws, and `choose` with
- *   `optional: true` preserves the "may" but sacrifices the randomness (the player would pick, not draw randomly).
- *   Blocks: "Expert Campaign Only: Each player may add 1 random obligation from their expert campaign set to their
- *   deck to heal their identity to its full hit point value.", printed identically on MC10 p. 7, p. 10, p. 12 and
- *   p. 15 (Absorbing Man, Taskmaster, Zola and Red Skull setup).
- * Gap 4 — no later `CampaignPredicate`/op in the same instruction list can read whether an earlier `choose` with
- *   `optional: true` was accepted or declined by a given seat: `logValueFor`'s `flag` case treats an *empty*
- *   `CampaignValue` as `true` (`packages/engine/src/campaign/ops.ts`, "first === undefined ? true : ..."), which is
- *   the wrong polarity for "did this seat decline", and no other primitive reads a `choose` slot's presence.
- *   Blocks: Zola victory "each player in hero form may replace their 'Basic' Condition upgrade with its 'Improved'
- *   side" (MC10 p. 12).
- *
- * Because gaps 1–4 each block one specific bullet (not a whole scenario), the *rest* of each scenario's setup and
- * victory instructions are implemented; the coverage test below and the smoke test in `trors.test.ts` exercise them.
- *
- * Two more bugs surfaced in `packages/engine/src/deck.ts` while checking whether the granted cards above would
- * actually be legal in a later scenario's deck — flagged in the PR report, not fixed here (`@mc/cards` only):
- * `specificTo.kind === "scenario"` cards are refused unconditionally (no grant exemption), which would block a
- * rescued Taskmaster Captive ally (MC10 p. 10) even though `grantCard` records it correctly; and `obligation` is
- * not in `PLAYER_DECK_TYPES`, which would refuse the MC10 p. 17 expert-campaign obligations MC10 explicitly says
- * "are meant to be added to player decks ... they are still encounter cards" — moot until gap 3 is resolved, but
- * it will need fixing at the same time.
+ * - `CampaignChoiceSource` `campaignSet`/`perSeatSet` take a `filter`, because the `hydra_camp` set holds two
+ *   unrelated four-card pools offered by different scenarios — the TECH upgrades (MC10 p. 5) and the "Basic"
+ *   Condition upgrades (MC10 p. 7). Both choices below are that filter plus `excludeGranted`.
+ * - `CampaignGameQuery` `cardsTuckedUnder` reads the cards under a host card, which no in-play selection can see
+ *   (RRG 1.8 "Tuck"): Zola's "record the name of each ally underneath [Hydra Prison]" (MC10 p. 12).
+ * - `CampaignOp` `random` takes `optional`, for "each player **may** add 1 random obligation" (MC10 p. 7, p. 10,
+ *   p. 12, p. 15): the players decide whether, never which.
+ * - `CampaignPredicate` `choiceMade` reads whether a seat took an optional choice or declined it, and a `flag`
+ *   written from nothing is now *unchecked* rather than checked — the polarity every "may" below depends on.
+ * - `deck.ts` exempts a campaign grant from two refusals it applied unconditionally: a `specificTo.kind ===
+ *   "scenario"` card (MC10 p. 10's rescued Captive allies, added to decks by instruction) and an `obligation`
+ *   (MC10 p. 17, "they have player-card backs because they are meant to be added to player decks"). Both stay
+ *   illegal as ordinary deckbuilding choices.
  *
  * ---------------------------------------------------------------------------------------------------------------
- * LOG FIELDS NOT YET DECLARED. The printed log sheet (MC10 p. 20 / the log sheet PDF) also has "Player #N's
- * Identity", "Tech Upgrade", "Basic Upgrade" and "Obligations" columns. "Identity" is deliberately never a
- * `LogFieldDef`: it is already `CampaignSeat.identityCardId`, set once by `createCampaignLog` and enforced by
- * `CampaignDeckContext.identityCardId` in `deck.ts` (MC10 p. 3, "Players cannot switch identities during a
- * campaign") — a second, generic `fields` copy would be redundant state with no reader. "Tech Upgrade" and "Basic
- * Upgrade" would be written *only* by the two gap-1 instructions above; "Obligations" would be written *only* by
- * the gap-3 instructions. The design's coverage test (§9.3) rejects a field with no reader or writer (`KNOWN_UNUSED`
- * is reserved for `{ kind: "text" }` fields), so declaring any of the three now would be a field this file can
- * never legitimately touch. They are added the moment their blocking gap is resolved.
+ * TWO READINGS WORTH KNOWING ABOUT.
+ *
+ * 1. **The obligation draw reads one shared set, not four numbered ones.** MC10 p. 17 prints four numbered Expert
+ *    Campaign Sets and says "they must take that card from the set that matches their player number", which is
+ *    `CampaignChoiceSource.perSeatSet`. `@mc/content`'s `TRORS_CAMPAIGN` has no `perSeatSetIds`: the ingested data
+ *    is one `expcamp` set holding 4 copies of each obligation rather than four per-seat sets (see that record's own
+ *    note). Drawing from the one set is the same draw — the four sets are identical — but it is a `campaignSet`
+ *    source until the data is split, and it is the one place this file is not literally what p. 17 says.
+ * 2. **Each seat's own "Basic" upgrade is identified by the card, not by the seat.** `setGrantFace` flips a card's
+ *    face wherever it was granted; `excludeGranted` on the p. 7 choice means at most one seat can hold each of the
+ *    four upgrades, so "that player's upgrade" and "that card" name the same grant.
  */
 
-import { scenarioId, trait, TRORS_CAMPAIGN as TRORS_CAMPAIGN_RECORD } from "@mc/content";
-import { DEFAULT_CAMPAIGN_WINDOW, type CampaignDefinition, type CampaignInstruction } from "@mc/engine";
+import { encounterSetId, scenarioId, trait, TRORS_CAMPAIGN as TRORS_CAMPAIGN_RECORD } from "@mc/content";
+import {
+  DEFAULT_CAMPAIGN_WINDOW,
+  type CampaignDefinition,
+  type CampaignInstruction,
+  type CampaignOp,
+} from "@mc/engine";
 import {
   campaignLogCards,
   campaignLogIsSet,
   campaignLogValue,
+  damageOn,
   dealEncounterCard,
   eachPlayer,
   forEachPlayer,
+  heal,
   identityOf,
   ifThen,
   moveCards,
@@ -83,6 +72,127 @@ import {
 const EXPERIMENTAL = trait("EXPERIMENTAL");
 /** MC10 p. 10's Taskmaster-set allies: "CAPTIVE. HERO FOR HIRE." (04097–04100). */
 const CAPTIVE = trait("CAPTIVE");
+/** MC10 p. 5's four campaign upgrades: "TECH." (04155–04158). */
+const TECH = trait("TECH");
+/** MC10 p. 7's four campaign upgrades: "CONDITION." (04159a–04162a), each with an "Improved" side. */
+const CONDITION = trait("CONDITION");
+
+/** The two campaign-specific sets `TRORS_CAMPAIGN.campaignSetIds` names: the upgrades, and the obligations. */
+const HYDRA_CAMPAIGN_SET = encounterSetId("hydra_camp");
+const EXPERT_CAMPAIGN_SET = encounterSetId("expcamp");
+
+/** MC10 p. 12's Zola-set side scheme the allies are imprisoned beneath. */
+const HYDRA_PRISON = { categories: ["sideScheme"], name: "Hydra Prison" } as const;
+
+/**
+ * MC10 p. 12: "replace their 'Basic' Condition upgrade with its 'Improved' side." Each upgrade's other face has
+ * its own printed name, which is what a `CampaignGrant.face` records, so the pairing is card data this file names
+ * once (the coverage test checks every pair against `@mc/content`'s `flipSide.name`).
+ */
+const IMPROVED_SIDES: readonly (readonly [string, string])[] = [
+  ["04159a", "Improved Thwart Upgrade"],
+  ["04160a", "Improved Attack Upgrade"],
+  ["04161a", "Improved Defense Upgrade"],
+  ["04162a", "Improved Recovery Upgrade"],
+];
+
+/**
+ * The replacement itself, one branch per upgrade: which face a grant is on is a printed *name*, and the four
+ * upgrades have four different ones, so the branch that knows which card this seat recorded is the branch that
+ * knows what to call its other side. `fieldContains` reads the seat's own "Basic Upgrade" column.
+ */
+const improveOps = (): readonly CampaignOp[] =>
+  IMPROVED_SIDES.map(([id, face]) => ({
+    kind: "if",
+    when: { kind: "fieldContains", field: "basicUpgrade", value: id, seat: "self" },
+    then: [{ kind: "setGrantFace", card: { kind: "const", value: id }, face }],
+  }));
+
+/**
+ * "Expert Campaign Only: Each player may add 1 random obligation from their expert campaign set to their deck to
+ * heal their identity to its full hit point value." Printed identically on MC10 p. 7, p. 10, p. 12 and p. 15.
+ *
+ * Two instructions for one printed sentence, because its halves are on opposite sides of the game boundary: the
+ * draw and the deck addition happen between games (no `GameState` exists), while "heal their identity to its full
+ * hit point value" is an effect inside the game that is about to be set up. `healedByObligation` is the per-seat
+ * bridge between them, cleared first so that last scenario's acceptance cannot heal this one. The heal is printed
+ * — and therefore resolved — *after* the previous bullet has set that seat's hit points to its recorded remaining
+ * value (MC10 p. 17's persistent damage), so it overwrites it, which is exactly what "to its full hit point
+ * value" buys.
+ */
+function obligationSetup(prefix: string, citation: string): readonly CampaignInstruction[] {
+  return [
+    {
+      id: `${prefix}.obligation`,
+      text: "Expert Campaign Only: Each player may add 1 random obligation from their expert campaign set to their deck to heal their identity to its full hit point value.",
+      citation,
+      whenModes: { expertCampaign: true },
+      step: {
+        kind: "betweenGames",
+        ops: [
+          {
+            kind: "forEachSeat",
+            ops: [
+              { kind: "clearField", field: "healedByObligation", seat: "self" },
+              // No `excludeGranted`: MC10 p. 17's four sets are identical, so two players may hold the same
+              // obligation title — and the printed draw is from each seat's own copy of the set (see the header).
+              {
+                kind: "random",
+                slot: "obligation",
+                optional: true,
+                from: { kind: "campaignSet", encounterSetId: EXPERT_CAMPAIGN_SET },
+              },
+              {
+                kind: "if",
+                when: { kind: "choiceMade", slot: "obligation" },
+                then: [
+                  {
+                    kind: "grantCard",
+                    seat: "self",
+                    card: { kind: "choice", slot: "obligation" },
+                    permanence: "campaign",
+                  },
+                  {
+                    kind: "appendToList",
+                    field: "obligations",
+                    seat: "self",
+                    value: { kind: "choice", slot: "obligation" },
+                  },
+                  {
+                    kind: "setField",
+                    field: "healedByObligation",
+                    seat: "self",
+                    value: { kind: "const", value: true },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      id: `${prefix}.obligation-heal`,
+      text: "(The heal half of the same sentence: each player who added an obligation begins this scenario at their full hit point value.)",
+      citation,
+      whenModes: { expertCampaign: true },
+      step: {
+        kind: "inGame",
+        window: DEFAULT_CAMPAIGN_WINDOW,
+        effects: [
+          forEachPlayer(
+            eachPlayer,
+            ifThen(
+              campaignLogIsSet("healedByObligation", true, { seat: thatPlayer }),
+              // "To its full hit point value" is all of its damage healed (RRG 1.8 "Hit Points", p. 22).
+              heal(damageOn(identityOf(thatPlayer)), identityOf(thatPlayer)),
+            ),
+          ),
+        ],
+      },
+    },
+  ];
+}
 
 /**
  * Printed identically on scenarios 2–5's SETUP list (MC10 p. 7, p. 10, p. 12, p. 15) — not on scenario 1's, which
@@ -90,8 +200,8 @@ const CAPTIVE = trait("CAPTIVE");
  * §4's "instructions appended to *every* node's setup") because scenario 1 does not print this block: the four
  * boxes MC50/MC45 use `everyNodeSetup` for genuinely print it on every scenario's page, and this box does not.
  *
- * Three of the four printed bullets are here; the fourth ("Each player may add 1 random obligation …") is gap 3
- * above and is not represented at all — see the file header. Where it goes is noted as a comment in each caller.
+ * All four printed bullets, in printed order; the fourth is `obligationSetup`'s pair (see its own comment for why
+ * one sentence is two instructions). Scenario 5 prints the same four plus two of its own, so it lists them itself.
  */
 function repeatedSetup(prefix: string, citation: string): readonly CampaignInstruction[] {
   return [
@@ -132,9 +242,7 @@ function repeatedSetup(prefix: string, citation: string): readonly CampaignInstr
         ],
       },
     },
-    // TODO(gap 3 — CampaignOp.random has no `optional`, see file header): "Expert Campaign Only: Each player may
-    // add 1 random obligation from their expert campaign set to their deck to heal their identity to its full hit
-    // point value." (this scenario's own citation above.)
+    ...obligationSetup(prefix, citation),
   ];
 }
 
@@ -199,6 +307,50 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
       type: { kind: "cardList" },
       citation: "MC10 p. 10",
     },
+    // The printed log sheet's own columns (MC10 p. 20): "Tech Upgrade", "Basic Upgrade", "Obligations".
+    { id: "techUpgrade", label: "Tech Upgrade", scope: "perSeat", type: { kind: "cardRef" }, citation: "MC10 p. 5" },
+    {
+      id: "basicUpgrade",
+      label: "Basic Upgrade",
+      scope: "perSeat",
+      // `withFace`, because MC10 p. 12 replaces the recorded card "with its 'Improved' side" rather than with
+      // another card: the column ends up naming a card *and* a face.
+      type: { kind: "cardRef", withFace: true },
+      citation: "MC10 p. 7",
+    },
+    {
+      id: "obligations",
+      label: "Obligations",
+      scope: "perSeat",
+      type: { kind: "cardList" },
+      whenModes: { expertCampaign: true },
+      citation: "MC10 p. 17",
+    },
+    // Four fields the printed sheet has no column for, because on paper the players simply remember these facts
+    // between the game ending and the instruction that reads them. Each is written and read within one scenario.
+    {
+      id: "healedByObligation",
+      label: "Healed by an obligation this scenario",
+      scope: "perSeat",
+      type: { kind: "flag" },
+      whenModes: { expertCampaign: true },
+      citation: "MC10 p. 17",
+    },
+    {
+      id: "hydraPrison",
+      label: "Hydra Prison still in play",
+      scope: "shared",
+      type: { kind: "flag" },
+      citation: "MC10 p. 12",
+    },
+    { id: "heroForm", label: "In hero form", scope: "perSeat", type: { kind: "flag" }, citation: "MC10 p. 12" },
+    {
+      id: "imprisonedAllies",
+      label: "Allies left in Hydra Prison",
+      scope: "shared",
+      type: { kind: "cardList" },
+      citation: "MC10 p. 12",
+    },
   ],
   // MC10 p. 3: "If the players lost, they may reset the scenario and try again with no penalty" — for every
   // scenario except one Expert Campaign Only exception on Red Skull (MC10 p. 15). `retry: "byInstruction"` with
@@ -229,8 +381,38 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
           },
         ],
         victory: [
-          // TODO(gap 1 — CampaignChoiceSource.campaignSet has no trait filter, see file header): "Each player
-          // chooses one of the TECH upgrades from the Hydra Campaign set and adds it to their deck." (MC10 p. 5.)
+          {
+            id: "mc10.s1.victory.tech",
+            text: "Each player chooses one of the TECH upgrades from the Hydra Campaign set and adds it to their deck.",
+            citation: "MC10 p. 5",
+            step: {
+              kind: "betweenGames",
+              // One seat at a time — choose, then add — because the four TECH upgrades are four physical cards:
+              // `excludeGranted` reads the grants, so the card a seat takes has to be in its deck before the next
+              // seat is asked. MC10 p. 3's "write that card's title in the matching field of the campaign log" is
+              // the `setField`, which is the printed sheet's "Tech Upgrade" column.
+              ops: [
+                {
+                  kind: "forEachSeat",
+                  ops: [
+                    {
+                      kind: "choose",
+                      slot: "tech",
+                      chooser: "eachSeat",
+                      from: {
+                        kind: "campaignSet",
+                        encounterSetId: HYDRA_CAMPAIGN_SET,
+                        excludeGranted: true,
+                        filter: { traits: [TECH] },
+                      },
+                    },
+                    { kind: "grantCard", seat: "self", card: { kind: "choice", slot: "tech" }, permanence: "campaign" },
+                    { kind: "setField", field: "techUpgrade", seat: "self", value: { kind: "choice", slot: "tech" } },
+                  ],
+                },
+              ],
+            },
+          },
           {
             id: "mc10.s1.victory.experimental",
             text: "Record the name of each EXPERIMENTAL attachment that entered the game in the campaign log.",
@@ -270,9 +452,55 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
               ],
             },
           },
-          // TODO(gap 1 — CampaignChoiceSource.campaignSet has no trait filter, see file header): "Each player may
-          // choose one of the 'Basic' Condition upgrades in the Campaign set, attach it to their identity, and add
-          // it to their deck in the campaign log." (MC10 p. 7.)
+          {
+            id: "mc10.s2.victory.basic",
+            text: "Each player may choose one of the \u201CBasic\u201D Condition upgrades in the Campaign set, attach it to their identity, and add it to their deck in the campaign log.",
+            citation: "MC10 p. 7",
+            step: {
+              kind: "betweenGames",
+              // "May", so the choice is `optional` and everything that follows is gated on `choiceMade`: a seat
+              // that declines records nothing, and Zola's victory (MC10 p. 12) then has nothing to improve.
+              // "Attach it to their identity" needs no op — the card is printed `Permanent. Setup.`, so the
+              // setup-keyword sweep (RRG 1.8 Appendix II step 11) puts it into play in every later scenario.
+              ops: [
+                {
+                  kind: "forEachSeat",
+                  ops: [
+                    {
+                      kind: "choose",
+                      slot: "basic",
+                      chooser: "eachSeat",
+                      optional: true,
+                      from: {
+                        kind: "campaignSet",
+                        encounterSetId: HYDRA_CAMPAIGN_SET,
+                        excludeGranted: true,
+                        filter: { traits: [CONDITION] },
+                      },
+                    },
+                    {
+                      kind: "if",
+                      when: { kind: "choiceMade", slot: "basic" },
+                      then: [
+                        {
+                          kind: "grantCard",
+                          seat: "self",
+                          card: { kind: "choice", slot: "basic" },
+                          permanence: "campaign",
+                        },
+                        {
+                          kind: "setField",
+                          field: "basicUpgrade",
+                          seat: "self",
+                          value: { kind: "choice", slot: "basic" },
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
           hpRecordVictory("mc10.s2.victory.hp", "MC10 p. 7"),
         ],
       },
@@ -332,13 +560,111 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
               writes: [{ field: "engagedWithEnemy", seat: "each", mode: "set", value: { kind: "isEngagedWithEnemy" } }],
             },
           },
-          // TODO(gap 2 — no CampaignGameQuery reads tucked cards, see file header): "If the Hydra Prison side
-          // scheme is still in play, record the name of each ally underneath it in the campaign log. Those allies
-          // cannot be included in any deck for the remainder of the campaign." (MC10 p. 12.)
-          // TODO(gap 4 — no predicate reads whether an optional `choose` was declined, see file header): "If the
-          // Hydra Prison side scheme is not in play, each player in hero form may replace their 'Basic' Condition
-          // upgrade with its 'Improved' side." (MC10 p. 12.) The two bullets are one printed if/else; both wait on
-          // their gaps together rather than implementing only the (individually expressible) "not in play" half.
+          {
+            id: "mc10.s4.victory.prison",
+            text: "If the Hydra Prison side scheme is still in play, record the name of each ally underneath it in the campaign log.",
+            citation: "MC10 p. 12",
+            step: {
+              kind: "record",
+              // The printed "if … is still in play" needs no separate condition: a host that is no longer in play
+              // has nothing underneath it, so both writes fall out of the one query. The allies are *tucked*, so
+              // no in-play selection can see them (RRG 1.8 "Tuck") — hence `cardsTuckedUnder`. The flag is what
+              // the next two bullets read, because by then there is no game left to ask.
+              writes: [
+                {
+                  field: "hydraPrison",
+                  mode: "set",
+                  value: { kind: "atLeast", of: { kind: "cardsInPlay", query: HYDRA_PRISON }, amount: 1 },
+                },
+                {
+                  field: "imprisonedAllies",
+                  mode: "append",
+                  value: { kind: "cardsTuckedUnder", under: HYDRA_PRISON, query: { categories: ["ally"] } },
+                },
+              ],
+            },
+          },
+          {
+            id: "mc10.s4.victory.prison-remove",
+            text: "Those allies cannot be included in any deck for the remainder of the campaign.",
+            citation: "MC10 p. 12",
+            // RRG 1.8 p. 29's removal, which this scenario's own RULES CLARIFICATION spells out: "cross it out of
+            // the campaign log. That card is no longer part of the campaign and cannot be included in any deck for
+            // the remainder of the campaign." It survives a retry, and `deck.ts` refuses the card from then on.
+            step: {
+              kind: "betweenGames",
+              ops: [{ kind: "removeFromCampaign", cards: [{ kind: "field", field: "imprisonedAllies" }] }],
+            },
+          },
+          {
+            id: "mc10.s4.victory.hero-form",
+            text: "(The reading half of the next bullet: each player records whether they were in hero form when the game ended.)",
+            citation: "MC10 p. 12",
+            // "Each player **in hero form**" is a fact about the finished game, so it is recorded like MC10's own
+            // "each player engaged with an enemy records …" above. A player defeated during the scenario has no
+            // identity in play, which is also MC10 p. 17's "the defeated player does not participate in any of the
+            // victory steps".
+            step: {
+              kind: "record",
+              writes: [
+                {
+                  field: "heroForm",
+                  seat: "each",
+                  mode: "set",
+                  value: {
+                    kind: "atLeast",
+                    of: { kind: "cardsInPlay", query: { categories: ["hero"], controller: "you" } },
+                    amount: 1,
+                  },
+                },
+              ],
+            },
+          },
+          {
+            id: "mc10.s4.victory.improved",
+            text: "If the Hydra Prison side scheme is not in play, each player in hero form may replace their \u201CBasic\u201D Condition upgrade with its \u201CImproved\u201D side.",
+            citation: "MC10 p. 12",
+            when: { kind: "not", of: { kind: "fieldIsSet", field: "hydraPrison" } },
+            step: {
+              kind: "betweenGames",
+              ops: [
+                {
+                  kind: "forEachSeat",
+                  ops: [
+                    {
+                      kind: "if",
+                      // Three conditions, all printed: the prison is gone (the instruction's own `when`), this
+                      // seat is in hero form, and this seat has a "Basic" upgrade at all — a seat that declined
+                      // MC10 p. 7's optional choice left that field unset, which is what `fieldIsSet` reads.
+                      when: {
+                        kind: "and",
+                        of: [
+                          { kind: "fieldIsSet", field: "heroForm", seat: "self" },
+                          { kind: "fieldIsSet", field: "basicUpgrade", seat: "self" },
+                        ],
+                      },
+                      then: [
+                        // "May": the seat is offered its own upgrade — the only CONDITION card in its deck — and
+                        // may decline. Nothing below runs unless it took the offer.
+                        {
+                          kind: "choose",
+                          slot: "improve",
+                          chooser: "eachSeat",
+                          optional: true,
+                          from: { kind: "ownDeck", filter: { traits: [CONDITION] } },
+                        },
+                        {
+                          kind: "if",
+                          when: { kind: "choiceMade", slot: "improve" },
+                          then: improveOps(),
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          },
           hpRecordVictory("mc10.s4.victory.hp", "MC10 p. 12"),
         ],
       },
@@ -406,9 +732,7 @@ export const TRORS_CAMPAIGN_DEFINITION: CampaignDefinition = {
               ],
             },
           },
-          // TODO(gap 3 — CampaignOp.random has no `optional`, see file header): "Expert Campaign Only: Each player
-          // may add 1 random obligation from their expert campaign set to their deck to heal their identity to its
-          // full hit point value." (MC10 p. 15.)
+          ...obligationSetup("mc10.s5.setup", "MC10 p. 15"),
           {
             id: "mc10.s5.setup.engaged-deal-card",
             text: "Expert Campaign Only: Each player who was recorded as being engaged with an enemy deals themselves an encounter card.",
