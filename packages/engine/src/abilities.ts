@@ -405,6 +405,19 @@ export type RuleSpec =
    */
   | { readonly kind: "cannotBeDefeated"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "Ronan the Accuser cannot be stunned." (Kree Fanatic, `ron` 90001). The stalwart keyword is the same rule for
+   * stunned and confused (RRG 1.8 "Stalwart", p. 40: "This character cannot have confused or stunned status cards"), so a
+   * matching character is never given one, and one it already holds is removed the moment the rule applies (the
+   * stalwart entry's "If a character gains the stalwart keyword while they have a stunned and/or confused status card,
+   * each [...] is removed"). docs/phase7-wave3.md §3.7.
+   */
+  | {
+      readonly kind: "cannotHaveStatus";
+      readonly target: TargetQuery;
+      readonly statuses: readonly ("stunned" | "confused" | "tough")[];
+      readonly while?: Predicate;
+    }
+  /**
    * The Wrecking Crew insert, "Signature Side Schemes": "These side schemes are not discarded when they have no threat on
    * them." A scenario rule overriding RRG 1.8 "Defeat" (p. 15) under the Golden Rules (p. 4), carried by the main scheme.
    */

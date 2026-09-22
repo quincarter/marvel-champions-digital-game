@@ -10,7 +10,7 @@ import {
   mainSchemeStateOf,
   villainStageOf,
 } from "./query.js";
-import { grantedAttackKeywords } from "./rules.js";
+import { cannotHaveStatus, grantedAttackKeywords } from "./rules.js";
 import {
   activeAbilityRefs,
   cardsInPlay,
@@ -111,7 +111,11 @@ export function keywordTotal(
 ): number {
   let total = 0;
   for (const keyword of keywordsOf(state, id, deps)) {
-    if (keyword.name === name) total += keyword.value;
+    if (keyword.name !== name) continue;
+    total += keyword.value;
+    // "Hinder 2[per_hero]": RRG 1.8 "Per Player Icon" (p. 32) multiplies by the players who started the scenario
+    // (docs/phase7-wave3.md §1.3).
+    if (keyword.name === "hinder") total += (keyword.perPlayer ?? 0) * state.startingPlayerCount;
   }
   return total;
 }
@@ -179,6 +183,8 @@ export function statusCapacity(
   status: StatusName,
   deps: EngineDeps = DEFAULT_DEPS,
 ): number {
+  // "Ronan the Accuser cannot be stunned." (`ron` 90001; `cannotHaveStatus`, docs/phase7-wave3.md §3.7).
+  if (cannotHaveStatus(state, deps, id, status)) return 0;
   if (status === "tough") return 1;
   if (hasKeyword(state, id, "stalwart", deps)) return 0;
   return hasKeyword(state, id, "steady", deps) ? 2 : 1;

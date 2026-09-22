@@ -10,7 +10,8 @@
 
 import type { AbilityId } from "@mc/content";
 import type { AbilityRegistry } from "../abilities.js";
-import { type Ctx, pushFrames } from "../ctx.js";
+import { type Ctx, emit, pushFrames, updateInstance } from "../ctx.js";
+import { statusCapacity } from "../keywords.js";
 import type { InstanceId } from "../ids.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate } from "../select.js";
 import type { StackFrame } from "../stack.js";
@@ -38,6 +39,9 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   // A continuous rule rather than an ability, checked in the same place and for the same reason: RRG 1.8 "Ally
   // Limit" (p. 7) applies the moment a player "ever" controls too many allies. Asking for the discard is the result.
   if (checkAllyLimits(ctx)) return true;
+  // The same kind of rule: a character that cannot have a status card sheds the ones it holds (stalwart; docs/phase7-
+  // wave3.md §3.7). Nothing to put on the stack, so the flow carries on.
+  clearForbiddenStatuses(ctx);
   if (!hasStateChecks(ctx.deps.abilities)) return false;
   const observed: Record<string, boolean> = {};
   const firing: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] = [];
@@ -79,6 +83,26 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   );
   pushFrames(ctx, frames);
   return true;
+}
+
+/**
+ * RRG 1.8 "Stalwart" (p. 40): "If a character gains the stalwart keyword while they have a stunned and/or confused
+ * status card, each stunned and/or confused status card is removed from that character." The same holds for a
+ * `cannotHaveStatus` rule ("Ronan the Accuser cannot be stunned") that starts to apply. `statusCapacity` is what both
+ * read, so a character holding more of a status than it may is trimmed to that. Only characters already holding a
+ * status are looked at, so a board with none costs one pass over the instances in play.
+ */
+function clearForbiddenStatuses(ctx: Ctx): void {
+  for (const id of cardsInPlay(ctx.state)) {
+    const held = ctx.state.instances[id]?.statuses;
+    if (!held || held.stunned + held.confused + held.tough === 0) continue;
+    for (const status of ["stunned", "confused", "tough"] as const) {
+      const allowed = statusCapacity(ctx.state, id, status, ctx.deps);
+      if ((ctx.state.instances[id]?.statuses[status] ?? 0) <= allowed) continue;
+      updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: allowed } }));
+      emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: "cannotHave" });
+    }
+  }
 }
 
 function sameValues(a: Readonly<Record<string, boolean>>, b: Readonly<Record<string, boolean>>): boolean {

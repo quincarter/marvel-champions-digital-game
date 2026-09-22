@@ -34,7 +34,14 @@ import { announce } from "./frames.js";
 export function applyEnterPlayKeywords(ctx: Ctx, id: InstanceId): void {
   for (const keyword of keywordsOf(ctx.state, id, ctx.deps)) {
     if (keyword.name === "toughness") giveStatus(ctx, id, "tough");
-    if (keyword.name === "uses") addCounters(ctx, id, keyword.counterType, keyword.count);
+    // "Uses (2[per_hero] ammo counters)": RRG 1.8 "Per Player Icon" (p. 32); docs/phase7-wave3.md §1.3.
+    if (keyword.name === "uses")
+      addCounters(
+        ctx,
+        id,
+        keyword.counterType,
+        keyword.count + (keyword.countPerPlayer ?? 0) * ctx.state.startingPlayerCount,
+      );
   }
   if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) checkRestricted(ctx, controllerOf(ctx.state, id));
   if (cardOf(ctx.state, id)?.type === "ally") checkAllyLimit(ctx, controllerOf(ctx.state, id));

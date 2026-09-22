@@ -2,7 +2,7 @@
 
 import { type Ctx, emit, findFrame, popFrame, pushFrames, setFrame, updateFrame, updateInstance } from "../ctx.js";
 import { overkillRecipient } from "../defend-preview.js";
-import { discardFromPlay, expireEventLastingEffects, healDamage, pierceTough, readyCard } from "../effects.js";
+import { defeatFromPlay, expireEventLastingEffects, healDamage, pierceTough, readyCard } from "../effects.js";
 import type { FrameId, InstanceId, PlayerId } from "../ids.js";
 import { attackKeywordsOf, hasKeyword, keywordTotal } from "../keywords.js";
 import {
@@ -24,6 +24,7 @@ import {
   defeatedIntoEncounterDeck,
   excessDamageThreatSchemes,
   notDefeatedWithoutThreat,
+  patrolledBy,
   threatCannotBeRemoved,
 } from "../rules.js";
 import { cardsInPlay, controllerOf } from "../select.js";
@@ -323,7 +324,8 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
     undefined,
     instance.engagedWith ?? ctx.state.firstPlayerId,
   );
-  discardFromPlay(ctx, id);
+  // Victory X sends a defeated character to the victory display instead (docs/phase7-wave3.md §3.4).
+  defeatFromPlay(ctx, id);
   addFrameVars(ctx, event.parentFrameId, { defeated: 1 });
   const frames: StackFrame[] = [...whenDefeated];
   if (event.overkill && !ctx.state.outcome && getInstance(ctx.state, event.overkill.toInstanceId)) {
@@ -559,7 +561,8 @@ export function threatRemovalBlocked(
   sourceInstanceId: InstanceId | null,
   byThwart = false,
   ignoreCrisis = false,
-): "crisis" | "rule" | null {
+  thwartingPlayerId: PlayerId | null = null,
+): "crisis" | "patrol" | "rule" | null {
   // RRG "Crisis Icon": while a crisis icon is in play, players cannot remove threat from the main scheme. One effect
   // may step over that check ("ignoring any crisis icons in play"), but never over a `threatCannotBeRemoved` rule.
   const byPlayer = sourceInstanceId === null || controllerOf(state, sourceInstanceId) !== null;
@@ -571,6 +574,16 @@ export function threatRemovalBlocked(
     countSchemeIcons(state, "crisis", areaOfCard(state, schemeId)) > 0
   )
     return "crisis";
+  // RRG 1.8 "Patrol" (p. 32): a thwart — basic or a "(thwart)" ability — by a player a patrol minion is engaged with
+  // cannot remove threat from the main scheme; other removal ("remove 2 threat from the main scheme") still can
+  // (docs/phase7-wave3.md §3.5).
+  if (
+    byThwart &&
+    thwartingPlayerId &&
+    mainSchemeStateOf(state, schemeId) &&
+    patrolledBy(state, deps, thwartingPlayerId)
+  )
+    return "patrol";
   return threatCannotBeRemoved(state, deps, schemeId, byThwart) ? "rule" : null;
 }
 
@@ -604,7 +617,8 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
   if (!scheme) return;
   // "Threat cannot be removed from attached scheme by thwarting" (Held Hostage) looks at the thwart this removal belongs to.
   const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
-  const byThwart = parent?.kind === "event" && parent.event.kind === "thwart";
+  const thwart = parent?.kind === "event" && parent.event.kind === "thwart" ? parent.event : null;
+  const byThwart = thwart !== null;
   const blocked = threatRemovalBlocked(
     ctx.state,
     ctx.deps,
@@ -612,6 +626,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
     event.sourceInstanceId,
     byThwart,
     event.ignoreCrisis === true,
+    thwart?.playerId ?? null,
   );
   if (blocked) {
     emit(ctx, { type: "threatRemovalBlocked", schemeInstanceId: event.schemeInstanceId, reason: blocked });
@@ -640,7 +655,7 @@ function applyRemoveThreat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "remov
       // "Shuffle it into the encounter deck instead of discarding it." (Time Portal; `defeatedIntoEncounterDeck`, §3.11).
       effects: defeatedIntoEncounterDeck(ctx.state, ctx.deps, event.schemeInstanceId)
         ? [{ kind: "moveCards", cards: { kind: "ref", ref: { kind: "self" } }, to: "encounterDeckShuffle" }]
-        : [{ kind: "discardFromPlay", target: { kind: "self" } }],
+        : [{ kind: "discardFromPlay", target: { kind: "self" }, defeated: true }],
       cursor: 0,
       bindings: {},
       vars: {},

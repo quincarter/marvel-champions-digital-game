@@ -1131,7 +1131,12 @@ export type EffectSpec =
    * card in play has no title, traits, keywords or abilities until it is turned faceup or leaves play.
    */
   | { readonly kind: "attach"; readonly card: TargetRef; readonly to: TargetRef; readonly facedown?: boolean }
-  | { readonly kind: "discardFromPlay"; readonly target: TargetRef }
+  /**
+   * `defeated`: the card leaves play because it was defeated, so Victory X sends it (and any Victory X attachment on it)
+   * to the victory display instead (`defeatFromPlay`; RRG 1.8 "Victory X", p. 46). Set by the engine's side-scheme
+   * defeat; a card that says "discard" never sets it. docs/phase7-wave3.md §3.4.
+   */
+  | { readonly kind: "discardFromPlay"; readonly target: TargetRef; readonly defeated?: boolean }
   /**
    * "Engage that enemy" (Get Over Here!). RRG 1.8 "Engage" (p. 18): "If a card ability instructs a player to engage a
    * minion, that minion is also considered to have engaged that player", and "while a minion is engaged with a

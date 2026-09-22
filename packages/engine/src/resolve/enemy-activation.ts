@@ -16,7 +16,7 @@ import { activationVarsOf, plannedAttackDamage } from "../defend-preview.js";
 import { drawEncounterCard, exhaustCard } from "../effects.js";
 import { type FrameId, type InstanceId, instanceId as asInstanceId, type PlayerId } from "../ids.js";
 import { attackKeywordsOf } from "../keywords.js";
-import { boostIconsFor } from "../modifiers.js";
+import { amplifyIconsInPlay, boostIconsFor } from "../modifiers.js";
 import {
   cardOf,
   characterProfile,
@@ -134,7 +134,9 @@ function stepBoostCard(
     );
     if (!boostId) return null;
     updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
-    const icons = boostIconsFor(ctx.state, ctx.deps, boostId);
+    // "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for
+    // each amplify icon in play" (RRG 1.8 "Amplify Icon", p. 7; docs/phase7-wave3.md §3.6).
+    const icons = boostIconsFor(ctx.state, ctx.deps, boostId) + amplifyIconsInPlay(ctx.state);
     emit(ctx, {
       type: "boostCardFlipped",
       enemyInstanceId: frame.enemyInstanceId,
@@ -175,7 +177,13 @@ function stepBoostCard(
       return "busy";
     }
   }
-  const counted = boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) + (boost.countAdjust ?? 0);
+  // Amplify is read again at the count, not carried from the flip: "Each amplify icon is equivalent to the following
+  // constant ability: 'Each boost card gains [boost]'" (RRG 1.8 p. 7), and a constant applies while its card is in play
+  // (the Fearless Determination ruling, Jan 11, 2026 (1): its amplify icon "remains in effect" until it leaves play).
+  const counted =
+    boostIconsFor(ctx.state, ctx.deps, boost.countFrom ?? boost.instanceId) +
+    amplifyIconsInPlay(ctx.state) +
+    (boost.countAdjust ?? 0);
   const icons = boost.iconsCancelled ? 0 : Math.max(0, counted);
   // Discarded to its home deck's discard (docs/phase7-wave1.md §4.3, proposed), unless its own Boost ability already
   // moved it ("Put Goblin Thrall into play engaged with you").

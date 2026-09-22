@@ -7,6 +7,7 @@ import {
   activeEncounterDeckId,
   discardZoneFor,
   encounterDeckOf,
+  getInstance,
   heroFacesOf,
   mustCard,
   mustInstance,
@@ -144,11 +145,15 @@ export function removeCounters(ctx: Ctx, id: InstanceId, counterType: string, am
     counters: { ...i.counters, [counterType]: (i.counters[counterType] ?? 0) - removed },
   }));
   emit(ctx, { type: "counterRemoved", instanceId: id, counterType, amount: removed });
-  // RRG "Uses (X 'type')": when the last counter is removed from the card, discard it.
+  // RRG "Uses (X 'type')": when the last counter is removed from the card, discard it — or, with Victory X, "add this
+  // card to the victory display instead of discarding it" (RRG 1.8 "Victory X", p. 46; docs/phase7-wave3.md §3.4).
   const uses = usesKeyword(ctx.state, id, ctx.deps);
   if (uses && uses.counterType === counterType) {
     const left = mustInstance(ctx.state, id).counters[counterType] ?? 0;
-    if (left <= 0) discardFromPlay(ctx, id);
+    if (left <= 0) {
+      if (hasKeyword(ctx.state, id, "victory", ctx.deps)) leavePlay(ctx, id, { kind: "victoryDisplay" });
+      else discardFromPlay(ctx, id);
+    }
   }
   return removed;
 }
@@ -353,6 +358,25 @@ export function discardRandomFromHand(
 /** Sends a card in play to the discard pile its `home` names (its owner's, or its encounter deck's). */
 export function discardFromPlay(ctx: Ctx, id: InstanceId): void {
   leavePlay(ctx, id, discardZoneFor(ctx.state, id), "top", true);
+}
+
+/**
+ * A **defeated** ally, minion, side scheme or player side scheme leaves play (RRG 1.8 "Defeat", p. 15: "If an ally,
+ * minion, or side scheme is defeated, it is discarded"). RRG 1.8 "Victory X" (p. 46; docs/phase7-wave3.md §3.4):
+ * - "A character or side scheme with the victory X keyword is placed in the victory display when it is defeated";
+ * - "An attachment or upgrade with the victory X keyword is placed in the victory display when the card to which it is
+ *   attached is defeated. (The card the attachment or upgrade was attached to is discarded as normal.)" — so those go
+ *   first, before the host's own attachments are discarded with it.
+ * Only a defeat does this: a card discarded any other way ("discard this side scheme") goes to its discard pile.
+ */
+export function defeatFromPlay(ctx: Ctx, id: InstanceId): void {
+  const instance = getInstance(ctx.state, id);
+  if (!instance) return;
+  for (const attachment of [...instance.attachments]) {
+    if (hasKeyword(ctx.state, attachment, "victory", ctx.deps)) leavePlay(ctx, attachment, { kind: "victoryDisplay" });
+  }
+  if (hasKeyword(ctx.state, id, "victory", ctx.deps)) leavePlay(ctx, id, { kind: "victoryDisplay" });
+  else discardFromPlay(ctx, id);
 }
 
 /**

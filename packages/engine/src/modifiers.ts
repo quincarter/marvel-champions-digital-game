@@ -134,6 +134,25 @@ export function boostIconsFor(state: GameState, deps: EngineDeps, id: InstanceId
 }
 
 /**
+ * Every amplify icon printed on a face-up card in play (RRG 1.8 "Amplify Icon", p. 7: "add one additional boost icon to
+ * that card for each amplify icon in play"; docs/phase7-wave3.md §3.6). A flipped card counts its other face's icons
+ * (The Galaxy's Most Wanted's expert Campaign Challenge faces print one, the standard faces none), and a card in play
+ * facedown as something else prints nothing. Every game area's icons count: the rule says "in play", and no printed
+ * card puts amplify in a separate game area yet (docs/phase7-wave3.md §4).
+ */
+export function amplifyIconsInPlay(state: GameState): number {
+  let total = 0;
+  for (const id of cardsInPlay(state)) {
+    const instance = state.instances[id];
+    const card = cardOf(state, id);
+    if (!instance || !card || instance.facedownAs) continue;
+    const back = "flipSide" in card ? card.flipSide : undefined;
+    total += (instance.flipped ? back?.amplifyIcons : card.amplifyIcons) ?? 0;
+  }
+  return total;
+}
+
+/**
  * "Increase the amount of damage that event deals by 2" (Embiggen!) / "…threat that event removes…" (Shrink): the
  * bonus one resolving card carries, added to every instance that card's own effects produce (RRG 1.8 "Event", p. 19).
  */

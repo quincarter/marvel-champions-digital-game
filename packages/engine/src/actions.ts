@@ -33,6 +33,7 @@ import {
   cannotThwart,
   cannotTriggerAction,
   mayThwartWithAtk,
+  patrolledBy,
 } from "./rules.js";
 import type { InPlayCostPick } from "./abilities.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -1959,6 +1960,15 @@ function basicThwartPaying(
     // "Wasp (#1C)"), which checking every share now gives.
     if (isMainScheme && countSchemeIcons(ctx.state, "crisis", thwarterArea) > 0) {
       return engineError("no_valid_target", "a crisis icon blocks thwarting the main scheme", command);
+    }
+    // RRG 1.8 "Patrol" (p. 32): the engaged player "cannot use cards they control to thwart the main scheme" — checked
+    // per share, as the crisis icon is (FAQ "Wasp (#1C)", p. 61, names both). docs/phase7-wave3.md §3.5.
+    if (isMainScheme && patrolledBy(ctx.state, ctx.deps, command.playerId)) {
+      return engineError(
+        "no_valid_target",
+        "a minion with patrol engaged with you blocks thwarting the main scheme",
+        command,
+      );
     }
   }
 

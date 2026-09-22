@@ -15,6 +15,7 @@ import {
   addAccelerationToken,
   addCounters,
   addLastingEffect,
+  defeatFromPlay,
   discardFromPlay,
   endGame,
   leavePlay,
@@ -534,7 +535,10 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     }
     case "discardFromPlay":
-      for (const id of targets(effect.target)) discardFromPlay(ctx, id);
+      for (const id of targets(effect.target)) {
+        if (effect.defeated === true) defeatFromPlay(ctx, id);
+        else discardFromPlay(ctx, id);
+      }
       return;
     case "putIntoPlay": {
       const [controller] = resolvePlayers(ctx.state, effect.controller, context);

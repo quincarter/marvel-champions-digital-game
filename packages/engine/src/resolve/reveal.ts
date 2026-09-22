@@ -430,10 +430,13 @@ export function enterPlayOnReveal(ctx: Ctx, id: InstanceId, playerId: PlayerId):
       // With separate game areas, a side scheme enters the revealing player's area (docs/phase7-wave2.md §3.1).
       assignToArea(ctx, id, playerId);
       entered = true;
+      // RRG 1.8 "Hinder X" (p. 22): "enters play with X threat on it", "in addition to any threat it normally enters
+      // play with, such as a side scheme's starting threat" — one placement, however the scheme entered play
+      // (docs/phase7-wave3.md §3.3).
       pushEvent(ctx, {
         kind: "placeThreat",
         schemeInstanceId: id,
-        amount: startingThreatOf(ctx.state, id, ctx.deps),
+        amount: startingThreatOf(ctx.state, id, ctx.deps) + keywordTotal(ctx.state, id, "hinder", ctx.deps),
         sourceInstanceId: null,
       });
       break;

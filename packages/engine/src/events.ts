@@ -121,7 +121,14 @@ export type GameEvent =
       readonly type: "statusRemoved";
       readonly instanceId: InstanceId;
       readonly status: "stunned" | "confused" | "tough";
-      readonly reason: "cancelledAttack" | "cancelledSchemeOrThwart" | "preventedDamage" | "piercing" | "effect";
+      /** `cannotHave`: stalwart, or a `cannotHaveStatus` rule, began to apply (docs/phase7-wave3.md §3.7). */
+      readonly reason:
+        | "cancelledAttack"
+        | "cancelledSchemeOrThwart"
+        | "preventedDamage"
+        | "piercing"
+        | "effect"
+        | "cannotHave";
     }
   | {
       readonly type: "threatPlaced";
@@ -352,7 +359,12 @@ export type GameEvent =
       readonly id: string;
       readonly reason: "expired" | "consumed" | "sourceLeftPlay" | "fired";
     }
-  | { readonly type: "threatRemovalBlocked"; readonly schemeInstanceId: InstanceId; readonly reason: "crisis" | "rule" }
+  /** `patrol`: a thwart by a player a patrol minion is engaged with, against the main scheme (docs/phase7-wave3.md §3.5). */
+  | {
+      readonly type: "threatRemovalBlocked";
+      readonly schemeInstanceId: InstanceId;
+      readonly reason: "crisis" | "patrol" | "rule";
+    }
   /** A card that "cannot leave play" stayed where it was (RRG 1.8 "'Cannot'", p. 11). */
   | { readonly type: "leavePlayBlocked"; readonly instanceId: InstanceId; readonly reason: "cannotLeavePlay" }
   /**

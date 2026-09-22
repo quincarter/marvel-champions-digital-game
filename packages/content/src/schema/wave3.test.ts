@@ -12,7 +12,7 @@ import {
   validateCard,
   validateScenario,
 } from "./index.js";
-import type { KeywordInstance, Scenario, SideSchemeCard, VillainCard, VillainStage } from "./index.js";
+import type { EnvironmentCard, KeywordInstance, Scenario, SideSchemeCard, VillainCard, VillainStage } from "./index.js";
 
 /**
  * docs/phase7-wave3.md §1: the schema cycle 2 (The Galaxy's Most Wanted, Star-Lord, Gamora, Drax, Venom, the Kree
@@ -203,6 +203,35 @@ describe("§1.2 amplify icons on any card type", () => {
         "amplifyIcons must be a positive whole number when present",
       );
     }
+  });
+
+  it("a double-sided card carries each face's own count on `CardFlipSide.amplifyIcons`", () => {
+    // Side schemes have no flip side in the schema: The Galaxy's Most Wanted's Campaign Challenge faces (16178a/b–16182a/b,
+    // "Standard Mode Only" / "Expert Mode Only") are emitted one card per face (docs/phase7-wave3.md §1.2). An
+    // environment, which can flip, carries the per-face count.
+    const back = { name: "Museum Ship", traits: [], keywords: [], text: text("Vehicle."), abilities: [] };
+    const twoFaced: EnvironmentCard = {
+      id: cardId("16085"),
+      type: "environment",
+      name: "Library Labyrinth",
+      setCode: setCode("gmw"),
+      cycleId: CYCLE,
+      collectorNumber: "85",
+      quantityInSet: 1,
+      unique: false,
+      encounterSetIds: [encounterSetId("escape_the_museum")],
+      boostIcons: 0,
+      traits: [],
+      keywords: [],
+      text: text("Location."),
+      abilities: [],
+      flipSide: { ...back, amplifyIcons: 1 },
+    };
+    expect(validateCard(twoFaced).errors).toEqual([]);
+    const errors = validateCard({ ...twoFaced, flipSide: { ...back, amplifyIcons: 0 } }).errors;
+    expect(
+      errors.some((error) => error.endsWith("flip side amplifyIcons must be a positive whole number when present")),
+    ).toBe(true);
   });
 });
 

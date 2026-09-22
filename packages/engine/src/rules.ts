@@ -1,6 +1,7 @@
 import type { EngineDeps } from "./abilities.js";
 import type { InstanceId, PlayerId } from "./ids.js";
-import { villainOf } from "./query.js";
+import { hasKeyword } from "./keywords.js";
+import { minionsEngagedWith, villainOf } from "./query.js";
 import { activeRules, cardsInPlay, categoriesOf, matchesQuery, resolveRef, rulePlayers } from "./select.js";
 import type { AttackKeyword } from "./spec.js";
 import type { Form, GameState } from "./state.js";
@@ -148,6 +149,24 @@ export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: Instance
   activeRules(state, deps, "cannotLeavePlay").some(({ rule, context }) =>
     matchesQuery(state, id, rule.target, context),
   );
+
+/** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
+export const cannotHaveStatus = (
+  state: GameState,
+  deps: EngineDeps,
+  id: InstanceId,
+  status: "stunned" | "confused" | "tough",
+): boolean =>
+  activeRules(state, deps, "cannotHaveStatus").some(
+    ({ rule, context }) => rule.statuses.includes(status) && matchesQuery(state, id, rule.target, context),
+  );
+
+/**
+ * RRG 1.8 "Patrol" (p. 32): "While a minion with the patrol keyword is engaged with a player, that player cannot use
+ * cards they control to thwart the main scheme" (docs/phase7-wave3.md §3.5).
+ */
+export const patrolledBy = (state: GameState, deps: EngineDeps, playerId: PlayerId): InstanceId | null =>
+  minionsEngagedWith(state, playerId).find((id) => hasKeyword(state, id, "patrol", deps)) ?? null;
 
 /** "X cannot be defeated" (`cannotBeDefeated`; docs/phase7-wave3.md §3.1). */
 export const cannotBeDefeated = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>

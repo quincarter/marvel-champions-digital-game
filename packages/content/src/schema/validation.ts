@@ -735,6 +735,9 @@ function flipSideErrors(
   if (!isCardText(back.text)) errors.push(`${side} text must have non-empty printed and current strings`);
   errors.push(...keywordListErrors(back.keywords, side));
   errors.push(...abilityRefErrors(back.abilities, side));
+  // docs/phase7-wave3.md §1.2: this face's own amplify icons, a positive whole number when present.
+  if (back.amplifyIcons !== undefined && !isPositiveInteger(back.amplifyIcons))
+    errors.push(`${side} amplifyIcons must be a positive whole number when present`);
   if (Array.isArray(back.abilities) && Array.isArray(card.abilities)) {
     const front = new Set((card.abilities as readonly AbilityReference[]).map((ref) => ref?.id));
     for (const ref of back.abilities) {

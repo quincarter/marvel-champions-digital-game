@@ -29,6 +29,12 @@ export interface CardFlipSide {
   readonly flavor?: string;
   readonly abilities: readonly AbilityReference[];
   readonly image?: ImageRef;
+  /**
+   * This face's printed amplify icons (`BaseCard.amplifyIcons` is the front's). The Galaxy's Most Wanted's expert
+   * Campaign Challenge faces print one where the standard faces do not (There Is No Escape 16180b, Kree Supremacy
+   * 16182b). docs/phase7-wave3.md §1.2.
+   */
+  readonly amplifyIcons?: number;
 }
 
 /** The wave 1 name of `CardFlipSide`, kept so existing imports compile. */
