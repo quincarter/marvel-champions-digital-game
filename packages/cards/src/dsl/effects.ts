@@ -1,9 +1,11 @@
 import type {
+  CampaignLogValueSpec,
   CardDestination,
   CardSelector,
   EffectSpec,
   FacedownRole,
   LastingUntil,
+  LogWriteMode,
   PlayerRef,
   PlayerZone,
   Predicate,
@@ -701,7 +703,15 @@ export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ k
  */
 export const giveBoostCard = (enemy: TargetRef = theVillain, count: Amount = 1): EffectSpec =>
   count === 1 ? { kind: "giveBoostCard", enemy } : { kind: "giveBoostCard", enemy, count: amount(count) };
-export const addAccelerationToken = (): EffectSpec => ({ kind: "addAccelerationToken" });
+/**
+ * "Place 1 acceleration token here" (The Master of Time 2B) / "place one acceleration token on one of the main
+ * schemes" (MC21 p. 13's campaign instructions, a multi-main-scheme scenario). `target` absent is the central main
+ * scheme (`EffectSpec addAccelerationToken.target`, RRG 1.8 "Acceleration Token", p. 5).
+ */
+export const addAccelerationToken = (target?: TargetRef): EffectSpec => ({
+  kind: "addAccelerationToken",
+  ...(target ? { target } : {}),
+});
 /** "Either spend … resources or …": follow with `ifThen(not(made(bind)), …)`. */
 export const spendResources = (resources: ResourceRequirement, bind: string, player: PlayerRef = you): EffectSpec => ({
   kind: "spendResources",
@@ -984,3 +994,58 @@ export const moveThreat = (
   ...(opts.amount !== undefined ? { amount: amount(opts.amount) } : {}),
   ...withBind(opts.bind),
 });
+
+// ---------------------------------------------------------------------------
+// Campaign mode (docs/campaign-mode-design.md §6.1, §6.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * "Shuffle each EXPERIMENTAL attachment recorded in the campaign log into the encounter deck" (MC10 p. 7): the cards
+ * a campaign-log field names, wherever they are. A title recorded twice names two cards (ruling June 2, 2026 (3)).
+ */
+export const campaignLogCards = (
+  field: string,
+  opts: { readonly seat?: PlayerRef; readonly filter?: TargetQuery } = {},
+): CardSelector => ({
+  kind: "campaignLog",
+  field,
+  ...(opts.seat ? { seat: opts.seat } : {}),
+  ...(opts.filter ? { filter: opts.filter } : {}),
+});
+
+/**
+ * "Record … in the campaign log" from inside a game. The write accumulates in game state and the campaign runner
+ * folds it into the log afterwards, whatever the game's outcome (RRG 1.8 p. 29; design §6.2).
+ *
+ * `mode` defaults to `"set"`; `seat` absent writes the shared field, and `eachPlayer` writes the same value into
+ * every seat's column (a different value per seat is `forEachPlayer` around this effect).
+ */
+export const recordInCampaignLog = (
+  field: string,
+  value: CampaignLogValueSpec,
+  opts: { readonly mode?: LogWriteMode; readonly seat?: PlayerRef } = {},
+): EffectSpec => ({
+  kind: "recordInCampaignLog",
+  field,
+  mode: opts.mode ?? "set",
+  value,
+  ...(opts.seat ? { seat: opts.seat } : {}),
+});
+
+/** "Remove it from the campaign log" (MC10 p. 3 card text): by face, per ruling April 30, 2026 (4). */
+export const removeFromCampaign = (from: CardSelector): EffectSpec => ({ kind: "removeFromCampaign", cards: from });
+
+/** The value half of `recordInCampaignLog`, one builder per log field kind an in-game sentence can write. */
+export const logNumber = (n: Amount): CampaignLogValueSpec => ({ kind: "number", amount: amount(n) });
+export const logFlag = (when?: Predicate): CampaignLogValueSpec => ({
+  kind: "flag",
+  ...(when ? { when } : {}),
+});
+export const logCardList = (from: CardSelector): CampaignLogValueSpec => ({ kind: "cardList", cards: from });
+export const logCardRef = (from: CardSelector, withFace = false): CampaignLogValueSpec => ({
+  kind: "cardRef",
+  card: from,
+  ...(withFace ? { withFace: true } : {}),
+});
+export const logOption = (option: string): CampaignLogValueSpec => ({ kind: "choice", option });
+export const logText = (value: string): CampaignLogValueSpec => ({ kind: "text", value });

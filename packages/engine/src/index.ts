@@ -71,9 +71,17 @@ export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
 
 /** Deck legality (RRG 1.8 Appendix I) and playability in this build: two separate questions. */
-export type { CardPool, DeckProblem, DeckProblemCode, DeckValidation } from "./deck.js";
+export type {
+  CampaignDeckContext,
+  CardPool,
+  DeckContext,
+  DeckProblem,
+  DeckProblemCode,
+  DeckValidation,
+} from "./deck.js";
 export {
   abilityRefsOf,
+  CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
   CHOOSABLE_ASPECTS,
   DECK_COPY_LIMIT,
   DECK_MAX_CARDS,
@@ -151,6 +159,95 @@ export type {
   TargetRef,
   ValueSpec,
 } from "./spec.js";
+
+/**
+ * Campaign mode (RRG 1.8 "Modes of Play", p. 29) as plain data: the vocabulary a box's rulebook is transcribed
+ * into, the log it writes, and the two values that cross the game/campaign boundary. Types only; the runner that
+ * interprets them is below (docs/campaign-mode-design.md §11).
+ */
+export type {
+  CampaignAttempt,
+  CampaignAttemptOutcome,
+  CampaignCardFace,
+  CampaignChoiceRecord,
+  CampaignChoiceSource,
+  CampaignDefinition,
+  CampaignGameInput,
+  CampaignGameQuery,
+  CampaignGameResult,
+  CampaignGrant,
+  CampaignGraph,
+  CampaignHistoryEntry,
+  CampaignInGameWrites,
+  CampaignInstruction,
+  CampaignLog,
+  CampaignLogValueSpec,
+  CampaignLogSnapshot,
+  CampaignLogView,
+  CampaignNode,
+  CampaignOp,
+  CampaignPosition,
+  CampaignPredicate,
+  CampaignScenarioRef,
+  CampaignSeat,
+  CampaignSeatInput,
+  CampaignStatus,
+  CampaignStep,
+  CampaignStepTrace,
+  CampaignValue,
+  CampaignWindow,
+  CollectionFilter,
+  GrantPermanence,
+  LogFieldDef,
+  LogFieldType,
+  LogValue,
+  LogWrite,
+  LogWriteMode,
+  LogWriteSpec,
+  LossPolicy,
+  ResolvedInstruction,
+} from "./campaign.js";
+export { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, DEFAULT_CAMPAIGN_WINDOW, NO_CAMPAIGN_WRITES } from "./campaign.js";
+/**
+ * The campaign runner (docs/campaign-mode-design.md §7): the four pure functions that compose the next scenario,
+ * hand it to `createGame`, read the finished game back, and fold the result into the log — plus the pending-choice
+ * re-entry that keeps a whole campaign replayable from its seed and its recorded answers.
+ */
+export type {
+  CampaignChoiceAnswer,
+  CampaignChoiceKey,
+  CampaignDeps,
+  CampaignGameStart,
+  CampaignLogSetup,
+  CampaignPendingChoice,
+  CampaignResultMeta,
+  CampaignRunnerResult,
+  CampaignSeatSetup,
+} from "./campaign/runner.js";
+export {
+  applyCampaignResult,
+  CAMPAIGN_ACCEPT,
+  CAMPAIGN_NEXT_NODE_INSTRUCTION,
+  campaignChoiceKey,
+  campaignResultOf,
+  createCampaignLog,
+  grantsOf,
+  resolveBetweenGames,
+  retryBaselineOf,
+  startGameFromLog,
+} from "./campaign/runner.js";
+
+/** Reading the frozen campaign snapshot a game carries (`GameState.campaign`), for view models and the runner. */
+export {
+  campaignFaceOf,
+  campaignLogCardIds,
+  campaignLogContains,
+  campaignLogField,
+  campaignLogIsSet,
+  campaignLogNumber,
+  campaignSeatNumber,
+  sameCampaignFace,
+} from "./campaign-state.js";
 
 export type { TriggerEvent, TriggerEventKind } from "./trigger-events.js";
 export { eventSubjects, isAnnouncement } from "./trigger-events.js";

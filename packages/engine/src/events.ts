@@ -1,4 +1,5 @@
 import type { AbilityId, CardId, VillainSideLetter } from "@mc/content";
+import type { CampaignCardFace, CampaignWindow, LogWrite } from "./campaign.js";
 import type { ChoiceId, FrameId, GameAreaId, InstanceId, PlayerId } from "./ids.js";
 import type { PendingChoice } from "./choices.js";
 import type { FacedownRole, Form, GameOutcome, GameStep, ZoneId } from "./state.js";
@@ -348,6 +349,42 @@ export type GameEvent =
   | { readonly type: "threatRemovalBlocked"; readonly schemeInstanceId: InstanceId; readonly reason: "crisis" | "rule" }
   /** A card that "cannot leave play" stayed where it was (RRG 1.8 "'Cannot'", p. 11). */
   | { readonly type: "leavePlayBlocked"; readonly instanceId: InstanceId; readonly reason: "cannotLeavePlay" }
+  /**
+   * Campaign mode's four trace events (design §6.1). They exist for `rules-qa-engineer`'s replay: with them, the
+   * campaign half of a game reads off the event stream the way the rules half already does, and the runner's
+   * `campaignResultOf` can be checked against what actually happened rather than against what was asked for.
+   *
+   * One of a scenario's campaign setup instructions resolved at its window, in printed order. `text` and `citation`
+   * are copied from the instruction so the trace reads without the `CampaignDefinition` to hand, exactly as
+   * `CampaignStepTrace` does for a between-games step.
+   */
+  | {
+      readonly type: "campaignInstructionResolved";
+      readonly instructionId: string;
+      readonly window: CampaignWindow;
+      readonly text: string;
+      readonly citation: string;
+    }
+  /**
+   * A campaign-log field named cards, and which instances they turned out to be (the `campaignLog` `CardSelector`).
+   *
+   * **Only this read is traced.** `ValueSpec`/`Predicate` reads happen inside `resolveValue`/`evaluate`, which are
+   * pure and re-entrant and which legality checks, `preview()` and `why-not.ts` call speculatively many times per
+   * command; emitting there would put reads that never happened into the log and make the event stream depend on
+   * which questions a client asked. Those reads stay reconstructible instead: the log is frozen in
+   * `GameState.campaign.log`, so the same spec against the same state gives the same answer forever.
+   */
+  | {
+      readonly type: "campaignLogRead";
+      readonly field: string;
+      readonly seatNumber: number | null;
+      readonly cardIds: readonly CardId[];
+      readonly instanceIds: readonly InstanceId[];
+    }
+  /** `recordInCampaignLog` resolved: the write as it went into `GameState.campaignWrites`, for the runner to fold in. */
+  | { readonly type: "campaignLogWritten"; readonly write: LogWrite }
+  /** `removeFromCampaign` resolved (RRG 1.8 p. 29), by face — ruling April 30, 2026 (4). */
+  | { readonly type: "campaignCardRemoved"; readonly instanceId: InstanceId; readonly card: CampaignCardFace }
   | { readonly type: "gameEnded"; readonly outcome: GameOutcome };
 
 export type GameEventType = GameEvent["type"];

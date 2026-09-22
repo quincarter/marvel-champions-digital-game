@@ -59,43 +59,15 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * other ref must resolve, and each listed ref must still be unresolved, so an entry can't go stale.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // Regenerated 2026-09-20 against TRORS_CARDS/WAVE2_ABILITIES (the throwaway-test method these comments describe)
-  // after un-skipping `04028.when-revealed` (docs/phase7-wave2.md §18.4/§23: the skip had gone stale — `anyOf` +
-  // `ref`/`each` + `tuckCards` were all already there).
-  trors: [
-    // --- Hydra Campaign cards: data only while campaign mode is deferred (PLAN.md, "Campaign mode"; `trors` is
-    //     slated to be the first box built). ---
-    "04155.adrenal-stims-action",
-    "04156.tactical-scanner-action",
-    "04157.emergency-teleporter-action",
-    "04158.laser-cannon-action",
-    "04159a.basic-thwart-upgrade-constant",
-    "04159a.basic-thwart-upgrade-constant-2",
-    "04159b.improved-thwart-upgrade-constant",
-    "04159b.improved-thwart-upgrade-constant-2",
-    "04159b.improved-thwart-upgrade-response",
-    "04160a.basic-attack-upgrade-constant",
-    "04160a.basic-attack-upgrade-constant-2",
-    "04160b.improved-attack-upgrade-constant",
-    "04160b.improved-attack-upgrade-constant-2",
-    "04160b.improved-attack-upgrade-response",
-    "04161a.basic-defense-upgrade-constant",
-    "04161a.basic-defense-upgrade-constant-2",
-    "04161b.improved-defense-upgrade-constant",
-    "04161b.improved-defense-upgrade-constant-2",
-    "04161b.improved-defense-upgrade-response",
-    "04162a.basic-recovery-upgrade-constant",
-    "04162a.basic-recovery-upgrade-constant-2",
-    "04162b.improved-recovery-upgrade-constant",
-    "04162b.improved-recovery-upgrade-constant-2",
-    "04162b.improved-recovery-upgrade-response",
-    "04163.obligation",
-    "04164.obligation",
-    "04164.medical-emergency-forced-response",
-    "04164.medical-emergency-action",
-    "04165.obligation",
-    "04166.obligation",
-  ],
+  // Regenerated 2026-09-22 (`card-data-pipeline` + `ability-scripting-engineer`): all 30 of the 30 Hydra Campaign
+  // refs are now scripted (`wave2/trors/campaign-cards.ts`). Martial Law (04165) and Anti-Hero Propaganda (04166)
+  // — the last two — each printed a persistent constant clause and an independent Alter-Ego Action under a single
+  // ability ref, which cannot work (an `AbilityDefinition` carries exactly one `AbilityTriggerSpec`); the obligation
+  // parser (`packages/content/scripts/marvelcdb/parse-text.ts`) was generalized to split that exact shape into
+  // `<name>-constant`/`<name>-action` refs — the same naming `toafk` 11020/11049 already used (docs/
+  // phase7-wave2-data.md "Part 8") — and `packages/content/src/data/trors/cards.ts` was regenerated through the
+  // normal ingest path. Fully scripted.
+  trors: [],
   // Regenerated 2026-09-20 (`pnpm refs`) after scripting `11049.fear-of-kang-constant` ("You cannot attack Kang",
   // `player: you`) — the last non-campaign ref in the wave 2 skip backlog: `game-rules-architect` gave `RuleSpec
   // cannotAttack` a `player?: PlayerRef` field mirroring `cannotPlay`'s (docs/phase7-wave2.md §25), so the

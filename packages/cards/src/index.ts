@@ -1,5 +1,12 @@
 export * from "./dsl/index.js";
-export { CORE_ABILITIES, CORE_DEPS, coreScenario, encounterCardsOf, starterDeckSetup } from "./core/index.js";
+export {
+  CORE_ABILITIES,
+  CORE_DEPS,
+  coreScenario,
+  encounterCardsOf,
+  resolveModes,
+  starterDeckSetup,
+} from "./core/index.js";
 export type { CoreDifficulty, CorePlayer, CoreScenarioOptions } from "./core/index.js";
 export {
   WAVE1_ABILITIES,
@@ -21,3 +28,4 @@ export {
 export type { Wave2ScenarioOptions } from "./wave2/index.js";
 export { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "./playable/index.js";
 export type { PlayableScenarioOptions } from "./playable/index.js";
+export { CAMPAIGNS, campaignDefinitionOf, TRORS_CAMPAIGN_DEFINITION } from "./campaigns/index.js";

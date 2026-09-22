@@ -14,8 +14,8 @@
  */
 
 import type { CorePlayer } from "@mc/cards";
-import type { AnyCard } from "@mc/content";
-import type { Command, EngineError, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
+import type { AnyCard, PlayModes } from "@mc/content";
+import type { CampaignGameInput, Command, EngineError, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta } from "./game-storage.js";
 
@@ -27,10 +27,26 @@ import type { SaveMeta } from "./game-storage.js";
  * underneath). `villainVersions` overrides `difficulty`'s uniform default
  * per villain, in the scenario's printed order — Breakout only; every other
  * scenario has one villain and reads `difficulty` alone.
+ *
+ * This is also the save shape (`game-storage.ts`'s `SaveMeta.config`), so every
+ * field here has to be additive: `modes` is optional and a save written before
+ * it existed carries only `difficulty`, which still resolves to exactly the same
+ * mode set.
  */
 export interface SessionConfig {
   readonly scenarioId: string;
   readonly difficulty: "standard" | "expert" | "extreme";
+  /**
+   * The full RRG 1.8 mode set (`@mc/content`'s `schema/modes.ts`, pp. 28–29), of which `difficulty` is the
+   * expert half. Campaign is an orthogonal axis here and nothing reads it yet.
+   *
+   * **Old saves.** Absent on every save written before this field existed, and absent is not "standard": it
+   * means "this config only ever said `difficulty`", so `session-core.ts`'s `scenarioFor` passes `difficulty`
+   * through alone and the scenario builder derives the modes from it (`resolveModes`). An old save therefore
+   * replays byte-for-byte, and `"extreme"` — a per-villain version choice, not a mode — keeps working because
+   * it never becomes a `PlayModes` at all.
+   */
+  readonly modes?: PlayModes;
   /** Defaults to the scenario's recommended modular set(s) when omitted. */
   readonly modularSetIds?: readonly string[];
   readonly players: readonly CorePlayer[];
@@ -38,6 +54,14 @@ export interface SessionConfig {
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */
   readonly villainVersions?: readonly ("A" | "B" | "extreme")[];
+  /**
+   * This game is one scenario of a campaign, as `startGameFromLog` composed it (docs/campaign-mode-design.md §7.1,
+   * §10.1). Goes straight into `GameSetupConfig.campaign` (`session-core.ts`'s `scenarioFor`) and therefore into
+   * the replay baseline: **a saved campaign game replays without consulting the live `CampaignLog` at all**, which
+   * is the property that keeps a campaign log free to keep evolving underneath a game already in progress.
+   * Absent for every standalone game — additive, like `modes`.
+   */
+  readonly campaign?: CampaignGameInput;
 }
 
 /**

@@ -1,0 +1,3 @@
+kind: Added
+body: 'Campaign mode step 11: the five client view models over campaign state (browser list, log sheet, between-games step/launch/fold, deck-edit gate, scenario-choice board), and SessionConfig.campaign wiring a composed campaign game through the existing host path'
+time: 2026-09-22T03:32:22.985082-04:00

@@ -26,8 +26,9 @@ import {
 } from "./cards/attachment-host.js";
 import { EVIDENCE_KINDS } from "./cards/evidence.js";
 import type { AbilityReference } from "./abilities.js";
+import type { CampaignId, EncounterSetId } from "./ids.js";
 import { KNOWN_KEYWORD_NAMES, type KeywordName } from "./keywords.js";
-import type { EncounterSet, Scenario, ScenarioSeparateDeck, StarterDeck } from "./sets.js";
+import type { Campaign, EncounterSet, Scenario, ScenarioSeparateDeck, StarterDeck } from "./sets.js";
 
 export interface ValidationResult {
   readonly valid: boolean;
@@ -1097,12 +1098,36 @@ function wave2ScenarioErrors(scenario: Scenario): string[] {
 }
 
 /**
- * A standalone scenario checked against the encounter set records it names (wave 2 schema pass, docs/phase7-wave2.md
- * §6.3): no campaign-specific set (RRG 1.8 "Campaign-Specific Card", p. 11) and no competitive-only set (the Civil War
- * rulebook, p. 3: the Standard PvP set "replaces the standard encounter set when playing in competitive mode"), because
- * neither mode is built. A set id the list doesn't contain is reported, so the check can't pass by omission.
+ * Which campaign, if any, a scenario is being validated as part of (docs/campaign-mode-design.md §8).
+ *
+ * Absent is a **standalone** scenario, and the refusals below are exactly what they have always been. `campaignId`
+ * is carried so the message can name the campaign; `campaignSetIds` is the campaign's own campaign-specific sets
+ * (`Campaign.campaignSetIds`), supplied by the caller because that field is the card-data half of the same rule.
  */
-export function validateScenarioEncounterSets(scenario: Scenario, sets: readonly EncounterSet[]): ValidationResult {
+export interface ScenarioModeContext {
+  readonly campaignId?: CampaignId;
+  readonly campaignSetIds?: readonly EncounterSetId[];
+}
+
+/**
+ * A scenario checked against the encounter set records it names (wave 2 schema pass, docs/phase7-wave2.md §6.3).
+ *
+ * **Campaign-specific sets** (RRG 1.8 "Campaign-Specific Card", p. 11: "can only be used during a campaign from the
+ * same product (determined by that product's set icon)") are legal only when the scenario is being validated as
+ * part of a campaign, and only when the set belongs to *that* campaign — which is the set-icon test, expressed as
+ * membership of the campaign's own `campaignSetIds`. Played standalone, the refusal stands: that is the rule, not a
+ * "campaign mode is not built" placeholder.
+ *
+ * **Competitive-only sets** (the Civil War rulebook, p. 3: the Standard PvP set "replaces the standard encounter set
+ * when playing in competitive mode") are still refused unconditionally: competitive mode is not built.
+ *
+ * A set id the list doesn't contain is reported, so the check can't pass by omission.
+ */
+export function validateScenarioEncounterSets(
+  scenario: Scenario,
+  sets: readonly EncounterSet[],
+  context?: ScenarioModeContext,
+): ValidationResult {
   const byId = new Map(sets.map((set) => [set.id as string, set]));
   const errors: string[] = [];
   const named = [
@@ -1115,9 +1140,13 @@ export function validateScenarioEncounterSets(scenario: Scenario, sets: readonly
   for (const id of new Set(named)) {
     const set = byId.get(id);
     if (!set) errors.push(`scenario ${scenario.id} names encounter set ${id}, which is not registered`);
-    else if (set.campaignSpecific)
-      errors.push(`scenario ${scenario.id} names campaign-specific set ${id}; campaign mode is not built`);
-    else if (set.competitiveOnly)
+    else if (set.campaignSpecific && !(context?.campaignSetIds ?? []).includes(id)) {
+      errors.push(
+        context?.campaignId === undefined
+          ? `scenario ${scenario.id} names campaign-specific set ${id}; a campaign-specific set can only be used during a campaign from the same product`
+          : `scenario ${scenario.id} names campaign-specific set ${id}, which does not belong to campaign ${context.campaignId}`,
+      );
+    } else if (set.competitiveOnly)
       errors.push(`scenario ${scenario.id} names competitive-only set ${id}; competitive mode is not built`);
   }
   return result(errors);
@@ -1144,5 +1173,52 @@ export function validateStarterDeck(deck: StarterDeck): ValidationResult {
   } else if (deck.provenance.verified && deck.provenance.sources.length === 0) {
     errors.push("a verified starter deck must cite at least one source");
   }
+  return result(errors);
+}
+
+/**
+ * Structural checks only — `campaign.id` is well-formed, `boxCode` looks like a printed FFG box code, scenarios and
+ * sets are non-empty and duplicate-free, and a source is cited. This does **not** check that the named scenarios
+ * or encounter sets actually exist in `@mc/content`'s pool: that is a cross-reference against real data, which
+ * belongs to a per-pack test (in the style of `validateScenarioEncounterSets`'s own caller) rather than this
+ * package-agnostic structural check (docs/campaign-mode-design.md §3, §9.1 row 1).
+ */
+export function validateCampaign(campaign: Campaign): ValidationResult {
+  const errors: string[] = [];
+  if (!isNonEmptyString(campaign.id)) errors.push("campaign missing id");
+  if (!isNonEmptyString(campaign.name)) errors.push("campaign missing name");
+  if (!/^MC\d{2}$/.test(campaign.boxCode)) errors.push(`campaign ${campaign.id} boxCode must look like "MC10"`);
+  if (!isNonEmptyString(campaign.packCode)) errors.push(`campaign ${campaign.id} missing packCode`);
+  if (!Array.isArray(campaign.scenarioIds) || campaign.scenarioIds.length === 0) {
+    errors.push(`campaign ${campaign.id} must list at least one scenario`);
+  } else {
+    const seen = new Set<string>();
+    for (const id of campaign.scenarioIds) {
+      if (seen.has(id)) errors.push(`campaign ${campaign.id} lists scenario ${id} twice`);
+      else seen.add(id);
+    }
+  }
+  if (!Array.isArray(campaign.campaignSetIds) || campaign.campaignSetIds.length === 0) {
+    errors.push(`campaign ${campaign.id} must list at least one campaign-specific set`);
+  } else if (new Set(campaign.campaignSetIds).size !== campaign.campaignSetIds.length) {
+    errors.push(`campaign ${campaign.id} lists a campaignSetIds entry twice`);
+  }
+  if (campaign.perSeatSetIds !== undefined) {
+    if (!Array.isArray(campaign.perSeatSetIds) || campaign.perSeatSetIds.length === 0) {
+      errors.push(`campaign ${campaign.id} perSeatSetIds must be a non-empty array when present`);
+    } else if (new Set(campaign.perSeatSetIds).size !== campaign.perSeatSetIds.length) {
+      errors.push(`campaign ${campaign.id} lists a perSeatSetIds entry twice`);
+    }
+  }
+  if (campaign.prohibited !== undefined) {
+    const { cardIds, encounterSetIds } = campaign.prohibited;
+    if (cardIds !== undefined && !Array.isArray(cardIds)) {
+      errors.push(`campaign ${campaign.id} prohibited.cardIds must be an array when present`);
+    }
+    if (encounterSetIds !== undefined && !Array.isArray(encounterSetIds)) {
+      errors.push(`campaign ${campaign.id} prohibited.encounterSetIds must be an array when present`);
+    }
+  }
+  if (!isNonEmptyString(campaign.logSheetReference)) errors.push(`campaign ${campaign.id} missing logSheetReference`);
   return result(errors);
 }

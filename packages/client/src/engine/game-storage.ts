@@ -29,11 +29,34 @@ import type { SessionConfig, StateWithoutPool } from "./host.js";
  *   Continue.
  * - 3 (2026-09-19): separate game areas, scenario decks and set-aside scenario cards, and three-sided identities
  *   add required state (docs/phase7-wave2.md §3). Saves from 2 are retired the same way.
+ * - 4 (2026-09-22): `SaveMeta.campaignId`/`campaignNodeId` (docs/campaign-mode-design.md §10.1), so the campaign
+ *   browser can link a row to the game it played and the game-over screen knows to return to the campaign. Unlike
+ *   2 and 3, this changes nothing about `StateWithoutPool` — it is metadata about which save a save *is*, not a
+ *   new required piece of replayable state — so a save from schema 3 is not retired: `migrateSaveMeta` upgrades it
+ *   on read, filling both fields `null` (an old save was never part of a campaign), and it resumes exactly as it
+ *   always did. Anything older than 3 is still retired, as before.
  */
-export const SAVE_SCHEMA = 3;
+export const SAVE_SCHEMA = 4;
 
 /** Whether this build can read a save: only the current schema. Anything older is retired, not migrated. */
 export const isCurrentSchema = (meta: Pick<SaveMeta, "schema">): boolean => meta.schema === SAVE_SCHEMA;
+
+/**
+ * Upgrades a `SaveMeta` written under schema 3 to schema 4 by filling `campaignId`/`campaignNodeId` with `null` —
+ * the purely-additive migration schema 4 needs (see `SAVE_SCHEMA`'s doc comment). Anything else — already current,
+ * or older than 3 — passes through untouched; an older schema is still retired by `isCurrentSchema`, not migrated
+ * here. Applied by both storages on every read path (`load`, `list`, `latestActive`), never on write, so what a
+ * caller stored is still exactly what a caller stored.
+ */
+export function migrateSaveMeta(meta: SaveMeta): SaveMeta {
+  if ((meta.schema as number) !== 3) return meta;
+  return {
+    ...meta,
+    schema: SAVE_SCHEMA,
+    campaignId: meta.campaignId ?? null,
+    campaignNodeId: meta.campaignNodeId ?? null,
+  };
+}
 
 /**
  * `incompatible`: the log no longer replays against this build's engine or
@@ -52,6 +75,13 @@ export interface SaveMeta {
   readonly round: number;
   readonly commandCount: number;
   readonly outcome: GameOutcome | null;
+  /**
+   * Which campaign, and which of its nodes, this save was played as — null for a standalone game. Set once at
+   * `create` from `config.campaign` and never changed after (a save belongs to the node it was launched for; a
+   * retry composes a *new* save for the same node, docs/campaign-mode-design.md §7.3's "re-entry is re-running").
+   */
+  readonly campaignId: string | null;
+  readonly campaignNodeId: string | null;
 }
 
 /** What a command's arrival changes about a game's summary row. */
@@ -118,16 +148,16 @@ export class MemoryGameStorage implements GameStorage {
     const initialState = this.#baselines.get(gameId);
     const commands = this.#commands.get(gameId);
     if (!meta || !initialState || !commands) return null;
-    return structuredClone({ meta, initialState, commands });
+    return structuredClone({ meta: migrateSaveMeta(meta), initialState, commands });
   }
 
   async latestActive(): Promise<SaveMeta | null> {
-    const found = newestActive([...this.#games.values()]);
+    const found = newestActive([...this.#games.values()].map(migrateSaveMeta));
     return found ? structuredClone(found) : null;
   }
 
   async list(): Promise<readonly SaveMeta[]> {
-    return structuredClone([...this.#games.values()].sort((a, b) => b.updatedAt - a.updatedAt));
+    return structuredClone([...this.#games.values()].map(migrateSaveMeta).sort((a, b) => b.updatedAt - a.updatedAt));
   }
 
   async setStatus(gameId: string, status: SaveStatus): Promise<void> {

@@ -3,6 +3,7 @@ import {
   CORE_STARTER_DECKS,
   abilityId,
   cardId,
+  encounterSetId,
   trait,
   type AnyCard,
   type Aspect,
@@ -19,9 +20,13 @@ import type { AbilityDefinition, AbilityRegistry } from "./abilities.js";
 import { DEFAULT_DEPS } from "./abilities.js";
 import {
   abilityRefsOf,
+  CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
+  DECK_MAX_CARDS,
   requiredIdentitySet,
   unscriptedCards,
   validateDeck,
+  type CampaignDeckContext,
+  type DeckContext,
   type DeckProblem,
   type DeckProblemCode,
 } from "./deck.js";
@@ -508,5 +513,223 @@ describe("validateDeck: an identity's separate deck (the Invocation deck)", () =
       "x-inv-2.special": {} as AbilityDefinition,
     };
     expect(unscriptedCards(starter(), pool, { abilities: withSpells })).toEqual([]);
+  });
+});
+
+// ---- Deck rules inside a campaign (docs/campaign-mode-design.md §8) ------------------------
+//
+// Every rule here exists *only* inside a campaign, so each one is checked twice: with a campaign context and
+// without. The synthetic ids keep this off any real box — the engine never knows which campaign it is validating.
+
+describe("validateDeck in a campaign context", () => {
+  const CAMP_SET = "x-camp-set";
+  const REWARD = "x-camp-reward";
+  /** A campaign-specific player card: RRG 1.8 "Campaign-Specific Card" (p. 11), printed "Campaign / Basic". */
+  const reward = synthetic(basicEvent, {
+    id: cardId(REWARD),
+    name: "Requisitioned Gear",
+    specificTo: { kind: "campaign", encounterSetId: encounterSetId(CAMP_SET) },
+  });
+  /** An ordinary basic card, for the rules that are about a card the *player* chose. */
+  const bulk = synthetic(basicEvent, { id: cardId("x-bulk"), name: "Bulk Supply" });
+  /**
+   * A **scenario**-specific player card: it enters the game through its scenario, so it is never a deckbuilding
+   * choice — but a campaign instruction can still add one to a deck (MC10 p. 10's rescued Captive allies).
+   */
+  const CAPTIVE = "x-captive";
+  const captive = synthetic(basicEvent, {
+    id: cardId(CAPTIVE),
+    name: "Rescued Captive",
+    specificTo: { kind: "scenario", encounterSetId: encounterSetId("x-scenario-set") },
+  });
+  /** An encounter card with a player-card back, the one kind of encounter card a campaign may deal into a deck. */
+  const obligation = CORE_CARDS.find((card) => card.type === "obligation");
+  if (!obligation) throw new Error("Core has no obligation card");
+  /** Four more of them, so deck size can be pushed past the maximum without tripping the three-copy rule too. */
+  const spares = [1, 2, 3, 4].map((n) =>
+    synthetic(basicEvent, { id: cardId(`x-spare-${n}`), name: `Spare Part ${n}` }),
+  );
+  const POOL: readonly AnyCard[] = [...CORE_CARDS, reward, bulk, captive, ...spares];
+
+  const inCampaign = (over: Partial<CampaignDeckContext> = {}): DeckContext => ({
+    campaign: {
+      campaignId: "x-campaign",
+      campaignSetIds: [CAMP_SET],
+      identityCardId: SPIDER_MAN,
+      grantedCardIds: [],
+      ...over,
+    },
+  });
+  const codesIn = (
+    deck: DeckContents,
+    context?: DeckContext,
+    pool: readonly AnyCard[] = POOL,
+  ): readonly DeckProblemCode[] => {
+    const verdict = validateDeck(deck, pool, context);
+    return verdict.ok ? [] : verdict.problems.map((problem) => problem.code);
+  };
+  const messageIn = (deck: DeckContents, code: DeckProblemCode, context?: DeckContext): string => {
+    const verdict = validateDeck(deck, POOL, context);
+    const found = verdict.ok ? undefined : verdict.problems.find((problem) => problem.code === code);
+    if (!found) throw new Error(`expected ${code}, got ${JSON.stringify(verdict, null, 2)}`);
+    return found.message;
+  };
+
+  it("leaves a deck with no context judged exactly as before", () => {
+    expect(validateDeck(starter(), POOL)).toEqual(validateDeck(starter(), POOL, {}));
+    expect(codesIn(starter())).toEqual([]);
+  });
+
+  describe("campaign-specific cards (RRG 1.8 p. 11)", () => {
+    const withReward = withCard(starter(), REWARD, 1);
+
+    it("refuses one outside a campaign, and says why", () => {
+      expect(codesIn(withReward)).toEqual(["campaign_card"]);
+      expect(messageIn(withReward, "campaign_card")).toContain("not being built for a campaign");
+    });
+
+    it("refuses one belonging to a different product", () => {
+      expect(codesIn(withReward, inCampaign({ campaignSetIds: ["x-other-camp"] }))).toEqual(["campaign_card"]);
+      expect(messageIn(withReward, "campaign_card", inCampaign({ campaignSetIds: ["x-other-camp"] }))).toContain(
+        "from a different product",
+      );
+    });
+
+    it("refuses one this campaign has not directed the player to add", () => {
+      expect(codesIn(withReward, inCampaign())).toEqual(["campaign_card_not_granted"]);
+    });
+
+    it("allows one the campaign granted, and does not count it toward deck size (MC10 p. 3)", () => {
+      const granted = inCampaign({ grantedCardIds: [REWARD] });
+      expect(codesIn(withReward, granted)).toEqual([]);
+      // Exactly as many copies as were granted, and no more.
+      expect(codesIn(withCard(starter(), REWARD, 2), granted)).toEqual(["campaign_card_not_granted"]);
+    });
+  });
+
+  describe("cards the campaign has taken away", () => {
+    const deck = withCard(starter(), bulk.id, 2);
+
+    it("refuses a card removed from the campaign, even on a retry (RRG 1.8 p. 29)", () => {
+      const context = inCampaign({ removedFromCampaign: [{ cardId: bulk.id }] });
+      expect(codesIn(deck, context)).toEqual(["campaign_removed_card"]);
+      expect(messageIn(deck, "campaign_removed_card", context)).toContain("even on a retry");
+    });
+
+    it("leaves the card usable when only its other face was removed (ruling April 30, 2026 (4))", () => {
+      expect(codesIn(deck, inCampaign({ removedFromCampaign: [{ cardId: bulk.id, face: "Improved" }] }))).toEqual([]);
+    });
+
+    it("refuses a card the box prohibits inside its own campaign (MC27 p. 4)", () => {
+      expect(codesIn(deck, inCampaign({ prohibitedCardIds: [bulk.id] }))).toEqual(["campaign_prohibited_card"]);
+    });
+
+    it("refuses a card of a set the box prohibits inside its own campaign (MC40 p. 6)", () => {
+      const context = inCampaign({ grantedCardIds: [REWARD], prohibitedEncounterSetIds: [CAMP_SET] });
+      expect(codesIn(withCard(starter(), REWARD, 1), context)).toEqual(["campaign_prohibited_card"]);
+    });
+  });
+
+  it("locks the identity for the whole campaign (MC10 p. 3)", () => {
+    const other = starter("core-she-hulk-aggression");
+    expect(codesIn(other)).toEqual([]);
+    expect(codesIn(other, inCampaign())).toEqual(["campaign_identity_locked"]);
+    expect(messageIn(other, "campaign_identity_locked", inCampaign())).toContain("entire campaign");
+  });
+
+  describe("cards the campaign added", () => {
+    it("exempts granted copies from minimum and maximum deck size (MC10 p. 3)", () => {
+      const oversize = spares.reduce((deck, spare) => withCard(deck, spare.id, 3), starter());
+      expect(codesIn(oversize)).toEqual(["deck_size"]);
+      const granted = spares.flatMap((spare) => [spare.id as string, spare.id as string, spare.id as string]);
+      expect(codesIn(oversize, inCampaign({ grantedCardIds: granted }))).toEqual([]);
+    });
+
+    it("allows a scenario-specific card the campaign added, and only the copies it added (MC10 p. 10)", () => {
+      // "Each player who rescued one or more allies from the Taskmaster encounter set **adds those allies to
+      // their deck**." Outside a campaign, and inside one that did not add it, the card is refused exactly as it
+      // always was: a scenario's own cards are not a deckbuilding choice.
+      const one = withCard(starter(), CAPTIVE, 1);
+      expect(codesIn(one)).toEqual(["scenario_card"]);
+      expect(codesIn(one, inCampaign())).toEqual(["scenario_card"]);
+      expect(codesIn(one, inCampaign({ grantedCardIds: [CAPTIVE] }))).toEqual([]);
+      expect(codesIn(withCard(starter(), CAPTIVE, 2), inCampaign({ grantedCardIds: [CAPTIVE] }))).toEqual([
+        "scenario_card",
+      ]);
+      // MC10 p. 12 takes an unrescued one back out again, through RRG 1.8 p. 29's removal.
+      const removed = inCampaign({ grantedCardIds: [CAPTIVE], removedFromCampaign: [{ cardId: cardId(CAPTIVE) }] });
+      expect(codesIn(one, removed)).toEqual(["campaign_removed_card"]);
+    });
+
+    it("allows an obligation the campaign added, and only then (MC10 p. 17)", () => {
+      // "The obligations in the expert campaign sets have player-card backs because they are meant to be added to
+      // player decks, but they are still encounter cards" — legal here only because the campaign put it there.
+      const id = obligation.id as string;
+      const one = withCard(starter(), id, 1);
+      expect(codesIn(one)).toEqual(["not_a_player_card"]);
+      expect(codesIn(one, inCampaign())).toEqual(["not_a_player_card"]);
+      expect(codesIn(one, inCampaign({ grantedCardIds: [id] }))).toEqual([]);
+      expect(codesIn(withCard(starter(), id, 2), inCampaign({ grantedCardIds: [id] }))).toEqual(["not_a_player_card"]);
+      const removed = inCampaign({ grantedCardIds: [id], removedFromCampaign: [{ cardId: obligation.id }] });
+      expect(codesIn(one, removed)).toEqual(["campaign_removed_card"]);
+    });
+
+    it("counts neither of them toward deck size, the way every grant is exempt (MC10 p. 3)", () => {
+      /** The starter deck topped up with spare copies to exactly the maximum, so one more card is one too many. */
+      const size = (deck: DeckContents): number => deck.cards.reduce((total, line) => total + line.quantity, 0);
+      let filled = starter();
+      for (const spare of spares) {
+        const room = DECK_MAX_CARDS - size(filled);
+        if (room > 0) filled = withCard(filled, spare.id, Math.min(3, room));
+      }
+      expect(size(filled)).toBe(DECK_MAX_CARDS);
+      expect(codesIn(filled)).toEqual([]);
+      expect(codesIn(withCard(filled, bulk.id, 1))).toEqual(["deck_size"]);
+
+      expect(codesIn(withCard(filled, CAPTIVE, 1), inCampaign({ grantedCardIds: [CAPTIVE] }))).toEqual([]);
+      const obligationId = obligation.id as string;
+      expect(codesIn(withCard(filled, obligationId, 1), inCampaign({ grantedCardIds: [obligationId] }))).toEqual([]);
+    });
+
+    it("leaves granted copies out of the by-title copy count (the Q8 decision point)", () => {
+      // `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT` is `false`: flipping it makes this deck illegal instead.
+      expect(CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT).toBe(false);
+      const five = withCard(starter(), basicEvent.id, 5);
+      expect(codesIn(five)).toEqual(["copy_limit"]);
+      expect(codesIn(five, inCampaign({ grantedCardIds: [basicEvent.id, basicEvent.id] }))).toEqual([]);
+    });
+  });
+
+  describe("a frozen deck (MC16 p. 5; MC27 p. 6)", () => {
+    const frozen = (): DeckContext =>
+      inCampaign({ frozenNonCampaignCards: starter().cards.map((line) => ({ ...line })) });
+
+    it("accepts the deck it was frozen at", () => {
+      expect(codesIn(starter(), frozen())).toEqual([]);
+    });
+
+    it("refuses an added, a removed and a resized line, each by name", () => {
+      /** A line the starter deck really has, so "removed" and "resized" are distinguishable from "added". */
+      const listed = starter().cards.find((line) => line.quantity > 1)?.cardId;
+      if (listed === undefined) throw new Error("the starter deck has no line with more than one copy");
+
+      const added = withCard(starter(), bulk.id, 1);
+      expect(codesIn(added, frozen())).toEqual(["campaign_deck_frozen"]);
+      expect(messageIn(added, "campaign_deck_frozen", frozen())).toContain("cannot be added");
+
+      const removed = without(starter(), listed);
+      expect(messageIn(removed, "campaign_deck_frozen", frozen())).toContain("cannot be removed");
+
+      const resized = withCard(starter(), listed, 1);
+      expect(messageIn(resized, "campaign_deck_frozen", frozen())).toContain("frozen for the rest");
+    });
+
+    it("still lets the campaign add its own cards while the player's are frozen", () => {
+      const context = inCampaign({
+        frozenNonCampaignCards: starter().cards.map((line) => ({ ...line })),
+        grantedCardIds: [REWARD],
+      });
+      expect(codesIn(withCard(starter(), REWARD, 1), context)).toEqual([]);
+    });
   });
 });

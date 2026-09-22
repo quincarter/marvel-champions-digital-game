@@ -3,11 +3,18 @@ import {
   WAVE2_CARDS,
   WAVE2_SCENARIOS,
   WAVE2_STARTER_DECKS,
+  difficultyOf,
   type AnyCard,
   type CardId,
 } from "@mc/content";
 import type { GameSetupConfig, PlayerSetup } from "@mc/engine";
-import { coreScenario, type CoreDifficulty, type CorePlayer, type CoreScenarioOptions } from "../core/setup.js";
+import {
+  coreScenario,
+  resolveModes,
+  type CoreDifficulty,
+  type CorePlayer,
+  type CoreScenarioOptions,
+} from "../core/setup.js";
 
 /**
  * A Core scenario (Rhino/Klaw/Ultron), or one of cycle 1's own scenarios, seated with wave 2 content — the cycle 1
@@ -104,7 +111,7 @@ function buildSingleVillain(
   scenario: (typeof WAVE2_SCENARIOS)[number],
   options: Wave2ScenarioOptions,
 ): GameSetupConfig {
-  const difficulty = options.difficulty ?? "standard";
+  const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
   const villain = cardsById.get(scenario.villainCardId);
   if (!villain || villain.type !== "villain") throw new Error(`${scenario.villainCardId} is not a villain`);
   const side = villain.sides[0];
@@ -152,7 +159,7 @@ function buildSingleVillain(
 function kangScenario(options: Wave2ScenarioOptions): GameSetupConfig {
   const scenario = WAVE2_SCENARIOS.find((s) => s.id === "kang");
   if (!scenario) throw new Error("no kang scenario record in WAVE2_SCENARIOS");
-  const difficulty = options.difficulty ?? "standard";
+  const difficulty = difficultyOf(resolveModes(options.difficulty, options.modes));
   const villains =
     difficulty === "expert" && scenario.expertVillains
       ? scenario.expertVillains

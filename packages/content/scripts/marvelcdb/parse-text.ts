@@ -737,6 +737,40 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
   let signatureOf: string | undefined;
 
   if (options.obligation) {
+    const lines = text.split("\n");
+    const allHeaders = lines.flatMap((oline) => findHeaders(oline).map((h) => ({ ...h, oline })));
+
+    // A persistent constant clause (no formal trigger header at all) printed alongside exactly one triggered
+    // clause under a single obligation (Martial Law `trors` 04165 "Your hand size is reduced by 1.\nAlter-Ego
+    // Action: ...", Anti-Hero Propaganda `trors` 04166, Depowered `toafk` 11020, Fear of Kang `toafk` 11049): an
+    // `AbilityDefinition` carries exactly one `AbilityTriggerSpec`, so the constant clause needs its own
+    // `-constant` ref beside the triggered clause's own ref (docs/phase7-wave2-data.md "Part 8" — 11020/11049's
+    // original split, now generalized here instead of hand-edited per card). This *replaces* the whole-text
+    // catchall rather than adding to it, unlike the >=2-header shape below: there is no coherent "whole text"
+    // ref left to keep once one of the two clauses isn't a formal trigger at all. Detected structurally — every
+    // line before the first header carries none — not by card name, so any future obligation of this exact shape
+    // gets the same split for free.
+    const preambleLines: string[] = [];
+    for (const oline of lines) {
+      if (findHeaders(oline).length > 0) break;
+      if (oline.trim()) preambleLines.push(oline.trim());
+    }
+    const [h] = allHeaders;
+    if (preambleLines.length > 0 && allHeaders.length === 1 && h) {
+      const { kind: hkind, form } = kindOf(h.trigger);
+      if (hkind !== "contents") {
+        abilities.push({ kind: "constant", text: preambleLines.join(" ") });
+        abilities.push({
+          kind: hkind,
+          ...(form ? { form } : {}),
+          ...(h.label ? { label: h.label as "attack" | "thwart" | "defense" } : {}),
+          ...(h.name ? { name: h.name } : {}),
+          text: h.oline.slice(h.index).trim(),
+        });
+        return { keywords, abilities, restrictions, unclassified };
+      }
+    }
+
     if (text.trim()) abilities.push({ kind: "obligation", text });
     // ADDITIVE, only when the printed text carries two or more distinct formal trigger headers (Kang's four
     // Temporal obligations — Weakened 11018 "Forced Response: After you use a basic hero power, take 1 damage.
@@ -745,9 +779,8 @@ export function parseCardText(text: string, options: ParseOptions): ParsedText {
     // whole-card `obligation` ref above (kept exactly as before, so no existing ref id moves). An obligation
     // with zero or one header (the overwhelming majority of the corpus) is untouched — this only fires for the
     // genuinely-merged-triggers shape, not every obligation, so it doesn't multiply refs pack-wide for no reason.
-    const allHeaders = text.split("\n").flatMap((oline) => findHeaders(oline).map((h) => ({ ...h, oline })));
     if (allHeaders.length >= 2) {
-      for (const oline of text.split("\n")) {
+      for (const oline of lines) {
         const oheaders = findHeaders(oline);
         oheaders.forEach((h, i) => {
           const oend = oheaders[i + 1]?.index ?? oline.length;

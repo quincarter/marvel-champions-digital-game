@@ -71,6 +71,8 @@ import type { EffectSpec, StatName } from "../spec.js";
 import { currentActivationFrameId, type DeferredEffects, type ReportTarget, type StackFrame } from "../stack.js";
 import type { TriggerEvent } from "../trigger-events.js";
 import { matchingCardInPlay } from "../unique.js";
+import { campaignSeatNumber } from "../campaign-state.js";
+import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
 import { cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
@@ -1392,5 +1394,27 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       throw new EngineInvariantError("chooseTarget is handled before applyEffect");
     case "spendResources":
       throw new EngineInvariantError("spendResources is handled before applyEffect");
+    case "recordInCampaignLog": {
+      // Nothing outside a campaign: the same campaign card, dropped into a standalone game, simply has no log to
+      // write to (its deck legality is `validateDeck`'s job, design §8, not this effect's).
+      if (!ctx.state.campaign) return;
+      const logValue = campaignLogValueOf(ctx, effect.value, context);
+      if (!logValue) return;
+      // One value, written into each addressed column. A *different* value per seat is `forEachPlayer` around this
+      // effect, which is how every other per-player effect in the DSL says it.
+      const seatNumbers = effect.seat
+        ? resolvePlayers(ctx.state, effect.seat, context).map((id) => campaignSeatNumber(ctx.state, id))
+        : [null];
+      for (const seatNumber of seatNumbers) {
+        if (effect.seat && seatNumber === null) continue;
+        recordCampaignWrite(ctx, { field: effect.field, seatNumber, mode: effect.mode, value: logValue });
+      }
+      return;
+    }
+    case "removeFromCampaign": {
+      if (!ctx.state.campaign) return;
+      for (const id of selectCards(ctx, effect.cards, context)) recordCampaignRemoval(ctx, id);
+      return;
+    }
   }
 }

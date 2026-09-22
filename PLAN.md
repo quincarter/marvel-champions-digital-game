@@ -1149,8 +1149,15 @@ Built once, before any box's campaign content. Nothing here names a specific cam
 #### C2. The per-box increment (repeat for each box, after that box's cards are scripted)
 
 - [ ] Campaign-specific cards ingested as data. **Already done where they exist:** 115 `campaign`-faction cards across
-      seven boxes. Three (`aos`, `cw`, `fne`) carry none in the current data — confirm against that box's rulebook
-      whether its campaign genuinely adds no player cards, or MarvelCDB files them under another faction.
+      seven boxes. **Resolved (2026-09-21):** `aos`, `cw`, `fne` genuinely carry zero `campaign`-faction cards — this
+      is not a MarvelCDB miscategorization. `aos` (MC50 p. 5): its campaign additions are evidence cards, explicitly
+      "not added to any deck once gained" — hidden state, not player cards. `cw` (MC56 p. 3): "the Civil War
+      expansion does not include five interconnected scenarios and a campaign mode" at all; its 98 player cards are
+      ordinary aspect cards plus 4 leader-specific cards per leader used only in competitive mode, never `campaign`
+      faction. `fne` (MC60, all 89 player cards + the log sheet): no instruction anywhere adds a card to a deck —
+      MC60's rewards are environment/scenario state (Completed/Failed sides, speed counters), not deck grants.
+      Confirmed against `packages/content/raw/marvelcdb/{aos,cw,fne}.json` (no `faction_code: "campaign"` records)
+      and the three rulebooks in `docs/campaign-modes/markdown/`.
 - [ ] That box's own heroes, villains and scenarios scripted and passing scenario tests. **This gates the rest.**
 - [ ] Campaign definition encoded from the rulebook in `docs/campaign-modes/markdown/`: scenario order, per-scenario
       setup and victory instructions, log fields, villain-deck composition per scenario and its expert substitutions.
@@ -1175,8 +1182,13 @@ All ten rulebooks and log sheets are in `docs/campaign-modes/`. "Cards scripted"
 | MC40 | NeXt Evolution           | `next_evol` | 5         | 14             | ❌ data only                              |
 | MC45 | Age of Apocalypse        | `aoa`       | 5         | 6              | ❌ data only                              |
 | MC50 | Agents of S.H.I.E.L.D.   | `aos`       | 5         | 0              | ❌ data only                              |
-| MC56 | Civil War                | `cw`        | 2         | 0              | ❌ data only                              |
 | MC60 | Fear No Evil             | `fne`       | 6         | 0              | ❌ data only                              |
+
+**Civil War (MC56) is not in this table.** MC56 p. 3: "the Civil War expansion does not include five interconnected
+scenarios and a campaign mode." It ships four preconstructed scenarios plus a custom-scenario builder and a
+competitive (PvP) mode instead — a different capability with its own `competitiveOnly` refusal already in the code,
+not a ninth campaign box. It was previously (and wrongly) listed here as "2 scenarios"; see
+docs/campaign-mode-design.md §1.2 and §12 Q2.
 
 **The Once and Future Kang (`toafk`) is not in this table.** It is a scenario pack, not a campaign box, and has no
 rulebook in `docs/campaign-modes/`; its insert supplies an "Adjustable Difficulty" rule already quoted in

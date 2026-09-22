@@ -44,7 +44,7 @@ export * from "./scw/index.js";
 export * from "./trors/index.js";
 export * from "./toafk/index.js";
 
-import type { AnyCard, EncounterSet, Scenario, StarterDeck } from "../schema/index.js";
+import type { AnyCard, Campaign, EncounterSet, Scenario, StarterDeck } from "../schema/index.js";
 import { CORE_CARDS } from "./core/cards.js";
 import { GOB_CARDS } from "./gob/cards.js";
 import { GOB_SCENARIOS } from "./gob/scenarios.js";
@@ -125,6 +125,7 @@ import { TRORS_CARDS } from "./trors/cards.js";
 import { TRORS_STARTER_DECKS } from "./trors/starterDecks.js";
 import { TRORS_ENCOUNTER_SETS } from "./trors/encounterSets.js";
 import { TRORS_SCENARIOS } from "./trors/scenarios.js";
+import { TRORS_CAMPAIGN } from "./trors/campaign.js";
 import { TOAFK_CARDS } from "./toafk/cards.js";
 import { TOAFK_ENCOUNTER_SETS } from "./toafk/encounterSets.js";
 import { TOAFK_SCENARIOS } from "./toafk/scenarios.js";
@@ -175,6 +176,18 @@ export const WAVE2_STARTER_DECKS: readonly StarterDeck[] = [
  * is the one pool a client that runs every scripted wave at once sends to the engine.
  */
 export const PLAYABLE_CARDS: readonly AnyCard[] = [...WAVE1_CARDS, ...WAVE2_CARDS.slice(CORE_CARDS.length)];
+
+/**
+ * Every campaign box whose scenarios and encounter sets are ingested into `@mc/content` (PLAN.md §C3;
+ * docs/campaign-mode-design.md §11 step 6). Only `trors` (The Rise of Red Skull, MC10) qualifies today — the other
+ * eight campaign boxes with a campaign mode (MC16, MC21, MC27, MC32, MC40, MC45, MC50, MC60) have only raw
+ * MarvelCDB JSON cached (`packages/content/raw/marvelcdb/`), not a normalized `Pack`/`Scenario`/`EncounterSet` in
+ * this package yet (see docs/phase7-wave2-data.md's per-pack survey), so a `Campaign` record naming their
+ * scenarios/sets would reference data that does not exist. Each is added here once its own box is ingested and
+ * scripted, per PLAN.md §C2's gate ("That box's own heroes, villains and scenarios scripted ... This gates the
+ * rest."). Civil War (MC56) has no campaign mode at all (MC56 p. 3) and is never added.
+ */
+export const CAMPAIGNS: readonly Campaign[] = [TRORS_CAMPAIGN];
 
 // ---------------------------------------------------------------------------------------------------------------
 // Data-only pool (PLAN.md Phase 7, "All 62 non-Core packs become card data; only wave 1 is scripted"/"Wave 2
