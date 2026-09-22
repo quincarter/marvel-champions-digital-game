@@ -369,6 +369,19 @@ export type ValueSpec =
    */
   | { readonly kind: "sum"; readonly values: readonly ValueSpec[] }
   /**
+   * The least / greatest of several values: "+1 hand size for each facedown encounter card in front of you (to a maximum
+   * of +3 hand size)" (Star-Lord's Helmet, `stld` 17010) is `min(count, 3)`; ruling, Mar 30, 2026 (1): that maximum caps
+   * the Helmet's own bonus. docs/phase7-wave3.md §3.10.
+   */
+  | { readonly kind: "min"; readonly values: readonly [ValueSpec, ...ValueSpec[]] }
+  | { readonly kind: "max"; readonly values: readonly [ValueSpec, ...ValueSpec[]] }
+  /**
+   * The facedown encounter cards dealt to a player and not yet revealed, "in front of" them (RRG 1.8 "Deal", p. 14):
+   * "for each facedown encounter card in front of you" (Star-Lord: Gutsy Move, Sliding Shot, Jet Boots, Star-Lord's
+   * Helmet, `stld`). docs/phase7-wave3.md §3.10.
+   */
+  | { readonly kind: "dealtEncounterCount"; readonly player: PlayerRef }
+  /**
    * How many of the cards a ref names match a query, wherever they are (not restricted to in play, unlike `count`):
    * "for each treachery looked at this way" (Falcon, `cap` pack, over `selectCards`' non-in-play "look") reads the
    * cards bound to a slot. Resolved the same way `resourceTypes`/`distinctCardTypes` already read a ref's cards.
@@ -513,8 +526,18 @@ export type Predicate =
    * that type or a wild declared as it. FAQ "Unstoppable Force (#6)" (p. 60): at a cost of 0 it fails.
    */
   | { readonly kind: "paidWithOnly"; readonly resource: TypedResource }
-  /** How many cards of a type a player has played this round is at most `atMost`: "the first ally played each round" → 0. */
-  | { readonly kind: "playedThisRound"; readonly player: PlayerRef; readonly cardType: string; readonly atMost: number }
+  /**
+   * How many cards of a type a player has played this round is at most `atMost`: "the first ally played each round" → 0.
+   * `cardType` absent counts every card type: "If this is the first card you have played this round, return this card to
+   * your hand" (Clobber, Impede, `gam`) reads `atMost: 1` while the card itself resolves, since it counts as played
+   * from the moment it is played (docs/phase7-wave3.md §3.11).
+   */
+  | {
+      readonly kind: "playedThisRound";
+      readonly player: PlayerRef;
+      readonly cardType?: string;
+      readonly atMost: number;
+    }
   /**
    * Compares two live values: "if there is 10 or more threat here" (the Wrecking Crew signature side schemes) →
    * `{ left: { kind: "threat", of: self }, op: "atLeast", right: 10 }`.
@@ -1119,6 +1142,16 @@ export type EffectSpec =
       readonly target: TargetRef;
       readonly counterType: string;
       readonly amount: ValueSpec;
+      /**
+       * "(to a maximum of 10)" (Groot's growth counters, `gmw`; Drax's vengeance counters, `drax`): this effect places
+       * at most as many as bring the card to `upTo`, and none when it already holds that many or more. Ruling, Mar 30,
+       * 2026 (1): "'(to a maximum of X)' applies **locally** to that specific ability" — another card may take the card
+       * past it (Captain Americat's counter on Drax, a fourth), and this does not remove the extra. docs/phase7-wave3.md
+       * §3.10.
+       */
+      readonly upTo?: ValueSpec;
+      /** `<bind>.amount`: how many were placed (summed over the targets) — "If you cannot, draw 1 card." (Drax). */
+      readonly bind?: string;
     }
   | {
       readonly kind: "removeCounters";
@@ -1137,6 +1170,14 @@ export type EffectSpec =
    * defeat; a card that says "discard" never sets it. docs/phase7-wave3.md §3.4.
    */
   | { readonly kind: "discardFromPlay"; readonly target: TargetRef; readonly defeated?: boolean }
+  /**
+   * "Defeat a non-[Elite] minion." (Nova Prime, `stld` 17002): each target character is defeated outright, whatever its
+   * remaining hit points (RRG 1.8 "Defeat", p. 15). It is a `characterDefeated` event marked `byEffect`, so "when X would
+   * be defeated" interrupts, When Defeated, Victory X and responses all see it; `cannotBeDefeated` and the permanent
+   * keyword still stop it. An ally or minion is discarded, an identity's player is eliminated, and a villain's stage falls
+   * (RRG 1.8 "Villain Defeat", p. 47). Characters only. docs/phase7-wave3.md §3.9.
+   */
+  | { readonly kind: "defeat"; readonly target: TargetRef }
   /**
    * "Engage that enemy" (Get Over Here!). RRG 1.8 "Engage" (p. 18): "If a card ability instructs a player to engage a
    * minion, that minion is also considered to have engaged that player", and "while a minion is engaged with a

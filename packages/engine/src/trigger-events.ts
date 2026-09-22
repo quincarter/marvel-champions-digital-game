@@ -190,6 +190,11 @@ export type TriggerEventBody =
   | {
       readonly kind: "characterDefeated";
       readonly instanceId: InstanceId;
+      /**
+       * Defeated by an effect that says "defeat" (`EffectSpec defeat`; Nova Prime), not by reaching zero remaining hit
+       * points, so applying it does not re-check the dial (docs/phase7-wave3.md §3.9).
+       */
+      readonly byEffect?: true;
       readonly parentFrameId?: FrameId | null;
       readonly overkill?: {
         readonly amount: number;

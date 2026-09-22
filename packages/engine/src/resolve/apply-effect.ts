@@ -467,7 +467,35 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       return;
     case "addCounters": {
       const amount = value(effect.amount);
-      for (const id of targets(effect.target)) addCounters(ctx, id, effect.counterType, amount);
+      const upTo = effect.upTo === undefined ? null : value(effect.upTo);
+      let placed = 0;
+      for (const id of targets(effect.target)) {
+        // "(to a maximum of X)" is local to this effect (ruling, Mar 30, 2026 (1); docs/phase7-wave3.md §3.10).
+        const held = getInstance(ctx.state, id)?.counters[effect.counterType] ?? 0;
+        const count = upTo === null ? amount : Math.max(0, Math.min(amount, upTo - held));
+        addCounters(ctx, id, effect.counterType, count);
+        placed += Math.max(0, count);
+      }
+      if (effect.bind) addFrameVars(ctx, frame.frameId, { [`${effect.bind}.amount`]: placed });
+      return;
+    }
+    case "defeat": {
+      // docs/phase7-wave3.md §3.9: a defeat by effect, whatever the remaining hit points; `applyDefeat` honours
+      // `byEffect`, and the rules that stop a defeat (cannotBeDefeated, permanent) still do.
+      const inPlay = cardsInPlay(ctx.state);
+      const defeatingPlayer = frame.controllerId;
+      pushEvents(
+        ctx,
+        targets(effect.target)
+          .filter((id) => inPlay.includes(id) && categoriesOf(ctx.state, id).includes("character"))
+          .map((id) => ({
+            kind: "characterDefeated" as const,
+            instanceId: id,
+            byEffect: true as const,
+            ...(defeatingPlayer ? { defeatedByPlayerId: defeatingPlayer } : {}),
+            ...(frame.selfInstanceId ? { sourceInstanceId: frame.selfInstanceId } : {}),
+          })),
+      );
       return;
     }
     case "removeCounters": {

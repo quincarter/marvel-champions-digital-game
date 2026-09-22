@@ -948,6 +948,14 @@ export function resolveValue(
       const [playerId] = resolvePlayers(state, value.player, context);
       return playerId ? (getPlayer(state, playerId)?.hand.length ?? 0) : 0;
     }
+    case "dealtEncounterCount": {
+      const [playerId] = resolvePlayers(state, value.player, context);
+      return playerId ? (getPlayer(state, playerId)?.dealtEncounter.length ?? 0) : 0;
+    }
+    case "min":
+      return Math.min(...value.values.map((part) => resolveValue(state, part, context, deps)));
+    case "max":
+      return Math.max(...value.values.map((part) => resolveValue(state, part, context, deps)));
     case "deckCount": {
       // The player deck only: a separate deck (`PlayerState.separateDecks`) is its own deck, not part of this one.
       const [playerId] = resolvePlayers(state, value.player, context);
@@ -1066,10 +1074,14 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
     }
     case "playedThisRound": {
       const [playerId] = resolvePlayers(state, predicate.player, context);
-      return (
-        playerId !== undefined &&
-        (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0) <= predicate.atMost
-      );
+      if (playerId === undefined) return false;
+      const played =
+        predicate.cardType === undefined
+          ? Object.entries(state.playedByPlayerThisRound)
+              .filter(([key]) => key.startsWith(`${playerId}:`))
+              .reduce((sum, [, count]) => sum + count, 0)
+          : (state.playedByPlayerThisRound[`${playerId}:${predicate.cardType}`] ?? 0);
+      return played <= predicate.atMost;
     }
     case "compare": {
       const left = resolveValue(state, predicate.left, context);

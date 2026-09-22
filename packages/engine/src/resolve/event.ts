@@ -293,7 +293,8 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   const instance = getInstance(ctx.state, id);
   if (!instance || !cardsInPlay(ctx.state).includes(id)) return false;
   const profile = characterProfile(ctx.state, id, ctx.deps);
-  if (!profile || instance.damage < profile.maxHp) return false;
+  // A defeat by effect ("defeat a minion", docs/phase7-wave3.md §3.9) does not depend on the dial.
+  if (!profile || (instance.damage < profile.maxHp && event.byEffect !== true)) return false;
   // RRG 1.8 "'Cannot'" (p. 11): absolute, including a defeat already on the stack (docs/phase7-wave3.md §3.1).
   if (cannotBeDefeated(ctx.state, ctx.deps, id)) return false;
   // A villain stage (docs/phase7-wave3.md §3.1). Reaching here means no interrupt replaced the defeat: "flip this card
