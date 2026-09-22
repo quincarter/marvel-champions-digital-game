@@ -2,8 +2,10 @@ import { describe, expect, test } from "vitest";
 import { hit } from "../tokens.js";
 import { rectsOverlap } from "./layout.js";
 import {
+  DESKTOP_ART_ASPECT,
   cardFaceContentHeight,
   cardFaceLayout,
+  cardMaxWidthFor,
   inspectLayout,
   inspectLayoutRects,
   sheetPlayPayWidths,
@@ -60,11 +62,43 @@ describe("inspectLayout", () => {
     }
   });
 
-  test("panel widths cap at D08's own 400/440 on a wide desktop, rather than stretching", () => {
-    const layout = inspectLayout({ x: 0, y: 0, width: 1870, height: 1050 });
-    if (layout.mode !== "panels") throw new Error("expected panels mode");
-    expect(layout.card.width).toBeLessThanOrEqual(400);
-    expect(layout.rules.width).toBeLessThanOrEqual(440);
+  test("panel widths cap rather than stretching on a wide desktop: the rules panel at D08's 440, the card panel at 400 on a D08-height window and up to 520 on a tall one (2026-09-21: the card was too small to read on a big monitor)", () => {
+    const short = inspectLayout({ x: 0, y: 0, width: 2000, height: 760 });
+    if (short.mode !== "panels") throw new Error("expected panels mode");
+    expect(short.card.width).toBeLessThanOrEqual(400);
+    expect(short.rules.width).toBeLessThanOrEqual(440);
+    const tall = inspectLayout({ x: 0, y: 0, width: 1870, height: 1050 });
+    if (tall.mode !== "panels") throw new Error("expected panels mode");
+    expect(tall.card.width).toBeGreaterThan(400);
+    expect(tall.card.width).toBeLessThanOrEqual(520);
+    expect(tall.rules.width).toBeLessThanOrEqual(440);
+    expect(cardMaxWidthFor(900)).toBe(450);
+  });
+
+  test("a desktop art band (`artAspect`) is taller than D08's, and the card face still gives the text its full natural height at that content height", () => {
+    const content = {
+      bodySize: 14,
+      rulesTextLines: 4,
+      printedTextLines: 0,
+      flavorLines: 2,
+      hasStats: true,
+      hasIcons: true,
+    };
+    const base = cardFaceContentHeight(450, content);
+    const tallArt = cardFaceContentHeight(450, { ...content, artAspect: DESKTOP_ART_ASPECT });
+    expect(tallArt - base).toBe(Math.round(450 * DESKTOP_ART_ASPECT) - Math.round(450 * (250 / 400)));
+    const face = cardFaceLayout(
+      { x: 0, y: 0, width: 450, height: tallArt },
+      { ...content, artAspect: DESKTOP_ART_ASPECT },
+    );
+    expect(face.art!.height).toBe(Math.round(450 * DESKTOP_ART_ASPECT));
+    // ...and on a shorter panel the art is what gives way, never the text.
+    const clamped = cardFaceLayout(
+      { x: 0, y: 0, width: 450, height: base },
+      { ...content, artAspect: DESKTOP_ART_ASPECT },
+    );
+    expect(clamped.art!.height).toBeLessThan(face.art!.height);
+    expect(clamped.scroll.height).toBeCloseTo(face.scroll.height, 0);
   });
 
   test("panels shrink together, never overlapping, on a narrower tablet", () => {

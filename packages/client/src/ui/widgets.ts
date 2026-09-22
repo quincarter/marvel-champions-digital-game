@@ -115,6 +115,13 @@ export interface McButtonOptions {
   /** A status hue to hatch the button in: the status that cancels what it does. */
   readonly hatch?: number;
   /**
+   * A colour of its own instead of the kind's skin — the aspect filter chips, which wear the aspect's printed
+   * card-frame colour (`view/aspect-stamp.ts`) so they match the stamps on the hero cards they filter. At rest
+   * the chip is paper with a stroke in `fill`; selected it is solid `fill` with `ink` for its label, exactly the
+   * stamp; hover is a light wash of `fill`. `kind` still decides the size and the type role.
+   */
+  readonly tint?: { readonly fill: number; readonly ink: number };
+  /**
    * A viewport this button must be visually inside of to respond to a click —
    * for a button reparented into a `McVirtualList` row layer, which clips
    * what's *drawn* but not what Phaser hit-tests (`ui/virtual-list.ts`'s doc
@@ -230,6 +237,11 @@ export class McButton {
   redraw(): void {
     const { rect, type } = this.#options;
     const state = this.state;
+    const tint = this.#options.tint;
+    if (tint) {
+      this.#redrawTinted(tint, state);
+      return;
+    }
     const s = skin(this.#options.kind, state);
     this.#graphics.clear();
     paintPanel(this.#graphics, rect, this.#options.kind, state);
@@ -256,6 +268,34 @@ export class McButton {
     // "REMOVE THIS SEA" is worse than one that says it a point smaller.
     fitText(this.#label, rect.width - (hasValue ? 40 : 16), type.size);
     this.#value?.setColor(cssOf(s.text, s.textAlpha)).setPosition(rect.x + rect.width - 16, rect.y + rect.height / 2);
+  }
+
+  /** `tint` (see `McButtonOptions.tint`): paper with a coloured stroke at rest, the solid colour when selected. */
+  #redrawTinted(tint: { readonly fill: number; readonly ink: number }, state: WidgetState): void {
+    const { rect, type } = this.#options;
+    const selected = state === "selected";
+    const dim = state === "unavailable" ? ink.disabled : 1;
+    const g = this.#graphics;
+    g.clear();
+    g.fillStyle(surface.paper.hex, 1).fillRect(rect.x, rect.y, rect.width, rect.height);
+    if (selected || state === "hover") {
+      g.fillStyle(tint.fill, selected ? 1 : 0.35).fillRect(rect.x, rect.y, rect.width, rect.height);
+    }
+    g.lineStyle(selected ? border.object : border.control, tint.fill, dim).strokeRect(
+      rect.x,
+      rect.y,
+      rect.width,
+      rect.height,
+    );
+    const hasValue = this.#value !== null;
+    this.#label
+      .setText(caseOf(type, this.#options.label))
+      .setColor(cssOf(selected ? tint.ink : surface.ink.hex, dim))
+      .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
+    fitText(this.#label, rect.width - (hasValue ? 40 : 16), type.size);
+    this.#value
+      ?.setColor(cssOf(selected ? tint.ink : surface.ink.hex, dim))
+      .setPosition(rect.x + rect.width - 16, rect.y + rect.height / 2);
   }
 
   destroy(): void {
@@ -878,7 +918,10 @@ export class McTextInput {
      */
     const syncCovered = (): void => {
       const running = scene.scene.manager.getScenes(true);
-      const covered = running.indexOf(scene) < running.length - 1;
+      // Only a scene that *draws* covers this field. `MusicScene` (`audio/music-controller.ts`) is registered
+      // last and runs, invisible, for the whole session — counted, it sat "above" every screen and hid every
+      // search field in the app (the 2026-09-21 "there's no search filter anymore?" report).
+      const covered = running.slice(running.indexOf(scene) + 1).some((other) => other.sys.settings.visible);
       if (this.#coveredByOtherScene === covered) return;
       this.#coveredByOtherScene = covered;
       this.#applyVisibility();

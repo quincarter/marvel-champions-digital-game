@@ -34,6 +34,8 @@ export interface ChipRailChip {
   readonly text: string;
   readonly selected: boolean;
   readonly onClick: () => void;
+  /** An aspect chip's own colour (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
+  readonly tint?: { readonly fill: number; readonly ink: number };
 }
 
 export interface McChipRailOptions {
@@ -164,6 +166,7 @@ export class McChipRail {
         onClick: chip.onClick,
         clip,
         suppressClick,
+        ...(chip.tint ? { tint: chip.tint } : {}),
       });
       this.#layer.add(button.container);
       this.#buttons.push(button);

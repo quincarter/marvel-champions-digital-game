@@ -26,6 +26,7 @@ import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceHeaderText } from "../view/choice-source.js";
+import { choiceSheetAction } from "../view/choice-sheet-sync.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
 import {
   railReserve,
@@ -131,14 +132,25 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   #rebuild(): void {
-    // Already answered and fading out (`#confirm`) — the Board will stop this
-    // scene once the state catches up; a redraw here would only flash a new
-    // choice's sheet in underneath the outgoing one.
-    if (this.#motion.leaving) return;
     const { store } = appSession();
     const state = store.state;
     const choice = state.game?.pendingChoice;
-    if (!choice || !state.game) return;
+    const action = choiceSheetAction({
+      leaving: this.#motion.leaving,
+      shownChoiceId: this.#choiceId,
+      pendingChoiceId: choice?.choiceId ?? null,
+    });
+    // Answered and fading out (`#confirm`) with that same decision still in the state: the Board stops this scene
+    // once the state catches up, and a redraw here would only flash the sheet back in under the outgoing one.
+    if (action === "hold" || !choice || !state.game) return;
+    if (action === "restart") {
+      // The engine answered the last decision and raised this one in the *same* command, so the state never read
+      // "no pending choice" in between and the Board neither stopped nor relaunched this scene
+      // (`view/choice-sheet-sync.ts`). The fade-out tweens still driving the old objects toward alpha 0 die with
+      // them, and a fresh `OverlayMotion` plays the entrance again, exactly as if this sheet had just been launched.
+      this.tweens.killAll();
+      this.#motion = new OverlayMotion();
+    }
 
     // A new choice clears the previous selection.
     if (choice.choiceId !== this.#choiceId) {

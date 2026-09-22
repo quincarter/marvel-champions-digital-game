@@ -451,6 +451,15 @@ describe("screen focus routes", () => {
       "scenario:rhino",
       "next",
     ]);
+    // Narrow: the search toggle comes right before the field it reveals; the stages bar before Next.
+    expect(scenarioSelectFocusOrder({ scenarioIds: ["rhino"], searchToggle: true, stagesToggle: true })).toEqual([
+      "back",
+      "scenario-search-toggle",
+      "scenario-search",
+      "scenario:rhino",
+      "stages-toggle",
+      "next",
+    ]);
   });
 
   test("Take your seats: Back, each seat card, use-preconstructed, search, chips, rows (or Clear), then play/deck check", () => {
@@ -491,6 +500,20 @@ describe("screen focus routes", () => {
       "use-preconstructed",
       "hero-search",
       "hero-chip:aspect:justice",
+      "hero:a",
+      "deck-check",
+      "play",
+    ]);
+    // Narrow: the details disclosure before the "Clear seat" it reveals, the search toggle before the field.
+    expect(seatsFocusOrder({ seatCount: 2, deckIds: ["a"], narrow: true })).toEqual([
+      "back",
+      "seat:0",
+      "seat:1",
+      "seat-details-toggle",
+      "clear-seat",
+      "use-preconstructed",
+      "hero-search-toggle",
+      "hero-search",
       "hero:a",
       "deck-check",
       "play",

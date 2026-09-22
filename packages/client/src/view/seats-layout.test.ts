@@ -79,13 +79,28 @@ describe("seatsLayout", () => {
     );
   });
 
-  test("narrow: no detail panel; the seat summary line and its 'Clear seat' control sit under the seat chips, above the roster header", () => {
-    const layout = seatsLayout({ width: 390, height: 844, chipRows: 2, detailLines: 4 });
-    expect(layout.detail).toBeNull();
+  test("narrow: no detail panel; the seat details are a disclosure in the roster header row, shut by default, and open only under it", () => {
+    const shut = seatsLayout({ width: 390, height: 844, chipRows: 2, detailLines: 4 });
+    expect(shut.detail).toBeNull();
+    expect(shut.detailsToggle).not.toBeNull();
+    // Shut: no summary block at all — the roster gets the room (2026-09-21 owner note: "this stuff should be collapsible").
+    expect(shut.seatSummary).toBeNull();
+    expect(shut.clearSeat).toBeNull();
+    // The disclosure and "Use preconstructed" share the header row, both full touch targets, side by side.
+    expect(shut.detailsToggle!.y).toBe(shut.rosterHeader.y);
+    expect(shut.detailsToggle!.height).toBeGreaterThanOrEqual(44);
+    expect(shut.usePreconstructed.height).toBeGreaterThanOrEqual(44);
+    expect(shut.detailsToggle!.x + shut.detailsToggle!.width).toBeLessThanOrEqual(shut.usePreconstructed.x);
+    expect(shut.rosterHeader.y).toBeGreaterThanOrEqual(shut.seatSlots[0]!.y + shut.seatSlots[0]!.height);
+
+    const layout = seatsLayout({ width: 390, height: 844, chipRows: 2, detailLines: 4, detailsOpen: true });
     expect(layout.seatSummary).not.toBeNull();
     expect(layout.clearSeat).not.toBeNull();
-    expect(layout.seatSummary!.y).toBeGreaterThanOrEqual(layout.seatSlots[0]!.y + layout.seatSlots[0]!.height);
-    expect(layout.seatSummary!.y + layout.seatSummary!.height).toBeLessThanOrEqual(layout.rosterHeader.y);
+    expect(layout.seatSummary!.y).toBeGreaterThanOrEqual(layout.rosterHeader.y + layout.rosterHeader.height);
+    expect(layout.seatSummary!.y + layout.seatSummary!.height).toBeLessThanOrEqual(layout.chips.y);
+    // Opening the details costs the shelves exactly the block's height, nothing moves above it.
+    expect(layout.rosterHeader).toEqual(shut.rosterHeader);
+    expect(shut.shelves.height - layout.shelves.height).toBe(layout.seatSummary!.height + 8);
     // Clear seat is inside the summary row, right-aligned, and a full touch target.
     expect(layout.clearSeat!.y).toBeGreaterThanOrEqual(layout.seatSummary!.y);
     expect(layout.clearSeat!.y + layout.clearSeat!.height).toBeLessThanOrEqual(
@@ -97,11 +112,46 @@ describe("seatsLayout", () => {
     );
     expect(layout.clearSeat!.height).toBeGreaterThanOrEqual(44);
     // Wide has the panel and none of the narrow-only pieces.
-    const wide = seatsLayout({ width: 1440, height: 900, chipRows: 2, detailLines: 4 });
+    const wide = seatsLayout({ width: 1440, height: 900, chipRows: 2, detailLines: 4, detailsOpen: true });
     expect(wide.detail).not.toBeNull();
     expect(wide.seatSummary).toBeNull();
     expect(wide.clearSeat).toBeNull();
+    expect(wide.detailsToggle).toBeNull();
     expect(wide.footer).toBeNull();
+  });
+
+  test("narrow: the search field is behind a toggle at the head of the chip rail — no row reserved while it is off, a 44px row under the chips while it is on; wide always draws the field", () => {
+    for (const size of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+    ]) {
+      const off = seatsLayout({ ...size, chipRows: 3, detailLines: 4 });
+      expect(off.searchToggle).not.toBeNull();
+      expect(off.search.height).toBe(0);
+      expect(off.searchToggle!.y).toBe(off.chips.y);
+      expect(off.searchToggle!.x + off.searchToggle!.width).toBeLessThanOrEqual(off.chips.x);
+      const on = seatsLayout({ ...size, chipRows: 3, detailLines: 4, searchOpen: true });
+      expect(on.search.height).toBe(44);
+      expect(on.search.y).toBeGreaterThanOrEqual(on.chips.y + on.chips.height);
+      expect(on.search.y + on.search.height).toBeLessThanOrEqual(on.shelves.y);
+      expect(on.chips).toEqual(off.chips);
+      expect(off.shelves.height - on.shelves.height).toBe(44 + 8);
+      for (const layout of [off, on]) {
+        const rects = seatsLayoutRects(layout);
+        for (let i = 0; i < rects.length; i++)
+          for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      }
+    }
+    const wide = seatsLayout({ width: 1440, height: 900, chipRows: 2, detailLines: 4 });
+    expect(wide.searchToggle).toBeNull();
+    expect(wide.search.height).toBe(44);
+  });
+
+  test("narrow, everything shut: the roster starts within ~130px of the seat chips' foot on the reference phone (the 2026-09-21 phone screenshot had ~200px of summary, header and search there)", () => {
+    const layout = seatsLayout({ width: 390, height: 844, chipRows: 3, detailLines: 10 });
+    const chipsFoot = layout.seatSlots[0]!.y + layout.seatSlots[0]!.height;
+    expect(layout.shelves.y - chipsFoot).toBeLessThanOrEqual(130);
+    expect(layout.shelves.height).toBeGreaterThan(470);
   });
 
   test("exactly four seat slots, every one within the shelves column", () => {
@@ -171,7 +221,7 @@ describe("seatsLayout", () => {
 
   test("'Use preconstructed' sits inside the roster header row, right-aligned, above the search field (second pass item 11: folded into the header line, not its own full-width strip)", () => {
     for (const size of SIZES) {
-      const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 6 });
+      const layout = seatsLayout({ ...size, chipRows: 2, detailLines: 6, searchOpen: true });
       expect(layout.usePreconstructed.y).toBe(layout.rosterHeader.y);
       expect(layout.usePreconstructed.height).toBe(layout.rosterHeader.height);
       expect(layout.usePreconstructed.x + layout.usePreconstructed.width).toBeCloseTo(

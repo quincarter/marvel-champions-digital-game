@@ -7,19 +7,41 @@ import { ink, surface, threatMeter, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, SchemePanel } from "../../view/board-model.js";
-import type { Rect } from "../../view/layout.js";
+import { CARD_ASPECT, type Rect } from "../../view/layout.js";
 import { threatFromValue } from "../../view/threat-motion.js";
 import type { BoardDrawContext } from "./context.js";
 import { dimAlpha, targetState } from "./selection.js";
+
+/** The main scheme row's height on the 1440×900 table, and how far it may grow into a taller zone. */
+const MAIN_SCHEME_HEIGHT = 92;
+const MAIN_SCHEME_MAX_HEIGHT = 150;
+const SIDE_SCHEME_HEIGHT = 52;
+const SIDE_SCHEME_MAX_HEIGHT = 80;
 
 export function drawSchemes(ctx: BoardDrawContext, rect: Rect, model: BoardModel): void {
   const g = ctx.scene.add.graphics();
   paintPanel(g, rect, "card", "rest");
   let y = rect.y + 10;
 
-  y = drawScheme(ctx, { x: rect.x + 10, y, width: rect.width - 20, height: 92 }, model.mainScheme);
-  for (const side of model.sideSchemes.slice(0, 3)) {
-    y = drawScheme(ctx, { x: rect.x + 10, y: y + 6, width: rect.width - 20, height: 52 }, side);
+  // The rows grow into a tall zone on a long table (an ultrawide's 285px threat zone drew the same 92/52px rows
+  // and thumbnail a 1440×900 table does, with the rest empty), but only as far as every scheme still fits: with
+  // three side schemes up the rows are exactly what they always were. The phone's tabbed board keeps its rows.
+  const sides = model.sideSchemes.slice(0, 3);
+  const available = rect.height - 20 - 6 * sides.length;
+  const mainHeight = ctx.tabbed
+    ? MAIN_SCHEME_HEIGHT
+    : Math.max(MAIN_SCHEME_HEIGHT, Math.min(MAIN_SCHEME_MAX_HEIGHT, available - sides.length * SIDE_SCHEME_HEIGHT));
+  const sideHeight =
+    ctx.tabbed || sides.length === 0
+      ? SIDE_SCHEME_HEIGHT
+      : Math.max(
+          SIDE_SCHEME_HEIGHT,
+          Math.min(SIDE_SCHEME_MAX_HEIGHT, Math.floor((available - mainHeight) / sides.length)),
+        );
+
+  y = drawScheme(ctx, { x: rect.x + 10, y, width: rect.width - 20, height: mainHeight }, model.mainScheme);
+  for (const side of sides) {
+    y = drawScheme(ctx, { x: rect.x + 10, y: y + 6, width: rect.width - 20, height: sideHeight }, side);
   }
 }
 
@@ -39,7 +61,11 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
   // The art column earns its place whenever the name and the meter still fit
   // beside it. The old threshold was tuned for the long table and silently
   // dropped the main scheme's card on every narrower panel.
-  const artWidth = rect.width >= 170 ? Math.round(Math.min(96, rect.width * 0.3)) : 0;
+  // ...and the column widens with a taller row, so a grown row shows a bigger card, not the same 96px one.
+  const artWidth =
+    rect.width >= 170
+      ? Math.round(Math.min(Math.max(96, Math.round((rect.height - 6) * CARD_ASPECT)), rect.width * 0.3))
+      : 0;
   if (artWidth > 0) {
     const column: Rect = { x: rect.x + 3, y: rect.y + 3, width: artWidth, height: rect.height - 6 };
     const frame = scene.add.graphics();

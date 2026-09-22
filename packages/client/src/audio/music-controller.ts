@@ -49,6 +49,9 @@ export class MusicScene extends Phaser.Scene implements MusicController {
   }
 
   create(): void {
+    // Nothing here is drawn, and saying so matters: `McTextInput` hides its DOM field under any *visible* scene
+    // running above its own, and this one runs above every screen for the whole session (`ui/widgets.ts`).
+    this.sys.setVisible(false);
     appSession().music = this;
     this.syncSettings(appSession().settings);
   }

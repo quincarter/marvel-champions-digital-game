@@ -90,7 +90,26 @@ export interface InspectSheetLayout {
 export type InspectLayout = InspectPanelsLayout | InspectSheetLayout;
 
 const CARD_MAX_WIDTH = 400;
+/**
+ * The card panel's cap on a tall desktop viewport. D08's 400px was drawn for a 1440×900 canvas; on a taller window
+ * the pair sat small in the middle of the screen with the scan letterboxed inside its art band, and reading the
+ * card's own printed text — the reason to open Inspect at all — meant leaning in (owner, 2026-09-21). The cap now
+ * follows the viewport's height (`cardMaxWidthFor`), between D08's own 400 and this.
+ */
+const CARD_MAX_WIDTH_TALL = 520;
 const RULES_MAX_WIDTH = 440;
+/**
+ * Desktop only: the art band's height as a fraction of the panel width — a near-square band instead of D08's
+ * 250/400, so a portrait card scan drawn `contain` inside it comes out about 60% wider than it did. Tablets keep
+ * D08's band: they have the width for the pair but not the height for a taller card, and the text block below the
+ * art would be what gave way. Passed through `CardFaceContent.artAspect` by the scene, which knows the form factor.
+ */
+export const DESKTOP_ART_ASPECT = 1.0;
+
+/** The card panel's width cap for a viewport: D08's 400 up to `CARD_MAX_WIDTH_TALL`, growing with the height that has to hold it. */
+export function cardMaxWidthFor(viewportHeight: number): number {
+  return clamp(viewportHeight * 0.5, CARD_MAX_WIDTH, CARD_MAX_WIDTH_TALL);
+}
 const PANEL_GAP = 26;
 const HINT_HEIGHT = 24;
 /** The floor under both panels' height — mostly a guard against a degenerate near-zero viewport; real content almost always exceeds it. */
@@ -155,7 +174,7 @@ function panelsLayout(viewport: Rect, cardContentHeight: number, rulesContentHei
   const pad = clamp(viewport.width * 0.03, 24, 70);
   const gap = clamp(viewport.width * 0.018, 10, PANEL_GAP);
   const totalWidth = Math.max(0, viewport.width - pad * 2);
-  const cardWidth = Math.min(CARD_MAX_WIDTH, totalWidth * 0.47);
+  const cardWidth = Math.min(cardMaxWidthFor(viewport.height), totalWidth * 0.47);
   const rulesWidth = Math.max(0, Math.min(RULES_MAX_WIDTH, totalWidth - gap - cardWidth));
   const groupWidth = cardWidth + gap + rulesWidth;
 
@@ -305,6 +324,8 @@ export interface CardFaceContent {
   readonly hasStats: boolean;
   /** The resource-pip row ("Generates 2 energy when spent"). */
   readonly hasIcons: boolean;
+  /** The art band's height as a fraction of the panel width. D08's 250/400 by default; `DESKTOP_ART_ASPECT` on a desktop. */
+  readonly artAspect?: number;
 }
 
 /**
@@ -334,8 +355,8 @@ const PRINTED_LINE_HEIGHT = 11 * RULES_LINE_HEIGHT_RATIO;
 /** Flavor's own 11px/1.4 line height (D08's `font-style:italic;opacity:.65;line-height:1.4`). */
 const FLAVOR_LINE_HEIGHT = 11 * 1.4;
 
-function artHeightFor(width: number): number {
-  return Math.round(width * ART_ASPECT);
+function artHeightFor(width: number, aspect: number = ART_ASPECT): number {
+  return Math.round(width * aspect);
 }
 
 /** The text block's own natural height: padding, the rules text, and whichever of printed text/flavor/pips are present, each with its own leading gap. */
@@ -357,7 +378,7 @@ export function cardFaceContentHeight(width: number, content: CardFaceContent): 
   return (
     HEADER_HEIGHT +
     RULE_WEIGHT +
-    artHeightFor(width) +
+    artHeightFor(width, content.artAspect) +
     RULE_WEIGHT +
     stats +
     textBlockHeight(content) +
@@ -387,14 +408,20 @@ export function cardFaceLayout(rect: Rect, content: CardFaceContent): CardFaceLa
   const availableBelowHeader = Math.max(0, footerRule.y - artTop);
   const stats = content.hasStats ? STATS_HEIGHT + TEXT_GAP : 0;
 
-  const desiredArt = artHeightFor(rect.width);
+  const baseArt = artHeightFor(rect.width);
+  const desiredArt = Math.max(baseArt, artHeightFor(rect.width, content.artAspect));
   // The art's own trailing rule (`RULE_WEIGHT`) is reserved here too, not just the art's height and the text
   // floor below it — omitting it let the art claim 4px more than `cardFaceContentHeight` had actually budgeted
   // for it, which shorted the scroll region by that same 4px in the ordinary (unclamped) case and, at the margin,
   // tipped an otherwise-fitting card into the `McScrollPanel` fallback (found reading a tablet-portrait screenshot
   // during D08 verification, 2026-09-21: a short Interrupt card scrolling when it had no need to).
   const reserveForText = Math.min(MIN_TEXT_HEIGHT + stats, availableBelowHeader);
-  const artHeight = Math.max(0, Math.min(desiredArt, availableBelowHeader - RULE_WEIGHT - reserveForText));
+  // Anything above D08's own band (`artAspect`, the desktop's taller art) is growth, and growth is what gives way
+  // first: the art only stands taller than the base band while the text block below it still fits whole. Below
+  // the base band the old rule holds — the art shrinks only once the text can't keep its floor.
+  const artIfTextWhole = availableBelowHeader - RULE_WEIGHT - stats - textBlockHeight(content);
+  const grownArt = Math.min(desiredArt, Math.max(baseArt, artIfTextWhole));
+  const artHeight = Math.max(0, Math.min(grownArt, availableBelowHeader - RULE_WEIGHT - reserveForText));
 
   let bodyTop = artTop;
   let art: Rect | null = null;

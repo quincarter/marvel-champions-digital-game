@@ -131,13 +131,59 @@ describe("scenarioSelectLayout", () => {
       expect(open.statStrip.y + open.statStrip.height).toBeLessThan(
         open.detail.y + open.detail.height - DETAIL_COLLAPSED_HEIGHT,
       );
-      expect(rectsOverlap(open.detail, open.search)).toBe(false);
       expect(rectsOverlap(open.detail, open.next)).toBe(false);
+      // The sheet covers the search row too when it is open (the scene hides the DOM field while the sheet is up).
+      const openWithSearch = scenarioSelectLayout({
+        ...size,
+        chipRows: 2,
+        detailLines: 12,
+        detailCollapsed: false,
+        searchOpen: true,
+      });
+      expect(rectsOverlap(openWithSearch.detail, openWithSearch.search)).toBe(true);
       // Room for three stage boxes under the strip even on the small phone.
       expect(open.detail.height - DETAIL_COLLAPSED_HEIGHT - (open.statStrip.height + 26)).toBeGreaterThanOrEqual(
         3 * 52,
       );
     }
+  });
+
+  test("narrow: the search field is behind a toggle at the head of the chip rail — no row reserved while off, a 44px row under the chips while on; wide always draws the field", () => {
+    for (const size of [
+      { width: 390, height: 844 },
+      { width: 768, height: 1024 },
+    ]) {
+      const off = scenarioSelectLayout({ ...size, chipRows: 2, detailLines: 12, detailCollapsed: true });
+      expect(off.chipsScroll).toBe(true);
+      expect(off.searchToggle).not.toBeNull();
+      expect(off.search.height).toBe(0);
+      expect(off.searchToggle!.y).toBe(off.chips.y);
+      expect(off.searchToggle!.x + off.searchToggle!.width).toBeLessThanOrEqual(off.chips.x);
+      // The chip row is the first thing under the header bar: no blank band above it.
+      expect(off.chips.y).toBeLessThanOrEqual(off.headerBar.height + 24);
+      const on = scenarioSelectLayout({
+        ...size,
+        chipRows: 2,
+        detailLines: 12,
+        detailCollapsed: true,
+        searchOpen: true,
+      });
+      expect(on.search.height).toBe(44);
+      expect(on.search.y).toBeGreaterThanOrEqual(on.chips.y + on.chips.height);
+      expect(on.search.y + on.search.height).toBeLessThanOrEqual(on.shelves.y);
+      expect(on.chips).toEqual(off.chips);
+      expect(off.shelves.height - on.shelves.height).toBe(44 + 8);
+      for (const layout of [off, on]) {
+        const rects = scenarioSelectLayoutRects(layout);
+        for (let i = 0; i < rects.length; i++)
+          for (let j = i + 1; j < rects.length; j++) expect(rectsOverlap(rects[i]!, rects[j]!)).toBe(false);
+      }
+    }
+    const wide = scenarioSelectLayout({ width: 1440, height: 900, chipRows: 2, detailLines: 4 });
+    expect(wide.chipsScroll).toBe(false);
+    expect(wide.searchToggle).toBeNull();
+    expect(wide.search.height).toBe(44);
+    expect(wide.search.y).toBeLessThan(wide.chips.y);
   });
 
   test("wide ignores the collapsed flag: the side panel costs the shelves nothing, so it stays open", () => {

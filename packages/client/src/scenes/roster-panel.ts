@@ -53,6 +53,43 @@ export interface ChoiceCell {
   readonly text: string;
   readonly selected: boolean;
   readonly onClick: () => void;
+  /** An aspect chip's own colour (`McButtonOptions.tint`, `view/aspect-stamp.ts`). */
+  readonly tint?: { readonly fill: number; readonly ink: number };
+}
+
+/**
+ * Narrow layouts' search toggle: the 44px square at the head of the chip rail that shows or hides the search field
+ * (`view/scenario-select-layout.ts`/`view/seats-layout.ts`'s `searchToggle`), drawn as a magnifier rather than a
+ * glyph the loaded web fonts may not carry. Reads "selected" while the field is open *or* a search is in force, so
+ * a filter you can't see the field of is never a mystery.
+ */
+export function drawSearchToggle(
+  scene: Phaser.Scene,
+  rect: Rect,
+  stopId: string,
+  active: boolean,
+  onToggle: () => void,
+  buttons: McButton[],
+  stops: Map<string, FocusStop>,
+): void {
+  const button = new McButton(scene, {
+    kind: "secondary",
+    label: "",
+    type: typeRole.rowTitle,
+    rect,
+    selected: active,
+    onClick: onToggle,
+  });
+  buttons.push(button);
+  // The magnifier, in whichever ink the button's own state uses (paper on the ink-filled selected state).
+  const color = active ? surface.paper.hex : surface.ink.hex;
+  const g = scene.add.graphics();
+  const cx = rect.x + rect.width / 2 - 2;
+  const cy = rect.y + rect.height / 2 - 2;
+  g.lineStyle(2.5, color, 1).strokeCircle(cx, cy, 7);
+  g.lineStyle(3, color, 1).lineBetween(cx + 5, cy + 5, cx + 11, cy + 11);
+  button.container.add(g);
+  stops.set(stopId, { rect, activate: onToggle });
 }
 
 /** A DOM search field, created once and laid out on every later call (`McTextInput`'s own persist-across-rebuild pattern, `scenes/title.ts`'s doc comment). */
@@ -100,6 +137,7 @@ export function drawChoiceRow(
         rect: cellRect,
         selected: cell.selected,
         onClick: cell.onClick,
+        ...(cell.tint ? { tint: cell.tint } : {}),
       }),
     );
     stops.set(`${focusPrefix}:${cell.id}`, { rect: cellRect, activate: cell.onClick });
