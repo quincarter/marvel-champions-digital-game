@@ -68,7 +68,14 @@ export const GAM_PROVENANCE: readonly CardProvenance[] = [
   { cardId: cardId("18024"), cardSetCode: "gam", marvelcdbCodes: ["18024"], corrections: [] },
   { cardId: cardId("18025"), cardSetCode: "gam_nemesis", marvelcdbCodes: ["18025"], corrections: [] },
   { cardId: cardId("18026"), cardSetCode: "gam_nemesis", marvelcdbCodes: ["18026"], corrections: [] },
-  { cardId: cardId("18027"), cardSetCode: "gam_nemesis", marvelcdbCodes: ["18027"], corrections: [] },
+  {
+    cardId: cardId("18027"),
+    cardSetCode: "gam_nemesis",
+    marvelcdbCodes: ["18027"],
+    corrections: [
+      "18027: MarvelCDB's own transcription typo: \"blank (except for traits)).\" has a doubled closing parenthesis after \"traits\" — should read \"blank (except for traits).\" [evidence: raw (18027); wave3 §1.7 (raw-data typo list)]",
+    ],
+  },
   { cardId: cardId("18028"), cardSetCode: "gam_nemesis", marvelcdbCodes: ["18028"], corrections: [] },
   { cardId: cardId("18029"), cardSetCode: "justice", marvelcdbCodes: ["18029"], corrections: [] },
   { cardId: cardId("18030"), cardSetCode: "leadership", marvelcdbCodes: ["18030"], corrections: [] },

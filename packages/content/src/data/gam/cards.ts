@@ -52,6 +52,9 @@ export const GAM_CARDS: readonly AnyCard[] = [
     },
     obligationCardId: cardId("18024"),
     nemesisEncounterSetId: encounterSetId("gam_nemesis"),
+    deckbuilding: {
+      offAspectAllowance: { cardType: "event", anyTrait: [trait("ATTACK"), trait("THWART")], maxCards: 6 },
+    },
   },
   {
     id: cardId("18002"),
@@ -641,8 +644,8 @@ export const GAM_CARDS: readonly AnyCard[] = [
     traits: [trait("ARMOR"), trait("TECH")],
     keywords: [],
     text: {
-      printed: "Attach to Gamora.\nTreat Gamora's printed text box as if it were blank (except for traits)).\nHero Action: Choose and discard an attack event from your hand and deal 1 damage to Gamora → discard this card.",
-      current: "Attach to Gamora.\nTreat Gamora's printed text box as if it were blank (except for traits)).\nHero Action: Choose and discard an attack event from your hand and deal 1 damage to Gamora → discard this card.",
+      printed: "Attach to Gamora.\nTreat Gamora's printed text box as if it were blank (except for traits).\nHero Action: Choose and discard an attack event from your hand and deal 1 damage to Gamora → discard this card.",
+      current: "Attach to Gamora.\nTreat Gamora's printed text box as if it were blank (except for traits).\nHero Action: Choose and discard an attack event from your hand and deal 1 damage to Gamora → discard this card.",
     },
     abilities: [{ id: abilityId("18027.in-a-bind-constant") }, { id: abilityId("18027.in-a-bind-action") }],
   },
