@@ -22,6 +22,7 @@ import {
   cannotBeDefeated,
   cannotTakeDamage,
   damageTakenAfterConstants,
+  excessDamageBonus,
   defeatedIntoEncounterDeck,
   excessDamageThreatSchemes,
   notDefeatedWithoutThreat,
@@ -48,7 +49,7 @@ import {
 } from "./frames.js";
 import { finishTurn, pushPhaseEndDelayed } from "../flow.js";
 import { resolveSurge } from "./reveal.js";
-import { candidatesFor, hasCandidates, heard } from "./triggers.js";
+import { candidatesFor, eachTimeEffectsFor, hasCandidates, heard } from "./triggers.js";
 import { pushWindow } from "./window.js";
 
 export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
@@ -132,6 +133,10 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
       });
       if (hasCandidates(ctx.state, ctx.deps, event, "response")) {
         pushWindow(ctx, event, "response", frame.frameId);
+      }
+      // Lasting "each time …" effects resolve before the responses, so they are pushed on top (§3.17).
+      for (const effect of [...eachTimeEffectsFor(ctx.state, ctx.deps, event)].reverse()) {
+        pushEffects(ctx, { effects: effect.effects, ...effect.scope, event, eventFrameId: frame.frameId });
       }
       return;
     }
@@ -403,8 +408,13 @@ export function applyDamage(
   // even when the target does not take it, so it is measured before tough and "cannot take damage".
   const hit = getInstance(ctx.state, event.targetInstanceId);
   const maxHp = characterProfile(ctx.state, event.targetInstanceId, ctx.deps)?.maxHp;
-  const excessDealt = hit && maxHp !== undefined ? event.amount - Math.max(0, maxHp - hit.damage) : 0;
   const source = event.sourceInstanceId;
+  const measured = hit && maxHp !== undefined ? event.amount - Math.max(0, maxHp - hit.damage) : 0;
+  // "When your hero's attack deals any amount of excess damage, increase that amount by 1" (Follow Through;
+  // `excessDamageBonus`, docs/phase7-wave3.md §3.18): added only when the attack deals some.
+  const bonus =
+    measured > 0 && event.fromAttack && source !== null ? excessDamageBonus(ctx.state, ctx.deps, source) : 0;
+  const excessDealt = measured + bonus;
   if (excessDealt > 0) {
     addFrameVars(ctx, frameId, { excessDealt });
     addFrameVars(ctx, event.parentFrameId, { excessDealt });
@@ -503,7 +513,8 @@ export function applyDamage(
   const profile = characterProfile(ctx.state, event.targetInstanceId, ctx.deps);
   const damage = mustInstance(ctx.state, event.targetInstanceId).damage;
   const overkill = event.fromAttack && (event.overkill === true || attackKeyword("overkill"));
-  const excess = overkill && profile ? damage - profile.maxHp : 0;
+  const overflow = overkill && profile ? damage - profile.maxHp : 0;
+  const excess = overflow > 0 ? overflow + bonus : 0;
   const recipient = excess > 0 ? overkillRecipient(ctx.state, event.targetInstanceId) : null;
   const villainBefore = villainOf(ctx.state, event.targetInstanceId);
 

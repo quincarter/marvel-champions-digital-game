@@ -470,6 +470,27 @@ export type RuleSpec =
       readonly amount: number;
       readonly while?: Predicate;
     }
+  /**
+   * "[star] Starshark's attacks deal indirect damage." (Menagerie Medley, `gmw` 16137). RRG 1.8 "Indirect Damage" (p. 24):
+   * "If an enemy's attack deals indirect damage, the indirect damage is dealt during step four of the enemy activation
+   * (after player's have the opportunity to defend against the attack). Only the defending character, or the attacked
+   * player's identity if the attack was undefended, is considered to have been attacked, even if other characters were
+   * assigned some or all of the indirect damage." docs/phase7-wave3.md §3.16.
+   */
+  | { readonly kind: "attacksDealIndirectDamage"; readonly attacker: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Hero Interrupt: When your hero's attack deals any amount of excess damage, increase that amount by 1." (Follow
+   * Through, Aggression, `gmw` 16045). Each matching rule adds `amount` to the excess damage an attack by a matching
+   * `attacker` deals — the excess reported to "for each point of excess damage" (Into the Fray) and "after you deal
+   * excess damage" (Rocket Raccoon), and the overkill damage that spills on. Modeled as a constant, not an optional
+   * interrupt: see docs/phase7-wave3.md §3.18 and §4 Q10.
+   */
+  | {
+      readonly kind: "excessDamageBonus";
+      readonly attacker: TargetQuery;
+      readonly amount: number;
+      readonly while?: Predicate;
+    }
   | {
       readonly kind: "firstRevealGainsSurge";
       readonly cards: TargetQuery;
@@ -524,7 +545,20 @@ export interface AbilityCost {
    * "Spend X [energy] resources →": X is every resource in the payment usable
    * as that type (beyond any fixed `resources`), bound to var `bind`.
    */
-  readonly resourcesX?: { readonly resource: TypedResource; readonly bind: string; readonly min?: number };
+  readonly resourcesX?: {
+    /**
+     * `"any"`: "spend up to 2 resources of any type" (Nebula's Ship, `gmw` 16093): every resource paid beyond the fixed
+     * requirement counts, whatever its type (docs/phase7-wave3.md §3.25).
+     */
+    readonly resource: TypedResource | "any";
+    readonly bind: string;
+    readonly min?: number;
+    /**
+     * "Up to 2": X is at most this. Paying more is still legal — RRG 1.8 "Cost": overpaying is allowed and the excess is
+     * lost — so X is capped rather than the payment refused (docs/phase7-wave3.md §3.25).
+     */
+    readonly max?: number;
+  };
   /** "Remove 1 web counter from it →". */
   readonly spendCounters?: { readonly counterType: string; readonly amount: number };
   /** "Take 1 damage →" (Focused Rage): the controller's identity takes the damage. */

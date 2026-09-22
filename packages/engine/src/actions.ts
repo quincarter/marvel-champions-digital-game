@@ -1042,7 +1042,11 @@ function resourceVars(
     ...overpaidVars(pool, requirement),
   };
   if (cost?.resourcesX) {
-    const x = Math.max(0, countUsableAs(pool, cost.resourcesX.resource) - requirementTotal(requirement));
+    const { resource, max } = cost.resourcesX;
+    const usable = resource === "any" ? poolTotal(pool) : countUsableAs(pool, resource);
+    const paid = Math.max(0, usable - requirementTotal(requirement));
+    // "Up to N" caps X; overpaying stays legal (docs/phase7-wave3.md §3.25).
+    const x = max === undefined ? paid : Math.min(paid, max);
     if (x < (cost.resourcesX.min ?? 0)) return { code: "insufficient_resources", message: "X is too small" };
     vars[cost.resourcesX.bind] = x;
   }

@@ -30,7 +30,7 @@ import {
   areaOfCard,
   mainSchemeFor,
 } from "../query.js";
-import { mustDefendWithAlly, schemeThreatDestination } from "../rules.js";
+import { attacksDealIndirectDamage, mustDefendWithAlly, schemeThreatDestination } from "../rules.js";
 import { cardsInPlay, controllerOf, DEFENDER_SLOT } from "../select.js";
 import type { Vars } from "../stack.js";
 import type { GameState } from "../state.js";
@@ -42,6 +42,7 @@ import {
   base,
   type Frame,
   gameAbilityFrames,
+  pushEffects,
   pushEvent,
   pushEvents,
 } from "./frames.js";
@@ -459,6 +460,34 @@ export function executeEnemyAttackFrame(ctx: Ctx, frame: Frame<"enemyAttack">): 
       // "The attack gains piercing/ranged" (Crossfire's boost, Crossfire's Rifle): a `modifyAttack` grant made during
       // this activation, folded in with the enemy's own keywords once and stamped on the events below.
       const keywords = attackKeywordsOf(ctx.state, ctx.deps, { attackerInstanceId: frame.enemyInstanceId, vars });
+      // "Starshark's attacks deal indirect damage" (RRG 1.8 "Indirect Damage", p. 24; docs/phase7-wave3.md §3.16): step
+      // four deals the attack's damage as indirect damage to the player it targets, who assigns it; only the defender
+      // (or the identity) is attacked, so `characterAttacked` still names it and resolves after the damage.
+      if (attacksDealIndirectDamage(ctx.state, ctx.deps, frame.enemyInstanceId)) {
+        pushEvents(ctx, [
+          {
+            kind: "characterAttacked",
+            attackerInstanceId: frame.enemyInstanceId,
+            targetInstanceId: frame.targetInstanceId,
+            playerId: frame.attackedPlayerId,
+            ...(keywords.includes("ranged") ? { ranged: true } : {}),
+          },
+        ]);
+        pushEffects(ctx, {
+          effects: [
+            {
+              kind: "dealIndirectDamage",
+              to: { kind: "id", playerId: frame.targetPlayerId },
+              amount: { kind: "const", value: planned.damage },
+              fromAttack: true,
+            },
+          ],
+          selfInstanceId: frame.enemyInstanceId,
+          controllerId: null,
+          eventFrameId: frame.eventFrameId,
+        });
+        return;
+      }
       pushEvents(ctx, [
         {
           kind: "dealDamage",

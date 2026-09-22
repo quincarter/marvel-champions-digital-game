@@ -12,7 +12,7 @@ export type LastingUntil = "endOfPhase" | "endOfRound" | "endOfAttack" | "endOfT
 // Type-only, and the only reference spec.ts makes to `abilities.ts` (which imports types back from here):
 // `EffectSpec applyRuleUntil` carries the same `RuleSpec` union a constant ability's own `rules` do, so a
 // restriction is written once whether a card in play or a lasting effect imposes it (docs/phase7-wave2.md §22).
-import type { RuleSpec } from "./abilities.js";
+import type { EventPattern, RuleSpec } from "./abilities.js";
 // Type-only, and erased at compile time, so the cycle with `campaign.ts` (which names `EffectSpec` and friends) is
 // only in the type graph: the campaign *vocabulary* is data, and the campaign *primitives* are effects.
 import type { CampaignLogValueSpec, LogWriteMode } from "./campaign.js";
@@ -789,6 +789,18 @@ export type EffectSpec =
       readonly until: "endOfPhase" | "endOfRound" | "endOfTurn" | "endOfNextTurn";
       readonly player?: PlayerRef;
     }
+  /**
+   * "Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy."
+   * (Schadenfreude): a lasting `eachTime` effect — every event matching `on` until then resolves `effects`, after the
+   * event and before its responses (docs/phase7-wave3.md §3.17). Like `applyRuleUntil`, "until the end of the turn"
+   * outside a turn is not created (RRG 1.8 "Lasting Effects", p. 26).
+   */
+  | {
+      readonly kind: "eachTimeUntil";
+      readonly until: "endOfPhase" | "endOfRound" | "endOfTurn";
+      readonly on: EventPattern;
+      readonly effects: readonly EffectSpec[];
+    }
   /** "Gain the Aerial trait until the end of the phase" (Rocket Boots). */
   | {
       readonly kind: "grantTraitUntil";
@@ -1104,6 +1116,11 @@ export type EffectSpec =
       readonly to: PlayerRef | "group";
       readonly amount: ValueSpec;
       readonly bind?: string;
+      /**
+       * Set by the engine for an enemy's attack that deals indirect damage (docs/phase7-wave3.md §3.16): the shares are
+       * that attack's damage (`fromAttack`, reported to the frame's event, the attack), not a card effect's.
+       */
+      readonly fromAttack?: boolean;
     }
   | { readonly kind: "draw"; readonly player: PlayerRef; readonly amount: ValueSpec }
   /**

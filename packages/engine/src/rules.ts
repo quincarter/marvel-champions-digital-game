@@ -201,6 +201,18 @@ export function damageTakenAfterConstants(
   return Math.max(0, taken);
 }
 
+/** Whether this enemy's attacks deal indirect damage (`attacksDealIndirectDamage`; docs/phase7-wave3.md §3.16). */
+export const attacksDealIndirectDamage = (state: GameState, deps: EngineDeps, attackerId: InstanceId): boolean =>
+  activeRules(state, deps, "attacksDealIndirectDamage").some(({ rule, context }) =>
+    matchesQuery(state, attackerId, rule.attacker, context),
+  );
+
+/** The excess damage an attack by this character adds (`excessDamageBonus`; docs/phase7-wave3.md §3.18). */
+export const excessDamageBonus = (state: GameState, deps: EngineDeps, attackerId: InstanceId): number =>
+  activeRules(state, deps, "excessDamageBonus")
+    .filter(({ rule, context }) => matchesQuery(state, attackerId, rule.attacker, context))
+    .reduce((sum, { rule }) => sum + rule.amount, 0);
+
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
 export const cannotHaveStatus = (
   state: GameState,

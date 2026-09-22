@@ -358,21 +358,33 @@ Cutthroat Ambition: "Nebula cannot take more than 5 damage from a single attack.
 
 ### 3.16 An attack that deals indirect damage
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/indirect-attack.test.ts` (3 tests).
 
-Starshark (Menagerie Medley): "[star] Starshark's attacks deal indirect damage." RRG 1.8 "Indirect Damage" (p. 24).
+Starshark (Menagerie Medley): "[star] Starshark's attacks deal indirect damage." RRG 1.8 "Indirect Damage" (p. 24) covers it outright: "If an enemy's attack deals indirect damage, the indirect damage is dealt during step four of the enemy activation (after player's have the opportunity to defend against the attack). Only the defending character, or the attacked player's identity if the attack was undefended, is considered to have been attacked, even if other characters were assigned some or all of the indirect damage."
 
-### 3.17 A triggered ability that lasts ("until the end of the turn, each time …")
+- **`RuleSpec attacksDealIndirectDamage { attacker, while? }`.** At the enemy attack's damage step, a matching attacker's damage (ATK + boost − the basic defense's DEF, as usual) becomes a `dealIndirectDamage` to the attack's target player, who assigns it (the existing assignment prompt); `characterAttacked` still names only the defender or identity and resolves after it, so retaliate and "after X is attacked" behave as printed.
+- **`dealIndirectDamage.fromAttack`** (set by the engine) makes the shares attack damage, reported to the attack's own event (`damage`, `damaged`).
+- **Not handled:** an attack that deals indirect damage _and_ has piercing or overkill. No cycle 2 card has both.
 
-> **Status: open.**
+### 3.17 A lasting "each time …" effect
 
-Schadenfreude (Rocket Raccoon): "Hero Action: Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy." `LastingEffectBody` has stat modifiers, rule and trait grants, cost reductions and delayed effects, but no response that lives for a duration.
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/each-time.test.ts` (3 tests).
+
+Schadenfreude (Rocket Raccoon): "Hero Action: Until the end of the turn, heal 2 damage from Rocket Raccoon each time you deal any amount of damage to an enemy." It is mandatory for its duration, so it is a delayed effect that repeats, not a response: RRG 1.8 "Delayed Effect" (p. 15), delayed effects "resolve automatically and immediately after their specified timing point … and before responses", and are "not treated as a new triggered ability".
+
+- **`EffectSpec eachTimeUntil { until, on, effects }`** creates a **`LastingEffectBody eachTime`** for `until` (`"endOfTurn"` is not created outside a turn, as `applyRuleUntil`).
+- **At each matching event's response step** its effects resolve, pushed above the response window so they come first (`eachTimeEffectsFor`, `resolve/triggers.ts`). The pattern is matched with the lasting effect's card as "self" and its controller as "you", which is what an event card in its discard pile needs.
+- **`heard` counts it**, so an event pushed only when something listens (§3.1, §3.2) is pushed for it too.
+- It ends with its duration, like every lasting effect.
 
 ### 3.18 Increasing an amount of excess damage
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/excess-bonus.test.ts` (3 tests).
 
-Follow Through (Aggression): "Hero Interrupt: When your hero's attack deals any amount of excess damage, increase that amount by 1." Ruling, Jan 26, 2026 (3): excess damage is measured as _dealt_, which the engine already records (`excessDealt`).
+Follow Through (Aggression): "Hero Interrupt: When your hero's attack deals any amount of excess damage, increase that amount by 1." Ruling, Jan 26, 2026 (3): excess damage is measured as _dealt_.
+
+- **`RuleSpec excessDamageBonus { attacker, amount, while? }`.** When an attack by a matching attacker deals excess damage, each matching rule adds its amount: to the `excessDealt` result ("for each point of excess damage dealt by this attack", Into the Fray; "after you deal excess damage", Rocket Raccoon) and to an overkill spill. `applyDamage` and the damage group (a divided attack) both apply it.
+- **A reading, flagged (§4 Q10):** the card is an optional Hero Interrupt, modeled as a constant that always applies. Adding excess damage to the player's own attack never hurts that player in cycle 2 (every reader of hero-dealt excess is the player's own card), so declining it is never the better play; the interrupt window it would open has no other user.
 
 ### 3.19 The Power Stone: an attachment that moves between enemies and identities
 
@@ -412,9 +424,9 @@ Decisive Blow and Forward Momentum (`gam`). `playedByPlayerThisRound` is keyed b
 
 ### 3.25 A variable resource cost of any type, with a maximum
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/variable-cost.test.ts` (3 tests).
 
-Nebula's Ship (16093): "First Player Action: Exhaust the Milano and spend up to 2 resources of any type → remove 1 evasion counter from here for each resource spent this way." `AbilityCost.resourcesX` takes a typed resource and a minimum only.
+Nebula's Ship (16093): "First Player Action: Exhaust the Milano and spend up to 2 resources of any type → remove 1 evasion counter from here for each resource spent this way." **`AbilityCost.resourcesX`** takes `resource: "any"` (every resource paid beyond the fixed requirement counts) and **`max`** ("up to 2"). Paying more is still legal (RRG 1.8 "Cost", p. 13: overpaying is allowed and the excess is lost), so X is capped rather than the payment refused.
 
 ### 3.26 Reusable as is (checked against `pnpm dsl` and the engine)
 
@@ -452,7 +464,8 @@ Each is implemented the way stated, or not at all, and named here rather than de
 6. **When is Star-Lord's "When you play a card from your hand" true (§3.20)?** RRG 1.8 step 6 says the card "commences being played" after the cost is paid (step 5), yet the ability reduces "the cost to play that card by 3". The printed card works only if the reduction applies at step 4. Proposed: treat it as a cost modifier offered while paying, like a resource ability.
 7. **The Collector's back faces print ATK/SCH 0/0 (standard) in the raw data.** Whether they print "0" or "—" decides whether the Wounded Collector can attack or scheme at all (RRG 1.8 "Dash (Value)", p. 15). Curation must check the card images.
 8. **Venom's set-aside Symbiotes.** Struggle for Control (20023): "Put 1 set-aside copy of Enraged Symbiote into play". How many copies start set aside, rather than in the nemesis set, is in the Venom insert, which is not in the repo.
-9. **A reduction and a cap on the same character (§3.15).** Wide Stance and Cutthroat Ambition can both be on Nebula. Implemented as reductions first, then the cap (10 → 9 → 5). The other order gives the same result whenever the damage is at least cap + reduction; it differs only in between (6 damage: 6 → 5 → 5, or 6 → 5 → 4 the other way). RRG 1.8 has no rule for ordering two constants.
+9. **A reduction and a cap on the same character (§3.15).** Wide Stance and Cutthroat Ambition can both be on Nebula. Implemented as reductions first, then the cap: 10 damage → 9 → 5 taken. The other order gives 10 → 5 → 4. The two agree whenever the damage is at most the cap (5 → 4 either way) and differ above it. RRG 1.8 has no rule for ordering two constants.
+10. **Follow Through is modeled as a constant (§3.18).** Printed as an optional Hero Interrupt, it always applies here. Declining it is never better for its controller in cycle 2; if a later card punishes excess damage, it becomes a real choice and needs an interrupt window on excess damage.
 
 ## 5. What this asks of the other agents
 

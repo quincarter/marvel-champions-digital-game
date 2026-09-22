@@ -7,6 +7,7 @@ import { cardOf, getPlayer, playerOrder } from "../query.js";
 import { activeAbilityRefs, cardsInPlay, controllerOf, type EffectContext, matchesQuery } from "../select.js";
 import type { TargetQuery } from "../spec.js";
 import { candidateOf, type TriggerCandidate, type WindowTiming } from "../stack.js";
+import type { LastingEffect } from "../lasting.js";
 import type { Form, GameState } from "../state.js";
 import { eventSubjects, type TriggerEvent } from "../trigger-events.js";
 import { limitReached } from "./ability.js";
@@ -241,7 +242,34 @@ function inHandCandidates(
  * listening resolves exactly as it did before those events existed.
  */
 export const heard = (state: GameState, deps: EngineDeps, event: TriggerEvent): boolean =>
-  hasCandidates(state, deps, event, "interrupt") || hasCandidates(state, deps, event, "response");
+  hasCandidates(state, deps, event, "interrupt") ||
+  hasCandidates(state, deps, event, "response") ||
+  eachTimeEffectsFor(state, deps, event).length > 0;
+
+/**
+ * The lasting "each time …" effects this event sets off (`LastingEffectBody eachTime`, docs/phase7-wave3.md §3.17), in
+ * the order they were created. Each is matched with its scope's card as "self" and its controller as "you", which is
+ * what an event card in its discard pile needs (Schadenfreude).
+ */
+export function eachTimeEffectsFor(
+  state: GameState,
+  deps: EngineDeps,
+  event: TriggerEvent,
+): readonly Extract<LastingEffect, { kind: "eachTime" }>[] {
+  return state.lastingEffects.filter(
+    (effect): effect is Extract<LastingEffect, { kind: "eachTime" }> =>
+      effect.kind === "eachTime" &&
+      effect.scope.selfInstanceId !== null &&
+      matchesPattern(
+        state,
+        effect.on,
+        event,
+        effect.scope.selfInstanceId,
+        deps,
+        effect.scope.controllerId ?? undefined,
+      ),
+  );
+}
 
 export const hasCandidates = (state: GameState, deps: EngineDeps, event: TriggerEvent, timing: WindowTiming): boolean =>
   candidatesFor(state, deps, event, timing, true).length > 0 ||

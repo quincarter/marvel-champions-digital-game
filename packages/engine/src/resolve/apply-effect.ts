@@ -963,6 +963,26 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       return;
     }
+    case "eachTimeUntil": {
+      // docs/phase7-wave3.md §3.17: resolved by `eachTimeEffectsFor` at each matching event's response step.
+      if (effect.until === "endOfTurn" && !turnInProgress(ctx.state)) return;
+      addLastingEffect(
+        ctx,
+        {
+          kind: "eachTime",
+          on: effect.on,
+          effects: effect.effects,
+          scope: {
+            selfInstanceId: frame.selfInstanceId,
+            controllerId: frame.controllerId,
+            vars: frame.vars,
+            bindings: frame.bindings,
+          },
+        },
+        { kind: effect.until },
+      );
+      return;
+    }
     case "blankTextBox": {
       const ids = targets(effect.target);
       const activation = effect.until === "endOfAttack" ? currentActivationFrameId(ctx.state.stack) : null;
