@@ -39,6 +39,7 @@ import { RulesOverlay } from "./scenes/rules.js";
 import { SettingsOverlay } from "./scenes/settings.js";
 import { MusicScene } from "./audio/music-controller.js";
 import { installDebugDump } from "./ui/debug-dump.js";
+import { installFrameGuard } from "./ui/frame-guard.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -96,6 +97,9 @@ const game = new Phaser.Game({
 // stay out of the way of it. Phaser 4 has no game-config flag for this, only
 // this call on the mouse manager.
 game.input.mouse?.disableContextMenu();
+
+// One bad frame must not end the game: a throwing tween is removed, anything else skips that frame (`ui/frame-guard.ts`).
+installFrameGuard(game);
 
 // Ctrl/Cmd+Shift+D copies a snapshot of every overlay's and the store's state, in production too (`ui/debug-dump.ts`).
 installDebugDump(game);
