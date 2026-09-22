@@ -345,6 +345,13 @@ export type GameOutcome =
    */
   | { readonly result: "conceded"; readonly reason: "playerConceded"; readonly byPlayerId: PlayerId };
 
+/** One reveal in `GameState.revealedThisRound`. `phase` is the phase it happened in (a round has one of each). */
+export interface RevealRecord {
+  readonly instanceId: InstanceId;
+  readonly playerId: PlayerId;
+  readonly phase: GameStep["phase"];
+}
+
 /** One attack in `GameState.attackedThisTurn`: who made it, and the title they were showing when they did. */
 export interface AttackRecord {
   readonly attackerInstanceId: InstanceId;
@@ -434,6 +441,14 @@ export interface GameState {
    *   to Laura Kinney still attacked as X-23, and nothing an alter-ego does is recorded under the hero's title.
    */
   readonly attackedThisTurn: Readonly<Record<string, readonly AttackRecord[]>>;
+  /**
+   * Every card revealed this round, in order, with who revealed it and in which phase (RRG 1.8 "Reveal", p. 37): "The
+   * first [Technique] attachment revealed each round gains surge" (Nebula I–III, `gmw`), "The first treachery the engaged
+   * player reveals each villain phase gains surge" (Mister Knife, `stld`). Written by every reveal whatever is in play,
+   * because "the first" counts cards revealed before the rule's card arrived; emptied when the round ends. Absent until a
+   * game's first reveal, so a freshly set-up game serializes as before. docs/phase7-wave3.md §3.8.
+   */
+  readonly revealedThisRound?: readonly RevealRecord[];
   /**
    * The campaign this game is a scenario of, exactly as the runner composed it (design §7.1) — **frozen**: nothing
    * in a game ever writes here. Because it lands in the replay baseline, a saved campaign game replays without

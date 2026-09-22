@@ -411,6 +411,22 @@ export type RuleSpec =
    * stalwart entry's "If a character gains the stalwart keyword while they have a stunned and/or confused status card,
    * each [...] is removed"). docs/phase7-wave3.md §3.7.
    */
+  /**
+   * "The first [Technique] attachment revealed each round gains surge." (Nebula I–III, `gmw` 16088–16090); "The first
+   * treachery the engaged player reveals each villain phase gains surge." (Mister Knife, `stld` 17026). Read once, **as
+   * the card is revealed** (the reveal's faceup step), so only a rule already in play applies: FAQ "Mister Knife (#26)"
+   * (RRG 1.8 p. 62): "Mister Knife was not in play when Shadow of the Past was revealed, so his ability does not cause
+   * Shadow of the Past to gain surge." The revealed card must match `cards` and be the first card matching it revealed
+   * this `each` period (`GameState.revealedThisRound`) — by a player `revealer` names, when given, which is resolved with
+   * "you" as the rule's speaker (the engaged player, for an engaged minion). docs/phase7-wave3.md §3.8.
+   */
+  | {
+      readonly kind: "firstRevealGainsSurge";
+      readonly cards: TargetQuery;
+      readonly each: "round" | "phase";
+      readonly revealer?: PlayerRef;
+      readonly while?: Predicate;
+    }
   | {
       readonly kind: "cannotHaveStatus";
       readonly target: TargetQuery;

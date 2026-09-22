@@ -150,6 +150,32 @@ export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: Instance
     matchesQuery(state, id, rule.target, context),
   );
 
+/**
+ * Whether the card being revealed right now gains surge from a `firstRevealGainsSurge` rule (docs/phase7-wave3.md
+ * §3.8). Call it before the reveal is recorded in `revealedThisRound`: the history is every earlier reveal.
+ */
+export function firstRevealGainsSurge(
+  state: GameState,
+  deps: EngineDeps,
+  revealedId: InstanceId,
+  revealerId: PlayerId,
+): boolean {
+  const phase = state.step.phase;
+  const history = state.revealedThisRound ?? [];
+  return activeRules(state, deps, "firstRevealGainsSurge").some((active) => {
+    const { rule, context } = active;
+    if (!matchesQuery(state, revealedId, rule.cards, context)) return false;
+    const revealers = rule.revealer ? rulePlayers(state, { player: rule.revealer }, active) : null;
+    if (revealers && !revealers.includes(revealerId)) return false;
+    return !history.some(
+      (earlier) =>
+        (rule.each === "round" || earlier.phase === phase) &&
+        (!revealers || revealers.includes(earlier.playerId)) &&
+        matchesQuery(state, earlier.instanceId, rule.cards, context),
+    );
+  });
+}
+
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
 export const cannotHaveStatus = (
   state: GameState,

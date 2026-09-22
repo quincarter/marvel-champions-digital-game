@@ -29,7 +29,7 @@ import type { TargetQuery } from "../spec.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { whenRevealedRepeats } from "../rules.js";
+import { firstRevealGainsSurge, whenRevealedRepeats } from "../rules.js";
 import { encounterTargetSelector } from "../villain/authority.js";
 import { engagedEvent } from "./apply-effect.js";
 import { enterPlay, quickstrikeAttack } from "./enter-play.js";
@@ -292,7 +292,18 @@ export function executeRevealFrame(ctx: Ctx, frame: Frame<"reveal">): void {
         cardId: card.id,
         playerId: frame.playerId,
       });
-      setFrame(ctx, { ...frame, stage: "enterPlay" });
+      // "The first … revealed each round gains surge" is read as the card is revealed, against the reveals before it
+      // (docs/phase7-wave3.md §3.8); then this reveal joins the round's history.
+      const surges = firstRevealGainsSurge(ctx.state, ctx.deps, frame.instanceId, frame.playerId);
+      ctx.state = {
+        ...ctx.state,
+        revealedThisRound: [
+          ...(ctx.state.revealedThisRound ?? []),
+          { instanceId: frame.instanceId, playerId: frame.playerId, phase: ctx.state.step.phase },
+        ],
+      };
+      if (surges) emit(ctx, { type: "surgeGranted", instanceId: frame.instanceId, playerId: frame.playerId });
+      setFrame(ctx, { ...frame, stage: "enterPlay", ...(surges ? { surgeGained: true } : {}) });
       // The card is faceup and about to resolve: cancel effects interrupt here
       // (FFG ruling: Black Widow triggers after the flip, before its effects).
       pushEvent(ctx, { kind: "encounterCardRevealing", instanceId: frame.instanceId, playerId: frame.playerId });

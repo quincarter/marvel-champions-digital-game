@@ -8,6 +8,7 @@ export { createRng, nextInt, nextUint32, shuffle } from "./rng.js";
 
 export type {
   AttackRecord,
+  RevealRecord,
   CardHome,
   CardInstance,
   EncounterDeckState,

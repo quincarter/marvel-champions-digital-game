@@ -400,6 +400,8 @@ function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound
     playedThisRound: {},
     playedThisPhase: {},
     playedByPlayerThisRound: {},
+    // "…revealed each round" counts again from zero (docs/phase7-wave3.md §3.8).
+    ...(ctx.state.revealedThisRound ? { revealedThisRound: [] } : {}),
   };
   emit(ctx, { type: "roundStarted", round: ctx.state.round });
   beginPlayerPhase(ctx);
