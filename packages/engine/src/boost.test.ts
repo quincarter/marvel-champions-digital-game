@@ -49,6 +49,9 @@ const KNIGHT = stubTreachery({ id: "knight", boostIcons: 1, abilities: [KNIGHT_B
 /** Goblin Thrall: "Boost: Put Goblin Thrall into play engaged with you." */
 const THRALL_BOOST = boost("thrall", [{ kind: "putIntoPlay", card: self, controller: { kind: "controller" } }]);
 const THRALL = stubMinion({ id: "thrall", atk: 1, sch: 1, hp: 5, boostIcons: 1, abilities: [THRALL_BOOST.ref] });
+/** I've Been Waiting For This!'s shape (The Wrecking Crew): "Boost: … That villain schemes." — a whole activation inside another's boost step. */
+const CHAIN_BOOST = boost("chain", [{ kind: "enemyScheme", enemies: theVillain }]);
+const CHAIN = stubTreachery({ id: "chain", boostIcons: 1, abilities: [CHAIN_BOOST.ref] });
 /** I See You's shape: "This card gets +1 boost icon if [the first player is in hero form]." */
 const SEES_CONSTANT = stubAbility("sees.constant", {
   trigger: {
@@ -100,6 +103,7 @@ const deps: EngineDeps = depsOf(
   BOOSTED,
   KNIGHT_BOOST,
   THRALL_BOOST,
+  CHAIN_BOOST,
   SEES_CONSTANT,
   ACRO_INTERRUPT,
   FOIL_INTERRUPT,
@@ -112,8 +116,8 @@ function game(top: AnyCard, supports: readonly AnyCard[] = []): GameState {
   const start = newGame({
     villain: VILLAIN,
     mainScheme: SCHEME,
-    extraCards: [TWO, ZERO, KNIGHT, THRALL, SEES, ...SUPPORTS],
-    encounterDeck: [TWO.id, KNIGHT.id, THRALL.id, SEES.id, ...copies(ZERO.id, 12)],
+    extraCards: [TWO, ZERO, KNIGHT, THRALL, SEES, CHAIN, ...SUPPORTS],
+    encounterDeck: [TWO.id, KNIGHT.id, THRALL.id, SEES.id, CHAIN.id, ...copies(ZERO.id, 12)],
     deck: [...DEFAULT_DECK, ...SUPPORTS.map((card) => card.id)],
     deps,
   });
@@ -155,6 +159,19 @@ describe("§3.9 boost cards as events", () => {
     expect(mustInstance(state, villain).damage).toBe(2);
     expect(mustInstance(state, villain).counters.boosted).toBe(1);
     expect(ofType(events, "boostCancelled")).toEqual([expect.objectContaining({ scope: "icons" })]);
+  });
+
+  it("a Boost that makes the same villain scheme again (I've Been Waiting For This!) nests one full activation and never re-flips the card that started it", () => {
+    const { state, events } = runCommands(game(CHAIN), deps, endTurn);
+    const villain = villainId(state);
+    // Two flips, two cards: the chaining card for the outer scheme, one fresh boost for the nested one. Before the
+    // fix the nested scheme's flip step found the outer card (still faceup in `boostCards`) first and resolved its
+    // Boost again, nesting another scheme, until the command was rejected for never settling.
+    const flipped = ofType(events, "boostCardFlipped").filter((e) => e.enemyInstanceId === villain);
+    expect(flipped.map((e) => cardIdOf(state, e.instanceId))).toEqual([CHAIN.id, ZERO.id]);
+    expect(ofType(events, "schemeResolved").filter((e) => e.enemyInstanceId === villain)).toHaveLength(2);
+    // Both boost cards were discarded when their activations ended.
+    expect(mustInstance(state, villain).boostCards).toEqual([]);
   });
 
   it("a boost card with no icons offers nothing to cancel (FAQ 'Attacrobatics (#6)', p. 59)", () => {
