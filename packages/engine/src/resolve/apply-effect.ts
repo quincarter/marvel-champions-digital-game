@@ -354,6 +354,22 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       );
       return;
     }
+    case "cancelConsequentialDamage": {
+      // docs/phase7-wave3.md §3.21: the waiting consequential damage event of each character, cancelled before it applies.
+      const characters = targets(effect.character);
+      for (const pending of ctx.state.stack) {
+        if (
+          pending.kind === "event" &&
+          pending.stage === "interrupts" &&
+          pending.event.kind === "dealDamage" &&
+          pending.event.consequential === true &&
+          characters.includes(pending.event.targetInstanceId)
+        ) {
+          updateFrame(ctx, pending.frameId, (f) => (f.kind === "event" ? { ...f, cancelled: true } : f));
+        }
+      }
+      return;
+    }
     case "cancelBoostIcons":
     case "cancelBoostAbility": {
       const procedure = ctx.state.stack.find(

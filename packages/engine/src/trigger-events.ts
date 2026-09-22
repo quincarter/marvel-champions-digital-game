@@ -30,6 +30,8 @@ export type TriggerEventBody =
       readonly piercing?: boolean;
       /** The card whose ability produced this damage when that isn't the source ("damage from Black Panther upgrades"). */
       readonly viaInstanceId?: InstanceId | null;
+      /** An ally's consequential damage (RRG 1.8 "Consequential Damage", p. 13), so "for this use" can cancel it (§3.21). */
+      readonly consequential?: true;
     }
   | { readonly kind: "healDamage"; readonly targetInstanceId: InstanceId; readonly amount: number }
   | {

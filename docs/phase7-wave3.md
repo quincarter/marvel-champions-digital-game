@@ -403,11 +403,14 @@ Power Stone (16149, Power Stone modular set): "Setup. Attach to the villain. / P
 
 Star-Lord (17001a), "What could go wrong?": "Interrupt: When you play a card from your hand, deal yourself 1 facedown encounter card → reduce the cost to play that card by 3. (Limit once per round.)" The engine's `cardBeingPlayed` window opens after the cost is paid (RRG 1.8 "Initiating Abilities", p. 24, step 6), and its cost reductions are constants or lasting effects set up before the play. The reduction has to apply at step 4 ("Apply any modifiers to the cost(s)"). **Open rules question (§4 Q6):** RRG 1.8 has no ruling on when "when you play a card" is true relative to steps 3–5; the printed card only works if it is before step 5.
 
-### 3.21 Naming a card type
+### 3.21 Naming a card type, and "no consequential damage for this use"
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/consequential-cancel.test.ts` (2 tests).
 
-Cosmo (17020, errata RRG 1.8 p. 67): "Interrupt: When Cosmo attacks or thwarts, name a card type, then discard the top card of a player deck or the encounter deck. If that card is of the named type, Cosmo does not take consequential damage for this use." Brainstorm (The Market) names a card type too. `chooseOne` can offer the types, but no predicate compares a card's type with a chosen one, and "does not take consequential damage for this use" needs a one-use modifier.
+Cosmo (17020, errata RRG 1.8 p. 67): "Interrupt: When Cosmo attacks or thwarts, name a card type, then discard the top card of a player deck or the encounter deck. If that card is of the named type, Cosmo does not take consequential damage for this use." Brainstorm (The Market) names a card type too.
+
+- **Naming a card type needs nothing new:** a `chooseOne` with one option per type, each discarding the card with a `bind` and testing it with `refMatches { ref: slot, query: { categories }, anywhere: true }` (the discarded card is out of play). The test composes it that way.
+- **New: `EffectSpec cancelConsequentialDamage { character }`.** Consequential damage is put on the stack with the basic power and resolves after it (RRG 1.8 "Consequential Damage", p. 13), with its amount fixed then, so a later modifier cannot reach it; this cancels the character's waiting consequential damage event (now marked `consequential` on `dealDamage`). An interrupt to the attack or thwart finds it still waiting.
 
 ### 3.22 A higher restricted limit
 

@@ -1817,6 +1817,7 @@ function pushConsequentialDamage(ctx: Ctx, characterId: InstanceId, kind: "attac
     amount,
     sourceInstanceId: characterId,
     fromAttack: false,
+    consequential: true,
   });
 }
 

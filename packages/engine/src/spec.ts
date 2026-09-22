@@ -701,6 +701,13 @@ export type EffectSpec =
    * `amount` is signed: a negative is "reduce your hero's ATK for that attack" (Ultimate Nullifier).
    */
   | { readonly kind: "modifyBasicPower"; readonly amount: ValueSpec }
+  /**
+   * "Cosmo does not take consequential damage for this use." (Cosmo, `stld` 17020, errata RRG 1.8 p. 67): the pending
+   * consequential damage of each target's current attack or thwart is cancelled. Consequential damage is put on the stack
+   * with the basic power and resolves after it (RRG 1.8 "Consequential Damage", p. 13), so an interrupt to the attack or
+   * thwart finds it still waiting. Does nothing when there is none. docs/phase7-wave3.md §3.21.
+   */
+  | { readonly kind: "cancelConsequentialDamage"; readonly character: TargetRef }
   /** "At the end of this attack, …" — runs after the current attack's responses. The triggering event carries its `results`. */
   | { readonly kind: "atEndOfAttack"; readonly effects: readonly EffectSpec[] }
   /** "After this activation ends, shuffle this card into the encounter deck" (Goblin Knight's boost): `atEndOfAttack`'s timing, for an attack or a scheme. */
