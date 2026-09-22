@@ -89,6 +89,8 @@ function setZone(state: GameState, zone: ZoneId, ids: readonly InstanceId[]): Ga
       const next = zone.kind === "scenarioDeck" ? { ...piles, deck: ids } : { ...piles, discard: ids };
       return { ...state, scenarioDecks: { ...state.scenarioDecks, [zone.name]: next } };
     }
+    case "scenarioArea":
+      return { ...state, scenarioAreas: { ...state.scenarioAreas, [zone.name]: ids } };
     case "villainArea":
       return { ...state, villainArea: ids };
     case "victoryDisplay":

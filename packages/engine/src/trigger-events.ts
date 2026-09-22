@@ -373,7 +373,12 @@ export type TriggerEventBody =
    * own interrupts and responses have resolved, before step two begins (RRG 1.8 "Villain Phase", p. 47). Not a
    * `placeThreat` response: that also fires on every scheme, incite and card-placed threat. Response window only.
    */
-  | { readonly kind: "villainStepResolved"; readonly step: "placeThreat" };
+  | { readonly kind: "villainStepResolved"; readonly step: "placeThreat" }
+  /**
+   * A card discarded from play went to a scenario area instead (`RuleSpec discardFromPlayDestination`; The Collection,
+   * docs/phase7-wave3.md §3.14): "…, then place 1 threat on the main scheme" (Collector III) responds to it. Response only.
+   */
+  | { readonly kind: "discardRedirected"; readonly instanceId: InstanceId; readonly area: string };
 
 /**
  * `results` is attached when the event's response window opens: what the event
@@ -493,6 +498,7 @@ export function eventSubjects(event: TriggerEvent): EventSubjects {
       // The defeating player, so "after *you* defeat a side scheme" reads like the `characterDefeated` case above.
       return of([event.sourceInstanceId ?? null], [event.instanceId], [event.defeatedByPlayerId ?? null]);
     case "cardFlipped":
+    case "discardRedirected":
       return of([], [event.instanceId], []);
     case "mainSchemeCompleted":
       return of([], [event.schemeInstanceId], []);

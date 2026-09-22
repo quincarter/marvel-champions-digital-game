@@ -110,6 +110,8 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
       }
       return picked;
     }
+    case "scenarioArea":
+      return filtered(state.scenarioAreas?.[selector.name] ?? [], selector.filter);
     case "scenarioDeck": {
       const piles = state.scenarioDecks[selector.name];
       if (!piles) return [];
@@ -185,6 +187,14 @@ export function moveCardsTo(ctx: Ctx, ids: readonly InstanceId[], destination: C
   for (const id of ids) {
     const instance = getInstance(ctx.state, id);
     if (!instance) continue;
+    // "Put it faceup into The Collection" (docs/phase7-wave3.md §3.14): out of play, faceup, in the order they entered.
+    if (typeof destination === "object") {
+      const area: ZoneId = { kind: "scenarioArea", name: destination.scenarioArea };
+      if (inPlay.has(id)) leavePlay(ctx, id, area, "bottom");
+      else moveCard(ctx, id, area, "bottom");
+      updateInstance(ctx, id, (i) => ({ ...i, faceup: true }));
+      continue;
+    }
     const owner = instance.ownerId;
     let to: ZoneId;
     let position: "top" | "bottom" = "top";

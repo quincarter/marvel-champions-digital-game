@@ -948,6 +948,11 @@ export function resolveValue(
       const [playerId] = resolvePlayers(state, value.player, context);
       return playerId ? (getPlayer(state, playerId)?.hand.length ?? 0) : 0;
     }
+    case "scenarioAreaCount": {
+      const ids = state.scenarioAreas?.[value.name] ?? [];
+      const filter = value.filter;
+      return filter ? ids.filter((id) => matchesQuery(state, id, filter, { ...context, deps })).length : ids.length;
+    }
     case "dealtEncounterCount": {
       const [playerId] = resolvePlayers(state, value.player, context);
       return playerId ? (getPlayer(state, playerId)?.dealtEncounter.length ?? 0) : 0;

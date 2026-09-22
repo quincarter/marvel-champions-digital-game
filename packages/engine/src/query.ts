@@ -650,6 +650,8 @@ export function zoneContents(state: GameState, zone: ZoneId): readonly InstanceI
       return state.scenarioDecks[zone.name]?.discard ?? [];
     case "villainArea":
       return state.villainArea;
+    case "scenarioArea":
+      return state.scenarioAreas?.[zone.name] ?? [];
     case "victoryDisplay":
       return state.victoryDisplay;
     case "removedFromGame":
@@ -688,6 +690,9 @@ export function locateCard(state: GameState, id: InstanceId): ZoneId | null {
     if (piles.discard.includes(id)) return { kind: "scenarioDiscard", name };
   }
   if (state.villainArea.includes(id)) return { kind: "villainArea" };
+  for (const [name, ids] of Object.entries(state.scenarioAreas ?? {})) {
+    if (ids.includes(id)) return { kind: "scenarioArea", name };
+  }
   if (state.victoryDisplay.includes(id)) return { kind: "victoryDisplay" };
   if (state.removedFromGame.includes(id)) return { kind: "removedFromGame" };
   const instance = getInstance(state, id);

@@ -382,6 +382,11 @@ export type ValueSpec =
    */
   | { readonly kind: "dealtEncounterCount"; readonly player: PlayerRef }
   /**
+   * The cards in a scenario out-of-play area, optionally filtered: "If there are at least 5 cards in The Collection" (The
+   * Grand Collection 1B), "for each card in The Collection" (Collector III). docs/phase7-wave3.md §3.14.
+   */
+  | { readonly kind: "scenarioAreaCount"; readonly name: string; readonly filter?: TargetQuery }
+  /**
    * How many of the cards a ref names match a query, wherever they are (not restricted to in play, unlike `count`):
    * "for each treachery looked at this way" (Falcon, `cap` pack, over `selectCards`' non-in-play "look") reads the
    * cards bound to a slot. Resolved the same way `resourceTypes`/`distinctCardTypes` already read a ref's cards.
@@ -1195,6 +1200,11 @@ export type EffectSpec =
    */
   | { readonly kind: "discardFromPlay"; readonly target: TargetRef; readonly defeated?: boolean }
   /**
+   * "Create 'The Collection' game area" (The Grand Collection 1A, `gmw` 16073a): an empty scenario out-of-play area named
+   * `name` (`GameState.scenarioAreas`, docs/phase7-wave3.md §3.14). Nothing happens if it exists.
+   */
+  | { readonly kind: "createScenarioArea"; readonly name: string }
+  /**
    * "Defeat a non-[Elite] minion." (Nova Prime, `stld` 17002): each target character is defeated outright, whatever its
    * remaining hit points (RRG 1.8 "Defeat", p. 15). It is a `characterDefeated` event marked `byEffect`, so "when X would
    * be defeated" interrupts, When Defeated, Victory X and responses all see it; `cannotBeDefeated` and the permanent
@@ -1537,6 +1547,8 @@ export type CardSelector =
    * list cannot.
    */
   | { readonly kind: "anyOf"; readonly of: readonly CardSelector[] }
+  /** The cards in a scenario out-of-play area ("discard 1 card from The Collection"; docs/phase7-wave3.md §3.14). */
+  | { readonly kind: "scenarioArea"; readonly name: string; readonly filter?: TargetQuery }
   /**
    * The cards a campaign-log field names, wherever they are in the game: "Shuffle each EXPERIMENTAL attachment
    * recorded in the campaign log into the encounter deck" (MC10 p. 7), MC21 p. 7's campaign pool, MC50 p. 19.
@@ -1580,6 +1592,8 @@ export type CardSelector =
  * deck faceup", "Shuffle the Invocation card under here into the Invocation deck"); any other card is left where it is.
  */
 export type CardDestination =
+  /** "Put it faceup into The Collection": a scenario out-of-play area, cards faceup (docs/phase7-wave3.md §3.14). */
+  | { readonly scenarioArea: string }
   | "hand"
   | "discard"
   | "deckTop"

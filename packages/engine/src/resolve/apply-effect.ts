@@ -581,6 +581,11 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       }
       return;
     }
+    case "createScenarioArea":
+      // docs/phase7-wave3.md §3.14: an empty area, so its count and the client read 0 rather than nothing.
+      if (!ctx.state.scenarioAreas?.[effect.name])
+        ctx.state = { ...ctx.state, scenarioAreas: { ...ctx.state.scenarioAreas, [effect.name]: [] } };
+      return;
     case "discardFromPlay":
       for (const id of targets(effect.target)) {
         if (effect.defeated === true) defeatFromPlay(ctx, id);

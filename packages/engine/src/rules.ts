@@ -219,6 +219,14 @@ export const cannotBeUnattached = (state: GameState, deps: EngineDeps, id: Insta
     matchesQuery(state, id, rule.target, context),
   );
 
+/** The scenario area a card discarded from play goes to instead, or null (`discardFromPlayDestination`; §3.14). */
+export function discardRedirectArea(state: GameState, deps: EngineDeps, id: InstanceId): string | null {
+  const match = activeRules(state, deps, "discardFromPlayDestination").find(({ rule, context }) =>
+    matchesQuery(state, id, rule.cards, context),
+  );
+  return match ? match.rule.area : null;
+}
+
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
 export const cannotHaveStatus = (
   state: GameState,

@@ -16,7 +16,8 @@ import {
 } from "./query.js";
 import type { TriggerEvent } from "./trigger-events.js";
 import { nextInt, shuffle } from "./rng.js";
-import { accelerationTokenRedirect, cannotLeavePlay, cannotReady } from "./rules.js";
+import { accelerationTokenRedirect, cannotLeavePlay, cannotReady, discardRedirectArea } from "./rules.js";
+import { pushEvent } from "./resolve/frames.js";
 import { matchesQuery, type EffectContext } from "./select.js";
 import type { StatusName } from "./spec.js";
 import type { GameOutcome, GameState, MainSchemeState, ZoneId } from "./state.js";
@@ -404,9 +405,14 @@ export function leavePlay(
   const doubleSided = card !== undefined && "flipSide" in card && card.flipSide !== undefined;
   const keepsCard =
     requested.kind === "victoryDisplay" || requested.kind === "setAside" || requested.kind === "encounterSetAside";
-  const to: ZoneId = doubleSided && !keepsCard ? { kind: "removedFromGame" } : requested;
+  let to: ZoneId = doubleSided && !keepsCard ? { kind: "removedFromGame" } : requested;
+  // "When a card would be placed into a discard pile from play, put it faceup into The Collection instead"
+  // (`discardFromPlayDestination`, docs/phase7-wave3.md §3.14). The discard is still attempted (RRG 1.8 FAQ "Rocket
+  // Raccoon (#29A)", p. 61), so it is logged as one.
+  const redirect = discarded && to === requested ? discardRedirectArea(ctx.state, ctx.deps, id) : null;
   if (discarded && to === requested)
     emit(ctx, { type: "cardDiscardedFromPlay", instanceId: id, cardId: instance.cardId });
+  if (redirect !== null) to = { kind: "scenarioArea", name: redirect };
   for (const attachment of [...instance.attachments]) discardFromPlay(ctx, attachment);
   // RRG "Tuck": when a card leaves play, each card tucked under it is discarded.
   for (const tuckedId of [...instance.tucked]) {
@@ -415,7 +421,7 @@ export function leavePlay(
   }
   // Boost cards still on an enemy that leaves play mid-activation go with it (RRG 1.8 "Boost": they are discarded).
   for (const boostId of [...instance.boostCards]) moveCard(ctx, boostId, discardZoneFor(ctx.state, boostId), "top");
-  moveCard(ctx, id, to, position);
+  moveCard(ctx, id, to, redirect !== null ? "bottom" : position);
   updateInstance(ctx, id, (i) => ({
     ...i,
     damage: 0,
@@ -426,9 +432,10 @@ export function leavePlay(
     engagedWith: null,
     // A facedown card is itself again once it leaves play, and a flipped card shows its front.
     facedownAs: null,
-    faceup: i.facedownAs ? true : i.faceup,
+    faceup: redirect !== null ? true : i.facedownAs ? true : i.faceup,
     flipped: false,
   }));
+  if (redirect !== null) pushEvent(ctx, { kind: "discardRedirected", instanceId: id, area: redirect });
 }
 
 // ---------------------------------------------------------------------------

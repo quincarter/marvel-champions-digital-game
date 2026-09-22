@@ -340,11 +340,16 @@ Nova Prime (`stld` 17002): "Response: After you play Nova Prime from your hand, 
 
 ### 3.14 The Collection: a scenario out-of-play area, and a discard-from-play redirect
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/scenario-area.test.ts` (5 tests).
 
 **Cards.** Infiltrate the Museum: The Grand Collection 1A "Create 'The Collection' game area", 1B's loss at 5 cards and its "discard 1 card from The Collection (to its owner's discard pile)"; Collector I–III: "Forced Interrupt: When a card (player or encounter) would be placed into a discard pile from play, put it faceup into The Collection instead" (III: "then place 1 threat on the main scheme"); Biogram Image, Inconspicuous Box, View the Cosmos, Stay Awhile, Gallery of Splendor. MC16 p. 10: "The Collection is an out-of-play game area shared by all players and specific to this scenario."
 
-**Rulings to honour:** MC16 FAQ p. 21 — the redirect applies to attachments, environments, minions, obligations, side schemes, allies, supports and upgrades; only a card in play placed specifically into a discard pile, not one set aside, removed from the game, shuffled into a deck, returned to hand, or discarded from an out-of-play area. Ruling, Feb 28, 2026 (8): it catches Infinity Stones too. RRG 1.8 FAQ "Rocket Raccoon (#29A)" (p. 61): "Discarding is the act of attempting to place a card into a discard pile", so a cost to "discard" is paid even when the card lands in The Collection.
+**What landed:**
+
+- **`ZoneId { kind: "scenarioArea"; name }`** and **`GameState.scenarioAreas`** (absent until created, so other games serialize as before), located and listed like every other zone; **`EffectSpec createScenarioArea { name }`** creates it empty.
+- **`CardDestination { scenarioArea }`** puts cards into it faceup (in play or not); **`CardSelector { kind: "scenarioArea", name, filter? }`** reads it ("discard 1 card from The Collection" is `chooseCards` from it, then `moveCards` to `"discard"`, which is the owner's pile); **`ValueSpec scenarioAreaCount { name, filter? }`** counts it (the 5-card loss is a `stateCheck` on it).
+- **`RuleSpec discardFromPlayDestination { cards, area, while? }`**, read in `leavePlay`, the one place a card in play is placed into a discard pile: a matching card goes to the area faceup instead. The discard is still logged as attempted (`cardDiscardedFromPlay`; RRG 1.8 FAQ "Rocket Raccoon (#29A)", p. 61: "Discarding is the act of attempting to place a card into a discard pile … the cost … was still paid"), and a **`discardRedirected { instanceId, area }`** trigger event is announced for Collector III's "then place 1 threat".
+- **What it does not catch, as MC16 FAQ p. 21 says:** a card set aside, removed from the game, shuffled into a deck or returned to hand; a card discarded from an out-of-play area (hand, deck, a resolving event, a treachery, a boost card); a defeated Victory X card (the victory display is not a discard pile); a double-sided card (removed from the game instead). Player elimination moves cards with `moveCard` directly, so it is not caught either; no printed interaction needs it.
 
 ### 3.15 A damage cap and a damage reduction per attack
 

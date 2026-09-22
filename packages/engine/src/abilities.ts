@@ -510,6 +510,21 @@ export type RuleSpec =
    * docs/phase7-wave3.md §3.19.
    */
   | { readonly kind: "cannotBeUnattached"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "Forced Interrupt: When a card (player or encounter) would be placed into a discard pile from play, put it faceup into
+   * The Collection instead." (Collector I–III, Infiltrate the Museum, `gmw` 16070–16072). A matching card leaving play for
+   * a discard pile goes, faceup, to the scenario area `area` instead (`leavePlay`), and `discardRedirected` is announced
+   * for what follows ("…, then place 1 threat on the main scheme", Collector III). MC16 FAQ p. 21: only a card *in play*
+   * placed *into a discard pile* — not one set aside, removed from the game, shuffled into a deck, returned to hand, or
+   * discarded from an out-of-play area. RRG 1.8 FAQ "Rocket Raccoon (#29A)" (p. 61): the discard was still attempted, so
+   * a cost to discard it is paid. docs/phase7-wave3.md §3.14.
+   */
+  | {
+      readonly kind: "discardFromPlayDestination";
+      readonly cards: TargetQuery;
+      readonly area: string;
+      readonly while?: Predicate;
+    }
   | {
       readonly kind: "cannotHaveStatus";
       readonly target: TargetQuery;
