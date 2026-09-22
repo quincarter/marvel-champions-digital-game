@@ -132,6 +132,7 @@ export {
   allyLimitFor,
   cannotLeavePlay,
   cannotTakeDamage,
+  excessDamageBonus,
   mustDefendWithAlly,
   notDefeatedWithoutThreat,
   schemeThreatDestination,
