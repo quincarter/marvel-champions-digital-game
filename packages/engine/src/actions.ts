@@ -808,8 +808,11 @@ export function planCost(
 
   if (cost.exhaustSelf && source.exhausted)
     return { code: "already_exhausted", message: "the card is already exhausted" };
-  if (cost.spendCounters && (source.counters[cost.spendCounters.counterType] ?? 0) < cost.spendCounters.amount) {
-    return { code: "insufficient_resources", message: `not enough ${cost.spendCounters.counterType} counters` };
+  if (cost.spendCounters) {
+    const holder = cost.spendCounters.target === "identity" ? identity : source;
+    if ((holder.counters[cost.spendCounters.counterType] ?? 0) < cost.spendCounters.amount) {
+      return { code: "insufficient_resources", message: `not enough ${cost.spendCounters.counterType} counters` };
+    }
   }
   if (cost.exhaustIdentity && identity.exhausted) {
     return { code: "already_exhausted", message: "your identity is already exhausted" };
@@ -1083,7 +1086,10 @@ export function payCost(
   if (!cost) return;
   const identityId = mustPlayer(ctx.state, playerId).identity.instanceId;
   if (cost.exhaustSelf) exhaustCard(ctx, sourceId);
-  if (cost.spendCounters) removeCounters(ctx, sourceId, cost.spendCounters.counterType, cost.spendCounters.amount);
+  if (cost.spendCounters) {
+    const holderId = cost.spendCounters.target === "identity" ? identityId : sourceId;
+    removeCounters(ctx, holderId, cost.spendCounters.counterType, cost.spendCounters.amount);
+  }
   if (cost.exhaustIdentity) exhaustCard(ctx, identityId);
   if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity);
   // "Deal yourself 1 facedown encounter card →" (docs/phase7-wave3.md §3.20).

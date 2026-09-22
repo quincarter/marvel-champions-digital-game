@@ -1,5 +1,6 @@
 import { activeEncounterDeck } from "@mc/engine";
 import {
+  endTurn,
   firstLegal,
   identityOf,
   inst,
@@ -83,5 +84,32 @@ describe("Groot's obligation and nemesis (Wilt, Blazing Inferno, Furnax, Fan the
     const damageBefore = inst(start, identity).damage;
     const { state } = revealFromEncounterDeck(start, "16028", firstLegal);
     expect(inst(state, identity).damage).toBe(damageBefore + 2);
+  });
+
+  it("Blazing Inferno: Forced Response, after the villain phase begins, deal 2 indirect damage to each player", () => {
+    const start = grootVsRhino();
+    // Revealing it happens mid-villain-phase, after that phase's own "phase begins" trigger already resolved
+    // (docs/phase7-wave3.md §3.2), so this side scheme's own response only fires starting the *next* villain phase.
+    const { state: withScheme } = revealFromEncounterDeck(start, "16026", firstLegal);
+    const identity = identityOf(withScheme);
+    const before = inst(withScheme, identity).damage;
+    const nextPhase = settle(runWave3(withScheme, endTurn()), firstLegal, undefined, WAVE3_DEPS);
+    expect(inst(nextPhase, identity).damage).toBe(before + 2);
+  });
+
+  it("Furnax: [star] Forced Response, after Furnax activates, deal 2 indirect damage to each player", () => {
+    const start = grootVsRhino();
+    // Same timing as Blazing Inferno above: Furnax is engaged the villain phase he's revealed (after enemy
+    // activations for that phase already resolved), so he activates starting the *next* villain phase.
+    const { state: withFurnax } = revealFromEncounterDeck(start, "16027", firstLegal);
+    const identity = identityOf(withFurnax);
+    const before = inst(withFurnax, identity).damage;
+    // Clear the main scheme's threat first: left alone, Furnax's own scheme activation (his printed SCH, no ATK)
+    // stacks on Rhino's own step-one placement and completes the main scheme this same villain phase, ending the
+    // game before the response resolves — a scenario-balance accident unrelated to Furnax's own ability.
+    const roomToBreathe = patchInstance(withFurnax, withFurnax.mainScheme.instanceId, { threat: 0 });
+    const activated = settle(runWave3(roomToBreathe, endTurn()), firstLegal, undefined, WAVE3_DEPS);
+    expect(activated.outcome).toBeNull();
+    expect(inst(activated, identity).damage).toBe(before + 2);
   });
 });

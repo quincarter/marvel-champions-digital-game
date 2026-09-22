@@ -407,9 +407,17 @@ export const spend = (resources: ResourceRequirement | number): AbilityCost => (
 export const spendX = (resourceType: TypedResource, bind = "x", min = 1): AbilityCost => ({
   resourcesX: { resource: resourceType, bind, min },
 });
-/** "Remove N [type] counter(s) from it →" */
-export const removeCounter = (counterType: string, n = 1): AbilityCost => ({
-  spendCounters: { counterType, amount: n },
+/**
+ * "Remove N [type] counter(s) from it →" (the ability's own card). `fromIdentity`: "Remove N growth counters from
+ * Groot →" (`gmw` 16008, 16010, 16011) — the paying player's own identity, a different card than the one carrying
+ * the ability (`AbilityCost.spendCounters.target`).
+ */
+export const removeCounter = (
+  counterType: string,
+  n = 1,
+  opts: { readonly fromIdentity?: boolean } = {},
+): AbilityCost => ({
+  spendCounters: { counterType, amount: n, ...(opts.fromIdentity ? { target: "identity" } : {}) },
 });
 /** "Take N damage →" (your identity). */
 export const takeDamageCost = (n: number): AbilityCost => ({ damageSelf: n });

@@ -593,8 +593,18 @@ export interface AbilityCost {
      */
     readonly max?: number;
   };
-  /** "Remove 1 web counter from it →". */
-  readonly spendCounters?: { readonly counterType: string; readonly amount: number };
+  /**
+   * "Remove 1 web counter from it →" (`target` absent/`"self"`: the ability's own card). "Remove 1 growth counter
+   * from him [Groot] and exhaust Entangling Vines →" (`gmw` 16008, 16010, 16011) is `target: "identity"`: the
+   * paying player's own identity, wherever the counters actually live — a different card than the one carrying
+   * the ability. docs/phase7-wave3.md's Groot kit is the first printed text needing counters spent off a target
+   * other than the ability's own source.
+   */
+  readonly spendCounters?: {
+    readonly counterType: string;
+    readonly amount: number;
+    readonly target?: "self" | "identity";
+  };
   /**
    * "Deal yourself 1 facedown encounter card →" (Star-Lord; Daring Escape; Library Labyrinth; Universal Weapon): the
    * paying player is dealt that many encounter cards, facedown, as the cost (docs/phase7-wave3.md §3.20).

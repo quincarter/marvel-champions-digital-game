@@ -76,6 +76,28 @@ do the same (`starterDeckId: "rocket-raccoon-aggression"`) until Brotherhood of 
 - **A defeated villain stage's damage dial reads back as `0`, not "≥ its max hit points".** `groot-kit.test.ts`'s
   Root Stomp defeat test asserts `damage === 0` after the kill, not a `toBeGreaterThanOrEqual` on the pre-defeat
   max — the dial has nothing left to measure once the stage is gone.
+- **An engaged minion's `home` is `{ kind: "activeEncounterDeck" }`, not the engaged player's `playArea`, and the
+  ally/minion defeat sweep (`packages/engine/src/resolve/defeat.ts`) scans exactly `player.playArea`.** A synthetic
+  minion built by state surgery for a test (the Rocket Raccoon interrupt test below) has to be placed in
+  `player.playArea` (with `home: { kind: "playArea", playerId }`), _not_ `villainArea`, or its defeat is invisible
+  to the sweep — it stays "in play" forever regardless of how much damage it's taken.
+- **A villain phase that ends the game mid-resolution can cut off a later Response before it fires.** The Furnax
+  test needed the main scheme's threat cleared first: left alone, his own scheme activation (his printed SCH, no
+  ATK) stacked onto Rhino's own step-one threat completes the main scheme (a loss) the same villain phase he
+  activates in, and the game ending appears to skip the still-queued Forced Response. Not chased further (no
+  `gmw` card depends on the ordering); flagged here so the next person who hits "my Response never fires" checks
+  `state.outcome` before assuming the ability is broken.
+- **`AbilityCost.spendCounters` always spent counters off the ability's own card, with no way to spend them off a
+  different target.** Caught by writing these very tests: Entangling Vines/Vine Shield/Vine Spikes (`gmw`
+  16008/16010/16011) all say "remove 1 growth counter from **him** [Groot] and exhaust [this card] →" — the
+  counters live on Groot's identity, not on the upgrade carrying the ability. Every one of the three abilities was
+  _unconditionally unplayable_ (the cost could never be paid, so the interrupt was never even offered) until this
+  landed. Fixed generically: `AbilityCost.spendCounters.target?: "self" | "identity"` (`packages/engine/src/
+abilities.ts`), read in both `planCost`'s payability check and `payCost`'s payment (`packages/engine/src/
+actions.ts`), with its own engine test (`packages/engine/src/abilities.test.ts`, "useAbility can pay a counter
+  cost off the paying player's identity"). DSL: `removeCounter(counterType, n, { fromIdentity: true })`
+  (`packages/cards/src/dsl/abilities.ts`). **This is the load-bearing lesson of this whole checkpoint: an
+  untested registered ability reads as done in the coverage report while being silently unplayable.**
 
 ## 5. Genuine primitive gaps recorded this pass (all in `gmw/groot-kit.ts`, `KNOWN_SKIPPED`)
 
@@ -109,19 +131,31 @@ target)`; the engine's `EffectSpec addCounters` already carried `upTo`/`bind` (�
 - **`on.phaseBeginning(phase)` / `on.phaseEnding(phase)` / `on.villainStepResolved(step?)`** (`dsl/abilities.ts`):
   DSL builders for the three `TriggerEvent` kinds docs/phase7-wave3.md §3.2 landed in the engine but that nothing
   in `@mc/cards` had exposed yet. Used by Blazing Inferno ("After the villain phase begins").
+- **`removeCounter`'s `opts.fromIdentity`** (`dsl/abilities.ts`): pairs with the engine change below (§4's last
+  bullet) — "remove a counter from Groot" when the ability lives on a different card.
+
+**Engine change this pass (minimal, generic, card-name-free, own test):** `AbilityCost.spendCounters.target?:
+"self" | "identity"` (`packages/engine/src/abilities.ts`), read by `planCost`/`payCost` (`packages/engine/src/
+actions.ts`), tested in `packages/engine/src/abilities.test.ts`. Full rationale in §4.
 
 ## 7. Progress / next up
 
-**Foundation: done.** `wave3/{index,cards,reprints,names,setup,testing,coverage.test}.ts` all exist and are green
-(`pnpm --filter @mc/cards test`: 103 files / 848 tests; `pnpm typecheck`/`pnpm lint`/`pnpm fmt:check` all clean).
+**Foundation: done.** `wave3/{index,cards,reprints,names,setup,testing,coverage.test}.ts` all exist and are green.
+
+**A checkpoint-1 report first claimed "every ability backed by a real-command test" without actually checking —
+9 of Groot's 19 registered refs had no test at all (an interrupt/response with an unpayable cost among them,
+found only once a test was actually written for it; see §4's last bullet).** Fixed same session: every ref below
+now has one, verified by name in the handoff report. **The standing rule this earned: before claiming a pack
+"done", diff the ability ids a module registers against the ability ids its own test file(s) actually exercise —
+don't trust the coverage report alone, it only proves a ref _resolves_, never that it's _correct_ or _reachable_.**
 
 **`gmw` status: in progress.**
 
 | Piece                                                                                                  | Status                                                                                                                               |
 | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Groot's identity (16001a/b)                                                                            | Scripted, tested                                                                                                                     |
-| Groot's kit (16002–16024)                                                                              | Scripted except §5's three gaps; tested (11 tests, `groot-kit.test.ts`)                                                              |
-| Groot's obligation/nemesis (16025–16028)                                                               | Scripted, tested (4 tests, `groot-obligation-nemesis.test.ts`)                                                                       |
+| Groot's identity (16001a/b)                                                                            | Scripted, tested (Flora Colossus, Growth Spurt)                                                                                      |
+| Groot's kit (16002–16024)                                                                              | Scripted except §5's three gaps; every registered ref tested — see the handoff report for the ref→test mapping                       |
+| Groot's obligation/nemesis (16025–16028)                                                               | Scripted, every registered ref tested (Wilt ×3, Fan the Flames, Blazing Inferno, Furnax)                                             |
 | Groot e2e                                                                                              | 1 test, `groot-kit/e2e.test.ts` (Rhino, standard, solo)                                                                              |
 | Rocket Raccoon's identity/kit (16029–16052)                                                            | **Not started**                                                                                                                      |
 | Rocket Raccoon's obligation/nemesis (16053–16060)                                                      | **Not started**                                                                                                                      |

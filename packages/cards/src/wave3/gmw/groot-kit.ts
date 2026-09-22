@@ -130,7 +130,7 @@ export const GROOT_KIT = defineAbilities({
   // exhaust Entangling Vines → Groot gets +2 THW for that thwart.
   "16008.entangling-vines-interrupt": heroInterrupt(
     when.thwarts(YOUR_HERO, { basic: true }),
-    { cost: [removeCounter(GROWTH, 1), exhaustThis] },
+    { cost: [removeCounter(GROWTH, 1, { fromIdentity: true }), exhaustThis] },
     modifyStat("thw", 2, GROOT, "endOfAttack"),
   ),
 
@@ -140,7 +140,7 @@ export const GROOT_KIT = defineAbilities({
   // exhaust Vine Shield → Groot gets +3 DEF for that attack. Same shape as Expert Defense (`cap` 03033).
   "16010.vine-shield-interrupt": heroInterrupt(
     when.defends(YOUR_HERO),
-    { label: "defense", cost: [removeCounter(GROWTH, 1), exhaustThis] },
+    { label: "defense", cost: [removeCounter(GROWTH, 1, { fromIdentity: true }), exhaustThis] },
     modifyStat("def", 3, GROOT, "endOfAttack"),
   ),
 
@@ -148,7 +148,7 @@ export const GROOT_KIT = defineAbilities({
   // Vine Spikes → Groot gets +2 ATK for that attack.
   "16011.vine-spikes-interrupt": heroInterrupt(
     when.attacks(YOUR_HERO, { basic: true }),
-    { cost: [removeCounter(GROWTH, 1), exhaustThis] },
+    { cost: [removeCounter(GROWTH, 1, { fromIdentity: true }), exhaustThis] },
     modifyStat("atk", 2, GROOT, "endOfAttack"),
   ),
 
