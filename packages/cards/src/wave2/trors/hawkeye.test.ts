@@ -5,6 +5,7 @@ import {
   cardsInPlay,
   characterProfile,
   hasKeyword,
+  legalActions,
   traitsOf,
   type GameState,
   type InstanceId,
@@ -270,6 +271,11 @@ describe("Hawkeye kit", () => {
       WAVE2_DEPS,
     );
     expect(result.ok).toBe(true);
+    // …and legal actions offer it. The Quiver is itself attached to Hawkeye, so the Arrow sits two levels below the
+    // identity; the legal-move search used to look one level down and never considered it (2026-09-21 report).
+    const legal = legalActions(withBow.state, P1, WAVE2_DEPS);
+    if (legal.kind !== "turn") throw new Error(`expected a turn, got ${legal.kind}`);
+    expect(legal.legal.some((e) => e.action.kind === "playCard" && e.action.instanceId === sonicArrow)).toBe(true);
   });
 
   // Mockingbird's interrupt (04004.mockingbird-interrupt) is in `KNOWN_SKIPPED` (`../coverage.test.ts`) — see
@@ -371,6 +377,65 @@ describe("Hawkeye kit", () => {
     );
     expect(played.ok).toBe(true);
     if (played.ok) expect(inst(played.state, marksman).exhausted).toBe(true);
+  });
+
+  it("Expert Marksman: legal actions offer an Arrow event paid only with Marksman's resource (2026-09-21: Cable Arrow read 'need 1, paid 0' with Marksman ready)", () => {
+    const { state: withBow, bow } = heroWithBow();
+    const given = moveToHand(withBow, P1, "04010");
+    const [marksman] = given.ids as [InstanceId];
+    const withMarksman = settle(
+      runWave2(given.state, play(P1, marksman, payWith(given.state, P1, 1, [marksman]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    // Cable Arrow (04008, cost 1) is the only card in hand, so nothing but Marksman can pay for it.
+    const arrowGiven = moveToHand(withMarksman, P1, "04008");
+    const [cable] = arrowGiven.ids as [InstanceId];
+    const onlyArrow: GameState = {
+      ...arrowGiven.state,
+      players: arrowGiven.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: [cable], deck: [...p.deck, ...p.hand.filter((id) => id !== cable)] } : p,
+      ),
+    };
+    expect(inst(onlyArrow, marksman).exhausted).toBe(false);
+    expect(inst(onlyArrow, bow).exhausted).toBe(false);
+
+    const legal = legalActions(onlyArrow, P1, WAVE2_DEPS);
+    if (legal.kind !== "turn") throw new Error(`expected a turn, got ${legal.kind}`);
+    const entry = legal.legal.find((e) => e.action.kind === "playCard" && e.action.instanceId === cable);
+    expect(entry, "Cable Arrow should be playable, paid with Expert Marksman").toBeDefined();
+    expect(entry!.example).toMatchObject({
+      payment: [{ ability: { instanceId: marksman, abilityId: "04010.expert-marksman-resource" } }],
+    });
+
+    const played = settle(runWave2(onlyArrow, entry!.example), firstLegal, undefined, WAVE2_DEPS);
+    expect(inst(played, marksman).exhausted).toBe(true);
+    expect(inst(played, bow).exhausted).toBe(true);
+  });
+
+  it("Expert Marksman: never offered toward a card that is not an Arrow event", () => {
+    const { state: withBow } = heroWithBow();
+    const given = moveToHand(withBow, P1, "04010");
+    const [marksman] = given.ids as [InstanceId];
+    const withMarksman = settle(
+      runWave2(given.state, play(P1, marksman, payWith(given.state, P1, 1, [marksman]))),
+      firstLegal,
+      undefined,
+      WAVE2_DEPS,
+    );
+    // Hawkeye's Quiver (04003, cost 1): an upgrade, not an Arrow event.
+    const quiverGiven = moveToHand(withMarksman, P1, "04003");
+    const [quiver] = quiverGiven.ids as [InstanceId];
+    const onlyQuiver: GameState = {
+      ...quiverGiven.state,
+      players: quiverGiven.state.players.map((p) =>
+        p.playerId === P1 ? { ...p, hand: [quiver], deck: [...p.deck, ...p.hand.filter((id) => id !== quiver)] } : p,
+      ),
+    };
+    const legal = legalActions(onlyQuiver, P1, WAVE2_DEPS);
+    if (legal.kind !== "turn") throw new Error(`expected a turn, got ${legal.kind}`);
+    expect(legal.legal.some((e) => e.action.kind === "playCard" && e.action.instanceId === quiver)).toBe(false);
   });
 
   it("Black Knight: his own basic attack gains piercing (a constant keyword grant on himself)", () => {

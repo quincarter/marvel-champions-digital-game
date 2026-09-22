@@ -166,7 +166,7 @@ describe("paymentFor / tryPayment", () => {
     expect(attempt.ok).toBe(false);
     if (!attempt.ok) {
       expect(attempt.reason).toBe("insufficient_resources");
-      expect(attempt.message).toMatch(/paid 1/);
+      expect(attempt.message).toMatch(/covers 1\./);
     }
     // A card still cannot pay for itself, even when the client asks it to.
     const itself = tryPayment(state, p1, playAction(ally), [`hand:${ally}`, `hand:${ally}`], {});

@@ -21,10 +21,14 @@
  * (300px) wide, inset `GUTTER` from the body's own top/right/bottom, with the
  * one red action pinned at its own foot and a small footer label under it.
  *
- * **Narrow (phone/tabletPortrait): one column**, stacked: search, chips, the
- * shelf roster (scrolls; no "how many rows fit" arithmetic), the stat strip,
- * the ink detail block (sized to its own line count), then the full-width CTA
- * at the screen's own foot.
+ * **Narrow (phone/tabletPortrait): one column**, stacked: one chip row — a
+ * square search toggle at its head, then the product chips as a sideways-
+ * scrolling rail (`chipsScroll`, `ui/chip-rail.ts`) — the search field only
+ * while the toggle is on (`searchOpen`; the owner's 2026-09-21 phone note: "I
+ * would rather have the vertical space back on mobile — add a search toggle"),
+ * the shelf roster (scrolls; no "how many rows fit" arithmetic), the stat
+ * strip, the ink detail block (sized to its own line count), then the
+ * full-width CTA at the screen's own foot.
  */
 import { hit } from "../tokens.js";
 import { chipStripHeight } from "./chip-layout.js";
@@ -56,6 +60,12 @@ export interface ScenarioSelectLayoutInput {
    * the panel is a side column and costs the shelves nothing.
    */
   readonly detailCollapsed?: boolean;
+  /**
+   * Narrow layouts only: the search field is shown (a row under the chips). Off by default — the row is the one
+   * block a phone can spare, and the toggle at the head of the chip rail brings it back. Ignored on a wide layout,
+   * where the field is always drawn above the chips.
+   */
+  readonly searchOpen?: boolean;
 }
 
 export interface ScenarioSelectLayout {
@@ -64,8 +74,13 @@ export interface ScenarioSelectLayout {
   readonly headerBar: Rect;
   readonly back: Rect;
   readonly step: Rect;
+  /** The search field. Zero-height on a narrow layout whose toggle is off (`searchOpen`) — nothing is drawn there. */
   readonly search: Rect;
+  /** Narrow only: the square toggle at the head of the chip row that shows/hides `search`. Null on wide. */
+  readonly searchToggle: Rect | null;
   readonly chips: Rect;
+  /** True on narrow: draw the chips as one horizontally-scrolling rail (`ui/chip-rail.ts`) rather than wrapped rows. */
+  readonly chipsScroll: boolean;
   /** The pack-shelf roster's own viewport. */
   readonly shelves: Rect;
   readonly statStrip: Rect;
@@ -89,9 +104,19 @@ export interface ScenarioSelectLayout {
  * guaranteed clear by construction.
  */
 export function scenarioSelectLayoutRects(layout: ScenarioSelectLayout): readonly Rect[] {
-  // An open phone sheet covers the chips and shelves on purpose, and holds the stat strip inside itself.
-  if (layout.detailOverlay) return [layout.back, layout.step, layout.search, layout.detail];
-  return [layout.back, layout.step, layout.search, layout.chips, layout.shelves, layout.statStrip, layout.detail];
+  // An open phone sheet covers the chip row, the search row and the shelves on purpose (the scene hides the DOM
+  // search field while it is up), and holds the stat strip inside itself.
+  if (layout.detailOverlay) return [layout.back, layout.step, layout.detail];
+  return [
+    layout.back,
+    layout.step,
+    ...(layout.search.height > 0 ? [layout.search] : []),
+    ...(layout.searchToggle ? [layout.searchToggle] : []),
+    layout.chips,
+    layout.shelves,
+    layout.statStrip,
+    layout.detail,
+  ];
 }
 
 /**
@@ -132,17 +157,16 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
   const bodyTop = HEADER_HEIGHT + gutter;
   const bodyBottom = height - gutter;
 
-  const search: Rect = { x: left, y: bodyTop, width: shelvesWidth, height: hit.target };
-  let y = bodyTop + hit.target + smallGap;
-  const chipsHeight = chipStripHeight(input.chipRows);
-  const chips: Rect = { x: left, y, width: shelvesWidth, height: chipsHeight };
-  y += chipsHeight + smallGap;
-
   const statStripRows: 1 | 2 = wide ? 1 : 2;
   const statStripHeight = STAT_STRIP_HEIGHT * statStripRows;
   const ctaBlockHeight = hit.primary + 4 + FOOTER_HEIGHT;
 
   if (wide) {
+    const search: Rect = { x: left, y: bodyTop, width: shelvesWidth, height: hit.target };
+    let y = bodyTop + hit.target + smallGap;
+    const chipsHeight = chipStripHeight(input.chipRows);
+    const chips: Rect = { x: left, y, width: shelvesWidth, height: chipsHeight };
+    y += chipsHeight + smallGap;
     const detailHeight = bodyBottom - bodyTop;
     const shelvesHeight = Math.max(SHELVES_MIN_HEIGHT, bodyBottom - y - gap - statStripHeight);
     const shelves: Rect = { x: left, y, width: shelvesWidth, height: shelvesHeight };
@@ -167,7 +191,9 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
       back,
       step,
       search,
+      searchToggle: null,
       chips,
+      chipsScroll: false,
       shelves,
       statStrip,
       statStripRows,
@@ -178,7 +204,22 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
     };
   }
 
-  // Narrow: the stages panel is a disclosure (`detailCollapsed`). The roster is always laid out as if it were
+  // Narrow: one chip row first — the search toggle at its head, the product chips as a rail beside it — and the
+  // search field only under it while the toggle is on. A phone's body is the roster's, and a 44px field that most
+  // visits never type in was the one row it could give back (2026-09-21 owner note).
+  const searchToggle: Rect = { x: left, y: bodyTop, width: hit.target, height: hit.target };
+  const chips: Rect = {
+    x: left + hit.target + smallGap,
+    y: bodyTop,
+    width: shelvesWidth - hit.target - smallGap,
+    height: chipStripHeight(1),
+  };
+  let y = bodyTop + chips.height + smallGap;
+  const searchOpen = input.searchOpen ?? false;
+  const search: Rect = { x: left, y, width: shelvesWidth, height: searchOpen ? hit.target : 0 };
+  if (searchOpen) y += hit.target + smallGap;
+
+  // The stages panel is a disclosure (`detailCollapsed`). The roster is always laid out as if it were
   // shut — one bar between the shelves and the CTA — because that is the only arrangement that leaves a phone
   // room to choose from: open inline, the panel and the two-row stat strip left an iPhone SE (375×667) a sliver
   // of one scenario card. Open, the panel instead rises *over* the chips and shelves from that same bar, which
@@ -202,7 +243,9 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
       back,
       step,
       search,
+      searchToggle,
       chips,
+      chipsScroll: true,
       shelves,
       statStrip,
       statStripRows,
@@ -225,7 +268,9 @@ export function scenarioSelectLayout(input: ScenarioSelectLayoutInput): Scenario
     back,
     step,
     search,
+    searchToggle,
     chips,
+    chipsScroll: true,
     shelves,
     statStrip,
     statStripRows,

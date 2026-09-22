@@ -115,6 +115,12 @@ export interface McButtonOptions {
   /** A status hue to hatch the button in: the status that cancels what it does. */
   readonly hatch?: number;
   /**
+   * A colour of its own instead of the kind's skin — the aspect filter chips, drawn as the same stamp the hero
+   * cards wear (`view/aspect-stamp.ts`): solid `fill`, `ink` for the label, a thin ink border; selected adds a
+   * heavy ink border and a paper inner ring. Pair it with `STAMP_CHIP_TYPE` so the label matches the stamp too.
+   */
+  readonly tint?: { readonly fill: number; readonly ink: number };
+  /**
    * A viewport this button must be visually inside of to respond to a click —
    * for a button reparented into a `McVirtualList` row layer, which clips
    * what's *drawn* but not what Phaser hit-tests (`ui/virtual-list.ts`'s doc
@@ -230,6 +236,11 @@ export class McButton {
   redraw(): void {
     const { rect, type } = this.#options;
     const state = this.state;
+    const tint = this.#options.tint;
+    if (tint) {
+      this.#redrawTinted(tint, state);
+      return;
+    }
     const s = skin(this.#options.kind, state);
     this.#graphics.clear();
     paintPanel(this.#graphics, rect, this.#options.kind, state);
@@ -258,10 +269,49 @@ export class McButton {
     this.#value?.setColor(cssOf(s.text, s.textAlpha)).setPosition(rect.x + rect.width - 16, rect.y + rect.height / 2);
   }
 
+  /**
+   * `tint` (see `McButtonOptions.tint`): drawn as the aspect stamp the hero cards wear (`scenes/roster-panel.ts`'s
+   * `renderShelfCard` stamps) — the aspect's solid card-frame colour with its own ink, a thin ink border, the stamp's
+   * uppercase label — so "filter by Justice" and "this deck is Justice" are one mark. Hover thickens the border;
+   * selected is a heavy ink border around a paper inner ring, which reads on every aspect colour, light or dark.
+   */
+  #redrawTinted(tint: { readonly fill: number; readonly ink: number }, state: WidgetState): void {
+    const { rect, type } = this.#options;
+    const dim = state === "unavailable" ? ink.disabled : 1;
+    const g = this.#graphics;
+    g.clear();
+    g.fillStyle(tint.fill, dim).fillRect(rect.x, rect.y, rect.width, rect.height);
+    if (state === "selected") {
+      g.lineStyle(4, surface.ink.hex, dim).strokeRect(rect.x + 2, rect.y + 2, rect.width - 4, rect.height - 4);
+      g.lineStyle(2, surface.paper.hex, dim).strokeRect(rect.x + 5, rect.y + 5, rect.width - 10, rect.height - 10);
+    } else {
+      const weight = state === "hover" ? 3 : 1.5;
+      g.lineStyle(weight, surface.ink.hex, dim).strokeRect(
+        rect.x + weight / 2,
+        rect.y + weight / 2,
+        rect.width - weight,
+        rect.height - weight,
+      );
+    }
+    const hasValue = this.#value !== null;
+    this.#label
+      .setText(caseOf(type, this.#options.label))
+      .setColor(cssOf(tint.ink, dim))
+      .setPosition(rect.x + rect.width / 2 - (hasValue ? 10 : 0), rect.y + rect.height / 2);
+    fitText(this.#label, rect.width - (hasValue ? 40 : 20), type.size);
+    this.#value?.setColor(cssOf(tint.ink, dim)).setPosition(rect.x + rect.width - 16, rect.y + rect.height / 2);
+  }
+
   destroy(): void {
     this.container.destroy(true);
   }
 }
+
+/**
+ * Every quick-filter chip's label (aspect, source, pack, "Playable now"): Bangers, the hero cards' own stamp label
+ * (`renderShelfCard`), so the whole filter row reads in the comic face the rest of the screen's titles use.
+ */
+export const STAMP_CHIP_TYPE: TypeSpec = typeRole.stamp;
 
 /**
  * The red selection ring — the only shadow in the system. Static means a
@@ -878,7 +928,10 @@ export class McTextInput {
      */
     const syncCovered = (): void => {
       const running = scene.scene.manager.getScenes(true);
-      const covered = running.indexOf(scene) < running.length - 1;
+      // Only a scene that *draws* covers this field. `MusicScene` (`audio/music-controller.ts`) is registered
+      // last and runs, invisible, for the whole session — counted, it sat "above" every screen and hid every
+      // search field in the app (the 2026-09-21 "there's no search filter anymore?" report).
+      const covered = running.slice(running.indexOf(scene) + 1).some((other) => other.sys.settings.visible);
       if (this.#coveredByOtherScene === covered) return;
       this.#coveredByOtherScene = covered;
       this.#applyVisibility();

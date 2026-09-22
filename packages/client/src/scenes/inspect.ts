@@ -74,12 +74,13 @@ import { accent, border, hit, ink, minType, surface, typeRole } from "../tokens.
 import { caseOf, cssOf, textStyle } from "../ui/theme.js";
 import { McButton, McScrollPanel, fitText, label, paintDotGrid } from "../ui/widgets.js";
 import { McScrollRegion } from "../ui/scroll-region.js";
-import { estimateWrappedLines, type Rect } from "../view/layout.js";
+import { estimateWrappedLines, formFactorFor, type Rect } from "../view/layout.js";
 import { pointInRect } from "../view/drag-gesture.js";
 import {
   SHEET_CONTENT_PAD,
   SHEET_THUMB,
   cardFaceContentHeight,
+  DESKTOP_ART_ASPECT,
   cardFaceLayout,
   inspectLayout,
   sheetPlayPayWidths,
@@ -503,7 +504,12 @@ export class InspectOverlay extends Phaser.Scene {
     // setting names (`settings.ts`'s own doc comment).
     const bodySize = appSession().settings.largeCardText ? 17 : 14;
     const bodyWidth = Math.max(1, width - CARD_TEXT_PAD * 2);
+    // A desktop gets the taller art band (`view/inspect-layout.ts`'s `DESKTOP_ART_ASPECT`): the scan is what the
+    // player opened this to read, and a big monitor has the height for it. Tablets keep D08's band.
+    const { width: viewportWidth, height: viewportHeight } = this.scale.gameSize;
+    const desktop = formFactorFor(viewportWidth, viewportHeight) === "desktop";
     return {
+      ...(desktop ? { artAspect: DESKTOP_ART_ASPECT } : {}),
       bodySize,
       rulesTextLines: estimateWrappedLines(model.rulesText, bodyWidth, bodySize * 0.5),
       // +1 for the block's own "PRINTED TEXT (superseded by errata)" label line.

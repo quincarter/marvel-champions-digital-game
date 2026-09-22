@@ -324,12 +324,17 @@ export interface ScenarioSelectFocusInput {
   readonly scenarioChipIds?: readonly string[];
   /** True on a narrow layout, where the stages panel is a disclosure with a bar to toggle. */
   readonly stagesToggle?: boolean;
+  /** True on a narrow layout, where the search field is behind a toggle at the head of the chip rail. */
+  readonly searchToggle?: boolean;
 }
 
 /** Scenario select (D02): Back, the search field, its quick-filter chips, each scenario card (or "Clear"), then "Choose heroes ▸". */
 export function scenarioSelectFocusOrder(input: ScenarioSelectFocusInput): readonly string[] {
   return [
     "back",
+    // Narrow layouts only (`view/scenario-select-layout.ts`): the toggle at the head of the chip rail that shows
+    // the search field. The route drops an id with no stop, so wide layouts (field always drawn) skip it.
+    ...(input.searchToggle ? ["scenario-search-toggle"] : []),
     "scenario-search",
     ...(input.scenarioChipIds ?? []).map((id) => `scenario-chip:${id}`),
     ...(input.scenarioIds.length > 0 ? input.scenarioIds.map((id) => `scenario:${id}`) : ["scenario-clear"]),
@@ -345,6 +350,8 @@ export interface SeatsFocusInput {
   /** Every seat option's deck id, in the pack-shelf roster's own reading order (`flattenShelves`) — still keyed `hero:<deckId>`, matching `titleFocusOrder`'s own convention. */
   readonly deckIds: readonly string[];
   readonly heroChipIds?: readonly string[];
+  /** A narrow layout (`SeatsLayout.detailsToggle`/`searchToggle` non-null): routes through the two toggles too. */
+  readonly narrow?: boolean;
 }
 
 /**
@@ -356,10 +363,14 @@ export function seatsFocusOrder(input: SeatsFocusInput): readonly string[] {
   return [
     "back",
     ...Array.from({ length: input.seatCount }, (_, i) => `seat:${i}`),
-    // Narrow layouts only (`view/seats-layout.ts`): the active seat's "Clear seat" control on the summary line. The
-    // route drops an id with no stop, so wide layouts (which clear through each seat card's own "✕") skip it.
+    // Narrow layouts only (`view/seats-layout.ts`): the active seat's details disclosure, then its "Clear seat"
+    // control inside the opened block. The route drops an id with no stop, so wide layouts (which clear through
+    // each seat card's own "✕") skip both, as does a shut disclosure for the second.
+    ...(input.narrow ? ["seat-details-toggle"] : []),
     "clear-seat",
     "use-preconstructed",
+    // Narrow only, likewise: the search toggle at the head of the chip rail.
+    ...(input.narrow ? ["hero-search-toggle"] : []),
     "hero-search",
     ...(input.heroChipIds ?? []).map((id) => `hero-chip:${id}`),
     ...(input.deckIds.length > 0 ? input.deckIds.map((id) => `hero:${id}`) : ["hero-clear"]),

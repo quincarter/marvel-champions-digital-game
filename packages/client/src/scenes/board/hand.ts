@@ -76,7 +76,8 @@ export function drawHand(ctx: BoardDrawContext, rect: Rect, model: BoardModel): 
       rect.x + 10,
       rect.y + 4,
       // The deck and discard counts moved onto the piles themselves (`piles.ts`).
-      `hand ${model.hand.length}`,
+      // `handLimit` is the real hand; the strip can also carry cards played "as if in your hand" (`HandCardView.from`).
+      `hand ${model.handLimit}`,
       typeRole.label,
       surface.paper.hex,
       ink.label,
@@ -341,7 +342,9 @@ function drawHandCard(
           : null
       : (() => {
           const reason = ctx.marks?.unplayable.get(card.instanceId);
-          return reason ? { text: shortReason(reason), ground: surface.ink.hex } : null;
+          if (reason) return { text: shortReason(reason), ground: surface.ink.hex };
+          // Not in your hand at all — say where it is, so an Arrow on the Quiver doesn't read as a card you hold.
+          return card.from ? { text: card.from, ground: accent.heroRed.hex } : null;
         })();
   if (tag && slot.width >= 70) {
     // Inside the card during payment or a discard choice: that mode's own bar

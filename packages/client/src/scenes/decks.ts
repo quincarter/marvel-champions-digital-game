@@ -66,6 +66,7 @@
  */
 
 import Phaser from "phaser";
+import { aspectStampOf } from "../view/aspect-stamp.js";
 import {
   parseMarvelCdbReference,
   type AnyCard,
@@ -125,6 +126,7 @@ import {
   paintDotGrid,
   paintPanel,
   sectionHeader,
+  STAMP_CHIP_TYPE,
 } from "../ui/widgets.js";
 import { appSession, deckStorage } from "../session.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -177,6 +179,8 @@ interface ChipDef {
   readonly text: string;
   readonly selected: boolean;
   readonly onClick: () => void;
+  /** An aspect chip's stamp colour (`view/aspect-stamp.ts`), matching the stamps on the deck rows it filters. */
+  readonly tint?: { readonly fill: number; readonly ink: number };
 }
 
 interface PlacedChip {
@@ -601,10 +605,11 @@ export class DecksScene extends Phaser.Scene {
           new McButton(this, {
             kind: "secondary",
             label: chip.text,
-            type: typeRole.label,
+            type: STAMP_CHIP_TYPE,
             rect: cell,
             selected: chip.selected,
             onClick: chip.onClick,
+            ...(chip.tint ? { tint: chip.tint } : {}),
           }),
         );
         this.#stops.set(`deck-chip:${chip.id}`, { rect: cell, activate: chip.onClick });
@@ -698,9 +703,11 @@ export class DecksScene extends Phaser.Scene {
     const decks = allOptions.map((o) => o.deck);
     const defs: ChipDef[] = [];
     for (const aspect of heroAspectsOf(decks)) {
+      const stamp = aspectStampOf(aspect);
       defs.push({
         id: `aspect:${aspect}`,
-        text: aspect,
+        text: stamp.label,
+        tint: { fill: stamp.fill, ink: stamp.ink },
         selected: this.#filter.aspect === aspect,
         onClick: () => {
           this.#filter = { ...this.#filter, aspect: this.#filter.aspect === aspect ? null : aspect };
@@ -1112,7 +1119,7 @@ export class DecksScene extends Phaser.Scene {
         new McButton(this, {
           kind: "secondary",
           label: chip.text,
-          type: typeRole.label,
+          type: STAMP_CHIP_TYPE,
           rect: cell,
           selected: chip.selected,
           onClick: chip.onClick,

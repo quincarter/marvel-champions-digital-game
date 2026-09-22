@@ -11,6 +11,7 @@
 import type { Aspect, AnyCard, ResourceIconType } from "@mc/content";
 import {
   cardOf,
+  cardsInPlay,
   characterProfile,
   currentName,
   getInstance,
@@ -25,6 +26,7 @@ import {
   villainOf,
   minionsEngagedWith,
   playCostOf,
+  playableOutsideHand,
   printedProfile,
   printedResources,
   remainingHitPoints,
@@ -281,6 +283,13 @@ export interface HandCardView {
   readonly resourceIcons: readonly ResourceIconType[];
   /** The whole card scan; the hand draws it behind the frame. */
   readonly art: ArtSource | null;
+  /**
+   * Where the card is, when that is not your hand: "on Hawkeye's Quiver" for an Arrow event attached to the Quiver,
+   * "in your discard" for a card whose own text lets it be played from there. The engine lets you play these "as if
+   * they were in your hand", so they ride at the end of the hand strip with this as their tag. Null for a real hand
+   * card. (2026-09-21: an Arrow the Quiver found was legal to play but drawn nowhere on the table.)
+   */
+  readonly from: string | null;
 }
 
 /** One of the other seats, as the design's compact "other heroes" row. */
@@ -489,7 +498,13 @@ export function boardModel(state: GameState, perspectiveId: PlayerId, deps: Engi
         return attachedTo === null || attachedTo === me.identity.instanceId;
       }),
     ].map((id) => characterPanel(state, id, deps)),
-    hand: me.hand.map((id) => handCardView(state, id, perspectiveId, deps)),
+    hand: [
+      ...me.hand.map((id) => handCardView(state, id, perspectiveId, deps)),
+      ...playableOutsideHandOf(state, perspectiveId, deps).map(({ id, from }) => ({
+        ...handCardView(state, id, perspectiveId, deps),
+        from,
+      })),
+    ],
     handLimit: me.hand.length,
     myPiles: { deck: me.deck.length, discard: me.discard.length },
     encounterPiles: {
@@ -872,6 +887,7 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
       rulesText: "",
       resourceIcons: [],
       art: null,
+      from: null,
     };
   }
 
@@ -891,7 +907,31 @@ export function handCardView(state: GameState, id: InstanceId, playerId: PlayerI
     rulesText: "text" in card ? card.text.current : "",
     resourceIcons: resourceIconList(printedResources(card)),
     art: artFor(card, { kind: "front" }),
+    from: null,
   };
+}
+
+/**
+ * The cards this player may play from somewhere other than their hand (`playableOutsideHand`, `@mc/engine`), with
+ * where each one is: attached to a card in play (Hawkeye's Quiver) or in their discard pile. Attached cards first, in
+ * play order, then the discard from the top.
+ */
+function playableOutsideHandOf(
+  state: GameState,
+  playerId: PlayerId,
+  deps: EngineDeps,
+): readonly { readonly id: InstanceId; readonly from: string }[] {
+  const player = state.players.find((seat) => seat.playerId === playerId);
+  if (!player) return [];
+  const attached = cardsInPlay(state).flatMap((host) =>
+    (getInstance(state, host)?.attachments ?? [])
+      .filter((id) => playableOutsideHand(state, deps, playerId, id))
+      .map((id) => ({ id, from: `on ${cardOf(state, host)?.name ?? "a card in play"}` })),
+  );
+  const discard = player.discard
+    .filter((id) => playableOutsideHand(state, deps, playerId, id))
+    .map((id) => ({ id, from: "in your discard" }));
+  return [...attached, ...discard];
 }
 
 /** The distinct names behind a price change, in the engine's own order. A card can't be its own reason. */

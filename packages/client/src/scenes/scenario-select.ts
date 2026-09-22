@@ -36,10 +36,13 @@ import {
   drawCompactChipStrip,
   drawPackGrid,
   drawSearchField,
+  drawSearchToggle,
   drawShelfRosterPanel,
   renderShelfCard,
   renderShelfHeader,
 } from "./roster-panel.js";
+import { McChipRail } from "../ui/chip-rail.js";
+import { RailScroll } from "../view/rail-scroll.js";
 import { FocusRoute, type FocusStop } from "./focus-route.js";
 import { SCENES } from "./keys.js";
 import type { SeatsData } from "./seats.js";
@@ -63,15 +66,20 @@ export class ScenarioSelectScene extends Phaser.Scene {
   #stops = new Map<string, FocusStop>();
   /** Whether the phone's stages panel is open. Shut by default: it is reading, not choosing, and it crowds a small screen. */
   #stagesOpen = false;
+  /** Narrow only: whether the search field is shown (`ScenarioSelectLayout.searchToggle`). Off by default — the roster gets the row. */
+  #searchOpen = false;
   #searchInput: McTextInput | null = null;
   #roster: McShelfRoster<Scenario> | null = null;
   #grid: McVirtualList | null = null;
+  /** Narrow only: the sideways-scrolling product chip rail (`ScenarioSelectLayout.chipsScroll`). Null on wide, where the chips wrap. */
+  #chipRail: McChipRail | null = null;
   #route: FocusRoute | null = null;
   #drill: ShelfDrillState = ALL_PACKS;
   #history: ScenarioRecord | null = null;
   readonly #artCache = new Map<string, Picture | null>();
   readonly #coverCache = new Map<string, Picture | null>();
   readonly #gridScroll = new ListScroll();
+  readonly #chipScroll = new RailScroll();
 
   constructor() {
     super(SCENES.scenarioSelect);
@@ -101,6 +109,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
       this.#roster = null;
       this.#grid?.destroy();
       this.#grid = null;
+      this.#chipRail?.destroy();
+      this.#chipRail = null;
     });
     this.#route = new FocusRoute(this, {
       blocked: () => this.scene.isActive(SCENES.inspect) || (this.#searchInput?.focused ?? false),
@@ -157,6 +167,8 @@ export class ScenarioSelectScene extends Phaser.Scene {
     this.#roster = null;
     this.#grid?.destroy();
     this.#grid = null;
+    this.#chipRail?.destroy();
+    this.#chipRail = null;
 
     const kept = this.#searchInput ? [this.#searchInput.gameObject] : [];
     for (const node of kept) this.children.remove(node);
@@ -197,6 +209,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
         chipRows: chipRowCount,
         detailLines: 12,
         detailCollapsed: !this.#stagesOpen,
+        searchOpen: this.#searchOpen,
       });
     const estimatedRows = packCompactChipsToRows(chipDefs, width).length;
     const firstPass = layoutFor(estimatedRows);
@@ -246,20 +259,7 @@ export class ScenarioSelectScene extends Phaser.Scene {
       )
       .setOrigin(1, 0.5);
 
-    this.#searchInput = drawSearchField(
-      this,
-      layout.search,
-      "scenario-search",
-      this.#draft.scenarioFilter.text,
-      "search scenarios, villains, packs…",
-      (value) => {
-        this.#draft = setScenarioFilter(this.#draft, { ...this.#draft.scenarioFilter, text: value });
-        this.#rebuild();
-      },
-      this.#searchInput,
-      this.#stops,
-    );
-    drawCompactChipStrip(this, layout.chips, chipRows, "scenario-chip", this.#buttons, this.#stops);
+    this.#drawSearchAndChips(layout, chipDefs, chipRows);
 
     const shelves = this.#shelves();
     const cardMetrics = this.#cardMetrics(layout.shelves);
@@ -395,9 +395,78 @@ export class ScenarioSelectScene extends Phaser.Scene {
         scenarioIds: cardIds,
         scenarioChipIds: chipDefs.map((c) => c.id),
         stagesToggle: !layout.wide,
+        searchToggle: !layout.wide,
       }),
       this.#stops,
     );
+  }
+
+  /**
+   * The search field and the product chips. Wide draws the field above wrapped chips, always. Narrow draws one
+   * row — the search toggle at its head, the chips as a sideways rail beside it — and the field only while the
+   * toggle is on (`view/scenario-select-layout.ts`'s `searchOpen`), so a phone's roster gets the row back.
+   */
+  #drawSearchAndChips(
+    layout: ReturnType<typeof scenarioSelectLayout>,
+    chipDefs: readonly { id: string; text: string; selected: boolean; onClick: () => void }[],
+    chipRows: readonly (readonly { id: string; text: string; selected: boolean; onClick: () => void }[])[],
+  ): void {
+    const filter = this.#draft.scenarioFilter;
+    if (layout.search.height > 0) {
+      this.#searchInput = drawSearchField(
+        this,
+        layout.search,
+        "scenario-search",
+        filter.text,
+        "search scenarios, villains, packs…",
+        (value) => {
+          this.#draft = setScenarioFilter(this.#draft, { ...this.#draft.scenarioFilter, text: value });
+          this.#rebuild();
+        },
+        this.#searchInput,
+        this.#stops,
+      );
+      // The phone's open stages sheet covers this row, and a DOM field would show straight through it.
+      this.#searchInput.setVisible(!layout.detailOverlay);
+    } else if (this.#searchInput) {
+      this.#searchInput.destroy();
+      this.#searchInput = null;
+    }
+    if (layout.searchToggle) {
+      drawSearchToggle(
+        this,
+        layout.searchToggle,
+        "scenario-search-toggle",
+        this.#searchOpen || filter.text.length > 0,
+        () => this.#toggleSearch(),
+        this.#buttons,
+        this.#stops,
+      );
+    }
+    if (layout.chipsScroll) {
+      const rail = new McChipRail(this, { rect: layout.chips, chips: chipDefs, scroll: this.#chipScroll });
+      this.#chipRail = rail;
+      chipDefs.forEach((chip, index) => {
+        this.#stops.set(`scenario-chip:${chip.id}`, {
+          rect: () => rail.rectFor(index),
+          activate: chip.onClick,
+          ensureVisible: () => rail.scrollIntoView(index),
+        });
+      });
+    } else {
+      drawCompactChipStrip(this, layout.chips, chipRows, "scenario-chip", this.#buttons, this.#stops);
+    }
+  }
+
+  #toggleSearch(): void {
+    this.#searchOpen = !this.#searchOpen;
+    // Shutting the field also clears its text: a filter whose field you can no longer see must not keep hiding
+    // scenarios. The product chips are their own visible controls and stay as they were.
+    if (!this.#searchOpen && this.#draft.scenarioFilter.text) {
+      this.#draft = setScenarioFilter(this.#draft, { ...this.#draft.scenarioFilter, text: "" });
+    }
+    this.#rebuild();
+    if (this.#searchOpen) this.#searchInput?.focus();
   }
 
   /** Card size: ~300px wide (D02's own roughly-300px-wide art-dominant cards), tall enough to fill most of the shelf viewport's own height, capped so it doesn't run away on a very tall monitor. */
