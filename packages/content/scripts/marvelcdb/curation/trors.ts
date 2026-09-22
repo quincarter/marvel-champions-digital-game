@@ -38,6 +38,8 @@ export const TRORS_CURATION: PackCuration = {
   },
   outDir: "src/data/trors",
   exportPrefix: "TRORS",
+  // `campaign.ts` (TRORS_CAMPAIGN) is hand-authored — no MarvelCDB source (docs/campaign-mode-design.md §3).
+  handAuthoredModules: ["campaign"],
 
   corrections: [
     {

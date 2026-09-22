@@ -28,7 +28,7 @@
  *
  * Runs under Node ≥ 22.6 type stripping (`node --experimental-strip-types`); no build step, no extra deps.
  */
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { RawCard } from "./marvelcdb/raw-types.ts";
@@ -310,9 +310,15 @@ function modules(n: NormalizedPack, curation: PackCuration, cache: RawCache): Re
     "index.ts": [
       ...header.map((h) => `// ${h}`),
       "",
-      ...["cards", "packs", "encounterSets", "scenarios", "starterDecks", "provenance"].map(
-        (m) => `export * from "./${m}.js";`,
-      ),
+      ...[
+        "cards",
+        "packs",
+        "encounterSets",
+        "scenarios",
+        "starterDecks",
+        "provenance",
+        ...(curation.handAuthoredModules ?? []),
+      ].map((m) => `export * from "./${m}.js";`),
       "",
     ].join("\n"),
   };
@@ -350,6 +356,12 @@ async function ingestOne(pack: string, args: Args): Promise<{ ok: boolean; summa
 
   const outDir = join(PKG_ROOT, curation.outDir);
   await mkdir(outDir, { recursive: true });
+  // A hand-authored module the barrel re-exports must already be there — the emitter never writes it.
+  for (const m of curation.handAuthoredModules ?? []) {
+    await access(join(outDir, `${m}.ts`)).catch(() => {
+      throw new Error(`${pack}: handAuthoredModules names "${m}" but ${curation.outDir}/${m}.ts does not exist`);
+    });
+  }
   for (const [file, source] of Object.entries(modules(normalized, curation, cache))) {
     await writeFile(join(outDir, file), source);
   }

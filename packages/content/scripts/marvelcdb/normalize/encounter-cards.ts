@@ -50,6 +50,11 @@ export function normalizeEncounterCard(
     // (campaign-specific) encounter set instead, like any other encounter card.
     encounterSetIds: r.type_code === "obligation" && !isCampaignCard ? [] : [brand("encounterSet", set)],
     boostIcons: p.boost,
+    // RRG 1.8 "Boost, Boost Icon" (p. 11): the star in the boost area marks "the card has a 'Boost' ability", so the
+    // flag follows the parsed text (docs/phase7-wave2-data.md "starIcon?: boolean"). `parse()` has already
+    // rejected any record whose MarvelCDB `boost_star` disagrees with that text, so the two never diverge here.
+    // Emitted only when true — absent reads as false, and the committed data carries no `starIcon: false`.
+    ...(parsed.abilities.some((a) => a.kind === "boost") ? { starIcon: true } : {}),
     traits: p.traits,
     keywords: parsed.keywords,
     text: p.text,
@@ -133,7 +138,7 @@ export function normalizeEncounterCard(
       expectNoAttach(ctx, p, parsed);
       if (r.base_threat === null || r.base_threat === undefined)
         errors.push(`${r.code}: side scheme without starting threat`);
-      const { encounterSetIds, boostIcons, traits, keywords, text, abilities: abs } = encounterCommon;
+      const { encounterSetIds, boostIcons, starIcon, traits, keywords, text, abilities: abs } = encounterCommon;
       const scheme: SideSchemeCard = {
         ...common,
         type: "side_scheme",
@@ -141,6 +146,7 @@ export function normalizeEncounterCard(
         startingThreat: scalingOf(r.base_threat ?? 0, !r.base_threat_fixed),
         icons: schemeIcons(r),
         boostIcons,
+        ...(starIcon ? { starIcon } : {}),
         traits,
         keywords,
         text,
