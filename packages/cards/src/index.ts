@@ -28,3 +28,4 @@ export {
 export type { Wave2ScenarioOptions } from "./wave2/index.js";
 export { PLAYABLE_ABILITIES, PLAYABLE_DEPS, playableScenario, playableStarterDeckSetup } from "./playable/index.js";
 export type { PlayableScenarioOptions } from "./playable/index.js";
+export { CAMPAIGNS, campaignDefinitionOf, TRORS_CAMPAIGN_DEFINITION } from "./campaigns/index.js";
