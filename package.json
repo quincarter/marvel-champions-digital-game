@@ -21,6 +21,7 @@
     "fmt:check": "oxfmt --check",
     "check": "pnpm lint && pnpm fmt:check && pnpm typecheck && pnpm test && pnpm build",
     "capture:screens": "node scripts/capture-design-screenshots.mjs",
+    "screenshots": "node scripts/shoot-screens.mjs",
     "campaign:scrape": "uv run scripts/scrape_campaign_markdown.py",
     "ingest": "pnpm --filter @mc/content ingest --",
     "clean": "node scripts/clean.mjs",
