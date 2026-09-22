@@ -154,10 +154,11 @@ export type {
 
 /**
  * Campaign mode (RRG 1.8 "Modes of Play", p. 29) as plain data: the vocabulary a box's rulebook is transcribed
- * into, the log it writes, and the two values that cross the game/campaign boundary. Types only — the runner, the
- * in-game primitives and the campaign deck rules are separate steps (docs/campaign-mode-design.md §11).
+ * into, the log it writes, and the two values that cross the game/campaign boundary. Types only; the runner that
+ * interprets them is below (docs/campaign-mode-design.md §11).
  */
 export type {
+  CampaignAttempt,
   CampaignAttemptOutcome,
   CampaignCardFace,
   CampaignChoiceRecord,
@@ -199,6 +200,34 @@ export type {
   ResolvedInstruction,
 } from "./campaign.js";
 export { CAMPAIGN_LOG_SCHEMA, CAMPAIGN_WINDOW_ORDER, DEFAULT_CAMPAIGN_WINDOW, NO_CAMPAIGN_WRITES } from "./campaign.js";
+/**
+ * The campaign runner (docs/campaign-mode-design.md §7): the four pure functions that compose the next scenario,
+ * hand it to `createGame`, read the finished game back, and fold the result into the log — plus the pending-choice
+ * re-entry that keeps a whole campaign replayable from its seed and its recorded answers.
+ */
+export type {
+  CampaignChoiceAnswer,
+  CampaignChoiceKey,
+  CampaignDeps,
+  CampaignGameStart,
+  CampaignLogSetup,
+  CampaignPendingChoice,
+  CampaignResultMeta,
+  CampaignRunnerResult,
+  CampaignSeatSetup,
+} from "./campaign/runner.js";
+export {
+  applyCampaignResult,
+  CAMPAIGN_NEXT_NODE_INSTRUCTION,
+  campaignChoiceKey,
+  campaignResultOf,
+  createCampaignLog,
+  grantsOf,
+  resolveBetweenGames,
+  retryBaselineOf,
+  startGameFromLog,
+} from "./campaign/runner.js";
+
 /** Reading the frozen campaign snapshot a game carries (`GameState.campaign`), for view models and the runner. */
 export {
   campaignFaceOf,

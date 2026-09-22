@@ -13,13 +13,16 @@
  * - a `strikeList` field and the `strike` op / `notStruck` predicate over it,
  * - a `hidden` field written by a seeded `random` op,
  * - an `instructionList` field resolving against `conditionalInstructions`,
- * - a node `defeat` block, and an `Expert Campaign Only` instruction.
+ * - a node `defeat` block, and an `Expert Campaign Only` instruction,
+ * - a `progressToFail` threshold, so a node can fail without ever being played.
  *
  * Everything is plain data; `campaign.test.ts` round-trips both values through `JSON.parse(JSON.stringify(...))`.
  */
 
-import { campaignId, cardId, encounterSetId, scenarioId } from "@mc/content";
+import { campaignId, cardId, encounterSetId, scenarioId, type AnyCard, type UpgradeCard } from "@mc/content";
+import type { CampaignDeps } from "../campaign/ops.js";
 import { createRng } from "../rng.js";
+import { stubAlly, stubIdentity, stubUpgrade } from "./fixtures.js";
 import type {
   CampaignCardFace,
   CampaignDefinition,
@@ -117,6 +120,8 @@ export const SYNTHETIC_CAMPAIGN: CampaignDefinition = {
       ],
     },
     finale: { nodeId: "omega", when: { kind: "nodeResolved", nodeId: "alpha" } },
+    // The non-linear box's "three Xs to the right and the scenario has Failed" shape, as a number the *box* owns.
+    progressToFail: 3,
     beforeChoice: [
       {
         id: "syn.before.saboteur",
@@ -510,3 +515,34 @@ export function syntheticCampaignInput(
     seed: 4242,
   };
 }
+
+// ---------------------------------------------------------------------------------------------------------------
+// The card data the between-games half needs (design §11 step 4): a `campaignSet` and a `collection` to choose from
+// ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * A pool holding exactly what the synthetic campaign's choice sources can reach: two relics that belong to its
+ * campaign set (so `campaignSet` finds them and `excludeGranted` can take one away), a third relic outside every
+ * set, an aspect upgrade cheap enough for the `collection` filter and one that is not, the ward, and the two
+ * identities. Still nothing published: every id keeps the `syn-` prefix.
+ */
+const relic = (id: string, cost: number): UpgradeCard => ({
+  ...stubUpgrade({ id, cost }),
+  specificTo: { kind: "campaign", encounterSetId: SYNTHETIC_SET },
+});
+
+export const SYNTHETIC_CAMPAIGN_POOL: readonly AnyCard[] = [
+  relic("syn-relic-a", 1),
+  relic("syn-relic-b", 2),
+  stubUpgrade({ id: "syn-relic-c", cost: 1 }),
+  { ...stubUpgrade({ id: "syn-gift-cheap", cost: 2 }), aspect: "leadership" },
+  { ...stubUpgrade({ id: "syn-gift-dear", cost: 5 }), aspect: "leadership" },
+  { ...stubUpgrade({ id: "syn-gift-other", cost: 1 }), aspect: "protection" },
+  stubAlly({ id: "syn-ward", cost: 1, atk: 1, thw: 1, hp: 1 }),
+  stubUpgrade({ id: "syn-player-card", cost: 1 }),
+  stubIdentity({ id: "syn-hero-one", hp: 10, atk: 2, thw: 1, def: 2, rec: 3, heroHandSize: 5, alterEgoHandSize: 6 }),
+  stubIdentity({ id: "syn-hero-two", hp: 11, atk: 1, thw: 2, def: 1, rec: 4, heroHandSize: 5, alterEgoHandSize: 6 }),
+];
+
+/** What the runner is handed: the pool above, and no numbered per-seat sets (the synthetic box prints none). */
+export const SYNTHETIC_CAMPAIGN_DEPS: CampaignDeps = { pool: SYNTHETIC_CAMPAIGN_POOL };

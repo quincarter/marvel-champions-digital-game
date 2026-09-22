@@ -280,6 +280,13 @@ export type CampaignGraph =
       readonly available: CampaignPredicate;
       /** A node that becomes mandatory once `when` holds and nothing else is available (MC60's Kingpin). */
       readonly finale?: { readonly nodeId: string; readonly when: CampaignPredicate };
+      /**
+       * **Added in step 4.** How many `progressNode` marks fail a node. MC60 p. 9 step 3 says "If a scenario has
+       * three Xs to its right, it has Failed" — three *printed boxes on that box's sheet*, so the threshold is the
+       * box's number, not the engine's. Without it `progressNode` would either be uninterpretable or would hard-code
+       * MC60's 3 in `@mc/engine`.
+       */
+      readonly progressToFail?: number;
     };
 
 export interface CampaignNode {
@@ -683,6 +690,28 @@ export interface CampaignLog {
   /** One entry per game *attempted*, won or lost, in order. The campaign's replay trace. */
   readonly history: readonly CampaignHistoryEntry[];
   readonly status: CampaignStatus;
+  /**
+   * **Added in step 4.** The game the runner has composed and that has not reported a result yet; absent between
+   * games. The original sketch had nowhere to keep it: `LossPolicy.retryBaseline` needs the log as it stood when
+   * the node began, and `CampaignHistoryEntry` cannot exist before the outcome is known. Keeping it inside the log
+   * is also what lets a campaign be saved *mid-scenario* and resumed — `resolveBetweenGames` then
+   * `applyCampaignResult` survive a JSON round trip in between.
+   */
+  readonly attempt?: CampaignAttempt;
+}
+
+export interface CampaignAttempt {
+  readonly nodeId: string;
+  readonly modes: PlayModes;
+  /** The `retryBaseline: "nodeStart"` baseline: the log before *anything* in this between-games block ran. */
+  readonly logBefore: CampaignLogSnapshot;
+  /** The composition and setup steps that already resolved, for the history entry this becomes. */
+  readonly steps: readonly CampaignStepTrace[];
+  readonly input: CampaignGameInput;
+  /** `composeVillain` (MC60 p. 9 step 5); null for a node whose scenario is `fixed`. */
+  readonly composedVillain: string | null;
+  /** `composeEncounterSets` (MC60 p. 9 step 6), in the order the ops named them. */
+  readonly composedEncounterSetIds: readonly string[];
 }
 
 export type CampaignStatus = "active" | "won" | "lost" | "abandoned" | "incompatible";
@@ -1006,17 +1035,60 @@ the DSL compiles to queries this reducer answers (cards that entered play matchi
 remaining hit points capped at base, whether a named scheme is in the victory display, which players are engaged with
 an enemy, how many cards of a title are across all player decks).
 
-`applyCampaignResult` is pure `(defn, log, result, choices) → { log, pendingChoices }`:
+### 7.3 The runner, as built (step 4)
 
-1. Always apply `removedFromCampaign` and `logWrites` (they stick across a retry).
-2. Always expire `thisGame` grants.
-3. On a **win**: run the node's `victory` instructions' `records`, then any `betweenGames` victory ops, then mark the
-   node `completed`, then advance `position`.
-4. On a **loss**: run the node's `defeat` instructions (empty for seven of the nine boxes), then restore the rest of the
-   log from `history[last].logBefore` per `retryBaseline`, keeping (1) and (2).
-5. Return any `choose` op that needs a human as a `pendingChoice`; the runner is re-entered with the answers. The
-   campaign advances only when no choice is pending — so the whole step list is replayable from
-   `(logBefore, result, choices)`.
+`packages/engine/src/campaign/` — `log.ts` (the working log and the one place a write happens), `ops.ts` (every
+`CampaignValue`, `CampaignPredicate`, `CampaignChoiceSource` and `CampaignOp`, exhaustively, with no `default:`),
+`result.ts` (`campaignResultOf`), `runner.ts` (the public API). All of it re-exported from `@mc/engine`.
+
+```ts
+createCampaignLog(definition, { id, seats, modes, poolVersion, seed }): CampaignLog
+resolveBetweenGames(definition, log, deps, modes?, answers?): CampaignRunnerResult<CampaignLog>
+startGameFromLog(definition, log): CampaignGameStart
+campaignResultOf(definition, log, finalState, events, engineDeps?): CampaignGameResult
+applyCampaignResult(definition, log, result, { at, gameId }, deps, answers?): CampaignRunnerResult<CampaignLog>
+
+type CampaignRunnerResult<T> = { kind: "done"; value: T } | { kind: "pending"; choice: CampaignPendingChoice };
+interface CampaignDeps { pool: CardPool; perSeatSetIds?: readonly EncounterSetId[] }
+```
+
+**Pending-choice re-entry is re-running.** A step list that reaches a `choose` with no recorded answer returns that
+one choice (`{ instructionId, slot, seatNumber, text, citation, chooser, options, count, optional }`) and changes
+_nothing_; the caller answers it and calls the same function again with the enlarged answer list, and the list runs
+from the top. Nothing partial is ever persisted, so `(log, answers)` is the complete input. One choice at a time,
+not all of them, because a later choice's options can depend on an earlier one. The runner's own "which scenario
+next?" prompt (MC60 p. 9 step 4) uses the same shape under the reserved instruction id `campaign.nextNode`.
+
+`campaignResultOf` takes the **log** rather than the node the sketch passed: the log's `attempt` is what says which
+node was played and under which modes, and `expiringGrants` is a fact about the log's grants that no game state can
+tell you. It computes every `record` of the matching branch whose `whenModes` pass, and leaves the `when` predicate
+(which reads the _log_) to `applyCampaignResult`.
+
+`applyCampaignResult` is pure `(defn, log, result, meta, deps, answers) → { log } | { pendingChoice }`:
+
+1. On a **loss**, restore the log to `attempt.logBefore` first (`retryBaseline: "nodeStart"`), carrying the current
+   `removedFromCampaign` across unrestored.
+2. Expire `thisGame` grants — the grants the _finished game_ carried, not ones a victory step is about to make.
+3. Apply the game's own `logWrites` and `removedFromCampaign`. They stick whatever the outcome (RRG p. 29; §6.2).
+4. On a **win**: run `everyNodeVictory` then the node's `victory`; then mark the node `completed` if no op did, and
+   advance `position`. With every node resolved and no `endCampaign` op fired, the campaign ends `won` if every node
+   is `completed` and `lost` otherwise.
+5. On a **loss**: run the node's `defeat` then `loss.everyNodeDefeat`, but only when `loss.retry === "byInstruction"`;
+   then `position.nextNodeId` becomes the node again unless a defeat op resolved it.
+6. Append the history entry (`attempt.steps` ++ this run's steps) and clear `attempt`.
+
+### 7.4 Readings the runner had to make, flagged rather than silently chosen
+
+| Question                                                                 | What step 4 does                                                                                                                                                           |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Where does `logBefore` sit for a `choice` graph?                         | Before `beforeChoice`, so a retry re-runs the progression draw from the restored RNG and reproduces it exactly. The alternative (after it) double-counts a progression.    |
+| `seat: "self"` on an op with no `forEachSeat` around it                  | Runs once per seat, each with its own slot values — "Each player chooses … and adds it to their deck" (MC10 p. 5) is one instruction, not a loop.                          |
+| `seat: "self"` on a _predicate_, with no seat scope                      | "any seat satisfies it", because the gates printed that way read "If a player has …".                                                                                      |
+| `CampaignChoiceSource.excludeGranted`                                    | **Group-wide**: the physical card is taken. MC16 p. 5 prints exactly that for its Market. No box prints the per-seat reading.                                              |
+| `fieldAtLeast` on a list field (the between-games predicate has no `of`) | Counts the entries; a `number`/`flag` field reads its value. The in-game `Predicate` keeps its explicit `of: "count"`.                                                     |
+| Where `conditionalInstructions` land in a node's setup                   | After `everyNodeSetup`, before the node's own, shared fields then seat fields, **each id once**. MC27 p. 22 does not say, and resolving one twice would double it.         |
+| A `hidden` field declared `perSeat`                                      | Reads and writes as shared, because `CampaignLog.hidden` is one flat map. No rulebook prints a per-seat secret.                                                            |
+| `LogFieldType` `cardState`                                               | **Cannot be written.** Neither `CampaignGameQuery` nor `CampaignValue` can compose counters-plus-face, so a write to one throws instead of guessing. A real gap — see Q11. |
 
 ---
 
@@ -1151,20 +1223,20 @@ so the campaign browser can link to the played game and the game-over screen kno
 
 Ordered, each step independently verifiable. C1 and MC10's C2 are built together, as PLAN.md's sequencing says.
 
-| #   | Step                                                                                                                                                                                                                                                                                                                                                              | Owner                        | Verified by                                                                                                                                                   |
-| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | `PlayModes`, `ModePredicate`, `difficultyOf`/`modesOf`; migrate `cards/*/setup.ts` and `SessionConfig`                                                                                                                                                                                                                                                            | `game-rules-architect`       | full suite green; unit tests on the projection and on the "difficulty and modes disagree" throw                                                               |
-| 2   | `packages/engine/src/campaign.ts`: every type in §4–§5 and §7. **No behaviour.**                                                                                                                                                                                                                                                                                  | `game-rules-architect`       | `pnpm typecheck`; a synthetic two-node fixture campaign in `engine/src/testing/`                                                                              |
-| 3   | **Landed.** Engine primitives: the `campaignLog` value/predicate/selector, `TargetQuery.inCampaignLogField`, `recordInCampaignLog`, `removeFromCampaign`, `GameSetupConfig.campaign` frozen into `GameState`, the five setup windows, the four trace events                                                                                                       | `game-rules-architect`       | `campaign-primitives.test.ts` against the synthetic campaign — no real box named                                                                              |
-| 4   | The runner: `resolveBetweenGames`, `startGameFromLog`, `campaignResultOf`, `applyCampaignResult`, seeded campaign RNG, pending-choice re-entry                                                                                                                                                                                                                    | `game-rules-architect`       | a synthetic campaign played end to end headlessly, including a loss, a retry, and a `removeFromCampaign` surviving the retry                                  |
-| 5   | `validateDeck` `DeckContext`, five new problem codes, both current refusals made conditional                                                                                                                                                                                                                                                                      | `game-rules-architect`       | `deck.test.ts`: campaign card legal inside its campaign and illegal outside; removed card refused; identity lock; frozen deck; granted cards exempt from size |
-| 6   | Content: `Campaign` record fields; emit records for all ten boxes; confirm MC50/MC56/MC60 campaign-card counts against their rulebooks (PLAN.md §C2 open item); correct the MC56 row                                                                                                                                                                              | `card-data-pipeline`         | `validateCampaign`; a test that every box's campaign sets are `campaignSpecific`                                                                              |
-| 7   | `packages/cards/src/campaigns/trors.ts` — MC10's five nodes, every instruction cited `MC10 p. N`                                                                                                                                                                                                                                                                  | `ability-scripting-engineer` | the §9.3 coverage test                                                                                                                                        |
-| 8   | MC10's 30 parked refs (04155–04166): the four TECH upgrades, the four Condition upgrades (both faces), the four Expert Campaign obligations; `KNOWN_SKIPPED.trors` → `[]`                                                                                                                                                                                         | `ability-scripting-engineer` | `wave2/coverage.test.ts`                                                                                                                                      |
-| 9   | QA scenarios: full standard campaign; full expert campaign (persistent damage MC10 p. 17, obligations in decks, engaged-with-enemy record p. 12, delay counters → starting threat p. 15); a lost-and-retried scenario proving the log survives; Hydra Prison allies proving removal sticks across the retry; a Vibranium Arrow in-game log write surviving a loss | `rules-qa-engineer`          | named per-page tests                                                                                                                                          |
-| 10  | `CampaignStorage` + `IdbCampaignStorage` + shared contract test; `SaveMeta.campaignId`; `SAVE_SCHEMA` → 4                                                                                                                                                                                                                                                         | `game-client-engineer`       | the contract test, both implementations                                                                                                                       |
-| 11  | The five view models in §10.2                                                                                                                                                                                                                                                                                                                                     | `game-client-engineer`       | Vitest unit tests; scenes are a separate brief                                                                                                                |
-| 12  | **Acceptance gate for "content-only": write MC21's definition against the frozen foundation.** MC21 is the cheapest second box (campaign pool of flags, no currency, no track). If it needs _any_ change in `packages/engine` or `packages/client`, the foundation is wrong and steps 2–4 are revised before more boxes land.                                     | `ability-scripting-engineer` | a `git diff --stat` touching only `packages/content` and `packages/cards`                                                                                     |
+| #   | Step                                                                                                                                                                                                                                                                                                                                                              | Owner                        | Verified by                                                                                                                                                    |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | `PlayModes`, `ModePredicate`, `difficultyOf`/`modesOf`; migrate `cards/*/setup.ts` and `SessionConfig`                                                                                                                                                                                                                                                            | `game-rules-architect`       | full suite green; unit tests on the projection and on the "difficulty and modes disagree" throw                                                                |
+| 2   | `packages/engine/src/campaign.ts`: every type in §4–§5 and §7. **No behaviour.**                                                                                                                                                                                                                                                                                  | `game-rules-architect`       | `pnpm typecheck`; a synthetic two-node fixture campaign in `engine/src/testing/`                                                                               |
+| 3   | **Landed.** Engine primitives: the `campaignLog` value/predicate/selector, `TargetQuery.inCampaignLogField`, `recordInCampaignLog`, `removeFromCampaign`, `GameSetupConfig.campaign` frozen into `GameState`, the five setup windows, the four trace events                                                                                                       | `game-rules-architect`       | `campaign-primitives.test.ts` against the synthetic campaign — no real box named                                                                               |
+| 4   | **Landed.** The runner (§7.3): `resolveBetweenGames`, `startGameFromLog`, `campaignResultOf`, `applyCampaignResult`, `createCampaignLog`, seeded campaign RNG, pending-choice re-entry                                                                                                                                                                            | `game-rules-architect`       | `campaign/runner.test.ts`: the synthetic campaign played end to end, a loss, a retry, a `removeFromCampaign` surviving it, seed determinism, a JSON round trip |
+| 5   | `validateDeck` `DeckContext`, five new problem codes, both current refusals made conditional                                                                                                                                                                                                                                                                      | `game-rules-architect`       | `deck.test.ts`: campaign card legal inside its campaign and illegal outside; removed card refused; identity lock; frozen deck; granted cards exempt from size  |
+| 6   | Content: `Campaign` record fields; emit records for all ten boxes; confirm MC50/MC56/MC60 campaign-card counts against their rulebooks (PLAN.md §C2 open item); correct the MC56 row                                                                                                                                                                              | `card-data-pipeline`         | `validateCampaign`; a test that every box's campaign sets are `campaignSpecific`                                                                               |
+| 7   | `packages/cards/src/campaigns/trors.ts` — MC10's five nodes, every instruction cited `MC10 p. N`                                                                                                                                                                                                                                                                  | `ability-scripting-engineer` | the §9.3 coverage test                                                                                                                                         |
+| 8   | MC10's 30 parked refs (04155–04166): the four TECH upgrades, the four Condition upgrades (both faces), the four Expert Campaign obligations; `KNOWN_SKIPPED.trors` → `[]`                                                                                                                                                                                         | `ability-scripting-engineer` | `wave2/coverage.test.ts`                                                                                                                                       |
+| 9   | QA scenarios: full standard campaign; full expert campaign (persistent damage MC10 p. 17, obligations in decks, engaged-with-enemy record p. 12, delay counters → starting threat p. 15); a lost-and-retried scenario proving the log survives; Hydra Prison allies proving removal sticks across the retry; a Vibranium Arrow in-game log write surviving a loss | `rules-qa-engineer`          | named per-page tests                                                                                                                                           |
+| 10  | `CampaignStorage` + `IdbCampaignStorage` + shared contract test; `SaveMeta.campaignId`; `SAVE_SCHEMA` → 4                                                                                                                                                                                                                                                         | `game-client-engineer`       | the contract test, both implementations                                                                                                                        |
+| 11  | The five view models in §10.2                                                                                                                                                                                                                                                                                                                                     | `game-client-engineer`       | Vitest unit tests; scenes are a separate brief                                                                                                                 |
+| 12  | **Acceptance gate for "content-only": write MC21's definition against the frozen foundation.** MC21 is the cheapest second box (campaign pool of flags, no currency, no track). If it needs _any_ change in `packages/engine` or `packages/client`, the foundation is wrong and steps 2–4 are revised before more boxes land.                                     | `ability-scripting-engineer` | a `git diff --stat` touching only `packages/content` and `packages/cards`                                                                                      |
 
 ---
 
@@ -1222,6 +1294,13 @@ step 12, before step **14** (the draw; the sketch said 13, miscounting), and let
 affected instructions to `beforeScenarioSetup` with the ruling cited in a comment. Flagged, not silently resolved —
 and the reason `beforeScenarioSetup` is built now rather than when MC16 lands: the override has to be available to a
 definition without an engine change.
+
+**Q11. A `cardState` log field has no way to be written.** _(Found building step 4.)_
+MC50 p. 6's Board Members carry counters **and a face** across scenarios, and `LogValue` has the storage shape for
+it — but neither `CampaignGameQuery` (the `record` half) nor `CampaignValue` (the between-games half) can compose
+"these counters on this card, on this face". Step 4 **throws** on a write to a `cardState` field rather than guess.
+**Recommendation:** add one `CampaignGameQuery` member, `{ kind: "cardStateOf"; cards: readonly CardId[] }`, reading
+each named card's counters and current face out of the finished game, when MC50 is scheduled. Not needed for MC10.
 
 **Q8. Do campaign grants count toward the three-copy limit?**
 MC27 p. 22's Aspect Advantage adds "_the maximum number of copies of that card, by title_" and says they do not count

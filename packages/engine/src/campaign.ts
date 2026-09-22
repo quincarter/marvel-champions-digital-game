@@ -83,6 +83,12 @@ export type CampaignGraph =
        * scenario is either Completed or Failed, the players must choose the Kingpin scenario".
        */
       readonly finale?: { readonly nodeId: string; readonly when: CampaignPredicate };
+      /**
+       * How many `progressNode` marks fail a node. MC60 p. 9 step 3: "If a scenario has three Xs to its right, it
+       * has Failed" — three printed boxes on that box's sheet, so the number is the *box's*, not the engine's.
+       * Absent means `progressNode` only counts and the definition marks the failure itself.
+       */
+      readonly progressToFail?: number;
     };
 
 export interface CampaignNode {
@@ -654,6 +660,33 @@ export interface CampaignLog {
   /** One entry per game *attempted*, won or lost, in order: the campaign's replay trace. */
   readonly history: readonly CampaignHistoryEntry[];
   readonly status: CampaignStatus;
+  /**
+   * The game the runner has composed and that has not reported a result yet. Absent between games.
+   *
+   * **Declared while building the runner**, because the paper campaign has this state too ("we have set the
+   * scenario up and are playing it") and nothing else could hold it: `LossPolicy.retryBaseline` needs the log as it
+   * stood when the node began, and `CampaignHistoryEntry` cannot carry it before the outcome is known. Keeping it
+   * inside the log is what makes a campaign resumable from storage alone — `resolveBetweenGames` then
+   * `applyCampaignResult` survive a `JSON` round trip in between.
+   */
+  readonly attempt?: CampaignAttempt;
+}
+
+/** A composed, unfinished game: everything `applyCampaignResult` needs that the finished game itself cannot say. */
+export interface CampaignAttempt {
+  readonly nodeId: string;
+  /** The per-scenario modes this attempt is being played under (RRG 1.8 p. 29). */
+  readonly modes: PlayModes;
+  /** The log as it stood before this attempt's instructions ran — the `retryBaseline: "nodeStart"` baseline. */
+  readonly logBefore: CampaignLogSnapshot;
+  /** The composition and setup instructions that have already resolved, for the history entry this becomes. */
+  readonly steps: readonly CampaignStepTrace[];
+  /** What the game is handed (design §7.1). Frozen here so a resumed campaign hands the identical value twice. */
+  readonly input: CampaignGameInput;
+  /** `composeVillain` (MC60 p. 9 step 5). Null for a node whose scenario is `fixed`. */
+  readonly composedVillain: string | null;
+  /** `composeEncounterSets` (MC60 p. 9 step 6), in the order the ops named them. */
+  readonly composedEncounterSetIds: readonly string[];
 }
 
 export type CampaignStatus = "active" | "won" | "lost" | "abandoned" | "incompatible";
