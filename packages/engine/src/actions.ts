@@ -79,6 +79,7 @@ import {
   poolTotal,
   printedResources,
   RESOURCE_TYPES,
+  describeRequirement,
   requirementTotal,
   satisfies,
   scalePool,
@@ -624,6 +625,13 @@ export function paymentOptions(
   ctx: Ctx,
   playerId: PlayerId,
   excludeInstanceId: InstanceId | null,
+  /**
+   * The card this payment is for, when that is not the excluded card — what a "generate a resource for an Arrow
+   * event" ability (Expert Marksman, `generatesFor`) is checked against. Defaults to `excludeInstanceId`, which is
+   * the same card whenever a card is being played; with neither, such an ability is left out, because a resource
+   * that only pays for one kind of card pays for nothing in particular.
+   */
+  payingFor: InstanceId | null = excludeInstanceId,
 ): readonly ChoiceOption[] {
   const options: ChoiceOption[] = [];
   const form = mustPlayer(ctx.state, playerId).identity.form;
@@ -641,7 +649,7 @@ export function paymentOptions(
     if (controllerOf(ctx.state, id) !== playerId) continue;
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
       if (ctx.deps.abilities[ref.id]?.trigger.kind !== "resource") continue;
-      if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, excludeInstanceId)) continue;
+      if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, payingFor)) continue;
       options.push({
         optionId: `ability:${id}:${ref.id}`,
         label: mustCardOf(ctx.state, id).name,
@@ -1245,7 +1253,7 @@ export function pricePlay(
   if (!satisfies(pool, requirement)) {
     return {
       code: "insufficient_resources",
-      message: `need ${requirementTotal(requirement)} (${JSON.stringify(requirement)}), paid ${poolTotal(pool)}`,
+      message: `Needs ${describeRequirement(requirement)}; the payment covers ${poolTotal(pool)}.`,
     };
   }
   const vars = resourceVars(pool, cost, requirement);

@@ -117,6 +117,28 @@ export const requirementTotal = (req: ResolvedRequirement): number =>
   req.generic + req.physical + req.mental + req.energy + (req.wild ?? 0);
 
 /**
+ * A requirement in words, for a player-facing refusal: "1 resource", "2 resources", "1 physical", "1 physical and 2
+ * of any type", "1 wild and 1 mental". The engine's own messages reach the table unchanged (Inspect's "Right now",
+ * the action bar), so they must read as sentences — a refusal used to print the requirement as JSON.
+ */
+export function describeRequirement(req: ResolvedRequirement): string {
+  const typed = (
+    [
+      ["wild", req.wild ?? 0],
+      ["physical", req.physical],
+      ["mental", req.mental],
+      ["energy", req.energy],
+    ] as const
+  )
+    .filter(([, amount]) => amount > 0)
+    .map(([kind, amount]) => `${amount} ${kind}`);
+  if (typed.length === 0) return `${req.generic} resource${req.generic === 1 ? "" : "s"}`;
+  const any = req.generic > 0 ? [`${req.generic} of any type`] : [];
+  const parts = [...typed, ...any];
+  return parts.length === 1 ? parts[0]! : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
+}
+
+/**
  * RRG "Cost": a `wild` slot takes an actual wild resource, typed slots are
  * filled by that type first, the wilds left over cover any typed shortfall, and
  * whatever remains pays the generic part. Overpaying is legal.
