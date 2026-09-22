@@ -23,7 +23,7 @@ Authorities, in the order they win (RRG 1.8 "The Golden Rules", p. 4: card text 
 1. **Card text and product rules.** The Galaxy's Most Wanted rulebook (MC16) is in the repo: `docs/campaign-modes/mc16_galaxys_most_wanted_rules_website-compressed.pdf`, with a page-by-page conversion in `docs/campaign-modes/markdown/mc16_galaxys_most_wanted.md`. Cited as "MC16 p. N". The Mad Titan's Shadow rulebook (MC21) is cited for Hela, whose card shape §1.1 must also fit.
    - **Not read:** the Star-Lord, Gamora, Drax and Venom inserts (linked from their Hall of Heroes pages). Read them before scripting those packs; §4 names what each is needed for.
 2. **FFG rulings, Dec 17, 2025 to Aug 13, 2026**, in `marvel-champions-rulings-post-rrg-1-7.md`, cited by date heading. Those that bear on cycle 2: Jan 11, 2026 (1) (an amplify icon on a defeated side scheme); Jan 26, 2026 (3) (Rocket Raccoon, Into the Fray: excess damage _dealt_); Feb 28, 2026 (7) #2 and (8) (Mister Knife; the Collector's discard interrupt catches Infinity Stones); Mar 30, 2026 (1) ("(to a maximum of X)" is local); Jun 2, 2026 (3) (The Galaxy's Most Wanted expert campaign); Aug 3, 2026 (4) #4 (Drax above three vengeance counters).
-3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page. Cycle 2's FAQ entries are on pp. 61–62 and its errata on pp. 66–67.
+3. **RRG 1.8 (Jul 2026)**, `mc_rulesreference_v18_compressed.pdf`, cited by printed page. Cycle 2's FAQ entries are on pp. 61–62 and its errata on pp. 66–67. A plain-text conversion, `mc_rulesreference_v18_compressed.md`, landed in the repo root during this pass (main PR #31) — used for `grep`/`Read` instead of extracting PDF text by hand, but it carries no page markers, so every citation here is still checked against the PDF's own printed page numbers (a page-image or `pypdf`/PyMuPDF text check, not the markdown). The appendix pages (52–56: card anatomy, encounter card anatomy, card backs) have figures the markdown conversion loses entirely — read those from the PDF via the `Read` tool's `pages` parameter, not the markdown.
 
 `packages/content/raw/marvelcdb/{gmw,stld,gam,drax,vnm,ron}.json` point to card text and stats. They are not an authority.
 
@@ -66,6 +66,18 @@ The ask was "`VillainStage.flipSide`, or whatever shape the rules call for". The
 
 **Parser mapping (pipeline; not done).** `stageOrder` (`scripts/marvelcdb/normalize/villains.ts`) reads only a roman numeral or a single letter, so `"A1"`/`"A2"` still fail with "villain stage label is not a roman numeral" (the survey's 4 `gmw` and 4 `mts` lines). When it learns them it must compare the **letters** for the mode and the **digits** for the face; comparing whole labels would misfile the Collector as MaGog's A/B versions (docs/phase7-wave2.md §15.2). Emit `stageLabel: "A1"` / `"A2"` (`"B1"` / `"B2"` for expert), `infiniteHp: true` and `hp: flat(0)` on face 2, face 2's own raw ATK/SCH, and `startingSide` absent (both start on the A face).
 
+> **Status: landed (`card-data-pipeline`, 2026-09-22).** `MODE_LABEL_RE` in `normalize/villains.ts` recognizes a
+> `"<letter><digit>"` stage label, compares the letter (mode) to group records and the digit (face) only to tell
+> a record's two faces apart, and emits exactly the shape above: `16080a`/`16081a` are now two separate one-stage,
+> two-sided `VillainCard`s (standard/expert), `stageLabel` carries the printed label, `infiniteHp: true` is set
+> when a mode-labelled record's raw `health` is `0` (the schema's own "MarvelCDB encodes ∞ as `health: 0`"
+> reading), and `villainIdBySet` is left unset for the set (two physical cards, no single "the villain") — the
+> scenario names each directly via `villainCardCode`/`expertVillains.villainCardCode`. Confirmed against the
+> printed card images this pass (§4 Q7): ATK/SCH are explicit "0"/"0" (standard back) and "2"/"2" (expert back),
+> not dashed, matching the pipeline's untouched `dashedStats` handling (no change needed there). `mts`'s Hela
+> (21136/21137) now clears the same check too, as a structural side effect — confirmed via `survey.ts` — but `mts`
+> is not curated/emitted this pass (still blocked on other gaps unrelated to this one). `gmw` emitted: see §5.
+
 ### 1.2 Amplify icons: `BaseCard.amplifyIcons` and `CardFlipSide.amplifyIcons`
 
 - RRG 1.8 "Amplify Icon" (p. 7): "When a boost card is turned faceup during an enemy activation, add one additional boost icon to that card for each amplify icon in play", and "Each amplify icon is equivalent to the following constant ability: 'Each boost card gains [boost].'"
@@ -74,12 +86,39 @@ The ask was "`VillainStage.flipSide`, or whatever shape the rules call for". The
 - A positive whole number when present; absent means none.
 - **Data bug to fix (pipeline): the normalizer drops `scheme_amplify` for every pack**, including ones already emitted. `schemeIcons` (`normalize/values.ts`) maps only crisis, acceleration and hazard. 49 printed cards in the pool carry the icon; the already-emitted ones are `bp` 51033, 51034; `cyclops` 33029; `deadpool` 44014, 44016, 44024, 44039; `jubilee` 47032; `magneto` 49029, 49041; `mojo` 39041; `phoenix` 34030; `storm` 36032; `synthezoid` 57026, 57064, 57072; `wonder_man` 58027. Each needs `amplifyIcons` emitted (none is scripted yet, so no behaviour changes today).
 
+> **Status: landed (`card-data-pipeline`, 2026-09-22).** `raw-types.ts` now carries `scheme_amplify`; a new
+> `amplifyIconsField(r)` (`normalize/values.ts`) returns the spreadable field, read by `baseFields` (every card
+> type) and by the flip-side builder (`single-cards.ts`'s `readFlipSide`, for `CardFlipSide.amplifyIcons`). Every
+> already-emitted pack with an amplify card was re-emitted: `bp`, `cyclops`, `deadpool`, `jubilee`, `magneto`,
+> `mojo`, `storm`, `wonder_man` (8 of the 10 listed packs — `phoenix` isn't emitted at all, blocked on an
+> unrelated gap per `curation/phoenix.ts`; `synthezoid` isn't emitted either, not yet curated). `gmw`'s own 30
+> amplify cards land with the pack's first emission (§5), including the two expert-only `CardFlipSide.amplifyIcons`
+> cases the schema doc names (There Is No Escape 16180b, Kree Supremacy 16182b). Re-emitting each pack surfaced
+> unrelated pre-existing drift in some of them (a general obligation ability-ref-splitting fix that had landed in
+> the parser but not been applied since) — kept, since it's a real correctness fix and no `packages/cards` script
+> references any of the old ids (checked); every _other_ pack's regeneration (Core, wave 1, wave 2, the rest of
+> the data-only pool) was reverted unread/uncommitted, since re-emitting them was diagnostic only and several
+> (Green Goblin, notably) are scripted and would have broken on an unrelated ability-ref shape change.
+
 ### 1.3 Hinder X and Uses printed with the per player icon
 
 - **`KeywordInstance` `hinder` gains `perPlayer?: number`.** RRG 1.8 "Hinder X" (p. 22): "A card with the hinder X keyword enters play with X threat on it", "in addition to any threat it normally enters play with". X is `value + perPlayer × players` (RRG 1.8 "Per Player Icon", p. 32: it "multiplies that value by the number of players who started the scenario"). `Hinder 2[per_hero].` → `{ value: 0, perPlayer: 2 }`; `Hinder 4.` → `{ value: 4 }`. **88 printed cards** scale it; every one of cycle 2's does (Blockade, Oppressive Armada, Pincer Maneuver, the Galactic Artifacts side schemes, Cannonade, the standard Campaign Challenge faces, Fugitive Recovery, Budding Crime Syndicate).
 - **`uses` gains `countPerPlayer?: number`,** entering play with `count + countPerPlayer × players` counters, and `count` may then be 0. `Uses (1 fury counter, plus 1[per_hero] additional fury counters).` (Fanaticism 16110) → `{ count: 1, countPerPlayer: 1 }`; `Uses (2[per_hero] ammo counters).` (Crossbones' Machine Gun 04064) → `{ count: 0, countPerPlayer: 2 }`. Also `sm` 27174a.
 - **Data to fix (pipeline).** `parseKeywordSentence` (`parse-text.ts`) matches `Hinder N` only without the icon, so every `Hinder N[per_hero]` sentence became an ability ref instead: `stld` 17025 is emitted with `keywords: []` and `17025.budding-crime-syndicate-constant`. Re-emit it with the keyword and no ref.
 - **A live wave 2 bug found on the way: Crossbones' Machine Gun (04064) has no uses keyword.** It is scripted and playable, but its emitted `keywords` is `[]` (the `Uses (2[per_hero] …)` sentence failed to parse the same way), and `04064.crossbones-machine-gun-constant` is `coveredByEngineRule()`. So it enters play with no ammo counters and is never discarded; the printed card is discarded after 2 per player attacks. Fix: the pipeline emits `{ name: "uses", count: 0, countPerPlayer: 2, counterType: "ammo" }` (the engine reads it, §3.3), then `rules-qa-engineer` pins it with a Crossbones scenario test.
+
+> **Status: landed (`card-data-pipeline`, 2026-09-22).** `parseKeyword` (`parse-text.ts`) now matches
+> `Hinder N[per_hero]` → `{ name: "hinder", value: 0, perPlayer: N }`, `Uses (N[per_hero] type counters)` →
+> `{ count: 0, countPerPlayer: N, counterType }`, and `Uses (N type counter, plus M[per_hero] additional type
+counters)` → `{ count: N, countPerPlayer: M, counterType }`, exactly the shapes above. `stld` 17025 (Budding
+> Crime Syndicate) re-emitted with the keyword and no `-constant` ref; `trors` 04064 (Crossbones' Machine Gun)
+> re-emitted with the keyword, and its now-dead `04064.crossbones-machine-gun-constant` registry entry (an empty
+> `coveredByEngineRule()`, referenced by no card) removed from `packages/cards/src/wave2/trors/crossbones.ts` —
+> the one `packages/cards` change this pass made, per the brief's "minimal fix" allowance. The general Hinder fix
+> would also reach every other already-emitted pack printing `Hinder N[per_hero]` (not just the two named cards)
+> if it were regenerated; only `stld`/`trors` (this section's own targets) and §1.2's amplify set (which happen
+> to print Hinder too) were actually re-emitted and committed this pass — every other pack was left alone (see
+> §1.2's note on reverting unrelated regenerations).
 
 ### 1.4 Double-sided side schemes are not representable: emit one card per face
 
@@ -88,6 +127,14 @@ The ask was "`VillainStage.flipSide`, or whatever shape the rules call for". The
 - **Decision: emit each face as its own `SideSchemeCard`** (`16178a`, `16178b`, …). Nothing flips them during a game; the campaign instruction picks the face. This needs no schema change.
 - **Consequence, recorded rather than guessed:** as two cards, the engine does not know they are two faces of one card, so RRG 1.8 "Double-Sided Card" (p. 17), "When a double-sided card would enter an out-of-play area other than the victory display or set-aside area, it is removed from the game", does not apply to them. Each has Victory 1, so a defeated one goes to the victory display either way; only a discarded one differs. Revisit if a card ever discards one.
 
+> **Status: landed (`card-data-pipeline`, 2026-09-22).** `normalizeSingleCards` (`single-cards.ts`) now special-
+> cases a side scheme linked to a hidden side scheme of the same type: instead of the ordinary flip-side merge
+> (which `normalizeEncounterCard`'s `side_scheme` branch silently drops anyway — `SideSchemeCard` destructures
+> only specific fields off `encounterCommon`, `flipSide` not among them, so the back face's data would otherwise
+> just vanish), both faces are built as independent top-level records and emitted as two `SideSchemeCard`s
+> (`16178a`/`16178b`, …, distinct ids, distinct `collectorNumber`s "178A"/"178B"). Confirmed via `pnpm typecheck`
+> and the survey that nothing else uses this shape yet (structural detection, no card named in the normalizer).
+
 ### 1.5 Gamora's deckbuilding: "up to 6 attack and/or thwart events" (`gam`)
 
 Gamora (18001b), Skilled Tactician: "You may include up to 6 attack and/or thwart events in your deck from aspects other than your chosen aspect."
@@ -95,6 +142,13 @@ Gamora (18001b), Skilled Tactician: "You may include up to 6 attack and/or thwar
 - `IdentityDeckbuilding.offAspectPackages` could not express it: `OffAspectPackage` is Maria Hill's all-or-nothing "exactly three titles at maximum copies" (FAQ "Maria Hill (#1B)", RRG 1.8 p. 64).
 - **New: `IdentityDeckbuilding.offAspectAllowance { cardType, anyTrait, maxCards }`** — any number of titles, at most `maxCards` cards in total, each of `cardType` with at least one of `anyTrait`, from any aspect not chosen. Gamora is `{ cardType: "event", anyTrait: [ATTACK, THWART], maxCards: 6 }`. Validated on the identity (`validateHeroIdentityCard`); **`validateDeck`** counts matching off-aspect cards against it instead of reporting `aspect_restriction`, and reports `deckbuilding_requirement` past the maximum. Tests: `packages/engine/src/off-aspect-allowance.test.ts` (4), `wave3.test.ts` §1.5 (2).
 - **Data to emit (pipeline):** 18001a carries no `deckbuilding` today, so a deck relying on the allowance is refused as off-aspect. Emit the field above.
+
+> **Status: landed (`card-data-pipeline`, 2026-09-22).** `curation/gam.ts`'s `identityDeckbuilding["18001a"]` now
+> carries `{ offAspectAllowance: { cardType: "event", anyTrait: [ATTACK, THWART], maxCards: 6 } }`; `gam` was
+> re-emitted (one field added). `emit.ts`'s `KEY_BRANDS` needed one addition (`anyTrait: "trait"`) so the
+> generated file calls `trait("ATTACK")`/`trait("THWART")` like every other trait array, rather than emitting bare
+> strings `tsc` then rejects against the branded `Trait` type. Both Groot/Rocket precons (§2.1, below) still pass
+> `validateDeck` with no dependency on this field (neither uses off-aspect events), checked directly.
 
 ### 1.6 Keywords
 
@@ -120,6 +174,12 @@ Cycle 2 prints Hinder X, Patrol, Stalwart and Victory X for the first time, plus
 - **Badoon Headhunter is modular and campaign-specific at once.** RRG 1.8 FAQ "Modular Encounter Sets" (p. 61) lists it among the eight modular sets; MC16 p. 4 says "Cards #178–187 are campaign-specific encounter cards … and belong to the 'Campaign – Challenge' and 'Badoon Headhunter' modular encounter sets". Mark the set `campaignSpecific` (it is only added by campaign setup) and keep it out of `recommendedModularSetIds`; flagged in §4.
 - **Errata to apply** (RRG 1.8 pp. 66–67): Obedience Potion (#123), The Poison (#125), Cosmo (#20: "a player deck or the encounter deck"). The rulebook errata (setup bullet 5 of Infiltrate the Museum; "(Optional)" on Kree Supremacy) are campaign data.
 - **Raw-data typos** seen in passing, for curation to check against the card image: 16068's reminder text lacks its opening parenthesis; 16125 reads "the take 1 damage"; 16159 ends "…encounter deck?"; 18027 ends "(except for [[traits]]))".
+
+> **Status (`card-data-pipeline`, 2026-09-22).**
+>
+> - **Badoon Headhunter: answered, §4 Q3** — modular, not `campaignSpecific`; `EncounterSet.campaignSpecific` correctly stays `false` for it and for Campaign Challenge (neither prints the "Campaign" word RRG 1.8 p. 11 defines), and neither appears in `recommendedModularSetIds` regardless (none of `gmw`'s five 1A texts names them).
+> - **Errata: 16123 and 16125 landed**, each as a `curation/gmw.ts` `Errata` entry — raw's current text for both already matches RRG 1.8's "Should read" wording verbatim, so `text.printed` is left equal to `text.current` (the original reminder-only wording isn't reconstructed without a scan) rather than guessed; recorded, not silently applied. **Cosmo (17020, `stld`) needed nothing**: raw's current text already reads "a player deck or the encounter deck", so it's already past the errata with no curation change required — recorded as such rather than assumed.
+> - **Typos: all four fixed.** 16068 (missing open paren), 16125 ("the take" → "then take"), 16159 ("deck? Take" → "deck. Take") in `curation/gmw.ts`; 18027 (doubled close paren, "traits))." → "traits).") in `curation/gam.ts`, since it's `gam`'s card, not `gmw`'s. None independently confirmed against a card scan (no PDF/image renderer was available for these; 16068/16125/16159 rest on grammar/consistency with sibling cards, not a viewed image) — flagged in each correction's own evidence field. Q7's images (below) were fetched for a different card (the Collector), not these.
 
 ---
 
@@ -478,11 +538,11 @@ Each is implemented the way stated, or not at all, and named here rather than de
 
 1. **A deferred villain defeat and a simultaneous last elimination (§3.1).** When a villain's defeat goes on the stack (because an ability listens to it) and the same defeat sweep eliminates the last player, the elimination happens first and the game is lost. Inline (nothing listening) the villain still falls first. RRG 1.8 "Winning the Game" (p. 48) has no rule for a simultaneous win and loss.
 2. **A flip into or out of an ∞ face resets the dial (§3.1).** Implemented as the engine rule, from the only two products that print ∞ (MC21 p. 20 for Hela; the Collector's own text). RRG 1.8 "Flip" (p. 20) is silent on the dial. Confident, but it is a reading.
-3. **Badoon Headhunter is both modular and campaign-specific (§1.7).** RRG 1.8 FAQ p. 61 lists it as one of eight modular sets; MC16 p. 4 calls its cards campaign-specific. Proposed: campaign-specific, never a recommended modular.
+3. **Badoon Headhunter is both modular and campaign-specific (§1.7). Answered (`card-data-pipeline`, 2026-09-22): modular, not schema-`campaignSpecific`.** RRG 1.8's own FAQ answer settles it directly — "Galaxy's Most Wanted Expansion", "Modular Encounter Sets" (p. 61): "If an encounter set is not scenario-specific (containing the name of that scenario in its encounter set name area) or campaign-specific (containing the word 'Campaign' in its encounter set name area), then it is modular. The eight modular encounter sets in the Galaxy's Most Wanted Expansion are: Badoon Headhunter, Band of Badoon, Galactic Artifacts, Kree Militants, Menagerie Medley, Power Stone, Space Pirates, and Ship Command." (Also in `mc_rulesreference_v18_compressed.md` ~line 4492; that conversion has no page markers, so the citation above was checked against the PDF directly, page index 60 → printed footer "61".) MC16 p. 4's "campaign-specific encounter cards" is a looser, plain-English use of the phrase, not the FAQ's defined term; raw agrees structurally too (Badoon Headhunter's and Campaign Challenge's cards are `faction_code: "encounter"`, not `"campaign"`, unlike The Market). `EncounterSet.campaignSpecific` (which tracks the printed "Campaign" word, RRG 1.8 p. 11) stays `false` for both; neither is listed in any of the five scenarios' `recommendedModularSetIds` since neither is named in any 1A "Contents" text, so standalone play never draws either on its own regardless. See `curation/gmw.ts`'s own docblock for the full citation.
 4. **A defeated minion leaves play before its When Defeated resolves.** The ruling of Jan 11, 2026 (1) keeps a defeated side scheme in play until its When Defeated resolves; `applyDefeat` moves a minion first. No cycle 2 card reads the difference; recorded for `rules-qa-engineer` (§3.4).
 5. **Patrol and target validity (§3.5).** RRG 1.8 "Initiating Abilities" (p. 24) step 2 requires a valid target. Should a "(thwart)" ability whose only possible target is the main scheme be unplayable while patrolled? The engine lets it be played and blocks the removal, as it already does for crisis.
 6. **When is Star-Lord's "When you play a card from your hand" true (§3.20)?** RRG 1.8 step 6 says the card "commences being played" after the cost is paid (step 5), yet the ability reduces "the cost to play that card by 3". The printed card works only if the reduction applies at step 4. Proposed: treat it as a cost modifier offered while paying, like a resource ability.
-7. **The Collector's back faces print ATK/SCH 0/0 (standard) in the raw data.** Whether they print "0" or "—" decides whether the Wounded Collector can attack or scheme at all (RRG 1.8 "Dash (Value)", p. 15). Curation must check the card images.
+7. **The Collector's back faces print ATK/SCH 0/0 (standard) in the raw data. Answered (`card-data-pipeline`, 2026-09-22): printed "0"/"0" (standard) and "2"/"2" (expert), not "—"/"—", confirmed against the printed card images.** `marvelcdb.com/bundles/cards/16080b.png` and `16081b.png` were fetched and viewed directly this pass (not stored in the repo — CLAUDE.md's art boundary): both print solid numeral stat badges — "0" SCH / "0" ATK on the standard back face (16080b, "A2"), "2" SCH / "2" ATK on the expert back face (16081b, "B2") — not the dashed "—" box RRG 1.8 "Dash (Value)" (p. 15) uses elsewhere (compare Risky Business's Norman Osborn/Green Goblin, which do print a dash). So the Wounded Collector can attack and scheme (0 or 2, never blocked from using the power the way a dash would), not "—". Both faces also print "HIT POINTS ∞" in the footer, independently confirming `infiniteHp` against the card itself.
 8. **Venom's set-aside Symbiotes.** Struggle for Control (20023): "Put 1 set-aside copy of Enraged Symbiote into play". How many copies start set aside, rather than in the nemesis set, is in the Venom insert, which is not in the repo.
 9. **A reduction and a cap on the same character (§3.15).** Wide Stance and Cutthroat Ambition can both be on Nebula. Implemented as reductions first, then the cap: 10 damage → 9 → 5 taken. The other order gives 10 → 5 → 4. The two agree whenever the damage is at most the cap (5 → 4 either way) and differ above it. RRG 1.8 has no rule for ordering two constants.
 10. **Follow Through is modeled as a constant (§3.18).** Printed as an optional Hero Interrupt, it always applies here. Declining it is never better for its controller in cycle 2; if a later card punishes excess damage, it becomes a real choice and needs an interrupt window on excess damage.
@@ -491,11 +551,30 @@ Each is implemented the way stated, or not at all, and named here rather than de
 
 ## 5. What this asks of the other agents
 
-- **`card-data-pipeline`:**
+- **`card-data-pipeline`: done (2026-09-22).**
   - the A1/A2 villain stage labels, per mode, with `infiniteHp` on face 2 (§1.1), then emit `gmw`;
   - `amplifyIcons` on every card whose raw record has `scheme_amplify`, including the 17 already-emitted cards in §1.2;
   - `Hinder N[per_hero]` and `Uses (N[per_hero] …)` / `Uses (N …, plus N[per_hero] additional …)` parsed as keywords (§1.3), re-emitting `stld` 17025 and `trors` 04064;
   - the Campaign Challenge side schemes one card per face (§1.4); Gamora's `deckbuilding.offAspectAllowance` (§1.5); the errata and typos in §1.7; §4 Q3 and Q7.
+
+  **`gmw` emitted:** `src/data/gmw/` — 179 cards from 187 raw top-level records. The gap nets out exactly:
+  villain stages merge into one `VillainCard` per villain (14 top-level roman-numeral villain records → 6 cards,
+  −8: four 3-stage villains merge 3→1 each, Escape the Museum's mode-labelled pair stays 2→2), main scheme stages
+  merge the same way (10 top-level `…a` stage records → 5 `MainSchemeCard`s, −5), and the five Campaign Challenge
+  side schemes each split into two cards (5 top-level `…a` records → 10, +5, since their hidden `…b` back faces
+  aren't in MarvelCDB's top-level array at all — §1.4). 187 − 8 − 5 + 5 = 179. `pnpm --filter @mc/content ingest -- --pack gmw --offline` reproduces
+  it (`GMW_CURATION` registered in `ingest-marvelcdb.ts`). Both precons (Groot/Protection, Rocket
+  Raccoon/Aggression, MC16 p. 20) validate with `validateDeck` → `{ ok: true }`, checked directly against
+  `CORE_CARDS` + `GMW_CARDS`. Wired into the data-only pool (`DATA_ONLY_CARDS`/`DATA_ONLY_ENCOUNTER_SETS` in
+  `src/data/index.ts`, `GMW_SCENARIOS`/`GMW_STARTER_DECKS` re-exported alongside — the only data-only pack with
+  scenario data of its own); not wired into `packages/client` or `packages/cards` (out of scope for this pass —
+  every `gmw` ability ref is "not started" in the `pnpm refs` report, same as any other unscripted pack).
+
+  **Survey, all six cycle 2 packs (2026-09-22):** `gmw`, `stld`, `gam`, `drax`, `vnm`, `ron` all normalize cleanly
+  under their registered curation — 0 issues, 0 packs with a gap. (`mts`/`tt`/`aos` are not part of cycle 2 and
+  not emitted; `mts`'s own "villain stage label is not a roman numeral" errors are gone as a structural side
+  effect of §1.1's fix, confirmed via `survey.ts`, but it still isn't curated/emitted — other gaps remain.)
+
 - **`ability-scripting-engineer`:** re-script the three `trors` "after resolving step one" main schemes on `villainStepResolved` (§3.2); script Crossbones' Machine Gun's counters away from `coveredByEngineRule` once its data carries the keyword (§1.3). Every primitive `gmw`, `stld`, `gam` and `vnm` need has landed (§3.1–§3.22, §3.24, §3.25), and §3.26 lists the wordings that compose from existing vocabulary. Only Moondragon (`drax` 19013, §3.23) stays in `KNOWN_SKIPPED`, with the section named. New vocabulary is plain data (`RuleSpec`, `EffectSpec`, `ValueSpec`, `Predicate`, trigger fields); the DSL builders for it are the scripter's to add.
 - **`game-client-engineer`:** render ∞ for an ∞ face's hit points (§3.1); name `threatRemovalBlocked` reason `"patrol"` (§3.5); log lines for `surgeGranted` (§3.8), `villainFlipped.hitPointsReset` (§3.1), `controllerChanged` (§3.13), `playCostReduced` (§3.20), `interruptsPreempted` (§3.12) and `discardRedirected` (§3.14); a way to opt into a cost reduction while playing a card (§3.20); a view of a scenario area such as The Collection (§3.14).
 - **`rules-qa-engineer`:** pin Crossbones' Machine Gun (§1.3) and the three `trors` step-one schemes (§3.2) with scenario tests; §4 Q1 and Q4.
