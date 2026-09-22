@@ -1095,7 +1095,9 @@ tell you. It computes every `record` of the matching branch whose `whenModes` pa
 ## 8. Deck rules in campaign context
 
 `validateDeck(deck, pool)` gains an optional third argument. Its existing behaviour with no context is unchanged, so no
-current caller moves.
+current caller moves. **Built in step 5** (`packages/engine/src/deck.ts`); the sketch's single `forbiddenCardIds` is
+split, because the design's own table below wants two different problem codes for the two different rules, and
+because a removal is by _face_:
 
 ```ts
 export interface DeckContext {
@@ -1108,11 +1110,13 @@ export interface CampaignDeckContext {
   readonly campaignSetIds: readonly string[];
   /** MC10 p. 3: identity locked for the campaign. */
   readonly identityCardId: string;
-  /** Cards the campaign granted this seat: legal, and exempt from min/max deck size (MC10 p. 3). */
+  /** One entry per granted *copy*: legal here, and exempt from min/max deck size (MC10 p. 3). */
   readonly grantedCardIds: readonly string[];
-  /** RRG p. 29 removals, plus the box's own prohibitions (MC27 p. 4; MC40 p. 6). */
-  readonly forbiddenCardIds: readonly string[];
-  readonly forbiddenEncounterSetIds?: readonly string[];
+  /** RRG p. 29 removals, **by face** (ruling April 30, 2026 (4)): only a front-face removal refuses a deck line. */
+  readonly removedFromCampaign?: readonly CampaignCardFace[];
+  /** The box's own prohibitions *inside* its campaign (MC27 p. 4; MC40 p. 6) — a different rule, a different code. */
+  readonly prohibitedCardIds?: readonly string[];
+  readonly prohibitedEncounterSetIds?: readonly string[];
   /** MC16 p. 5 (mandatory) / MC27 p. 6 (optional): aspect and basic cards frozen after scenario 1. */
   readonly frozenNonCampaignCards?: readonly DeckCardEntry[];
 }
@@ -1131,9 +1135,23 @@ Changes to the existing checks in `packages/engine/src/deck.ts`:
 | —                                                                               | new `campaign_deck_frozen` when a non-granted line differs from `frozenNonCampaignCards`                                                                                                  |
 | copy limit                                                                      | granted cards are excluded from the by-title copy count, consistent with the deck-size exemption. **Flagged** — see Open question Q8.                                                     |
 
-And in `packages/content/src/schema/validation.ts` (~line 1118), `validateScenarioEncounterSets` gains an optional
-`{ campaignId?: string }`: a campaign-specific set is legal iff the scenario is being validated as part of that
-campaign's own product; the standalone refusal (and the whole `competitiveOnly` refusal) is unchanged.
+**The Q8 decision point** is the exported constant `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT` in
+`packages/engine/src/deck.ts`, set to `false` (the recommendation above), with the open question in its doc comment.
+Flipping that one constant is the whole change. MC10 never reaches it: its grants are campaign-specific cards, which
+never get as far as the copy-limit check.
+
+Two further notes from building it. A **legal** campaign-specific card short-circuits the rest of the line checks
+exactly as the refused one always did, so it is not counted toward deck size and the copy limit does not reach it —
+the change is only _whether a problem is reported_. And the **freeze** compares only the copies the player chose:
+granted copies are subtracted from both sides, so a frozen deck still lets the campaign keep adding its own cards.
+
+And in `packages/content/src/schema/validation.ts`, `validateScenarioEncounterSets` gains an optional
+`ScenarioModeContext` (`{ campaignId?: CampaignId; campaignSetIds?: readonly EncounterSetId[] }`): a campaign-specific
+set is legal iff the scenario is being validated as part of a campaign _and_ the set is one of that campaign's own —
+RRG p. 11's set-icon test, expressed as list membership until `Campaign.campaignSetIds` lands in step 6. The
+standalone refusal now states the rule ("a campaign-specific set can only be used during a campaign from the same
+product") instead of "campaign mode is not built"; the `competitiveOnly` refusal is unchanged, because competitive
+mode really is not built.
 
 ---
 
@@ -1229,7 +1247,7 @@ Ordered, each step independently verifiable. C1 and MC10's C2 are built together
 | 2   | `packages/engine/src/campaign.ts`: every type in §4–§5 and §7. **No behaviour.**                                                                                                                                                                                                                                                                                  | `game-rules-architect`       | `pnpm typecheck`; a synthetic two-node fixture campaign in `engine/src/testing/`                                                                               |
 | 3   | **Landed.** Engine primitives: the `campaignLog` value/predicate/selector, `TargetQuery.inCampaignLogField`, `recordInCampaignLog`, `removeFromCampaign`, `GameSetupConfig.campaign` frozen into `GameState`, the five setup windows, the four trace events                                                                                                       | `game-rules-architect`       | `campaign-primitives.test.ts` against the synthetic campaign — no real box named                                                                               |
 | 4   | **Landed.** The runner (§7.3): `resolveBetweenGames`, `startGameFromLog`, `campaignResultOf`, `applyCampaignResult`, `createCampaignLog`, seeded campaign RNG, pending-choice re-entry                                                                                                                                                                            | `game-rules-architect`       | `campaign/runner.test.ts`: the synthetic campaign played end to end, a loss, a retry, a `removeFromCampaign` surviving it, seed determinism, a JSON round trip |
-| 5   | `validateDeck` `DeckContext`, five new problem codes, both current refusals made conditional                                                                                                                                                                                                                                                                      | `game-rules-architect`       | `deck.test.ts`: campaign card legal inside its campaign and illegal outside; removed card refused; identity lock; frozen deck; granted cards exempt from size  |
+| 5   | **Landed.** `validateDeck` `DeckContext`, five new problem codes, the campaign-specific refusals made conditional                                                                                                                                                                                                                                                 | `game-rules-architect`       | `deck.test.ts`: campaign card legal inside its campaign and illegal outside; removed card refused; identity lock; frozen deck; granted cards exempt from size  |
 | 6   | Content: `Campaign` record fields; emit records for all ten boxes; confirm MC50/MC56/MC60 campaign-card counts against their rulebooks (PLAN.md §C2 open item); correct the MC56 row                                                                                                                                                                              | `card-data-pipeline`         | `validateCampaign`; a test that every box's campaign sets are `campaignSpecific`                                                                               |
 | 7   | `packages/cards/src/campaigns/trors.ts` — MC10's five nodes, every instruction cited `MC10 p. N`                                                                                                                                                                                                                                                                  | `ability-scripting-engineer` | the §9.3 coverage test                                                                                                                                         |
 | 8   | MC10's 30 parked refs (04155–04166): the four TECH upgrades, the four Condition upgrades (both faces), the four Expert Campaign obligations; `KNOWN_SKIPPED.trors` → `[]`                                                                                                                                                                                         | `ability-scripting-engineer` | `wave2/coverage.test.ts`                                                                                                                                       |

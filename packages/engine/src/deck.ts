@@ -37,6 +37,7 @@ import type {
   PlayerCard,
 } from "@mc/content";
 import type { EngineDeps } from "./abilities.js";
+import type { CampaignCardFace } from "./campaign.js";
 import { cardsMatch, isUnique, uniqueLabel } from "./unique.js";
 
 /**
@@ -71,10 +72,28 @@ export type DeckProblemCode =
    */
   | "separate_deck_card"
   /**
-   * RRG 1.8 "Campaign-Specific Card" (p. 11): "can only be used during a campaign from the same product". Campaign mode
-   * is not built yet, so no deck may list one (the Hydra Campaign upgrades).
+   * RRG 1.8 "Campaign-Specific Card" (p. 11): "Campaign-specific cards can only be used during a campaign from the
+   * same product (determined by that product's set icon)." Raised when the deck is not being built for a campaign at
+   * all, or is being built for a campaign the card's set does not belong to.
    */
   | "campaign_card"
+  /**
+   * A campaign card of *this* campaign that the campaign has not given this player. The Rise of Red Skull rulebook
+   * (p. 3), "Campaign-Only Cards": "These cards cannot be included in any player's deck unless they are playing The
+   * Rise of Red Skull campaign **and the players were directed to add them to their decks**."
+   */
+  | "campaign_card_not_granted"
+  /** RRG 1.8 Appendix I / MC10 p. 3: "Each player must use their chosen identity for the entire campaign." */
+  | "campaign_identity_locked"
+  /**
+   * RRG 1.8 "Campaign" (p. 29): "If a card is removed from a campaign, that card can no longer be used during the
+   * rest of the campaign, even if players retry the scenario wherein that card was removed."
+   */
+  | "campaign_removed_card"
+  /** A card or modular set the box forbids *inside* its own campaign (MC27 p. 4; MC40 p. 6). */
+  | "campaign_prohibited_card"
+  /** Deck customization is frozen for the rest of the campaign (MC16 p. 5 mandatory; MC27 p. 6 optional). */
+  | "campaign_deck_frozen"
   /**
    * A scenario-specific player card (RRG 1.8 "Scenario-Specific Card", p. 38): it belongs to a scenario's set and
    * enters the game through that scenario (Taskmaster's Captive allies), never through deckbuilding.
@@ -125,6 +144,68 @@ export interface DeckProblem {
 }
 
 export type DeckValidation = { readonly ok: true } | { readonly ok: false; readonly problems: readonly DeckProblem[] };
+
+/**
+ * Where this deck is being built, when that changes what is legal (docs/campaign-mode-design.md §8).
+ *
+ * Absent — which is every caller that predates campaign mode — means "a standalone deck", and `validateDeck`
+ * behaves and words itself exactly as it always has. An interface rather than the campaign context directly,
+ * because competitive (team-vs-team) mode will want the same treatment for `competitive_card`.
+ */
+export interface DeckContext {
+  readonly campaign?: CampaignDeckContext;
+}
+
+/**
+ * The campaign a deck is being built for. Supplied by the caller out of the `CampaignLog` and the `@mc/content`
+ * `Campaign` record, because the engine holds neither and never names a box.
+ */
+export interface CampaignDeckContext {
+  /** Opaque here; carried so a message can name the campaign the deck belongs to. */
+  readonly campaignId: string;
+  /**
+   * The encounter sets whose cards are campaign-specific to *this* campaign — `Campaign.campaignSetIds` plus
+   * `perSeatSetIds`. RRG 1.8 p. 11's "from the same product" is checked as membership of this list, because the
+   * set icon is what the rule actually points at.
+   */
+  readonly campaignSetIds: readonly string[];
+  /** MC10 p. 3: the identity is locked for the whole campaign. */
+  readonly identityCardId: string;
+  /**
+   * One entry per granted **copy** (`CampaignSeat.grants`), so two copies of one title are two entries. Granted
+   * cards are legal here and are exempt from minimum and maximum deck size (MC10 p. 3: "Cards added to the deck as
+   * part of a campaign do not count toward a player's minimum or maximum deck size").
+   */
+  readonly grantedCardIds: readonly string[];
+  /**
+   * RRG 1.8 p. 29 removals, **by face**: ruling April 30, 2026 (4) answer 2 keeps the other face of a
+   * double-sided card available. A deck lists a card by its front face, so only a removal with no `face` refuses it.
+   */
+  readonly removedFromCampaign?: readonly CampaignCardFace[];
+  /** Player cards the box forbids inside its own campaign (MC27 p. 4). */
+  readonly prohibitedCardIds?: readonly string[];
+  /** Sets the box forbids inside its own campaign (MC40 p. 6); a card of one of them is refused. */
+  readonly prohibitedEncounterSetIds?: readonly string[];
+  /**
+   * The non-granted lines the deck is frozen to. MC16 p. 5: "players may not change their decks for the rest of the
+   * campaign"; MC27 p. 6 makes the same freeze optional. Absent means customization is still open.
+   */
+  readonly frozenNonCampaignCards?: readonly DeckCardEntry[];
+}
+
+/**
+ * **Undecided rule — decision point (docs/campaign-mode-design.md Q8).**
+ *
+ * MC27 p. 22's Aspect Advantage adds "the maximum number of copies of that card, by title" and says those copies do
+ * not count toward deck size, but says nothing about the three-copy limit when the deck already holds copies of that
+ * title. RRG 1.8 Appendix I (p. 50) is silent, and no ruling covers it.
+ *
+ * `false` — the design's recommendation, implemented here — excludes granted copies from the by-title count, which
+ * is the reading consistent with their deck-size exemption. Flip this one constant to `true` to make grants count.
+ * **Not exercised by the first box** (The Rise of Red Skull grants only campaign-specific cards, which never reach
+ * the copy-limit check at all); it must be decided before the box that has Aspect Advantage is built.
+ */
+export const CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT = false;
 
 /** Either the card list the engine is configured with or a card pool keyed by id (as in `GameState.cardPool`). */
 export type CardPool = readonly AnyCard[] | Readonly<Record<string, AnyCard>>;
@@ -273,6 +354,13 @@ function maxCopies(group: readonly Line[]): number | null {
 /**
  * Whether `deck` is a legal player deck under RRG 1.8 Appendix I, judged against `pool`.
  *
+ * `context` says where the deck is being built. **Without one — every caller that predates campaign mode — the
+ * verdict and every message are exactly what they were before campaign mode existed.** With a campaign context the
+ * rules that only exist inside a campaign apply: a campaign-specific card of that campaign's own product becomes
+ * legal once the campaign has granted it (RRG 1.8 p. 11), granted cards stop counting toward deck size (MC10 p. 3),
+ * the identity is locked (MC10 p. 3), a card removed from the campaign is refused (RRG 1.8 p. 29), the box's own
+ * prohibitions apply (MC27 p. 4; MC40 p. 6), and a frozen deck cannot be edited (MC16 p. 5; MC27 p. 6).
+ *
  * Every problem is reported, not just the first, in a fixed order. Checks that would only
  * repeat an earlier problem are skipped. For example, a deck whose aspect choice is
  * itself illegal is not also told that each of its aspect cards is off-aspect.
@@ -283,11 +371,32 @@ function maxCopies(group: readonly Line[]): number | null {
  * replace the matching card in their deck with a card with the Team-Up keyword that names
  * both their own identity and the other player's identity").
  */
-export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation {
+export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckContext): DeckValidation {
   const cards = indexPool(pool);
   const problems: DeckProblem[] = [];
   const add = (code: DeckProblemCode, message: string, cardIds: readonly CardId[] = []): void => {
     problems.push({ code, message, cardIds });
+  };
+
+  // ---- The campaign, if this deck belongs to one ----------------------------------------
+  // Every campaign rule below is reached only through `campaign`, so a deck with no context is judged by exactly
+  // the code — and worded by exactly the messages — it was before campaign mode existed.
+  const campaign = context?.campaign;
+  /** How many copies of a title the campaign gave this player (MC10 p. 3); 0 for everything it did not. */
+  const grantedCopies = (cardId: string): number =>
+    campaign === undefined ? 0 : campaign.grantedCardIds.filter((granted) => granted === cardId).length;
+  /**
+   * RRG 1.8 p. 29, by face. A deck lists a card by its front face, so a removal that names the *other* face leaves
+   * the card usable — ruling April 30, 2026 (4) answer 2, "Prelate versions of minions remain available … even if
+   * their Overseer counterparts were crossed out of the campaign log".
+   */
+  const isRemovedFromCampaign = (cardId: string): boolean =>
+    (campaign?.removedFromCampaign ?? []).some((face) => face.cardId === cardId && face.face === undefined);
+  const isProhibited = (card: PlayerCard): boolean => {
+    if (!campaign) return false;
+    if (campaign.prohibitedCardIds?.includes(card.id)) return true;
+    const set = card.specificTo?.encounterSetId;
+    return set !== undefined && (campaign.prohibitedEncounterSetIds?.includes(set) ?? false);
   };
 
   // ---- The identity ---------------------------------------------------------------------
@@ -322,6 +431,16 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
         [identityCard.id],
       );
     }
+  }
+  // MC10 p. 3: "Each player must use their chosen identity for the entire campaign." The seat's identity is a
+  // campaign-log fact, so a deck naming a different one is refused rather than quietly reseating the player.
+  if (campaign && deck.identityCardId !== campaign.identityCardId) {
+    const locked = cards.get(campaign.identityCardId);
+    add(
+      "campaign_identity_locked",
+      `This campaign is being played with ${locked ? uniqueLabel(locked) : `identity ${campaign.identityCardId}`}; a player must use their chosen identity for the entire campaign, so this deck's identity cannot change.`,
+      [deck.identityCardId],
+    );
   }
   const identityName = identity ? uniqueLabel(identity) : null;
 
@@ -409,16 +528,49 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       );
       continue;
     }
+    // RRG 1.8 p. 29 and MC27 p. 4 / MC40 p. 6: gone for the rest of the campaign, or never allowed inside it.
+    // Checked before everything below, so a removed card is reported once, as removed.
+    if (isRemovedFromCampaign(card.id)) {
+      add(
+        "campaign_removed_card",
+        `${name} has been removed from this campaign and can no longer be used during the rest of it, even on a retry.`,
+        [card.id],
+      );
+      continue;
+    }
+    if (isPlayerDeckCard(card) && isProhibited(card)) {
+      add("campaign_prohibited_card", `${name} cannot be used during this campaign.`, [card.id]);
+      continue;
+    }
     if (card.specificTo !== undefined) {
       // Neither kind is a deckbuilding choice: a campaign adds campaign cards (and, in The Rise of Red Skull, rescued
       // Captive allies) to decks by its own instructions, "Cards added to the deck as part of a campaign do not count
       // toward a player's minimum or maximum deck size" (the Red Skull rulebook, p. 3). Not counted here either.
       if (card.specificTo.kind === "campaign") {
-        add(
-          "campaign_card",
-          `${name} is a campaign card: it can only be used during a campaign from the same product, and campaign play is not available yet.`,
-          [card.id],
-        );
+        // RRG 1.8 "Campaign-Specific Card" (p. 11): "Campaign-specific cards can only be used during a campaign from
+        // the same product (determined by that product's set icon)." Inside that campaign the card is legal, but
+        // only because the campaign put it there (the Red Skull rulebook, p. 3, "Campaign-Only Cards"). A legal one
+        // falls through to no further checks, exactly as it always has: it is not counted toward deck size, and the
+        // three-copy rule does not reach it.
+        if (!campaign) {
+          add(
+            "campaign_card",
+            `${name} is a campaign card: it can only be used during a campaign from the same product, and this deck is not being built for a campaign.`,
+            [card.id],
+          );
+        } else if (!campaign.campaignSetIds.includes(card.specificTo.encounterSetId)) {
+          add(
+            "campaign_card",
+            `${name} is a campaign card from a different product: a campaign-specific card can only be used during a campaign from its own product.`,
+            [card.id],
+          );
+        } else if (grantedCopies(card.id) < entry.quantity) {
+          add(
+            "campaign_card_not_granted",
+            `${name} is a campaign card: it can only be in this deck if the campaign directed the player to add it, and the campaign has added ${copies(grantedCopies(card.id))}.`,
+            [card.id],
+          );
+        }
       } else if (card.specificTo.kind === "competitive") {
         add(
           "competitive_card",
@@ -435,7 +587,8 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       continue;
     }
     // RRG 1.8 "Permanent" (p. 32): "Permanent cards do not count towards a player's minimum or maximum deck size."
-    if (!hasPlainKeyword(card, "permanent")) counted += entry.quantity;
+    // MC10 p. 3 exempts campaign grants the same way, so only the copies the player chose are counted.
+    if (!hasPlainKeyword(card, "permanent")) counted += Math.max(0, entry.quantity - grantedCopies(card.id));
     const classification = classify(card);
     if (classification.kind === "unrecognized") {
       add(
@@ -656,7 +809,11 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
   // three-copy rule governs the rest. Flagged for FFG.
   for (const [title, group] of byTitle(lines.filter((line) => line.classification.kind !== "identity"))) {
     if (group.some((line) => isUnique(line.card))) continue; // The unique rule governs these (below).
-    const total = group.reduce((n, line) => n + line.quantity, 0);
+    // `CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT` is the design's Q8 decision point; see its doc comment.
+    const granted = CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT
+      ? 0
+      : group.reduce((n, line) => n + Math.min(line.quantity, grantedCopies(line.card.id)), 0);
+    const total = group.reduce((n, line) => n + line.quantity, 0) - granted;
     const limit = maxCopies(group);
     const ids = group.map((line) => line.card.id);
     if (limit === null) {
@@ -733,6 +890,35 @@ export function validateDeck(deck: DeckContents, pool: CardPool): DeckValidation
       `${uniqueLabel(line.card)} is a Team-Up card for ${teamUp.names[0]} and ${teamUp.names[1]}; only a deck whose identity is one of them may include it.`,
       [line.card.id],
     );
+  }
+
+  // ---- The campaign's deck freeze -------------------------------------------------------
+  // MC16 p. 5: after the first scenario "players may not change their decks for the rest of the campaign"; MC27
+  // p. 6 prints the same freeze as an optional rule. Only the lines the *player* chose are frozen — the campaign
+  // keeps adding its own cards, so granted copies are subtracted from both sides before they are compared.
+  if (campaign?.frozenNonCampaignCards) {
+    const frozen = new Map(campaign.frozenNonCampaignCards.map((entry) => [entry.cardId as string, entry.quantity]));
+    const chosen = new Map<string, number>();
+    for (const entry of deck.cards) {
+      const own = entry.quantity - grantedCopies(entry.cardId);
+      if (own > 0) chosen.set(entry.cardId, own);
+    }
+    for (const cardId of new Set([...frozen.keys(), ...chosen.keys()])) {
+      const was = frozen.get(cardId) ?? 0;
+      const now = chosen.get(cardId) ?? 0;
+      if (was === now) continue;
+      const card = cards.get(cardId);
+      const label = card ? uniqueLabel(card) : `Card code ${cardId}`;
+      add(
+        "campaign_deck_frozen",
+        was === 0
+          ? `${label} cannot be added: deck customization is frozen for the rest of this campaign.`
+          : now === 0
+            ? `${label} cannot be removed: deck customization is frozen for the rest of this campaign.`
+            : `${label} has ${copies(now)}, but deck customization is frozen for the rest of this campaign at ${copies(was)}.`,
+        [cardId as CardId],
+      );
+    }
   }
 
   return problems.length === 0 ? { ok: true } : { ok: false, problems };

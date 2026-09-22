@@ -71,9 +71,17 @@ export type { GameEvent, GameEventType } from "./events.js";
 export type { EngineError, EngineErrorCode, IllegalDeck } from "./errors.js";
 
 /** Deck legality (RRG 1.8 Appendix I) and playability in this build: two separate questions. */
-export type { CardPool, DeckProblem, DeckProblemCode, DeckValidation } from "./deck.js";
+export type {
+  CampaignDeckContext,
+  CardPool,
+  DeckContext,
+  DeckProblem,
+  DeckProblemCode,
+  DeckValidation,
+} from "./deck.js";
 export {
   abilityRefsOf,
+  CAMPAIGN_GRANTS_COUNT_TOWARD_COPY_LIMIT,
   CHOOSABLE_ASPECTS,
   DECK_COPY_LIMIT,
   DECK_MAX_CARDS,

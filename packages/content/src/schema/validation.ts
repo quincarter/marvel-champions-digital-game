@@ -26,6 +26,7 @@ import {
 } from "./cards/attachment-host.js";
 import { EVIDENCE_KINDS } from "./cards/evidence.js";
 import type { AbilityReference } from "./abilities.js";
+import type { CampaignId, EncounterSetId } from "./ids.js";
 import { KNOWN_KEYWORD_NAMES, type KeywordName } from "./keywords.js";
 import type { EncounterSet, Scenario, ScenarioSeparateDeck, StarterDeck } from "./sets.js";
 
@@ -1097,12 +1098,36 @@ function wave2ScenarioErrors(scenario: Scenario): string[] {
 }
 
 /**
- * A standalone scenario checked against the encounter set records it names (wave 2 schema pass, docs/phase7-wave2.md
- * §6.3): no campaign-specific set (RRG 1.8 "Campaign-Specific Card", p. 11) and no competitive-only set (the Civil War
- * rulebook, p. 3: the Standard PvP set "replaces the standard encounter set when playing in competitive mode"), because
- * neither mode is built. A set id the list doesn't contain is reported, so the check can't pass by omission.
+ * Which campaign, if any, a scenario is being validated as part of (docs/campaign-mode-design.md §8).
+ *
+ * Absent is a **standalone** scenario, and the refusals below are exactly what they have always been. `campaignId`
+ * is carried so the message can name the campaign; `campaignSetIds` is the campaign's own campaign-specific sets
+ * (`Campaign.campaignSetIds`), supplied by the caller because that field is the card-data half of the same rule.
  */
-export function validateScenarioEncounterSets(scenario: Scenario, sets: readonly EncounterSet[]): ValidationResult {
+export interface ScenarioModeContext {
+  readonly campaignId?: CampaignId;
+  readonly campaignSetIds?: readonly EncounterSetId[];
+}
+
+/**
+ * A scenario checked against the encounter set records it names (wave 2 schema pass, docs/phase7-wave2.md §6.3).
+ *
+ * **Campaign-specific sets** (RRG 1.8 "Campaign-Specific Card", p. 11: "can only be used during a campaign from the
+ * same product (determined by that product's set icon)") are legal only when the scenario is being validated as
+ * part of a campaign, and only when the set belongs to *that* campaign — which is the set-icon test, expressed as
+ * membership of the campaign's own `campaignSetIds`. Played standalone, the refusal stands: that is the rule, not a
+ * "campaign mode is not built" placeholder.
+ *
+ * **Competitive-only sets** (the Civil War rulebook, p. 3: the Standard PvP set "replaces the standard encounter set
+ * when playing in competitive mode") are still refused unconditionally: competitive mode is not built.
+ *
+ * A set id the list doesn't contain is reported, so the check can't pass by omission.
+ */
+export function validateScenarioEncounterSets(
+  scenario: Scenario,
+  sets: readonly EncounterSet[],
+  context?: ScenarioModeContext,
+): ValidationResult {
   const byId = new Map(sets.map((set) => [set.id as string, set]));
   const errors: string[] = [];
   const named = [
@@ -1115,9 +1140,13 @@ export function validateScenarioEncounterSets(scenario: Scenario, sets: readonly
   for (const id of new Set(named)) {
     const set = byId.get(id);
     if (!set) errors.push(`scenario ${scenario.id} names encounter set ${id}, which is not registered`);
-    else if (set.campaignSpecific)
-      errors.push(`scenario ${scenario.id} names campaign-specific set ${id}; campaign mode is not built`);
-    else if (set.competitiveOnly)
+    else if (set.campaignSpecific && !(context?.campaignSetIds ?? []).includes(id)) {
+      errors.push(
+        context?.campaignId === undefined
+          ? `scenario ${scenario.id} names campaign-specific set ${id}; a campaign-specific set can only be used during a campaign from the same product`
+          : `scenario ${scenario.id} names campaign-specific set ${id}, which does not belong to campaign ${context.campaignId}`,
+      );
+    } else if (set.competitiveOnly)
       errors.push(`scenario ${scenario.id} names competitive-only set ${id}; competitive mode is not built`);
   }
   return result(errors);

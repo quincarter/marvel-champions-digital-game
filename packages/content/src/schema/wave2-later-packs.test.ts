@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   abilityId,
+  campaignId,
   cardId,
   cycleId,
   encounterSetId,
@@ -206,6 +207,44 @@ describe("§6.3 leader cards and competitive-only cards (RRG 1.8 'Leader', p. 26
     expect(
       validateScenarioEncounterSets({ ...scenario, expertEncounterSetIds: [encounterSetId("nope")] }, sets).valid,
     ).toBe(false);
+  });
+
+  it("a campaign-specific set is legal inside its own campaign and nowhere else (RRG 1.8 p. 11)", () => {
+    const sets: readonly EncounterSet[] = [
+      {
+        id: encounterSetId("hydra_camp"),
+        name: "Hydra Campaign",
+        packCodes: [setCode("trors")],
+        campaignSpecific: true,
+      },
+    ];
+    const scenario: Scenario = {
+      id: scenarioId("crossbones"),
+      name: "Crossbones",
+      packCode: setCode("trors"),
+      villainCardId: cardId("04094"),
+      mainSchemeCardId: cardId("04101"),
+      encounterSetIds: [encounterSetId("hydra_camp")],
+      recommendedModularSetIds: [],
+      standardEncounterSetIds: [],
+      expertEncounterSetIds: [],
+      villainStages: { standard: [1, 2], expert: [2, 3] },
+    };
+    // Standalone: the printed rule, not a "not built yet" placeholder.
+    expect(validateScenarioEncounterSets(scenario, sets).errors).toEqual([
+      "scenario crossbones names campaign-specific set hydra_camp; a campaign-specific set can only be used during a campaign from the same product",
+    ]);
+    // Inside the campaign whose sets these are.
+    expect(
+      validateScenarioEncounterSets(scenario, sets, {
+        campaignId: campaignId("trors"),
+        campaignSetIds: [encounterSetId("hydra_camp")],
+      }).errors,
+    ).toEqual([]);
+    // Inside some other campaign: still refused, and the message says which campaign it was checked against.
+    expect(
+      validateScenarioEncounterSets(scenario, sets, { campaignId: campaignId("gmw"), campaignSetIds: [] }).errors,
+    ).toEqual(["scenario crossbones names campaign-specific set hydra_camp, which does not belong to campaign gmw"]);
   });
 });
 
