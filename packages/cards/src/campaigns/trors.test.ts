@@ -171,6 +171,39 @@ function playNode(log: CampaignLog): Played {
 }
 
 describe("TRORS_CAMPAIGN_DEFINITION played through the real runner", () => {
+  it("the next scenario sets up with the campaign's own decks, granted TECH upgrades included (MC10 p. 3/p. 5)", () => {
+    const seedLog = createCampaignLog(TRORS_CAMPAIGN_DEFINITION, {
+      id: "smoke-trors-grants",
+      seats: SEATS,
+      modes: MODES,
+      poolVersion: "smoke-test",
+      seed: 9002,
+    });
+    const afterWin = playNode(seedLog).logAfterForcedWin;
+    expect(afterWin.seats.every((seat) => seat.grants.length === 1)).toBe(true);
+
+    const composed = settle(
+      (answers) => resolveBetweenGames(TRORS_CAMPAIGN_DEFINITION, afterWin, DEPS, afterWin.modes, answers),
+      SCRIPT,
+    );
+    const start = startGameFromLog(TRORS_CAMPAIGN_DEFINITION, composed.value);
+    // Seated exactly as a client launches it: each seat's composed deck, grants and all — not the starter lists.
+    const config = wave2Scenario(start.scenarioId as string, {
+      players: start.input.seats.map((seat) => ({
+        identityCardId: seat.identityCardId,
+        deck: seat.deck,
+        aspects: seat.aspects,
+      })),
+      seed: start.input.seed,
+    });
+    const created = createGame({ ...config, campaign: start.input }, WAVE2_DEPS);
+    expect(created.ok ? "ok" : created.error.message).toBe("ok");
+
+    // The same deck is still refused outside the campaign: a granted card is legal only where it was granted.
+    const standalone = createGame(config, WAVE2_DEPS);
+    expect(standalone.ok).toBe(false);
+  });
+
   it("Crossbones, then Absorbing Man, both real games: the loss/retry path and the victory writes both hold", () => {
     const seedLog = createCampaignLog(TRORS_CAMPAIGN_DEFINITION, {
       id: "smoke-trors",
