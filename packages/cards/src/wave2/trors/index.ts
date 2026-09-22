@@ -1,6 +1,7 @@
 import type { AbilityRegistry } from "@mc/engine";
 import { mergeRegistries } from "../../dsl/index.js";
 import { ABSORBING_MAN_SET } from "./absorbing-man.js";
+import { TRORS_CAMPAIGN_CARDS } from "./campaign-cards.js";
 import { CROSSBONES_SET } from "./crossbones.js";
 import { HAWKEYE_KIT } from "./hawkeye-kit.js";
 import { HAWKEYE_OBLIGATION_NEMESIS } from "./hawkeye-obligation-nemesis.js";
@@ -30,4 +31,5 @@ export const TRORS_ABILITIES: AbilityRegistry = mergeRegistries(
   TASKMASTER_SET,
   ZOLA_SET,
   RED_SKULL_SET,
+  TRORS_CAMPAIGN_CARDS,
 );

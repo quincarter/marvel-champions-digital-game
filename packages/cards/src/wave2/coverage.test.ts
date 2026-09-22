@@ -59,41 +59,18 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * other ref must resolve, and each listed ref must still be unresolved, so an entry can't go stale.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // Regenerated 2026-09-20 against TRORS_CARDS/WAVE2_ABILITIES (the throwaway-test method these comments describe)
-  // after un-skipping `04028.when-revealed` (docs/phase7-wave2.md §18.4/§23: the skip had gone stale — `anyOf` +
-  // `ref`/`each` + `tuckCards` were all already there).
+  // Regenerated 2026-09-22 (`ability-scripting-engineer`, campaign mode design §11 step 8): 28 of the 30 Hydra
+  // Campaign refs are scripted (`wave2/trors/campaign-cards.ts`). The remaining two are a *content* data gap, not
+  // a missing engine primitive — see that module's own docblock and `campaign-cards.test.ts` for the full writeup.
   trors: [
-    // --- Hydra Campaign cards: data only while campaign mode is deferred (PLAN.md, "Campaign mode"; `trors` is
-    //     slated to be the first box built). ---
-    "04155.adrenal-stims-action",
-    "04156.tactical-scanner-action",
-    "04157.emergency-teleporter-action",
-    "04158.laser-cannon-action",
-    "04159a.basic-thwart-upgrade-constant",
-    "04159a.basic-thwart-upgrade-constant-2",
-    "04159b.improved-thwart-upgrade-constant",
-    "04159b.improved-thwart-upgrade-constant-2",
-    "04159b.improved-thwart-upgrade-response",
-    "04160a.basic-attack-upgrade-constant",
-    "04160a.basic-attack-upgrade-constant-2",
-    "04160b.improved-attack-upgrade-constant",
-    "04160b.improved-attack-upgrade-constant-2",
-    "04160b.improved-attack-upgrade-response",
-    "04161a.basic-defense-upgrade-constant",
-    "04161a.basic-defense-upgrade-constant-2",
-    "04161b.improved-defense-upgrade-constant",
-    "04161b.improved-defense-upgrade-constant-2",
-    "04161b.improved-defense-upgrade-response",
-    "04162a.basic-recovery-upgrade-constant",
-    "04162a.basic-recovery-upgrade-constant-2",
-    "04162b.improved-recovery-upgrade-constant",
-    "04162b.improved-recovery-upgrade-constant-2",
-    "04162b.improved-recovery-upgrade-response",
-    "04163.obligation",
-    "04164.obligation",
-    "04164.medical-emergency-forced-response",
-    "04164.medical-emergency-action",
+    // Martial Law (04165) — "Your hand size is reduced by 1.\nAlter-Ego Action: Deal yourself an encounter card
+    // and spend a [energy] resource → discard this card." One ability ref (`04165.obligation`) for two clauses
+    // that need two different `AbilityTriggerSpec` kinds (`constant` + `action`) — an `AbilityDefinition` carries
+    // exactly one. Needs the same `<name>-constant`/`<name>-action` content split `card-data-pipeline` already
+    // made for `toafk` 11020/11049 (docs/phase7-wave2-data.md "Part 8").
     "04165.obligation",
+    // Anti-Hero Propaganda (04166) — "Your hero gets -1 THW, -1 ATK, and -1 DEF.\nAlter-Ego Action: Take 2 damage
+    // and spend a [wild] resource → discard this card." Same gap as 04165.
     "04166.obligation",
   ],
   // Regenerated 2026-09-20 (`pnpm refs`) after scripting `11049.fear-of-kang-constant` ("You cannot attack Kang",
