@@ -1,0 +1,3 @@
+kind: Fixed
+body: 'Client: the game no longer freezes when a hero is defeated (or any HP/threat counter is mid-count during a redraw): the counter''s animation is tied to what it draws, and one failing frame can no longer stop the game loop'
+time: 2026-09-21T23:03:57.185759-04:00

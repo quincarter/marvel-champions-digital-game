@@ -3,7 +3,7 @@
  * from `main.ts`; nothing imports the client as a library at runtime.
  */
 
-export const CLIENT_VERSION = "0.2.0";
+export const CLIENT_VERSION = "0.3.0";
 
 export type { EngineHost, EngineUpdate, SessionConfig } from "./engine/host.js";
 export { LocalEngineHost } from "./engine/local-host.js";
