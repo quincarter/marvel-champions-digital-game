@@ -21,6 +21,20 @@ export const SCENES = {
   // W1 (docs/phase4-screen-gaps.md §3): a deck's curve/composition/list, reached
   // from Decks today and from W2's setup flow once it lands.
   deckCheck: "DeckCheck",
+  // Campaign mode (`Marvel Champions game screens/Campaign - *.dc.html`, C00b–C11); data contracts in
+  // `scenes/campaign/routes.ts`.
+  campaignSaga: "CampaignSaga",
+  campaignCover: "CampaignCover",
+  campaignRoster: "CampaignRoster",
+  campaignOpener: "CampaignOpener",
+  campaignBriefing: "CampaignBriefing",
+  campaignAftermath: "CampaignAftermath",
+  campaignRewind: "CampaignRewind",
+  campaignRun: "CampaignRun",
+  campaignIssue: "CampaignIssue",
+  campaignDossier: "CampaignDossier",
+  campaignFinale: "CampaignFinale",
+  campaignDeckEdit: "CampaignDeckEdit",
   // Overlays.
   choice: "ChoiceOverlay",
   inspect: "InspectOverlay",
@@ -34,6 +48,8 @@ export const SCENES = {
    * Title too (`scenes/settings.ts`'s own doc comment is that button's entry point).
    */
   settings: "SettingsOverlay",
+  /** C04: a villain's stage flip told as a comic splash, launched over the Board in a campaign game. */
+  campaignBeat: "CampaignBeatOverlay",
   /** Background soundtrack controller running across screen transitions. */
   music: "MusicScene",
 } as const;

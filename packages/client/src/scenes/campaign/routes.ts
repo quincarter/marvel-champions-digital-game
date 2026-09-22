@@ -1,0 +1,107 @@
+/**
+ * What each campaign screen is started with — the contract between screens built by different hands. Every screen
+ * takes a `runId` (a stored `CampaignRecord.id`) and loads the record itself through `campaignService()`, so no
+ * screen hands another a stale copy of the log: the store is the one source of truth, exactly as the game store is
+ * for the Board.
+ *
+ * The flow (C00b → C11):
+ *
+ *   Title ─▶ Saga ─▶ Cover ─▶ (new run) Roster ─▶ Opener ─▶ Briefing ─▶ [game: setup deal → Board ⇄ Beat overlay]
+ *                       │                                                    │
+ *                       ├─▶ Run ─▶ Issue detail                         Game over ─▶ Aftermath ─▶ Opener (next issue)
+ *                       └─▶ Dossier (overview/log/heroes/issues)                   │        └─▶ Finale (last issue)
+ *                                                                                  └─▶ Rewind (a loss) ─▶ Briefing
+ *
+ * `CampaignDeckEdit` is reachable from Briefing, Rewind and Dossier › Heroes and returns to `returnTo`.
+ */
+import type { SCENES } from "../keys.js";
+
+/** Where a screen goes back to, as a scene key plus that scene's own start data. */
+export interface CampaignReturn {
+  readonly key: (typeof SCENES)[keyof typeof SCENES];
+  readonly data?: object;
+}
+
+/** C00b. Title's Campaign button. No data: the shelf is read from storage. */
+export type CampaignSagaData = Record<string, never>;
+
+/** C01. A volume's cover: an existing run (`runId`), or a fresh one to sign for (`campaignId` only). */
+export interface CampaignCoverData {
+  readonly campaignId: string;
+  readonly runId?: string;
+}
+
+/** C02. Signing a new run of `campaignId`. `expertCampaign` is the Expert Campaign modifier (MC10 p. 17). */
+export interface CampaignRosterData {
+  readonly campaignId: string;
+  readonly expertCampaign?: boolean;
+}
+
+/** C03. The opener of the run's next issue (`record.position.nextNodeId`). Continues to Briefing. */
+export interface CampaignOpenerData {
+  readonly runId: string;
+}
+
+/** C08. Composes the next issue (answering its setup choices), shows decks, and starts the game. */
+export interface CampaignBriefingData {
+  readonly runId: string;
+}
+
+/**
+ * C05/C06. Reached from Game over for a finished campaign game: folds the game into the log, asking the victory
+ * choices (TECH, Condition, Improved) as it goes. A loss folds and hands straight on to Rewind.
+ */
+export interface CampaignAftermathData {
+  readonly runId: string;
+}
+
+/** C09. After a lost issue has been folded (the log is back at the issue's start). */
+export interface CampaignRewindData {
+  readonly runId: string;
+  /** The issue that was lost. */
+  readonly nodeId: string;
+}
+
+/** C07. Every issue of the run. */
+export interface CampaignRunData {
+  readonly runId: string;
+}
+
+/** C07b. One finished issue: its attempts and what it wrote to the log. */
+export interface CampaignIssueData {
+  readonly runId: string;
+  readonly nodeId: string;
+}
+
+export type DossierTab = "overview" | "log" | "heroes" | "issues";
+
+/** C10/C10b/C10c. */
+export interface CampaignDossierData {
+  readonly runId: string;
+  readonly tab?: DossierTab;
+  /** Dossier › Heroes: which seat's sheet is open. */
+  readonly seatNumber?: number;
+}
+
+/** C11. The run is won. */
+export interface CampaignFinaleData {
+  readonly runId: string;
+}
+
+/** Between issues: one seat's deck, edited under the campaign's deck rules (identity locked, grants pinned). */
+export interface CampaignDeckEditData {
+  readonly runId: string;
+  readonly seatNumber: number;
+  readonly returnTo: CampaignReturn;
+}
+
+/** C04, launched over the Board: a villain flipped to `stage` in a campaign game. */
+export interface CampaignBeatData {
+  readonly campaignId: string;
+  readonly nodeId: string;
+  readonly stage: number;
+  readonly round: number;
+  /** The villain card's printed name ("Crossbones"), for the top bar. */
+  readonly villainName: string;
+  readonly scenarioId: string;
+}

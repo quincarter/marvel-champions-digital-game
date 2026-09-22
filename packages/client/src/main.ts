@@ -37,6 +37,19 @@ import { DeckCheckScene } from "./scenes/deck-check.js";
 import { PauseOverlay } from "./scenes/pause.js";
 import { RulesOverlay } from "./scenes/rules.js";
 import { SettingsOverlay } from "./scenes/settings.js";
+import { CampaignSagaScene } from "./scenes/campaign/saga.js";
+import { CampaignCoverScene } from "./scenes/campaign/cover.js";
+import { CampaignRosterScene } from "./scenes/campaign/roster.js";
+import { CampaignOpenerScene } from "./scenes/campaign/opener.js";
+import { CampaignBriefingScene } from "./scenes/campaign/briefing.js";
+import { CampaignAftermathScene } from "./scenes/campaign/aftermath.js";
+import { CampaignRewindScene } from "./scenes/campaign/rewind.js";
+import { CampaignRunScene } from "./scenes/campaign/run.js";
+import { CampaignIssueScene } from "./scenes/campaign/issue.js";
+import { CampaignDossierScene } from "./scenes/campaign/dossier.js";
+import { CampaignFinaleScene } from "./scenes/campaign/finale.js";
+import { CampaignDeckEditScene } from "./scenes/campaign/deck-edit.js";
+import { CampaignBeatOverlay } from "./scenes/campaign/beat.js";
 import { MusicScene } from "./audio/music-controller.js";
 import { installDebugDump } from "./ui/debug-dump.js";
 import { installFrameGuard } from "./ui/frame-guard.js";
@@ -82,6 +95,18 @@ const game = new Phaser.Game({
     DecksScene,
     DeckBuilderScene,
     DeckCheckScene,
+    CampaignSagaScene,
+    CampaignCoverScene,
+    CampaignRosterScene,
+    CampaignOpenerScene,
+    CampaignBriefingScene,
+    CampaignAftermathScene,
+    CampaignRewindScene,
+    CampaignRunScene,
+    CampaignIssueScene,
+    CampaignDossierScene,
+    CampaignFinaleScene,
+    CampaignDeckEditScene,
     ChoiceOverlay,
     InspectOverlay,
     VillainPhaseOverlay,
@@ -89,6 +114,7 @@ const game = new Phaser.Game({
     PauseOverlay,
     RulesOverlay,
     SettingsOverlay,
+    CampaignBeatOverlay,
     MusicScene,
   ],
 });

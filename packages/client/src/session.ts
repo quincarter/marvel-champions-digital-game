@@ -6,7 +6,11 @@
  * dispatch" rule from PLAN.md Phase 4.
  */
 
+import { CampaignService } from "./campaign/campaign-service.js";
+import { POOL_CARDS, POOL_DEPS } from "./content/pool.js";
+import { MemoryCampaignStorage } from "./engine/campaign-storage.js";
 import { createEngineHost } from "./engine/create-host.js";
+import { IdbCampaignStorage } from "./engine/idb-campaign-storage.js";
 import { MemoryDeckStorage, type DeckStorage } from "./engine/deck-storage.js";
 import type { EngineHost } from "./engine/host.js";
 import { IdbDeckStorage } from "./engine/idb-deck-storage.js";
@@ -66,4 +70,21 @@ let decks: DeckStorage | null = null;
 export function deckStorage(): DeckStorage {
   decks ??= typeof indexedDB !== "undefined" ? new IdbDeckStorage() : new MemoryDeckStorage();
   return decks;
+}
+
+/**
+ * The campaign loop (`campaign/campaign-service.ts`) over its own `mc-campaigns` database — a third store, so a
+ * campaign write can never break a game resume (docs/campaign-mode-design.md §10.1). Same IndexedDB-or-memory guard
+ * as `deckStorage`. Built on first use, so
+ * a player who never opens Campaign never opens the database.
+ */
+let campaigns: CampaignService | null = null;
+
+export function campaignService(): CampaignService {
+  campaigns ??= new CampaignService({
+    storage: typeof indexedDB !== "undefined" ? new IdbCampaignStorage() : new MemoryCampaignStorage(),
+    campaignDeps: { pool: Object.fromEntries(POOL_CARDS.map((card) => [card.id as string, card])) },
+    engineDeps: POOL_DEPS,
+  });
+  return campaigns;
 }
