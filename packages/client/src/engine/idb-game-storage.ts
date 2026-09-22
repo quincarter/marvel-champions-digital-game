@@ -20,6 +20,7 @@
 import type { Command } from "@mc/engine";
 import type { StateWithoutPool } from "./host.js";
 import {
+  migrateSaveMeta,
   newestActive,
   type GameStorage,
   type SaveMeta,
@@ -119,7 +120,7 @@ export class IdbGameStorage implements GameStorage {
     await done;
     if (!meta || !baseline) return null;
     // A key range over `[gameId, seq]` already comes back in seq order.
-    return { meta, initialState: baseline.state, commands: rows.map((row) => row.command) };
+    return { meta: migrateSaveMeta(meta), initialState: baseline.state, commands: rows.map((row) => row.command) };
   }
 
   async latestActive(): Promise<SaveMeta | null> {
@@ -146,7 +147,7 @@ export class IdbGameStorage implements GameStorage {
     const done = committed(transaction);
     const games = await settle(transaction.objectStore("games").getAll() as IDBRequest<SaveMeta[]>);
     await done;
-    return games;
+    return games.map(migrateSaveMeta);
   }
 
   #open(): Promise<IDBDatabase> {

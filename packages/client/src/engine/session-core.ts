@@ -217,6 +217,10 @@ export class EngineSessionCore {
         round: setup.state.round,
         commandCount: 0,
         outcome: null,
+        // Step 10 (docs/campaign-mode-design.md §11): storage carries the field, but nothing yet composes a
+        // `SessionConfig.campaign` to populate it from — step 11's view models and the `scenarioFor` wiring do.
+        campaignId: null,
+        campaignNodeId: null,
       };
       try {
         // Awaited, unlike the command writes: a game that isn't recorded yet

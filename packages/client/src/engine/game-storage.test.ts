@@ -33,6 +33,8 @@ const meta = (id: string, updatedAt: number, overrides: Partial<SaveMeta> = {}):
   round: 1,
   commandCount: 0,
   outcome: null,
+  campaignId: null,
+  campaignNodeId: null,
   ...overrides,
 });
 
@@ -109,8 +111,10 @@ describe.each<[string, () => GameStorage]>([
 
   test("a save from an older schema is retired, not resumed (the several-villains state change)", async () => {
     const storage = make();
-    // A game saved before the multi-villain state shape (docs/phase7-wave1.md §3.1–§3.2) landed.
-    await storage.create(meta("old-shape", 1, { schema: SAVE_SCHEMA - 1 }), BASELINE);
+    // A game saved before the multi-villain state shape (docs/phase7-wave1.md §3.1–§3.2) landed. Schema 2, not
+    // `SAVE_SCHEMA - 1`: schema 3 is the one schema `migrateSaveMeta` upgrades rather than retires (see the next
+    // test), so this has to name a schema old enough that no migration exists for it.
+    await storage.create(meta("old-shape", 1, { schema: 2 }), BASELINE);
     const core = new EngineSessionCore({ storage });
 
     // Never offered as Continue, and marked incompatible on the way, deliberately rather than by a failed replay.
@@ -121,6 +125,28 @@ describe.each<[string, () => GameStorage]>([
     await storage.setStatus("old-shape", "active");
     await expect(core.resume("old-shape")).rejects.toThrow(/older version/);
     expect((await storage.list()).find((game) => game.id === "old-shape")?.status).toBe("incompatible");
+  });
+
+  test("a save from schema 3 (before campaign mode, so no campaignId at all) still loads and resumes", async () => {
+    const storage = make();
+    // Schema 3's `SaveMeta` genuinely has no `campaignId`/`campaignNodeId` on disk — simulated here by a real
+    // pre-migration shape, not just a schema number, since `SaveMeta`'s type alone can't express a value missing
+    // a field TypeScript says is always there.
+    const preCampaign = { ...meta("pre-campaign", 1, { schema: 3 }) } as Record<string, unknown>;
+    delete preCampaign.campaignId;
+    delete preCampaign.campaignNodeId;
+    await storage.create(preCampaign as unknown as SaveMeta, BASELINE);
+
+    const loaded = await storage.load("pre-campaign");
+    expect(loaded?.meta.schema).toBe(SAVE_SCHEMA);
+    expect(loaded?.meta.campaignId).toBeNull();
+    expect(loaded?.meta.campaignNodeId).toBeNull();
+    expect((await storage.list())[0]).toMatchObject({ schema: SAVE_SCHEMA, campaignId: null, campaignNodeId: null });
+    expect((await storage.latestActive())?.id).toBe("pre-campaign");
+
+    // Resumable too: `isCurrentSchema` sees schema 4 once storage has migrated it on the way out.
+    const core = new EngineSessionCore({ storage });
+    await expect(core.resume("pre-campaign")).resolves.toBeTruthy();
   });
 
   test("an older save behind the newest current one is left alone, and the current one is still offered", async () => {

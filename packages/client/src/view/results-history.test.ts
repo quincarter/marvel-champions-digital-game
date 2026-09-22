@@ -26,6 +26,8 @@ const meta = (overrides: Partial<SaveMeta> = {}): SaveMeta => ({
   round: 3,
   commandCount: 10,
   outcome: { result: "win", reason: "villainDefeated" },
+  campaignId: null,
+  campaignNodeId: null,
   ...overrides,
 });
 
