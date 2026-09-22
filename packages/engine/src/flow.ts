@@ -14,13 +14,22 @@ import type { LastingEffect } from "./lasting.js";
 import { EngineInvariantError } from "./errors.js";
 import type { PlayerId } from "./ids.js";
 import { getPlayer, handSize, mustCardOf, mustPlayer, playerOrder, undefeatedVillains } from "./query.js";
-import { announce, clearAbilityUses, executeFrame, gameAbilityFrames, pushEffects } from "./resolve/index.js";
+import {
+  announce,
+  clearAbilityUses,
+  executeFrame,
+  gameAbilityFrames,
+  heard,
+  pushEffects,
+  pushEvent,
+} from "./resolve/index.js";
 import { resetEmptySeparateDecks } from "./resolve/separate-decks.js";
 import { resetEmptyScenarioDecks } from "./resolve/cards.js";
 import { checkStateTriggers } from "./resolve/state-checks.js";
 import { cardsInPlay, controllerOf } from "./select.js";
 import { describeFrame } from "./stack.js";
 import type { GameState, GameStep } from "./state.js";
+import type { TriggerEvent } from "./trigger-events.js";
 import {
   executeDealEncounterCards,
   executeEnemyActivations,
@@ -213,6 +222,26 @@ export function beginPlayerPhase(ctx: Ctx): void {
     return;
   }
   beginTurn(ctx, first, rest);
+  // "When/After the player phase begins" (docs/phase7-wave3.md §3.2), pushed after the first turn's `turnStarted` so it
+  // resolves before it: RRG 1.8 "Round Overview" (p. 4) step 1 comes before step 2's turns.
+  pushIfHeard(ctx, { kind: "phaseBeginning", phase: "player" });
+}
+
+/** Pushes a timing-point event only when an ability could react to it, so a game without one logs as before. */
+function pushIfHeard(ctx: Ctx, event: TriggerEvent): boolean {
+  if (!heard(ctx.state, ctx.deps, event)) return false;
+  pushEvent(ctx, event);
+  return true;
+}
+
+/**
+ * The apply step of `phaseEnding` (docs/phase7-wave3.md §3.2): the "at the end of the phase" delayed effects, and at the
+ * villain phase's end, which is the round's, the "at the end of the round" ones too. RRG 1.8 "Delayed Effect" (p. 15):
+ * they resolve "immediately after their specified timing point [...] and before responses to that point".
+ */
+export function pushPhaseEndDelayed(ctx: Ctx, phase: "player" | "villain"): void {
+  const phaseDelayed = takeDelayed(ctx, "endOfPhase");
+  pushDelayed(ctx, phase === "villain" ? [...phaseDelayed, ...takeDelayed(ctx, "endOfRound")] : phaseDelayed);
 }
 
 /** Ends `playerId`'s turn if it still is theirs: the `endTurn` command, or its `turnEnding` event applying. */
@@ -300,9 +329,19 @@ function executeEndPhaseReady(ctx: Ctx): void {
   setStep(ctx, { phase: "villain", kind: "placeThreat" });
   clearAbilityUses(ctx, "phase");
   ctx.state = { ...ctx.state, playedThisPhase: {} };
-  const delayed = takeDelayed(ctx, "endOfPhase");
+  // RRG 1.8 "End of Player Phase" (p. 18) step 5, "Resolve any 'when/after the [player] phase ends' effects", as an event
+  // when an ability listens (docs/phase7-wave3.md §3.2); its apply step then resolves the delayed effects below.
+  const ending: TriggerEvent = { kind: "phaseEnding", phase: "player" };
+  const listened = heard(ctx.state, ctx.deps, ending);
+  const delayed = listened ? [] : takeDelayed(ctx, "endOfPhase");
   expireLastingEffects(ctx, "endOfPhase");
+  // Pushed first, so it resolves after everything the player phase's end queues and before step one.
+  pushIfHeard(ctx, { kind: "phaseBeginning", phase: "villain" });
   announce(ctx, { kind: "playerPhaseEnded" });
+  if (listened) {
+    pushEvent(ctx, ending);
+    return;
+  }
   // "At the end of the phase, …" (`atEndOfPhase`; docs/phase7-wave2.md §3.1, §3.4), after "until the end of the phase"
   // effects expire, as RRG 1.8 "Lasting Effects" orders the round's.
   pushDelayed(ctx, delayed);
@@ -332,13 +371,19 @@ function pushDelayed(ctx: Ctx, delayed: readonly Extract<LastingEffect, { kind: 
  */
 function executeEndOfRound(ctx: Ctx, step: Extract<GameStep, { kind: "endOfRound" }>): void {
   if (!step.delayedResolved) {
+    // RRG 1.8 "Villain Phase" (p. 47) step 6: "until the end of the phase/round" effects end (6a), then "when/after the
+    // [villain] phase ends" and "when/after the round ends" resolve (6b) — one timing point, an event when an ability
+    // listens (docs/phase7-wave3.md §3.2), whose apply step resolves the delayed effects.
+    const ending: TriggerEvent = { kind: "phaseEnding", phase: "villain" };
+    const listened = heard(ctx.state, ctx.deps, ending);
     // The villain phase and the round end together: "at the end of the phase" effects first, then the round's.
-    const phaseDelayed = takeDelayed(ctx, "endOfPhase");
-    const delayed = takeDelayed(ctx, "endOfRound");
+    const phaseDelayed = listened ? [] : takeDelayed(ctx, "endOfPhase");
+    const delayed = listened ? [] : takeDelayed(ctx, "endOfRound");
     expireLastingEffects(ctx, "endOfPhase");
     expireLastingEffects(ctx, "endOfRound");
     setStep(ctx, { phase: "villain", kind: "endOfRound", delayedResolved: true });
-    pushDelayed(ctx, [...phaseDelayed, ...delayed]);
+    if (listened) pushEvent(ctx, ending);
+    else pushDelayed(ctx, [...phaseDelayed, ...delayed]);
     return;
   }
   for (const player of ctx.state.players) {

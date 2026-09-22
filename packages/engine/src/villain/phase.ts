@@ -23,7 +23,8 @@ import {
   nextClockwisePlayer,
   playerOrder,
 } from "../query.js";
-import { pushEvent, pushEvents, pushRevealFrame } from "../resolve/index.js";
+import { heard, pushEvent, pushEvents, pushRevealFrame } from "../resolve/index.js";
+import type { TriggerEvent } from "../trigger-events.js";
 import type { GameState, GameStep } from "../state.js";
 
 const livePlayers = (state: GameState, ids: readonly PlayerId[]): readonly PlayerId[] =>
@@ -82,6 +83,10 @@ export function executePlaceThreat(ctx: Ctx): void {
     villainActivated: false,
     activatedMinionIds: [],
   });
+  // "After resolving step one of the villain phase" (docs/phase7-wave3.md §3.2): step one's threat and its own windows
+  // have resolved, and step two waits for this response window. Pushed only when an ability is listening.
+  const resolved: TriggerEvent = { kind: "villainStepResolved", step: "placeThreat" };
+  if (heard(ctx.state, ctx.deps, resolved)) pushEvent(ctx, resolved);
 }
 
 // RRG "Villain Phase" step 2: the villain activates once per player, in player

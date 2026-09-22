@@ -341,7 +341,32 @@ export type TriggerEventBody =
       readonly toHeroForm?: number | null;
     }
   | { readonly kind: "playerPhaseEnded" }
-  | { readonly kind: "villainPhaseEnded" };
+  | { readonly kind: "villainPhaseEnded" }
+  /**
+   * "When/After the [player|villain] phase begins" (docs/phase7-wave3.md §3.2): Museum Ship and Nebula's Ship (`gmw`),
+   * Blazing Inferno (`gmw`), Sibling Rivalry (`gam`), Ronan the Accuser (`ron`), and 15 more in the pool. RRG 1.8 "Round
+   * Overview" (p. 4) steps 1 and 4 make the phase's beginning its own point, before its first step: an interrupt and a
+   * response window, then the player phase's first turn or the villain phase's step one. Pushed only when an ability is
+   * listening, so every game without one logs exactly as before.
+   */
+  | { readonly kind: "phaseBeginning"; readonly phase: "player" | "villain" }
+  /**
+   * "When/After the [player|villain] phase ends" and "When/After the round ends" (docs/phase7-wave3.md §3.2). RRG 1.8
+   * "End of Player Phase" (p. 18) step 5 and "Villain Phase" (p. 47) step 6b: "Resolve any 'when/after the [villain]
+   * phase ends' or 'when/after the round ends' effects" — so the villain phase's end **is** the round's end, one timing
+   * point, after "until the end of the phase/round" effects have ended (steps 4 and 6a). Its apply step resolves the
+   * "at the end of the phase/round" delayed effects, which RRG 1.8 "Delayed Effect" (p. 15) places "immediately after
+   * their specified timing point [...] and before responses". The Collector's and Hela's ∞ faces, Rogue Vessel (`gmw`),
+   * Regroup (`drax`), Magical Enhancements (`drs`), the temporary keyword. Pushed only when an ability is listening.
+   */
+  | { readonly kind: "phaseEnding"; readonly phase: "player" | "villain" }
+  /**
+   * "After resolving step one of the villain phase" (docs/phase7-wave3.md §3.2): 36 printed cards, among them
+   * Terrestrial Invasion 1B, Protect the Planet 2B and Bombardment (`gmw`). Announced once step one's threat and its
+   * own interrupts and responses have resolved, before step two begins (RRG 1.8 "Villain Phase", p. 47). Not a
+   * `placeThreat` response: that also fires on every scheme, incite and card-placed threat. Response window only.
+   */
+  | { readonly kind: "villainStepResolved"; readonly step: "placeThreat" };
 
 /**
  * `results` is attached when the event's response window opens: what the event
@@ -388,6 +413,9 @@ export function isAnnouncement(event: TriggerEvent): boolean {
     case "turnEnding":
     case "surgeResolving":
     case "cardBeingPlayed":
+    // docs/phase7-wave3.md §3.2: "When the villain phase begins/ends" are interrupts to these timing points.
+    case "phaseBeginning":
+    case "phaseEnding":
     // "When you spend this card" (an interrupt) and "After you spend this card" (a response) both have a window. The
     // cards are already discarded when it is pushed — every cost is paid at once (RRG 1.8 "Cost", p. 13) — so its
     // apply step changes nothing; see docs/phase7-wave2.md §12.2 for what that does and does not let an interrupt do.
