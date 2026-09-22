@@ -244,11 +244,36 @@ export interface Scenario {
   readonly separateDecks?: readonly ScenarioSeparateDeck[];
 }
 
-/** Campaign box membership (e.g. a set of linked scenarios sharing a campaign log). */
+/**
+ * Campaign box membership: the plain-data, card-database half of a campaign
+ * (docs/campaign-mode-design.md §3, §9.1 row 1). It is *facts about the product* —
+ * which scenarios it plays in box order, and which encounter/player sets are
+ * campaign-specific to it — never an instruction, a graph, or any other engine
+ * type. The DSL that scripts a box's setup/victory instructions is
+ * `@mc/cards`' `CampaignDefinition` (`campaign.ts` in `@mc/engine`, authored
+ * per box in `@mc/cards/src/campaigns/`), per the `client → cards → engine →
+ * content` dependency direction: `@mc/content` cannot import `@mc/engine`.
+ */
 export interface Campaign {
   readonly id: CampaignId;
   readonly name: string;
+  /** The FFG box code as printed on the product ("MC10"). Distinct from `packCode`, the internal `SetCode`. */
+  readonly boxCode: string;
+  /** RRG 1.8 "Campaign-Specific Card" (p. 11): a campaign-specific card's own product, tested by set icon. */
+  readonly packCode: SetCode;
+  /** In box/rulebook order. The campaign's `CampaignGraph` (linear or choice) plays these, or a subset of them. */
   readonly scenarioIds: readonly ScenarioId[];
+  /** Encounter sets whose cards are campaign-specific to this campaign (MC10: `hydra_camp`, `expcamp`). */
+  readonly campaignSetIds: readonly EncounterSetId[];
+  /** Per-seat numbered variants of one set (MC10 p. 17's four Expert Campaign Sets), seat 1..4 in order. */
+  readonly perSeatSetIds?: readonly EncounterSetId[];
+  /** Player cards and modular sets this box forbids *inside* its campaign (MC27 p. 4; MC40 p. 6). */
+  readonly prohibited?: {
+    readonly cardIds?: readonly CardId[];
+    readonly encounterSetIds?: readonly EncounterSetId[];
+  };
+  /** The primary source this record (and the box's campaign definition) is built from: a repo-relative path. */
+  readonly logSheetReference: string;
 }
 
 /**

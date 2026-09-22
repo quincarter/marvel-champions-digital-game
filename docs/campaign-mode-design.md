@@ -231,6 +231,12 @@ export interface Campaign {
 }
 ```
 
+**As built (step 6), two fields added beyond the sketch.** `boxCode: string` — the printed FFG code ("MC10"),
+distinct from `packCode` (the internal `SetCode`, "trors") — because a citation or a client label needs the printed
+code and nothing else on the record carries it. `logSheetReference: string` — a repo-relative path into
+`docs/campaign-modes/log-sheets/`, the primary source the record (and the box's later `CampaignDefinition`) is
+built from, in the same spirit as `StarterDeckProvenance.sources`. Both are `validateCampaign`'s to check.
+
 ---
 
 ## 4. `CampaignDefinition` — plain data, in `@mc/engine`
@@ -1248,13 +1254,32 @@ Ordered, each step independently verifiable. C1 and MC10's C2 are built together
 | 3   | **Landed.** Engine primitives: the `campaignLog` value/predicate/selector, `TargetQuery.inCampaignLogField`, `recordInCampaignLog`, `removeFromCampaign`, `GameSetupConfig.campaign` frozen into `GameState`, the five setup windows, the four trace events                                                                                                       | `game-rules-architect`       | `campaign-primitives.test.ts` against the synthetic campaign — no real box named                                                                               |
 | 4   | **Landed.** The runner (§7.3): `resolveBetweenGames`, `startGameFromLog`, `campaignResultOf`, `applyCampaignResult`, `createCampaignLog`, seeded campaign RNG, pending-choice re-entry                                                                                                                                                                            | `game-rules-architect`       | `campaign/runner.test.ts`: the synthetic campaign played end to end, a loss, a retry, a `removeFromCampaign` surviving it, seed determinism, a JSON round trip |
 | 5   | **Landed.** `validateDeck` `DeckContext`, five new problem codes, the campaign-specific refusals made conditional                                                                                                                                                                                                                                                 | `game-rules-architect`       | `deck.test.ts`: campaign card legal inside its campaign and illegal outside; removed card refused; identity lock; frozen deck; granted cards exempt from size  |
-| 6   | Content: `Campaign` record fields; emit records for all ten boxes; confirm MC50/MC56/MC60 campaign-card counts against their rulebooks (PLAN.md §C2 open item); correct the MC56 row                                                                                                                                                                              | `card-data-pipeline`         | `validateCampaign`; a test that every box's campaign sets are `campaignSpecific`                                                                               |
+| 6   | **Landed (2026-09-21), MC10 only.** Content: `Campaign` record fields; confirm `aos`/`cw`/`fne` campaign-card counts against their rulebooks (PLAN.md §C2 open item); correct the MC56 row. **As built:** only `trors` (MC10) has a `Campaign` record — see the note below the table.                                                                             | `card-data-pipeline`         | `validateCampaign`; a test that every box's campaign sets are `campaignSpecific`                                                                               |
 | 7   | `packages/cards/src/campaigns/trors.ts` — MC10's five nodes, every instruction cited `MC10 p. N`                                                                                                                                                                                                                                                                  | `ability-scripting-engineer` | the §9.3 coverage test                                                                                                                                         |
 | 8   | MC10's 30 parked refs (04155–04166): the four TECH upgrades, the four Condition upgrades (both faces), the four Expert Campaign obligations; `KNOWN_SKIPPED.trors` → `[]`                                                                                                                                                                                         | `ability-scripting-engineer` | `wave2/coverage.test.ts`                                                                                                                                       |
 | 9   | QA scenarios: full standard campaign; full expert campaign (persistent damage MC10 p. 17, obligations in decks, engaged-with-enemy record p. 12, delay counters → starting threat p. 15); a lost-and-retried scenario proving the log survives; Hydra Prison allies proving removal sticks across the retry; a Vibranium Arrow in-game log write surviving a loss | `rules-qa-engineer`          | named per-page tests                                                                                                                                           |
 | 10  | `CampaignStorage` + `IdbCampaignStorage` + shared contract test; `SaveMeta.campaignId`; `SAVE_SCHEMA` → 4                                                                                                                                                                                                                                                         | `game-client-engineer`       | the contract test, both implementations                                                                                                                        |
 | 11  | The five view models in §10.2                                                                                                                                                                                                                                                                                                                                     | `game-client-engineer`       | Vitest unit tests; scenes are a separate brief                                                                                                                 |
 | 12  | **Acceptance gate for "content-only": write MC21's definition against the frozen foundation.** MC21 is the cheapest second box (campaign pool of flags, no currency, no track). If it needs _any_ change in `packages/engine` or `packages/client`, the foundation is wrong and steps 2–4 are revised before more boxes land.                                     | `ability-scripting-engineer` | a `git diff --stat` touching only `packages/content` and `packages/cards`                                                                                      |
+
+**Step 6, as built.** `Campaign` (`packages/content/src/schema/sets.ts`) gained two fields the §3 sketch didn't
+carry: `boxCode` (the printed FFG code, "MC10" — distinct from `packCode`, the internal `SetCode`) and
+`logSheetReference` (a repo-relative path into `docs/campaign-modes/log-sheets/`, the primary source the record and
+the box's eventual campaign definition are built from). Both are validated by `validateCampaign`
+(`packages/content/src/schema/validation.ts`).
+
+Only `packages/content/src/data/trors/campaign.ts` (`TRORS_CAMPAIGN`) exists. Of the nine boxes with a campaign
+mode, `@mc/content` has ingested full `Pack`/`Scenario`/`EncounterSet` records for exactly one — `trors` (MC10) —
+plus `toafk`, which has no campaign of its own. The other eight (`gmw`, `mts`, `sm`, `mut_gen`, `next_evol`, `aoa`,
+`aos`, `fne`) exist only as raw MarvelCDB JSON (`packages/content/raw/marvelcdb/`), not as normalized `@mc/content`
+data — `docs/phase7-wave2-data.md`'s per-pack survey lists real, unresolved normalization gaps in each (28–86 open
+issues per pack as of that survey). A `Campaign` record naming a scenario or encounter set that does not exist
+would be exactly the kind of fabricated reference this package's ingestion discipline exists to refuse (CLAUDE.md,
+"don't fabricate stats or text"), so none was emitted for those eight. This is not a gap in step 6's scope: PLAN.md
+§C2's own gate already requires "that box's own heroes, villains and scenarios scripted" before its campaign
+content is built — a `Campaign` record for one of the eight is unblocked the same moment its own box's card data
+lands, following the same file (`<pack>/campaign.ts`) and test shape `trors` established
+(`packages/content/src/data/campaigns.test.ts`).
 
 ---
 

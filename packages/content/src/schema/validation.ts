@@ -28,7 +28,7 @@ import { EVIDENCE_KINDS } from "./cards/evidence.js";
 import type { AbilityReference } from "./abilities.js";
 import type { CampaignId, EncounterSetId } from "./ids.js";
 import { KNOWN_KEYWORD_NAMES, type KeywordName } from "./keywords.js";
-import type { EncounterSet, Scenario, ScenarioSeparateDeck, StarterDeck } from "./sets.js";
+import type { Campaign, EncounterSet, Scenario, ScenarioSeparateDeck, StarterDeck } from "./sets.js";
 
 export interface ValidationResult {
   readonly valid: boolean;
@@ -1173,5 +1173,52 @@ export function validateStarterDeck(deck: StarterDeck): ValidationResult {
   } else if (deck.provenance.verified && deck.provenance.sources.length === 0) {
     errors.push("a verified starter deck must cite at least one source");
   }
+  return result(errors);
+}
+
+/**
+ * Structural checks only — `campaign.id` is well-formed, `boxCode` looks like a printed FFG box code, scenarios and
+ * sets are non-empty and duplicate-free, and a source is cited. This does **not** check that the named scenarios
+ * or encounter sets actually exist in `@mc/content`'s pool: that is a cross-reference against real data, which
+ * belongs to a per-pack test (in the style of `validateScenarioEncounterSets`'s own caller) rather than this
+ * package-agnostic structural check (docs/campaign-mode-design.md §3, §9.1 row 1).
+ */
+export function validateCampaign(campaign: Campaign): ValidationResult {
+  const errors: string[] = [];
+  if (!isNonEmptyString(campaign.id)) errors.push("campaign missing id");
+  if (!isNonEmptyString(campaign.name)) errors.push("campaign missing name");
+  if (!/^MC\d{2}$/.test(campaign.boxCode)) errors.push(`campaign ${campaign.id} boxCode must look like "MC10"`);
+  if (!isNonEmptyString(campaign.packCode)) errors.push(`campaign ${campaign.id} missing packCode`);
+  if (!Array.isArray(campaign.scenarioIds) || campaign.scenarioIds.length === 0) {
+    errors.push(`campaign ${campaign.id} must list at least one scenario`);
+  } else {
+    const seen = new Set<string>();
+    for (const id of campaign.scenarioIds) {
+      if (seen.has(id)) errors.push(`campaign ${campaign.id} lists scenario ${id} twice`);
+      else seen.add(id);
+    }
+  }
+  if (!Array.isArray(campaign.campaignSetIds) || campaign.campaignSetIds.length === 0) {
+    errors.push(`campaign ${campaign.id} must list at least one campaign-specific set`);
+  } else if (new Set(campaign.campaignSetIds).size !== campaign.campaignSetIds.length) {
+    errors.push(`campaign ${campaign.id} lists a campaignSetIds entry twice`);
+  }
+  if (campaign.perSeatSetIds !== undefined) {
+    if (!Array.isArray(campaign.perSeatSetIds) || campaign.perSeatSetIds.length === 0) {
+      errors.push(`campaign ${campaign.id} perSeatSetIds must be a non-empty array when present`);
+    } else if (new Set(campaign.perSeatSetIds).size !== campaign.perSeatSetIds.length) {
+      errors.push(`campaign ${campaign.id} lists a perSeatSetIds entry twice`);
+    }
+  }
+  if (campaign.prohibited !== undefined) {
+    const { cardIds, encounterSetIds } = campaign.prohibited;
+    if (cardIds !== undefined && !Array.isArray(cardIds)) {
+      errors.push(`campaign ${campaign.id} prohibited.cardIds must be an array when present`);
+    }
+    if (encounterSetIds !== undefined && !Array.isArray(encounterSetIds)) {
+      errors.push(`campaign ${campaign.id} prohibited.encounterSetIds must be an array when present`);
+    }
+  }
+  if (!isNonEmptyString(campaign.logSheetReference)) errors.push(`campaign ${campaign.id} missing logSheetReference`);
   return result(errors);
 }
