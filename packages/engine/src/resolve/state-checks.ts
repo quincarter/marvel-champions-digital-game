@@ -10,16 +10,31 @@
 
 import type { AbilityId } from "@mc/content";
 import type { AbilityRegistry } from "../abilities.js";
-import { type Ctx, emit, pushFrames, updateInstance } from "../ctx.js";
+import { type Ctx, emit, moveCard, pushFrames, updateInstance } from "../ctx.js";
 import { statusCapacity } from "../keywords.js";
 import type { InstanceId } from "../ids.js";
-import { activeAbilityRefs, cardsInPlay, controllerOf, evaluate } from "../select.js";
+import { activeAbilityRefs, activeRules, cardsInPlay, controllerOf, evaluate, matchesQuery } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import { limitReached } from "./ability.js";
 import { checkAllyLimits } from "./enter-play.js";
 import { abilityFrame } from "./frames.js";
 
 const registriesWithChecks = new WeakMap<AbilityRegistry, boolean>();
+const registriesWithControlRules = new WeakMap<AbilityRegistry, boolean>();
+
+/** Whether any ability declares `controlledByFirstPlayer`; the rule scan runs between frames, so skip it when none can. */
+function hasControlRule(registry: AbilityRegistry): boolean {
+  let known = registriesWithControlRules.get(registry);
+  if (known === undefined) {
+    known = Object.values(registry).some(
+      (definition) =>
+        definition.trigger.kind === "constant" &&
+        (definition.trigger.rules ?? []).some((rule) => rule.kind === "controlledByFirstPlayer"),
+    );
+    registriesWithControlRules.set(registry, known);
+  }
+  return known;
+}
 
 /** Whether any ability in the registry is a state check; games without one skip the scan entirely. */
 function hasStateChecks(registry: AbilityRegistry): boolean {
@@ -42,6 +57,8 @@ export function checkStateTriggers(ctx: Ctx): boolean {
   // The same kind of rule: a character that cannot have a status card sheds the ones it holds (stalwart; docs/phase7-
   // wave3.md §3.7). Nothing to put on the stack, so the flow carries on.
   clearForbiddenStatuses(ctx);
+  // …and a card the first player controls follows the first player token (the Milano; §3.13).
+  applyFirstPlayerControl(ctx);
   if (!hasStateChecks(ctx.deps.abilities)) return false;
   const observed: Record<string, boolean> = {};
   const firing: { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] = [];
@@ -101,6 +118,28 @@ function clearForbiddenStatuses(ctx: Ctx): void {
       if ((ctx.state.instances[id]?.statuses[status] ?? 0) <= allowed) continue;
       updateInstance(ctx, id, (i) => ({ ...i, statuses: { ...i.statuses, [status]: allowed } }));
       emit(ctx, { type: "statusRemoved", instanceId: id, status, reason: "cannotHave" });
+    }
+  }
+}
+
+/**
+ * "The first player controls the Milano." (`controlledByFirstPlayer`; docs/phase7-wave3.md §3.13): a matching card in
+ * play is moved to the first player's play area under their control whenever it is anywhere else — after the first
+ * player token passes (RRG 1.8 "First Player", p. 19), after a first player is eliminated, and if it entered play under
+ * someone else. Moving between play areas is not leaving play, so a permanent card moves too.
+ */
+function applyFirstPlayerControl(ctx: Ctx): void {
+  if (!hasControlRule(ctx.deps.abilities)) return;
+  const first = ctx.state.firstPlayerId;
+  for (const { rule, context } of activeRules(ctx.state, ctx.deps, "controlledByFirstPlayer")) {
+    for (const id of cardsInPlay(ctx.state)) {
+      if (!matchesQuery(ctx.state, id, rule.target, context)) continue;
+      const from = controllerOf(ctx.state, id);
+      if (from === first) continue;
+      const attached = ctx.state.instances[id]?.attachedTo ?? null;
+      if (attached === null) moveCard(ctx, id, { kind: "playArea", playerId: first });
+      updateInstance(ctx, id, (instance) => ({ ...instance, controllerId: first }));
+      emit(ctx, { type: "controllerChanged", instanceId: id, from, to: first, reason: "firstPlayer" });
     }
   }
 }

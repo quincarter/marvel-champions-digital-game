@@ -129,6 +129,8 @@ export function candidatesFor(
       const trigger = definition.trigger;
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
       const controllerId = controllerOf(state, id);
+      // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
+      if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;
       if (!formSatisfied(state, controllerId, trigger.form)) continue;
       if (limitReached(state, id, ref.id, definition, event)) continue;
       if (!matchesPattern(state, trigger.on, event, id, deps)) continue;
@@ -140,7 +142,8 @@ export function candidatesFor(
       ) {
         continue;
       }
-      const acting = controllerId ?? actingPlayerOf(event, trigger.on);
+      const acting =
+        controllerId ?? (trigger.firstPlayerOnly === true ? state.firstPlayerId : actingPlayerOf(event, trigger.on));
       found.push(candidateOf({ instanceId: id, abilityId: ref.id, controllerId: acting, definition }, forced));
     }
   }

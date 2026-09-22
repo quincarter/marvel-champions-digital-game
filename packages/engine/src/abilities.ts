@@ -84,12 +84,37 @@ export type AbilityTriggerSpec =
    * `while`: a condition printed before the cost ("Hero Action: If you are in Tiny hero form, exhaust Army of Ants →
    * deal 1 damage to an enemy."). While it is false the action cannot be triggered, so no cost is paid for nothing.
    */
-  | { readonly kind: "action"; readonly form?: Form; readonly while?: Predicate }
-  /** "Resource:" / "Hero Resource:" — triggered while paying a cost. */
-  | { readonly kind: "resource"; readonly form?: Form }
-  /** `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. */
-  | { readonly kind: "interrupt"; readonly forced: boolean; readonly on: EventPattern; readonly form?: Form }
-  | { readonly kind: "response"; readonly forced: boolean; readonly on: EventPattern; readonly form?: Form }
+  /**
+   * `firstPlayerOnly`: "First Player Action" (The Galaxy's Most Wanted's side schemes and main schemes: "First Player
+   * Action: Exhaust the Milano → remove 3 threat from this scheme"). Only the first player may trigger it, on their turn
+   * like any action (RRG 1.8 "Action", p. 6). docs/phase7-wave3.md §3.13.
+   */
+  | { readonly kind: "action"; readonly form?: Form; readonly while?: Predicate; readonly firstPlayerOnly?: boolean }
+  /**
+   * "Resource:" / "Hero Resource:" — triggered while paying a cost. `forAnyPlayer`: "Piloting — Resource: Exhaust the
+   * Milano → generate a [wild] resource for any player." Any player paying a cost may use it, not only its controller
+   * (docs/phase7-wave3.md §3.13).
+   */
+  | { readonly kind: "resource"; readonly form?: Form; readonly forAnyPlayer?: boolean }
+  /**
+   * `form` is the "Hero Interrupt" / "Alter-Ego Response" gate on the controller. `firstPlayerOnly`: "First Player
+   * Interrupt" (Kree Command Ship, `gmw` 16108) — only the first player is offered it, and they are the one who resolves
+   * it (docs/phase7-wave3.md §3.13).
+   */
+  | {
+      readonly kind: "interrupt";
+      readonly forced: boolean;
+      readonly on: EventPattern;
+      readonly form?: Form;
+      readonly firstPlayerOnly?: boolean;
+    }
+  | {
+      readonly kind: "response";
+      readonly forced: boolean;
+      readonly on: EventPattern;
+      readonly form?: Form;
+      readonly firstPlayerOnly?: boolean;
+    }
   | { readonly kind: "whenRevealed" }
   | { readonly kind: "whenDefeated" }
   /**
@@ -452,6 +477,12 @@ export type RuleSpec =
       readonly revealer?: PlayerRef;
       readonly while?: Predicate;
     }
+  /**
+   * "The first player controls the Milano." (`gmw` 16142): a matching card in play is always under the first player's
+   * control, in their play area, and moves there when the first player token passes (RRG 1.8 "First Player", p. 19) or a
+   * first player is eliminated. A continuous rule, applied between frames (docs/phase7-wave3.md §3.13).
+   */
+  | { readonly kind: "controlledByFirstPlayer"; readonly target: TargetQuery; readonly while?: Predicate }
   | {
       readonly kind: "cannotHaveStatus";
       readonly target: TargetQuery;

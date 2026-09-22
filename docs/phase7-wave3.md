@@ -327,15 +327,16 @@ Nova Prime (`stld` 17002): "Response: After you play Nova Prime from your hand, 
 
 ### 3.13 A card the first player controls, and "First Player" abilities (the Milano)
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/first-player-control.test.ts` (4 tests, one replayed
+> deep-equal across a first player change).
 
-**Cards.** The Milano (16142, Ship Command; in four of the five scenarios): "Permanent. Setup. / The first player controls the Milano. / Piloting — Resource: Exhaust the Milano → generate a [wild] resource for any player." "First Player Action: Exhaust the Milano → remove 3 threat from this scheme." on Terrestrial Invasion 1B, Protect the Planet 2B, The Great Escape 3B, Interception Imminent 1B, Blockade, Bombardment, Oppressive Armada, Spatial Positioning, Pincer Maneuver, Cannonade, Rogue Vessel, Nebula's Ship. "First Player Interrupt: When a treachery card is revealed from the encounter deck …" (Kree Command Ship). MC16 FAQ p. 21: a player who does not control the Milano may still choose "Exhaust the Milano" when a card offers it.
+**Cards.** The Milano (16142, Ship Command; in four of the five scenarios): "Permanent. Setup. / The first player controls the Milano. / Piloting — Resource: Exhaust the Milano → generate a [wild] resource for any player." "First Player Action: Exhaust the Milano → remove 3 threat from this scheme." on Terrestrial Invasion 1B, Protect the Planet 2B, The Great Escape 3B, Interception Imminent 1B, Blockade, Bombardment, Oppressive Armada, Spatial Positioning, Pincer Maneuver, Cannonade, Rogue Vessel, Nebula's Ship. "First Player Interrupt: When a treachery card is revealed from the encounter deck …" (Kree Command Ship). MC16 FAQ p. 21: a player who does not control the Milano may still choose "Exhaust the Milano" when a card offers it (a scripting matter: the option names the card, not "your").
 
-**Needs:**
+**What landed:**
 
-- a **controller that follows the first player token**: when the token passes (RRG 1.8 "First Player", p. 19), control of the card moves with it;
-- an action/interrupt **label restricting who may trigger it to the first player**, on encounter cards (which any player may otherwise trigger actions on, RRG 1.8 "Action", p. 6);
-- a **resource ability usable while another player pays** ("generate a [wild] resource for any player").
+- **`RuleSpec controlledByFirstPlayer { target, while? }`**, a continuous rule applied between frames (`checkStateTriggers`, beside the ally limit): a matching card in play not under the first player's control moves to their play area and is controlled by them, logged as `controllerChanged { reason: "firstPlayer" }`. So it follows the token when it passes (RRG 1.8 "First Player", p. 19), when a first player is eliminated, and if it entered play under someone else. Moving between play areas is not leaving play, so the permanent keyword does not stop it. The scan is skipped entirely unless some printed constant in the registry declares the rule (a granted one would not be seen; none exists).
+- **`firstPlayerOnly`** on `action`, `interrupt` and `response` triggers: only the first player may trigger it (`legal.ts`, `useAbility`), and an optional interrupt or response on an encounter card is offered to the first player rather than to the player the event names (`candidatesFor`). An action still needs the active player (RRG 1.8 "Action", p. 6), so a First Player Action is used on the first player's turn.
+- **`resource.forAnyPlayer`**: any player paying a cost may use that resource ability, not only its controller (`resourceAbilityFault` and the payment options). The co-operative decision to spend it is the table's; the engine lets the paying player use it.
 
 ### 3.14 The Collection: a scenario out-of-play area, and a discard-from-play redirect
 

@@ -43,6 +43,17 @@ export type GameEvent =
    * `fromHeroFormIndex` / `heroFormIndex` are the hero faces before and after (null for alter-ego), present only for an
    * identity with more than one hero face (docs/phase7-wave2.md §3.2), so every other identity logs exactly as before.
    */
+  /**
+   * A card changed controller because a rule says who controls it: "The first player controls the Milano." when the
+   * first player token passes (docs/phase7-wave3.md §3.13).
+   */
+  | {
+      readonly type: "controllerChanged";
+      readonly instanceId: InstanceId;
+      readonly from: PlayerId | null;
+      readonly to: PlayerId;
+      readonly reason: "firstPlayer";
+    }
   /** A player became a card's owner by taking it (RRG 1.8 "Ownership and Control", p. 31; docs/phase7-wave2.md §3.10). */
   | { readonly type: "ownershipChanged"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   /** A scenario deck took its discard pile back, with no penalty (docs/phase7-wave2.md §3.3). */

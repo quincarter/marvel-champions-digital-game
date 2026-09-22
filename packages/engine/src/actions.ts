@@ -519,7 +519,8 @@ function resourceAbilityFault(
   if (!activeAbilityRefs(state, instanceId, deps).some((ref) => ref.id === abilityId)) {
     return { code: "no_valid_target", message: `${abilityId} is not active on ${instanceId}` };
   }
-  if (controllerOf(state, instanceId) !== playerId) {
+  // "…generate a [wild] resource for any player" (the Milano; docs/phase7-wave3.md §3.13).
+  if (controllerOf(state, instanceId) !== playerId && definition.trigger.forAnyPlayer !== true) {
     return { code: "no_valid_target", message: "resource abilities must be on cards you control" };
   }
   const form = definition.trigger.form;
@@ -647,9 +648,11 @@ export function paymentOptions(
     });
   }
   for (const id of cardsInPlay(ctx.state)) {
-    if (controllerOf(ctx.state, id) !== playerId) continue;
+    const controlled = controllerOf(ctx.state, id) === playerId;
     for (const ref of activeAbilityRefs(ctx.state, id, ctx.deps)) {
-      if (ctx.deps.abilities[ref.id]?.trigger.kind !== "resource") continue;
+      const trigger = ctx.deps.abilities[ref.id]?.trigger;
+      if (trigger?.kind !== "resource") continue;
+      if (!controlled && trigger.forAnyPlayer !== true) continue;
       if (resourceAbilityFault(ctx.state, ctx.deps, id, ref.id, playerId, payingFor)) continue;
       options.push({
         optionId: `ability:${id}:${ref.id}`,
@@ -1694,6 +1697,9 @@ export function useAbility(ctx: Ctx, command: Command & { type: "useAbility" }):
   const controller = controllerOf(ctx.state, command.cardInstanceId);
   if (controller !== null && controller !== command.playerId) {
     return engineError("no_valid_target", "you do not control that card", command);
+  }
+  if (definition.trigger.firstPlayerOnly === true && command.playerId !== ctx.state.firstPlayerId) {
+    return engineError("no_valid_target", "only the first player may trigger that ability", command);
   }
   const player = mustPlayer(ctx.state, command.playerId);
   if (definition.trigger.form && player.identity.form !== definition.trigger.form) {

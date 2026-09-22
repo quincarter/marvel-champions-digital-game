@@ -422,7 +422,11 @@ function actionAbilities(
     const controller = controllerOf(state, id);
     if (controller !== null && controller !== playerId) continue;
     for (const ref of activeAbilityRefs(state, id, deps)) {
-      if (deps.abilities[ref.id]?.trigger.kind === "action") found.push({ instanceId: id, abilityId: ref.id });
+      const trigger = deps.abilities[ref.id]?.trigger;
+      if (trigger?.kind !== "action") continue;
+      // "First Player Action" (docs/phase7-wave3.md §3.13).
+      if (trigger.firstPlayerOnly === true && playerId !== state.firstPlayerId) continue;
+      found.push({ instanceId: id, abilityId: ref.id });
     }
   }
   return found;
