@@ -99,7 +99,8 @@ export type GameEvent =
       readonly type: "damagePrevented";
       readonly targetInstanceId: InstanceId;
       readonly amount: number;
-      readonly reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage";
+      /** `reduced`: constant reductions and caps brought it to 0 (docs/phase7-wave3.md §3.15). */
+      readonly reason: "tough" | "cancelled" | "effect" | "cannotTakeDamage" | "reduced";
     }
   | { readonly type: "threatPrevented"; readonly schemeInstanceId: InstanceId; readonly amount: number }
   | {
@@ -274,6 +275,11 @@ export type GameEvent =
       readonly event: TriggerEvent;
       readonly phase: "initiated" | "resolved" | "cancelled";
     }
+  /**
+   * A tough status card will prevent this damage, so the interrupts waiting on it get no window (docs/phase7-wave3.md
+   * §3.12). Logged only when some interrupt was waiting.
+   */
+  | { readonly type: "interruptsPreempted"; readonly event: TriggerEvent; readonly reason: "tough" }
   | {
       readonly type: "windowOpened";
       readonly event: TriggerEvent;

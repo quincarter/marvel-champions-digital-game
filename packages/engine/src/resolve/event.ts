@@ -21,6 +21,7 @@ import type { EngineDeps } from "../abilities.js";
 import {
   cannotBeDefeated,
   cannotTakeDamage,
+  damageTakenAfterConstants,
   defeatedIntoEncounterDeck,
   excessDamageThreatSchemes,
   notDefeatedWithoutThreat,
@@ -55,9 +56,14 @@ export function executeEventFrame(ctx: Ctx, frame: Frame<"event">): void {
     case "interrupts": {
       emit(ctx, { type: "triggerEvent", event: frame.event, phase: "initiated" });
       setFrame(ctx, { ...frame, stage: "apply" });
-      if (hasCandidates(ctx.state, ctx.deps, frame.event, "interrupt")) {
-        pushWindow(ctx, frame.event, "interrupt", frame.frameId);
+      const interrupts = hasCandidates(ctx.state, ctx.deps, frame.event, "interrupt");
+      // A tough status resolves first and prevents all the damage, so no "would take damage" interrupt gets a window
+      // (docs/phase7-wave3.md §3.12).
+      if (interrupts && frame.event.kind === "dealDamage" && toughResolvesFirst(ctx, frame.event)) {
+        emit(ctx, { type: "interruptsPreempted", event: frame.event, reason: "tough" });
+        return;
       }
+      if (interrupts) pushWindow(ctx, frame.event, "interrupt", frame.frameId);
       return;
     }
     case "apply": {
@@ -351,6 +357,33 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   return true;
 }
 
+/**
+ * Whether a tough status card will prevent this damage, so it resolves ahead of every other interrupt (docs/phase7-wave3.md
+ * §3.12). RRG 1.8 Appendix III "Simultaneous Timing Priority": "2. Interrupts: a. Status card 'Forced Interrupt'
+ * abilities. b. 'Forced Interrupt' abilities. c. 'Interrupt' abilities"; RRG 1.8 "Status Cards" (p. 42): "Status card
+ * abilities have timing priority over all conflicting triggered abilities"; General FAQ (RRG 1.8 p. 58): "the tough status
+ * card must be discarded to prevent all of the damage before any other abilities could trigger". Tough is a replacement
+ * ("remove a tough status card from it instead"), and RRG 1.8 "Would" (p. 48) closes further interrupts to a trigger a
+ * replacement changed. The Galaxy's Most Wanted FAQ (MC16 p. 21) applies it to Groot's Flora Colossus.
+ *
+ * The same order `applyDamage` uses: "cannot take damage", a prevented attack, piercing and constant reductions all come
+ * first, and each of them means the tough card is not what stops the damage (FAQ p. 58's two exceptions: a constant that
+ * reduces the damage to zero, and a basic defense's DEF, which reduced the amount before this event).
+ */
+function toughResolvesFirst(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): boolean {
+  if (event.amount <= 0 || event.ignoreTough === true) return false;
+  const target = getInstance(ctx.state, event.targetInstanceId);
+  if (!target || target.statuses.tough <= 0) return false;
+  const source = event.sourceInstanceId;
+  if (cannotTakeDamage(ctx.state, ctx.deps, event.targetInstanceId, [source, event.viaInstanceId])) return false;
+  if (event.fromAttack && preventedByAttackFlag(ctx, event)) return false;
+  const piercing =
+    event.fromAttack &&
+    (event.piercing === true || (source !== null && hasKeyword(ctx.state, source, "piercing", ctx.deps)));
+  if (piercing) return false;
+  return damageTakenAfterConstants(ctx.state, ctx.deps, event.targetInstanceId, event.amount, event.fromAttack) > 0;
+}
+
 /** Whether the attack this damage belongs to is carrying a "prevent all damage from that attack" flag. */
 function preventedByAttackFlag(ctx: Ctx, event: Extract<TriggerEvent, { kind: "dealDamage" }>): boolean {
   const parent = event.parentFrameId ? findFrame(ctx.state, event.parentFrameId) : undefined;
@@ -413,6 +446,19 @@ export function applyDamage(
 
   const target = getInstance(ctx.state, event.targetInstanceId);
   if (!target) return;
+  // Constant reductions and caps on the damage taken ("Reduce the amount of damage Nebula takes from each attack by 1",
+  // "cannot take more than 5 damage from a single attack"): constants come before a tough status, so one that brings it
+  // to 0 keeps the tough card (RRG 1.8 FAQ p. 58; docs/phase7-wave3.md §3.15).
+  const taken = damageTakenAfterConstants(ctx.state, ctx.deps, event.targetInstanceId, event.amount, event.fromAttack);
+  if (taken <= 0) {
+    emit(ctx, {
+      type: "damagePrevented",
+      targetInstanceId: event.targetInstanceId,
+      amount: event.amount,
+      reason: "reduced",
+    });
+    return;
+  }
   // "This damage ignores tough status cards" (Lightning Strike, errata RRG 1.8 p. 65): the damage is taken and the
   // status card stays. Piercing is the keyword the RRG defines as discarding it, so "ignores" does not (§3.13).
   if (target.statuses.tough > 0 && event.ignoreTough !== true) {
@@ -423,7 +469,7 @@ export function applyDamage(
     emit(ctx, {
       type: "damagePrevented",
       targetInstanceId: event.targetInstanceId,
-      amount: event.amount,
+      amount: taken,
       reason: "tough",
     });
     emit(ctx, {
@@ -434,15 +480,23 @@ export function applyDamage(
     });
     return;
   }
-  updateInstance(ctx, event.targetInstanceId, (i) => ({ ...i, damage: i.damage + event.amount }));
+  if (taken < event.amount) {
+    emit(ctx, {
+      type: "damagePrevented",
+      targetInstanceId: event.targetInstanceId,
+      amount: event.amount - taken,
+      reason: "reduced",
+    });
+  }
+  updateInstance(ctx, event.targetInstanceId, (i) => ({ ...i, damage: i.damage + taken }));
   emit(ctx, {
     type: "damageDealt",
     targetInstanceId: event.targetInstanceId,
-    amount: event.amount,
+    amount: taken,
     sourceInstanceId: event.sourceInstanceId,
   });
-  addFrameVars(ctx, frameId, { amount: event.amount });
-  addFrameVars(ctx, event.parentFrameId, { damage: event.amount, damaged: 1 });
+  addFrameVars(ctx, frameId, { amount: taken });
+  addFrameVars(ctx, event.parentFrameId, { damage: taken, damaged: 1 });
   addFrameSlots(ctx, event.parentFrameId, { damaged: [event.targetInstanceId] });
   if (!sweep) return;
 

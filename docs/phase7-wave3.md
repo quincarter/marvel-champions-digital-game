@@ -313,13 +313,17 @@ Nova Prime (`stld` 17002): "Response: After you play Nova Prime from your hand, 
 
 ### 3.12 Status-card timing priority: a tough status resolves before "would take damage" interrupts
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/status-priority.test.ts` (4 tests).
 
 **Why it is needed.** MC16 FAQ p. 21 (Groot): "If Groot has a tough status card and takes damage, will growth counters be removed from him? A. No. As status card abilities have timing priority over all other conflicting card abilities, the tough status card will prevent the damage before Groot's Flora Colossus ability is able to trigger." Groot's hero ability is a "Forced Interrupt: When Groot would take any amount of damage".
 
 **The rule.** RRG 1.8 Appendix III "Simultaneous Timing Priority": status card forced interrupts come before every other interrupt; RRG 1.8 "Status Cards" (p. 42): "Status card abilities have timing priority over all conflicting triggered abilities"; General FAQ (RRG 1.8 p. 58): "the tough status card must be discarded to prevent all of the damage before any other abilities could trigger", with two exceptions — "A constant effect reduces the damage the hero takes to zero" and "The hero makes a basic defense and their DEF reduces the damage dealt … to zero".
 
-**The engine today** applies tough in `applyDamage`, after the damage event's interrupt window, so any "would take damage" interrupt (Groot's, Booster Boots, Armor Plating, Jet Boots, In Defiance, Deflection, Parry, Crosscounter) resolves first and can keep the tough card. That contradicts the FAQ in every wave, not only this one.
+**Before this change** the engine applied tough in `applyDamage`, after the damage event's interrupt window, so any "would take damage" interrupt (Groot's, Booster Boots, Armor Plating, Jet Boots, In Defiance, Deflection, Parry, Crosscounter) resolved first and could keep the tough card. That contradicted the FAQ in every wave, not only this one.
+
+**What landed.** At a `dealDamage` event's interrupt stage, `toughResolvesFirst` asks whether a tough status card is what will stop this damage, in the same order `applyDamage` uses: not when "cannot take damage" applies (a constant, which outranks status cards), not when the attack's damage is already prevented, not for piercing (which discards the card before damage), and not when constant reductions (§3.15) bring the damage to 0 (the FAQ's first exception; a basic defense's DEF, the second, already reduced the amount before the event). When it is, the interrupt window is skipped: tough is a replacement ("remove a tough status card from it instead"), and RRG 1.8 "Would" (p. 48) closes further interrupts to a trigger a replacement changed. The log gains `interruptsPreempted { reason: "tough" }`, only when some interrupt was waiting, so every other log is unchanged. No existing test depended on the old order.
+
+**Behaviour to know:** a constant reduction that brings the damage to 0 keeps the tough card but does not suppress the "would take damage" window; an interrupt there sees a damage event whose taken amount will be 0.
 
 ### 3.13 A card the first player controls, and "First Player" abilities (the Milano)
 
@@ -343,9 +347,13 @@ Nova Prime (`stld` 17002): "Response: After you play Nova Prime from your hand, 
 
 ### 3.15 A damage cap and a damage reduction per attack
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/damage-limits.test.ts` (5 tests).
 
-Cutthroat Ambition: "Nebula cannot take more than 5 damage from a single attack." Wide Stance: "Reduce the amount of damage Nebula takes from each attack by 1." Kree Combat Armor: "Reduce the amount of damage attached character takes from each attack by 1." These are constants; the General FAQ (RRG 1.8 p. 58) puts constants ahead of a tough status, so a reduction to 0 keeps the tough card (§3.12 interacts).
+Cutthroat Ambition: "Nebula cannot take more than 5 damage from a single attack." Wide Stance: "Reduce the amount of damage Nebula takes from each attack by 1." Kree Combat Armor: "Reduce the amount of damage attached character takes from each attack by 1." These are constants; the General FAQ (RRG 1.8 p. 58) puts constants ahead of a tough status, so a reduction to 0 keeps the tough card.
+
+- **`RuleSpec reduceDamageTaken { target, amount, fromAttack?, while? }`** and **`RuleSpec maxDamageTakenPerAttack { target, amount, while? }`**, read by `damageTakenAfterConstants` (`rules.ts`) in `applyDamage` after "cannot take damage", a prevented attack and piercing, and before the tough status.
+- They limit the damage **taken**. The damage dealt, and so excess damage (ruling, Jan 26, 2026 (3)) and overkill, is measured first and is unchanged. A reduced event logs `damagePrevented { reason: "reduced" }` for the difference.
+- **Reductions first, then the lowest cap** (§4 Q9). The cap is per damage event of one attack, which is one event per target for every attack the engine makes.
 
 ### 3.16 An attack that deals indirect damage
 
@@ -443,6 +451,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
 6. **When is Star-Lord's "When you play a card from your hand" true (§3.20)?** RRG 1.8 step 6 says the card "commences being played" after the cost is paid (step 5), yet the ability reduces "the cost to play that card by 3". The printed card works only if the reduction applies at step 4. Proposed: treat it as a cost modifier offered while paying, like a resource ability.
 7. **The Collector's back faces print ATK/SCH 0/0 (standard) in the raw data.** Whether they print "0" or "—" decides whether the Wounded Collector can attack or scheme at all (RRG 1.8 "Dash (Value)", p. 15). Curation must check the card images.
 8. **Venom's set-aside Symbiotes.** Struggle for Control (20023): "Put 1 set-aside copy of Enraged Symbiote into play". How many copies start set aside, rather than in the nemesis set, is in the Venom insert, which is not in the repo.
+9. **A reduction and a cap on the same character (§3.15).** Wide Stance and Cutthroat Ambition can both be on Nebula. Implemented as reductions first, then the cap (10 → 9 → 5). The other order gives the same result whenever the damage is at least cap + reduction; it differs only in between (6 damage: 6 → 5 → 5, or 6 → 5 → 4 the other way). RRG 1.8 has no rule for ordering two constants.
 
 ## 5. What this asks of the other agents
 

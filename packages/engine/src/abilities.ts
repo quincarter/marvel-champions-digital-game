@@ -420,6 +420,31 @@ export type RuleSpec =
    * this `each` period (`GameState.revealedThisRound`) — by a player `revealer` names, when given, which is resolved with
    * "you" as the rule's speaker (the engaged player, for an engaged minion). docs/phase7-wave3.md §3.8.
    */
+  /**
+   * "Reduce the amount of damage Nebula takes from each attack by 1." (Wide Stance, `gmw` 16098); "Reduce the amount of
+   * damage attached character takes from each attack by 1." (Kree Combat Armor, 16131). A constant on the damage a
+   * matching character **takes** (`fromAttack`: only an attack's): the damage dealt, and so excess damage, is unchanged
+   * (ruling, Jan 26, 2026 (3)). Constants resolve before a tough status (RRG 1.8 FAQ p. 58: "A hero can keep their tough
+   * status card if … A constant effect reduces the damage the hero takes to zero"). docs/phase7-wave3.md §3.15.
+   */
+  | {
+      readonly kind: "reduceDamageTaken";
+      readonly target: TargetQuery;
+      readonly amount: number;
+      readonly fromAttack?: boolean;
+      readonly while?: Predicate;
+    }
+  /**
+   * "Nebula cannot take more than 5 damage from a single attack." (Cutthroat Ambition, `gmw` 16094). Applied after every
+   * `reduceDamageTaken`, as the last bound on what one attack's damage event makes the character take; the lowest cap
+   * wins. docs/phase7-wave3.md §3.15.
+   */
+  | {
+      readonly kind: "maxDamageTakenPerAttack";
+      readonly target: TargetQuery;
+      readonly amount: number;
+      readonly while?: Predicate;
+    }
   | {
       readonly kind: "firstRevealGainsSurge";
       readonly cards: TargetQuery;

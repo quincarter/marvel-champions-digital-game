@@ -176,6 +176,31 @@ export function firstRevealGainsSurge(
   });
 }
 
+/**
+ * The damage a character takes from one damage event once constant reductions and caps apply (`reduceDamageTaken`,
+ * `maxDamageTakenPerAttack`; docs/phase7-wave3.md §3.15). Reductions first, then the lowest cap: a cap is the last word
+ * on what one attack can make the character take (§4 Q9).
+ */
+export function damageTakenAfterConstants(
+  state: GameState,
+  deps: EngineDeps,
+  targetId: InstanceId,
+  amount: number,
+  fromAttack: boolean,
+): number {
+  let taken = amount;
+  for (const { rule, context } of activeRules(state, deps, "reduceDamageTaken")) {
+    if (rule.fromAttack === true && !fromAttack) continue;
+    if (matchesQuery(state, targetId, rule.target, context)) taken -= rule.amount;
+  }
+  if (fromAttack) {
+    for (const { rule, context } of activeRules(state, deps, "maxDamageTakenPerAttack")) {
+      if (matchesQuery(state, targetId, rule.target, context)) taken = Math.min(taken, rule.amount);
+    }
+  }
+  return Math.max(0, taken);
+}
+
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
 export const cannotHaveStatus = (
   state: GameState,
