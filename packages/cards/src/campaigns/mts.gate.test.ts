@@ -24,14 +24,17 @@
  * environment and Hydra Prison mechanics are left to `@mc/cards/src/wave2/trors/*`, not to the campaign definition.
  *
  * ---------------------------------------------------------------------------------------------------------------
- * GATE VERDICT: MC21 fits. Every printed instruction is expressible in the frozen `@mc/engine` vocabulary
- * (`CampaignOp`/`CampaignGameQuery`/`CampaignPredicate`/`CampaignValue`), with one content-only DSL
- * addition (`addAccelerationToken` gained an optional `target`, `packages/cards/src/dsl/effects.ts` — MC21 p. 13's
- * "place one acceleration token on **one of** the main schemes" needs to name which scheme; MC10 never needed to).
- * `packages/engine` and `packages/client` are untouched.
+ * GATE VERDICT: MC21 fits. Every printed instruction is expressible in the frozen *campaign* vocabulary
+ * (`CampaignOp`/`CampaignGameQuery`/`CampaignPredicate`/`CampaignValue`) — no member was added to any of them, and
+ * `packages/client` is untouched — with one content-only DSL addition (`addAccelerationToken` gained an optional
+ * `target`, `packages/cards/src/dsl/effects.ts` — MC21 p. 13's "place one acceleration token on **one of** the main
+ * schemes" needs to name which scheme; MC10 never needed to) and one ordinary in-game value primitive (`deckCount`,
+ * below), which is a card-text gap rather than a campaign-foundation one: MC21's own card kit needs it too.
  *
- * One printed instruction does **not** fit and is left `// TODO(gap 1)` rather than worked around — see
- * `INFINITY_STONES_DISCARD_GAP_TEXT` below and the report to `game-rules-architect`.
+ * The gate originally left one printed instruction `// TODO(gap 1)` rather than working it around: nothing in the
+ * `ValueSpec` vocabulary read a player's *deck* size. `game-rules-architect` closed it with `ValueSpec deckCount`
+ * (`packages/engine/src/spec.ts`, `deckCountOf` in `packages/cards/src/dsl/values.ts`), so it is scripted below —
+ * see `INFINITY_STONES_DISCARD_TEXT`. That one addition is the whole engine-side cost of this box.
  *
  * ---------------------------------------------------------------------------------------------------------------
  * MODELING CHOICES WORTH KNOWING ABOUT.
@@ -109,6 +112,7 @@ import {
   chooseTarget,
   chosen,
   damageOn,
+  deckCountOf,
   eachPlayer,
   encounterSetAside,
   engage,
@@ -120,10 +124,12 @@ import {
   moveCards,
   option,
   putIntoPlay,
+  scaled,
   selectCards,
   setRemainingHitPoints,
   takeDamage,
   thatPlayer,
+  zone,
 } from "../dsl/index.js";
 
 const MTS_CAMPAIGN_ID: CampaignId = campaignId("mts");
@@ -402,27 +408,45 @@ function bridgeThenAddToPool(opts: {
   ];
 }
 
-/** The printed text both gap instructions share (MC21 p. 21, p. 25), pinned so the test file and the report agree. */
-export const INFINITY_STONES_DISCARD_GAP_TEXT =
+/** The printed text both instructions share (MC21 p. 21, p. 25), pinned so the test file and the report agree. */
+export const INFINITY_STONES_DISCARD_TEXT =
   "If The Infinity Stones 1B was completed, each player discards the top half of their deck.";
 
 /**
- * TODO(gap 1): no `ValueSpec` reads a player's deck size (only `handCount`/`handSize` exist —
- * `packages/engine/src/spec.ts`), so "the top half of their deck, rounded down" cannot be computed to pass as the
- * `zone` `CardSelector`'s `top: ValueSpec`. Left un-scripted (`effects: []`) rather than guessed. Missing member: a
- * `ValueSpec` kind reading a player's deck count, e.g. `{ kind: "deckCount"; player: PlayerRef }`, mirroring
- * `handCount`. **Not campaign-mode-specific**: this pack's own card kit independently needs the same primitive —
- * `docs/cards/by_pack/mts.md` prints, on a real MC21 card's When Revealed: "Each player removes the top half of
- * their deck (rounded down) from the game." Flagged for `game-rules-architect`.
+ * MC21 p. 21 / p. 25's shared SETUP bullet, and the one instruction the gate could not express until `ValueSpec
+ * deckCount` landed. "The top half of their deck" is `scaled(deckCountOf(thatPlayer), { divide: { by: 2, … } })`
+ * feeding the `zone` selector's `top`, per player — `forEachPlayer` + `thatPlayer` rather than `zone("deck",
+ * eachPlayer, …)`, because a `ValueSpec` resolves against one player and would otherwise measure the first
+ * player's deck for everyone.
+ *
+ * **Rounding: up.** The printed campaign sentence states no direction, and RRG 1.8 "Modifiers" (p. 29) says
+ * "Fractional values are rounded up after all modifiers have been applied" — the same default `scaled.divide`'s
+ * required `round` documents everywhere else in this codebase. Worth knowing: MC21's own player-facing card with
+ * the near-identical sentence *does* print "(rounded down)" (`docs/cards/by_pack/mts.md`), so the card and the
+ * rulebook bullet round opposite ways here. That is what the two texts literally say; if FFG clarifies that the
+ * rulebook bullet was meant to read "rounded down" too, this is a one-word change.
  */
-function infinityStonesDiscardGap(id: string, citation: string): CampaignInstruction {
+function infinityStonesDiscard(id: string, citation: string): CampaignInstruction {
   return {
     id,
-    text: INFINITY_STONES_DISCARD_GAP_TEXT,
+    text: INFINITY_STONES_DISCARD_TEXT,
     citation,
     when: { kind: "fieldIsSet", field: "infinityStones1BCompleted" },
-    // TODO(gap 1): see the function doc comment above — no ValueSpec reads a player's deck size.
-    step: { kind: "inGame", window: DEFAULT_CAMPAIGN_WINDOW, effects: [] },
+    step: {
+      kind: "inGame",
+      window: DEFAULT_CAMPAIGN_WINDOW,
+      effects: [
+        forEachPlayer(
+          eachPlayer,
+          moveCards(
+            zone("deck", thatPlayer, {
+              top: scaled(deckCountOf(thatPlayer), { divide: { by: 2, round: "up" } }),
+            }),
+            "discard",
+          ),
+        ),
+      ],
+    },
   };
 }
 
@@ -781,7 +805,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
           shuffleIntoEncounterDeck("mc21.s4.setup.summoned-back", "MC21 p. 21", "Summoned Back", "treachery"),
           poolDeckGrant("mc21.s4.setup.shawarma", "MC21 p. 21", "shawarmaInPool", SHAWARMA, "Shawarma"),
           poolDeckGrant("mc21.s4.setup.system-shock", "MC21 p. 21", "systemShockInPool", SYSTEM_SHOCK, "System Shock"),
-          infinityStonesDiscardGap("mc21.s4.setup.infinity-stones-discard", "MC21 p. 21"),
+          infinityStonesDiscard("mc21.s4.setup.infinity-stones-discard", "MC21 p. 21"),
           hpSet("mc21.s4.setup.hp", "MC21 p. 21"),
           healToFull("mc21.s4.setup.heal", "MC21 p. 21", false),
         ],
@@ -830,7 +854,7 @@ export const MTS_CAMPAIGN_DEFINITION: CampaignDefinition = {
           shuffleIntoEncounterDeck("mc21.s5.setup.summoned-back", "MC21 p. 25", "Summoned Back", "treachery"),
           poolDeckGrant("mc21.s5.setup.shawarma", "MC21 p. 25", "shawarmaInPool", SHAWARMA, "Shawarma"),
           poolDeckGrant("mc21.s5.setup.system-shock", "MC21 p. 25", "systemShockInPool", SYSTEM_SHOCK, "System Shock"),
-          infinityStonesDiscardGap("mc21.s5.setup.infinity-stones-discard", "MC21 p. 25"),
+          infinityStonesDiscard("mc21.s5.setup.infinity-stones-discard", "MC21 p. 25"),
           // Modeling choice 5: granted like Shawarma/System Shock, relying on the Setup-keyword sweep.
           poolDeckGrant("mc21.s5.setup.norn-stone", "MC21 p. 25", "nornStoneInPool", NORN_STONE, "Norn Stone"),
           poolPutIntoPlay(
@@ -930,6 +954,39 @@ describe("MC21 gate: definition shape", () => {
 
   it("declares a loss policy", () => {
     expect(MTS_CAMPAIGN_DEFINITION.loss.retry).toBe("byInstruction");
+  });
+
+  it("leaves no instruction un-scripted: every printed bullet does something", () => {
+    // The gate's one remaining gap (MC21 p. 21/25's "top half of their deck") is closed by `ValueSpec deckCount`,
+    // so no `inGame` step is an empty placeholder any more. Loki's purely narrative victory bullet is the single
+    // deliberate no-op, and it is a `betweenGames` step with no ops (see its own comment).
+    const empty = ALL_INSTRUCTIONS.filter(
+      (instruction) => instruction.step.kind === "inGame" && instruction.step.effects.length === 0,
+    );
+    expect(empty.map((instruction) => instruction.id)).toEqual([]);
+    const discards = ALL_INSTRUCTIONS.filter((instruction) => instruction.text === INFINITY_STONES_DISCARD_TEXT);
+    expect(discards.map((instruction) => instruction.id)).toEqual([
+      "mc21.s4.setup.infinity-stones-discard",
+      "mc21.s5.setup.infinity-stones-discard",
+    ]);
+    // Pinned shape, so a later edit to the rounding direction is a deliberate, reviewed change (RRG 1.8 p. 29).
+    for (const instruction of discards) {
+      expect(instruction.step).toEqual({
+        kind: "inGame",
+        window: DEFAULT_CAMPAIGN_WINDOW,
+        effects: [
+          forEachPlayer(
+            eachPlayer,
+            moveCards(
+              zone("deck", thatPlayer, {
+                top: scaled(deckCountOf(thatPlayer), { divide: { by: 2, round: "up" } }),
+              }),
+              "discard",
+            ),
+          ),
+        ],
+      });
+    }
   });
 });
 

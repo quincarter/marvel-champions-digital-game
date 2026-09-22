@@ -402,6 +402,17 @@ export type ValueSpec =
   | { readonly kind: "handSize"; readonly player: PlayerRef; readonly printed?: boolean }
   /** Cards in a player's hand. */
   | { readonly kind: "handCount"; readonly player: PlayerRef }
+  /**
+   * Cards in a player's deck — the player deck only, never a separate deck (`PlayerState.separateDecks`) or the
+   * encounter deck. The sibling of `handCount`, and the measure "half of their deck" needs: pair it with `scaled`'s
+   * `divide` to get the number, then pass that to a `zone` `CardSelector`'s `top` to name the cards ("removes the
+   * top half of their deck from the game").
+   *
+   * `scaled.divide.round` stays required here as everywhere: RRG 1.8 "Modifiers" (p. 29), "Fractional values are
+   * rounded up after all modifiers have been applied", so a text that prints no rounding halves *up*, and one that
+   * prints "rounded down" says `round: "down"`. This value itself never rounds — it is a plain count.
+   */
+  | { readonly kind: "deckCount"; readonly player: PlayerRef }
   /** Distinct printed resource types among cards ("for each different resource type discarded this way"). Wild counts as its own type. */
   | { readonly kind: "resourceTypes"; readonly cards: TargetRef }
   /** Distinct card types among cards ("for each different card type discarded this way": Trickster, Leading the Charge). */

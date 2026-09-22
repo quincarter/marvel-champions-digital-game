@@ -216,6 +216,13 @@ export const handSizeOf = (player: PlayerRef = you, printed = false): ValueSpec 
   printed ? { kind: "handSize", player, printed } : { kind: "handSize", player };
 /** "The cards in your hand" as a count (distinct from `handSizeOf`, the max-hand-size *stat*): "half of the cards in your hand, rounded down" (Man Out of Time). */
 export const handCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "handCount", player });
+/**
+ * "The cards in a player's deck" as a count — the player deck only, never a separate deck. The sibling of
+ * `handCountOf`, and what "the top half of their deck" is measured from: `zone("deck", p, { top: scaled(
+ * deckCountOf(p), { divide: { by: 2, round: "down" } }) })`. Rounding is the caller's, and required: RRG 1.8
+ * "Modifiers" (p. 29) rounds fractional values up unless the text prints otherwise.
+ */
+export const deckCountOf = (player: PlayerRef = you): ValueSpec => ({ kind: "deckCount", player });
 
 /**
  * Arithmetic: "2 damage for each counter (to a maximum of 10)" → `scaled(counters, { times: 2, max: 10 })`;

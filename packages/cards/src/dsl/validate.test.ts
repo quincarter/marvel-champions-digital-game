@@ -23,11 +23,13 @@ import {
   giveBoostCard,
   moveCards,
   selectCards,
+  zone,
 } from "./effects.js";
 import { validateDefinition } from "./validate.js";
 import {
   chosen,
   countOf,
+  deckCountOf,
   defendingCharacter,
   each,
   eachPlayer,
@@ -35,6 +37,7 @@ import {
   query,
   scaled,
   sum,
+  thatPlayer,
   theVillain,
   varOf,
   you,
@@ -136,6 +139,17 @@ describe("validateDefinition: scaled.divide", () => {
     expect(
       validateDefinition(action(draw(scaled(handCountOf(), { divide: { by: 0, round: "up" } })))).join("\n"),
     ).toMatch(/divide.by must be/);
+  });
+
+  it("halves a deck the same way: deckCountOf is a plain count, the rounding is the caller's", () => {
+    expect(deckCountOf()).toEqual({ kind: "deckCount", player: you });
+    expect(deckCountOf(thatPlayer)).toEqual({ kind: "deckCount", player: thatPlayer });
+    const topHalf = scaled(deckCountOf(thatPlayer), { divide: { by: 2, round: "down" } });
+    expect(validateDefinition(action(moveCards(zone("deck", thatPlayer, { top: topHalf }), "discard")))).toEqual([]);
+    const unrounded = { kind: "scaled", value: deckCountOf(thatPlayer), divide: { by: 2 } } as never;
+    expect(
+      validateDefinition(action(moveCards(zone("deck", thatPlayer, { top: unrounded }), "discard"))).join("\n"),
+    ).toMatch(/divide.round must be/);
   });
 });
 

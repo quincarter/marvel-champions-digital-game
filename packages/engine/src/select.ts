@@ -948,6 +948,11 @@ export function resolveValue(
       const [playerId] = resolvePlayers(state, value.player, context);
       return playerId ? (getPlayer(state, playerId)?.hand.length ?? 0) : 0;
     }
+    case "deckCount": {
+      // The player deck only: a separate deck (`PlayerState.separateDecks`) is its own deck, not part of this one.
+      const [playerId] = resolvePlayers(state, value.player, context);
+      return playerId ? (getPlayer(state, playerId)?.deck.length ?? 0) : 0;
+    }
     case "distinctCardTypes": {
       const types = new Set<string>();
       for (const id of resolveRef(state, value.cards, context)) {
