@@ -21,12 +21,12 @@
  * to on whichever side still has content, in place of a scrollbar.
  */
 import Phaser from "phaser";
-import { surface, typeRole } from "../tokens.js";
+import { surface } from "../tokens.js";
 import { CHIP_GAP, compactChipWidth } from "../view/chip-layout.js";
 import { DragGesture, Momentum, pointInRect } from "../view/drag-gesture.js";
 import type { Rect } from "../view/layout.js";
 import { RailScroll, railContentWidth, railItemOffsets } from "../view/rail-scroll.js";
-import { McButton } from "./widgets.js";
+import { McButton, STAMP_CHIP_TYPE } from "./widgets.js";
 import { clearMask, setMask } from "./rex.js";
 
 export interface ChipRailChip {
@@ -160,7 +160,7 @@ export class McChipRail {
       const button = new McButton(this.#scene, {
         kind: "secondary",
         label: chip.text,
-        type: typeRole.rowTitle,
+        type: STAMP_CHIP_TYPE,
         rect: { x, y: this.#rect.y, width, height: this.#rect.height },
         selected: chip.selected,
         onClick: chip.onClick,

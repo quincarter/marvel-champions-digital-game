@@ -188,6 +188,8 @@ export const typeRole = {
   /** Every number the player reads at a glance. */
   stat: display(20, 0.9, 1),
   statSmall: display(17, 0.9, 1),
+  /** An aspect stamp ("JUSTICE") — on a hero card's art and on the aspect filter chips that match it. */
+  stamp: display(15, 0.9, 1.2),
   /** Public Sans 9/800, 1.2px tracking, uppercase. */
   label: { family: font.body, size: 9, weight: 800, lineHeight: 1.2, letterSpacing: 1.2, uppercase: true },
   /** Strong row title, 11/800. */

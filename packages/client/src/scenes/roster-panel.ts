@@ -19,7 +19,7 @@ import { drawArt } from "../art/card-art.js";
 import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import { accent, hit, ink, signal, surface, typeRole, type TypeSpec } from "../tokens.js";
 import { textStyle } from "../ui/theme.js";
-import { McButton, McTextInput, fitText, label, paintPanel } from "../ui/widgets.js";
+import { McButton, McTextInput, STAMP_CHIP_TYPE, fitText, label, paintPanel } from "../ui/widgets.js";
 import { McVirtualList, type VirtualListRow } from "../ui/virtual-list.js";
 import { McShelfRoster, type ShelfRosterMetrics } from "../ui/shelf-roster.js";
 import type { ListScroll } from "../view/list-scroll.js";
@@ -133,7 +133,7 @@ export function drawChoiceRow(
       new McButton(scene, {
         kind,
         label: cell.text,
-        type: typeRole.rowTitle,
+        type: STAMP_CHIP_TYPE,
         rect: cellRect,
         selected: cell.selected,
         onClick: cell.onClick,
@@ -347,7 +347,8 @@ export function renderShelfCard(scene: Phaser.Scene, rect: Rect, options: ShelfC
   // Stamps sit on the art, bottom-left, above the footer: the one place a tag (top-right) and the title never are.
   let stampX = rect.x + 8;
   for (const stamp of options.stamps ?? []) {
-    const text = label(scene, 0, 0, stamp.label, { ...typeRole.label, size: 11 }, stamp.ink, dim);
+    // Bangers, like every other title on the card — and the same face as the aspect filter chips above the roster.
+    const text = label(scene, 0, 0, stamp.label, typeRole.stamp, stamp.ink, dim);
     const width = Math.ceil(text.width) + 16;
     const height = 24;
     if (stampX + width > rect.x + rect.width - 8) {
@@ -641,10 +642,11 @@ export function drawCompactChipStrip(
         new McButton(scene, {
           kind: "secondary",
           label: cell.text,
-          type: typeRole.rowTitle,
+          type: STAMP_CHIP_TYPE,
           rect: cellRect,
           selected: cell.selected,
           onClick: cell.onClick,
+          ...(cell.tint ? { tint: cell.tint } : {}),
         }),
       );
       stops.set(`${focusPrefix}:${cell.id}`, { rect: cellRect, activate: cell.onClick });
