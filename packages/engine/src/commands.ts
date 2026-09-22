@@ -53,6 +53,15 @@ export type Command =
        * amount paid may be modified by effects without changing the value of X". Bound as the play's var `x`. Absent is 0.
        */
       readonly x?: number;
+      /**
+       * `playCostReduction` abilities the player uses on this play ("When you play a card from your hand, deal yourself
+       * 1 facedown encounter card → reduce the cost to play that card by 3", Star-Lord): each is validated, its cost paid
+       * and its limit counted with the play, and the card costs that much less (docs/phase7-wave3.md §3.20).
+       */
+      readonly costReductionAbilities?: readonly {
+        readonly instanceId: InstanceId;
+        readonly abilityId: AbilityId;
+      }[];
     }
   | {
       readonly type: "useAbility";

@@ -399,9 +399,14 @@ Power Stone (16149, Power Stone modular set): "Setup. Attach to the villain. / P
 
 ### 3.20 Reducing the cost of the card being played, from an interrupt
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/play-cost-reduction.test.ts` (4 tests), on the reading in
+> §4 Q6.
 
-Star-Lord (17001a), "What could go wrong?": "Interrupt: When you play a card from your hand, deal yourself 1 facedown encounter card → reduce the cost to play that card by 3. (Limit once per round.)" The engine's `cardBeingPlayed` window opens after the cost is paid (RRG 1.8 "Initiating Abilities", p. 24, step 6), and its cost reductions are constants or lasting effects set up before the play. The reduction has to apply at step 4 ("Apply any modifiers to the cost(s)"). **Open rules question (§4 Q6):** RRG 1.8 has no ruling on when "when you play a card" is true relative to steps 3–5; the printed card only works if it is before step 5.
+Star-Lord (17001a), "What could go wrong?": "Interrupt: When you play a card from your hand, deal yourself 1 facedown encounter card → reduce the cost to play that card by 3. (Limit once per round.)" The engine's `cardBeingPlayed` window opens after the cost is paid (RRG 1.8 "Initiating Abilities", p. 24, step 6), so an ability in it cannot reduce anything; the reduction has to apply at step 4 ("Apply any modifiers to the cost(s)").
+
+- **`AbilityDefinition.playCostReduction { amount, cards?, fromHand? }`**, on the ability's printed trigger (an `interrupt` on `cardBeingPlayed`, so the client still labels it "Interrupt"). It is not offered in that window; instead the player names it on the play: **`playCard.costReductionAbilities`**. Each named ability is validated before pricing (`playCostReductionFault`: active, controlled, form, limit, `fromHand`, `cards`, its own cost payable), the card is priced `amount` lower through `pricePlay`'s existing reduction, and after the play commits each ability's cost is paid and its limit counted. The log gains `playCostReduced`.
+- **`AbilityCost.dealEncounterCards`**: "Deal yourself 1 facedown encounter card →" as a cost (also Daring Escape, Library Labyrinth, Universal Weapon).
+- **Legal moves** list each usable reduction as an extra variant after the unreduced ones, so a card affordable anyway is offered without it, and one affordable only with it is still offered, with the reduction in its example command. Choosing to use it when it is not needed is the client's to offer (`game-client-engineer`).
 
 ### 3.21 Naming a card type, and "no consequential damage for this use"
 

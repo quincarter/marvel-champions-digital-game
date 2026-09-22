@@ -129,6 +129,8 @@ export function candidatesFor(
       if (!definition) continue;
       const trigger = definition.trigger;
       if (trigger.kind !== timing || trigger.forced !== forced) continue;
+      // A cost reduction is used while paying, not offered in the play's window (docs/phase7-wave3.md §3.20).
+      if (definition.playCostReduction) continue;
       const controllerId = controllerOf(state, id);
       // "First Player Interrupt/Response": the first player is the one offered it and resolving it (§3.13).
       if (trigger.firstPlayerOnly === true && controllerId !== null && controllerId !== state.firstPlayerId) continue;

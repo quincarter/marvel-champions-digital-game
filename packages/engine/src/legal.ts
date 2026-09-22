@@ -25,6 +25,7 @@ import {
   planCost,
   playableFromAttachment,
   playableFromDiscard,
+  playCostReductionFault,
   playRequirement,
 } from "./actions.js";
 import type { PendingChoice } from "./choices.js";
@@ -351,22 +352,33 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
     ? playerOrder(state).map((p) => p.playerId)
     : [undefined];
   const variants: Variant[] = [];
-  for (const host of hosts) {
-    for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
-      for (const controllerId of controllers) {
-        variants.push({
-          target: host ?? target,
-          ...(controllerId ? { controllerId } : {}),
-          build: (payment) => ({
-            type: "playCard",
-            playerId,
-            cardInstanceId: id,
-            payment,
-            attachToInstanceId: host,
-            ...(costChoices ? { costChoices } : {}),
-            ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
-          }),
-        });
+  // Each usable "reduce the cost to play that card" ability is its own variant, after the unreduced ones, so a card
+  // that is affordable anyway is offered without it and one that is only affordable with it is still offered
+  // (docs/phase7-wave3.md §3.20). The client decides whether to use it; this only makes the play reachable.
+  const reducers = playCostReducers(state, deps, playerId, id);
+  const reductionSets: readonly (readonly { instanceId: InstanceId; abilityId: AbilityId }[])[] = [
+    [],
+    ...reducers.map((reducer) => [reducer]),
+  ];
+  for (const reductions of reductionSets) {
+    for (const host of hosts) {
+      for (const { costChoices, target } of costChoiceSets(state, deps, playerId, id, cost, picks)) {
+        for (const controllerId of controllers) {
+          variants.push({
+            target: host ?? target,
+            ...(controllerId ? { controllerId } : {}),
+            build: (payment) => ({
+              type: "playCard",
+              playerId,
+              cardInstanceId: id,
+              payment,
+              attachToInstanceId: host,
+              ...(costChoices ? { costChoices } : {}),
+              ...(controllerId && controllerId !== playerId ? { controllerId } : {}),
+              ...(reductions.length > 0 ? { costReductionAbilities: reductions } : {}),
+            }),
+          });
+        }
       }
     }
   }
@@ -377,6 +389,25 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
     variants,
     leavingCardsToDiscard(wallets(spend), cost),
   );
+}
+
+/** The `playCostReduction` abilities `playerId` could use on playing this card right now (docs/phase7-wave3.md §3.20). */
+function playCostReducers(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+): readonly { readonly instanceId: InstanceId; readonly abilityId: AbilityId }[] {
+  const found: { instanceId: InstanceId; abilityId: AbilityId }[] = [];
+  for (const instanceId of cardsInPlay(state)) {
+    if (controllerOf(state, instanceId) !== playerId) continue;
+    for (const ref of activeAbilityRefs(state, instanceId, deps)) {
+      if (!deps.abilities[ref.id]?.playCostReduction) continue;
+      if (playCostReductionFault(state, deps, instanceId, ref.id, playerId, cardInstanceId)) continue;
+      found.push({ instanceId, abilityId: ref.id });
+    }
+  }
+  return found;
 }
 
 function evaluateAbility(

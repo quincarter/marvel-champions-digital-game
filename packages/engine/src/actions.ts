@@ -14,6 +14,7 @@ import { emit, moveCard, updateInstance, type Ctx } from "./ctx.js";
 import {
   consumeCostReductions,
   costReductionFor,
+  dealEncounterCardTo,
   discardFromHand,
   discardFromPlay,
   discardRandomFromHand,
@@ -70,6 +71,7 @@ import {
   pushPlayCardFrame,
   recordAbilityUse,
 } from "./resolve/index.js";
+import { limitReached } from "./resolve/ability.js";
 import { moveCardsTo } from "./resolve/cards.js";
 import {
   addPools,
@@ -1082,6 +1084,8 @@ export function payCost(
   if (cost.spendCounters) removeCounters(ctx, sourceId, cost.spendCounters.counterType, cost.spendCounters.amount);
   if (cost.exhaustIdentity) exhaustCard(ctx, identityId);
   if (cost.healIdentity) healDamage(ctx, identityId, cost.healIdentity);
+  // "Deal yourself 1 facedown encounter card →" (docs/phase7-wave3.md §3.20).
+  for (let i = 0; i < (cost.dealEncounterCards ?? 0); i++) dealEncounterCardTo(ctx, playerId);
   for (const id of plan.bindings.discard ?? []) discardFromHand(ctx, playerId, id);
   // After the payment and the chosen discards have left the hand, so the random pick is among what remains.
   if (cost.discardRandomFromHand) discardRandomFromHand(ctx, playerId, cost.discardRandomFromHand, [sourceId]);
@@ -1308,6 +1312,50 @@ export function commitPlay(
   return spent;
 }
 
+/**
+ * Why a `playCostReduction` ability cannot reduce this play, or null (docs/phase7-wave3.md §3.20): it must be an active
+ * ability of that kind on a card the player controls, in the right form, under its limit, matching the card, and — with
+ * `fromHand` — the card must be played from hand. Its own cost must be payable.
+ */
+export function playCostReductionFault(
+  state: GameState,
+  deps: EngineDeps,
+  instanceId: InstanceId,
+  abilityId: string,
+  playerId: PlayerId,
+  cardInstanceId: InstanceId,
+): PriceFault | null {
+  const definition = deps.abilities[abilityId];
+  const trigger = definition?.trigger;
+  const reduction = definition?.playCostReduction;
+  if (!definition || !trigger || !reduction)
+    return { code: "no_valid_target", message: `${abilityId} does not reduce the cost of playing a card` };
+  if (!activeAbilityRefs(state, instanceId, deps).some((ref) => ref.id === abilityId))
+    return { code: "no_valid_target", message: `${abilityId} is not active on ${instanceId}` };
+  if (controllerOf(state, instanceId) !== playerId)
+    return { code: "no_valid_target", message: "that ability is on a card you do not control" };
+  const form = "form" in trigger ? trigger.form : undefined;
+  if (form && getPlayer(state, playerId)?.identity.form !== form)
+    return { code: "wrong_form", message: `${abilityId} requires ${form} form` };
+  if (limitReached(state, instanceId, asAbilityId(abilityId), definition))
+    return { code: "limit_reached", message: `${abilityId} has reached its limit` };
+  if (reduction.fromHand === true && !mustPlayer(state, playerId).hand.includes(cardInstanceId))
+    return { code: "no_valid_target", message: "that ability only reduces a card played from your hand" };
+  if (reduction.cards) {
+    const context: EffectContext = {
+      selfInstanceId: instanceId,
+      controllerId: playerId,
+      event: null,
+      bindings: {},
+      deps,
+    };
+    if (!matchesQuery(state, cardInstanceId, reduction.cards, context))
+      return { code: "no_valid_target", message: "that ability does not reduce the cost of this card" };
+  }
+  const plan = planCost(state, deps, instanceId, playerId, definition.cost, {}, new Set());
+  return isFault(plan) ? plan : null;
+}
+
 export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): EngineError | null {
   const invalid = requireActivePlayer(ctx.state, command.playerId, command);
   if (invalid) return invalid;
@@ -1449,6 +1497,25 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     }
   }
 
+  // "Reduce the cost to play that card by 3" (Star-Lord; docs/phase7-wave3.md §3.20): each named ability is checked
+  // before pricing, so a refused one costs nothing.
+  const reductions = command.costReductionAbilities ?? [];
+  let extraReduction = 0;
+  for (const [index, { instanceId, abilityId }] of reductions.entries()) {
+    if (reductions.findIndex((other) => other.instanceId === instanceId && other.abilityId === abilityId) !== index)
+      return engineError("invalid_choice", "the same cost reduction is named twice", command);
+    const fault = playCostReductionFault(
+      ctx.state,
+      ctx.deps,
+      instanceId,
+      abilityId,
+      command.playerId,
+      command.cardInstanceId,
+    );
+    if (fault) return engineError(fault.code, fault.message, command);
+    extraReduction += ctx.deps.abilities[abilityId]?.playCostReduction?.amount ?? 0;
+  }
+
   const priced = pricePlay(
     ctx,
     command.playerId,
@@ -1458,10 +1525,25 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
     command.costChoices ?? {},
     attachTo,
     command.x,
+    extraReduction,
   );
   if (isFault(priced)) return engineError(priced.code, priced.message, command);
 
   const spent = commitPlay(ctx, command.playerId, command.cardInstanceId, command.payment, priced);
+  for (const { instanceId, abilityId } of reductions) {
+    const definition = ctx.deps.abilities[abilityId];
+    if (!definition) continue;
+    const plan = planCost(ctx.state, ctx.deps, instanceId, command.playerId, definition.cost, {}, new Set());
+    if (!isFault(plan)) payCost(ctx, instanceId, command.playerId, definition.cost, plan);
+    recordAbilityUse(ctx, instanceId, abilityId, definition);
+    emit(ctx, {
+      type: "playCostReduced",
+      cardInstanceId: command.cardInstanceId,
+      instanceId,
+      abilityId,
+      amount: definition.playCostReduction?.amount ?? 0,
+    });
+  }
   pushPlayCardFrame(
     ctx,
     command.cardInstanceId,

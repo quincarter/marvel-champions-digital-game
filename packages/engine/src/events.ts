@@ -351,6 +351,14 @@ export type GameEvent =
       readonly amount: number;
     }
   | { readonly type: "surgeTriggered"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
+  /** A `playCostReduction` ability reduced the cost of a card being played (docs/phase7-wave3.md §3.20). */
+  | {
+      readonly type: "playCostReduced";
+      readonly cardInstanceId: InstanceId;
+      readonly instanceId: InstanceId;
+      readonly abilityId: AbilityId;
+      readonly amount: number;
+    }
   /** A revealed card gained surge from a `firstRevealGainsSurge` rule as it was revealed (docs/phase7-wave3.md §3.8). */
   | { readonly type: "surgeGranted"; readonly instanceId: InstanceId; readonly playerId: PlayerId }
   | { readonly type: "optionChosen"; readonly label: string; readonly index: number }

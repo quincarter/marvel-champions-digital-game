@@ -567,6 +567,11 @@ export interface AbilityCost {
   };
   /** "Remove 1 web counter from it →". */
   readonly spendCounters?: { readonly counterType: string; readonly amount: number };
+  /**
+   * "Deal yourself 1 facedown encounter card →" (Star-Lord; Daring Escape; Library Labyrinth; Universal Weapon): the
+   * paying player is dealt that many encounter cards, facedown, as the cost (docs/phase7-wave3.md §3.20).
+   */
+  readonly dealEncounterCards?: number;
   /** "Take 1 damage →" (Focused Rage): the controller's identity takes the damage. */
   readonly damageSelf?: number;
   /** "Deal 2 damage to him →" (War Machine): this card takes the damage. */
@@ -695,6 +700,16 @@ export interface AbilityDefinition {
   readonly generates?: ResourceGeneration;
   /** Resource abilities only: "generate a [wild] resource for an event" — usable only while paying for a matching card. */
   readonly generatesFor?: TargetQuery;
+  /**
+   * Star-Lord, "What could go wrong?" (`stld` 17001a): "Interrupt: When you play a card from your hand, deal yourself 1
+   * facedown encounter card → reduce the cost to play that card by 3. (Limit once per round.)" On an `interrupt` trigger
+   * (its printed timing, `on: cardBeingPlayed`), this makes it a cost modifier the player opts into while playing a card
+   * (`playCard.costReductionAbilities`) instead of an ability offered in that window: its cost is paid and its limit
+   * counted with the play, and the card costs `amount` less (RRG 1.8 "Initiating Abilities", p. 24, step 4: "Apply any
+   * modifiers to the cost(s)"). `cards` is what it may reduce; `fromHand` requires the card to be played from hand. Only
+   * its controller may use it, in the trigger's `form`. docs/phase7-wave3.md §3.20 and §4 Q6.
+   */
+  readonly playCostReduction?: { readonly amount: number; readonly cards?: TargetQuery; readonly fromHand?: boolean };
 }
 
 /** Ability definitions are engine-side data keyed by the `AbilityId` printed on cards. */
