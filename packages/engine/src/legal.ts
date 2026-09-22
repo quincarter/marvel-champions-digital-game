@@ -42,6 +42,7 @@ import {
   playerOrder,
   undefeatedVillains,
   mainSchemeStates,
+  getInstance,
 } from "./query.js";
 import { attachmentHostCandidates } from "./resolve/index.js";
 import { printedResources, requirementTotal, type ResolvedRequirement } from "./resources.js";
@@ -142,14 +143,22 @@ const isResourceCard = (state: GameState, id: InstanceId): number => Number(card
  * Everything the player could spend, in the order a payment draws on it:
  * resource abilities (no card lost), then hand cards with the most resources
  * first, resource cards before other cards on a tie.
+ *
+ * `payingFor` is the card the payment is for. It has to be named: a resource ability that only generates for one kind
+ * of card (Expert Marksman: "a [wild] resource for an Arrow event") is offered only when that card matches. Asked with
+ * no card, Expert Marksman was dropped from every wallet, so an Arrow event nobody could pay for from hand read as
+ * unaffordable even with both Marksmen ready (2026-09-21 report, Cable Arrow: "need 1, paid 0").
  */
 function spendOrder(
   state: GameState,
   deps: EngineDeps,
   playerId: PlayerId,
   reserved: ReadonlySet<InstanceId>,
+  payingFor: InstanceId | null,
 ): readonly Payment[] {
-  const payments = paymentsFromOptionIds(paymentOptions(createCtx(state, deps), playerId, null).map((o) => o.optionId));
+  const payments = paymentsFromOptionIds(
+    paymentOptions(createCtx(state, deps), playerId, null, payingFor).map((o) => o.optionId),
+  );
   const abilities = payments.filter((p) => "ability" in p);
   const hand = payments.flatMap((p) => ("fromHand" in p && !reserved.has(p.fromHand) ? [p.fromHand] : []));
   hand.sort(
@@ -331,7 +340,7 @@ function evaluatePlay(state: GameState, deps: EngineDeps, playerId: PlayerId, id
   if (!card) return null;
   const cost = eventActionAbility(createCtx(state, deps), card)?.cost;
   const picks = discardPicks(state, deps, playerId, id, cost);
-  const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]));
+  const spend = spendOrder(state, deps, playerId, new Set([id, ...picks]), id);
   const context: EffectContext = { selfInstanceId: id, controllerId: playerId, event: null, bindings: {}, deps };
   const candidateHosts =
     card.type === "upgrade" && card.attachesTo ? attachmentHostCandidates(state, card.attachesTo, context) : [];
@@ -379,7 +388,7 @@ function evaluateAbility(
 ): Evaluated {
   const cost = deps.abilities[abilityId]?.cost;
   const picks = discardPicks(state, deps, playerId, instanceId, cost);
-  const spend = spendOrder(state, deps, playerId, new Set(picks));
+  const spend = spendOrder(state, deps, playerId, new Set(picks), null);
   const variants: Variant[] = costChoiceSets(state, deps, playerId, instanceId, cost, picks).map(
     ({ costChoices, target }) => ({
       target,
@@ -477,7 +486,12 @@ export function legalActions(state: GameState, playerId: PlayerId, deps: EngineD
   // Hand cards, and discard pile cards whose own permission allows playing them from there (RRG 1.8 "Play Restrictions
   // and Permissions", p. 33).
   // Cards attached to a card that lets its controller play them from there (Hawkeye's Quiver; docs/phase7-wave2.md §3.10).
-  const attached = cardsInPlay(state).filter((id) => playableFromAttachment(state, deps, playerId, id));
+  // The attachments of *every* card in play, not just `cardsInPlay` itself: that list goes one level deep (an identity
+  // and what is attached to it), and the Quiver is itself attached to Hawkeye, so an Arrow on it sat a level below and
+  // was never considered at all — neither offered nor refused (2026-09-21 report).
+  const attached = [
+    ...new Set(cardsInPlay(state).flatMap((id) => [id, ...(getInstance(state, id)?.attachments ?? [])])),
+  ].filter((id) => playableFromAttachment(state, deps, playerId, id));
   for (const id of [
     ...player.hand,
     ...player.discard.filter((id) => playableFromDiscard(state, deps, playerId, id)),
@@ -742,33 +756,35 @@ export function paymentFor(
   if (!payable || payable.requirement === null || !payable.spendable) return null;
   const ctx = createCtx(state, deps);
   const discardTop = getPlayer(state, playerId)?.discard[0] ?? null;
-  const sources = paymentOptions(ctx, playerId, payable.excludeInstanceId).flatMap<PaymentSource>((option) => {
-    if (option.ref.kind === "card") {
-      // A card the cost already claims cannot also be spent (RRG "Cost": each card pays once).
-      if (payable.reserved.has(option.ref.instanceId)) return [];
+  const sources = paymentOptions(ctx, playerId, payable.excludeInstanceId, payable.payingFor).flatMap<PaymentSource>(
+    (option) => {
+      if (option.ref.kind === "card") {
+        // A card the cost already claims cannot also be spent (RRG "Cost": each card pays once).
+        if (payable.reserved.has(option.ref.instanceId)) return [];
+        return [
+          {
+            optionId: option.optionId,
+            kind: "handCard",
+            instanceId: option.ref.instanceId,
+            label: option.label,
+            pool: handCardResources(state, deps, option.ref.instanceId, playerId, payable.payingFor),
+          },
+        ];
+      }
+      if (option.ref.kind !== "ability") return [];
       return [
         {
           optionId: option.optionId,
-          kind: "handCard",
+          kind: "resourceAbility",
           instanceId: option.ref.instanceId,
           label: option.label,
-          pool: handCardResources(state, deps, option.ref.instanceId, playerId, payable.payingFor),
+          pool: generatedResources(state, deps.abilities[option.ref.abilityId]?.generates, discardTop),
         },
       ];
-    }
-    if (option.ref.kind !== "ability") return [];
-    return [
-      {
-        optionId: option.optionId,
-        kind: "resourceAbility",
-        instanceId: option.ref.instanceId,
-        label: option.label,
-        pool: generatedResources(state, deps.abilities[option.ref.abilityId]?.generates, discardTop),
-      },
-    ];
-  });
+    },
+  );
   let suggested: readonly string[] = [];
-  for (const wallet of wallets(spendOrder(state, deps, playerId, payable.reserved))) {
+  for (const wallet of wallets(spendOrder(state, deps, playerId, payable.reserved, payable.payingFor))) {
     if (!probe(state, deps, payable.build(wallet)).ok) continue;
     suggested = optionIdsOf(smallestPayment(state, deps, payable.build, wallet));
     break;

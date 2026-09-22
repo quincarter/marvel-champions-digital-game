@@ -27,16 +27,23 @@
  * screen, which left the shelf roster a ~160px strip that cropped every card
  * to its top third — "mobile is completely broken"). One column, top to
  * bottom: one row of four compact **seat chips** (P03's "SEAT 1 / C. MARVEL"
- * strip, not the wide layout's 115px cards); a **seat summary** line for the
- * active seat (its stat line and obligation/nemesis, with a "Clear seat"
- * control — this is where the wide layout's ink detail panel and the seat
- * card's "✕" both went); the `rosterHeader` row; the search field; the
- * chips as **one horizontally-scrolling rail** (`chipsScroll`, drawn by
- * `ui/chip-rail.ts`) rather than wrapped rows; then the shelves take
- * **every remaining pixel** above a sticky ink `footer` carrying Deck check
- * and Play — the same sticky-footer shape Table setup's own phone layout
- * (P12) already uses. `detail` is null on narrow: nothing else is allowed to
- * take height away from the roster.
+ * strip, not the wide layout's 115px cards); the `rosterHeader` row, now a
+ * full 44px touch row holding the active seat's **details disclosure**
+ * (`detailsToggle`, one line: aspect · HP · hand, or "Tap a hero for seat N")
+ * on the left and "Use preconstructed" on the right; only while that
+ * disclosure is open (`detailsOpen`), the **seat summary** block (the stat
+ * lines and obligation/nemesis, with the "Clear seat" control — this is where
+ * the wide layout's ink detail panel and the seat card's "✕" both went); one
+ * chip row — a square **search toggle** (`searchToggle`) at its head, then
+ * the chips as **one horizontally-scrolling rail** (`chipsScroll`, drawn by
+ * `ui/chip-rail.ts`) rather than wrapped rows; the search field only while
+ * that toggle is on (`searchOpen`); then the shelves take **every remaining
+ * pixel** above a sticky ink `footer` carrying Deck check and Play — the same
+ * sticky-footer shape Table setup's own phone layout (P12) already uses.
+ * `detail` is null on narrow: nothing else is allowed to take height away
+ * from the roster. (Revised 2026-09-21 for the owner's phone note: the always-
+ * open summary, header row and search field together cost the roster ~150px
+ * of an 844px screen; "this stuff should be collapsible".)
  */
 import { hit } from "../tokens.js";
 import { chipStripHeight } from "./chip-layout.js";
@@ -75,6 +82,10 @@ export interface SeatsLayoutInput {
   readonly height: number;
   readonly chipRows: number;
   readonly detailLines: number;
+  /** Narrow only: the active seat's details block is open under the roster header row. Shut by default. Ignored on wide. */
+  readonly detailsOpen?: boolean;
+  /** Narrow only: the search field row is shown under the chip rail. Off by default. Ignored on wide, where the field is always drawn. */
+  readonly searchOpen?: boolean;
 }
 
 export interface SeatsLayout {
@@ -84,11 +95,16 @@ export interface SeatsLayout {
   readonly back: Rect;
   readonly step: Rect;
   readonly seatSlots: readonly Rect[];
-  /** The "HEROES — SEAT N OF 4" / "Use preconstructed" row above the search field. */
+  /** Wide: the "HEROES — SEAT N OF 4" / "Use preconstructed" row above the search field. Narrow: the 44px row holding `detailsToggle` and "Use preconstructed". */
   readonly rosterHeader: Rect;
   /** The small quiet "Use preconstructed for all seats" button, right-aligned within `rosterHeader`. */
   readonly usePreconstructed: Rect;
+  /** Narrow only: the active seat's details disclosure, the left part of `rosterHeader`. Null on wide. */
+  readonly detailsToggle: Rect | null;
+  /** The search field. Zero-height on a narrow layout whose toggle is off (`searchOpen`) — nothing is drawn there. */
   readonly search: Rect;
+  /** Narrow only: the square toggle at the head of the chip row that shows/hides `search`. Null on wide. */
+  readonly searchToggle: Rect | null;
   /** The chip strip. On wide, `chipRows` wrapped rows tall; on narrow (`chipsScroll`), exactly one row that scrolls sideways. */
   readonly chips: Rect;
   /** True on narrow: draw the chips as one horizontally-scrolling rail (`ui/chip-rail.ts`) rather than wrapped rows. */
@@ -96,9 +112,9 @@ export interface SeatsLayout {
   readonly shelves: Rect;
   /** The full-height ink hero-detail panel. Wide only — null on narrow, where `seatSummary` carries the active seat's facts instead. */
   readonly detail: Rect | null;
-  /** Narrow only: the active seat's summary line(s) under the seat chips (stat line, obligation/nemesis, or "Tap a hero for seat N"). Null on wide. */
+  /** Narrow only, and only while `detailsOpen`: the active seat's summary lines under the roster header row (stat lines, obligation/nemesis). Null on wide and when shut. */
   readonly seatSummary: Rect | null;
-  /** Narrow only: the quiet "Clear seat" control right-aligned inside `seatSummary` — the seat card's "✕" has no room on a phone chip. Null on wide. */
+  /** Narrow only, and only while `detailsOpen`: the quiet "Clear seat" control right-aligned inside `seatSummary` — the seat card's "✕" has no room on a phone chip. Null otherwise. */
   readonly clearSeat: Rect | null;
   /** Narrow only: the sticky ink band at the screen's foot that `play`/`deckCheck` sit inside. Null on wide. */
   readonly footer: Rect | null;
@@ -119,7 +135,8 @@ export function seatsLayoutRects(layout: SeatsLayout): readonly Rect[] {
     layout.step,
     ...layout.seatSlots,
     layout.rosterHeader,
-    layout.search,
+    ...(layout.search.height > 0 ? [layout.search] : []),
+    ...(layout.searchToggle ? [layout.searchToggle] : []),
     layout.chips,
     layout.shelves,
     ...(layout.detail ? [layout.detail] : []),
@@ -235,7 +252,9 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
       seatSlots,
       rosterHeader,
       usePreconstructed,
+      detailsToggle: null,
       search,
+      searchToggle: null,
       chips,
       chipsScroll: false,
       shelves,
@@ -259,30 +278,52 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
   }));
   let y = bodyTop + SEAT_CHIP_HEIGHT + smallGap;
 
-  const seatSummary: Rect = { x: left, y, width: shelvesWidth, height: SEAT_SUMMARY_HEIGHT };
-  const clearSeat: Rect = {
-    x: left + shelvesWidth - CLEAR_SEAT_WIDTH,
-    y: y + (SEAT_SUMMARY_HEIGHT - hit.target) / 2,
-    width: CLEAR_SEAT_WIDTH,
-    height: hit.target,
-  };
-  y += SEAT_SUMMARY_HEIGHT + smallGap;
-
-  const usePreconstructedWidth = Math.min(230, shelvesWidth * 0.5);
-  const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: ROSTER_HEADER_HEIGHT };
+  // The one always-present row under the seat chips: the active seat's details disclosure on the left, "Use
+  // preconstructed" on the right — a full touch target tall, since both halves are controls.
+  const usePreconstructedWidth = Math.min(180, shelvesWidth * 0.42);
+  const rosterHeader: Rect = { x: left, y, width: shelvesWidth, height: hit.target };
   const usePreconstructed: Rect = {
     x: rosterHeader.x + rosterHeader.width - usePreconstructedWidth,
     y: rosterHeader.y,
     width: usePreconstructedWidth,
-    height: ROSTER_HEADER_HEIGHT,
+    height: hit.target,
   };
-  y += ROSTER_HEADER_HEIGHT + smallGap;
-
-  const search: Rect = { x: left, y, width: shelvesWidth, height: hit.target };
+  const detailsToggle: Rect = {
+    x: left,
+    y,
+    width: shelvesWidth - usePreconstructedWidth - smallGap,
+    height: hit.target,
+  };
   y += hit.target + smallGap;
-  // One row, whatever `chipRows` says: the rail scrolls sideways instead of wrapping.
-  const chips: Rect = { x: left, y, width: shelvesWidth, height: chipStripHeight(1) };
+
+  // Open only: the summary block the disclosure reveals, with "Clear seat" inside it.
+  const detailsOpen = input.detailsOpen ?? false;
+  const seatSummary: Rect | null = detailsOpen
+    ? { x: left, y, width: shelvesWidth, height: SEAT_SUMMARY_HEIGHT }
+    : null;
+  const clearSeat: Rect | null = detailsOpen
+    ? {
+        x: left + shelvesWidth - CLEAR_SEAT_WIDTH,
+        y: y + (SEAT_SUMMARY_HEIGHT - hit.target) / 2,
+        width: CLEAR_SEAT_WIDTH,
+        height: hit.target,
+      }
+    : null;
+  if (detailsOpen) y += SEAT_SUMMARY_HEIGHT + smallGap;
+
+  // One chip row, whatever `chipRows` says: the search toggle at its head, then the rail, which scrolls sideways
+  // instead of wrapping.
+  const searchToggle: Rect = { x: left, y, width: hit.target, height: hit.target };
+  const chips: Rect = {
+    x: left + hit.target + smallGap,
+    y,
+    width: shelvesWidth - hit.target - smallGap,
+    height: chipStripHeight(1),
+  };
   y += chips.height + smallGap;
+  const searchOpen = input.searchOpen ?? false;
+  const search: Rect = { x: left, y, width: shelvesWidth, height: searchOpen ? hit.target : 0 };
+  if (searchOpen) y += hit.target + smallGap;
 
   const footer: Rect = { x: 0, y: height - NARROW_FOOTER_HEIGHT, width, height: NARROW_FOOTER_HEIGHT };
   const deckCheck: Rect = {
@@ -316,7 +357,9 @@ export function seatsLayout(input: SeatsLayoutInput): SeatsLayout {
     seatSlots,
     rosterHeader,
     usePreconstructed,
+    detailsToggle,
     search,
+    searchToggle,
     chips,
     chipsScroll: true,
     shelves,

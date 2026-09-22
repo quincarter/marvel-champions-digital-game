@@ -38,6 +38,7 @@ import { PauseOverlay } from "./scenes/pause.js";
 import { RulesOverlay } from "./scenes/rules.js";
 import { SettingsOverlay } from "./scenes/settings.js";
 import { MusicScene } from "./audio/music-controller.js";
+import { installDebugDump } from "./ui/debug-dump.js";
 
 // The one `Settings` instance for the whole app (`appSession().settings`), not a
 // second copy: `scenes/settings.ts` mutates that same object, and every text
@@ -95,6 +96,9 @@ const game = new Phaser.Game({
 // stay out of the way of it. Phaser 4 has no game-config flag for this, only
 // this call on the mouse manager.
 game.input.mouse?.disableContextMenu();
+
+// Ctrl/Cmd+Shift+D copies a snapshot of every overlay's and the store's state, in production too (`ui/debug-dump.ts`).
+installDebugDump(game);
 
 // A GPU reset in the native webviews turns every label into a black box
 // unless the text is redrawn once the context is back (`ui/context-recovery.ts`).

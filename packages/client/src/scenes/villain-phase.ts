@@ -375,6 +375,23 @@ export class VillainPhaseOverlay extends Phaser.Scene {
 
   override update(): void {
     this.#orderAgainstChoice();
+    // While the choice sheet owns the decision (every pause except the inline interrupt this screen answers itself),
+    // the walkthrough takes no clicks at all: it is only narrating, the sheet is drawn over it, and nothing on it may
+    // be the thing that catches a click meant for the sheet. A leaving walkthrough is already off (`OverlayMotion`).
+    if (!this.#motion.leaving) this.input.enabled = !this.#choiceOwnsInput();
+  }
+
+  /** True while an open decision is being answered on the choice sheet rather than inline on this screen. */
+  #choiceOwnsInput(): boolean {
+    const state = this.#latest;
+    const choice = state?.game?.pendingChoice;
+    if (!state || !choice || !this.scene.isActive(SCENES.choice)) return false;
+    return inlineInterruptFor(choice, state.perspectiveId) === null;
+  }
+
+  /** For the Ctrl+Shift+D diagnostic dump (`ui/debug-dump.ts`). */
+  debugState(): Record<string, unknown> {
+    return { leaving: this.#motion.leaving, choiceOwnsInput: this.#choiceOwnsInput(), revealed: this.#revealed };
   }
 
   #syncTiming(): void {

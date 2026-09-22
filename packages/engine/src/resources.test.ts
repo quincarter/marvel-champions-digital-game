@@ -5,7 +5,7 @@ import type { Command, Payment } from "./commands.js";
 import { applyCommand, replay, sessionApply, startSession, type GameSession } from "./engine.js";
 import { playerId, type InstanceId } from "./ids.js";
 import { mustInstance, mustPlayer } from "./query.js";
-import { countUsableAs, paidWith, poolOf, satisfies } from "./resources.js";
+import { countUsableAs, describeRequirement, paidWith, poolOf, requirementOf, satisfies } from "./resources.js";
 import type { GameState } from "./state.js";
 import { depsOf, stubAbility, type StubAbility } from "./testing/abilities.js";
 import {
@@ -482,4 +482,16 @@ test("typed payments, cost choices and lasting effects replay to an identical st
   }
   const replayed = replay(session.log, deps);
   expect(replayed.ok && replayed.state).toEqual(session.state);
+});
+
+describe("describeRequirement: a refusal reads as a sentence, never as JSON", () => {
+  it("names generic, typed and mixed requirements", () => {
+    expect(describeRequirement(requirementOf(1))).toBe("1 resource");
+    expect(describeRequirement(requirementOf(3))).toBe("3 resources");
+    expect(describeRequirement(requirementOf({ physical: 1 }))).toBe("1 physical");
+    expect(describeRequirement(requirementOf({ physical: 1, generic: 2 }))).toBe("1 physical and 2 of any type");
+    expect(describeRequirement(requirementOf({ wild: 1, mental: 1, generic: 1 }))).toBe(
+      "1 wild, 1 mental and 1 of any type",
+    );
+  });
 });

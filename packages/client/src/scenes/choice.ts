@@ -26,6 +26,7 @@ import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
 import { choiceHeaderText } from "../view/choice-source.js";
+import { choiceSheetAction, stuckSheetShouldRecover } from "../view/choice-sheet-sync.js";
 import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
 import {
   railReserve,
@@ -83,12 +84,49 @@ export class ChoiceOverlay extends Phaser.Scene {
    */
   #motion = new OverlayMotion();
 
+  /** When this sheet began sitting "answered" on an unchanged, idle decision (`stuckSheetShouldRecover`); null otherwise. */
+  #idleSince: number | null = null;
+
   constructor() {
     super({ key: SCENES.choice });
   }
 
+  /**
+   * The safety net under `#confirm`: an answered sheet left on the same open decision with nothing in flight gives
+   * the decision back after a short grace, instead of ignoring clicks until the game is reloaded.
+   */
+  override update(time: number): void {
+    const state = appSession().store.state;
+    const pendingChoiceId = state.game?.pendingChoice?.choiceId ?? null;
+    const idle =
+      this.#motion.leaving && !state.inFlight && pendingChoiceId !== null && pendingChoiceId === this.#choiceId;
+    if (!idle) {
+      this.#idleSince = null;
+      return;
+    }
+    this.#idleSince ??= time;
+    const recover = stuckSheetShouldRecover({
+      leaving: this.#motion.leaving,
+      shownChoiceId: this.#choiceId,
+      pendingChoiceId,
+      inFlight: state.inFlight,
+      idleForMs: time - this.#idleSince,
+    });
+    if (!recover) return;
+    this.#idleSince = null;
+    this.tweens.killAll();
+    this.#motion = new OverlayMotion();
+    this.#rebuild();
+  }
+
+  /** For the Ctrl+Shift+D diagnostic dump (`ui/debug-dump.ts`): what this sheet believes, beside what the store says. */
+  debugState(): Record<string, unknown> {
+    return { leaving: this.#motion.leaving, shownChoiceId: this.#choiceId, selected: [...this.#selected] };
+  }
+
   create(): void {
     this.#motion = new OverlayMotion();
+    this.#idleSince = null;
     const { store } = appSession();
     this.#unsubscribe = store.subscribe(() => this.#rebuild());
     const onResize = (): void => this.#rebuild();
@@ -131,14 +169,25 @@ export class ChoiceOverlay extends Phaser.Scene {
   }
 
   #rebuild(): void {
-    // Already answered and fading out (`#confirm`) — the Board will stop this
-    // scene once the state catches up; a redraw here would only flash a new
-    // choice's sheet in underneath the outgoing one.
-    if (this.#motion.leaving) return;
     const { store } = appSession();
     const state = store.state;
     const choice = state.game?.pendingChoice;
-    if (!choice || !state.game) return;
+    const action = choiceSheetAction({
+      leaving: this.#motion.leaving,
+      shownChoiceId: this.#choiceId,
+      pendingChoiceId: choice?.choiceId ?? null,
+    });
+    // Answered and fading out (`#confirm`) with that same decision still in the state: the Board stops this scene
+    // once the state catches up, and a redraw here would only flash the sheet back in under the outgoing one.
+    if (action === "hold" || !choice || !state.game) return;
+    if (action === "restart") {
+      // The engine answered the last decision and raised this one in the *same* command, so the state never read
+      // "no pending choice" in between and the Board neither stopped nor relaunched this scene
+      // (`view/choice-sheet-sync.ts`). The fade-out tweens still driving the old objects toward alpha 0 die with
+      // them, and a fresh `OverlayMotion` plays the entrance again, exactly as if this sheet had just been launched.
+      this.tweens.killAll();
+      this.#motion = new OverlayMotion();
+    }
 
     // A new choice clears the previous selection.
     if (choice.choiceId !== this.#choiceId) {

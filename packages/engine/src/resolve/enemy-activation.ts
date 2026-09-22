@@ -123,7 +123,15 @@ function stepBoostCard(
 ): number | null | "busy" {
   const boost = frame.boost ?? null;
   if (!boost) {
-    const [boostId] = mustInstance(ctx.state, frame.enemyInstanceId).boostCards;
+    // The first boost card still *facedown*, not simply the first one dealt. A boost card stays in `boostCards`,
+    // faceup, until its own ability and icon count are done — and a Boost ability can start a whole activation of
+    // its own ("That villain schemes.", The Wrecking Crew's I've Been Waiting For This!). When that nested activation
+    // is by the same enemy, its flip step used to find the outer activation's faceup card first and turn it "up"
+    // again, ability and all, which nested another scheme, which flipped it again — until `runFlow`'s step cap
+    // rejected the whole command (2026-09-21: a two-hero Breakout froze mid villain phase in 10 of 60 seeds).
+    const boostId = mustInstance(ctx.state, frame.enemyInstanceId).boostCards.find(
+      (id) => !mustInstance(ctx.state, id).faceup,
+    );
     if (!boostId) return null;
     updateInstance(ctx, boostId, (i) => ({ ...i, faceup: true }));
     const icons = boostIconsFor(ctx.state, ctx.deps, boostId);

@@ -11,7 +11,14 @@ import { accent, ink, signal, status, surface, typeRole } from "../../tokens.js"
 import { cssOf, textStyle } from "../../ui/theme.js";
 import { fitText, hatchRect, label, paintPanel } from "../../ui/widgets.js";
 import type { BoardModel, EnvironmentPanel, SeatRow, SeparateDeckPile, VillainPanel } from "../../view/board-model.js";
-import { cardRow, villainRowSlots, type Rect } from "../../view/layout.js";
+import {
+  CARD_ASPECT,
+  PANEL_TEXT_INSETS,
+  PANEL_TEXT_MIN_WIDTH,
+  cardRow,
+  villainRowSlots,
+  type Rect,
+} from "../../view/layout.js";
 import { drawCharacter } from "./character-panel.js";
 import { pileKey, type BoardDrawContext } from "./context.js";
 import { drawPile } from "./piles.js";
@@ -43,9 +50,38 @@ export function drawEnemies(ctx: BoardDrawContext, rect: Rect, model: BoardModel
   }
 }
 
+/** The room a minion row needs under the villain band before the band is allowed to grow into it. */
+const MINION_ROW_RESERVE = 8 + 118;
+/** How tall the single villain's panel may grow on a long table; past this the card stops being a panel and starts being the whole band. */
+const VILLAIN_PANEL_MAX_HEIGHT = 260;
+/** The same ceiling for the multi-villain compact row. */
+const VILLAIN_ROW_MAX_HEIGHT = 220;
+
+/**
+ * How tall the villain band gets. The fixed 128px was drawn for a 1440×900 table; an ultrawide's 285px enemies
+ * zone held it and 150px of nothing, with the villain's card a thumbnail (owner, 2026-09-21: "the villain ... could
+ * be a different kind of view on desktop, especially ultrawides, so you can see their card content better"). On a
+ * long table the band now takes a share of the zone's height, leaving a minion row's worth of room under it only
+ * when there are minions to seat there, and never past `max`. The phone's tabbed board keeps the fixed height: its
+ * enemies tab is a list, not a table.
+ */
+function villainBandHeight(ctx: BoardDrawContext, rect: Rect, model: BoardModel, base: number, max: number): number {
+  if (ctx.tabbed) return base;
+  const reserve = model.minions.length > 0 ? MINION_ROW_RESERVE : 0;
+  const share = Math.round(rect.height * (model.minions.length > 0 ? 0.5 : 0.75));
+  return Math.max(base, Math.min(share, rect.height - 20 - reserve, max));
+}
+
 /** One villain in play: the full-size panel, with any environment beside it. Returns the band's bottom edge. */
 function drawSingleVillain(ctx: BoardDrawContext, rect: Rect, model: BoardModel): number {
-  const villainRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: Math.min(280, rect.width - 20), height: 128 };
+  const villainHeight = villainBandHeight(ctx, rect, model, 128, VILLAIN_PANEL_MAX_HEIGHT);
+  // Wide enough for the card at the panel's full height *and* the text column beside it (`drawCharacter`'s own
+  // "wide" shape), so a taller panel shows a bigger card rather than the same card with more paper around it.
+  const villainWidth = Math.min(
+    rect.width - 20,
+    Math.max(280, Math.round((villainHeight - 6) * CARD_ASPECT) + PANEL_TEXT_MIN_WIDTH + PANEL_TEXT_INSETS + 60),
+  );
+  const villainRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: villainWidth, height: villainHeight };
   drawCharacter(ctx, villainRect, model.villain);
 
   // The environment sits beside the villain, in the space to the right of its panel. It belongs next to him
@@ -82,7 +118,13 @@ function drawSingleVillain(ctx: BoardDrawContext, rect: Rect, model: BoardModel)
  * Returns the whole band's bottom edge, environment strip included.
  */
 function drawVillainRow(ctx: BoardDrawContext, rect: Rect, model: BoardModel): number {
-  const bandHeight = Math.min(128, Math.max(64, Math.round(rect.height * 0.42)));
+  const bandHeight = villainBandHeight(
+    ctx,
+    rect,
+    model,
+    Math.min(128, Math.max(64, Math.round(rect.height * 0.42))),
+    VILLAIN_ROW_MAX_HEIGHT,
+  );
   const bandRect: Rect = { x: rect.x + 10, y: rect.y + 10, width: rect.width - 20, height: bandHeight };
   const slots = villainRowSlots(bandRect, model.villains.length);
   model.villains.forEach((villain, index) => {

@@ -18,7 +18,7 @@
  * be legal?" (`#seatOptionsExcludingActive`) rather than "is this legal to
  * add as a fifth seat?", which always said no once four seats were filled.
  */
-import { aspectStampsOf, titleWithoutAspects } from "../view/aspect-stamp.js";
+import { aspectStampOf, aspectStampsOf, titleWithoutAspects } from "../view/aspect-stamp.js";
 import { HERO_ART, heroArtFor } from "../art/hero-art.js";
 import { ensurePictureLoaded, type Picture } from "../art/pictures.js";
 import Phaser from "phaser";
@@ -79,6 +79,7 @@ import { estimateWrappedLines, type Rect } from "../view/layout.js";
 import { ListScroll } from "../view/list-scroll.js";
 import {
   drawCompactChipStrip,
+  drawSearchToggle,
   drawPackGrid,
   drawSearchField,
   drawShelfRosterPanel,
@@ -98,6 +99,15 @@ export interface SeatsData {
   readonly draft: SetupDraft;
   /** Decks to list before `deckStorage().list()` resolves — "Play this deck ▸" (W9) seeds the one it seats. */
   readonly seedDecks?: readonly Deck[];
+}
+
+/** One quick-filter chip: an aspect (tinted with the aspect's own stamp colour), a deck source, or "Playable now". */
+interface HeroChipDef {
+  readonly id: string;
+  readonly text: string;
+  readonly selected: boolean;
+  readonly onClick: () => void;
+  readonly tint?: { readonly fill: number; readonly ink: number };
 }
 
 /** Matches `scenes/scenario-select.ts`'s own constants — the identical wrapped-detail-line fix. */
@@ -136,6 +146,10 @@ export class SeatsScene extends Phaser.Scene {
   #savedDecks: readonly Deck[] = [];
   #buttons: McButton[] = [];
   #stops = new Map<string, FocusStop>();
+  /** Narrow only: the active seat's details block is open (`SeatsLayout.detailsToggle`). Shut by default. */
+  #detailsOpen = false;
+  /** Narrow only: the search field is shown (`SeatsLayout.searchToggle`). Off by default — the roster gets the row. */
+  #searchOpen = false;
   #searchInput: McTextInput | null = null;
   #roster: McShelfRoster<DeckOption> | null = null;
   #grid: McVirtualList | null = null;
@@ -268,6 +282,8 @@ export class SeatsScene extends Phaser.Scene {
       height,
       chipRows: packCompactChipsToRows(chipDefs, rosterColumnWidthFor(width, height)).length,
       detailLines: 10,
+      detailsOpen: this.#detailsOpen,
+      searchOpen: this.#searchOpen,
     });
     const chipRows = packCompactChipsToRows(chipDefs, layout.chips.width);
 
@@ -327,17 +343,36 @@ export class SeatsScene extends Phaser.Scene {
     if (layout.seatSummary && layout.clearSeat)
       this.#drawSeatSummary(layout.seatSummary, layout.clearSeat, detailOption);
 
-    const rosterLabel = label(
-      this,
-      layout.rosterHeader.x,
-      layout.rosterHeader.y + layout.rosterHeader.height / 2,
-      `Heroes — seat ${this.#draft.activeSeatIndex + 1} of ${MAX_SEATS}`,
-      typeRole.label,
-      surface.ink.hex,
-      ink.label,
-    );
-    rosterLabel.setOrigin(0, 0.5);
-    fitText(rosterLabel, layout.usePreconstructed.x - layout.rosterHeader.x - 12, typeRole.label.size);
+    if (layout.detailsToggle) {
+      // Narrow: the active seat's facts are a disclosure in this row (2026-09-21 owner note: the always-open
+      // summary, header and search cost the phone roster ~150px — "this stuff should be collapsible").
+      const toggleDetails = (): void => {
+        this.#detailsOpen = !this.#detailsOpen;
+        this.#rebuild();
+      };
+      this.#buttons.push(
+        new McButton(this, {
+          kind: "quiet",
+          label: `${this.#seatDetailsSummary(detailOption)} ${this.#detailsOpen ? "▾" : "▸"}`,
+          type: typeRole.label,
+          rect: layout.detailsToggle,
+          onClick: toggleDetails,
+        }),
+      );
+      this.#stops.set("seat-details-toggle", { rect: layout.detailsToggle, activate: toggleDetails });
+    } else {
+      const rosterLabel = label(
+        this,
+        layout.rosterHeader.x,
+        layout.rosterHeader.y + layout.rosterHeader.height / 2,
+        `Heroes — seat ${this.#draft.activeSeatIndex + 1} of ${MAX_SEATS}`,
+        typeRole.label,
+        surface.ink.hex,
+        ink.label,
+      );
+      rosterLabel.setOrigin(0, 0.5);
+      fitText(rosterLabel, layout.usePreconstructed.x - layout.rosterHeader.x - 12, typeRole.label.size);
+    }
     const usePreconstructed = (): void => {
       this.#draft = usePreconstructedForAllSeats(this.#draft, deckOptions);
       this.#rebuild();
@@ -353,19 +388,36 @@ export class SeatsScene extends Phaser.Scene {
     );
     this.#stops.set("use-preconstructed", { rect: layout.usePreconstructed, activate: usePreconstructed });
 
-    this.#searchInput = drawSearchField(
-      this,
-      layout.search,
-      "hero-search",
-      this.#draft.heroFilter.text,
-      "search heroes, aspects, decks…",
-      (value) => {
-        this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, text: value });
-        this.#rebuild();
-      },
-      this.#searchInput,
-      this.#stops,
-    );
+    if (layout.search.height > 0) {
+      this.#searchInput = drawSearchField(
+        this,
+        layout.search,
+        "hero-search",
+        this.#draft.heroFilter.text,
+        "search heroes, aspects, decks…",
+        (value) => {
+          this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, text: value });
+          this.#rebuild();
+        },
+        this.#searchInput,
+        this.#stops,
+      );
+    } else if (this.#searchInput) {
+      // Narrow with the toggle off: no row for it, and a DOM field can't be hidden by simply not drawing it.
+      this.#searchInput.destroy();
+      this.#searchInput = null;
+    }
+    if (layout.searchToggle) {
+      drawSearchToggle(
+        this,
+        layout.searchToggle,
+        "hero-search-toggle",
+        this.#searchOpen || this.#draft.heroFilter.text.length > 0,
+        () => this.#toggleSearch(),
+        this.#buttons,
+        this.#stops,
+      );
+    }
     if (layout.chipsScroll) {
       // Narrow: one row that scrolls sideways (P03 has no room for three wrapped rows of 44px chips).
       const rail = new McChipRail(this, { rect: layout.chips, chips: chipDefs, scroll: this.#chipScroll });
@@ -531,9 +583,34 @@ export class SeatsScene extends Phaser.Scene {
     this.#stops.set("deck-check", { rect: layout.deckCheck, activate: deckCheck });
 
     this.#route?.set(
-      seatsFocusOrder({ seatCount: MAX_SEATS, deckIds: cardIds, heroChipIds: chipDefs.map((c) => c.id) }),
+      seatsFocusOrder({
+        seatCount: MAX_SEATS,
+        deckIds: cardIds,
+        heroChipIds: chipDefs.map((c) => c.id),
+        narrow: !layout.wide,
+      }),
       this.#stops,
     );
+  }
+
+  /** Narrow only: the one line the details disclosure shows while shut — enough to know what's in the seat without opening it. */
+  #seatDetailsSummary(option: DeckOption | undefined): string {
+    const seatNumber = this.#draft.activeSeatIndex + 1;
+    if (!option) return `Seat ${seatNumber} · tap a hero below`;
+    const detail = heroCandidateDetailOf(option, CARDS_BY_ID, POOL_ENCOUNTER_SETS);
+    // Short enough to read whole beside "Use preconstructed" at 375px; the hand size and the rest are one tap away.
+    return `Seat ${seatNumber} · ${detail.aspectLabel} · HP ${detail.hp ?? "—"}`;
+  }
+
+  #toggleSearch(): void {
+    this.#searchOpen = !this.#searchOpen;
+    // Shutting the field also clears its text: a filter whose field you can no longer see must not keep hiding
+    // heroes. The aspect/source chips are their own visible controls and stay as they were.
+    if (!this.#searchOpen && this.#draft.heroFilter.text) {
+      this.#draft = setHeroFilter(this.#draft, { ...this.#draft.heroFilter, text: "" });
+    }
+    this.#rebuild();
+    if (this.#searchOpen) this.#searchInput?.focus();
   }
 
   #pickHero(option: DeckOption, active: ReadonlyMap<string, ActiveSeatRosterEntry>): void {
@@ -985,13 +1062,14 @@ export class SeatsScene extends Phaser.Scene {
     return true;
   }
 
-  #heroChipDefs(
-    deckOptions: readonly DeckOption[],
-  ): readonly { id: string; text: string; selected: boolean; onClick: () => void }[] {
-    const aspectChips = heroAspectsOf(deckOptions.map((option) => option.deck)).map((aspect) => ({
+  #heroChipDefs(deckOptions: readonly DeckOption[]): readonly HeroChipDef[] {
+    // Each aspect chip wears its aspect's printed card-frame colour (`view/aspect-stamp.ts`), the same stamp the
+    // hero cards below carry, so "filter by Justice" and "this deck is Justice" read as one colour.
+    const aspectChips: HeroChipDef[] = heroAspectsOf(deckOptions.map((option) => option.deck)).map((aspect) => ({
       id: `aspect:${aspect}`,
       text: aspectLabelOf([aspect]),
       selected: this.#draft.heroFilter.aspect === aspect,
+      tint: { fill: aspectStampOf(aspect).fill, ink: aspectStampOf(aspect).ink },
       onClick: () => {
         this.#draft = setHeroFilter(this.#draft, {
           ...this.#draft.heroFilter,
