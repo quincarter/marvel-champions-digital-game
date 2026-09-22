@@ -7,6 +7,7 @@
  * panel, where the scan *is* the panel and the live numbers ride on top.
  */
 
+import { countTween } from "../../ui/bound-tween.js";
 import type Phaser from "phaser";
 import type { InstanceId } from "@mc/engine";
 import { drawArt, type ArtFit } from "../../art/card-art.js";
@@ -396,14 +397,13 @@ function drawStatBlock(ctx: BoardDrawContext, block: StatBlock, panel: Character
 
     const tick = ctx.motion.hpTick(panel.instanceId);
     if (tick && tick.tick.kind !== "set") {
-      const driver = { value: hpFromValue(panel.hp.current, tick.tick) };
-      plate.update({ current: Math.round(driver.value) });
-      scene.tweens.add({
-        targets: driver,
-        value: panel.hp.current,
-        duration: tick.remainingMs,
-        ease: "Quad.easeOut",
-        onUpdate: () => plate.update({ current: Math.round(driver.value) }),
+      // Tied to the plate: the next redraw destroys it, and a counter still writing into it would throw inside
+      // Phaser's frame and stop the game (`ui/bound-tween.ts`).
+      countTween(scene, plate.container, {
+        from: hpFromValue(panel.hp.current, tick.tick),
+        to: panel.hp.current,
+        durationMs: tick.remainingMs,
+        onStep: (value) => plate.update({ current: Math.round(value) }),
       });
     }
   }

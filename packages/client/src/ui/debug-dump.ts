@@ -11,6 +11,7 @@
  */
 import type Phaser from "phaser";
 import { appSession } from "../session.js";
+import { recentErrors } from "./error-log.js";
 
 interface DebugReporter {
   debugState(): Record<string, unknown>;
@@ -39,6 +40,10 @@ export function debugSnapshot(game: Phaser.Game): Record<string, unknown> {
   return {
     at: new Date().toISOString(),
     viewport: { width: game.scale.gameSize.width, height: game.scale.gameSize.height },
+    /** Whether the game loop is still ticking: a frame count that stops moving is a dead loop. */
+    frame: game.loop.frame,
+    /** The last errors the frame guard caught (`ui/frame-guard.ts`), newest last. */
+    errors: recentErrors(),
     scenes: scenes.filter((scene) => scene.active).sort((a, b) => a.index - b.index),
     store: {
       version: state.version,

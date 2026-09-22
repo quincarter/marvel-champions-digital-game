@@ -3,6 +3,7 @@
  */
 
 import { drawArt } from "../../art/card-art.js";
+import { countTween } from "../../ui/bound-tween.js";
 import { ink, surface, threatMeter, typeRole } from "../../tokens.js";
 import { textStyle } from "../../ui/theme.js";
 import { label, paintPanel } from "../../ui/widgets.js";
@@ -127,14 +128,12 @@ function drawScheme(ctx: BoardDrawContext, rect: Rect, scheme: SchemePanel): num
 
   const tick = ctx.motion.threatTick(scheme.instanceId);
   if (tick) {
-    const driver = { value: threatFromValue(scheme.threat, tick.tick) };
-    paintMeter(driver.value);
-    scene.tweens.add({
-      targets: driver,
-      value: scheme.threat,
-      duration: tick.remainingMs,
-      ease: "Quad.easeOut",
-      onUpdate: () => paintMeter(driver.value),
+    // Tied to the meter's graphics, for the same reason as the HP plates' counters (`ui/bound-tween.ts`).
+    countTween(scene, mg, {
+      from: threatFromValue(scheme.threat, tick.tick),
+      to: scheme.threat,
+      durationMs: tick.remainingMs,
+      onStep: paintMeter,
     });
   } else {
     paintMeter(scheme.threat);
