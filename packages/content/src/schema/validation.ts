@@ -158,15 +158,27 @@ function keywordListErrors(keywords: unknown, label: string): string[] {
   for (const k of keywords as readonly {
     name?: unknown;
     count?: unknown;
+    countPerPlayer?: unknown;
     value?: unknown;
+    perPlayer?: unknown;
     resources?: unknown;
     icon?: unknown;
     traits?: unknown;
     form?: unknown;
   }[]) {
     if (!k || !isNonEmptyString(k.name)) errors.push(`${label} has a keyword without a name`);
-    if (k?.name === "uses" && (!isNonNegativeNumber(k.count) || (k.count as number) < 1)) {
-      errors.push("uses keyword must have a count >= 1");
+    // `Uses (2[per_hero] ammo counters)` prints no flat part, so `count` may be 0 when `countPerPlayer` carries the
+    // value; either way the card must enter play with at least one counter (docs/phase7-wave3.md §1.3).
+    if (k?.name === "uses") {
+      const perPlayer = k.countPerPlayer;
+      if (perPlayer !== undefined && !isPositiveInteger(perPlayer)) {
+        errors.push(`${label} uses keyword countPerPlayer must be a positive whole number when present`);
+      }
+      const flat = isNonNegativeInteger(k.count) ? k.count : -1;
+      if (flat < 0 || (flat < 1 && perPlayer === undefined)) errors.push("uses keyword must have a count >= 1");
+    }
+    if (k?.name === "hinder" && k.perPlayer !== undefined && !isPositiveInteger(k.perPlayer)) {
+      errors.push(`${label} hinder keyword perPlayer must be a positive whole number when present`);
     }
     if (
       (k?.name === "retaliate" || k?.name === "incite" || k?.name === "hinder" || k?.name === "victory") &&
@@ -321,6 +333,10 @@ function baseErrors(card: AnyCard): string[] {
     errors.push("quantityInSet must be a positive number");
   }
   if (typeof card.unique !== "boolean") errors.push("missing/invalid unique flag");
+  // RRG 1.8 "Amplify Icon" (p. 7); docs/phase7-wave3.md §1.2. Absent means none, so 0 is never written.
+  if (card.amplifyIcons !== undefined && !isPositiveInteger(card.amplifyIcons)) {
+    errors.push("amplifyIcons must be a positive whole number when present");
+  }
   return errors;
 }
 
@@ -631,7 +647,7 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
   }
   if (card.sides.length < 3 && letters.includes("C"))
     errors.push("villain side C is the third face of a three-sided villain");
-  for (const [sideIndex, side] of card.sides.entries()) {
+  for (const side of card.sides) {
     if (side.side !== "A" && side.side !== "B" && side.side !== "C")
       errors.push(`villain side ${String(side.side)} must be A, B or C`);
     if (!isNonEmptyString(side.name)) errors.push(`villain side ${side.side} needs a name`);
@@ -654,18 +670,12 @@ export function validateVillainCard(card: VillainCard): ValidationResult {
         errors.push(`${label} stageLabel must be a non-empty string when present`);
       }
       if (!isScalingValue(stage.hp)) errors.push(`${label} hp must be a ScalingValue`);
-      // A later face may print no hit points at all ("Collector cannot be defeated"); the dial carries across the
-      // flip (RRG 1.8 "Flip", p. 20), so `hp` must repeat the printing face's. docs/phase7-wave2.md §11.2.
-      if (stage.hpNotPrinted === true) {
-        if (sideIndex === 0) errors.push(`${label} hpNotPrinted is only for a face behind the one that prints them`);
-        const printing = card.sides[0]?.stages.find((other) => other.stageNumber === stage.stageNumber);
-        if (
-          printing &&
-          isScalingValue(stage.hp) &&
-          (printing.hp.base !== stage.hp.base || printing.hp.perPlayer !== stage.hp.perPlayer)
-        ) {
-          errors.push(`${label} prints no hit points, so its hp must repeat the printing face's`);
-        }
+      // A face printed with ∞ hit points (RRG 1.8 "Hit Points", p. 22; docs/phase7-wave3.md §1.1) holds 0, the way a
+      // dashed stat does, so no reader can mistake a placeholder for a printed number.
+      const infinite: unknown = stage.infiniteHp;
+      if (infinite !== undefined && typeof infinite !== "boolean") errors.push(`${label} infiniteHp must be a boolean`);
+      if (infinite === true && isScalingValue(stage.hp) && (stage.hp.base !== 0 || stage.hp.perPlayer !== 0)) {
+        errors.push(`${label} prints infinite hit points, so its hp must be { base: 0, perPlayer: 0 }`);
       }
       if (!isNonNegativeNumber(stage.atk)) errors.push(`${label} atk must be a non-negative number`);
       if (!isNonNegativeNumber(stage.sch)) errors.push(`${label} sch must be a non-negative number`);

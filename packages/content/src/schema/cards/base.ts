@@ -42,4 +42,16 @@ export interface BaseCard {
    */
   readonly images?: CardImages;
   readonly errata?: ErrataStatus;
+  /**
+   * Printed amplify icons, a positive whole number when present. RRG 1.8 "Amplify Icon" (p. 7): "When a boost card is
+   * turned faceup during an enemy activation, add one additional boost icon to that card for each amplify icon in
+   * play", and "Each amplify icon is equivalent to the following constant ability: 'Each boost card gains [boost].'"
+   *
+   * On `BaseCard` rather than in `SchemeIcon`, because the icon is printed on many card types and the rule counts it
+   * wherever it is in play: side schemes (Vendetta 16054), an attachment (The Beyonder's Blazer 16124), a minion
+   * (`bp` 51034), allies (`deadpool` 44014, 44016), an upgrade (`fne` 60031), a player side scheme (`deadpool` 44024),
+   * an environment (`mojo` 39041) and an obligation (`synthezoid` 57072). MarvelCDB's field is `scheme_amplify` on
+   * all of them. docs/phase7-wave3.md §1.2.
+   */
+  readonly amplifyIcons?: number;
 }
