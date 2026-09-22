@@ -137,6 +137,8 @@ export class OverlayMotion {
 
   enter(scene: Phaser.Scene, entrance: OverlayEntrance): void {
     if (this.#leaving) return;
+    // Every draw of an overlay that is not leaving takes input — the other half of `exit` switching it off.
+    scene.input.enabled = true;
     const now = scene.time.now;
     this.#openedAt ??= now;
     enterOverlay(scene, entrance, now - this.#openedAt);
@@ -145,6 +147,14 @@ export class OverlayMotion {
   exit(scene: Phaser.Scene, done: () => void, durationMs?: number): void {
     if (this.#leaving) return;
     this.#leaving = true;
+    // A leaving overlay takes no input, from the moment it starts to go. It is fading, or (under reduced motion, or
+    // the choice sheet waiting on the engine) still fully drawn while it waits to be stopped — and an overlay above
+    // the one the player is looking at must never be the thing that swallows their click. Switched back on by the
+    // next `enter` (a sheet that comes back) and by shutdown, so a relaunched scene always starts answerable.
+    scene.input.enabled = false;
+    scene.events.once("shutdown", () => {
+      scene.input.enabled = true;
+    });
     exitOverlay(scene, done, durationMs);
   }
 }

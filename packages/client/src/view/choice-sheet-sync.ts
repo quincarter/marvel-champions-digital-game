@@ -42,3 +42,34 @@ export function choiceSheetAction(input: ChoiceSheetSyncInput): ChoiceSheetActio
   if (!input.leaving) return "draw";
   return input.pendingChoiceId === input.shownChoiceId ? "hold" : "restart";
 }
+
+/** How long an answered sheet may sit on an unchanged, idle decision before it gives the decision back. */
+export const STUCK_SHEET_GRACE_MS = 1200;
+
+export interface StuckSheetInput {
+  readonly leaving: boolean;
+  readonly shownChoiceId: string | null;
+  readonly pendingChoiceId: string | null;
+  /** `SessionState.inFlight`: a command is on its way to the engine. */
+  readonly inFlight: boolean;
+  /** How long the sheet has been leaving on this same decision with nothing in flight. */
+  readonly idleForMs: number;
+}
+
+/**
+ * True when an answered sheet should come back: it is marked as leaving, the *same* decision is still open, and no
+ * command is on its way. After a Confirm the store marks a command in flight at once, and the engine's reply either
+ * raises a different decision (`choiceSheetAction`'s "restart") or is refused (the sheet's own `#confirm` brings it
+ * back) — so this state should never last. If it ever does, the sheet would sit there ignoring every click with the
+ * engine waiting on it (the 2026-09-21 "frozen on the defend screen, a refresh fixed it" report, which could not be
+ * reproduced), so after a short grace it simply becomes answerable again.
+ */
+export function stuckSheetShouldRecover(input: StuckSheetInput): boolean {
+  return (
+    input.leaving &&
+    !input.inFlight &&
+    input.pendingChoiceId !== null &&
+    input.pendingChoiceId === input.shownChoiceId &&
+    input.idleForMs >= STUCK_SHEET_GRACE_MS
+  );
+}
