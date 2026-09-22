@@ -36,7 +36,13 @@ export type Selection =
    * (`LegalAction.controllers`) — a seat already at "max 1 per player" is not
    * one of them.
    */
-  | { readonly kind: "choosingController"; readonly action: LegalAction; readonly controllers: readonly PlayerId[] };
+  | { readonly kind: "choosingController"; readonly action: LegalAction; readonly controllers: readonly PlayerId[] }
+  /**
+   * A card that costs nothing was tapped; now say whether to play it. Every other play already passes through a
+   * mode the player can back out of — payment, a discard cost, a controller — and a free card had none, so a
+   * stray tap on Spiritual Meditation played it, with no way back. Reported from play.
+   */
+  | { readonly kind: "confirmingPlay"; readonly action: LegalAction; readonly controllerId: PlayerId | null };
 
 export type TargetState = "rest" | "selected" | "unavailable";
 
@@ -55,6 +61,11 @@ export function targetState(selection: Selection, id: InstanceId): TargetState {
   if (selection.kind === "choosingDiscard") {
     if (selection.choice.picked.includes(id)) return "selected";
     return selection.choice.candidates.includes(id) ? "rest" : "unavailable";
+  }
+  if (selection.kind === "confirmingPlay") {
+    // The card being asked about wears the ring; everything else steps back, as in any other open decision.
+    const { action } = selection.action;
+    return action.kind === "playCard" && action.instanceId === id ? "selected" : "unavailable";
   }
   return "rest";
 }

@@ -91,9 +91,9 @@ Welcome to The Galaxy’s Most Wanted! This campaign expansion comes with five n
 > [unique] collecTor
 > 1
 > 1
+> A1
 > SCH
 > ATK
-> A1
 > ELDER.
 > •  Collector gets +X SCH and +X ATK,
 > current stage number.where X is equal to the main scheme’s

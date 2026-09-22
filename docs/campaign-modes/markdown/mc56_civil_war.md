@@ -128,10 +128,11 @@ There are four ready-to-play, preconstructed scenarios in this expansion. Each o
 > 2
 > SCH
 > ATK
-> Shield and attaches it to him.  Setup : The enemy team finds Cap’s AVENGER.
+> AVENGER.
+> “Just because it’s the law doesn’t mean it’s right.”
+> Shield and attaches it to him.  Setup : The enemy team finds Cap’s
 > Forced Response : After Cap’s Shield
 > him a tough status card.is attached to Captain America, give
-> “Just because it’s the law doesn’t mean it’s right.”
 > LEADER
 > CAPTAIN AMERICA (1/14) / HIT POINTS 14 [per_hero]
 > Joey Vazquez © MARVEL © 2025 FFG 168
@@ -773,14 +774,14 @@ To set up a competitive game of _Marvel Champions_ , follow these instructions:
 > cHoosInG sIdes
 > SIDE SCHEME
 > "Society will no longer tolerate superheroes who operate outside the law." —She-Hulk
+> Cut Off SuppOrt
 > If there is more than 1 player on your team, this stage gains hinder 2[per_hero].
 > Forced Interrupt player reveals a treachery, place 1 threat here. (Limit once per phase per player.): When a
-> Cut Off SuppOrt
 > MAIN SCHEME
 > MAIN SCHEME
-> upport SatherinGG
 > team as a facedown encounter  minions and deals team searches the encounter : The enemy one to each player on your  When Revealed [per_hero]deck for 1card.
 > on your team, this stage gains If there is more than 1 player .[per_hero]hinder 2
+> upport SatherinGG
 > SIDE SCHEME
 > ideS ShooSinGC
 > 10A      © MARVEL © 2019 FFG  HAND SIZE 5 / HIT POINTS 12 1A © MARVEL © 2025 FFG  Andrea Di Vito-Laura Villari  HAND SIZE 5 / HIT POINTS 10

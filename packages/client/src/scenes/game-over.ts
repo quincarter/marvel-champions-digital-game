@@ -461,7 +461,11 @@ export class GameOverScene extends Phaser.Scene {
       this.#status?.setText(store.state.error ?? "could not start the rematch");
       return;
     }
-    goToScreen(this, SCENES.board);
+    // A rematch is a new game, so it opens where every new game does: the setup deal & mulligan screen, which hands
+    // off to the Board itself once setup is over (`TableSetupScene`'s own hand-off). Going straight to the Board
+    // skipped it — the deal was never shown, and the mulligan fell to the Board's generic choice sheet, which let
+    // only one card be picked. Reported from play.
+    goToScreen(this, SCENES.setupDeal);
   }
 
   /** Bangers display text, uppercased the way the type role asks, wrapped when a width is given. */

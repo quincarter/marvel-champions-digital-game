@@ -22,6 +22,8 @@ export interface TapGesture {
    * inside a scrollable row, so every other caller simply never passes it.
    */
   onDrag?: ((deltaX: number) => void) | undefined;
+  /** With `onDrag`: the drag ended at this speed (px/ms), for a row that coasts after a flick. */
+  onDragEnd?: ((velocityPxPerMs: number) => void) | undefined;
   /**
    * The card's instance id. The board redraws under a finger that is still
    * down, and this is how the recreated target knows the press is its own.

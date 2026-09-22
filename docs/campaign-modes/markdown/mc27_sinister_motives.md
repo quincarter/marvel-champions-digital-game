@@ -97,10 +97,11 @@ Welcome to Sinister Motives _!_ This campaign expansion comes with five new scen
 > SCH
 > ATK
 > CRIMINAL.
+> Illusion trait.
+> "Welcome to your nightmare!"
 > Seeds of Fear  — •  Forced Response :
 > Mysterio’s activation, place that After you resolve a boost card during
-> Illusioncard in your discard pile if it has the  trait.
-> "Welcome to your nightmare!"
+> card in your discard pile if it has the
 > VILLAIN
 > MYSTERIO (1/16) / HIT POINTS 15 [per_hero]
 > Andrea Di Vito & Laura Villari © MARVEL © 2022 FFG 94

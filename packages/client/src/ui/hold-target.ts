@@ -30,6 +30,8 @@ export interface HoldTargetHandlers {
   onInspect?: (() => void) | undefined;
   /** When given, a horizontal drag starting here scrolls instead of tapping. */
   onDrag?: ((deltaX: number) => void) | undefined;
+  /** The drag ended at this speed (px/ms, signed like `onDrag`'s delta) — what a flick coasts from. */
+  onDragEnd?: ((velocityPxPerMs: number) => void) | undefined;
   /**
    * What this control *is*, stable across redraws — a card's instance id.
    * Without one, a zone recreated mid-press cannot tell it is the same control
@@ -48,7 +50,7 @@ interface LivePress {
 const livePresses = new WeakMap<Phaser.Input.Pointer, LivePress>();
 
 export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zone, handlers: HoldTargetHandlers): void {
-  const { onInspect, onDrag, key } = handlers;
+  const { onInspect, onDrag, onDragEnd, key } = handlers;
 
   /** The press that began on this very zone, which it always has a claim on. */
   let own: HoldGesture | null = null;
@@ -68,6 +70,7 @@ export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zon
     own = gesture;
     livePresses.set(pointer, { downTime: pointer.downTime, key, gesture });
     const began = gesture.down(pointer.x, pointer.y, pointer.rightButtonDown());
+    if (onDrag) followDrag(scene, pointer, gesture, onDrag, onDragEnd);
     if (began === "inspect") onInspect?.();
     if (began !== "arm") return;
     // Deliberately not cancelled on `pointerout` — on a touch screen that fires
@@ -80,15 +83,51 @@ export function bindHoldTarget(scene: Phaser.Scene, zone: Phaser.GameObjects.Zon
       if (gesture.holdElapsed(pointer.x, pointer.y, stillDown)) onInspect?.();
     });
   });
-  if (onDrag) {
-    zone.on("pointermove", (pointer: Phaser.Input.Pointer) => {
-      if (!pointer.isDown) return;
-      if (claim(pointer)?.move(pointer.x)) onDrag(pointer.x - pointer.prevPosition.x);
-    });
-  }
   zone.on("pointerup", (pointer: Phaser.Input.Pointer) => {
     const gesture = claim(pointer);
     livePresses.delete(pointer);
     if (gesture?.up(pointer.wasCanceled)) handlers.onTap();
   });
+}
+
+/**
+ * Follows one press's drag from the scene, not from the zone it began on.
+ *
+ * A zone only hears `pointermove` while the pointer is over it. Fed from the zones, a hand scroll stopped dead the
+ * moment a thumb drifted a few pixels above or below the row, or out past the last card, and picked up again — with
+ * a lurch — when it wandered back: swiping left, right and left again on a phone read as the row locking up. The
+ * scene hears every move wherever it lands, so the row follows the finger for the whole press, and the listeners go
+ * away with the release (or with the scene: `InputPlugin` drops every listener on shutdown).
+ */
+function followDrag(
+  scene: Phaser.Scene,
+  pointer: Phaser.Input.Pointer,
+  gesture: HoldGesture,
+  onDrag: (deltaX: number) => void,
+  onDragEnd: ((velocityPxPerMs: number) => void) | undefined,
+): void {
+  const { downTime } = pointer;
+  const stop = (): void => {
+    scene.input.off("pointermove", move);
+    scene.input.off("pointerup", end);
+    scene.input.off("pointerupoutside", end);
+  };
+  const move = (moved: Phaser.Input.Pointer): void => {
+    if (moved !== pointer) return;
+    // A later press on the same pointer is someone else's; this one ended somewhere nobody told us about.
+    if (pointer.downTime !== downTime || !pointer.isDown) return stop();
+    const delta = gesture.dragDelta(pointer.x, scene.time.now);
+    if (delta) onDrag(delta);
+  };
+  const end = (released: Phaser.Input.Pointer): void => {
+    if (released !== pointer) return;
+    stop();
+    // The zone's own `pointerup` has already run by now (Phaser tells game objects before the scene); the gesture
+    // remembers having been a drag past its own `up` for exactly this question.
+    const velocity = gesture.releaseVelocity(scene.time.now);
+    if (velocity !== 0) onDragEnd?.(velocity);
+  };
+  scene.input.on("pointermove", move);
+  scene.input.on("pointerup", end);
+  scene.input.on("pointerupoutside", end);
 }

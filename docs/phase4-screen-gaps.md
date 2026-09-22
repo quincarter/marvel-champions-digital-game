@@ -439,7 +439,7 @@ Smaller gaps in screens that are otherwise built. Each item stands alone.
 - [ ] Board: the menu button (lands with W4).
 - [ ] Board: Team tab "Table talk" hint (P08), **only after** §4's decision on advice.
 - [ ] Board: tablet landscape side rail for Team + Log (L01). PLAN.md Phase 4 routes tablet landscape to the long table; revisit that call rather than overriding it here.
-- [ ] Inspect: "This card, this game": where the card has been, from the game log (D08, P14, L06).
+- [x] Inspect: "This card, this game": where the card has been, from the game log (D08, P14, L06). **Landed 2026-09-21** with the D08 panels and P14 sheet rebuilds (PLAN.md, "What landed (2026-09-21…)").
 - [ ] Game Over: "Watch the replay" (needs S7's still-open read-only board wiring), "Export log", "Share result", "Next: <scenario> ▸", a per-seat damage/thwart table (L08), and phone "Tune deck" / "Read log" (P11).
 
 ### W9. Decks & Collection layout

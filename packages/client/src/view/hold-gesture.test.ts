@@ -99,3 +99,60 @@ describe("HoldGesture", () => {
     expect(gesture.active).toBe(true);
   });
 });
+
+describe("HoldGesture drag distances", () => {
+  it("reports nothing inside the slop, then starts from where it crossed it — no jump to catch up", () => {
+    const gesture = handCard();
+    gesture.down(100, 50, false);
+    expect(gesture.dragDelta(100 + HOLD_SLOP_PX - 1, 10)).toBeNull();
+    expect(gesture.dragDelta(100 + HOLD_SLOP_PX + 3, 20)).toBe(0);
+    expect(gesture.dragDelta(100 + HOLD_SLOP_PX + 13, 30)).toBe(10);
+  });
+
+  it("left, right and left again in one press: each move is measured from the one before", () => {
+    const gesture = handCard();
+    gesture.down(200, 50, false);
+    gesture.dragDelta(180, 10);
+    const deltas = [150, 120, 160, 210, 170, 140].map((x, index) => gesture.dragDelta(x, 20 + index * 10));
+    expect(deltas).toEqual([-30, -30, 40, 50, -40, -30]);
+    // Back inside the slop of where it began, it is still a drag — it never reverts to a tap or a hold.
+    expect(gesture.dragDelta(200, 100)).toBe(60);
+  });
+
+  it("several moves in one millisecond are all counted", () => {
+    const gesture = handCard();
+    gesture.down(200, 50, false);
+    gesture.dragDelta(180, 10);
+    expect([gesture.dragDelta(170, 20), gesture.dragDelta(165, 20), gesture.dragDelta(150, 20)]).toEqual([
+      -10, -5, -15,
+    ]);
+  });
+
+  it("a flick has a release speed, asked for after the release; a finger that stopped first has none", () => {
+    const flick = handCard();
+    flick.down(300, 50, false);
+    flick.dragDelta(280, 10);
+    flick.dragDelta(240, 20);
+    flick.dragDelta(200, 30);
+    flick.up(false);
+    expect(flick.releaseVelocity(35)).toBeCloseTo(-4, 5);
+
+    const placed = handCard();
+    placed.down(300, 50, false);
+    placed.dragDelta(280, 10);
+    placed.dragDelta(240, 20);
+    placed.up(false);
+    expect(placed.releaseVelocity(400)).toBe(0);
+
+    const tap = handCard();
+    tap.down(300, 50, false);
+    tap.up(false);
+    expect(tap.releaseVelocity(5)).toBe(0);
+  });
+
+  it("a card outside a scrollable row never drags", () => {
+    const gesture = card();
+    gesture.down(100, 50, false);
+    expect(gesture.dragDelta(300, 10)).toBeNull();
+  });
+});

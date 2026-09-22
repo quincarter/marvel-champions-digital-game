@@ -16,6 +16,7 @@ import { corePlayerForSeat } from "../view/deck-seat.js";
 import { initialSetupDraft, toSessionConfig } from "../view/setup-draft.js";
 import { rollSeed } from "../view/seed.js";
 import { appSession } from "../session.js";
+import type { SessionStore } from "../store/session-store.js";
 import { SCENES } from "./keys.js";
 import { boardModel } from "../view/board-model.js";
 import type { DeckBuilderSceneData } from "./deck-builder.js";
@@ -116,6 +117,29 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
     return { key: SCENES.inspect, data: { instanceId, siblings: hand } satisfies InspectData };
   }
 
+  // `?screen=choice`: the pending-choice overlay, open on a real `chooseTarget` with a real source card — Doctor
+  // Strange's Spell Mastery, resolving Crimson Bands of Cyttorak's own "Special: Stun an enemy and deal 7 damage to
+  // it." (the same scenario `view/choice-source.test.ts` and `view/choice-source-panel.test.ts` pin down), so the
+  // source-card rail/strip (`view/choice-source-panel.ts`) has a real card and ability line to draw. Board is
+  // started and left running underneath: `#syncChoiceOverlay` opens the sheet itself the moment it sees the state
+  // already carries a `pendingChoice`, same as a real game reaching this choice mid-session.
+  if (screen === "choice") {
+    await startDevChoiceGame();
+    return { key: SCENES.board, data: {} };
+  }
+
+  // `?screen=villain-interrupt`: a real villain phase, paused on Spider-Man's own optional Hero Interrupt
+  // ("Spider-Sense", `01001a.spider-sense` — "When the villain attacks you, you may draw 1 card") — a real
+  // `chooseTriggers` the viewer can answer, for the villain-phase inline interrupt's own source-card strip
+  // (`scenes/villain-phase.ts`'s `#drawInterrupt`, which shows *what's attacking*, not just the candidate card).
+  // Both Board and the villain-phase overlay are started already running, same as `screen=choice` above: Board's
+  // subscription sees the state as it already stands, `lastEvents` included, so `#openVillainWalkthrough` and
+  // `#syncChoiceOverlay` both fire exactly as they would mid-session.
+  if (screen === "villain-interrupt") {
+    await startDevVillainInterruptGame();
+    return { key: SCENES.board, data: {} };
+  }
+
   return null;
 }
 
@@ -127,6 +151,11 @@ async function devScreenJump(): Promise<{ readonly key: string; readonly data?: 
  * progress" placeholder. A no-op if a game is somehow already running (this
  * only ever runs once, straight out of Boot).
  */
+/** Whether a game is already running, from behind a function boundary (see `startDevVillainInterruptGame`'s own comment on why). */
+function gameRunning(store: SessionStore): boolean {
+  return store.state.game !== null;
+}
+
 async function startDevGame(): Promise<void> {
   const { store } = appSession();
   if (store.state.game) return;
@@ -138,6 +167,94 @@ async function startDevGame(): Promise<void> {
     seed: rollSeed(),
   });
   await store.start(toSessionConfig(draft, [corePlayerForSeat(seat)]));
+}
+
+/**
+ * A real Doctor Strange (Protection) solo Rhino game, paused on a real `chooseTarget` with a real source card:
+ * Spell Mastery resolving Crimson Bands of Cyttorak's own "Special: Stun an enemy and deal 7 damage to it." Seed 439
+ * deals Crimson Bands to the top of the Invocation deck — the same deterministic scenario
+ * `view/choice-source.test.ts` and `view/choice-source-panel.test.ts` already pin down, reused here rather than a
+ * fresh one so a passing test is also proof this dev jump reaches the state it claims to.
+ */
+async function startDevChoiceGame(): Promise<void> {
+  const { store } = appSession();
+  if (store.state.game) return;
+  await store.start({
+    scenarioId: "rhino",
+    difficulty: "standard",
+    players: [{ starterDeckId: "drs-protection" }],
+    seed: 439,
+  });
+  for (let step = 0; step < 12 && store.state.legal?.actions.kind === "choice"; step++) {
+    const { choice } = store.state.legal.actions as {
+      choice: { options: readonly { optionId: string }[]; minSelections: number };
+    };
+    await store.resolveChoice(choice.options.slice(0, choice.minSelections).map((o) => o.optionId));
+  }
+  let legal = store.state.legal?.actions;
+  if (legal?.kind === "turn") {
+    const flip = legal.legal.find((e) => e.action.kind === "changeForm");
+    if (flip) await store.dispatch(flip.example);
+  }
+  legal = store.state.legal?.actions;
+  if (legal?.kind !== "turn") return;
+  const spellMastery = legal.legal.find(
+    (entry) => entry.action.kind === "useAbility" && entry.action.abilityId === "09001a.spell-mastery",
+  );
+  if (spellMastery) await store.dispatch(spellMastery.example);
+}
+
+/**
+ * A real solo Rhino/Spider-Man game, seeded (like `startDevChoiceGame`) rather than `startDevGame`'s random
+ * `rollSeed()` — reaching this pause depends on Rhino's very first activation landing as an attack (true once
+ * flipped to hero form, RRG "Activation" p. 6) *and* on the exact command that starts the villain phase being the
+ * same one this function stops on, which only a fixed, traced seed can promise: a random deal can just as easily
+ * reach the same `chooseTriggers` one `resolveChoice` later (an earlier optional trigger answered first, e.g. Great
+ * Responsibility's own "take threat as damage instead" at step one), and Board — mounted only *after* every command
+ * below has already run — only ever sees the *last* command's events, so `#openVillainWalkthrough` misses a phase
+ * that started an earlier command than the one this jump happens to stop on. (Not a client bug: a real session has
+ * Board mounted the whole time, accumulating every command's beats — see `scenes/villain-phase.ts`'s own doc
+ * comment.) Seed 12345 was traced with a scripted game to reach Spider-Man's own optional Hero Interrupt
+ * ("Spider-Sense", `01001a.spider-sense`, "When the villain attacks you, you may draw 1 card") as a real
+ * `chooseTriggers`, in the very command that starts round one's villain phase, with no earlier pause in between.
+ */
+async function startDevVillainInterruptGame(): Promise<void> {
+  const { store } = appSession();
+  // `gameRunning(store)`, not `if (store.state.game) return` inline: TS's control-flow narrowing carries "this
+  // exact property access is null" across the `await` below when the check is written inline, and every later read
+  // of `store.state.game` in this function (its own `game.stack` in the loop) then typechecks against `never`
+  // instead of `GameState | null`. Narrowing is per-function, so hiding the check behind a call sidesteps it.
+  if (gameRunning(store)) return;
+  await store.start({
+    scenarioId: "rhino",
+    difficulty: "standard",
+    players: [{ starterDeckId: "core-spider-man-justice" }],
+    seed: 12345,
+  });
+  if (store.state.game?.pendingChoice) await store.resolveChoice([]);
+  let legal = store.state.legal?.actions;
+  if (legal?.kind === "turn") {
+    const flip = legal.legal.find((entry) => entry.action.kind === "changeForm");
+    if (flip) await store.dispatch(flip.example);
+  }
+  for (let step = 0; step < 40; step++) {
+    const game = store.state.game;
+    if (!game || game.outcome) break;
+    const actions = store.state.legal?.actions;
+    if (!actions) break;
+    if (actions.kind === "choice") {
+      const duringAttack = game.stack.some(
+        (frame) => frame.kind === "enemyAttack" || (frame.kind === "event" && frame.event.kind === "enemyAttack"),
+      );
+      if (actions.choice.prompt.kind === "chooseTriggers" && duringAttack) break;
+      await store.resolveChoice(actions.choice.options.slice(0, actions.choice.minSelections).map((o) => o.optionId));
+      continue;
+    }
+    if (actions.kind !== "turn") break;
+    const end = actions.legal.find((entry) => entry.action.kind === "endTurn");
+    if (!end) break;
+    await store.dispatch(end.example);
+  }
 }
 
 /**

@@ -226,25 +226,34 @@ export function inspectModel(
     glossaryId: glossaryEntry(keyword.name) ? keyword.name : null,
   }));
 
+  // The face in play, asked for once and used for everything the sheet prints. The art always followed it; the
+  // name, type line, stats and text used to read the card's *front* — so Wanda Maximoff's picture sat over the
+  // name "Scarlet Witch", hero stats of 0 and Chaos Control, a power she doesn't have in that form, while the
+  // button below correctly offered Superpowered Siblings. Reported from play. The same default read a villain on
+  // stage II as stage I.
+  const face = faceOf(state, instanceId);
+
   return {
     instanceId,
-    name: cardName(state, instanceId),
-    typeLine: typeLineOf(card),
+    name: card.type === "hero_identity" ? faceNameOf(card, face) : cardName(state, instanceId),
+    typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: priceNoteFor(state, perspectiveId, instanceId, deps),
-    rulesText: textOf(card).current,
-    printedText: errataDiff(card),
-    flavor: "flavor" in card && card.flavor ? card.flavor : null,
+    rulesText: textOf(card, face).current,
+    printedText: errataDiff(card, face),
+    flavor: flavorOf(card, face),
     resourceIcons: resourceIconList(printedResources(card)),
     // The shared builder the board uses, so a buff reads the same in both places.
-    // Every stat the card prints, since the sheet describes the card rather than
-    // the face in play.
+    // An identity shows the stats of the form it is in: an alter-ego prints REC and no THW/ATK/DEF, and listing
+    // those as 0 beside it read as a hero who had been weakened rather than one who isn't here.
     stats: profile
       ? profileStatTiles(
           profile,
           printedStatsOf(state, instanceId),
           profile.kind === "identity"
-            ? ["thw", "atk", "def", "rec"]
+            ? face.kind === "alterEgo"
+              ? ["rec"]
+              : ["thw", "atk", "def"]
             : profile.kind === "ally"
               ? ["thw", "atk"]
               : ["atk", "sch"],
@@ -263,7 +272,7 @@ export function inspectModel(
     // The face in play, not "the front": a villain's picture lives on its
     // stage and a main scheme's on its side, so asking for a front gets
     // nothing at all for exactly the cards a player most wants to read.
-    art: artFor(card, faceOf(state, instanceId)),
+    art: artFor(card, face),
     footerLeft: `${card.setCode as string} · ${card.collectorNumber}`,
     footerRight: [card.unique ? "Unique" : null, `×${card.quantityInSet} in set`].filter(Boolean).join(" · "),
     status: statusOf(state, instanceId, legal, perspectiveId, payment),
@@ -406,7 +415,7 @@ export function cardInspectModel(card: AnyCard | undefined, face: CardFace): Ins
   return {
     instanceId: "" as InstanceId,
     name: faceNameOf(card, face),
-    typeLine: typeLineOf(card),
+    typeLine: typeLineOf(card, face),
     cost: "cost" in card && typeof card.cost === "number" ? card.cost : null,
     priceNote: null,
     rulesText: text.current,
@@ -465,12 +474,19 @@ function flavorOf(card: AnyCard, face: CardFace): string | null {
 }
 
 /** The printed wording, only when it differs from what the game plays by. */
-function errataDiff(card: AnyCard): string | null {
-  const text = textOf(card);
+function errataDiff(card: AnyCard, face: CardFace = { kind: "front" }): string | null {
+  const text = textOf(card, face);
   return text.printed && text.printed !== text.current ? text.printed : null;
 }
 
-function typeLineOf(card: AnyCard): string {
+function typeLineOf(card: AnyCard, face: CardFace = { kind: "front" }): string {
+  // An identity's type line is its form's: "ALTER-EGO · MYSTIC", not "HERO IDENTITY" for both sides.
+  if (card.type === "hero_identity") {
+    const side = face.kind === "alterEgo" ? card.alterEgo : card.hero;
+    return [face.kind === "alterEgo" ? "alter-ego" : "hero", ...(side.traits as readonly string[]).slice(0, 2)]
+      .join(" · ")
+      .toUpperCase();
+  }
   const parts: string[] = [card.type.replace(/_/g, " ")];
   if ("traits" in card) parts.push(...(card.traits as readonly string[]).slice(0, 2));
   if ("aspect" in card && typeof card.aspect === "string" && !card.aspect.startsWith("hero:")) {
@@ -598,8 +614,12 @@ const TRIGGER_GLOSSARY_ID: Partial<Record<AbilityTriggerSpec["kind"], string>> =
   boost: "facedownBoostCard",
 };
 
-/** "Hero Action", "Forced Interrupt", "When Revealed" — the structural name of one ability header, from its trigger spec alone. */
-function triggerLabel(trigger: AbilityTriggerSpec): string {
+/**
+ * "Hero Action", "Forced Interrupt", "When Revealed" — the structural name of one ability header, from its trigger
+ * spec alone. Exported for `view/choice-source-panel.ts`, which needs the same header on a choice's own source card
+ * ("Response — Backflip") and would otherwise be re-deriving it from `AbilityTriggerSpec` a second time.
+ */
+export function triggerLabel(trigger: AbilityTriggerSpec): string {
   const form = "form" in trigger && trigger.form ? (trigger.form === "hero" ? "Hero " : "Alter-Ego ") : "";
   switch (trigger.kind) {
     case "action":

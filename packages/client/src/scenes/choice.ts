@@ -25,7 +25,16 @@ import type { Rect } from "../view/layout.js";
 import { cardRow, formFactorFor } from "../view/layout.js";
 import { decisionLabel } from "../view/villain-walkthrough.js";
 import { abilityShortLabelOf } from "../view/ability-label.js";
-import { choiceHeaderInstanceId, choiceHeaderText } from "../view/choice-source.js";
+import { choiceHeaderText } from "../view/choice-source.js";
+import { choiceSourcePanelOf } from "../view/choice-source-panel.js";
+import {
+  railReserve,
+  sourcePanelModeFor,
+  sourceRailPlacement,
+  sourceStripPlacement,
+  stripReserve,
+} from "../view/choice-source-panel-layout.js";
+import { drawSourceCardPanel } from "../ui/source-card-panel.js";
 import { seatIdentityName } from "../view/names.js";
 import { defendChoiceViewOf, type DefendOptionView } from "../view/defend-choice.js";
 import {
@@ -147,11 +156,14 @@ export class ChoiceOverlay extends Phaser.Scene {
     destroyChildren(this);
 
     const { width, height } = this.scale.gameSize;
-    const phone = formFactorFor(width, height) === "phone";
+    const formFactor = formFactorFor(width, height);
+    const phone = formFactor === "phone";
 
     // W6 (docs/phase4-screen-gaps.md): a dedicated presentation for the defend prompt, over the same PendingChoice
     // and answered with the same `resolveChoice` command the bare list below sends — see `#drawDefendChoice`'s own
-    // doc comment for why this branches before `asCards` rather than becoming a fifth `ChoiceRef` case there.
+    // doc comment for why this branches before `asCards` rather than becoming a fifth `ChoiceRef` case there. It
+    // already shows the attacker and target as real cards (`#drawScan`), so it has no need of the source-card panel
+    // the rest of this method draws below.
     if (choice.prompt.kind === "declareDefender") {
       this.#drawDefendChoice(choice, state.game, width, height);
       return;
@@ -167,21 +179,39 @@ export class ChoiceOverlay extends Phaser.Scene {
     // concretely, the check just didn't recognize it. See `refInstanceId`.
     const asCards = choice.options.length > 0 && choice.options.every((option) => refInstanceId(option.ref) !== null);
 
+    // The card (and, where it can be pinned down, the ability and cost) this choice is actually about, ready to
+    // *show* rather than only name — the reported gap this panel exists to close (`view/choice-source-panel.ts`'s
+    // own doc comment). Null exactly when there is no single source to show (a mulligan, discard to hand size).
+    const sourcePanel = choiceSourcePanelOf(state.game, choice, state.perspectiveId ?? choice.playerId, POOL_DEPS);
+    const panelMode = sourcePanel ? sourcePanelModeFor(formFactor) : null;
+    const railWidth = panelMode === "rail" ? railReserve(formFactor) : 0;
+    const extraHeight = panelMode === "strip" ? stripReserve(formFactor) : 0;
+
     // The 70%-ink scrim.
     const scrim = this.add.graphics();
     scrim.fillStyle(surface.ink.hex, 0.7).fillRect(0, 0, width, height);
     const panelsFrom = this.children.list.length;
 
-    const sheetWidth = Math.min(width - (phone ? 16 : 80), asCards ? 1040 : 560);
-    const sheetHeight = Math.min(height - (phone ? 16 : 80), asCards ? 620 : 560);
+    const sheetWidth = Math.max(280, Math.min(width - (phone ? 16 : 80) - railWidth, asCards ? 1040 : 560));
+    const sheetHeight = Math.min(height - (phone ? 16 : 80), (asCards ? 620 : 560) + extraHeight);
+    // In rail mode the rail and the sheet are centred together as one group — the same composition Inspect's D08
+    // pair uses for its own card/rules panels (`view/inspect-layout.ts`) — rather than the sheet alone staying
+    // centred and the rail hanging off whichever side has room.
+    const groupWidth = sheetWidth + railWidth;
     const sheet: Rect = {
-      x: (width - sheetWidth) / 2,
+      x: (width - groupWidth) / 2 + railWidth,
       y: (height - sheetHeight) / 2,
       width: sheetWidth,
       height: sheetHeight,
     };
     const g = this.add.graphics();
     paintPanel(g, sheet, "card", "rest");
+
+    if (panelMode === "rail" && sourcePanel) {
+      drawSourceCardPanel(this, sourceRailPlacement(sheet), sourcePanel, () =>
+        this.scene.launch(SCENES.inspect, { instanceId: sourcePanel.instanceId }),
+      );
+    }
 
     // Ink title bar. It names the seat as well as the decision once there is
     // more than one seat: "Mulligan" on its own does not say *whose*, and with
@@ -214,18 +244,10 @@ export class ChoiceOverlay extends Phaser.Scene {
     // Which card (and, where it can be pinned down, which ability) is actually asking — "Crimson Bands of Cyttorak
     // — Special: choose a target" rather than a bare, anonymous "Choose a target" (`view/choice-source.ts`'s own
     // doc comment covers what is and isn't derivable, and the one real engine gap it found doing this without
-    // touching the engine). A thumb on the left mirrors the decider's own thumb on the right.
-    let titleLeft = bar.x + 10;
-    const sourceInstanceId = state.game ? choiceHeaderInstanceId(state.game, choice) : null;
-    if (sourceInstanceId !== null && state.game) {
-      const source = artFor(cardOf(state.game, sourceInstanceId), faceOf(state.game, sourceInstanceId));
-      if (source) {
-        const thumb: Rect = { x: titleLeft, y: bar.y + 5, width: 32, height: bar.height - 10 };
-        const key = cardArt(this).request(this, source);
-        if (drawArt(this, key, thumb, { fit: "cover" })) titleLeft = thumb.x + thumb.width + 8;
-      }
-    }
-
+    // touching the engine). No thumbnail here any more: whenever there is a source at all, `sourcePanel` above
+    // already shows it at readable size, in the rail or the strip below — drawing it a second time, smaller, next
+    // to the text that already names it would read as two answers to the same question.
+    const titleLeft = bar.x + 10;
     const titleText = state.game
       ? choiceHeaderText(state.game, choice, POOL_DEPS, promptTitle(choice.prompt.kind))
       : promptTitle(choice.prompt.kind);
@@ -235,13 +257,24 @@ export class ChoiceOverlay extends Phaser.Scene {
       .setLetterSpacing(2);
     fitText(title, Math.max(60, titleRight - titleLeft), typeRole.barTitle.size);
 
+    // The compact strip (phone, phone landscape, tablet portrait): there's no width to spare beside the sheet at
+    // these sizes, so the source card sits inside it instead, just under the title bar and above everything else.
+    let bodyTop = bar.y + bar.height;
+    if (panelMode === "strip" && sourcePanel) {
+      const stripArea: Rect = { x: sheet.x, y: bodyTop, width: sheet.width, height: extraHeight - 10 };
+      drawSourceCardPanel(this, sourceStripPlacement(stripArea), sourcePanel, () =>
+        this.scene.launch(SCENES.inspect, { instanceId: sourcePanel.instanceId }),
+      );
+      bodyTop = stripArea.y + stripArea.height + 10;
+    }
+
     // Why this player is the one deciding. The villain-phase screen's
     // "auto-advance paused" wording belongs to that screen, not here.
     const reason = decisionLabel(choice, state.game, state.perspectiveId);
     const advisory = this.add
       .text(
         sheet.x + 12,
-        bar.y + bar.height + 10,
+        bodyTop + 10,
         choice.soleDecider ? `${reason} · Peril — nobody else may act` : reason,
         textStyle(typeRole.body, surface.ink.hex, ink.secondary),
       )
