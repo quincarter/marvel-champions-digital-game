@@ -1,0 +1,3 @@
+kind: Engine
+body: 'Campaign mode C1: a composable mode set (PlayModes) replaces the standard/expert difficulty enum; existing saves replay byte-for-byte'
+time: 2026-09-21T20:40:50.964012-04:00
