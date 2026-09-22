@@ -419,12 +419,12 @@ export const INFINITY_STONES_DISCARD_TEXT =
  * eachPlayer, …)`, because a `ValueSpec` resolves against one player and would otherwise measure the first
  * player's deck for everyone.
  *
- * **Rounding: up.** The printed campaign sentence states no direction, and RRG 1.8 "Modifiers" (p. 29) says
- * "Fractional values are rounded up after all modifiers have been applied" — the same default `scaled.divide`'s
- * required `round` documents everywhere else in this codebase. Worth knowing: MC21's own player-facing card with
- * the near-identical sentence *does* print "(rounded down)" (`docs/cards/by_pack/mts.md`), so the card and the
- * rulebook bullet round opposite ways here. That is what the two texts literally say; if FFG clarifies that the
- * rulebook bullet was meant to read "rounded down" too, this is a one-word change.
+ * **Rounding: down** (decided 2026-09-22). The printed campaign sentence states no direction. RRG 1.8 "Modifiers"
+ * (p. 29) — "Fractional values are rounded up after all modifiers have been applied" — is about modified values,
+ * not about halving a deck, and MC21's own card with the near-identical sentence prints "(rounded down)"
+ * (`docs/cards/by_pack/mts.md`: "removes the top half of their deck (rounded down) from the game"). The card is the
+ * clearer statement of the intent for this exact effect, so the rulebook bullet follows it. No ruling covers it
+ * (`marvel-champions-rulings-post-rrg-1-7.md` has nothing on halving); worth asking FFG.
  */
 function infinityStonesDiscard(id: string, citation: string): CampaignInstruction {
   return {
@@ -440,7 +440,7 @@ function infinityStonesDiscard(id: string, citation: string): CampaignInstructio
           eachPlayer,
           moveCards(
             zone("deck", thatPlayer, {
-              top: scaled(deckCountOf(thatPlayer), { divide: { by: 2, round: "up" } }),
+              top: scaled(deckCountOf(thatPlayer), { divide: { by: 2, round: "down" } }),
             }),
             "discard",
           ),
@@ -979,7 +979,7 @@ describe("MC21 gate: definition shape", () => {
             eachPlayer,
             moveCards(
               zone("deck", thatPlayer, {
-                top: scaled(deckCountOf(thatPlayer), { divide: { by: 2, round: "up" } }),
+                top: scaled(deckCountOf(thatPlayer), { divide: { by: 2, round: "down" } }),
               }),
               "discard",
             ),

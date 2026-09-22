@@ -1424,10 +1424,11 @@ and unit tests in `packages/engine/src/deck-count.test.ts` (empty deck, after dr
 halving both directions, and feeding a `zone` selector's `top` end to end). The value is a plain count: halving
 stays `scaled.divide`, whose `round` is required. Both `TODO(gap 1)` markers in `mts.gate.test.ts` are now the real
 instruction, `forEachPlayer(eachPlayer, moveCards(zone("deck", thatPlayer, { top: scaled(deckCountOf(thatPlayer),
-{ divide: { by: 2, round: "up" } }) }), "discard"))`, pinned by a shape assertion. **Rounding up** because the
-printed campaign bullet names no direction and RRG 1.8 "Modifiers" (p. 29) reads "Fractional values are rounded up
-after all modifiers have been applied"; flagged for a ruling, since MC21's own card with the near-identical
-sentence prints "(rounded down)", so card and rulebook round opposite ways as written.
+{ divide: { by: 2, round: "down" } }) }), "discard"))`, pinned by a shape assertion. **Rounding down** (decided
+2026-09-22): the printed campaign bullet names no direction; RRG 1.8 "Modifiers" (p. 29, "Fractional values are
+rounded up after all modifiers have been applied") is about modified values rather than halving a deck, and MC21's
+own card with the near-identical sentence prints "(rounded down)", so the bullet follows the card. No ruling covers
+it; flagged for FFG.
 
 Because the end-to-end walk cannot reach `@mc/engine`'s internal `testing/fixtures.ts` stub-card builders from
 `@mc/cards` (`@mc/engine`'s `package.json` exports only `"."`), the runner is proven with hand-authored
