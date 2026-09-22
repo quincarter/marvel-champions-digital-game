@@ -117,6 +117,21 @@ jobs:
               NEXT_TAG=$(changie next auto 2>/dev/null || changie next patch)
             fi
 
+            # changie counts from the newest version file in .changes/, which can lag the tags: a release whose
+            # commit was blocked from main (branch protection) and then reverted leaves its tag behind. Re-cutting
+            # that version would fail on the existing tag, so step to the next patch above the highest tag instead.
+            if git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; then
+              HIGHEST=$(git tag -l 'v[0-9]*' --sort=-v:refname | head -1)
+              IFS=. read -r MAJOR MINOR PATCH <<< "${HIGHEST#v}"
+              PATCH="${PATCH%%[!0-9]*}"
+              NEXT_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+              while git rev-parse -q --verify "refs/tags/${NEXT_TAG}" >/dev/null; do
+                PATCH=$((PATCH + 1))
+                NEXT_TAG="v${MAJOR}.${MINOR}.$((PATCH + 1))"
+              done
+              echo "Computed tag already exists; releasing ${NEXT_TAG} (next patch above ${HIGHEST})."
+            fi
+
             VERSION="${NEXT_TAG#v}"
             TAG="v${VERSION}"
             echo "Target Version: ${VERSION} (tag: ${TAG})"
