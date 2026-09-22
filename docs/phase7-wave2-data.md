@@ -1428,6 +1428,14 @@ files: `angel`, `bkw`, `bp`, `core`, `cyclops`, `deadpool`, `falcon`, `gambit`, 
 `ironheart`, `magneto`, `mojo`, `ncrawler`, `nova`, `psylocke`, `qsv`, `ron`, `silk`, `spdr`, `storm`, `thor`,
 `toafk`, `trors`, `twc`, `vnm`, `warm`, `winter`, `wolv`, `wonder_man`, `x23`.
 
+**Ingest now emits it (2026-09-22).** The codemod was a one-time backfill; `normalize/encounter-cards.ts` sets
+`starIcon: true` (immediately after `boostIcons`, the codemod's own position) whenever the parsed text carries a
+`Boost:` ability, which `parse()` (`normalize/context.ts`) has already checked against MarvelCDB's `boost_star`.
+Regenerating any of the 32 packs offline reproduces the backfill exactly (0 `starIcon` lines in the diff, checked
+across every registered pack), so a regenerate no longer has to be hand-repaired the way commit 3e9618f was. The
+same pass added `PackCuration.handAuthoredModules` so trors' generated `index.ts` barrel keeps re-exporting the
+hand-authored `campaign.ts` (`TRORS_CAMPAIGN`).
+
 **Slipping Sanity (15023, `scw`) does not get `starIcon: true`.** Its own printed text — "For each star icon
 ([star]) in the boost area discarded this way, place 1 threat on the main scheme" — talks about stars on _other_
 cards drawn from the encounter deck, not a star in its own boost area (its own boost area is 3 plain pips, no
