@@ -703,7 +703,15 @@ export const revealEncounterCard = (player: PlayerRef = you): EffectSpec => ({ k
  */
 export const giveBoostCard = (enemy: TargetRef = theVillain, count: Amount = 1): EffectSpec =>
   count === 1 ? { kind: "giveBoostCard", enemy } : { kind: "giveBoostCard", enemy, count: amount(count) };
-export const addAccelerationToken = (): EffectSpec => ({ kind: "addAccelerationToken" });
+/**
+ * "Place 1 acceleration token here" (The Master of Time 2B) / "place one acceleration token on one of the main
+ * schemes" (MC21 p. 13's campaign instructions, a multi-main-scheme scenario). `target` absent is the central main
+ * scheme (`EffectSpec addAccelerationToken.target`, RRG 1.8 "Acceleration Token", p. 5).
+ */
+export const addAccelerationToken = (target?: TargetRef): EffectSpec => ({
+  kind: "addAccelerationToken",
+  ...(target ? { target } : {}),
+});
 /** "Either spend … resources or …": follow with `ifThen(not(made(bind)), …)`. */
 export const spendResources = (resources: ResourceRequirement, bind: string, player: PlayerRef = you): EffectSpec => ({
   kind: "spendResources",
