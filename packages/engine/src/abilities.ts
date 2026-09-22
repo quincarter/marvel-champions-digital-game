@@ -504,6 +504,12 @@ export type RuleSpec =
    * first player is eliminated. A continuous rule, applied between frames (docs/phase7-wave3.md §3.13).
    */
   | { readonly kind: "controlledByFirstPlayer"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
+   * "The Power Stone cannot be unattached from Ronan the Accuser." (Superior Tactics, `gmw` 16113): an effect that would
+   * attach a matching attachment to another card does nothing to it while this applies (RRG 1.8 "'Cannot'", p. 11).
+   * docs/phase7-wave3.md §3.19.
+   */
+  | { readonly kind: "cannotBeUnattached"; readonly target: TargetQuery; readonly while?: Predicate }
   | {
       readonly kind: "cannotHaveStatus";
       readonly target: TargetQuery;

@@ -213,6 +213,12 @@ export const excessDamageBonus = (state: GameState, deps: EngineDeps, attackerId
     .filter(({ rule, context }) => matchesQuery(state, attackerId, rule.attacker, context))
     .reduce((sum, { rule }) => sum + rule.amount, 0);
 
+/** "The Power Stone cannot be unattached from Ronan the Accuser." (`cannotBeUnattached`; docs/phase7-wave3.md §3.19). */
+export const cannotBeUnattached = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotBeUnattached").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
 export const cannotHaveStatus = (
   state: GameState,

@@ -37,6 +37,7 @@ import type { TriggerEvent } from "../trigger-events.js";
 import { engagedEvent } from "./apply-effect.js";
 import { announce, base, eventFrame, gameAbilityFrames } from "./frames.js";
 import { leaveAreaOnDefeat } from "./game-areas.js";
+import { attachmentHostCandidates } from "./reveal.js";
 import { heard } from "./triggers.js";
 
 /** A completion's When Completed abilities are resolving and its advance is still queued. */
@@ -452,7 +453,14 @@ function removeDefeatedVillain(ctx: Ctx, villainId: InstanceId): StackFrame | nu
   };
 }
 
-/** RRG "Player Elimination" steps 1–5, minus permanent-keyword handling. */
+/**
+ * RRG 1.8 "Player Elimination" (p. 34), steps 1–5. Step 3, for "each card in the eliminated player's play area that [is]
+ * not owned by that player": a permanent attachment resolves its "attach to" text (removed from the game when it has no
+ * valid target), any other permanent card is removed from the game, the rest go to their owners' discard piles. That
+ * covers an encounter attachment on the identity (the Power Stone; FAQ "Power Stone (#149)", RRG 1.8 p. 62: "they
+ * resolve the 'attach to' text of that attachment. In this case, the Power Stone would be attached to the villain").
+ * docs/phase7-wave3.md §3.19.
+ */
 export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   const player = mustPlayer(ctx.state, playerId);
   if (player.eliminated) return;
@@ -466,13 +474,34 @@ export function eliminatePlayer(ctx: Ctx, playerId: PlayerId): void {
   }
 
   const nextSeat = nextClockwisePlayer(ctx.state, playerId);
+  // Step 3: a card in play there that the player does not own, and is permanent (the one case the keyword does not stop).
+  const notOwnedPermanent = (id: InstanceId): boolean =>
+    getInstance(ctx.state, id)?.ownerId !== playerId && hasKeyword(ctx.state, id, "permanent", ctx.deps);
+  const reattachOrRemove = (id: InstanceId): void => {
+    const card = ctx.state.cardPool[mustInstance(ctx.state, id).cardId];
+    const attachesTo = card && "attachesTo" in card ? card.attachesTo : undefined;
+    const context = { selfInstanceId: id, controllerId: null, event: null, bindings: {}, deps: ctx.deps };
+    const [host] = attachesTo
+      ? attachmentHostCandidates(ctx.state, attachesTo, context).filter((candidate) => candidate !== identityId)
+      : [];
+    if (host) moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
+    else moveCard(ctx, id, { kind: "removedFromGame" });
+  };
+  const identityId = player.identity.instanceId;
+  for (const id of [...mustInstance(ctx.state, identityId).attachments]) {
+    if (notOwnedPermanent(id)) reattachOrRemove(id);
+    else moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");
+  }
   for (const id of [...player.playArea]) {
-    // RRG "Permanent": a permanent card cannot leave play, elimination included.
-    if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) continue;
     if (isMinion(ctx.state, id) && nextSeat) {
       moveCard(ctx, id, { kind: "playArea", playerId: nextSeat.playerId });
       updateInstance(ctx, id, (i) => ({ ...i, engagedWith: nextSeat.playerId }));
       for (const engaged of engagedEvent(ctx, id)) announce(ctx, engaged);
+      continue;
+    }
+    if (notOwnedPermanent(id)) {
+      if (ctx.state.cardPool[mustInstance(ctx.state, id).cardId]?.type === "attachment") reattachOrRemove(id);
+      else moveCard(ctx, id, { kind: "removedFromGame" });
       continue;
     }
     moveCard(ctx, id, discardZoneFor(ctx.state, id), "top");

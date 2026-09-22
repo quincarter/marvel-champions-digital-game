@@ -75,7 +75,7 @@ import { matchingCardInPlay } from "../unique.js";
 import { campaignSeatNumber } from "../campaign-state.js";
 import { campaignLogValueOf, recordCampaignRemoval, recordCampaignWrite } from "./campaign.js";
 import { buildScenarioDeck, moveCardsTo, selectCards, shuffleEncounterDeck } from "./cards.js";
-import { cannotThwart } from "../rules.js";
+import { cannotBeUnattached, cannotThwart } from "../rules.js";
 import { advanceMainSchemeStage, checkDefeats, completeMainScheme } from "./defeat.js";
 import {
   addVillains,
@@ -507,6 +507,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const [host] = targets(effect.to);
       if (!host) return;
       for (const id of targets(effect.card)) {
+        // "The Power Stone cannot be unattached from Ronan the Accuser" (docs/phase7-wave3.md §3.19).
+        const current = getInstance(ctx.state, id)?.attachedTo ?? null;
+        if (current !== null && current !== host && cannotBeUnattached(ctx.state, ctx.deps, id)) continue;
         moveCard(ctx, id, { kind: "attachment", hostInstanceId: host });
         // "Attach 1 card from your hand facedown here" (Bruno Carrelli): no title, traits, keywords or abilities
         // while it is facedown; it is itself again when it leaves play (`leavePlay`).

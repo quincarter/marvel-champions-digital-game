@@ -388,9 +388,14 @@ Follow Through (Aggression): "Hero Interrupt: When your hero's attack deals any 
 
 ### 3.19 The Power Stone: an attachment that moves between enemies and identities
 
-> **Status: open.**
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/power-stone.test.ts` (4 tests).
 
-Power Stone (16149, Power Stone modular set): "Setup. Attach to the villain. / Permanent. / Forced Response: After a hero or villain deals 3 or more damage to attached character with a single attack, attach Power Stone to the attacking hero or villain." Ronan I–III ("if you control the Power Stone"), "Take What Is Mine" 2A/2B, Superior Tactics ("The Power Stone cannot be unattached from Ronan the Accuser"), Single-Minded Fury, Ronan's 1A ("Attach the Power Stone to the first player"). RRG 1.8 FAQ "Power Stone (#149)" (p. 62): a permanent attachment in an eliminated player's area resolves its "attach to" text; damage prevention does not stop the move, a basic defense's DEF does. The `attach` effect already moves an in-play attachment; what is missing is **control of an encounter attachment attached to an identity**, the **"cannot be unattached"** rule, and the **permanent-attachment-on-elimination** step.
+Power Stone (16149, Power Stone modular set): "Setup. Attach to the villain. / Permanent. / Forced Response: After a hero or villain deals 3 or more damage to attached character with a single attack, attach Power Stone to the attacking hero or villain." Ronan I–III ("if you control the Power Stone"), "Take What Is Mine" 2A/2B, Superior Tactics ("The Power Stone cannot be unattached from Ronan the Accuser"), Single-Minded Fury, Ronan's 1A ("Attach the Power Stone to the first player"). RRG 1.8 FAQ "Power Stone (#149)" (p. 62): damage prevention does not stop the move (it reads damage _dealt_: `eventAtLeast { amount: 3 }` on `dealDamage`), a basic defense's DEF does (it lowers the amount dealt).
+
+- **Moving it** needed nothing: the `attach` effect already moves an in-play attachment to a new host, the villain or an identity (`attach { card: self, to: eventSource }`).
+- **`RuleSpec cannotBeUnattached { target, while? }`**: `attach` leaves a matching attachment where it is.
+- **Player elimination, RRG 1.8 "Player Elimination" (p. 34) step 3, now implemented** (`eliminatePlayer`): for each card in the eliminated player's play area, and each attachment on their identity, that the player does not own — a permanent attachment resolves its "attach to" text (the first legal host other than that identity; removed from the game with none), any other permanent card is removed from the game, and the rest go to their owners' discard piles. Before, the engine skipped every permanent card and left the identity's attachments where they were. FAQ p. 62: "the Power Stone would be attached to the villain."
+- **"You control the Power Stone" is not engine control** (§4 Q11). RRG 1.8 "Ownership and Control" (p. 31): "Encounter cards are considered to be under the control of the scenario." The cards mean "attached to your identity" (MC16 p. 15's campaign victory: "If the Power Stone is attached to an identity"), which scripts as `exists` of the stone with `host: identityOf you`.
 
 ### 3.20 Reducing the cost of the card being played, from an interrupt
 
@@ -466,6 +471,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
 8. **Venom's set-aside Symbiotes.** Struggle for Control (20023): "Put 1 set-aside copy of Enraged Symbiote into play". How many copies start set aside, rather than in the nemesis set, is in the Venom insert, which is not in the repo.
 9. **A reduction and a cap on the same character (§3.15).** Wide Stance and Cutthroat Ambition can both be on Nebula. Implemented as reductions first, then the cap: 10 damage → 9 → 5 taken. The other order gives 10 → 5 → 4. The two agree whenever the damage is at most the cap (5 → 4 either way) and differ above it. RRG 1.8 has no rule for ordering two constants.
 10. **Follow Through is modeled as a constant (§3.18).** Printed as an optional Hero Interrupt, it always applies here. Declining it is never better for its controller in cycle 2; if a later card punishes excess damage, it becomes a real choice and needs an interrupt window on excess damage.
+11. **"If you control the Power Stone" (§3.19).** Read as "if the Power Stone is attached to your identity": encounter cards are controlled by the scenario (RRG 1.8 p. 31), and MC16 p. 15 phrases the same condition as "attached to an identity". The FAQ (p. 62) says "an identity who controls the Power Stone", which fits either reading.
 
 ## 5. What this asks of the other agents
 
