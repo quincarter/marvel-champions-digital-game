@@ -80,6 +80,8 @@ export interface RawCard {
   readonly scheme_crisis?: number | null;
   readonly scheme_acceleration?: number | null;
   readonly scheme_hazard?: number | null;
+  /** The printed amplify icon count (`BaseCard.amplifyIcons`, `CardFlipSide.amplifyIcons`). docs/phase7-wave3.md §1.2. */
+  readonly scheme_amplify?: number | null;
   readonly stage?: string | null;
 
   readonly boost?: number | null;

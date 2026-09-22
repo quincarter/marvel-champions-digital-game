@@ -14,7 +14,7 @@ import { imageOf, imagesOf, reprintImages } from "./art.ts";
 import { brand } from "./brand.ts";
 import { flatten, type Flattened } from "./flatten.ts";
 import type { Prepared } from "./prepare.ts";
-import { collector, errataStatus, stripQuotes } from "./values.ts";
+import { amplifyIconsField, collector, errataStatus, stripQuotes } from "./values.ts";
 
 export interface NormalizeContext extends Flattened {
   readonly curation: PackCuration;
@@ -199,6 +199,7 @@ export function baseFields(
     unique: Boolean(p.raw.is_unique),
     ...(images ? { images } : {}),
     ...(p.errata ? { errata: errataStatus(p.errata) } : {}),
+    ...amplifyIconsField(p.raw),
   };
 }
 

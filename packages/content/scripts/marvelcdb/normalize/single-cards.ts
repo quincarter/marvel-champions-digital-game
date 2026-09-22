@@ -17,7 +17,7 @@ import { normalizeEncounterCard } from "./encounter-cards.ts";
 import { normalizePlayerCard } from "./player-cards.ts";
 import { prepare, type Prepared } from "./prepare.ts";
 import type { SeparateDeckMembership } from "./separate-decks.ts";
-import { PLAYER_TYPES } from "./values.ts";
+import { amplifyIconsField, PLAYER_TYPES } from "./values.ts";
 
 export function normalizeSingleCards(
   ctx: NormalizeContext,
@@ -25,6 +25,31 @@ export function normalizeSingleCards(
 ): void {
   for (const r of ctx.topLevel) {
     if (ctx.handled.has(r.code)) continue;
+    // A double-sided side scheme (docs/phase7-wave3.md §1.4): `SideSchemeCard` carries no `flipSide` (unlike
+    // `EncounterCardCommon`, which the ordinary flip-side merge below assumes), and nothing flips these during a
+    // game — a campaign setup instruction picks the standard or expert face. The Galaxy's Most Wanted's five
+    // Campaign Challenge side schemes (16178a/b–16182a/b) print a standard and an expert face with different
+    // threat, keywords and text, so each face is emitted as its own `SideSchemeCard` instead.
+    if (r.type_code === "side_scheme" && r.linked_card?.type_code === "side_scheme" && r.linked_card.hidden) {
+      for (const face of [r, r.linked_card]) {
+        const p = prepare(ctx, face);
+        const parsed = parse(ctx, p);
+        normalizeEncounterCard(
+          ctx,
+          {
+            r: face,
+            p,
+            parsed,
+            set: face.card_set_code ?? face.faction_code,
+            common: baseFields(ctx, p, face.code, [face.code]),
+            abilities: abilityRefs(ctx, face.code, p.name, parsed.abilities),
+          },
+          undefined,
+          [],
+        );
+      }
+      continue;
+    }
     const { flipSide, flipParts } = readFlipSide(ctx, r);
     const p = prepare(ctx, r);
     const parsed = parse(ctx, p);
@@ -67,6 +92,7 @@ function readFlipSide(
       ...(pBack.flavor ? { flavor: pBack.flavor } : {}),
       abilities: abilityRefs(ctx, back.code, pBack.name, parsedBack.abilities),
       ...(backImage ? { image: backImage } : {}),
+      ...amplifyIconsField(back),
     };
     ctx.handled.add(back.code);
     return { flipSide, flipParts: [pBack] };

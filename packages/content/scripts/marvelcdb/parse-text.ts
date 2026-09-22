@@ -283,6 +283,21 @@ const RESOURCE_ICON_RE = /\[(energy|mental|physical|wild)\]/g;
 function parseKeyword(sentence: string): KeywordInstance | undefined {
   // `Uses (N type counters)` carries its parameter in parentheses, so match it
   // before reminder text is stripped.
+  // Per player forms (docs/phase7-wave3.md §1.3): `Uses (N[per_hero] type counters).` (Crossbones' Machine Gun,
+  // `trors` 04064) and `Uses (N type counter, plus N[per_hero] additional type counters).` (Fanaticism, `gmw`
+  // 16110) both scale by the per player icon on top of a flat count.
+  const usesPerHero = /^Uses \((\d+)\[per_hero\] ([\w\- ]+?) counters?\)\.?$/.exec(sentence);
+  if (usesPerHero)
+    return { name: "uses", count: 0, countPerPlayer: Number(usesPerHero[1]), counterType: usesPerHero[2] as string };
+  const usesPlusPerHero =
+    /^Uses \((\d+) ([\w\- ]+?) counters?, plus (\d+)\[per_hero\] additional [\w\- ]+? counters?\)\.?$/.exec(sentence);
+  if (usesPlusPerHero)
+    return {
+      name: "uses",
+      count: Number(usesPlusPerHero[1]),
+      countPerPlayer: Number(usesPlusPerHero[3]),
+      counterType: usesPlusPerHero[2] as string,
+    };
   const uses = /^Uses \((\d+) ([\w\- ]+?) counters?\)\.?$/.exec(sentence);
   if (uses) return { name: "uses", count: Number(uses[1]), counterType: uses[2] as string };
   const teamUp = /^Team-Up \((.+?) and (.+)\)\.?$/.exec(sentence);
@@ -333,6 +348,10 @@ function parseKeyword(sentence: string): KeywordInstance | undefined {
   if (simple) return { name: simple } as KeywordInstance;
   // "Setup." (keyword, card starts in play) vs "Setup:" (ability) — only the keyword reaches here.
   if (s === "Setup" && /^Setup\.?$/.test(sentence)) return { name: "setup" };
+  // Hinder scales by the per player icon on 88 printed cards (docs/phase7-wave3.md §1.3): `Hinder N[per_hero].` →
+  // `{ value: 0, perPlayer: N }`; a bare `Hinder N.` (the expert Campaign Challenge faces) keeps `value`.
+  const hinderPerHero = /^Hinder (\d+)\[per_hero\]$/.exec(s);
+  if (hinderPerHero) return { name: "hinder", value: 0, perPlayer: Number(hinderPerHero[1]) };
   const m = /^(Retaliate|Incite|Hinder|Victory) (\d+)$/.exec(s);
   if (m) {
     const name = (m[1] as string).toLowerCase() as "retaliate" | "incite" | "hinder" | "victory";
