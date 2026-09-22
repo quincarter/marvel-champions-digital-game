@@ -15,7 +15,7 @@
 
 import type { CorePlayer } from "@mc/cards";
 import type { AnyCard, PlayModes } from "@mc/content";
-import type { Command, EngineError, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
+import type { CampaignGameInput, Command, EngineError, GameEvent, GameState, LegalActions, PlayerId } from "@mc/engine";
 import type { GameRecord } from "./game-record.js";
 import type { SaveMeta } from "./game-storage.js";
 
@@ -54,6 +54,14 @@ export interface SessionConfig {
   readonly firstPlayerIndex?: number;
   /** Multi-villain scenarios only: each villain's own version, overriding `difficulty` for that one villain. */
   readonly villainVersions?: readonly ("A" | "B" | "extreme")[];
+  /**
+   * This game is one scenario of a campaign, as `startGameFromLog` composed it (docs/campaign-mode-design.md §7.1,
+   * §10.1). Goes straight into `GameSetupConfig.campaign` (`session-core.ts`'s `scenarioFor`) and therefore into
+   * the replay baseline: **a saved campaign game replays without consulting the live `CampaignLog` at all**, which
+   * is the property that keeps a campaign log free to keep evolving underneath a game already in progress.
+   * Absent for every standalone game — additive, like `modes`.
+   */
+  readonly campaign?: CampaignGameInput;
 }
 
 /**

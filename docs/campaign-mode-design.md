@@ -1253,23 +1253,56 @@ A **third IndexedDB database, `mc-campaigns`**, separate from `mc-saves` and `mc
 `deck-storage.ts` already documents: a campaign write must never be able to break a game resume, and the cheapest
 guarantee is never opening the same database.
 
+**As built (step 10), where storage differs from the sketch above.** `create`/`put`/`load` are typed over
+`CampaignRecord`, not a bare `CampaignLog`:
+
 ```ts
+/** CampaignLog plus the listing metadata `@mc/engine` has no way to hold (it never names a box). */
+export interface CampaignRecord extends CampaignLog {
+  readonly recordSchema: number;
+  readonly name: string; // @mc/content `Campaign.name`
+  readonly box: string; // @mc/content `Campaign.boxCode`
+  readonly createdAt: number;
+  readonly updatedAt: number;
+}
+
 export interface CampaignStorage {
-  create(log: CampaignLog): Promise<void>;
-  /** Whole-log write. A campaign step is small and must be atomic; there is no append-log equivalent here. */
-  put(log: CampaignLog): Promise<void>;
-  load(id: string): Promise<CampaignLog | null>;
+  /** Rejects a duplicate id rather than overwriting — a campaign, unlike a game, is never replaced by starting another. */
+  create(record: CampaignRecord): Promise<void>;
+  /** Whole-record write. A campaign step is small and must be atomic; there is no append-log equivalent here. */
+  put(record: CampaignRecord): Promise<void>;
+  load(id: string): Promise<CampaignRecord | null>;
   list(): Promise<readonly CampaignSummary[]>;
-  setStatus(id: string, status: CampaignLog["status"]): Promise<void>;
+  setStatus(id: string, status: CampaignStatus): Promise<void>;
 }
 ```
 
+The sketch's `create(log: CampaignLog)` had nowhere to put a box's display name and code — `@mc/engine` holds
+neither, by the same discipline that keeps it from naming a card — so a caller folds in the `@mc/content` `Campaign`
+record's `name`/`boxCode` and two timestamps once, at creation, the same shape `SaveMeta` already uses for a game.
+`list()` projects each `CampaignRecord` down to a `CampaignSummary` (id, `campaignId`, `recordSchema`, `CampaignLog`'s
+own `schema`/`definitionVersion`, `name`, `box`, `status`, `modes`, `position`, a seat's number and identity only,
+`createdAt`/`updatedAt`) — the same "small summary row, no ~68 KB payload" instinct `game-storage.ts` uses, scaled
+down: a `CampaignLog` is small enough that one object store holds the whole record, unlike `mc-saves`'s three.
+
 Two implementations sharing one contract test (`MemoryCampaignStorage`, `IdbCampaignStorage`), exactly as
-`game-storage.test.ts` does today.
+`game-storage.test.ts` does today — see `packages/client/src/engine/campaign-storage.ts`,
+`idb-campaign-storage.ts` and `campaign-storage.test.ts`.
 
 `SaveMeta` (`client/src/engine/game-storage.ts`) gains `campaignId: string | null` and `campaignNodeId: string | null`,
 so the campaign browser can link to the played game and the game-over screen knows it must return to the campaign.
-`SessionConfig` gains `campaign?: CampaignGameInput`. `SAVE_SCHEMA` bumps to 4.
+`SessionConfig` gains `campaign?: CampaignGameInput`, attached to `GameSetupConfig` after `buildScenario` runs
+(`session-core.ts`'s `scenarioFor`), never threaded through the scenario builder's own options — the same
+`createGame({ ...config, campaign: start.input }, deps)` shape `@mc/cards`'s `trors.test.ts` already uses.
+`SAVE_SCHEMA` bumps to 4.
+
+**As built, one deliberate departure from every earlier `SAVE_SCHEMA` bump.** Schema 2 and 3 each changed
+`StateWithoutPool`'s shape, so an old save was retired rather than migrated (`game-storage.ts`'s own doc comment).
+Schema 4 changes nothing about replayable state — it only adds metadata about which campaign, if any, a save
+belongs to — so a save written under schema 3 is instead upgraded on read (`migrateSaveMeta`, applied in every
+storage's `load`/`list`/`latestActive`): `campaignId`/`campaignNodeId` fill in `null` (a pre-campaign save was never
+part of one) and the save resumes exactly as it always did. `game-storage.test.ts` proves both halves: schema 2 is
+still retired (the multi-villain state change), schema 3 still loads and resumes.
 
 ### 10.2 View models (plain TS, Vitest; no scene design here)
 
@@ -1280,6 +1313,21 @@ so the campaign browser can link to the played game and the game-over screen kno
 | `campaign-step-model.ts`            | the between-games step list: each resolved instruction's printed `text` + `citation` + what it did, and the pending `choose` prompts with their option lists                                        |
 | `campaign-deck-edit-model.ts`       | wraps `validateDeck(deck, pool, { campaign })`; grants render as locked rows marked "added by the campaign — does not count toward deck size"; frozen decks disable editing with the printed reason |
 | `campaign-scenario-choice-model.ts` | `kind: "choice"` graphs only (MC60): the available nodes, each node's progress marks, the villain choice, and the Completed/Failed environments already in play                                     |
+
+**As built (step 11).** `campaign-list-model.ts`'s compatibility check (`schema`/`definitionVersion` against this
+build's registered `CampaignDefinition`, `@mc/cards`'s `campaignDefinitionOf`) is read-only: it exposes
+`canResume`/`incompatibleReason` per row but never calls `CampaignStorage.setStatus` itself, the same "ask, don't
+decide" split `EngineSessionCore.latestSave()` keeps for `SaveMeta.schema`. `campaign-step-model.ts` also carries
+`campaignLaunchConfig` (a composed log, via `startGameFromLog`, to a `SessionConfig` — the "next-scenario launch"
+capability) and `campaignPostGameFold` (`campaignResultOf` + `applyCampaignResult` composed in the one order that's
+ever correct — the "post-game fold" capability), since both are the same between-games boundary design §7
+describes and neither needed a sixth file. `campaign-deck-edit-model.ts` also exports `campaignDeckContextOf`,
+assembling `CampaignDeckContext` from a `@mc/content` `Campaign` record and a seat's `CampaignLog` column —
+`frozenNonCampaignCards` (MC16 p. 5 / MC27 p. 6) has no generic source in the log, so it stays an explicit optional
+input; MC10 never freezes a deck, so its own tests never pass one. `campaign-scenario-choice-model.ts` is validated
+against a synthetic `kind: "choice"` fixture only: no box with that graph shape has shipped yet (MC60 only), and it
+never evaluates `CampaignGraph.available` itself — the available-node set it renders always comes from a real
+`CampaignPendingChoice` the runner already produced, never re-derived client-side.
 
 ---
 

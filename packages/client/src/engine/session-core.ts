@@ -111,9 +111,14 @@ const stripPool = (state: GameState): StateWithoutPool => {
  * path for every save written before the field existed: those configs have `difficulty` alone, the builder
  * derives the mode set from it (`@mc/cards`'s `resolveModes`), and the resulting setup is identical to what the
  * save originally replayed against.
+ *
+ * `campaign` (docs/campaign-mode-design.md §7.1's `CampaignGameInput`) is attached after `buildScenario` runs,
+ * never threaded through its options: it becomes `GameSetupConfig.campaign` verbatim, exactly as
+ * `createGame({ ...config, campaign: start.input }, deps)` does in the campaign runner's own tests
+ * (`@mc/cards`'s `trors.test.ts`). Absent for every standalone game, so its setup is unchanged.
  */
-const scenarioFor = (config: SessionConfig) =>
-  buildScenario(config.scenarioId, {
+const scenarioFor = (config: SessionConfig) => {
+  const setup = buildScenario(config.scenarioId, {
     difficulty: config.difficulty,
     players: config.players,
     seed: config.seed,
@@ -122,6 +127,8 @@ const scenarioFor = (config: SessionConfig) =>
     ...(config.firstPlayerIndex !== undefined ? { firstPlayerIndex: config.firstPlayerIndex } : {}),
     ...(config.villainVersions ? { villainVersions: config.villainVersions } : {}),
   });
+  return config.campaign ? { ...setup, campaign: config.campaign } : setup;
+};
 
 const statusOf = (state: GameState): SaveStatus =>
   state.outcome
@@ -217,10 +224,8 @@ export class EngineSessionCore {
         round: setup.state.round,
         commandCount: 0,
         outcome: null,
-        // Step 10 (docs/campaign-mode-design.md §11): storage carries the field, but nothing yet composes a
-        // `SessionConfig.campaign` to populate it from — step 11's view models and the `scenarioFor` wiring do.
-        campaignId: null,
-        campaignNodeId: null,
+        campaignId: config.campaign?.campaignId ?? null,
+        campaignNodeId: config.campaign?.nodeId ?? null,
       };
       try {
         // Awaited, unlike the command writes: a game that isn't recorded yet
