@@ -37,9 +37,14 @@ export interface CampaignRosterData {
   readonly expertCampaign?: boolean;
 }
 
-/** C03. The opener of the run's next issue (`record.position.nextNodeId`). Continues to Briefing. */
+/**
+ * C03. The opener of the run's next issue (`record.position.nextNodeId`), continuing to Briefing. With `nodeId` it
+ * is a reread of a finished issue (C07b's "Reread issue #2"): the same panels, then back to `returnTo`.
+ */
 export interface CampaignOpenerData {
   readonly runId: string;
+  readonly nodeId?: string;
+  readonly returnTo?: CampaignReturn;
 }
 
 /** C08. Composes the next issue (answering its setup choices), shows decks, and starts the game. */
