@@ -608,6 +608,14 @@ export const on = {
    * (`cardBeingPlayed`, interruptible unlike `cardPlayed`/`cardEntersPlay`). `what` filters which played card.
    */
   youPlay: (what: TargetQuery): EventPattern => pattern("cardBeingPlayed", { targetIs: what, playerIs: "controller" }),
+  /**
+   * "After you play an [X] card" (Morphogenetics, `msm` 05001a; Finesse/Precision, Gamora's own identity, `gam`
+   * 18001a) — the response twin of `youPlay`: `cardPlayed`, announced once the play has resolved, rather than
+   * `cardBeingPlayed`'s interrupt-time point. `what` filters which played card ("an attack event" is `query("event",
+   * { trait: ATTACK })`). Promoted from the local `afterYouPlay`/`whenYouPlay` pattern `msm/kit.ts` composed by hand
+   * before this builder existed.
+   */
+  youPlayedCard: (what: TargetQuery): EventPattern => pattern("cardPlayed", { targetIs: what, playerIs: "controller" }),
   /** "When X would take damage" / "after X takes damage" (`taken`: some damage was actually dealt). */
   damage: (to: Who, opts: { readonly fromAttack?: boolean; readonly taken?: boolean } = {}): EventPattern =>
     pattern(

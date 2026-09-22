@@ -21,16 +21,28 @@ export function cannotTakeDamage(
   });
 }
 
-/** "Threat cannot be removed from this scheme" (Countdown to Oblivion); a `by: "thwart"` rule only stops a thwart. */
+/**
+ * "Threat cannot be removed from this scheme" (Countdown to Oblivion); a `by: "thwart"` rule only stops a thwart.
+ * `removerId` is the player attempting the removal (the thwart's player, else the removing card's controller; null
+ * for a removal no player made) — read only by a rule that scopes itself with `player` ("Players other than Gamora
+ * cannot remove threat from Sibling Rivalry", `gam` 18025, docs/phase7-wave3.md §3.26): such a rule blocks only a
+ * removal whose `removerId` is one of `rulePlayers(rule.player)`, so a removal with no player is never blocked by a
+ * scoped rule (there is nothing to compare) but is still blocked by an unscoped one, exactly as before this field.
+ */
 export const threatCannotBeRemoved = (
   state: GameState,
   deps: EngineDeps,
   schemeId: InstanceId,
   byThwart = false,
+  removerId: PlayerId | null = null,
 ): boolean =>
-  activeRules(state, deps, "threatCannotBeRemoved").some(
-    ({ rule, context }) => (rule.by !== "thwart" || byThwart) && matchesQuery(state, schemeId, rule.target, context),
-  );
+  activeRules(state, deps, "threatCannotBeRemoved").some((active) => {
+    const { rule, context } = active;
+    if (rule.by === "thwart" && !byThwart) return false;
+    if (!matchesQuery(state, schemeId, rule.target, context)) return false;
+    if (!rule.player) return true;
+    return removerId !== null && rulePlayers(state, { player: rule.player }, active).includes(removerId);
+  });
 
 /** "While Baron Zemo is engaged with you, you cannot thwart." */
 export const cannotThwart = (state: GameState, deps: EngineDeps, playerId: PlayerId): boolean =>

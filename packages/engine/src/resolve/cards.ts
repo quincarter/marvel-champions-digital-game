@@ -168,7 +168,9 @@ export function selectCards(ctx: Ctx, selector: CardSelector, context: EffectCon
           }
           matching = picked;
         }
-        found.push(...(selector.topmostOnly ? matching.slice(0, 1) : matching));
+        found.push(
+          ...(selector.bottommostOnly ? matching.slice(-1) : selector.topmostOnly ? matching.slice(0, 1) : matching),
+        );
       }
       return found;
     }

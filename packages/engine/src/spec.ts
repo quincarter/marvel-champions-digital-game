@@ -105,6 +105,12 @@ export interface TargetQuery {
    * boost icon, so this says nothing about the card's pip count.
    */
   readonly starIcon?: boolean;
+  /**
+   * The card carries the unique (⬡) icon: "against a unique enemy" (Godslayer, `gam` 18018), the printed fact
+   * `isUnique` (`unique.ts`) already reads for the deckbuilding unique rule — every hero identity is unique whether
+   * or not its own card prints the icon (RRG 1.8 "Unique", p. 46). docs/phase7-wave3.md §3.26.
+   */
+  readonly unique?: boolean;
   /** Cards with at least one printed icon of this resource type ("each card with a printed [mental] resource"). Wild is its own type. */
   readonly printedResource?: "physical" | "mental" | "energy" | "wild";
   /**
@@ -1589,6 +1595,16 @@ export type CardSelector =
       readonly top?: ValueSpec;
       /** Only the first matching card from the top ("the topmost Tech upgrade"). */
       readonly topmostOnly?: boolean;
+      /**
+       * Only the last matching card from the top, i.e. the one closest to the actual bottom of the zone ("return
+       * the bottommost attack or thwart event from your discard pile", Conditioning Room, `gam` 18008;
+       * docs/phase7-wave3.md §3.26's own reading, promoted once the wording turned out not to compose from
+       * existing vocabulary): the mirror of `topmostOnly`, over the same (optionally filtered) pool. Discarded
+       * cards are prepended (`ctx.ts`'s `moveCard`, "top" position on discard), so the discard pile's own array
+       * order already runs newest-first — the bottommost card is the pile's *last* element, exactly as the deck's
+       * top is its first.
+       */
+      readonly bottommostOnly?: boolean;
       /** N cards chosen at random from the (filtered) zone, per player ("1 card at random from your hand"). */
       readonly random?: ValueSpec;
     };

@@ -188,6 +188,7 @@ const EXCLUSION_WORDING: Record<ExclusionCode, string> = {
   wrongName: "not the named card",
   wrongFacedown: "wrong face up or down",
   wrongStarIcon: "wrong star icon in the boost area",
+  wrongUnique: "wrong unique icon",
   notHostOfSelf: "isn't hosting this card",
   notAttachedToHost: "not attached to the right host",
   wrongOwner: "not owned by you",

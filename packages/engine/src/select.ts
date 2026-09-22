@@ -254,6 +254,7 @@ export type QueryExclusion =
   | "wrongName"
   | "wrongFacedown"
   | "wrongStarIcon"
+  | "wrongUnique"
   | "notHostOfSelf"
   | "notAttachedToHost"
   | "wrongOwner"
@@ -330,6 +331,15 @@ export function explainQuery(
   // read of the ability registry: see docs/phase7-wave2.md §18.6. RRG 1.8 "Boost, Boost Icon" (p. 11) — a star is not
   // a boost icon, so this clause says nothing about the card's pip count.
   if (query.starIcon !== undefined && hasStarIcon(state, id) !== query.starIcon) return "wrongStarIcon";
+  // "Against a unique enemy" (Godslayer, `gam` 18018): the same printed-fact reading `unique.ts`'s `isUnique` uses
+  // for the deckbuilding unique rule (RRG 1.8 "Unique", p. 46) — every hero identity is unique whether or not its
+  // own card prints the icon. Read inline here (not `isUnique` itself) to avoid a `select.ts` ↔ `unique.ts` import
+  // cycle (`unique.ts` already imports `cardsInPlay` from here).
+  if (query.unique !== undefined) {
+    const card = cardOf(state, id);
+    const printedUnique = (card?.unique ?? false) || card?.type === "hero_identity";
+    if (printedUnique !== query.unique) return "wrongUnique";
+  }
   if (query.hostOfSelf !== undefined) {
     const host = context.selfInstanceId ? getInstance(state, context.selfInstanceId)?.attachedTo : null;
     if ((host === id) !== query.hostOfSelf) return "notHostOfSelf";
@@ -659,9 +669,10 @@ export function canAttack(
   deps: EngineDeps = DEFAULT_DEPS,
 ): boolean {
   const controller = controllerOf(state, attackerId);
-  // An attack by an enemy is nobody's attack: neither guard nor `cannotAttack` (both worded about *players*) apply.
+  // An attack by an enemy is nobody's attack: neither guard nor a player-scoped `cannotAttack` (an `attacker`-scoped
+  // one still can, and does apply to an enemy attacker — see `attackForbidden`).
+  if (attackForbidden(state, attackerId, controller, targetId, deps)) return false;
   if (controller === null) return true;
-  if (attackForbidden(state, controller, targetId, deps)) return false;
   if (!isVillain(state, targetId)) return true;
   if (hasKeyword(state, targetId, "guard", deps)) return true;
   return !guardEngagedWith(state, controller, deps);
@@ -670,7 +681,10 @@ export function canAttack(
 /**
  * A `cannotAttack` rule in force forbids this attack: "Players cannot attack other villains" (Distracting Taunts,
  * `twc` 07035 — no `player`, so the whole table) or "You cannot attack Kang" (Fear of Kang, `toafk` 11049 — a
- * `player`, so only them). docs/phase7-wave2.md §25.
+ * `player`, so only them). docs/phase7-wave2.md §25. "Drax cannot attack minions" (`gam` 18019, docs/phase7-wave3.md
+ * §3.26) is scoped by `attacker` instead — the attacking *character*, checked regardless of controller (so it
+ * reaches an enemy's own attack too, unlike every `player`-scoped rule, which a controller-less attacker can never
+ * match).
  *
  * `attackerPlayerId` is the **attacker's controller**, which is what "you cannot attack" restricts: RRG 1.8 "Guard"
  * (p. 21) equates "that player cannot use cards they control to attack a villain" with the constant ability "The
@@ -679,13 +693,19 @@ export function canAttack(
  */
 function attackForbidden(
   state: GameState,
-  attackerPlayerId: PlayerId,
+  attackerId: InstanceId,
+  attackerPlayerId: PlayerId | null,
   targetId: InstanceId,
   deps: EngineDeps,
 ): boolean {
   return activeRules(state, deps, "cannotAttack").some((active) => {
-    const { player, target } = active.rule;
-    if (player && !rulePlayers(state, { player }, active).includes(attackerPlayerId)) return false;
+    const { player, target, attacker } = active.rule;
+    if (attacker && !matchesQuery(state, attackerId, attacker, active.speakerContext)) return false;
+    if (player) {
+      if (attackerPlayerId === null || !rulePlayers(state, { player }, active).includes(attackerPlayerId)) {
+        return false;
+      }
+    }
     return matchesQuery(state, targetId, target, active.speakerContext);
   });
 }
