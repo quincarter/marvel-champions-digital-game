@@ -233,6 +233,7 @@ export * from "./angel/index.js";
 export * from "./storm/index.js";
 export * from "./psylocke/index.js";
 export * from "./jubilee/index.js";
+export * from "./gmw/index.js";
 
 import { BP_CARDS } from "./bp/cards.js";
 import { BP_ENCOUNTER_SETS } from "./bp/encounterSets.js";
@@ -300,6 +301,8 @@ import { PSYLOCKE_CARDS } from "./psylocke/cards.js";
 import { PSYLOCKE_ENCOUNTER_SETS } from "./psylocke/encounterSets.js";
 import { JUBILEE_CARDS } from "./jubilee/cards.js";
 import { JUBILEE_ENCOUNTER_SETS } from "./jubilee/encounterSets.js";
+import { GMW_CARDS } from "./gmw/cards.js";
+import { GMW_ENCOUNTER_SETS } from "./gmw/encounterSets.js";
 
 /**
  * Every card in the data-only pool: 33 packs across cycles 3, 4, 5, 6, 7, 8, 9, 10 and one non-cycle promotional
@@ -341,7 +344,17 @@ export const DATA_ONLY_CARDS: readonly AnyCard[] = [
   ...DEADPOOL_CARDS,
   ...SPIDERHAM_CARDS,
   ...MOJO_CARDS,
+  ...GMW_CARDS,
 ];
+
+/**
+ * `GMW_SCENARIOS`/`GMW_STARTER_DECKS` (re-exported via `./gmw/index.js` above) are The Galaxy's Most Wanted's own
+ * five scenarios and two precons (wave 3, docs/phase7-wave3.md) — the only data-only pack with either. No
+ * `DATA_ONLY_SCENARIOS`/`DATA_ONLY_STARTER_DECKS` aggregate exists because every other data-only pack has none;
+ * add one if a second data-only pack grows scenario data. Not wired into `@mc/engine` or the client (out of scope
+ * for this pass): a client that wants to *run* one of these scenarios still needs `ability-scripting-engineer` to
+ * script `gmw`'s cards first.
+ */
 
 /** Every data-only pool encounter set. */
 export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
@@ -378,4 +391,5 @@ export const DATA_ONLY_ENCOUNTER_SETS: readonly EncounterSet[] = [
   ...DEADPOOL_ENCOUNTER_SETS,
   ...SPIDERHAM_ENCOUNTER_SETS,
   ...MOJO_ENCOUNTER_SETS,
+  ...GMW_ENCOUNTER_SETS,
 ];

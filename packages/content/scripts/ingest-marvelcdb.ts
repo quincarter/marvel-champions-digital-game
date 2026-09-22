@@ -84,6 +84,7 @@ import { SPIDERHAM_CURATION } from "./marvelcdb/curation/spiderham.ts";
 import { MOJO_CURATION } from "./marvelcdb/curation/mojo.ts";
 import { ANGEL_CURATION } from "./marvelcdb/curation/angel.ts";
 import { STORM_CURATION } from "./marvelcdb/curation/storm.ts";
+import { GMW_CURATION } from "./marvelcdb/curation/gmw.ts";
 import { bareCuration } from "./marvelcdb/curation/empty.ts";
 import type { PackCuration } from "./marvelcdb/curation/types.ts";
 
@@ -146,7 +147,8 @@ const REGISTERED_CURATIONS: Readonly<Record<string, PackCuration>> = {
   storm: STORM_CURATION,
   psylocke: PSYLOCKE_CURATION,
   jubilee: JUBILEE_CURATION,
-  // hercules, fne, gmw: curated (survey.ts), but NOT registered here — each has at least one card
+  gmw: GMW_CURATION,
+  // hercules, fne: curated (survey.ts), but NOT registered here — each has at least one card
   // still blocked on a real parser/schema gap (docs/phase7-wave2-data.md's "Schema requests for
   // game-rules-architect" / parser-gap log).
 };

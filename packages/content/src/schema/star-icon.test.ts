@@ -138,9 +138,9 @@ describe("starIcon", () => {
     expect(mismatches).toEqual([]);
   });
 
-  it("exactly 159 encounter-side cards across Core/wave 1/wave 2/data-only pools carry starIcon: true (docs/phase7-wave2-data.md Part 8's backfill, cross-checked 703/703 against MarvelCDB's boost_star)", () => {
+  it("exactly 189 encounter-side cards across Core/wave 1/wave 2/data-only pools carry starIcon: true (docs/phase7-wave2-data.md Part 8's backfill, cross-checked 703/703 against MarvelCDB's boost_star; +30 from gmw, wave3 §5)", () => {
     const starred = allEncounterSideCards().filter((c) => (c as { starIcon?: boolean }).starIcon === true);
-    expect(starred).toHaveLength(159);
+    expect(starred).toHaveLength(189);
   });
 
   it("Slipping Sanity (15023, scw) itself has no star icon — its text refers to stars on OTHER discarded cards, not its own boost area", () => {

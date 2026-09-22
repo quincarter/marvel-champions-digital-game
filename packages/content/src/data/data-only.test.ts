@@ -73,6 +73,8 @@ import {
   PSYLOCKE_PACK,
   JUBILEE_CARDS,
   JUBILEE_PACK,
+  GMW_CARDS,
+  GMW_PACK,
 } from "./index.js";
 import { CORE_CARDS } from "./core/index.js";
 import { WAVE1_CARDS } from "./index.js";
@@ -116,6 +118,7 @@ const PACKS: readonly {
   { code: "storm", cards: STORM_CARDS, pack: STORM_PACK },
   { code: "psylocke", cards: PSYLOCKE_CARDS, pack: PSYLOCKE_PACK },
   { code: "jubilee", cards: JUBILEE_CARDS, pack: JUBILEE_PACK },
+  { code: "gmw", cards: GMW_CARDS, pack: GMW_PACK },
 ];
 
 describe("data-only pool — integrity", () => {
@@ -126,8 +129,8 @@ describe("data-only pool — integrity", () => {
     expect(failures).toEqual([]);
   });
 
-  it("33 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
-    expect(PACKS).toHaveLength(33);
+  it("34 packs, no duplicate ids, and DATA_ONLY_CARDS is exactly their concatenation", () => {
+    expect(PACKS).toHaveLength(34);
     const ids = DATA_ONLY_CARDS.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(DATA_ONLY_CARDS.length).toBe(PACKS.reduce((n, p) => n + p.cards.length, 0));
@@ -148,8 +151,8 @@ describe("data-only pool — integrity", () => {
 
   it("cycle grouping matches the Hall of Heroes card database navigation (https://hallofheroeslcg.com/browse/)", () => {
     const cycleOf = (code: string) => PACKS.find((p) => p.code === code)?.pack.cycleId;
-    // Cycle 3 (Guardians of the Galaxy): Star-Lord, Gamora, Drax, Venom.
-    for (const code of ["stld", "gam", "drax", "vnm"]) expect(cycleOf(code), code).toBe("cycle3");
+    // Cycle 3 (Guardians of the Galaxy): The Galaxy's Most Wanted, Star-Lord, Gamora, Drax, Venom.
+    for (const code of ["gmw", "stld", "gam", "drax", "vnm"]) expect(cycleOf(code), code).toBe("cycle3");
     // Cycle 4: Nebula, War Machine, Vision, The Hood, Valkyrie.
     for (const code of ["nebu", "warm", "vision", "hood", "valk"]) expect(cycleOf(code), code).toBe("cycle4");
     // Cycle 6 (X-Men): Cyclops, Gambit, Wolverine, Rogue, Mojo Mania, Storm (Phoenix is not in this pool yet —
