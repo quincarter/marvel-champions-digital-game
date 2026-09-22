@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-09-19T00:15:28.874Z",
+  "generatedAt": "2026-09-22T22:20:55.448Z",
   "viewport": {
     "width": 1600,
     "height": 1200
@@ -14,6 +14,204 @@
       "source": "Board - Phone.dc.html",
       "screenshot": "artifacts/design-screenshots/board-phone.dc.png",
       "screens": []
+    },
+    {
+      "source": "Campaign - Desktop.dc.html",
+      "screenshot": "artifacts/design-screenshots/campaign-desktop.dc.png",
+      "screens": [
+        {
+          "label": "D-C00b The saga",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/01-d-c00b-the-saga.png"
+        },
+        {
+          "label": "D-C01 Campaign cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/02-d-c01-campaign-cover.png"
+        },
+        {
+          "label": "D-C02 Sign the roster",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/03-d-c02-sign-the-roster.png"
+        },
+        {
+          "label": "D-C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/04-d-c03-issue-opener.png"
+        },
+        {
+          "label": "D-C04 In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/05-d-c04-in-game-beat.png"
+        },
+        {
+          "label": "D-C05 Aftermath tech",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/06-d-c05-aftermath-tech.png"
+        },
+        {
+          "label": "D-C06 Aftermath condition",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/07-d-c06-aftermath-condition.png"
+        },
+        {
+          "label": "D-C07 The run",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/08-d-c07-the-run.png"
+        },
+        {
+          "label": "D-C07b Issue detail",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/09-d-c07b-issue-detail.png"
+        },
+        {
+          "label": "D-C08 Briefing",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/10-d-c08-briefing.png"
+        },
+        {
+          "label": "D-C09 Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/11-d-c09-defeat-rewind.png"
+        },
+        {
+          "label": "D-C10 Dossier",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/12-d-c10-dossier.png"
+        },
+        {
+          "label": "D-C10b Dossier log",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/13-d-c10b-dossier-log.png"
+        },
+        {
+          "label": "D-C10c Dossier hero",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/14-d-c10c-dossier-hero.png"
+        },
+        {
+          "label": "D-C11 Finale",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-desktop.dc/15-d-c11-finale.png"
+        }
+      ]
+    },
+    {
+      "source": "Campaign - Phone.dc.html",
+      "screenshot": "artifacts/design-screenshots/campaign-phone.dc.png",
+      "screens": [
+        {
+          "label": "C00b The saga",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/01-c00b-the-saga.png"
+        },
+        {
+          "label": "C01 Campaign cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/02-c01-campaign-cover.png"
+        },
+        {
+          "label": "C02 Sign the roster",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/03-c02-sign-the-roster.png"
+        },
+        {
+          "label": "C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/04-c03-issue-opener.png"
+        },
+        {
+          "label": "C04 In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/05-c04-in-game-beat.png"
+        },
+        {
+          "label": "C05 Aftermath reward",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/06-c05-aftermath-reward.png"
+        },
+        {
+          "label": "C05b Aftermath condition",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/07-c05b-aftermath-condition.png"
+        },
+        {
+          "label": "C06 The run",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/08-c06-the-run.png"
+        },
+        {
+          "label": "C06b Issue detail",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/09-c06b-issue-detail.png"
+        },
+        {
+          "label": "C07 Briefing",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/10-c07-briefing.png"
+        },
+        {
+          "label": "C08 Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/11-c08-defeat-rewind.png"
+        },
+        {
+          "label": "C09 Dossier",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/12-c09-dossier.png"
+        },
+        {
+          "label": "C09b Dossier log",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/13-c09b-dossier-log.png"
+        },
+        {
+          "label": "C09c Dossier hero",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/14-c09c-dossier-hero.png"
+        },
+        {
+          "label": "C10 Finale",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-phone.dc/15-c10-finale.png"
+        }
+      ]
+    },
+    {
+      "source": "Campaign - Tablet.dc.html",
+      "screenshot": "artifacts/design-screenshots/campaign-tablet.dc.png",
+      "screens": [
+        {
+          "label": "T-C00b The saga",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/01-t-c00b-the-saga.png"
+        },
+        {
+          "label": "T-C01 Campaign cover",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/02-t-c01-campaign-cover.png"
+        },
+        {
+          "label": "T-C02 Sign the roster",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/03-t-c02-sign-the-roster.png"
+        },
+        {
+          "label": "T-C03 Issue opener",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/04-t-c03-issue-opener.png"
+        },
+        {
+          "label": "T-C04 In-game beat",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/05-t-c04-in-game-beat.png"
+        },
+        {
+          "label": "T-C05 Aftermath tech",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/06-t-c05-aftermath-tech.png"
+        },
+        {
+          "label": "T-C06 Aftermath condition",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/07-t-c06-aftermath-condition.png"
+        },
+        {
+          "label": "T-C07 The run",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/08-t-c07-the-run.png"
+        },
+        {
+          "label": "T-C07b Issue detail",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/09-t-c07b-issue-detail.png"
+        },
+        {
+          "label": "T-C08 Briefing",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/10-t-c08-briefing.png"
+        },
+        {
+          "label": "T-C09 Defeat rewind",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/11-t-c09-defeat-rewind.png"
+        },
+        {
+          "label": "T-C10 Dossier",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/12-t-c10-dossier.png"
+        },
+        {
+          "label": "T-C10b Dossier log",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/13-t-c10b-dossier-log.png"
+        },
+        {
+          "label": "T-C10c Dossier hero",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/14-t-c10c-dossier-hero.png"
+        },
+        {
+          "label": "T-C11 Finale",
+          "screenshot": "artifacts/design-screenshots/individual/campaign-tablet.dc/15-t-c11-finale.png"
+        }
+      ]
     },
     {
       "source": "Components.dc.html",
