@@ -456,6 +456,13 @@ export interface GameState {
    */
   readonly revealedThisRound?: readonly RevealRecord[];
   /**
+   * The cards each player has played **this turn**, in order: "7 damage instead if you have played a [Thwart] event this
+   * turn" (Decisive Blow, `gam`), "5 threat instead if you have played an [Attack] event this turn" (Forward Momentum).
+   * Written when a play commits (so a card counts from the moment it is played), emptied when a turn begins and ends, as
+   * `attackedThisTurn` is. Absent until a game's first play. docs/phase7-wave3.md §3.24 (specified in wave 2 §13.4).
+   */
+  readonly playedThisTurn?: Readonly<Record<string, readonly InstanceId[]>>;
+  /**
    * The scenario's own out-of-play game areas by name (`ZoneId scenarioArea`; The Collection, docs/phase7-wave3.md
    * §3.14), each in the order cards entered it. Absent until a scenario creates one, so other games serialize as before.
    */

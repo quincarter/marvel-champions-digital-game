@@ -207,7 +207,12 @@ export function beginTurn(ctx: Ctx, activePlayerId: PlayerId, remainingPlayerIds
   clearAbilityUses(ctx, "turn");
   // "…attacked this turn" (`attackedThisTurn`, docs/phase7-wave2.md §11.3, §14): each player takes one turn (RRG 1.8
   // "Player Phase", p. 34), so the record starts empty with each one, next to the turn-scoped ability-use counters.
-  ctx.state = { ...ctx.state, attackedThisTurn: {} };
+  ctx.state = {
+    ...ctx.state,
+    attackedThisTurn: {},
+    // "…played … this turn" (docs/phase7-wave3.md §3.24), emptied with the turn's other records.
+    ...(ctx.state.playedThisTurn ? { playedThisTurn: {} } : {}),
+  };
   setStep(ctx, { phase: "player", kind: "turn", activePlayerId, remainingPlayerIds });
   emit(ctx, { type: "turnStarted", playerId: activePlayerId });
   announce(ctx, { kind: "turnStarted", playerId: activePlayerId });
@@ -256,7 +261,7 @@ export function finishTurn(ctx: Ctx, playerId: PlayerId): void {
   expirePlayerTurnEffects(ctx, playerId);
   // …and "attacked this turn" is empty until the next turn begins, so the end-of-phase steps and the villain phase
   // never read the last player's attacks as their own (§14).
-  ctx.state = { ...ctx.state, attackedThisTurn: {} };
+  ctx.state = { ...ctx.state, attackedThisTurn: {}, ...(ctx.state.playedThisTurn ? { playedThisTurn: {} } : {}) };
   advanceAfterTurn(ctx, step.remainingPlayerIds);
 }
 

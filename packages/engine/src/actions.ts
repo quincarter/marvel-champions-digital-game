@@ -35,6 +35,7 @@ import {
   cannotTriggerAction,
   mayThwartWithAtk,
   patrolledBy,
+  restrictedLimitFor,
 } from "./rules.js";
 import type { InPlayCostPick } from "./abilities.js";
 import type { TriggerEvent } from "./trigger-events.js";
@@ -60,6 +61,7 @@ import {
   sameGameArea,
   mustInstance,
   mustPlayer,
+  turnInProgress,
   villainOf,
 } from "./query.js";
 import {
@@ -1297,6 +1299,15 @@ export function commitPlay(
       ...ctx.state.playedByPlayerThisRound,
       [byPlayer]: (ctx.state.playedByPlayerThisRound[byPlayer] ?? 0) + 1,
     },
+    // "…if you have played a [Thwart] event this turn" (docs/phase7-wave3.md §3.24); only during a player's turn.
+    ...(turnInProgress(ctx.state)
+      ? {
+          playedThisTurn: {
+            ...ctx.state.playedThisTurn,
+            [playerId]: [...(ctx.state.playedThisTurn?.[playerId] ?? []), cardInstanceId],
+          },
+        }
+      : {}),
   };
   emit(ctx, {
     type: "cardPlayed",
@@ -1414,11 +1425,13 @@ export function playCard(ctx: Ctx, command: Command & { type: "playCard" }): Eng
 
   // RRG "Restricted": a player cannot control more than two at a time, so playing
   // a third is not a legal action in the first place.
-  if (
-    hasKeyword(ctx.state, command.cardInstanceId, "restricted", ctx.deps) &&
-    restrictedCardsOf(ctx.state, command.playerId, ctx.deps).length >= 2
-  ) {
-    return engineError("no_valid_target", "you already control two restricted cards", command);
+  if (hasKeyword(ctx.state, command.cardInstanceId, "restricted", ctx.deps)) {
+    // Two, or more with "you can control 1 additional … restricted" (`restrictedLimit`, docs/phase7-wave3.md §3.22).
+    const held = [...restrictedCardsOf(ctx.state, command.playerId, ctx.deps), command.cardInstanceId];
+    const limit = restrictedLimitFor(ctx.state, ctx.deps, command.playerId, held);
+    if (held.length > limit) {
+      return engineError("no_valid_target", `you already control ${limit} restricted cards`, command);
+    }
   }
 
   // "Play under any player's control": the command may name another player as controller.
@@ -1573,8 +1586,10 @@ function playFromEffectRestrictionFault(ctx: Ctx, playerId: PlayerId, id: Instan
   if (restrictions?.form && player.identity.form !== restrictions.form) return "wrong form";
   if (playRestrictionFault(ctx.state, ctx.deps, playerId, card) || cannotPlayCard(ctx.state, ctx.deps, playerId, id))
     return "a play restriction";
-  if (hasKeyword(ctx.state, id, "restricted", ctx.deps) && restrictedCardsOf(ctx.state, playerId, ctx.deps).length >= 2)
-    return "two restricted cards";
+  if (hasKeyword(ctx.state, id, "restricted", ctx.deps)) {
+    const held = [...restrictedCardsOf(ctx.state, playerId, ctx.deps), id];
+    if (held.length > restrictedLimitFor(ctx.state, ctx.deps, playerId, held)) return "the restricted card limit";
+  }
   if (entersPlayWhenPlayed(card) && matchingCardInPlay(ctx.state, card, new Set(), playerId))
     return "a matching unique card is in play";
   return null;

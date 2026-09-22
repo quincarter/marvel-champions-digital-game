@@ -31,7 +31,7 @@ Authorities, in the order they win (RRG 1.8 "The Golden Rules", p. 4: card text 
 
 ## 1. Schema decisions (owner: `game-rules-architect`; landed 2026-09-22)
 
-> Status: landed in `packages/content/src/schema/**`, with fixtures in `packages/content/src/schema/wave3.test.ts` (9 tests).
+> Status: landed in `packages/content/src/schema/**`, with fixtures in `packages/content/src/schema/wave3.test.ts` (11 tests).
 >
 > - No emitted card data changed; every Core, wave 1, wave 2 and data-only card still validates.
 > - The one removal, `VillainStage.hpNotPrinted`, was used by no emitted card (only its own wave 2 test, now pointing here).
@@ -88,14 +88,13 @@ The ask was "`VillainStage.flipSide`, or whatever shape the rules call for". The
 - **Decision: emit each face as its own `SideSchemeCard`** (`16178a`, `16178b`, …). Nothing flips them during a game; the campaign instruction picks the face. This needs no schema change.
 - **Consequence, recorded rather than guessed:** as two cards, the engine does not know they are two faces of one card, so RRG 1.8 "Double-Sided Card" (p. 17), "When a double-sided card would enter an out-of-play area other than the victory display or set-aside area, it is removed from the game", does not apply to them. Each has Victory 1, so a defeated one goes to the victory display either way; only a discarded one differs. Revisit if a card ever discards one.
 
-### 1.5 Gamora's deckbuilding: "up to 6 attack and/or thwart events" (not done; `gam`)
+### 1.5 Gamora's deckbuilding: "up to 6 attack and/or thwart events" (`gam`)
 
 Gamora (18001b), Skilled Tactician: "You may include up to 6 attack and/or thwart events in your deck from aspects other than your chosen aspect."
 
-- `IdentityDeckbuilding.offAspectPackages` cannot express it: `OffAspectPackage` is Maria Hill's all-or-nothing "exactly three titles at maximum copies" (FAQ "Maria Hill (#1B)", RRG 1.8 p. 64).
-- **Proposed shape:** `IdentityDeckbuilding.offAspectAllowance?: { cardType: "event"; anyTrait: [ATTACK, THWART]; maxCards: 6 }` — any number of titles, at most 6 cards in total, each an event with either trait, from any other aspect. `validateDeck` counts the matching off-aspect cards against it instead of reporting `aspect_restriction`.
-- Until it lands, the pipeline should emit `deckbuilding: { unmodeled: ["Skilled Tactician …"] }` on 18001a so `validateDeck` refuses to seat a deck that relies on it rather than silently judging it by the default rules. Today 18001a carries no `deckbuilding` at all.
-- **Status: open**, and it only blocks `gam`.
+- `IdentityDeckbuilding.offAspectPackages` could not express it: `OffAspectPackage` is Maria Hill's all-or-nothing "exactly three titles at maximum copies" (FAQ "Maria Hill (#1B)", RRG 1.8 p. 64).
+- **New: `IdentityDeckbuilding.offAspectAllowance { cardType, anyTrait, maxCards }`** — any number of titles, at most `maxCards` cards in total, each of `cardType` with at least one of `anyTrait`, from any aspect not chosen. Gamora is `{ cardType: "event", anyTrait: [ATTACK, THWART], maxCards: 6 }`. Validated on the identity (`validateHeroIdentityCard`); **`validateDeck`** counts matching off-aspect cards against it instead of reporting `aspect_restriction`, and reports `deckbuilding_requirement` past the maximum. Tests: `packages/engine/src/off-aspect-allowance.test.ts` (4), `wave3.test.ts` §1.5 (2).
+- **Data to emit (pipeline):** 18001a carries no `deckbuilding` today, so a deck relying on the allowance is refused as off-aspect. Emit the field above.
 
 ### 1.6 Keywords
 
@@ -135,7 +134,7 @@ RRG 1.8 Appendix II (p. 51) with the wave 1 and wave 2 engine. Step 13, "Campaig
 | `gmw`  | Groot (16001a/b)                   | Wilt (16025)                     | Blazing Inferno, **Furnax** (16027), Fan the Flames ×3                                       | Precon: Protection (MC16 p. 20).                                                                                     |
 | `gmw`  | Rocket Raccoon (16029a/b)          | Crisis on Halfworld (16053)      | Vendetta (amplify), **Blackjack O'Hare** (16055), Blackjack's Bazooka, Planetary Invasion ×2 | Precon: Aggression (MC16 p. 20). Charge counters without Uses (MC16 FAQ p. 21: not discarded at 0).                  |
 | `stld` | Star-Lord / Peter Quill (17001a/b) | Banishment (17024)               | Budding Crime Syndicate, **Mister Knife** (17026), Spartoi Cunning ×3                        | Peter Quill's Setup: search deck and discard for Element Gun.                                                        |
-| `gam`  | Gamora (18001a/b)                  | Unfulfilled Destiny (18024)      | Sibling Rivalry, **Nebula** (18026), In a Bind, Waylay ×2                                    | Skilled Tactician deckbuilding (§1.5, open).                                                                         |
+| `gam`  | Gamora (18001a/b)                  | Unfulfilled Destiny (18024)      | Sibling Rivalry, **Nebula** (18026), In a Bind, Waylay ×2                                    | Skilled Tactician deckbuilding (§1.5; emit it).                                                                      |
 | `drax` | Drax (19001a/b)                    | Memories of Another Life (19025) | Cull the Weak, **Yotat the Destroyer** (19027), Challenge Accepted, "I Will Destroy You!" ×2 | none.                                                                                                                |
 | `vnm`  | Venom / Flash Thompson (20001a/b)  | Struggle for Control (20023)     | Klyntar Frenzy, **Enraged Symbiote** ×4 (20025)                                              | Flash Thompson's Setup: discard until a Weapon upgrade. One extra restricted card (§3.22). Set-aside Symbiotes (§4). |
 
@@ -172,7 +171,7 @@ Five cards: Ronan the Accuser (90001, a minion with Toughness, "Ronan the Accuse
 
 **Build the mechanism, not the card.** Engine code never names a card; card names below say where each primitive is needed.
 
-**Priority order.** The list is longer than eight sections, so, as the brief asked, the primitives the `gmw` box and `stld` need were implemented first (§3.1–§3.13 so far), then the rest are specified with status "open". Within that: first the rules the whole cycle leans on (defeat, timing points, keywords), then single-mechanic primitives, then the vocabulary tail. **A pack whose cards need an unbuilt primitive stays data only.**
+**Priority order.** The list is longer than eight sections, so, as the brief asked, the primitives the `gmw` box and `stld` need were implemented first — all of them landed (§3.1–§3.21, §3.25) — and then the `gam` and `vnm` ones that were fully specified (§3.22, §3.24, and §1.5's deckbuilding). **One stays open: §3.23**, Moondragon (`drax`), on a rules question (§4 Q12). Within the order: first the rules the whole cycle leans on (defeat, timing points, keywords), then single-mechanic primitives, then the vocabulary tail. **A pack whose cards need an unbuilt primitive stays data only.**
 
 Every landed section has its own test file under `packages/engine/src/`, driven through real commands and replayed deep-equal where it touches the log. Shared scaffolding for them is `packages/engine/src/testing/wave3.ts`.
 
@@ -424,21 +423,24 @@ Cosmo (17020, errata RRG 1.8 p. 67): "Interrupt: When Cosmo attacks or thwarts, 
 
 ### 3.22 A higher restricted limit
 
-> **Status: open** (`vnm` only).
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/restricted-limit.test.ts` (4 tests).
 
-Venom / Flash Thompson (20001a/b): "You can control 1 additional upgrade that has the restricted keyword." Side Holster (20021): "You can control 1 additional [Weapon] upgrade that has the restricted keyword." RRG 1.8 "Restricted" (p. 38) fixes the limit at two. Needs a rule that raises it, optionally for matching cards only; `checkRestricted` and the play check read it.
+Venom / Flash Thompson (20001a/b): "You can control 1 additional upgrade that has the restricted keyword." Side Holster (20021): "You can control 1 additional [Weapon] upgrade that has the restricted keyword." RRG 1.8 "Restricted" (p. 38) fixes the limit at two.
+
+**`RuleSpec restrictedLimit { amount, cards?, player?, while? }`**, summed by `restrictedLimitFor`: each rule for the player (absent `player`: the rule's speaker) adds `amount`; one with `cards` adds room only for as many of the held restricted cards as match it. The play check (`playCard`, and the "play from hand" check) and the discard-down check on entering play both read it.
 
 ### 3.23 An enemy attacking another enemy
 
-> **Status: open** (`drax` only).
+> **Status: open** (`drax` only), on §4 Q12.
 
-Moondragon (19013): "Action: Exhaust and discard Moondragon → choose a minion. That minion attacks another enemy of your choice." Enemy attacks target identities and allies only.
+Moondragon (19013): "Action: Exhaust and discard Moondragon → choose a minion. That minion attacks another enemy of your choice." Enemy attacks target identities and allies only (`enemyAttack` carries an attacked player). The mechanics are small — damage equal to the minion's ATK as attack damage from it, a `characterAttacked` event for the target so retaliate hits the minion, no defense step — but the reading is not: see Q12. Build it with the answer.
 
 ### 3.24 "If you have played a [trait] event this turn"
 
-> **Status: open** (`gam` only). Specified in docs/phase7-wave2.md §13.4 and still unbuilt.
+> **Status: landed (2026-09-22),** tested in `packages/engine/src/played-this-turn.test.ts` (3 tests), as docs/phase7-wave2.md
+> §13.4 specified.
 
-Decisive Blow and Forward Momentum (`gam`). `playedByPlayerThisRound` is keyed by card type, per round.
+Decisive Blow: "Deal 4 damage to an enemy (7 damage instead if you have played a [Thwart] event this turn)"; Forward Momentum, the same for [Attack] (`gam`). **`GameState.playedThisTurn`** records each player's plays this turn (written when a play commits, so a card counts from the moment it is played; emptied when a turn begins and ends, as `attackedThisTurn` is; absent until a game's first play), and **`Predicate playedThisTurn { player, cards, atLeast? }`** reads it with a `TargetQuery` (so `{ categories: ["event"], trait: THWART }`), wherever those cards are now.
 
 ### 3.25 A variable resource cost of any type, with a maximum
 
@@ -485,6 +487,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
 9. **A reduction and a cap on the same character (§3.15).** Wide Stance and Cutthroat Ambition can both be on Nebula. Implemented as reductions first, then the cap: 10 damage → 9 → 5 taken. The other order gives 10 → 5 → 4. The two agree whenever the damage is at most the cap (5 → 4 either way) and differ above it. RRG 1.8 has no rule for ordering two constants.
 10. **Follow Through is modeled as a constant (§3.18).** Printed as an optional Hero Interrupt, it always applies here. Declining it is never better for its controller in cycle 2; if a later card punishes excess damage, it becomes a real choice and needs an interrupt window on excess damage.
 11. **"If you control the Power Stone" (§3.19).** Read as "if the Power Stone is attached to your identity": encounter cards are controlled by the scenario (RRG 1.8 p. 31), and MC16 p. 15 phrases the same condition as "attached to an identity". The FAQ (p. 62) says "an identity who controls the Power Stone", which fits either reading.
+12. **Moondragon: is "that minion attacks another enemy" an activation (§3.23)?** RRG 1.8 "Activation" (p. 6): "Whenever an enemy attacks or schemes, it is considered to have activated." If it is, a villainous minion takes a boost card and "when this minion activates/attacks" abilities fire, and the target (an enemy) has no controller to defend it or assign damage. The rulings file and the FAQ are silent. Proposed: an attack but not an activation against a player — no boost card, no defense, the damage dealt to the chosen enemy as attack damage, retaliate applying to the minion.
 
 ## 5. What this asks of the other agents
 
@@ -492,7 +495,7 @@ Each is implemented the way stated, or not at all, and named here rather than de
   - the A1/A2 villain stage labels, per mode, with `infiniteHp` on face 2 (§1.1), then emit `gmw`;
   - `amplifyIcons` on every card whose raw record has `scheme_amplify`, including the 17 already-emitted cards in §1.2;
   - `Hinder N[per_hero]` and `Uses (N[per_hero] …)` / `Uses (N …, plus N[per_hero] additional …)` parsed as keywords (§1.3), re-emitting `stld` 17025 and `trors` 04064;
-  - the Campaign Challenge side schemes one card per face (§1.4); Gamora's `deckbuilding.unmodeled` (§1.5); the errata and typos in §1.7; §4 Q3 and Q7.
-- **`ability-scripting-engineer`:** re-script the three `trors` "after resolving step one" main schemes on `villainStepResolved` (§3.2); script Crossbones' Machine Gun's counters away from `coveredByEngineRule` once its data carries the keyword (§1.3). `gmw` and `stld` can start on everything §3.1–§3.11 covers; the refs that need §3.12–§3.25 stay in `KNOWN_SKIPPED` with the section named.
-- **`game-client-engineer`:** render ∞ for an ∞ face's hit points (§3.1); name `threatRemovalBlocked` reason `"patrol"` (§3.5); log lines for `surgeGranted` (§3.8) and `villainFlipped.hitPointsReset` (§3.1).
+  - the Campaign Challenge side schemes one card per face (§1.4); Gamora's `deckbuilding.offAspectAllowance` (§1.5); the errata and typos in §1.7; §4 Q3 and Q7.
+- **`ability-scripting-engineer`:** re-script the three `trors` "after resolving step one" main schemes on `villainStepResolved` (§3.2); script Crossbones' Machine Gun's counters away from `coveredByEngineRule` once its data carries the keyword (§1.3). Every primitive `gmw`, `stld`, `gam` and `vnm` need has landed (§3.1–§3.22, §3.24, §3.25), and §3.26 lists the wordings that compose from existing vocabulary. Only Moondragon (`drax` 19013, §3.23) stays in `KNOWN_SKIPPED`, with the section named. New vocabulary is plain data (`RuleSpec`, `EffectSpec`, `ValueSpec`, `Predicate`, trigger fields); the DSL builders for it are the scripter's to add.
+- **`game-client-engineer`:** render ∞ for an ∞ face's hit points (§3.1); name `threatRemovalBlocked` reason `"patrol"` (§3.5); log lines for `surgeGranted` (§3.8), `villainFlipped.hitPointsReset` (§3.1), `controllerChanged` (§3.13), `playCostReduced` (§3.20), `interruptsPreempted` (§3.12) and `discardRedirected` (§3.14); a way to opt into a cost reduction while playing a card (§3.20); a view of a scenario area such as The Collection (§3.14).
 - **`rules-qa-engineer`:** pin Crossbones' Machine Gun (§1.3) and the three `trors` step-one schemes (§3.2) with scenario tests; §4 Q1 and Q4.

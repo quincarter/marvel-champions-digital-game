@@ -525,6 +525,19 @@ export type RuleSpec =
       readonly area: string;
       readonly while?: Predicate;
     }
+  /**
+   * "You can control 1 additional upgrade that has the restricted keyword." (Venom / Flash Thompson, `vnm` 20001a/b);
+   * "You can control 1 additional [Weapon] upgrade that has the restricted keyword." (Side Holster, 20021). RRG 1.8
+   * "Restricted" (p. 38) fixes the limit at two; each rule raises it by `amount` for `player` (absent: the rule's speaker,
+   * the card's controller). With `cards`, the extra room holds only matching cards. docs/phase7-wave3.md §3.22.
+   */
+  | {
+      readonly kind: "restrictedLimit";
+      readonly amount: number;
+      readonly cards?: TargetQuery;
+      readonly player?: PlayerRef;
+      readonly while?: Predicate;
+    }
   | {
       readonly kind: "cannotHaveStatus";
       readonly target: TargetQuery;

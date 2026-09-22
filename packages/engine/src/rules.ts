@@ -227,6 +227,32 @@ export function discardRedirectArea(state: GameState, deps: EngineDeps, id: Inst
   return match ? match.rule.area : null;
 }
 
+/** RRG 1.8 "Restricted" (p. 38): "A player cannot have more than two cards with the restricted keyword in play". */
+export const BASE_RESTRICTED_LIMIT = 2;
+
+/**
+ * How many restricted cards `playerId` may control if they held exactly `held` (docs/phase7-wave3.md §3.22): two, plus
+ * each `restrictedLimit` rule for that player — a rule with `cards` adds room only for as many of `held` as match it.
+ */
+export function restrictedLimitFor(
+  state: GameState,
+  deps: EngineDeps,
+  playerId: PlayerId,
+  held: readonly InstanceId[],
+): number {
+  let limit = BASE_RESTRICTED_LIMIT;
+  for (const active of activeRules(state, deps, "restrictedLimit")) {
+    const { rule, context } = active;
+    const players = rule.player ? rulePlayers(state, { player: rule.player }, active) : [active.speakerId];
+    if (!players.includes(playerId)) continue;
+    const cards = rule.cards;
+    limit += cards
+      ? Math.min(rule.amount, held.filter((id) => matchesQuery(state, id, cards, context)).length)
+      : rule.amount;
+  }
+  return limit;
+}
+
 /** "Ronan the Accuser cannot be stunned." (`cannotHaveStatus`; docs/phase7-wave3.md §3.7). */
 export const cannotHaveStatus = (
   state: GameState,

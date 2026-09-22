@@ -773,8 +773,10 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
   // Appendix I: "The remainder of their deck is then customized with cards that belong to that
   // aspect and/or basic cards." Skipped when the choice itself was illegal (reported above).
   const packages = identity ? (rules?.offAspectPackages ?? []) : [];
+  const allowance = identity ? rules?.offAspectAllowance : undefined;
   if (aspectChoiceOk) {
     const packageLines: Line[][] = packages.map(() => []);
+    const allowanceLines: Line[] = [];
     for (const line of lines) {
       if (line.classification.kind !== "aspect" || chosen.includes(line.classification.aspect)) continue;
       const index = packages.findIndex((p) => line.card.type === p.cardType && line.card.traits.includes(p.trait));
@@ -782,10 +784,28 @@ export function validateDeck(deck: DeckContents, pool: CardPool, context?: DeckC
         packageLines[index]?.push(line);
         continue;
       }
+      // "You may include up to 6 attack and/or thwart events … from aspects other than your chosen aspect" (Gamora;
+      // `offAspectAllowance`, docs/phase7-wave3.md §1.5): counted below, not refused here.
+      if (
+        allowance &&
+        line.card.type === allowance.cardType &&
+        allowance.anyTrait.some((wanted) => line.card.traits.includes(wanted))
+      ) {
+        allowanceLines.push(line);
+        continue;
+      }
       add(
         "aspect_restriction",
         `${uniqueLabel(line.card)} is a ${aspectName(line.classification.aspect)} card, but this deck's aspect is ${chosen.map(aspectName).join(" and ")}; beyond its identity set a deck may only use its chosen aspect and basic cards.`,
         [line.card.id],
+      );
+    }
+    const allowed = allowanceLines.reduce((n, line) => n + line.quantity, 0);
+    if (allowance && allowed > allowance.maxCards) {
+      add(
+        "deckbuilding_requirement",
+        `${identityName}'s deckbuilding requirement: up to ${allowance.maxCards} ${allowance.anyTrait.join(" and/or ")} ${allowance.cardType.replace(/_/g, " ")} cards from other aspects are allowed; this deck has ${allowed}.`,
+        allowanceLines.map((line) => line.card.id),
       );
     }
     for (const [index, pkg] of packages.entries()) {

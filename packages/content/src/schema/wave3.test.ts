@@ -12,6 +12,7 @@ import {
   validateCard,
   validateScenario,
 } from "./index.js";
+import { GAM_CARDS } from "../data/index.js";
 import type { EnvironmentCard, KeywordInstance, Scenario, SideSchemeCard, VillainCard, VillainStage } from "./index.js";
 
 /**
@@ -270,5 +271,25 @@ describe("§1.3 Hinder X and Uses printed with the per player icon", () => {
     expect(validateCard(uses({ name: "uses", count: 3, counterType: "charge" })).errors).toEqual([]);
     expect(validateCard(uses({ name: "uses", count: 0, counterType: "charge" })).valid).toBe(false);
     expect(validateCard(uses({ name: "uses", count: 0, countPerPlayer: 0, counterType: "ammo" })).valid).toBe(false);
+  });
+});
+
+describe("§1.5 an off-aspect allowance (Gamora's Skilled Tactician)", () => {
+  const gamora = GAM_CARDS.find((card) => card.id === cardId("18001a"));
+  if (gamora?.type !== "hero_identity") throw new Error("no Gamora identity in the gam data");
+  const allowance = { cardType: "event" as const, anyTrait: [trait("ATTACK"), trait("THWART")], maxCards: 6 };
+
+  it("validates on the emitted identity", () => {
+    expect(validateCard({ ...gamora, deckbuilding: { offAspectAllowance: allowance } }).errors).toEqual([]);
+  });
+
+  it("refuses a zero or fractional maximum and an empty trait list", () => {
+    for (const bad of [
+      { ...allowance, maxCards: 0 },
+      { ...allowance, maxCards: 2.5 },
+      { ...allowance, anyTrait: [] },
+    ]) {
+      expect(validateCard({ ...gamora, deckbuilding: { offAspectAllowance: bad } }).valid).toBe(false);
+    }
   });
 });

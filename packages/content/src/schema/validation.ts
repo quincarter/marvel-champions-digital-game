@@ -498,6 +498,19 @@ export function validateUpgradeCard(card: UpgradeCard): ValidationResult {
 
 export function validateHeroIdentityCard(card: HeroIdentityCard): ValidationResult {
   const errors = baseErrors(card);
+  // docs/phase7-wave3.md §1.5 (Gamora's Skilled Tactician).
+  const allowance = card.deckbuilding?.offAspectAllowance;
+  if (allowance !== undefined) {
+    if (!isPositiveInteger(allowance.maxCards))
+      errors.push("offAspectAllowance maxCards must be a positive whole number");
+    if (
+      !Array.isArray(allowance.anyTrait) ||
+      allowance.anyTrait.length === 0 ||
+      !allowance.anyTrait.every(isNonEmptyString)
+    )
+      errors.push("offAspectAllowance anyTrait must list at least one trait");
+    if (!isNonEmptyString(allowance.cardType)) errors.push("offAspectAllowance needs a cardType");
+  }
   if (!isNonNegativeNumber(card.hp) || card.hp < 1) errors.push("identity hp must be a positive number");
   if ("keywords" in card) errors.push("identity keywords live on each face, not on the card (Phase 2)");
   if (!isNonEmptyString(card.obligationCardId)) errors.push("identity must reference its obligationCardId");

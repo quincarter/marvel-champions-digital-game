@@ -15,6 +15,7 @@ export type {
   AlterEgoFace,
   IdentityDeckbuilding,
   IdentitySeparateDeck,
+  OffAspectAllowance,
   OffAspectPackage,
   SeparatedIdentity,
 } from "./identity.js";

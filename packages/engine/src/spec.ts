@@ -532,6 +532,17 @@ export type Predicate =
    */
   | { readonly kind: "paidWithOnly"; readonly resource: TypedResource }
   /**
+   * "If you have played a [Thwart] event this turn" (Decisive Blow, Forward Momentum, `gam`): at least `atLeast` (default 1)
+   * of the cards `player` played this turn (`GameState.playedThisTurn`) match `cards`, read wherever those cards are now.
+   * docs/phase7-wave3.md §3.24.
+   */
+  | {
+      readonly kind: "playedThisTurn";
+      readonly player: PlayerRef;
+      readonly cards: TargetQuery;
+      readonly atLeast?: number;
+    }
+  /**
    * How many cards of a type a player has played this round is at most `atMost`: "the first ally played each round" → 0.
    * `cardType` absent counts every card type: "If this is the first card you have played this round, return this card to
    * your hand" (Clobber, Impede, `gam`) reads `atMost: 1` while the card itself resolves, since it counts as played

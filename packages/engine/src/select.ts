@@ -1077,6 +1077,13 @@ export function evaluate(state: GameState, predicate: Predicate, context: Effect
         (type) => type === predicate.resource || (vars[`paid.${type}`] ?? 0) === 0,
       );
     }
+    case "playedThisTurn": {
+      const [playerId] = resolvePlayers(state, predicate.player, context);
+      if (playerId === undefined) return false;
+      const played = state.playedThisTurn?.[playerId] ?? [];
+      const matching = played.filter((id) => matchesQuery(state, id, predicate.cards, context)).length;
+      return matching >= (predicate.atLeast ?? 1);
+    }
     case "playedThisRound": {
       const [playerId] = resolvePlayers(state, predicate.player, context);
       if (playerId === undefined) return false;
