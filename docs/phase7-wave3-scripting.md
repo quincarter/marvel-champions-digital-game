@@ -133,10 +133,39 @@ target)`; the engine's `EffectSpec addCounters` already carried `upTo`/`bind` (�
   in `@mc/cards` had exposed yet. Used by Blazing Inferno ("After the villain phase begins").
 - **`removeCounter`'s `opts.fromIdentity`** (`dsl/abilities.ts`): pairs with the engine change below (§4's last
   bullet) — "remove a counter from Groot" when the ability lives on a different card.
+- **`on.attacks`'s `excessDamage` option** (`dsl/abilities.ts`): "After you deal excess damage to an enemy"
+  ("Murdered You!", Rocket Raccoon's own hero identity, `gmw` 16029a). Reads the attack event's own `excessDealt`
+  result (`resolve/event.ts`), the same field the `attack` _effect_'s own `bind` already exposed for a
+  card-initiated attack (docs/phase7-wave3.md §0's Jan 26, 2026 (3) ruling) — this is the trigger-side sibling for
+  a _basic_ attack, which has no effect-level bind to read.
 
-**Engine change this pass (minimal, generic, card-name-free, own test):** `AbilityCost.spendCounters.target?:
-"self" | "identity"` (`packages/engine/src/abilities.ts`), read by `planCost`/`payCost` (`packages/engine/src/
-actions.ts`), tested in `packages/engine/src/abilities.test.ts`. Full rationale in §4.
+**Engine changes this pass (minimal, generic, card-name-free, own tests):**
+
+- `AbilityCost.spendCounters.target?: "self" | "identity"` (`packages/engine/src/abilities.ts`), read by
+  `planCost`/`payCost` (`packages/engine/src/actions.ts`), tested in `packages/engine/src/abilities.test.ts`.
+  Full rationale in §4.
+- `excessDamageBonus` (`packages/engine/src/rules.ts`) is now re-exported from `packages/engine/src/index.ts`. It
+  already existed (docs/phase7-wave3.md §3.18) but wasn't reachable from `@mc/cards` or its tests — used to test
+  Follow Through (`gmw` 16045) as the constant it's modeled as, the same way `hasKeyword` already tests Dauntless.
+
+## 6a. Rocket Raccoon's own gaps (in addition to §5's Groot gaps)
+
+Recorded in `gmw/rocket-kit.ts`'s own module docblock (mirrors §5's format):
+
+1. **`16032.schadenfreude-action`** ("Until the end of the turn, heal 2 damage from Rocket Raccoon each time you
+   deal any amount of damage to an enemy") needs a "grant a standing triggered ability for a duration" primitive.
+   `RuleSpec applyRuleUntil` only carries a `RuleSpec` (a static restriction/modifier), not an arbitrary reactive
+   ability, so there is no way to express "each time X happens, do Y" as something that itself later expires.
+2. **`16033.salvage-response`** ("Response: After you spend this card, …") needs a trigger event for a card being
+   spent as a resource payment — no such `TriggerEvent` kind exists.
+3. **`16048.flora-and-fauna-constant`/`-action`** (Rocket's own printing of the Team-Up card, identical at 16020
+   in Groot's own range) — "a Rocket Raccoon upgrade" needs a `TargetQuery` for "belongs to a specific named
+   character's card pool, independent of who controls it"; `identitySetOf` only reaches the _current player's_
+   own identity-specific cards.
+4. **`16052.booster-boots-interrupt`** ("… discard the top card of your deck →") needs an `AbilityCost` component
+   for discarding from your own deck as a cost. Flagged for `game-rules-architect` rather than added unilaterally
+   this pass: RRG 1.8 "Deck" (p. 15)'s empty-deck reshuffle rule needs a decision for a cost specifically (refuse
+   the ability, or reshuffle mid-payment?) that a rushed addition risks getting wrong.
 
 ## 7. Progress / next up
 
@@ -151,30 +180,33 @@ don't trust the coverage report alone, it only proves a ref _resolves_, never th
 
 **`gmw` status: in progress.**
 
-| Piece                                                                                                  | Status                                                                                                                               |
-| ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Groot's identity (16001a/b)                                                                            | Scripted, tested (Flora Colossus, Growth Spurt)                                                                                      |
-| Groot's kit (16002–16024)                                                                              | Scripted except §5's three gaps; every registered ref tested — see the handoff report for the ref→test mapping                       |
-| Groot's obligation/nemesis (16025–16028)                                                               | Scripted, every registered ref tested (Wilt ×3, Fan the Flames, Blazing Inferno, Furnax)                                             |
-| Groot e2e                                                                                              | 1 test, `groot-kit/e2e.test.ts` (Rhino, standard, solo)                                                                              |
-| Rocket Raccoon's identity/kit (16029–16052)                                                            | **Not started**                                                                                                                      |
-| Rocket Raccoon's obligation/nemesis (16053–16060)                                                      | **Not started**                                                                                                                      |
-| Brotherhood of Badoon (16061–16069 + Band of Badoon modular)                                           | **Not started**                                                                                                                      |
-| Infiltrate the Museum (16070–16079 + Menagerie Medley modular)                                         | **Not started**                                                                                                                      |
-| Escape the Museum (16080–16087 + Ship Command/Galactic Artifacts)                                      | **Not started**                                                                                                                      |
-| Nebula (16088–16101 + Space Pirates modular)                                                           | **Not started**                                                                                                                      |
-| Ronan the Accuser (16102–16121 + Kree Militants modular)                                               | **Not started**                                                                                                                      |
-| Shared modular sets used across scenarios (Power Stone, Ship Command, Galactic Artifacts: 16122–16149) | **Not started**                                                                                                                      |
-| Campaign-only cards (The Market 16150–16177, Campaign Challenge/Badoon Headhunter 16178–16187)         | **Deferred to campaign mode (C2)** — stay in `KNOWN_SKIPPED` with reason "campaign mode deferred", the `trors` 04155–04166 precedent |
+| Piece                                                                                                                              | Status                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Groot's identity (16001a/b)                                                                                                        | Scripted, tested (Flora Colossus, Growth Spurt)                                                                                      |
+| Groot's kit (16002–16024)                                                                                                          | Scripted except §5's three gaps; every registered ref tested — see the handoff report for the ref→test mapping                       |
+| Groot's obligation/nemesis (16025–16028)                                                                                           | Scripted, every registered ref tested (Wilt ×3, Fan the Flames, Blazing Inferno, Furnax)                                             |
+| Groot e2e                                                                                                                          | 1 test, `groot-kit/e2e.test.ts` (Rhino, standard, solo)                                                                              |
+| Rocket Raccoon's identity/kit (16029–16052)                                                                                        | Scripted except §6a's four gaps; every registered ref tested — see the handoff report for the ref→test mapping                       |
+| Rocket Raccoon's obligation/nemesis (16053–16057; 16058–16060 are Brotherhood of Badoon's villain Drang, not Rocket's — see below) | Scripted, every registered ref tested (Crisis on Halfworld ×3, Blackjack's Bazooka, Planetary Invasion)                              |
+| Brotherhood of Badoon (16058 Drang, 16061–16069 + Band of Badoon modular)                                                          | **Not started**                                                                                                                      |
+| Infiltrate the Museum (16070–16079 + Menagerie Medley modular)                                                                     | **Not started**                                                                                                                      |
+| Escape the Museum (16080–16087 + Ship Command/Galactic Artifacts)                                                                  | **Not started**                                                                                                                      |
+| Nebula (16088–16101 + Space Pirates modular)                                                                                       | **Not started**                                                                                                                      |
+| Ronan the Accuser (16102–16121 + Kree Militants modular)                                                                           | **Not started**                                                                                                                      |
+| Shared modular sets used across scenarios (Power Stone, Ship Command, Galactic Artifacts: 16122–16149)                             | **Not started**                                                                                                                      |
+| Campaign-only cards (The Market 16150–16177, Campaign Challenge/Badoon Headhunter 16178–16187)                                     | **Deferred to campaign mode (C2)** — stay in `KNOWN_SKIPPED` with reason "campaign mode deferred", the `trors` 04155–04166 precedent |
 
-**Next session should start with Rocket Raccoon's kit** (`gmw/rocket-kit.ts`, mirroring `gmw/groot-kit.ts`'s
-shape), then his obligation/nemesis, then Brotherhood of Badoon (the first scenario, needed before Rocket's own
-precon can reach an e2e test against `gmw`'s own villain rather than Rhino). `MC_REFS_PACKS=gmw pnpm refs` is the
-up-to-date source of truth for exactly which refs remain — the table above is a snapshot, that command is not.
+**Next session on `gmw` should do Brotherhood of Badoon** (the first scenario: its villain Drang 16058–16060, main
+scheme 16061a/b–16062a/b, Milano/Charge Up 16063, and the Band of Badoon modular set 16064–16069), needed before
+either hero's own e2e test can reach `gmw`'s own villain rather than falling back to Rhino. `MC_REFS_PACKS=gmw
+pnpm refs` is the up-to-date source of truth for exactly which refs remain — the table above is a snapshot, that
+command is not.
 
-**`stld`/`gam`/`drax`/`vnm`/`ron`: not started.** All five packs' data is emitted and their own engine primitives
-have landed (`drax`'s Moondragon, §3.23, is the one open exception — RRG/FAQ are silent on whether "that minion
-attacks another enemy" is an activation; docs/phase7-wave3.md §4 Q12 has the proposed reading, still unconfirmed).
+**`stld` and `gam` are now being scripted concurrently by their own sessions** (`wave3/stld/`, `wave3/gam/`), each
+pushing to this same branch — this `gmw` session doesn't touch either folder. `drax`/`vnm`/`ron`: not started.
+All five packs' data is emitted and their own engine primitives have landed (`drax`'s Moondragon, §3.23, is the
+one open exception — RRG/FAQ are silent on whether "that minion attacks another enemy" is an activation;
+docs/phase7-wave3.md §4 Q12 has the proposed reading, still unconfirmed).
 
 **Wave 3's client wiring is out of scope for every pack in this pass** (per the brief: "the whole wave gets wired
 into the client once, at the end") — nothing here touches `packages/client` or `playable/`.
