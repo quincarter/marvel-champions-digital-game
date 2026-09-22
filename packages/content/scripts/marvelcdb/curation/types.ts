@@ -272,4 +272,11 @@ export interface PackCuration {
    * keyed off `card_set_code` (deckbuilding, `printedAspect`, nemesis-set naming) then works unchanged.
    */
   readonly auxiliaryHeroSetCodes?: Readonly<Record<string, string>>;
+  /**
+   * Hand-authored sibling modules in `outDir` (basenames, no extension) that the generated `index.ts` barrel must
+   * re-export alongside the emitted ones — The Rise of Red Skull's `campaign.ts` (`TRORS_CAMPAIGN`: MarvelCDB has
+   * no campaign record at all, docs/campaign-mode-design.md §3, so it can't be emitted). Ingestion fails if a listed
+   * file is missing, so the barrel never names a module that doesn't exist. Absent = none.
+   */
+  readonly handAuthoredModules?: readonly string[];
 }
