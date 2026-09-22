@@ -4047,7 +4047,7 @@ export const TRORS_CARDS: readonly AnyCard[] = [
       current: "Your hand size is reduced by 1.\nAlter-Ego Action: Deal yourself an encounter card and spend a [energy] resource → discard this card.",
     },
     flavor: "\"Pull him aside for questioning.\" —Hydra Soldier",
-    abilities: [{ id: abilityId("04165.obligation") }],
+    abilities: [{ id: abilityId("04165.martial-law-constant") }, { id: abilityId("04165.martial-law-action") }],
   },
   {
     id: cardId("04166"),
@@ -4068,6 +4068,9 @@ export const TRORS_CARDS: readonly AnyCard[] = [
       current: "Your hero gets -1 THW, -1 ATK, and -1 DEF.\nAlter-Ego Action: Take 2 damage and spend a [wild] resource → discard this card.",
     },
     flavor: "\"These dissenters breed conflict. They are your true enemies.\" —Hydra News Media",
-    abilities: [{ id: abilityId("04166.obligation") }],
+    abilities: [
+      { id: abilityId("04166.anti-hero-propaganda-constant") },
+      { id: abilityId("04166.anti-hero-propaganda-action") },
+    ],
   },
 ];

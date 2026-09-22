@@ -1,17 +1,16 @@
 /**
  * The Hydra Campaign cards scripted in `campaign-cards.ts` (design §6.2, §11 step 8): the four TECH upgrades'
- * removal from the campaign log, the four Basic/Improved Condition upgrades (both faces each), Zola's Algorithm
- * and Medical Emergency. Each test proves the printed text: the in-game effect resolves, and — for a card that
- * prints "remove it from the campaign log" — the write lands in `GameState.campaignWrites` and a rebuilt deck
- * naming that card is refused by `validateDeck` afterward through the campaign context.
- *
- * Martial Law (04165) and Anti-Hero Propaganda (04166) are not here — see `campaign-cards.ts`'s own docblock and
- * `wave2/coverage.test.ts`'s `KNOWN_SKIPPED.trors` for the content-data gap blocking them.
+ * removal from the campaign log, the four Basic/Improved Condition upgrades (both faces each), Zola's Algorithm,
+ * Medical Emergency, Martial Law and Anti-Hero Propaganda. Each test proves the printed text: the in-game effect
+ * resolves, and — for a card that prints "remove it from the campaign log" — the write lands in
+ * `GameState.campaignWrites` and a rebuilt deck naming that card is refused by `validateDeck` afterward through
+ * the campaign context.
  */
 import { campaignId, cardId, WAVE2_CARDS, type CardId, type DeckContents } from "@mc/content";
 import {
   cardsInPlay,
   characterProfile,
+  handSize,
   validateDeck,
   type CampaignGameInput,
   type DeckContext,
@@ -509,5 +508,64 @@ describe("Medical Emergency (04164)", () => {
     // 5 milled + Medical Emergency itself + the payment card (spending a resource discards the card spent).
     expect(playerOf(used, P1).discard.length).toBe(discardBefore + 5 + 1 + 1);
     expect(used.players.find((p) => p.playerId === P1)!.playArea).not.toContain(medical);
+  });
+});
+
+// --- Martial Law (04165) and Anti-Hero Propaganda (04166) --------------------------------------------------------
+// Each prints a persistent constant clause and an independent Alter-Ego Action under one printed ability, split by
+// `card-data-pipeline` into a `-constant` ref and an `-action` ref (`campaign-cards.ts`'s own docblock).
+
+describe("Martial Law (04165)", () => {
+  it("constant: your hand size is reduced by 1 while it is in play", () => {
+    const started = startWave2Game(deckConfig("rhino", ["04165"], 2026));
+    const before = handSize(started, P1, WAVE2_DEPS);
+    const inHand = moveToHand(started, P1, "04165");
+    const placed = putIntoPlayArea(inHand.state, P1, "04165");
+    expect(handSize(placed.state, P1, WAVE2_DEPS)).toBe(before - 1);
+  });
+
+  it("Alter-Ego Action: deal yourself an encounter card and spend a [energy] resource → discard this card", () => {
+    const started = startWave2Game(deckConfig("rhino", ["04165"], 2026));
+    const alterEgo = inAlterEgo(started);
+    // Hawkeye's Bow (04002, wild icon, already in the starter deck) pays the typed cost below.
+    const inHand = moveToHand(alterEgo, P1, "04165", "04002");
+    const [martialLaw] = inHand.ids as [InstanceId, InstanceId];
+    const placed = putIntoPlayArea(inHand.state, P1, "04165");
+    expect(placed.id).toBe(martialLaw);
+    const dealtBefore = playerOf(placed.state, P1).dealtEncounter.length;
+    const payment = payTyped(placed.state, P1, "energy");
+    const used = runWave2(placed.state, use(P1, martialLaw, "04165.martial-law-action", [{ fromHand: payment }]));
+    expect(playerOf(used, P1).dealtEncounter.length).toBe(dealtBefore + 1);
+    expect(used.players.find((p) => p.playerId === P1)!.playArea).not.toContain(martialLaw);
+  });
+});
+
+describe("Anti-Hero Propaganda (04166)", () => {
+  it("constant: your hero gets -1 THW, -1 ATK, and -1 DEF", () => {
+    const started = startWave2Game(deckConfig("rhino", ["04166"], 2026));
+    const inHand = moveToHand(started, P1, "04166");
+    const placed = putIntoPlayArea(inHand.state, P1, "04166");
+    const hero = inHero(placed.state);
+    const profile = characterProfile(hero, identityOf(hero), WAVE2_DEPS)!;
+    // Hawkeye's printed 2 ATK / 1 THW / 1 DEF (`packages/content/src/data/trors/cards.ts`), each reduced by 1.
+    expect(profile.atk).toBe(1);
+    expect(profile.thw).toBe(0);
+    expect(profile.def).toBe(0);
+  });
+
+  it("Alter-Ego Action: take 2 damage and spend a [wild] resource → discard this card", () => {
+    const started = startWave2Game(deckConfig("rhino", ["04166"], 2026));
+    const alterEgo = inAlterEgo(started);
+    // "Spend a [wild] resource" (`ResourceRequirement.wild`) demands an actual printed wild icon, not any resource
+    // — Hawkeye's Bow (04002, one printed [wild] icon, already in the starter deck) pays it exactly.
+    const inHand = moveToHand(alterEgo, P1, "04166", "04002");
+    const [propaganda, bow] = inHand.ids as [InstanceId, InstanceId];
+    const placed = putIntoPlayArea(inHand.state, P1, "04166");
+    expect(placed.id).toBe(propaganda);
+    const identity = identityOf(placed.state);
+    const damageBefore = inst(placed.state, identity).damage;
+    const used = runWave2(placed.state, use(P1, propaganda, "04166.anti-hero-propaganda-action", [{ fromHand: bow }]));
+    expect(inst(used, identity).damage).toBe(damageBefore + 2);
+    expect(used.players.find((p) => p.playerId === P1)!.playArea).not.toContain(propaganda);
   });
 });

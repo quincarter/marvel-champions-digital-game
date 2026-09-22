@@ -59,20 +59,15 @@ const PACK_STATUS: Readonly<Record<string, "scripted" | "in progress" | "not sta
  * other ref must resolve, and each listed ref must still be unresolved, so an entry can't go stale.
  */
 const KNOWN_SKIPPED: Readonly<Record<string, readonly string[]>> = {
-  // Regenerated 2026-09-22 (`ability-scripting-engineer`, campaign mode design §11 step 8): 28 of the 30 Hydra
-  // Campaign refs are scripted (`wave2/trors/campaign-cards.ts`). The remaining two are a *content* data gap, not
-  // a missing engine primitive — see that module's own docblock and `campaign-cards.test.ts` for the full writeup.
-  trors: [
-    // Martial Law (04165) — "Your hand size is reduced by 1.\nAlter-Ego Action: Deal yourself an encounter card
-    // and spend a [energy] resource → discard this card." One ability ref (`04165.obligation`) for two clauses
-    // that need two different `AbilityTriggerSpec` kinds (`constant` + `action`) — an `AbilityDefinition` carries
-    // exactly one. Needs the same `<name>-constant`/`<name>-action` content split `card-data-pipeline` already
-    // made for `toafk` 11020/11049 (docs/phase7-wave2-data.md "Part 8").
-    "04165.obligation",
-    // Anti-Hero Propaganda (04166) — "Your hero gets -1 THW, -1 ATK, and -1 DEF.\nAlter-Ego Action: Take 2 damage
-    // and spend a [wild] resource → discard this card." Same gap as 04165.
-    "04166.obligation",
-  ],
+  // Regenerated 2026-09-22 (`card-data-pipeline` + `ability-scripting-engineer`): all 30 of the 30 Hydra Campaign
+  // refs are now scripted (`wave2/trors/campaign-cards.ts`). Martial Law (04165) and Anti-Hero Propaganda (04166)
+  // — the last two — each printed a persistent constant clause and an independent Alter-Ego Action under a single
+  // ability ref, which cannot work (an `AbilityDefinition` carries exactly one `AbilityTriggerSpec`); the obligation
+  // parser (`packages/content/scripts/marvelcdb/parse-text.ts`) was generalized to split that exact shape into
+  // `<name>-constant`/`<name>-action` refs — the same naming `toafk` 11020/11049 already used (docs/
+  // phase7-wave2-data.md "Part 8") — and `packages/content/src/data/trors/cards.ts` was regenerated through the
+  // normal ingest path. Fully scripted.
+  trors: [],
   // Regenerated 2026-09-20 (`pnpm refs`) after scripting `11049.fear-of-kang-constant` ("You cannot attack Kang",
   // `player: you`) — the last non-campaign ref in the wave 2 skip backlog: `game-rules-architect` gave `RuleSpec
   // cannotAttack` a `player?: PlayerRef` field mirroring `cannotPlay`'s (docs/phase7-wave2.md §25), so the

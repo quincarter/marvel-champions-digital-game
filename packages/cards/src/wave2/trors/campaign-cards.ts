@@ -8,6 +8,7 @@ import {
   constant,
   coveredByEngineRule,
   dealDamage,
+  dealEncounterCard,
   defineAbilities,
   discard,
   draw,
@@ -31,6 +32,7 @@ import {
   response,
   self,
   spend,
+  takeDamageCost,
   theVillain,
   topOfDeck,
   you,
@@ -49,16 +51,15 @@ import { discardThisObligation } from "../../core/obligations.js";
  * write (`setGrantFace`, `../../campaigns/trors.ts`), never an in-game effect — RRG p. 29 / MC10 p. 12's Q&A route
  * that entirely through the campaign log, so nothing here scripts a flip.
  *
- * **Two refs left in `KNOWN_SKIPPED` (not a missing engine primitive — a missing content ref).** Martial Law
- * (04165) and Anti-Hero Propaganda (04166) each print a persistent constant penalty *and* an independent
- * Alter-Ego Action under a single ability ref (`04165.obligation` / `04166.obligation`), which cannot work: an
- * `AbilityDefinition` carries exactly one `AbilityTriggerSpec` (`packages/engine/src/abilities.ts`), so one ref
- * cannot be both a `constant` and an `action`. `packages/content/src/data/toafk/cards.ts` already carries the fix
- * for this exact shape (11020/11049, docs/phase7-wave2-data.md "Part 8"): a `card-data-pipeline` data change
- * splitting the one ref into `<name>-constant` / `<name>-action` (plus, where the card already used a base
- * `.obligation` marker for a third clause, `coveredByEngineRule()` — see 04164 below, which *is* split). This
- * task's scope is `@mc/cards` only, so the split for 04165/04166 is `card-data-pipeline`'s follow-up, not done
- * here; see this module's own test file for the exact printed text blocked on it.
+ * **Martial Law (04165) and Anti-Hero Propaganda (04166), now split and scripted.** Each prints a persistent
+ * constant penalty *and* an independent Alter-Ego Action under a single printed ability, which cannot work as one
+ * ref: an `AbilityDefinition` carries exactly one `AbilityTriggerSpec` (`packages/engine/src/abilities.ts`).
+ * `card-data-pipeline` generalized the obligation parser (`packages/content/scripts/marvelcdb/parse-text.ts`'s
+ * `options.obligation` branch) to recognize this exact shape — a non-header preamble sentence followed by exactly
+ * one formal trigger header — and split it into `<name>-constant` / `<name>-action` refs, the same naming
+ * `packages/content/src/data/toafk/cards.ts` already used for 11020/11049 (docs/phase7-wave2-data.md "Part 8"),
+ * then regenerated `packages/content/src/data/trors/cards.ts` through the normal ingest path rather than
+ * hand-editing it. Both cards' `-constant`/`-action` refs are scripted below, alongside 04155-04164.
  */
 
 /** "When your turn ends" (Enraged, `wave1/hlk/kit.ts`) — no `dsl/abilities.ts` `on.*` wrapper yet. */
@@ -172,6 +173,36 @@ export const TRORS_CAMPAIGN_CARDS = defineAbilities({
   "04164.medical-emergency-action": alterEgoAction(
     { cost: spend({ physical: 1 }) },
     moveCards(topOfDeck(5), "discard"),
+    discardThisObligation,
+  ),
+
+  // --- Martial Law (04165) — "Your hand size is reduced by 1.\nAlter-Ego Action: Deal yourself an encounter card
+  // and spend a [energy] resource → discard this card." Split by `card-data-pipeline` into a `-constant` ref (see
+  // this module's own docblock) and an `-action` ref.
+  "04165.martial-law-constant": constant(gets("handSize", -1, YOUR_IDENTITY)),
+  // "Deal yourself an encounter card" has no `AbilityCost` primitive (every existing "deal a card" idiom —
+  // `dealEncounterCard` — is an effect, not a cost), so it's scripted as a leading effect, matching Medical
+  // Emergency's (04164) own mixed leading-effect/real-cost split above; the resource spend is the only real cost.
+  "04165.martial-law-action": alterEgoAction(
+    { cost: spend({ energy: 1 }) },
+    dealEncounterCard(you),
+    discardThisObligation,
+  ),
+
+  // --- Anti-Hero Propaganda (04166) — "Your hero gets -1 THW, -1 ATK, and -1 DEF.\nAlter-Ego Action: Take 2
+  // damage and spend a [wild] resource → discard this card." Same two-clauses-one-ref split as 04165. The stat
+  // penalty is one printed sentence naming three stats, so it's one `constant()` call with three `gets` parts —
+  // one ref — not three refs (contrast the Hydra Campaign upgrades above, whose stat changes print as separate
+  // lines and so each get their own ref).
+  "04166.anti-hero-propaganda-constant": constant(
+    gets("thw", -1, YOUR_HERO),
+    gets("atk", -1, YOUR_HERO),
+    gets("def", -1, YOUR_HERO),
+  ),
+  // "Take N damage →" *is* a real `AbilityCost` (`takeDamageCost`, `damageSelf` — Focused Rage, `01027`), unlike
+  // Martial Law's "deal yourself an encounter card" above, so both pre-arrow clauses here are costs.
+  "04166.anti-hero-propaganda-action": alterEgoAction(
+    { cost: [takeDamageCost(2), spend({ wild: 1 })] },
     discardThisObligation,
   ),
 });
