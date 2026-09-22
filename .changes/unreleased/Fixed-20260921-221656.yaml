@@ -1,3 +1,0 @@
-kind: Fixed
-body: "Client: an overlay that is closing no longer takes clicks, the villain-phase walkthrough takes none while the choice sheet owns a decision, and an answered choice sheet left on an unchanged decision gives it back after a moment instead of ignoring clicks until a reload"
-time: 2026-09-21T22:16:56.638823-04:00
