@@ -215,6 +215,12 @@ export type GameEvent =
       readonly instanceId: InstanceId;
       readonly from: VillainSideLetter;
       readonly to: VillainSideLetter;
+      /**
+       * Present (true) when one of the two faces prints ∞ hit points, so the flip set the dial to the new face's hit
+       * points instead of keeping the damage (docs/phase7-wave3.md §3.1). Absent on every other flip, whose log is
+       * unchanged.
+       */
+      readonly hitPointsReset?: true;
     }
   /** A double-sided encounter card turned over; `flipped` is true when its other face is now up. */
   | { readonly type: "cardFlipped"; readonly instanceId: InstanceId; readonly flipped: boolean }

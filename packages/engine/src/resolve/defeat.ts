@@ -29,6 +29,7 @@ import {
   villainStageCount,
   villainStageOf,
 } from "../query.js";
+import { cannotBeDefeated } from "../rules.js";
 import { cardsInPlay } from "../select.js";
 import type { StackFrame } from "../stack.js";
 import type { GameState, MainSchemeState, VillainState } from "../state.js";
@@ -236,14 +237,34 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
 
   // Villains first, in printed order: a villain stage falls the moment its dial reaches zero.
   const activeChoices: StackFrame[] = [];
+  // "When Collector would be defeated, … flip this card instead" (docs/phase7-wave3.md §3.1): a villain's defeat is an
+  // event with an interrupt window when an ability could react to it, the way an identity's already is below. It
+  // applies through `applyDefeat`, which re-checks the dial, so a flip to an ∞ face or a reset dial replaces it. With
+  // nothing listening the stage falls right here, exactly as it did before.
+  const villainDefeats: StackFrame[] = [];
   for (const { instanceId } of undefeatedVillains(ctx.state)) {
     const villainProfile = characterProfile(ctx.state, instanceId, ctx.deps);
     const villain = getInstance(ctx.state, instanceId);
-    if (villainProfile && villain && villain.damage >= villainProfile.maxHp) {
-      const choice = defeatVillainStage(ctx, instanceId);
-      if (ctx.state.outcome) return;
-      if (choice) activeChoices.push(choice);
+    if (!villainProfile || !villain || villain.damage < villainProfile.maxHp) continue;
+    if (cannotBeDefeated(ctx.state, ctx.deps, instanceId) || defeatPending(ctx.state, instanceId)) continue;
+    const defeat: TriggerEvent = {
+      kind: "characterDefeated",
+      instanceId,
+      ...(hint?.targetId === instanceId
+        ? {
+            parentFrameId: hint.parentFrameId,
+            ...(hint.defeatedByPlayerId ? { defeatedByPlayerId: hint.defeatedByPlayerId } : {}),
+            ...(hint.sourceInstanceId ? { sourceInstanceId: hint.sourceInstanceId } : {}),
+          }
+        : {}),
+    };
+    if (heard(ctx.state, ctx.deps, defeat)) {
+      villainDefeats.push(eventFrame(ctx, defeat));
+      continue;
     }
+    const choice = defeatVillainStage(ctx, instanceId);
+    if (ctx.state.outcome) return;
+    if (choice) activeChoices.push(choice);
   }
 
   // One batch for the whole sweep, in sweep order. Each defeat is an event with
@@ -257,6 +278,7 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
       if (profile.kind !== "ally" && profile.kind !== "minion") continue;
       if (instance.damage < profile.maxHp) continue;
       if (hasKeyword(ctx.state, id, "permanent", ctx.deps)) continue;
+      if (cannotBeDefeated(ctx.state, ctx.deps, id)) continue;
       if (defeatPending(ctx.state, id)) continue;
       const context =
         hint?.targetId === id
@@ -274,6 +296,8 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
   // Choosing who holds the active counter next resolves before anything else queued by this sweep, so no effect
   // can read "the villain" while the counter still sits on a defeated one.
   pushFrames(ctx, activeChoices);
+  // A villain's defeat event resolves before the minions' and allies', keeping the sweep's villains-first order.
+  pushFrames(ctx, villainDefeats);
 
   for (const player of playerOrder(ctx.state)) {
     const identityId = player.identity.instanceId;
@@ -281,6 +305,7 @@ export function checkDefeats(ctx: Ctx, hint?: DefeatHint): void {
     const instance = getInstance(ctx.state, identityId);
     if (!profile || !instance) continue;
     if (instance.damage < profile.maxHp) continue;
+    if (cannotBeDefeated(ctx.state, ctx.deps, identityId)) continue;
     // "When [your hero] would be defeated, … instead" (Captain America's Helmet) needs an interrupt window, so the
     // defeat goes on the stack as an event when an ability could react to it and the player is eliminated when it
     // applies. With nothing listening the elimination happens right here, exactly as it did before.
@@ -306,7 +331,7 @@ const updateVillain = (ctx: Ctx, id: InstanceId, update: (villain: VillainState)
  * villain is defeated. The game is won when every villain is (The Wrecking Crew insert: "If the players defeat all
  * 4 villains, they win the game!"). Returns the frame that chooses the next active villain, when one is needed.
  */
-function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame | null {
+export function defeatVillainStage(ctx: Ctx, villainId: InstanceId): StackFrame | null {
   const villain = mustVillain(ctx.state, villainId);
   const nextIndex = villain.stageIndex + 1;
   // The defeated stage's own "When Defeated" (Kang (I): "Advance the main scheme to stage 2 at the end of the phase";

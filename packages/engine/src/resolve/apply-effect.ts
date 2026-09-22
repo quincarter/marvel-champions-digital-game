@@ -511,7 +511,9 @@ export function applyEffect(ctx: Ctx, effect: EffectSpec, context: EffectContext
       const remaining = Math.max(0, value(effect.amount));
       for (const id of targets(effect.target)) {
         const max = maxHitPoints(ctx.state, id, ctx.deps);
-        if (max === undefined) continue;
+        // A character with ∞ hit points has no dial to set (RRG 1.8 "Hit Points", p. 22); card text sets it only after
+        // flipping to a face that prints a number ("flip this card, then set Collector's hit point dial").
+        if (max === undefined || !Number.isFinite(max)) continue;
         const damage = Math.max(0, max - remaining);
         updateInstance(ctx, id, (instance) => ({ ...instance, damage }));
         emit(ctx, { type: "hitPointsSet", instanceId: id, remaining: Math.min(remaining, max), damage });

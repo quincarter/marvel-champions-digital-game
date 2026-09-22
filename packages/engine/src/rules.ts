@@ -149,6 +149,12 @@ export const cannotLeavePlay = (state: GameState, deps: EngineDeps, id: Instance
     matchesQuery(state, id, rule.target, context),
   );
 
+/** "X cannot be defeated" (`cannotBeDefeated`; docs/phase7-wave3.md §3.1). */
+export const cannotBeDefeated = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
+  activeRules(state, deps, "cannotBeDefeated").some(({ rule, context }) =>
+    matchesQuery(state, id, rule.target, context),
+  );
+
 /** A side scheme at no threat that is not defeated for it (`notDefeatedWithoutThreat`; signature side schemes). */
 export const notDefeatedWithoutThreat = (state: GameState, deps: EngineDeps, id: InstanceId): boolean =>
   activeRules(state, deps, "notDefeatedWithoutThreat").some(({ rule, context }) =>

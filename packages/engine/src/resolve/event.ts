@@ -19,6 +19,7 @@ import {
 } from "../query.js";
 import type { EngineDeps } from "../abilities.js";
 import {
+  cannotBeDefeated,
   cannotTakeDamage,
   defeatedIntoEncounterDeck,
   excessDamageThreatSchemes,
@@ -29,7 +30,7 @@ import { cardsInPlay, controllerOf } from "../select.js";
 import { currentActivationFrameId, type StackFrame, type Vars } from "../stack.js";
 import type { GameState } from "../state.js";
 import type { TriggerEvent } from "../trigger-events.js";
-import { checkDefeats, checkMainSchemeCompletion, eliminatePlayer } from "./defeat.js";
+import { checkDefeats, checkMainSchemeCompletion, defeatVillainStage, eliminatePlayer } from "./defeat.js";
 import { dashedStatSkipsActivation, pushEnemyAttackFrame, pushEnemySchemeFrame } from "./enemy-activation.js";
 import { applyEnterPlayKeywords } from "./enter-play.js";
 import {
@@ -287,6 +288,18 @@ function applyDefeat(ctx: Ctx, event: Extract<TriggerEvent, { kind: "characterDe
   if (!instance || !cardsInPlay(ctx.state).includes(id)) return false;
   const profile = characterProfile(ctx.state, id, ctx.deps);
   if (!profile || instance.damage < profile.maxHp) return false;
+  // RRG 1.8 "'Cannot'" (p. 11): absolute, including a defeat already on the stack (docs/phase7-wave3.md §3.1).
+  if (cannotBeDefeated(ctx.state, ctx.deps, id)) return false;
+  // A villain stage (docs/phase7-wave3.md §3.1). Reaching here means no interrupt replaced the defeat: "flip this card
+  // instead" turns the villain to an ∞ face and "reset his hit points instead" clears the damage, and either fails the
+  // dial check above. Otherwise it falls exactly as the sweep's inline path does (RRG 1.8 "Villain Defeat", p. 47).
+  const villain = villainOf(ctx.state, id);
+  if (villain) {
+    if (villain.defeated) return false;
+    const choice = defeatVillainStage(ctx, id);
+    if (choice && !ctx.state.outcome) pushFrames(ctx, [choice]);
+    return true;
+  }
   // An identity at zero remaining hit points is eliminated, not discarded (RRG 1.8 "Hit Points", p. 22). Reaching
   // here means no interrupt replaced the defeat ("set his hit point dial to 1 instead", Captain America's Helmet).
   const player = ctx.state.players.find((seat) => seat.identity.instanceId === id);

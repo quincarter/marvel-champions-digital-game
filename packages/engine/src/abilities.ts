@@ -397,6 +397,14 @@ export type RuleSpec =
   /** "This card cannot leave play while [villain] is in play." RRG 1.8 "'Cannot'" (p. 11): absolute, like the permanent keyword. */
   | { readonly kind: "cannotLeavePlay"; readonly target: TargetQuery; readonly while?: Predicate }
   /**
+   * "Collector cannot be defeated." / "Hela cannot be defeated." (their ∞ back faces, `gmw` 16080b/16081b, `mts`
+   * 21136b/21137b); "Citizen V cannot be defeated unless there are at least 1[per_hero] Thunderbolt minions in the
+   * victory display" (`aos` 50129, a `while`). RRG 1.8 "'Cannot'" (p. 11) makes it absolute: a matching character at zero
+   * remaining hit points is not defeated, and its pending defeat does not apply. It stops defeat only; damage is still
+   * dealt and taken. docs/phase7-wave3.md §3.1.
+   */
+  | { readonly kind: "cannotBeDefeated"; readonly target: TargetQuery; readonly while?: Predicate }
+  /**
    * The Wrecking Crew insert, "Signature Side Schemes": "These side schemes are not discarded when they have no threat on
    * them." A scenario rule overriding RRG 1.8 "Defeat" (p. 15) under the Golden Rules (p. 4), carried by the main scheme.
    */

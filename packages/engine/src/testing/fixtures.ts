@@ -198,6 +198,8 @@ export interface StubVillainStage {
   readonly sch: number;
   /** Stats printed "—" (`VillainStage.dashedStats`). */
   readonly dashedStats?: readonly ("atk" | "sch")[];
+  /** Printed ∞ hit points (`VillainStage.infiniteHp`); `hp` should then be `flat(0)`. */
+  readonly infiniteHp?: boolean;
   readonly traits?: readonly Trait[];
   readonly keywords?: readonly KeywordInstance[];
   readonly abilities?: readonly AbilityReference[];
@@ -210,6 +212,7 @@ const villainStages = (stages: readonly StubVillainStage[]): [VillainStage, ...V
     atk: stage.atk,
     sch: stage.sch,
     ...(stage.dashedStats ? { dashedStats: stage.dashedStats } : {}),
+    ...(stage.infiniteHp ? { infiniteHp: true } : {}),
     text,
     traits: stage.traits ?? [],
     keywords: stage.keywords ?? [],

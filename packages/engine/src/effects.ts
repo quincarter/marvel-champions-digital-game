@@ -182,12 +182,36 @@ export function drawEncounterCard(
  * attachments, boost cards, counters (Green Goblin insert, Risky Business "New Rules": "all attachment cards, status
  * cards, boost cards, damage, and other game elements associated with the villain remain as they are"; RRG 1.8
  * "Flip", p. 20).
+ *
+ * **Except the damage, when either face prints ∞ hit points** (docs/phase7-wave3.md §3.1): the dial is set to the new
+ * face's hit points. RRG 1.8 "Flip" is silent on the dial, and the two products that print ∞ both reset it:
+ * - The Mad Titan's Shadow rulebook, Hela (MC21 p. 20): "Flipping Hela from her Mystic side to her Wounded side and
+ *   vice versa is resolved just like advancing to the next villain stage: her hit points are reset and any status
+ *   cards attached to Hela remain attached."
+ * - The Collector's ∞ face (`gmw` 16080b): "flip this card, then set Collector's hit point dial to his printed hit
+ *   points." Resetting on the flip makes that second clause a no-op rather than leaving a window, between the two
+ *   effects, in which the defeat sweep would see the old damage against the front face's hit points.
+ * Onto an ∞ face the kept damage could never matter (the remaining hit points are ∞ whatever it is), so clearing it
+ * there only keeps a stale number from resurfacing on the next flip.
  */
 export function flipVillain(ctx: Ctx, id: InstanceId, to: VillainSideLetter): void {
   const villain = mustVillain(ctx.state, id);
   if (villain.side === to) return;
+  const infinite = (side: VillainSideLetter): boolean => {
+    const card = ctx.state.cardPool[villain.cardId];
+    const face = card?.type === "villain" ? card.sides.find((s) => s.side === side) : undefined;
+    return face?.stages[villain.stageIndex]?.infiniteHp === true;
+  };
+  const reset = infinite(villain.side) || infinite(to);
   ctx.state = { ...ctx.state, villains: ctx.state.villains.map((v) => (v.instanceId === id ? { ...v, side: to } : v)) };
-  emit(ctx, { type: "villainFlipped", instanceId: id, from: villain.side, to });
+  if (reset) updateInstance(ctx, id, (instance) => ({ ...instance, damage: 0 }));
+  emit(ctx, {
+    type: "villainFlipped",
+    instanceId: id,
+    from: villain.side,
+    to,
+    ...(reset ? { hitPointsReset: true } : {}),
+  });
 }
 
 /**

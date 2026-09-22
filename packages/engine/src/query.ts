@@ -541,7 +541,10 @@ export function printedProfile(state: GameState, id: InstanceId): CharacterProfi
       def: 0,
       rec: 0,
       sch: stage.sch,
-      maxHp: scale(stage.hp, state.startingPlayerCount),
+      // A face printed with ∞ (RRG 1.8 "Hit Points", p. 22): damage is still dealt and taken, but "will never cause its
+      // remaining hit points to reach zero", so the defeat sweep's `damage >= maxHp` can never hold. Infinity is never
+      // stored in state: only `damage` is, and this is recomputed on each read (docs/phase7-wave3.md §3.1).
+      maxHp: stage.infiniteHp ? Number.POSITIVE_INFINITY : scale(stage.hp, state.startingPlayerCount),
     };
   }
   return undefined;
